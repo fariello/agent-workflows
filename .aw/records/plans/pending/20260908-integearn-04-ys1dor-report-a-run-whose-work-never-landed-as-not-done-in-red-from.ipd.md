@@ -6,17 +6,19 @@
 - Scope: Make the summary tell the truth about LANDING, using only what the run itself recorded. IN: an outcome that is not `COMPLETED` when the run's own record says integration was refused, rendered in red, naming the preserved branch and the refusal reason. OUT: the CAUSE of stranding (sibling Order 03), the cross-tree `aw attention` view (backlog `nuanaw`), and any change to what integration DECIDES.
 - Scope-Paths: agent_workflows/render_stream.py, tests/test_run_summary_table.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: integearn
 - Order: 4
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: ys1dor
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: 7m0aro
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 - 2026-09-08 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-501..PR-508
 
 - 2026-09-08 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-501..PR-508. Reviewed at HEAD `1cda9c4d`; `aw ipd lint` conformed clean at `--phase author` and at `--phase review-finalize`. THE PREMISE IS CONFIRMED LIVE rather than trusted: rendering `run-20260908T140845Z-2489897` at review printed `Outcome: \x1b[32mCOMPLETED\x1b[0m` with `Progress: 1/1 [##########] 100% (1 substantially-complete)` for a run whose single item carries `integration_signal: suite-failed` and `preserved_branch: aw/lane/03ie04_attempt2`. The diagnosis, the run-own-record rule, and the reject-the-filesystem-approach reasoning all hold. WHAT REVIEW CHANGED, all measured. FIRST and most seriously, the two fields E-03 tells the executor to print CONTAIN ABSOLUTE HOME PATHS (`preserved_worktree` is a `/home/<user>/...` path, and `integration_detail`'s text embeds the repository's absolute path), in the most-copied output in the product, so E-03 now forbids printing the worktree, requires repository-relative text, and makes `aw sanitize --agent` over a captured render the load-bearing V-03 evidence. SECOND, the outcome block has SEVEN branches, not five, including a `FAILED` branch the plan never mentioned that ALREADY catches an `integration-blocked` status; the real gap is the success-tuple item with a refusing signal, and a signal-first implementation would have relabelled an existing outcome, so E-04 and E-06 now pin that case explicitly. THIRD, E-01's instruction to reuse the runner's refusal constants is UNBUILDABLE: `render_stream.py` imports zero in-package modules and is imported BY both runners, so it cannot import `oc_runipd`; E-01 now records two options and prefers testing for the two EARNED values so an unknown future signal fails safe by construction. FOURTH, `integration_detail` is on the ATTEMPT, not the item, so E-03 could not be followed as written. FIFTH, E-05's real-record assertion cannot be an automated test because `.aw/records/runs/` is gitignored; a committed redacted fixture is now required. Also: the color path's else-branch is CYAN (so an unhandled word looks deliberate while being wrong) and `STRANDED` would inherit it without an explicit branch; the baseline was wrong in both count and named failure; OQ-02 resolved as STRANDED with the `any(...)` precedent supporting it; OQ-01 left to the maintainer with the new observation that `25kzda:1057` may already make the current exit code wrong. E-count 6 to 6 (no new items); no product code was modified by this review.

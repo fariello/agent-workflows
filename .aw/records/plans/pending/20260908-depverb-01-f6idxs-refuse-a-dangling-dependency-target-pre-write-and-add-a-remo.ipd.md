@@ -6,16 +6,18 @@
 - Scope: The two gaps that are unambiguous and self-contained. IN: pre-write existence validation with an explicit escape hatch for a deliberate forward reference, and a `remove` subcommand that drops a single edge idempotently. OUT: source-side dependency fields on backlog and specs, setid-valued edges, and a close-time dependency gate, each of which needs a design decision or a prerequisite this plan does not own.
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/cli.py, tests/test_dependency_verb.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: depverb
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: f6idxs
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: rxoazt
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-09 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. PR-001..PR-008, ALL EIGHT FIXED, no open findings. `aw ipd lint --phase author` CONFORMING before semantic review and `--phase review-finalize` CONFORMING after every revision, so nothing here is structural. DISCLOSURE: same agent/model authored this plan, so this is a SELF-REVIEW, and its value rests on RE-RUNNING rather than re-reading: a fresh probe repo was built and the four gap claims were EXECUTED against the real CLI, and both candidate resolvers were CALLED in-process against the live tree.
   THE FINDING THAT CHANGES WHAT GETS BUILT. E-01's INSTRUCTION WOULD HAVE CREATED THE SECOND AUTHORITY E-05 FORBIDS (PR-002, F-11). It said to resolve targets "through the shared selector resolver so the setter agrees with `aw find` and with `aw check`". Measured: `aw check` does NOT use the selector resolver for edges. `evaluate_ipd_dependencies` calls `build_dependency_index` (`check_engine.py:2347`) and `_resolve_edge` (`:2368`), a purpose-built edge resolver that enforces the edge's TYPE via `ITEM_DEP_TYPE_TO_RECORD_TYPE` and returns a THREE-WAY verdict `ok`/`dangling`/`ambiguous`, which `match_selector` has no concept of. The divergence is real, not theoretical: id6 `uyeko5` is owned by one `plans` record and TWO `research` records in this repository today. So the two E-items contradicted each other, and following E-01 would have made the setter disagree with `aw check` about the exact class of edge it exists to validate. E-01 now uses `_resolve_edge`, which satisfies E-05 by construction and gains the ambiguous verdict; E-02 is scoped so `--allow-dangling` covers `dangling` and never `ambiguous`, since an ambiguous edge cannot become valid by waiting.

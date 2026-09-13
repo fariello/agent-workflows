@@ -6,15 +6,17 @@
 - Scope: Make both fields REQUIRED at the ready-to-execute gate for new plans while leaving the terminal corpus exempt, fix the scaffold that never emitted them (the root cause of near-zero adoption), backfill the pending plans that can inherit from their source backlog item, and decide values for the remainder that have no source. Does NOT change the shared `low|medium|high` vocabulary, does NOT introduce a priority-based sort key, and does NOT touch backlog items, specs or research.
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: planprio
 - Order: 0
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: d0cbt3
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-12 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 (BLOCKER, OPEN and escalated to blocking OQ-02), PR-002..PR-009 FIXED; readiness `no-go` because one blocking question remains. Record: `.aw/records/reviews/20260910-planprio-00-d0cbt3-require-priority-and-work-kind-on-a-plan-going-forward-grand.review.md`. `aw ipd lint --phase author` CONFORMING (clean, 0 findings) before semantic review. DISCLOSURE: same agent/model family authored this Set, so treat this as a near-self-review worth less than an independent one; its value rests on what was EXECUTED rather than re-read. NINE things were measured rather than reasoned: the pending/terminal populations and the inheritance graph were recomputed from disk; `check_plan_priority`/`check_plan_work_kind` were DRIVEN against a plan carrying `grandfathered`, `unresolved` and `TODO` in each field; `ipd_lint.lint_file` was driven on an APPROVED pending plan with its gate field removed at `--phase author` and on an `executed/` plan at `--phase pre-execution`; `aw check plans` was run bare; the bare suite was run; `aw att --type plan` was run piped, with `FORCE_COLOR=1`, and with `--format json`; the `-` callers were grepped; and the `oorry1` precedent plan was read in full.
   THE SET'S THESIS IS SOUND AND ITS SEQUENCING IS NOT, which is why every finding is a correction rather than a rejection. The one BLOCKER is that Order 01 lands the gate FIRST while both backfills depend on it, and the gate fires at EVERY phase for a plan already at the ready-to-execute tier, so 18 currently-approved pending plans become unrunnable the moment Order 01 lands and stay unrunnable until Order 03's human decision table is answered. The shipped precedent this Set copies (`oorry1`) avoided exactly that by stamping the grandfather sentinel onto the pre-cutoff pending corpus in the SAME child that added the gate; this Set omits that step. Escalated as blocking OQ-02 with three costed options. Also corrected: the chosen sentinel collides with two SHIPPED enum rules that reject any out-of-vocabulary value (measured), two prescribed evidence commands cannot produce what they ask for (`aw att`'s Priority column does not exist on a piped surface; `aw check plans` is 140 errors deep before this Set touches anything), the parent parked a measurement DELIVERABLE on an orchestrator the runner retires without performing or verifying its items, and four population figures were stale with one of them false.

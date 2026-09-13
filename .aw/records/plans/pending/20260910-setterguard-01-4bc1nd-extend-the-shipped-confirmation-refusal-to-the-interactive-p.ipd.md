@@ -9,16 +9,18 @@
 - Scope: The two missing speed bumps on the status setters. IN: extending the EXISTING confirmation refusal to the FLAGLESS (neither `--agent` nor `--json`) path, which is every caller the guard misses; refusing a backwards transition out of a terminal disposition (`executed`, `superseded`, `not-executed`) unless explicitly overridden, and naming the offending artifacts; a survey of in-repo callers that would newly be refused, with `--yes` added where the call is deliberate, INCLUDING the two production callers measured at review to break (`work_cmd.run_finish` and `oc_runipd.finalize_orchestrator`); regression fixtures for both. OUT: making `--dry-run` the DEFAULT for the setters (a larger behavior change deserving its own decision, recorded as deferred); anything about what a bare setid MEANS, since within-type fan-out is deliberate (`laykok` E-07) and correct; the history-message and durability defects (Order 02 of this Set); FIXING `select_output`'s docstring/behavior mismatch (a separate defect this plan must not silently absorb; recorded as deferred with its own carrier).
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/work_cmd.py, agent_workflows/oc_runipd.py, tests/test_status_set.py, tests/test_work_primitives.py, tests/test_work_kind.py, tests/test_ipd_priority.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: setterguard
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 4bc1nd
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: f5pttg
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-012 (9 FIXED, 3 DEFERRED each carried by E-06); readiness GO - PENDING HUMAN APPROVAL. Corrected the plan's central diagnosis (PR-001): `select_output` implements no TTY rule, so the guard keys on the `--agent`/`--json` flags and the unguarded set is every flagless caller, not "humans". Measured the blast radius the authored survey could not see (PR-002): applying E-01 in an isolated worktree gave `5955 passed, 4 failed` against a `5959 passed` baseline, breaking `work_cmd.run_finish` (observed) and `finalize_orchestrator` (latent). Closed a corpus-sized hole in E-02 (PR-003): 25 of 479 executed plans carry uppercase `EXECUTED`/`DONE` and would have been skipped by a case-sensitive guard. Added E-06 so three deferred findings get durable backlog carriers instead of dying as prose in a plan bound for `executed/`. `Scope-Paths` grew from 2 to 7 declared paths.
 - 2026-09-10 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `f5pttg`, which was filed after this defect fired ACCIDENTALLY during an unrelated cleanup. Every claim here was measured rather than reasoned: the unreachable-guard condition read at `status_set.py:1333`, the asymmetric forward-only `executed` gate at `:1312-1328`, and a MINIMAL ISOLATED REPRODUCTION in a scratch repo (two `executed` plans sharing a setid, one flagless command, both silently reverted and moved to `pending/`) so the fixture does not depend on this repository's corpus. ALSO SURVEYED, because it is the one real risk of fix 1 (F-4): the in-repo callers that would newly be refused. The runner drivers ALREADY pass `--yes` (`oc_runipd.py:763-772`, `:794-800`), and the only workflow-document mentions are PROSE about the forbidden `aw set executed` bypass rather than live invocations, so the blast radius is smaller than it first appears. That survey is the reason E-03 exists as its own item rather than as a footnote.

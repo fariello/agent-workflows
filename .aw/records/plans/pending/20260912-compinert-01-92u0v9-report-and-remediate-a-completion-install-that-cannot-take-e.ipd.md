@@ -10,7 +10,7 @@
 - Scope: Detect whether the installed completion can actually take effect, and when it cannot, say so precisely and offer the one-line remediation instead of reporting plain success. Covers the `aw completion install` verb, the `_configure_completion` step in the setup flow, and the success/next-step messages both print. EXCLUDES writing to any user rc/dotfile without explicit consent, changing the generated script (verified correct), changing the drop-in layout or the alias symlinks (verified correct), and any change for zsh/fish beyond the equivalent detection if it is cheap and correct.
 - Scope-Paths: agent_workflows/completion.py, agent_workflows/cli.py, tests/test_completion.py, README.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Backlog: lalwnj
 - Priority: medium
@@ -21,8 +21,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 92u0v9
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 - 2026-09-12 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED, none deferred, no open question added; readiness `go-pending-approval`. Record: `.aw/records/reviews/20260912-compinert-01-92u0v9-report-and-remediate-a-completion-install-that-cannot-take-e.review.md`. `aw ipd lint --phase author` CONFORMING (clean, 0 findings) before semantic review. DISCLOSURE: same agent/model family authored this plan, so this is a near-self-review; its value rests on what was EXECUTED, not re-read. TEN things were run: the F-1 grep was re-run verbatim; both discriminator commands were run bare AND under `env -i` with a fake HOME; `~/.bashrc` was read; its mtime was stat'd; `aw completion install --dry-run` was run to capture the real message; the nine no-rc-write promise sites were enumerated by grep; `_configure_completion` and `_configure_runner_profiles` were read for the `--yes` precedent; `install_wizard`'s `os.replace` shape was located; the README section its own test pins was read; and the probe cost was timed.
   THE PLAN'S DIAGNOSIS IS CORRECT AND ITS DESIGN IS SOUND, which is why every finding is a correction rather than a rejection. F-1 re-verified exactly (the grep returns only unrelated `generate_bash_completion` hits, so the precondition is checked nowhere), F-2 re-verified at both message sites, and the false pairing is real: `aw completion install --dry-run` prints four green `OK` lines and the useless next step.
   BUT THE MACHINE THE PLAN WAS MEASURED ON HAS SINCE BEEN FIXED BY HAND, and that invalidates the plan's central measurement rather than its thesis. Measured at review: `bash -ic 'echo ${BASH_COMPLETION_VERSINFO-}'` now returns `2`, NOT empty, because `~/.bashrc` (mtime 2026-09-12 16:46) now contains the remediation stanza this plan proposes to offer, already wrapped in the exact paired fences E-03 prescribes. So an executor following V-01 literally cannot reproduce the stated `-ic` -> empty result, would see its evidence criterion fail, and might "fix" a predicate that is correct. The pre-fix state was reproduced under `env -i HOME=<empty> bash -ic` (unset) versus `bash -lic` (2), which is the durable way to demonstrate the discriminator and is now what the plan requires.

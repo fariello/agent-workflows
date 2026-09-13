@@ -11,17 +11,19 @@
 - Scope: Record, per RUN, the RESOLVED model identity and the RESOLVED rate card in effect at launch, with a digest so a later host-config edit is detectable, and make cost views read the recorded card rather than the current one. EXCLUDES per-STEP model attribution, which no host currently emits (see OQ-01 and the deferred section); excludes any analytics, statistics, taxonomy, pricing-era arithmetic, SPA, export, or query surface, ALL of which belong to the `runanalytics` Set; excludes changing what any model is or how it is chosen (`runprofile`).
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, agent_workflows/oc_models.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_oc_models.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: runverdict
 - Order: 7
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: w33lrl
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 - From-Backlog: vlf75p
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-09 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. PR-001..PR-009, ALL NINE FIXED, no open findings. `aw ipd lint --phase author` CONFORMING before semantic review and `--phase review-finalize` CONFORMING after every revision, so nothing here is structural. DISCLOSURE: same agent/model authored this plan, so this is a SELF-REVIEW, and its value rests on RE-MEASURING rather than re-reading; nine of the plan's premises were re-run and FOUR of them inverted an instruction.
   THE FOUR THAT INVERTED SOMETHING. (1) E-01 pointed the executor at `models_from_config` to resolve the host default; that function returns the 82-entry CATALOG of declared `provider/model` keys and the default is the config's top-level `model` key, which NOTHING in this repository reads, so the instruction yields a list and no answer (PR-002, F-12). E-01 now adds one no-secret accessor and records WHICH key supplied the value. (2) E-02 said to reuse `oc_models`' price vocabulary; the config already stores `$/Mtok` and `per_million` is the WRITE-side per-token converter, so calling it on a value read back would multiply by 1e6 -- the exact error the paragraph was written to prevent (PR-003, F-14). (3) E-03 said to make the recorded card authoritative for the reported cost, but NOTHING in the repository prices tokens from a card: cost is a sum of `part.cost` from `step_finish`, so the non-substitution property is already true by construction and an executor hunting the substitution could plausibly BUILD the recomputation E-06 forbids (PR-004, F-15). E-03 is now a stated invariant plus a regression guard. (4) E-04's agy framing was backwards: agy carries `DEFAULT_MODEL = "gemini-3.7-flash-high"`, writes it into `options["model"]` at run creation, and all 4 agy runs record it, so agy needs NO model work and oc is the host that is behind; what agy genuinely cannot resolve is a CARD, because that model is absent from the OpenCode config's 8 gemini entries (PR-005, F-16).

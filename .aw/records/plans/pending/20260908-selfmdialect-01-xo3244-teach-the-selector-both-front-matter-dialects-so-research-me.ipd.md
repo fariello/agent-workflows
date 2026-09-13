@@ -6,17 +6,19 @@
 - Scope: Make the resolver's three front-matter readers understand the YAML dialect in addition to the bullet dialect, so research id6/setid/status become matchable, and ACCEPT the resulting contract change deliberately (`aw find research reference` goes from 5 results to 52). Reuse `research_contract.parse_frontmatter` rather than writing a second YAML reader. Preserve the documented precedence chain, the bounded header read, the artifacts-not-mentions rule, and byte-for-byte identical behavior for every non-research type. Replace the test that pins today's filename-only behavior with one that pins the new behavior, and record the change in the changelog because it is user-visible.
 - Scope-Paths: agent_workflows/selectors.py, tests/test_selector_zero_open.py, CHANGELOG.md
 - Item-Dependencies: executed:76w6mq
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: selfmdialect
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: xo3244
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: 05aqbj
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False; `review_findings.subject_gating_blocks` -> empty; `plan_readiness.newest_verdict` polarity -> None (not negative). Specifically, both blocking questions were answered on 2026-09-10 (dependency edge declared; both selector surfaces accepted) and the findings they escalated, PR-301 and PR-303, are now closed in review round 2. Performed at HEAD `5692797e` at the maintainer's explicit instruction of 2026-09-10, who was shown that 12 of 15 `no-go` plans were held by stale bookkeeping and chose to have them fixed with evidence recorded rather than re-reviewed. This is the SECOND such cleanup in one session; the durable fix is plan `qhy3i3` E-07, authored and awaiting approval. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`. NOTE ON THE VERDICT INPUT FOR THIS PLAN: `newest_verdict` returns polarity None here, NOT because the review is missing but because this session's tooled `aw ipd dependencies set` write appended a `reviewed (aw set)` history line that `is_review_history_entry` misclassifies as a review record, shadowing the real one. The actual review verdict is `REVIEWED - OPEN QUESTIONS` (confirmed in both the plan history and the typed review record's `- Verdict:` field), which is the NEUTRAL case and not a negative verdict, so the third condition is genuinely clear. That misclassification is a real defect and is filed as backlog `ycg597`; it is NOT a reason to withhold this re-check.
 - 2026-09-10 reviewed (aw set): set Item-Dependencies to executed:76w6mq
 

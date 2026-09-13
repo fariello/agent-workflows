@@ -13,17 +13,19 @@
 - Scope: Make `aw group plans` preserve each plan's existing Order when `--order` is absent, on BOTH its branches (the `--rename` clustering path AND the metadata-only path, which is the worse of the two, F-11), reusing one of the two shapes already shipped in this repository, and give `group` the regression test `rename` already has. EXCLUDES changing `run_mv` (it is correct), `artifact_rename.run_group_generic` (already correct, and the preferred model to copy), `research_refs.run_set_assign` (the same defect, named in F-12 and deferred with its owner unassigned), the lint-reachability gap (`k9awrq` owns it), and any refusal to place a child at Order 0 (recorded as a decision, not built).
 - Scope-Paths: agent_workflows/plans_refs.py, agent_workflows/cli.py, tests/test_awnaming_grammar_and_producers.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: groupord
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: e3hzyc
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: s9p5x5
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-09 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. PR-001..PR-007, ALL SEVEN FIXED, no open findings. `aw ipd lint --phase author` CONFORMING before semantic review and `--phase review-finalize` CONFORMING after every revision, so nothing here is structural. DISCLOSURE: same agent/model authored this plan, so this is a SELF-REVIEW, and its value rests on RE-RUNNING rather than re-reading: a fresh probe repo was built and SEVEN behaviors were executed against the real CLI (bare rename-regroup, bare metadata-only regroup, multi-plan explicit `--order`, date preservation with a divergent front-matter date, date fallback with no `- Date:` line, the same case through `rename` for contrast, and `aw ipd lint` versus `aw check` on the corrupted result).
   THE TWO FINDINGS THAT CHANGE WHAT GETS BUILT. (1) THE DEFECT ALSO FIRES WITH NO `--rename`, AND THAT CASE IS WORSE (PR-002, F-11). Measured: `aw group plans <id6> --set X --apply` writes `- Order: 0` while the filename keeps `-01-`, so the file CONTRADICTS ITS OWN NAME, and in that state `aw check plans`, bare `aw check`, and lint's name rules all report nothing. The cause is that `order = start_order + i` sits ABOVE the `if rename:` split and flows into the metadata-only `RenamePlan(src, src, id6, order=order)`. The authored Concern, Scope, E-01, E-02 and every test case named only the `--rename` path, so a conforming execution could have fixed the visible half and shipped the invisible one. (2) A SECOND AND BETTER PRECEDENT EXISTS THAT THE PLAN DID NOT FIND (PR-003, F-10): `artifact_rename.run_group_generic`, the `group` backend for every non-plan type, threads an `Optional[int]` (`order_val = (start_order + i) if start_order is not None else None`) so the name computer falls back to the filename's `NN` and the metadata writer OMITS the `- Order:` line when the value is `None`. That fixes both branches by construction where the `run_mv` three-tier port fixes one, so the plan's "the fix is a PORT" was true of the wrong shape. E-02 now presents both and requires a recorded choice.

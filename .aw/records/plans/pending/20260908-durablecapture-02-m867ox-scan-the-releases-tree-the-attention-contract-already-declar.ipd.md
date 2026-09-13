@@ -9,16 +9,18 @@
 - Scope: Add the releases scan root(s) so the declared tracked tree is actually scanned, decide the `reviews` tree deliberately (a `TreePolicy` either tracked or explicitly excluded WITH a reason, matching how the other five exclusions are recorded), and add a consistency check asserting every `TRACKED_TREES` entry has at least one `SCAN_ROOTS` entry so this class of drift cannot recur silently. EXCLUDES retiring `TODO.md` (sibling backlog `ld08f1`, whose plan is authored alongside this one); excludes per-requirement spec tracking (`f1sw71`); excludes the durable-carrier predicate (pending plan `rnkqrc`, from `jys5dp`); excludes changing any release record or the `Blocks-Release` resolution logic.
 - Scope-Paths: agent_workflows/artifact_core.py, agent_workflows/attention_contract.py, tests/test_artifact_core.py, tests/test_attention_contract.py, tests/test_backlog.py, tests/test_next_ordering.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: durablecapture
 - Order: 2
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: m867ox
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: v7u6vm
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 all FIXED, zero deferred, zero open; OQ-01 and OQ-02 resolved from evidence; review record written
 - 2026-09-09 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 all FIXED, zero deferred, zero open. Both open questions RESOLVED from repository evidence.
   THE PLAN'S CENTRAL DIAGNOSIS IS CORRECT AND WAS RE-MEASURED WHOLE at HEAD `8dffd7a0`: `releases` is declared tracked, matches no scan root, and contributes zero items to a view that reports `valid: true`; the `TreePolicy` and the status map both already exist, so the fix really is one scan root. Its F-3 self-correction was right and its sibling-boundary check against `rnkqrc` holds.

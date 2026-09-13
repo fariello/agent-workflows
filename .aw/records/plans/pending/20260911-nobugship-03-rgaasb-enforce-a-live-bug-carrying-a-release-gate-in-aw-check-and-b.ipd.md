@@ -6,16 +6,18 @@
 - Scope: Add one `aw check` rule refusing a live bug-kind item with no release gate, registered in the rule registry so CI fails on it, then backfill the existing violations or record an explicit exemption for each. Does NOT change the creation default (child 02 owns it), does NOT gate other work kinds, and does NOT retroactively gate a bug already `done`.
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_bug_gate_check.py, .aw/records/backlog, .aw/records/plans/pending
 - Item-Dependencies: executed:di08i9
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: nobugship
 - Order: 3
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: rgaasb
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-12 reviewed round 2 (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 now FIXED by the maintainer's OQ-03 ruling, PR-012 (NEW, MEDIUM) FIXED, PR-002..PR-011 FIXED; readiness `no-go` -> `go-pending-approval`. `aw ipd lint --phase review-finalize` CONFORMING (the earlier `IPD-Q501` on blocking OQ-03 cleared when the question was answered). THE RULING WAS VERIFIED, NOT TRUSTED, because it arrived as an edit to a plan under review: its load-bearing measurement reproduces (gating pending plan `yeh7gc` under ungated item `5ev6lh` yields ZERO findings, cause `if mid and mbr` at `check_engine.py:2213-2216`), and every precedent it cites exists (`is_retired` `:482-494`, `_EXECUTED_SEGMENT` `:999`, the neighbouring `executed/` exclusion `:1069-1071`). THE RULED REMEDY WAS THEN EXECUTED END TO END in a throwaway copy: narrowing applied, all 22 items backfilled, findings 15 -> 13 (both terminal carriers gone), the 13 live carriers co-updated -> ZERO findings, 0 command failures, bare suite `5971 passed, 3 skipped, 2 xfailed in 61.04s`. PR-012 is the gap the ruling left: it authorized the plans tree in scope and the OQ-03 prose says so twice, but the `- Scope-Paths:` FIELD still forbade it, which would have sent the executor into the finalize gate with 13 undeclared edits; `.aw/records/plans/pending` is now declared. Also tightened: E-04 must narrow BEFORE backfilling (the reverse order reds the exit-blocking sweep in a shared checkout), and spec-sync now records that this plan AMENDS a shipped rule.
 - 2026-09-12 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 (BLOCKER, OPEN and escalated to blocking OQ-03), PR-002..PR-011 FIXED; readiness `no-go` because one blocking question remains. Record: `.aw/records/reviews/20260911-nobugship-03-rgaasb-enforce-a-live-bug-carrying-a-release-gate-in-aw-check-and-b.review.md`. `aw ipd lint --phase author --agent` CONFORMING (clean, exit 0, 0 findings) before semantic review and `--phase review-finalize` after every revision. DISCLOSURE: the same agent/model family authored this Set, so treat this as a near-self-review; its value rests on what was EXECUTED.

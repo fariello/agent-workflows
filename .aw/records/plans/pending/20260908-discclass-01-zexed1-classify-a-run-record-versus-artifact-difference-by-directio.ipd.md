@@ -13,16 +13,18 @@
 - Scope: Replace the boolean mismatch pair with a DIRECTIONAL classification (`resolved`/`regressed`/`retired`/`missing`/`unchanged`, plus an explicit `unknown`) grounded in a READ, TIME-BOUND git-history check for the in-tree finalize commit, reserving the red styling for a difference that indicates something actually wrong, and keeping an unprovable row VISIBLE as `unknown` rather than green. The forward direction is DERIVED from "the run status is non-terminal for this artifact's lifecycle", not enumerated from the four rows that prompted the item, because the enumerated form leaves 325+ of 508 measured false rows red (see Concern, PR-201). The classification is applied at BOTH the human table and the `--json`/`--agent` records, which today share the same predicate. EXCLUDES the `interrupted`-vs-`approved` row (`vdabn5` owns it and lands first); EXCLUDES extracting or relocating the audit (`6ltz1y` owns that and MUST land first); EXCLUDES the five-copy issue predicate's consolidation (`r2i1b1` E-03 owns it); EXCLUDES the run summary's outcome word (`ys1dor`) and the attention view (`pr5b0t`); EXCLUDES fixing the mis-resolution defect E-01 must REPORT (`6ltz1y` E-03 owns the resolver replacement).
 - Scope-Paths: agent_workflows/run_viewer.py, tests/test_run_viewer.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: discclass
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: zexed1
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: 1f9m2j
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False; `review_findings.subject_gating_blocks` -> empty; `plan_readiness.newest_verdict` polarity -> neutral (not negative). Specifically, its blocking OQ-04 was answered on 2026-09-10 (accept the trade; successors own stranded-lane detection) and no finding gates it. Performed at HEAD `5692797e` at the maintainer's explicit instruction of 2026-09-10, who was shown that 12 of 15 `no-go` plans were held by stale bookkeeping and chose to have them fixed with evidence recorded rather than re-reviewed. This is the SECOND such cleanup in one session; the durable fix is plan `qhy3i3` E-07, authored and awaiting approval. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-10 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review; REVIEWED - OPEN QUESTIONS; readiness NO-GO pending OQ-04. Findings PR-201..PR-206, all FIXED in place, no deferrals; one new BLOCKING question raised. Structural preflight `aw ipd lint --phase author` conformed before semantic review. DISCLOSURE: same model family and session lineage as the author, so this is close to a self-review and worth less than an independent one.

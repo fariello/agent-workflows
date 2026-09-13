@@ -6,16 +6,18 @@
 - Scope: Make the rule survive without anyone remembering it, in the three places that make a rule hold here: write it down where it is discoverable, apply it at creation so the default is correct, and enforce it in the checker so drift cannot accumulate silently. Then backfill the existing violations. Does NOT change what counts as a bug, does NOT change the release record's own contract, and does NOT gate any non-bug work-kind.
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: nobugship
 - Order: 0
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: qmgn12
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-12 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 (BLOCKER, OPEN and escalated to blocking OQ-03), PR-002..PR-007 FIXED; readiness `no-go` because one blocking question remains. Record: `.aw/records/reviews/20260911-nobugship-00-qmgn12-make-the-no-known-bugs-release-rule-durable-instead-of-oral.review.md`. `aw ipd lint --phase author` CONFORMING (clean, 0 findings) on this plan and on all three children before semantic review. DISCLOSURE: same agent/model family authored this Set, so treat as a near-self-review; its value rests on what was EXECUTED. EIGHT things were measured rather than recalled: the oral-rule grep re-run verbatim across six files; all five population counts recomputed from disk; the graduation leak recomputed per-item; the shipped `check_release_gate_consistency` predicate DRIVEN on the live tree; the same predicate driven again in a THROWAWAY COPY after backfilling one item, which is how the blocker was found; the gate spelling tallied across all gated items; the release record's `next` resolution confirmed; and the terminal-plan edit policy read.
   THE SET'S THESIS IS CORRECT AND ITS THREE-PART SHAPE IS RIGHT. The rule really is written nowhere, and the graduation leak reproduces EXACTLY as authored: 11 of 11 graduated gateless bugs have a plan carrying their `- From-Backlog:` and 0 of 11 of those plans carry a gate. Write-it-down, default-at-creation, enforce-and-backfill is the right decomposition and none of it was changed.

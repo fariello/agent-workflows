@@ -9,17 +9,19 @@
 - Scope: Make `aw find` DISTINGUISH a genuine identity collision from the legitimate reference conventions it currently renders identically, and flag only the former, naming the remedy that actually applies to the shape found. Read-only: `find` keeps SHOWING every match and keeps exit 0 for the human path. EXCLUDES the minting and detection half (Order 01), the two-tier re-authoring of `find` (`f8m2z2`), and setid uniqueness (`sjsoqq`).
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/selectors.py, tests/test_cli_find.py, tests/test_find_collision_surface.py
 - Item-Dependencies: executed:sk7ggr
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: id6integ
 - Order: 2
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: paw8so
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: h2ceme
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL; PR-001..PR-008, all FIXED, zero deferred, no open questions. `aw ipd lint` conformed at `--phase author` before review and again at `--phase review-finalize` after revisions; `aw sanitize --agent` clean.
   THE PLAN'S CORE THESIS HOLDS AND IS WORTH STATING FIRST, because it is the reason the plan exists and it survived every check: `aw find uyeko5` still prints THREE rows at exit 0 from three different causes; the review convention really is documented (`reviews/README.md`, "the REVIEWED ARTIFACT's id6, not a fresh identifier") and really would be mass-flagged by the item's proposed message; both of the item's original examples really are gone (`y6mfgo` and `ntf6sx` each return one plan); and the plan's central judgement, that DISCRIMINATION rather than detection is the problem, is correct. Its instinct to refuse the item's one-size warning was right.

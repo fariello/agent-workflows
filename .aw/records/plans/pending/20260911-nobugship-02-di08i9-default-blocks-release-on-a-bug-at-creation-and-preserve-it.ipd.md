@@ -6,16 +6,18 @@
 - Scope: Make the correct gate the DEFAULT rather than an act of memory, at both points where it is currently lost: creating a bug item, and graduating one into a plan or spec. Does NOT enforce anything retroactively (child 03 owns the backfill and the checker), does NOT gate other work kinds, and does NOT change what `next` resolves to.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/cli.py, tests/test_bug_gate_default.py
 - Item-Dependencies: executed:zqs0px
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: nobugship
 - Order: 2
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: di08i9
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-12 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (BLOCKER) through PR-010, all FIXED, none deferred, no open question left blocking; readiness `go-pending-approval`. Record: `.aw/records/reviews/20260911-nobugship-02-di08i9-default-blocks-release-on-a-bug-at-creation-and-preserve-it.review.md`. `aw ipd lint --phase author --agent` CONFORMING (clean, exit 0, 0 findings) before semantic review and `--phase review-finalize` after every revision. DISCLOSURE: the same agent/model family authored this Set, so treat this as a near-self-review; its value rests on what was EXECUTED, not on the reading.
   E-01 WAS IMPLEMENTED IN A THROWAWAY COPY AND IT BROKE THE SUITE, WHICH IS HOW THE BLOCKER WAS FOUND. Patching `backlog.run_new` exactly as E-01 prescribed (default `next` for a bug, REFUSE when it does not resolve) produced `10 failed, 77 passed` across `tests/test_backlog.py`, `tests/test_backlog_work_kind_rename.py`, `tests/test_backlog_blocking_close_gate.py` and `tests/test_release_gate_close.py`, every failure being a fixture that creates no release record. The cause is not the fixtures: `aw install` on a fresh repo creates NO `.aw/records/releases/` directory at all (driven at review on an empty repo), so the prescribed refusal would make `aw backlog new --work-kind bug` FAIL OUTRIGHT in every freshly installed adopter repo. Re-patched to fall back to ungated when `next` does not resolve, the bare suite passed `5971 passed, 3 skipped, 2 xfailed in 58.71s`. PR-001 rewrites E-01 accordingly and the refusal is kept where it belongs: on an EXPLICIT unresolvable `--blocks-release`, which already ships and must not regress.

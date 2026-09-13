@@ -12,16 +12,18 @@
 - Scope: Add the repository-policy tier: a project-config key read through a `config.py` accessor following the two shipped precedents, consulted by `resolve_retry_budget` only when no CLI value was passed, falling back to `run_recovery.DEFAULT_RETRY_LIMIT`, with the 0..10 bound still reached through `validate_retry_budget` and the resume freeze unchanged. EXCLUDES SPENDING the budget, which is `xipfy1`'s (`retrywire-01`) entire subject and which this plan must not touch; EXCLUDES the separate `--integration-retry-limit` knob (`51vw4y` E-02, explicitly told not to reuse `DEFAULT_RETRY_LIMIT`); EXCLUDES editing `project_schema.py`, which does not need it.
 - Scope-Paths: agent_workflows/config.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_run_flag_surface.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: retrytier
 - Order: 1
 - Highest E allocated: 06
 - Readiness: go-pending-approval
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: y4adch
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: dh3us4
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False; `review_findings.subject_gating_blocks` -> empty; `plan_readiness.newest_verdict` polarity -> neutral (not negative). Specifically, its blocking OQ-01 was answered on 2026-09-10 (fall back and warn) and the finding it escalated, PR-004, is now closed in review round 2. Performed at HEAD `5692797e` at the maintainer's explicit instruction of 2026-09-10, who was shown that 12 of 15 `no-go` plans were held by stale bookkeeping and chose to have them fixed with evidence recorded rather than re-reviewed. This is the SECOND such cleanup in one session; the durable fix is plan `qhy3i3` E-07, authored and awaiting approval. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-10 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: REVIEWED - OPEN QUESTIONS; PR-001..PR-008, seven FIXED and PR-004 escalated to OQ-01 (Blocking: yes); Readiness no-go pending that answer
 

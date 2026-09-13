@@ -14,17 +14,19 @@
   THE KNOWN SET IS FOUR VALUES, NOT THREE, AND THE FOURTH IS DECIDED HERE. `CONFORMING` is in live use by twelve existing tests and is not in the prompt. Mapping it is IN SCOPE and is not a prompt change; changing the PROMPT to advertise it is OUT of scope and belongs to whoever owns the schema. If the decision is that `CONFORMING` must NOT pass, then updating those twelve call sites is in scope and must be done in the same change rather than left as a red suite.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_refork_guard.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: runverdict
 - Order: 5
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 1bfppy
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 - From-Backlog: wyw936
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-D01..PR-D11, ten FIXED, PR-D06 open as non-blocking OQ-03; readiness go-pending-approval
 
 - 2026-09-09 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-D01..PR-D11, ten FIXED and one (PR-D06) left OPEN as non-blocking OQ-03. Readiness `go-pending-approval`. Record: `.aw/records/reviews/20260908-runverdict-05-1bfppy-map-the-verifier-verdict-through-one-fail-closed-table-so-a.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after, so nothing here was structural. DISCLOSURE: same agent/model authored this plan, so this is a SELF-REVIEW, and its value rests on RE-MEASURING rather than re-reading.

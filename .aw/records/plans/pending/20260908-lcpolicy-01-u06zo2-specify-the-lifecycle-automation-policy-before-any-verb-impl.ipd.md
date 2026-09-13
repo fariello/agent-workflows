@@ -6,16 +6,18 @@
 - Scope: Produce the SPEC, not the engine. Enumerate the transitions and the conditions that actually gate them today, by reading each verb; answer the five open questions with the maintainer; and define one policy predicate every verb will consult, extending the shipped `auto-approved` attestation vocabulary rather than forking it. NO verb behavior changes in this plan, so nothing can regress while the design is settled.
 - Scope-Paths: .aw/records/specs
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: lcpolicy
 - Order: 1
 - Highest E allocated: 06
 - Readiness: go-pending-approval
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: u06zo2
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: rxya25
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False; `review_findings.subject_gating_blocks` -> empty; `plan_readiness.newest_verdict` polarity -> neutral (not negative). Specifically, its two remaining open questions are BOTH `Blocking: no` (OQ-03, OQ-05), which under the maintainer ruling of 2026-09-10 is not a not-ready condition. Performed at HEAD `84111de2` at the maintainer's explicit instruction of 2026-09-10, who was shown that 10 of 15 `no-go` plans were held by stale bookkeeping and chose to have them hand-fixed with evidence recorded rather than re-reviewed. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-09 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review complete: REVIEWED - OPEN QUESTIONS; PR-001..PR-008; three of the item's five design questions raised as OQ-03/04/05, OQ-04 blocking (irreversible indistinguishability property); Readiness no-go pending that answer

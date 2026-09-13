@@ -6,17 +6,19 @@
 - Scope: Close the last mile only. Write the refusal record on the RECONSIDER (deferred) path too, so the deferral reason and a remedy reach the queue item rather than only the event log, and make the existing typed reasons render. Reuses the refusal record and both render surfaces that reviewed plan `r2i1b1` builds; adds NO new refusal decision and changes NO gate's verdict.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_orchestrator_deferral_reporting.py
 - Item-Dependencies: executed:r2i1b1
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: runghostid
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: zyw4n3
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: i2fjf8
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-09 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901..PR-907, all FIXED, none deferred; readiness `go-pending-approval`. Record: `.aw/records/reviews/20260908-runghostid-01-zyw4n3-emit-a-refusal-record-when-an-orchestrator-is-deferred-so-a.review.md`. `aw ipd lint --phase author` CONFORMING before semantic review and `--phase review-finalize` conforming after, so nothing here was structural. DISCLOSURE: same agent/model authored this plan, so this is a SELF-REVIEW, and its value rests on EXECUTING its claims rather than re-reading them. NINE things were run: `dispatch_orchestrator_item` was DRIVEN on a purpose-built two-plan temp repo to reach the RECONSIDER branch and its item keys dumped; the same function was driven to reach TERMINATE; both reason-constant blocks were printed and their value sets differenced; `render_run_summary_table` was rendered on a `queued` orchestrator; `render_stream`'s first-party imports were AST-walked; every consumer of the two bespoke fields was grepped across `agent_workflows/` and `tests/`; both hosts' `## Dependency blocks (why)` copies were located; `evaluate_backlog_close` was run for `i2fjf8` and its carriers grepped; and the bare suite plus the named module were run.
   THE CENTRAL DEFECT REPRODUCES EXACTLY AS THE PLAN SAYS, which is the main result and is why this is a GO: driving the real dispatch on a deferred orchestrator gives `outcome=reconsider`, `reason=children-unfinished`, `status` still `queued`, and item keys with NO refusal field, while rendering the real summary on that item produces no diagnostics line at all. The plan's diagnosis, narrowing and dependency are all correct. SEVEN THINGS WERE WRONG AROUND IT, none fatal. The sharpest is that a SECOND reason vocabulary exists (`RETIRE_REFUSED_*`, four values) which shares three values with `ORCH_REASON_*` and carries a near-miss pair (`unfinished-children` versus `children-unfinished`), so E-02's mapping had to state which set it keys on and assert the translation (PR-901). Next, the refusal record lives in `render_stream.py` by `r2i1b1`'s deliberate circular-import-avoiding design, so E-01 must IMPORT it and must not move or re-export it into `runner_shared` (PR-902). Third, "no consumer reads the bespoke fields" is false: a live test does, which strengthens the plan's keep-them decision but changes what E-03 must prove (PR-903). Also fixed: the named "known baseline failure" does not exist and the module is 112 PASSED, so an executor could have excused their own regression (PR-904); the `## Dependency blocks (why)` section is in BOTH hosts and is status-gated rather than a general fallback (PR-905); every line number in the plan had drifted ~340 lines in one day (PR-906); and the release gate is this plan's ALONE, so its finalize can legitimately auto-close the item (PR-907). OQ-01 was addressed to the reviewer and is now RESOLVED: the remedy must NOT mention `--full-auto`, since suggesting an approval bypass inside a refusal message is the worst possible placement for it.

@@ -6,15 +6,17 @@
 - Scope: Assign both fields to every pending plan sibling 02 could not reach, using a SECOND derivation route where one exists (a child inheriting from its Set orchestrator) and a single human decision list for the genuine remainder. Writes through the shipped `aw ipd set` setters only. Does NOT touch any plan sibling 02 handled, does NOT edit terminal plans, and does NOT change any vocabulary.
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: executed:lkexaw
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: planprio
 - Order: 3
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: lc4unl
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-12 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 (BLOCKER, OPEN and escalated to blocking OQ-02), PR-002 (BLOCKER, OPEN and escalated to blocking OQ-03), PR-003 (BLOCKER, OPEN, inherits the parent's blocking OQ-02, escalated here as OQ-04), PR-004..PR-012 FIXED; readiness `no-go`. Record: `.aw/records/reviews/20260910-planprio-03-lc4unl-decide-and-record-priority-and-work-kind-for-the-20-pending.review.md`. `aw ipd lint --phase author` CONFORMING (clean, 0 findings) before semantic review. Suite measured bare at HEAD `5e0e9873`: `5971 passed, 3 skipped, 2 xfailed in 58.02s`. DISCLOSURE: same agent/model family authored this Set, so treat as a near-self-review; its value rests on what was EXECUTED.
   THE PLAN'S THESIS IS SOUND: a population with no source needs a decision, and shrinking that decision before asking a human is the right instinct. THE SET-INHERITANCE ROUTE IS ALSO SOUND, and review measured it delivering a real reduction: 13 human decisions covering 28 plans rather than 28. Neither was changed.

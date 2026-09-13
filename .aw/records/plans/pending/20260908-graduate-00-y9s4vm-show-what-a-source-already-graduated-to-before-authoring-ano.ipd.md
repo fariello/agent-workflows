@@ -10,16 +10,18 @@
 - Scope: The two children this needs, in the order the item requires. IN: (a) the PRE-GRADUATION VIEW, read-only and advisory, reporting every existing plan for a source with its status and Set so whoever graduates sees the cluster before authoring, plus the honest statement of which of the three cases it can and cannot detect; (b) making a spec or backlog selector REACHABLE for the plan action, building on the spec discovery that now exists rather than adding a second enumeration. OUT: per-requirement spec tracking (backlog `f1sw71`, which the item names as the blocker for the "already implemented" case); any semantic already-implemented verdict; any change to the two existing dangling checks. ALSO OUT, added at review: the FORWARD `Graduated-To` link, which pending plan `bwgyum` (Set `setidhard`, Order 02, `reviewed`, `go-pending-approval`) owns; see the coordination constraint below, because the two Sets read the same relationship from opposite ends and must not each grow their own index.
 - Scope-Paths: .aw/records/plans/pending/20260908-graduate-01-jxxec8-report-every-existing-plan-for-a-source-before-a-tenth-is-au.ipd.md, .aw/records/plans/pending/20260908-graduate-02-iuxtjy-make-a-spec-or-backlog-selector-reachable-for-the-plan-actio.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: graduate
 - Order: 0
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: y9s4vm
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: 6h7y2y
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-901..PR-909 all FIXED; readiness go-pending-approval
 
 - 2026-09-09 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901..PR-909, all nine FIXED, none deferred, none open. Readiness `go-pending-approval`. Record: `.aw/records/reviews/20260908-graduate-00-y9s4vm-show-what-a-source-already-graduated-to-before-authoring-ano.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after, so nothing found was structural. DISCLOSURE: same agent and model authored this plan, so this is a SELF-REVIEW, and its value rests on RUNNING the claims rather than re-reading them. Nine load-bearing claims were re-measured: FIVE hold exactly (the `--action plan` fail-closed refusal and its `a3bb14bf`/2026-09-05 date one day before the item was filed; `discover_specs`'s existence, AST path-literal guard, single consumer and 9-of-28 coverage verified in a worktree AT `a2e0438a`; the absence of any reverse-direction rule; spec `6m4kow`'s three executed plans; spec `25kzda` §1.3/§2.1 describing graduation as shipped) and FOUR had drifted.

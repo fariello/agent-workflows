@@ -10,17 +10,19 @@
 - Scope: Add the END-OF-RUN declared-spec-edit report on both hosts from ONE shared implementation, and make a failed START computation say so instead of vanishing. Both land in shared code, so both reach both hosts. Then EXTEND `AGENTS.md:82` to cover the new end-of-run behavior and the reported failure; its existing start-of-run claim is already TRUE and must not be "corrected" (F-8). Add no new policy: this plan changes what the operator is TOLD, never what a run is ALLOWED to do. EXCLUDES wiring agy to the start announcement, which review proved is already wired.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/render_stream.py, agent_workflows/engine.py, AGENTS.md, tests/test_spec_visibility.py, tests/test_spec_impact_visibility.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: specvis
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: st5klo
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: dk16dx
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-09 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901..PR-905 all FIXED; readiness `go-pending-approval`. SELF-REVIEW disclosure: the same agent/model authored this plan, so its value rests on EXECUTING its claims rather than re-reading them. THE PLAN'S CENTRAL PREMISE WAS FALSE AND EXECUTION IS WHAT CAUGHT IT (PR-901, HIGH). The plan asserted `aw agy run` NEVER announces declared spec edits, and built its Concern, F-1, F-2, E-02, V-02 and its release-blocking argument on that. Measured: agy DOES announce. The spec-impact block lives inside `announce_run_order`, DEFINED in `oc_runipd.py:4178`, which `agy_runipd.py` imports (`:377`) and calls (`:2109`) before the first child session. Proved twice: `agy_runipd.announce_run_order is oc_runipd.announce_run_order` returns True, and driving the AGY entry point on a fixture queue whose plan declares a `.spec.md` printed `SPEC CHANGES: 1 queued plan(s) declare edits to 1 specification file(s).` The plan reached the wrong conclusion by GREPPING agy for the inner symbols instead of driving the path, which is precisely the mistake its own E-04 forbids, and the repository already contains a test with that same weakness (`tests/test_spec_visibility.py:161-169` asserts object identity only, and would pass against a host that calls nothing). So F-1 and F-2 are WITHDRAWN with their disproof, `AGENTS.md:82` is TRUE and E-05 now EXTENDS rather than corrects it, E-02 became a behavioral regression guard that must add NO agy call site (a second call would double-print), and the END-OF-RUN report is now the plan's primary deliverable. Two further findings: the reconciliation E-03 consumes is per-ITEM, at finalize, against the LANE worktree, and returns an empty pair when the precheck REFUSES, so an empty result is ambiguous exactly as E-01's swallow is (PR-902); and the plan declared `tests/test_run_order_announcement.py` while requiring its diff be EMPTY, which costs a `--scope-ack` for nothing (PR-905). `Scope-Paths` was corrected: `engine.py` ADDED (E-05 edits the generating string there, located at `:1351`), `runner_shared.py` and `tests/test_run_order_announcement.py` REMOVED, `tests/test_spec_visibility.py` added. Every line number in the plan had drifted a THIRD time and was re-measured.
 - 2026-09-08 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog `dk16dx`. Every citation re-located BY SYMBOL rather than trusted: the item's `agy_runipd.py:162` is now `:163`, and `oc_runipd.py:4100-4108` is now `:4146-4151`, because both driver modules moved during the day. The dead-import claim and the zero-occurrence claim for `format_spec_impact_announcement` were re-run and both hold.

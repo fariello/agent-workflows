@@ -10,7 +10,7 @@
 - Scope: Make the generated completion offer a COMMAND'S OWN arguments rather than the top-level command list. Three parts: (1) remove the top-level fall-through so a command with nothing to suggest suggests NOTHING; (2) teach `introspect_cli_tree` to capture positional `choices` so commands like `completion` contribute their real values; (3) WARN when an installed script is stale, without rewriting it (maintainer ruling 2026-09-12), since the fix otherwise never reaches an installed user and staleness is silent today. EXCLUDES dynamic completion of id6s, setids and file paths, which the verb's `--help` already defers to a later `tabcomp` child; EXCLUDES zsh/fish beyond the equivalent generator change if it is cheap and correct; and EXCLUDES any change to the drop-in layout or the rc stanza (`compinert` Set owns that).
 - Scope-Paths: agent_workflows/completion.py, agent_workflows/cli.py, tests/test_completion.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Backlog: g99sg7
 - Priority: medium
@@ -21,8 +21,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 4y95tp
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 - 2026-09-12 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 (BLOCKER, OPEN and escalated to blocking OQ-02), PR-002 (HIGH, OPEN and escalated to blocking OQ-03), PR-003..PR-011 FIXED; readiness `no-go` because two blocking questions remain. Record: `.aw/records/reviews/20260912-compargs-01-4y95tp-complete-a-command-s-own-arguments-instead-of-falling-throug.review.md`. `aw ipd lint --phase author` CONFORMING (clean, 0 findings) before semantic review. Suite measured bare at HEAD `03e1436c`: `5971 passed, 3 skipped, 2 xfailed in 59.70s`. DISCLOSURE: same agent/model family authored this plan, so treat as a near-self-review; its value rests on what was EXECUTED.
   THE DEFECT IS REAL AND EVERY SYMPTOM REPRODUCES EXACTLY. Driven, not read: the generated script was written to a scratch file, sourced in a subshell, and `_aw_completion` called with real `COMP_WORDS`/`COMP_CWORD`. `aw find <TAB>` returns 47 items, `aw completion <TAB>` returns 47 items, `aw install <TAB>` returns 47 items, `aw ipd <TAB>` correctly returns its 9 subcommands, and `aw completion in<TAB>` returns exactly `include index install`, the maintainer's reported sequence character for character. The population counts are exact: 47 top-level commands, 17 with a `case` arm, 30 without.
   THE BLOCKER IS THAT E-02/E-03's MECHANISM CANNOT FIX THE REPORTED CASE, and this was proven by simulating the fix rather than by reasoning about it. `aw completion`'s `target` positional has `choices=None`; it is a FREE-FORM `nargs="?"` argument whose vocabulary is enforced by a runtime `if shell not in ("bash","zsh","fish")` in `_run_completion` and advertised only as a `metavar` STRING. So capturing positional `choices` captures NOTHING for `completion`, and E-03's stated outcome ("`aw completion <TAB>` offers exactly `bash fish install uninstall zsh`") is unreachable by the route the plan specifies. Simulated exactly as written: the captured list is `[]`. Worse, the shape is DELIBERATE and documented at `cli.py:4735-4737` (the install/uninstall verbs are "ADDITIVE on child 01's free-form `target` positional"), so this is a design decision to be changed with intent, not an oversight to patch. Escalated as blocking OQ-02 with three costed options.

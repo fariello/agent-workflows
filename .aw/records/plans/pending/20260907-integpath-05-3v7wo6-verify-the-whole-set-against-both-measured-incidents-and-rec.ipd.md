@@ -8,17 +8,19 @@
 - Scope: Perform the whole-Set verification (both measured incidents, both hosts) and write the durable residuals record. Authors NO product code: every implementation belongs to children 01 through 04. This child is the Set's evidence, so its only deliverables are pasted observed evidence and one walkthrough artifact.
 - Scope-Paths: .aw/records/walkthroughs/, .aw/records/plans/pending/20260907-integpath-05-3v7wo6-verify-the-whole-set-against-both-measured-incidents-and-rec.ipd.md
 - Item-Dependencies: executed:29wvmj, executed:6sb3yu, executed:51vw4y, executed:rl67b0
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: integpath
 - Order: 5
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 3v7wo6
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: 5wdoze
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1 (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED, no open questions. Reviewed by RUNNING the plan's own instructions rather than re-reading them, which produced both HIGH findings. PR-001: the walkthrough filename E-02 mandated put THIS plan's id6 in the walkthrough's own identity slot, violating DECISIONS.md D140 and failing check.id6-identity-slot (reproduced in a scratch repo); E-02 now mints a fresh id6, uses the canonical .walkthrough.md facet and links via Target-Id: 3v7wo6. PR-002: V-01's no-_attempt2 assertion fails on pre-existing history here (aw/lane/mm6wuz, _attempt2, _attempt3 all exist among 29 lane branches) and the only literal way to pass it was deleting a co-worker's preserved lanes; both incident reproductions are now explicitly synthetic, asserted on the synthetic id6 in a throwaway repo, with a do-not-delete-a-lane gate paragraph. PR-003: the inherited baseline failure was wrong (test_orchestrator_retirement is GREEN at 112 passed; the one bare-run failure is the environmental test_reporting_contract case caused by the gitignored opencode-recovery dump, proven causal by moving it aside for 53 passed). PR-004: added the -m '' slow-suite run the bare suite deselects, which children 03/04 already require. PR-005..PR-008: corrected stale citations (32ij2j/xtklpd superseded by daexj1/ys1dor, hyx1dg/yf9fj9 are backlog not plans, p8ni63 graduated to 3i0aaz), named the exact allow-dirty-base grep (returns nothing), re-measured 178/60 collection counts, narrowed Scope-Paths and fixed the 'respectively' closure claim. Lint conforming at author and review-finalize; typed review record written with four D-rows, all reversible.
 - 2026-09-07 to-review (aw set): status set to to-review
 

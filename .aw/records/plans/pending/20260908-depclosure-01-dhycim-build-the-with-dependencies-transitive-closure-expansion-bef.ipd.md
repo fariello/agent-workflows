@@ -12,17 +12,19 @@
 - Scope: Build `--with-dependencies` for real: a transitive closure over declared `Item-Dependencies` computed after selection and before the mixed-type gate, rebinding the selection, admitting targets the manifest does not yet carry, re-triggering the mixed-type gate on any newly introduced type, and flipping the flag row to `implemented=True` with its help text. EXCLUDES `--follow-generated` ENTIRELY, which shares the source item but is a different and much larger problem with no detection mechanism in existence (see Deferred and OQ-01); EXCLUDES changing satisfaction semantics, which spec `:295` fixes as unchanged; EXCLUDES registering `--type` or making a live mixed selection reachable.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_run_flag_surface.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: depclosure
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: dhycim
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: x8diyb
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-09 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. PR-001..PR-008, ALL EIGHT FIXED, no open findings. `aw ipd lint --phase author` CONFORMING before semantic review and `--phase review-finalize` CONFORMING after every revision, so nothing here is structural. DISCLOSURE: same agent/model authored this plan, so this is a SELF-REVIEW, and its value rests on RE-MEASURING rather than re-reading; every cited symbol was re-located, every spec line read verbatim, `action_for` was CALLED for all seven statuses, and every pending plan's dependency edges were scanned against their targets' disposition.
   THE TWO FINDINGS THAT CHANGE WHAT GETS BUILT. (1) AN `executed:` EDGE ROUTINELY NAMES AN ALREADY-EXECUTED PLAN AND THE PLAN HAD NO SKIP RULE (PR-002, F-17). `discover_plans` recurses all five disposition dirs, so 467 of 606 discoverable plans are `executed`, and 10 of the 47 `executed:` edges in pending plans point at one; `action_for(kind, "executed")` returns `"execute"`, verified in-process. So a naive closure hands the runner finished plans to re-execute, and what prevents dispatch today is incidental (the queue builder's `status: "reviewed"` default plus the dispatch loop's `queued` filter), one edit from becoming a re-execution bug. E-02 now carries a skip rule built on the shipped `edge_satisfied`, and V-02 requires proving the case fails when the rule is removed. (2) THE MIXED-TYPE GATE IS NOT FED `queue_ids` (PR-003, F-16), so E-05's premise that "expanding before it is sufficient" was false for the only case that matters: the gate receives `selected_plan_paths`, built by a loop that resolves `manifest["plans"][id6]` inside `except (DriverError, KeyError): continue`, so a non-plan target is dropped before `classify_paths` ever types it. E-05 now requires confronting that loop and naming the level at which the new-type arm is honestly reachable, in the gate docstring's own words.

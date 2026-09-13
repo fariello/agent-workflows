@@ -7,17 +7,19 @@
 - Scope: Wire CONSUMPTION only. On a RETRYABLE failure class, spend the frozen budget through the shipped helpers: issue a correction attempt, invalidate stale evidence, and escalate on exhaustion. Non-retryable classes stay non-retryable at every budget, and the frozen budget must not change on resume. Adds no flag, no new budget semantics, and no repository-policy tier.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_retry_consumption.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: retrywire
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: xipfy1
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: trjfyy
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False; `review_findings.subject_gating_blocks` -> empty; `plan_readiness.newest_verdict` polarity -> neutral (not negative). Specifically, both blocking questions were answered on 2026-09-10 (build on the drivers' own substrate; land `1bfppy` first) and the findings they escalated, PR-001 and PR-002, are now closed in review round 2. Performed at HEAD `5692797e` at the maintainer's explicit instruction of 2026-09-10, who was shown that 12 of 15 `no-go` plans were held by stale bookkeeping and chose to have them fixed with evidence recorded rather than re-reviewed. This is the SECOND such cleanup in one session; the durable fix is plan `qhy3i3` E-07, authored and awaiting approval. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-10 reviewed (aw set): plan-review round 1: REVIEWED - OPEN QUESTIONS; PR-001..PR-009, seven FIXED, PR-001 and PR-002 escalated as blocking OQ-03/OQ-01; Readiness no-go pending those answers
 

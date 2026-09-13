@@ -9,16 +9,18 @@
 - Scope: Add a derived, read-only count of waiting `.aw/inbox/` entries and surface it as one advisory line in the `aw attention` human board (INTERACTIVE TTY ONLY; see F-12, since any non-TTY stdout routes to the agent renderer), computed by listing the directory only and never opening a file. A missing directory means zero and prints nothing, and so does a directory holding only the tree's own `README.md`/`.gitkeep` bookkeeping (F-11). The count must NOT enter the ready/active/blocked/done/parked classification, must NOT invent a status for inbox items, and must NOT affect the exit code. EXCLUDES `aw adopt` (plan `lznpv6`), any change to what `.aw/inbox/` is or its gitignore status, any change to `selectors._ID_RE` (plan `76w6mq`), any typed inventory of inbox contents, the agent/JSON surfaces (OQ-01, OQ-04), and the severity-blind `findings` count in `result_types.py` (F-13).
 - Scope-Paths: agent_workflows/attention.py, tests/test_attention.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: awinbox
 - Order: 2
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 9iiqmm
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: plbkp5
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-601..PR-606 all FIXED. Readiness go-pending-approval. Typed record at .aw/records/reviews/20260910-awinbox-02-9iiqmm-...review.md
 
 - 2026-09-10 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-601..PR-606, all FIXED, no deferrals. Structural lint conformed at `author` and again at `review-finalize`. Typed record at `.aw/records/reviews/20260910-awinbox-02-9iiqmm-...review.md`.

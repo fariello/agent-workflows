@@ -9,16 +9,18 @@
 - Scope: Eliminate the silently-scanned-and-discarded state for `TODO.md` (either remove it from `SCAN_ROOTS` or give it a policy so a write is reported as drift, never both-scanned-and-dropped), repoint the two deferred spec gates at carriers that can actually express what they wait for, fix the `whatnext` workflow pointer, and state the deprecation plainly where agents read it. EXCLUDES the releases scan root and the reviews policy (sibling backlog `v7u6vm`, whose plan is authored alongside this one and edits the same `SCAN_ROOTS` tuple); excludes the durable-carrier predicate (pending plan `rnkqrc`, from `jys5dp`); excludes DELETING `TODO.md`, since its `## Notes` section is deliberate Tier-3 durable context.
 - Scope-Paths: agent_workflows/artifact_core.py, agent_workflows/attention_contract.py, agent_workflows/engine.py, TODO.md, AGENTS.md, .aw/system/workflows/whatnext/whatnext.md, .aw/records/specs/20260725-0957-01-external-delivery-and-skills.spec.md, .aw/records/specs/20260726-1239-01-clean-delta-and-tracking-modes.spec.md, tests/test_artifact_core.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: durablecapture
 - Order: 3
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: diof9n
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: ld08f1
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED, zero deferred; OQ-01 and OQ-03 resolved from evidence, OQ-02 sharpened and left for the maintainer; review record written
 - 2026-09-10 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED, zero deferred, zero open. OQ-01 and OQ-03 RESOLVED from repository evidence; OQ-02 kept open by design (it needs a maintainer status call) but sharpened.
   THE PLAN'S CORE DIAGNOSIS IS CORRECT AND RE-MEASURED WHOLE at HEAD `024f4256`: `TODO.md` is in `SCAN_ROOTS`, classifies to `None`, and is dropped with no drift because the unclassified branch requires a `.agents/` prefix; the same holds for the three other root docs; both spec gates still read `Gate-Kind: artifact` / `Gate-Ref: TODO.md`; and `TODO.md` appears at exactly nine places in `whatnext.md`, mostly as WRITE instructions. Its F-6 correction about `i6015i` is right.

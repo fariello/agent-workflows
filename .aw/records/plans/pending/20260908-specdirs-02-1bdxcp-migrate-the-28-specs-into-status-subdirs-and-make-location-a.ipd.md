@@ -11,16 +11,18 @@
 - Scope: Move the 28 specs into status subdirectories, teach `aw specs set` to relocate a spec on transition the way `aw backlog set` already does, and update every literal spec path citation the move invalidates. EXCLUDES making the readers recursive (Order 01 owns it and this depends on it), and excludes promoting location-versus-status to a fail-closed check rule (the parent's OQ-03).
 - Scope-Paths: agent_workflows/specs.py, .aw/records/specs, .aw/records/plans/pending, tests/test_specs_status_dirs.py
 - Item-Dependencies: executed:y4bdoz
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: specdirs
 - Order: 2
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 1bdxcp
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: qzhfk2
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False; `review_findings.subject_gating_blocks` -> empty; `plan_readiness.newest_verdict` polarity -> neutral (not negative). Specifically, both blocking questions were answered on 2026-09-10 (this plan becomes an adopter; the spec amendment belongs with the library work) and the findings they escalated, PR-201 and PR-202, are now closed in review round 2. Performed at HEAD `5692797e` at the maintainer's explicit instruction of 2026-09-10, who was shown that 12 of 15 `no-go` plans were held by stale bookkeeping and chose to have them fixed with evidence recorded rather than re-reviewed. This is the SECOND such cleanup in one session; the durable fix is plan `qhy3i3` E-07, authored and awaiting approval. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-10 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: REVIEWED - OPEN QUESTIONS; readiness NO-GO; PR-201..PR-208. TWO BLOCKERS ESCALATED as OQ-04 and OQ-05, both maintainer decisions, both matching blockers the PARENT orchestrator `wfjsp4` already escalated (it is itself `Readiness: no-go` on the same pair). Six findings FIXED in place. `aw ipd lint` conformed at `--phase author` and again at `--phase review-finalize`; `aw sanitize --agent` clean.

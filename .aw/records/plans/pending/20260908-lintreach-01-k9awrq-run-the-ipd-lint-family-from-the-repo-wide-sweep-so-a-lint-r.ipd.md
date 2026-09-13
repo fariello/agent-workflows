@@ -11,16 +11,18 @@
 - Scope: Make the `IPD-*` family reachable from `aw check plans` at the `author` checkpoint, so CI and any agent running the sweep sees what `aw ipd lint` would refuse. SEVERITY CORRECTED AT REVIEW: introduce it ADVISORY (warning), not blocking, because the author-phase corpus is no longer clean (16 `IPD-Q501` across 10 files) and every offender is a legitimately-reviewed plan waiting on a maintainer answer, so a blocking rule would fail one agent's CI on another agent's pending human decision. REACHABILITY is the deliverable; blocking severity is a later, separately-justified step (OQ-04). The PHASE choice (`author`) is settled by measurement and is not re-litigated. EXCLUDES a pre-commit hook (the item's option 3, deferred with a reason), any change to lint RULES themselves (in particular do NOT weaken `IPD-Q501`), any edit to the 10 offending plans, and any change to what `aw ipd lint` reports per file.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/ipd_lint.py, tests/test_check_engine_lint_reach.py, tests/test_ipd_lint.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: lintreach
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: k9awrq
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: q0h9ls
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-901 (BLOCKER: premise broke, author-phase corpus no longer clean) through PR-905 all FIXED. Severity inverted to advisory. Readiness go-pending-approval.
 
 - 2026-09-10 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901..PR-905, all FIXED, no deferrals. Structural lint conformed at `author` and again at `review-finalize`. Typed record at `.aw/records/reviews/20260910-lintreach-01-k9awrq-...review.md`.

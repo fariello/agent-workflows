@@ -10,16 +10,18 @@
 - Scope: Add `interrupted` to the EXISTING status-tolerance branch in `audit_step_artifact` so an interrupted item beside an UNMOVED plan is not a discrepancy, and prove the `Issue` column clears with it. EXCLUDES `substantially-complete`, whose location half is also flagged and whose normalization collides with `complete` (deferred with the measurement); excludes any new classification vocabulary or direction-aware classifier; excludes the `integration-blocked` + `executed` case, which is backlog `1f9m2j`, BLOCKED on `rnl3b7` because deciding it requires evidence this module does not read; and excludes the SEVEN OTHER catch-all statuses found at review (see the scope note below), which share the defect's SHAPE but not its argument.
 - Scope-Paths: agent_workflows/run_viewer.py, tests/test_run_viewer.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: runviewdisc
 - Order: 2
 - Highest E allocated: 04
 - Readiness: go-pending-approval
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: vdabn5
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: 13ty0u
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED; review record written; Readiness go-pending-approval
 
 - 2026-09-08 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog `13ty0u`, PARTIALLY: the `interrupted` half is graduated and the `substantially-complete` half is NOT, with the measurement recorded in the item file. The item carries no `- Blocks-Release:` so none is inherited or invented.

@@ -7,16 +7,18 @@
 - Scope: State the rule where it is discoverable and where the enforcing code can cite it: the existing release-gates section of the contributor rules, and a numbered entry in the decisions log. State BOTH maintainer rulings the policy now carries (every live bug gates the next release, 2026-09-11; and inefficiency counts as a defect when it is USER-PERCEPTIBLE and not when it is invisible, 2026-09-12), plus its two honest limits. Does NOT change any code, does NOT gate any other work kind, and does NOT backfill any item.
 - Scope-Paths: AGENTS.md, DECISIONS.md, .aw/records/backlog/README.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: nobugship
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: zqs0px
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-12 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (BLOCKER) through PR-009 all FIXED, no deferrals, no open questions, readiness `go-pending-approval`. Record: `.aw/records/reviews/20260911-nobugship-01-zqs0px-record-the-no-known-bugs-rule-in-the-contributor-rules-and-t.review.md`. `aw ipd lint --phase author` CONFORMING (clean, 0 findings) BEFORE semantic review. Suite measured bare at HEAD `839c1ff8`: `5971 passed, 3 skipped, 2 xfailed in 68.73s`. DISCLOSURE: the same agent/model family authored this Set, so treat this as a near-self-review; its value rests on what was EXECUTED rather than on the reading.
   THE PLAN'S DEFINING HAZARD WAS FALSE, AND IT WAS THE ONE INSTRUCTION MOST LIKELY TO BE OBEYED. Four independent proofs, each run rather than reasoned. (1) `AGENTS.md`'s `## Release gates (Blocks-Release)` sits at line 125, and the managed block CLOSES at line 108 (`<!-- /aw:block -->`), so the section is OUTSIDE every managed region. (2) The commit that created it says so in its own message (`9cf9178`, 2026-08-18): "Placed in the hand-maintained region (outside the managed aw:block) so a regen preserves it". (3) `grep` for the section heading or its opening sentence in `agent_workflows/engine.py` returns ZERO: no generator carries this prose. (4) DRIVEN, not inferred: calling `engine.merge_aw_block` over the live `AGENTS.md` returns action `refreshed` with the release-gates section INTACT and a three-line diff that removes only blank lines. So editing `AGENTS.md` directly is CORRECT here, and the plan's repeated instruction to edit `engine.py` instead would have put a repo-local policy into every adopter's installed contract while `tests/test_shared_checkout_contract.py:132` failed on the drift. Corrected in the metadata, E-01, E-02, F-4, the conventions list, and the closing note; `engine.py` removed from `Scope-Paths`.

@@ -13,16 +13,18 @@
 - Scope: Decide whether a standalone re-verify verb should exist and, if so, exactly what it verifies against and what it may write; implement only what that decision authorizes, reusing the EXISTING verifier prompt and outcome schema rather than writing a second verifier. EXCLUDES changing the in-run verifier, changing the `validate` default, and any change to what an `executed` plan's record says.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/runner_shared.py, .aw/records/specs, tests/test_standalone_verify.py
 - Item-Dependencies: executed:ybkmzp
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: reverify
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: mp289j
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: 7u9kbm
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False; `review_findings.subject_gating_blocks` -> empty; `plan_readiness.newest_verdict` polarity -> positive (not negative). Specifically, both blocking questions (OQ-01 build the audit, OQ-05 fix code but never the plan record) were answered on 2026-09-10, and its prose verdict is POSITIVE. Performed at HEAD `5692797e` at the maintainer's explicit instruction of 2026-09-10, who was shown that 12 of 15 `no-go` plans were held by stale bookkeeping and chose to have them fixed with evidence recorded rather than re-reviewed. This is the SECOND such cleanup in one session; the durable fix is plan `qhy3i3` E-07, authored and awaiting approval. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-09 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-801..PR-808; readiness `no-go`. Record: `.aw/records/reviews/20260908-reverify-01-mp289j-run-the-existing-verifier-prompt-against-an-already-executed.review.md`. `aw ipd lint --phase author` reported only the pre-existing blocking OQ-01 before semantic review, and after revision reports exactly two `IPD-Q501` (OQ-01 plus the new OQ-05), which is the gate working as designed. DISCLOSURE: same agent/model authored this plan, so this is a SELF-REVIEW, and its value rests on EXECUTING its claims rather than re-reading them. TEN things were run: the verifier prompt was READ IN FULL and both hosts' versions diffed; both gate expressions and both parser defaults were parsed; `build_verifier_prompt` was called with a synthetic item/state; every one of the 469 `executed/` plans was checked for a surviving `base_head` receipt and each survivor's base tested for ancestry; the receipt-consuming `unlink` was located; `git check-ignore`/`git ls-files` were run against the runs tree; `review_findings.SUBJECT_TYPES` was printed and the review corpus counted; `aw runs --help` was read; four sibling statuses were re-read; and the bare suite was run.

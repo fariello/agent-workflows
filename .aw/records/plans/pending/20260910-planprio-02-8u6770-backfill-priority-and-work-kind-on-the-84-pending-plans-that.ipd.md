@@ -6,15 +6,17 @@
 - Scope: Inherit `Priority` and `Work-Kind` from each pending plan's `- From-Backlog:` source, writing them through the shipped `aw ipd set` setters rather than by hand. Does NOT decide a value for any plan lacking a source (sibling 03 owns those), does NOT touch terminal plans, and does NOT change any vocabulary or add a sort key.
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: executed:lkexaw
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: planprio
 - Order: 2
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 8u6770
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-12 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 (BLOCKER, OPEN, inherits the parent's blocking OQ-02), PR-002 (HIGH, OPEN and escalated to blocking OQ-02 on this plan), PR-003..PR-011 FIXED; readiness `no-go` because two blocking questions remain. Record: `.aw/records/reviews/20260910-planprio-02-8u6770-backfill-priority-and-work-kind-on-the-84-pending-plans-that.review.md`. `aw ipd lint --phase author` CONFORMING (clean, 0 findings) before semantic review. Suite measured bare at HEAD `fe57b1a4`: `5971 passed, 3 skipped, 2 xfailed in 59.68s`. DISCLOSURE: same agent/model family authored this Set, so treat as a near-self-review; its value rests on what was EXECUTED.
   THE PLAN'S THESIS IS CORRECT AND ITS SHAPE IS RIGHT. Inheritance really is judgement-free and really does work: RE-MEASURED at this HEAD, 92 pending plans carry a `- From-Backlog:`, ZERO references dangle, ZERO sources are missing either field, and the inherited values are a genuine spread. Using the shipped setter rather than hand-editing is the right call. None of that was changed.

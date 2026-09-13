@@ -13,16 +13,18 @@
 - Scope: Coordinate a THREE-child Set that makes specs partition by status like every other lifecycle-bearing type: first make every spec READER recursive so a subdir cannot hide a spec, then make every spec WRITER place a spec in its status directory, then migrate the 29 specs and make location agree with status. This orchestrator changes NO product code; it sequences the children and verifies the whole-Set outcome. EXCLUDES the reviews-location question (`sv0sf3`, deliberately not bundled per that item's instruction) and excludes giving subdirs to types with no lifecycle.
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: specdirs
 - Order: 0
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: wfjsp4
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: qzhfk2
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False; `review_findings.subject_gating_blocks` -> empty; `plan_readiness.newest_verdict` polarity -> neutral (not negative). Specifically, both blocking questions were answered on 2026-09-10 (build one shared placement library; amend `kw5y2s` within the Set) and the findings they escalated, PR-001 and PR-002, are now closed in review round 2. Performed at HEAD `5692797e` at the maintainer's explicit instruction of 2026-09-10, who was shown that 12 of 15 `no-go` plans were held by stale bookkeeping and chose to have them fixed with evidence recorded rather than re-reviewed. This is the SECOND such cleanup in one session; the durable fix is plan `qhy3i3` E-07, authored and awaiting approval. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-10 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review REVIEWED - OPEN QUESTIONS; readiness NO-GO; PR-001..PR-007. Reviewed at HEAD `c0ec047a`; `aw ipd lint --phase author` conformed before semantic review. TWO BLOCKERS ESCALATED to OQ-04 and OQ-05, both requiring a maintainer decision. PR-001: the Set teaches ONE of THREE spec writers where a file belongs, measured in throwaway repos, so the invariant it establishes decays on the first write; the `--status`-absent `aw specs set` spelling routes to `status_set.run_set_command` which has no `specs` relocation branch and left a transitioned spec in `draft/`, and `aw specs new` writes to the flat root. A writer child was added to the child table as UNAUTHORED and CID-6/CID-7 pin all three. PR-002: the approved `kw5y2s` spec states the specs tree is a `Single directory` and the layout model gives `specs` no `lifecycle_subdirs`, so an amendment is REQUIRED and the plan's "no spec amendment is expected" was false; no child declares that path. Five findings fixed in place: the examined-count criterion was unobservable in its own failure case (`--agent` omits `checked` at zero via a falsy-`0`-fails-`or` at `result_types.py:388`, human branch prints none), the reader set-equality cross-check would have failed for an unrelated retired-filter reason (29 versus 13 by default), the suite baseline was wrong in count AND in its named failure, the spec distribution was stale (29 files / 13 live, not 28 / 12), and OQ-01 named a single setter that does not exist as one. E-items 03 -> 04; V-items 03 -> 04.

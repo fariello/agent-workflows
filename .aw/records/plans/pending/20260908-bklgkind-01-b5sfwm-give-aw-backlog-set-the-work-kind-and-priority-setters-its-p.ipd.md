@@ -6,17 +6,19 @@
 - Scope: Register `--work-kind` and `--priority` on the `aw backlog set` subparser, validate both against the single shared vocabularies in `backlog.py` (`KINDS`, `PRIORITIES`) rather than a second literal list, make both persist on a NO-OP transition (a pure reclassification changes no status), and make both work on BOTH of the verb's two spellings (the positional `<status> <selector>` form and the `<path> --status` form, which dispatch to two different code paths). Update the declared command surface so the flags are not merely present but declared, and pin all of it with tests including the no-op case this defect was hit on.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/backlog.py, agent_workflows/command_surface.py, tests/test_work_kind.py, tests/test_backlog_work_kind_rename.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: bklgkind
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: b5sfwm
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: a220ap
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False; `review_findings.subject_gating_blocks` -> empty; `plan_readiness.newest_verdict` polarity -> positive (not negative). Specifically, its blocking OQ-02 was answered on 2026-09-10 (no `-` clearing sentinel on either sibling verb), and its prose verdict is POSITIVE. Performed at HEAD `5692797e` at the maintainer's explicit instruction of 2026-09-10, who was shown that 12 of 15 `no-go` plans were held by stale bookkeeping and chose to have them fixed with evidence recorded rather than re-reviewed. This is the SECOND such cleanup in one session; the durable fix is plan `qhy3i3` E-07, authored and awaiting approval. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-09 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-A01..PR-A08, all FIXED, none deferred; readiness `no-go` (one NEW blocking question). Record: `.aw/records/reviews/20260908-bklgkind-01-b5sfwm-give-aw-backlog-set-the-work-kind-and-priority-setters-its-p.review.md`. `aw ipd lint --phase author` CONFORMING before semantic review. DISCLOSURE: same agent/model authored this plan, so this is a SELF-REVIEW, and its value rests on EXECUTING its claims rather than re-reading them. TEN things were run: `backlog set --help` was invoked to re-confirm the missing flags; `backlog.KINDS`/`PRIORITIES` were printed; BOTH dispatch paths were DRIVEN on a purpose-built scratch item with the flags supplied programmatically, proving one writes and the other ignores; a `-` clear was driven on both fields and the resulting item fed to `backlog.validate_item` AND to `aw check backlog`; the `--blocks-release` post-render precedent was read; the declaration/parser flag sets were differenced; the three motivating items' current labels were read; the `_SetArgs` namespace was inspected; the focused test pair and the full bare suite were run.

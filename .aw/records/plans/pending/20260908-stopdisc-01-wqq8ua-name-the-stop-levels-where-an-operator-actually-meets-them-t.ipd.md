@@ -12,16 +12,18 @@
 - Scope: Add stop-level discoverability to the three surfaces that lack it: a stopping line in the continuity footer on both hosts, a graceful-stop hint in the `main` interrupt message on both hosts, and a stopping paragraph on the run-level (`start`/`resume`) help. Text must POINT AT the existing `stop` verb rather than restating its per-level help, and must describe only behavior true on both the interactive and non-interactive paths. EXCLUDES any change to `runner_stop`'s levels, budgets, escalation, or the R16 request report; excludes adding, removing or altering the interactive Ctrl-C prompt; excludes resolving the R12 conflict that prompt creates.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_stop_triggers.py, tests/test_interrupt_menu.py, tests/test_oc_runipd.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: stopdisc
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: wqq8ua
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: 1m3nul
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-201..PR-209 all FIXED, no deferrals, no open questions; Readiness go-pending-approval
 
 - 2026-09-10 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-201..PR-209 all FIXED, no deferrals, no open questions remain; Readiness `go-pending-approval`. Reviewed at HEAD `6882f7c6`; `aw ipd lint --phase author` CONFORMED (0 findings) before semantic review and `--phase review-finalize` conformed after. DISCLOSURE: same model family as the author, so this is near-self-review; its value is in what was EXECUTED.
