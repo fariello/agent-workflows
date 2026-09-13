@@ -1542,6 +1542,20 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=("--json", "--agent"),
         exit_contract=(0, 1, 2),
     ),
+    # depverb f6idxs E-03: the removal half of the same verb family. Declared with the SAME contract
+    # as its `set` sibling because it is the same class of act (a path-scoped front-matter mutation
+    # through the one shared writer), and the leaf must carry a declaration or
+    # `find_undeclared_leaves` fails CI.
+    CommandDeclaration(
+        command="ipd dependencies remove",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json", "--agent"),
+        exit_contract=(0, 1, 2),
+    ),
     # --- host runner groups (the `opencode`/`antigravity` spellings are aliases) ---
     # These forward argv verbatim to the packaged drivers (`add_help=False` +
     # `argparse.REMAINDER`), so the driver's own parser owns help and exit codes. Declared as

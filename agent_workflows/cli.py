@@ -1422,6 +1422,64 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ipd_deps_set.add_argument(
         "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
+    # depverb f6idxs E-02: the explicit escape hatch for a DELIBERATE forward reference. Scoped to
+    # the `dangling` verdict only; the help text must state that boundary, because an operator
+    # reading only `--help` would otherwise assume it covers every resolution failure.
+    p_ipd_deps_set.add_argument(
+        "--allow-dangling",
+        action="store_true",
+        help="Accept an edge whose target does not exist YET (a deliberate forward reference, e.g. "
+        "authoring a Set parent-first). Each accepted target is named in the output, and 'aw check' "
+        "still reports it as an error. This does NOT accept an AMBIGUOUS target (one id6 owned by "
+        "several artifacts), which is refused even with this flag because it can never become valid "
+        "by waiting.",
+    )
+
+    # depverb f6idxs E-03/E-04: `aw ipd dependencies remove` drops ONE edge from a many-edge
+    # statement, so a repair is a verb rather than a hand-rewrite of the whole list.
+    p_ipd_deps_remove = p_ipd_deps_sub.add_parser(
+        "remove",
+        parents=[common],
+        help="Remove one or more edges from a plan's Item-Dependencies, leaving the rest intact.",
+        description=(
+            "Drop the named edges from the cross-IPD `Item-Dependencies` statement of one or more "
+            "plans and rewrite the REMAINDER, so the other edges survive byte-identically and no "
+            "hand-rewrite of the whole list is needed. Edges are matched in CANONICAL form, so any "
+            "spelling the grammar accepts as equivalent matches. Removing the last edge writes the "
+            "explicit `none` (the grammar's zero), never `unresolved`. Target EXISTENCE is "
+            "deliberately NOT validated here: removing an edge whose target has since been deleted "
+            "is the normal repair case, so a dangling edge stays removable. An edge that is not "
+            "declared is an ERROR naming it, unless --if-present downgrades that to a no-op."
+        ),
+    )
+    p_ipd_deps_remove.add_argument(
+        "selector", help="Plan selector (id6, setid, or filename)."
+    )
+    p_ipd_deps_remove.add_argument(
+        "edges",
+        nargs="*",
+        help="One or more edges to remove (space- or comma-separated).",
+    )
+    p_ipd_deps_remove.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_ipd_deps_remove.add_argument(
+        "--message", "-m", default=None, help="History record message."
+    )
+    p_ipd_deps_remove.add_argument(
+        "--dry-run", action="store_true", help="Preview without writing."
+    )
+    p_ipd_deps_remove.add_argument(
+        "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
+    )
+    p_ipd_deps_remove.add_argument(
+        "--if-present",
+        action="store_true",
+        help="Downgrade the ABSENT-EDGE error to a notice and a clean no-op, making repeated "
+        "removal of the same edge idempotent. It suppresses only that one condition, not other "
+        "errors (a malformed edge, an unmatched selector, or a malformed existing statement still "
+        "fail).",
+    )
 
     # ipdgates Order 03 (xjbvu2): `aw ipd begin` fail-closed execution-start receipt.
     p_ipd_begin = ipd_sub.add_parser(
@@ -11189,6 +11247,8 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             dep_cmd = getattr(args, "ipd_dependencies_command", None)
             if dep_cmd == "set":
                 return status_set.run_dependencies_set_command(args, term=term)
+            if dep_cmd == "remove":
+                return status_set.run_dependencies_remove_command(args, term=term)
             return _show_family_help(
                 parser,
                 "ipd dependencies",

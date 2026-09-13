@@ -187,6 +187,23 @@ class IpdDependenciesSetE2ETests(unittest.TestCase):
         self.plan.write_text(
             CONFORMING_ORCHESTRATOR.read_text(encoding="utf-8"), encoding="utf-8"
         )
+        # depverb f6idxs E-01: the setter now resolves every TARGET pre-write, so this fixture must
+        # seed the targets these cases name. They were previously invented ids that resolved to
+        # nothing; the case's subject is CANONICAL ORDERING, not permissiveness, so seeding real
+        # targets preserves its intent exactly rather than reaching for `--allow-dangling`.
+        (self.plans / "20260803-fixture-01-aaaaaa-dep-target.ipd.md").write_text(
+            "# IPD: dep target aaaaaa\n\n"
+            "- Date: 2026-08-03\n- Kind: child\n- Scope-Paths: x.py\n"
+            "- Item-Dependencies: none\n- Status: approved\n- Set: fixture\n"
+            "- Order: 1\n- Id: aaaaaa\n\n## Goal\n\nTarget.\n",
+            encoding="utf-8",
+        )
+        specs = self.root / ".aw" / "records" / "specs"
+        specs.mkdir(parents=True)
+        (specs / "20260101-1200-01-bbbbbb-dep-target.spec.md").write_text(
+            "# Spec bbbbbb\n\n- Id: bbbbbb\n- Status: approved\n\n## Summary\n\ns\n",
+            encoding="utf-8",
+        )
 
     def tearDown(self) -> None:
         self._tmp.cleanup()

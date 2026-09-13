@@ -1517,6 +1517,42 @@ def run_set_command(
     return 0
 
 
+def resolve_dependency_edge_targets(
+    repo_root: Path,
+    edges: list,
+) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+    """Resolve each parsed dependency edge's TARGET against the repository identity index.
+
+    Returns ``(dangling, ambiguous)``, each a list of ``(canonical_edge, detail)`` pairs in the
+    input order. An ``ok`` edge appears in neither list.
+
+    ONE EDGE RESOLVER, DELIBERATELY THE CHECKER'S (depverb f6idxs E-01, finding F-11). This
+    delegates ENTIRELY to ``check_engine.build_dependency_index`` + ``check_engine._resolve_edge``,
+    the SAME pair ``check_engine.evaluate_ipd_dependencies`` calls, so the setter and ``aw check``
+    cannot disagree about an edge. It deliberately does NOT use ``match_selector``: that resolver
+    has no edge TYPE enforcement (``ipd_schema.ITEM_DEP_TYPE_TO_RECORD_TYPE``) and no ``ambiguous``
+    verdict, and the divergence is REAL rather than theoretical - id6 ``uyeko5`` is owned by one
+    ``plans`` record and two ``research`` records in this repository, so a selector-based existence
+    check and the shared evaluator can reach different conclusions about the same id6. Building on
+    ``match_selector`` would create the second authority spec 25kzda section 2.10 forbids ("All
+    surfaces call this evaluator; none reimplements it").
+
+    Pure with respect to the repository: reads only, writes nothing.
+    """
+    from agent_workflows import check_engine as _ce
+
+    index = _ce.build_dependency_index(Path(repo_root))
+    dangling: list[tuple[str, str]] = []
+    ambiguous: list[tuple[str, str]] = []
+    for edge in edges:
+        verdict, detail = _ce._resolve_edge(edge, index)
+        if verdict == "dangling":
+            dangling.append((edge.canonical(), detail or ""))
+        elif verdict == "ambiguous":
+            ambiguous.append((edge.canonical(), detail or ""))
+    return dangling, ambiguous
+
+
 def run_dependencies_set_command(
     args: argparse.Namespace,
     repo_root: Path | None = None,
@@ -1532,6 +1568,14 @@ def run_dependencies_set_command(
     write, so a malformed statement is rejected non-zero and nothing is written. A history receipt
     is appended by ``apply_status_change`` (like every other setter). This is a DIFFERENT field
     from the intra-plan ``Depends on:`` E-item ordering; the two namespaces never collide.
+
+    EXISTENCE IS CHECKED PRE-WRITE TOO, NOT ONLY GRAMMAR (depverb f6idxs E-01/E-02). Every target is
+    resolved through ``resolve_dependency_edge_targets`` (the checker's own resolver) at the SAME
+    point the grammar is validated, so a typo is refused before anything is written rather than
+    surfacing later from ``aw check``. ``--allow-dangling`` admits a DELIBERATE forward reference
+    (authoring a Set parent-first, naming a child that does not exist yet) and names every target it
+    admits; it deliberately does NOT admit an ``ambiguous`` target, because an id6 owned by two
+    artifacts cannot become unambiguous by waiting.
     """
     from agent_workflows import ipd_schema as _schema
     from agent_workflows.project_context import resolve_verb_repo_root
@@ -1565,6 +1609,57 @@ def run_dependencies_set_command(
             return 2
         canonical_value = canonical_value_opt
 
+        # EXISTENCE, at the same pre-write seam as the grammar (depverb f6idxs E-01). The grammar
+        # check above proves the token is WELL FORMED; this proves the target is REAL. Both refuse
+        # with the same established "Refusing before making changes." contract, so a typo can never
+        # be persisted and then reported later by a different surface.
+        parsed_edges, _ready, _perr = _schema.parse_item_dependencies(canonical_value)
+        dangling, ambiguous = resolve_dependency_edge_targets(repo_root, parsed_edges)
+        # AMBIGUOUS IS REFUSED UNCONDITIONALLY, and `--allow-dangling` does not reach it: unlike a
+        # forward reference, an id6 owned by two artifacts of the target type can never become valid
+        # by the target being authored later, so admitting it would write an unresolvable edge.
+        if ambiguous:
+            for _canon, detail in ambiguous:
+                term.status(
+                    "fail",
+                    f"aw ipd dependencies set: ambiguous Item-Dependencies target: {detail}. "
+                    "Refusing before making changes.",
+                )
+            term.status(
+                "info",
+                "An ambiguous target cannot be admitted with --allow-dangling; repair the "
+                "duplicate stable identity instead.",
+            )
+            return 2
+        if dangling:
+            if getattr(args, "allow_dangling", False):
+                # LOUD, not silent: name every admitted target so the deferral is visible in the
+                # transcript, and say that the repository gate still reports it.
+                for canon, detail in dangling:
+                    term.status(
+                        "warn",
+                        f"aw ipd dependencies set: accepting DANGLING target {canon} "
+                        f"(--allow-dangling): {detail}",
+                    )
+                term.status(
+                    "info",
+                    "`aw check` still reports a dangling edge as an error "
+                    f"({_schema.RULE_IPD_DEP_DANGLING}); resolve it before the plan advances.",
+                )
+            else:
+                for _canon, detail in dangling:
+                    term.status(
+                        "fail",
+                        f"aw ipd dependencies set: dangling Item-Dependencies target: {detail}. "
+                        "Refusing before making changes.",
+                    )
+                term.status(
+                    "info",
+                    "Pass --allow-dangling to record a deliberate forward reference to a target "
+                    "that does not exist yet.",
+                )
+                return 2
+
     # Resolve the plan(s) to read each one's CURRENT status (the setter performs a no-op transition).
     all_records = inventory_all_artifacts(repo_root)
     matches = match_selector(selector, all_records, repo_root, scoped_type="plans")
@@ -1584,23 +1679,222 @@ def run_dependencies_set_command(
     # status so no plan is force-transitioned. Group by current status for a single no-op each.
     rc_final = 0
     for rec in plan_matches:
-        current = (rec.status or "draft").strip()
-        deps_args = argparse.Namespace(
-            args=[current, str(rec.path)],
-            dir=str(repo_root),
-            message=getattr(args, "message", None)
-            or f"set Item-Dependencies to {canonical_value}",
-            item_dependencies=canonical_value,
-            dry_run=getattr(args, "dry_run", False),
-            yes=True,
-            actor=getattr(args, "actor", None),
+        rc = _write_item_dependencies(
+            args,
+            repo_root,
+            term,
+            rec,
+            canonical_value,
+            default_message=f"set Item-Dependencies to {canonical_value}",
         )
-        rc = run_set_command(
-            [current, str(rec.path)],
-            scoped_type="plans",
-            repo_root=repo_root,
-            args=deps_args,
-            term=term,
+        if rc != 0:
+            rc_final = rc
+    return rc_final
+
+
+def _write_item_dependencies(
+    args: argparse.Namespace,
+    repo_root: Path,
+    term: Term,
+    rec: ArtifactRecord,
+    canonical_value: str,
+    *,
+    default_message: str,
+) -> int:
+    """Persist one plan's canonical ``Item-Dependencies`` value through the EXISTING write path.
+
+    THE ONE WRITER for this field's CLI surface (depverb f6idxs E-03). Both ``set`` and ``remove``
+    call this, so ``remove`` inherits persistence-on-a-no-op rather than introducing a second
+    writer: it drives a SAME-STATUS (no-op) transition through ``run_set_command`` carrying the value
+    in ``args.item_dependencies``, exactly as ``aw ipd set --from-backlog`` does, and the actual line
+    edit happens in ``apply_status_change`` via the shared ``releases.set_item_dependencies_line``
+    primitive.
+    """
+    current = (rec.status or "draft").strip()
+    deps_args = argparse.Namespace(
+        args=[current, str(rec.path)],
+        dir=str(repo_root),
+        message=getattr(args, "message", None) or default_message,
+        item_dependencies=canonical_value,
+        dry_run=getattr(args, "dry_run", False),
+        yes=True,
+        actor=getattr(args, "actor", None),
+    )
+    return run_set_command(
+        [current, str(rec.path)],
+        scoped_type="plans",
+        repo_root=repo_root,
+        args=deps_args,
+        term=term,
+    )
+
+
+def read_item_dependencies_value(text: str) -> str | None:
+    """The plan's raw ``Item-Dependencies`` value, or None when the field is absent.
+
+    Reads the metadata block through ``ipd_lint.parse`` - the SAME structural, fence-aware reader the
+    lint/lifecycle surfaces and both host runners use - so no private regex for this field is added
+    here (spec 25kzda 2.10's single-authority rule; depverb f6idxs E-05).
+    """
+    from agent_workflows import ipd_lint as _lint
+    from agent_workflows import ipd_schema as _schema
+
+    try:
+        fields = _lint.parse(text).meta_fields
+    except Exception:
+        return None
+    return fields.get(_schema.META_ITEM_DEPENDENCIES)
+
+
+def run_dependencies_remove_command(
+    args: argparse.Namespace,
+    repo_root: Path | None = None,
+    term: Term | None = None,
+) -> int:
+    """`aw ipd dependencies remove <selector> <edge...>` (depverb f6idxs E-03/E-04).
+
+    Drops the named edges from a plan's ``Item-Dependencies`` statement and rewrites the REMAINDER,
+    so dropping one edge from a many-edge statement is a verb rather than a hand-rewrite of the whole
+    list (which silently races a concurrent edit). Four behaviors are deliberate:
+
+    * EDGES ARE MATCHED IN CANONICAL FORM. The operator's tokens are parsed by
+      ``ipd_schema.parse_item_dependencies`` and compared by ``ItemDependency.canonical()``, so a
+      spelling the grammar treats as identical (whitespace, ordering) matches. The grammar REFUSES
+      ``state:ipd:executed:<id6>`` rather than redirecting it, so that token is a grammar error here
+      exactly as it is in ``set``; the canonical comparison is what makes every ACCEPTED spelling
+      match.
+    * EXISTENCE IS NOT VALIDATED. Removing an edge whose target has since been deleted is the NORMAL
+      repair case, so E-01's dangling/ambiguous refusal deliberately does NOT apply to removal; a
+      broken edge must stay removable.
+    * AN ABSENT EDGE IS AN ERROR BY DEFAULT, named explicitly, because a silent no-op on a typo'd
+      edge would leave the operator believing they removed something they did not.
+      ``--if-present`` downgrades it to a notice and a clean no-op (idempotent).
+    * AN EMPTIED STATEMENT BECOMES THE EXPLICIT ``none``, the grammar's zero. NOT ``unresolved``:
+      the parser treats that as the not-ready sentinel, so writing it would flip the plan not-ready
+      as a side effect of dropping one edge.
+    """
+    from agent_workflows import ipd_schema as _schema
+    from agent_workflows.project_context import resolve_verb_repo_root
+
+    if term is None:
+        term = Term()
+    if repo_root is None:
+        repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+
+    selector = getattr(args, "selector", None)
+    if not selector:
+        term.status("fail", "aw ipd dependencies remove: a plan selector is required.")
+        return 2
+
+    raw_edges = list(getattr(args, "edges", None) or [])
+    raw_value = ",".join(tok for tok in raw_edges if tok is not None).strip()
+    if not raw_value:
+        term.status(
+            "fail",
+            "aw ipd dependencies remove: at least one edge to remove is required "
+            "(use `aw ipd dependencies set <selector> none` to clear the whole statement).",
+        )
+        return 2
+
+    # Parse the OPERATOR's tokens through the one grammar authority, so a malformed request is
+    # refused pre-write with the established contract and so the comparison below is canonical.
+    requested, _ready, err = _schema.parse_item_dependencies(raw_value)
+    if err is not None:
+        term.status(
+            "fail",
+            f"aw ipd dependencies remove: invalid Item-Dependencies value: {err}. "
+            "Refusing before making changes.",
+        )
+        return 2
+    if not requested:
+        term.status(
+            "fail",
+            "aw ipd dependencies remove: a sentinel (`none`/`unresolved`) is not an edge; "
+            "use `aw ipd dependencies set` to write a sentinel. "
+            "Refusing before making changes.",
+        )
+        return 2
+    wanted = [e.canonical() for e in requested]
+
+    all_records = inventory_all_artifacts(repo_root)
+    matches = match_selector(selector, all_records, repo_root, scoped_type="plans")
+    if not matches:
+        term.status("fail", f"No plans artifact matched '{selector}'.")
+        return 2
+    plan_matches = [m for m in matches if m.record_type == "plans"]
+    if not plan_matches:
+        term.status(
+            "fail",
+            f"Selector '{selector}' did not resolve to a plan; "
+            "`aw ipd dependencies remove` only applies to IPDs.",
+        )
+        return 2
+
+    if_present = bool(getattr(args, "if_present", False))
+    # MULTI-MATCH SEMANTICS, stated rather than inherited by accident: a Set selector legitimately
+    # matches several plans, and this loop mirrors `set`'s - it accumulates a non-zero exit rather
+    # than aborting, so one plan lacking the edge does NOT prevent the others from being repaired.
+    # That is the right default for a repair verb: aborting would make a partial fleet unfixable in
+    # one call, while the non-zero exit still tells the operator something did not apply.
+    rc_final = 0
+    for rec in plan_matches:
+        present_raw = read_item_dependencies_value(rec.raw_text)
+        current_edges, _cready, cerr = _schema.parse_item_dependencies(
+            present_raw or ""
+        )
+        if cerr is not None:
+            term.status(
+                "fail",
+                f"{rec.path.name}: existing Item-Dependencies is malformed ({cerr}); "
+                "repair it with `aw ipd dependencies set` before removing an edge.",
+            )
+            rc_final = 2
+            continue
+        present = [e.canonical() for e in current_edges]
+        absent = [c for c in wanted if c not in present]
+        if absent:
+            names = ", ".join(absent)
+            if if_present:
+                term.status(
+                    "info",
+                    f"{rec.path.name}: edge(s) not present, nothing to remove "
+                    f"(--if-present): {names}",
+                )
+            else:
+                term.status(
+                    "fail",
+                    f"{rec.path.name}: Item-Dependencies does not declare {names}; "
+                    "nothing removed. Pass --if-present to treat an absent edge as a no-op.",
+                )
+                rc_final = 2
+                continue
+        remaining = [c for c in present if c not in wanted]
+        if remaining == present:
+            # Nothing to write for this plan (every requested edge was absent under --if-present):
+            # a clean no-op, which is what makes repeated removal idempotent rather than a
+            # partial write.
+            continue
+        canonical_value_opt, verr = _schema.canonical_item_dependencies(
+            ", ".join(remaining) if remaining else _schema.ITEM_DEPENDENCIES_NONE
+        )
+        if verr is not None or canonical_value_opt is None:
+            term.status(
+                "fail",
+                f"{rec.path.name}: removal would leave an invalid statement ({verr}). "
+                "Refusing before making changes.",
+            )
+            rc_final = 2
+            continue
+        rc = _write_item_dependencies(
+            args,
+            repo_root,
+            term,
+            rec,
+            canonical_value_opt,
+            default_message=(
+                f"removed Item-Dependencies edge(s) {', '.join(wanted)}; "
+                f"remaining {canonical_value_opt}"
+            ),
         )
         if rc != 0:
             rc_final = rc
