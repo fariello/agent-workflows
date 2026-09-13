@@ -92,3 +92,49 @@ review supplied was a buildable mechanism for its central instruction, a consequ
 the behavioral difference between the two copies it asked someone to look for, a guard placed where it
 holds, two missing scope paths, four control tests instead of two, and a current map of the code, the
 citations, and the suite.
+
+## Round 2
+
+Opened 2026-09-12 to close PR-702, whose escalated question the maintainer ANSWERED ON 2026-09-10. Round
+1 is left exactly as written: the findings gate reads only the CURRENT round, and the reviews README
+states rounds are appended rather than edited, so flipping round 1's `OPEN` cell would erase the fact
+that the question was escalated at all. NO PLAN CONTENT WAS RE-CRITIQUED and no new finding was derived.
+No product code was modified by this round.
+
+THIS IS STALE BOOKKEEPING, NOT AN OUTSTANDING RISK, and the evidence is entirely in artifacts that
+already existed before this round: the plan's OQ-03 carries `- Status: resolved` with the maintainer's
+answer dated 2026-09-10, `plan_readiness.has_unresolved_blocking_question` returns False for the plan,
+and its `- Readiness:` already reads `go-pending-approval`. The ONLY thing still refusing approval was
+the finding ROW in this record, because nothing wrote the answer back to it.
+
+THE ANSWER THAT SETTLED IT, restated plainly since round 1's wording is dense: a run crashes mid-step;
+on resume the runner finds that step marked `interrupted` but evidence on disk proves it FINISHED, so it
+corrects the record to `substantially-complete`. Because the step now reads complete, the immediately
+following `requeue_interrupted` no longer puts it back in the queue, so the work is not redone, and
+dependents waiting on it may proceed. The maintainer authorized exactly that, including the scope
+widening it implies (the plan moves from fixing what a RECORD SAYS to changing what a RESUME DOES), and
+OQ-03 records the two executor obligations that follow.
+
+WHY THIS RECURRED, WHICH IS THE PART WORTH KEEPING: the escalation contract (`plan-review.md:335-341`)
+defines a path INTO a plan for an unfixed finding and NO path back. So every answered escalation leaves
+its finding reading `OPEN` until a human notices. The maintainer performed this cleanup by hand twice on
+2026-09-10, and `qhy3i3` E-07 is the durable fix.
+
+`fduoj4` IS A SIXTH INSTANCE THAT E-07 WOULD NOT HAVE CAUGHT, and that is worth recording for whoever
+executes it. E-07 names five measured plans (`4h7tt0` PR-002, `kbqpkn` PR-801, `5lxvl3` PR-002,
+`y9vpvv` PR-904, `daexj1` PR-401). Verified 2026-09-12: all five now return ZERO gating findings, having
+been cleaned by those manual passes, so E-07's enumerated population is already empty while this plan was
+still refusing. The executor should RE-DERIVE the population at execution time rather than trusting that
+list, which is the same instruction the plan already gives for its readiness half.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-702 | HIGH | UNDER-SCOPE | C. Architecture and operability / D. Anti-regression | round 1's measurement, unchanged: `reconcile_interrupted` and `requeue_interrupted` are called on consecutive lines in `run_queue`, and `edge_satisfied` is a third reader | Carried forward from round 1: A RECOVERED STATUS CHANGES WHAT WORK RUNS, not merely what a record says, because a step recovered to `substantially-complete` is no longer requeued on resume. Re-recorded here only to carry its disposition; the measurement is not re-derived. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | ANSWERED BY THE MAINTAINER 2026-09-10 and recorded in the plan's OQ-03 as `resolved`: YES, a recovered step stops being retried and dependents reschedule, with the scope widening from record to run behavior explicitly authorized. The conservative alternative (record the recovered provenance but leave the item `interrupted` so requeue still fires) was DECLINED, because it would trade a behavior change for a permanent status/provenance disagreement. Nothing about PR-702 was outstanding at the time this round was written; the row was stale, which is the one-directional escalation defect `qhy3i3` E-07 exists to fix. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-1 | The maintainer asked whether to run `qhy3i3` first so its E-07 would close this automatically. | NO. Close PR-702 here, and approve `qhy3i3` in the same batch. | Run `qhy3i3` first (rejected on two measured grounds: it is itself only `reviewed`, so it cannot execute until approved, and its E-07 enumerates five plans that ALL return zero gating findings today, so it would not have touched `fduoj4` at all); use `--allow-open-questions` (rejected: that override exists for a question that is genuinely unresolved, and this one is resolved, so it would paper over stale bookkeeping instead of recording the truth). | `approval_refusals` on `qhy3i3` (none) and its `- Status: reviewed`; `subject_gating_blocks` returning 0 for all five of E-07's named plans. | yes |
