@@ -1286,6 +1286,460 @@ class VerifyWithPrecedenceTests(unittest.TestCase):
         )
 
 
+# ==================================================================================================
+# `actmodel` Order 01 (`btot17`) E-05 / V-05: the top-level `roles` map
+#
+# THE MECHANISM IS FITNESS FOR TASK, NOT COST CONTROL, per the maintainer's 2026-09-08 ruling ("It
+# is NOT about just getting a cheap model. It's about getting the best model for the job"), and it
+# EXTENDS `verify_with` rather than superseding or layering beside it: `verify` is an ENTRY in this
+# map, and the map is the BOTTOM TIER of the one existing chain.
+#
+# Four things about this field are easy to get wrong and each is silent when wrong: an unvalidated
+# role KEY (a misspelling routes nothing while looking effective); a dangling role VALUE (falls
+# through as if unset, so the work runs on a model nobody chose); a role map that OVERRIDES a more
+# specific declaration (which would change what an existing document already resolves to); and an
+# object value quietly making OQ-05's producing-plus-validating pair expressible without a decision.
+# ==================================================================================================
+
+
+def _roles_doc(roles=None, **overrides) -> dict:
+    """A two-profile document (`cheap`, `strong`) plus an optional top-level `roles` map."""
+
+    doc = {
+        "schema_version": 2,
+        "profiles": {
+            "cheap": {"runner": "oc", "model": _FLASH_MODEL},
+            "strong": {"runner": "oc", "model": _INHOUSE_MODEL, "variant": "high"},
+        },
+    }
+    if roles is not None:
+        doc["roles"] = roles
+    doc.update(overrides)
+    return doc
+
+
+class RoleVocabularyTests(unittest.TestCase):
+    """The vocabulary is the maintainer's five kinds of work plus `verify`, and it is CLOSED."""
+
+    def test_the_role_vocabulary_is_exactly_the_maintainers_five_kinds_plus_verify(
+        self,
+    ):
+        # Pinned LITERALLY so widening it requires editing this test and saying why. The first five
+        # are the maintainer's own categories, taken verbatim rather than reinterpreted; `verify` is
+        # the sixth because the shipped `verify_with` field had to become an ENTRY in this map, and
+        # mapping it onto `check-content` would have made the existing `--verify-with` chain a second
+        # way to set a kind of work (DECISION 01-btot17-D3).
+        self.assertEqual(
+            list(RP.ROLE_NAMES),
+            [
+                "write-prose",
+                "write-code",
+                "write-code-fast",
+                "research-online",
+                "check-content",
+                "verify",
+            ],
+        )
+        self.assertEqual(RP.ROLE_VERIFY, "verify")
+        self.assertIn(RP.ROLE_VERIFY, RP.ROLE_NAMES)
+        print(f"role vocabulary (closed): {list(RP.ROLE_NAMES)}")
+
+    def test_an_unknown_role_is_refused_at_load_and_the_message_lists_the_vocabulary(
+        self,
+    ):
+        """A misspelled role must be a REFUSAL, never a silent no-op sitting in the store."""
+
+        for bad in ("writecode", "write_code", "reviewer", "probe", "WRITE-CODE"):
+            with self.subTest(role=bad):
+                with self.assertRaises(RP.ProfileSchemaError) as ctx:
+                    RP.from_document(_roles_doc({bad: "strong"}))
+                message = str(ctx.exception)
+                self.assertIn(repr(bad), message)
+                # The refusal has to be actionable, so it names the legal set.
+                for known in RP.ROLE_NAMES:
+                    self.assertIn(known, message)
+        print("unknown roles refused, each message listing the closed vocabulary")
+
+    def test_profile_for_role_refuses_an_unknown_role_rather_than_returning_none(self):
+        # The distinction is the point: `None` means "this role is unset", so an unknown role must
+        # NOT return `None` or a caller cannot tell a typo from an unconfigured preference.
+        cfg = RP.from_document(_roles_doc({"write-code": "strong"}))
+        self.assertEqual(cfg.profile_for_role("write-code"), "strong")
+        self.assertIsNone(cfg.profile_for_role("write-prose"))
+        with self.assertRaises(RP.ProfileSchemaError):
+            cfg.profile_for_role("writecode")
+
+
+class RolesSchemaTests(unittest.TestCase):
+    """The map parses, round-trips, is optional, and stays a REFERENCE rather than a model."""
+
+    def test_a_roles_map_is_accepted_and_round_trips(self):
+        cfg = RP.from_document(
+            _roles_doc({"write-code": "strong", "check-content": "cheap"})
+        )
+        self.assertEqual(
+            dict(cfg.roles), {"write-code": "strong", "check-content": "cheap"}
+        )
+        reparsed = RP.from_document(json.loads(RP.dumps(cfg)))
+        self.assertEqual(dict(reparsed.roles), dict(cfg.roles))
+        self.assertEqual(reparsed.to_document(), cfg.to_document())
+        print(f"roles round-trip: {dict(reparsed.roles)}")
+
+    def test_roles_is_omitted_when_empty_so_existing_bytes_are_unchanged(self):
+        """An absent key is the "no preference" state, so a no-roles store serializes as before."""
+
+        cfg = RP.from_document(_roles_doc())
+        self.assertEqual(dict(cfg.roles), {})
+        self.assertNotIn("roles", cfg.to_document())
+        self.assertNotIn("roles", RP.dumps(cfg))
+        print("no roles configured: the key is OMITTED, not written as {}")
+
+    def test_an_inline_model_is_refused_because_a_role_names_a_profile(self):
+        # The same security decision `verify_with` made: a bare model string would fork the one place
+        # a launch identity is defined and would be the first field to escape this module's validation.
+        with self.assertRaises(RP.ProfileSchemaError) as ctx:
+            RP.from_document(_roles_doc({"write-code": _INHOUSE_MODEL}))
+        self.assertIn("invalid profile name", str(ctx.exception))
+        print(
+            "an inline model in a role is refused by the profile-name grammar: "
+            f"{str(ctx.exception).splitlines()[0]}"
+        )
+
+    def test_a_non_string_role_target_is_refused(self):
+        for bad in (7, True, ["strong"], None):
+            with self.subTest(target=bad):
+                with self.assertRaises(RP.ProfileSchemaError):
+                    RP.from_document(_roles_doc({"write-code": bad}))
+
+    def test_a_roles_value_that_is_not_an_object_is_refused(self):
+        for bad in ("strong", 7, ["write-code"]):
+            with self.subTest(roles=bad):
+                with self.assertRaises(RP.ProfileSchemaError) as ctx:
+                    RP.from_document(_roles_doc(bad))
+                self.assertIn("'roles' must be an object", str(ctx.exception))
+
+    def test_roles_did_not_widen_the_injection_surface(self):
+        # A role map holds profile NAMES, so it stores no argv, environment, executable, prompt or
+        # credential, and it must not have quietly become a way to store one.
+        self.assertIn("roles", RP.ALLOWED_DOCUMENT_KEYS)
+        self.assertNotIn("roles", RP.FORBIDDEN_PROFILE_KEYS)
+        # The PROFILE surface is untouched: the map is top level, not a profile field.
+        self.assertNotIn("roles", RP.ALLOWED_PROFILE_KEYS)
+        self.assertNotIn("roles", RP.ALLOWED_DEFAULTS_KEYS)
+        for forbidden in ("args", "env", "command", "prompt", "token"):
+            with self.subTest(key=forbidden):
+                with self.assertRaises(RP.ProfileSchemaError):
+                    RP.from_document(
+                        _roles_doc({"write-code": "strong"}, **{forbidden: "v"})
+                    )
+
+    def test_an_unknown_top_level_key_is_still_refused(self):
+        """Adding `roles` must not have loosened the document-level fail-closed check."""
+
+        with self.assertRaises(RP.ProfileSchemaError) as ctx:
+            RP.from_document(_roles_doc({"write-code": "strong"}, role="strong"))
+        self.assertIn("unknown field(s)", str(ctx.exception))
+        print(f"unknown top-level key still refused: {str(ctx.exception)[:80]}")
+
+
+class RolesReferenceIntegrityTests(unittest.TestCase):
+    """A dangling role reference is REFUSED AT LOAD, like every other reference in this module."""
+
+    def test_a_dangling_role_reference_is_refused_at_load_time(self):
+        with self.assertRaises(RP.ProfileSchemaError) as ctx:
+            RP.from_document(_roles_doc({"write-code": "nope"}))
+        message = str(ctx.exception)
+        self.assertIn("roles['write-code']", message)
+        self.assertIn("does not exist", message)
+        # The message must explain the SILENT failure it prevents, not merely report the fact.
+        self.assertIn("fall through as if the role were never set", message)
+        print(f"dangling role refused at load: {message.splitlines()[0]}")
+
+    def test_a_mutator_cannot_create_a_dangling_or_unknown_role(self):
+        cfg = RP.from_document(_roles_doc())
+        with self.assertRaises(RP.ProfileSchemaError):
+            RP.set_role(cfg, "write-code", "nope")
+        with self.assertRaises(RP.ProfileSchemaError):
+            RP.set_role(cfg, "writecode", "strong")
+        # And the happy path plus removal.
+        cfg = RP.set_role(cfg, "write-code", "strong")
+        self.assertEqual(dict(cfg.roles), {"write-code": "strong"})
+        cfg = RP.set_role(cfg, "write-code", None)
+        self.assertEqual(dict(cfg.roles), {})
+        self.assertNotIn("roles", cfg.to_document())
+
+    def test_removing_a_profile_a_role_references_cannot_leave_a_dangling_role(self):
+        """`remove_profile` routes through `_replace`, so the integrity check catches this."""
+
+        cfg = RP.from_document(_roles_doc({"write-code": "strong"}))
+        with self.assertRaises(RP.ProfileSchemaError) as ctx:
+            RP.remove_profile(cfg, "strong")
+        self.assertIn("roles['write-code']", str(ctx.exception))
+        print(
+            "removing a role's target is refused rather than silently unrouting the role: "
+            f"{str(ctx.exception).splitlines()[0]}"
+        )
+
+    def test_a_role_may_point_at_the_same_profile_as_another_role(self):
+        cfg = RP.from_document(_roles_doc({"write-code": "strong", "verify": "strong"}))
+        self.assertEqual(cfg.profile_for_role("write-code"), "strong")
+        self.assertEqual(cfg.profile_for_role("verify"), "strong")
+
+
+class RolesExtendVerifyWithTests(unittest.TestCase):
+    """`verify` is an ENTRY in the map and a NEW BOTTOM TIER of the ONE existing chain."""
+
+    def test_the_role_map_is_the_tier_below_defaults_verify_with(self):
+        """Walk all four tiers and assert both the value AND which tier spoke."""
+
+        # Tier 4 (the new one): only `roles["verify"]` speaks.
+        role_only = RP.from_document(_roles_doc({"verify": "strong"}))
+        got = RP.resolve(role_only, runner="oc", profile="cheap")
+        self.assertEqual(got.verify_with, "strong")
+        self.assertEqual(got.provenance["verify_with"], RP.PROVENANCE_ROLE_MAP)
+
+        # Tier 3 BEATS the role map: `defaults.verify_with` wins.
+        with_defaults = RP.from_document(
+            _roles_doc({"verify": "strong"}, defaults={"verify_with": "cheap"})
+        )
+        got = RP.resolve(with_defaults, runner="oc", profile="cheap")
+        self.assertEqual(got.verify_with, "cheap")
+        self.assertEqual(got.provenance["verify_with"], RP.PROVENANCE_DEFAULTS)
+
+        # Tier 2 BEATS both: the profile's own `verify_with`.
+        doc = _roles_doc({"verify": "cheap"})
+        doc["profiles"]["cheap"]["verify_with"] = "strong"
+        with_profile = RP.from_document(doc)
+        got = RP.resolve(with_profile, runner="oc", profile="cheap")
+        self.assertEqual(got.verify_with, "strong")
+        self.assertEqual(got.provenance["verify_with"], RP.PROVENANCE_PROFILE)
+
+        # Tier 1 BEATS everything: an explicit flag.
+        got = RP.resolve(
+            with_profile, runner="oc", profile="cheap", verify_with="cheap"
+        )
+        self.assertEqual(got.verify_with, "cheap")
+        self.assertEqual(got.provenance["verify_with"], RP.PROVENANCE_EXPLICIT)
+        print(
+            "verify_with chain: explicit > profile > defaults > roles['verify'] > "
+            "same-as-executor"
+        )
+
+    def test_absent_still_means_same_as_executor_when_no_verify_role_is_set(self):
+        """A role map that sets OTHER roles must not accidentally name a verifier."""
+
+        cfg = RP.from_document(_roles_doc({"write-code": "strong"}))
+        got = RP.resolve(cfg, runner="oc", profile="cheap")
+        self.assertIsNone(got.verify_with)
+        self.assertEqual(got.provenance["verify_with"], RP.PROVENANCE_SAME_AS_EXECUTOR)
+
+    def test_every_pre_existing_resolution_is_byte_identical(self):
+        """THE COMPATIBILITY CLAIM, measured: the new tier can ADD but never CHANGE an answer.
+
+        The tier sits below `defaults.verify_with`, so it is consulted only where the shipped chain
+        had already fallen through to ABSENT. A document carrying no `roles` must therefore resolve to
+        exactly the same record, field for field and provenance for provenance.
+        """
+
+        doc = _routing_doc(defaults={"verify_with": "strong"})
+        cfg = RP.from_document(doc)
+        got = RP.resolve(cfg, runner="oc", profile="cheap")
+        self.assertEqual(got.verify_with, "strong")
+        self.assertEqual(got.provenance["verify_with"], RP.PROVENANCE_PROFILE)
+        # Adding an UNRELATED role changes nothing about this resolution, including the digest-bearing
+        # fields, except the digest itself (the document genuinely differs).
+        with_role = RP.from_document(dict(doc, roles={"write-prose": "cheap"}))
+        also = RP.resolve(with_role, runner="oc", profile="cheap")
+        self.assertEqual(
+            got._replace(config_digest="x"), also._replace(config_digest="x")
+        )
+        print(
+            "a document with no verify role resolves identically; provenance "
+            f"{got.provenance['verify_with']!r} in both"
+        )
+
+    def test_verify_with_is_neither_removed_nor_renamed(self):
+        """NEGATIVE proof for V-05: this Order EXTENDS the shipped key, it does not retire it."""
+
+        self.assertIn("verify_with", RP.ALLOWED_PROFILE_KEYS)
+        self.assertIn("verify_with", RP.ALLOWED_DEFAULTS_KEYS)
+        self.assertTrue(
+            hasattr(RP.LaunchProfile(runner="oc", model=_FLASH_MODEL), "verify_with")
+        )
+        self.assertTrue(callable(RP.set_verify_with_default))
+        # And it still RESOLVES exactly as it did, with no role map present.
+        cfg = RP.from_document(_routing_doc())
+        got = RP.resolve(cfg, runner="oc", profile="cheap")
+        self.assertEqual(got.verify_with, "strong")
+        self.assertEqual(got.provenance["verify_with"], RP.PROVENANCE_PROFILE)
+        print(
+            "verify_with is still declared, still mutable, and still resolves unchanged"
+        )
+
+    def test_the_provenance_vocabulary_stays_a_closed_renderable_set(self):
+        self.assertIn(RP.PROVENANCE_ROLE_MAP, RP.PROVENANCE_VALUES)
+        self.assertEqual(RP.PROVENANCE_ROLE_MAP, "role-map")
+        # DISTINCT from `defaults`, because they are different tiers of one chain and an operator
+        # debugging "why that model" needs to know which spoke.
+        self.assertNotEqual(RP.PROVENANCE_ROLE_MAP, RP.PROVENANCE_DEFAULTS)
+        cfg = RP.from_document(_roles_doc({"verify": "strong"}))
+        got = RP.resolve(cfg, runner="oc", profile="cheap")
+        for key, value in got.provenance.items():
+            self.assertIn(value, RP.PROVENANCE_VALUES, f"{key} -> {value}")
+
+
+class RolesOpenQuestionFenceTests(unittest.TestCase):
+    """OQ-05 (a role naming a PRODUCING plus a VALIDATING model) must stay INEXPRESSIBLE."""
+
+    def test_a_producing_plus_validating_pair_is_refused_and_names_the_open_question(
+        self,
+    ):
+        """The maintainer chose "mapping now, pairing recorded as the next step" (DECISION D5).
+
+        Refusing the object form by NAME is what keeps the pair from becoming quietly expressible
+        without a decision, which this plan's approval gate explicitly requires. The message must read
+        as an OPEN QUESTION rather than an oversight a later contributor might helpfully "fix", which
+        is the same technique `FORBIDDEN_PROFILE_KEYS` uses.
+        """
+
+        for pair in (
+            {"produce": "cheap", "validate": "strong"},
+            {"model": "cheap", "verify_with": "strong"},
+            {},
+        ):
+            with self.subTest(pair=pair):
+                with self.assertRaises(RP.ProfileSchemaError) as ctx:
+                    RP.from_document(_roles_doc({"write-code-fast": pair}))
+                message = str(ctx.exception)
+                self.assertIn("must be a single profile NAME string", message)
+                self.assertIn("OPEN DESIGN QUESTION", message)
+                self.assertIn("OQ-05", message)
+        print(
+            "a producing+validating pair is refused, naming OQ-05: "
+            f"{str(ctx.exception).splitlines()[0]}"
+        )
+
+    def test_no_schema_surface_can_express_a_pair(self):
+        """Belt and braces: no ALLOWED key anywhere takes two models for one piece of work."""
+
+        # A role takes ONE name.
+        cfg = RP.from_document(_roles_doc({"write-code-fast": "cheap"}))
+        self.assertEqual(cfg.profile_for_role("write-code-fast"), "cheap")
+        self.assertIsInstance(cfg.roles["write-code-fast"], str)
+        # And a LIST of names is refused too, which is the other obvious way to smuggle a pair.
+        with self.assertRaises(RP.ProfileSchemaError):
+            RP.from_document(_roles_doc({"write-code-fast": ["cheap", "strong"]}))
+
+
+class RolesVersioningTests(unittest.TestCase):
+    """DECISION 01-btot17-D2: `roles` did NOT bump the version, and the cost is measured."""
+
+    def test_roles_is_accepted_without_a_version_bump(self):
+        # The version is UNCHANGED, deliberately, and this pins that it stayed put.
+        self.assertEqual(RP.SCHEMA_VERSION, 2)
+        self.assertEqual(sorted(RP.SUPPORTED_SCHEMA_VERSIONS), [1, 2])
+        # And the field is read at BOTH supported versions, matching the shipped precedent that a v1
+        # document may carry `verify_with` (the reader is version-agnostic about the FIELD).
+        for version in sorted(RP.SUPPORTED_SCHEMA_VERSIONS):
+            with self.subTest(schema_version=version):
+                cfg = RP.from_document(
+                    _roles_doc({"write-code": "strong"}, schema_version=version)
+                )
+                self.assertEqual(cfg.schema_version, version)
+                self.assertEqual(cfg.profile_for_role("write-code"), "strong")
+        print(
+            f"roles accepted at schema_version {sorted(RP.SUPPORTED_SCHEMA_VERSIONS)} "
+            f"with SCHEMA_VERSION still {RP.SCHEMA_VERSION}"
+        )
+
+    def test_the_accepted_cost_of_not_bumping_is_the_unknown_field_refusal(self):
+        """MEASURE the consequence this decision knowingly accepts, rather than asserting it in prose.
+
+        An OLDER aw (one whose `ALLOWED_DOCUMENT_KEYS` predates `roles`) meeting a document that
+        carries the key says "unknown field(s) ['roles']" instead of "Upgrade aw". That is the
+        precedent 06-kgpptv-D2 warned about, and it is acceptable ONLY because no such document can
+        exist yet: no writer emits `roles` and no consumer reads it.
+        """
+
+        document = json.loads(
+            RP.dumps(RP.from_document(_roles_doc({"write-code": "strong"})))
+        )
+        self.assertIn("roles", document)
+        older_keys = frozenset(k for k in RP.ALLOWED_DOCUMENT_KEYS if k != "roles")
+        with mock.patch.object(RP, "ALLOWED_DOCUMENT_KEYS", older_keys):
+            with self.assertRaises(RP.ProfileSchemaError) as ctx:
+                RP.from_document(document)
+        message = str(ctx.exception)
+        self.assertIn("unknown field(s) ['roles']", message)
+        print(f"accepted cost, measured: older aw says {message[:70]!r}")
+
+    def test_an_existing_v1_document_with_no_roles_still_loads_and_resolves_unchanged(
+        self,
+    ):
+        """No migration: a store written before this change keeps working exactly as it did."""
+
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "runner-profiles.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "default_runner": "oc",
+                        "defaults": {"profiles": {"oc": "gem"}, "validate": False},
+                        "profiles": {
+                            "gem": {
+                                "runner": "oc",
+                                "model": _FLASH_MODEL,
+                                "variant": "high",
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            before = path.read_bytes()
+            cfg = RP.load(path)
+            self.assertEqual(cfg.schema_version, 1)
+            self.assertEqual(dict(cfg.roles), {})
+            got = RP.resolve(cfg, runner="oc")
+            self.assertEqual(got.model, _FLASH_MODEL)
+            self.assertEqual(got.variant, "high")
+            self.assertIsNone(got.verify_with)
+            self.assertEqual(
+                got.provenance["verify_with"], RP.PROVENANCE_SAME_AS_EXECUTOR
+            )
+            # Reading does not rewrite, so the bytes are untouched and the digest is stable.
+            self.assertEqual(before, path.read_bytes())
+            print("v1 no-roles document loads, resolves and is not rewritten")
+
+    def test_a_document_carrying_verify_with_still_loads_and_resolves_unchanged(self):
+        """The shipped key must be UNAFFECTED by the extension (V-05's explicit requirement)."""
+
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "runner-profiles.json"
+            path.write_text(json.dumps(_routing_doc()), encoding="utf-8")
+            before = path.read_bytes()
+            cfg = RP.load(path)
+            self.assertEqual(cfg.get("cheap").verify_with, "strong")
+            self.assertEqual(dict(cfg.roles), {})
+            got = RP.resolve(cfg, runner="oc", profile="cheap")
+            self.assertEqual(got.verify_with, "strong")
+            self.assertEqual(got.provenance["verify_with"], RP.PROVENANCE_PROFILE)
+            self.assertEqual(before, path.read_bytes())
+            print("a verify_with document loads and resolves exactly as before")
+
+    def test_a_roles_document_survives_a_save_load_round_trip_on_disk(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "runner-profiles.json"
+            cfg = RP.from_document(
+                _roles_doc({"verify": "strong", "write-code": "strong"})
+            )
+            RP.save(cfg, path)
+            reloaded = RP.load(path)
+            self.assertEqual(dict(reloaded.roles), dict(cfg.roles))
+            self.assertEqual(reloaded.digest, cfg.digest)
+
+
 class SchemaVersionCompatibilityTests(unittest.TestCase):
     """DECISION 06-kgpptv-D2: writes 2, READS 1 and 2, and an older aw fails closed on 2."""
 
@@ -1659,9 +2113,14 @@ class SourceAuditTests(unittest.TestCase):
             sorted(RP.ALLOWED_PROFILE_KEYS),
             ["agent", "model", "runner", "validate", "variant", "verify_with"],
         )
+        # `roles` was ADDED by `actmodel` Order 01 (`btot17`) and is listed here deliberately: every
+        # VALUE in it is a profile NAME (a reference to an already-validated profile), so it stores no
+        # argv, environment, executable, prompt or credential and does not widen the injection surface
+        # this test exists to fence. An INLINE model per role would have, which is exactly why a role
+        # takes a reference.
         self.assertEqual(
             sorted(RP.ALLOWED_DOCUMENT_KEYS),
-            ["default_runner", "defaults", "profiles", "schema_version"],
+            ["default_runner", "defaults", "profiles", "roles", "schema_version"],
         )
         self.assertEqual(
             sorted(RP.ALLOWED_DEFAULTS_KEYS), ["profiles", "validate", "verify_with"]
