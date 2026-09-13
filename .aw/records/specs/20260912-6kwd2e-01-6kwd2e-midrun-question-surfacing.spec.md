@@ -1,13 +1,14 @@
 # Spec: Surfacing a mid-run question to the human without stopping the queue
 
 - Date: 2026-09-12
-- Status: to-review
+- Status: reviewed
 - Id: 6kwd2e
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Work-Kind: feature
 - Scope: How a review or execute turn under `aw oc run` / `aw agy run` asks the human a question that did not exist before the turn: park the item, keep the queue moving, ask in bulk at the drain, and resume without discarding work.
 
 ## Workflow history
+- 2026-09-13 reviewed (aw set): spec-review round 1 (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-301..SR-306, all six FIXED, none deferred, no question left open (OQ-02 resolved by this review). THE STRONGEST OF THE FOUR AND THE ONE WHOSE CITATIONS MOST NEEDED CHECKING; the load-bearing ones all hold (question: deny, the 600s stall kill, the 10s exact-phrase gate whose timeout can never grant, the interrupt menu's unbounded read, the preserved-lane path, the ledger's human-actor rule). TWO MATERIAL CORRECTIONS. R4a.1's 'already exists' is true of the RENDERER and false of the WRITER: write_local_projections has NO caller in the package and neither runner imports set_records, so no live run has ever written the projection and aw runs questions returns exit 2 for every real run; R4a.1 must WIRE it, not move a call. And R4a.6 named the wrong surface: the cross-tree class comes from an ARTIFACT-status map that parking does not touch (a parked plan already maps to ready), so the work is in the live-run column where awaiting-human would today render as the truncated 'awaitin', and the grouping an implementer would naturally choose is the blocked cluster OQ-01 ruled against. Added A40/A41 for R1.5 and R7.1, the two uncovered requirements whose failures are silent. Re-phrased A1/A17 against a queue SHAPE after all nine measured plans moved to approved in one day. OQ-02 resolved from evidence: plans-only is a CONSEQUENCE (no host registers --type), so R1.1 now sweeps the resolved queue rather than a hardcoded tree.
 
 - 2026-09-12 created (aw specs): How a review or execute turn under a runner asks the human a question that did not exist before the turn: park the item, keep the queue moving, and ask in bulk.
 - 2026-09-12 revised (author self-review, at the maintainer's request to stress-test the UX for review, execute, and mixed runs): SIX defects found and fixed, four of them found by reading the cited code rather than the prose. (1) R1.3 cited `prompt_for_gate_phrase` as the sweep prompt; that function is an EXACT-PHRASE ADMISSION GATE whose 10s timeout and "silence means refuse" contract (`runner_shared.py:2291-2296`) are both wrong for a free-text question needing thought. R1.3 now forbids reusing it, inherits its four safety constraints explicitly, and R1.3a additionally forbids the interrupt menu's unbounded `readline()`. (2) R1's pre-flight batch applied NO dedup or ordering, so a 74-plan run would have asked 74 serial questions before item 1 dispatched, which is the same wall R4 exists to remove; new R1.6 applies R4 to the sweep, and R1.7 makes a half-finished sitting durable. (3) The mixed review+execute case was unaddressed although the maintainer asked about it: new 0.35 states why the mechanism is uniform (isolation) and where it is NOT (cost of delay: a parked execute lane's base goes stale, a parked review is free), yielding R4.3a. It also records the honest current limit that no invocation can produce a mixed selection until `--type` lands. (4) Nothing bounded runaway escalation, so a broken prompt could park all 74 items and report NON-FAILURE; new R4b makes a high park ratio a diagnosed defect distinct from an ordinary parked run. (5) `fingerprint` was required but undefined: R4.1a makes it driver-computed and deterministic (a worker-supplied key would make dedup depend on 74 model judgements and would break host parity), R4.1b fails collisions toward asking separately. (6) R5.3 permitted unbounded ask-and-re-dispatch regress; R5.3a bounds it. Also: OQ-01 RESOLVED to `ready` rather than deferred, because leaving it open invited the harmful default of `blocked`, which would hide a parked item from the default attention view at exactly the moment a human could clear it. Criteria A16-A26 added for the new requirements; A6 strengthened to assert the preserved BASE, not only the commit.
@@ -51,6 +52,13 @@ Consequence, stated plainly: **a review under `aw` is systematically biased towa
 never reaches the human.** The same review run interactively asks and can reach GO. Measured 2026-09-12:
 nine `to-review` plans (`planprio` x4, `nobugship` x4, `compinert` x1) each carry open questions and are
 subject to this bias.
+
+THAT POPULATION HAS ALREADY TURNED OVER, which is why the criteria below must not name it. Re-measured
+2026-09-13: all nine of those plans are now `approved`, and the `to-review` set is six different plans
+(the `dirtygates` Set), four of which carry open questions. The DEFECT is unchanged and structural; only
+the nine instances were transient. A1 and A17 are therefore written against a QUEUE SHAPE (N artifacts
+carrying open questions, K sharing a fingerprint) rather than against those nine ids, so they remain
+satisfiable when the population turns over again, as it will.
 
 ## 0.3 The constraint that rules out the obvious fix
 
@@ -120,13 +128,23 @@ and correctly does not apply. The gate's own call site records this honest limit
 - Ledger kinds `question_raised`, `human_answer`, `question_disposition` already exist with shapes
   (`run_ledger_schema.py:222-235`), the disposition `answered_by_human` (`:107`), and an enforced rule that
   a `human_answer` MUST carry `actor == "human"` (`:446-451`).
-- `set_records.render_open_questions` (`:86-92`) already renders raised-minus-answered.
+- `set_records.render_open_questions` (`:86-92`) already renders raised-minus-answered. ITS WRITER IS
+  UNWIRED, though: `write_local_projections` has no caller in the package (only two tests), and neither
+  runner imports `set_records`, so no live run writes the projection today. Counted as existing VOCABULARY,
+  not as an existing behavior (see R4a.1).
 - `set_state.SET_WAITING_INPUT` (`:29`) exists with a `human_answer_recorded` resume predicate (`:92-107`).
 - `run_gates.py` exists entire, with `GATE_STATUS_NEEDS_INPUT` (`:31`) and a headless path returning
   `needs_input` before any side effect (`:154-164`). Unwired to both runners.
 
 Honest statement of novelty: this spec invents almost nothing. It WIRES existing, tested vocabulary that
 no runner currently reaches.
+
+AND BE PRECISE ABOUT WHAT "EXISTING" BUYS, since the whole sizing argument rests on it. Each item above is
+existing VOCABULARY (a constant, a schema kind, a renderer, a predicate), and in several cases nothing
+calls it: `write_local_projections` has no package caller, `run_gates` is unwired to both runners (already
+stated), and `set_state.SET_WAITING_INPUT`'s transition rules are declarative. So the work is genuinely
+smaller than inventing the vocabulary, and it is NOT small: wiring a state into two drivers, a statusline,
+an attention surface and a resume path is the bulk of this spec. A reader must not price it as configuration.
 
 ## 1. Goals
 
@@ -153,7 +171,10 @@ no runner currently reaches.
 ### R1. Pre-flight sweep of pre-existing questions
 
 - **R1.1** Before dispatching any item, the driver MUST collect every unresolved `### OQ-*` block across
-  every artifact in the resolved queue and, when a human is present (R7.1), ask them in one batch.
+  every artifact in THE RESOLVED QUEUE, whatever types that queue contains, and, when a human is present
+  (R7.1), ask them in one batch. The sweep MUST NOT hardcode the plans tree: per OQ-02's resolution it
+  reads the queue, so it widens by construction if a later change lets a queue hold another type. Today
+  every queue is plans-only, because neither host registers `--type`.
 - **R1.2** The default scope MUST be every question that gates progress, not only `Blocking: yes`. Basis:
   `plan-review.md:543` NO-GOs on ANY open question, so a non-blocking OQ also gates progress, and a
   blocking-only sweep would leave the measured nine plans of 0.2 untouched. A `--blocking-only` flag MAY
@@ -290,6 +311,14 @@ display implies. A question that exists and is invisible is the same as a questi
   drain. The renderer already exists (`set_records.render_open_questions`, `:86-92`, computing
   raised-minus-answered from `question_raised` records) and the file name is already defined
   (`set_records.OPEN_QUESTIONS_FILE`, `:42`). This requirement is about WHEN it is written.
+  CORRECTED AT REVIEW: "already exists" is true of the RENDERER and false of the WRITER, and the difference
+  is real work. `set_records.write_local_projections` is the only function that writes this file, and
+  measured 2026-09-13 it has NO caller anywhere in `agent_workflows/`: only two tests call it, and neither
+  runner imports `set_records` at all (`run_cli.py` is the sole importer and only READS the projection).
+  So the projection is never written on any live run today, and R4a.1 must WIRE the writer into both
+  drivers, not merely move an existing call earlier. R4a.2's "satisfying R4a.1 satisfies this" therefore
+  holds only once that wiring exists; `aw runs questions` currently returns exit 2 (missing) for every real
+  run.
 - **R4a.2** `aw runs questions` MUST therefore work against an IN-FLIGHT run. It already reads that
   projection and already returns exit 0 for open, 1 for none, 2 for missing (`run_cli.py:138-152`), so
   satisfying R4a.1 satisfies this; a test MUST pin it so a later change cannot make the verb
@@ -307,9 +336,23 @@ display implies. A question that exists and is invisible is the same as a questi
   log is corruption of that log, not a notification.
 - **R4a.6** `aw attention` MUST surface a nonzero parked-question count for an active run, so the
   standing "what needs attention?" view answers this question without the human knowing to run a
-  run-specific verb. The item MUST map to the cross-tree class `ready`, not `blocked`, per the ruling in
-  OQ-01: a parked question is something a human can clear NOW, and classing it `blocked` would hide it
-  from the default view at exactly the moment it is actionable.
+  run-specific verb. A parked item MUST NOT be presented as `blocked`, per the ruling in OQ-01: a parked
+  question is something a human can clear NOW, and presenting it as blocked would hide it from the default
+  view at exactly the moment it is actionable.
+  WHICH SURFACE THIS TOUCHES, made precise at review because the requirement as written named the wrong one
+  and would have sent an implementer to the wrong table. `aw attention`'s cross-tree class comes from a
+  per-tree map keyed on the ARTIFACT's own native `- Status:` (`attention_contract._PLANS_MAP`), and parking
+  does not change that status: a parked plan is still `approved` or `to-review`, both of which ALREADY map
+  to `ready`. So there is nothing to add to that table, and adding `awaiting-human` to it would be a
+  category error, mixing a RUN disposition into an ARTIFACT status enum. The surface that actually needs the
+  work is the separate live-run column fed by `attention.get_active_runs_map`, which reads each queue item's
+  run status and maps it through an explicit list, falling through to a truncated raw string for anything
+  unrecognized (so `awaiting-human` would render as `awaitin` today). REQUIREMENT: add `awaiting-human` to
+  that mapping explicitly with a distinct label, do NOT let it reach the truncation fallback, and do NOT
+  fold it into the `blocked` group, which is where an implementer pattern-matching on the existing
+  `blocked`/`dependency-blocked`/`integration-blocked` cluster would naturally put it. The `ready` half of
+  OQ-01's ruling is satisfied by the artifact status being untouched, which is worth stating so nobody
+  "fixes" it by editing the artifact.
 
 ### R4b. A runaway escalation is a defect, not a workload
 
@@ -390,9 +433,11 @@ CLASSIFICATION (R2.5) is broken, not evidence that the human owes 74 decisions.
 
 ## 4. Testable acceptance criteria
 
-- **A1** (R1.1, R1.2) A queue containing the nine measured plans of 0.2 produces a pre-flight batch
-  containing all their open questions, including `Blocking: no` ones. A `--blocking-only` run asks none of
-  them.
+- **A1** (R1.1, R1.2) A queue of artifacts carrying open questions produces a pre-flight batch containing
+  ALL of them, including `Blocking: no` ones, and a `--blocking-only` run asks only the blocking subset.
+  Assert on a FIXTURE queue of known shape, and separately re-derive the live `to-review` population at
+  execution and report it as context. Do NOT assert against the nine plans of 0.2: they are all `approved`
+  as of 2026-09-13, so a criterion naming them is already unsatisfiable.
 - **A2** (R1.3) The sweep prompt returns on timeout without an answer and does not call `input()`. Assert
   by patching the clock, not by waiting.
 - **A3** (R2.1, R2.3) A worker fixture writing `questions[]` and exiting 0 is parked; assert the child was
@@ -420,7 +465,13 @@ CLASSIFICATION (R2.5) is broken, not evidence that the human owes 74 decisions.
 - **A10d** (R4a.3) The statusline of a run with 3 parked items reports 3.
 - **A10e** (R4a.4) The bell is emitted once on the first park and not again on the second or third.
 - **A10f** (R4a.5) With the output stream not a TTY, no bell byte appears anywhere in the captured output.
-- **A10g** (R4a.6) `aw attention` reports a nonzero parked-question count for an active run holding one.
+- **A10g** (R4a.6) `aw attention` reports a nonzero parked-question count for an active run holding one, the
+  parked item is NOT presented as `blocked`, and its rendered run label is the explicit one rather than the
+  truncated raw-status fallback. Assert the label text, because the fallback produces a plausible-looking
+  seven-character string and would pass a weaker assertion.
+- **A10h** (R4a.6) The parked item's ARTIFACT status is unchanged by parking, so its cross-tree class is
+  still whatever its own front matter earns. This is the regression test for the category error: it fails if
+  an implementer writes a run disposition into the artifact's status enum.
 - **A11** (R5.4) An answer written with a non-human actor is refused by the existing ledger rule.
 - **A12** (R5.6) An answer given against artifact hash H, applied after the artifact changes to H', is
   reported STALE and not applied.
@@ -431,8 +482,9 @@ CLASSIFICATION (R2.5) is broken, not evidence that the human owes 74 decisions.
 - **A16** (R1.3) The sweep prompt captures a free-text answer, and its timeout is NOT
   `GATE_PROMPT_TIMEOUT`. Assert the distinct value, so a later refactor cannot quietly collapse the two
   prompts back together and reintroduce a 10-second window on a question requiring thought.
-- **A17** (R1.6) A pre-flight sweep over 74 artifacts sharing one fingerprint asks ONE question, not 74.
-  The pre-flight twin of A9, asserted separately because the first draft applied dedup only at the drain.
+- **A17** (R1.6) A pre-flight sweep over N artifacts sharing one fingerprint asks ONE question, not N, for
+  an N large enough to make the difference unmistakable (the design's operative case is 74). The pre-flight
+  twin of A9, asserted separately because the first draft applied dedup only at the drain.
 - **A18** (R1.7) A sweep interrupted after the 4th of 15 answers retains all 4 durably in their artifacts,
   and the run proceeds with 11 parked.
 - **A19** (R4.1a) Two hosts given the identical question text compute the identical fingerprint, and a
@@ -477,6 +529,19 @@ CLASSIFICATION (R2.5) is broken, not evidence that the human owes 74 decisions.
   naming the parked count and the answer file path.
 - **A39** (R8.2) The antigravity path parks correctly WITHOUT any permission configuration, proving the
   design does not depend on a lever that host lacks.
+- **A40** (R1.5) An answer recorded by the sweep lands DURABLY IN THE ARTIFACT: the `### OQ-*` block reads
+  `- Status: resolved` with a rationale naming the human and the date, `- Blocking:` is UNCHANGED, and the
+  answer is present after the run directory is deleted. Added at review: R1.5 was the only sweep
+  requirement with no criterion, and it is the one whose failure is silent and permanent, since an answer
+  recorded only under the gitignored run directory is lost without any error.
+- **A41** (R7.1) Human presence is decided by the EXISTING predicate and by nothing else. Assert that
+  `--unattended` and `--full-auto` each yield no-prompt EVEN WITH a TTY, and that a second presence test is
+  not introduced anywhere in the new code (grep for a fresh `isatty` in the sweep and drain paths). Added at
+  review: R7.1 had no criterion, and a forked presence check is exactly how one host would come to prompt
+  when the other does not.
+
+REQUIREMENT COVERAGE, checked at review: every `R*` above maps to at least one `A*`, and every `A*` names
+at least one `R*`. A40 and A41 were added to close R1.5 and R7.1, which had none.
 
 ## 5. Alternatives rejected, and why
 
@@ -514,9 +579,24 @@ CLASSIFICATION (R2.5) is broken, not evidence that the human owes 74 decisions.
 ### OQ-02: Does the pre-flight sweep of R1 also cover specs and backlog items, or plans only?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: a run's queue is plans, so plans-only is coherent and complete. But a
-  spec carrying an open question that a queued plan depends on is a real gate, and `aw attention` already
-  shows OQ counts for specs. Non-blocking because plans-only ships correct behavior for the measured
-  defect and widening the scope later adds a source, not a redesign.
+- Resolution or deferral rationale: RESOLVED 2026-09-13 AS **PLANS ONLY, AND NOT BY CHOICE**, from
+  repository evidence rather than by deferral, because the question as posed assumes a freedom the code does
+  not offer. THE MEASUREMENT THAT DECIDES IT: a run's queue is what discovery returns, and neither host
+  registers `--type` (verified: zero occurrences in both drivers), so no invocation can put a spec or a
+  backlog item in a queue. `runner_shared.sweep_review_candidates_for_type(repo, "spec")` does resolve real
+  specs at the FUNCTION boundary (it returns the four `to-review` specs today), but nothing operator-facing
+  can call it. So a sweep that "also covers specs" has nothing to sweep: the scope of R1 is not a design
+  choice here, it is a consequence of a selection surface that does not exist yet, owned by spec `25kzda`
+  2.2/2.3 and excluded by executed plan `uyeko5`.
+  WHAT FOLLOWS FOR THE IMPLEMENTER, which is the part that matters: R1 sweeps THE RESOLVED QUEUE, whatever
+  types it contains, rather than hardcoding plans. That is one predicate call instead of a type literal,
+  costs nothing today, and means the sweep widens BY CONSTRUCTION when `--type` lands rather than needing a
+  second decision. Do NOT add a spec-specific or backlog-specific source, and do NOT write `plans` into the
+  sweep as an assumption.
+  THE UNDERLYING CONCERN IS REAL AND IS NOT CLOSED BY THIS: a spec carrying an open question that a queued
+  plan depends on IS a live gate, and 5 specs at `approved` or beyond carry unresolved questions today. But
+  surfacing that is a DEPENDENCY question (should a plan's readiness consult its `From-Spec`'s open
+  questions?), not a sweep-scope question, and it belongs to whatever owns cross-artifact dependency
+  gating. Recorded here so the concern is not lost with the question.

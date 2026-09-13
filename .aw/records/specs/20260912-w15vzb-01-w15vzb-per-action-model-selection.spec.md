@@ -1,13 +1,14 @@
 # Spec: Per-action model selection: the unit a model attaches to
 
 - Date: 2026-09-12
-- Status: to-review
+- Status: reviewed
 - Id: w15vzb
 - Author: aw specs new
 - Scope: A model preference attaches to a ROLE (a kind of work), declared in a top-level roles map that extends verify_with rather than superseding it
 - From-Backlog: 0k74my
 
 ## Workflow history
+- 2026-09-13 reviewed (aw set): spec-review round 1 (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-201..SR-205, all five FIXED, none deferred. THE DECISION RECORD IS EXEMPLARY AND THE SPEC HAD NO ACCEPTANCE CRITERIA AT ALL: nine MUSTs, zero criteria, so Section 9's claim that seven requirements are implemented was unrefusable. Added twelve criteria with a coverage map, three marked OUTSTANDING (A-8 needs the consumer, A-9 a verdict store that does not exist, A-10 the version bump that must ship WITH the consumer). Two properties the spec argues for had nothing checking them: the byte-identical resolution of every pre-existing configuration (the 'extend, do not supersede' promise it calls 'asserted rather than assumed') and the distinct role-map provenance. R-9 was conditional on an open question living only in plan btot17, so the spec now carries it as OQ-01 with owner, ruling and closing conditions (non-blocking because R-9's typed refusal keeps the pair inexpressible). Section renumbered after MEASURING that attention's OQ regex rejects a '7a.' heading, so the question is actually counted. VERIFIED every implementation claim: ROLE_NAMES exactly six, SCHEMA_VERSION 2, ALLOWED_PROFILE_KEYS unwidened, 131 passed in 2.42s, and zero runner_profiles hits in agy_runipd.py confirming the OC-only reach. Recorded a naming hazard: host_adapters defines a disjoint closed set also called roles.
 - 2026-09-13 to-review (aw set): Records the actmodel-01 (btot17) decision: a model preference attaches to a ROLE from a closed vocabulary, declared in a top-level roles map that EXTENDS verify_with as a new bottom tier of the one existing chain. Sections 4.1-4.6 carry the four questions the backlog item reserved, with the maintainer's fitness-for-task reframing replacing the item's cost framing. R-1..R-5, R-9 and R-6 case A are implemented and tested; R-6 case B, R-7 and R-8 are outstanding and need the consumer that does not exist yet, so this is NOT implemented and is offered for critique.
 
 - 2026-09-12 created (aw specs): A model preference attaches to a ROLE (a kind of work), declared in a top-level roles map that extends verify_with rather than superseding it
@@ -254,8 +255,92 @@ affects it:
 - R-9 A role naming a producing plus a validating model stays INEXPRESSIBLE until OQ-05 is decided,
   enforced by a typed refusal that cites the open question.
 
-## 8. Implementation status
+## 8. Open questions
+
+### OQ-01: Should a role be able to name a PRODUCING plus a VALIDATING model?
+
+- Blocking: no
+- Status: open
+- Owner: maintainer
+- Resolution or deferral rationale: RAISED HERE AT REVIEW because this spec's own R-9 makes a
+  requirement conditional on an open question that lived only in plan `btot17` (as its OQ-05), so a reader
+  of the spec alone could not see what R-9 waits on or who owns it. The question is the maintainer's fifth
+  example, "Writing code fast? Gemini 3.8 Flash, with Opus 5 validation", which wants one role to name two
+  models. The 2026-09-08 ruling was "role to model mapping now, pairing recorded as the next step", so the
+  DEFERRAL is already decided; what is open is the DESIGN, and it is genuinely the maintainer's because it
+  is a public configuration shape. NOT BLOCKING because R-9 ships a typed refusal, so the pair cannot
+  become quietly expressible while the question waits; a decision is needed only when someone wants the
+  capability. WHAT WOULD CLOSE IT: a ruling on three points Section 6 already names, namely whether pairing
+  crosses `validate` (WHETHER a verifier turn runs) and `verify_with` (WHICH profile runs it) in a way the
+  module permits, whether it inherits the ONE-HOP rule under which a verifier profile's own `verify_with`
+  is inert, and whether "with Opus 5 validation" means the existing verifier turn with a different model or
+  a new intra-action pairing, which are different builds.
+
+## 9. Acceptance criteria
+
+ADDED AT REVIEW, because the spec had none: it carried nine requirements and no criterion, so nothing
+stated what evidence would satisfy or refuse a claim of completion. Each criterion names the requirements
+it covers, and the coverage map at the end makes an uncovered MUST visible.
+
+- **A-1** (R-1, R-2) A role name outside the closed vocabulary is REFUSED at load with a message listing
+  the vocabulary, and a test pins the vocabulary's exact membership so widening it fails the suite rather
+  than passing silently. Evidence: the refusal message, plus the vocabulary assertion.
+- **A-2** (R-3) A role value that is an inline model string, a non-string, or an OBJECT is refused; the
+  object case is refused BY NAME with a message citing the open question that owns pairing. Evidence: all
+  three refusals, and the object refusal's message text.
+- **A-3** (R-3, R-6 case A) A role naming no existing profile is refused AT LOAD, and no mutator can leave
+  a dangling role behind (including removing a profile a role references). Evidence: the load refusal plus
+  the mutator cases.
+- **A-4** (R-4) `roles["verify"]` resolves ONLY where the shipped chain fell through to ABSENT, and never
+  overrides `--verify-with`, a profile's own `verify_with`, or `defaults.verify_with`. Evidence: the
+  resolution at each tier with the role map present, showing the role map speaks last.
+- **A-5** (R-4) EVERY configuration written before this field resolves BYTE-IDENTICALLY. Evidence: a
+  pre-existing document's resolution and its serialized bytes before and after, equal. This is the
+  criterion that proves "extend, do not supersede", and it must be asserted rather than assumed.
+- **A-6** (R-4) The provenance of a role-map answer is reported as `role-map`, distinct from `defaults`, so
+  an operator debugging which tier spoke can tell them apart. Evidence: the provenance value on a
+  role-resolved launch.
+- **A-7** (R-5) `verify_with` remains valid at both levels, resolvable, and mutable through its existing
+  setter. Evidence: a round trip through the setter with the role map also present.
+- **A-8** (R-6 case B) An unprovidable-at-launch model WARNS, falls back, and RECORDS the fallback in run
+  state, and does NOT fail the run. OUTSTANDING: this needs the consumer. Evidence when built: the warning,
+  the durable run-state record, and a non-failing exit.
+- **A-9** (R-7) A cached artifact produced under model A stays valid when the preference changes, with the
+  ANSWERING MODEL recorded beside it. OUTSTANDING and dependent on a verdict store that does not exist
+  (Section 4.5). Evidence when built: the retained artifact plus the recorded model.
+- **A-10** (R-8) The first plan that makes `roles` CONSUMABLE also bumps `SCHEMA_VERSION` to 3, extends
+  `SUPPORTED_SCHEMA_VERSIONS`, and updates `docs/runner-profiles.md` and the e2e version pins IN THE SAME
+  CHANGE. OUTSTANDING. Evidence when built: all four edits in one commit. A consumer landing without the
+  bump is a failed criterion, not a follow-up.
+- **A-11** (R-9) A producing-plus-validating pair stays INEXPRESSIBLE until the open question is decided,
+  enforced by a typed refusal citing it. Evidence: the refusal and the citation (this is A-2's object case,
+  asserted here for the requirement it defends rather than the shape it rejects).
+- **A-12** (Section 6 boundary) A populated role map routes NO model until a consumer exists. Evidence: a
+  resolution with roles declared, showing the launch identity unchanged. This criterion exists so the
+  inert-but-validated state cannot be mistaken for working routing.
+
+COVERAGE: R-1 A-1; R-2 A-1; R-3 A-2/A-3; R-4 A-4/A-5/A-6; R-5 A-7; R-6 A-3 (case A) and A-8 (case B);
+R-7 A-9; R-8 A-10; R-9 A-11. Every requirement is covered. A-1 through A-7, A-11 and A-12 are satisfiable
+today; A-8, A-9 and A-10 are the outstanding set and each names what it waits on.
+
+## 10. Implementation status
 
 Implemented by plan `btot17` (`actmodel` Order 01) in `agent_workflows/runner_profiles.py` with
 tests in `tests/test_runner_profiles.py`: R-1 through R-5, R-9, plus R-6 case A. Outstanding: R-6
 case B, R-7 and R-8, all of which need the consumer that does not exist yet.
+
+VERIFIED AT REVIEW, 2026-09-13 at HEAD `9697856e`: `ROLE_NAMES` is exactly the six named roles;
+`SCHEMA_VERSION` is 2 with `SUPPORTED_SCHEMA_VERSIONS` reading both 1 and 2; `PROVENANCE_ROLE_MAP` is
+`role-map`; `roles` is a top-level key and `ALLOWED_PROFILE_KEYS` was NOT widened; and
+`tests/test_runner_profiles.py` passes (`131 passed in 2.42s`) with named cases covering the vocabulary,
+the dangling reference, the mutator cases, the tier ordering, the unchanged-bytes property, and the
+no-version-bump decision. The claim that no consumer reads `roles` also holds: `runner_profiles`,
+`resolve_launch_profile` and `launch_profile` each grep to ZERO in `agy_runipd.py`, so the mechanism is
+OC-only in practice exactly as Section 6 states.
+
+ONE NAMING HAZARD RECORDED AT REVIEW, because it will confuse the next reader and is not a defect in
+either place: `agent_workflows/host_adapters.py` ALSO defines a closed set of things it calls roles
+(`ROLE_ROUTER`, `ROLE_ISOLATED_EXECUTOR`, `ROLE_NONINTERACTIVE_RUNTIME`, `ROLE_PERMISSION_GATE`) with a
+`resolve_role_target` resolver. Those are HOST CAPABILITIES (what a host can do), unrelated to this spec's
+KINDS OF WORK (what a model is good at). The two vocabularies are disjoint and must not be unified or
+cross-validated; a plan that wires a consumer should say which it means at every call site.

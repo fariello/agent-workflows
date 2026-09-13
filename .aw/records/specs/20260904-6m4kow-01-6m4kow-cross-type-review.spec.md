@@ -1,10 +1,9 @@
 # Spec: Cross-type review: reviewing specs as first-class review work items
 
 - Date: 2026-09-04
-- Status: to-review
+- Status: reviewed
 - Id: 6m4kow
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
-- Blocks-Release: next
 - From-Spec: 25kzda
 - Scope: the spec-review capability that spec `25kzda` Section 3.3 mandates and nothing implements. Three
   parts: a spec-review workflow that can legally advance a spec from `to-review` to `reviewed`, an
@@ -15,7 +14,53 @@
   it does NOT change any plan-review behavior beyond what generalizing the record shape forces.
 
 ## Workflow history
+- 2026-09-13 reviewed (aw set): spec-review round 1 (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-101..SR-109, all nine FIXED, none deferred, none open. THIS REVIEW IS THE SPEC'S OWN ACCEPTANCE TEST: R-06 requires a spec-review capability producing a findings table, a verdict, a conforming record and a legal transition, and this record is that output, so A-01 is satisfied by the artifact itself. THE SPEC HAD SHIPPED AND READ AS THOUGH IT HAD NOT: 15 of 16 requirements are IMPLEMENTED (verified one by one) while Section 1 still said 'none of it is implementable today', so a new Section 0 carries a per-requirement status table with evidence and names the three delivering plans. NO CRITERION CITED A REQUIREMENT in a spec whose Section 2 gives every requirement a stable id for exactly that purpose; mapping them exposed R-05, R-10 and R-15 uncovered, and R-15 is the ONE unfinished requirement, so the uncovered and unfinished sets intersected where it was most dangerous. RELEASE GATE MOVED ON THE MAINTAINER'S RULING (a gate belongs on a plan, not a spec; plans preferred to backlog items; selection ships now with the execution half as its OWN blocker; HOW execution is implemented needs DISCUSSION captured loudly): filed ui8b9b (selection, conforming) and mng63x (execution, DESIGN-FIRST, Scope-Paths deliberately TBD, its OQ-01 being the design), both carrying Blocks-Release: next and From-Spec: 6m4kow, and this spec's gate is cleared in this same call. 2.0.0's blocker count is unchanged. Also corrected: the record population asserted as 34 (186 today, and already stale at 36 when the implementing plan was reviewed), the grandfathered count asserted as 20, the sizing note, R-10 presented as open nine days after it was ruled on, and 'aw find specs --status' recorded as broken at authoring and STILL broken (root-caused to a branch that never reads its status filter, affecting seven record types, tracked by no backlog item). Added the honest limit that filing a review record arms a no-override refusal on the spec's own approval, including for a record that merely fails to parse.
 - 2026-09-04 to-review (aw set): Authored at the maintainer's direction while answering a question about naming a review-status command. Research established that spec 25kzda (approved, Blocks-Release: next) already MANDATES spec review in Section 3.3 and already defines three deterministic checks for it by name in Section 4.8 (SPEC-REVIEW-COMPLETE, SPEC-REVIEW-TRANSITION, SPEC-REVIEW-STRUCTURE), so this is COMPLETION of approved release-gating work rather than a new proposal; hence From-Spec: 25kzda and the inherited release gate. FOUR THINGS MEASURED AT AUTHORING, not inherited: (a) no spec-review workflow exists at all - .aw/system/workflows/ has plan-review and plan-review-long, /spec states it PRODUCES rather than reviews, and /advise spec-editor yields no verdict, findings, or transition; (b) review_findings.render_review hardcodes '- Plan-Id:' and check_engine.check_review_dangling resolves it against the plans tree ONLY, so a spec review would be flagged check.review-dangling by the repository's own checker; (c) runner_shared.discover_plans walks only the two plans trees, so no selector can reach a spec however it is spelled; (d) spec to-review -> reviewed has NO entry in attention_contract.TRANSITION_AUTHORITY, so it is an UNATTESTED status flip today - an agent can set a spec reviewed with no review, no findings and no record, while the same claim on a plan is policed by check.review-finding-unescalated and the approval verdict guard. That gap is what R-11 closes and is the strongest argument in the spec, given that specs are the artifact which AUTHORIZES plans. POPULATION MEASURED so nobody reads this as throughput work: 1 plan at to-review, 2 specs at draft, 0 specs at to-review, 34 existing review records; recorded as an honest limit rather than omitted, because the justification is structural (two thirds of needs-review artifacts have no workflow) and not volume. ONE DECISION LEFT OPEN DELIBERATELY (R-10, Section 5): a new spec-review/ workflow versus generalizing plan-review/. Left to the graduating plan because it needs the code in front of it and both answers are defensible - generalizing means changing two bodies held in deliberate parity and making plan-specific machinery conditional, while forking means two rubrics. The constraint binding either answer is stated instead: the findings/verdict/record machinery stays shared exactly once, so a plan that forks the record is rejected regardless of workflow shape. Also recorded: 'aw find specs --status' silently ignores its filter at authoring (verified for all nine statuses), so anything built on it inherits the bug.
+
+## 0. Implementation status (added at review, 2026-09-13)
+
+READ THIS BEFORE THE REST, because the rest is written in the future tense and most of it has SHIPPED.
+This spec sat at `to-review` for nine days while three plans graduated from it and executed, so a reader
+taking Section 1's "none of it is implementable today" at face value would re-derive work already done.
+Measured at HEAD `9697856e`:
+
+| Requirement | State | Evidence |
+|---|---|---|
+| R-01, R-02 | IMPLEMENTED | `review_findings.SUBJECT_TYPES == ('ipd', 'spec')`; `render_review` writes both bullets (`review_findings.py:398-399`) |
+| R-03 | IMPLEMENTED | `check_engine.check_review_dangling` resolves by declared type via `_review_subject_id_sets` and deliberately does NOT fall back to plans |
+| R-04 | IMPLEMENTED | 186 review records, ALL carrying the subject pair, ZERO carrying `- Plan-Id:` as a field |
+| R-05 | CONFIRMED UNCHANGED | filename grammar untouched |
+| R-06 | IMPLEMENTED | `.aw/system/workflows/spec-review/` exists and is the body this review ran |
+| R-07, R-08, R-09 | IMPLEMENTED as prohibitions in that body's "Three prohibitions" section |
+| R-10 | DECIDED | maintainer ruling 2026-09-04: a SEPARATE `spec-review/` package; recorded with its evidence in that package's README |
+| R-11, R-12 | IMPLEMENTED | `TRANSITION_AUTHORITY["->reviewed"]` carries `review_record: True`; ONE predicate `review_findings.review_attestation_missing`, consulted by `specs.py`, `status_set.py` and `check_engine.check.spec-review-unattested` |
+| R-13 | HOLDS | grandfathering is structural (the table is consulted only at transition time), not a cutover date |
+| R-14, R-16 | IMPLEMENTED | exactly one `def needs_review` in the package (`run_selection_policy.py:542`), derived from the dispatch table |
+| R-15 | IMPLEMENTED AT THE FUNCTION BOUNDARY, NOT OPERATOR-REACHABLE | `runner_shared.sweep_review_candidates_for_type(repo, "spec")` returns the four `to-review` specs; but `--type` is registered on NEITHER host, so no operator invocation can reach it |
+
+Delivered by `eyh1fu` (the record), `5slbpi` (the workflow plus the attestation) and `wpomxa` (the
+gating-predicate rename), all `- Status: executed`. WHAT IS NOT DONE is R-15's operator surface: the
+`--type` flag belongs to `25kzda` 2.2/2.3 and was explicitly excluded by executed plan `uyeko5`, so the
+cross-type sweep is callable but unreachable. Section 6 states this as an honest limit.
+
+WHERE THE RELEASE GATE LIVES NOW, and why it is no longer on this spec. This spec carried
+`- Blocks-Release: next` while its work was outstanding. On 2026-09-13 the maintainer ruled that a release
+gate belongs on a PLAN rather than on a spec, and that the spec's field is cleared once the plan carrying
+it is filed. TWO plans now carry it, because the same ruling split R-15's remainder in half:
+
+| Plan | Carries | State |
+|---|---|---|
+| `ui8b9b` (`specsweep` Order 01) | R-15's SELECTION half: register `--type` on both runners so a spec sweep is operator-reachable | filed `to-review`, `- Blocks-Release: next` |
+| `mng63x` (`specdispatch` Order 01) | R-15's EXECUTION half: how the runner dispatches a non-plan artifact | filed `to-review`, `- Blocks-Release: next`, DESIGN-FIRST |
+
+So clearing this spec's field loses no gate: 2.0.0's blocker count is unchanged, and the two halves are
+now separately reviewable and separately provable. `mng63x` is deliberately design-first, because the
+maintainer also ruled that HOW execution is implemented needs DISCUSSION; its own open question is that
+design, and it must not be executed as though the approach were settled.
+
+THE SPEC IS STILL WORTH REVIEWING AND APPROVING RATHER THAN RETIRING, because it is the contract those
+three executed plans were built against and the two new ones are written against. What review must NOT do
+is re-authorize the shipped work as though it were pending.
 
 ## 1. Why this exists
 
@@ -25,8 +70,10 @@ goes further and defines three deterministic checks for that action by name, `SP
 `SPEC-REVIEW-TRANSITION`, and `SPEC-REVIEW-STRUCTURE`, each with an exact failure message and recovery
 command.
 
-None of it is implementable today, because there is no spec review to run. The gap is not a missing flag
-or an unwired predicate; it is three missing mechanisms, and each one independently blocks the action:
+None of it was implementable AT AUTHORING (2026-09-04), because there was no spec review to run. The gap
+was not a missing flag or an unwired predicate; it was three missing mechanisms, each independently
+blocking the action. All three are now closed (Section 0); the diagnosis is preserved in the past tense
+because it is the reasoning the design rests on:
 
 1. **No spec-review workflow exists.** `.aw/system/workflows/` contains `plan-review` and
    `plan-review-long`, and nothing that reviews a spec. `/spec` authors specs and says so explicitly
@@ -52,6 +99,10 @@ argument for this work is weak and should not be made. The argument is structura
 artifacts that need review have no workflow that can review them, and the transition they would take is
 unattested.
 
+RE-MEASURED 2026-09-13: 6 plans and 4 specs at `to-review`, this spec among them. The structural argument
+still carries the decision and the volume argument is still the weaker one, but the population is no longer
+near-empty, and this spec is now itself a member of the set it exists to make reviewable.
+
 ## 2. Requirements
 
 Each requirement has a stable ID so a graduating plan can trace to it (`25kzda` Section 4.8's
@@ -70,8 +121,12 @@ Each requirement has a stable ID so a graduating plan can trace to it (`25kzda` 
   NOT be reported as dangling.
 - **R-04** `- Plan-Id:` is REPLACED, not carried alongside. This repository is pre-release and its
   conventions forbid compatibility shims; two fields meaning one thing is precisely the duplicate
-  mechanism that produces divergence. The 34 existing review records are migrated in the same change
-  that introduces the new field, mechanically, with the migration shown.
+  mechanism that produces divergence. EVERY existing review record is migrated in the same change that
+  introduces the new field, mechanically, with the migration shown. The population is DERIVED from
+  `review_findings.iter_review_files` at execution, never asserted as a literal: it was 34 when this
+  requirement was written, 36 when the implementing plan was reviewed, and 186 on 2026-09-13, because
+  filing a review adds one. A migration validated against a hardcoded count fails for a reason unrelated
+  to the change, or passes only because someone edited the number.
 - **R-05** The review filename grammar is UNCHANGED. It is already artifact-neutral:
   `build_review_name` delegates to `artifact_naming.build_clustered_name` with the `review` facet, and
   the embedded `<id6>` is simply the subject's. Only the docstrings claim otherwise, and only they need
@@ -95,6 +150,11 @@ Each requirement has a stable ID so a graduating plan can trace to it (`25kzda` 
 - **R-10** Whether the capability is a NEW workflow (`spec-review/`) or a GENERALIZATION of
   `plan-review/` is deliberately left to the graduating plan, which must decide it against the code and
   record the decision. Section 5 states the tradeoff and the constraint either answer must satisfy.
+  DECIDED 2026-09-04 by maintainer ruling: a SEPARATE `spec-review/` package. The evidence, the rejected
+  option's measured cost (three plan-only obligations becoming six conditionals across two bodies held in
+  deliberate parity), and the accepted cost (rubric drift, mitigated by a test) are recorded in
+  `.aw/system/workflows/spec-review/README.md`. Section 5's tradeoff is preserved as the reasoning; the
+  question it left open is closed.
 
 ### 2.3 The transition becomes attested
 
@@ -103,10 +163,14 @@ Each requirement has a stable ID so a graduating plan can trace to it (`25kzda` 
   `TRANSITION_AUTHORITY` and makes the spec transition as attested as the plan one.
 - **R-12** The attestation MUST fail closed and MUST be enforced by the same shared predicate that the
   checker, the setter, and any hook consult. One predicate, several call sites; never a second copy.
-- **R-13** Enforcement MUST NOT retroactively invalidate the 15 specs already at `implemented` or the 5
-  at `approved`, none of which have review records. Existing specs are grandfathered exactly as
-  `25kzda` Section 2.11 grandfathers pre-cutover IPD dependency statements: the requirement binds
-  transitions performed AFTER the change, not history.
+- **R-13** Enforcement MUST NOT retroactively invalidate any spec already past `to-review` without a
+  review record. Existing specs are grandfathered exactly as `25kzda` Section 2.11 grandfathers
+  pre-cutover IPD dependency statements: the requirement binds transitions performed AFTER the change, not
+  history. THE MECHANISM IS STRUCTURAL, NOT A CUTOVER DATE: the authority table is consulted only at
+  transition time, so a spec that never transitions again is never re-tested. (At authoring the affected
+  population was 15 `implemented` plus 5 `approved`; on 2026-09-13 it is 15 `implemented`, 7 `approved`
+  and 1 `implementing`. The count is stated as context, never as the invariant, because grandfathering
+  must hold for whatever the population turns out to be.)
 
 ### 2.4 Needs-review discovery spans types
 
@@ -123,23 +187,47 @@ Each requirement has a stable ID so a graduating plan can trace to it (`25kzda` 
 
 ## 3. Acceptance criteria
 
-- **A-01** A spec at `to-review` can be reviewed end to end, producing a findings table, a verdict, a
-  conforming review record, and a tool-authored transition to `reviewed`.
-- **A-02** `aw check all` reports no `check.review-dangling` for a spec review whose subject exists,
+EVERY CRITERION NAMES THE REQUIREMENTS IT COVERS, added at review because the mapping was absent: the
+requirements carry stable ids expressly so a criterion and a later plan can cite them, and no criterion
+did. The bijection is stated at the end of this section so an uncovered MUST is visible rather than
+inferred.
+
+- **A-01** (R-06) A spec at `to-review` can be reviewed end to end, producing a findings table, a verdict,
+  a conforming review record, and a tool-authored transition to `reviewed`.
+- **A-02** (R-03) `aw check all` reports no `check.review-dangling` for a spec review whose subject exists,
   and still reports it for a review whose subject does not.
-- **A-03** All 34 pre-existing review records carry `Subject-Id`/`Subject-Type` after migration, no
-  record retains `- Plan-Id:`, and `aw check all` is no worse than its pre-change baseline.
-- **A-04** No spec acquires a `- Readiness:` field, and no spec's status or workflow history is written
-  by anything other than `aw specs set` / `aw specs note`.
-- **A-05** Setting a spec `reviewed` without a conforming review record is REFUSED, with a message
-  naming the missing record and a recovery command; setting it WITH one succeeds. A pre-existing
+- **A-03** (R-01, R-02, R-04) EVERY review record discovered by `review_findings.iter_review_files` carries
+  `Subject-Id` and `Subject-Type`, no record retains a `- Plan-Id:` field, `Subject-Type` holds only a
+  value in the closed vocabulary, and `aw check all` is no worse than its pre-change baseline. The
+  population is DERIVED at execution, never asserted as a literal: it was 34 at authoring, 36 during the
+  implementing plan's review, and 186 on 2026-09-13, because every review adds one. A criterion phrased as
+  equality against a count would fail for a reason unrelated to the change.
+- **A-04** (R-07, R-08) No spec acquires a `- Readiness:` field, and no spec's status or workflow history is
+  written by anything other than `aw specs set` / `aw specs note`.
+- **A-05** (R-11, R-12, R-13) Setting a spec `reviewed` without a conforming review record is REFUSED, with
+  a message naming the missing record and a recovery command; setting it WITH one succeeds; the refusal
+  comes from the ONE shared predicate (proven by grep, not by behavior alone); and a pre-existing
   `implemented` or `approved` spec is unaffected.
-- **A-06** The needs-review predicate has exactly one implementation. A grep shows no second copy in
+- **A-06** (R-14) The needs-review predicate has exactly one implementation. A grep shows no second copy in
   either runner, and both runners plus the preview consult it.
-- **A-07** A complete `draft` item appears in the needs-review set exactly when the dispatch table
+- **A-07** (R-16) A complete `draft` item appears in the needs-review set exactly when the dispatch table
   routes it to review, demonstrated for both a plan and a spec, so the sweep and the table agree.
-- **A-08** `25kzda`'s three named spec checks (`SPEC-REVIEW-COMPLETE`, `SPEC-REVIEW-TRANSITION`,
-  `SPEC-REVIEW-STRUCTURE`) are each satisfiable, with the evidence each one inspects actually produced.
+- **A-08** (R-09) `25kzda`'s three named spec checks (`SPEC-REVIEW-COMPLETE`, `SPEC-REVIEW-TRANSITION`,
+  `SPEC-REVIEW-STRUCTURE`) are each satisfiable, with the evidence each one inspects actually produced, and
+  the structural gate exercised is `aw specs check` rather than `aw ipd lint`.
+- **A-09** (R-15) A CALLER passing the spec type enumerates the specs at `to-review` from the specs tree.
+  State plainly, as a limit and not a success, whether an OPERATOR can reach it: at 2026-09-13 they cannot,
+  because `--type` is registered on neither host. A criterion satisfied only at the function boundary must
+  say so, or a green result reads as a shipped feature.
+- **A-10** (R-05) The review filename grammar is unchanged, proven by the naming authority still building a
+  review name from the subject's setid and id6, with only docstrings corrected.
+- **A-11** (R-10) The workflow-shape decision is RECORDED with its evidence and its accepted cost, in a
+  durable place a later reader will find, so it is not silently re-litigated.
+
+REQUIREMENT COVERAGE, which is the check the ids exist for: R-01 A-03; R-02 A-03; R-03 A-02; R-04 A-03;
+R-05 A-10; R-06 A-01; R-07 A-04; R-08 A-04; R-09 A-08; R-10 A-11; R-11 A-05; R-12 A-05; R-13 A-05;
+R-14 A-06; R-15 A-09; R-16 A-07. Every MUST is covered and every criterion maps back; A-09 through A-11
+were added at review to close R-05, R-10 and R-15, which had no criterion at all.
 
 ## 4. Decisions
 
@@ -160,10 +248,10 @@ Each requirement has a stable ID so a graduating plan can trace to it (`25kzda` 
   closures is the shape that caused the divergence; the fix is one shared predicate derived from the
   dispatch table.
 
-## 5. The one decision left to the graduating plan
+## 5. The one decision left to the graduating plan (SINCE DECIDED)
 
-R-10 deliberately does not choose between a new `spec-review/` workflow and generalizing
-`plan-review/`. Both are defensible and the choice needs the code in front of it:
+DECIDED 2026-09-04: a SEPARATE `spec-review/` package (see R-10). This section is retained because it is
+the reasoning the ruling weighed, not an open question. The tradeoff as originally stated:
 
 - GENERALIZING keeps one review body, so a rubric improvement reaches both artifact types. But
   `plan-review` and `plan-review-long` are held in deliberate parity, so it means changing two bodies in
@@ -188,14 +276,32 @@ forks the record is rejected regardless of which workflow shape it picks.
   this limit for plans; it holds identically here, and R-11's attestation must not be described as a
   quality guarantee.
 - **The immediate payoff is small.** 3 artifacts need review at authoring. The work is justified
-  structurally, not by throughput, and a graduating plan should not claim otherwise.
-- **Grandfathering leaves a permanent honest hole.** The 20 specs already at `approved` or
-  `implemented` will never have review records, so the attestation is a going-forward invariant only.
-  Any consumer that treats "has a review record" as a property of all reviewed specs will be wrong
-  about history.
-- **`aw find specs --status` is broken at authoring** and silently ignores its filter, returning all 26
-  specs for every value. Anything built on top of it inherits that bug, so a graduating plan must either
-  fix it or avoid depending on it, and must not assume the filter works because the flag exists.
+  structurally, not by throughput, and a graduating plan should not claim otherwise. (10 on 2026-09-13,
+  which strengthens the case without changing which argument carries it.)
+- **Grandfathering leaves a permanent honest hole.** The specs already past `to-review` without a review
+  record never acquire one, so the attestation is a going-forward invariant only. Any consumer that treats
+  "has a review record" as a property of all reviewed specs will be wrong about history.
+- **`aw find specs --status` is broken and STILL broken.** It silently ignores its filter, returning every
+  spec for every value. Re-verified 2026-09-13: `--status to-review`, `--status implemented` and an invalid
+  `--status bogusvalue` each return all 32 specs at exit 0. Root cause located: `cli._find_type_records`'s
+  "All other types" branch never consults `explicit_flags.status`, unlike the `plans` and `research`
+  branches which each call a `query(...)` helper, so the defect affects SEVEN record types, not just specs.
+  The executed plan `5slbpi` deliberately AVOIDED the filter rather than fixing it (its D4, the fix being
+  outside its scope) and used `check_engine._iter_spec_records` instead. Anything built on the filter
+  inherits the bug; it is not tracked by any backlog item, which is itself a gap.
+- **R-15 is satisfied at the FUNCTION boundary only, and no operator can reach it.** The cross-type sweep
+  works when called with the spec type, and `--type` is registered on neither host, so no invocation can
+  supply one. Do not read a green R-15 as a shipped operator capability. The flag is `25kzda` 2.2/2.3's and
+  was explicitly excluded by executed plan `uyeko5`. Both halves of the remainder are now carried by plans
+  (`ui8b9b` for selection, `mng63x` for execution), each gating the release; see Section 0.
+- **SELECTING a spec is not RUNNING one, and the second half is genuinely large.** Measured while filing
+  `mng63x`: the manifest is compiled from discovered plans only, a queue entry is plan-shaped and its path
+  resolves through the plans tree, and two of the three declared spec actions are not review turns at all
+  (`approved` means author IPDs from the spec, and `implementing` dispatches children and has no dispatch
+  row). So even once `--type` lands, a reader must not conclude that a spec can be reviewed by the runner.
+- **The attestation is only as strong as the record.** A review record that fails to PARSE is treated as
+  BLOCKING, so a malformed record refuses its own spec's approval with a parse code rather than a finding.
+  That is intended fail-closed behavior, and it means a careless reviewer can block a maintainer's spec.
 
 ## 7. Non-goals
 
