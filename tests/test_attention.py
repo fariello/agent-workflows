@@ -242,11 +242,11 @@ class ScanTests(unittest.TestCase):
         # a non-clustered name like `r.md` falls back to `r`.
         self.assertNotIn(".agents/docs/research/r.md (active)", stripped)
         self.assertRegex(
-            stripped, r"active\s+research\s+-\s+-\s+-\s+-\s+-\s+-\s+-\s+r\s+i1"
+            stripped, r"active\s+research\s+-\s+-\s+-\s+-\s+-\s+-\s+-\s+r\s+-\s+i1"
         )
         self.assertRegex(
             stripped,
-            r"deferred\s+spec\s+-\s+-\s+-\s+-\s+-\s+-\s+-\s+s\s+i2\s+-\s+\[gate artifact: TODO.md\]",
+            r"deferred\s+spec\s+-\s+-\s+-\s+-\s+-\s+-\s+-\s+s\s+-\s+i2\s+-\s+\[gate artifact: TODO.md\]",
         )
         self.assertNotIn("## blocked", stripped)
         # No trailing " tree" tag after the status.
@@ -885,40 +885,40 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         lines = [line for line in stripped.splitlines() if line.strip()]
         self.assertEqual(
             lines[0],
-            "Status   Type     Blocks Priority Readiness OQs Exec Valid Date     SetID       ID6    Deps",
+            "Status   Type     Blocks Priority Readiness OQs Exec Valid Date     SetID       N  ID6    Deps",
         )
 
         # Verify exact sorted lines:
         # 1. Type: backlog (medium, 2.0.0)
         self.assertEqual(
             lines[1],
-            "open     backlog   2.0.0 medium   -           -    -     - 20260903 runnerlayer cnwy8g -",
+            "open     backlog   2.0.0 medium   -           -    -     - 20260903 runnerlayer 01 cnwy8g -",
         )
         self.assertEqual(
             lines[2],
-            "open     backlog   2.0.0 medium   -           -    -     - 20260904 rununbound  d07nz2 -",
+            "open     backlog   2.0.0 medium   -           -    -     - 20260904 rununbound  01 d07nz2 -",
         )
         # 2. Type: plan (non-blocking first, then blocking)
         self.assertEqual(
             lines[3],
-            "reviewed plan          - -        -           -    -     - 20260829 runprofile  p0l1to -",
+            "reviewed plan          - -        -           -    -     - 20260829 runprofile  02 p0l1to -",
         )
         self.assertEqual(
             lines[4],
-            "approved plan      2.0.0 -        -           -    -     - 20260829 rununify    5e4sb6 -",
+            "approved plan      2.0.0 -        -           -    -     - 20260829 rununify    00 5e4sb6 -",
         )
         self.assertEqual(
             lines[5],
-            "reviewed plan      2.0.0 -        go-pendin   -    -     - 20260830 runcodes    wlxkoz -",
+            "reviewed plan      2.0.0 -        go-pendin   -    -     - 20260830 runcodes    01 wlxkoz -",
         )
         self.assertEqual(
             lines[6],
-            "to-revie plan      2.0.0 -        -           -    -     - 20260904 revsweep    76gsmv -",
+            "to-revie plan      2.0.0 -        -           -    -     - 20260904 revsweep    01 76gsmv -",
         )
         # 3. Type: spec
         self.assertEqual(
             lines[7],
-            "implemen spec      2.0.0 -        -           -    -     - 20260829 c4gd2h      c4gd2h -",
+            "implemen spec      2.0.0 -        -           -    -     - 20260829 c4gd2h      01 c4gd2h -",
         )
         # 4. Legend
         self.assertEqual(
@@ -963,10 +963,10 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         lines = [line for line in out.splitlines() if line.strip()]
         self.assertEqual(
             lines[0],
-            "Status   Type     Blocks Priority Readiness OQs Exec Valid Date     SetID ID6    Deps",
+            "Status   Type     Blocks Priority Readiness OQs Exec Valid Date     SetID N  ID6    Deps",
         )
         self.assertIn(
-            "to-revie plan          - -        -         2/3    -     - -        p     1      -",
+            "to-revie plan          - -        -         2/3    -     - -        p     -  1      -",
             lines[1],
         )
 
@@ -1016,10 +1016,10 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         out = att.render_table(items, [], show_all=True, term=att.T.Term(color=False))
         lines = [line for line in out.splitlines() if line.strip()][1:]
         # None first, then low, med, high
-        self.assertEqual(lines[0].split()[-3], "c")
-        self.assertEqual(lines[1].split()[-3], "b")
-        self.assertEqual(lines[2].split()[-3], "d")
-        self.assertEqual(lines[3].split()[-3], "a")
+        self.assertEqual(lines[0].split()[-4], "c")
+        self.assertEqual(lines[1].split()[-4], "b")
+        self.assertEqual(lines[2].split()[-4], "d")
+        self.assertEqual(lines[3].split()[-4], "a")
 
     def test_name_sorting(self):
         items = [
@@ -1053,9 +1053,9 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         ]
         out = att.render_table(items, [], show_all=True, term=att.T.Term(color=False))
         lines = [line for line in out.splitlines() if line.strip()][1:]
-        self.assertEqual(lines[0].split()[-3], "a-item")
-        self.assertEqual(lines[1].split()[-3], "m-item")
-        self.assertEqual(lines[2].split()[-3], "z-item")
+        self.assertEqual(lines[0].split()[-4], "a-item")
+        self.assertEqual(lines[1].split()[-4], "m-item")
+        self.assertEqual(lines[2].split()[-4], "z-item")
 
 
 class AttentionFilteringTests(unittest.TestCase):

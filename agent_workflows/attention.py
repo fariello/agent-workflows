@@ -1661,40 +1661,41 @@ _ID6_IN_NAME_RE = re.compile(r"-([0-9a-z]{6})-")
 _IDENTITY_PARTS_RE = re.compile(
     r"^(\d{8})-([a-z0-9-]+?)-(\d{2})-([0-9a-z]{6})(?:-|\.|$)"
 )
-_LEGACY_SPEC_RE = re.compile(r"^(\d{8})-\d{4}-\d{2}-([a-z0-9-]+)")
+_LEGACY_SPEC_RE = re.compile(r"^(\d{8})-\d{4}-(\d{2})-([a-z0-9-]+)")
 
 
 def extract_id6(it: Item) -> Optional[str]:
     """Extract id6 for an item, from it.id or filename."""
     if it.id and it.id != "-":
         return it.id
-    _, _, id6 = _extract_identity_parts(it)
+    _, _, _, id6 = _extract_identity_parts(it)
     if id6 and id6 != "-":
         return id6
     return None
 
 
-def _extract_identity_parts(it: Item) -> Tuple[str, str, str]:
-    """Extract (Date, SetID, ID6) from an Item's path and metadata."""
+def _extract_identity_parts(it: Item) -> Tuple[str, str, str, str]:
+    """Extract (Date, SetID, Num, ID6) from an Item's path and metadata."""
     base = it.path.replace("\\", "/").rsplit("/", 1)[-1]
     m_leg = _LEGACY_SPEC_RE.match(base)
     if m_leg:
-        return m_leg.group(1), m_leg.group(2), it.id or "-"
+        return m_leg.group(1), m_leg.group(3), m_leg.group(2), it.id or "-"
     m = _IDENTITY_PARTS_RE.match(base)
     if m:
-        return m.group(1), m.group(2), it.id or m.group(4)
+        return m.group(1), m.group(2), m.group(3), it.id or m.group(4)
     date = base[:8] if len(base) >= 8 and base[:8].isdigit() else "-"
     raw_stem = _FACET_STRIP_RE.sub("", base)
     set_id = raw_stem if raw_stem else "-"
+    num = "-"
     id6 = it.id if it.id else "-"
-    return date, set_id, id6
+    return date, set_id, num, id6
 
 
 def _item_run_status(it: Item, run_map: Optional[Dict[str, str]]) -> Optional[str]:
     """Look up an item's run status in run_map using id, id6 stem, path, or filename."""
     if not run_map:
         return None
-    _, _, it_id6 = _extract_identity_parts(it)
+    _, _, _, it_id6 = _extract_identity_parts(it)
     for cand in (it.id, it_id6, it.path, Path(it.path).name):
         if cand and cand in run_map:
             return run_map[cand]
@@ -1862,6 +1863,7 @@ def _render_table_row(
     repo_root: Optional[Path] = None,
     gate_in_header: bool = False,
     set_w: int = 5,
+    num_w: int = 2,
     oq_w: int = 3,
     exec_w: int = 4,
     valid_w: int = 5,
@@ -2006,7 +2008,7 @@ def _render_table_row(
     valid_left_pad = " " * max(0, valid_w - len(valid_raw))
     valid_col = f"{valid_left_pad}{valid_styled}"
 
-    date, set_id, id6 = _extract_identity_parts(it)
+    date, set_id, num, id6 = _extract_identity_parts(it)
 
     date_raw = date[:8]
     if colored and date_raw == "-":
@@ -2029,6 +2031,16 @@ def _render_table_row(
         set_styled = set_val
     set_pad = " " * max(0, set_w - len(set_val))
     set_col = f"{set_styled}{set_pad}"
+
+    num_raw = num[:num_w]
+    if colored and num_raw == "-":
+        num_styled = term.color256("-", 244)
+    elif colored:
+        num_styled = term.color256(num_raw, code, bold=True)
+    else:
+        num_styled = num_raw
+    num_pad = " " * max(0, num_w - len(num_raw))
+    num_col = f"{num_styled}{num_pad}"
 
     id6_raw = id6[:6]
     if colored and id6_raw == "-":
@@ -2060,12 +2072,12 @@ def _render_table_row(
     if runs_mode:
         row_line = (
             f"{st_col} {run_col} {tp_col} {blk_col} {prio_col} {rd_col} {oq_col} "
-            f"{exec_col} {valid_col} {date_col} {set_col} {id6_col} {deps_col}{inline_gate}"
+            f"{exec_col} {valid_col} {date_col} {set_col} {num_col} {id6_col} {deps_col}{inline_gate}"
         )
     else:
         row_line = (
             f"{st_col} {tp_col} {blk_col} {prio_col} {rd_col} {oq_col} "
-            f"{exec_col} {valid_col} {date_col} {set_col} {id6_col} {deps_col}{inline_gate}"
+            f"{exec_col} {valid_col} {date_col} {set_col} {num_col} {id6_col} {deps_col}{inline_gate}"
         )
     if details and it.detail_text:
         tag = it.detail_kind or "summary"
@@ -2097,7 +2109,7 @@ def render_table(
 ) -> str:
     """Render items in a compact columnar table for interactive/TTY viewing.
 
-    Columns: Status (8), [Run (7)], Type (8), Blocks (6), Priority (8), Readiness (9), OQs (3), Exec (4), Valid (5), Date (8), SetID, ID6 (6), Deps.
+    Columns: Status (8), [Run (7)], Type (8), Blocks (6), Priority (8), Readiness (9), OQs (3), Exec (4), Valid (5), Date (8), SetID, N, ID6 (6), Deps.
     Sorted by Type, Blocking (non-blocking first), Priority (none first, then low, med, high), name.
     """
     if term is None:
@@ -2167,6 +2179,9 @@ def render_table(
     ]
     set_w = max(len(col_title), max((len(s) for s in visible_set_vals), default=0))
 
+    visible_num_lens = [len(_extract_identity_parts(it)[2]) for it in visible]
+    num_w = max(len("N"), max(visible_num_lens, default=2), 2)
+
     visible_oq_lens = []
     visible_exec_lens = []
     visible_valid_lens = []
@@ -2197,18 +2212,19 @@ def render_table(
     valid_hdr = "Valid".rjust(valid_w)
     date_hdr = "Date".ljust(8)
     set_hdr = col_title.ljust(set_w)
+    num_hdr = "N".ljust(num_w)
     id6_hdr = "ID6".ljust(6)
 
     if runs_mode:
         run_hdr = "Run".ljust(7)
         header = (
             f"{st_hdr} {run_hdr} {tp_hdr} {blk_hdr} {prio_hdr} {rd_hdr} {oq_hdr} "
-            f"{exec_hdr} {valid_hdr} {date_hdr} {set_hdr} {id6_hdr} Deps"
+            f"{exec_hdr} {valid_hdr} {date_hdr} {set_hdr} {num_hdr} {id6_hdr} Deps"
         )
     else:
         header = (
             f"{st_hdr} {tp_hdr} {blk_hdr} {prio_hdr} {rd_hdr} {oq_hdr} "
-            f"{exec_hdr} {valid_hdr} {date_hdr} {set_hdr} {id6_hdr} Deps"
+            f"{exec_hdr} {valid_hdr} {date_hdr} {set_hdr} {num_hdr} {id6_hdr} Deps"
         )
     lines.append(term.colorize(header, "bold") if colored else header)
 
@@ -2224,6 +2240,7 @@ def render_table(
                 repo_root=repo_root,
                 gate_in_header=bool(shared_gate),
                 set_w=set_w,
+                num_w=num_w,
                 oq_w=oq_w,
                 exec_w=exec_w,
                 valid_w=valid_w,

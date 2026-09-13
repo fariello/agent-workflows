@@ -59,7 +59,7 @@ class AttentionPriorityBlockerTests(unittest.TestCase):
         # the Blocking column renders the resolved release version or 'next'
         self.assertRegex(
             out,
-            r"open\s+backlog\s+(?:2\.0\.0|next)\s+-\s+-\s+-\s+-\s+-\s+-\s+a\s+aaa111",
+            r"open\s+backlog\s+(?:2\.0\.0|next)\s+-\s+-\s+-\s+-\s+-\s+-\s+a\s+-\s+aaa111",
         )
 
         raw = attention.render_board([item], [], show_all=True, term=T.Term(color=True))
@@ -68,13 +68,13 @@ class AttentionPriorityBlockerTests(unittest.TestCase):
 
         out_noblock = self._colored([_item(".aw/records/backlog/open/a.backlog.md")])
         self.assertRegex(
-            out_noblock, r"open\s+backlog\s+-\s+-\s+-\s+-\s+-\s+-\s+-\s+a\s+aaa111"
+            out_noblock, r"open\s+backlog\s+-\s+-\s+-\s+-\s+-\s+-\s+-\s+a\s+-\s+aaa111"
         )
 
     def test_table_header_present_colored(self):
         out = self._colored([_item(".aw/records/backlog/open/a.backlog.md")])
         self.assertIn(
-            "Status   Type     Blocks Priority Readiness OQs Exec Valid Date     SetID ID6    Deps",
+            "Status   Type     Blocks Priority Readiness OQs Exec Valid Date     SetID N  ID6    Deps",
             out,
         )
         self.assertIn("Deps", out)
@@ -159,7 +159,7 @@ class PlanReleaseBlockerSurfacingTests(unittest.TestCase):
         )
         self.assertRegex(
             out,
-            r"draft\s+plan\s+(?:2\.0\.0|next)\s+-\s+-\s+-\s+-\s+-\s+20260101\s+demo\s+pl0001",
+            r"draft\s+plan\s+(?:2\.0\.0|next)\s+-\s+-\s+-\s+-\s+-\s+20260101\s+demo\s+01\s+pl0001",
         )
 
 
