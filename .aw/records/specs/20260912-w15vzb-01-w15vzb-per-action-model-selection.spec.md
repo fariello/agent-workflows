@@ -1,13 +1,14 @@
 # Spec: Per-action model selection: the unit a model attaches to
 
 - Date: 2026-09-12
-- Status: draft
+- Status: to-review
 - Id: w15vzb
 - Author: aw specs new
 - Scope: A model preference attaches to a ROLE (a kind of work), declared in a top-level roles map that extends verify_with rather than superseding it
 - From-Backlog: 0k74my
 
 ## Workflow history
+- 2026-09-13 to-review (aw set): Records the actmodel-01 (btot17) decision: a model preference attaches to a ROLE from a closed vocabulary, declared in a top-level roles map that EXTENDS verify_with as a new bottom tier of the one existing chain. Sections 4.1-4.6 carry the four questions the backlog item reserved, with the maintainer's fitness-for-task reframing replacing the item's cost framing. R-1..R-5, R-9 and R-6 case A are implemented and tested; R-6 case B, R-7 and R-8 are outstanding and need the consumer that does not exist yet, so this is NOT implemented and is offered for critique.
 
 - 2026-09-12 created (aw specs): A model preference attaches to a ROLE (a kind of work), declared in a top-level roles map that extends verify_with rather than superseding it
 
