@@ -8,17 +8,17 @@
 - Scope: Wiring and installation only, gate by gate, each with its intent CONFIRMED before it is turned on. IN: register the gates that should be always-on, install a `pre-push` hook stage so the push gate can fire, and keep every honest-limit disclosure intact. OUT: any new guard, any agent-context detection, and any change to what a gate DECIDES; also out is `backlog-blocking-close-gate` if its documented opt-in status is deliberate.
 - Scope-Paths: .pre-commit-config.yaml, agent_workflows/engine.py, tests/test_gate_wiring.py, tests/test_executed_transition_gate.py, agent_workflows/hooks/
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: commitguard
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: kbqpkn
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: wjl471
 
 ## Workflow history
+- 2026-09-13 executed (aw oc run): aw oc run self-finalize: kbqpkn verified (set commitguard, attempt 1). [Scope reconciliation - in-scope-unmodified .pre-commit-config.yaml: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/engine.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/hooks/: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_executed_transition_gate.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False; `review_findings.subject_gating_blocks` -> empty; `plan_readiness.newest_verdict` polarity -> neutral (not negative). Specifically, its blocking OQ-01 was answered on 2026-09-10 and the finding it escalated (PR-801) is now closed in review round 2. Performed at HEAD `84111de2` at the maintainer's explicit instruction of 2026-09-10, who was shown that 10 of 15 `no-go` plans were held by stale bookkeeping and chose to have them hand-fixed with evidence recorded rather than re-reviewed. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
