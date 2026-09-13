@@ -254,7 +254,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     Plus a pass-through assertion that the identical arrangement with `is_live=False` yields the SAME three verdicts and differs only in the flag, which is the mechanical proof that liveness is an input rather than a derivation. A `configured_file` short-circuit case is also pinned, because E-03 replaces the search that branch bypasses.
 
     NO VERDICT WAS CHANGED by this item: the test was written against the shipped behavior and passed on first run at HEAD. NO WRONG-LOOKING VERDICT WAS FOUND, so nothing was recorded as a finding here; one questionable behavior WAS found later while building the doctor consumer (a `pending/` record declaring a terminal status), but it is a property of the NEW tracked-only predicate and is handled in V-04, not a change to any existing verdict.
-  - Result: verified
+  - Result: pass
 
 - [x] V-02 validates E-02
   - Required evidence: paste the new module's definition site and the import in `run_viewer.py`. Paste the OBJECT-IDENTITY assertion and its passing output (`run_viewer`'s attribute IS the shared object). Paste a search proving `run_viewer` holds NO local definition. State whether the signature takes primitive facts or a `StepSummary`, and if the latter, paste the written reason.
@@ -303,7 +303,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     That is asserted in the suite too (`test_run_viewer_holds_no_local_audit_definition`), together with the reverse-direction guard `test_shared_module_does_not_import_run_viewer`, which keeps the dependency one-directional.
 
     THE SIGNATURE TAKES PRIMITIVE FACTS, resolving OQ-01 as it recommended: `audit_artifact(repo_root, id6, stem, *, status, configured_file, is_live, record_types)`. No run-viewer type appears anywhere in the shared module's signatures, and `test_shared_signature_takes_primitive_facts_not_a_step` calls it with primitives only. The `StepSummary`-shaped adapter stays in `run_viewer` as `audit_step_artifact`, which owns the step-to-primitives projection (including the `setid-id6` stem fallback) because it owns the type. No written impracticality reason is needed since the split held.
-  - Result: verified
+  - Result: pass
 
 - [x] V-03 validates E-03
   - Required evidence: paste the resolver-consuming lookup and a search proving no hardcoded directory list remains. STATE how you obtained cross-type coverage given that `selectors.resolve` takes ONE `record_type` (a passed type, or a loop with stated precedence). Paste the ACTUAL passing output of the TYPE-SET fixture (an artifact of a type the old list never searched, e.g. a `backlog` record, is now found) and of the collision fixture (an id6 matching several artifacts yields the collision verdict, not a first pick). Paste the MONTHLY-shard case as a no-regression check, and explicitly confirm you did NOT assert the old code failed on it, since it did not. State which matching semantics you chose (substring versus declared `- Id:`) and why, including that a review record declares `- Subject-Id:` and so is skipped by the exact rule for free. Paste `git status --porcelain agent_workflows/selectors.py` proving it was NOT modified.
@@ -373,7 +373,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     ```
 
     A PERFORMANCE NOTE, because consuming the resolver has a real cost the plan did not budget for and ignoring it would have been a regression: the run viewer audits EVERY step of EVERY displayed run, and a full multi-type walk measures ~560ms on this tree (the `other` catch-all alone is ~330ms for 4 files, since it sweeps the whole records tree). A per-step walk took `tests/test_run_viewer.py` from `2.41s` to `35.41s`. `build_index` therefore memoizes ONE traversal per (root, type-vocabulary), invalidated by record-directory mtimes so a lifecycle MOVE is still seen (asserted by `test_index_is_invalidated_when_an_artifact_moves`); the signature deliberately walks the literal layout instead of calling `selectors.record_dirs` per type, which measured ~1.6ms per call. Result: `76 passed in 4.00s`, and the worst single test fell from 6.63s to 0.56s. Statuses are always read FRESH (only path facts are cached), because an in-place `- Status:` edit does not change a directory mtime.
-  - Result: verified
+  - Result: pass
 
 - [x] V-04 validates E-04
   - Required evidence: FIRST state which of E-04's three routes you took ((a) doctor reads run records, (b) tracked-only cannot-be-live, (c) no doctor consumer) and paste the reasoning, including how you answered the objection that `doctor.py` reads no run records today and that OQ-03 treats run-record dependence as decisive against a CI gate. If (b), state what it adds over the shipped `IPD-M105`. If (a) or (b): paste `aw doctor`'s new output on the live tree with the MEASURED finding count, the severity chosen and why that count justified it, the in-flight fixture showing NO finding, and the fail-safe case (liveness undeterminable -> no report). If (c): say so plainly and paste no fabricated consumer evidence. IN EVERY CASE paste `aw runs` output before and after on a real recorded run, byte-identical.
@@ -441,7 +441,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     ```
 
     The run record was BUILT AS A FIXTURE inside this lane rather than read from the primary checkout, because run records are gitignored and absent here and reading the main checkout is forbidden for a lane.
-  - Result: verified
+  - Result: pass
 
 - [x] V-05 validates E-05
   - Required evidence: paste the recorded `aw check` decision AS WRITTEN IN THE SHARED MODULE'S DOCSTRING, not merely in this plan. It must state the gitignored-run-record objection and what would make the rejected option viable. Paste `aw check all --agent` per-rule counts before and after, proving no rule was added.
@@ -480,12 +480,73 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     ```
 
     Not one of those locations is a file this plan touched, and none is a new rule; they are transient working-tree advisories that resolve once the change is committed. I did NOT "fix" them and did not touch those plans (shared checkout).
-  - Result: verified
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the BARE `python3 -m pytest` summary lines before and after AND the failing node ids from each, stating the failure-set delta BY NODE ID. Confirm the pre-existing `test_reporting_contract::ParityTests::test_only_expected_files_contain_the_full_contract_prose` failure appears in BOTH runs and was not "fixed", and that the gitignored `opencode-recovery/` tree was not touched. Paste `tests/test_run_viewer.py`'s OWN summary line separately and compare it against the measured `75 passed`; since `e167c9b3` fixture-isolated that module, treat ANY failure there as a real regression rather than environmental. Re-paste the object-identity assertion and both defect fixtures (type-set and collision) as a single verification pass, plus the in-flight fixture IF E-04 built a consumer. Confirm no real discrepancy found by the new rule was "fixed" by moving another agent's artifact.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BARE SUITE, BEFORE (at HEAD `a9510164`, before any edit):
+
+    ```
+    5971 passed, 3 skipped, 2 xfailed in 84.53s (0:01:24)
+    ```
+
+    BARE SUITE, AFTER (on the committed change):
+
+    ```
+    5998 passed, 3 skipped, 2 xfailed in 76.34s (0:01:16)
+    ```
+
+    FAILING NODE IDS: **NONE IN EITHER RUN**, so the failure-set delta BY NODE ID is EMPTY:
+
+    ```
+    $ diff baseline-failed-nodes.txt final-failed-nodes.txt && echo "EMPTY DELTA"
+    EMPTY DELTA
+    ```
+
+    +27 passing tests, which is the count this plan added (26 in `tests/test_artifact_audit.py`, 1 in `tests/test_run_viewer.py`).
+
+    THE PLAN'S EXPECTED PRE-EXISTING FAILURE DOES NOT EXIST IN THIS LANE, AND I DID NOT "FIX" ANYTHING TO MAKE THAT SO. `test_reporting_contract::ParityTests::test_only_expected_files_contain_the_full_contract_prose` PASSES in both runs, because its stated cause is absent here: the gitignored `opencode-recovery/` tree of another party is not present in this lane (`ls -d opencode-recovery` -> `No such file or directory`). I did not create, touch, read or delete that tree.
+
+    A BASELINE CORRECTION THE PLAN COULD NOT HAVE KNOWN, recorded because it would otherwise look like 17 regressions. The FIRST bare run in this lane reported `17 failed, 5954 passed`. All 17 are caused by the runner's own environment marker, not by repository state: the lane exports `AW_EXECUTION_ROLE=worker`, and `tests/test_worker_role_refusal.py::test_driver_own_process_is_not_worker_role` asserts `os.environ.get("AW_EXECUTION_ROLE") != "worker"` directly, while the begin/finalize CLI and runner-isolation tests refuse under a worker role by design. Proved by toggling ONLY that variable:
+
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest -o addopts="" -q tests/test_worker_role_refusal.py tests/test_ipd_lifecycle_cli.py
+    64 passed in 7.69s
+    $ python3 -m pytest -o addopts="" -q tests/test_ipd_lifecycle_cli.py      # with the marker set
+    2 failed, 55 passed in 6.81s
+    ```
+
+    Every suite figure quoted above is therefore measured with `env -u AW_EXECUTION_ROLE`, identically before and after, so the comparison is apples to apples. I changed no test and no production code to accommodate this.
+
+    `tests/test_run_viewer.py`'s OWN SUMMARY LINE, separately:
+
+    ```
+    76 passed in 4.34s
+    ```
+
+    That is the review-measured `75 passed` PLUS the one characterization test E-01 added, with zero failures. Since `e167c9b3` fixture-isolated that module I treated it as a real-regression detector, and it earned its keep: the first resolver-consuming implementation passed it at `35.41s` instead of `2.41s`, which is what surfaced the per-step-traversal cost that `build_index` now memoizes (see V-03).
+
+    THE SINGLE VERIFICATION PASS over the object-identity assertion and both defect fixtures, plus the in-flight fixture (E-04 DID build a consumer, route (b)):
+
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest -o addopts="" -q tests/test_artifact_audit.py tests/test_run_viewer.py
+    102 passed in 5.42s
+    ```
+
+    Covering, by name: `test_run_viewer_audit_type_is_the_shared_module_object` (object identity, `assertIs`), `test_run_viewer_holds_no_local_audit_definition` and `test_shared_module_does_not_import_run_viewer` (the move, and its one-directional dependency), `test_defect_one_type_set_backlog_record_is_now_found` plus `test_type_set_covers_every_record_type_not_just_plans_and_specs` (defect one, TYPE SET), `test_defect_two_id6_collision_is_reported_not_silently_picked` plus `test_cross_type_id6_collision_is_reported` (defect two, collision), `test_monthly_shard_still_found_no_regression` (the shard case as no-regression ONLY, with its docstring recording that the opposite assertion would be false), and `test_doctor_probe_reports_an_in_flight_run_as_nothing` (in-flight fixture -> no finding).
+
+    `aw runs` BYTE-IDENTICAL: see V-04 (`md5sum` match across five flag shapes on a non-vacuous fixture run).
+
+    NO DISCREPANCY WAS "FIXED" BY MOVING ANYONE'S ARTIFACT. The new rule found ZERO findings on the live tree, so there was nothing to be tempted by; no record was moved, renamed or edited by this plan outside its declared scope. The only other-owner signal I saw was a transient `check.scope-drift` rise attributable to four other plans' advisories counting my uncommitted files (V-05), which I reported rather than touched.
+
+    `aw sanitize --agent` CLEAN, and exit codes measured UNPIPED:
+
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,...}
+    sanitize exit=0
+    doctor exit (unpiped)=1        # pre-existing repo findings, unrelated to this plan's advisory
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
