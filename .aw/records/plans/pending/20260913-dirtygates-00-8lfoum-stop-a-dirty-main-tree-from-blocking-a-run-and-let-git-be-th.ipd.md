@@ -11,7 +11,7 @@
 - Readiness: no-go
 - Set: dirtygates
 - Order: 0
-- Highest E allocated: 05
+- Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: 8lfoum
 - Priority: high
@@ -53,6 +53,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: no action type writes to the shared checkout mid-run, and a review's two output files arrive together or not at all.
   - Execution state: pending
+- [ ] E-06 Execute Order 06 (`4xt6u4`): stop a failed orchestrator retirement leaving regenerated index files in the shared checkout, and add the tree-cleanliness assertion the existing fault tests lack.
+  - Depends on: none
+  - Expected outcome: after a failed retirement the shared checkout is byte-identical to before the attempt, and the suite detects a regression.
+  - Execution state: pending
 
 ## Child IPDs, sequence, and dependencies
 
@@ -63,8 +67,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | 03 | `20260913-dirtygates-03-9iq461-close-a-backlog-item-inside-the-lane-so-nothing-writes-to-th.ipd.md` | Backlog close moves into the lane and rides the merge | none |
 | 04 | `20260913-dirtygates-04-u23gbn-retire-an-orchestrator-in-a-coordinator-owned-throwaway-work.ipd.md` | Retirement runs in a coordinator-owned throwaway worktree; index residue fixed | none |
 | 05 | `20260913-dirtygates-05-ajxr5d-isolate-a-review-turn-in-a-worktree-too-so-no-turn-writes-to.ipd.md` | Review turns get worktree isolation; their two output files land via one merge | none |
+| 06 | `20260913-dirtygates-06-4xt6u4-stop-a-failed-orchestrator-retirement-leaving-regenerated-in.ipd.md` | Failed retirement leaves no index residue; carved from Order 04 at revision | none |
 
-The five are INDEPENDENT by design, so a review may approve and run any subset. Orders 01 and 02 both edit prose in `lane_containment.py` that describes the two gates as a contrasting pair, so whichever runs second owns reconciling that paragraph; Order 02's E-05 states this explicitly. Orders 03, 04 and 05 touch disjoint files, except that Orders 03 and 05 both edit `oc_runipd.py` and `agy_runipd.py` in different regions (the close path versus the review-isolation guards).
+The six are INDEPENDENT by design, so a review may approve and run any subset. Orders 01 and 02 both edit prose in `lane_containment.py` that describes the two gates as a contrasting pair, so whichever runs second owns reconciling that paragraph; Order 02's E-05 states this explicitly. Orders 03, 04 and 05 touch disjoint files, except that Orders 03 and 05 both edit `oc_runipd.py` and `agy_runipd.py` in different regions (the close path versus the review-isolation guards).
 
 ## Completion criteria (the whole Set is done only when)
 
@@ -180,6 +185,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 - [ ] V-05 validates E-05
   - Required evidence: Order 05 in `executed/` with all its V-items evidenced, including MAIN's `git status --porcelain` sampled DURING a review turn and the merge containing both the plan edit and the review record.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-06 validates E-06
+  - Required evidence: Order 06 in `executed/` with both its V-items evidenced, including the before/after `git status --porcelain` for a fault-injected retirement and the assertion demonstrated failing against the pre-fix behavior.
   - Observed evidence:
   - Result: pending
 
