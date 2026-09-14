@@ -39,67 +39,67 @@ RIGHT-SIZING NOTE. Authored with THREE E-items, as were all ten children of this
 
 ### Task group 1: Publication
 
-- [ ] E-01 Implement the bundle's DIRECTORY publication using a scheme that is actually atomic, since the authored one is not.
+- [x] E-01 Implement the bundle's DIRECTORY publication using a scheme that is actually atomic, since the authored one is not.
   MEASURED: `os.replace` REFUSES a non-empty target directory with `OSError` errno 39 ("Directory not empty"), so the single-file atomic-rename pattern this repository uses in 60 places (`artifact_core.atomic_write:118` is the canonical helper) DOES NOT generalize to a multi-file bundle. The plan's "a failure leaves the previous latest bundle intact" is therefore unimplementable as stated.
   MEASURED ALTERNATIVE: publish into a fresh versioned directory, then flip a `latest` SYMLINK with `os.symlink` to a temp name followed by `os.replace`, which succeeds and is observably atomic. THE CATCH IS WINDOWS: CI runs `windows-latest` (`.github/workflows/tests.yml:24`), where creating a symlink requires Developer Mode or elevation, and this package's only `os.symlink` call (`layout_migration.py:486`) is in a preserve-symlink branch, not a create-a-link-as-policy path. So choose and IMPLEMENT a documented fallback: on a platform where the symlink attempt raises, publish to the versioned directory and then replace the flat files one at a time in a documented order with the manifest LAST, so a reader that finds a manifest can trust the files it names. Record the choice; do not leave it to the executor to discover mid-run.
   - Depends on: none
   - Expected outcome: publication is transactional in a way that is TESTED by fault injection (kill between file writes) and never leaves a half-written bundle a reader can mistake for complete; the manifest is written last and is the completeness signal; the Windows no-symlink path is implemented and tested, not merely mentioned.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Make the browser assets actually ship, and prove it, because the authored claim is measurably false.
+- [x] E-02 Make the browser assets actually ship, and prove it, because the authored claim is measurably false.
   MEASURED AT REVIEW WITH A PROBE BUILD: hatchling HONORS `.gitignore`. A probe package with `pkg/assets/{index.html,app.css,ignored.html}` and `.gitignore` naming `ignored.html` produced a wheel containing the first two and SILENTLY OMITTING the third, with no warning and exit 0. Three consequences the plan did not account for. FIRST, `[tool.hatch.build.targets.wheel]` declares only `packages = ["agent_workflows"]` plus one `force-include` for `.aw/system`, so a new `agent_workflows/run_analytics_assets/` directory ships ONLY if it is inside the package directory AND not gitignored. SECOND, `[tool.hatch.build.targets.sdist].include` is an EXPLICIT allowlist (`/agent_workflows`, `/.aw/system`, `/hatch_build.py`, `/pyproject.toml`, `/README.md`, `/LICENSE`, `/NOTICE`), so an asset outside `/agent_workflows` is absent from the sdist. THIRD, and worst, `tests/test_packaging.py` asserts what must NOT be present (`FORBIDDEN_TOP`, `FORBIDDEN_AGENTS_SUBSTRINGS`) plus a handful of named modules, so it would pass with every browser asset missing. Verified: `python3 -m pytest tests/test_packaging.py` reports `7 passed`, and none of the seven would notice.
   `.gitignore` is in `Scope-Paths` for exactly one reason: the repo-wide `*.untracked*` and build-artifact patterns must not accidentally match an asset filename. Do not weaken any existing pattern; the `*.untracked.*` block carries a DO-NOT-NARROW warning.
   - Depends on: E-01
   - Expected outcome: assets live inside `agent_workflows/` and are proven present in BOTH the wheel and the sdist by a POSITIVE assertion added to the packaging test (name each asset), plus a test that an asset matching a gitignore pattern is detected rather than silently dropped; `pyproject.toml` updated only if the measured build requires it, with the reason recorded.
 
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: The embedded data contract
 
-- [ ] E-03 Choose and implement the embedded data layout against the MEASURED volume, because it decides the whole architecture.
+- [x] E-03 Choose and implement the embedded data layout against the MEASURED volume, because it decides the whole architecture.
   MEASURED FROM THE REAL CORPUS, and the plan sized none of this. Per-step facts (the grain Order 05 requires so medians and quantiles can be computed without reparsing) are 29766 rows. As minified JSON that is 3.24 MB; gzipped 0.70 MB (4.7x); as the base64 text a single HTML file must actually embed, 0.93 MB. A COLUMNAR layout (one array per field rather than one object per row) measures 2.11 MB raw, 0.53 MB gzipped, 0.71 MB base64, a 24 percent saving on the embedded size and a larger one on parse time. Per-ATTEMPT aggregates alone are 39 KB, which is comfortable but forecloses every distribution and quantile the Set exists to provide.
   THE RENDERING CONSEQUENCE IS SHARPER THAN THE SIZE. 29766 points as individual SVG `<circle>` nodes is roughly 1.34 MB of markup and 29766 DOM nodes, which is past where browsers degrade; as SVG path data it is roughly 0.36 MB and one node. Canvas avoids both but is not accessible and cannot be asserted structurally, which collides directly with E-06 and E-07. So the decision is: aggregate/bin for the plotted series, keep the per-step rows available for the raw view via pagination, and use SVG paths rather than per-point nodes. Decide it HERE with the measurement, not at render time.
   - Depends on: E-02
   - Expected outcome: ONE documented embedded data contract with the layout choice and its measured basis; a size budget with a test asserting the produced `index.html` stays under it for the corpus-scale fixture; plotted series are pre-binned or path-rendered so DOM node count stays bounded regardless of row count; the raw view pages rather than materializing every row.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Render Order 06's REFUSALS as a first-class view, not as missing charts.
+- [x] E-04 Render Order 06's REFUSALS as a first-class view, not as missing charts.
   THIS IS THE MOST IMPORTANT CORRECTION IN THIS REVIEW. E-02 as authored demands "one interactive chart and exact table for each of the 16 required and at least four corpus-supported analyses from Order 06". Order 06 as reviewed the same day REFUSES five of those sixteen: analysis 5 (failed-merge waste, measured n=3 to 6), 8 (merge/conflict recurrence, n=3), 10 (test retry loops, n=6), 12's model arm (1.1 percent identity coverage), and 15 (resource saturation, zero of 135 runs carry `telemetry/`). Five more are reshaped or partially refused: 1 (instruction-read TIME is 0.014 percent of elapsed and was reshaped into a token measure), 3 and 11 (retry arms under-powered), 4 (merge subcategories at n=3), 13 (verifier phase derivable only from a filename). SO ONLY SIX OF SIXTEEN ARE CHARTABLE EXACTLY AS THIS PLAN ASSUMES. An executor honoring the authored wording literally would invent five charts out of refusals, which is precisely the "impressive charts are not evidence" failure Order 06's gate forbids.
   - Depends on: E-03
   - Expected outcome: a refusal is rendered with equal prominence to a chart, naming the analysis, the reason, and the observed sample size or coverage; the report NEVER renders a chart for a `cannot-determine` verdict; a test asserts that feeding a refusal produces the refusal view and NOT an empty or zero-valued chart; the overview states how many of the required analyses were computed versus refused.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: The interactive views
 
-- [ ] E-05 Implement the linked filter, metric and phase controls over one shared data contract.
+- [x] E-05 Implement the linked filter, metric and phase controls over one shared data contract.
   Users can switch time, cost, and input/output/cache/total tokens; aggregate, review, execute, verifier and recovery phases; and filter by model, runner, date, set, IPD, outcome, attempt and node pseudonym. Charts and exact tables update from the SAME data so a table can never disagree with the chart above it.
   TWO MEASURED CONSTRAINTS ON THE FILTER SET. The `model` filter will be empty or near-empty for historical data (identity resolves for 2 of 179 attempts), so it must render an honest empty state rather than an apparently-working control over one value. The `verifier` phase exists in 57 session logs but at ZERO attempt records, so the phase control's verifier option is populated from a derived signal and must be labeled derived.
   - Depends on: E-04
   - Expected outcome: one embedded data contract feeds every view; a control whose underlying dimension is empty or single-valued renders a documented empty/degenerate state rather than a dead control; the verifier phase is labeled derived; a test proves a chart and its exact table are computed from the same rows.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Implement the overview, pricing, quality, findings and raw-data views with their uncertainty context.
+- [x] E-06 Implement the overview, pricing, quality, findings and raw-data views with their uncertainty context.
   The overview carries corpus coverage, totals, distributions, incomplete/missing data, cache behavior, runner and PRICE-ERA composition, and ranked findings. Pricing shows recorded price/cost distinctly from estimated, with source, version, effective dates and unknown-price states; note Order 06 measured two exact price eras and no `cache_write` rate, so the pricing view has a real two-era composition to show rather than a placeholder. The interpretation panel describes overlap, missingness, sample size, uncertainty, association versus causation, and the current filter population.
   THE OVERLAP AND UNATTRIBUTED FIGURES ARE THE HEADLINE, NOT A FOOTNOTE. Order 06 measured tool activity at 3.8 percent of run wall time, so 96.2 percent is unattributed. A time view that shows only classified activity shows 4 percent of the truth while looking complete. Publish unattributed time by default in every time view.
   - Depends on: E-05
   - Expected outcome: every required panel present; recorded and estimated cost visually distinct and never merged; the two price eras shown as a composition; unattributed time shown by default on every time view; the interpretation panel reflects the CURRENT filter population rather than the whole corpus.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Hardening
 
-- [ ] E-07 Enforce offline behavior and injection safety, with the escaping proven rather than assumed.
+- [x] E-07 Enforce offline behavior and injection safety, with the escaping proven rather than assumed.
   THE HAZARD IS ALREADY IN THE REAL DATA, MEASURED. 152 of 216 real outcome files contain `<`, `>` or `&` in free text, and HTML-tag-looking substrings are common: `<id6>` appears 32 times, plus `<id>`, `<run-id>`, `<path>`, `<plan>`, `<summary>`, `<repo>`, `<selector>` and `<agent/model>`. Separately, 6 of those 216 files carry FAIL-severity leaks (`home-path` and `handle`) in `partial_work_location` or `summary`, containing real absolute worktree paths. AND THIS PACKAGE CONTAINS ZERO USES OF `html.escape`: a repo-wide search finds only `re.escape`. So there is no existing escaping helper to reuse and no precedent to copy, which makes this greenfield and worth its own item.
   Note the interaction with Order 02: its projector is an allowlist that "passes an explicit allowlist and refuses unknown keys", so free-text fields SHOULD never reach a fact. Do not rely on that alone. The projector protects the CACHE; this item protects the RENDER, and a report may legitimately show a finding string that Order 06 generated. Escape at the render boundary regardless of what upstream promises.
   - Depends on: E-06
   - Expected outcome: a single documented escaping boundary every string crosses before entering HTML, SVG, or a JS string literal (three different contexts with three different escapes); a static scan proving no `http:`, `https:`, external script/link/font/image, dynamic import, `fetch`, `XHR` or WebSocket appears in the output; injection fixtures built from the REAL measured shapes (`</script>`, `<id6>`, a formula-leading cell, Unicode controls, a bidi override) plus `aw sanitize --agent` run over the produced bundle with a CONTROL run proving the same invocation flags a raw absolute path.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Implement accessibility and the large-dataset fallback with tooling that EXISTS IN CI.
+- [x] E-08 Implement accessibility and the large-dataset fallback with tooling that EXISTS IN CI.
   THE TEST-TOOLING QUESTION IS DECISIVE AND THE PLAN NEVER ASKED IT. Measured: `bs4` 4.15.0, `lxml` and `playwright` are all importable in this maintainer venv, and NONE of them is in `[project.optional-dependencies].test`, which is exactly `["pytest>=8", "pytest-xdist>=3", "pytest-randomly>=3", "PyYAML>=6"]`; CI installs `-e ".[test]"` (`.github/workflows/tests.yml:70`). So a test importing bs4 or driving playwright PASSES on the maintainer's box and FAILS or silently skips in CI, and no test in the suite imports any of them today. The repository already treats this as a reproducibility defect in `pyproject.toml`'s own comment on `pytest-randomly` ("an undeclared dep that alters results is a reproducibility hole, not a convenience").
   MEASURED RESOLUTION: stdlib `html.parser` is sufficient for the structural half. A probe confirmed it extracts `aria-pressed`, `role`, `aria-labelledby`, `scope` and `<caption>` from a representative document, so every DOM-CONTRACT assertion this item needs is reachable with zero new dependencies. What stdlib CANNOT check is computed focus order, contrast ratio, real JS execution, and whether a control's state updates after a click. Those are the honest boundary: assert the structure deterministically, and state plainly in the docs that behavioral a11y was not machine-verified rather than implying it was.
   - Depends on: E-07
   - Expected outcome: keyboard navigability, visible focus, labels, color-independent series encoding, a reduced-motion rule, screen-reader summaries and real data tables, all asserted via stdlib `html.parser` with NO new test dependency; the checks that stdlib cannot perform are named as unverified rather than claimed; size thresholds produce a documented, tested fallback at the measured corpus scale and above.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -230,45 +230,327 @@ THE DOCUMENTATION MUST CARRY TWO HONEST LIMITS, and both were absent before revi
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the fault-injection test output showing an interruption between file writes leaves NO readable half-bundle, and that the manifest is written LAST and is the completeness signal. Paste the `os.replace`-on-a-directory failure re-measured in the executing worktree (`OSError` errno 39 at review) as the reason the scheme is what it is. Paste the Windows fallback exercised by simulating `os.symlink` raising, showing publication still completes correctly.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: RE-MEASURED IN THIS WORKTREE at HEAD `96d13413`, not cited from review. Test output from
+    `python3 -m pytest tests/test_run_analytics_report.py -o addopts="" -q -s -k "Measured or fallback or INTERRUPTION"`:
 
-- [ ] V-02 validates E-02
+    ```
+    MEASURED fault injection: wrote ['analysis.json'] then interrupted; no manifest present, bundle correctly unreadable
+    .MEASURED: symlink flip via os.symlink + os.replace succeeded and is atomic
+    .MEASURED: os.replace onto a non-empty directory -> OSError errno=39 (Directory not empty)
+    .MEASURED fallback engaged: symlink publication unavailable: PermissionError: [Errno 1] symbolic link privilege not held
+    4 passed, 20 deselected in 0.35s
+    ```
+
+    SO, POINT BY POINT. (1) `os.replace` onto a non-empty directory REFUSES with errno 39, which is
+    why the single-file pattern used in this package's ~60 atomic writes does not generalize and why
+    the plan's original scheme was unimplementable. (2) The symlink flip IS atomic, confirmed. (3) The
+    Windows fallback is EXERCISED by making `os.symlink` raise `PermissionError`, exactly as it does
+    without privilege, and publication still COMPLETED correctly flat with the manifest present and
+    `verify_bundle` returning no problems. (4) FAULT INJECTION interrupted publication after the first
+    file: no manifest was present, `read_manifest` REFUSED the directory as incomplete, and
+    `verify_bundle` reported problems, so no reader can mistake the result for a finished bundle. The
+    manifest is ordered LAST by `PUBLICATION_ORDER` (asserted by `test_manifest_is_ordered_last`) on
+    BOTH paths, and each file is fsync'd before it, so everything the manifest names is durable when
+    it appears. A republish removes the OLD manifest FIRST, so an interruption can never leave a stale
+    manifest describing new files (`test_an_interrupted_republish_never_leaves_a_STALE_manifest`).
+    Full module: `24 passed`.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the POSITIVE packaging assertions naming each browser asset and showing it present in BOTH the wheel and the sdist listing. Paste the test proving a gitignore-matched asset is DETECTED rather than silently dropped, with the measured hatchling behavior stated (a probe wheel omitted a gitignored asset at exit 0). Paste the full `tests/test_packaging.py` run. If `pyproject.toml` was edited, paste the diff and the measured reason.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: FULL `tests/test_packaging.py` RUN, which was `7 passed` before this plan and is now `13 passed`
+    (`python3 -m pytest tests/test_packaging.py -o addopts="" -q -s`):
 
-- [ ] V-03 validates E-03
+    ```
+    ......MEASURED: hatchling honored .gitignore and omitted pkg/assets/ignored.css from the wheel at exit 0 with no warning
+    .....wheel runtime deps (allowlisted): ['Requires-Dist: filelock>=3']
+    ..
+    13 passed in 6.89s
+    ```
+
+    THE POSITIVE ASSERTIONS, naming each asset in BOTH artifacts. `test_wheel_ships_every_browser_asset_BY_NAME`
+    and `test_sdist_ships_every_browser_asset_BY_NAME` assert `agent_workflows/run_analytics_assets/app.css`
+    and `.../app.js` by name; a separate sdist BUILD is required because the sdist `include` is an
+    explicit allowlist and is a different mechanism from the wheel's. Verified present in the real wheel:
+
+    ```
+    REAL wheel: assets present -> ['agent_workflows/run_analytics_assets/app.css', 'agent_workflows/run_analytics_assets/app.js']
+    assertion on real wheel, missing list: [] -> PASSES
+    ```
+
+    AND THE CONTROL, because a passing assertion and an assertion that cannot fail are
+    indistinguishable. Removing `app.css` from the namelist the assertion reads:
+
+    ```
+    CONTROL with app.css removed, missing list: ['agent_workflows/run_analytics_assets/app.css'] -> correctly FAILS
+    CONTROL CONFIRMED: the positive assertion detects a silently dropped asset
+    ```
+
+    THE MEASURED HATCHLING BEHAVIOR, REPRODUCED rather than cited: a probe package with a gitignored
+    asset built at EXIT 0 and SILENTLY OMITTED it (see the `MEASURED:` line in the run above). That is
+    the whole reason absence-only testing was insufficient: the pre-existing seven tests would have
+    passed with every asset missing. `test_a_gitignored_asset_would_be_DETECTED_rather_than_silently_dropped`
+    now reproduces it in-suite, and `test_no_asset_filename_matches_a_gitignore_pattern` plus
+    `test_the_assets_are_TRACKED_by_git_which_is_what_makes_them_ship` (via `git check-ignore`) assert
+    the real assets are not matched.
+
+    `pyproject.toml` WAS NOT EDITED, deliberately, and the reason is measured rather than assumed: the
+    wheel target already declares `packages = ["agent_workflows"]` so a directory INSIDE the package
+    ships automatically, and the sdist allowlist already contains `/agent_workflows`. A probe build
+    confirms both assets ship with no config change. Adding config that changes nothing would imply a
+    constraint that does not exist. `.gitignore` was likewise NOT touched, so no existing pattern was
+    narrowed. Recorded as DECISION 04-6eq3oq-D6. `test_declared_assets_match_the_module` keeps the
+    packaging list from falling behind `run_analytics_spa.REQUIRED_ASSETS`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the measured embedded size for the corpus-scale fixture in BOTH layouts, re-measured (row-wise 0.93 MB versus columnar 0.71 MB base64-gzip over 29766 rows at review), and the chosen layout with its budget test passing. Paste the plotted DOM node count for the corpus-scale fixture proving it is bounded and does NOT scale with row count. Paste the raw view paginating rather than materializing all rows.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: RE-MEASURED ON THE CORPUS-SCALE FIXTURE (29766 rows, matching the measured per-step count), from
+    `python3 -m pytest tests/test_run_analytics_spa.py -o addopts="" -q -s -k "SizeBudget or Bounded or Columnar"`:
 
-- [ ] V-04 validates E-04
+    ```
+    MEASURED at 29766 rows: index.html is 405179 bytes (0.39 MiB) against a 8 MiB budget
+    MEASURED at 29766 source rows: bin_count=240, plotted DOM nodes in document=1 (budget 600)
+    MEASURED at 2000 rows: row-wise 330740 bytes, columnar 151013 bytes (54.3% smaller)
+    ```
+
+    THE LAYOUT COMPARISON came out STRONGER than the review-time figure and is reported as measured
+    rather than as predicted: columnar is 54.3 percent smaller than row-wise on this fixture against
+    the 24 percent measured at review. The direction is what the decision rested on and it holds. The
+    chosen layout is columnar per-step, recorded in `EMBEDDED_DATA_CONTRACT` together with its basis
+    and an explicit `basis_provenance` marking the review figures NOT CURRENT.
+
+    THE DOM NODE COUNT IS BOUNDED AND DOES NOT SCALE WITH ROWS: 29766 source observations render as
+    `bin_count=240` and **1** plotted DOM node, against a declared budget of 600, because a series
+    becomes ONE `<path>` rather than one node per point (the measured 29766-node defect).
+    `test_above_scale_the_plotted_nodes_stay_bounded` repeats the check at TWICE corpus scale
+    (59532 rows) and still yields one path node.
+
+    THE SIZE BUDGET PASSES WITH ROOM: 0.39 MiB against the declared 8 MiB ceiling.
+
+    THE RAW VIEW PAGINATES rather than materializing rows:
+    `test_the_raw_view_PAGINATES_rather_than_materializing_every_row` asserts the served `<tbody
+    id="raw-body">` contains NO `<tr>` at all at 1000 rows, so rows are added per page client-side,
+    100 at a time. Determinism holds too: `test_the_whole_document_is_byte_identical_for_identical_input`
+    passes, which required `gzip` `mtime=0` and a fixed level (DECISION 04-6eq3oq-D3).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the rendered refusal panel for each of Order 06's five refused analyses (5, 8, 10, 12's model arm, 15), each naming the reason and the observed n or coverage. Paste the test proving a `cannot-determine` input produces NO chart element, with the assertion shown failing against a version that renders an empty chart. Paste the overview line stating computed-versus-refused counts.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL FIVE of Order 06's refused analyses render as first-class refusal panels naming the verdict
+    and the observed n. `python3 -m pytest tests/test_run_analytics_spa.py -o addopts="" -q -k RefusalRendering`
+    reports `7 passed, 102 deselected`. Two of the five rendered panels, verbatim from the produced document:
 
-- [ ] V-05 validates E-05
+    ```html
+    <article class="panel refusal" role="group" aria-label="Refused analysis: Failed merge waste and retry cost"><h3>Failed merge waste and retry cost</h3><p><span class="verdict">cannot-determine</span> &mdash; observed n=3.</p><p>observed n=3 is below the declared minimum n=12</p></article>
+    <article class="panel refusal" role="group" aria-label="Refused analysis: Merge conflict share and recurrence"><h3>Merge conflict share and recurrence</h3><p><span class="verdict">cannot-determine</span> &mdash; observed n=3.</p><p>observed n=3 is below the declared minimum n=12</p></article>
+    ```
+
+    Feeding the five (analysis 5 at n=3, 8 at n=3, 10 at n=6, 12's model arm REFUSED at n=2, and 15 at
+    n=0) yields `charts: 0 refusals: 5`, and the overview states the split:
+    `<strong>0</strong> of <strong>16</strong> required analyses were computed;`.
+
+    A `cannot-determine` INPUT PRODUCES NO CHART ELEMENT AT ALL, which is the assertion that would fail
+    against a version rendering an empty chart. `test_a_cannot_determine_result_produces_NO_chart_element`
+    parses the document with stdlib `html.parser` and asserts `<figure>`, `<svg>` and `<path>` are ALL
+    absent, so there is no empty axis for a reader to misread as a measurement of zero. The guarantee is
+    STRUCTURAL rather than a remembered check: `build_view_model` routes on `AnalysisResult.renderable`,
+    so a refusal has no code path into `charts`, and `chart_from_result` RAISES `SpaError` on a
+    non-computed verdict ("a chart may not be produced for it"). The symmetric refusal is also tested:
+    `refusal_from_result` rejects a COMPUTED result, since presenting a computable analysis as refused
+    understates the evidence. Caveats travel with the panel.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste a chart and its exact table computed from the SAME rows, with a test proving they cannot disagree. Paste the model filter rendering an honest empty/degenerate state at the measured 1.1 percent identity coverage, and the verifier phase option labeled DERIVED. Paste every metric and phase toggle exercised.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_run_analytics_spa.py -o addopts="" -q -k "LinkedControl or HonestEmptyState"`
+    reports `10 passed, 99 deselected`.
 
-- [ ] V-06 validates E-06
+    CHART AND TABLE CANNOT DISAGREE, and it is structural rather than promised: both project from ONE
+    `row_indices` tuple on the `ChartView`, asserted by
+    `test_a_chart_and_its_table_are_computed_from_the_SAME_rows` (indices equal `range(len(rows))` and
+    the payload's `row_count` matches) and `test_the_table_rows_are_the_charted_results_own_values`
+    (the exact table is the charted result's own `values`: `{'n_sessions': 345, 'share': 0.9862}`).
+    There is no second computation that could drift.
+
+    EVERY METRIC AND PHASE TOGGLE IS EXERCISED. All six metrics (time, cost, input/output/cache/total
+    tokens) and all five phases (aggregate, review, execute, verifier, recovery) are asserted present
+    with `aria-pressed` state, and `test_exactly_one_button_per_group_starts_pressed` asserts exactly
+    one pressed per group.
+
+    THE MODEL CONTROL RENDERS AN HONEST DEGENERATE STATE at the measured coverage. At 2 resolved of 179
+    attempts the dimension classifies `degenerate` (not `populated`), coverage computes to 1.1 percent,
+    and the rendered control is `disabled` AND `aria-disabled="true"` AND `aria-describedby` a note
+    reading `degenerate: only one distinct value is present ... Coverage: 1.1%`. It is DISABLED rather
+    than HIDDEN, because a hidden control is indistinguishable from an oversight (DECISION
+    04-6eq3oq-D7); a single-valued control that looks operable is the worse failure, since it appears
+    to filter while describing a fraction of the corpus. An EMPTY dimension is a separate state from a
+    DEGENERATE one, since the two mislead differently.
+
+    THE VERIFIER PHASE IS LABELED DERIVED: the option carries `(derived)` and points via
+    `aria-describedby` at a note stating it is derived from a log filename rather than recorded, with
+    the measured 57 verifier logs against 0 attempts carrying a verify cost.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste each required panel rendered (overview, pricing, quality, findings, raw, interpretation). Paste recorded and estimated cost shown DISTINCTLY and never merged, with the two measured price eras as a composition. Paste a time view showing unattributed time BY DEFAULT with the measured 96.2 percent share. Paste the interpretation panel changing with the filter population rather than describing the whole corpus.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_run_analytics_spa.py -o addopts="" -q -k RequiredPanel` reports
+    `12 passed, 97 deselected`.
 
-- [ ] V-07 validates E-07
+    EVERY REQUIRED PANEL IS PRESENT, asserted by id: overview, controls, time-accounting, charts,
+    refusals, pricing, quality, findings, interpretation, raw, a11y.
+
+    RECORDED AND ESTIMATED COST ARE NEVER MERGED. They render in distinct `class="recorded"` and
+    `class="estimated"` spans whose CSS appends "(recorded)"/"(estimated)" as generated content, so the
+    distinction survives even without color, and the panel states it in words. An unknown price is
+    reported as REFUSED rather than defaulted ("Steps with no resolvable price: <strong>23</strong> ...
+    <strong>refused</strong> rather than priced at a default"), and a population with no era says so
+    instead of showing a placeholder.
+
+    BOTH MEASURED PRICE ERAS RENDER AS A COMPOSITION, with era id, effective-from, effective-to
+    (`open-ended` for the current one), source, source version and spend share (28.0% / 72.0% in the
+    fixture) as a real table.
+
+    UNATTRIBUTED TIME IS SHOWN BY DEFAULT, not as a footnote: "Unattributed time is shown
+    <strong>by default</strong> ... classified tool activity accounted for <strong>3.8%</strong> of run
+    wall time, leaving <strong>96.2%</strong> unattributed (review-time snapshot)", with a two-row
+    attribution table. The figure is LABELED as a review-time snapshot rather than presented as current
+    (see DECISION 04-6eq3oq-D4: the live corpus is absent from this lane).
+
+    THE QUALITY PANEL KEEPS THREE SEPARATE COUNTS (missing / unavailable / not applicable) plus a parse
+    error count, never one "incomplete" flag, preserving the compatibility-versus-defect distinction.
+
+    THE INTERPRETATION PANEL REFLECTS THE CURRENT POPULATION rather than the corpus, and CHANGES with
+    it: `test_the_interpretation_panel_changes_with_the_population` asserts "(2 rows as loaded)" versus
+    "(40 rows as loaded)". It carries association-not-causation, overlap, missingness, sample size (with
+    the live refused-of-required count) and uncertainty. Findings render with uncertainty, competing
+    explanations, caveats and the cheapest discriminating test; a `cannot-determine` finding renders in
+    the refusal style rather than as an ordinary one.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the static offline scan showing zero `http:`/`https:`/external asset/dynamic import/fetch/XHR/WebSocket occurrences. Paste each injection fixture rendered INERT, per context (HTML text, attribute, SVG text, JS string literal), using the REAL measured shapes including a literal `<id6>` and a formula-leading cell. Paste `aw sanitize --agent` over the produced bundle reporting clean AND a control run proving the same invocation flags a raw absolute path. State the measurement that motivated this item (152 of 216 real outcome files carry markup characters; 6 carry FAIL-severity leaks; zero uses of `html.escape` existed).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_run_analytics_spa.py -o addopts="" -q -k "Offline or Injection or ControlCharacter or ThreeContext or LeakSanitizer"`
+    reports `23 passed, 86 deselected`.
 
-- [ ] V-08 validates E-08
+    THE OFFLINE SCAN IS CLEAN AND ITS CONTROL PROVES IT IS LOOKING. `scan_for_network_references` over
+    the produced document returns `[]`. The CONTROL (`test_the_scanner_CONTROL_flags_a_planted_reference`)
+    plants `<script src=`, `fetch(`, `https:`, `WebSocket`, `@import` and `import(` and asserts each is
+    caught, so a clean result is evidence rather than an absence of looking. `render_document` ITSELF
+    scans before returning and RAISES `SpaError` on a violation, so an offline break cannot ship from
+    this module. Note the design consequence recorded as DECISION 04-6eq3oq-D1: inline SVG carries NO
+    `xmlns`, because the namespace URI would itself be an `http:` occurrence; HTML5 namespaces inline
+    SVG by parser rule, so no scan exception was needed. Asserted by
+    `test_inline_svg_carries_NO_xmlns_so_the_scan_needs_no_exception`.
+
+    FIVE CONTEXTS, FIVE ESCAPES, EACH ASSERTED SEPARATELY. HTML text, HTML attribute (both quote forms,
+    which text escaping deliberately does not do), SVG text, JS string literal (where `</script` is
+    broken and `\u2028`/`\u2029` escaped, which no HTML escape does), and a fifth the plan did not
+    anticipate: the JSON island. THE JSON ISLAND WAS A REAL DEFECT THIS SUITE CAUGHT: escaping it with
+    the JS-string escape produced `\"` sequences that reach the client as literal backslash-quote in
+    `textContent`, so `JSON.parse` would have failed on EVERY page load. The correct escape uses
+    `\uXXXX` for `<`, `>`, `&`, which `JSON.parse` decodes back losslessly while no `<` survives to
+    terminate the element. `test_the_rendered_view_model_island_is_parseable_JSON` parses the real
+    island and round-trips a hostile analysis name.
+
+    INJECTION FIXTURES ARE THE REAL MEASURED SHAPES, not invented ones: `</script><script>`, a literal
+    `<id6>` (32 real occurrences at review), `<path>`, `<plan>`, `<repo>`, `<selector>`,
+    `<agent/model>`, formula-leading cells (`=1+1+cmd|' /C calc'!A0`, `+SUM(A1)`, `-2+3`, `@import`), a
+    bidi override, a NUL, and quote/attribute breakouts. Each is asserted inert in each context, and
+    end-to-end through a finding, a refusal and a table cell: no `<img`, no live `<id6>`, exactly the
+    three script elements this module emits, and the text still PRESENT escaped so real content is not
+    silently dropped. THE CONTRACT IS INERTNESS, NOT ABSENCE, and the test says so.
+
+    A BIDI OVERRIDE IS REPLACED, NOT ESCAPED (DECISION 04-6eq3oq-D2), because a numeric character
+    reference decodes to the same active code point and would still reorder text. Every escape routes
+    through `sanitize_control_characters` first, which maps `Cc`/`Cf`/`Cs`/`Co` to U+FFFD while
+    preserving tab/newline/return. U+FFFD rather than deletion keeps the tampering visible.
+
+    `aw sanitize` OVER THE PRODUCED BUNDLE IS CLEAN, WITH A CONTROL. Using the same
+    `leak_sanitizer.build_ruleset` the CLI uses:
+
+    ```
+    === SANITIZE OVER THE PRODUCED BUNDLE ===
+    findings: 0
+    CLEAN
+
+    === CONTROL: the same ruleset over a planted raw absolute path ===
+    findings: 2
+      control/planted.html:1	home-path	fail
+      control/planted.html:1	handle	fail
+    CONTROL CONFIRMED: the same invocation flags a raw absolute path
+    ```
+
+    THE MEASUREMENTS THAT MOTIVATED THIS ITEM, stated as review-time snapshots since the live corpus is
+    absent from this lane: 152 of 216 real outcome files carried markup characters, 6 carried
+    FAIL-severity `home-path`/`handle` leaks, and the package contained ZERO uses of `html.escape`
+    before this module (only `re.escape`). A permanent test also records the honest boundary that
+    ESCAPING IS NOT REDACTION: a real absolute path passing through a finding is made inert but NOT
+    removed, and it is the sanitizer's job to detect it, which the test confirms it does.
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste the stdlib-`html.parser` DOM-contract assertions for ARIA state, keyboard-reachable elements, focus visibility, text alternatives, the reduced-motion rule, real data tables, and the absence of color-only encoding. Paste proof NO test imports bs4, lxml or playwright (a grep is acceptable) and that the declared test extra is unchanged. NAME the a11y properties that are NOT machine-verified (focus order, contrast, post-click state) rather than implying coverage. Paste the size-threshold fallback exercised at and above the measured corpus scale.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_run_analytics_spa.py -o addopts="" -q -k "Accessibility or NoNewTestDependency or LargeDataset or PackagedAsset"`
+    reports `33 passed, 76 deselected`.
+
+    STRUCTURAL DOM CONTRACT, ASSERTED WITH STDLIB `html.parser` ONLY: a declared document language;
+    every `<section>` labeled by a real heading id; every toggle exposing `aria-pressed` (or
+    `aria-disabled`); a disabled control disabled for BOTH the DOM and assistive technology; every
+    chart carrying `role="img"` plus `aria-labelledby` and a `<title>` text alternative; every table
+    carrying a `<caption>` and every `<th>` a `col`/`row` `scope`; real `<table>`/`<thead>`/`<tbody>`
+    rather than layout divs; a `:focus-visible` outline; a `prefers-reduced-motion` block with
+    `animation: none`; series distinguished by `stroke-dasharray` (four patterns) so the encoding
+    survives monochrome; a pressed toggle marked with generated content as well as color; a skip link
+    ordered before the content; and `<figure>`/`<figcaption>` grouping each chart with its exact table.
+
+    NO NEW TEST DEPENDENCY, ASSERTED RATHER THAN TRUSTED. `test_no_analytics_report_test_imports_bs4_lxml_or_playwright`
+    greps both new test modules for `bs4`, `beautifulsoup`, `lxml`, `playwright` and `selenium` imports
+    and finds none; `test_the_declared_test_extra_is_UNCHANGED` asserts the extra is still exactly
+    `["pytest>=8", "pytest-xdist>=3", "pytest-randomly>=3", "PyYAML>=6"]`; and
+    `test_the_spa_module_imports_only_stdlib` allowlists the module's imports. That test EARNED ITS
+    KEEP during execution by failing when `pathlib` was added, which is the mechanism working.
+
+    WHAT IS NOT MACHINE-VERIFIED IS NAMED, NOT IMPLIED, and is published IN the report (the `a11y`
+    panel) rather than only in a doc: computed keyboard focus ORDER (structural tab-ability is asserted,
+    the resulting order is not), color CONTRAST RATIO against WCAG thresholds, post-interaction state
+    (no JS is executed by the suite, so a control's state after a click is asserted only as authored
+    markup), and screen-reader ANNOUNCEMENT text. `test_the_UNVERIFIED_properties_are_published_in_the_document`
+    asserts each string appears in the output, so the boundary cannot be quietly dropped.
+
+    THE LARGE-DATASET FALLBACK IS EXERCISED AT AND ABOVE CORPUS SCALE: bins stay bounded at 59532 rows
+    (twice measured scale) and the series is still ONE path node; the client carries a documented
+    fallback for a browser without `DecompressionStream`, pointing at the companion file; and the client
+    renderer assigns via `textContent` only, never `innerHTML`, so escaping holds client-side too.
+    A second real defect was caught here: a literal backslash-n in the emitted script had commented out
+    the row renderer, and `test_no_emitted_script_line_carries_a_LITERAL_backslash_n` plus
+    `test_every_comment_line_in_the_emitted_script_is_only_a_comment` are the permanent guards.
+
+    BARE SUITE AND DIFF CHECK FROM THIS WORKTREE, as this V item is also required to carry:
+
+    ```
+    17 failed, 6740 passed, 3 skipped, 2 xfailed in 230.31s (0:03:50)
+    ```
+
+    Compared by FAILING NODE IDS against the baseline I measured MYSELF in this worktree BEFORE any
+    edit (`17 failed, 6601 passed, 3 skipped, 2 xfailed`), the delta is EMPTY:
+
+    ```
+    === DELTA (baseline vs post) ===
+    EMPTY DELTA: identical failing node IDs
+    baseline count: 17, post count: 17
+    ```
+
+    All 17 are pre-existing and environmental, not code defects: each is the worker-role lifecycle
+    refusal `AW-LIFECYCLE-ROLE-001: the runner owns begin/finalize for managed lanes; a worker-role
+    process must not run them`, which fires because this turn runs as a worker lane. They sit in
+    `test_oc_runipd.py`, `test_agy_runipd_cli.py`, `test_ipd_lifecycle_cli.py`,
+    `test_novalnomerge_integration.py` and `test_worker_role_refusal.py`, none of which this plan
+    touches. Passing count rose 6601 -> 6740, the 139 tests added here. `git diff --check` reports
+    CLEAN. The suite was run BARE, with no `-n0`, no second `-q` and no `-p no:randomly`.
+  - Result: pass
 
 Additionally, and NOT as a separate V-item because it validates no single E-item: V-08 must also carry bare `python3 -m pytest` and `git diff --check` from the executing worktree, against the baseline the executor measured itself, comparing failing NODE IDS and never totals.
 
