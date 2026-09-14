@@ -1525,5 +1525,137 @@ class AgyDependencyPathsAreSharedTests(unittest.TestCase):
         self.assertIn("subject_gating_blocks", src)
 
 
+# ==================================================================================================
+# runanalytics Order 04 (`5f2h8i`): THIS HOST'S telemetry wiring (the mirror of the oc suite's).
+#
+# The CROSS-HOST parity claim lives in `tests/test_runner_telemetry_integration.py`, deliberately, so
+# neither host's suite asserts the other's half. What is here is true of THIS driver alone.
+# ==================================================================================================
+class AgyTelemetryWiringTests(unittest.TestCase):
+    def _source(self) -> str:
+        return Path(agy_runipd.__file__).read_text(encoding="utf-8")
+
+    def test_the_one_agent_launch_is_wrapped_in_the_shared_seam(self):
+        source = self._source()
+        self.assertEqual(source.count("runner_shared.turn_telemetry("), 1)
+        self.assertLess(
+            source.index("runner_shared.turn_telemetry("),
+            source.index("subprocess.Popen(argv, **popen_kwargs)"),
+        )
+
+    def test_telemetry_is_reached_through_shared_and_never_through_the_other_driver(
+        self,
+    ):
+        """The anti-re-fork rule: this driver must not import a telemetry symbol from `oc_runipd`.
+
+        `agy_runipd` already imports many names from `oc_runipd`, and a telemetry helper defined
+        there and imported here would satisfy a reviewer reading for parity of BEHAVIOR while
+        forking the code, which is the defect `tests/test_runner_refork_guard.py` exists to catch.
+        """
+
+        from agent_workflows import runner_shared
+
+        self.assertIs(
+            agy_runipd.runner_shared.turn_telemetry, runner_shared.turn_telemetry
+        )
+        tree = ast.parse(self._source())
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.ImportFrom)
+                and node.module == "agent_workflows.oc_runipd"
+            ):
+                for alias in node.names:
+                    self.assertNotIn("telemetry", alias.name.lower())
+
+    def test_both_callers_reach_it_and_the_verifier_names_its_phase(self):
+        tree = ast.parse(self._source())
+        calls = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "run_agy_turn"
+        ]
+        self.assertEqual(
+            len(calls), 2, "the executor and the verifier, and nothing else"
+        )
+        phases = [
+            keyword.value
+            for call in calls
+            for keyword in call.keywords
+            if keyword.arg == "telemetry_phase"
+        ]
+        self.assertEqual(len(phases), 1)
+        self.assertEqual(self._source().count("TELEMETRY_PHASE_VALIDATE"), 1)
+
+    def test_a_turn_emits_a_start_and_an_end_event_keyed_on_the_invocation(self):
+        from agent_workflows import runner_shared
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = root / "repo"
+            _init_repo_with_conforming_plan(repo, "agy001")
+            run_dir = root / "run-20260913T000000Z-1"
+            (run_dir / "sessions").mkdir(parents=True)
+            (run_dir / "prompts").mkdir(parents=True)
+            prompt_file = run_dir / "prompts" / "01-prompt.md"
+            prompt_file.write_text("prompt", encoding="utf-8")
+            state = {
+                "run_id": "run-20260913T000000Z-1",
+                "repo": str(repo),
+                "options": {
+                    "output_mode": "quiet",
+                    "model": "provider/model",
+                    "agy_executable": "agy",
+                },
+            }
+            item = {
+                "id6": "agy001",
+                "setid": "agyset",
+                "position": 5,
+                "action": "execute",
+            }
+
+            class FakeProc:
+                def __init__(self, cmd, *args, **kwargs):
+                    self.pid = 5252
+                    self.stdout = iter(())
+                    self.returncode = 0
+
+                def poll(self):
+                    return 0
+
+                def wait(self, timeout=None):
+                    return 0
+
+            with mock.patch("subprocess.Popen", side_effect=FakeProc):
+                rc, _sess, _log, _argv = agy_runipd.run_agy_turn(
+                    state,
+                    run_dir,
+                    item,
+                    prompt_file,
+                    1,
+                    session_id=None,
+                    use_continue=False,
+                )
+
+            self.assertEqual(rc, 0)
+            streams = sorted(runner_shared.telemetry_dir(run_dir).glob("*.jsonl"))
+            self.assertEqual(len(streams), 1, streams)
+            events = [
+                json.loads(line)
+                for line in streams[0].read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            self.assertEqual([e["event_kind"] for e in events], ["start", "end"])
+            for event in events:
+                self.assertEqual(event["host"], "agy")
+                self.assertEqual(event["phase"], "execute")
+                self.assertEqual(event["attempt"], 1)
+                self.assertEqual(event["position"], 5)
+                self.assertEqual(event["ipd_id6"], "agy001")
+                self.assertEqual(event["set_id"], "agyset")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -5344,5 +5344,147 @@ class OcStreamTrackerOutputModeTests(unittest.TestCase):
                 self.assertIn("src/foo.py", tracker.modified_files)
 
 
+# ==================================================================================================
+# runanalytics Order 04 (`5f2h8i`): THIS HOST'S telemetry wiring.
+#
+# WHY ONLY THE HOST-SPECIFIC HALF IS HERE. The CROSS-HOST properties (one shared seam object, the
+# field-by-field parity, the invocation identity, non-interference, sampler teardown) live in
+# `tests/test_runner_telemetry_integration.py`, because asserting that the TWO hosts agree from
+# inside the opencode suite would put the agy half of a symmetry claim in the wrong file - the same
+# reasoning `tests/test_run_flag_surface.py` records for its own placement. What belongs HERE is what
+# is true of THIS driver alone: that its one agent launch is instrumented, that both of its callers
+# reach it, and that its version/helper subprocess sites are not.
+# ==================================================================================================
+class OcTelemetryWiringTests(unittest.TestCase):
+    def _source(self) -> str:
+        return (REPO_ROOT / "agent_workflows" / "oc_runipd.py").read_text(
+            encoding="utf-8"
+        )
+
+    def test_the_one_agent_launch_is_wrapped_in_the_shared_seam(self):
+        source = self._source()
+        self.assertEqual(source.count("runner_shared.turn_telemetry("), 1)
+        seam = source.index("runner_shared.turn_telemetry(")
+        launch = source.index("subprocess.Popen(argv, **popen_kwargs)")
+        self.assertLess(
+            seam, launch, "telemetry must open before the child is launched"
+        )
+
+    def test_the_seam_is_the_shared_object_not_a_local_copy(self):
+        from agent_workflows import runner_shared
+
+        self.assertIs(driver.runner_shared.turn_telemetry, runner_shared.turn_telemetry)
+        self.assertIs(
+            driver.runner_shared.telemetry_identity, runner_shared.telemetry_identity
+        )
+
+    def test_the_version_and_helper_subprocess_sites_are_not_instrumented(self):
+        """Only the AGENT turn is measured, not the version probes, git helpers or lifecycle verbs.
+
+        Instrumenting those would emit telemetry for work nobody wants measured and would inflate the
+        event volume the collector's overhead budget is sized against. Proven by showing the single
+        telemetry block is inside `run_opencode` and that `run_opencode` holds no `subprocess.run(`.
+        """
+
+        source = self._source()
+        body = source[
+            source.index("def run_opencode(") : source.index(
+                "def reconcile_disposition("
+            )
+        ]
+        self.assertIn("runner_shared.turn_telemetry(", body)
+        self.assertNotIn("subprocess.run(", body)
+        self.assertGreater(
+            source.count("subprocess.run("), 3, "the helper sites still exist"
+        )
+
+    def test_both_callers_reach_the_instrumented_launcher_and_the_verifier_names_its_phase(
+        self,
+    ):
+        tree = ast.parse(self._source())
+        calls = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "run_opencode"
+        ]
+        self.assertEqual(
+            len(calls), 2, "the executor and the verifier, and nothing else"
+        )
+        phases = [
+            keyword.value
+            for call in calls
+            for keyword in call.keywords
+            if keyword.arg == "telemetry_phase"
+        ]
+        self.assertEqual(
+            len(phases), 1, "exactly one caller states a non-default phase"
+        )
+        self.assertEqual(self._source().count("TELEMETRY_PHASE_VALIDATE"), 1)
+
+    def test_a_turn_emits_a_start_and_an_end_event_keyed_on_the_invocation(self):
+        """End to end through the REAL `run_opencode`, with no real child process."""
+
+        from agent_workflows import runner_shared
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = root / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "tel001")
+            run_dir = root / "run-20260913T000000Z-1"
+            (run_dir / "sessions").mkdir(parents=True)
+            (run_dir / "prompts").mkdir(parents=True)
+            prompt_file = run_dir / "prompts" / "01-prompt.md"
+            prompt_file.write_text("prompt", encoding="utf-8")
+            state = {
+                "run_id": "run-20260913T000000Z-1",
+                "repo": str(repo),
+                "options": {"output_mode": "quiet", "model": "provider/model"},
+            }
+            item = {
+                "id6": "tel001",
+                "setid": "telset",
+                "position": 3,
+                "action": "execute",
+            }
+
+            class FakeProc:
+                def __init__(self, cmd, *args, **kwargs):
+                    self.pid = 4242
+                    self.stdout = iter(())
+                    self.returncode = 0
+
+                def poll(self):
+                    return 0
+
+                def wait(self, timeout=None):
+                    return 0
+
+            with mock.patch("subprocess.Popen", side_effect=FakeProc):
+                rc, _sess, _log, _argv = driver.run_opencode(
+                    state, run_dir, item, plan, prompt_file, 2
+                )
+
+            self.assertEqual(rc, 0)
+            streams = sorted(runner_shared.telemetry_dir(run_dir).glob("*.jsonl"))
+            self.assertEqual(len(streams), 1, streams)
+            events = [
+                json.loads(line)
+                for line in streams[0].read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            self.assertEqual([e["event_kind"] for e in events], ["start", "end"])
+            for event in events:
+                self.assertEqual(event["host"], "opencode")
+                self.assertEqual(event["phase"], "execute")
+                self.assertEqual(event["attempt"], 2)
+                self.assertEqual(event["position"], 3)
+                self.assertEqual(event["ipd_id6"], "tel001")
+                self.assertEqual(event["set_id"], "telset")
+                self.assertEqual(event["model"], "provider/model")
+            self.assertIn(streams[0].stem, events[0]["execution_id"])
+
+
 if __name__ == "__main__":
     unittest.main()

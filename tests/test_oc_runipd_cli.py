@@ -254,5 +254,55 @@ class OcStreamTrackerWiringTests(unittest.TestCase):
         self.assertIn("render_event(", ro_source)
 
 
+# ==================================================================================================
+# runanalytics Order 04 (`5f2h8i`): the OPERATOR-VISIBLE surface, which is deliberately EMPTY.
+#
+# WHY A TEST THAT ASSERTS AN ABSENCE. Telemetry is configured through the committed project policy
+# with a gitignored machine-local override (owned by Order 03, `lhccjf`), NOT through a run flag, and
+# spec `25kzda` Section 2.1's grammar is deliberately unchanged by this work. That choice is
+# load-bearing rather than cosmetic: `tests/test_run_flag_surface.py` binds this spec's grammar and
+# `runner_shared.RUN_POLICY_FLAGS` BIDIRECTIONALLY, so a flag registered here without a spec
+# declaration (or declared without being registered) turns that suite red. This test pins the
+# no-flag decision so a later change has to confront it deliberately instead of drifting into it.
+# ==================================================================================================
+class TelemetryHasNoRunFlagTests(unittest.TestCase):
+    def test_no_telemetry_flag_is_registered_on_either_runner(self):
+        from agent_workflows import agy_runipd
+
+        for module in (oc_runipd, agy_runipd):
+            parser = module.build_parser()
+            rendered = parser.format_help()
+            for spelling in (
+                "--telemetry",
+                "--no-telemetry",
+                "--sampling",
+                "--no-sampling",
+            ):
+                with self.subTest(driver=module.__name__, flag=spelling):
+                    self.assertNotIn(spelling, rendered)
+
+    def test_no_telemetry_flag_entered_the_shared_policy_flag_surface(self):
+        from agent_workflows import runner_shared
+
+        for flag in runner_shared.RUN_POLICY_FLAGS:
+            name = getattr(flag, "flag", None) or getattr(flag, "name", str(flag))
+            with self.subTest(flag=name):
+                self.assertNotIn("telemetry", str(name).lower())
+
+    def test_the_configuration_authority_is_the_project_policy_file(self):
+        """Stated positively, so the absence above reads as a decision and not as a gap."""
+
+        from agent_workflows import run_analytics_config
+
+        self.assertEqual(
+            run_analytics_config.PROJECT_POLICY_REL, ("config", "project.json")
+        )
+        self.assertEqual(
+            run_analytics_config.LOCAL_BINDING_REL, ("config", "local.json")
+        )
+        self.assertTrue(run_analytics_config.DEFAULT_ENABLED)
+        self.assertFalse(run_analytics_config.DEFAULT_SAMPLING_ENABLED)
+
+
 if __name__ == "__main__":
     unittest.main()

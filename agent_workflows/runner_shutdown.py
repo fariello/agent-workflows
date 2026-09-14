@@ -475,6 +475,32 @@ def clean_shutdown(
     children = InvariantResult(INVARIANT_CHILDREN, "R1")
     report.invariants[INVARIANT_CHILDREN] = children
     try:
+        # runanalytics Order 04 (`5f2h8i`) E-05: stop any registered telemetry sampler as PART of
+        # the reap invariant this routine ALREADY performs. Read what this is and is not.
+        #
+        # It is NOT a new cleanup path, and it is NOT a fifth invariant. Spec `c4gd2h` R5 requires
+        # ONE cleanup implementation and prohibits divergent per-level cleanup (A9 demands a
+        # structural check that exactly one exists), so a telemetry sampler is stopped by teaching
+        # the EXISTING routine about it rather than by adding a second routine, an `atexit` hook, or
+        # a `signal.signal` handler. The last of those is separately forbidden: four executed plans
+        # assert `signal.signal(` appears in NEITHER driver, reserving SIGINT/SIGTERM registration
+        # for `runstop` Phase 5 (`71vjbn`).
+        #
+        # IT BELONGS UNDER R1 rather than beside it because a sampler is a live thread spawned to
+        # observe a child turn, so "no observer of the reaped child is left running" is the same
+        # invariant as "no descendant of the driver is left running", one layer up. Reporting it as
+        # its own invariant would also change `all_satisfied`'s arity, which sibling suites assert
+        # against the FOUR names in this module.
+        #
+        # THE IMPORT IS LAZY on purpose: this module must keep importing only stdlib plus
+        # `platform_lock`, so an installation that never enables telemetry pays nothing, and a
+        # broken analytics module can never prevent a clean shutdown (hence the suppression).
+        samplers_stopped = 0
+        with contextlib.suppress(Exception):
+            from agent_workflows.runner_shared import stop_active_samplers
+
+            samplers_stopped = stop_active_samplers()
+
         targets: list[subprocess.Popen] = []
         for candidate in (process, *extra_processes, *live_children()):
             if candidate is None:
@@ -500,6 +526,12 @@ def clean_shutdown(
                 if report.reaped_pids
                 else f"no live child agent process among {len(targets)} tracked"
             )
+        # APPENDED, never substituted, and only when a sampler actually existed. The existing
+        # detail strings above are asserted on by sibling suites, so the telemetry note is additive
+        # and absent in every run that registered no sampler (which is every run today unless
+        # telemetry is enabled).
+        if samplers_stopped:
+            children.detail += f"; stopped {samplers_stopped} telemetry sampler(s)"
     except BaseException as exc:  # noqa: BLE001 - R6: never abort the remaining invariants
         children.satisfied = False
         children.error = f"{type(exc).__name__}: {exc}"

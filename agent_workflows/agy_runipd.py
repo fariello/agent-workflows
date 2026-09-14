@@ -2716,6 +2716,11 @@ def run_agy_turn(
     label_suffix: str = "",
     work_dir: str | None = None,
     tracker: StreamTracker | None = None,
+    # runanalytics Order 04 (`5f2h8i`) E-02/E-04: the invocation's PHASE, the exact mirror of the oc
+    # twin's parameter. Stated by the call site, never inferred from `log_suffix` (a presentation
+    # detail) - see `oc_runipd.run_opencode` for the full reason. Defaulted, so no existing call site
+    # or test changes.
+    telemetry_phase: str = runner_shared.TELEMETRY_PHASE_EXECUTE,
 ) -> tuple[int, str | None, Path, list[str]]:
     options = state.get("options", {})
     agy_bin = options.get("agy_executable") or options.get("agy") or resolve_agy(None)
@@ -2826,7 +2831,30 @@ def run_agy_turn(
     if tracker is not None:
         tracker.begin_turn()
 
-    with log_path.open("w", encoding="utf-8") as log:
+    # runanalytics Order 04 (`5f2h8i`) E-04: per-invocation telemetry, THE MIRROR of the oc twin.
+    #
+    # THE SHAPE IS IDENTICAL BECAUSE THE SEAM IS ONE OBJECT, not because two files were kept in
+    # step by inspection. Both hosts call `runner_shared.turn_telemetry`, so the event fields and
+    # the phase semantics cannot drift; the only difference is the `host` label, which is the ONE
+    # value that legitimately differs (compare the sanctioned host-parameterized asymmetries already
+    # recorded above). This driver's single agent-launch `Popen` is immediately below, inside
+    # `run_agy_turn`, with two callers: the executor and the verifier.
+    telemetry_identity = runner_shared.telemetry_identity(
+        run_id=str(state.get("run_id") or ""),
+        item=item,
+        attempt_no=attempt_no,
+        phase=telemetry_phase,
+        host="agy",
+    )
+    with (
+        runner_shared.turn_telemetry(
+            run_dir,
+            telemetry_identity,
+            repo=state.get("repo"),
+            extra_context={"model": options.get("model")},
+        ),
+        log_path.open("w", encoding="utf-8") as log,
+    ):
         # Track the child so a clean shutdown at ANY layer can reap it even when this frame is
         # gone (spec `c4gd2h` R1: no descendant left alive or reparented to init).
         process = runner_shutdown.track_child(subprocess.Popen(argv, **popen_kwargs))
@@ -3665,6 +3693,10 @@ def execute_item(
                 label_suffix="verification",
                 work_dir=work_dir,
                 tracker=tracker,
+                # runanalytics Order 04 (`5f2h8i`) E-02/E-04: state the PHASE from the verifier call
+                # site, exactly as the oc twin does. Not inferred from `log_suffix="verify"`, which is
+                # a log-filename detail rather than a data field.
+                telemetry_phase=runner_shared.TELEMETRY_PHASE_VALIDATE,
             )
             if _v_log:
                 attempt["verify_log"] = str(_v_log)

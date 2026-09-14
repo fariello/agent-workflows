@@ -5369,6 +5369,13 @@ def run_opencode(
     tracker: StreamTracker | None = None,
     work_dir: str | None = None,
     use_verifier_launch: bool = False,
+    # runanalytics Order 04 (`5f2h8i`) E-02/E-03: the invocation's PHASE, stated by the call site
+    # and never inferred. Today an executor turn and a verifier turn are distinguishable only by the
+    # `log_suffix="verify"` string this function hands to `attempt_log_path`, so phase is recoverable
+    # from a FILENAME; deriving telemetry's phase that way would couple a data field to a
+    # presentation detail and would break silently the day a log filename changes. Defaulted, so
+    # every existing call site and every test that calls this function positionally is unchanged.
+    telemetry_phase: str = runner_shared.TELEMETRY_PHASE_EXECUTE,
 ) -> tuple[int, str | None, Path, list[str]]:
     options = state.get("options", {})
     opencode = options.get("opencode") or "opencode"
@@ -5627,7 +5634,41 @@ def run_opencode(
     if tracker is not None:
         tracker.begin_turn()
 
-    with log_path.open("w", encoding="utf-8") as log:
+    # runanalytics Order 04 (`5f2h8i`) E-01/E-02/E-03: per-invocation telemetry, opened around THE
+    # AGENT LAUNCH and nothing else.
+    #
+    # WHY EXACTLY HERE, AND NOWHERE ELSE IN THIS MODULE. This function holds the module's ONE
+    # agent-launch `subprocess.Popen` (immediately below, already wrapped in
+    # `runner_shutdown.track_child`), and it has exactly TWO callers: the executor in
+    # `execute_item` and the verifier later in that same function. The module's other
+    # `subprocess.run` calls are version probes, `git` helpers, and the lifecycle verbs; wrapping
+    # those would emit telemetry for work nobody wants measured and would inflate the event volume
+    # Order 03's overhead budget is sized against. So: wrap the agent turn.
+    #
+    # THE SEAM IS SHARED, NOT LOCAL. `runner_shared.turn_telemetry` is the ONE definition and the
+    # agy driver reaches the SAME object; a copy here (or an import of a helper defined in this
+    # module BY the agy driver) is precisely the re-fork `tests/test_runner_refork_guard.py` exists
+    # to catch. It never raises, so no failure mode it has can change this turn's outcome, and the
+    # `with` adds no branch to any code path below.
+    telemetry_identity = runner_shared.telemetry_identity(
+        run_id=str(state.get("run_id") or ""),
+        item=item,
+        attempt_no=attempt_no,
+        phase=telemetry_phase,
+        host="opencode",
+    )
+    with (
+        runner_shared.turn_telemetry(
+            run_dir,
+            telemetry_identity,
+            repo=state.get("repo"),
+            # The launch identity this turn actually used, read from the SAME keys the argv above
+            # was built from, so telemetry records the verifier's model on a verifier turn rather
+            # than the executor's.
+            extra_context={"model": options.get(model_key)},
+        ),
+        log_path.open("w", encoding="utf-8") as log,
+    ):
         # Track the child so a clean shutdown at ANY layer can reap it even when this frame is
         # gone (spec `c4gd2h` R1: no descendant left alive or reparented to init).
         process = runner_shutdown.track_child(subprocess.Popen(argv, **popen_kwargs))
@@ -6614,6 +6655,12 @@ def execute_item(
                 # session-absence) is ALSO true for an isolated EXECUTE turn, which is the default
                 # configuration. No-op when the run froze no verifier profile.
                 use_verifier_launch=True,
+                # runanalytics Order 04 (`5f2h8i`) E-02: state the PHASE. Passed for the same reason
+                # `use_verifier_launch` is - explicitly, from the one call site that is the verifier -
+                # rather than inferred inside `run_opencode` from `fresh_session` or from the
+                # `log_suffix="verify"` string, both of which are also true for turns that are not
+                # verification.
+                telemetry_phase=runner_shared.TELEMETRY_PHASE_VALIDATE,
             )
             if _v_log:
                 attempt["verify_log"] = str(_v_log)

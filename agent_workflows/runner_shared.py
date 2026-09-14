@@ -131,10 +131,12 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import shlex
 import subprocess
 import sys
 import tempfile
+import threading
 from collections.abc import Container, Mapping, MutableMapping, Sequence
 from pathlib import Path
 from typing import (
@@ -3402,3 +3404,484 @@ def dispatch_orchestrator_item(
         },
     )
     return decision
+
+
+# ---- per-invocation telemetry: the ONE host-neutral seam (runanalytics Order 04, `5f2h8i`) --------
+#
+# WHAT THIS SECTION OWNS, AND WHAT IT DELIBERATELY DOES NOT. It owns the SEAM: where a telemetry
+# stream lives, what an invocation's identity is, and the one context manager both drivers open
+# around their agent turn. It owns NONE of the collector: the event schema, the probes, the node
+# pseudonym, the sampler and the configuration model are all
+# `agent_workflows.run_analytics_telemetry` and `run_analytics_config` (runanalytics Order 03,
+# `lhccjf`). This section constructs those objects and reimplements nothing in them.
+#
+# WHY THE SEAM IS HERE RATHER THAN IN EITHER DRIVER, which is the whole point of the placement.
+# `agy_runipd` already imports dozens of names from `oc_runipd`, and
+# `tests/test_runner_refork_guard.py` pins that no runner REDEFINES an extracted symbol and that
+# every runner attribute IS the owning module's object. A telemetry helper written in `oc_runipd`
+# and imported by `agy_runipd` would satisfy a reviewer reading for parity of BEHAVIOR while
+# forking the code, which is the exact defect that guard exists to catch. So both hosts reach
+# telemetry through THIS module, and neither through the other's driver.
+#
+# THE PATH IS RESOLVED, NEVER COMPOSED. The run root comes from `state_root` above, which consults
+# the project-context authority so a `records_backend` of `repository`, `companion` or `home` each
+# resolves correctly; Order 01 (`xbwq8n`) exists precisely to remove the hardcoded
+# `.aw/records/runs` literal, so this section adds no new one. Callers pass the run directory they
+# were already given and this section appends ONE named constant.
+#
+# TELEMETRY IS NOT ANALYTICS, and the distinction is load-bearing rather than pedantic. Order 01
+# RESERVED `analytics/` under the runs root for the DISPOSABLE derived cache
+# (`ANALYTICS_DIRNAME` above, with `path_is_within_analytics` as its containment predicate, and
+# consumers such as `completion.run_id_candidates` and `run_cli` deliberately EXCLUDE that tree
+# when enumerating runs). Telemetry is a per-RUN observation written INSIDE the run directory
+# beside `events.jsonl` and `outcomes/`, so it lives at `<run>/telemetry/` and MUST NOT be filed
+# under `analytics/`: putting it there would place a run's own primary record inside a tree whose
+# documented contract is that deleting it loses nothing.
+
+#: The subdirectory, inside ONE run directory, holding that run's per-invocation telemetry streams.
+#: A directory rather than a single file because there is one stream per INVOCATION (see
+#: `TelemetryIdentity`), and one file per invocation is what lets a reader attribute an observation
+#: to an attempt and a phase without parsing an interleaved stream.
+TELEMETRY_DIRNAME: str = "telemetry"
+
+#: The phase vocabulary this seam may emit, and the reason it is a SUBSET of the collector's.
+#: `run_analytics_telemetry` enumerates eight phases for the whole toolkit; a DRIVER TURN is only
+#: ever one of these two, because the driver launches an agent for exactly two purposes. Naming the
+#: subset here (rather than passing whatever string a call site holds) is what makes phase an
+#: explicit FIELD instead of something inferred from a filename.
+TELEMETRY_PHASE_EXECUTE: str = "execute"
+TELEMETRY_PHASE_VALIDATE: str = "validate"
+TELEMETRY_TURN_PHASES: tuple[str, ...] = (
+    TELEMETRY_PHASE_EXECUTE,
+    TELEMETRY_PHASE_VALIDATE,
+)
+
+
+def telemetry_dir(run_dir: Path | str) -> Path:
+    """The telemetry directory for ONE run, derived from the run directory it is given.
+
+    Pure and side-effect free: it creates nothing, so a caller that only wants to KNOW the path
+    (a test, a reader, an ingestion pass) cannot accidentally materialize a telemetry tree for a
+    run that has none. "Telemetry disabled" is defined as *no directory and no file*, and a
+    path-returning helper that mkdir'd would make that state unobservable.
+    """
+
+    return Path(run_dir) / TELEMETRY_DIRNAME
+
+
+def telemetry_stream_path(run_dir: Path | str, execution_id: str) -> Path:
+    """The JSONL stream for ONE invocation: `<run>/telemetry/<execution-id>.jsonl`.
+
+    One file per invocation, keyed on the identity minted by :func:`telemetry_identity`, so two
+    attempts of one item, an executor and its verifier, and a pre- and post-resume invocation of
+    the same attempt each own a distinct stream.
+    """
+
+    return telemetry_dir(run_dir) / f"{execution_id}.jsonl"
+
+
+class TelemetryIdentity(NamedTuple):
+    """WHAT MAKES ONE INVOCATION DISTINGUISHABLE FROM EVERY OTHER.
+
+    THE HAZARD THIS TYPE EXISTS TO CLOSE, measured rather than supposed. The obvious identity is
+    `(position, id6, attempt, phase)`, and it is WRONG. `attempt_no` is derived in both drivers as
+    `len(item.get("attempts", [])) + 1` over a list that is PERSISTED in `state.json`, so it does
+    not reset when a run is resumed; that is correct for attempt NUMBERING and it means the tuple
+    above is STABLE across a resume. Two invocations of the same item, attempt and phase separated
+    by a resume would therefore mint one id, collide on one stream file, and produce a single
+    interleaved record with two `start` events - defeating the requirement that an invocation's
+    identity not be reconstructible from a single run-level snapshot.
+
+    SO THE ID CARRIES A PER-INVOCATION COMPONENT (`token`), and the uniqueness argument is: the
+    token is 8 hex characters from `secrets.token_hex`, drawn INSIDE the invocation rather than
+    derived from any persisted state, so it is independent of `attempts`, of the run directory, of
+    the clock, and of the process id. Two invocations cannot share one unless a 32-bit random draw
+    repeats, and (unlike a timestamp) it cannot collide from two invocations starting inside the
+    same clock tick, nor (unlike a pid) from a pid being reused by a resumed run.
+    WHY NOT A COUNTER: a counter would have to be persisted somewhere, and any persisted counter
+    is exactly the thing that fails to reset (or fails to advance) across the resume boundary,
+    which is the defect being fixed. WHY NOT A TIME COMPONENT ALONE: `time.time()` is not
+    monotonic and a resumed run on a clock-corrected box can legitimately produce an earlier
+    timestamp, so it is neither unique nor ordered.
+
+    PHASE IS AN EXPLICIT FIELD, never inferred. Today the two drivers distinguish an executor turn
+    from a verifier turn ONLY by a `suffix="verify"` string handed to their log-path builders, so
+    the phase is recoverable from a FILENAME. Deriving telemetry's phase the same way would couple
+    a data field to a presentation detail, and it would break silently the day a log filename
+    changes. The call site states the phase.
+    """
+
+    run_id: str
+    position: int
+    id6: str
+    setid: str
+    phase: str
+    attempt: int
+    token: str
+    host: str
+
+    @property
+    def execution_id(self) -> str:
+        """The stream's key, and the event field every later Order joins on.
+
+        Shaped to satisfy the collector's own `execution_id` pattern (leading alphanumeric, then
+        alphanumerics/underscore/hyphen, no dot, slash or colon), because that schema REFUSES an
+        out-of-shape id rather than dropping it, and a refusal here would silently produce an
+        empty stream.
+        """
+
+        return (
+            f"{self.position:02d}-{self.id6}-a{self.attempt}"
+            f"-{self.phase}-{self.token}"
+        )
+
+    def context(self) -> dict[str, Any]:
+        """The allowlisted correlation fields the collector stamps onto every event.
+
+        Only keys the telemetry schema already allows are returned; the collector refuses an
+        unknown key, so inventing one here would drop every event. `model`/`provider` are
+        deliberately NOT set from this type: they are launch options the caller holds, and a
+        caller supplies them through `extra_context`.
+        """
+
+        return {
+            "run_id": self.run_id,
+            "ipd_id6": self.id6,
+            "set_id": self.setid,
+            "position": self.position,
+            "attempt": self.attempt,
+            "phase": self.phase,
+            "host": self.host,
+        }
+
+
+def telemetry_identity(
+    *,
+    run_id: str,
+    item: Mapping[str, Any],
+    attempt_no: int,
+    phase: str,
+    host: str,
+    token: str | None = None,
+) -> TelemetryIdentity:
+    """Mint the identity for ONE agent invocation. See :class:`TelemetryIdentity` for the why.
+
+    `token` is injectable so a test can pin the id deterministically; production never passes it.
+    Every field is coerced to the shape the telemetry schema accepts, and an out-of-vocabulary
+    `phase` falls back to `execute` rather than raising: an identity helper that could raise would
+    put a telemetry concern on the critical path of launching an agent, which is precisely the
+    non-interference property this plan must preserve.
+    """
+
+    resolved_phase = (
+        phase if phase in TELEMETRY_TURN_PHASES else TELEMETRY_PHASE_EXECUTE
+    )
+    try:
+        position = int(item.get("position") or 0)
+    except (TypeError, ValueError):
+        position = 0
+    id6 = str(item.get("id6") or "unknown")
+    setid = str(item.get("setid") or "unknown")
+    return TelemetryIdentity(
+        run_id=str(run_id or ""),
+        position=position,
+        id6=id6,
+        setid=setid,
+        phase=resolved_phase,
+        attempt=max(1, int(attempt_no or 1)),
+        token=token if token else secrets.token_hex(4),
+        host=str(host or "unknown"),
+    )
+
+
+def telemetry_safe_context(
+    context: Mapping[str, Any],
+    *,
+    validate: Callable[[Mapping[str, Any]], Any] | None = None,
+) -> dict[str, Any]:
+    """Keep only the correlation fields the telemetry schema will ACCEPT, dropping the rest.
+
+    WHY THIS IS NECESSARY AND NOT DEFENSIVE PADDING, measured during integration. The collector's
+    `validate_event` REFUSES a whole event when ANY field fails its rule, and the collector then
+    records `telemetry-event-refused` and drops the event. That refusal direction is correct for the
+    collector (a silent per-key drop would let a producer believe its record was persisted whole),
+    but at THIS seam it has a bad consequence: one out-of-shape correlation value would discard
+    EVERY event for that invocation, leaving no stream at all. Observed with a `run_id` of `"r"`,
+    which fails the schema's `run-<UTC stamp>-<pid>` pattern: both the `start` and the `end` event
+    were refused and nothing was written.
+
+    That is exactly backwards for an observability feature. The RESOURCE observations do not depend
+    on a correlation label being well formed, and losing them because a caller passed an unusual run
+    id trades a complete record for nothing. So the seam PRE-FILTERS: each field is offered to the
+    schema on its own, a field the schema rejects is omitted, and the remaining event is written and
+    is valid by construction. The collector's own refusal stays untouched and remains the authority;
+    this only stops the seam from handing it an event it will reject.
+
+    `validate` is injectable so a test can drive the filter without the real schema.
+    """
+
+    if validate is None:
+        from agent_workflows.run_analytics_telemetry import (
+            TELEMETRY_SCHEMA_VERSION,
+            validate_event,
+        )
+
+        version = TELEMETRY_SCHEMA_VERSION
+        checker = validate_event
+    else:  # pragma: no cover - test seam
+        version = 1
+        checker = validate
+
+    kept: dict[str, Any] = {}
+    for key, value in context.items():
+        if value is None:
+            continue
+        probe = {
+            "schema_version": version,
+            "event_kind": "start",
+            "execution_id": "probe",
+            "wall_timestamp": "2026-01-01T00:00:00Z",
+            "monotonic_offset_seconds": 0.0,
+            key: value,
+        }
+        try:
+            checker(probe)
+        except Exception:  # noqa: BLE001 - an unacceptable field is DROPPED, never fatal
+            continue
+        kept[key] = value
+    return kept
+
+
+def _launch_safe_probe_adapter(telemetry_mod: Any, config: Any) -> Any:
+    """The probe adapter this seam uses: the real one, with its SHELL-OUT SUPPRESSED.
+
+    MEASURED DEFECT THIS EXISTS TO FIX, and it is the sharpest non-interference lesson of this
+    integration. Every probe in `run_analytics_telemetry` is read-only and process-free EXCEPT
+    `accelerators`, which shells out to a vendor tool (`nvidia-smi`, then `rocm-smi`) through
+    `subprocess.run`. Wrapping the agent launch therefore added a SECOND subprocess invocation
+    inside the very function whose one `Popen` several suites patch in order to capture the agent's
+    argv. Result, measured on a machine that HAS `nvidia-smi`: 18 tests across five files began
+    capturing the PROBE's argv instead of the agent's, and the two `LaunchProfileFrozenTurnArgvTests`
+    failures read `(None, None, None) == (None, None, None)` because the captured argv was the
+    probe's and carried no `--model` at all. On a machine without a vendor tool the suites would have
+    stayed green and the interference would have shipped, which is exactly the kind of
+    environment-dependent coupling that must not sit on an agent-launch path.
+
+    THE FIX IS AT THE SEAM AND USES ORDER 03'S OWN INJECTION POINT, not a change to its probe:
+    `SystemResourceProbeAdapter` already accepts a `runner` precisely so its one shell-out can be
+    replaced, and a suppressed runner makes `accelerators` report the ordinary `unavailable` outcome
+    the probe layer is designed to produce on a host with no vendor tool. Nothing else changes: every
+    other field (cpu, memory, load, process, disk, tool versions) is unaffected, verified
+    field-for-field against the unsuppressed adapter.
+
+    WHY NOT JUST DISABLE THE PROBE UPSTREAM: accelerator data is legitimately wanted, and an
+    ANALYSIS pass reading a run directory can shell out freely because it is not inside a turn. The
+    constraint is specific to this call site (during a live agent launch), so the narrowing belongs
+    here rather than in the collector, which other callers share.
+
+    A construction failure returns `None`, which makes the collector build its own default adapter:
+    degraded telemetry, never a broken turn.
+    """
+
+    try:
+        return telemetry_mod.SystemResourceProbeAdapter(
+            max_probe_seconds=config.max_probe_seconds,
+            # The suppression itself. `(-2, "")` is the code the probe's own bounded runner returns
+            # for a missing tool, so `accelerators` takes its documented `unavailable` path rather
+            # than a new one.
+            runner=lambda _argv, _timeout: (-2, ""),
+        )
+    except Exception:  # noqa: BLE001 - fall back to the collector's default rather than failing
+        return None
+
+
+@contextlib.contextmanager
+def turn_telemetry(
+    run_dir: Path | str,
+    identity: TelemetryIdentity,
+    *,
+    repo: Path | str | None = None,
+    extra_context: Mapping[str, Any] | None = None,
+    collector_factory: Callable[..., Any] | None = None,
+    sampler_factory: Callable[..., Any] | None = None,
+) -> "Any":
+    """Wrap ONE agent turn in per-invocation telemetry. NEVER raises, NEVER changes the outcome.
+
+    Yields a small record with `.collector` and `.sampler` (either may be `None`), so a caller can
+    assert what was created without reaching into this function. Both are `None` when telemetry is
+    disabled by configuration, and no directory or file is created in that case.
+
+    EVERY FAILURE MODE IS SWALLOWED, and that is the requirement rather than defensive habit. This
+    wraps the launch of the agent process that does the actual work, so a telemetry fault must not
+    turn a successful run into a failure nor mask a real one: an unwritable tree, a raising
+    constructor, a probe that explodes, a close that fails, all leave the caller's control flow
+    byte-identical to an uninstrumented run. The caller's own exception ALWAYS propagates
+    unchanged, which is what makes the stall-timeout, checkpoint-stop, force-stop and
+    KeyboardInterrupt paths behave exactly as they did before instrumentation.
+
+    THE SAMPLER IS STOPPED THROUGH THE `finally` HERE AND THROUGH THE ALREADY-EXISTING SHUTDOWN
+    FUNNEL, and through NOTHING ELSE. No signal handler is registered (four executed plans' guards
+    assert `signal.signal(` appears in neither driver, and `runstop` Phase 5 owns SIGINT/SIGTERM
+    registration) and no second cleanup routine is added (spec `c4gd2h` R5 requires exactly one).
+    `runner_shutdown.clean_shutdown` learns to stop a REGISTERED sampler, which is an extension of
+    the one routine that exists rather than a new path; see `register_active_sampler`.
+    """
+
+    collector: Any = None
+    sampler: Any = None
+    record = _TurnTelemetry()
+    try:
+        from agent_workflows import run_analytics_config, run_analytics_privacy
+        from agent_workflows import run_analytics_telemetry as telemetry_mod
+
+        config = run_analytics_config.read_telemetry_config(
+            repo if repo is not None else Path.cwd()
+        )
+        if config.enabled:
+            stream = telemetry_stream_path(run_dir, identity.execution_id)
+            stream.parent.mkdir(parents=True, exist_ok=True)
+            # The salt lives with the DISPOSABLE analytics cache by design (rotating it
+            # invalidates correlation), so this is the one legitimate read of that tree from the
+            # runner: telemetry consumes the pseudonym authority, it does not write analytics.
+            salt = run_analytics_privacy.load_or_create_salt(
+                analytics_cache_dir(repo) if repo is not None else stream.parent
+            )
+            context = dict(identity.context())
+            for key, value in (extra_context or {}).items():
+                if value is not None:
+                    context[key] = value
+            # PRE-FILTER, so one malformed correlation label cannot cost the whole stream. See
+            # `telemetry_safe_context` for the measurement that made this necessary.
+            context = telemetry_safe_context(context)
+            factory = (
+                collector_factory
+                if collector_factory is not None
+                else telemetry_mod.TelemetryCollector
+            )
+            collector_kwargs: dict[str, Any] = {
+                "execution_id": identity.execution_id,
+                "salt": salt,
+                "config": config,
+                "context": context,
+                "disk_path": run_dir,
+            }
+            # ONLY when construction succeeded. Passing `adapter=None` would be WORSE than omitting
+            # it: the collector reads `None` as "build the default", which is the very shell-out
+            # this narrowing exists to avoid, so a failed construction must leave the key absent and
+            # let the collector make that choice explicitly.
+            launch_safe_adapter = _launch_safe_probe_adapter(telemetry_mod, config)
+            if launch_safe_adapter is not None:
+                collector_kwargs["adapter"] = launch_safe_adapter
+            collector = factory(stream, **collector_kwargs)
+            collector.start()
+            sampler_ctor = (
+                sampler_factory
+                if sampler_factory is not None
+                else telemetry_mod.ResourceSampler
+            )
+            sampler = sampler_ctor(collector)
+            sampler.start()
+            register_active_sampler(sampler)
+    except Exception:  # noqa: BLE001 - telemetry may never affect the work it observes
+        collector = None
+        sampler = None
+    record.collector = collector
+    record.sampler = sampler
+    try:
+        yield record
+    finally:
+        # BOTH stops are best-effort AND idempotent: `ResourceSampler.stop` and
+        # `TelemetryCollector.close` are each documented idempotent by Order 03, so the shared
+        # shutdown routine reaching the same sampler first is harmless and cannot emit a second
+        # `end` event (which would corrupt every duration computed from the stream).
+        if sampler is not None:
+            with contextlib.suppress(Exception):
+                sampler.stop()
+            unregister_active_sampler(sampler)
+        if collector is not None:
+            with contextlib.suppress(Exception):
+                collector.close()
+
+
+class _TurnTelemetry:
+    """What :func:`turn_telemetry` yields: the created objects, or `None` for each.
+
+    A tiny mutable holder rather than a tuple, so the yielded value is assigned AFTER construction
+    succeeds or fails and a caller always receives the same shape.
+    """
+
+    __slots__ = ("collector", "sampler")
+
+    def __init__(self) -> None:
+        self.collector: Any = None
+        self.sampler: Any = None
+
+    @property
+    def enabled(self) -> bool:
+        return self.collector is not None
+
+
+# ---- the sampler registry the EXISTING shutdown routine consults ---------------------------------
+#
+# WHY A REGISTRY AND NOT A HANDLER. A sampler is a daemon thread bounded by its own `stop()`, and
+# the teardown paths that must stop it (normal return, exception, stall kill, deliberate stop,
+# SIGINT via `except KeyboardInterrupt`) ALREADY funnel through either `turn_telemetry`'s `finally`
+# above or `runner_shutdown.clean_shutdown`. So the correct wiring is to let the ONE existing
+# cleanup routine see the live samplers, exactly as it already sees live child processes through
+# `runner_shutdown.track_child`. That is the shape being copied, deliberately: same weak-reference
+# discipline, same "already finished entries are skipped" property, same absence of unregister
+# bookkeeping that could leak.
+#
+# NOTE WHERE THIS LIVES AND WHY IT IS NOT IN `runner_shutdown`: `runner_shutdown` is imported by
+# both drivers and must stay free of a dependency on the analytics modules. Keeping the registry
+# here (and having the shutdown routine consult it through a lazy import) means an installation
+# that never touches telemetry pays nothing, and `runner_shutdown` keeps importing only stdlib plus
+# `platform_lock`.
+
+_ACTIVE_SAMPLERS: "MutableMapping[int, Any]" = {}
+_ACTIVE_SAMPLERS_LOCK = threading.Lock()
+
+
+def register_active_sampler(sampler: Any) -> Any:
+    """Record a running sampler so the SHARED clean-shutdown routine can stop it (E-05).
+
+    Returns the sampler so the call can be made inline. Keyed by `id()` under a lock rather than
+    stored in a list, so registering the same object twice cannot produce two stop calls and
+    unregistering is exact.
+    """
+
+    with _ACTIVE_SAMPLERS_LOCK:
+        _ACTIVE_SAMPLERS[id(sampler)] = sampler
+    return sampler
+
+
+def unregister_active_sampler(sampler: Any) -> None:
+    """Forget a sampler that has already been stopped. Never raises."""
+
+    with _ACTIVE_SAMPLERS_LOCK:
+        _ACTIVE_SAMPLERS.pop(id(sampler), None)
+
+
+def active_samplers() -> list[Any]:
+    """Every registered, not-yet-unregistered sampler, as a snapshot."""
+
+    with _ACTIVE_SAMPLERS_LOCK:
+        return list(_ACTIVE_SAMPLERS.values())
+
+
+def stop_active_samplers() -> int:
+    """Stop every registered sampler best-effort; return how many were stopped.
+
+    Called by `runner_shutdown.clean_shutdown` as part of the invariant it ALREADY performs, not as
+    a new invariant and not as a second cleanup path. Best-effort by contract: a sampler that
+    refuses to stop must not prevent the remaining shutdown invariants from running (spec `c4gd2h`
+    R6), and it cannot keep the process alive because the thread is a daemon joined with a timeout.
+    """
+
+    stopped = 0
+    for sampler in active_samplers():
+        with contextlib.suppress(Exception):
+            sampler.stop()
+            stopped += 1
+        unregister_active_sampler(sampler)
+    return stopped
