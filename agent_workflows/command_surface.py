@@ -893,6 +893,51 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=("--agent", "--json"),
         exit_contract=(0, 1, 2),
     ),
+    # runanalytics Order 08 (`mm5p3v`) E-01: the two ANALYTICS leaves under `aw runs`.
+    #
+    # WHY THESE TWO DECLARATIONS EXIST AT ALL, since a parser edit looks sufficient and is not:
+    # `find_undeclared_leaves` is asserted EMPTY by
+    # `tests/test_cli_conformance_matrix.py::test_no_undeclared_parser_leaves`, and
+    # `tests/conformance_matrix.required_scenarios` derives each leaf's REQUIRED scenario set from
+    # the `command_class` declared here. So registering a subparser without a declaration fails a
+    # named fail-closed CI job, and declaring the wrong class demands the wrong coverage.
+    #
+    # `analyze` IS A `mutation` AND THAT IS NOT COSMETIC. `aw runs` is documented as "the READING
+    # half of the run surface", read-only except `repair`. `analyze` updates the analytics cache and
+    # publishes a report bundle, so it is the SECOND exception; declaring it `read` would be a false
+    # entry in the normative inventory AND would demand `domain_failure` instead of the
+    # `success_preview` a mutation owes. `_RUNS_DESCRIPTION` is corrected to match (E-02).
+    #
+    # `mutation_gate="none"` is deliberate and is the honest value: the four-value vocabulary is
+    # none/dry_run_default/confirmation/auth_floor, and `analyze` needs no gate because it writes
+    # ONLY inside the reserved, gitignored `analytics/` namespace that Order 01 owns and Order 02
+    # documents as DISPOSABLE derived state. It never touches a source run directory, never commits,
+    # and never leaves that namespace (`publish_bundle` REFUSES a target outside it).
+    #
+    # THE EXIT CONTRACT IS RECONCILED WITH THE AGENT SCHEMA, not chosen freely. Eight declarations in
+    # this inventory use a code above 2, but `agent_schema.validate_agent_record` requires a
+    # result/summary/error record's `exit` to be in (0, 1, 2). Both leaves emit agent records, so
+    # both contracts are capped at (0, 1, 2) and no code above 2 is reachable on either path.
+    CommandDeclaration(
+        command="runs analyze",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--agent", "--json"),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="runs query",
+        command_class="read",
+        human_recipe="detail",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--agent", "--json"),
+        exit_contract=(0, 1, 2),
+    ),
     CommandDeclaration(
         command="run start",
         command_class="mutation",
