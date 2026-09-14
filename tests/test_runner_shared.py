@@ -1091,6 +1091,25 @@ class WrapperTests(unittest.TestCase):
         ("agy_runipd", "save_state"): 1,
     }
 
+    #: integpath-03 (`51vw4y`): THE INTEGRATION DEFERRAL LADDER's new callers, four per host, each one
+    #: NAMED as this table's rule requires ("it is for a NEW caller only ... If a count moves and you
+    #: cannot name the new call site, the wrapper ruling has been undone").
+    #:
+    #: Per host, in `retry_deferred_integrations`: TWO inside its `_finish` closure (persist the
+    #: `executed` promotion plus the lane-teardown result, then persist again after the backlog close,
+    #: mirroring the first-attempt success path which does exactly the same twice); and TWO in the
+    #: `run_queue` dispatch loop, one after rung 1's re-attempt pass and one after rungs 2/3.
+    #:
+    #: NO EXISTING CALL SITE WAS REWRITTEN, which is the only thing the wrapper ruling protects. The
+    #: LADDER itself is the shared `runner_shared.reattempt_deferred_integrations` /
+    #: `record_integration_refusal` / `resolve_exhausted_deferrals`, so neither driver carries a second
+    #: copy of the decision; each contributes only the host-specific bindings (its own
+    #: `integrate_lane_branch` wrapper, hence its own `host_label` in a re-attempt's merge subject).
+    INTEGRATION_LADDER_CALL_SITES = {
+        ("oc_runipd", "save_state"): 4,
+        ("agy_runipd", "save_state"): 4,
+    }
+
     def call_sites(self, runner: str, name: str) -> int:
         tree = ast.parse(module_source(_MODULES[runner]))
         return sum(
@@ -1130,6 +1149,7 @@ class WrapperTests(unittest.TestCase):
                     expected -= moved_callers_of_run_checked
                 expected += self.ADDED_CALL_SITES.get((runner, name), 0)
                 expected += self.CLEAN_BASE_GUARD_CALL_SITES.get((runner, name), 0)
+                expected += self.INTEGRATION_LADDER_CALL_SITES.get((runner, name), 0)
                 self.assertEqual(
                     self.call_sites(runner, name),
                     expected,
@@ -2661,6 +2681,573 @@ class AgyVerificationFlagSurfaceTests(unittest.TestCase):
                         "a refused invocation must leave NO durable run state",
                     )
                     del subprocess
+
+
+class IntegrationDeferralLadderTests(unittest.TestCase):
+    """integpath-03 (`51vw4y`) E-06: EVERY rung transition, pinned deterministically.
+
+    WHAT THIS CLASS EXISTS TO PREVENT, stated because a green suite already coexisted with the defect
+    once. `integration_deferred` has appeared in both runners as a DIAGNOSTIC REASON STRING since
+    `driverfin-03` while the status still went terminal, so grepping the name proved nothing about
+    whether a deferral was ever re-attempted. The assertions below therefore drive the DECISION and the
+    STATUS, never the presence of a string.
+
+    NOTHING HERE DEPENDS ON A REAL CONCURRENT WRITER OR ON WALL-CLOCK SLEEPING. `decide_integration_deferral`
+    is pure; the poll takes injected `sleep`/`overlap`/`activity_age` callables; the ask takes an
+    injected prompt. So time and dirt are controlled inputs, which is what makes these tests fast and
+    non-flaky rather than "usually passing".
+    """
+
+    def decide(self, **kw):
+        base: dict = {
+            "integ_kind": runner_shared.INTEGRATION_REFUSAL_TRANSIENT,
+            "attempts_used": 1,
+            "limit": 10,
+        }
+        base.update(kw)
+        return runner_shared.decide_integration_deferral(**base)
+
+    # ---- rung 1: defer, re-attempt, and the budget ------------------------------------------------
+
+    def test_the_first_dirty_overlap_refusal_DEFERS_and_is_not_terminal(self):
+        decision = self.decide()
+        self.assertTrue(decision.deferred)
+        self.assertEqual(decision.status, runner_shared.INTEGRATION_DEFERRED_STATUS)
+        for module in (oc_runipd, agy_runipd):
+            with self.subTest(host=module.__name__):
+                self.assertNotIn(decision.status, module.TERMINAL_STATES)
+
+    def test_the_budget_bounds_the_re_attempts_and_then_goes_TERMINAL(self):
+        """A permanently dirty path must not spin the loop forever."""
+        for attempt in range(1, 4):
+            with self.subTest(attempt=attempt):
+                self.assertTrue(self.decide(attempts_used=attempt, limit=3).deferred)
+        exhausted = self.decide(attempts_used=4, limit=3)
+        self.assertFalse(exhausted.deferred)
+        self.assertEqual(exhausted.status, runner_shared.INTEGRATION_BLOCKED_STATUS)
+        self.assertIn("budget exhausted", exhausted.reason)
+        for module in (oc_runipd, agy_runipd):
+            with self.subTest(host=module.__name__):
+                self.assertIn(exhausted.status, module.TERMINAL_STATES)
+
+    def test_a_zero_limit_is_block_spelled_as_a_count(self):
+        self.assertFalse(self.decide(attempts_used=1, limit=0).deferred)
+
+    # ---- THE NEGATIVE CASE: merge-conflict must NOT acquire a retry loop --------------------------
+
+    def test_merge_conflict_is_TERMINAL_ON_ITS_FIRST_ATTEMPT_and_consumes_no_budget(
+        self,
+    ):
+        """THE OVER-TRIGGER GUARD, and it is not optional.
+
+        Every positive-arm test above would ALSO pass for a ladder that wrongly deferred genuine
+        conflicts, and that over-trigger is invisible until a real conflict has been retried ten times.
+        `integrate_lane_branch` returns THREE kinds and only the dirty-overlap one is transient:
+        `merge-conflict` means the reused gate returned non-passing (real conflict, stale base,
+        combined-red, or scope), which repetition does not fix.
+        """
+        decision = self.decide(
+            integ_kind=runner_shared.INTEGRATION_REFUSAL_CONFLICT, attempts_used=1
+        )
+        self.assertFalse(decision.deferred)
+        self.assertEqual(decision.status, "merge-conflict")
+        self.assertIn("not the transient", decision.reason)
+        self.assertFalse(
+            runner_shared.classify_integration_refusal(
+                runner_shared.INTEGRATION_REFUSAL_CONFLICT
+            )
+        )
+        # It stays terminal even with the whole budget untouched, i.e. the budget is not consulted.
+        self.assertFalse(
+            self.decide(
+                integ_kind=runner_shared.INTEGRATION_REFUSAL_CONFLICT,
+                attempts_used=1,
+                limit=1000,
+            ).deferred
+        )
+
+    def test_an_unrecognized_kind_fails_CLOSED_onto_todays_terminal_path(self):
+        self.assertFalse(runner_shared.classify_integration_refusal("something-new"))
+        self.assertFalse(self.decide(integ_kind="something-new").deferred)
+
+    # ---- the override, including the one that reproduces today ------------------------------------
+
+    def test_on_integration_blocked_block_REPRODUCES_the_pre_ladder_behavior(self):
+        decision = self.decide(policy=runner_shared.ON_INTEGRATION_BLOCKED_BLOCK)
+        self.assertFalse(decision.deferred)
+        self.assertEqual(decision.status, runner_shared.INTEGRATION_BLOCKED_STATUS)
+
+    def test_the_override_vocabulary_is_closed_and_defaults_to_defer(self):
+        self.assertEqual(
+            runner_shared.resolve_on_integration_blocked(None),
+            runner_shared.ON_INTEGRATION_BLOCKED_DEFER,
+        )
+        for good in runner_shared.ON_INTEGRATION_BLOCKED_CHOICES:
+            with self.subTest(value=good):
+                self.assertEqual(
+                    runner_shared.resolve_on_integration_blocked(good), good
+                )
+        with self.assertRaises(runner_shared.RunFlagRefusal):
+            runner_shared.resolve_on_integration_blocked("sometimes")
+
+    # ---- BUDGET INDEPENDENCE, the category error the backlog item names --------------------------
+
+    def test_the_two_budgets_are_INDEPENDENT_quantities(self):
+        """Set each to a different value and show each governs ONLY its own path.
+
+        `DEFAULT_RETRY_LIMIT` counts PAID CORRECTION TURNS on the stated ground that repetition cannot
+        turn failure into success; that ground is FALSE for an integration re-attempt, whose blocker is
+        another process's transient dirt. Conflating them is what this asserts against.
+        """
+        from agent_workflows import run_recovery
+
+        self.assertEqual(run_recovery.DEFAULT_RETRY_LIMIT, 2)
+        self.assertEqual(runner_shared.DEFAULT_INTEGRATION_RETRY_LIMIT, 10)
+        self.assertNotEqual(
+            run_recovery.DEFAULT_RETRY_LIMIT,
+            runner_shared.DEFAULT_INTEGRATION_RETRY_LIMIT,
+        )
+
+        # The integration resolver does not read the correction default...
+        self.assertEqual(runner_shared.resolve_integration_retry_limit(None), 10)
+        self.assertEqual(runner_shared.resolve_integration_retry_limit(7), 7)
+        # ...and it is deliberately NOT clamped to spec 2.1's 0..10 CORRECTION range.
+        self.assertEqual(runner_shared.resolve_integration_retry_limit(25), 25)
+        with self.assertRaises(runner_shared.RunFlagRefusal):
+            runner_shared.resolve_retry_budget(25)
+
+        # Moving one does not move the other, asserted by driving both with opposite values.
+        self.assertEqual(runner_shared.resolve_retry_budget(0), 0)
+        self.assertEqual(runner_shared.resolve_integration_retry_limit(9), 9)
+        # And an integration decision honors ITS limit, not the correction one: 3 re-attempts are
+        # still deferred at limit 9, where a correction budget of 2 would already be spent.
+        self.assertTrue(self.decide(attempts_used=3, limit=9).deferred)
+
+    def test_a_negative_integration_limit_is_refused(self):
+        with self.assertRaises(runner_shared.RunFlagRefusal):
+            runner_shared.resolve_integration_retry_limit(-1)
+
+    # ---- rung 2: BOTH bounds, asserted SEPARATELY -------------------------------------------------
+
+    def poll(self, *, dirty, ages, poll_limit=10, staleness=3600.0):
+        """Drive the poll with controlled dirt and clock. `dirty`/`ages` are per-poll sequences."""
+        slept: list = []
+        seq_dirty = list(dirty)
+        seq_ages = list(ages)
+
+        def _overlap(_repo, _files):
+            return seq_dirty.pop(0) if seq_dirty else []
+
+        def _age(_repo):
+            return seq_ages.pop(0) if seq_ages else 0.0
+
+        outcome = runner_shared.poll_for_integration_window(
+            pathlib.Path("/nonexistent"),
+            ("src/x.py",),
+            poll_limit=poll_limit,
+            interval=0.0,
+            staleness_limit=staleness,
+            sleep=slept.append,
+            overlap=_overlap,
+            activity_age=_age,
+        )
+        return outcome, slept
+
+    def test_rung_2_bound_i_the_POLL_COUNT_while_main_is_still_ACTIVE(self):
+        outcome, slept = self.poll(
+            dirty=[["src/x.py"]] * 40, ages=[60.0] * 40, poll_limit=3
+        )
+        self.assertFalse(outcome.cleared)
+        self.assertEqual(outcome.bound, runner_shared.POLL_BOUND_COUNT)
+        self.assertEqual(outcome.polls, 3)
+        self.assertEqual(len(slept), 3)
+        self.assertIn("poll bound 3", outcome.detail)
+        self.assertIn("still active", outcome.detail)
+
+    def test_rung_2_bound_ii_MAIN_IS_STALE_so_polling_stops_EARLY_regardless_of_count(
+        self,
+    ):
+        """The bound that carries the design's whole argument, so it gets its own test.
+
+        A test covering only the count would PASS with this bound unimplemented, which is exactly why
+        the plan calls it the item most likely to be skipped. Here main has been idle for four hours
+        with a generous poll budget: the correct behavior is to give up IMMEDIATELY, having slept zero
+        times, because nobody is about to commit and the dirt is abandoned.
+        """
+        outcome, slept = self.poll(
+            dirty=[["src/x.py"]] * 40, ages=[4 * 3600.0] * 40, poll_limit=25
+        )
+        self.assertFalse(outcome.cleared)
+        self.assertEqual(outcome.bound, runner_shared.POLL_BOUND_STALE)
+        self.assertEqual(outcome.polls, 0)
+        self.assertEqual(slept, [], "a stale main must cost NO waiting at all")
+        self.assertIn("ABANDONED", outcome.detail)
+        self.assertIn("needs a human", outcome.detail)
+
+    def test_the_two_bounds_report_DIFFERENT_facts(self):
+        """ "polled 10x, main active 1m ago" and "gave up, main idle 4h" demand different responses."""
+        active, _ = self.poll(dirty=[["x"]] * 40, ages=[60.0] * 40, poll_limit=2)
+        stale, _ = self.poll(dirty=[["x"]] * 40, ages=[9999.0] * 40, poll_limit=2)
+        self.assertNotEqual(active.bound, stale.bound)
+        self.assertNotEqual(active.detail, stale.detail)
+        self.assertEqual(active.last_activity_age, 60.0)
+        self.assertEqual(stale.last_activity_age, 9999.0)
+
+    def test_an_UNMEASURABLE_main_activity_fails_closed_and_does_not_wait(self):
+        outcome, slept = self.poll(dirty=[["x"]] * 5, ages=[None] * 5)
+        self.assertEqual(outcome.bound, runner_shared.POLL_BOUND_STALE)
+        self.assertEqual(slept, [])
+        self.assertIn("unmeasurable", outcome.detail)
+
+    def test_the_poll_STOPS_as_soon_as_the_dirt_clears(self):
+        outcome, slept = self.poll(
+            dirty=[["src/x.py"], ["src/x.py"], []], ages=[10.0] * 5
+        )
+        self.assertTrue(outcome.cleared)
+        self.assertEqual(outcome.bound, runner_shared.POLL_BOUND_CLEARED)
+        self.assertEqual(outcome.polls, 2)
+        self.assertEqual(len(slept), 2)
+
+    def test_main_last_activity_is_the_NEWER_of_head_time_and_dirty_mtime(self):
+        """Either signal ALONE answers the wrong question, so the combination is asserted on a real repo."""
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = pathlib.Path(tmp) / "repo"
+            repo.mkdir()
+            for cmd in (
+                ["git", "init", "-q"],
+                ["git", "config", "user.email", "t@example.invalid"],
+                ["git", "config", "user.name", "T"],
+            ):
+                subprocess.run(cmd, cwd=repo, check=True)
+            (repo / "a.txt").write_text("a\n", encoding="utf-8")
+            subprocess.run(["git", "add", "a.txt"], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-qm", "init"], cwd=repo, check=True)
+
+            # A committed-but-idle repo reports the age of its HEAD commit: small, and measurable.
+            committed_age = runner_shared.main_last_activity_age(repo)
+            self.assertIsNotNone(committed_age)
+            assert committed_age is not None
+            self.assertLess(committed_age, 120.0)
+
+            # Now make HEAD look OLD while an uncommitted edit is FRESH: the dirty mtime must win, or
+            # an actively-edited tree would be misread as abandoned.
+            (repo / "b.txt").write_text("dirty\n", encoding="utf-8")
+            age = runner_shared.main_last_activity_age(
+                repo, now=__import__("time").time()
+            )
+            self.assertIsNotNone(age)
+            assert age is not None
+            self.assertLess(age, 120.0)
+
+    # ---- rung 3: the ask, which must never hang ---------------------------------------------------
+
+    def test_the_ask_is_SKIPPED_ENTIRELY_when_the_run_is_not_interactive(self):
+        outcome = runner_shared.ask_operator_about_integration(
+            "aaa111",
+            "dirty overlap",
+            interactive=False,
+            prompt=lambda *a, **k: self.fail(
+                "an unattended run must never be prompted"
+            ),
+        )
+        self.assertFalse(outcome.asked)
+        self.assertFalse(outcome.retry)
+        self.assertIn("SUPPRESSED", outcome.detail)
+
+    def test_the_ask_CANNOT_HANG_a_timeout_falls_through_to_terminal(self):
+        """`qyaime` closed an unbounded-wait deadlock whose honest limit was that the ask is
+        "bounded and recorded, not architecturally prevented". Here the bound IS the architecture: a
+        `None` answer (the timeout) yields `retry=False`, so the caller goes terminal."""
+        outcome = runner_shared.ask_operator_about_integration(
+            "aaa111", "dirty overlap", interactive=True, prompt=lambda *a, **k: None
+        )
+        self.assertTrue(outcome.asked)
+        self.assertFalse(outcome.retry)
+        self.assertIn("TIMED OUT", outcome.detail)
+
+    def test_the_ask_honors_an_affirmative_and_a_refusal(self):
+        yes = runner_shared.ask_operator_about_integration(
+            "aaa111", "r", interactive=True, prompt=lambda *a, **k: "y\n"
+        )
+        self.assertTrue(yes.retry)
+        for answer in ("n\n", "\n", "later\n"):
+            with self.subTest(answer=answer):
+                self.assertFalse(
+                    runner_shared.ask_operator_about_integration(
+                        "aaa111",
+                        "r",
+                        interactive=True,
+                        prompt=lambda *a, **k: answer,
+                    ).retry
+                )
+
+    def test_the_prompt_predicate_is_the_SHIPPED_one_not_a_second_TTY_test(self):
+        """`is_interactive_run` already encodes both halves (a real TTY AND no `--unattended`)."""
+        import argparse
+        import inspect
+
+        source = inspect.getsource(oc_runipd.retry_deferred_integrations)
+        self.assertIn("is_interactive_run", source)
+        self.assertIn(
+            "is_interactive_run",
+            inspect.getsource(agy_runipd.retry_deferred_integrations),
+        )
+
+        class _TTY:
+            def isatty(self):
+                return True
+
+        self.assertFalse(
+            runner_shared.is_interactive_run(
+                argparse.Namespace(unattended=True, full_auto=False), stream=_TTY()
+            )
+        )
+
+    # ---- OQ-03: a run must not END on a non-terminal status ---------------------------------------
+
+    def test_an_exhausted_deferral_is_RESOLVED_to_terminal_with_the_lane_preserved(
+        self,
+    ):
+        events: list = []
+        saved: list = []
+        state = {
+            "queue": [
+                {
+                    "id6": "aaa111",
+                    "setid": "s",
+                    "status": runner_shared.INTEGRATION_DEFERRED_STATUS,
+                    "preserved_branch": "aw/lane/aaa111",
+                    "integration_deferral": "dirty overlap on src/x.py",
+                    "attempts": [{}],
+                }
+            ]
+        }
+        resolved = runner_shared.resolve_exhausted_deferrals(
+            pathlib.Path("/nonexistent"),
+            state,
+            save_state=lambda *a, **k: saved.append(a),
+            append_jsonl=lambda _p, e: events.append(e),
+        )
+        self.assertEqual(resolved, ["aaa111"])
+        item = state["queue"][0]
+        self.assertEqual(item["status"], runner_shared.INTEGRATION_BLOCKED_STATUS)
+        for module in (oc_runipd, agy_runipd):
+            with self.subTest(host=module.__name__):
+                self.assertIn(item["status"], module.TERMINAL_STATES)
+        # The lane is still named, so the recovery route survives.
+        self.assertEqual(item["preserved_branch"], "aw/lane/aaa111")
+        self.assertEqual(events[0]["event"], "ipd-integration-blocked")
+        self.assertTrue(saved)
+
+    def test_nothing_is_resolved_when_no_item_is_deferred(self):
+        state = {"queue": [{"id6": "aaa111", "status": "executed"}]}
+        self.assertEqual(
+            runner_shared.resolve_exhausted_deferrals(
+                pathlib.Path("/nonexistent"),
+                state,
+                save_state=lambda *a, **k: self.fail("must not persist"),
+                append_jsonl=lambda *a, **k: self.fail("must not emit"),
+            ),
+            [],
+        )
+
+    # ---- E-01's dependency rule, on BOTH hosts ---------------------------------------------------
+
+    def test_a_DEFERRED_prerequisite_does_NOT_satisfy_a_dependency_edge(self):
+        """A deferred prerequisite has NOT integrated, so a dependent must wait exactly as for a
+        queued one. Dispatching it would run against a base lacking its prerequisite's commits, which
+        is worse than the bug being fixed."""
+        state = {
+            "repo": ".",
+            "queue": [
+                {
+                    "id6": "aaa111",
+                    "status": runner_shared.INTEGRATION_DEFERRED_STATUS,
+                    "setid": "s",
+                    "action": "execute",
+                    "position": 1,
+                    "dependencies": [],
+                },
+                {
+                    "id6": "bbb222",
+                    "status": "queued",
+                    "setid": "s",
+                    "action": "execute",
+                    "position": 2,
+                    "dependencies": ["executed:aaa111"],
+                },
+            ],
+        }
+        for module in (oc_runipd, agy_runipd):
+            with self.subTest(host=module.__name__):
+                satisfied, unsatisfied = module.dependency_status(
+                    state["queue"][1], state
+                )
+                self.assertFalse(satisfied)
+                self.assertEqual(unsatisfied, ["executed:aaa111"])
+
+    def test_the_cascade_does_NOT_kill_a_dependent_of_a_deferred_item(self):
+        """This is the seven-of-34 cascade the plan exists to prevent, asserted directly.
+
+        `cascade_dependency_blocked` kills a dependent when its prerequisite's status is
+        `in TERMINAL_STATES and not in required`. Keeping `integration-deferred` OUT of that set is
+        precisely what stops the cascade here. It is ONE shared implementation re-exported by agy, so
+        the behavior is asserted on both hosts rather than fixed twice.
+        """
+        self.assertIs(
+            agy_runipd.cascade_dependency_blocked,
+            oc_runipd.cascade_dependency_blocked,
+        )
+        for module in (oc_runipd, agy_runipd):
+            with self.subTest(host=module.__name__):
+                state = {
+                    "repo": ".",
+                    "queue": [
+                        {
+                            "id6": "aaa111",
+                            "status": runner_shared.INTEGRATION_DEFERRED_STATUS,
+                            "setid": "s",
+                            "action": "execute",
+                            "position": 1,
+                            "dependencies": [],
+                        },
+                        {
+                            "id6": "bbb222",
+                            "status": "queued",
+                            "setid": "s",
+                            "action": "execute",
+                            "position": 2,
+                            "dependencies": ["executed:aaa111"],
+                        },
+                    ],
+                }
+                self.assertEqual(module.cascade_dependency_blocked(state), [])
+                self.assertEqual(state["queue"][1]["status"], "queued")
+                # CONTROL: the SAME shape with a terminal non-success prerequisite still cascades, so
+                # this test cannot pass by the cascade having been disabled.
+                state["queue"][0]["status"] = "integration-blocked"
+                self.assertTrue(module.cascade_dependency_blocked(state))
+                self.assertEqual(state["queue"][1]["status"], "dependency-blocked")
+
+    # ---- F-11: the silent-downgrade trap, on BOTH hosts -----------------------------------------
+
+    def test_reconcile_disposition_PASSES_THE_DEFERRAL_THROUGH_on_both_hosts(self):
+        """THE HIGHEST-RISK EDIT of this plan, so it is pinned directly.
+
+        `integration-deferred` is deliberately absent from `TERMINAL_STATES`, so
+        `TERMINAL_STATES - {...}` SKIPS it and control used to reach
+        `return ("partial" if exit_code == 0 else "failed-safely")`. `partial` IS terminal, so a
+        deferred item would have been silently relabelled and the deferral destroyed - reproducing
+        today's permanent loss while every ladder unit test above still passed.
+        """
+        for module in (oc_runipd, agy_runipd):
+            with self.subTest(
+                host=module.__name__
+            ), tempfile.TemporaryDirectory() as td:
+                run_dir = pathlib.Path(td) / "run"
+                (run_dir / "outcomes").mkdir(parents=True)
+                item = {
+                    "id6": "aaa111",
+                    "position": 1,
+                    "configured_file": "",
+                    "action": "execute",
+                    "status": runner_shared.INTEGRATION_DEFERRED_STATUS,
+                }
+                disposition, _outcome = module.reconcile_disposition(
+                    pathlib.Path(td), item, run_dir, 0
+                )
+                self.assertEqual(
+                    disposition,
+                    runner_shared.INTEGRATION_DEFERRED_STATUS,
+                    "a deferred item must NOT be downgraded to `partial`",
+                )
+                self.assertNotIn(disposition, module.TERMINAL_STATES)
+                # CONTROL: a non-deferred item still falls through EXACTLY as before, so the fix did
+                # not disturb the fallback it guards.
+                running = dict(item, status="running")
+                self.assertEqual(
+                    module.reconcile_disposition(pathlib.Path(td), running, run_dir, 0)[
+                        0
+                    ],
+                    "partial",
+                )
+                self.assertEqual(
+                    module.reconcile_disposition(pathlib.Path(td), running, run_dir, 1)[
+                        0
+                    ],
+                    "failed-safely",
+                )
+
+    # ---- the ledger vocabulary and the resume route ----------------------------------------------
+
+    def test_the_new_status_is_in_the_shared_ledger_vocabulary(self):
+        """R3's coherence check must know it, or a run holding one refuses its own resume."""
+        from agent_workflows import runner_shutdown
+
+        self.assertIn(
+            runner_shared.INTEGRATION_DEFERRED_STATUS,
+            runner_shutdown.KNOWN_ITEM_STATUSES,
+        )
+        for module in (oc_runipd, agy_runipd):
+            with self.subTest(host=module.__name__):
+                self.assertEqual(
+                    set(module.TERMINAL_STATES)
+                    - set(runner_shutdown.KNOWN_ITEM_STATUSES),
+                    set(),
+                )
+
+    def test_retry_incomplete_re_queues_a_deferred_item_on_both_hosts(self):
+        """A deferral can outlive its run (an interrupt between deferring and the next iteration)."""
+        import inspect
+
+        for module in (oc_runipd, agy_runipd):
+            with self.subTest(host=module.__name__):
+                self.assertIn(
+                    '"integration-deferred"',
+                    inspect.getsource(module.run_queue),
+                )
+
+    # ---- the ladder is ONE implementation, not two -----------------------------------------------
+
+    def test_neither_runner_carries_its_own_copy_of_the_ladder(self):
+        """CID-3: a rule present in one driver only is a defect, and two copies drift (measured at
+        0.651 similarity for the pre-extraction integration code)."""
+        for module in (oc_runipd, agy_runipd):
+            src = module_source(module)
+            defined = {
+                node.name
+                for node in ast.parse(src).body
+                if isinstance(
+                    node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+                )
+            }
+            with self.subTest(host=module.__name__):
+                for name in (
+                    "decide_integration_deferral",
+                    "classify_integration_refusal",
+                    "poll_for_integration_window",
+                    "ask_operator_about_integration",
+                    "record_integration_refusal",
+                    "resolve_exhausted_deferrals",
+                    "reattempt_deferred_integrations",
+                    "main_last_activity_age",
+                ):
+                    self.assertNotIn(name, defined)
+
+    def test_both_hosts_reach_the_ladder_from_their_dispatch_loop(self):
+        """A shared ladder nothing CALLS is the dead-gate failure this repository has already paid for."""
+        import inspect
+
+        for module in (oc_runipd, agy_runipd):
+            with self.subTest(host=module.__name__):
+                loop = inspect.getsource(module.run_queue)
+                self.assertIn("retry_deferred_integrations", loop)
+                self.assertIn("deferred_integration_items", loop)
+                # Rung 2's trigger is the loop's OWN `runnable is None`, not a last-item test.
+                self.assertIn("runnable is None", loop)
+                self.assertIn("poll=True", loop)
 
 
 if __name__ == "__main__":

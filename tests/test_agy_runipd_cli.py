@@ -614,10 +614,21 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
             ):
                 agy_runipd.execute_item(run_dir, state, item, recovery=False)
 
+            # integpath-03 (`51vw4y`): the REFUSAL is unchanged and every fail-closed assertion below
+            # is kept; only the DISPOSITION after it moved, from terminal `integration-blocked` on the
+            # first refusal to the NON-TERMINAL `integration-deferred`, so the transient condition no
+            # longer permanently strands verified work. Kept symmetric with the oc twin (CID-3).
             self.assertEqual(len(gate_calls), 0)
-            self.assertEqual(item["status"], "integration-blocked")
+            self.assertEqual(item["status"], "integration-deferred")
+            self.assertNotIn(
+                item["status"],
+                agy_runipd.TERMINAL_STATES,
+                "the first refusal must be NON-terminal, or the item is never re-attempted",
+            )
             self.assertIn("integration_deferral", item)
             self.assertIn("src/demo.txt", item["integration_deferral"])
+            self.assertTrue(item["integration_ladder"]["deferred"])
+            self.assertEqual(item["integration_ladder"]["attempts_used"], 1)
             self.assertFalse(
                 (repo / ".aw" / "records" / "plans" / "executed" / plan.name).is_file()
             )
@@ -628,7 +639,7 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
             self.assertEqual(item.get("preserved_branch"), "aw/lane/agy001")
             self.assertTrue((repo / ".aw" / "worktrees" / "agy001").exists())
             events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
-            self.assertIn("ipd-integration-blocked", events)
+            self.assertIn("ipd-integration-deferred", events)
 
     def test_non_passing_gate_records_merge_conflict_main_pristine(self):
         # V-02 (agy): a non-passing gate leaves MAIN pristine (HEAD unchanged, no markers), records
@@ -677,6 +688,91 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
             self.assertEqual(item.get("preserved_branch"), "aw/lane/agy001")
             events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
             self.assertIn("ipd-merge-conflict", events)
+
+    def test_the_MEASURED_INCIDENT_is_now_SURVIVED_defer_then_integrate(self):
+        """integpath-03 (`51vw4y`) E-07: the incident's shape, survived on the AGY host.
+
+        ASSERTED HERE INDEPENDENTLY RATHER THAN INFERRED FROM THE OC RESULT, which the plan requires
+        explicitly: the two runner suites are asymmetric (the agy side has far fewer tests and several
+        of the largest diverged symbols have zero agy coverage), so a green oc test can hide an agy-side
+        regression. The ladder is shared, but the BINDINGS are per host, and a mis-bound host is exactly
+        the class of defect this repository has already paid for (`--full-auto` defaulting oppositely on
+        the two hosts).
+        """
+        from agent_workflows import orchestrate_isolation
+
+        gate_calls: list = []
+        real_gate = orchestrate_isolation.execute_merge_and_revalidate_gate
+
+        def spy_gate(*a, **k):
+            gate_calls.append((a, k))
+            return real_gate(*a, **k)
+
+        agent_turns: list = []
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "agy001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+            state["options"]["integration_retry_limit"] = 10
+            state["options"]["on_integration_blocked"] = "defer"
+
+            base_agent = self._fake_agent_also_dirties_main(run_dir, repo)
+
+            def counting_agent(*a, **k):
+                agent_turns.append(k.get("log_suffix"))
+                return base_agent(*a, **k)
+
+            with (
+                mock.patch.object(agy_runipd, "run_agy_turn", counting_agent),
+                mock.patch.object(
+                    orchestrate_isolation,
+                    "execute_merge_and_revalidate_gate",
+                    spy_gate,
+                ),
+            ):
+                agy_runipd.execute_item(run_dir, state, item, recovery=False)
+
+                self.assertEqual(item["status"], "integration-deferred")
+                self.assertNotIn(item["status"], agy_runipd.TERMINAL_STATES)
+                self.assertEqual(len(gate_calls), 0)
+                turns_after_first = len(agent_turns)
+
+                # The co-worker's dirt clears, and the re-attempt runs with no new agent turn.
+                (repo / "src" / "demo.txt").unlink()
+                records = agy_runipd.retry_deferred_integrations(run_dir, state)
+
+            self.assertEqual(
+                [r["outcome"] for r in records], ["integrated"], f"{records}"
+            )
+            self.assertEqual(item["status"], "executed")
+            self.assertEqual(
+                len(agent_turns),
+                turns_after_first,
+                "a deferred re-attempt must spend NO agent turn",
+            )
+            self.assertEqual(
+                len(gate_calls), 1, "the successful re-attempt must run the full gate"
+            )
+            self.assertEqual(
+                (repo / "src" / "demo.txt").read_text(encoding="utf-8"), "demo\n"
+            )
+            self.assertTrue(
+                (repo / ".aw" / "records" / "plans" / "executed" / plan.name).is_file()
+            )
+            # THIS HOST's label is on the merge, which is what proves the per-host binding survived
+            # into the RE-ATTEMPT path and not only into the first attempt.
+            subject = subprocess.run(
+                ["git", "log", "-1", "--pretty=%s"],
+                cwd=repo,
+                text=True,
+                capture_output=True,
+            ).stdout.strip()
+            self.assertNotIn("aw oc run", subject)
+            events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+            self.assertIn("ipd-integration-deferred", events)
+            self.assertIn("ipd-integrated-after-deferral", events)
 
     def test_dirty_tree_overlap_helper_reports_only_overlap(self):
         with tempfile.TemporaryDirectory() as temp:

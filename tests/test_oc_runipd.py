@@ -3055,10 +3055,20 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
         return fake_run
 
     def test_dirty_overlapping_base_refuses_integration(self):
-        # V-01: if MAIN has an un-owned dirty path overlapping the incoming lane's changed_files, the
-        # integration gate is NOT invoked, the item status is `integration-blocked`, an
-        # `integration-blocked` event is emitted, MAIN stays unmodified apart from the un-owned dirty
-        # edit, and the verified branch/worktree are preserved.
+        # V-01 (driverfin-03 `7kbtkw`): if MAIN has an un-owned dirty path overlapping the incoming
+        # lane's changed_files, the integration gate is NOT invoked, MAIN stays unmodified apart from
+        # the un-owned dirty edit, and the verified branch/worktree are preserved.
+        #
+        # THE REFUSAL IS UNCHANGED; ONLY THE DISPOSITION AFTER IT MOVED (integpath-03 `51vw4y`). This
+        # test asserted `integration-blocked` on the FIRST refusal, which was the defect that Set
+        # exists to fix: `integration-blocked` is in `TERMINAL_STATES`, so a refusal caused by another
+        # writer's transient uncommitted file permanently stranded verified work (measured: seven of 34
+        # items lost in run `run-20260905T050043Z-639569`). The first refusal is now the NON-TERMINAL
+        # `integration-deferred`, and `integration-blocked` is reached only after the ladder is
+        # exhausted. Every OTHER assertion here is kept verbatim, because each pins a fail-closed
+        # property this plan must not weaken: the gate must still not run against a contaminated base,
+        # main must still not be clobbered, the plan must still not reach main's `executed/`, and the
+        # lane must still be preserved.
         from agent_workflows import orchestrate_isolation
 
         gate_calls = []
@@ -3092,10 +3102,19 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
             self.assertEqual(
                 len(gate_calls), 0, "gate must not run against a dirty overlapping base"
             )
-            # Item recorded integration-blocked, NOT executed.
-            self.assertEqual(item["status"], "integration-blocked")
+            # Item recorded the NON-TERMINAL deferral, NOT executed and NOT terminally blocked.
+            self.assertEqual(item["status"], "integration-deferred")
+            self.assertNotIn(
+                item["status"],
+                driver.TERMINAL_STATES,
+                "the first refusal must be NON-terminal, or the item is never re-attempted",
+            )
             self.assertIn("integration_deferral", item)
             self.assertIn("src/demo.txt", item["integration_deferral"])
+            # The ladder recorded WHY it deferred and against WHICH budget.
+            self.assertTrue(item["integration_ladder"]["deferred"])
+            self.assertEqual(item["integration_ladder"]["attempts_used"], 1)
+            self.assertEqual(item["integration_ladder"]["kind"], "integration-blocked")
             # Plan did NOT move to main's executed/.
             self.assertFalse(
                 (repo / ".aw" / "records" / "plans" / "executed" / plan.name).is_file()
@@ -3109,9 +3128,9 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
             self.assertIn("preserved_branch", item)
             self.assertEqual(item["preserved_branch"], "aw/lane/wir001")
             self.assertTrue((repo / ".aw" / "worktrees" / "wir001").exists())
-            # The fail-closed event was recorded.
+            # The fail-closed event was recorded, now naming the DEFERRAL rather than a terminal block.
             events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
-            self.assertIn("ipd-integration-blocked", events)
+            self.assertIn("ipd-integration-deferred", events)
 
     def test_non_passing_gate_records_merge_conflict_main_pristine(self):
         # V-02: a non-passing integration-gate result leaves MAIN with NO conflict markers/partial
@@ -3259,6 +3278,103 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
                 subject, "integrate(aw oc run): merge verified lane wir001 to main"
             )
             self.assertNotIn("aw agy run", subject)
+
+    def test_the_MEASURED_INCIDENT_is_now_SURVIVED_defer_then_integrate(self):
+        """integpath-03 (`51vw4y`) E-07: the incident's shape, reconstructed and survived (oc host).
+
+        THE INCIDENT, run `run-20260905T050043Z-639569`: four items finished their work, passed their
+        gates, finalized on their lane branches, and were then refused integration on dirty-path
+        overlap; because `integration-blocked` was TERMINAL, none was ever retried, three more cascaded
+        to `dependency-blocked`, and seven of 34 items were lost. All four merged clean afterwards. The
+        original lanes are gone (branches deleted, plans recovered by hand), so the SHAPE is
+        reconstructed synthetically here rather than pointed at.
+
+        WHAT IS PROVEN: attempt one DEFERS (non-terminal, lane preserved, main unclobbered), the dirt
+        is then removed exactly as a co-worker committing or reverting would remove it, and attempt two
+        INTEGRATES - with NO agent turn spent on the retry, which is the property that makes the ladder
+        free, and with the full merge-and-revalidate gate run on the successful attempt, which is the
+        property that keeps it honest.
+        """
+        from agent_workflows import orchestrate_isolation
+
+        gate_calls: list = []
+        real_gate = orchestrate_isolation.execute_merge_and_revalidate_gate
+
+        def spy_gate(*a, **k):
+            gate_calls.append((a, k))
+            return real_gate(*a, **k)
+
+        agent_turns: list = []
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+            state["options"]["integration_retry_limit"] = 10
+            state["options"]["on_integration_blocked"] = "defer"
+
+            base_agent = self._fake_agent_also_dirties_main(run_dir, repo)
+
+            def counting_agent(*a, **k):
+                agent_turns.append(k.get("fresh_session"))
+                return base_agent(*a, **k)
+
+            with (
+                mock.patch.object(driver, "run_opencode", counting_agent),
+                mock.patch.object(
+                    orchestrate_isolation,
+                    "execute_merge_and_revalidate_gate",
+                    spy_gate,
+                ),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+                # ATTEMPT ONE: deferred, not terminal, nothing integrated, nothing clobbered.
+                self.assertEqual(item["status"], "integration-deferred")
+                self.assertNotIn(item["status"], driver.TERMINAL_STATES)
+                self.assertEqual(
+                    len(gate_calls), 0, "the gate must not run against a dirty base"
+                )
+                self.assertEqual(
+                    (repo / "src" / "demo.txt").read_text(encoding="utf-8"),
+                    "un-owned dirt\n",
+                )
+                turns_after_first = len(agent_turns)
+
+                # THE DIRT CLEARS, exactly as the co-worker who left it would clear it. This is the
+                # 34-minute window that existed in the real incident and that nothing waited for.
+                (repo / "src" / "demo.txt").unlink()
+
+                # ATTEMPT TWO, driven the way the dispatch loop drives it: no new agent turn.
+                records = driver.retry_deferred_integrations(run_dir, state)
+
+            self.assertEqual(
+                [r["outcome"] for r in records],
+                ["integrated"],
+                f"the re-attempt must integrate once the dirt clears: {records}",
+            )
+            self.assertEqual(item["status"], "executed")
+            self.assertEqual(
+                len(agent_turns),
+                turns_after_first,
+                "a deferred re-attempt must spend NO agent turn",
+            )
+            # The REVALIDATE GATE ran on the successful attempt (per-lane green never implies
+            # integrated green), so this is not a bare `git merge` that happened to work.
+            self.assertEqual(
+                len(gate_calls), 1, "the successful re-attempt must run the full gate"
+            )
+            # The lane's work really is on main, and the plan really is in main's executed/.
+            self.assertEqual(
+                (repo / "src" / "demo.txt").read_text(encoding="utf-8"), "demo\n"
+            )
+            self.assertTrue(
+                (repo / ".aw" / "records" / "plans" / "executed" / plan.name).is_file()
+            )
+            events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+            self.assertIn("ipd-integration-deferred", events)
+            self.assertIn("ipd-integrated-after-deferral", events)
 
 
 class TestIsolatedTurnPromptPointsAtTheLane(unittest.TestCase):
