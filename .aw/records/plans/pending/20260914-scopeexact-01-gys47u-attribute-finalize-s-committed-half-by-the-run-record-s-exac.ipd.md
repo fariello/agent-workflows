@@ -34,32 +34,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the exact attribution source
 
-- [ ] E-01 Add `_run_record_committed_paths(repo_root, id6, base_head) -> CommittedAttribution` to `ipd_lifecycle.py`, reading run outcomes under `checkout_control_root(repo_root)/records/runs/`, keeping only SHAs that are ancestors of HEAD and in `base_head..HEAD`, and returning `anchored=False` with an empty set whenever the corpus is missing, unreadable, or names no qualifying SHA for this id6.
+- [x] E-01 Add `_run_record_committed_paths(repo_root, id6, base_head) -> CommittedAttribution` to `ipd_lifecycle.py`, reading run outcomes under `checkout_control_root(repo_root)/records/runs/`, keeping only SHAs that are ancestors of HEAD and in `base_head..HEAD`, and returning `anchored=False` with an empty set whenever the corpus is missing, unreadable, or names no qualifying SHA for this id6.
   - Depends on: none
   - Expected outcome: called for `8tgg6g` at the current HEAD it returns `anchored=True` and exactly `{plan file, agent_workflows/runner_shared.py, tests/test_orchestrator_probe_cache.py}`; called in a tree with no `records/runs/` it returns `anchored=False, paths=frozenset()`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Wire it into the committed-half branch of the scope reconciliation so the exact source is consulted FIRST and cohesion is used unchanged when the exact source is not `anchored`. Do not alter the `anchored=False -> owned=True` fail-closed arm.
+- [x] E-02 Wire it into the committed-half branch of the scope reconciliation so the exact source is consulted FIRST and cohesion is used unchanged when the exact source is not `anchored`. Do not alter the `anchored=False -> owned=True` fail-closed arm.
   - Depends on: E-01
   - Expected outcome: `aw ipd finalize 8tgg6g` demands ZERO scope reasons; `aw ipd finalize` in a corpus-free fixture behaves byte-identically to today.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Report the deciding source (exact vs cohesion) in the finalize preview/refusal output, so a demanded reason is attributable to the evidence that produced it.
+- [x] E-03 Report the deciding source (exact vs cohesion) in the finalize preview/refusal output, so a demanded reason is attributable to the evidence that produced it.
   - Depends on: E-02
   - Expected outcome: the preview names the source; no change to exit codes or to which paths are demanded.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: proof
 
-- [ ] E-04 Write `tests/test_finalize_exact_attribution.py` covering Required tests items 1 through 5.
+- [x] E-04 Write `tests/test_finalize_exact_attribution.py` covering Required tests items 1 through 5.
   - Depends on: E-02
   - Expected outcome: all cases pass, each asserting on the reconciliation result rather than on log prose.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add the non-vacuity control (Required tests item 6) proving the suite fails when the new source is disabled.
+- [x] E-05 Add the non-vacuity control (Required tests item 6) proving the suite fails when the new source is disabled.
   - Depends on: E-04
   - Expected outcome: with the exact source stubbed off, case 1 fails; restored, it passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -184,30 +184,95 @@ change and `Scope-Paths` must be extended to name the spec file.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of calling `_run_record_committed_paths` for `8tgg6g` at HEAD showing `anchored=True` and the exact three-path set, PLUS the same call in a temp repo with no `records/runs/` showing `anchored=False` and an empty set.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. `8tgg6g` at HEAD yields anchored=True and EXACTLY its three declared paths, versus the ~19 cohesion demanded; a temp repo with no `records/runs/` yields the fail-closed pair (anchored=False, empty), so a corpus-free tree falls through to cohesion unchanged. Detail below.
+    ```
+    $ python3 -c "... L._run_record_committed_paths(Path('.'),'8tgg6g',base) ..."
+    V-01 (a) 8tgg6g at HEAD: anchored=True paths=3
+        .aw/records/plans/pending/20260907-orchprobe-02-8tgg6g-cache-an-orchestrator-probe-verdict-against-a-content-digest.ipd.md
+        agent_workflows/runner_shared.py
+        tests/test_orchestrator_probe_cache.py
+    V-01 (b) no corpus: anchored=False paths=set()
+    ```
+    Exactly the three declared paths, versus the ~19 cohesion demanded. The corpus-free call returns
+    the fail-closed pair, so a tree with no run records falls through to cohesion unchanged.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted `aw ipd finalize 8tgg6g --actor ... -m ...` preview showing NO `--scope-reason` demand, next to the current pre-change output showing the ~19 demanded paths, so the delta is visible rather than asserted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. `aw ipd finalize 8tgg6g` went from refusing with 19 demanded `--scope-reason` paths (including `cli.py` and `run_viewer.py`, which it never touched) to 'precheck + reconciliation passed'. Demand counts after: 8tgg6g=0, 3i0aaz=0, mm5p3v=0, st5klo=0, b7xarm=2, zexed1=9, r2i1b1=30, fn2l1u=14; every nonzero one is CORRECT (b7xarm/zexed1 demands are genuinely in their own recorded commits, r2i1b1/fn2l1u have no record for the merged attempt2 branch and correctly fall back). Detail below.
+    ```
+    BEFORE (cohesion only, measured at the start of this plan):
+    $ aw ipd finalize 8tgg6g --actor ... -m ...
+    refused: finalize needs scope reconciliation answers (plan left unmoved). Supply them with:
+      ... --scope-reason agent_workflows/agy_runipd.py=... --scope-reason agent_workflows/artifact_audit.py=...
+      (19 paths total, including cli.py and run_viewer.py which 8tgg6g never touched)
 
-- [ ] V-03 validates E-03
+    AFTER:
+    $ aw ipd finalize 8tgg6g --actor ... -m ...
+    precheck + reconciliation passed; re-run with --apply to perform the terminal transaction.
+    ```
+    Demand counts across the recovered plans after the change: 8tgg6g=0, 3i0aaz=0, mm5p3v=0, st5klo=0,
+    b7xarm=2, zexed1=9, r2i1b1=30, fn2l1u=14. The nonzero ones are CORRECT: b7xarm and zexed1 have a
+    run record and the demanded paths are genuinely in their own commits (both lanes disclosed those
+    widenings as decisions), while r2i1b1 and fn2l1u have NO record for the merged attempt2 branch and
+    correctly fall back to cohesion.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted preview output naming the deciding attribution source in both the exact case and a corpus-free case.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. The refusal names the deciding source and the cohesion case carries its heuristic warning; `finalize_precheck` evidence reports `run-record-exact` for 8tgg6g and `commit-cohesion` for r2i1b1. Detail below.
+    ```
+    $ aw ipd finalize r2i1b1 --actor p -m p        # cohesion fallback
+    refused: finalize needs scope reconciliation answers (plan left unmoved).
+      attribution: commit-cohesion (HEURISTIC fallback, no run record for this item). A path below
+      MAY belong to a concurrent agent whose commit touched one of this plan's declared paths;
+      verify before writing a reason you would be asserting
 
-- [ ] V-04 validates E-04
+    $ python3 -c "... finalize_precheck ... ev.get('attribution_source')"
+    8tgg6g  -> run-record-exact
+    r2i1b1  -> commit-cohesion
+    ```
+    Both sources are reported, and the heuristic case carries the warning that a demanded path may be
+    a co-worker's.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: pasted `python3 -m pytest tests/test_finalize_exact_attribution.py -o addopts=""` summary with every case named, plus pasted green runs of `tests/test_finalize_scope_ownership.py` and `tests/test_ipd_lifecycle_cli.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. 12 passed in the new file; 99 passed across the two named regression suites. A TEST CAUGHT A REAL BUG IN THIS PLAN'S OWN CODE: the first implementation used `git rev-list -1 base..HEAD <sha>`, where a trailing revision is an additional START-POINT rather than a filter, so a pre-base sha was admitted; replaced with 'ancestor of HEAD and NOT ancestor of base' and the wrong form is now called out in a comment. Detail below.
+    ```
+    $ python3 -m pytest tests/test_finalize_exact_attribution.py -o addopts=""
+    12 passed in 1.77s
 
-- [ ] V-05 validates E-05
+    $ python3 -m pytest tests/test_finalize_scope_ownership.py tests/test_ipd_lifecycle_cli.py -o addopts=""
+    99 passed in 12.47s
+    ```
+    A TEST CAUGHT A REAL BUG IN THIS PLAN'S OWN CODE, which is why the window filter is worth having:
+    `test_a_sha_predating_the_frozen_base_contributes_nothing` failed against the first implementation,
+    which used `git rev-list -1 base..HEAD <sha>`. A trailing revision there is an additional
+    START-POINT, not a filter, so a pre-base sha was admitted. Replaced with "ancestor of HEAD and NOT
+    ancestor of base", and the wrong form is now called out in a code comment so it is not
+    reintroduced as a simplification.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: TWO parts, both pasted. (a) The non-vacuity control: FAILING output with the exact source disabled and PASSING output with it restored, demonstrating the control is real. (b) WHOLE-SUITE REGRESSION: the bare `python3 -m pytest` summary line at or above the 7296-passed baseline recorded 2026-09-14, with no new failure. Part (b) rides on this item deliberately, because the E/V bijection admits no V-item without an E-item and the suite run is evidence ABOUT E-05's control rather than a separate deliverable.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Non-vacuity control: with the exact source stubbed to `CommittedAttribution(False, frozenset())` the suite FAILED 3 of 12; restored, 12 passed. Whole suite 7308 passed, 3 skipped, 2 xfailed, ZERO failures, against the 7296 baseline recorded 2026-09-14 (+12 = this plan's new file). Detail below.
+    ```
+    (a) NON-VACUITY CONTROL, exact source stubbed to CommittedAttribution(False, frozenset()):
+    === WITH EXACT SOURCE DISABLED ===
+    3 failed, 9 passed in 1.72s
+    === RESTORED ===
+    12 passed in 1.84s
+
+    (b) WHOLE-SUITE REGRESSION:
+    $ python3 -m pytest
+    7308 passed, 3 skipped, 2 xfailed in 85.11s (0:01:25)
+    ```
+    The control is real: disabling the new source fails three cases. The suite is at 7308 passed
+    versus the 7296 baseline recorded 2026-09-14 (+12, this plan's new file), zero failures.
+  - Result: pass
 
 ## Approval and execution gate
 

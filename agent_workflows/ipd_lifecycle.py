@@ -1255,6 +1255,132 @@ class CommittedAttribution(NamedTuple):
     paths: FrozenSet[str]
 
 
+def _run_record_committed_paths(
+    repo_root: Path, id6: str, base_head: str
+) -> CommittedAttribution:
+    """Committed paths attributable to THIS execution by its RUN RECORD's exact SHAs (`gys47u` E-01).
+
+    THE EVIDENCE COHESION LACKS. :func:`_execution_cohesive_committed_paths` infers ownership from the
+    commit BOUNDARY, because it has no channel naming this execution's commits. But the driver ALREADY
+    WRITES exactly that: each run's ``outcomes/<pos>-<id6>.json`` carries ``commits[]`` for that item.
+    Reading it turns a heuristic into an exact answer for any tree that has a run corpus.
+
+    MEASURED 2026-09-14, the incident that motivated this. Ten lanes stranded by an unrelated red test
+    were recovered into `main` in one pass. Finalizing `8tgg6g` (declaring its plan file,
+    ``agent_workflows/runner_shared.py`` and ``tests/test_orchestrator_probe_cache.py``) demanded ~19
+    ``--scope-reason`` answers, because FIVE non-merge commits in range touched the shared hot file
+    ``runner_shared.py`` and FOUR of them belong to other plans (`zexed1`, `3i0aaz`, `51vw4y`,
+    `b7xarm`). Cohesion therefore attributed all four foreign commits' full path sets to `8tgg6g`.
+    Answering that demand would have written into `8tgg6g`'s PERMANENT finalize record a claim that it
+    deliberately edited ``cli.py`` and ``run_viewer.py``, which it never touched. This function reduces
+    that same case to the three paths that are genuinely its own.
+
+    WHY THE RUN CORPUS IS REACHABLE AT ALL, since it is gitignored: :func:`checkout_control_root`
+    resolves a linked worktree (a driver "lane") to the MAIN worktree's ``.aw`` (backlog ``dh0uno``),
+    so an in-lane finalize reads the same records the driver wrote. This adds no new state location and
+    uses the accessor `8tgg6g`'s probe store already uses.
+
+    TWO FILTERS, both load-bearing, neither cosmetic:
+
+    * ANCESTOR OF HEAD. A run record may name a SHA from an abandoned or unmerged lane attempt
+      (measured: `mm5p3v` records SEVEN SHAs across two attempts). An abandoned attempt must not be
+      able to launder a path into "owned", so a SHA that is not an ancestor of HEAD contributes
+      nothing.
+    * INSIDE ``base_head..HEAD``. Attribution answers a question about THIS execution's window. A SHA
+      predating the frozen base is already in the baseline and is not part of what finalize is
+      reconciling.
+
+    FAIL-CLOSED, PRESERVING :class:`CommittedAttribution`'s inversion-guard EXACTLY. ``anchored`` is
+    True only when at least one qualifying SHA was found. A missing corpus (fresh clone, CI, a tree
+    that never ran a driver), an unreadable or malformed record, or a record naming zero commits for
+    this ``id6`` all return ``anchored=False``, which makes the caller fall through to cohesion rather
+    than treat an empty set as "nothing is owned". That distinction is the whole reason this returns a
+    pair: a bare empty set would excuse EVERY committed path on absent evidence, the precise inversion
+    of the gate's purpose.
+
+    HONEST LIMIT (`gys47u` OQ-02). The run record is locally writable, so this is not tamper-proof
+    provenance. That is acceptable HERE and only because this gate is already explicitly "a
+    deterministic consistency check, NOT a tamper-proof authority boundary" (see the derived-status
+    note above), and because the failure mode is ASYMMETRIC: a corrupted record can only cause a
+    MISSING demand for a path the plan did commit, which is the same false EXCUSE cohesion already
+    accepts and documents, never a false CLAIM written into permanent history. Non-forgeable
+    attribution stays the deferred item it already is (commit trailers, backlog ``a8eufb``, whose
+    WRITER is plan ``wao266``; when those land they become a third and better source ahead of this one).
+    """
+    if not id6:
+        return CommittedAttribution(False, frozenset())
+    runs_root = checkout_control_root(repo_root) / "records" / "runs"
+    if not runs_root.is_dir():
+        return CommittedAttribution(False, frozenset())
+
+    # Collect every SHA any run recorded for THIS item. A plan can legitimately appear in several runs
+    # (a re-dispatch, a resume, a retried attempt), so this is a union across the corpus rather than a
+    # single lookup, and the two filters below are what keep that union honest.
+    shas: Set[str] = set()
+    try:
+        outcome_files = sorted(runs_root.glob("*/outcomes/*.json"))
+    except OSError:
+        return CommittedAttribution(False, frozenset())
+    for path in outcome_files:
+        # Cheap name filter first: the file is `<position>-<id6>.json`, so a corpus of hundreds is
+        # narrowed without parsing JSON for every entry.
+        if not path.stem.endswith(f"-{id6}"):
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            # A single malformed record must not deny attribution that other records can still supply.
+            continue
+        if not isinstance(payload, Mapping) or str(payload.get("id6") or "") != id6:
+            continue
+        for entry in payload.get("commits") or ():
+            # BOTH SHAPES ARE REAL in the shipped corpus: some records write a bare string (sometimes
+            # "<sha> <subject>"), others a mapping. Measured across the 2026-09-14 runs. Reading only
+            # one shape would silently attribute nothing for half the corpus.
+            if isinstance(entry, Mapping):
+                raw = entry.get("sha") or entry.get("commit") or ""
+            else:
+                raw = str(entry or "").strip().split(" ", 1)[0]
+            token = str(raw or "").strip()
+            if token:
+                shas.add(token)
+    if not shas:
+        return CommittedAttribution(False, frozenset())
+
+    owned: Set[str] = set()
+    anchored = False
+    for sha in sorted(shas):
+        # FILTER 1: must be an ancestor of HEAD (it actually landed on this branch).
+        rc, _out, _err = _git(repo_root, ["merge-base", "--is-ancestor", sha, "HEAD"])
+        if rc != 0:
+            continue
+        # FILTER 2: must be inside this execution's WINDOW, i.e. reachable from HEAD but NOT already
+        # in the frozen baseline. Expressed as "not an ancestor of base_head", which combined with
+        # FILTER 1 is exactly membership of `base_head..HEAD`.
+        #
+        # DO NOT "SIMPLIFY" THIS TO `rev-list -1 base..HEAD <sha>`. That was the first implementation
+        # and it is WRONG: a trailing revision argument is an additional START-POINT for the walk, not
+        # a filter, so it prints a commit for a PRE-BASE sha and silently admits paths from before the
+        # window. Caught by `test_a_sha_predating_the_frozen_base_contributes_nothing`, which is why
+        # that test exists.
+        rc, _out, _err = _git(
+            repo_root, ["merge-base", "--is-ancestor", sha, base_head]
+        )
+        if rc == 0:
+            continue
+        rc, out, _err = _git(
+            repo_root, ["show", "--no-merges", "--format=", "--name-only", sha]
+        )
+        if rc != 0:
+            continue
+        anchored = True
+        owned.update(ln.strip() for ln in out.splitlines() if ln.strip())
+    # `anchored` is True when a qualifying commit was READ, even if it listed no files (a merge or an
+    # empty commit), because "this execution's commit footprint was found" is the question. Returning
+    # False there would fall back to cohesion and re-admit the foreign paths.
+    return CommittedAttribution(anchored, frozenset(owned))
+
+
 def _execution_cohesive_committed_paths(
     repo_root: Path, base_head: str, scope_paths: Sequence[str]
 ) -> CommittedAttribution:
@@ -1558,8 +1684,31 @@ def finalize_precheck(
     disregarded_unowned: List[str] = []
     if scope_paths:
         committed_set = set(sources.committed)
-        cohesive = _execution_cohesive_committed_paths(
-            repo_root, base_head, scope_paths
+        # EXACT ATTRIBUTION FIRST, COHESION AS THE FALLBACK (`gys47u` E-02). The run record names this
+        # execution's own commits, so when it is available it answers the ownership question outright
+        # and cohesion's commit-boundary heuristic is not consulted at all.
+        #
+        # IT DECIDES ALONE RATHER THAN BEING UNIONED WITH COHESION (`gys47u` OQ-01). A union would
+        # re-admit every foreign path the exact source exists to exclude: measured on the 2026-09-14
+        # recovery, unioning keeps all ~19 demanded paths for `8tgg6g` while the exact source alone
+        # yields its 3. Strictly better evidence must not be diluted by weaker evidence.
+        #
+        # THE FALL-THROUGH IS THE FAIL-CLOSED DIRECTION, not a convenience: an absent, unreadable, or
+        # empty run record leaves `anchored` False and lands on exactly today's behavior, so a tree
+        # with no run corpus (fresh clone, CI) is unaffected and no gate is weakened.
+        exact = _run_record_committed_paths(repo_root, plan_id, base_head)
+        cohesive = (
+            exact
+            if exact.anchored
+            else _execution_cohesive_committed_paths(repo_root, base_head, scope_paths)
+        )
+        # E-03: record WHICH evidence decided, so a human reading a demanded `--scope-reason` can tell
+        # an exact attribution from a heuristic one. A demand backed by cohesion may legitimately name
+        # a co-worker's path and is worth a second look; one backed by the run record should not.
+        evidence["attribution_source"] = (
+            "run-record-exact"
+            if exact.anchored
+            else ("commit-cohesion" if cohesive.anchored else "none-fail-closed")
         )
         for p in changed:
             if _is_implicitly_allowed(p, plan_rel):
@@ -2523,10 +2672,35 @@ def finalize(
             findings_list.append(
                 f"declared-but-unmodified path needs a --scope-ack: {p}"
             )
+        # `gys47u` E-03: name the evidence that produced the demand. A demand backed by
+        # `commit-cohesion` may legitimately include a CO-WORKER's path (the heuristic's documented
+        # false-DEMAND cost), so a reader who knows that can check before writing a reason they would
+        # be asserting falsely. A demand backed by `run-record-exact` came from this execution's own
+        # recorded commits and needs no such second look. Appended to the refusal a human actually
+        # reads, not only to the evidence dict, because the whole point is to inform the person
+        # composing the reasons.
+        source = str(evidence.get("attribution_source") or "unknown")
+        source_note = {
+            "run-record-exact": (
+                "attribution: run-record-exact (this execution's own recorded commit SHAs; "
+                "every path below is genuinely this plan's)"
+            ),
+            "commit-cohesion": (
+                "attribution: commit-cohesion (HEURISTIC fallback, no run record for this item). "
+                "A path below MAY belong to a concurrent agent whose commit touched one of this "
+                "plan's declared paths; verify before writing a reason you would be asserting"
+            ),
+            "none-fail-closed": (
+                "attribution: none (fail-closed). No ownership evidence was available, so every "
+                "out-of-scope path is demanded rather than excused"
+            ),
+        }.get(source, f"attribution: {source}")
         return FinalizeResult(
             EXIT_FINDINGS,
             None,
-            "finalize needs scope reconciliation answers (plan left unmoved). Supply them with:\n  "
+            "finalize needs scope reconciliation answers (plan left unmoved).\n  "
+            + source_note
+            + "\nSupply them with:\n  "
             + reconcile.needs_input_command,
             evidence,
             tuple(findings_list),
