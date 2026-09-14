@@ -24,6 +24,7 @@ from unittest import mock
 
 from agent_workflows import agy_runipd
 from agent_workflows import oc_runipd as driver
+from agent_workflows import runner_shared
 from tests.support import REPO_ROOT
 
 _DRIVER_CMD = [sys.executable, "-m", "agent_workflows.oc_runipd"]
@@ -52,6 +53,17 @@ class ShippedDefaultReachabilityTests(unittest.TestCase):
 
         If either default changes, the rest of this file is testing a configuration nobody runs, so
         assert the premise itself rather than trusting the plan's prose.
+
+        UPDATED BY `hostdefault-02` (`ybkmzp`) E-03, deliberately and with the premise PRESERVED.
+        `--validate` used to carry a PARSER default of `False`, and this test asserted that literal.
+        The flag is now a genuine TRI-STATE with a parser default of `None`, because `None` (the
+        operator said nothing) must be distinguishable from `--no-validate` (the operator said do not
+        verify) for a stored per-model choice to be reachable at all. What `evgi9n`'s bug class
+        actually depends on is not the parser literal but the EFFECTIVE default, so that is what is
+        asserted now: a bare invocation with nothing configured still resolves verification OFF, via
+        tier 4 of the `validate` chain (`RUNNER_REGISTRY["oc"].validate_default`). The assertion is
+        therefore STRONGER than the one it replaces, since it pins the behavior rather than one
+        mechanism that produced it.
         """
         parser_src = driver.build_parser
         self.assertTrue(callable(parser_src))
@@ -70,8 +82,27 @@ class ShippedDefaultReachabilityTests(unittest.TestCase):
                                 defaults.setdefault(sa.dest, sa.default)
         self.assertIs(
             defaults.get("validate"),
+            None,
+            "--validate must be a TRI-STATE (default None) so a stored per-model choice is "
+            "reachable; `False` would collapse silence into an explicit refusal",
+        )
+        # THE PREMISE, at the level that matters: with NO store and NO flag, verification is still
+        # OFF on this host, so the bug class this file pins remains the shipped configuration.
+        with tempfile.TemporaryDirectory() as td:
+            with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": td}, clear=False):
+                decision = runner_shared.resolve_verification_decision(
+                    runner="oc", profile=None, validate=defaults.get("validate")
+                )
+        self.assertIs(
+            decision.validate,
             False,
-            "--validate must still default False for this bug class to exist",
+            "the EFFECTIVE default must still be validate-off for this bug class to exist",
+        )
+        self.assertEqual(decision.provenance, "shipped-default")
+        self.assertIs(
+            defaults.get("self_finalize"),
+            True,
+            "self-finalize must still document True for this bug class to exist",
         )
         self.assertIs(
             defaults.get("self_finalize"),

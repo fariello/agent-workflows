@@ -143,9 +143,11 @@ from typing import (
     Any,
     Callable,
     NamedTuple,
+    Optional,
     TextIO,
 )
 
+from agent_workflows import runner_profiles
 from agent_workflows.render_stream import Palette, render_run_summary_table
 
 # ---- module constants the moved bodies close over ------------------------------------------------
@@ -2181,6 +2183,67 @@ def freeze_run_policy_flags(args: Any) -> dict:
     if frozen.get("full_auto"):
         frozen["unattended"] = True
     return frozen
+
+
+class VerificationDecision(NamedTuple):
+    """WHETHER a verifier turn runs for this run, plus WHICH tier decided it.
+
+    Deliberately host-NEUTRAL. `validate` is the decision in its POSITIVE sense ("verify"), never a
+    host's frozen key: `oc_runipd` freezes `validate` and gates on it, while `agy_runipd` freezes
+    `no_verify` and gates on `not no_verify`, so the two hosts' keys are OPPOSITE IN POLARITY. Each
+    driver negates (or does not) at its OWN freeze site, which keeps the inversion in one place per
+    host and makes it directly assertable; returning a `no_verify`-shaped value from here would put
+    the same negation in two places, which is the hazard superseded plan `mn3gwr` F-5 measured.
+
+    `provenance` is the resolver's tier for the `validate` field, drawn from its closed vocabulary
+    (`explicit`, `profile`, `default-profile`, `defaults`, `shipped-default`), so a reader can tell
+    an operator's flag from a stored default from the shipped per-host posture.
+    """
+
+    validate: bool
+    provenance: str
+
+
+def resolve_verification_decision(
+    *,
+    runner: str,
+    profile: Optional[str] = None,
+    validate: Optional[bool] = None,
+) -> VerificationDecision:
+    """Resolve the per-host verification decision from the runner-profile store (`ybkmzp` E-01).
+
+    The whole precedence decision belongs to `runner_profiles.resolve`, so this asks it rather than
+    re-implementing the chain: `explicit flag > the named profile's own validate >
+    defaults.validate > the RESOLVED RUNNER's `validate_default` registry row`. Tier 4 is per host
+    (`hostdefault-01` E-02), which is why `runner` is required and never guessed.
+
+    `validate` IS A TRI-STATE and the caller must preserve it. `None` means "the operator said
+    nothing", which FALLS THROUGH to the configured tiers; `False` means "the operator said do not
+    verify" and WINS. Collapsing absent into `False` at a call site would make a stored default
+    unreachable, which is the whole defect this helper exists to close.
+
+    IMPORTING `runner_profiles` HERE IS PERMITTED. This module's admission rules forbid importing
+    either RUNNER (enforced by AST in `tests/test_runner_shared.py::NoRunnerImportTests`, which
+    rejects any module name containing `runipd`); `runner_profiles` is a peer module that imports
+    only `agent_workflows.config`, so there is no cycle and no guard to trip.
+
+    Raises :class:`DriverError` (which both runners' `main` already catches, printing the message
+    and exiting 2) carrying the resolver's own diagnostic. NO per-driver translation wrapper is
+    needed or wanted: there is exactly ONE `DriverError` class in this package since `rununify`
+    Order 02 (`818uru`), and both runners bind THIS one.
+    """
+
+    try:
+        cfg = runner_profiles.load()
+        resolved = runner_profiles.resolve(
+            cfg, runner=runner, profile=profile, validate=validate
+        )
+    except runner_profiles.RunnerProfileError as exc:
+        raise DriverError(f"runner profile: {exc}") from exc
+    return VerificationDecision(
+        validate=bool(resolved.validate),
+        provenance=str(resolved.provenance.get("validate", "")),
+    )
 
 
 def is_interactive_run(args: Any = None, *, stream: TextIO | None = None) -> bool:

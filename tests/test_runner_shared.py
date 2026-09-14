@@ -2159,5 +2159,509 @@ class SingleStateRootConstructionGuardTests(unittest.TestCase):
         )
 
 
+class SharedVerificationResolutionTests(unittest.TestCase):
+    """`hostdefault-02` (`ybkmzp`) E-01: the ONE host-neutral verification resolution.
+
+    NO STORE IS TOUCHED: every case points `XDG_CONFIG_HOME` at a `TemporaryDirectory`, so the
+    maintainer's real `runner-profiles.json` is never read or written.
+    """
+
+    def store(self, td: str, document: dict | None) -> None:
+        path = pathlib.Path(td) / "agent-workflows" / "runner-profiles.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if document is not None:
+            path.write_text(json.dumps(document), encoding="utf-8")
+
+    def resolve(self, document, *, runner, profile=None, validate=None):
+        import os
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as td:
+            with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": td}, clear=False):
+                self.store(td, document)
+                return runner_shared.resolve_verification_decision(
+                    runner=runner, profile=profile, validate=validate
+                )
+
+    def test_the_helper_returns_a_decision_and_never_a_host_key(self):
+        """The inversion hazard is designed OUT: there is no `no_verify` to write un-negated."""
+
+        decision = self.resolve(None, runner="oc", validate=True)
+        self.assertEqual(decision._fields, ("validate", "provenance"))
+        self.assertNotIn("no_verify", decision._fields)
+        self.assertIsInstance(decision.validate, bool)
+        self.assertIsInstance(decision.provenance, str)
+
+    def test_the_tristate_does_not_collapse(self):
+        """`None` FALLS THROUGH; `False` is a decision that WINS. This is the whole mechanism."""
+
+        doc = {"schema_version": 2, "defaults": {"validate": True}}
+        said_nothing = self.resolve(doc, runner="oc", validate=None)
+        self.assertIs(said_nothing.validate, True)
+        self.assertEqual(said_nothing.provenance, "defaults")
+        said_no = self.resolve(doc, runner="oc", validate=False)
+        self.assertIs(said_no.validate, False)
+        self.assertEqual(said_no.provenance, "explicit")
+        said_yes = self.resolve(
+            {"schema_version": 2, "defaults": {"validate": False}},
+            runner="oc",
+            validate=True,
+        )
+        self.assertIs(said_yes.validate, True)
+        self.assertEqual(said_yes.provenance, "explicit")
+
+    def test_a_malformed_store_raises_the_one_driver_error_class(self):
+        """No per-driver translation wrapper is needed: there is ONE `DriverError`."""
+
+        self.assertIs(oc_runipd.DriverError, runner_shared.DriverError)
+        self.assertIs(agy_runipd.DriverError, runner_shared.DriverError)
+        with self.assertRaises(runner_shared.DriverError) as ctx:
+            self.resolve(
+                {"schema_version": 2, "defaults": {"validate": "yes"}}, runner="oc"
+            )
+        self.assertIn("runner profile", str(ctx.exception))
+
+    def test_the_shared_module_imports_runner_profiles_which_is_not_a_runner(self):
+        """The admission rule forbids RUNNERS, and `runner_profiles` is a peer, not a runner."""
+
+        tree = ast.parse(module_source(runner_shared))
+        imported = {
+            node.module
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom) and node.module
+        }
+        self.assertIn("agent_workflows", imported)
+        self.assertNotIn("runipd", " ".join(sorted(imported)))
+        from agent_workflows import runner_profiles
+
+        self.assertIs(runner_shared.runner_profiles, runner_profiles)
+
+
+class VerificationPolarityTests(unittest.TestCase):
+    """`hostdefault-02` (`ybkmzp`) E-06: THE SAFETY-CRITICAL MATRIX, at the FROZEN-STATE level.
+
+    The two hosts' frozen keys are OPPOSITE IN POLARITY: `oc_runipd` freezes `validate` and gates on
+    it, `agy_runipd` freezes `no_verify` and gates on `not no_verify`. So a wiring change that looks
+    correct can silently DISABLE verification on antigravity: a resolved `True` (verify) written
+    un-negated into `no_verify` means the verifier does not run, with no error anywhere.
+
+    A test that checks one host, or one direction, cannot detect that. All FOUR cells are asserted
+    here, and they are read out of the run's real frozen `state.json` rather than off the resolver,
+    because the resolver was already correct before this plan and the defect was entirely in what
+    consumed it.
+    """
+
+    PLAN = """# IPD: polarity probe
+
+- Date: 2026-09-13
+- Kind: child
+- Concern: fixture
+- Scope: fixture
+- Scope-Paths: README.md
+- Status: approved
+- Set: polarity
+- Order: 1
+- Highest E allocated: 01
+- Id: {id6}
+- Approval: 2026-09-13, fixture
+
+## Workflow history
+- 2026-09-13 reviewed (test): APPROVE; no blocking findings.
+"""
+
+    def make_repo(self, root: pathlib.Path, id6: str = "pol001"):
+        import subprocess
+
+        repo = root / "repo"
+        repo.mkdir(parents=True)
+        for cmd in (
+            ["git", "init", "-q"],
+            ["git", "config", "user.email", "test@example.invalid"],
+            ["git", "config", "user.name", "Test"],
+        ):
+            subprocess.run(cmd, cwd=repo, check=True)
+        (repo / ".gitignore").write_text(".aw/records/runs/\n", encoding="utf-8")
+        pending = repo / ".aw" / "records" / "plans" / "pending"
+        pending.mkdir(parents=True)
+        (pending / f"20260913-polarity-01-{id6}-probe.ipd.md").write_text(
+            self.PLAN.format(id6=id6), encoding="utf-8"
+        )
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+        return repo
+
+    def frozen_options(self, runner: str, argv: list, document: dict | None) -> dict:
+        """Drive the REAL `initialize_run` with `--prepare-only` against an ISOLATED store."""
+
+        import os
+        from unittest import mock
+
+        module = _MODULES[runner]
+        with tempfile.TemporaryDirectory() as home:
+            with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": home}, clear=False):
+                if document is not None:
+                    store = pathlib.Path(home) / "agent-workflows"
+                    store.mkdir(parents=True, exist_ok=True)
+                    (store / "runner-profiles.json").write_text(
+                        json.dumps(document), encoding="utf-8"
+                    )
+                with tempfile.TemporaryDirectory() as td:
+                    repo = self.make_repo(pathlib.Path(td))
+                    args = module.build_parser().parse_args(
+                        ["start", "pol001", "--repo", str(repo), *argv]
+                    )
+                    args.prepare_only = True
+                    run_dir = module.initialize_run(args)
+                    return runner_shared.load_state(run_dir)["options"]
+
+    def test_all_four_polarity_cells(self):
+        """resolved verify -> oc `validate=True` AND agy `no_verify=False`, and the converse."""
+
+        verify_on = {"schema_version": 2, "defaults": {"validate": True}}
+        verify_off = {"schema_version": 2, "defaults": {"validate": False}}
+
+        oc_on = self.frozen_options("oc_runipd", [], verify_on)
+        self.assertIs(oc_on["validate"], True, "cell 1: oc, resolved verify")
+        self.assertIs(oc_on["no_audit"], False, "oc's derived key must agree")
+
+        agy_on = self.frozen_options("agy_runipd", [], verify_on)
+        self.assertIs(agy_on["no_verify"], False, "cell 2: agy, resolved verify")
+
+        oc_off = self.frozen_options("oc_runipd", [], verify_off)
+        self.assertIs(oc_off["validate"], False, "cell 3: oc, resolved do-not-verify")
+        self.assertIs(oc_off["no_audit"], True, "oc's derived key must agree")
+
+        agy_off = self.frozen_options("agy_runipd", [], verify_off)
+        self.assertIs(agy_off["no_verify"], True, "cell 4: agy, resolved do-not-verify")
+
+        print(
+            "POLARITY MATRIX: resolved verify -> oc validate=True / agy no_verify=False; "
+            "resolved do-not-verify -> oc validate=False / agy no_verify=True"
+        )
+
+    def test_the_empty_store_floor_is_unchanged_on_both_hosts(self):
+        """THE ANTI-REGRESSION FLOOR: with nothing configured, oc is OFF and agy is ON."""
+
+        oc = self.frozen_options("oc_runipd", [], None)
+        self.assertIs(oc["validate"], False, "oc must still NOT verify by default")
+        self.assertIs(oc["no_audit"], True)
+        agy = self.frozen_options("agy_runipd", [], None)
+        self.assertIs(agy["no_verify"], False, "agy must STILL verify by default")
+        print("EMPTY-STORE FLOOR: oc validate=False; agy no_verify=False (verifies)")
+
+    def test_agy_freezes_no_validate_key_and_its_gate_expression_is_unchanged(self):
+        """Two switches for one behavior is the shape this must not take."""
+
+        options = self.frozen_options("agy_runipd", [], None)
+        self.assertNotIn("validate", options)
+        source = pathlib.Path(agy_runipd.__file__).read_text(encoding="utf-8")
+        self.assertIn("and not no_verify", source)
+
+    def test_oc_and_agy_agree_on_the_decision_for_the_same_store(self):
+        """One resolution, two polarities: the two hosts can never disagree about the DECISION."""
+
+        for document in (
+            None,
+            {"schema_version": 2, "defaults": {"validate": True}},
+            {"schema_version": 2, "defaults": {"validate": False}},
+        ):
+            with self.subTest(document=document):
+                oc = self.frozen_options("oc_runipd", [], document)
+                agy = self.frozen_options("agy_runipd", [], document)
+                if document is None:
+                    # The ONE legitimate disagreement: tier 4 is PER HOST by design.
+                    self.assertIs(oc["validate"], False)
+                    self.assertIs(not agy["no_verify"], True)
+                else:
+                    self.assertIs(oc["validate"], not agy["no_verify"])
+
+
+class VerificationChainFrozenStateTests(unittest.TestCase):
+    """`hostdefault-02` (`ybkmzp`) E-07: the FOUR TIERS pinned at the FROZEN-STATE level.
+
+    `tests/test_runner_profiles.py` already pins every tier AT THE RESOLVER, and that is deliberately
+    NOT duplicated here. What no test covered before this one is that a stored value reaches the RUN,
+    survives the freeze, and therefore decides the verifier gate.
+
+    ON AGY THE "PROFILE" TIER IS THE PER-RUNNER DEFAULT PROFILE, not a named one, because that host
+    declares no `--profile` and has no `as <profile>` clause. Its provenance is therefore
+    `default-profile` rather than `profile`, which is why the agy rows below shape the store with
+    `defaults.profiles`.
+    """
+
+    def frozen(self, runner: str, argv: list, document: dict | None) -> dict:
+        return VerificationPolarityTests.frozen_options(
+            VerificationPolarityTests("test_all_four_polarity_cells"),
+            runner,
+            argv,
+            document,
+        )
+
+    def verifies(self, runner: str, options: dict) -> bool:
+        """Each host's frozen key read in ITS OWN polarity, so one table covers both."""
+
+        if runner == "oc_runipd":
+            self.assertIs(
+                options["no_audit"],
+                not options["validate"],
+                "oc's two frozen keys must never disagree",
+            )
+            return bool(options["validate"])
+        return not bool(options["no_verify"])
+
+    def test_tier_1_explicit_flag_beats_a_stored_profile_value(self):
+        oc_store = {
+            "schema_version": 2,
+            "profiles": {"p": {"runner": "oc", "model": "v/m", "validate": False}},
+            "defaults": {"profiles": {"oc": "p"}},
+        }
+        self.assertTrue(
+            self.verifies(
+                "oc_runipd", self.frozen("oc_runipd", ["--validate"], oc_store)
+            )
+        )
+        agy_store = {
+            "schema_version": 2,
+            "profiles": {"p": {"runner": "agy", "model": "v/m", "validate": True}},
+            "defaults": {"profiles": {"agy": "p"}},
+        }
+        self.assertFalse(
+            self.verifies(
+                "agy_runipd", self.frozen("agy_runipd", ["--no-validate"], agy_store)
+            )
+        )
+        # And this host's shipped spelling is the same request as `--no-validate`.
+        self.assertFalse(
+            self.verifies(
+                "agy_runipd", self.frozen("agy_runipd", ["--no-verify"], agy_store)
+            )
+        )
+
+    def test_tier_2_a_profile_value_beats_defaults_validate(self):
+        for runner, host in (("oc_runipd", "oc"), ("agy_runipd", "agy")):
+            with self.subTest(runner=runner):
+                store = {
+                    "schema_version": 2,
+                    "profiles": {
+                        "p": {"runner": host, "model": "v/m", "validate": True}
+                    },
+                    "defaults": {"profiles": {host: "p"}, "validate": False},
+                }
+                self.assertTrue(self.verifies(runner, self.frozen(runner, [], store)))
+
+    def test_tier_3_defaults_validate_beats_the_per_host_registry_row(self):
+        # `False` on agy and `True` on oc, so each case OPPOSES that host's own row and cannot pass
+        # by coincidence.
+        self.assertTrue(
+            self.verifies(
+                "oc_runipd",
+                self.frozen(
+                    "oc_runipd",
+                    [],
+                    {"schema_version": 2, "defaults": {"validate": True}},
+                ),
+            )
+        )
+        self.assertFalse(
+            self.verifies(
+                "agy_runipd",
+                self.frozen(
+                    "agy_runipd",
+                    [],
+                    {"schema_version": 2, "defaults": {"validate": False}},
+                ),
+            )
+        )
+
+    def test_tier_4_absence_yields_each_hosts_own_row(self):
+        self.assertFalse(self.verifies("oc_runipd", self.frozen("oc_runipd", [], None)))
+        self.assertTrue(
+            self.verifies("agy_runipd", self.frozen("agy_runipd", [], None))
+        )
+
+    def test_a_profile_omitting_validate_is_not_a_profile_saying_false(self):
+        """THE TRI-STATE, at the frozen level: only a PRESENT value is a decision."""
+
+        for runner, host, row_default in (
+            ("oc_runipd", "oc", False),
+            ("agy_runipd", "agy", True),
+        ):
+            with self.subTest(runner=runner):
+                omitted = {
+                    "schema_version": 2,
+                    "profiles": {"p": {"runner": host, "model": "v/m"}},
+                    "defaults": {"profiles": {host: "p"}},
+                }
+                self.assertIs(
+                    self.verifies(runner, self.frozen(runner, [], omitted)),
+                    row_default,
+                    "an OMITTED profile `validate` must fall through to the host row",
+                )
+                present_false = {
+                    "schema_version": 2,
+                    "profiles": {
+                        "p": {"runner": host, "model": "v/m", "validate": False}
+                    },
+                    "defaults": {"profiles": {host: "p"}},
+                }
+                self.assertFalse(
+                    self.verifies(runner, self.frozen(runner, [], present_false))
+                )
+
+    def test_oc_records_the_resolved_value_beside_its_provenance_tier(self):
+        """E-05: the durable record carries the VALUE; the tier was already there."""
+
+        explicit = self.frozen("oc_runipd", ["--validate"], None)["launch_profile"]
+        self.assertIs(explicit["validate"], True)
+        self.assertEqual(explicit["provenance"]["validate"], "explicit")
+        configured = self.frozen(
+            "oc_runipd", [], {"schema_version": 2, "defaults": {"validate": True}}
+        )["launch_profile"]
+        self.assertIs(configured["validate"], True)
+        self.assertEqual(configured["provenance"]["validate"], "defaults")
+        # agy has NO equivalent record; the gap is recorded in the plan, not silently accepted.
+        self.assertNotIn("launch_profile", self.frozen("agy_runipd", [], None))
+
+
+class AgyVerificationFlagSurfaceTests(unittest.TestCase):
+    """`hostdefault-02` (`ybkmzp`) E-02: the tri-state spelling, and the two silent-bypass traps."""
+
+    def parse(self, argv: list):
+        return agy_runipd.build_parser().parse_args(
+            ["start", "demo", "--repo", ".", *argv]
+        )
+
+    def test_the_tristate_parses_and_no_verify_still_exists(self):
+        """`no_verify` MUST be present: its ABSENCE is the F-14 silent-bypass signature."""
+
+        cases = {
+            (): (None, False),
+            ("--validate",): (True, False),
+            ("--no-validate",): (False, False),
+            ("--no-verify",): (None, True),
+            ("--no-audit",): (None, True),
+        }
+        for argv, (validate, no_verify) in cases.items():
+            with self.subTest(argv=argv):
+                args = self.parse(list(argv))
+                self.assertIs(args.validate, validate)
+                self.assertIs(
+                    getattr(args, "no_verify", "<gone>"),
+                    no_verify,
+                    "args.no_verify must EXIST; a missing attribute means the parser stole the "
+                    "flag and agy silently stopped verifying by default",
+                )
+
+    def test_the_parser_builds_and_declares_no_conflicting_option_strings(self):
+        """The aliased spelling raises `ArgumentError` at build time; this proves it did not."""
+
+        import argparse as _argparse
+
+        parser = agy_runipd.build_parser()
+        self.assertIsNotNone(parser)
+        start = None
+        for action in parser._actions:
+            if isinstance(action, _argparse._SubParsersAction):
+                start = action.choices.get("start")
+        assert start is not None
+        options = {opt for a in start._actions for opt in a.option_strings}
+        for expected in ("--validate", "--no-validate", "--no-verify", "--no-audit"):
+            self.assertIn(expected, options)
+
+    def test_a_contradictory_pair_is_refused(self):
+        """argparse accepts it; the refusal is hand-written and must be present."""
+
+        args = self.parse(["--no-verify", "--validate"])
+        self.assertIs(args.validate, True)
+        self.assertIs(args.no_verify, True)
+        with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+            agy_runipd.verification_flag_tristate(args)
+        self.assertIn("contradict", str(ctx.exception))
+        # An AGREEING pair is accepted.
+        agreeing = self.parse(["--no-verify", "--no-validate"])
+        self.assertIs(agy_runipd.verification_flag_tristate(agreeing), False)
+
+    def test_a_stolen_flag_is_refused_at_the_parser_not_silently_accepted(self):
+        """The F-14 `conflict_handler="resolve"` hazard, refused where it is decidable.
+
+        The hazard is that the `--validate` family STEALS `--no-verify`, after which the shipped
+        spelling stops meaning "do not verify" and antigravity's posture silently flips. That is a
+        property of how the parser was BUILT, so it is checked against the parser: a parser whose
+        `--no-verify` resolves to the wrong destination is refused.
+        """
+
+        import argparse as _argparse
+
+        good = _argparse.ArgumentParser()
+        good.add_argument(
+            "--no-verify", "--no-audit", dest="no_verify", action="store_true"
+        )
+        good.add_argument(
+            "--validate",
+            dest="validate",
+            action=_argparse.BooleanOptionalAction,
+            default=None,
+        )
+        agy_runipd.assert_verification_flags_are_distinct(good)  # does not raise
+
+        stolen = _argparse.ArgumentParser(conflict_handler="resolve")
+        stolen.add_argument(
+            "--no-verify", "--no-audit", dest="no_verify", action="store_true"
+        )
+        stolen.add_argument(
+            "--validate",
+            "--verify",
+            "--audit",
+            dest="validate",
+            action=_argparse.BooleanOptionalAction,
+            default=None,
+        )
+        with self.assertRaises(runner_shared.DriverError) as ctx:
+            agy_runipd.assert_verification_flags_are_distinct(stolen)
+        self.assertIn("--no-verify", str(ctx.exception))
+        # And the REAL parser passes the same check, which is what `build_parser` asserts.
+        self.assertIsNotNone(agy_runipd.build_parser())
+
+    def test_a_partial_namespace_reads_as_no_flag_rather_than_raising(self):
+        """Several shipped tests build partial namespaces; absence must mean "not passed"."""
+
+        import argparse as _argparse
+
+        self.assertIsNone(
+            agy_runipd.verification_flag_tristate(_argparse.Namespace(validate=None))
+        )
+
+    def test_the_refusal_happens_before_any_durable_run_state(self):
+        import os
+        import subprocess
+        from unittest import mock
+
+        probe = VerificationPolarityTests("test_all_four_polarity_cells")
+        with tempfile.TemporaryDirectory() as home:
+            with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": home}, clear=False):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = probe.make_repo(pathlib.Path(td))
+                    args = agy_runipd.build_parser().parse_args(
+                        [
+                            "start",
+                            "pol001",
+                            "--repo",
+                            str(repo),
+                            "--no-verify",
+                            "--validate",
+                        ]
+                    )
+                    args.prepare_only = True
+                    with self.assertRaises(runner_shared.RunFlagRefusal):
+                        agy_runipd.initialize_run(args)
+                    runs = repo / ".aw" / "records" / "runs"
+                    self.assertEqual(
+                        list(runs.glob("run-*")) if runs.exists() else [],
+                        [],
+                        "a refused invocation must leave NO durable run state",
+                    )
+                    del subprocess
+
+
 if __name__ == "__main__":
     unittest.main()

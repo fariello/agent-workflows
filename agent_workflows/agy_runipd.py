@@ -25,7 +25,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Iterable, NamedTuple
+from typing import Any, Callable, Iterable, NamedTuple, Optional
 
 # stallfp kaga7s: `Heartbeat` was a byte-identical INLINE COPY here, so a display fix in
 # `render_stream` silently did not reach `aw agy run`. It is now imported, like `Statusline`,
@@ -1797,6 +1797,98 @@ Plan Documents (IPDs) in this repository.
 """
 
 
+def assert_verification_flags_are_distinct(start_parser: Any) -> None:
+    """Prove the two verification spellings did not COLLIDE at parser build (`ybkmzp` E-02, F-14).
+
+    THE HAZARD THIS CLOSES, measured rather than imagined. `BooleanOptionalAction` auto-generates a
+    `--no-X` for every option string it is given, so registering `--validate` with oc's alias list
+    (`--verify`, `--audit`) would generate `--no-verify` and `--no-audit`, which this parser already
+    declares. With the default `conflict_handler` that raises at build time and is impossible to
+    miss. With `conflict_handler="resolve"` it does something far worse and SILENT: the new action
+    STEALS `--no-verify`/`--no-audit`, and the shipped spelling stops meaning what every existing
+    invocation and every piece of documentation says it means.
+
+    CHECKED AT THE PARSER, not at a parsed namespace, deliberately. The collision is a property of
+    HOW THE PARSER WAS BUILT, so this is the only place it is decidable; a namespace-level check
+    cannot distinguish a stolen flag from a hand-constructed `Namespace` that simply omitted the
+    attribute, and several shipped tests legitimately build exactly such namespaces.
+    """
+
+    by_option: dict[str, str] = {}
+    for action in getattr(start_parser, "_actions", []):
+        for option in action.option_strings:
+            by_option[option] = action.dest
+    for option, expected in (
+        ("--validate", "validate"),
+        ("--no-validate", "validate"),
+        ("--no-verify", "no_verify"),
+        ("--no-audit", "no_verify"),
+    ):
+        actual = by_option.get(option)
+        if actual != expected:
+            raise DriverError(
+                f"internal: {option} resolves to dest {actual!r}, expected {expected!r}. The two "
+                f"verification spellings have collided, which would silently change what "
+                f"--no-verify means on the host whose shipped posture is verification ON"
+            )
+
+
+def verification_flag_tristate(args: argparse.Namespace) -> Optional[bool]:
+    """This host's TWO spellings collapsed into ONE tri-state (`ybkmzp` E-02).
+
+    `--validate` / `--no-validate` is the tri-state (`True` / `False` / `None`, where `None` means
+    the operator said nothing and the runner-profile store decides). `--no-verify` (with its
+    `--no-audit` alias) is the SHIPPED spelling every existing invocation and every piece of
+    documentation uses, so it is RETAINED unchanged and means exactly `--no-validate`.
+
+    A CONTRADICTORY PAIR IS REFUSED rather than resolved by precedence. Measured: argparse accepts
+    `--no-verify --validate` happily, parsing to `validate=True, no_verify=True`, so this check is
+    hand-written and not an argparse freebie. Letting either spelling silently win would make a
+    verification decision the operator did not make, and BOTH directions of that error are bad: one
+    skips a check that was asked for, the other pays for a check that was declined.
+
+    AN ABSENT ATTRIBUTE READS AS "NOT PASSED", which is the safe direction and is not the F-14
+    hazard. Absence here means a hand-built `Namespace` (several shipped tests construct partial ones
+    on purpose), and treating it as "no flag" leaves the decision to the profile store, whose floor
+    on this host is verification ON. The flag-collision hazard is a property of the PARSER and is
+    refused there instead, by :func:`assert_verification_flags_are_distinct`.
+    """
+
+    validate = getattr(args, "validate", None)
+    no_verify = getattr(args, "no_verify", False)
+    if bool(no_verify) and validate is True:
+        raise runner_shared.RunFlagRefusal(
+            "--no-verify (or --no-audit) and --validate contradict each other: one asks to skip "
+            "turn-2 verification and the other asks to run it. Pass exactly one; --no-verify is "
+            "the same request as --no-validate"
+        )
+    if bool(no_verify):
+        return False
+    return validate
+
+
+def resolve_verification_decision(
+    args: argparse.Namespace,
+) -> runner_shared.VerificationDecision:
+    """Resolve WHETHER this run verifies, through the ONE shared helper (`ybkmzp` E-04).
+
+    A one-line binding, deliberately: the precedence chain lives in
+    `runner_shared.resolve_verification_decision` so both hosts consume the same resolution, and
+    only the flag-reading and the polarity translation are per host. A second copy of the chain here
+    is how the deleted `_read_deps` pair came to be identically wrong in both drivers.
+
+    NO PROFILE NAME IS PASSED, because this host has none to pass: `start` declares no `--profile`
+    and this driver has no `as <profile>` clause (that is oc-only). The tiers reachable here are
+    therefore the explicit flag, the per-runner DEFAULT profile (`defaults.profiles["agy"]`, which
+    resolves without being named), `defaults.validate`, and the `agy` registry row. Adding a
+    `--profile` flag or an `as` clause is the deferred dispatch-adapter work, not this plan's.
+    """
+
+    return runner_shared.resolve_verification_decision(
+        runner="agy", profile=None, validate=verification_flag_tristate(args)
+    )
+
+
 def initialize_run(args: argparse.Namespace) -> Path:
     repo = Path(args.repo).expanduser().resolve()
     if not (repo / ".git").exists():
@@ -1836,6 +1928,13 @@ def initialize_run(args: argparse.Namespace) -> Path:
     runner_shared.refuse_unimplemented_run_flags(args)
     runner_shared.evaluate_unverifiable_admission(args)
     runner_shared.resolve_retry_budget(getattr(args, "retry_budget", None))
+
+    # hostdefault-02 (`ybkmzp`) E-04: resolve THIS run's verification decision here, at the same
+    # pre-durable seam as the refusals above and BEFORE the run directory is created below, so a
+    # malformed runner-profile store (or a contradictory flag pair) refuses leaving NO run id,
+    # directory, events, or state. Placing it after the `mkdir` would strand an orphan run directory
+    # on a bad store, which is the failure `3cm15q` closed on the other host.
+    verification = resolve_verification_decision(args)
 
     queue_ids = expand_selectors(manifest, args.selectors, repo=repo)
 
@@ -2044,7 +2143,14 @@ def initialize_run(args: argparse.Namespace) -> Path:
             "dangerously_skip_permissions": getattr(
                 args, "dangerously_skip_permissions", True
             ),
-            "no_verify": getattr(args, "no_verify", False),
+            # hostdefault-02 (`ybkmzp`) E-04: the RESOLVED decision, NEGATED here at the boundary.
+            # This host's frozen key is `no_verify` and its verifier gate reads `not no_verify`,
+            # which is the OPPOSITE POLARITY from oc's `validate` key. Writing the resolved positive
+            # value in un-negated would make "verify" mean "do not verify", so verification would be
+            # requested and silently skipped with no error anywhere. This ONE `not` is the entire
+            # translation, it lives at the ONE place this host freezes the key, and both directions
+            # are asserted at the frozen-state level rather than trusted.
+            "no_verify": not verification.validate,
             "output_mode": getattr(args, "output_mode", "clean"),
             # streamfmt (mm6wuz) E-06: the live-stream detail tier, frozen beside `output_mode`,
             # mirroring the oc twin so a resume can honor it.
@@ -4779,6 +4885,31 @@ AUTOMATIC STATUS ROUTING:
         action="store_true",
         help="Skip turn-2 clean-session skeptical validation",
     )
+    # hostdefault-02 (`ybkmzp`) E-02: the TRI-STATE surface, so this host can express "let the
+    # stored per-model choice decide" as well as "verify" / "do not verify". `default=None` is the
+    # load-bearing part: it is what distinguishes SILENCE (fall through to the profile store) from
+    # an explicit `--no-validate`, and it matches oc's `resume` parser, which already ships
+    # `default=None` for exactly this reason.
+    #
+    # REGISTERED BARE, WITH NO ALIASES, DELIBERATELY. oc spells this flag
+    # `("--validate", "--verify", "--audit")`, and `BooleanOptionalAction` auto-generates a `--no-X`
+    # for EVERY option string, so copying that alias list here would also generate `--no-verify` and
+    # `--no-audit`, which THIS parser already declares directly above. Measured: that raises
+    # `argparse.ArgumentError: conflicting option strings: --no-verify, --no-audit` at
+    # `build_parser()` time, killing every `aw agy` invocation. `conflict_handler="resolve"` is
+    # worse, not a fix: the new action would silently STEAL `--no-verify`/`--no-audit`, after which
+    # `args.no_verify` does not exist at all and the freeze site below reads `False`
+    # unconditionally, i.e. verification silently OFF by default on the host whose whole posture is
+    # verification ON.
+    start.add_argument(
+        "--validate",
+        dest="validate",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Run (or skip) the turn-2 independent clean-session verification. Omit to use the "
+        "runner-profile store's per-model choice, which on this host defaults to verifying. "
+        "`--no-verify` remains an accepted alias for `--no-validate`",
+    )
     start.add_argument(
         "--no-self-finalize",
         dest="self_finalize",
@@ -4904,6 +5035,12 @@ AUTOMATIC STATUS ROUTING:
     # second copy that could drift. Declared on THIS parser (where `start` lives), not on `cli.py`'s
     # `agy` group, which forwards `argparse.REMAINDER` verbatim to this `main`.
     runner_stop.add_stop_parser(sub, command=_detect_driver_command())
+
+    # hostdefault-02 (`ybkmzp`) E-02: prove the two verification spellings did not collide while this
+    # parser was being built. Checked HERE because the hazard is a property of the registration
+    # (a `--validate` alias list, or `conflict_handler="resolve"`, can silently steal `--no-verify`
+    # and change what it means), and this is the only point at which that is decidable.
+    assert_verification_flags_are_distinct(start)
 
     return parser
 
