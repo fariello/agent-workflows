@@ -2018,6 +2018,15 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="issues",
         help="Show only the artifact location and status discrepancies table.",
     )
+    _runs_viewer_flags.add_argument(
+        "--all-classes",
+        action="store_true",
+        dest="all_classes",
+        help=(
+            "Include the evidenced resolved/retired artifact differences, which are suppressed by "
+            "default (their counts are always reported). Never suppresses unknown or regressed."
+        ),
+    )
 
     _RUNS_EPILOG = (
         "EXAMPLES\n"

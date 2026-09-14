@@ -858,6 +858,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
             "--summary-only",
             "--latest-only",
             "--issues",
+            "--all-classes",
             "--agent",
             "--json",
         ),

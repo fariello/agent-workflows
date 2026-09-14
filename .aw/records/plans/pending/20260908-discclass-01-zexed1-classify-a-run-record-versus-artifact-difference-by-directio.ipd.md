@@ -24,6 +24,9 @@
 - From-Backlog: 1f9m2j
 
 ## Workflow history
+- 2026-09-14 executed (opencode its_direct/pt3-claude-opus-5-1m-us): E-01..E-07 performed and V-01..V-07 verified with pasted evidence, in run `run-20260914T033102Z-456387` position 05, isolated lane `zexed1` at starting HEAD `fea2c9f8`. The discrepancy table now classifies a difference BY DIRECTION on READ, TIME-BOUND git evidence: `resolved` requires BOTH a forward lifecycle move AND a `lifecycle(<id6>): finalize` commit inside `ending_head..HEAD`, so direction alone yields a VISIBLE `unknown` and the hand-edit bypass can never read as benign. Measured on a 44-row corpus reproducing the review distribution: 44 of 44 rows red BEFORE, 1 of 44 alarming AFTER, rows shown 44 -> 3. Bare suite `18 failed, 6847 passed, 3 skipped, 2 xfailed` against a `18 failed, 6811 passed` baseline, failure-set delta EMPTY both directions.
+  FOUR THINGS A REVIEWER SHOULD KNOW, none of them absorbed silently. FIRST, SCOPE WAS WIDENED: `6ltz1y` had landed, so the audit now lives in `agent_workflows/artifact_audit.py` and the fix belongs there (E-01's own instruction), and promoting the finalize subject to ONE definition necessarily touched `artifact_core.py`, `ipd_lifecycle.py` and `hooks/executed_transition_gate.py`; the `--all-classes` flag touched `cli.py`/`command_surface.py` and the timeout touched `runner_shared.py`. The plan declared only `run_viewer.py` and `tests/test_run_viewer.py`. SECOND, THE LIVE CORPUS WAS UNAVAILABLE: `.aw/records/runs/` is gitignored and absent from this lane, so V-01's and V-07's live distributions were measured over a synthetic corpus built to the review-measured proportions and the gap is reported as `AW_MISSING_INPUT`; a maintainer should re-run `aw runs --issues --agent` in the primary checkout to confirm the ratio. THIRD, ONE MEASUREMENT CORRECTED THE PLAN: PR-205's six rows recorded run status `complete` (NOT forward) against a `superseded/` artifact, so the retirement test had to move IN FRONT of the direction gate or those legitimate retirements fell through to `unknown`; now pinned by its own test. FOURTH, A PURE-MOVE GUARD WAS TOUCHED: `tests/test_runner_shared.py` pins `_run_git`'s AST, so the added optional `timeout` (default `None`, behavior-identical for every existing caller) required enumerating it in that harness's existing `SUPERSEDED_SINCE_MOVE` category with the reason recorded and the clean-move count updated 24 -> 23 alongside a companion assertion; the guard's strictness is unchanged for every other symbol.
+  WHAT THIS DELIBERATELY DOES NOT CLAIM: it does NOT preserve stranded-lane detection. The row that once found one (`eulhzt`) is byte-identical in every field this audit reads to 172 legitimate rows, so it goes quiet too; the maintainer accepted that trade knowingly in OQ-04 on 2026-09-10, and `pr5b0t`/`ys1dor` own rebuilding the capability. The published `--json`/`--agent` row SET is unchanged and the three legacy boolean keys are retained, so no `aw.agent/v2` bump was needed.
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False; `review_findings.subject_gating_blocks` -> empty; `plan_readiness.newest_verdict` polarity -> neutral (not negative). Specifically, its blocking OQ-04 was answered on 2026-09-10 (accept the trade; successors own stranded-lane detection) and no finding gates it. Performed at HEAD `5692797e` at the maintainer's explicit instruction of 2026-09-10, who was shown that 12 of 15 `no-go` plans were held by stale bookkeeping and chose to have them fixed with evidence recorded rather than re-reviewed. This is the SECOND such cleanup in one session; the durable fix is plan `qhy3i3` E-07, authored and awaiting approval. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
@@ -45,7 +48,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: locate the code and characterize today's verdicts
 
-- [ ] E-01 RE-LOCATE THE AUDIT AND DECIDE WHERE THIS FIX BELONGS, before writing anything, because the code may have MOVED. `6ltz1y` (`auditshare-01`) E-02 relocates `audit_step_artifact` and `StepArtifactAudit` into a new `agent_workflows/artifact_audit.py` with `run_viewer` keeping no local definition, and its E-04 adds `aw doctor` as a second consumer.
+- [x] E-01 RE-LOCATE THE AUDIT AND DECIDE WHERE THIS FIX BELONGS, before writing anything, because the code may have MOVED. `6ltz1y` (`auditshare-01`) E-02 relocates `audit_step_artifact` and `StepArtifactAudit` into a new `agent_workflows/artifact_audit.py` with `run_viewer` keeping no local definition, and its E-04 adds `aw doctor` as a second consumer.
   IF `6ltz1y` HAS LANDED: implement in `artifact_audit.py`, and check what the SECOND consumer (`aw doctor`) does with the verdicts, because a directional classification must serve both surfaces and `aw doctor`'s use is advisory and liveness-aware.
   IF IT HAS NOT LANDED: implement in `run_viewer.py` and say so, and keep the change shaped so the later move is mechanical (one dataclass, one function, no new cross-module coupling).
   EITHER WAY, RECORD THE INTENT CONFLICT RATHER THAN STEPPING ON IT. `6ltz1y` E-01 and its deferral forbid changing ANY audit verdict, because its whole value is a provably behavior-preserving extraction. This plan CHANGES verdicts. If `6ltz1y` is still pending, executing this plan first would invalidate its characterization baseline; that is a real cost to a sibling plan and must be reported to the maintainer, not absorbed silently.
@@ -55,11 +58,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   REPORT, DO NOT FIX, THE ONE MIS-RESOLUTION DEFECT FOUND AT REVIEW. `find_artifact_file` matches `id6 in p.name` and returns the FIRST hit, so step `nna8yz` resolves to `.aw/records/plans/pending/20260907-dirtybase-01-3i0aaz-guard-the-ungated-dirty-base-cases-nna8yz-leaves-open-untrac.ipd.md` -- a DIFFERENT plan (`3i0aaz`) whose SLUG contains `nna8yz`. That row is a true-looking `complete` vs `pending`/`to-review` discrepancy about a file the step does not own. `6ltz1y` E-03 owns replacing this loop with `selectors`. Do NOT fix it here, and do NOT let it silently classify: a row whose artifact cannot be attributed to the step's own id6 is `unknown`, never `regressed` (E-03 carries this rule).
   - Depends on: none
   - Expected outcome: a recorded decision on the implementation module with `6ltz1y`'s status stated, the intent conflict reported if it is still pending, a characterization of all three current boolean verdicts with their input shapes, a re-measured live shape distribution with counts, an enumerated consumer list with the additive-versus-breaking decision stated, and the `nna8yz` mis-resolution reported rather than fixed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: read the evidence, then classify on it
 
-- [ ] E-02 ADD A READ-ONLY, TIME-BOUND GIT EVIDENCE CHECK FOR THE IN-TREE FINALIZE COMMIT, and do NOT reuse `_intree_finalize_evidence_ok` as-is: it answers a different question. That function (`hooks/executed_transition_gate.py:261`) requires `incoming_commits` from a merge IN PROGRESS and evaluates the range `HEAD..<incoming>` (`:280`). Its sibling `_lifecycle_commit_exists` (`ipd_lifecycle.py:1852`) checks only the tip against a `pre_head`.
+- [x] E-02 ADD A READ-ONLY, TIME-BOUND GIT EVIDENCE CHECK FOR THE IN-TREE FINALIZE COMMIT, and do NOT reuse `_intree_finalize_evidence_ok` as-is: it answers a different question. That function (`hooks/executed_transition_gate.py:261`) requires `incoming_commits` from a merge IN PROGRESS and evaluates the range `HEAD..<incoming>` (`:280`). Its sibling `_lifecycle_commit_exists` (`ipd_lifecycle.py:1852`) checks only the tip against a `pre_head`.
   BIND THE SEARCH TO THE RUN'S OWN `ending_head`, NOT TO ALL OF HISTORY (PR-203). The question is "did a finalize happen AFTER this run recorded its status", so the range is `<ending_head>..HEAD`, mirroring the hook's `HEAD..<incoming>`. A bare reachable-from-HEAD test is WRONG and the hook's suite says so: `test_finalize_commit_already_on_head_is_not_evidence` (`tests/test_executed_transition_gate.py:407`) exists precisely because an OLD finalize commit must not authorize a NEW transition. Accept the weaker unbounded form nowhere.
   THE BOUND IS AVAILABLE IN THE RECORD, measured at review: each queue entry's `attempts[]` carries `starting_head` and `ending_head` (written at `oc_runipd.py:6495` and `agy_runipd.py:3562`), present in 103 of 143 run records and 439 of 491 attempts. `StepSummary` does NOT currently carry them, so this item must thread the attempt's `ending_head` through to the audit; that is a small additive field, not a new data source. WHERE THE HEAD IS ABSENT the answer is `unknown` with the reason "run record carries no ending_head", NEVER a fallback to the unbounded check.
   PROMOTE THE SUBJECT STRING TO ONE SHARED CONSTANT. `lifecycle(<id>): finalize` is currently written literally in three places: produced at `ipd_lifecycle.py:2724`, matched at `executed_transition_gate.py:278`, prefix-matched at `ipd_lifecycle.py:1868`. A fourth literal is how the gate and the viewer silently disagree later. One constant, three (then four) references.
@@ -68,9 +71,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   COST IS MEASURED, NOT GUESSED, AND THE ANSWER IS ONE PASS (this resolves OQ-02). Measured at review on this repository (2885 commits): a full `git log --format=%s` pass takes ~46ms and a single `--grep` pass ~50ms, so per-row spawning at the measured 508 rows would cost ~25s, which is unusable for an interactive read-only view. Do ONE pass collecting every `lifecycle(<id6>): finalize` subject with its commit, then answer all rows in Python against that map, applying each row's own `ending_head` bound with `git merge-base --is-ancestor` or an equivalent single-pass rev-list. State the measurement you took.
   - Depends on: E-01
   - Expected outcome: a read-only evidence check bounded by the run's `ending_head`, matching on the commit SUBJECT via one shared constant, reusing `runner_shared._run_git` with an explicit timeout, every failure mode (including an absent `ending_head`) resolving to `unknown`, no `head -1` style first-match logic, and ONE git pass rather than one per row with the cost measured and pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 REPLACE THE BOOLEAN PAIR WITH A DIRECTIONAL CLASSIFICATION carrying `resolved`, `regressed`, `retired`, `missing`, `unchanged` and an explicit `unknown`. The item's shape is `resolved`/`regressed`/`missing`/`unchanged`; `unknown` and `retired` are ADDED here and neither is optional. `unknown` is what keeps the 2026-09-05 ruling satisfied; `retired` is required by measurement (see below).
+- [x] E-03 REPLACE THE BOOLEAN PAIR WITH A DIRECTIONAL CLASSIFICATION carrying `resolved`, `regressed`, `retired`, `missing`, `unchanged` and an explicit `unknown`. The item's shape is `resolved`/`regressed`/`missing`/`unchanged`; `unknown` and `retired` are ADDED here and neither is optional. `unknown` is what keeps the 2026-09-05 ruling satisfied; `retired` is required by measurement (see below).
   DERIVE THE FORWARD DIRECTION, DO NOT ENUMERATE IT (PR-201). The forward test is "the recorded run status is NON-TERMINAL for this artifact" and the artifact has since reached a terminal disposition. Enumerating `integration-blocked`/`substantially-complete`/`interrupted` as the item did covers 4 of 508 measured rows and leaves the two dominant shapes (`reviewed` 172, `queued` 153) as red as they are today, so the plan would not achieve its own goal. Note WHY those two exist, because it justifies treating them as forward: `initialize_run` assigns a queue entry the status `reviewed` for anything not `to-review`/`draft`/`approved`/`auto-approved` (`oc_runipd.py:2977-2980`), and `queued` means the run never dispatched the item, so BOTH describe an item this run did not complete and a LATER run did. Use the runner's own vocabulary rather than a fresh list: `oc_runipd.TERMINAL_STATES` and `EXECUTION_SUCCESS_STATES` (`:316-337`) already partition these, and importing the truth beats re-deriving it. If importing from `oc_runipd` is too heavy for the viewer, state that and put the set in one shared constant, but do NOT hand-copy a list that will drift from the runner's.
   `resolved` REQUIRES EVIDENCE, NOT DIRECTION. This is the entire reason the previous attempt was abandoned. A row may be classified `resolved` only when BOTH the lifecycle direction is forward AND E-02's TIME-BOUND check finds the finalize commit after the run's `ending_head`. Direction alone must yield `unknown`, because a legitimate finalize and a hand-edited `- Status: executed` plus `git mv` are byte-identical to this audit, and calling that pair resolved would print a green OK for exactly the bypass the executed-transition-gate hook exists to catch.
   `retired` IS A CLASS THE ITEM MISSED AND THE CORPUS FORCES (PR-205). Measured at review: 82 of 508 rows have the artifact in `superseded/` (74) or `not-executed/` (8), and six of them recorded run status `complete` against a `superseded/` artifact (`qcqhj7`, `rchpms`, `7p9n2v`, `58ha43`, `2c122z`, `bmh754`). Under the plan's original `regressed` rule ("run recorded executed/complete but the artifact is NOT in `executed/`") all six render RED, yet every one is a legitimate, banner-carrying retirement (each begins `RETIRED <date>: ...`, verified). Worse, there is NO finalize commit to find, because retirement writes no `lifecycle(<id6>): finalize`: history carries 190 `lifecycle(ID): finalize` subjects and exactly ONE `lifecycle(ID): retire`, so the evidence form does not exist for this class and `resolved` can never be earned. So classify a forward move into `superseded/`/`not-executed/` as `retired`, evidenced by the artifact's own `RETIRED` banner plus its `- Status:` agreeing with its directory, and render it non-alarming. Do NOT try to prove a retirement with a finalize commit.
@@ -81,29 +84,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ADD THE CLASS AS A FIELD; DO NOT DELETE THE BOOLEANS (PR-204). Per E-01's consumer enumeration, three machine sites `asdict()` this dataclass, and `docs/cli-agent-protocol.md:113` makes additive fields compatible and field REMOVAL a v2 break. Keep `missing_entirely`/`location_mismatch`/`status_mismatch` populated exactly as today and add the class beside them.
   - Depends on: E-02
   - Expected outcome: a six-value classification ADDED beside the retained booleans, the forward direction DERIVED from the runner's terminal-state vocabulary rather than enumerated, `resolved` gated on BOTH direction and E-02's time-bound evidence, `retired` covering the 82 measured retirement rows without demanding a finalize commit, `regressed` narrowed and expected empty, `unknown` distinct from `unchanged` and covering unattributable rows, and the `interrupted` row's disposition recorded relative to `vdabn5`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: render honestly and route through one predicate
 
-- [ ] E-04 RENDER EACH CLASS DISTINCTLY AND KEEP EVERY UNPROVEN ROW VISIBLE, in `format_artifact_audit_summary` (`:1473`, located by symbol; the earlier `:1419` has drifted). Reserve the red (`:1515`, `:1523`, `:1537`, `:1545`) for `regressed` and `missing`. `resolved` and `retired` report in a non-alarming style or a separate section. `unknown` STAYS VISIBLE with its reason stated, because the whole point of the 2026-09-05 ruling was to refuse a green OK the data does not support.
+- [x] E-04 RENDER EACH CLASS DISTINCTLY AND KEEP EVERY UNPROVEN ROW VISIBLE, in `format_artifact_audit_summary` (`:1473`, located by symbol; the earlier `:1419` has drifted). Reserve the red (`:1515`, `:1523`, `:1537`, `:1545`) for `regressed` and `missing`. `resolved` and `retired` report in a non-alarming style or a separate section. `unknown` STAYS VISIBLE with its reason stated, because the whole point of the 2026-09-05 ruling was to refuse a green OK the data does not support.
   DO NOT SUPPRESS `unknown` BEHIND A FLAG. The item offers "suppress behind a flag" as one option for the resolved case, and that is acceptable for `resolved` and `retired` (which HAVE evidence). It is not acceptable for `unknown`: an invisible confession is indistinguishable from a green OK to every reader.
   SAY WHY A ROW IS `unknown`, in the row. The distinct reasons now number four and they are different operator situations: no finalize commit in the bounded range; the run record carries no `ending_head` so the range cannot be formed; git is unavailable or this is not a repository; the artifact could not be attributed to this step's id6. A bare `unknown` teaches nothing.
   FACE THE READABILITY CONSEQUENCE HONESTLY, because it is the one thing an operator will notice first (PR-206). At the measured 508 rows this table is already too long to read, and this plan does not shrink the ROW COUNT: the selection predicate still admits every non-`unchanged` row, so a reader who today sees 508 red rows will see 508 rows in five colors. That is an improvement in HONESTY and not yet an improvement in USABILITY. Two things are therefore required. FIRST, print a per-class COUNT SUMMARY line above the table so the shape is legible without reading every row. SECOND, if the default view still shows hundreds of `resolved`/`retired` rows, exercise the flag permitted above and suppress those two classes BY DEFAULT with the counts still printed, naming the flag that restores them. Do NOT suppress `unknown` or `regressed` under any flag.
   - Depends on: E-03
   - Expected outcome: `regressed`/`missing` red, `resolved`/`retired` non-alarming or sectioned, `unknown` always visible with one of the four per-row reasons, no suppression path for `unknown` or `regressed`, a per-class count summary line, and a stated decision on default suppression of `resolved`/`retired` with the measured row count that justified it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 ROUTE THE ISSUE PREDICATE THROUGH WHATEVER SINGLE DEFINITION EXISTS, and do not add a sixth copy. The boolean triple is currently tested in FIVE places, re-located by symbol at review because the earlier citations drifted: `run_viewer.py:1485` (the table's row selection), `:1634` (the `Issue` column), `:2855` (`--json`), `:2899` (`--agent`), `:2930` (`--issues` human).
+- [x] E-05 ROUTE THE ISSUE PREDICATE THROUGH WHATEVER SINGLE DEFINITION EXISTS, and do not add a sixth copy. The boolean triple is currently tested in FIVE places, re-located by symbol at review because the earlier citations drifted: `run_viewer.py:1485` (the table's row selection), `:1634` (the `Issue` column), `:2855` (`--json`), `:2899` (`--agent`), `:2930` (`--issues` human).
   `r2i1b1` (`orchprobe-01`, **`approved`** as of review, no longer `reviewed`) E-03 EXTRACTS THOSE FIVE INTO ONE FUNCTION and its E-04 extends that one predicate to count a refusal as an issue. Because it is approved it may execute at any time, so the odds of it landing first are materially higher than the plan originally assumed. If it has landed, change THAT function and nothing else. If it has not, this plan must not do the extraction (it is another plan's E-item) but must also not leave five hand-edited copies of a six-value classification, which would be strictly worse than the boolean version. State which situation you are in and what you did.
   IF `r2i1b1` HAS NOT LANDED, the honest minimum is a single helper used by all five sites, introduced without renaming or relocating anything, so `r2i1b1` E-03 can still complete its extraction. Report the overlap.
   THE THREE MACHINE SITES ARE NOT INTERCHANGEABLE WITH THE TWO HUMAN ONES (PR-204). `:2855`/`:2899` emit published record shapes and `:2930` gates an exit-0 human message. Routing them through one predicate must not change WHICH rows they emit unless this plan intends that, and if the row set does change, the `--agent`/`--json` consumers see it. State explicitly whether the emitted row SET changes and justify it.
   - Depends on: E-04
   - Expected outcome: exactly one definition of "is this row an issue" consulted by all five call sites, with `r2i1b1`'s status stated and its E-03 left able to complete, and an explicit statement of whether the machine-emitted row set changed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove it on the measured cases
 
-- [ ] E-06 PROVE ALL SIX CLASSES ON FIXTURES, including the one the ruling was written about. Minimum cases: (a) forward direction WITH a finalize commit inside the `ending_head..HEAD` range -> `resolved`; (b) forward direction WITHOUT one -> `unknown`, NOT resolved; (c) run recorded a success but the artifact is in neither `executed/` nor a retirement directory -> `regressed`, red; (d) artifact missing entirely -> `missing`, red; (e) run and artifact agree -> `unchanged`; (f) git unavailable or not a repository -> `unknown` with a stated reason; (g) forward move into `superseded/` with a `RETIRED` banner and NO finalize commit -> `retired`, non-alarming; (h) the run record carries no `ending_head` -> `unknown` with that specific reason.
+- [x] E-06 PROVE ALL SIX CLASSES ON FIXTURES, including the one the ruling was written about. Minimum cases: (a) forward direction WITH a finalize commit inside the `ending_head..HEAD` range -> `resolved`; (b) forward direction WITHOUT one -> `unknown`, NOT resolved; (c) run recorded a success but the artifact is in neither `executed/` nor a retirement directory -> `regressed`, red; (d) artifact missing entirely -> `missing`, red; (e) run and artifact agree -> `unchanged`; (f) git unavailable or not a repository -> `unknown` with a stated reason; (g) forward move into `superseded/` with a `RETIRED` banner and NO finalize commit -> `retired`, non-alarming; (h) the run record carries no `ending_head` -> `unknown` with that specific reason.
   CASE (b) IS THE ONE THAT MATTERS MOST. It is the hand-edit bypass: `- Status: executed` plus `git mv` with no finalize commit. If it classifies as `resolved`, this plan has reintroduced the exact defect that got the previous design abandoned. Assert it explicitly and quote the assertion.
   ADD THE TIME-BOUND CASE THE HOOK'S SUITE ALREADY MODELS (PR-203), because without it the bound is untested: a finalize commit reachable from HEAD but ANCESTOR of `ending_head` (i.e. the finalize happened BEFORE this run recorded its status) must yield `unknown`, NOT `resolved`. This is the viewer's analogue of `test_finalize_commit_already_on_head_is_not_evidence` (`tests/test_executed_transition_gate.py:407`); model the fixture on it.
   REPRODUCE THE MEASURED FALSE-ALARM SHAPES AS FIXTURES, and cover the DOMINANT ones rather than only the four from the item: `('integration-blocked','executed','executed')` (4 rows live), `('reviewed','executed','executed')` (172) and `('queued','executed','executed')` (153), each with a finalize commit in range. Show all three shapes go non-red. A fix proven only on the `integration-blocked` shape has not been proven on 96 percent of the problem.
@@ -111,9 +114,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   FIXTURES ONLY, AND NO LIVE RUN RECORDS. `.aw/records/runs/` is gitignored and absent from a fresh worktree, so a test reading it is exactly the defect `utwr6y` (`testiso-01`) exists to remove from this very test file. Build synthetic run trees; note `tests/test_run_viewer.py:22-27` already carries an in-file hazard note saying a new test must NOT read the live repository via `dir='.'`, and `_FIXTURE_RUN`/`_FIXTURE_SETID` constants exist at `:31`/`:33` to build on. A case needing git evidence must `git init` a THROWAWAY repo and make its own commits; never read this repository's history in a test.
   - Depends on: E-05
   - Expected outcome: eight fixture cases passing with case (b) asserted explicitly as `unknown`, the before-`ending_head` case asserted as `unknown`, all three measured false-alarm shapes shown non-red, no case asserting `eulhzt` stays red, and no test reading `.aw/records/runs/` or this repository's git history.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 PROVE THE RECORD WAS NOT MUTATED AND NOTHING ELSE MOVED, because the item's hard prohibition is not to fix this by editing either side.
+- [x] E-07 PROVE THE RECORD WAS NOT MUTATED AND NOTHING ELSE MOVED, because the item's hard prohibition is not to fix this by editing either side.
   NEGATIVE PROOF ON RUN RECORDS: no `state.json` written, no run record modified. The record's value IS that it freezes what was true, and it is the evidence base for resume, reconciliation and cost accounting.
   NEGATIVE PROOF ON PLANS: `git status --porcelain .aw/records/plans/` clean. Do not move a plan or edit a `- Status:` to make a row classify differently.
   SHOW THE OTHER `aw runs` OUTPUT IS UNCHANGED except the table in question, since `run_viewer.render` produces much more than this section and four other call sites test the same predicate.
@@ -122,7 +125,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   RUN THE SUITE BARE and judge on the DELTA, stating observed counts rather than quoting a baseline.
   - Depends on: E-06
   - Expected outcome: no run record and no plan mutated, the rest of `aw runs` output unchanged, the three legacy machine keys still present with the class field added and every line parsing, a pasted before/after class distribution over the live corpus with the residual red count, and an empty bare-suite failure-set delta with observed counts stated.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -281,40 +284,365 @@ OPERATOR-FACING TEXT: the table's own legend or help must explain the six classe
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: state `6ltz1y`'s status at execution time and which module you implemented in, with the path. Paste the characterization of all three current boolean verdicts with the input shape that produces each. If `6ltz1y` was still pending, paste the report you made to the maintainer about the intent conflict (it forbids changing any verdict; this plan changes verdicts). If it had landed, state what `aw doctor` does with the verdicts and how the classification serves it. ALSO paste the re-measured live shape distribution with counts (total rows and the top shapes), the enumerated list of all five consumers of the boolean triple with your additive-versus-breaking decision stated, and the `nna8yz` mis-resolution reported as a finding you did NOT fix.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. `6ltz1y` HAS LANDED (`.aw/records/plans/executed/...6ltz1y...`), so implemented in `agent_workflows/artifact_audit.py` with `run_viewer` consuming it; scope WIDENED beyond the two declared paths and reported. All three boolean verdicts characterized with their input shapes; `aw doctor`'s tracked-only route carries an honest `unknown`; the live corpus was UNAVAILABLE in this lane (reported as AW_MISSING_INPUT) so a 44-row synthetic corpus was measured instead; five consumers enumerated and the ADDITIVE (non-breaking) route taken; the `nna8yz` mis-resolution REPORTED and NOT fixed. Detail:
+    `6ltz1y` HAS LANDED. It is in the terminal directory, so E-01's first branch applies and there is NO intent conflict to report:
+    ```
+    $ ls .aw/records/plans/*/*6ltz1y*
+    .aw/records/plans/executed/20260908-auditshare-01-6ltz1y-extract-the-run-viewer-artifact-audit-into-one-shared-module.ipd.md
+    $ ls agent_workflows/artifact_audit.py
+    agent_workflows/artifact_audit.py
+    ```
+    IMPLEMENTED IN `agent_workflows/artifact_audit.py` (the classification and the evidence index) with `agent_workflows/run_viewer.py` consuming it. This WIDENS the declared `- Scope-Paths:`; see DECISION 05-zexed1-D1 and the report's scope section. `run_viewer` keeps no local audit definition (`StepArtifactAudit = _audit.ArtifactAudit` at `run_viewer.py:439`), and `tests/test_artifact_audit.py` asserts that object identity, so implementing in `run_viewer` was not available without re-forking the predicate `6ltz1y` consolidated.
+    THE SECOND CONSUMER: `doctor.probe_artifact_audit` (`doctor.py:577`) uses the TRACKED-ONLY route `audit_tracked_artifact`, which reads no run record at all and emits `core.Drift` advisories at `info` severity. It therefore CANNOT compute a direction (direction is a run-record-versus-tree comparison), so that route carries an explicit `CLASS_UNKNOWN` with the reason `UNKNOWN_TRACKED_ONLY` rather than a class it did not earn, and `aw doctor` does not read the class. Pinned by `test_the_tracked_only_doctor_route_carries_an_honest_unknown`.
+    CHARACTERIZATION OF THE THREE BOOLEAN VERDICTS, with the input shape producing each (all still produced identically; the pre-existing `test_audit_step_artifact_pins_the_four_verdict_shapes` covers the same four shapes and still passes):
+    | verdict | input shape | measured on the fixture corpus |
+    |---|---|---|
+    | `missing_entirely` | no artifact resolves for the id6 (or an id6 COLLISION, where the lookup refuses to pick) | run status `executed`, no plan file -> `missing_entirely=True`, now `difference_class=missing` |
+    | `location_mismatch` | artifact found, `actual_file.parent.name != expected_dir_for_status(run_status)` | run status `reviewed`, plan in `executed/` -> `location_mismatch=True`, now `resolved`/`unknown` by evidence |
+    | `status_mismatch` | artifact's own `- Status:` disagrees with the run status per `_status_disagrees` tolerance bands | run status `executed`, plan declaring `approved` -> `status_mismatch=True`, now `regressed` |
+    SHAPE DISTRIBUTION: THE LIVE CORPUS COULD NOT BE MEASURED IN THIS LANE, and that is reported rather than papered over. `.aw/records/runs/` does not exist here (`ls: cannot access '.aw/records/runs': No such file or directory`); it is gitignored box-local state absent from every isolated lane worktree, which `doctor.probe_artifact_audit`'s own docstring already records ("this lane has no `.aw/records/runs/` at all, while the primary checkout has 151 run dirs"). Reported as `AW_MISSING_INPUT:.aw/records/runs:...`. A SYNTHETIC 44-row corpus reproducing the review-measured proportions was built instead (`mkfixture.py` in the submission directory) and measured through the real CLI; see V-07 for the before/after distribution over it.
+    THE FIVE CONSUMERS OF THE BOOLEAN TRIPLE, enumerated at execution time and ALL now routed through one predicate (`grep -n audit_row_is_issue agent_workflows/run_viewer.py`):
+    ```
+    1388:def audit_row_is_issue(audit: StepArtifactAudit) -> bool:     <- the ONE definition
+    1421:        if not audit_row_is_issue(a):                          (the new per-class count helper)
+    1451:        if audit_row_is_issue(a):                              (1) the table's row selection
+    1653:        has_issue = audit_row_is_issue(audit)                  (2) the steps table's Issue column
+    2873:            if audit_row_is_issue(a)                           (3) --json
+    2917:                if audit_row_is_issue(a)                       (4) --agent
+    2948:            if audit_row_is_issue(a)                           (5) --issues human
+    ```
+    DECISION: ADDITIVE, NOT BREAKING. `--json` and `--agent` `asdict()` the dataclass into published records, and `docs/cli-agent-protocol.md:113` makes an added optional field backward compatible while a removal would need `aw.agent/v2`. The three booleans are RETAINED and still populated; four fields are ADDED (`difference_class`, `class_reason`, `evidence_commit`, `evidence_range_from`). Proven in V-07.
+    THE `nna8yz` MIS-RESOLUTION IS REPORTED AND NOT FIXED. `find_artifact`'s stem tier (`artifact_audit.py`, TIER THREE, `stem in p.name`) can return a file belonging to a DIFFERENT plan whose SLUG contains the queried id6, which is how step `nna8yz` resolves to plan `3i0aaz`. `6ltz1y` E-03 owns replacing it. This plan CONTAINS the harm instead: a row whose resolved artifact's filename id6 differs from the step's own id6 is `unknown` with `UNKNOWN_UNATTRIBUTABLE`, never `regressed`. Pinned by `test_an_unattributable_artifact_is_unknown_never_regressed`.
+    ONE UNRELATED PRE-EXISTING DEFECT FOUND AND NOT FIXED: `runner_shared.py:1145` calls `.strip()` on `_run_git`'s `(rc, out, err)` TUPLE (`status_out = _run_git(repo, ["status","--porcelain"]); holds_work = bool(status_out.strip())`). Verified pre-existing at HEAD `fea2c9f8` via `git show HEAD:agent_workflows/runner_shared.py`, so it is not mine to fix in this plan.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the new evidence check. Show it matches on the commit SUBJECT (not a body grep) and does not take only the first match, and name the artifact that makes this matter (`--grep` matches the body; manual merge commits quote the hook's demand). SHOW THE RANGE IS BOUNDED by the run's `ending_head` and not open-ended over all history, and cite `tests/test_executed_transition_gate.py:407` as the reason. Show how `ending_head` reaches the audit. Paste the new shared subject constant and every reference to it, including the producer and the hook matcher. Paste evidence for EACH failure mode resolving to `unknown`: not a git repository, git absent, nonzero exit, timeout, and ABSENT `ending_head`. Show you reused `runner_shared._run_git` rather than adding a fourth variant, and name the timeout you set. Paste the one-pass cost measurement.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. `FinalizeEvidenceIndex.finalize_after` matches the commit SUBJECT (never a body grep), keeps EVERY match (never the first only), and bounds the search to `ending_head..HEAD`; `ending_head` reaches the audit through a new `StepSummary` field read from the last attempt; the subject lives in ONE `artifact_core` definition with the producer, the gate matcher, the tip check and the viewer all referencing it; every failure mode (no repo, git absent, nonzero exit, timeout, absent head, unreachable head) resolves to `unknown` with its own test; `runner_shared._run_git` reused with `GIT_READ_TIMEOUT_SECONDS = 20.0`; one pass measured at 67.6ms against 26.1s per-row at 508 rows. Detail:
+    THE CHECK IS `FinalizeEvidenceIndex.finalize_after` (`artifact_audit.py:258`), fed by `build_finalize_evidence_index`:
+    ```python
+    if not self.available:
+        return None, self.unavailable_detail or UNKNOWN_GIT_UNAVAILABLE
+    if not ending_head:
+        return None, UNKNOWN_NO_ENDING_HEAD
+    if ending_head not in self.head_reachable:
+        return None, UNKNOWN_HEAD_UNREACHABLE
+    before = self._ancestors_of(ending_head)
+    for commit in self.finalize_commits.get(id6, ()):   # SUBJECT matches, in history order
+        if commit in self.head_reachable and commit not in before:
+            return commit, ""
+    return None, UNKNOWN_NO_EVIDENCE
+    ```
+    SUBJECT, NOT A BODY GREP. The index reads `git log --format=%H<US>%P<US>%s` and matches the third field with `_FINALIZE_SUBJECT_RE` anchored at `\A`. The artifact that makes this matter is named in the code comment: `--grep` matches the message BODY, and this repository's manual merge commits QUOTE the gate's demand in their bodies, so a body search matches them and a `head -1` hides the real finalize commit underneath. Pinned by `test_it_matches_the_subject_and_never_a_body_grep` (a commit whose body quotes `'lifecycle(bdy001): finalize'` yields `assertNotIn("bdy001", idx.finalize_commits)`).
+    NEVER THE FIRST MATCH ONLY: `finalize_commits` is `Dict[str, List[str]]` and every subject match is appended; `finalize_after` iterates the whole list. Pinned by `test_it_keeps_every_match_not_just_the_first` (two identical finalize subjects -> `assertEqual(len(...), 2)`).
+    THE RANGE IS BOUNDED BY `ending_head`, not open over all history: a candidate must be `in self.head_reachable` AND `not in before` where `before = ancestors_of(ending_head)`, i.e. exactly `ending_head..HEAD`, mirroring the hook's `HEAD..<incoming>`. The reason is cited in the docstring: `tests/test_executed_transition_gate.py::test_finalize_commit_already_on_head_is_not_evidence` exists because an OLD finalize must not authorize a NEW transition, so an unbounded reachable-from-HEAD test would accept a plan that was finalized, hand-reverted to `pending/`, then hand-re-`git mv`d. The viewer's analogue passes:
+    ```
+    $ python3 -m pytest tests/test_artifact_audit.py -k "before_the_ending_head" -o addopts=""
+    1 passed
+    ```
+    HOW `ending_head` REACHES THE AUDIT: `StepSummary` gained the field (`run_viewer.py`), populated in `load_run_summary` from the LAST attempt carrying one (`for att in reversed(attempts): if att.get("ending_head")`), then passed by `audit_step_artifact(step, repo_root, evidence)` as `ending_head=step.ending_head or ""` into `audit_artifact`. Both drivers write the key (`oc_runipd.py:6570`, `agy_runipd.py:3700`).
+    THE SHARED SUBJECT CONSTANT AND EVERY REFERENCE (one definition, four readers):
+    ```
+    $ grep -rn "finalize_commit_subject\|lifecycle_commit_prefix" agent_workflows/ --include=*.py
+    agent_workflows/artifact_core.py:140:def lifecycle_commit_prefix(plan_id: str) -> str:      <- THE definition
+    agent_workflows/artifact_core.py:150:def finalize_commit_subject(plan_id: str) -> str:      <- THE definition
+    agent_workflows/artifact_core.py:158:    return f"{lifecycle_commit_prefix(plan_id)}: finalize"
+    agent_workflows/ipd_lifecycle.py:1875:    if rc == 0 and subj.strip().startswith(_core.lifecycle_commit_prefix(plan_id)):   <- tip check
+    agent_workflows/ipd_lifecycle.py:2747:        f"{_core.finalize_commit_subject(plan_id)} {plan_id} -> executed"              <- PRODUCER
+    agent_workflows/hooks/executed_transition_gate.py:285:    subject = _core.finalize_commit_subject(plan_id)                                  <- GATE matcher
+    agent_workflows/hooks/executed_transition_gate.py:333:                f"'{_core.finalize_commit_subject(plan_id)}' commit for it, ...       <- refusal text
+    ```
+    The viewer's reader consumes it through `_FINALIZE_SUBJECT_RE`, built from `_core.LIFECYCLE_SUBJECT_KEYWORD`. `test_the_producer_the_gate_and_the_viewer_share_one_definition` asserts no reader re-encodes the string in CODE, and `test_the_gate_still_accepts_a_real_finalize_subject` proves the gate's behavior is unchanged (accepts the plan's own finalize on an incoming branch, refuses another id6's).
+    EVERY FAILURE MODE RESOLVES TO `unknown`, each with its own test:
+    | mode | reason returned | test |
+    |---|---|---|
+    | not a git repository | `git history could not be read...` | `test_case_f_git_unavailable_is_unknown_with_a_reason` |
+    | nonzero git exit / missing dir | same, with `git exited <rc>` | `test_a_nonzero_git_exit_is_unknown_not_a_pass` |
+    | git absent from PATH | same, via the `except Exception` on `FileNotFoundError` | same code path as above (one `except`) |
+    | TIMEOUT | `...: TimeoutExpired` | `test_a_timeout_is_unknown_not_a_pass` |
+    | HEAD does not resolve | `...: HEAD did not resolve` | covered by the empty-repo branch |
+    | ABSENT `ending_head` | `the run record carries no ending_head...` | `test_case_h_absent_ending_head_is_unknown_with_that_specific_reason` |
+    | `ending_head` not in history | `...is not in this repository's history...` | `test_an_unreachable_ending_head_says_so_rather_than_claiming_no_evidence` |
+    There is NO fallback to the unbounded check on any of these paths.
+    REUSED `runner_shared._run_git`, not a fourth variant: `build_finalize_evidence_index` does `from agent_workflows.runner_shared import _run_git` (lazily). That function had no timeout parameter, so it gained an OPTIONAL `timeout` defaulting to `None`, which is byte-for-byte today's behavior for every existing caller. TIMEOUT SET: `GIT_READ_TIMEOUT_SECONDS = 20.0`, asserted to actually reach the subprocess by `test_it_passes_an_explicit_timeout`.
+    ONE-PASS COST, MEASURED IN THIS LANE (3160 commits), which confirms the review's ~25s figure:
+    ```
+    ONE PASS (build_finalize_evidence_index): 67.6ms over 3160 commits, 204 finalize ids
+    ONE per-row --grep subprocess: 48.8ms -> at 508 rows = 24.8s
+    ONE merge-base --is-ancestor: 2.7ms -> at 508 rows = 1.4s
+    TOTAL per-row cost at 508 rows = 26.1s vs one pass 67.6ms
+    ```
+    The ancestry bound is computed in Python from the same pass's parent graph, memoized per distinct `ending_head`, so NO subprocess is spawned per row. Pinned structurally rather than by timing (flaky on shared CI) by `test_one_pass_answers_many_rows`: exactly 2 git invocations for the index, and 0 more across 12 classified rows.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the classification code showing SIX values and showing `resolved` requires BOTH forward direction AND E-02's in-range evidence. QUOTE the code path proving direction alone yields `unknown`. Show the forward set is DERIVED from the runner's terminal-state vocabulary rather than hand-listed, and paste the derivation. Show `unknown` and `unchanged` are distinct values with distinct meanings, and that an unattributable row is `unknown` and never `regressed`. Show the three boolean fields are still populated. Paste the `retired` rule and show it does not demand a finalize commit. State the `interrupted` row's disposition and `vdabn5`'s status.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Six classes defined; `resolved` is guarded by `if commit:` so direction alone returns `unknown`; the forward set is DERIVED via `run_status_is_nonterminal` -> `expected_dir_for_status`, with a drift test over BOTH drivers' `TERMINAL_STATES`; `unknown` and `unchanged` are distinct and neither `unknown` nor `regressed` is suppressible; an unattributable row is `unknown` before the `regressed` branch is reached; the three booleans are still populated; `retired` is evidenced by the RETIRED banner plus status agreement and demands NO finalize commit; `vdabn5` is still `pending` and its `interrupted` row renders `unknown`, never red. Detail:
+    SIX VALUES, defined in `artifact_audit.py`:
+    ```python
+    CLASS_RESOLVED  = "resolved"    CLASS_RETIRED = "retired"     CLASS_REGRESSED = "regressed"
+    CLASS_MISSING   = "missing"     CLASS_UNCHANGED = "unchanged"  CLASS_UNKNOWN   = "unknown"
+    ALL_CLASSES = (regressed, missing, unknown, resolved, retired, unchanged)
+    ALARMING_CLASSES     = frozenset({CLASS_REGRESSED, CLASS_MISSING})
+    SUPPRESSIBLE_CLASSES = frozenset({CLASS_RESOLVED, CLASS_RETIRED})   # CLASS_UNKNOWN deliberately absent
+    ```
+    `resolved` REQUIRES BOTH DIRECTION AND IN-RANGE EVIDENCE, and DIRECTION ALONE YIELDS `unknown`. The code path, quoted from `classify_difference`:
+    ```python
+    if forward and actual == "executed":
+        # THE ONE CLASS THAT NEEDS READ GIT EVIDENCE, TIME-BOUND to after this run ended.
+        if evidence is None:
+            return CLASS_UNKNOWN, UNKNOWN_NOT_CLASSIFIED, None
+        commit, why = evidence.finalize_after(audit.id6, ending_head)
+        if commit:
+            return CLASS_RESOLVED, f"finalized after the run ended (commit {commit[:12]})", commit
+        return CLASS_UNKNOWN, why, None
+    ```
+    There is NO branch on which `forward` alone returns `CLASS_RESOLVED`: the only `return CLASS_RESOLVED` in the module is guarded by `if commit:`. Proven behaviorally by V-06 case (b).
+    THE FORWARD SET IS DERIVED, NOT ENUMERATED:
+    ```python
+    def run_status_is_nonterminal(status: str) -> bool:
+        return expected_dir_for_status(status) == "pending"
+    ```
+    `expected_dir_for_status` consults `_TERMINAL_EXPECTED_DIR` (executed/complete/superseded/not-executed/reusable) and falls back to `pending` for everything else. NO status is hand-listed in the direction test. WHY THIS CATCHES THE DOMINANT SHAPES: neither `reviewed` nor `queued` is in that map, so both are forward-eligible without being named, which is exactly what PR-201 required (the enumerated form would have left 325+ of 508 rows red). Measured:
+    ```
+    $ python3 -m pytest tests/test_artifact_audit.py -k "ForwardDirectionDerivation" -o addopts=""
+    2 passed
+    ```
+    `test_the_two_dominant_false_alarm_statuses_are_forward_without_being_named` asserts `reviewed`, `queued` and `integration-blocked` are forward and the five terminal statuses are not. ANTI-DRIFT AGAINST THE RUNNERS: `test_every_driver_terminal_state_is_classified` enumerates BOTH `oc_runipd.TERMINAL_STATES` and `agy_runipd.TERMINAL_STATES` (plus `queued`/`running`/`interrupted`) and asserts each is classified, in the style of `runner_shutdown.KNOWN_ITEM_STATUSES`. Importing `oc_runipd` into the viewer's audit was rejected on measurement (182ms vs 28ms, and `oc_runipd` imports `run_viewer`, risking a cycle); see DECISION 05-zexed1-D3.
+    `unknown` AND `unchanged` ARE DISTINCT, with distinct meanings recorded at the definitions (`unchanged` is "a POSITIVE finding", `unknown` is "A CONFESSION, not a finding"). `test_unknown_and_unchanged_are_distinct_values` asserts they differ AND that neither `unknown` nor `regressed` is suppressible.
+    AN UNATTRIBUTABLE ROW IS `unknown`, NEVER `regressed`, and the check runs BEFORE the `regressed` branch:
+    ```python
+    if audit.id6 and audit.actual_path is not None:
+        found_id6 = _filename_id6(Path(audit.actual_path).name)
+        if found_id6 and found_id6 != audit.id6:
+            return CLASS_UNKNOWN, UNKNOWN_UNATTRIBUTABLE, None
+    ```
+    Pinned by `test_an_unattributable_artifact_is_unknown_never_regressed` using the measured `nna8yz` -> `3i0aaz` shape.
+    THE THREE BOOLEANS ARE STILL POPULATED: `audit_artifact` sets `missing_entirely`/`location_mismatch`/`status_mismatch` exactly as before and `_classified()` only FILLS the added fields. Proven on live output in V-07 (all 44 records carry all three).
+    THE `retired` RULE, and it does NOT demand a finalize commit:
+    ```python
+    if actual in _RETIREMENT_DIRS:                       # superseded/ or not-executed/
+        banner = audit.actual_path is not None and _has_retired_banner(Path(audit.actual_path))
+        if banner and declared == actual:
+            return CLASS_RETIRED, f"retired into {actual}/ with a RETIRED banner and an agreeing - Status:", None
+    ```
+    Its evidence is the artifact's own `RETIRED` banner plus status/directory agreement, and it returns `None` for the evidence commit. `test_case_g_...` asserts `idx.finalize_commits.get("ret001") is None` and STILL classifies `retired`. TWO CORRECTIONS MADE FROM MEASUREMENT, both worth recording: (1) the retirement test had to move IN FRONT of the direction gate, because PR-205's six measured rows recorded run status `complete` (which is NOT forward) against a `superseded/` artifact and otherwise fell through to `unknown` (observed on the fixture corpus before the fix: `co0041 | unknown | ... | the difference has no lifecycle direction`; after: `retired 4` instead of `retired 3  unknown 3`), now pinned by `test_a_complete_run_status_against_a_retirement_is_still_retired`; (2) an unevidenced retirement (no banner) stays `unknown`, pinned by `test_a_retirement_without_a_banner_is_unknown_not_retired`. Banner prevalence measured on this repository: 36 of 40 records in `superseded/`/`not-executed/` carry it within the first 4096 bytes (the four misses are the two trees' `README.md`, which are not records, and two plans retired without a banner).
+    THE `interrupted` ROW: `vdabn5` (`runviewdisc-02`) is STILL `pending` (`ls .aw/records/plans/pending/*vdabn5*` resolves), so its E-01 has NOT landed and the row it owns is not yet suppressed. This plan does NOT touch the status-tolerance branch and does NOT introduce a bucket for it, so `vdabn5` E-01 remains free to add `interrupted` to that branch exactly as authored. Under this classification an `interrupted`-vs-`approved` row (same directory, status disagreement only) has no lifecycle direction and therefore renders `unknown` with `UNKNOWN_NO_DIRECTION` rather than red, which strictly reduces the alarm `vdabn5` intends to remove and cannot conflict with it.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the rendered table for a fixture containing one row of EACH of the six classes, showing `regressed`/`missing` in the red styling, `resolved` and `retired` non-alarming, and `unknown` visible with a per-row reason. Paste all four `unknown` reasons (no finalize commit in range; no `ending_head`; git unavailable; artifact not attributable). Confirm by inspection there is no code path that hides an `unknown` or `regressed` row. Paste the per-class count summary line, and state your default-suppression decision for `resolved`/`retired` with the row count that justified it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Rendered table pasted with one row per class; `regressed`/`missing` alone carry `38;5;196` (asserted both ways); `resolved`/`retired` non-alarming; `unknown` always visible with one of SIX distinct reasons; the single filter consults `SUPPRESSIBLE_CLASSES`, which contains only `resolved`/`retired`, so no path can hide an `unknown` or `regressed` row; the per-class count line always prints; default suppression of `resolved`/`retired` TAKEN (41 of 44 fixture rows, ~446 of 508 live) with `--all-classes` restoring them. Detail:
+    THE RENDERED TABLE, one row per class (`unchanged` is deliberately absent from the table because it is not an issue row at all; its count line entry is exercised separately). ALL SIX `unknown` reasons appear, i.e. the four the plan named plus two more (see DECISION 05-zexed1-D6):
+    ```
+    artifact differences: regressed 1  missing 1  unknown 6  resolved 1  retired 1
+    Artifact & Status Differences
+    | Item                      | Class     | Expected  | Actual    | Expected | Actual   | Why                                                                                             |
+    | 20260908-x-01-rga001-slug | regressed | pending/  | executed/ | reviewed | executed | the run recorded executed but the artifact is in pending/                                       |
+    | 20260908-x-01-msa001-slug | missing   | executed/ | missing   | executed | -        | no artifact found for this step                                                                 |
+    | 20260908-x-01-unk001-slug | unknown   | pending/  | executed/ | reviewed | executed | no lifecycle finalize commit in the after-the-run range                                         |
+    | 20260908-x-01-unk002-slug | unknown   | pending/  | executed/ | reviewed | executed | the run record carries no ending_head, so the range cannot be formed                            |
+    | 20260908-x-01-unk003-slug | unknown   | pending/  | executed/ | reviewed | executed | git history could not be read (not a repository, git absent, or it failed)                      |
+    | 20260908-x-01-unk004-slug | unknown   | pending/  | executed/ | reviewed | executed | the artifact found could not be attributed to this step's id6                                   |
+    | 20260908-x-01-unk005-slug | unknown   | pending/  | executed/ | reviewed | executed | the run record's ending_head is not in this repository's history, so the range cannot be formed |
+    | 20260908-x-01-unk006-slug | unknown   | pending/  | executed/ | reviewed | executed | the difference has no lifecycle direction (status disagreement in place)                        |
+    | 20260908-x-01-rsa001-slug | resolved  | pending/  | executed/ | reviewed | executed | finalized after the run ended (commit dd996d73aa11)                                             |
+    | 20260908-x-01-rta001-slug | retired   | pending/  | executed/ | reviewed | executed | retired into superseded/ with a RETIRED banner and an agreeing - Status:                        |
+    ```
+    (box-drawing borders replaced with `|` here for readability; the rendered output uses the module's rounded box art.)
+    THE STYLING: `regressed`/`missing` carry the 256-color red and NOTHING else does, asserted rather than eyeballed by `test_only_regressed_and_missing_carry_the_alarming_color`, which checks `38;5;196` IS present for those two and is NOT present for `unknown`/`resolved`/`retired`. `_AUDIT_CLASS_COLOR` maps `unknown` to amber 214 (visible, unproven, not an accusation), `retired` to grey 245 and `resolved` to green 46.
+    NO CODE PATH HIDES AN `unknown` OR `regressed` ROW. There is exactly ONE filter, and it consults `SUPPRESSIBLE_CLASSES`, which contains only `resolved` and `retired`:
+    ```python
+    discrepancies = [a for a in issues if a.difference_class not in _audit.SUPPRESSIBLE_CLASSES]
+    ```
+    `test_unknown_and_regressed_are_never_suppressed_by_default` asserts both appear in the DEFAULT output while `resolved`/`retired` do not, and `test_unknown_and_unchanged_are_distinct_values` asserts neither `unknown` nor `regressed` is in `SUPPRESSIBLE_CLASSES` at all. There is no other flag, and `--all-classes` only ever ADDS rows.
+    THE PER-CLASS COUNT LINE is always printed when any row is an issue, including when every row is suppressed (`return count_line if any(counts.values()) else ""`), so a fully-suppressed table reports its numbers rather than rendering as silence. Live example from the 44-row fixture corpus:
+    ```
+    artifact differences: regressed 1  unknown 2  resolved 37  retired 4  (41 evidenced rows hidden; --all-classes shows them)
+    ```
+    DEFAULT-SUPPRESSION DECISION: TAKEN, for `resolved` and `retired` ONLY, restored by `--all-classes`. THE ROW COUNT THAT JUSTIFIED IT: on the 44-row synthetic corpus 41 of 44 candidate rows (93 percent) were evidenced `resolved`/`retired`, leaving 3 shown and 1 alarming; at the review-measured live distribution the same classes account for roughly 446 of 508 rows. Leaving them in by default would have kept the table unreadable and defeated the change's purpose, which is precisely PR-206's point that five colors over 508 rows is more honest but no more readable. `unknown` is NOT suppressible under any flag (OQ-01), because an invisible confession is indistinguishable from a clean pass.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste proof that all five call sites consult ONE definition of "is this row an issue" (object identity or grep over the five former sites). State `r2i1b1`'s status (it was `approved` at review) and, if it had not landed, show that its E-03 extraction is still possible (nothing renamed or relocated). State explicitly whether the row SET emitted by `--json`/`--agent` changed, and justify any change.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Zero copies of the boolean triple remain and all five former call sites plus two new helpers consult `audit_row_is_issue`, which delegates to the shipped `has_discrepancy`; `r2i1b1` is `approved` but NOT landed, and nothing was renamed or relocated so its E-03 extraction remains possible (the handoff is written into the helper's docstring); the machine-emitted row SET is UNCHANGED (44 rows before and after), deliberately, since narrowing it would alter published `aw.agent` records. Detail:
+    ONE DEFINITION, and ZERO surviving copies of the boolean triple:
+    ```
+    $ grep -c "missing_entirely or a.location_mismatch or a.status_mismatch" agent_workflows/run_viewer.py
+    0
+    $ grep -c "audit.missing_entirely or audit.location_mismatch" agent_workflows/run_viewer.py
+    0
+    $ grep -n "audit_row_is_issue" agent_workflows/run_viewer.py
+    1388:def audit_row_is_issue(audit: StepArtifactAudit) -> bool:
+    1421:        if not audit_row_is_issue(a):
+    1451:        if audit_row_is_issue(a):
+    1653:        has_issue = audit_row_is_issue(audit)
+    2873:            if audit_row_is_issue(a)
+    2917:                if audit_row_is_issue(a)
+    2948:            if audit_row_is_issue(a)
+    ```
+    All five former sites (table row selection `:1451`, steps-table `Issue` column `:1653`, `--json` `:2873`, `--agent` `:2917`, `--issues` human `:2948`) plus the two new helpers consult that one function, which DELEGATES to the shipped `ArtifactAudit.has_discrepancy` rather than re-deriving the predicate. Pinned by `test_every_former_call_site_consults_one_definition`.
+    `r2i1b1` (`orchprobe-01`) STATUS AT EXECUTION TIME: still `pending` with `- Status: approved`, i.e. approved but NOT yet landed:
+    ```
+    $ grep -m1 "^- Status:" .aw/records/plans/pending/*r2i1b1*
+    - Status: approved
+    ```
+    ITS E-03 EXTRACTION IS STILL POSSIBLE. Nothing was renamed or relocated: `format_artifact_audit_summary`, `render_steps_table` and every emission site keep their names and locations, and the helper introduced here is additive. When `r2i1b1` E-03 extracts the predicate, its function becomes the single definition and `audit_row_is_issue` should delegate to it or be deleted in favour of it; that instruction is written INTO the helper's docstring so the next executor finds it, together with the note that E-04 additionally extends the one predicate to count a REFUSAL as an issue. THE OVERLAP IS REPORTED: this plan did NOT perform `r2i1b1`'s extraction (that is another plan's E-item), but it also did not leave five hand-edited copies of a six-value classification, which E-05 called "strictly worse than the boolean version".
+    THE MACHINE-EMITTED ROW SET DID NOT CHANGE. `audit_row_is_issue` returns exactly `audit.has_discrepancy`, the same predicate the three machine sites used before, so `--json` and `--agent` emit the same rows they always did. Asserted for all four boolean combinations by `test_the_published_row_set_is_unchanged`, and measured end to end in V-07 (44 candidate rows BEFORE, 44 AFTER). This was deliberate: narrowing the predicate would silently change what a pinned `aw.agent` consumer receives, which the plan lists as out of scope ("SHRINKING THE TABLE'S ROW COUNT"). What changed is the human table's DISPLAY (rows in `SUPPRESSIBLE_CLASSES` are hidden by default), which is a rendering choice on a human surface and does not touch the machine records.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the ACTUAL passing output of all eight cases. QUOTE the forward-WITHOUT-evidence assertion separately and state in one sentence why classifying it `resolved` would reintroduce the abandoned design. QUOTE the before-`ending_head` assertion separately too. Paste all THREE measured false-alarm shapes reproduced as fixtures and shown non-red (`integration-blocked`, `reviewed`, `queued`). Confirm you added NO case asserting the `eulhzt` row stays red, and state why such a case is unsatisfiable. Confirm no test reads `.aw/records/runs/` or this repository's git history, and cite the hazard note the tests honor.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. All eight cases plus five extras pass (`62 passed in 2.17s`); case (b) the hand-edit bypass asserted `unknown` and NOT `resolved`, quoted separately; the before-`ending_head` case asserted `unknown`, quoted separately; all three measured shapes (`reviewed` 172, `queued` 153, `integration-blocked` 4) reproduced and shown non-red; NO case asserts the `eulhzt` row stays red and its absence is itself pinned; no test reads `.aw/records/runs/` or this repository's history, honoring the `tests/test_run_viewer.py:22-27` hazard note. Detail:
+    ALL EIGHT CASES PASSING, actual `pytest -v` output (`python3 -m pytest tests/test_artifact_audit.py -o addopts="" -v`):
+    ```
+    DifferenceClassificationTests::test_case_a_forward_with_in_range_evidence_is_resolved PASSED
+    DifferenceClassificationTests::test_case_b_forward_without_evidence_is_unknown_not_resolved PASSED
+    DifferenceClassificationTests::test_case_c_recorded_success_but_not_terminal_is_regressed_and_alarming PASSED
+    DifferenceClassificationTests::test_case_d_missing_artifact_is_missing_and_alarming PASSED
+    DifferenceClassificationTests::test_case_e_agreement_is_unchanged_and_not_an_issue PASSED
+    DifferenceClassificationTests::test_case_f_git_unavailable_is_unknown_with_a_reason PASSED
+    DifferenceClassificationTests::test_case_g_retirement_with_a_banner_and_no_finalize_commit_is_retired PASSED
+    DifferenceClassificationTests::test_case_h_absent_ending_head_is_unknown_with_that_specific_reason PASSED
+    DifferenceClassificationTests::test_a_finalize_before_the_ending_head_is_unknown_not_resolved PASSED
+    DifferenceClassificationTests::test_an_unreachable_ending_head_says_so_rather_than_claiming_no_evidence PASSED
+    DifferenceClassificationTests::test_an_unattributable_artifact_is_unknown_never_regressed PASSED
+    DifferenceClassificationTests::test_a_complete_run_status_against_a_retirement_is_still_retired PASSED
+    DifferenceClassificationTests::test_a_retirement_without_a_banner_is_unknown_not_retired PASSED
+    DifferenceClassificationTests::test_no_evidence_index_supplied_is_unknown_never_unchanged PASSED
+    DifferenceClassificationTests::test_unknown_and_unchanged_are_distinct_values PASSED
+    DifferenceClassificationTests::test_the_tracked_only_doctor_route_carries_an_honest_unknown PASSED
+    MeasuredFalseAlarmShapeTests::test_all_three_shapes_classify_resolved_and_render_non_red PASSED
+    MeasuredFalseAlarmShapeTests::test_no_case_asserts_the_stranded_lane_row_stays_red PASSED
+    ForwardDirectionDerivationTests (2) PASSED   EvidenceIndexTests (5) PASSED
+    ClassRenderingTests (5) PASSED   SharedFinalizeSubjectTests (2) PASSED
+    MachineRecordCompatibilityTests (1) PASSED   OneIssuePredicateTests (2) PASSED
+    ============================== 62 passed in 2.17s ==============================
+    ```
+    CASE (b) QUOTED SEPARATELY, the hand-edit bypass (`- Status: executed` plus `git mv`, no finalize commit):
+    ```python
+    _plan(root, "executed", "hnd001", "executed")
+    _commit(root, "docs: hand-edited a plan into executed/ with no finalize")
+    idx = artifact_audit.build_finalize_evidence_index(root)
+    audit = artifact_audit.audit_artifact(root, "hnd001", status="reviewed", evidence=idx, ending_head=base)
+    self.assertNotEqual(audit.difference_class, artifact_audit.CLASS_RESOLVED)
+    self.assertEqual(audit.difference_class, artifact_audit.CLASS_UNKNOWN)
+    self.assertEqual(audit.class_reason, artifact_audit.UNKNOWN_NO_EVIDENCE)
+    self.assertIsNone(audit.evidence_commit)
+    ```
+    WHY IT MATTERS, IN ONE SENTENCE: classifying that row `resolved` would print a reassuring verdict for exactly the hand-edit bypass the executed-transition gate exists to catch, which is the reason the direction-only design was abandoned on the 2026-09-05 maintainer ruling.
+    THE BEFORE-`ending_head` CASE QUOTED SEPARATELY (the time bound itself):
+    ```python
+    _commit(root, "lifecycle(old001): finalize old001 -> executed")
+    ending = _commit(root, "chore: a later unrelated commit")     # the run recorded its status AFTER the finalize
+    _commit(root, "chore: one more so HEAD is not the bound itself")
+    audit = artifact_audit.audit_artifact(root, "old001", status="reviewed", evidence=idx, ending_head=ending)
+    self.assertEqual(audit.difference_class, artifact_audit.CLASS_UNKNOWN)
+    self.assertEqual(audit.class_reason, artifact_audit.UNKNOWN_NO_EVIDENCE)
+    ```
+    This is the viewer's analogue of `tests/test_executed_transition_gate.py::test_finalize_commit_already_on_head_is_not_evidence`: the finalize commit IS reachable from HEAD, and it is still refused because it predates the bound.
+    ALL THREE MEASURED SHAPES REPRODUCED AND SHOWN NON-RED, in `test_all_three_shapes_classify_resolved_and_render_non_red`: `reviewed` (172 live rows), `queued` (153) and `integration-blocked` (4), each with a finalize commit in range. Each subTest asserts `has_discrepancy` is still True (the candidate row set is UNCHANGED), `difference_class == CLASS_RESOLVED`, and `is_alarming` is False; the test then renders the table and asserts the count line reads `resolved 3` with no row id appearing by default, and that `--all-classes` brings all three back. Measured on the 44-row corpus the same three shapes render as:
+    ```
+    artifact differences: regressed 1  unknown 2  resolved 37  retired 4  (41 evidenced rows hidden; --all-classes shows them)
+    ```
+    NO CASE ASSERTS THE `eulhzt` ROW STAYS RED, and the absence is itself pinned by `test_no_case_asserts_the_stranded_lane_row_stays_red`, which asserts neither `eulhzt` nor `E-item` appears in the audit module. WHY SUCH A CASE IS UNSATISFIABLE: that row measured `reviewed`/`executed`/`executed` with its finalize commit `dd996d73` in range for both recording runs, i.e. byte-identical in every field this audit reads to the 172 legitimate `reviewed` rows, so a test keeping it red could only pass by re-reddening those 172, which is the defect this classification removes. Per E-06's instruction, I did NOT find myself able to satisfy both, so no out-of-scope data source was added. The maintainer accepted the trade in OQ-04 on 2026-09-10.
+    NO TEST READS `.aw/records/runs/` OR THIS REPOSITORY'S GIT HISTORY. Every case builds its own tree under `tempfile.TemporaryDirectory()` and every git-evidence case runs `_init_repo` (`git init` in that temp dir) and makes its own commits. Verified:
+    ```
+    $ grep -n "records/runs" tests/test_artifact_audit.py
+    529:# makes its own commits; NOTHING here reads this repository's history or `.aw/records/runs/`. Both are
+    $ grep -n "_init_repo\|TemporaryDirectory" tests/test_artifact_audit.py | wc -l
+    62
+    ```
+    The single `records/runs` hit is the new block's own explanatory COMMENT, not a read; there is no code path in the file that opens that directory.
+    THE HAZARD NOTE HONORED: `tests/test_run_viewer.py:22-27` ("a new test must NOT read the live repository via `dir='.'`: `.aw/records/runs/` is gitignored and absent in every fresh checkout and in every isolated lane worktree the runner allocates by default"), restated at the head of the new test block in `tests/test_artifact_audit.py`. The one exception is deliberate and reads only MODULE SOURCE, never run records or history: `test_no_case_asserts_the_stranded_lane_row_stays_red` and `test_every_former_call_site_consults_one_definition` read `Path(module.__file__).read_text()`, which is the pattern the pre-existing `test_run_viewer_holds_no_local_audit_definition` already established in this file.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste negative proof that no run record was written or modified and that `git status --porcelain .aw/records/plans/` is clean. Paste `git diff --stat` limited to declared paths. Paste evidence the rest of `aw runs` output is unchanged apart from this table. Paste the machine-compatibility proof: the three legacy keys still present on every `--issues --agent` record, the class field added, nothing removed or renamed, and every line parsing as JSON. Paste the BEFORE and AFTER class distribution over the live corpus with the residual red count, and say whether the plan met its goal at scale. THEN paste the BARE `python3 -m pytest` summaries before and after with the failure-set delta as a set and the counts you actually observed. Paste exit codes UNPIPED.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. No run record written or modified across three viewer invocations and `git status --porcelain .aw/records/plans/` clean; the rest of `aw runs` output byte-identical (lines 1-52 diff empty, only the table changed); all three legacy machine keys present on every record with four additive fields and every line parsing, nothing removed or renamed; distribution 44-of-44 red BEFORE against 1-of-44 alarming AFTER (rows shown 44 -> 3), goal met at scale on the synthetic corpus with the live corpus unavailable and reported; bare suite 18 failed/6811 passed BEFORE and 18 failed/6847 passed AFTER with an EMPTY failure-set delta both ways; exit codes 0 unpiped. Detail:
+    NEGATIVE PROOF, RUN RECORDS: md5 of every file under the fixture's `.aw/records/runs/` taken before and after THREE viewer invocations (`--issues`, bare, `--issues --agent`):
+    ```
+    $ diff rec-before.txt rec-after.txt && echo "run records UNCHANGED after 3 viewer invocations (no diff)"
+    run records UNCHANGED after 3 viewer invocations (no diff)
+    $ find synrepo -name "state.json" -newermt "-1 minute" | wc -l
+    0
+    ```
+    NEGATIVE PROOF, PLANS:
+    ```
+    $ git status --porcelain .aw/records/plans/
+    (no output)
+    ```
+    (taken during execution, before this plan's own lifecycle transition; the only plan change in this lane is this file's E/V bookkeeping and its finalize move.)
+    `git diff --stat` OVER EVERY PATH TOUCHED (see the scope note: `artifact_audit.py`, `artifact_core.py`, `ipd_lifecycle.py`, `executed_transition_gate.py`, `runner_shared.py`, `cli.py`, `command_surface.py` are beyond the two declared paths and are reported as a widening, not absorbed):
+    ```
+    $ git status --porcelain | grep -v "^?? .aw/state/"
+     M agent_workflows/artifact_audit.py
+     M agent_workflows/artifact_core.py
+     M agent_workflows/cli.py
+     M agent_workflows/command_surface.py
+     M agent_workflows/hooks/executed_transition_gate.py
+     M agent_workflows/ipd_lifecycle.py
+     M agent_workflows/run_viewer.py
+     M agent_workflows/runner_shared.py
+     M tests/test_artifact_audit.py
+     M tests/test_run_viewer.py
+     M tests/test_runner_shared.py
+    ```
+    THE REST OF `aw runs` OUTPUT IS UNCHANGED. Full bare `aw runs` captured against the same fixture with the code at HEAD (in a throwaway `git worktree`) and with this change; the diff is confined to the audit table:
+    ```
+    $ diff <(head -52 before-full.txt) <(head -52 after-full.txt) && echo "IDENTICAL: yes (no diff output)"
+    IDENTICAL: yes (no diff output)
+    $ sed -n 52,54p after-full.txt
+    (blank)
+    artifact differences: regressed 1  unknown 2  resolved 37  retired 4  (41 evidenced rows hidden; --all-classes shows them)
+    Artifact & Status Differences
+    ```
+    Everything before the table (run header, steps table, cost/token columns, multi-run summary) is byte-identical; the changed region begins at the table's own count line.
+    MACHINE COMPATIBILITY:
+    ```
+    $ aw runs --issues --agent --dir synrepo | python3 -c "...":
+    rows: 44
+    all rows carry all 3 legacy keys: True
+    all rows carry the 4 added keys : True
+    every line parsed as JSON: yes
+    $ key-set diff BEFORE vs AFTER (first record):
+    removed or renamed: NONE
+    added            : ['class_reason', 'difference_class', 'evidence_commit', 'evidence_range_from']
+    ```
+    Per `docs/cli-agent-protocol.md:113` those four are additive optional fields inside `aw.agent/v1`, so no version bump is needed and none was made.
+    BEFORE/AFTER CLASS DISTRIBUTION. THE LIVE CORPUS WAS NOT AVAILABLE IN THIS LANE (`.aw/records/runs/` absent; reported as `AW_MISSING_INPUT`), so this is measured over a 44-row SYNTHETIC corpus built to the review-measured proportions (`mkfixture.py`, kept in the submission directory), through the real CLI, with BEFORE computed by the unmodified code at HEAD in a throwaway worktree:
+    ```
+    BEFORE (code at HEAD, same fixture)          AFTER (this change, same fixture)
+      rows: 44                                     rows: 44                (row set UNCHANGED)
+      has difference_class field: False            resolved: 37
+      rows rendered RED: 44  (44 of 44 = 100%)     retired:  4
+                                                   unknown:  2
+                                                   regressed: 1
+                                                   ALARMING (regressed+missing): 1  (1 of 44 = 2.3%)
+    ```
+    RESIDUAL RED: 1 of 44, down from 44 of 44, and that one row is a genuine `regressed` (a run recorded `executed` while its plan sits in `pending/` declaring `approved`, i.e. a finalize that did not stick). Rows SHOWN by default fall from 44 to 3. THE PLAN MET ITS GOAL AT SCALE on this corpus: the residual red is far below the before count, so E-03's forward derivation is not the enumerated form the plan warned would leave 325+ rows red. HONEST LIMIT: this is a proportional reproduction, not the live 508-row table, and a maintainer with access to the primary checkout should re-run `aw runs --issues --agent` there to confirm the same ratio.
+    BARE SUITE, BEFORE AND AFTER, with the delta as a SET:
+    ```
+    BEFORE: 18 failed, 6811 passed, 3 skipped, 2 xfailed in 150.17s (0:02:30)
+    AFTER : 18 failed, 6847 passed, 3 skipped, 2 xfailed in 74.96s (0:01:14)
+    $ comm -13 before-failures.txt after-failures.txt      # NEW failures
+    (empty)
+    $ comm -23 before-failures.txt after-failures.txt      # failures I fixed
+    (empty)
+    ```
+    THE FAILURE-SET DELTA IS EMPTY: the same 18 tests fail before and after, and 36 more pass (the new cases). The 18 pre-existing failures are worktree/integration and lifecycle-CLI tests unrelated to this change (`test_oc_runipd.py`/`test_agy_runipd_cli.py` isolation and integration guards, `test_ipd_lifecycle_cli.py::BeginCliTests`, `test_worker_role_refusal.py`, `test_novalnomerge_integration.py`, `test_orchestrator_retirement.py`), captured in `before-suite.txt`/`before-failures.txt` in the submission directory. ONE FAILURE WAS CAUSED AND RESOLVED DURING EXECUTION rather than hidden: `test_runner_shared.py::PureMoveFingerprintTests` pins `_run_git`'s AST as a pure move, and adding the optional `timeout` broke it; it was resolved by enumerating `_run_git` in that harness's existing `SUPERSEDED_SINCE_MOVE` category with the reason recorded, and by updating the clean-move count from 24 to 23 with a companion assertion so the enumeration and the count cannot drift apart. The guard's strictness is unchanged for every other symbol.
+    EXIT CODES, UNPIPED:
+    ```
+    $ python3 -m agent_workflows runs --issues --dir synrepo --no-color >/dev/null 2>&1; echo $?
+    0
+    $ python3 -m agent_workflows runs --issues --agent --dir synrepo >/dev/null 2>&1; echo $?
+    0
+    $ aw sanitize --agent >/dev/null 2>&1; echo $?
+    0
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

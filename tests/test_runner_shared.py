@@ -162,7 +162,19 @@ DOCUMENTED_SINCE_MOVE = ("plan_bucket",)
 # Holding `state_root` to byte-identical AST of the pre-move literal would freeze the defect in place.
 # The superseded symbol is tested rigorously in its own dedicated test suite (`CanonicalRunsRootTests`)
 # covering relocated backends, pure side-effect-free guarantees, and AST checks.
-SUPERSEDED_SINCE_MOVE = ("state_root",)
+#
+# `_run_git` GAINED AN OPTIONAL `timeout` (IPD `zexed1` E-02), and the exemption is recorded here rather
+# than absorbed. WHY IT IS LEGITIMATE: the pre-move body passes NO timeout, so a `git` that wedges hangs
+# its caller forever. That was harmless while every caller was a driver running unattended, and is not
+# harmless now that `artifact_audit.build_finalize_evidence_index` reads history for `aw runs`, an
+# INTERACTIVE read-only view. THE DEFAULT IS `None`, which is byte-for-byte today's behavior, so no
+# existing caller changed; holding the symbol to its pre-move AST would instead mean the shared git
+# helper can never grow a timeout, i.e. it would freeze the defect exactly as it would have for
+# `state_root`. The added capability has its OWN dedicated coverage in
+# `tests/test_artifact_audit.py::EvidenceIndexTests` (`test_it_passes_an_explicit_timeout` asserts the
+# value actually reaches the subprocess, `test_a_timeout_is_unknown_not_a_pass` asserts a timeout
+# classifies as unprovable rather than as a pass).
+SUPERSEDED_SINCE_MOVE = ("state_root", "_run_git")
 
 
 def load_fixture() -> dict[str, Any]:
@@ -393,7 +405,20 @@ class PureMoveFingerprintTests(unittest.TestCase):
             and n not in HOST_NAMING_ONLY
             and n not in SUPERSEDED_SINCE_MOVE
         ]
-        self.assertEqual(len(clean), 24, "the clean-move count must not drift silently")
+        # 23, DOWN FROM 24 BY EXACTLY ONE: `_run_git` moved to `SUPERSEDED_SINCE_MOVE` when it gained an
+        # optional `timeout` (IPD `zexed1` E-02; see that list for why the exemption is legitimate).
+        # This assertion exists so such a move cannot happen silently, so the number is updated
+        # together with the enumeration and never independently of it.
+        self.assertEqual(
+            len(clean),
+            23,
+            "the clean-move count must not drift silently",
+        )
+        self.assertEqual(
+            len(SUPERSEDED_SINCE_MOVE),
+            2,
+            "a name added to SUPERSEDED_SINCE_MOVE must be accounted for in the clean count above",
+        )
         for name in clean:
             with self.subTest(symbol=name):
                 # A name in `DOCUMENTED_SINCE_MOVE` is compared with its docstring subtracted; every

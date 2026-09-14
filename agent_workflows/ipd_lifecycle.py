@@ -1857,7 +1857,14 @@ def _lifecycle_commit_exists(
     Observed-state classification (E-03): we identify OUR lifecycle commit by (a) HEAD != pre_head
     and (b) the tip commit's subject carrying the deterministic `lifecycle(<id>): finalize ...`
     marker. This reads repository evidence rather than trusting that the commit subprocess ran.
+
+    The marker grammar is `artifact_core.lifecycle_commit_prefix` (IPD `zexed1` E-02), shared with the
+    producer, the pre-commit gate's matcher and the run viewer's evidence reader. Deliberately the
+    PREFIX and not the full finalize subject: this classifier recognizes any lifecycle verb's own
+    commit, which is looser than the gate's finalize-only demand and must stay so.
     """
+    from agent_workflows import artifact_core as _core
+
     rc, head, _err = _git(repo_root, ["rev-parse", "HEAD"])
     if rc != 0:
         return None
@@ -1865,7 +1872,7 @@ def _lifecycle_commit_exists(
     if head == pre_head:
         return None
     rc, subj, _err = _git(repo_root, ["log", "-1", "--format=%s", head])
-    if rc == 0 and subj.strip().startswith(f"lifecycle({plan_id})"):
+    if rc == 0 and subj.strip().startswith(_core.lifecycle_commit_prefix(plan_id)):
         return head
     # HEAD moved but not via our marker: ambiguous - the caller classifies unknown-outcome.
     return None
@@ -2576,6 +2583,7 @@ def _finalize_transaction(
     """
     import argparse
 
+    from agent_workflows import artifact_core as _core
     from agent_workflows import status_set as _ss
 
     plans_dir = _plans_dir_of(repo_root, plan_path)
@@ -2732,8 +2740,12 @@ def _finalize_transaction(
     except _InjectedFault as exc:
         return _rollback_and_return(f"fault-injected before commit ({exc})")
 
+    # The subject grammar is `artifact_core`'s (IPD `zexed1` E-02), not a local literal: the pre-commit
+    # gate and the run viewer's discrepancy classifier both MATCH what is produced here, and a
+    # hand-written copy in any one of them drifts silently (see `artifact_core.finalize_commit_subject`).
     commit_msg = (
-        f"lifecycle({plan_id}): finalize {plan_id} -> executed\n\n{message}\n\n"
+        f"{_core.finalize_commit_subject(plan_id)} {plan_id} -> executed"
+        f"\n\n{message}\n\n"
         f"Executed by {actor} via aw ipd finalize."
     )
     # ISOLATED COMMIT (isocommit). Committing in the SHARED tree lets `pre-commit` stash the whole

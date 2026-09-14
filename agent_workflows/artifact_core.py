@@ -111,6 +111,54 @@ def shard_for_date(yyyymmdd: str) -> str:
 
 
 # --------------------------------------------------------------------------------------
+# The ONE lifecycle-commit subject grammar (IPD `zexed1` E-02)
+# --------------------------------------------------------------------------------------
+#
+# WHO ELSE READS THIS, and why it must be one definition rather than four literals.
+# `aw ipd finalize` WRITES this subject (`ipd_lifecycle.finalize_plan`, the `commit_msg` it composes),
+# the local pre-commit gate MATCHES it to authorize an in-tree executed-transition during a merge
+# (`hooks/executed_transition_gate._intree_finalize_evidence_ok`), the finalize transaction's own
+# outcome classifier PREFIX-matches it to recognize its own commit
+# (`ipd_lifecycle._lifecycle_commit_exists`), and the run viewer's discrepancy classifier reads it out
+# of history as evidence that a forward lifecycle move really happened
+# (`artifact_audit.build_finalize_evidence_index`).
+#
+# THE FAILURE THIS PREVENTS IS SILENT AND ONE-SIDED. A fourth hand-written literal drifts from the
+# producer the first time the subject changes, and the way it drifts is not a crash: the GATE stops
+# recognizing genuine finalizes (so `--no-verify` becomes routine again) or the VIEWER stops finding
+# real evidence (so every legitimately finalized row degrades to `unknown`). Neither shows up as a test
+# failure in the module that changed. Change the subject HERE and every reader moves with it.
+#
+# Stdlib-only and dependency-free on purpose: the pre-commit gate deliberately keeps its module
+# imports to `subprocess`/`pathlib`/`typing` and imports `ipd_lifecycle` lazily, so the constant
+# cannot live in the producer without making the gate import-heavy.
+
+#: The literal marker word every lifecycle commit subject carries before its verb.
+LIFECYCLE_SUBJECT_KEYWORD = "lifecycle"
+
+
+def lifecycle_commit_prefix(plan_id: str) -> str:
+    """``lifecycle(<plan_id>)`` - the plan-bound prefix every lifecycle commit subject starts with.
+
+    PLAN-BOUND BY CONSTRUCTION, which is a security property and not formatting: a finalize commit for
+    plan A must never authorize or evidence a transition for plan B, so every reader binds on the id6
+    inside the parentheses rather than on the keyword alone.
+    """
+    return f"{LIFECYCLE_SUBJECT_KEYWORD}({plan_id})"
+
+
+def finalize_commit_subject(plan_id: str) -> str:
+    """``lifecycle(<plan_id>): finalize`` - the EXACT subject form `aw ipd finalize` writes.
+
+    Readers match a subject that STARTS WITH this string (the producer appends
+    ``<id6> -> executed``). Deliberately narrow: a looser match would let an ordinary work commit that
+    merely names the plan pass as finalize evidence, which is the hand-edit bypass wearing a different
+    hat (`executed_transition_gate` OQ-02).
+    """
+    return f"{lifecycle_commit_prefix(plan_id)}: finalize"
+
+
+# --------------------------------------------------------------------------------------
 # Writing-command safety helpers (atomic write, tracked git mv)
 # --------------------------------------------------------------------------------------
 

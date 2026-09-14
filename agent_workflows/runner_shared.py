@@ -328,14 +328,24 @@ def resolve_run_dir(repo_arg: str, run_id: str) -> Path:
 # with `cwd=repo`). Three genuinely different functions sharing a name. Do NOT "unify" them.
 
 
-def _run_git(repo: Path, args: list[str]) -> tuple[int, str, str]:
-    """Run a git command in ``repo``; return (returncode, stdout, stderr)."""
+def _run_git(
+    repo: Path, args: list[str], *, timeout: float | None = None
+) -> tuple[int, str, str]:
+    """Run a git command in ``repo``; return (returncode, stdout, stderr).
+
+    ``timeout`` DEFAULTS TO None, which is exactly today's behavior (wait indefinitely), so every
+    existing caller is unaffected. It exists for an INTERACTIVE read-only caller that must not hang
+    forever on a wedged git: `artifact_audit.build_finalize_evidence_index` passes one and treats a
+    `subprocess.TimeoutExpired` as an unprovable `unknown` rather than a pass. Raising is deliberate:
+    swallowing a timeout here would make a hang indistinguishable from an empty history.
+    """
     proc = subprocess.run(
         ["git", *args],
         cwd=str(repo),
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        timeout=timeout,
     )
     return proc.returncode, proc.stdout, proc.stderr
 
