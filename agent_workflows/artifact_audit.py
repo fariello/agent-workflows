@@ -68,10 +68,11 @@ TRACKED-ONLY: see :func:`audit_tracked_artifact`.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 
+from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
 from agent_workflows import selectors as _sel
 
@@ -109,6 +110,280 @@ _TERMINAL_EXPECTED_DIR = {
     "not-executed": "not-executed",
     "reusable": "reusable",
 }
+
+# The recorded statuses that mean THE RUN BELIEVED IT SUCCEEDED. A difference under one of these is
+# backwards-looking: the run says done, so the artifact had better be terminal.
+_RUN_SUCCESS_STATUSES = frozenset({"executed", "complete"})
+
+# The terminal dispositions that are a RETIREMENT rather than an execution. Reaching one of these is
+# forward progress, but of a kind that leaves NO finalize commit (see `CLASS_RETIRED`).
+_RETIREMENT_DIRS = frozenset({"superseded", "not-executed"})
+
+
+# --------------------------------------------------------------------------------------
+# THE DIRECTIONAL CLASSIFICATION (IPD `zexed1` E-03)
+# --------------------------------------------------------------------------------------
+#
+# WHY DIRECTION AT ALL. The three booleans above answer "do the run record and the tree differ", which
+# is not the question an operator has. A run record is IMMUTABLE HISTORY: gitignored, box-local state
+# whose statuses were TRUE WHEN THE RUN ENDED. When reality legitimately moves on - a lane that was
+# `integration-blocked` at 11:47Z gets integrated at 14:00Z - the booleans report the CORRECT new state
+# as a defect, in red. Measured on the live corpus at review: 508 rows in that table, of which
+# `('reviewed','executed','executed')` was 172 and `('queued','executed','executed')` 153, both
+# legitimate post-run progress. A warning that is mostly false is already being ignored, so its true
+# positives are already lost.
+#
+# THE ONE WAY TO GET THIS WRONG IS TO CLASSIFY ON DIRECTION ALONE, and a previous design was abandoned
+# for exactly that on a recorded maintainer ruling (2026-09-05). This audit reads only a parent
+# directory name and one `- Status:` line, so A LEGITIMATE FINALIZE AND A HAND-EDITED
+# `- Status: executed` PLUS `git mv` ARE BYTE-IDENTICAL TO IT. Inferring "resolved" from direction
+# would print a reassuring verdict for precisely the bypass `hooks/executed_transition_gate` exists to
+# catch. So `CLASS_RESOLVED` requires BOTH direction AND read git evidence, and everything unprovable
+# is a VISIBLE `CLASS_UNKNOWN`, never a quiet pass.
+
+#: Forward: the run had not finished with this artifact, and it has since reached `executed/` with a
+#: `lifecycle(<id6>): finalize` commit inside the after-the-run range. The ONLY class that asserts a
+#: difference is benign, and the only one that requires evidence.
+CLASS_RESOLVED = "resolved"
+
+#: Forward into a RETIREMENT directory (`superseded/`/`not-executed/`), evidenced by the artifact's own
+#: `RETIRED` banner plus its `- Status:` agreeing with its directory.
+CLASS_RETIRED = "retired"
+
+#: Backwards: the run recorded a SUCCESS but the artifact is in neither `executed/` nor a retirement
+#: directory. Evidence the finalize did not stick. This is what the red styling is FOR.
+CLASS_REGRESSED = "regressed"
+
+#: No artifact could be found at all (or an id6 collision made the lookup refuse to pick).
+CLASS_MISSING = "missing"
+
+#: The run record and the tree agree. A POSITIVE finding.
+CLASS_UNCHANGED = "unchanged"
+
+#: A difference this audit CANNOT PROVE either way. A CONFESSION, not a finding, and deliberately
+#: never collapsible into `CLASS_UNCHANGED` and never suppressible: an invisible confession is
+#: indistinguishable from a clean pass to every reader, which is the whole point of the 2026-09-05
+#: ruling.
+CLASS_UNKNOWN = "unknown"
+
+#: Every class, in report order.
+ALL_CLASSES: Tuple[str, ...] = (
+    CLASS_REGRESSED,
+    CLASS_MISSING,
+    CLASS_UNKNOWN,
+    CLASS_RESOLVED,
+    CLASS_RETIRED,
+    CLASS_UNCHANGED,
+)
+
+#: The classes that mean SOMETHING IS ACTUALLY WRONG. Reserved for the alarming styling, and NO code
+#: path may hide a row in one of these.
+ALARMING_CLASSES: frozenset = frozenset({CLASS_REGRESSED, CLASS_MISSING})
+
+#: The classes a consumer may suppress BY DEFAULT (counts still reported). Both HAVE evidence behind
+#: them. `CLASS_UNKNOWN` is deliberately absent (OQ-01).
+SUPPRESSIBLE_CLASSES: frozenset = frozenset({CLASS_RESOLVED, CLASS_RETIRED})
+
+# The `CLASS_UNKNOWN` reasons, each a DISTINCT OPERATOR SITUATION. A bare `unknown` teaches nothing,
+# and collapsing two of these would assert a search that never ran.
+UNKNOWN_NO_EVIDENCE = "no lifecycle finalize commit in the after-the-run range"
+UNKNOWN_NO_ENDING_HEAD = (
+    "the run record carries no ending_head, so the range cannot be formed"
+)
+UNKNOWN_HEAD_UNREACHABLE = "the run record's ending_head is not in this repository's history, so the range cannot be formed"
+UNKNOWN_GIT_UNAVAILABLE = (
+    "git history could not be read (not a repository, git absent, or it failed)"
+)
+UNKNOWN_UNATTRIBUTABLE = "the artifact found could not be attributed to this step's id6"
+UNKNOWN_NO_DIRECTION = (
+    "the difference has no lifecycle direction (status disagreement in place)"
+)
+UNKNOWN_NOT_CLASSIFIED = (
+    "no evidence index was supplied, so direction could not be evidenced"
+)
+UNKNOWN_TRACKED_ONLY = (
+    "a tracked-only sweep cannot see a run record, so direction is unknowable"
+)
+
+
+# --------------------------------------------------------------------------------------
+# The READ, TIME-BOUND git evidence for a forward lifecycle move (IPD `zexed1` E-02)
+# --------------------------------------------------------------------------------------
+
+
+@dataclass
+class FinalizeEvidenceIndex:
+    """One git pass worth of `lifecycle(<id6>): finalize` facts, answering every row in Python.
+
+    ONE PASS, NOT ONE PER ROW, and that is a usability requirement rather than an optimization.
+    Measured at review on the live repository (2885 commits): a full `git log --format=%s` pass is
+    ~46ms and a single `--grep` ~50ms, so per-row spawning across the measured 508 rows costs roughly
+    25 SECONDS for a read-only view an operator runs interactively. Re-measured in this lane (3094
+    commits): the combined `%H %P %s` pass this class uses is 42ms for the WHOLE table.
+
+    * ``available``   - False when git could not be read at all. Every row then classifies
+                        `CLASS_UNKNOWN` with :data:`UNKNOWN_GIT_UNAVAILABLE`; never a quiet pass.
+    * ``unavailable_detail`` - what went wrong, for the row's reason text.
+    * ``finalize_commits``   - id6 -> every commit whose SUBJECT is that plan's finalize subject.
+                        A LIST, never a first match: `--grep` matches the message BODY, and the manual
+                        merge commits in this repository QUOTE the gate's demand in their bodies, so a
+                        body grep matches them and a `head -1` hides the real finalize commit
+                        underneath. This index matches on the SUBJECT only, exactly as
+                        `hooks/executed_transition_gate._intree_finalize_evidence_ok` does.
+    * ``parents``     - commit -> its parents, so the ancestry needed for the TIME BOUND is computed
+                        in Python instead of spawning `git merge-base --is-ancestor` per row.
+    * ``head_reachable`` - every commit reachable from HEAD at index time.
+    """
+
+    available: bool = False
+    unavailable_detail: str = ""
+    finalize_commits: Dict[str, List[str]] = field(default_factory=dict)
+    parents: Dict[str, List[str]] = field(default_factory=dict)
+    head_reachable: Set[str] = field(default_factory=set)
+    _ancestor_cache: Dict[str, Set[str]] = field(default_factory=dict, repr=False)
+
+    def _ancestors_of(self, commit: str) -> Set[str]:
+        """``commit`` plus everything reachable FROM it, memoized per distinct commit.
+
+        Memoized because rows SHARE an ``ending_head``: a run's attempts write the same head for every
+        item it dispatched, so the number of distinct heads in a table is far smaller than the number
+        of rows, and this walk therefore runs a handful of times rather than 508.
+        """
+        cached = self._ancestor_cache.get(commit)
+        if cached is not None:
+            return cached
+        seen: Set[str] = set()
+        stack = [commit]
+        while stack:
+            cur = stack.pop()
+            if cur in seen:
+                continue
+            seen.add(cur)
+            stack.extend(self.parents.get(cur, ()))
+        self._ancestor_cache[commit] = seen
+        return seen
+
+    def finalize_after(self, id6: str, ending_head: str) -> Tuple[Optional[str], str]:
+        """Is there a finalize commit for ``id6`` AFTER ``ending_head``? Returns (commit, reason).
+
+        THE RANGE IS ``<ending_head>..HEAD``, MIRRORING THE HOOK'S ``HEAD..<incoming>``, and the bound
+        is mandatory rather than a refinement. "Is a finalize commit reachable from HEAD" is the WRONG
+        QUESTION and the gate's own suite says so: `test_finalize_commit_already_on_head_is_not_evidence`
+        (`tests/test_executed_transition_gate.py`) exists because AN OLD FINALIZE MUST NOT AUTHORIZE A
+        NEW TRANSITION. An unbounded check would accept a plan that was finalized long ago, later
+        hand-reverted to `pending/`, and then hand-re-`git mv`d into `executed/` - its old finalize
+        commit is still reachable, so the viewer would call that bypass `resolved`.
+
+        Every unprovable case returns ``(None, <reason>)`` and NEVER falls back to the weaker
+        unbounded check.
+        """
+        if not self.available:
+            return None, self.unavailable_detail or UNKNOWN_GIT_UNAVAILABLE
+        if not ending_head:
+            return None, UNKNOWN_NO_ENDING_HEAD
+        if ending_head not in self.head_reachable:
+            # A recorded head this repository cannot see (a squashed or discarded lane, a shallow
+            # clone). The range genuinely cannot be formed, which is a DIFFERENT operator situation
+            # from "the range was searched and held no finalize", so it gets its own reason.
+            return None, UNKNOWN_HEAD_UNREACHABLE
+        before = self._ancestors_of(ending_head)
+        for commit in self.finalize_commits.get(
+            id6, ()
+        ):  # SUBJECT matches, in history order
+            if commit in self.head_reachable and commit not in before:
+                return commit, ""
+        return None, UNKNOWN_NO_EVIDENCE
+
+
+#: How long the ONE history read may take. Small on purpose: this is a read-only viewer an operator
+#: runs interactively, and `runner_shared._run_git` passes no timeout of its own, so a wedged git
+#: would otherwise hang the view forever. A timeout is an `unknown`, never a pass.
+GIT_READ_TIMEOUT_SECONDS: float = 20.0
+
+#: The record separator inside one `git log` line. `\x1f` (ASCII US) cannot occur in a commit subject
+#: written by any `aw` verb and is not special to git's pretty formats.
+_LOG_SEP = "\x1f"
+
+_FINALIZE_SUBJECT_RE = re.compile(
+    r"\A"
+    + re.escape(_core.LIFECYCLE_SUBJECT_KEYWORD)
+    + r"\((?P<id6>[^)]+)\):\s*finalize\b"
+)
+
+
+def build_finalize_evidence_index(repo_root: Path) -> FinalizeEvidenceIndex:
+    """ONE read-only git pass collecting every finalize commit and the parent graph.
+
+    THIS IS THE AUDIT'S FIRST AND ONLY GIT DEPENDENCY, so every failure mode is handled and every one
+    of them resolves to an `unknown`: not a git repository, `git` absent from PATH, a shallow clone, a
+    detached HEAD, a nonzero exit, a timeout. There is deliberately no path on which an unreadable
+    history produces a reassuring verdict.
+
+    Reuses ``runner_shared._run_git`` rather than adding a fourth same-named variant (that module's own
+    comment documents three genuinely different `_run_git` functions and says not to unify them), and
+    imports it LAZILY so this module stays cheap for the tracked-only doctor consumer, which needs no
+    git at all.
+    """
+    idx = FinalizeEvidenceIndex()
+    try:
+        from agent_workflows.runner_shared import _run_git
+    except Exception as exc:  # pragma: no cover - import-time environment failure
+        idx.unavailable_detail = f"{UNKNOWN_GIT_UNAVAILABLE} ({type(exc).__name__})"
+        return idx
+
+    root = Path(repo_root)
+    try:
+        rc, out, err = _run_git(
+            root,
+            [
+                "log",
+                f"--format=%H{_LOG_SEP}%P{_LOG_SEP}%s",
+                "--all",
+                "--no-color",
+            ],
+            timeout=GIT_READ_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:
+        # FileNotFoundError (git absent), TimeoutExpired, NotADirectoryError, any OSError.
+        idx.unavailable_detail = f"{UNKNOWN_GIT_UNAVAILABLE}: {type(exc).__name__}"
+        return idx
+    if rc != 0:
+        detail = (err or "").strip().splitlines()
+        idx.unavailable_detail = f"{UNKNOWN_GIT_UNAVAILABLE}: git exited {rc}" + (
+            f" ({detail[0][:120]})" if detail else ""
+        )
+        return idx
+
+    for line in out.splitlines():
+        parts = line.split(_LOG_SEP)
+        if len(parts) != 3:
+            continue
+        sha, parents_raw, subject = parts
+        sha = sha.strip()
+        if not sha:
+            continue
+        idx.parents[sha] = [p for p in parents_raw.split() if p]
+        m = _FINALIZE_SUBJECT_RE.match(subject.strip())
+        if m:
+            idx.finalize_commits.setdefault(m.group("id6"), []).append(sha)
+
+    # HEAD's reachable set, from the SAME pass's parent graph rather than a second subprocess. A
+    # detached HEAD resolves like any other commit; a HEAD that does not resolve (an empty repository)
+    # leaves the set empty, so every row is `unknown` rather than silently evidenced.
+    try:
+        rc_head, head_out, _e = _run_git(
+            root, ["rev-parse", "HEAD"], timeout=GIT_READ_TIMEOUT_SECONDS
+        )
+    except Exception as exc:
+        idx.unavailable_detail = f"{UNKNOWN_GIT_UNAVAILABLE}: {type(exc).__name__}"
+        return idx
+    if rc_head != 0 or not head_out.strip():
+        idx.unavailable_detail = f"{UNKNOWN_GIT_UNAVAILABLE}: HEAD did not resolve"
+        return idx
+    head = head_out.strip()
+    idx.available = True
+    idx.head_reachable = idx._ancestors_of(head)
+    return idx
 
 
 @dataclass
@@ -159,6 +434,22 @@ class ArtifactAudit:
     actual_path: Optional[Path] = None
     is_live: bool = False
     collisions: List[Path] = None  # type: ignore[assignment]
+    # THE DIRECTIONAL CLASS IS ADDED BESIDE THE THREE BOOLEANS, NEVER INSTEAD OF THEM (IPD `zexed1`
+    # E-03, review PR-204). `aw runs --json` and `aw runs --agent` `asdict()` this dataclass straight
+    # into PUBLISHED records, and `docs/cli-agent-protocol.md`'s stability rule makes an added optional
+    # field backward compatible while REMOVING `missing_entirely`/`location_mismatch`/`status_mismatch`
+    # would be a breaking change requiring an `aw.agent/v2` bump. So the booleans stay populated
+    # exactly as before and a consumer pinned to them keeps working unchanged.
+    #
+    # Defaults to `CLASS_UNKNOWN` with a reason saying WHY, so an audit built by a caller that supplies
+    # no evidence index (the tracked-only doctor route, or any older construction site) can never read
+    # as a reassuring `CLASS_UNCHANGED` it did not earn.
+    difference_class: str = CLASS_UNKNOWN
+    class_reason: str = UNKNOWN_NOT_CLASSIFIED
+    #: The `lifecycle(<id6>): finalize` commit that evidenced `CLASS_RESOLVED`, when there is one.
+    evidence_commit: Optional[str] = None
+    #: The run attempt's `ending_head`, i.e. the time bound this row's evidence was searched against.
+    evidence_range_from: Optional[str] = None
 
     def __post_init__(self) -> None:
         if self.collisions is None:
@@ -166,10 +457,21 @@ class ArtifactAudit:
 
     @property
     def has_discrepancy(self) -> bool:
-        """True when this audit found ANY drift worth reporting."""
+        """True when this audit found ANY drift worth reporting.
+
+        DELIBERATELY UNCHANGED by the directional classification: this is the predicate the published
+        `--json`/`--agent` records and the human table have always selected rows with, so narrowing it
+        would change WHICH rows a machine consumer receives. What changed is how a selected row is
+        CLASSIFIED and STYLED, not whether it appears (IPD `zexed1` E-05).
+        """
         return bool(
             self.missing_entirely or self.location_mismatch or self.status_mismatch
         )
+
+    @property
+    def is_alarming(self) -> bool:
+        """True when this row means SOMETHING IS ACTUALLY WRONG, i.e. earns the red styling."""
+        return self.has_discrepancy and self.difference_class in ALARMING_CLASSES
 
 
 def expected_dir_for_status(status: str) -> str:
@@ -183,6 +485,194 @@ def expected_dir_for_status(status: str) -> str:
     """
     st = "complete" if status == "substantially-complete" else status
     return _TERMINAL_EXPECTED_DIR.get(st, "pending")
+
+
+def run_status_is_nonterminal(status: str) -> bool:
+    """Did the run record's ``status`` mean THIS RUN WAS NOT DONE WITH THIS ARTIFACT?
+
+    DERIVED, NOT ENUMERATED, and that is the correction that makes this plan work at all (IPD `zexed1`
+    E-03, review PR-201). The forward direction is defined as "the recorded status expected the
+    artifact in `pending/`", read straight off :func:`expected_dir_for_status`, rather than as a
+    hand-written list of statuses.
+
+    WHY THE ENUMERATED FORM FAILS. Measured at review, the live table carried 508 rows; the
+    `integration-blocked` shape the item was filed about was 4 of them, while
+    `('reviewed','executed','executed')` was 172 and `('queued','executed','executed')` 153. Both of
+    those dominant shapes are the SAME false alarm arriving by a different route: `initialize_run`
+    DERIVES a queue entry's status as `reviewed` for anything not `to-review`/`draft`/`approved`/
+    `auto-approved`, and `queued` simply means the run never dispatched the item, so a plan that
+    executed in a LATER run reads as a discrepancy forever. An enumeration of the three statuses the
+    item mentioned would have left 325+ of those rows exactly as red as they are today, i.e. the fix
+    would not have achieved its own goal.
+    WHY THE DERIVATION CATCHES THEM FOR FREE: neither `reviewed` nor `queued` is in
+    ``_TERMINAL_EXPECTED_DIR``, so both map to `pending` and are forward-eligible without being named.
+
+    `tests/test_artifact_audit.py` pins this against BOTH host drivers' `TERMINAL_STATES`, in the style
+    of `runner_shutdown.KNOWN_ITEM_STATUSES`, so a driver adding a status cannot drift silently.
+    """
+    return expected_dir_for_status(status) == "pending"
+
+
+def _disposition_dir(path: Path) -> str:
+    """The DISPOSITION directory a record sits in, climbing a monthly shard (`executed/202608/`)."""
+    parent = path.parent.name
+    if re.fullmatch(r"\d{6}", parent):
+        return path.parent.parent.name
+    return parent
+
+
+def _has_retired_banner(path: Path) -> bool:
+    """Does this record carry a `RETIRED` banner near the top?
+
+    The banner is the retirement's OWN evidence, and it is what makes `CLASS_RETIRED` an evidenced
+    class rather than an inference (see :func:`classify_difference`). Read from a bounded header, in
+    the several shapes the corpus actually uses: bare, HTML-commented, blockquoted, or bolded.
+    Measured on this repository: 36 of 40 records in `superseded/`/`not-executed/` carry it within the
+    first 4096 bytes (the four that do not are the two trees' `README.md` files, which are not
+    records, and two plans retired without a banner).
+    """
+    try:
+        with open(path, "rb") as fh:
+            header = fh.read(4096).decode("utf-8", errors="ignore")
+    except OSError:
+        return False
+    return bool(_RETIRED_BANNER_RE.search(header))
+
+
+#: The `RETIRED` banner, in the shapes the live corpus uses (bare, `<!-- -->`, `>`, `**`).
+_RETIRED_BANNER_RE = re.compile(r"(?m)^[ \t]*(?:<!--[ \t]*)?(?:>[ \t]*)?\**RETIRED\b")
+
+
+def classify_difference(
+    audit: "ArtifactAudit",
+    *,
+    evidence: Optional[FinalizeEvidenceIndex] = None,
+    ending_head: str = "",
+) -> Tuple[str, str, Optional[str]]:
+    """Classify one audit BY DIRECTION, on READ evidence. Returns (class, reason, evidence_commit).
+
+    `CLASS_RESOLVED` REQUIRES EVIDENCE, NOT DIRECTION, and this is the entire reason the previous
+    attempt at this feature was abandoned on a maintainer ruling (2026-09-05). A row earns `resolved`
+    only when BOTH the lifecycle direction is forward AND a `lifecycle(<id6>): finalize` commit is found
+    inside the ``ending_head..HEAD`` range. DIRECTION ALONE YIELDS `CLASS_UNKNOWN`, because a legitimate
+    finalize and a hand-edited `- Status: executed` plus `git mv` are BYTE-IDENTICAL to this audit
+    (it reads a parent directory name and one `- Status:` line, nothing else), so treating direction as
+    proof would print a reassuring verdict for exactly the bypass
+    `hooks/executed_transition_gate` exists to catch. DO NOT "simplify" the evidence check away.
+
+    `CLASS_RETIRED` IS EVIDENCED DIFFERENTLY ON PURPOSE, and demanding a finalize commit for it would be
+    wrong rather than merely strict: RETIREMENT WRITES NO FINALIZE COMMIT. Measured at review, history
+    carried 190 `lifecycle(ID): finalize` subjects against exactly ONE `lifecycle(ID): retire`, while 82
+    of the 508 rows had their artifact in `superseded/` (74) or `not-executed/` (8). Under a
+    finalize-only evidence rule every legitimate retirement would be permanently `unknown`, and under
+    the item's original `regressed` rule the six that recorded `complete` would render RED forever. Its
+    evidence is instead the artifact's own `RETIRED` banner plus its `- Status:` agreeing with its
+    directory.
+    """
+    if audit.missing_entirely:
+        # Includes the id6-COLLISION case, where the lookup refused to pick between several files.
+        # Either way there is no artifact to reason about, and a run pointing at nothing is a real
+        # finding rather than an unprovable one.
+        detail = (
+            f"{len(audit.collisions)} records claim this id6"
+            if audit.collisions
+            else "no artifact found for this step"
+        )
+        return CLASS_MISSING, detail, None
+    if not audit.has_discrepancy:
+        return CLASS_UNCHANGED, "the run record and the artifact agree", None
+
+    # THE DISPOSITION, NOT THE LITERAL PARENT. `audit.actual_dir` is the parent directory NAME, which
+    # for an archived plan is its monthly shard (`executed/202608/` -> `202608`); the pre-existing
+    # `location_mismatch` compares that raw name and therefore already flags an archived plan. The
+    # CLASSIFICATION must not repeat that: a plan archived under `executed/202608/` reached `executed`,
+    # so it is classified against the disposition it actually sits in.
+    actual = (
+        _disposition_dir(Path(audit.actual_path))
+        if audit.actual_path is not None
+        else (audit.actual_dir or "")
+    )
+    forward = run_status_is_nonterminal(audit.run_status)
+
+    # UNATTRIBUTABLE ROWS ARE NEVER `regressed` (review PR-202/F-6e). `find_artifact`'s filename tier
+    # resolves an id6 that appears in the grammar's id6 FIELD, but a caller may still hand this audit a
+    # stem-resolved file, and one live row is a measured mis-resolution (step `nna8yz` resolving to plan
+    # `3i0aaz`, whose SLUG contains `nna8yz`). Calling that `regressed` would make a lookup defect look
+    # like lost work, and under the narrowed rule below it would be the ONLY red row. `6ltz1y` E-03
+    # owns the resolver fix; this refuses to slander the row in the meantime.
+    if audit.id6 and audit.actual_path is not None:
+        found_id6 = _filename_id6(Path(audit.actual_path).name)
+        if found_id6 and found_id6 != audit.id6:
+            return CLASS_UNKNOWN, UNKNOWN_UNATTRIBUTABLE, None
+
+    if actual in _RETIREMENT_DIRS:
+        # A retirement carries its OWN evidence, so it is checked BEFORE the direction gate and does not
+        # require a forward run status. THIS IS THE SIX-ROW CASE PR-205 MEASURED: those rows recorded a
+        # run status of `complete` against a `superseded/` artifact, which is not forward at all, yet
+        # every one was a legitimate banner-carrying retirement. Requiring forwardness here would leave
+        # them permanently red (under the item's original `regressed` rule) or permanently `unknown`,
+        # which is what this branch's placement prevents. Verified on the fixture corpus: with the
+        # direction gate in front of this test, a `('complete','superseded','superseded')` row fell all
+        # the way through to `unknown` with a "no lifecycle direction" reason.
+        declared = audit.file_status or ""
+        banner = audit.actual_path is not None and _has_retired_banner(
+            Path(audit.actual_path)
+        )
+        if banner and declared == actual:
+            return (
+                CLASS_RETIRED,
+                f"retired into {actual}/ with a RETIRED banner and an agreeing - Status:",
+                None,
+            )
+        # A retirement directory WITHOUT that evidence is not something this audit can vouch for.
+        missing_bits = []
+        if not banner:
+            missing_bits.append("no RETIRED banner")
+        if declared != actual:
+            missing_bits.append(
+                f"- Status: {declared or '(none)'} does not match {actual}/"
+            )
+        return (
+            CLASS_UNKNOWN,
+            f"in {actual}/ but the retirement is unevidenced ({'; '.join(missing_bits)})",
+            None,
+        )
+
+    if forward and actual == "executed":
+        # THE ONE CLASS THAT NEEDS READ GIT EVIDENCE, TIME-BOUND to after this run ended.
+        if evidence is None:
+            return CLASS_UNKNOWN, UNKNOWN_NOT_CLASSIFIED, None
+        commit, why = evidence.finalize_after(audit.id6, ending_head)
+        if commit:
+            return (
+                CLASS_RESOLVED,
+                f"finalized after the run ended (commit {commit[:12]})",
+                commit,
+            )
+        return CLASS_UNKNOWN, why, None
+
+    if audit.run_status in _RUN_SUCCESS_STATUSES and actual not in (
+        "executed",
+        *_RETIREMENT_DIRS,
+    ):
+        # BACKWARDS: the run recorded a SUCCESS and the artifact is in neither `executed/` nor a
+        # retirement directory. Evidence the finalize did not stick, which is what the red is FOR.
+        # NARROWER THAN THE ITEM'S RULE deliberately: a retirement is excluded above, and an
+        # unattributable row was excluded further up.
+        return (
+            CLASS_REGRESSED,
+            f"the run recorded {audit.run_status} but the artifact is in {actual or '(nowhere)'}/",
+            None,
+        )
+
+    if forward and actual == "reusable":
+        # `reusable/` is a STANDING disposition, not an execution outcome, and no lifecycle commit
+        # marks entry into it. Unprovable rather than wrong.
+        return CLASS_UNKNOWN, f"in the standing {actual}/ disposition", None
+
+    # Everything else is a difference with no lifecycle DIRECTION to read: most often a `- Status:`
+    # disagreement inside the SAME directory, where nothing moved at all.
+    return CLASS_UNKNOWN, UNKNOWN_NO_DIRECTION, None
 
 
 def _filename_id6(name: str) -> Optional[str]:
@@ -423,6 +913,8 @@ def audit_artifact(
     configured_file: str = "",
     is_live: bool = False,
     record_types: Sequence[str] = TYPE_PRECEDENCE,
+    evidence: Optional[FinalizeEvidenceIndex] = None,
+    ending_head: str = "",
 ) -> ArtifactAudit:
     """THE audit predicate: is the artifact for ``id6`` where ``status`` says it should be?
 
@@ -435,6 +927,12 @@ def audit_artifact(
     exists. ``is_live`` is recorded, never derived, and never suppresses a verdict here: the CONSUMER
     decides what to do with an in-flight artifact, and the run viewer's choice (render it, tagged
     ``[in flight]``) differs from the doctor rule's (do not report it at all).
+
+    ``evidence`` and ``ending_head`` add the DIRECTIONAL CLASSIFICATION (IPD `zexed1`): the caller
+    builds the evidence index ONCE for the whole table (:func:`build_finalize_evidence_index`) and
+    passes each row's own run-attempt ``ending_head`` as the time bound. Both are OPTIONAL and their
+    absence is safe by construction: a caller that omits them gets `CLASS_UNKNOWN` with a reason saying
+    so, never a `CLASS_UNCHANGED` or `CLASS_RESOLVED` it did not earn.
     """
     stem = stem or id6
     recorded = "complete" if status == "substantially-complete" else status
@@ -450,34 +948,63 @@ def audit_artifact(
         collisions = list(lookup.collisions)
 
     if actual_file is None:
-        return ArtifactAudit(
-            id6=id6,
-            stem=stem,
-            run_status=recorded,
-            missing_entirely=True,
-            expected_dir=expected,
-            is_live=is_live,
-            collisions=collisions,
+        return _classified(
+            ArtifactAudit(
+                id6=id6,
+                stem=stem,
+                run_status=recorded,
+                missing_entirely=True,
+                expected_dir=expected,
+                is_live=is_live,
+                collisions=collisions,
+            ),
+            evidence=evidence,
+            ending_head=ending_head,
         )
 
     actual_dir = actual_file.parent.name
     file_status = read_declared_status(actual_file)
-    return ArtifactAudit(
-        id6=id6,
-        stem=stem,
-        run_status=recorded,
-        missing_entirely=False,
-        location_mismatch=actual_dir != expected,
-        status_mismatch=bool(
-            file_status is not None and _status_disagrees(recorded, file_status)
+    return _classified(
+        ArtifactAudit(
+            id6=id6,
+            stem=stem,
+            run_status=recorded,
+            missing_entirely=False,
+            location_mismatch=actual_dir != expected,
+            status_mismatch=bool(
+                file_status is not None and _status_disagrees(recorded, file_status)
+            ),
+            actual_dir=actual_dir,
+            expected_dir=expected,
+            file_status=file_status,
+            actual_path=actual_file,
+            is_live=is_live,
+            collisions=collisions,
         ),
-        actual_dir=actual_dir,
-        expected_dir=expected,
-        file_status=file_status,
-        actual_path=actual_file,
-        is_live=is_live,
-        collisions=collisions,
+        evidence=evidence,
+        ending_head=ending_head,
     )
+
+
+def _classified(
+    audit: ArtifactAudit,
+    *,
+    evidence: Optional[FinalizeEvidenceIndex],
+    ending_head: str,
+) -> ArtifactAudit:
+    """Fill ``difference_class``/``class_reason``/``evidence_commit`` on a freshly built audit.
+
+    One place, so no construction site can forget and leave the default `CLASS_UNKNOWN` on a row it
+    could have classified.
+    """
+    cls, reason, commit = classify_difference(
+        audit, evidence=evidence, ending_head=ending_head
+    )
+    audit.difference_class = cls
+    audit.class_reason = reason
+    audit.evidence_commit = commit
+    audit.evidence_range_from = ending_head or None
+    return audit
 
 
 def audit_tracked_artifact(repo_root: Path, path: Path) -> Optional[ArtifactAudit]:
@@ -537,7 +1064,15 @@ def audit_tracked_artifact(repo_root: Path, path: Path) -> Optional[ArtifactAudi
     # Only judge a record that actually lives in a terminal/standing disposition tree.
     if actual_dir not in set(_TERMINAL_EXPECTED_DIR.values()):
         return None
+    # THIS ROUTE DELIBERATELY CARRIES NO DIRECTIONAL CLASS (IPD `zexed1`). Direction is a comparison
+    # between a RUN RECORD's recorded status and the tree, and this route reads no run record at all
+    # (that coupling is exactly what E-04 route (b) refuses). So the class stays the honest
+    # `CLASS_UNKNOWN` with a reason naming the limitation, rather than a class computed from a status
+    # that is the record's OWN and therefore cannot disagree with itself directionally. `aw doctor`
+    # renders these as advisory findings and does not read the class.
     return ArtifactAudit(
+        difference_class=CLASS_UNKNOWN,
+        class_reason=UNKNOWN_TRACKED_ONLY,
         id6=_filename_id6(path.name) or "",
         stem=path.name,
         run_status=declared,

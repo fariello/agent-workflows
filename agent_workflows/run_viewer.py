@@ -98,6 +98,13 @@ class StepSummary:
     is_live: bool = False
     elapsed_seconds: float | None = None
     elapsed_str: str | None = None
+    # THE TIME BOUND FOR THE ARTIFACT AUDIT'S EVIDENCE CHECK (IPD `zexed1` E-02): the git HEAD as it
+    # stood when this item's LAST attempt ended, read straight off the run record's `attempts[]` (both
+    # drivers write it; measured at review, 103 of 143 run records and 439 of 491 attempts carry it).
+    # It answers "did a finalize happen AFTER this run recorded this status", which is the same
+    # after-the-fact semantics the pre-commit gate gets from `HEAD..<incoming>`. An absent value is an
+    # honest `unknown`, never a licence to fall back to an unbounded reachable-from-HEAD check.
+    ending_head: str | None = None
 
     @property
     def is_projected(self) -> bool:
@@ -453,7 +460,9 @@ def find_artifact_file(repo_root: Path, id6: str, stem: str) -> Path | None:
 
 
 def audit_step_artifact(
-    step: StepSummary, repo_root: Path = Path(".")
+    step: StepSummary,
+    repo_root: Path = Path("."),
+    evidence: _audit.FinalizeEvidenceIndex | None = None,
 ) -> _audit.ArtifactAudit:
     """Audit a STEP's artifact location and status: the run-viewer-shaped adapter over the shared
     predicate.
@@ -464,6 +473,11 @@ def audit_step_artifact(
     viewer, which owns the type. ``is_live`` is passed THROUGH to the shared predicate, which records
     it without deriving it; liveness comes from this module's own run-directory probe
     (``inspect_run_pid_and_runtime``) and nothing in the shared module can compute it.
+
+    ``evidence`` is the ONE git-history index for the whole table (IPD `zexed1` E-02), built once by
+    the caller and reused for every row; the step's own ``ending_head`` is the time bound. OMITTING it
+    is safe and honest, not silently degrading: every forward row then classifies `unknown` with a
+    reason saying no evidence index was supplied, so an omission can never read as a clean pass.
     """
     return _audit.audit_artifact(
         repo_root,
@@ -472,6 +486,8 @@ def audit_step_artifact(
         status=step.status,
         configured_file=step.configured_file,
         is_live=step.is_live,
+        evidence=evidence,
+        ending_head=step.ending_head or "",
     )
 
 
@@ -815,10 +831,18 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                 att_count = len(attempts)
 
                 session_id = None
+                step_ending_head = None
                 if attempts and isinstance(attempts[-1], dict):
                     session_id = attempts[-1].get("session_id")
                     if not updated_at:
                         updated_at = attempts[-1].get("ended_at")
+                # The LAST attempt's ending head: the artifact audit's evidence range starts where this
+                # item's most recent attempt left the tree. Reading the last (not the first) attempt is
+                # what makes a retried item's bound describe the run's final observation of it.
+                for att in reversed(attempts):
+                    if isinstance(att, dict) and att.get("ending_head"):
+                        step_ending_head = str(att["ending_head"]).strip() or None
+                        break
 
                 outcome = item.get("last_outcome") or {}
                 disposition = None
@@ -870,6 +894,7 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                         verify_tokens=step_v_toks,
                         elapsed_seconds=step_el_sec,
                         elapsed_str=step_el_str,
+                        ending_head=step_ending_head,
                     )
                 )
 
@@ -1385,32 +1410,98 @@ def render_box_table(
     return "\n".join(lines)
 
 
+def audit_row_is_issue(audit: StepArtifactAudit) -> bool:
+    """THE one definition of "is this audit row an issue", consulted by every call site.
+
+    ONE DEFINITION, NOT SIX (IPD `zexed1` E-05). The boolean triple was tested in FIVE hand-written
+    places - the discrepancy table's row selection, the steps table's `Issue` column, `--json`,
+    `--agent`, and the `--issues` human path - and hand-copying a SIX-VALUE classification into five
+    places would have been strictly worse than the boolean version it replaced.
+
+    THE ROW SET IS DELIBERATELY UNCHANGED: this delegates to the shipped
+    `artifact_audit.ArtifactAudit.has_discrepancy`, so exactly the rows that were candidates before are
+    candidates now. That matters because two of the five call sites emit PUBLISHED `aw.agent` records:
+    narrowing the predicate would silently change what a machine consumer receives, which is beyond
+    this plan's remit (`zexed1` "Deferred / out of scope": shrinking the table's row count). What the
+    classification changes is how a selected row is CLASSIFIED and STYLED.
+
+    NOTE FOR `r2i1b1` (`orchprobe-01`), which owns the extraction of these five sites into one function
+    and additionally extends it to count a REFUSAL as an issue: nothing here is renamed or relocated, so
+    that E-03 can still complete. If it lands first, its function becomes the single definition and this
+    helper should delegate to it (or be deleted in favour of it) rather than compete with it.
+    """
+    return audit.has_discrepancy
+
+
+def summarize_audit_classes(audits: Sequence[StepArtifactAudit]) -> dict[str, int]:
+    """Per-class counts over the ISSUE rows, in :data:`_audit.ALL_CLASSES` report order.
+
+    Exists because this change does NOT shrink the row count (IPD `zexed1` E-04, review PR-206): the
+    selection predicate still admits every non-agreeing row, so a reader who saw hundreds of red rows
+    now sees hundreds of rows in several colors. That is an improvement in HONESTY and not yet one in
+    USABILITY, so the shape has to be legible without reading every row.
+    """
+    counts = {cls: 0 for cls in _audit.ALL_CLASSES}
+    for a in audits:
+        if not audit_row_is_issue(a):
+            continue
+        counts[a.difference_class] = counts.get(a.difference_class, 0) + 1
+    return counts
+
+
 def format_artifact_audit_summary(
     audits: list[StepArtifactAudit],
     term: Term,
+    all_classes: bool = False,
 ) -> str:
-    """Format a table of artifact location and status discrepancies."""
+    """Format a table of artifact location and status discrepancies, CLASSIFIED BY DIRECTION.
+
+    ``all_classes`` restores the rows suppressed by default. THE DEFAULT SUPPRESSES `resolved` AND
+    `retired` ONLY, with their counts still printed (IPD `zexed1` E-04, OQ-01): both classes HAVE
+    evidence behind them, and at the review-measured distribution 446 of 508 rows fell into them, so
+    leaving them in kept the table unreadable and defeated the change's purpose.
+
+    THERE IS NO SUPPRESSION PATH FOR `unknown` OR `regressed`, under this flag or any other. `unknown`
+    is a CONFESSION that this audit could not prove the difference either way, and an invisible
+    confession is indistinguishable from a clean pass to every reader; refusing that is the entire
+    point of the 2026-09-05 maintainer ruling this classification was built to satisfy.
+    """
     seen: set[str] = set()
-    discrepancies: list[StepArtifactAudit] = []
+    issues: list[StepArtifactAudit] = []
     for a in audits:
         key = a.id6 or a.stem
         if key in seen:
             continue
         seen.add(key)
-        if a.missing_entirely or a.location_mismatch or a.status_mismatch:
-            discrepancies.append(a)
+        if audit_row_is_issue(a):
+            issues.append(a)
+
+    counts = summarize_audit_classes(issues)
+    if all_classes:
+        discrepancies = issues
+    else:
+        discrepancies = [
+            a for a in issues if a.difference_class not in _audit.SUPPRESSIBLE_CLASSES
+        ]
+
+    count_line = format_audit_class_counts(counts, term, suppressed=not all_classes)
 
     if not discrepancies:
-        return ""
+        # The counts still print. A table with no ALARMING and no UNKNOWN row, but hundreds of
+        # evidenced `resolved` ones, is a genuinely clean result and must SAY so with its numbers
+        # rather than render as silence (which reads as "the audit did not run").
+        return count_line if any(counts.values()) else ""
 
     headers = [
         "Item",
+        "Class",
         "Expected\nLocation",
         "Actual\nLocation",
         "Expected\nStatus",
         "Actual\nStatus",
+        "Why",
     ]
-    aligns = ["left", "left", "left", "left", "left"]
+    aligns = ["left", "left", "left", "left", "left", "left", "left"]
     rows = []
 
     for a in discrepancies:
@@ -1424,54 +1515,90 @@ def format_artifact_audit_summary(
             item_id = f"{raw_item_id} {flag_txt}"
         else:
             item_id = raw_item_id
+
+        # THE STYLING NOW FOLLOWS THE CLASS, NOT THE BOOLEANS. Reserving red for a difference that
+        # indicates something actually wrong is the whole point: a red block that is mostly false
+        # trains an operator to skim past the rows that matter.
+        alarming = a.difference_class in _audit.ALARMING_CLASSES
+        cls_color = _AUDIT_CLASS_COLOR.get(a.difference_class, 250)
+        cls_disp = (
+            term.color256(a.difference_class, cls_color, bold=alarming)
+            if getattr(term, "color", False)
+            else a.difference_class
+        )
+
+        def _styled(text: str) -> str:
+            if not getattr(term, "color", False):
+                return text
+            return term.color256(text, cls_color, bold=alarming)
+
         exp_loc = f"{a.expected_dir}/" if a.expected_dir else "-"
         if a.missing_entirely:
-            act_loc_disp = (
-                term.color256("missing", 196, bold=True)
-                if getattr(term, "color", False)
-                else "missing"
-            )
+            act_loc_disp = _styled("missing")
         else:
             act_loc_raw = f"{a.actual_dir}/" if a.actual_dir else "-"
-            if a.location_mismatch:
-                act_loc_disp = (
-                    term.color256(act_loc_raw, 196, bold=True)
-                    if getattr(term, "color", False)
-                    else act_loc_raw
-                )
-            else:
-                act_loc_disp = (
-                    term.color256(act_loc_raw, 46)
-                    if getattr(term, "color", False)
-                    else act_loc_raw
-                )
+            act_loc_disp = _styled(act_loc_raw) if a.location_mismatch else act_loc_raw
 
         exp_st = a.run_status or "-"
         if a.missing_entirely:
-            act_st_disp = (
-                term.color256("-", 196, bold=True)
-                if getattr(term, "color", False)
-                else "-"
-            )
+            act_st_disp = _styled("-")
         else:
             act_st_raw = a.file_status or "-"
-            if a.status_mismatch:
-                act_st_disp = (
-                    term.color256(act_st_raw, 196, bold=True)
-                    if getattr(term, "color", False)
-                    else act_st_raw
-                )
-            else:
-                act_st_disp = (
-                    term.color256(act_st_raw, 46)
-                    if getattr(term, "color", False)
-                    else act_st_raw
-                )
+            act_st_disp = _styled(act_st_raw) if a.status_mismatch else act_st_raw
 
-        rows.append([item_id, exp_loc, act_loc_disp, exp_st, act_st_disp])
+        rows.append(
+            [
+                item_id,
+                cls_disp,
+                exp_loc,
+                act_loc_disp,
+                exp_st,
+                act_st_disp,
+                a.class_reason or "-",
+            ]
+        )
 
-    title = "Artifact & Status Discrepancies"
-    return render_box_table(title, headers, rows, term, aligns)
+    title = "Artifact & Status Differences"
+    table = render_box_table(title, headers, rows, term, aligns)
+    return f"{count_line}\n{table}" if count_line else table
+
+
+#: Per-class row color. `regressed`/`missing` keep the alarming red the boolean version used for every
+#: row; `unknown` is amber (visible, unproven, NOT an accusation); `resolved`/`retired`/`unchanged` are
+#: non-alarming.
+_AUDIT_CLASS_COLOR: dict[str, int] = {
+    _audit.CLASS_REGRESSED: 196,
+    _audit.CLASS_MISSING: 196,
+    _audit.CLASS_UNKNOWN: 214,
+    _audit.CLASS_RESOLVED: 46,
+    _audit.CLASS_RETIRED: 245,
+    _audit.CLASS_UNCHANGED: 46,
+}
+
+
+def format_audit_class_counts(
+    counts: dict[str, int], term: Term, suppressed: bool = False
+) -> str:
+    """One line naming each non-zero class and its count, plus how to see the suppressed rows."""
+    parts: list[str] = []
+    for cls in _audit.ALL_CLASSES:
+        n = counts.get(cls, 0)
+        if not n:
+            continue
+        color = _AUDIT_CLASS_COLOR.get(cls, 250)
+        label = f"{cls} {n}"
+        parts.append(
+            term.color256(label, color, bold=cls in _audit.ALARMING_CLASSES)
+            if getattr(term, "color", False)
+            else label
+        )
+    if not parts:
+        return ""
+    line = "artifact differences: " + "  ".join(parts)
+    hidden = sum(counts.get(c, 0) for c in _audit.SUPPRESSIBLE_CLASSES)
+    if suppressed and hidden:
+        line += f"  ({hidden} evidenced rows hidden; --all-classes shows them)"
+    return line
 
 
 def render_steps_table(
@@ -1545,9 +1672,8 @@ def render_steps_table(
         else:
             v_disp = "-"
 
-        has_issue = (
-            audit.missing_entirely or audit.location_mismatch or audit.status_mismatch
-        )
+        # ONE definition of "is this row an issue" (IPD `zexed1` E-05), not a fourth hand-written copy.
+        has_issue = audit_row_is_issue(audit)
         if has_issue:
             if audit.is_live:
                 issue_disp = (
@@ -2626,6 +2752,9 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
     summary_only = getattr(args, "summary_only", False)
     latest_only = getattr(args, "latest_only", False)
     issues_only = getattr(args, "issues", False)
+    # IPD `zexed1` E-04: restores the evidenced `resolved`/`retired` rows the table suppresses by
+    # default. It cannot unhide anything alarming, because nothing alarming is ever hidden.
+    all_classes = getattr(args, "all_classes", False)
     is_json = getattr(args, "json", False)
     is_agent = getattr(args, "agent", False) or getattr(args, "as_agent", False)
     no_color = getattr(args, "no_color", False)
@@ -2748,7 +2877,14 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         term.line("no matching runs found")
         return 0
 
-    # Collect artifact audits across displayed steps
+    # Collect artifact audits across displayed steps.
+    #
+    # ONE GIT PASS FOR THE WHOLE TABLE (IPD `zexed1` E-02), built here and reused for every row.
+    # Measured in this lane over 3160 commits: this single pass costs ~68ms, while spawning a
+    # `git log --grep` (~49ms) plus a `merge-base --is-ancestor` (~2.7ms) PER ROW costs ~26 SECONDS at
+    # the review-measured 508 rows. That is the difference between a usable interactive read and an
+    # unusable one, which is why the index is a parameter rather than something each audit fetches.
+    evidence_index = _audit.build_finalize_evidence_index(repo_root)
     all_audits: list[StepArtifactAudit] = []
     if latest_only:
         latest_steps_dict: dict[str, tuple[RunSummary, StepSummary]] = {}
@@ -2757,18 +2893,14 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                 key = step.id6 or step.stem or step.item
                 latest_steps_dict[key] = (s, step)
         for _, st in latest_steps_dict.values():
-            all_audits.append(audit_step_artifact(st, repo_root))
+            all_audits.append(audit_step_artifact(st, repo_root, evidence_index))
     else:
         for s in summaries:
             for st in s.steps:
-                all_audits.append(audit_step_artifact(st, repo_root))
+                all_audits.append(audit_step_artifact(st, repo_root, evidence_index))
 
     if is_json:
-        disc = [
-            asdict(a)
-            for a in all_audits
-            if a.missing_entirely or a.location_mismatch or a.status_mismatch
-        ]
+        disc = [asdict(a) for a in all_audits if audit_row_is_issue(a)]
         for d in disc:
             if d.get("actual_path"):
                 d["actual_path"] = str(d["actual_path"])
@@ -2808,11 +2940,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
 
     if is_agent:
         if issues_only:
-            disc = [
-                asdict(a)
-                for a in all_audits
-                if a.missing_entirely or a.location_mismatch or a.status_mismatch
-            ]
+            disc = [asdict(a) for a in all_audits if audit_row_is_issue(a)]
             for d in disc:
                 if d.get("actual_path"):
                     d["actual_path"] = str(d["actual_path"])
@@ -2839,15 +2967,11 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
 
     # Human display
     if issues_only:
-        disc = [
-            a
-            for a in all_audits
-            if a.missing_entirely or a.location_mismatch or a.status_mismatch
-        ]
+        disc = [a for a in all_audits if audit_row_is_issue(a)]
         if not disc:
             term.line("no artifact or status discrepancies found")
             return 0
-        term.line(format_artifact_audit_summary(all_audits, term))
+        term.line(format_artifact_audit_summary(all_audits, term, all_classes))
         return 0
 
     if latest_only:
@@ -2856,7 +2980,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                 summaries, term, detail=detail, short=short, repo_root=repo_root
             )
         )
-        audit_summary_txt = format_artifact_audit_summary(all_audits, term)
+        audit_summary_txt = format_artifact_audit_summary(all_audits, term, all_classes)
         if audit_summary_txt:
             term.line("")
             term.line(audit_summary_txt)
@@ -2864,7 +2988,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
 
     if summary_only:
         term.line(format_multi_run_summary(summaries, term))
-        audit_summary_txt = format_artifact_audit_summary(all_audits, term)
+        audit_summary_txt = format_artifact_audit_summary(all_audits, term, all_classes)
         if audit_summary_txt:
             term.line("")
             term.line(audit_summary_txt)
@@ -2883,7 +3007,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         term.line("")
         term.line(format_multi_run_summary(summaries, term))
 
-    audit_summary_txt = format_artifact_audit_summary(all_audits, term)
+    audit_summary_txt = format_artifact_audit_summary(all_audits, term, all_classes)
     if audit_summary_txt:
         term.line("")
         term.line(audit_summary_txt)

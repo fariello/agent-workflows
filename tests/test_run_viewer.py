@@ -1388,7 +1388,10 @@ class RunViewerTests(TestCase):
 
             term = Term(color=False)
             sum_txt = run_viewer.format_artifact_audit_summary([a1, a2, a3], term)
-            self.assertIn("Artifact & Status Discrepancies", sum_txt)
+            # TITLE CHANGED DELIBERATELY (IPD `zexed1` E-04): "Discrepancies" asserted every row was a
+            # defect, which was the false-alarm problem itself. The table now classifies a DIFFERENCE by
+            # direction, so most rows are not discrepancies at all.
+            self.assertIn("Artifact & Status Differences", sum_txt)
             self.assertIn("Expected", sum_txt)
             self.assertIn("Actual", sum_txt)
             self.assertIn("20260829-test-01-item01", sum_txt)
@@ -1608,7 +1611,7 @@ class RunViewerTests(TestCase):
                 code = run_viewer.run_viewer_cli(ns)
             self.assertEqual(code, 0)
             out = buf.getvalue()
-            self.assertIn("Artifact & Status Discrepancies", out)
+            self.assertIn("Artifact & Status Differences", out)
             self.assertIn("20260829-test-01-item01", out)
             self.assertNotIn("pid:", out)
 
@@ -1677,7 +1680,7 @@ class RunViewerTests(TestCase):
             self.assertEqual(code, 0)
             out = buf.getvalue()
             self.assertEqual(out.strip(), "no artifact or status discrepancies found")
-            self.assertNotIn("Artifact & Status Discrepancies", out)
+            self.assertNotIn("Artifact & Status Differences", out)
 
     def test_run_viewer_cli_issues_conflict(self):
         ns = argparse.Namespace(

@@ -274,8 +274,15 @@ def _intree_finalize_evidence_ok(
       * EXACT SUBJECT FORM (OQ-02): only `lifecycle(<id6>): finalize`, the subject `aw ipd finalize`
         itself writes. A looser match would let an ordinary work commit that happens to name the plan
         authorize the transition, which is the hand-edit case wearing a different hat.
+
+    The subject STRING is `artifact_core.finalize_commit_subject` (IPD `zexed1` E-02), the same
+    definition the producer composes and the run viewer's discrepancy classifier reads, so this gate
+    cannot silently stop recognizing a genuine finalize because the subject changed elsewhere. Imported
+    lazily to keep this hook's module import-light (stdlib only at module scope).
     """
-    subject = f"lifecycle({plan_id}): finalize"
+    from agent_workflows import artifact_core as _core
+
+    subject = _core.finalize_commit_subject(plan_id)
     for incoming in incoming_commits:
         rc, out, _err = _git(repo_root, ["log", "--format=%s", f"HEAD..{incoming}"])
         if rc != 0:
@@ -288,6 +295,11 @@ def _intree_finalize_evidence_ok(
 
 def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
     """Run the gate. Returns (exit_code, messages). exit 0 = ok/no-op, 1 = refused."""
+    # The lifecycle subject grammar the refusal message QUOTES back to the operator, from the one
+    # definition the producer and the matcher share (IPD `zexed1` E-02). Lazy, per this module's
+    # import-light rule.
+    from agent_workflows import artifact_core as _core
+
     root = _repo_root(repo_root or Path("."))
     transitions = _staged_plan_executed_transitions(root)
     if not transitions:
@@ -318,7 +330,7 @@ def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
             refusals.append(
                 f"{staged_path} ({plan_id}): this merge carries this plan into executed/ ({reason}) "
                 f"but the incoming side ({', '.join(c[:12] for c in incoming_commits)}) has NO "
-                f"'lifecycle({plan_id}): finalize' commit for it, so nothing here shows `aw ipd "
+                f"'{_core.finalize_commit_subject(plan_id)}' commit for it, so nothing here shows `aw ipd "
                 f"finalize` performed this transition. Merging a lane on which finalize genuinely ran "
                 f"is accepted; run `aw ipd finalize {plan_id} --actor <agent/model> --message "
                 f"<summary> --apply` on the branch that owns this plan (which runs the receipt/scope/"
