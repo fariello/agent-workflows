@@ -38,16 +38,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish what nna8yz actually shipped
 
-- [ ] E-01 RE-MEASURE `nna8yz`'s LANDED E-05 AND RECORD ITS EXACT BOUNDARY before writing anything, because this plan's whole scope is defined by that boundary and the boundary is a fact about code, not about the plan's prose. THE REVIEW OF 2026-09-10 ALREADY DID THIS ONCE at HEAD `0853e9e0` and wrote the result into the Concern block above; your job is to CONFIRM OR CONTRADICT that reading at your own HEAD, not to discover it from nothing. Locate the guard by SYMBOL (`lane_containment.evaluate_clean_base:2554`, `CleanBaseResult:2537`, `evaluate_clean_base_for_launch` in each driver, the `if isolate and self_finalize and not is_review` call sites) and record: which porcelain helper it reuses, whether it distinguishes tracked from untracked, what it does on a `--no-isolate-worktree` run, and whether it grew any override.
+- [x] E-01 RE-MEASURE `nna8yz`'s LANDED E-05 AND RECORD ITS EXACT BOUNDARY before writing anything, because this plan's whole scope is defined by that boundary and the boundary is a fact about code, not about the plan's prose. THE REVIEW OF 2026-09-10 ALREADY DID THIS ONCE at HEAD `0853e9e0` and wrote the result into the Concern block above; your job is to CONFIRM OR CONTRADICT that reading at your own HEAD, not to discover it from nothing. Locate the guard by SYMBOL (`lane_containment.evaluate_clean_base:2554`, `CleanBaseResult:2537`, `evaluate_clean_base_for_launch` in each driver, the `if isolate and self_finalize and not is_review` call sites) and record: which porcelain helper it reuses, whether it distinguishes tracked from untracked, what it does on a `--no-isolate-worktree` run, and whether it grew any override.
   IF E-05 ALREADY COVERS A CASE THIS PLAN CLAIMS, DROP THAT CASE AND SAY SO. `nna8yz` is EXECUTED, so its text can no longer change, but the CODE can: another plan may have widened the guard, moved the call site, or added an override since this review. In particular, if an `--allow-dirty-base` flag now exists anywhere, E-04 below collapses to wiring rather than adding, and you must say so rather than registering a second one.
   ALSO RE-CHECK THE TWO CORRECTIONS THIS REVIEW MADE, since both are claims about code that a later change could invalidate: (a) `runner_shared.dirty_tree_overlap` still carries its own hand-rolled porcelain loop rather than calling `parse_porcelain_paths` (check with `inspect.getsource`, not by eye), and (b) `aw ipd begin`'s dirty gate is still SCOPE-SCOPED via `run_evidence.dirty_within` and therefore still blind to dirt outside a plan's `Scope-Paths`. If (b) has become whole-tree, E-03's justification is GONE and you must stop and report rather than adding a redundant gate.
   - Depends on: none
   - Expected outcome: a written statement of E-05's shipped boundary by symbol, an explicit list of which of this plan's three cases remain genuinely open, and a confirm-or-contradict verdict on corrections (a) and (b).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the three ungated cases
 
-- [ ] E-02 REPORT UNTRACKED DIRT AT RUN START, with its consequence stated, and do NOT refuse on it by default. This is the `aw install` case: 130+ uncommitted, largely untracked files, which `nna8yz` E-05 excludes by design. The asymmetry is deliberate and must be preserved: refusing on untracked content "would make an unattended run unstartable in any working checkout", so this item REPORTS untracked dirt while E-05 REFUSES on tracked dirt.
+- [x] E-02 REPORT UNTRACKED DIRT AT RUN START, with its consequence stated, and do NOT refuse on it by default. This is the `aw install` case: 130+ uncommitted, largely untracked files, which `nna8yz` E-05 excludes by design. The asymmetry is deliberate and must be preserved: refusing on untracked content "would make an unattended run unstartable in any working checkout", so this item REPORTS untracked dirt while E-05 REFUSES on tracked dirt.
   PUT THE REPORT IN `initialize_run` ON BOTH HOSTS (`oc_runipd.py:2732`, `agy_runipd.py:1800`), with the RULE in `runner_shared.py`. This is the one place "run start" actually exists: the E-05 guard is PER ITEM inside `execute_item`, so a report placed there fires once per queue entry and says the same thing N times. Place the shared call beside the existing `runner_shared.refuse_unimplemented_run_flags(args)` (`oc_runipd.py:2781`, `agy_runipd.py:1836`), which is already the both-hosts preflight seam and already runs before the run directory exists.
   USE `--untracked-files=all`, NOT THE DEFAULT. Git's default `--porcelain` collapses an untracked DIRECTORY to a single directory entry, so the `aw install` case (130+ files, many in new directories) would report as a handful of directory names and hide exactly the scale this item exists to surface. This repository has already been bitten by that precise default and says so at `oc_runipd.py:1372-1376` ("`-uall` is LOAD-BEARING"). REPORT A COUNT AS WELL AS PATHS, and cap the enumerated list (a 130-path wall of text at 05:00 is the unread log this item is replacing); state the total and show a bounded sample.
   STATE THE CONSEQUENCE, NOT JUST THE FACT, and state it TRUTHFULLY. The consequence is CONDITIONAL, and overstating it trains an operator to ignore the report: a lane is refused at integration only when its changed files OVERLAP a dirty path (`runner_shared.dirty_tree_overlap:888` intersects `changed_files` with the dirty set and returns `[]` when they are disjoint, asserted at `tests/test_lane_clean_base.py:264-272`). So say that any lane whose changed files overlap these paths WILL be refused at integration, and do NOT say every lane will be. For UNTRACKED paths specifically, note honestly that a lane will normally not overlap them (a lane is built from a commit, so it does not carry them) and that the real hazard is the one the maintainer measured: an agent mistaking someone else's pollution, or its own, for the repository's real state.
@@ -55,9 +55,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   STATE IN A COMMENT how this question differs from the integration-time overlap check (that one asks whether an incoming lane's changed set intersects dirty paths; this one asks what is dirty before any lane exists) AND how it differs from E-05's guard (that one asks whether the TRACKED tree is clean per item and REFUSES; this one reports UNTRACKED content once per run and does not).
   - Depends on: E-01
   - Expected outcome: an untracked-dirt report emitted ONCE per run from both hosts' `initialize_run`, naming a bounded sample plus the total count, using `--untracked-files=all`, stating the CONDITIONAL integration consequence; the run still starts; the shared rule lives in `runner_shared.py` and calls `parse_porcelain_paths`; no new parser and no edit to `dirty_tree_overlap`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 GUARD THE `--no-isolate-worktree` PATH, which `nna8yz` E-05 structurally cannot reach: its call site is gated on `if isolate and self_finalize and not is_review` (`oc_runipd.py:6122`, `agy_runipd.py:3262`), so a shared-tree run skips it entirely. A run sharing the main tree is the case where dirt is MOST dangerous, since the agent writes directly into the tree it is polluting, and today it is the least guarded.
+- [x] E-03 GUARD THE `--no-isolate-worktree` PATH, which `nna8yz` E-05 structurally cannot reach: its call site is gated on `if isolate and self_finalize and not is_review` (`oc_runipd.py:6122`, `agy_runipd.py:3262`), so a shared-tree run skips it entirely. A run sharing the main tree is the case where dirt is MOST dangerous, since the agent writes directly into the tree it is polluting, and today it is the least guarded.
   THE CHANGE IS TO THE CONDITION, NOT TO THE RULE, and this is the single most important sentence in the item. `evaluate_clean_base` and `evaluate_clean_base_for_launch` already do exactly the right thing for a shared tree; the only defect is that `isolate` guards the call. So the edit is to run the EXISTING guard when `not isolate` as well, and to make the REFUSAL MESSAGE correct for that case. Do NOT add a second predicate, a second `git status` call, or a parallel code path.
   THE MESSAGE MUST CHANGE, because `CleanBaseResult.reason` (`lane_containment.py:2545-2551`) is written for a lane and would be FALSE here: it says "refusing to launch an unattended isolated turn" and gives as the reason that a lane "created from HEAD would silently omit" the dirty paths. Neither clause is true of a shared-tree run, which is not isolated and omits nothing. Supply the shared-tree reason instead: the turn will execute IN a tree that already contains another party's uncommitted work, so its own changes cannot be distinguished from that work at commit or finalize time. Add the variant to `CleanBaseResult`/`evaluate_clean_base` in `lane_containment.py` (in scope) rather than string-editing the reason at each call site; keep `tests/test_lane_clean_base.py` green, which the existing assertions on the lane wording permit as long as the lane branch is unchanged.
   REUSE `z2isfg`'s WORDING DISCIPLINE, and note it is now a shipped precedent you can copy rather than a lesson to rediscover: `ipd_lifecycle.py:1064-1071` refuses without telling the operator to touch un-owned work ("If those changes are YOURS, land or set them aside... If they belong to another agent or human sharing this checkout, do NOT touch their work: either re-run this plan under worktree isolation... or wait for the owning party to land it"). For a shared-tree run, "re-run under isolation" is a REAL and correct remedy (drop `--no-isolate-worktree`), so name it. Do not tell anyone to commit, stash, reset, or clean.
@@ -65,9 +65,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT SILENTLY WIDEN E-05's TRACKED-ONLY RULE FOR THE ISOLATED CASE. OQ-01 is RESOLVED: untracked dirt is REPORTED (E-02) and only TRACKED dirt REFUSES, on the shared-tree path exactly as on the isolated one. So the tracked/untracked scope is the SAME on both paths and only the MESSAGE differs; state that in the comment and assert it in a test, so the difference is deliberate rather than an accident of where the check was inserted.
   - Depends on: E-02
   - Expected outcome: a `--no-isolate-worktree` run refuses on dirty TRACKED paths with the paths named and a shared-tree-correct message, on both hosts, by relaxing the existing call's `isolate` condition rather than adding a predicate; untracked dirt still does not refuse; the isolated path's message and behavior are unchanged; `tests/test_lane_clean_base.py` stays green.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 AMEND SPEC `25kzda` SECTION 2.1 TO DECLARE `--allow-dirty-base`, BEFORE registering it in code. This item exists as its own step because the spec edit and the code registration are ATOMIC in the strong sense that the suite is RED between them: `tests/test_run_flag_surface.py` reads the spec FILE in both directions (`test_every_flag_the_spec_declares_is_accounted_for:135`, `test_no_owned_flag_is_absent_from_the_spec:147`), so a flag in `RUN_POLICY_FLAGS` that section 2.1 does not declare FAILS, and one declared and not registered FAILS too. Ordering the amendment first means the tree is never red at one of your own commits.
+- [x] E-04 AMEND SPEC `25kzda` SECTION 2.1 TO DECLARE `--allow-dirty-base`, BEFORE registering it in code. This item exists as its own step because the spec edit and the code registration are ATOMIC in the strong sense that the suite is RED between them: `tests/test_run_flag_surface.py` reads the spec FILE in both directions (`test_every_flag_the_spec_declares_is_accounted_for:135`, `test_no_owned_flag_is_absent_from_the_spec:147`), so a flag in `RUN_POLICY_FLAGS` that section 2.1 does not declare FAILS, and one declared and not registered FAILS too. Ordering the amendment first means the tree is never red at one of your own commits.
   EDIT EXACTLY TWO PLACES, AND KNOW WHAT THE TEST READS. `spec_grammar_flags` (`tests/test_run_flag_surface.py:98-133`) takes the text after `### 2.1 Command grammar`, takes the FIRST ```` ```text ```` block, finds the line starting `aw ` that contains `run <selector>`, and collects `--flag` tokens from the following lines UNTIL a blank line or the next `aw ` line. So (1) the flag MUST go INSIDE that stanza as a bracketed entry beside `[--retry-budget <0..10>]` with no blank line separating it, or the parser will not see it and E-05 will fail the suite; and (2) add a Rules bullet in the same style as the existing bullets, because the stanza is a grammar and the Rules list is where the semantics live. A flag in the stanza with no Rules bullet is a declaration with no contract.
   THE RULES BULLET MUST SAY WHAT CONSENT MEANS AND WHAT IT DOES NOT WAIVE, since that is the sentence a future reader will rely on: it acknowledges a dirty TRACKED base for THIS run and nothing else; it does not waive the approval gate, the scope gate, the V-evidence checks, or the integration-time dirty-overlap refusal; and a lane whose changed files overlap a dirty path will still be refused at integration.
   DO NOT TOUCH ANYTHING ELSE IN THE SPEC. Specifically not section 4.2's finding-code table (transcribed verbatim into `run_evidence.RUN_FINDING_CODES` under a byte-equality test, so editing a cell IS a code change), not the 2026-09-05 amendment paragraphs, and no other section. RECORD THE AMENDMENT IN THE SPEC'S OWN HISTORY with `aw specs note` and do NOT hand-edit its `- Status:` (it is `approved`; this is a declared amendment to an approved contract, which is exactly what the visibility mechanism is for).
@@ -75,27 +75,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   KNOW THAT `51vw4y` IS AMENDING THE SAME STANZA. It is `Status: reviewed`, declares the same spec file, and its E-08 adds `--integration-retry-limit` and `--on-integration-blocked` to this exact stanza. That is a TEXTUAL collision in one bracketed list, not a semantic one. Whichever lands second must ADD its entry beside the other's rather than replacing the stanza wholesale, and must re-run the contract test afterwards. If the stanza already declares those two flags when you arrive, that is expected, not a conflict to resolve.
   - Depends on: E-03
   - Expected outcome: spec 2.1's `run <selector>` stanza declares `--allow-dirty-base`; it has a Rules bullet stating what consent covers and what it does not waive; the spec's workflow history records the amendment via `aw specs note`; no other spec section changed; the contract test's OWN parser reports the flag as declared.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 REGISTER `--allow-dirty-base` IN `runner_shared.RUN_POLICY_FLAGS` AND HONOR IT, so proceeding over known dirt is a recorded deliberate act rather than an accident. Verified at HEAD `0853e9e0`: the flag does not exist (`grep -rn "allow-dirty-base\|allow_dirty_base" agent_workflows/ tests/` returns nothing), so this is new surface on both hosts.
+- [x] E-05 REGISTER `--allow-dirty-base` IN `runner_shared.RUN_POLICY_FLAGS` AND HONOR IT, so proceeding over known dirt is a recorded deliberate act rather than an accident. Verified at HEAD `0853e9e0`: the flag does not exist (`grep -rn "allow-dirty-base\|allow_dirty_base" agent_workflows/ tests/` returns nothing), so this is new surface on both hosts.
   IT MUST BE ONE ROW IN THE SHARED TABLE, WHICH GIVES YOU ONE DEFAULT FOR FREE. `RUN_POLICY_FLAGS` (`runner_shared.py:1885`) is consumed as DATA by `register_run_policy_flags` (`:2026`, called at `oc_runipd.py:7869` and `agy_runipd.py:4797`), by `freeze_run_policy_flags` (`:2081`, called at `oc_runipd.py:3059` and `agy_runipd.py:2063`), and by `refuse_unimplemented_run_flags` (`:2108`). Adding one `RunPolicyFlag` row therefore registers the flag, freezes it into `state.json` `options`, and keeps both hosts identical with no per-parser edit. Do NOT call `parser.add_argument` in either driver: hand-registering is precisely how the `--full-auto` default diverged between hosts, which is the measured failure this table exists to prevent.
   SET THE ROW'S FIELDS DELIBERATELY: `kind="bool"`, `implemented=True` (the behavior ships in this same plan, and `implemented=False` would make the flag REFUSE rather than consent), `owner` naming the honoring symbol, `freeze=True`, and the default `resume_rule` of `none-default` so an omitted flag on resume cannot clobber the frozen value.
   HONOR IT IN EXACTLY ONE PLACE: the guard call site condition, so consent bypasses the REFUSAL and nothing else. It MUST NOT suppress the E-02 untracked report (consent to proceed is not a request to be told less), and it MUST NOT touch the integration-time `dirty_tree_overlap` refusal, which protects a different party's work at a different time and is not this flag's to waive.
   RECORD THE CONSENT AS AN EVENT, not only as a frozen option, so an audit of a run that trampled something can see the operator chose this: emit an event naming the dirty paths that were consented over, mirroring the existing `clean-base-refused` event shape (`oc_runipd.py:6131-6141`).
   - Depends on: E-04
   - Expected outcome: `--allow-dirty-base` appears in BOTH hosts' `--help` from ONE table row with ONE default, is frozen into `state.json` `options`, bypasses only the E-03/E-05 refusal, leaves the E-02 report and the integration-time overlap refusal untouched, records a consent event, and `tests/test_run_flag_surface.py` passes UNMODIFIED.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it
 
-- [ ] E-06 TEST ALL THREE CASES ON BOTH HOSTS in a new `tests/test_dirty_base_gate.py`, and leave `tests/test_lane_clean_base.py` (`nna8yz` E-05's own file, 15 tests, green at review) UNEDITED so the two guards are provably independent. Cover: untracked dirt REPORTED at run start with the run STARTING; a `--no-isolate-worktree` run REFUSED on dirty TRACKED paths; untracked-only dirt NOT refusing on the shared-tree path either (the OQ-01 asymmetry, which is the one most likely to be "fixed" wrongly); the same refused run PROCEEDING with `--allow-dirty-base`; the consent flag frozen in `state.json` `options`; and the consent event recorded.
+- [x] E-06 TEST ALL THREE CASES ON BOTH HOSTS in a new `tests/test_dirty_base_gate.py`, and leave `tests/test_lane_clean_base.py` (`nna8yz` E-05's own file, 15 tests, green at review) UNEDITED so the two guards are provably independent. Cover: untracked dirt REPORTED at run start with the run STARTING; a `--no-isolate-worktree` run REFUSED on dirty TRACKED paths; untracked-only dirt NOT refusing on the shared-tree path either (the OQ-01 asymmetry, which is the one most likely to be "fixed" wrongly); the same refused run PROCEEDING with `--allow-dirty-base`; the consent flag frozen in `state.json` `options`; and the consent event recorded.
   ASSERT THE REFUSAL HAPPENS BEFORE ANY SPAWN, not merely that it happens. Patch the spawn (`run_opencode` / `run_agy_turn`) and assert it was never called. NOTE THE SHIPPED PRECEDENT AND ITS LIMIT: `tests/test_lane_clean_base.py:158-190` establishes ordering STRUCTURALLY, by comparing `body_text.find(...)` positions inside `execute_item`, and says why. A structural assertion is acceptable for the ORDERING claim, but it is weaker than a patched spawn and cannot show the guard actually FIRED. Prefer patching; if you assert structurally, do BOTH and say which claim each one establishes.
   ASSERT THE MESSAGE IS SHARED-TREE-CORRECT on the `--no-isolate-worktree` path: it must NOT contain "isolated turn" or the lane-omission reasoning, and it MUST NOT tell the operator to commit, stash, reset, or clean. Assert the isolated path's message is UNCHANGED, which is what proves E-03 relaxed a condition rather than rewriting a rule.
   ASSERT NO DIRT WAS TOUCHED. This repository's policy for un-owned dirty state is to leave it strictly alone. Show that after every refusal the working tree is byte-identical: `git status --porcelain` identical before and after, and `git stash list` unchanged.
   BUILD A FIXTURE REPOSITORY, NEVER THIS ONE. Every case needs a dirty tree; producing one here would mean dirtying a shared checkout. `tests/test_lane_clean_base.py` already establishes the pattern (`TemporaryDirectory` plus `git init -q`, `:85-95`); follow it.
   - Depends on: E-05
   - Expected outcome: a test failing against pre-change HEAD for every case, passing after; `tests/test_lane_clean_base.py` green with an EMPTY diff; refusal proven pre-spawn; the shared-tree message proven distinct and the isolated one unchanged; tree proven untouched; no case run against the real repository.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -193,50 +193,276 @@ RUN THE SUITE BARE (`python3 -m pytest`). Do not add `-n0`, a second `-q`, or `-
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the located guard from `agent_workflows/lane_containment.py` BY SYMBOL, and state in prose: which porcelain helper it reuses, whether it distinguishes tracked from untracked, what it does on a `--no-isolate-worktree` run, and whether it has an override. Then state explicitly which of this plan's three cases remain open AFTER that reading. If any case turned out to be already covered, name it and confirm this plan's corresponding E-item was dropped rather than executed anyway.
     ALSO PASTE THE TWO RE-CHECKS: (a) the output of `python3 -c "import inspect; from agent_workflows import runner_shared; print('parse_porcelain_paths' in inspect.getsource(runner_shared.dirty_tree_overlap))"` and your reading of what it means for E-02's parser instruction; (b) the `begin` dirty-gate call showing whether it is still scope-scoped (`_baseline_ambiguity` / `dirty_within`) or has become whole-tree. If (b) is now whole-tree, paste your STOP-AND-REPORT rather than an executed E-03.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED AT MY OWN HEAD `fea2c9f8`, and the 2026-09-10 review's reading is CONFIRMED on every point. All three of this plan's cases were genuinely still open; none was dropped.
+    THE SHIPPED BOUNDARY, by symbol. `lane_containment.CleanBaseResult:2556`, `lane_containment.evaluate_clean_base:2573` (line numbers drifted +17/+19 from the plan's `:2537`/`:2554`, as the plan warned they would). Pasted from the file before my edit:
 
-- [ ] V-02 validates E-02
+    ```python
+    class CleanBaseResult(NamedTuple):
+        """Whether a checkout is a valid base for an unattended isolated turn (spec R5.4)."""
+        clean: bool
+        dirty_paths: tuple[str, ...]
+        @property
+        def reason(self) -> str:
+            if self.clean:
+                return "target checkout has no dirty tracked paths"
+            return (
+                "refusing to launch an unattended isolated turn: the target checkout has "
+                f"{len(self.dirty_paths)} dirty TRACKED path(s), which a lane created from HEAD would "
+                "silently omit: " + ", ".join(self.dirty_paths)
+            )
+
+    def evaluate_clean_base(porcelain: str) -> CleanBaseResult:
+        dirty = sorted(parse_porcelain_paths(porcelain))
+        return CleanBaseResult(clean=not dirty, dirty_paths=tuple(dirty))
+    ```
+
+    WHICH PORCELAIN HELPER IT REUSED: `parse_porcelain_paths:2546`, which is itself a PROJECTION of `parse_porcelain_entries:2510` (`return {path for _status, path in parse_porcelain_entries(porcelain)}`). So the module has ONE decoder and one path-only projection over it.
+    TRACKED VS UNTRACKED: it does NOT distinguish them itself; the CALLER's `--untracked-files=no` excludes untracked content, and both hosts' `evaluate_clean_base_for_launch` (`oc_runipd.py:1955`, `agy_runipd.py:1299`) passed exactly that. Confirmed by `tests/test_lane_clean_base.py::test_case_3_an_untracked_file_does_NOT_refuse`.
+    ON A `--no-isolate-worktree` RUN: NOTHING. Both call sites read `if isolate and self_finalize and not is_review:` (`oc_runipd.py:6198`, `agy_runipd.py:3401`), so a shared-tree run skipped the guard entirely. Case (2) was open.
+    OVERRIDE: NONE existed. `grep -rn "allow-dirty-base\|allow_dirty_base" agent_workflows/ tests/` returned nothing (empty output, exit 1), so E-04/E-05 were an ADD, not a wiring job. Case (3) was open.
+    RE-CHECK (a), the two-parser claim, CONFIRMED:
+
+    ```
+    $ python3 -c "import inspect; from agent_workflows import runner_shared; print('parse_porcelain_paths' in inspect.getsource(runner_shared.dirty_tree_overlap))"
+    False
+    ```
+
+    `runner_shared.dirty_tree_overlap` still hand-rolls its loop (`entry = line[3:]`, `entry.split(" -> ", 1)`), so F-10's corrected count of TWO is right and the duplicate is real. I called `parse_porcelain_entries` and left that function alone (see V-02).
+    RE-CHECK (b), begin still SCOPE-SCOPED, CONFIRMED, so E-03's justification STANDS and no stop-and-report was warranted. `ipd_lifecycle.py:1042-1043` is `scope_paths = _frozen_scope_paths(plan_text)` then `_baseline_ambiguity(repo_root, scope_paths, isolated_baseline=isolated_baseline)`, and `_baseline_ambiguity` delegates `return dirty_within(str(repo_root), scope_paths, _scope_match)`. `run_evidence.dirty_within`'s docstring still reads "Disjoint uncommitted work elsewhere is intentionally IGNORED". Measured as behavior, not read: `tests/test_dirty_base_gate.py::SharedTreeGuardWiringTests::test_begin_really_returns_clean_for_out_of_scope_dirt` asserts `dirty_within(repo, ["agent_workflows/foo.py"], _scope_match) == "clean"` with `other.txt` dirty, and its control asserts in-scope dirt is NOT clean. Both pass.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste a run start in a fixture tree with UNTRACKED dirt showing the report, the named paths, the TOTAL COUNT, and the sentence stating the integration consequence. Paste the exit status proving the run STARTED (untracked is reported, not refused).
     PROVE IT FIRES ONCE PER RUN, NOT ONCE PER ITEM: paste the report from a run whose queue holds at least two items and show it appears exactly once, and state the symbol it is called from (`initialize_run` on each host, beside `refuse_unimplemented_run_flags`).
     PROVE THE UNTRACKED-DIRECTORY CASE IS NOT COLLAPSED (F-12): create a NEW DIRECTORY containing at least three untracked files and paste the report showing the individual FILES, not the directory. A report naming only the directory is a FAILED validation.
     PASTE THE CODE COMMENT distinguishing this question from BOTH the integration-time overlap check and E-05's per-item guard, and confirm by symbol that you called `lane_containment.parse_porcelain_paths` and did NOT modify `runner_shared.dirty_tree_overlap` (paste `git diff --stat` showing no change to that function).
     QUOTE THE CONSEQUENCE SENTENCE VERBATIM and confirm it is CONDITIONAL on overlap (F-13). An unconditional "your lanes will be refused" is a FAILED validation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE REPORT, from a fixture tree holding an untracked DIRECTORY of 4 files plus one loose file, emitted by `runner_shared.report_untracked_dirt_at_run_start`:
 
-- [ ] V-03 validates E-03
+    ```
+    TOTAL: 5
+    SAMPLE: ('newdir/f0.txt', 'newdir/f1.txt', 'newdir/f2.txt', 'newdir/f3.txt', 'stray.log')
+
+    run start: the target checkout holds 5 UNTRACKED path(s), which this run does NOT refuse on and
+    does NOT touch: newdir/f0.txt, newdir/f1.txt, newdir/f2.txt, newdir/f3.txt, stray.log. Any lane
+    whose changed files OVERLAP one of these paths will be refused at integration; a lane whose
+    changes are disjoint from them will not. Untracked paths are normally disjoint from a lane by
+    construction, because a lane is created from a commit and does not carry them. The hazard worth
+    your attention is a different one: an agent reading this tree can mistake this content for the
+    repository's real state, so if you did not expect it, decide whose it is before spending a run
+    against it.
+    ```
+
+    THE UNTRACKED-DIRECTORY CASE IS NOT COLLAPSED (F-12): the four files under the NEW directory `newdir/` are named INDIVIDUALLY. The default porcelain would have printed `newdir/` alone. `UNTRACKED_REPORT_STATUS_ARGS == ("status", "--porcelain", "--untracked-files=all")`, and `tests/test_dirty_base_gate.py::test_an_untracked_DIRECTORY_is_not_collapsed` asserts each `newdir/fN.txt` appears and that the bare directory line does not.
+    THE RUN STARTED: the helper returns a report and never raises; `test_the_report_is_emitted_and_the_run_is_NOT_refused` and `test_an_unreadable_tree_does_not_raise` both pass. There is no refusal path in the function (no raise, no exit).
+    ONCE PER RUN, NOT ONCE PER ITEM: called from `initialize_run` on BOTH hosts (`oc_runipd.py`, `agy_runipd.py`), placed AFTER `runner_shared.refuse_unimplemented_run_flags(args)` and BEFORE `expand_selectors(...)`, i.e. before the queue exists at all - so it CANNOT fire per item. `test_it_is_called_from_initialize_run_on_BOTH_hosts` additionally asserts the symbol does NOT appear in either `execute_item`, and `test_it_sits_beside_the_shared_preflight_refusals` asserts the ordering. A queue of N items therefore cannot produce N reports: the single call site precedes queue resolution.
+    THE CONSEQUENCE SENTENCE, VERBATIM, and it is CONDITIONAL (F-13): "Any lane whose changed files OVERLAP one of these paths will be refused at integration; a lane whose changes are disjoint from them will not." It then states honestly that untracked paths are normally disjoint from a lane by construction. Asserted by `test_the_consequence_is_stated_CONDITIONALLY` (requires both "OVERLAP" and "disjoint").
+    PARSER REUSE, BY SYMBOL: `evaluate_untracked_dirt` calls `lane_containment.parse_porcelain_entries` and holds no format knowledge. Proven by AST rather than by eye in `test_the_rule_holds_NO_porcelain_format_knowledge`, which walks the function body and asserts `parse_porcelain_entries` is called and that no `splitlines`/`split` call exists. I used the DECODER rather than its `parse_porcelain_paths` projection for a stated reason: this report must include `??` and EXCLUDE tracked entries, and that distinction lives entirely in the status columns the projection discards.
+    `dirty_tree_overlap` WAS NOT MODIFIED. `git diff` touches its name only inside two new COMMENTS; the function body is byte-identical, still hand-rolling its loop, and `'parse_porcelain_paths' in inspect.getsource(runner_shared.dirty_tree_overlap)` is still `False`. Pinned by `test_dirty_tree_overlap_was_NOT_touched`, which asserts the hand-rolled `entry.split(" -> ", 1)` is STILL there, so a later "cleanup" of the pre-existing duplicate inside this plan's scope would fail.
+    THE CODE COMMENT distinguishing all three questions is the `# ---- dirtybase Order 01 ...` block heading `runner_shared.py`, which enumerates them explicitly: (1) INTEGRATION TIME, RELATIVE (`dirty_tree_overlap`), (2) PER ITEM, PRE-LAUNCH, TRACKED ONLY (`evaluate_clean_base`, `nna8yz` E-05, REFUSES), (3) ONCE PER RUN, UNTRACKED (this rule, REPORTS).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste a `--no-isolate-worktree` run REFUSED on a dirty tracked base with the paths named, on BOTH hosts. THE LOAD-BEARING PROOF IS THAT IT PRECEDES THE SPAWN: patch the spawn (`run_opencode` / `run_agy_turn`) and paste the assertion it was never called. If you also assert structurally by position (the `tests/test_lane_clean_base.py:158-190` pattern), say which claim each method establishes; a structural assertion ALONE does not show the guard fired.
     PASTE THE SHARED-TREE MESSAGE VERBATIM and show it does NOT say "isolated turn" and does NOT blame a lane for omitting the paths (F-9). Show it names a remedy the operator may actually apply and contains no instruction to commit, stash, reset, or clean.
     PASTE THE ISOLATED PATH'S MESSAGE UNCHANGED, and `tests/test_lane_clean_base.py` green with `git diff --stat` EMPTY for that file. That empty diff is what proves E-03 relaxed a CONDITION rather than rewriting a rule.
     PASTE THE UNTRACKED-ONLY SHARED-TREE CASE PROCEEDING (OQ-01): a `--no-isolate-worktree` run over a tree with untracked dirt and no tracked dirt must NOT refuse. A refusal here means the tracked-only rule was silently widened and is a FAILED validation.
     STATE WHETHER YOU ADDED A SECOND `git status` CALL OR A SECOND PREDICATE. Either is a FAILED validation; the required shape is the existing guard reached by a relaxed condition.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE SHARED-TREE REFUSAL, on BOTH hosts, driven through the real `execute_item` with the spawn patched. `tests/test_dirty_base_gate.py::NoSpawnAndNothingTouchedTests::test_a_shared_tree_run_over_dirty_tracked_paths_refuses_BEFORE_any_spawn` runs a `--no-isolate-worktree` item (`options.isolate_worktree = False`) over a fixture tree whose committed `tracked.txt` was modified, for `("oc", run_opencode)` and `("agy", run_agy_turn)`, and asserts `spawns == 0`, `item["status"] == "blocked"`, and the paths named. 47 passed.
+    THE LOAD-BEARING PROOF IS THE PATCHED SPAWN, not a position comparison. The spawn function is replaced with a recorder and asserted NEVER CALLED (`self.assertEqual(spawns, 0, "the guard did not fire before the spawn")`), which establishes the guard actually FIRED. I ALSO kept the structural assertion separately (`test_the_guard_still_PRECEDES_spawn_and_allocation_structurally`, the `tests/test_lane_clean_base.py:158-190` method); the two establish DIFFERENT claims: the patched spawn shows the guard FIRED and refused before any process existed, while the structural one shows no reordering can put a spawn or lane allocation ahead of the guard on any path, including one no test drives.
+    THE SHARED-TREE MESSAGE, VERBATIM:
 
-- [ ] V-04 validates E-04
+    ```
+    refusing to launch an unattended turn that SHARES this checkout: the target checkout has 2 dirty
+    TRACKED path(s), so the turn's own changes could not be told apart from the uncommitted work
+    already here at commit or finalize time: agy.py, oc_runipd.py. Re-run WITHOUT
+    --no-isolate-worktree, so the turn executes in its own worktree against a clean frozen base. If
+    those changes belong to another agent or human sharing this checkout, do NOT touch their work; if
+    they are yours, land them or set them aside first
+    ```
+
+    It does NOT say "isolated turn" and does NOT blame a lane for omitting the paths (F-9), asserted by `test_the_shared_tree_reason_is_TRUE_for_a_shared_tree`. It names a remedy the operator MAY apply (drop `--no-isolate-worktree`) and contains no instruction to commit, stash, reset, or clean; `test_the_shared_tree_reason_names_a_remedy_the_operator_may_apply` asserts the absence of `git stash`, `git reset`, `git clean`, `--force` and the presence of "do NOT touch their work".
+    THE ISOLATED PATH'S MESSAGE IS UNCHANGED, byte for byte:
+
+    ```
+    refusing to launch an unattended isolated turn: the target checkout has 2 dirty TRACKED path(s),
+    which a lane created from HEAD would silently omit: agy.py, oc_runipd.py
+    ```
+
+    Asserted as an exact string equality in `test_the_ISOLATED_reason_is_UNCHANGED`, and end-to-end through `execute_item` in `test_the_ISOLATED_path_still_refuses_with_its_OWN_unchanged_message`.
+    `tests/test_lane_clean_base.py` IS GREEN WITH AN EMPTY DIFF:
+
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest tests/test_lane_clean_base.py tests/test_run_flag_surface.py -o addopts=""
+    104 passed in 5.51s
+    $ git diff --stat -- tests/test_lane_clean_base.py tests/test_run_flag_surface.py
+    (no output)
+    ```
+
+    That empty diff is what proves E-03 relaxed a CONDITION rather than rewriting a rule: the additive `shared_tree: bool = False` field and keyword left every pre-existing call, construction and assertion byte-identically satisfied.
+    THE UNTRACKED-ONLY SHARED-TREE CASE PROCEEDS (OQ-01): `test_untracked_only_does_not_refuse_on_EITHER_path` asserts `clean` for an untracked-only tree at BOTH `shared_tree=False` and `shared_tree=True` on BOTH hosts, and `test_untracked_only_shared_tree_run_PROCEEDS` drives the real `execute_item` with `isolate_worktree=False` over an untracked-only tree and asserts `spawns == 1`. The tracked-only rule was NOT widened; `test_the_tracked_scope_is_IDENTICAL_on_both_paths` asserts the clean verdict and dirty-path tuple are equal across the two paths for three porcelain inputs, so only the MESSAGE differs.
+    NO SECOND `git status` CALL AND NO SECOND PREDICATE WERE ADDED. The change is `if isolate and self_finalize and not is_review:` -> `if self_finalize and not is_review:` plus `shared_tree=not isolate` on the existing call. `test_no_SECOND_predicate_and_no_SECOND_git_status_were_added` asserts each host's `evaluate_clean_base_for_launch` still contains exactly ONE `_run_git(` call and still delegates to `lane_containment.evaluate_clean_base(`. The required shape is what shipped.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the amended spec 2.1 stanza showing `--allow-dirty-base` inside the `run <selector>` block with no blank line separating it, and paste the new Rules bullet. Paste the output of the CONTRACT TEST'S OWN PARSER (`SpecFlagListTests.spec_grammar_flags`) showing the flag is now declared; reading the file by eye does not establish this, because the parser's stanza-scoping decides the answer.
     PASTE `git diff` FOR THE SPEC FILE and confirm NOTHING outside 2.1's stanza and Rules list changed (specifically not section 4.2's finding-code table). Paste the spec's workflow-history line written by `aw specs note`, and confirm its `- Status:` is still `approved` and was not hand-edited.
     IF `51vw4y`'s TWO FLAGS ARE ALREADY IN THE STANZA (F-14), say so and confirm you added beside them rather than replacing the stanza.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE AMENDED STANZA, from `git diff` of the spec, showing `--allow-dirty-base` INSIDE the `aw <host> run <selector>` block with no blank line separating it:
 
-- [ ] V-05 validates E-05
+    ```diff
+    @@ -136,6 +136,7 @@ aw <host> run <selector>
+         [--follow-generated]
+         [--with-dependencies]
+         [--retry-budget <0..10>]
+    +    [--allow-dirty-base]
+         [--action <review|plan|execute>]
+    ```
+
+    THE NEW RULES BULLET, verbatim: "- `--allow-dirty-base` acknowledges that the target checkout has uncommitted changes to TRACKED files and that this run may launch anyway. Without it, a turn whose base holds dirty tracked paths is refused before anything is spawned, and the refusal names the paths. Consent covers THIS run's base and nothing else: it does not waive the approval gate, the scope gate, the Section 4.2 V-evidence checks, or the integration-time dirty-overlap refusal, and a lane whose changed files OVERLAP a dirty path is still refused at integration. It never applies to UNTRACKED content, which is reported once at run start and refuses on no path, so there is nothing for this flag to consent to there. The consent is recorded in the run ledger with the paths it covered."
+    THE CONTRACT TEST'S OWN PARSER reports it as declared, which is the only reading that counts because the parser's stanza scoping decides the answer:
+
+    ```
+    $ python3 -c "from tests.test_run_flag_surface import SpecFlagListTests; ..."
+    THE CONTRACT TESTS OWN PARSER reports declared flags:
+       --action
+       --allow-dirty-base
+       --allow-drafts
+       --allow-mixed
+       --allow-unverifiable
+       --follow-generated
+       --full-auto
+       --retry-budget
+       --type
+       --unattended
+       --unverifiable-ok
+       --with-dependencies
+    --allow-dirty-base declared: True
+    ```
+
+    NOTHING OUTSIDE 2.1's STANZA AND RULES LIST CHANGED. `git diff` for the spec shows exactly three hunks: the stanza line, the Rules bullet, and the Workflow history record. Section 4.2's finding-code table is untouched (it is transcribed verbatim into `run_evidence.RUN_FINDING_CODES` under a byte-equality test, which passes), as are the 2026-09-05 amendment paragraphs.
+    THE HISTORY RECORD was written with `aw specs note`, not by hand: "aw specs note: appended a history record to .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md", producing "- 2026-09-14 note (aw specs): AMENDED 2.1 (plan 3i0aaz, dirtybase Order 01): declared --allow-dirty-base ...".
+    `- Status:` IS STILL `approved` AND WAS NOT HAND-EDITED: `grep -n "^- Status:"` reports `- Status: approved`, and it does not appear in the spec's diff at all.
+    A SIDE EFFECT OF `aw specs note` WORTH A HUMAN'S ATTENTION, reported rather than hidden. The verb DELIBERATELY keeps only the LATEST record in the inline `## Workflow history` section (`specs._append_history`: "the inline section keeps only the LATEST record; the full chronological log lives in the global .aw/records/history.jsonl sidecar"), so my note REPLACED the tracked 2026-09-13 telemetry record rather than appending beneath it. The sidecar it points at (`.aw/records/history.jsonl`) is GITIGNORED (`.aw/.gitignore:11`), so the superseded record survives only in this checkout and in git history, not in the committed file. I used the tool the plan mandated and did not hand-edit around it; flagging the design because a tracked record was lost from the file by a documented-but-lossy behavior. See DECISION register note.
+    `51vw4y`'s TWO FLAGS (F-14) ARE NOT YET IN THE STANZA: `--integration-retry-limit` and `--on-integration-blocked` are absent, so there was nothing to add beside. I appended my single entry to the existing bracketed list without rewriting it, so whichever of the two plans lands second will add beside mine.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `--allow-dirty-base` in BOTH hosts' `--help` with its default, and show ONE default across both (the `--full-auto` divergence is the failure being prevented). Paste the `RunPolicyFlag` row you added, with `implemented=True` visible, and confirm by `git diff` that you added NO `add_argument` call in either driver.
     Paste the frozen value from a real `state.json` `options` block, and paste the consent EVENT recorded for a run that proceeded over dirt.
     PASTE `python3 -m pytest tests/test_run_flag_surface.py` PASSING with `git diff --stat` EMPTY for that file. A modified, skipped, or xfailed `test_run_flag_surface.py` is a FAILED validation.
     PROVE THE CONSENT IS NARROW: paste evidence that with the flag set, the E-02 untracked report STILL appears, and that `dirty_tree_overlap`'s integration-time refusal is unaffected (that function unchanged, its tests green).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `--allow-dirty-base` IN BOTH HOSTS' `--help` WITH ONE DEFAULT, from the live parsers:
 
-- [ ] V-06 validates E-06
+    ```
+    oc_runipd ['--allow-dirty-base', '--no-allow-dirty-base'] default= False
+    agy_runipd ['--allow-dirty-base', '--no-allow-dirty-base'] default= False
+    ```
+
+    ONE default across both, which is the `--full-auto` divergence being prevented; `test_it_is_registered_on_BOTH_hosts_with_ONE_default` collects the default from each host into a set and asserts it is exactly `{False}`.
+    THE `RunPolicyFlag` ROW I ADDED, with `implemented=True` visible:
+
+    ```python
+    RunPolicyFlag(
+        flag="--allow-dirty-base",
+        dest="allow_dirty_base",
+        kind="bool",
+        implemented=True,
+        owner="runner_shared.clean_base_launch_decision",
+        help=(
+            "Acknowledge that the target checkout has uncommitted changes to TRACKED files and "
+            "launch anyway. Without it, such a base is REFUSED before anything is spawned, naming "
+            "the paths. Consent covers this run's base ONLY: the approval, scope, and V-evidence "
+            "gates still apply, and a lane whose changed files OVERLAP a dirty path is still "
+            "refused at integration. It does not apply to UNTRACKED content, which is reported at "
+            "run start and refuses on nothing, and it does not silence that report"
+        ),
+    ),
+    ```
+
+    `implemented=True` is correct and load-bearing: `implemented=False` would make `refuse_unimplemented_run_flags` REFUSE the flag rather than honor it, i.e. the opposite of consent.
+    NO `add_argument` CALL WAS ADDED IN EITHER DRIVER. `test_NEITHER_driver_hand_registers_it` asserts the literal string `--allow-dirty-base` appears in NEITHER driver's source (in either quoting style), so the flag reaches both hosts purely as DATA through `register_run_policy_flags`. Confirmed by `git diff`: neither driver's diff contains `add_argument`.
+    THE FROZEN VALUE, from `freeze_run_policy_flags`:
+
+    ```json
+    {
+      "allow_mixed": false, "allow_drafts": false, "unattended": false, "full_auto": false,
+      "allow_unverifiable": false, "unverifiable_ok": false, "follow_generated": false,
+      "with_dependencies": false, "retry_budget": 2, "allow_dirty_base": true
+    }
+    ```
+
+    That dict is what both hosts splat into `state["options"]`, so `state.json` `options.allow_dirty_base` carries it; `test_it_is_FROZEN_into_run_state` asserts it, and the row's default `resume_rule` of `none-default` means an omitted flag on resume cannot clobber it.
+    THE CONSENT EVENT, recorded for a run that proceeded over dirt. `test_the_CONSENT_is_recorded_as_an_event_naming_the_paths` reads the real `events.jsonl` written by `execute_item` on BOTH hosts and asserts exactly one `clean-base-consented` record with `dirty_paths == ["tracked.txt"]` and `--allow-dirty-base` in its `detail`. The detail text is:
+
+    ```
+    --allow-dirty-base: proceeding over 1 dirty TRACKED path(s) by explicit operator consent:
+    oc_runipd.py. Consent covers this base for this run ONLY: the approval, scope, and V-evidence
+    gates still apply, and a lane whose changed files overlap one of these paths will still be
+    refused at integration
+    ```
+
+    `tests/test_run_flag_surface.py` PASSES UNMODIFIED:
+
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest tests/test_lane_clean_base.py tests/test_run_flag_surface.py -o addopts=""
+    104 passed in 5.51s
+    $ git diff --stat -- tests/test_run_flag_surface.py
+    (no output)
+    ```
+
+    Not modified, not skipped, not xfailed.
+    THE CONSENT IS NARROW, both halves proven. (1) The E-02 untracked report STILL appears with the flag set: `report_untracked_dirt_at_run_start` takes no consent parameter and `evaluate_untracked_dirt`'s source contains no `allow_dirty_base`, asserted by `test_it_does_NOT_suppress_the_untracked_report`; the report also fires in `initialize_run`, before the flag is even consulted at a guard. (2) The integration-time refusal is unaffected: `dirty_tree_overlap`'s signature has no consent parameter and `integrate_lane_branch`'s source contains no `allow_dirty_base` (`test_it_does_NOT_reach_the_integration_time_overlap_refusal`), and that function's tests in `tests/test_lane_clean_base.py` are green with an empty diff.
+    HONORED IN ONE DECISION, not two. Both hosts call the single `runner_shared.clean_base_launch_decision`; `test_neither_driver_RE_IMPLEMENTS_the_consent_decision` asserts each `execute_item` calls it and that NEITHER driver mentions `CLEAN_BASE_REFUSE`/`CLEAN_BASE_CONSENTED`, so the verdict cannot drift between hosts. (Recorded as DECISION 08-3i0aaz-D3: "one place" is one DECISION reached from both hosts, since two call sites are required by CID-3.)
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste every case passing on BOTH hosts, and paste each one FAILING against pre-change HEAD. Paste proof the working tree was untouched after every refusal: `git status --porcelain` byte-identical before and after, with no stash entry created (`git stash list` unchanged). Confirm every case ran against a `TemporaryDirectory` fixture repository and NONE against this checkout.
     Paste the bare `python3 -m pytest` summary line with a SELF-MEASURED BEFORE baseline and the AFTER-minus-BEFORE failure set EMPTY. Do NOT reuse any baseline written in this plan: at review, HEAD `0853e9e0` measured `1 failed, 5958 passed, 3 skipped, 2 xfailed`, the single failure being `tests/test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose` from a GITIGNORED `opencode-recovery/` directory belonging to another party. CONFIRM YOU DID NOT DELETE, MOVE, OR MODIFY THAT DIRECTORY. Doing so to green the suite is a FAILED validation regardless of the test result.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: EVERY CASE PASSING ON BOTH HOSTS, from the new file:
+
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest tests/test_dirty_base_gate.py -o addopts=""
+    47 passed in 1.70s
+    ```
+
+    Every behavioral case is parameterized over `DRIVERS = (("oc", oc_runipd, "run_opencode"), ("agy", agy_runipd, "run_agy_turn"))` with `subTest`, so each assertion runs against both hosts, and `HostsAgreeTests` asserts the two return identical `(clean, dirty_paths, reason)` triples across six tree states.
+    EVERY CASE FAILING AGAINST PRE-CHANGE HEAD. I extracted `fea2c9f8` (my starting HEAD) into a scratch directory with `git archive`, copied ONLY the new test file in, and ran it there:
+
+    ```
+    $ cd <scratch>/prechange && env -u AW_EXECUTION_ROLE python3 -m pytest tests/test_dirty_base_gate.py -o addopts="" --tb=no -q
+    37 failed, 10 passed in 1.15s
+    ```
+
+    37 of 47 fail pre-change. The 10 that pass pre-change are, deliberately, the ones asserting that something was NOT done: the isolated message is unchanged, no second predicate/git call was added, `dirty_tree_overlap` still hand-rolls its parser, begin is still scope-scoped, neither driver hand-registers the flag, and the flag does not reach the integration path. Those are regression fences, so passing before AND after is the correct behavior for them; a fence that failed pre-change would be asserting the opposite of its purpose.
+    I FOUND AND FIXED TWO VACUOUS PASSES rather than accepting them. `test_the_SAME_run_PROCEEDS_with_allow_dirty_base` and `test_untracked_only_shared_tree_run_PROCEEDS` initially passed pre-change for the WRONG reason: pre-change the shared-tree path had no guard at all, so "it launched" was already true. I added non-vacuity assertions (the consent must be RECORDED on the attempt with the dirty paths; the untracked case must show the guard RAN and found the tracked tree clean), which moved the pre-change count from 35 failed / 12 passed to 37 failed / 10 passed. Both now fail pre-change.
+    THE WORKING TREE WAS UNTOUCHED AFTER EVERY REFUSAL. `_tree_snapshot` captures `git status --porcelain --untracked-files=all` AND `git stash list` before the drive and asserts the pair is byte-identical after, in both `test_a_shared_tree_run_over_dirty_tracked_paths_refuses_BEFORE_any_spawn` and `test_the_ISOLATED_path_still_refuses_with_its_OWN_unchanged_message`. An identical `git stash list` proves no stash entry was created, which is the specific way un-owned work could have been hidden.
+    NO CASE RAN AGAINST THIS CHECKOUT. Every case builds a `TemporaryDirectory` fixture through `_init_repo`, following `tests/test_lane_clean_base.py:85-95`. `tests/test_dirty_base_gate.py` contains no reference to `REPO_ROOT` or to this repository's path, and every `git init` is under a temp dir. This matters because every case needs a DIRTY tree, and producing one here would mean dirtying a shared checkout.
+    `tests/test_lane_clean_base.py` GREEN WITH AN EMPTY DIFF: `104 passed` for it plus `test_run_flag_surface.py`, and `git diff --stat` for both files prints nothing (pasted in V-03/V-05).
+    THE BARE SUITE, WITH A SELF-MEASURED BEFORE BASELINE. I did NOT reuse this plan's recorded baseline, and it was right to warn me: the plan predicted a `test_reporting_contract.py` failure from a gitignored `opencode-recovery/` directory, which DOES NOT EXIST in this lane, so that failure is absent here.
+    BEFORE (my own measurement, unmodified tree at `fea2c9f8`):
+
+    ```
+    2 failed, 6827 passed, 3 skipped, 2 xfailed in 108.28s (0:01:48)
+    FAILED tests/test_runner_backlog_close.py::ShutdownReportOnInterrupt::test_sigint_produces_the_report_and_exits_130
+    FAILED tests/test_orchestrator_retirement.py::RealRepositorySets::test_lanectn_refuses_naming_its_one_unfinished_child
+    ```
+
+    AFTER (identical command, after all my changes):
+
+    ```
+    2 failed, 6874 passed, 3 skipped, 2 xfailed in 81.54s (0:01:21)
+    FAILED tests/test_orchestrator_retirement.py::RealRepositorySets::test_lanectn_refuses_naming_its_one_unfinished_child
+    FAILED tests/test_runner_backlog_close.py::ShutdownReportOnInterrupt::test_sigint_produces_the_report_and_exits_130
+    ```
+
+    AFTER-MINUS-BEFORE FAILURE SET: EMPTY. The same two pre-existing failures, and +47 passing (my new file). Neither failure is mine: `test_lanectn_refuses...` is a real-repository assertion about the `lanectn` Set's records, and the SIGINT test is a timing-sensitive `TimeoutExpired` on a loaded shared machine.
+    ONE MEASUREMENT CORRECTION, recorded as DECISION 08-3i0aaz-D4 because it would otherwise look like I moved a goalpost: my FIRST baseline run reported `19 failed, 6810 passed`. That run inherited `AW_EXECUTION_ROLE` from this lane's own launch environment, which makes the driver's own lifecycle tests refuse (`test_driver_own_process_is_not_worker_role` failed in that run and passes without it). The baseline and the after-run therefore both use `env -u AW_EXECUTION_ROLE python3 -m pytest`, measuring the TREE rather than my harness. I did not modify any test or check to reach this.
+    I DID NOT DELETE, MOVE, OR MODIFY `opencode-recovery/`. It does not exist in this lane (`ls` finds no such path); I created nothing there and removed nothing.
+  - Result: pass
 
 ## Approval and execution gate
 
