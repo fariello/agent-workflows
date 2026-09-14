@@ -186,3 +186,27 @@ before that `check.review-finding-unescalated`), correctly: an unfixed HIGH must
 escalated blocking question means NO-GO. The verdict and readiness were corrected to match rather than the
 finding downgraded to fit the verdict. Recorded because the wrong version existed briefly and the gate,
 not the reviewer, is what caught it.
+
+## Round 3
+
+DISCHARGE ONLY. NO NEW REVIEW WAS PERFORMED. This round exists to record that round 2's gating finding
+was resolved by the maintainer's own decision, taken on 2026-09-13 through the `askme` workflow, one
+interactive prompt at a time. Nothing in the plan was re-reviewed here and no new finding was sought;
+appending a round is the mechanism `plan-review.md:187` prescribes for this, since the gate reads only
+the current round. The earlier rounds are left exactly as written.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-022 | HIGH | IN-SCOPE | G (executability) | the resolved `OQ-04` in this plan's `## Open questions` | Three children carried a stale `Readiness: no-go`. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | The maintainer set `Readiness: go-pending-approval` on Orders 00, 01, 04 and 05 as their own attested decision, recorded in each plan's workflow history naming who decided, when, and that no agent wrote the value. Round 2 left this OPEN because writing the field itself would have forged the attestation the auto-approve predicate reads; a human may attest what an agent may not, and did. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Does the maintainer's answer to OQ-04 discharge PR-022, or does the finding need a fresh review pass? | It discharges it; record the discharge and leave the earlier rounds untouched. | Run a further full review round on this plan. | The finding's own recorded remedy was a human decision, and that decision is now recorded in the owning plan with its reasoning. A further round was priced on evidence and rejected: the round earlier the same day cost 3h 02m and $106.07 across nine items and raised four NEW blocking questions, so it was not expected to yield a clean sheet. | yes |
+
+HONEST LIMIT: the discharge rests on the maintainer's decision, not on an independent reviewer's
+re-examination. If a later reader needs assurance that this plan's content was checked afresh, that
+assurance is in rounds 1 and 2 and not here.

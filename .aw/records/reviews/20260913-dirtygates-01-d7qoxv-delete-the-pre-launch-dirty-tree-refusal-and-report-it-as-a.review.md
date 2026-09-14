@@ -180,3 +180,27 @@ NOTE ON THE ORCHESTRATOR'S OQ-04: it asked who would re-review the three childre
 `no-go`. For `d7qoxv` the answer is now on record: this round did it, and the `no-go` STANDS, but for a
 NEW and different reason (PR-108) rather than the resolved one. That is a materially better position than
 before, because the field is now honest. `metc8b` and `u23gbn` still carry unverified `no-go` values.
+
+## Round 3
+
+DISCHARGE ONLY. NO NEW REVIEW WAS PERFORMED. This round exists to record that round 2's gating finding
+was resolved by the maintainer's own decision, taken on 2026-09-13 through the `askme` workflow, one
+interactive prompt at a time. Nothing in the plan was re-reviewed here and no new finding was sought;
+appending a round is the mechanism `plan-review.md:187` prescribes for this, since the gate reads only
+the current round. The earlier rounds are left exactly as written.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-108 | BLOCKER | IN-SCOPE | G (executability) | the resolved `OQ-03` in this plan's `## Open questions` | This plan and approved plan `3i0aaz` gave contradictory instructions about `tests/test_lane_clean_base.py`. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | The maintainer chose deliberate sequencing: `3i0aaz` executes FIRST and collects its empty-diff proof, then this plan runs and may break that property, since the proof is spent once collected. Neither plan loses anything and no approved validation is edited. The executor must add `- Item-Dependencies: executed:3i0aaz`. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Does the maintainer's answer to OQ-03 discharge PR-108, or does the finding need a fresh review pass? | It discharges it; record the discharge and leave the earlier rounds untouched. | Run a further full review round on this plan. | The finding's own recorded remedy was a human decision, and that decision is now recorded in the owning plan with its reasoning. A further round was priced on evidence and rejected: the round earlier the same day cost 3h 02m and $106.07 across nine items and raised four NEW blocking questions, so it was not expected to yield a clean sheet. | yes |
+
+HONEST LIMIT: the discharge rests on the maintainer's decision, not on an independent reviewer's
+re-examination. If a later reader needs assurance that this plan's content was checked afresh, that
+assurance is in rounds 1 and 2 and not here.
