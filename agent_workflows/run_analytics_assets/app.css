@@ -1,0 +1,40 @@
+:root { --ink: #101418; --muted: #4a5560; --line: #c9d1d9; --warn: #8a4b00; --bg: #ffffff; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 1.5rem; background: var(--bg); color: var(--ink);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+h1, h2, h3 { line-height: 1.25; }
+a { color: #0b4f9e; }
+.panel { border: 1px solid var(--line); border-radius: 6px; padding: 1rem; margin: 0 0 1.25rem; }
+.panel > h2 { margin-top: 0; }
+.muted { color: var(--muted); }
+.provenance { font-size: 0.85rem; color: var(--muted); }
+.refusal { border-left: 6px solid var(--warn); background: #fff8f0; }
+.refusal h3 { margin-top: 0; color: var(--warn); }
+.refusal .verdict { font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.estimated { font-style: italic; }
+.estimated::after { content: " (estimated)"; font-style: normal; font-size: 0.85em; }
+.recorded::after { content: " (recorded)"; font-size: 0.85em; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+caption { text-align: left; font-weight: 600; padding: 0.25rem 0; }
+th, td { border: 1px solid var(--line); padding: 0.3rem 0.5rem; text-align: left; }
+th[scope="col"] { background: #f1f4f7; }
+button { font: inherit; padding: 0.3rem 0.7rem; border: 1px solid var(--line);
+  background: #f7f9fb; border-radius: 4px; cursor: pointer; }
+button[aria-pressed="true"] { background: #0b4f9e; color: #fff; border-color: #08386f; }
+button[aria-pressed="true"]::before { content: "\\2713\\00a0"; }
+button[disabled], button[aria-disabled="true"] { opacity: 0.6; cursor: not-allowed; }
+:focus-visible { outline: 3px solid #0b4f9e; outline-offset: 2px; }
+.series-0 { stroke-dasharray: none; }
+.series-1 { stroke-dasharray: 6 3; }
+.series-2 { stroke-dasharray: 2 3; }
+.series-3 { stroke-dasharray: 9 3 2 3; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px;
+  clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+@media (prefers-color-scheme: dark) {
+  :root { --ink: #e8edf2; --muted: #a7b3be; --line: #3a444e; --bg: #14181c; }
+  th[scope="col"] { background: #1e242a; }
+  .refusal { background: #241a0e; }
+}
