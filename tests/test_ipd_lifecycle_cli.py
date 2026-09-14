@@ -1341,5 +1341,365 @@ class DelegationAndBypassRemovalTests(unittest.TestCase):
         self.assertFalse(self._executed_path().exists())
 
 
+class ParenthesizedActorIsRefusedBeforeAnyWrite(unittest.TestCase):
+    """Plan fn2l1u E-01/E-02/E-07: refuse the unparseable actor at the SETTER, not after the commit.
+
+    The defect this closes: a parenthesized actor made the history line unparseable to the readers,
+    IPD-S406 fired as POST-transition validation (i.e. AFTER the lifecycle commit), and finalize landed
+    in COMMITTED-INCOMPLETE telling the operator to re-run the same command - which could not succeed,
+    because the offending text was now in the file. The only escape was hand-editing a plan already in
+    `executed/`, which trips the executed-transition gate too, so one bad character cost two gate
+    bypasses. Every refusal below therefore asserts BOTH the nonzero exit AND that nothing was written.
+    """
+
+    BAD = "opencode (its_direct/some-model)"
+    GOOD = "opencode/its_direct/some-model"
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _init_git(self.root)
+        (self.root / "agent_workflows").mkdir()
+        (self.root / "tests").mkdir()
+        self.plan = _write_plan(
+            self.root,
+            _completed_plan_text(
+                scope_paths="agent_workflows/demo.py, tests/test_demo.py"
+            ),
+            "20260824-demo-01-abc123-demo.ipd.md",
+        )
+        _commit_all(self.root, "init")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _run_cli(self, argv):
+        from contextlib import redirect_stderr
+
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            try:
+                rc = cli.main(argv + ["--dir", str(self.root)])
+            except SystemExit as e:
+                rc = int(e.code or 0)
+        return rc, out.getvalue() + err.getvalue()
+
+    def _head(self) -> str:
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+    def _assert_nothing_written(self, before_text: str, before_head: str) -> None:
+        self.assertEqual(
+            self.plan.read_text(encoding="utf-8"),
+            before_text,
+            "a refused setter must leave the plan file byte-identical",
+        )
+        self.assertEqual(self._head(), before_head, "a refused setter must not commit")
+        self.assertTrue(self.plan.is_file(), "the plan must not be moved")
+
+    def test_the_shared_validator_has_exactly_one_definition(self):
+        """E-01: the guard is LIFTED, not copied; two definitions of a valid actor could drift."""
+        from agent_workflows import attention_contract as AC
+
+        self.assertIsNone(AC.actor_refusal(self.GOOD))
+        self.assertIsNotNone(AC.actor_refusal(self.BAD))
+        self.assertIsNotNone(AC.actor_refusal(""))
+        self.assertIsNotNone(AC.actor_refusal("   "))
+        self.assertIsNotNone(AC.actor_refusal(None))
+        # The refusal is operator-facing documentation: it must name the ACCEPTED shape, not merely
+        # reject the bad one.
+        msg = AC.actor_refusal(self.BAD) or ""
+        self.assertIn("key=value", msg)
+        self.assertIn("parenthesis", msg)
+
+    def test_no_import_cycle_between_the_writer_and_the_lifecycle(self):
+        """E-01's real constraint: `status_set` must reach the helper without a cycle."""
+        import subprocess as sp
+
+        r = sp.run(
+            [
+                "python3",
+                "-c",
+                "import agent_workflows.status_set, agent_workflows.ipd_lifecycle",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_aw_set_nonterminal_refuses_and_writes_nothing(self):
+        """E-07, THE GATE-BREAKING PATH: a NON-terminal transition is where the damage happened."""
+        before, head = self.plan.read_text(encoding="utf-8"), self._head()
+        rc, out = self._run_cli(
+            [
+                "set",
+                "reviewed",
+                "abc123",
+                "--actor",
+                self.BAD,
+                "--message",
+                "m",
+                "--yes",
+            ]
+        )
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("parenthesis", out)
+        self._assert_nothing_written(before, head)
+
+    def test_aw_ipd_set_refuses_too_since_every_spelling_shares_one_writer(self):
+        """The point of guarding the shared writer: no CLI spelling can bypass it."""
+        before, head = self.plan.read_text(encoding="utf-8"), self._head()
+        rc, out = self._run_cli(
+            [
+                "ipd",
+                "set",
+                "reviewed",
+                "abc123",
+                "--actor",
+                self.BAD,
+                "--message",
+                "m",
+                "--yes",
+            ]
+        )
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("parenthesis", out)
+        self._assert_nothing_written(before, head)
+
+    def test_aw_set_executed_refuses_before_the_finalize_transaction(self):
+        """E-02: the terminal spelling, which delegates into `finalize`, refuses at the same guard."""
+        before, head = self.plan.read_text(encoding="utf-8"), self._head()
+        rc, out = self._run_cli(
+            [
+                "set",
+                "executed",
+                "abc123",
+                "--actor",
+                self.BAD,
+                "--message",
+                "m",
+                "--yes",
+            ]
+        )
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("parenthesis", out)
+        self._assert_nothing_written(before, head)
+        self.assertFalse(
+            (
+                self.root / ".aw" / "records" / "plans" / "executed" / self.plan.name
+            ).exists()
+        )
+
+    def test_the_writer_itself_raises_as_a_fail_closed_backstop(self):
+        """A DIRECT caller of the writer that skipped the CLI pre-flight must still be refused."""
+        from agent_workflows import status_set as SS
+
+        rec = SS.read_artifact_record(self.plan, self.root)
+        self.assertIsNotNone(rec)
+        assert rec is not None
+        before, head = self.plan.read_text(encoding="utf-8"), self._head()
+        ns = argparse.Namespace(actor=self.BAD, message="m")
+        with self.assertRaises(ValueError) as ctx:
+            SS.apply_status_change(rec, "reviewed", self.root, ns)
+        self.assertIn("parenthesis", str(ctx.exception))
+        self._assert_nothing_written(before, head)
+
+    def test_finalize_refuses_the_actor_BEFORE_it_even_checks_the_plan_exists(self):
+        """E-02: proof the gate precedes every mutation - it precedes the file-exists check."""
+        res = LC.finalize(
+            Path("/nonexistent/repo"),
+            Path("/nonexistent/repo/p.ipd.md"),
+            self.BAD,
+            "msg",
+            apply=True,
+        )
+        self.assertEqual(res.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertIn("parenthesis", res.message)
+        # Contrast: a VALID actor gets past the actor gate and fails later, on the missing file.
+        ok = LC.finalize(
+            Path("/nonexistent/repo"),
+            Path("/nonexistent/repo/p.ipd.md"),
+            self.GOOD,
+            "msg",
+            apply=True,
+        )
+        self.assertIn("plan file not found", ok.message)
+
+    def test_finalize_precheck_takes_no_actor_so_it_never_was_a_hole(self):
+        """Corrects the plan's original claim of four unguarded finalize paths (its F-4)."""
+        import inspect
+
+        self.assertEqual(
+            list(inspect.signature(LC.finalize_precheck).parameters),
+            ["repo_root", "plan_path"],
+        )
+
+    def test_the_slash_form_is_ACCEPTED_so_the_guard_is_not_over_broad(self):
+        """A guard that refused every actor would be worse than none.
+
+        Note `aw set --yes` also performs its own path-scoped self-commit of the rewritten artifact
+        (`selfcommit jgcm68`), so HEAD legitimately moves here; the property under test is that the
+        transition is ACCEPTED and records the actor verbatim.
+        """
+        rc, out = self._run_cli(
+            [
+                "set",
+                "reviewed",
+                "abc123",
+                "--actor",
+                self.GOOD,
+                "--message",
+                "m",
+                "--yes",
+            ]
+        )
+        self.assertEqual(rc, 0, out)
+        text = self.plan.read_text(encoding="utf-8")
+        self.assertIn(f"reviewed ({self.GOOD})", text)
+        self.assertIn("- Status: reviewed", text)
+
+    def test_no_call_site_in_the_package_passes_a_parenthesized_actor(self):
+        """F-18: a call site the new guard would refuse is a trap, even when unreachable."""
+        import re as _re
+        from pathlib import Path as _P
+
+        offenders = []
+        for path in sorted(_P("agent_workflows").glob("*.py")):
+            for i, line in enumerate(
+                path.read_text(encoding="utf-8").splitlines(), start=1
+            ):
+                if '"--actor",' in line or "'--actor'," in line:
+                    continue
+                m = _re.search(r'"--actor",\s*"([^"]*\([^"]*)"', line)
+                if m:
+                    offenders.append(f"{path}:{i}: {m.group(1)}")
+        self.assertEqual(
+            offenders, [], f"parenthesized actor literals remain: {offenders}"
+        )
+
+
+class ScaffoldStopsWritingTheShapeItsOwnSetterRefuses(unittest.TestCase):
+    """Plan fn2l1u E-05 / V-05, resolving OQ-02: NORMALIZE the author, AND SAY SO.
+
+    `--author` reaches TWO places, not one: the `- Author:` front-matter field and the scaffold's own
+    first history line, `- <date> draft (<author>): created.`. A parenthesized author therefore made
+    scaffold WRITE an unparseable record into every new plan (F-15), which is worse than merely
+    teaching the shape. The maintainer's OQ-02 ruling took a third option over silent normalization:
+    normalize, but print one line, so the string the caller typed is not silently replaced.
+    """
+
+    BAD = "opencode (its_direct/some-model)"
+    WANT = "opencode model=its_direct/some-model"
+
+    def test_the_author_is_normalized_to_the_key_value_shape(self):
+        self.assertEqual(A.normalize_author(self.BAD), self.WANT)
+
+    def test_an_author_with_no_parenthesis_is_untouched(self):
+        for good in ("opencode/its_direct/some-model", "aw set", "human maintainer"):
+            with self.subTest(good=good):
+                self.assertEqual(A.normalize_author(good), good)
+
+    def test_BOTH_write_sites_get_the_normalized_author(self):
+        """Normalizing only the front matter would leave the history line unparseable."""
+        text = A.build_skeleton(
+            kind=S.KIND_CHILD,
+            title="T",
+            author=self.BAD,
+            when="2026-09-09",
+            set_name="demo",
+            order=1,
+            plan_id="aaa111",
+        )
+        self.assertIn(f"- Author: {self.WANT}", text)
+        self.assertIn(f"- 2026-09-09 draft ({self.WANT}): created.", text)
+        self.assertNotIn(self.BAD, text)
+
+    def test_the_scaffolded_history_line_actually_PARSES(self):
+        """The point of the whole item: a brand-new plan must not be born unparseable."""
+        from agent_workflows import record_history as RH
+
+        text = A.build_skeleton(
+            kind=S.KIND_CHILD,
+            title="T",
+            author=self.BAD,
+            when="2026-09-09",
+            set_name="demo",
+            order=1,
+            plan_id="aaa111",
+        )
+        line = next(
+            ln.strip()
+            for ln in text.splitlines()
+            if ln.strip().startswith("- 2026-09-09 draft ")
+        )
+        _d, workflow, actor, message = RH._parse_record_line(line)
+        self.assertEqual(workflow, "draft")
+        self.assertEqual(actor, self.WANT)
+        self.assertEqual(message, "created.")
+
+    def test_the_normalized_author_would_be_ACCEPTED_as_an_actor(self):
+        """Closes the loop: the shape scaffold now emits is the shape the setter accepts."""
+        from agent_workflows import attention_contract as AC
+
+        self.assertIsNone(AC.actor_refusal(A.normalize_author(self.BAD)))
+        self.assertIsNotNone(AC.actor_refusal(self.BAD))
+
+    def test_run_scaffold_PRINTS_that_it_normalized(self):
+        """OQ-02 requires a NOTICE; a silent rewrite does not satisfy the item."""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        target = root / "20260909-demo-01-aaa111-t.ipd.md"
+        args = argparse.Namespace(
+            kind=S.KIND_CHILD,
+            title="T",
+            author=self.BAD,
+            set="demo",
+            order=1,
+            path=str(target),
+            apply=True,
+            overwrite=False,
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = A.run_scaffold(args)
+        out = buf.getvalue()
+        self.assertEqual(rc, 0, out)
+        self.assertIn("normalized --author", out)
+        self.assertIn(self.WANT, out)
+        self.assertEqual(
+            len([ln for ln in out.splitlines() if "normalized --author" in ln]),
+            1,
+            "the notice must be ONE line and must not read as an error",
+        )
+        self.assertNotIn("error", out.lower().split("normalized")[0])
+
+    def test_no_notice_is_printed_when_nothing_changed(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        target = root / "20260909-demo-01-aaa112-t.ipd.md"
+        args = argparse.Namespace(
+            kind=S.KIND_CHILD,
+            title="T",
+            author="opencode/its_direct/some-model",
+            set="demo",
+            order=1,
+            path=str(target),
+            apply=True,
+            overwrite=False,
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = A.run_scaffold(args)
+        self.assertEqual(rc, 0, buf.getvalue())
+        self.assertNotIn("normalized", buf.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

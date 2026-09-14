@@ -896,9 +896,11 @@ def set_plan_approved(
 def driver_actor(state: dict[str, Any]) -> str:
     """The attributed actor string bound into begin/finalize (driver + configured model).
 
-    Kept parenthesis-free: the terminal history line is `- <date> <status> (<actor>): <msg>`, and
-    the attribution lint's actor capture (`\\(...[^)]*...\\)`) would misparse a parenthesized actor,
-    so the model is rendered as `model=<model>` (no nested parens)."""
+    Kept parenthesis-free: the terminal history line is `- <date> <status> (<actor>): <msg>`, so the
+    model is rendered as `model=<model>` (no nested parens). The readers no longer REQUIRE this (plan
+    fn2l1u made every actor capture lazy), but the setter now REFUSES a parenthesized actor
+    (`attention_contract.actor_refusal`): one shape toolkit-wide, refused before the commit rather
+    than diagnosed after it. Mirrors `oc_runipd.driver_actor`."""
     model = (state.get("options", {}) or {}).get("model")
     return f"aw agy run model={model}" if model else "aw agy run"
 

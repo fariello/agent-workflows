@@ -549,6 +549,53 @@ def last_history_at(history_lines: List[str]) -> Optional[str]:
     return last
 
 
+# The ONE definition of "is this actor writable into a history line" (plan fn2l1u E-01).
+#
+# WHY IT LIVES HERE, since the placement was the one real constraint on this refactor. The check was
+# born inside `ipd_lifecycle.retire_orchestrator`, but `status_set.apply_status_change` is the SINGLE
+# writer of every artifact's history line and must call it too (E-07), and `ipd_lifecycle` already
+# imports `status_set` (as `_ss`), so a helper hosted in `ipd_lifecycle` would force a cycle. This
+# module is stdlib-only with ZERO package imports, already OWNS the history-record grammar
+# (`HISTORY_RECORD_RE` directly above), and is already imported by both readers of that grammar
+# (`plan_readiness`, `record_history`), so every caller can reach it and no cycle is possible.
+#
+# WHY THE REFUSAL SURVIVES THE READER WIDENING, which is the question a later reader will ask. Plan
+# fn2l1u E-03/E-08 made the three readers TOLERANT of a parenthesized actor (lazy captures), so this
+# guard is no longer propping up a parser limitation. It now enforces the CONVENTION: every writer in
+# the toolkit emits the parenthesis-free `key=value` shape (`oc_runipd.driver_actor`), one shape is
+# cheaper to read and grep than two, and a nested-paren actor is still ambiguous to a human skimming
+# `- <date> <status> (<actor>): <msg>`. Refusing at the setter also keeps the failure BEFORE the
+# lifecycle commit, which is the whole point: the alternative was a post-commit lint failure that
+# left finalize `committed-incomplete` with a resume instruction that could not succeed.
+ACTOR_PARENTHESIS_REMEDY = (
+    "Render qualifiers as key=value (see oc_runipd.driver_actor), e.g. "
+    "'opencode model=its_direct/some-model' rather than 'opencode (its_direct/some-model)'."
+)
+
+
+def actor_refusal(actor: Optional[str]) -> Optional[str]:
+    """The reason ``actor`` may NOT be written into a ``## Workflow history`` line, or ``None`` if it may.
+
+    Pure and total. Two refusals, in this order: an EMPTY (or whitespace-only) actor, and an actor
+    containing a parenthesis. Callers must invoke this BEFORE any mutation - that ordering is the
+    defect this helper exists to close (plan fn2l1u).
+
+    The returned string is operator-facing documentation: it names the accepted shape rather than only
+    rejecting the bad one, because the caller who tripped it needs to know what to type instead.
+    """
+
+    if actor is None or not actor.strip():
+        return "a non-empty actor is required."
+    stripped = actor.strip()
+    if "(" in stripped or ")" in stripped:
+        return (
+            f"actor {stripped!r} contains a parenthesis. The history line is "
+            "'- <date> <status> (<actor>): <msg>', and every writer in this toolkit emits a "
+            f"parenthesis-free actor, so a nested parenthesis is ambiguous. {ACTOR_PARENTHESIS_REMEDY}"
+        )
+    return None
+
+
 # --------------------------------------------------------------------------------------
 # Stable rule-id catalog + the agent-record shape (spec Section 8.3; Order 01 finding L1-01)
 # --------------------------------------------------------------------------------------

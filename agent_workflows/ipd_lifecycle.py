@@ -2135,11 +2135,18 @@ def rollup_history_message(
     the case, asserting "all children of set X executed" without naming them.
 
     PARENTHESIS-FREE BY CONTRACT, in the ACTOR the caller pairs with this message. The terminal
-    history line is `- <date> <status> (<actor>): <msg>` and `ipd_lint._HISTORY_ATTRIB_RE` captures
-    the actor with `\\(([^)]*)\\)`, so a parenthesized actor MISPARSES and the attribution lint then
-    fails. Today's `--actor "aw oc run (orchestrator rollup)"` is exactly that bug (F-4); the actor
-    must therefore be rendered `key=value`-style as `driver_actor` already does. The MESSAGE may
-    contain parentheses safely (it is the trailing capture), but the actor may not.
+    history line is `- <date> <status> (<actor>): <msg>`, and the actor is rendered `key=value`-style
+    as `driver_actor` does. The MESSAGE may contain parentheses safely (it is the trailing capture),
+    but the actor may not.
+
+    THE REASON CHANGED, and the rule did not (plan fn2l1u). This used to say the readers' actor
+    capture was bounded by `[^)]*` so a parenthesized actor MISPARSED; that is no longer true -
+    `ipd_lint._HISTORY_ATTRIB_RE`, `plan_readiness._HISTORY_RECORD_PARTS_RE` and
+    `record_history._TAIL_RE` all capture the actor LAZILY now and parse either shape. The
+    parenthesis-free rule stands anyway, and is now ENFORCED at the setter
+    (`attention_contract.actor_refusal`): every writer in the toolkit emits one shape, one shape is
+    cheaper to read and grep than two, and refusing at the setter keeps the failure BEFORE the
+    lifecycle commit instead of after it.
     """
     named = ", ".join(children) if children else "none"
     run_part = f"run {run_id}" if run_id else "an unrecorded run"
@@ -2244,9 +2251,16 @@ def retire_orchestrator(
             (ROLLUP_REFUSED_WORKER_ROLE,),
         )
 
-    # --- GATE: actor required (mirrors `finalize` :1730-1737). The message is DERIVED here rather
-    # than passed in, because R-4 fixes what it must say; there is no caller-supplied wording to
-    # validate.
+    # --- GATE: actor required (mirrors `finalize`). The message is DERIVED here rather than passed
+    # in, because R-4 fixes what it must say; there is no caller-supplied wording to validate.
+    #
+    # The empty-actor wording stays LOCAL because it names this transition ("orchestrator rollup
+    # retirement requires..."), which is more useful than a generic string and is pinned by
+    # `tests/test_orchestrator_retirement.py::test_an_empty_actor_is_refused`. The PARENTHESIS refusal
+    # now comes from the ONE shared validator (`attention_contract.actor_refusal`, plan fn2l1u E-01)
+    # so that this path, `finalize`, and the shared history writer cannot drift into two definitions
+    # of a valid actor. See that helper for why the refusal remains correct now that the READERS
+    # tolerate a parenthesized actor.
     if not actor or not actor.strip():
         return FinalizeResult(
             EXIT_CANNOT_RUN,
@@ -2255,20 +2269,11 @@ def retire_orchestrator(
             evidence,
         )
     actor = actor.strip()
-    if "(" in actor or ")" in actor:
-        # F-4: `ipd_lint._HISTORY_ATTRIB_RE` captures the actor as `\\(([^)]*)\\)`, so a
-        # parenthesized actor misparses and the attribution lint fails AFTER the commit, i.e. in the
-        # committed-incomplete state. Refuse BEFORE mutating anything instead. Today's
-        # `--actor "aw oc run (orchestrator rollup)"` is exactly this bug.
-        return FinalizeResult(
-            EXIT_CANNOT_RUN,
-            None,
-            f"actor {actor!r} contains a parenthesis. The terminal history line is "
-            "'- <date> <status> (<actor>): <msg>' and the attribution lint captures the actor with "
-            "'\\(([^)]*)\\)', so a parenthesized actor misparses and post-transition lint would fail "
-            "AFTER the commit. Render qualifiers as key=value (see oc_runipd.driver_actor).",
-            evidence,
-        )
+    from agent_workflows import attention_contract as _ac
+
+    _actor_problem = _ac.actor_refusal(actor)
+    if _actor_problem is not None:
+        return FinalizeResult(EXIT_CANNOT_RUN, None, _actor_problem, evidence)
     if not plan_path.is_file():
         return FinalizeResult(
             EXIT_CANNOT_RUN, None, f"plan file not found: {plan_path}", evidence
@@ -2449,6 +2454,19 @@ def finalize(
         return FinalizeResult(
             EXIT_CANNOT_RUN, None, "finalize requires a non-empty --actor."
         )
+    # THE FINALIZE CHOKE POINT (plan fn2l1u E-02). This one site covers all THREE callers - the CLI
+    # (`run_finalize`), `retire_orchestrator`'s rollup path, and `status_set`'s
+    # `_delegate_plan_executed_to_finalize`, which is what `aw set executed` / `aw ipd set executed`
+    # take - and it sits BEFORE any journal write, status write, move, or commit, which is the
+    # property that matters: the defect being closed is a formatting failure detected AFTER the
+    # lifecycle commit, leaving the transaction `committed-incomplete` with a resume instruction that
+    # could not succeed. `finalize_precheck` is deliberately NOT guarded: it receives no actor at all,
+    # so it never was a hole.
+    from agent_workflows import attention_contract as _ac
+
+    _actor_problem = _ac.actor_refusal(actor)
+    if _actor_problem is not None:
+        return FinalizeResult(EXIT_CANNOT_RUN, None, f"finalize: {_actor_problem}")
     if not message or not message.strip():
         return FinalizeResult(
             EXIT_CANNOT_RUN, None, "finalize requires a non-empty --message."

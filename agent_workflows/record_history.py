@@ -290,7 +290,21 @@ _RECORD_TREES = (
     "releases",
 )
 # Parse "workflow" + "actor" out of the free tail when it matches "<workflow> (<actor>): <message>".
-_TAIL_RE = _re.compile(r"^(?P<workflow>\S+)\s*\((?P<actor>[^)]*)\):\s*(?P<message>.*)$")
+#
+# LAZY ACTOR CAPTURE, for the reason spelled out at `ipd_lint._HISTORY_ATTRIB_RE` (plan fn2l1u E-08b).
+# `[^)]*` stopped at the first `)`, so a parenthesized actor did not parse here either, and this
+# pattern is not merely cosmetic: it feeds `ipd_lifecycle._plan_status_events`, so
+# `derive_plan_status` read a plan whose newest record was a parenthesized `executed` as still being
+# in its PREVIOUS status (measured: `approved` instead of `executed`), and `check_engine.
+# check_lifecycle_transitions` consumes the same events. Measured over all 3073 tracked history
+# records: the lazy form changes the captures of ZERO previously-parsing records and newly parses 329.
+#
+# STILL DELIBERATELY `\S+` FOR THE WORKFLOW TOKEN. 150 records carry a MULTI-WORD middle (e.g.
+# `- 2026-07-26 fleshed to a design spec from research (actor): msg`) and remain unparsed here. That is
+# a separate defect: fixing it means deciding what the workflow token IS, which is a grammar change
+# rather than a bound widening, and it affects only this sidecar migration path (no gate). Left out of
+# fn2l1u on purpose; see that plan's Deferred section.
+_TAIL_RE = _re.compile(r"^(?P<workflow>\S+)\s*\((?P<actor>.*?)\):\s*(?P<message>.*)$")
 
 
 def _record_id6(text: str):

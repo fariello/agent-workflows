@@ -176,8 +176,23 @@ _SUBFIELD_RE = re.compile(r"^\s+- ([A-Za-z][A-Za-z /-]*?):\s?(.*)$")
 _HISTORY_LINE_RE = re.compile(r"^-\s+(?:\d{4}-\d{2}-\d{2})\s+(\S+)")
 # ipdgates Order wezhxg: parse the full terminal history line `- <date> <status> (<actor>): <msg>`
 # so the post-transition attribution lint can reject a generic/empty actor + empty summary.
+#
+# THE ACTOR CAPTURE IS LAZY (`.*?`), NOT `[^)]*` AND NOT GREEDY (plan fn2l1u E-03), and the choice is
+# settled by measurement. `[^)]*` stopped at the FIRST `)`, so an actor CONTAINING parentheses (e.g.
+# `opencode (its_direct/some-model)`, the shape 274 of 638 tracked plans carry in `- Author:` and that
+# agents copy into `--actor`) never matched at all; `_newest_executed_history` then fell through to its
+# bare-line branch and reported an EMPTY actor for a line where one is plainly present. Because
+# IPD-S406 runs POST-transition, that fired AFTER the lifecycle commit and left finalize
+# `committed-incomplete` with a resume instruction that could not succeed.
+#
+# GREEDY WOULD HAVE BEEN A REGRESSION, which is why lazy is not a style preference. Against
+# `- 2026-09-08 executed (opencode/model): fixed foo(bar): baz` - a line that parses CORRECTLY today -
+# greedy anchors on the LAST `):` and captures actor `opencode/model): fixed foo(bar`, silently
+# corrupting it. Lazy yields actor `opencode/model` and the full message, identical to the old
+# pattern's output. Measured over all 3073 tracked history records: lazy changes the captures of ZERO
+# previously-parsing lines. Do NOT loosen the date or status portions.
 _HISTORY_ATTRIB_RE = re.compile(
-    r"^-\s+(?:\d{4}-\d{2}-\d{2})\s+(?P<status>\S+)\s+\((?P<actor>[^)]*)\)\s*:\s*(?P<msg>.*)$"
+    r"^-\s+(?:\d{4}-\d{2}-\d{2})\s+(?P<status>\S+)\s+\((?P<actor>.*?)\)\s*:\s*(?P<msg>.*)$"
 )
 # The generic machine-default actor(s) the attribution lint rejects (pinned narrowly per OQ; do NOT
 # expand to bare tool/human names like `Antigravity`/`maintainer`). Targets ONLY the `aw set` default.
