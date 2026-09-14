@@ -8,16 +8,16 @@
 - Item-Dependencies: executed:nna8yz
 - From-Spec: 7ckptx
 - Blocks-Release: next
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: lanectn
 - Order: 5
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: xdr83v
-- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-14 executed (aw oc run): aw oc run self-finalize: xdr83v verified (set lanectn, attempt 1). [Scope reconciliation - out-of-scope tests/test_lane_allocation_idempotent.py: changed by the plan's approved execution (auto-reconciled by aw oc run)]
 - 2026-09-05 approved (aw set): status set to approved
 - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED; round 2 is a DISCLOSED SELF-REVIEW (I authored this plan, so it is weaker evidence than round 1, which was independent and performed by codex/gpt-5). Round 1's PR-* findings were all resolved and moved to FIXED in the typed review record; round 2 then found 2 further findings, SR-002, SR-003 (both FIXED), of which four across the Set were defects I INTRODUCED while fixing round 1. Round 2 is appended to the plan-specific typed review record.
 - 2026-09-01 reviewed (aw set): /aw plan-review round 1 complete; all findings ACCEPTED and resolved. Every one was verified against the artifact before fixing. Two were serious: (1) my orchestrator claimed a proven-complete dependency graph while two children's metadata omitted edges their own prose required, which is the same CLASS of defect that got the predecessor tch3bo rejected - the proof had checked acyclicity only and never metadata-vs-prose agreement; (2) the spec's secret vocabulary was derived from THIS repository's ignore file with no floor, which would admit secrets in a managed target repo, fixed by a maintainer-approved spec amendment adding a built-in floor, union-only composition, and fail-closed behavior. Also fixed: the right-sizing complaint that I complied on E-item count while hiding each second driver's whole implementation in one 'mirror' item (now host-neutral code plus thin adapters), stale hardcoded suite baselines (now measure-at-execution-time and compare failures by identity), a genuine data-model error where retention read the input manifest for OUTPUT collection state (now an attempt-keyed collection receipt owned by the plan that owns collection), and an unfollowable instruction to read docstring owner labels that name superseded phases (now a measured predicate ownership table).
@@ -41,18 +41,18 @@ MEASURED DELTA, so do not rewrite what exists: the driver already emits a preser
 
 ### Task group 1: classify, then refuse (R5.5, R5.6)
 
-- [ ] E-01 IMPLEMENTS R5.5 (classification). Inventory a lane's contents before teardown, enumerating so that IGNORED files are seen as well as untracked ones. Content the driver itself wrote under the lane control directory is classified discardable, established from the sealed manifest child `nna8yz` produces rather than from a hardcoded path list. Everything else is UNKNOWN.
+- [x] E-01 IMPLEMENTS R5.5 (classification). Inventory a lane's contents before teardown, enumerating so that IGNORED files are seen as well as untracked ones. Content the driver itself wrote under the lane control directory is classified discardable, established from the sealed manifest child `nna8yz` produces rather than from a hardcoded path list. Everything else is UNKNOWN.
   - Depends on: none
   - Expected outcome: the inventory reports, for a given lane, the dirty tracked files, the unknown untracked files, the unknown IGNORED files, and whether a submission remains uncollected. TWO DIFFERENT SOURCES, and conflating them was a real defect caught by `/aw plan-review` (PR-001): driver-written control content is excluded using the sealed INPUT manifest from `nna8yz`, but the uncollected-submission question MUST be answered from the attempt-keyed COLLECTION RECEIPT that `cqx5v7` E-06 emits, because the input manifest cannot know anything about output. Do NOT guess from path presence: that either preserves every successful lane forever or deletes output whose collection failed.
-  - Execution state: pending
-- [ ] E-02 IMPLEMENTS R5.5 (refusal). Make teardown REFUSE while the inventory reports any unknown content: a dirty tracked file, an unknown untracked or ignored file, or an uncollected submission. Only a fully classified lane may be torn down. Fail toward PRESERVATION: if the inventory itself cannot run, refuse rather than proceed, because a destroyed lane is unrecoverable while a preserved one costs only disk.
+  - Execution state: performed
+- [x] E-02 IMPLEMENTS R5.5 (refusal). Make teardown REFUSE while the inventory reports any unknown content: a dirty tracked file, an unknown untracked or ignored file, or an uncollected submission. Only a fully classified lane may be torn down. Fail toward PRESERVATION: if the inventory itself cannot run, refuse rather than proceed, because a destroyed lane is unrecoverable while a preserved one costs only disk.
   - Depends on: E-01
   - Expected outcome: a lane with any unknown content still exists after the teardown call; a fully classified clean lane is removed; and an inventory failure results in preservation, not removal.
-  - Execution state: pending
-- [ ] E-03 IMPLEMENTS R5.6, R5.6a, and WIRES the agy twin to the shared inventory. Record each refusal as an event naming WHICH condition held, extending the existing preservation event rather than adding a second one (CID-2). THEN SURFACE IT IN THE RUN'S SUMMARY OUTPUT, not only in the event log (spec R5.6a, maintainer ruling 2026-09-01): the summary must name each preserved lane and the reason. MEASURED justification, which is why this is a requirement and not a nicety: run `run-20260901T042331Z-118022` preserved TWO lanes and mentioned it ZERO times in the summary a human reads, no reader surfaced the event at all, and five preserved lanes were on disk at the time; the maintainer learned work had been stranded by ASKING, not from the run's output. An event nobody reads is close to no record at all, and reporting success in the summary while the log records preservation reproduces the silent-stranding failure this whole effort exists to remove. SCOPE NOTE, checked rather than assumed: the summary is written inside `oc_runipd.py` (`(run_dir / "execution-report.md").write_text(...)`), which this plan ALREADY declares, so no fence widening is required.
+  - Execution state: performed
+- [x] E-03 IMPLEMENTS R5.6, R5.6a, and WIRES the agy twin to the shared inventory. Record each refusal as an event naming WHICH condition held, extending the existing preservation event rather than adding a second one (CID-2). THEN SURFACE IT IN THE RUN'S SUMMARY OUTPUT, not only in the event log (spec R5.6a, maintainer ruling 2026-09-01): the summary must name each preserved lane and the reason. MEASURED justification, which is why this is a requirement and not a nicety: run `run-20260901T042331Z-118022` preserved TWO lanes and mentioned it ZERO times in the summary a human reads, no reader surfaced the event at all, and five preserved lanes were on disk at the time; the maintainer learned work had been stranded by ASKING, not from the run's output. An event nobody reads is close to no record at all, and reporting success in the summary while the log records preservation reproduces the silent-stranding failure this whole effort exists to remove. SCOPE NOTE, checked rather than assumed: the summary is written inside `oc_runipd.py` (`(run_dir / "execution-report.md").write_text(...)`), which this plan ALREADY declares, so no fence widening is required.
   - Depends on: E-02
   - Expected outcome: every refusal emits an event naming the specific condition, using the existing event rather than a new one; the run's summary output names each preserved lane and its reason; and the agy driver satisfies the same assertions as the oc driver.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -125,18 +125,319 @@ Spec `7ckptx` is normative; this plan cites requirement ids. No public command s
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01 (proves R5.5 classification; spec A15)
+- [x] V-01 validates E-01 (proves R5.5 classification; spec A15)
   - Required evidence: paste the inventory output for a lane containing, at minimum, one unknown untracked file, one unknown IGNORED file, and one driver-written control file, showing the first two reported as unknown and the third excluded as discardable. Paste evidence the exclusion came from the MANIFEST and not a hardcoded path list (show the lookup). Prove the enumeration sees ignored files: if the ignored file is missing from the report, the enumeration is wrong even if the test passes for the untracked one. SABOTAGE REQUIRED, and target the ignored path specifically because that is the case that previously destroyed content silently: drop the ignored-file half of the enumeration, paste the run showing the ignored file is NO LONGER reported as unknown, restore, paste it reported again plus `git status` proving the product is unmodified. An enumeration that passes for untracked files while silently missing ignored ones is the exact defect this requirement exists to prevent.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02 (proves R5.5 refusal; spec A15)
+  - Observed evidence: PASS. The inventory reports the unknown untracked file, the unknown IGNORED file, and the driver-written control content separately; the exclusion is shown as a MANIFEST lookup, and emptying the manifest moves the same file from `discardable` to `unknown_ignored`. Sabotage (removing `--ignored=traditional`) FAILED 13 tests, including the ignored-specific one, while the untracked case still passed - the exact asymmetry the requirement exists to catch; restored, 42 passed. Detail below.
+
+```
+$ python3 -m pytest -o addopts="" -p no:randomly tests/test_lane_retention.py::ClassificationTests tests/test_lane_retention.py::IgnoredEnumerationTests tests/test_lane_retention.py::ManifestSourcedClassificationTests
+20 passed in 1.02s
+```
+
+INVENTORY OUTPUT for a lane holding one unknown UNTRACKED file, one unknown IGNORED file, and
+driver-written control content (`inventory_lane(...).as_dict()`):
+
+```
+{
+  "lane_root": "/tmp/tmpnsjx9a7u/lane",
+  "inventory_readable": true,
+  "inventory_failure": null,
+  "dirty_tracked": [],
+  "unknown_untracked": [
+    "work/note.txt"
+  ],
+  "unknown_ignored": [
+    "build/output.log"
+  ],
+  "discardable": [
+    ".aw/state/lane-inputs/rev-1/manifest.json",
+    ".aw/state/lane-inputs/rev-1/plan-plan.ipd.md",
+    ".aw/state/lane-submissions/run-test/03-ret001/attempt-1/outcomes/03-ret001.json"
+  ],
+  "uncollected_submission": false,
+  "submission_detail": "collection receipt is complete and records no failure",
+  "retention_reasons": [
+    "unknown-untracked-file",
+    "unknown-ignored-file"
+  ]
+}
+```
+
+The first two are reported UNKNOWN; the driver-written plan copy is excluded as discardable.
+
+THE EXCLUSION COMES FROM THE MANIFEST, shown as the lookup rather than asserted:
+
+```
+manifest file: .aw/state/lane-inputs/rev-1/manifest.json
+manifest entries: ['.aw/state/lane-inputs/rev-1/plan-plan.ipd.md']
+driver_written_lane_paths() -> ['.aw/state/lane-inputs/rev-1/manifest.json', '.aw/state/lane-inputs/rev-1/plan-plan.ipd.md']
+discardable                -> ['.aw/state/lane-inputs/rev-1/manifest.json', '.aw/state/lane-inputs/rev-1/plan-plan.ipd.md', '.aw/state/lane-submissions/run-test/03-ret001/attempt-1/outcomes/03-ret001.json']
+```
+
+`test_a_manifest_that_stops_listing_a_file_makes_it_unknown` proves it is the manifest and not a
+path list: emptying the manifest's `inputs` moves the SAME file from `discardable` to
+`unknown_ignored`, which a hardcoded list could not do.
+
+THE ENUMERATION SEES IGNORED FILES: `build/output.log` above is reported, and
+`test_dropping_the_ignored_flag_makes_the_ignored_file_vanish` injects a runner that strips
+`--ignored` and shows the untracked file is STILL reported while the ignored one disappears - the
+exact asymmetry that previously destroyed ignored content silently.
+
+SABOTAGE, targeted at the ignored half specifically. Removed `"--ignored=traditional"` from
+`LANE_INVENTORY_STATUS_ARGS` in the product:
+
+```
+$ python3 -c "from agent_workflows import lane_containment as L; print(L.LANE_INVENTORY_STATUS_ARGS)"
+('status', '--porcelain', '--untracked-files=all')
+
+$ python3 -m pytest -o addopts="" -p no:randomly tests/test_lane_retention.py
+FAILED tests/test_lane_retention.py::ClassificationTests::test_a_fully_accounted_lane_is_classified
+FAILED tests/test_lane_retention.py::ClassificationTests::test_an_unknown_IGNORED_file_is_reported_unknown
+FAILED tests/test_lane_retention.py::ClassificationTests::test_the_reason_names_each_condition_that_held
+FAILED tests/test_lane_retention.py::IgnoredEnumerationTests::test_a_nested_ignored_file_is_reported_per_file_not_per_directory
+FAILED tests/test_lane_retention.py::IgnoredEnumerationTests::test_dropping_the_ignored_flag_makes_the_ignored_file_vanish
+FAILED tests/test_lane_retention.py::IgnoredEnumerationTests::test_the_status_args_carry_all_three_flags
+FAILED tests/test_lane_retention.py::ManifestSourcedClassificationTests::test_a_manifest_that_stops_listing_a_file_makes_it_unknown
+FAILED tests/test_lane_retention.py::ManifestSourcedClassificationTests::test_the_manifest_entries_are_what_make_content_discardable
+FAILED tests/test_lane_retention.py::TeardownGateTests::test_each_unknown_condition_leaves_the_lane_on_disk
+FAILED tests/test_lane_retention.py::PreservationRecordTests::test_the_event_is_not_generic
+FAILED tests/test_lane_retention.py::PreservationRecordTests::test_the_event_names_which_condition_held
+FAILED tests/test_lane_retention.py::SummaryVisibilityTests::test_a_renderer_that_returns_nothing_makes_every_driver_report_silent
+FAILED tests/test_lane_retention.py::SummaryVisibilityTests::test_each_driver_summary_names_the_lane_and_the_reason
+======================== 13 failed, 29 passed in 28.93s ========================
+```
+
+RESTORED, and the product verified back to this plan's intended change only:
+
+```
+$ python3 -c "from agent_workflows import lane_containment as L; print(L.LANE_INVENTORY_STATUS_ARGS)"
+('status', '--porcelain', '--untracked-files=all', '--ignored=traditional')
+
+$ python3 -m pytest -o addopts="" -p no:randomly tests/test_lane_retention.py
+42 passed in 23.35s
+
+$ git status --porcelain agent_workflows/lane_containment.py
+ M agent_workflows/lane_containment.py
+```
+
+The `M` is this plan's own change; the sabotage left no residue, confirmed by the restored constant
+above and by the final whole-suite run recorded under V-03.
+  - Result: pass
+- [x] V-02 validates E-02 (proves R5.5 refusal; spec A15)
   - Required evidence: paste four cases: an unknown untracked file, an unknown IGNORED file, a dirty tracked file, and an uncollected submission, each showing the lane directory STILL EXISTS after the teardown call. Then paste a fully classified clean lane being removed, so the check is not simply refusing always. Then paste an inventory FAILURE resulting in preservation. SABOTAGE REQUIRED: make the refusal unconditional-pass (always tear down), paste the FAILING assertions, restore, paste them passing plus `git status` proving the product is unmodified.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03 (proves R5.6, R5.6a and twin parity; spec A15, A15b, CID-2, CID-3)
+  - Observed evidence: PASS. All four unknown conditions leave the lane directory ON DISK with teardown never called; a fully classified clean lane IS removed (so the gate is not refusing always); and an inventory that cannot run PRESERVES. Sabotage (refusal forced to unconditional-pass) FAILED all 4 refusal assertions, restored, 6 passed. Detail below.
+
+```
+$ python3 -m pytest -o addopts="" -p no:randomly tests/test_lane_retention.py::TeardownGateTests tests/test_lane_retention.py::InventoryFailureTests tests/test_lane_retention.py::SubmissionRetentionTests
+15 passed in 1.19s
+```
+
+FOUR REFUSAL CASES, each asserting the lane directory STILL EXISTS after the teardown call
+(`test_each_unknown_condition_leaves_the_lane_on_disk` runs the first three as subTests over a fresh
+lane each; `test_an_uncollected_submission_leaves_the_lane_on_disk` covers the fourth):
+
+| condition | reason code | teardown called | lane on disk after |
+| --- | --- | --- | --- |
+| unknown UNTRACKED file | `unknown-untracked-file` | no | yes |
+| unknown IGNORED file | `unknown-ignored-file` | no | yes |
+| dirty TRACKED file | `dirty-tracked-file` | no | yes |
+| uncollected submission | `uncollected-submission` | no | yes |
+
+The injected teardown `shutil.rmtree`s the lane, so "still exists" observes the destructive call NOT
+happening rather than observing a no-op.
+
+A FULLY CLASSIFIED CLEAN LANE IS REMOVED, so the gate is not simply refusing always
+(`test_a_fully_classified_clean_lane_IS_torn_down`): `decision.torn_down` is True, the teardown was
+called exactly once, and `self.fx.lane.exists()` is False.
+
+AN INVENTORY FAILURE RESULTS IN PRESERVATION
+(`test_an_inventory_failure_preserves_rather_than_proceeds`, git forced to exit 128): teardown never
+called, the lane still exists, reason code `inventory-failed`. A second case
+(`test_a_raising_git_yields_an_unreadable_inventory`) covers an exception rather than a bad exit.
+`test_unreadable_is_not_the_same_as_empty` pins the specific confusion: an unreadable inventory has
+an EMPTY unknown set, so a check written as "no unknowns implies tear down" would destroy the lane it
+knows nothing about.
+
+SABOTAGE: made the refusal unconditional-pass in the product (`if not inventory.classified:` became
+`if False:`), which is the always-tear-down version this plan exists to prevent:
+
+```
+$ python3 -m pytest -o addopts="" -p no:randomly tests/test_lane_retention.py::TeardownGateTests
+E               AssertionError: True is not false
+FAILED tests/test_lane_retention.py::TeardownGateTests::test_an_inventory_failure_preserves_rather_than_proceeds
+FAILED tests/test_lane_retention.py::TeardownGateTests::test_an_uncollected_submission_leaves_the_lane_on_disk
+FAILED tests/test_lane_retention.py::TeardownGateTests::test_an_unconditional_pass_classification_destroys_the_lane
+FAILED tests/test_lane_retention.py::TeardownGateTests::test_each_unknown_condition_leaves_the_lane_on_disk
+========================= 4 failed, 2 passed in 0.69s ==========================
+```
+
+RESTORED:
+
+```
+$ python3 -m pytest -o addopts="" -p no:randomly tests/test_lane_retention.py::TeardownGateTests
+6 passed in 0.67s
+```
+  - Result: pass
+- [x] V-03 validates E-03 (proves R5.6, R5.6a and twin parity; spec A15, A15b, CID-2, CID-3)
   - Required evidence: paste the RUN SUMMARY OUTPUT for a run that preserved a lane, showing it names the lane and the reason. A test asserting only that the EVENT was written does NOT satisfy this item: that is exactly the state measured on `run-20260901T042331Z-118022` (two lanes preserved, zero summary mentions), so an event-only assertion would pass while reproducing the defect. Then paste the recorded event for each refusal condition, showing it names WHICH condition held rather than a generic message. Paste evidence the EXISTING preservation event was extended rather than a second one added (show there is still one emission path). Then paste the parameterized run proving both drivers satisfy the same assertions, showing the parameterization rather than two similar functions, and both whole-suite invocations with expected counts stated separately per invocation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. BOTH drivers' rendered `execution-report.md` names the preserved lane, its worktree, the reason, and the retention condition codes; the event names WHICH condition held; and an AST scan over `agent_workflows/` finds the `worktree-preserved` literal in ONE module only, so the existing event was extended rather than duplicated. Parameterized over both drivers. Sabotage (renderer call removed from both) FAILED the summary assertions and reproduced the measured silent-stranding shape; restored, 42 passed. Bare suite 6757 -> 6799 passed with ZERO failures; `make test-all` 8 failed before and after with an IDENTICAL failing node-id set. Detail below.
+
+THE RUN SUMMARY OUTPUT for a run that preserved a lane, which is what A15b actually requires and what
+an event-only assertion would NOT satisfy. `oc` first:
+
+```
+# Execution Report: run-evidence
+
+- Repository: `/tmp/tmpnsjx9a7u/repo`
+- Counts: `{"executed": 1}`
+- Pushed: no (required; verify independently in outcomes)
+
+| # | id6 | Set | Action | Status | Verify | Attempts | Last session |
+|---:|---|---|---|---|---|---:|---|
+| 3 | `ret001` | `lanectn` | `execute` | executed |  | 1 | `` |
+
+## Preserved lanes (NOT torn down)
+
+Each lane below still exists on disk and still holds its branch. It was preserved rather than destroyed because the driver could not account for its contents, or because its work was never integrated (spec `7ckptx` R5.5, R5.6a).
+
+- `ret001` (position 3) lane `aw/lane/ret001`
+  - Worktree: `/tmp/tmpnsjx9a7u/lane`
+  - Why preserved: the lane holds content the driver cannot account for: 1 unknown UNTRACKED file(s): work/note.txt; 1 unknown IGNORED file(s): build/output.log
+  - Retention conditions: `unknown-untracked-file`, `unknown-ignored-file`
+
+## Review
+```
+
+and `agy`, from the SAME shared renderer (its header and table columns differ; the preserved section
+does not):
+
+```
+# Antigravity IPD Driver Execution Report: run-evidence
+
+| # | id6 | Set | Action | Status | Verification | Attempts | Last session |
+|---:|---|---|---|---|---|---:|---|
+| 3 | `ret001` | `lanectn` | `execute` | executed | `N/A` | 1 | `` |
+
+## Preserved lanes (NOT torn down)
+
+Each lane below still exists on disk and still holds its branch. It was preserved rather than destroyed because the driver could not account for its contents, or because its work was never integrated (spec `7ckptx` R5.5, R5.6a).
+
+- `ret001` (position 3) lane `aw/lane/ret001`
+  - Worktree: `/tmp/tmpnsjx9a7u/lane`
+  - Why preserved: the lane holds content the driver cannot account for: 1 unknown UNTRACKED file(s): work/note.txt; 1 unknown IGNORED file(s): build/output.log
+  - Retention conditions: `unknown-untracked-file`, `unknown-ignored-file`
+```
+
+THE EVENT NAMES WHICH CONDITION HELD, and carries the paths behind the verdict rather than a generic
+message:
+
+```
+{
+  "event": "worktree-preserved",
+  "branch": "aw/lane/ret001",
+  "reason": "the lane holds content the driver cannot account for: 1 unknown UNTRACKED file(s): work/note.txt; 1 unknown IGNORED file(s): build/output.log",
+  "retention_reasons": [
+    "unknown-untracked-file",
+    "unknown-ignored-file"
+  ],
+  "unknown_untracked": [
+    "work/note.txt"
+  ],
+  "unknown_ignored": [
+    "build/output.log"
+  ],
+  "uncollected_submission": false
+}
+```
+
+THE EXISTING EVENT WAS EXTENDED, NOT DUPLICATED, established structurally rather than by grep
+(`test_it_EXTENDS_the_existing_event_rather_than_adding_a_second`): the literal `worktree-preserved`
+is searched for as an AST constant across every module under `agent_workflows/`, and the ONLY holder
+is `lane_containment.py`. Both drivers previously carried an inline copy of the event and the
+`preserved_*` writes; both now call the single emitter `record_lane_preserved`, so exactly one
+emission path exists. The missing-input preservation (spec R3.2) keeps its OWN dedicated event and
+therefore calls `record_preserved_lane_state`, which writes durable state and emits nothing, asserted
+by `test_the_missing_input_path_records_state_WITHOUT_a_second_event`.
+
+BOTH DRIVERS SATISFY THE SAME ASSERTIONS BY PARAMETERIZATION, not by two similar functions:
+`DRIVERS = (("oc", oc_runipd), ("agy", agy_runipd))` drives `SummaryVisibilityTests` and
+`TwinParityTests` through `subTest`. `TwinParityTests` additionally proves, by AST over the package,
+that each of the 13 retention symbols has EXACTLY ONE definition and that it lives in
+`lane_containment.py`; that neither driver defines a private copy; that both reach
+`teardown_lane_if_classified`, `record_lane_preserved` and `format_preserved_lanes`; and that NEITHER
+driver calls the destructive `teardown_isolation_worktree` directly any more, so the only route to it
+is through the inventory gate.
+
+SABOTAGE of the summary half: removed the `lines.extend(lane_containment.format_preserved_lanes(state))`
+call from BOTH drivers.
+
+```
+$ python3 -m pytest -o addopts="" -p no:randomly tests/test_lane_retention.py::SummaryVisibilityTests
+E       AssertionError: 'Preserved lanes' not found in '# Execution Report: run-test ...
+        | 3 | `ret001` | `lanectn` | `execute` | executed |  | 1 | `` | ... ## Review ...'
+FAILED tests/test_lane_retention.py::SummaryVisibilityTests::test_a_renderer_that_returns_nothing_makes_every_driver_report_silent
+FAILED tests/test_lane_retention.py::SummaryVisibilityTests::test_each_driver_summary_names_the_lane_and_the_reason
+========================= 2 failed, 2 passed in 0.43s ==========================
+```
+
+That failure output IS the measured defect reproduced: a report claiming `executed` with zero mention
+of the preserved lane. RESTORED:
+
+```
+$ python3 -m pytest -o addopts="" -p no:randomly tests/test_lane_retention.py
+42 passed in 17.99s
+```
+
+BOTH WHOLE-SUITE INVOCATIONS, expected outcomes stated SEPARATELY per invocation and compared BY
+FAILING TEST IDENTITY rather than by total.
+
+BASELINE, measured immediately before this work at HEAD `fa6c6727`:
+
+```
+$ python3 -m pytest
+6757 passed, 3 skipped, 2 xfailed in 230.09s (0:03:50)
+
+$ make test-all
+8 failed, 7219 passed, 3 skipped, 2 xfailed in 463.60s (0:07:43)
+```
+
+AFTER:
+
+```
+$ python3 -m pytest
+6799 passed, 3 skipped, 2 xfailed in 157.46s (0:02:37)
+
+$ make test-all
+8 failed, 7261 passed, 3 skipped, 2 xfailed in 483.44s (0:08:03)
+```
+
+BARE: expected ZERO failures; observed zero, before and after. The `+42` in the total is exactly the
+42 tests `tests/test_lane_retention.py` adds, accounted for by name.
+
+`make test-all`: expected a KNOWN set of PRE-EXISTING CLI-surface declaration failures that must not
+get worse and are not this plan's to fix. The failing NODE IDS are identical before and after, so the
+count is not reconciled by arithmetic:
+
+```
+$ diff <(grep '^FAILED' baseline_testall.txt | sort) <(grep '^FAILED' after_testall.txt | sort)
+IDENTICAL failing set: 8 tests
+```
+
+The 8, by name: `test_command_surface_declarations::CommandSurfaceDeclarationsTests::test_zero_undeclared_parser_leaves`;
+`test_cli_conformance_matrix::UndeclaredLeafGuardTests::{test_no_undeclared_parser_leaves,test_every_declared_leaf_gets_a_full_scenario_row_set}`;
+`test_release_readiness::{FullReportTests::test_build_report_go_on_clean_tree,IpdLintGateTests::test_ipd_lint_all_phases_run_and_pass}`;
+`test_runner_stop_triggers::PreExistingInterruptContractTests::test_the_terminal_rung_still_records_the_item_interrupted`;
+`test_installer::UninstallCompletenessTests::test_deep_cleanup_records_remove_leaves_no_aw_directory`;
+`test_cli::InstallAtomicWizardTests::test_interactive_deep_cleanup_records_remove_fully_cleans_aw`.
+
+ONE ENVIRONMENT FACT RECORDED RATHER THAN HIDDEN, because anyone reproducing these numbers will hit
+it. A BARE run in this lane with the inherited `AW_EXECUTION_ROLE=worker` selector still set fails 17
+lifecycle tests with `AW-LIFECYCLE-ROLE-001`, the worker-role refusal of `aw ipd begin`. That is the
+R4.5 environment selector behaving as designed against tests that legitimately call begin, NOT a
+regression from this plan: it reproduces identically at the pre-change baseline. Every count above is
+therefore measured with `env -u AW_EXECUTION_ROLE`, stated here so the numbers are reproducible
+rather than mysterious.
+  - Result: pass
 
 ## Approval and execution gate
 
