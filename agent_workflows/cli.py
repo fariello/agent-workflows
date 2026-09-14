@@ -119,12 +119,18 @@ _DESCRIPTIONS = {
         "attempt outcome), 'cancel' (record a terminal cancellation), and 'finalize' (evaluate the "
         "completion predicate and record terminal completion). To INSPECT a run, use 'aw runs'."
     ),
+    # runanalytics Order 08 (`mm5p3v`) E-02: `analyze` is the SECOND mutating verb on this noun, so
+    # the read-only claim names both exceptions. This is the SEPARATE description the `--help` page
+    # actually renders; `_RUNS_DESCRIPTION` further down is the parser's own. Both had to change, or
+    # the help text would keep asserting a single exception that no longer holds.
     "runs": (
         "Inspect driver execution runs and run ledgers (the READING half of the run surface): bare "
         "'aw runs' renders the run table, and the leaves are 'show' (run state and completion "
         "predicates), 'status', 'next', 'resume', 'evidence' (captured provenance envelopes and tool "
         "events), 'verify-ledger' (hash chain integrity and evidence validity), 'decisions', "
-        "'questions', and 'list'. Read-only, except the opt-in 'repair' verb."
+        "'questions', 'list', and the analytics pair 'analyze' and 'query'. Read-only, with TWO "
+        "exceptions: the opt-in 'repair' verb, and 'analyze', which updates the analytics cache and "
+        "publishes the local report inside the reserved, gitignored analytics/ namespace."
     ),
     "runs show": (
         "Inspect a workflow run's ledger, steps, verifier decisions, and completion predicate status. "
@@ -2058,6 +2064,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "  aw runs repair <run-id>          # MUTATES: reconcile a crashed run's `running` step\n"
         "  aw runs repair --help            # what repair decides, and what it refuses to do\n"
         "\n"
+        "ANALYTICS\n"
+        "  aw runs analyze [<target> ...]   # MUTATES: update the analytics cache, publish the report\n"
+        "  aw runs analyze --path           # print the latest report path (writes nothing)\n"
+        "  aw runs analyze --list           # list report/snapshot artifacts and the cache summary\n"
+        "  aw runs query <view>             # read facts/findings as aw.agent/v1 (no HTML parsing)\n"
+        "  aw runs query schema             # the queryable views, filters, groupings and metrics\n"
+        "\n"
         "WRITING A RUN LIVES UNDER `aw run` (start/record/cancel/finalize)\n"
         "\n"
         "A TARGET NAMED LIKE A LEAF\n"
@@ -2071,15 +2084,23 @@ def _build_parser() -> argparse.ArgumentParser:
         "  ordinary report having verified nothing. A bare `aw runs` in a repository with no runs is\n"
         "  still exit 0: asking for everything and finding nothing is not a failed request.\n"
     )
+    # runanalytics Order 08 (`mm5p3v`) E-02: this text previously claimed "Read-only, with ONE
+    # exception: the `repair` verb", which `analyze` falsifies the moment it lands. `analyze` updates
+    # the analytics cache and publishes a report bundle, so it is the SECOND mutating verb on the
+    # reading noun and is declared `command_class="mutation"` in `command_surface.COMMAND_INVENTORY`.
+    # Both exceptions are now named, because a help string that understates what a command writes is
+    # a correctness defect and not a wording preference.
     _RUNS_DESCRIPTION = (
         "Inspect driver execution runs under .aw/records/runs/ and display a unified "
         "summary of the ending status of each IPD step in each run, and inspect run LEDGERS "
         "(show/status/next/resume/evidence/verify-ledger/decisions/questions). This is the READING "
         "half of the run surface; the writing verbs live under `aw run` "
-        "(start/record/cancel/finalize). Read-only, with ONE exception: the `repair` verb "
+        "(start/record/cancel/finalize). Read-only, with TWO exceptions. First, the `repair` verb "
         "(`aw runs repair <run-id>`) durably reconciles a run abandoned without a terminal status, "
-        "so a step a crashed driver left as `running` stops being reported `abandoned?`. "
-        "Run `aw runs repair --help` for that verb."
+        "so a step a crashed driver left as `running` stops being reported `abandoned?`; run "
+        "`aw runs repair --help` for that verb. Second, `aw runs analyze` updates the analytics "
+        "cache and publishes the local report bundle, writing ONLY inside the reserved, gitignored "
+        "analytics/ namespace and never into a source run directory. `aw runs query` is read-only."
     )
 
     # The sibling VIEWER parser. It owns `targets` and, via the shared parent, every viewer flag.
@@ -2210,6 +2231,194 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs="*",
         default=None,
         help="Zero or more run IDs, directory paths, or set IDs to inspect (default: all runs).",
+    )
+
+    # ---- runanalytics Order 08 (`mm5p3v`) E-02: the two ANALYTICS leaves --------------------------
+    #
+    # REGISTERED AS REAL SUBPARSERS ON `runs_sub`, which is the routing action's own table, so both
+    # leaves are discoverable by `command_surface.discover_parser_leaves` and get native argparse
+    # help and native usage errors (exit 2).
+    #
+    # DELIBERATELY NOT THE `repair` PATTERN. `repair` is routed from `aw runs`' first POSITIONAL
+    # inside `run_viewer`, and `_ViewerOrLeafSubParsersAction`'s docstring records the exact cost: a
+    # positionally-routed leaf is INVISIBLE to the normative command surface, so declaring it in
+    # `COMMAND_INVENTORY` would register as declaration/parser DRIFT and fail
+    # `tests/test_cli_conformance_matrix.py`, and it gets no argparse help. Confirmed by measurement:
+    # `repair` appears in NO declaration. Since E-01 declares both of these leaves, positional
+    # routing is not available to them even in principle.
+    #
+    # NOT VIA `_register_run_leaf` EITHER: that helper adds a REQUIRED single `target` positional plus
+    # ledger flags (`--workflow`, `--actor`), and neither shape fits. `analyze` takes zero or more
+    # targets and defaults to the whole corpus; `query` takes a view name, not a run.
+    _p_runs_analyze = runs_sub.add_parser(
+        "analyze",
+        parents=[common],
+        help="MUTATES: analyze runs, update the analytics cache, publish the local report.",
+        description=(
+            "Analyze driver execution runs, update the incremental analytics cache, and publish the "
+            "local report bundle. This is a MUTATING verb on an otherwise read-only noun, and it is "
+            "declared as one: it writes ONLY inside the reserved, gitignored analytics/ namespace "
+            "(never into a source run directory, never a commit, never the network). With no target "
+            "it analyzes every canonical run. Never prompts. "
+            "FLAG PRECEDENCE: --path and --list are read-only and are honored FIRST, so asking where "
+            "the report is never triggers a sweep. --open is an explicit side effect and is off by "
+            "default; analysis without it launches nothing. "
+            "Exit 0 analyzed, 1 completed with one or more runs skipped, 2 cannot-run."
+        ),
+        formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw runs analyze                  # analyze every run, update cache, publish report\n"
+            "  aw runs analyze <run-id>         # analyze one run or Set\n"
+            "  aw runs analyze --path           # print the latest report path; writes nothing\n"
+            "  aw runs analyze --list           # list artifacts and the cache summary\n"
+            "  aw runs analyze --rebuild        # ignore cached entries and recompute\n"
+            "  aw runs analyze --open           # publish, then open in the default browser\n"
+            "\n"
+            "OUTPUT & EXITS\n"
+            "  Exit codes: 0 analyzed, 1 one or more runs skipped, 2 cannot-run/usage error.\n"
+            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+        ),
+    )
+    _p_runs_analyze.add_argument(
+        "targets",
+        nargs="*",
+        default=None,
+        help="Zero or more run IDs, directory paths, or set IDs (default: every canonical run).",
+    )
+    _p_runs_analyze.add_argument(
+        "--dir", default=None, help="Repo root directory (default: current directory)."
+    )
+    # --path/--list are read-only reporting modes and are mutually exclusive with each other and with
+    # the sweep-modifying flags, so a contradictory invocation is a NATIVE argparse usage error
+    # (exit 2) rather than a silent precedence surprise.
+    _runs_analyze_mode = _p_runs_analyze.add_mutually_exclusive_group()
+    _runs_analyze_mode.add_argument(
+        "--path",
+        action="store_true",
+        help="Print the latest report's path and exit. Writes nothing, opens nothing.",
+    )
+    _runs_analyze_mode.add_argument(
+        "--list",
+        action="store_true",
+        help="List published report/snapshot artifacts and the cache summary. Writes nothing.",
+    )
+    _runs_analyze_mode.add_argument(
+        "--rebuild",
+        action="store_true",
+        help="Discard cached entries and recompute them (never touches a source run).",
+    )
+    _p_runs_analyze.add_argument(
+        "--keep-snapshot",
+        default=None,
+        metavar="LABEL",
+        help="Also publish an immutable snapshot under analytics/snapshots/<LABEL>.",
+    )
+    _p_runs_analyze.add_argument(
+        "--open",
+        action="store_true",
+        help="Open the report in the default browser. OFF by default; nothing launches without it.",
+    )
+    _p_runs_analyze.add_argument(
+        "--limit",
+        default=None,
+        help="Maximum records per agent stream page (bounded so a record stays inside its budget).",
+    )
+    _p_runs_analyze.add_argument(
+        "--fields",
+        default=None,
+        help="Comma-separated field projection for --agent output (envelope fields are preserved).",
+    )
+
+    _p_runs_query = runs_sub.add_parser(
+        "query",
+        parents=[common],
+        help="Query analytics facts and findings as structured records (read-only).",
+        description=(
+            "Return analytics facts and findings as structured records, so an agent never has to "
+            "parse the report HTML. Read-only: it writes nothing and never launches anything. "
+            "Filters and groupings come from an ALLOWLISTED schema (`aw runs query schema` prints "
+            "it); there is no SQL, no expression evaluation, no unrestricted field projection, and "
+            "no filesystem path outside the resolved analytics roots. "
+            "Results are BOUNDED by default and report total/emitted/omitted plus the exact command "
+            "that continues the page, because the agent-record budget is enforced and a silently "
+            "truncated answer is indistinguishable from a complete one. "
+            "A slice the statistics engine REFUSED as under-powered is forwarded as that refusal "
+            "with its observed sample size, never as a computed number. "
+            "Exit 0 answered, 2 cannot-run (a disallowed query or a refused slice)."
+        ),
+        formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw runs query schema             # the queryable views, filters, groupings, metrics\n"
+            "  aw runs query overview           # corpus size, cache coverage, computable vs refused\n"
+            "  aw runs query findings --limit 10\n"
+            "  aw runs query metrics --group-by phase --metric cost --stat median\n"
+            "  aw runs query explain --price era-b\n"
+            "\n"
+            "OUTPUT & EXITS\n"
+            "  Exit codes: 0 answered, 2 cannot-run (disallowed query or refused slice).\n"
+            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+        ),
+    )
+    _p_runs_query.add_argument(
+        "view",
+        nargs="?",
+        default=None,
+        help="The view to return. `aw runs query schema` lists every view.",
+    )
+    _p_runs_query.add_argument(
+        "--dir", default=None, help="Repo root directory (default: current directory)."
+    )
+    _p_runs_query.add_argument(
+        "--filter",
+        action="append",
+        default=None,
+        metavar="NAME=VALUE",
+        help="Allowlisted filter (repeatable). `aw runs query schema` lists the fields.",
+    )
+    _p_runs_query.add_argument(
+        "--group-by",
+        dest="group_by",
+        default=None,
+        help="Comma-separated allowlisted grouping fields.",
+    )
+    _p_runs_query.add_argument(
+        "--metric",
+        default=None,
+        help="Allowlisted metric to aggregate (default: cost).",
+    )
+    _p_runs_query.add_argument(
+        "--stat",
+        default=None,
+        help="Allowlisted statistic (default: median, chosen because the cost distribution is skewed).",
+    )
+    _p_runs_query.add_argument(
+        "--analysis",
+        default=None,
+        help="Name a required analysis to get its computed value or its measured refusal.",
+    )
+    _p_runs_query.add_argument(
+        "--finding", default=None, help="A finding id, for the evidence view."
+    )
+    _p_runs_query.add_argument(
+        "--severity", default=None, help="Filter findings by severity."
+    )
+    _p_runs_query.add_argument(
+        "--taxonomy", default=None, help="Explain one taxonomy activity class."
+    )
+    _p_runs_query.add_argument(
+        "--price", default=None, help="Explain one measured price era (e.g. era-b)."
+    )
+    _p_runs_query.add_argument(
+        "--limit",
+        default=None,
+        help="Rows per page (default 20, max 500) so each record stays inside its budget.",
+    )
+    _p_runs_query.add_argument(
+        "--fields",
+        default=None,
+        help="Comma-separated field projection for --agent output (envelope fields are preserved).",
     )
 
     p_research = sub.add_parser(
@@ -11191,6 +11400,15 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         # LEAF, `runs_command` names it and the ledger handlers own the turn; otherwise it is None and
         # this is the bare viewer. `list` is the viewer under its own name.
         runs_cmd = getattr(args, "runs_command", None)
+        # runanalytics Order 08 (`mm5p3v`) E-02: the two ANALYTICS leaves are dispatched BEFORE the
+        # ledger dispatcher, because `run_cli` resolves its argument as a run LEDGER and neither of
+        # these takes one (`analyze` takes zero or more targets, `query` takes a view name).
+        if runs_cmd in ("analyze", "query"):
+            from agent_workflows import run_analytics_cli
+
+            if runs_cmd == "analyze":
+                return run_analytics_cli.run_analyze(args)
+            return run_analytics_cli.run_query_leaf(args)
         if runs_cmd and runs_cmd != "list":
             from agent_workflows import run_cli
 
