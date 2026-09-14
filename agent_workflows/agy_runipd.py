@@ -380,6 +380,24 @@ from agent_workflows.oc_runipd import (
     update_execution_order as update_execution_order,
 )
 
+# specvis st5klo (E-01/E-02/E-03): the declared-spec-edit visibility surfaces, BOUND rather than
+# copied, exactly as `announce_run_order` above is. This driver already reached the START announcement
+# through that shared object, so E-01's fix arrived here with NO edit to this module's call sites; what
+# is added here is the END-OF-RUN report, whose call sites ARE per-driver (three summary sites each) and
+# so must be wired in both. `report_run_spec_edits` and its helpers have ONE definition in `oc_runipd`;
+# a second copy here is the specific failure the module docstring above records for `Heartbeat`.
+from agent_workflows.oc_runipd import (
+    SPEC_NOT_FINALIZED as SPEC_NOT_FINALIZED,
+    SPEC_RECONCILED as SPEC_RECONCILED,
+    SPEC_RECONCILE_REFUSED as SPEC_RECONCILE_REFUSED,
+    queue_plan_path as queue_plan_path,
+    queue_with_plan_paths as queue_with_plan_paths,
+    record_item_spec_edits as record_item_spec_edits,
+    report_run_spec_edits as report_run_spec_edits,
+    spec_edit_record as spec_edit_record,
+    spec_edit_summary as spec_edit_summary,
+)
+
 DEFAULT_MODEL = "gemini-3.7-flash-high"
 DEFAULT_TIMEOUT = "240m"
 DEFAULT_STALL_TIMEOUT: float = 600.0
@@ -3916,6 +3934,17 @@ def execute_item(
             f"aw agy run self-finalize: {item['id6']} verified "
             f"(set {item['setid']}, attempt {attempt_no})."
         )
+        # specvis st5klo E-03: capture the DECLARED-vs-ACTUAL spec delta for the end-of-run report,
+        # through the SAME shared recorder the OpenCode driver calls, passing THIS host's own
+        # `_compute_scope_reconciliation`. Passing the local copy is what keeps the existing per-driver
+        # fork of that helper from being deepened (no third copy) or silently unified (no behavior
+        # change on either host); see `record_item_spec_edits`.
+        record_item_spec_edits(
+            finalize_repo,
+            current_plan_for_finalize,
+            item,
+            reconcile=_compute_scope_reconciliation,
+        )
         fin_rc, fin_msg = driver_finalize(
             finalize_repo, current_plan_for_finalize, item["id6"], actor, fin_message
         )
@@ -4666,6 +4695,10 @@ def run_queue(
             driver_label="antigravity",
         )
     )
+    # specvis st5klo E-03: the PRIMARY end-of-run site for this host, from the SAME shared
+    # `report_run_spec_edits` the OpenCode driver calls. The report's computation and wording are
+    # defined once (in `oc_runipd`/`render_stream`); only the SITE is per-driver.
+    report_run_spec_edits(state)
     hint = render_continuation_hint(state, run_dir)
     print(hint)
     state["_summary_table_printed"] = True
@@ -5290,6 +5323,9 @@ def main(argv: list[str] | None = None) -> int:
                             driver_label="antigravity",
                         )
                     )
+                    # specvis st5klo E-03: interrupt/SIGTERM path, wired and LABELLED
+                    # possibly-incomplete (OQ-01), symmetric with `oc_runipd`.
+                    report_run_spec_edits(state, partial=True)
                     hint = render_continuation_hint(state, run_dir)
                     print(hint)
             except Exception:
@@ -5336,6 +5372,8 @@ def main(argv: list[str] | None = None) -> int:
                             driver_label="antigravity",
                         )
                     )
+                    # specvis st5klo E-03: the DriverError path, wired and labelled (OQ-01).
+                    report_run_spec_edits(state, partial=True)
                     hint = render_continuation_hint(state, run_dir)
                     print(hint)
             except Exception:

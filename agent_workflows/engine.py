@@ -1356,7 +1356,12 @@ def agents_pointer_prose(target_layout: str = "legacy") -> str:
         "obligations follow. FIRST, list every `.spec.md` file you will touch in `- Scope-Paths:`, "
         "because that is what makes the amendment visible: `aw oc run` / `aw agy run` announce declared "
         "spec edits BEFORE the run starts, and the finalize scope gate reconciles what you actually "
-        "changed against what you declared. SECOND, say WHY in the plan's spec-sync section, since a "
+        "changed against what you declared. BOTH RUNNERS ALSO REPORT AT RUN END, beside the run summary, "
+        "which specs the run declared and which it actually changed, INCLUDING a spec that was modified "
+        "WITHOUT being declared; that end report names any item whose reconciliation refused or that "
+        "never finalized rather than counting it clean, and a run whose spec-edit computation FAILS says "
+        "so in one line instead of printing nothing, so silence means 'no declared spec edits' and never "
+        "'the announcer broke'. SECOND, say WHY in the plan's spec-sync section, since a "
         "spec edit changes the contract every other plan is reviewed against and is the highest-leverage "
         "change a run can make."
     )

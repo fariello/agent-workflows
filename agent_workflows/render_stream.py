@@ -1527,6 +1527,170 @@ def format_spec_impact_announcement(
     return lines
 
 
+def format_spec_impact_failure(
+    exc: BaseException,
+    pal: Palette | None = None,
+) -> list[str]:
+    """Say that the declared-spec-edit computation FAILED, rather than printing nothing (st5klo E-01).
+
+    WHY A FAILURE NEEDS ITS OWN WORDING. The announcement is deliberately advisory: a run must start
+    even when the impact set could not be built, because refusing to start over a missing line of
+    output would be a worse failure than the missing line. But the original handler was
+    `except Exception: pass`, which made SILENCE MEAN TWO THINGS: "this run declares no spec edits"
+    and "the computation crashed" rendered identically, so an operator could not distinguish a clean
+    run from a broken announcer. This restores the distinction: an empty impact set still prints
+    nothing (see `format_spec_impact_announcement`), while a failure prints one line naming the
+    exception CLASS, which is what tells a reader where to look.
+
+    The exception class is named rather than the full message because the class is the stable,
+    non-sensitive part; the message can carry a filesystem path from the operator's machine, and this
+    line is pasted into reports. Pure: builds and returns lines, prints nothing.
+    """
+    if pal is None:
+        pal = Palette(False)
+    return [
+        pal(
+            "SPEC CHANGES: could not be computed "
+            f"({type(exc).__name__}); the run is starting anyway. Any declared "
+            "spec edit in this queue is therefore UNREPORTED, not absent.",
+            "bold",
+            "yellow",
+        )
+    ]
+
+
+def format_spec_edit_report(
+    summary: dict[str, Any],
+    pal: Palette | None = None,
+    *,
+    partial: bool = False,
+) -> list[str]:
+    """Report, at RUN END, which specs the run declared and which it actually changed (st5klo E-03).
+
+    WHY AN END-OF-RUN REPORT IS NEEDED WHEN A START ONE EXISTS. The start announcement is made before
+    any work is dispatched, which is the right moment to warn but the wrong moment to be believed: it
+    can only report what plans DECLARE, and on a long run it is buried at the top of a scrollback by
+    the time anything has happened. This one runs where the run summary is read and reports what was
+    RECONCILED - the declared set compared against the paths the finalize gate actually saw change.
+
+    WHAT IT REFUSES TO CLAIM, which is most of its design. The reconciliation it consumes is per-ITEM
+    and exists only for an item that reached finalize, and it returns an EMPTY result both when the
+    delta was clean and when the precheck REFUSED. So an empty result is ambiguous in exactly the way
+    the start announcement's swallowed exception used to be, and this renderer therefore never prints a
+    positive all-clear on the strength of emptiness alone:
+
+      * `reconciled` items are vouched for, and only these produce a clean statement.
+      * `refused` items are named as UNVERIFIED, because their scope was never actually checked.
+      * `not_finalized` items are named as such, because there is no delta for them at all.
+
+    ``partial`` marks the two non-primary summary sites per host (interrupt/SIGTERM, DriverError), where
+    the run did not complete and the reconciliation is necessarily half-computed. The maintainer
+    required those sites be WIRED and LABELLED rather than suppressed (OQ-01, 2026-09-08): an aborted
+    run is when an operator most needs to know a spec was rewritten.
+
+    ``summary`` is the JSON-safe dict the runner's `spec_edit_summary` produces. Pure: builds and
+    returns lines, prints nothing, and imports no runner.
+    """
+    if pal is None:
+        pal = Palette(False)
+    declared = summary.get("declared") or {}
+    reconciled = summary.get("reconciled") or []
+    refused = list(summary.get("refused") or [])
+    not_finalized = list(summary.get("not_finalized") or [])
+
+    changed = [r for r in reconciled if r.get("modified_not_declared")]
+    unfulfilled = [r for r in reconciled if r.get("declared_not_modified")]
+    # Say NOTHING when the run had nothing to do with specs AND nothing was left unverifiable. A run
+    # that touched no spec should not grow a section telling the operator so; but if any item's scope
+    # went unchecked we must still speak, because silence there would be the false all-clear.
+    if not declared and not changed and not unfulfilled and not refused:
+        return []
+
+    lines: list[str] = [
+        pal("SPEC EDITS THIS RUN", "bold", "yellow"),
+    ]
+    if partial:
+        lines.append(
+            pal(
+                "  POSSIBLY INCOMPLETE: this run did not finish, so the reconciliation below "
+                "covers only the items that reached finalize.",
+                "bold",
+                "yellow",
+            )
+        )
+    if declared:
+        total = sum(len(v) for v in declared.values())
+        lines.append(
+            pal(
+                f"  Declared: {len(declared)} plan(s) declared edits to {total} "
+                "specification file(s).",
+                "dim",
+            )
+        )
+        for id6 in sorted(declared):
+            for path in declared[id6]:
+                lines.append(pal(f"    {id6} declared -> {path}", "yellow"))
+    if changed:
+        lines.append(
+            pal(
+                "  UNDECLARED SPEC CHANGE(S): a spec was modified WITHOUT being declared in "
+                "`- Scope-Paths:`.",
+                "bold",
+                "red",
+            )
+        )
+        for rec in changed:
+            for path in rec.get("modified_not_declared") or []:
+                lines.append(
+                    pal(f"    {rec.get('id6')} modified (undeclared) -> {path}", "red")
+                )
+    if unfulfilled:
+        lines.append(
+            pal(
+                "  DECLARED BUT NOT MODIFIED: the plan promised this amendment and did not "
+                "make it.",
+                "yellow",
+            )
+        )
+        for rec in unfulfilled:
+            for path in rec.get("declared_not_modified") or []:
+                lines.append(
+                    pal(
+                        f"    {rec.get('id6')} declared, unmodified -> {path}", "yellow"
+                    )
+                )
+    # The aggregation counts, always, because they are what tell a reader how much of the above to
+    # trust. Printed even when every number is 0 for the reconciled case: "reconciled 0 item(s)" is a
+    # materially different report from a clean one and must not look like it.
+    lines.append(
+        pal(
+            f"  Reconciled {len(reconciled)} item(s); "
+            f"{len(refused)} could NOT be reconciled (finalize precheck refused); "
+            f"{len(not_finalized)} never finalized.",
+            "dim",
+        )
+    )
+    if refused:
+        lines.append(
+            pal(
+                "  UNVERIFIED: the finalize precheck refused for "
+                + ", ".join(sorted(refused))
+                + ", so no spec-edit claim is made for these items (an empty "
+                "reconciliation is NOT an all-clear).",
+                "bold",
+                "yellow",
+            )
+        )
+    if not_finalized:
+        lines.append(
+            pal(
+                "  NOT FINALIZED: " + ", ".join(sorted(not_finalized)) + ".",
+                "dim",
+            )
+        )
+    return lines
+
+
 def format_run_order_announcement(
     rationale: dict[str, Any],
     pal: Palette | None = None,
