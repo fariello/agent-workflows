@@ -9,18 +9,18 @@
 - Scope: Close the dirty-base cases `nna8yz` E-05 leaves ungated, and add the consent surface that makes a deliberate override possible: report untracked dirt at run start with its consequence stated, guard the `--no-isolate-worktree` path by relaxing the existing guard's `isolate` condition, and add one explicit `--allow-dirty-base` consent flag (declared in spec `25kzda` 2.1 in the same change). Reuse `nna8yz`'s guard and its porcelain parser; add no second whole-tree dirty check and no new parser. Resolve no dirt: report, refuse, and let a human decide.
 - Scope-Paths: agent_workflows/lane_containment.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md, tests/test_dirty_base_gate.py
 - Item-Dependencies: executed:nna8yz
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: dirtybase
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 3i0aaz
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: p8ni63
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-14 executed (opencode/recovery): Recovered stranded lane and finalized: all six E-items performed and six V-items verified with pasted evidence in run-20260914T023758Z-3540874; integration was refused only by the binary suite gate on an unrelated red test. Attribution via run-record-exact (gys47u).
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-011 all FIXED; review record written; Readiness go-pending-approval
 
