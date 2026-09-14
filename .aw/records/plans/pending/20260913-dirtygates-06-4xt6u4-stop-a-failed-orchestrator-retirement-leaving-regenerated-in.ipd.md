@@ -6,17 +6,19 @@
 - Scope: Make a failed retirement leave the shared checkout byte-identical to how it found it, and add the tree-cleanliness assertion the existing fault tests lack. Excludes relocating the retirement mutations into a worktree, which is Order 04 (`u23gbn`) and is gated on that plan's blocking OQ-03 about shared-versus-forked transaction code.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, tests/test_orchestrator_retirement.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: dirtygates
 - Order: 6
 - Highest E allocated: 02
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: 4xt6u4
+- Approval: 2026-09-14, recorded via aw ipd set: status set to approved
 - Priority: medium
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-14 approved (aw set): status set to approved
 - 2026-09-13 reviewed (opencode (its_direct/pt3-claude-opus-5-1m-us)): /plan-review ROUND 1: APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. PR-601..PR-604, all FIXED, no open questions. F-1 independently reproduced at HEAD 54b6f7ce with identical values, so the plan's central measurement is sound. Four corrections, each measured: F-6 the prescribed journal keys index_json_before/index_md_before were DELIBERATELY deleted (674f2c68) and a standing comment at :2642-2645 forbids them, so the fix must update that comment or strand documentation that tells the next reader to undo it; F-7 regeneration is BYTE-EXACT when the manifests already exist, so the only real defect is create-where-absent and the fix must restore ABSENCE rather than merely snapshot bytes; F-8 replacing step 4 silently drops an untested fail-loud arm; F-9 E-02's second assertion site ends on a SUCCESSFUL retirement, so an emptiness assertion there would be false. No product code changed by this review.
 
 - 2026-09-13 draft (opencode (its_direct/pt3-claude-opus-5-1m-us)): created.

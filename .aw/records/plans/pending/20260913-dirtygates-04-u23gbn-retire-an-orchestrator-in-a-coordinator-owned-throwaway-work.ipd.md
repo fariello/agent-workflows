@@ -6,17 +6,19 @@
 - Scope: Shrink that window by performing the retirement's mutations AND its commit in a COORDINATOR-OWNED throwaway worktree, and letting a REFUSING fast-forward in the shared checkout be the single step that advances the branch; plus the two consequential fixes the relocation forces, namely moving the plans-index refresh after the reconciliation so its fail-loud gate keeps guarding (E-07, F-12) and guarding the rollback's write to the plan's original path so a failed retirement cannot destroy a peer's in-flight edit (E-08, F-14). NOT a compare-and-swap ref advance: F-10 and F-11 measured that a CAS before the reconciliation makes the reconciliation a no-op that reports success. THE WINDOW SHRINKS, IT DOES NOT VANISH, and the plan says so because review measured that a ref update alone cannot deliver the stronger claim (F-7). Excludes the pre-launch gate (Order 01), the integration gate (Order 02), and the backlog close (Order 03). Excludes any change to the eligibility rule or to the worker-role refusal. THE INDEX-RESIDUE FIX WAS CARVED OUT to Order 06 (`4xt6u4`) at revision: `/plan-review` established it is not gated by this plan's blocking OQ-03 and needs no architecture ruling, so it ships independently.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/commit_lock.py, tests/test_orchestrator_retirement.py, tests/test_ipd_lifecycle_cli.py, tests/test_isolated_commit.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: dirtygates
 - Order: 4
 - Highest E allocated: 08
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: u23gbn
+- Approval: 2026-09-14, recorded via aw ipd set: status set to approved
 - Priority: medium
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-14 approved (aw set): status set to approved
 - 2026-09-13 reviewed (maintainer, --by-human attestation via askme): MAINTAINER ATTESTATION 2026-09-13: readiness set to `go-pending-approval` BY THE MAINTAINER, not by an agent and not by a review. The prior `no-go` was written by this plan's own earlier review round while a blocking question was open; the maintainer then answered every open question in this plan through the `askme` workflow on 2026-09-13, one interactive prompt at a time, and each answer is recorded in this plan's `## Open questions` with its reasoning. Asked directly how the stale verdict should be cleared, the maintainer chose to attest it themselves rather than fund a further review round, having read every resolution as it was written. THE ALTERNATIVE WAS PRICED AND REJECTED ON EVIDENCE: the round that ran earlier the same day cost 3h 02m and $106.07 across nine items, cleared three plans, and raised four NEW blocking questions on the rest, so a further round was not expected to yield a clean sheet. NO AGENT WROTE THIS VALUE ON ITS OWN AUTHORITY. Recorded here because the auto-approve predicate reads this field FIRST (`plan_readiness.is_plan_review_approved`), so a stale `no-go` is a live refusal that would have silently skipped this plan when the Set executed.
 - 2026-09-13 reviewed (opencode (its_direct/pt3-claude-opus-5-1m-us)): /plan-review ROUND 3: REVIEWED - OPEN QUESTIONS; readiness NO-GO. PR-021..PR-025; PR-021 OPEN and escalated as blocking OQ-04, the rest FIXED. Round 2's fixes held, but three defects the relocation CREATES were measured and were owned by nobody: F-11 commit_isolated cannot be reused (its copy direction is shared->worktree, measured error), F-12 the plans-index fail-loud gate INVERTS into a false pass leaving check.stale-index-stale unreported, F-14 the rollback destroys a peer's in-flight edit to the plan file (measured, bytes lost). New E-07, E-08 and V-07, V-08 close the last two; OQ-04 escalates the first because fixing commit_isolated touches the helper behind every aw self-commit.
 - 2026-09-13 to-review (aw set): status set to to-review

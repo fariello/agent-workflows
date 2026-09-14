@@ -6,17 +6,19 @@
 - Scope: Run the WHOLE REVIEW SWEEP in ONE coordinator-allocated lane so no review writes to the shared checkout, AND constrain a review turn's writes to the plan under review plus its own review record. Both halves are required: a lane alone stops main being dirtied but does not stop a review rewriting three siblings' files and merging them. Excludes per-review lanes (OQ-02, resolved), the lifecycle exclusions a review legitimately keeps, and Orders 01 to 04 and 06.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_shared.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: dirtygates
 - Order: 5
 - Highest E allocated: 11
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: ajxr5d
+- Approval: 2026-09-14, recorded via aw ipd set: status set to approved
 - Priority: high
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-14 approved (aw set): status set to approved
 - 2026-09-13 reviewed (maintainer, --by-human attestation via askme): MAINTAINER ATTESTATION 2026-09-13: readiness set to `go-pending-approval` BY THE MAINTAINER, not by an agent and not by a review. The prior `no-go` was written by this plan's own earlier review round while a blocking question was open; the maintainer then answered every open question in this plan through the `askme` workflow on 2026-09-13, one interactive prompt at a time, and each answer is recorded in this plan's `## Open questions` with its reasoning. Asked directly how the stale verdict should be cleared, the maintainer chose to attest it themselves rather than fund a further review round, having read every resolution as it was written. THE ALTERNATIVE WAS PRICED AND REJECTED ON EVIDENCE: the round that ran earlier the same day cost 3h 02m and $106.07 across nine items, cleared three plans, and raised four NEW blocking questions on the rest, so a further round was not expected to yield a clean sheet. NO AGENT WROTE THIS VALUE ON ITS OWN AUTHORITY. Recorded here because the auto-approve predicate reads this field FIRST (`plan_readiness.is_plan_review_approved`), so a stale `no-go` is a live refusal that would have silently skipped this plan when the Set executed.
 - 2026-09-13 reviewed (opencode (its_direct/pt3-claude-opus-5-1m-us)): /plan-review ROUND 2: REVIEWED - OPEN QUESTIONS; readiness NO-GO. PR-511..PR-515; PR-513 OPEN and escalated as blocking OQ-04, the rest FIXED. Round 1's premise and its seven-site census verified independently, but three of its mechanisms were measured unimplementable as written: F-12 a review has NO reachable teardown at all (the sole call site per host is gated on driver_finalize's return code, so round 1's 'split :6665 supplies one' was wrong) -> new E-11; F-13 the prescribed no-default action kind on the per-host wrappers FAILS a shipped contract test whose docstring forbids exactly it (proved by patching, then restored) -> two explicit routes named; F-14 the one-lane sweep design goes stale monotonically and no refresh helper exists anywhere, contradicting one of OQ-02's own two deciding reasons -> escalated as OQ-04. Also F-15: E-09's 'pick one deliberately' was a false choice, the ordering is fixed by the code.
 - 2026-09-13 to-review (aw set): status set to to-review
