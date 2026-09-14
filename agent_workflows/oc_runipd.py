@@ -24,7 +24,7 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, MutableMapping, Sequence
 from pathlib import Path
 from typing import Any, Callable, NamedTuple
 
@@ -73,6 +73,8 @@ from agent_workflows.plan_readiness import (
 )
 from agent_workflows.render_stream import (
     format_spec_impact_announcement,
+    format_spec_impact_failure,
+    format_spec_edit_report,
     _ANSI_CODES,
     _ANSI_RESET,
     _ANSI_STRIP_RE,
@@ -958,6 +960,288 @@ def driver_begin(
         stderr=subprocess.PIPE,
     )
     return result.returncode, (result.stderr or result.stdout or "").strip()
+
+
+# --- specvis (st5klo): declared-spec-edit VISIBILITY, at run start AND at run end -----------------
+#
+# A plan MAY amend a spec (maintainer ruling 2026-09-07), so the safeguard is not a gate but
+# VISIBILITY: whenever a run will rewrite a `.spec.md`, the operator must be told, BEFORE the run
+# spends anything and AGAIN when it ends. Nothing here refuses a run or gates an edit.
+#
+# Everything in this block is defined ONCE and IMPORTED by `agy_runipd` (the `as <same-name>`
+# re-export form documented at `agy_runipd.py:84-88`), for the reason that module records: a second
+# copy in the other driver is precisely how `Heartbeat` and `_read_deps` came to disagree.
+
+
+def queue_plan_path(repo: Path, item: "Mapping[str, Any]") -> Path | None:
+    """The plan FILE a runner queue entry refers to, or None when it cannot be located.
+
+    WHY THIS EXISTS, because it is a defect fix and not a convenience. `spec_impacts_for_queue`
+    documents its input as carrying `"path"` or `"plan_path"`, and that is what every test hand-built.
+    But a REAL runner queue entry carries NEITHER: both drivers freeze the plan location under
+    `"configured_file"` (`oc_runipd.py:2979`, `agy_runipd.py:2094`) and nothing ever assigns `"path"`.
+    So the pre-run spec announcement read an empty path from every item, computed an empty impact set,
+    and printed NOTHING - on BOTH hosts, for every real run, while a green suite asserted otherwise
+    because its fixtures supplied the key production never writes. Measured 2026-09-14 by driving both
+    entry points on a fixture repo whose approved plan declares a `.spec.md`: no `SPEC CHANGES:` line
+    on either host, and the same queue rebuilt with a `"path"` key yields the impact.
+
+    Resolution order, each rung there for a reason:
+      1. `path` / `plan_path` - an explicit override, and the shape the shared helper documents.
+      2. `last_plan_path` - written after a successful finalize MOVED the plan (pending/ -> executed/),
+         so it is the only rung that is still correct at RUN END for an executed item.
+      3. `configured_file` - the frozen location, correct for every item that has not moved.
+      4. `resolve_plan_path` - the authoritative shared resolver, which finds a plan by id6 wherever it
+         now lives. Last because it globs, and a cheap hit above is both faster and more specific.
+
+    Returns None rather than raising: every caller is an ADVISORY reporting surface, and refusing a run
+    because a report could not name a file would be a worse failure than the unnamed file.
+    """
+    for key in ("path", "plan_path", "last_plan_path", "configured_file"):
+        raw = item.get(key)
+        if not raw:
+            continue
+        candidate = Path(str(raw))
+        if not candidate.is_absolute():
+            candidate = repo / candidate
+        if candidate.is_file():
+            return candidate
+    id6 = str(item.get("id6") or "").strip()
+    if not id6:
+        return None
+    try:
+        return resolve_plan_path(repo, str(item.get("configured_file") or ""), id6)
+    except (DriverError, OSError):
+        return None
+
+
+def queue_with_plan_paths(
+    repo: Path, queue: "Sequence[Mapping[str, Any]]"
+) -> list[dict[str, Any]]:
+    """``queue`` re-expressed in the shape `spec_impacts_for_queue` DOCUMENTS it consumes.
+
+    Adapts at the CALL SITE rather than widening the shared helper's input contract, which keeps that
+    helper's documented shape ("reads each item's plan file from disk at dispatch") intact and keeps
+    this fix inside the plan's declared scope. An item whose plan cannot be located is DROPPED, which
+    matches the helper's own posture: an unreadable plan is skipped rather than failing the run.
+    """
+    out: list[dict[str, Any]] = []
+    for item in queue or ():
+        resolved = queue_plan_path(repo, item)
+        if resolved is None:
+            continue
+        out.append(
+            {
+                "id6": item.get("id6"),
+                "setid": item.get("setid"),
+                "path": str(resolved),
+            }
+        )
+    return out
+
+
+# The three states a per-item spec reconciliation can be in at run end. Named constants because the
+# end-of-run renderer branches on them and a typo'd string literal would silently render an item as
+# the wrong thing - and the WRONG thing here is specifically "clean", which is the one reading that
+# must never be manufactured (F-9).
+SPEC_RECONCILED = (
+    "reconciled"  # finalize precheck PASSED; the delta below is authoritative.
+)
+SPEC_RECONCILE_REFUSED = "refused"  # precheck REFUSED, so its empty pair means nothing.
+SPEC_NOT_FINALIZED = (
+    "not-finalized"  # the item never reached finalize; there is no delta at all.
+)
+
+
+def spec_edit_record(
+    plan_path: Path,
+    reasons: "Mapping[str, str]",
+    acks: "Mapping[str, str]",
+    *,
+    state: str,
+) -> dict[str, Any]:
+    """The durable, spec-FILTERED view of one item's two-way scope reconciliation (E-03).
+
+    ``reasons`` are the out-of-scope CHANGED paths and ``acks`` the declared-but-UNMODIFIED ones, i.e.
+    exactly what `_compute_scope_reconciliation` returns. This narrows both to `.spec.md` files and
+    keeps the item's DECLARED spec set beside them, so the end report can name the two asymmetries
+    that matter:
+
+      * `modified_not_declared` - a spec this item changed WITHOUT declaring it. THE important case: an
+        undeclared contract change is the thing declared-scope visibility exists to catch.
+      * `declared_not_modified` - a spec the item promised to change and did not. Worth a line because
+        it usually means the amendment half of a plan was skipped while its code half landed.
+
+    ``state`` must be one of the three constants above and is stored verbatim, because the renderer's
+    honesty depends on distinguishing "reconciled and clean" from "we could not tell".
+    """
+    try:
+        declared = declared_spec_paths(plan_path.read_text(encoding="utf-8"))
+    except OSError:
+        declared = []
+    modified_not_declared = sorted(p for p in (reasons or {}) if p.endswith(".spec.md"))
+    declared_not_modified = sorted(p for p in (acks or {}) if p.endswith(".spec.md"))
+    return {
+        "state": state,
+        "declared": list(declared),
+        "modified_not_declared": modified_not_declared,
+        "declared_not_modified": declared_not_modified,
+    }
+
+
+def record_item_spec_edits(
+    repo: Path,
+    plan_path: Path,
+    item: "MutableMapping[str, Any]",
+    *,
+    reconcile: "Callable[[Path, Path], tuple[Mapping[str, str], Mapping[str, str]]]",
+) -> dict[str, Any]:
+    """Store one item's spec reconciliation on the queue entry, and return what was stored.
+
+    Called from each driver's finalize CALL SITE, which is the one place where both the queue item and
+    the LANE worktree the reconciliation must be resolved against are in hand. Recording it durably
+    (rather than returning it up a call chain) is what makes the end-of-run report correct on a RESUMED
+    run and on an ABORTED one: the report reads `state.json`, not process memory.
+
+    ``reconcile`` IS AN INJECTED PARAMETER, AND DELIBERATELY SO. `_compute_scope_reconciliation` is
+    FORKED into two near-identical per-driver definitions (`oc_runipd.py` and `agy_runipd.py`), which is
+    real drift, but unifying it touches the finalize path this plan must not alter, so it stays out of
+    scope. Taking it as an argument lets this ONE recorder serve both hosts while each passes its OWN
+    copy: the fork is neither deepened (no third copy) nor silently unified (neither host's behavior
+    changes). This is the same explicit-injection form `runner_shared` uses for exactly this situation.
+
+    THE REFUSED CASE IS DETECTED HERE, NOT INFERRED FROM EMPTINESS. `_compute_scope_reconciliation`
+    returns `({}, {})` both when the delta is genuinely clean and when `finalize_precheck` REFUSED (bad
+    or missing begin receipt, failing pre-transition lint), so emptiness alone cannot tell a caller
+    which happened. That is the same ambiguity E-01 removed from the start announcement, and printing a
+    positive all-clear for an item whose scope was never actually checked would reintroduce it. So when
+    the pair comes back empty this asks the precheck DIRECTLY for its exit code and records `refused`
+    when it did not pass. The extra call is read-only and mutates nothing (`finalize_precheck` is
+    documented "No mutation"), and it is made only in the empty case, so the common path pays nothing.
+    """
+    reasons: Mapping[str, str] = {}
+    acks: Mapping[str, str] = {}
+    refused = False
+    try:
+        reasons, acks = reconcile(repo, plan_path)
+    except Exception:
+        # A reconciliation that could not run is NOT a clean delta. Record it as refused, which is the
+        # conservative reading: the report will say the item could not be reconciled rather than
+        # claiming its specs were unchanged.
+        refused = True
+    if not refused and not reasons and not acks:
+        try:
+            from agent_workflows import ipd_lifecycle
+
+            exit_code, _msg, _evidence, _findings = ipd_lifecycle.finalize_precheck(
+                repo, plan_path
+            )
+            refused = exit_code != 0
+        except Exception:
+            refused = True
+    record = spec_edit_record(
+        plan_path,
+        reasons,
+        acks,
+        state=SPEC_RECONCILE_REFUSED if refused else SPEC_RECONCILED,
+    )
+    item["spec_edits"] = record
+    return record
+
+
+def spec_edit_summary(repo: Path, state: "Mapping[str, Any]") -> dict[str, Any]:
+    """Aggregate the per-ITEM spec records into the per-RUN view the end report renders (E-03).
+
+    THE AGGREGATION IS THE POINT (F-9). The start announcement is per-QUEUE (it reads every plan's
+    declared scope in one pass), while the reconciliation is per-ITEM and only exists for an item that
+    reached finalize. So this must report BOTH sides and never let one stand in for the other:
+    `declared` is what the whole queue said it would change, and `reconciled`/`refused`/`not_finalized`
+    say how much of that the run could actually vouch for.
+
+    Reads ONLY durable state, so it renders identically from `print_status` on a finished run
+    directory, from a normal exit, and from a signal path mid-run. An older run directory carrying no
+    `spec_edits` key degrades to `not_finalized`, which is the honest reading rather than a clean one.
+    """
+    declared: dict[str, list[str]] = {}
+    reconciled: list[dict[str, Any]] = []
+    refused: list[str] = []
+    not_finalized: list[str] = []
+    for item in state.get("queue", []) or ():
+        id6 = str(item.get("id6") or "?")
+        plan_path = queue_plan_path(repo, item)
+        if plan_path is not None:
+            try:
+                specs = declared_spec_paths(plan_path.read_text(encoding="utf-8"))
+            except OSError:
+                specs = []
+            if specs:
+                declared[id6] = specs
+        record = item.get("spec_edits") or None
+        if not record:
+            # Only an item that could have finalized is interesting here. A queued/never-dispatched
+            # item is reported as not-finalized too, which is correct: nothing vouched for its scope.
+            not_finalized.append(id6)
+            continue
+        rec_state = record.get("state")
+        if rec_state == SPEC_RECONCILE_REFUSED:
+            refused.append(id6)
+            continue
+        if rec_state == SPEC_NOT_FINALIZED:
+            not_finalized.append(id6)
+            continue
+        reconciled.append(
+            {
+                "id6": id6,
+                "setid": item.get("setid"),
+                "declared": list(record.get("declared") or []),
+                "modified_not_declared": list(
+                    record.get("modified_not_declared") or []
+                ),
+                "declared_not_modified": list(
+                    record.get("declared_not_modified") or []
+                ),
+            }
+        )
+    return {
+        "declared": declared,
+        "reconciled": reconciled,
+        "refused": refused,
+        "not_finalized": not_finalized,
+    }
+
+
+def report_run_spec_edits(
+    state: "Mapping[str, Any]",
+    *,
+    stream: Any = None,
+    partial: bool = False,
+) -> list[str]:
+    """Print the END-OF-RUN declared-spec-edit report; return the lines printed (E-03).
+
+    THE PRIMARY DELIVERABLE of specvis st5klo. Before this, the ONLY spec-impact surface in the package
+    was pre-dispatch, so on a long run the operator's one chance to notice a rewritten contract was the
+    top of a scrollback the run had since buried. This re-states it where the run summary is read.
+
+    ``partial`` is the label the maintainer required (OQ-01, 2026-09-08) for the non-primary summary
+    sites - the interrupt/SIGTERM path and the DriverError path. Those fire when the run did NOT
+    complete, which is exactly when an operator most needs to know a spec was rewritten, so they are
+    wired; but their reconciliation is by definition half-computed, so they say so rather than
+    presenting a partial contract change as authoritative.
+
+    Advisory like its start-of-run twin, and for the same reason: this runs at EXIT, so an exception
+    escaping here would replace a completed run's summary with a traceback. It reports its own failure
+    instead of vanishing (the E-01 lesson applied to the new surface).
+    """
+    out = stream if stream is not None else sys.stdout
+    pal = Palette(should_color(out))
+    try:
+        summary = spec_edit_summary(Path(state["repo"]), state)
+        lines = format_spec_edit_report(summary, pal=pal, partial=partial)
+    except Exception as exc:
+        lines = format_spec_impact_failure(exc, pal=pal)
+    for line in lines:
+        print(line, file=out)
+    return lines
 
 
 def _compute_scope_reconciliation(
@@ -4405,13 +4689,33 @@ def announce_run_order(
     # specvis: surface DECLARED spec edits before the run starts. A spec is the contract other plans
     # are reviewed against, so a run that rewrites one is the highest-leverage thing it can do and was
     # previously invisible unless the operator opened every plan.
+    #
+    # specvis st5klo E-01: the announcement is made ONCE HERE, for the WHOLE QUEUE, BEFORE any item is
+    # dispatched (maintainer requirement 2026-09-08). `spec_impacts_for_queue` reads `state["queue"]`
+    # entire, and this function's sole callers are the two drivers' queue-freeze points, which run
+    # before the first child session. Do NOT move this into per-item dispatch: that would turn the one
+    # pre-spend warning into a line buried mid-run, which is the surface the operator scrolls past.
     try:
-        _impacts = spec_impacts_for_queue(Path(state["repo"]), state.get("queue", []))
+        _repo = Path(state["repo"])
+        # specvis st5klo E-01/E-02: `queue_with_plan_paths` is REQUIRED, not decoration. A real runner
+        # queue entry carries its plan location under `configured_file`, while `spec_impacts_for_queue`
+        # reads `path`/`plan_path`, so passing the raw queue made this announcement compute an empty
+        # impact set and print nothing on EVERY real run, on BOTH hosts. See `queue_plan_path`.
+        _impacts = spec_impacts_for_queue(
+            _repo, queue_with_plan_paths(_repo, state.get("queue", []))
+        )
         for line in format_spec_impact_announcement(_impacts, pal=pal):
             print(line, file=out)
-    except Exception:
-        # Advisory only: never let a missing announcement stop a run from starting.
-        pass
+    except Exception as exc:
+        # specvis st5klo E-01: STILL advisory (a broken announcement must never stop a run from
+        # starting, which is why this catches everything and does not re-raise), but no longer SILENT.
+        # The old `pass` made two very different states render identically: "this run declares no spec
+        # edits" and "the spec-impact computation crashed" both printed nothing, so an operator could
+        # not tell a clean run from a broken announcer. One named line resolves that ambiguity without
+        # changing what the run is permitted to do. Emitted from the SHARED function, so both hosts get
+        # it from this single edit (`agy_runipd` imports and calls this very object).
+        for line in format_spec_impact_failure(exc, pal=pal):
+            print(line, file=out)
     append_jsonl(
         run_dir / "events.jsonl",
         {
@@ -7182,6 +7486,18 @@ def execute_item(
             f"aw oc run self-finalize: {item['id6']} verified "
             f"(set {item['setid']}, attempt {attempt_no})."
         )
+        # specvis st5klo E-03: capture the DECLARED-vs-ACTUAL spec delta for the end-of-run report,
+        # here and nowhere else. This is the one point where `finalize_repo` (the LANE worktree the
+        # reconciliation must resolve against) and the queue item are both in hand. It CONSUMES this
+        # host's existing `_compute_scope_reconciliation` rather than diffing again, so there is no
+        # second reconciliation mechanism; and it is recorded BEFORE the finalize call, because the
+        # precheck's view is of the tree as the turn left it.
+        record_item_spec_edits(
+            finalize_repo,
+            current_plan_for_finalize,
+            item,
+            reconcile=_compute_scope_reconciliation,
+        )
         fin_rc, fin_msg = driver_finalize(
             finalize_repo, current_plan_for_finalize, item["id6"], actor, fin_message
         )
@@ -8055,6 +8371,11 @@ def run_queue(
             driver_label="opencode",
         )
     )
+    # specvis st5klo E-03: the PRIMARY end-of-run site. Sited with the summary table rather than on a
+    # new surface, because this is the block an operator already reads at exit; a spec rewrite reported
+    # anywhere else would be as easy to miss as it was when the only report was pre-dispatch. NOT
+    # `partial`: this path runs after the queue drained normally.
+    report_run_spec_edits(state)
     print(render_continuation_hint(state, run_dir))
     state["_summary_table_printed"] = True
     # bkclose (zhr6mc) E-06/E-07: the NORMAL-exit half of the shutdown report. `emit_shutdown_report`
@@ -8969,6 +9290,12 @@ def main(argv: list[str] | None = None) -> int:
                             driver_label="opencode",
                         )
                     )
+                    # specvis st5klo E-03: WIRED on the interrupt/SIGTERM path and LABELLED
+                    # possibly-incomplete (maintainer resolution of OQ-01, 2026-09-08). An aborted run
+                    # is exactly when an operator most needs to know a spec was rewritten, so
+                    # suppressing this would hide the interesting case; but items that never reached
+                    # finalize have no reconciliation, so it must not read as authoritative.
+                    report_run_spec_edits(state, partial=True)
                     print(render_continuation_hint(state, run_dir))
             except Exception:
                 pass
@@ -9015,6 +9342,8 @@ def main(argv: list[str] | None = None) -> int:
                             driver_label="opencode",
                         )
                     )
+                    # specvis st5klo E-03: the DriverError path, likewise wired and labelled (OQ-01).
+                    report_run_spec_edits(state, partial=True)
                     print(render_continuation_hint(state, run_dir))
             except Exception:
                 pass
