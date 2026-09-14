@@ -64,6 +64,15 @@ from agent_workflows.render_stream import (
     render_run_summary_table,
     install_exit_signal_handler,
     statusline_action_for_item,
+    # orchprobe (r2i1b1) E-01/E-02: the ONE refusal record (reason AND remedy), imported from
+    # `render_stream` and NEVER from `oc_runipd`, so this shared symbol does not deepen the
+    # oc-to-agy coupling that backlog `cnwy8g` tracks. Same object in both hosts, asserted by
+    # object identity in `tests/test_refusal_surfacing.py`.
+    REFUSAL_KEY as REFUSAL_KEY,
+    Refusal as Refusal,
+    record_integration_refusal,
+    record_refusal as record_refusal,
+    refusal_of_item as refusal_of_item,
     execution_index as execution_index,
     Palette as Palette,
     _strip_ansi as _strip_ansi,
@@ -4237,7 +4246,25 @@ def execute_item(
                     save_state=save_state,
                     append_jsonl=append_jsonl,
                 )
+                # MERGE NOTE 2026-09-14 (lanes `51vw4y` and `r2i1b1` integrated together): these two
+                # writes are COMPLEMENTARY and the order matters. `51vw4y`'s shared
+                # `runner_shared.record_integration_refusal` above owns the LADDER and therefore owns
+                # the STATUS, so the status is read from its decision and is NOT hardcoded here any
+                # more (a deferral must not be relabelled terminal). `r2i1b1`'s
+                # `render_stream.record_integration_refusal` below owns the human-facing REFUSAL
+                # RECORD (code/reason/remedy) that `aw runs` and the run summary read. Different
+                # modules, different jobs, same-named by coincidence.
                 fail_status = decision.status
+                # orchprobe (r2i1b1) E-02, the SOURCE HALF of F-4's repair; see the twin comment in
+                # `oc_runipd`. ONE shared writer with ONE shared remedy wording, so the two hosts
+                # cannot drift the way `Heartbeat` once did. `code` is the LADDER's status, so a
+                # deferred rung records itself as deferred rather than as a terminal failure.
+                record_integration_refusal(
+                    item,
+                    code=fail_status,
+                    reason=integ_reason,
+                    branch=wt_handle.branch if wt_handle else None,
+                )
                 disposition = fail_status
                 lane_branch = wt_handle.branch if wt_handle else "(none)"
                 print(

@@ -79,6 +79,15 @@ from agent_workflows.render_stream import (
     _STATUS_COLOR,
     Heartbeat,
     Palette,
+    # orchprobe (r2i1b1) E-01/E-02: the ONE refusal record, carrying a reason AND a remedy, defined in
+    # `render_stream` because that module imports no first-party module and `runner_shared` already
+    # imports IT (so the reverse edge the renderer needs cannot exist). Record a refusal through
+    # `record_refusal`, never by assigning the key, so the writer cannot drift from the reader.
+    REFUSAL_KEY as REFUSAL_KEY,
+    Refusal as Refusal,
+    record_integration_refusal,
+    record_refusal as record_refusal,
+    refusal_of_item as refusal_of_item,
     Statusline,
     StreamTracker,
     _one_line,
@@ -7204,6 +7213,14 @@ def execute_item(
                 # while its own budget lasts. `record_integration_refusal` writes the status, the
                 # counters and the event; the lane is preserved on every branch.
                 #
+                # MERGE NOTE 2026-09-14 (lanes `51vw4y` and `r2i1b1` integrated together): the local
+                # `fail_status`/`fail_event` mapping and the hand-written status/event writes that
+                # `r2i1b1` edited here are GONE, superseded by the shared ladder call, which owns the
+                # status, the durable counters and the event. `r2i1b1`'s contribution is retained in
+                # full as the REFUSAL RECORD write below; only its now-duplicated status derivation
+                # was dropped. Keeping both would have relabelled a DEFERRED rung as terminal, which
+                # is precisely the regression `51vw4y` E-01 exists to prevent.
+                #
                 # THE CHANGED FILE LIST IS STORED HERE because rung 2 needs it later, from the
                 # dispatch loop, where no `LaneOutcome` is in scope: it is what `dirty_tree_overlap`
                 # is re-checked against while polling.
@@ -7223,6 +7240,19 @@ def execute_item(
                     append_jsonl=append_jsonl,
                 )
                 fail_status = decision.status
+                # orchprobe (r2i1b1) E-02, the SOURCE HALF of F-4's repair. These statuses were in the
+                # summary's diagnostics allowlist yet rendered NOTHING, because that branch reads
+                # `driver_error` while this site writes `integration_deferral`; measured, the bug cost
+                # the maintainer an unhelpful report twice (`ueg5cf`, `pgq326`). OQ-02 resolved it in
+                # this direction deliberately: record the reason under the name the reader reads,
+                # rather than teaching the renderer a second field name. `code` is the LADDER's status
+                # so a deferred rung records itself as deferred, never as a terminal failure.
+                record_integration_refusal(
+                    item,
+                    code=fail_status,
+                    reason=integ_reason,
+                    branch=wt_handle.branch if wt_handle else None,
+                )
                 lane_branch = wt_handle.branch if wt_handle else "(none)"
                 print(
                     pal(

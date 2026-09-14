@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+from dataclasses import dataclass
 from pathlib import Path
 import re
 import signal
@@ -1653,6 +1654,168 @@ def _parse_iso_timestamp(ts_str: str | None) -> float | None:
         return None
 
 
+#: The key a per-item refusal record is stored under on a queue item, so a run's durable state
+#: carries the refusal rather than only its stdout. ONE name, referenced by producers and both read
+#: surfaces, because the defect this whole record exists to fix (orchprobe r2i1b1 F-4) was a renderer
+#: reading `driver_error` while the producing code wrote `integration_deferral`: a literal spelled at
+#: N sites is exactly how a reader and a writer drift apart.
+REFUSAL_KEY = "refusal"
+
+
+@dataclass(frozen=True)
+class Refusal:
+    """WHY a run refused one item, and WHAT THE READER SHOULD DO ABOUT IT.
+
+    THE `remedy` FIELD IS THE POINT, AND IT IS REQUIRED RATHER THAN OPTIONAL. `AGENTS.md` records
+    the measured failure mode this guards: a gate that says only "X is forbidden" gets complied with
+    by DELETION, so a message like "abd123 contains items that are not allowed" very plausibly gets
+    "fixed" by deleting items someone thought important enough to write, when a correct
+    non-destructive fix existed. A refusal that cannot say what to do next is therefore incomplete by
+    construction, which is why omitting `remedy` is a `TypeError` and an empty one is a `ValueError`.
+
+    WHY THIS TYPE LIVES IN `render_stream` AND NOT IN `runner_shared` (orchprobe r2i1b1 E-01/F-7),
+    stated because the obvious home is the wrong one: `runner_shared` ALREADY imports this module at
+    module level (``from agent_workflows.render_stream import Palette, render_run_summary_table``), so
+    the edge a renderer needs to READ this record cannot run the other way without a circular import.
+    This module imports NO first-party module at all (stdlib only), which is what makes it the safe
+    home for a type that both a renderer and the runners must see. Siting it in `runner_shared`
+    instead would first require moving `render_run_summary_table`'s import, a different change with
+    its own risk.
+
+    Fields:
+      ``code``   stable, machine-readable reason code (e.g. ``integration-blocked``), for tooling.
+      ``reason`` what happened, in human words.
+      ``remedy`` what the reader should DO next. Required, non-empty.
+    """
+
+    code: str
+    reason: str
+    remedy: str
+
+    def __post_init__(self) -> None:
+        for field_name in ("code", "reason", "remedy"):
+            value = getattr(self, field_name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(
+                    f"Refusal.{field_name} must be a non-empty string "
+                    f"(got {value!r}); a refusal that cannot say what happened "
+                    f"or what to do next is incomplete by construction"
+                )
+
+    def to_dict(self) -> dict[str, str]:
+        """The JSON-safe mapping stored in run state and emitted by machine surfaces."""
+        return {"code": self.code, "reason": self.reason, "remedy": self.remedy}
+
+    @classmethod
+    def from_obj(cls, obj: Any) -> "Refusal | None":
+        """Rebuild a :class:`Refusal` from durable state, or ``None`` when there is none.
+
+        TOLERANT BY DESIGN, because the input is a JSON file a previous driver version wrote: a run
+        directory frozen before this record existed, or one carrying a malformed value, must render
+        the rest of the summary rather than raise. A record missing its ``remedy`` is reported with
+        an explicit placeholder instead of being dropped, so the reader learns a refusal happened
+        even when the producer failed to say what to do.
+        """
+        if isinstance(obj, cls):
+            return obj
+        if not isinstance(obj, dict):
+            return None
+        code = str(obj.get("code") or "").strip()
+        reason = str(obj.get("reason") or "").strip()
+        remedy = str(obj.get("remedy") or "").strip()
+        if not (code or reason or remedy):
+            return None
+        return cls(
+            code=code or "refused",
+            reason=reason or "no reason recorded",
+            remedy=remedy or "no remedy recorded; inspect the run records",
+        )
+
+
+def _interrupt_reason_of(item: dict[str, Any]) -> str | None:
+    """The interrupt reason for one item, read from WHERE THE RUNNERS ACTUALLY WRITE IT.
+
+    A THIRD INSTANCE OF F-4's DEFECT CLASS, found by this plan's own E-07 guard rather than by
+    inspection, which is the strongest argument for that guard existing. The diagnostics block read
+    ``item["interrupt_reason"]``, but EVERY producing site writes ``attempt["interrupt_reason"]`` and
+    sets only ``item["status"] = "interrupted"``: `oc_runipd` (3 sites), `agy_runipd` (3 sites) and
+    `runner_shared.reconcile_item_on_interrupt` (2 sites). So the `interrupted` arm rendered NOTHING
+    for the state a real run persists, and the existing test passed only because it HOISTS the reason
+    onto the item, a shape no runner produces.
+
+    Read here rather than "fixed" by having eight sites also write an item-level copy, because
+    duplicating a field is how the two copies come to disagree; the attempt record is the one place
+    that reason legitimately lives. The item-level read is kept FIRST so an already-hoisted value (and
+    any future runner that does write one) still wins.
+    """
+    direct = item.get("interrupt_reason")
+    if direct:
+        return str(direct)
+    attempts = item.get("attempts")
+    if isinstance(attempts, list):
+        for attempt in reversed(attempts):
+            if isinstance(attempt, dict) and attempt.get("interrupt_reason"):
+                return str(attempt["interrupt_reason"])
+    return None
+
+
+def refusal_of_item(item: dict[str, Any]) -> "Refusal | None":
+    """The refusal recorded on one queue item, or ``None``.
+
+    THE ONE READER every surface goes through, so no surface can look under a different key than the
+    producers write (F-4's defect class). Consume this instead of indexing ``item[REFUSAL_KEY]``.
+    """
+    if not isinstance(item, dict):
+        return None
+    return Refusal.from_obj(item.get(REFUSAL_KEY))
+
+
+def record_refusal(
+    item: dict[str, Any],
+    code: str,
+    reason: str,
+    remedy: str,
+) -> "Refusal":
+    """Attach a refusal to a queue item and return it.
+
+    THE ONE WRITER, paired with :func:`refusal_of_item`. Both hosts call this rather than assigning
+    the key themselves, so the reader and the writer cannot drift apart the way F-4 measured.
+    """
+    refusal = Refusal(code=code, reason=reason, remedy=remedy)
+    item[REFUSAL_KEY] = refusal.to_dict()
+    return refusal
+
+
+def record_integration_refusal(
+    item: dict[str, Any],
+    code: str,
+    reason: str,
+    branch: str | None = None,
+) -> "Refusal":
+    """Record the refusal for a lane that finalized but could NOT be integrated into main.
+
+    THE REMEDY WORDING LIVES HERE, IN THE ONE MODULE BOTH HOSTS IMPORT, for the reason this module's
+    docstring already gives about `Heartbeat`: a message duplicated per host drifts, and this one is
+    the message a human reads at 3am about work that cost real money and is still recoverable. It
+    names the branch explicitly, because the single most destructive wrong move after this refusal is
+    to assume the lane is gone and re-run the item from scratch.
+    """
+    if branch:
+        remedy = (
+            f"the verified work is PRESERVED on branch {branch} and main is untouched; "
+            f"inspect it with `git log main..{branch}`, resolve the blocking condition named above, "
+            f"then re-integrate with `aw runs` / a resume rather than re-running the item from scratch. "
+            f"Do NOT delete the branch or discard the lane: that is the one irreversible move here"
+        )
+    else:
+        remedy = (
+            "main is untouched and the lane was preserved; resolve the blocking condition named "
+            "above, then re-integrate rather than re-running the item from scratch. Do NOT discard "
+            "the lane: that is the one irreversible move here"
+        )
+    return record_refusal(item, code=code, reason=reason, remedy=remedy)
+
+
 def render_run_summary_table(
     state: dict[str, Any],
     run_dir: Path | str | None = None,
@@ -2150,11 +2313,32 @@ def render_run_summary_table(
     lines.append(bot_border)
 
     # Failure / Dependency block diagnostics
+    #
+    # NO STATUS ALLOWLIST GATES THIS BLOCK ANY MORE (orchprobe r2i1b1 E-02/F-1). It used to key on a
+    # hardcoded set of five statuses with NO default branch, so a refusal of any other kind produced a
+    # table row and NOT ONE WORD of diagnosis: every future refusal kind was invisible until somebody
+    # remembered to extend the list. A `Refusal` record is therefore rendered for ANY status, and the
+    # named statuses below are now merely the ones that carry their reason in a legacy field instead
+    # of a record.
+    #
+    # THE `integration-blocked`/`merge-conflict` REPAIR (F-4), stated because the fix is at the OTHER
+    # END than it looks: those two were in the old allowlist yet rendered NOTHING, because the branch
+    # required `driver_error` while the code setting those statuses wrote `integration_deferral`. Per
+    # OQ-02's resolution the fix went to the SOURCE (both runners now also record a `Refusal` through
+    # `record_refusal`) rather than teaching this renderer a second field name. The legacy
+    # `integration_deferral` read is kept as a FALLBACK so a run directory frozen by an older driver
+    # still renders its reason instead of silence.
     diag_lines = []
     for it in queue:
         st = it.get("status")
         id6 = it.get("id6")
-        if st == "dependency-blocked":
+        refusal = refusal_of_item(it)
+        if refusal is not None:
+            # The remedy is on its own line so it survives the `head`/`tail` pipelines agents use, and
+            # so a long reason cannot push it off the reader's screen.
+            diag_lines.append(f"  • {id6}: {st} ({refusal.reason})")
+            diag_lines.append(f"    → remedy: {refusal.remedy}")
+        elif st == "dependency-blocked":
             reasons = it.get("unsatisfied_dependency_reasons") or {}
             deps = it.get("unsatisfied_dependencies") or []
             dep_msg = (
@@ -2169,8 +2353,15 @@ def render_run_summary_table(
             "merge-conflict",
         ) and it.get("driver_error"):
             diag_lines.append(f"  • {id6}: {st} ({it['driver_error']})")
-        elif st == "interrupted" and it.get("interrupt_reason"):
-            diag_lines.append(f"  • {id6}: interrupted ({it['interrupt_reason']})")
+        elif st in (
+            "integration-blocked",
+            "merge-conflict",
+        ) and it.get("integration_deferral"):
+            # F-4's repair, legacy-record arm: these two statuses render their reason instead of
+            # nothing even when no `Refusal` was recorded (a pre-r2i1b1 run directory).
+            diag_lines.append(f"  • {id6}: {st} ({it['integration_deferral']})")
+        elif st == "interrupted" and _interrupt_reason_of(it):
+            diag_lines.append(f"  • {id6}: interrupted ({_interrupt_reason_of(it)})")
 
     if diag_lines:
         lines.append("")
