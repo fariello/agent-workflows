@@ -861,21 +861,61 @@ class RealRepositorySets(unittest.TestCase):
         self.assertTrue(d.eligible, d.detail)
         self.assertEqual(d.reason, rs.RETIRE_ELIGIBLE)
 
-    def test_lanectn_refuses_naming_its_one_unfinished_child(self):
-        """RE-MEASURED 2026-09-08, per this class's own instruction to re-measure rather than loosen.
+    def test_lanectn_is_now_eligible_every_child_executed(self):
+        """RE-MEASURED 2026-09-14, per this class's own instruction to re-measure rather than loosen.
 
-        Was `{"nna8yz": "approved", "xdr83v": "approved"}`. `nna8yz`'s lane had been STRANDED (its
-        integration refused by the binary whole-repo suite gate, `integration_signal: suite-failed`),
-        and when that lane was recovered and finalized the child became `executed`, leaving `xdr83v`
-        as the sole unfinished member. The REFUSAL and its reason are unchanged, which is the property
-        this test exists to pin; only the membership of the unfinished set moved, and it moved because
-        real work legitimately landed.
+        THIRD re-measurement of this Set, and the reason is the same every time: a stranded lane got
+        recovered, so a child legitimately became `executed`.
+
+          * originally `{"nna8yz": "approved", "xdr83v": "approved"}`
+          * 2026-09-08: `nna8yz` recovered and finalized, leaving `{"xdr83v": "approved"}`
+          * 2026-09-14: `xdr83v` integrated (commit `fea2c9f8`), so ALL SIX children are `executed`
+            (`cqx5v7`, `nna8yz`, `lhmrhx`, `y5od1h`, `xdr83v`, `604wra`) and the Set is ELIGIBLE.
+
+        The 2026-09-14 flip is what turned this test red and, because the runner gates lane integration
+        on a bare whole-repo `pytest`, that one red test refused integration for EVERY lane that
+        finished afterwards: eight plans stranded in one night. Recorded here because it is the
+        strongest available argument that a real-repository assertion must be re-measured PROMPTLY.
+
+        The unfinished-children REFUSAL is not lost. It moved to
+        `test_commitguard_refuses_naming_its_one_unfinished_child` below, which pins it against a Set
+        that genuinely has one unfinished child today, exactly as the `runprofile` case was re-pointed
+        on 2026-09-08. Asserting a refusal here as well would pin a repository state that has now
+        changed three times rather than the behavior this test is named for.
         """
 
         d = rs.evaluate_set_retirement(REPO_ROOT, "lanectn")
+        self.assertTrue(d.eligible, d.detail)
+        self.assertEqual(d.reason, rs.RETIRE_ELIGIBLE)
+        m = rs.read_set_membership(REPO_ROOT, "lanectn")
+        self.assertEqual({c.status for c in m.children}, {"executed"})
+
+    def test_commitguard_refuses_naming_its_one_unfinished_child(self):
+        """The unfinished-children refusal, pinned against a Set that HAS one today.
+
+        ADDED 2026-09-14, taking over the property from the `lanectn` case above once `lanectn` became
+        legitimately eligible. `commitguard` is the right carrier: its child table is FULLY AUTHORED,
+        so a refusal here can only be the unfinished-children rule and never the unauthored-rows rule
+        that `rununify` pins, which keeps the two refusal reasons independently tested.
+
+        WHEN THIS FAILS, RE-MEASURE RATHER THAN LOOSEN, and re-point the property at another Set with a
+        real unfinished child rather than deleting it. At the time of writing `runnoop`
+        (`{"zz5yxq": "approved"}`) is the obvious successor, and eleven Sets in total are refused for
+        this reason, so a carrier will be available for a long while.
+        """
+
+        d = rs.evaluate_set_retirement(REPO_ROOT, "commitguard")
         self.assertFalse(d.eligible)
         self.assertEqual(d.reason, rs.RETIRE_REFUSED_UNFINISHED_CHILDREN)
-        self.assertEqual(dict(d.unfinished), {"xdr83v": "approved"})
+        self.assertEqual(dict(d.unfinished), {"y9vpvv": "approved"})
+        # NON-VACUITY: the refusal must be the unfinished-children rule and not a table that failed
+        # to parse, which would refuse for a different reason and pass this test for the wrong one.
+        m = rs.read_set_membership(REPO_ROOT, "commitguard")
+        assert m.orchestrator is not None
+        _tokens, parsed = rs.parse_declared_child_orders(
+            m.orchestrator.path.read_text(encoding="utf-8")
+        )
+        self.assertTrue(parsed)
 
     def test_rununify_refuses_for_unauthored_rows_not_for_unfinished_children(self):
         """The 2.5 case: both children ARE executed, so a naive rule would retire `5e4sb6`."""
