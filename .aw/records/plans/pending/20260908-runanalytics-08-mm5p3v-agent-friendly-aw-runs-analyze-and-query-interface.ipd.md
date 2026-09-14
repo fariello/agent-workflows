@@ -332,6 +332,17 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     NO `.aw/records/runs` LITERAL WAS ADDED. Asserted by `test_no_path_in_the_source_composes_the_runs_literal`, which parses each new module to an AST and strips docstrings/comments before scanning, so the check covers CODE (the modules DOCUMENT the literal in prose in order to explain why they must not compose it, and a naive substring scan would have failed on its own documentation). Paths come from `runner_shared.state_root`/`analytics_root` via `run_analytics_cache.cache_root` and `run_analytics_report.resolve_report_dir`.
     NO PROMPT ON ANY PATH: `test_neither_leaf_prompts` asserts neither module's code contains `input(` or `sys.stdin`.
     CONTAINMENT PROVEN, which is what makes a mutation on a read noun defensible: `test_analyze_writes_only_inside_the_reserved_analytics_namespace` snapshots the mtime of every non-analytics file under the runs root, runs a full sweep, and asserts the set is unchanged.
+    `--keep-snapshot LABEL` IS WIRED, not merely parsed. Caught self-reviewing this evidence: the flag was registered and documented in `--help` while reaching no implementation, which is worse than an absent flag because the caller believes a snapshot exists. It now delegates to Order 07's `publish_snapshot`, so the layout, the manifest-last completeness signal and the outside-the-namespace refusal all remain Order 07's contract. A published snapshot verifies clean through `report_mod.verify_bundle` (empty problem list), and a traversing label is refused:
+    ```
+    $ aw runs analyze --keep-snapshot demo --agent
+    {...,"outcome":"clean","exit":0,...,"applied":true,...}                       rc=0
+    # produced analytics/snapshots/demo/{analysis.json,index.html,manifest.json},
+    # and `git check-ignore -v` confirms `.aw/.gitignore:14:records/runs/` covers it,
+    # so generated output cannot be committed by accident.
+    $ aw runs analyze --keep-snapshot ../escape --agent
+    {...,"outcome":"cannot-run","exit":2,...,"next":"aw runs analyze --list"}     rc=2
+    ```
+    Covered by `test_keep_snapshot_publishes_an_immutable_snapshot`, `test_a_snapshot_label_that_is_not_one_path_component_is_refused` (`../escape`, `a/b`, `..`) and `test_the_snapshot_lands_inside_the_reserved_namespace`.
   - Result: pass
 
 - [x] V-04 validates E-04
