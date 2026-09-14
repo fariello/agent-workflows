@@ -848,7 +848,19 @@ def _set_children_all_executed(
 def finalize_orchestrator(repo: Path, id6: str, message: str) -> bool:
     """Administratively transition an orchestrator to executed via `aw ipd set executed`
     (no agent turn). Returns True on success, False if the gated transition refused
-    (in which case the caller leaves it for a human). The runner NEVER forces it."""
+    (in which case the caller leaves it for a human). The runner NEVER forces it.
+
+    NOT ON THE LIVE ROLLUP PATH, and the actor below is why that matters. This function has ZERO
+    callers (AST-verified: no call, no attribute reference, no name reference anywhere in the package,
+    the tests, or `tools/`); the live rollup goes `runner_shared` -> `ipd_lifecycle.retire_orchestrator`
+    with :func:`driver_actor`. Its actor used to read ``aw oc run (orchestrator rollup)``, which is the
+    exact string the actor-parenthesis defect was first diagnosed from, and which the setter guard now
+    REFUSES (plan fn2l1u E-07). It was FIXED rather than deleted, deliberately: the function is the one
+    documented `oc`-only module-launch site that `tests/test_lane_tool_identity.py:585-609` asserts as
+    an expected asymmetry against `agy`, so deleting it would quietly erase a discussed design point,
+    while leaving the old string would leave a call site the guard refuses as a trap for whoever next
+    wires it up. Do NOT add an `agy` twin; that same test forbids it.
+    """
     # lanetruth Order 01 (af7i6p): pinned to the runner's OWN tooling, not the cwd's copy.
     cmd = pinned_module_argv(
         [
@@ -857,7 +869,9 @@ def finalize_orchestrator(repo: Path, id6: str, message: str) -> bool:
             "executed",
             id6,
             "--actor",
-            "aw oc run (orchestrator rollup)",
+            # Parenthesis-free `key=value`, the shape every writer in the toolkit emits (see
+            # `driver_actor` below and `attention_contract.actor_refusal`).
+            "aw oc run step=orchestrator-rollup",
             "--dir",
             str(repo),
             "-m",
@@ -874,9 +888,12 @@ def finalize_orchestrator(repo: Path, id6: str, message: str) -> bool:
 def driver_actor(state: dict[str, Any]) -> str:
     """The attributed actor string bound into begin/finalize (driver + configured model).
 
-    Kept parenthesis-free: the terminal history line is `- <date> <status> (<actor>): <msg>`, and
-    the attribution lint's actor capture (`\\(...[^)]*...\\)`) would misparse a parenthesized actor,
-    so the model is rendered as `model=<model>` (no nested parens).
+    Kept parenthesis-free: the terminal history line is `- <date> <status> (<actor>): <msg>`, so the
+    model is rendered as `model=<model>` (no nested parens). The readers no longer REQUIRE this - plan
+    fn2l1u made every actor capture lazy, so a parenthesized actor parses - but the setter now
+    REFUSES one (`attention_contract.actor_refusal`), because one actor shape across the toolkit is
+    cheaper to read and grep than two, and refusing early keeps the failure before the lifecycle
+    commit rather than after it.
 
     runprofile-03 (`3cm15q`) E-03: the resolved VARIANT and the applied PROFILE join the model, so the
     plan's terminal history line attributes the work to the exact launch identity that did it rather

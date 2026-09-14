@@ -133,6 +133,45 @@ def authoring_placeholders_resolved(plan_text: str) -> bool:
     return not any(marker in plan_text for marker in _AUTHORING_PLACEHOLDERS)
 
 
+def normalize_author(author: str) -> str:
+    """The author string in the shape the history readers and the setter guard accept.
+
+    Parentheses become the `key=value` form :func:`oc_runipd.driver_actor` already emits, so the
+    tooling stops PRODUCING a shape its own setter refuses (plan fn2l1u E-05, resolving OQ-02).
+
+    WHY THIS EXISTS, since a cosmetic front-matter field looks harmless. ``--author`` reaches TWO
+    places, not one: the ``- Author:`` field AND the scaffold's own first history line,
+    ``- <date> draft (<author>): created.``. A parenthesized author therefore made scaffold WRITE an
+    unparseable history record into every new plan, and 274 of 638 tracked plans carry that shape in
+    the field agents then copy into ``--actor``. Normalizing here fixes both write sites at once.
+
+    NORMALIZED, NOT REFUSED, and the CALLER MUST SAY SO: the maintainer's OQ-02 ruling took a third
+    option over this plan's own recommendation of a silent rewrite - normalize, but print one line
+    telling the caller the value changed, because otherwise the string the user typed is not the
+    string recorded. A scaffold call that rewrites the author SILENTLY does not satisfy OQ-02.
+    ``run_scaffold`` emits that notice; keep it one line and not styled as an error.
+
+    Pure. Returns the input unchanged (only stripped) when it carries no parenthesis, so the common
+    case is untouched and no existing plan's rendering moves.
+    """
+    text = (author or "").strip()
+    if "(" not in text and ")" not in text:
+        return text
+    # `opencode (its_direct/some-model)` -> `opencode model=its_direct/some-model`, matching
+    # `driver_actor`'s rule. A parenthetical that is not a bare model (contains whitespace or an `=`
+    # already) is flattened rather than key-tagged, since inventing a key for arbitrary prose would
+    # be a guess; either way the result is parenthesis-free, which is what the guard requires.
+    m = re.match(r"^(?P<head>[^(]*?)\s*\((?P<inner>.*)\)\s*$", text)
+    if m:
+        head = m.group("head").strip()
+        inner = m.group("inner").strip().replace("(", "").replace(")", "")
+        if head and inner:
+            tagged = inner if ("=" in inner or " " in inner) else f"model={inner}"
+            return f"{head} {tagged}"
+        return (head or inner).strip()
+    return text.replace("(", "").replace(")", "").strip()
+
+
 def build_skeleton(
     *,
     kind: str,
@@ -147,9 +186,14 @@ def build_skeleton(
 
     ``plan_id`` is the stable ``- Id:`` handle (6-char base36); when omitted a fresh one is
     generated. Deterministic output for tests can pin ``plan_id``.
+
+    The author is NORMALIZED through :func:`normalize_author` (plan fn2l1u E-05), which covers BOTH
+    places it lands - the ``- Author:`` field and the ``draft`` history line - so a parenthesized
+    ``--author`` can no longer put an unparseable record into a brand-new plan.
     """
     if plan_id is None:
         plan_id = _core.generate_id6(set())
+    author = normalize_author(author)
     order_seq = S.H2_ORDER_BY_KIND[kind]
     lines: List[str] = []
     lines.append(f"# IPD: {title}")
@@ -292,6 +336,17 @@ def run_scaffold(args: argparse.Namespace) -> int:
     if not author:
         print("error: --author is required (or set AW_IPD_AUTHOR)")
         return 2
+    # OQ-02, as the maintainer ruled it: NORMALIZE the author, AND SAY SO. A silent rewrite would
+    # mean the string the caller typed is not the string recorded, which is a small surprise of its
+    # own; one line removes it without refusing an otherwise harmless call. Deliberately NOT styled
+    # as an error (this is a cosmetic field), and printed only when the value actually changed.
+    _author_normalized = normalize_author(author)
+    if _author_normalized != author.strip():
+        print(
+            f"note: normalized --author to {_author_normalized!r} (parentheses are not used in an "
+            "actor/author; qualifiers are rendered key=value so history records stay parseable)"
+        )
+    author = _author_normalized
     when = date.today().strftime("%Y-%m-%d")
     # An explicit --path is validated against the clustering grammar unless --legacy-name is passed.
     # When --path is omitted, we DERIVE the canonical clustered `.ipd.md` name into `.aw/records/plans/pending/`.

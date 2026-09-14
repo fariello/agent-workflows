@@ -838,5 +838,100 @@ class NoWideningTests(unittest.TestCase):
         self.assertTrue(PR.is_plan_review_approved(p))
 
 
+class AParenthesizedActorDoesNotDisableTheApprovalGate(unittest.TestCase):
+    """Plan fn2l1u E-08a / V-08: THE GATE USED TO FAIL OPEN ON A FORMATTING ACCIDENT.
+
+    `_HISTORY_RECORD_PARTS_RE` carried the bound `(?P<actor>[^)]*)`, which stops at the FIRST `)`.
+    A review record whose ACTOR contained parentheses - the shape 274 of 638 tracked plans carry in
+    the `- Author:` field agents copy into `--actor` - therefore did not match at all, so
+    `is_review_history_entry` returned False, so `newest_verdict` returned None, so
+    `approval_refusals` emitted ZERO refusals for a plan whose own newest review said
+    `REJECT - NEEDS REPLAN`.
+
+    Reproduced end to end through the real CLI before the fix: `aw set approved <id6> --by-human`
+    EXITED 0 and wrote `- Status: approved` with a parenthesized actor, while the identical command
+    with a slash-form actor EXITED 1 and refused with "This refusal has NO override." That is
+    precisely the failure the approval gate was built after, reachable by a typo.
+    """
+
+    PAREN_REJECT = (
+        "- 2026-09-08 reviewed (opencode (its_direct/some-model)): "
+        "/plan-review: REJECT - NEEDS REPLAN; unsound."
+    )
+    SLASH_REJECT = (
+        "- 2026-09-08 reviewed (opencode/its_direct/some-model): "
+        "/plan-review: REJECT - NEEDS REPLAN; unsound."
+    )
+
+    def _refusals(self, text: str) -> list:
+        import tempfile
+
+        d = Path(tempfile.mkdtemp())
+        p = d / "plan.ipd.md"
+        p.write_text(text, encoding="utf-8")
+        self.addCleanup(lambda: (p.unlink(missing_ok=True), d.rmdir()))
+        return PR.approval_refusals(d, p, text)
+
+    def test_a_parenthesized_review_record_IS_recognized_as_a_review_record(self):
+        self.assertTrue(PR.is_review_history_entry(self.PAREN_REJECT))
+
+    def test_the_parenthesized_and_slash_forms_read_the_SAME_verdict(self):
+        paren, _ = PR.newest_verdict(_plan(history=self.PAREN_REJECT))
+        slash, _ = PR.newest_verdict(_plan(history=self.SLASH_REJECT))
+        self.assertEqual(paren, PR.NEGATIVE)
+        self.assertEqual(
+            paren, slash, "the actor's SPELLING must not change the verdict read"
+        )
+
+    def test_the_approval_gate_REFUSES_over_a_parenthesized_rejection(self):
+        """The regression that matters: a refusal must exist, and it must be the no-override one."""
+        refusals = self._refusals(_plan(history=self.PAREN_REJECT))
+        self.assertTrue(
+            refusals, "a plan whose newest review REJECTS it must not be approvable"
+        )
+        self.assertTrue(
+            any("NO override" in r for r in refusals),
+            f"expected the un-overridable verdict refusal, got {refusals}",
+        )
+
+    def test_the_parenthesized_actor_is_captured_whole(self):
+        m = PR._HISTORY_RECORD_PARTS_RE.match(self.PAREN_REJECT)
+        self.assertIsNotNone(m)
+        assert m is not None
+        self.assertEqual(m.group("actor"), "opencode (its_direct/some-model)")
+        self.assertEqual(m.group("mid"), "reviewed")
+        self.assertEqual(
+            m.group("msg"), "/plan-review: REJECT - NEEDS REPLAN; unsound."
+        )
+
+    def test_a_multi_word_middle_still_parses(self):
+        """The `mid` capture widened from `[^(]*?` to `.*?`; the review-word family must still work."""
+        rec = (
+            "- 2026-08-30 /plan-review pass 2 (opencode (some-model)): "
+            "REJECT - NEEDS REPLAN reaffirmed."
+        )
+        self.assertTrue(PR.is_review_history_entry(rec))
+        polarity, _ = PR.newest_verdict(_plan(history=rec))
+        self.assertEqual(polarity, PR.NEGATIVE)
+
+    def test_a_message_containing_close_paren_colon_is_not_mis_split(self):
+        """Lazy, not greedy: a `):` inside the MESSAGE must not shift the actor boundary."""
+        rec = "- 2026-09-08 reviewed (opencode/model): fixed foo(bar): APPROVE"
+        m = PR._HISTORY_RECORD_PARTS_RE.match(rec)
+        self.assertIsNotNone(m)
+        assert m is not None
+        self.assertEqual(m.group("actor"), "opencode/model")
+        self.assertEqual(m.group("msg"), "fixed foo(bar): APPROVE")
+
+    def test_a_non_review_record_is_still_not_a_review_record(self):
+        """The widening must not turn a NARRATING record into a verdict-bearing one (d7bnhc F-5)."""
+        rec = (
+            "- 2026-09-08 to-review (opencode (some-model)): supersedes a plan whose "
+            "review said REJECT - NEEDS REPLAN."
+        )
+        self.assertFalse(PR.is_review_history_entry(rec))
+        self.assertEqual(self._refusals(_plan(history=rec)), [])
+
+
 if __name__ == "__main__":
     unittest.main()

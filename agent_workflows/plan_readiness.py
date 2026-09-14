@@ -339,8 +339,25 @@ def is_plan_review_approved(plan_path: Path) -> bool:
 
 # A history record's "middle" is the status/workflow token between the date and the `(actor)`, e.g.
 # `- 2026-09-03 reviewed (opencode/...): ...` or `- 2026-08-30 /plan-review pass 2 (OpenCode ...): `.
+#
+# BOTH THE MIDDLE AND THE ACTOR CAPTURE LAZILY (plan fn2l1u E-08a), AND THIS PATTERN BACKED A GATE
+# THAT FAILED OPEN. With `(?P<mid>[^(]*?)` plus `(?P<actor>[^)]*)`, a record whose actor CONTAINED
+# parentheses did not match at all, so `is_review_history_entry` returned False, so `newest_verdict`
+# returned None, so `approval_refusals` emitted ZERO refusals for a plan whose own newest review said
+# `REJECT - NEEDS REPLAN`. Reproduced end to end through the real CLI before the fix: with a
+# parenthesized actor, `aw set reviewed <id6> -m "/plan-review: REJECT - NEEDS REPLAN"` followed by
+# `aw set approved <id6> --by-human` EXITED 0 and wrote `- Status: approved`; with a slash-form actor
+# the identical second command EXITED 1 with "This refusal has NO override." A formatting accident
+# therefore silently disabled the one un-overridable refusal this whole section exists to enforce.
+#
+# The widening is strictly ADDITIVE, measured over all 3073 tracked history records: ZERO
+# previously-parsing records have any capture changed, and 336 newly parse. Note the actor guard at
+# `status_set` now also refuses NEW records of that shape (fn2l1u E-07), so the hole is closed from
+# both ends; this half is what makes the records ALREADY on disk readable, which a setter guard cannot
+# do. Widen IN PLACE: `tests/test_plan_readiness.py` asserts there is only ONE encoding of this
+# vocabulary, so do not add a third parser.
 _HISTORY_RECORD_PARTS_RE = re.compile(
-    r"^-\s*(?P<date>\d{4}-\d{2}-\d{2})\s+(?P<mid>[^(]*?)\s*\((?P<actor>[^)]*)\):\s*(?P<msg>.*)$"
+    r"^-\s*(?P<date>\d{4}-\d{2}-\d{2})\s+(?P<mid>.*?)\s*\((?P<actor>.*?)\):\s*(?P<msg>.*)$"
 )
 
 # The tokens that mark a record as a REVIEW record. Derived from a census of every history record in

@@ -1007,5 +1007,104 @@ class ScopePathsCheckpointTests(unittest.TestCase):
         self.assertTrue(block, "check_scope_paths must enforce the field at the gate")
 
 
+class ParenthesizedActorParsesInTheAttributionRegex(unittest.TestCase):
+    """Plan fn2l1u E-03/V-03: the actor capture is LAZY, so an actor containing parentheses parses.
+
+    The old bound `[^)]*` stopped at the FIRST `)`, so `- <date> executed (opencode (model)): msg`
+    did not match at all; `_newest_executed_history` then fell through to its bare-line branch and
+    IPD-S406 reported an EMPTY actor and EMPTY summary for a line where both are plainly present.
+    Because IPD-S406 is POST-transition, that fired AFTER the lifecycle commit.
+    """
+
+    PAREN = "- 2026-08-30 executed (opencode (its_direct/some-model)): did the work"
+    SLASH = "- 2026-08-30 executed (opencode/its_direct/some-model): did the work"
+    # The hazard that decides lazy-versus-greedy: a MESSAGE containing `):`.
+    HAZARD = "- 2026-09-08 executed (opencode/model): fixed foo(bar): baz"
+    BOTH = "- 2026-09-08 executed (opencode (model)): fixed foo(bar): baz"
+
+    def test_a_parenthesized_actor_parses_with_the_full_actor_and_message(self):
+        m = L._HISTORY_ATTRIB_RE.match(self.PAREN)
+        self.assertIsNotNone(m, "a parenthesized actor must parse")
+        assert m is not None
+        self.assertEqual(m.group("actor"), "opencode (its_direct/some-model)")
+        self.assertEqual(m.group("msg"), "did the work")
+        self.assertEqual(m.group("status"), "executed")
+
+    def test_the_slash_form_parses_exactly_as_before(self):
+        m = L._HISTORY_ATTRIB_RE.match(self.SLASH)
+        self.assertIsNotNone(m)
+        assert m is not None
+        self.assertEqual(m.group("actor"), "opencode/its_direct/some-model")
+        self.assertEqual(m.group("msg"), "did the work")
+
+    def test_a_message_containing_a_close_paren_colon_is_NOT_truncated(self):
+        """THE REASON THE CAPTURE IS LAZY AND NOT GREEDY.
+
+        A greedy `(?P<actor>.*)` anchors on the LAST `):` and captures actor
+        `opencode/model): fixed foo(bar`, corrupting a line that parses correctly today. This test
+        fails under that alternative, which is what makes the choice evidenced rather than asserted.
+        """
+        m = L._HISTORY_ATTRIB_RE.match(self.HAZARD)
+        self.assertIsNotNone(m)
+        assert m is not None
+        self.assertEqual(m.group("actor"), "opencode/model")
+        self.assertEqual(m.group("msg"), "fixed foo(bar): baz")
+
+    def test_both_hazards_at_once(self):
+        m = L._HISTORY_ATTRIB_RE.match(self.BOTH)
+        self.assertIsNotNone(m)
+        assert m is not None
+        self.assertEqual(m.group("actor"), "opencode (model)")
+        self.assertEqual(m.group("msg"), "fixed foo(bar): baz")
+
+    def test_the_greedy_alternative_is_exhibited_as_WRONG(self):
+        """Pin the rejected alternative's failure, so a later editor does not 'simplify' to greedy."""
+        greedy = re.compile(
+            r"^-\s+(?:\d{4}-\d{2}-\d{2})\s+(?P<status>\S+)\s+\((?P<actor>.*)\)\s*:\s*(?P<msg>.*)$"
+        )
+        g = greedy.match(self.HAZARD)
+        self.assertIsNotNone(g)
+        assert g is not None
+        self.assertEqual(
+            g.group("actor"),
+            "opencode/model): fixed foo(bar",
+            "if this ever stops corrupting the line, the lazy/greedy tradeoff changed",
+        )
+
+    def test_the_generic_actor_rejection_still_works_under_the_new_pattern(self):
+        """fn2l1u E-04: `_GENERIC_ACTORS` is pinned NARROWLY and must not be disturbed."""
+        for actor in ("aw set", "aw set, --by-human"):
+            with self.subTest(actor=actor):
+                m = L._HISTORY_ATTRIB_RE.match(
+                    f"- 2026-08-30 executed ({actor}): summary here"
+                )
+                self.assertIsNotNone(m)
+                assert m is not None
+                self.assertEqual(m.group("actor"), actor)
+                self.assertIn(m.group("actor"), L._GENERIC_ACTORS)
+
+    def test_the_attribution_lint_no_longer_reports_an_empty_actor(self):
+        """END TO END through the real rule: a parenthesized terminal line is attributed, not empty."""
+        plan = _approved(_conforming_child())
+        plan = plan.replace("- Status: approved", "- Status: executed")
+        plan += (
+            "\n## Workflow history\n\n"
+            "- 2026-08-30 executed (opencode (its_direct/some-model)): did the work "
+            "and validated it.\n"
+        )
+        doc = L.parse(plan)
+        parsed = L._newest_executed_history(doc)
+        self.assertIsNotNone(parsed, "the newest executed entry must be found")
+        assert parsed is not None
+        actor, msg = parsed
+        self.assertEqual(actor, "opencode (its_direct/some-model)")
+        self.assertEqual(msg, "did the work and validated it.")
+        self.assertNotIn(
+            actor,
+            L._GENERIC_ACTORS,
+            "a real parenthesized actor must not be read as the generic default",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

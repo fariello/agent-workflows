@@ -584,6 +584,33 @@ def validate_transition_allowed(
                 "Moving backlog item to blocked requires --gate-kind and --gate-ref",
             )
 
+    # THE ACTOR SHAPE GATE (plan fn2l1u E-07). Refused HERE, in the shared pre-flight, so the CLI
+    # reports a one-line refusal BEFORE any record in the batch is written; `apply_status_change`
+    # raises on the same condition as the fail-closed backstop for a direct caller that skips this
+    # pre-flight. Both delegate to the ONE validator (`attention_contract.actor_refusal`).
+    #
+    # WHY THIS IS THE HIGH-VALUE GUARD, and not merely tidiness. A parenthesized actor makes the
+    # history record unparseable to `plan_readiness._HISTORY_RECORD_PARTS_RE`, so
+    # `is_review_history_entry` returns False, so `newest_verdict` returns None, so the approval gate
+    # directly above emits ZERO refusals. Reproduced end to end before this landed: writing
+    # `reviewed` with a parenthesized actor and the message `/plan-review: REJECT - NEEDS REPLAN`,
+    # then `aw set approved --by-human`, EXITED 0 and wrote `- Status: approved`, while the identical
+    # sequence with a slash-form actor EXITED 1 with "This refusal has NO override." A formatting
+    # accident therefore silently converted the one un-overridable approval refusal into a no-op -
+    # precisely the failure this gate was built after. Plan fn2l1u E-08 also widened that reader, so
+    # the hole is closed from both ends: old lines now parse, and new ones cannot take this shape.
+    #
+    # An actor is only refused when one was PASSED. An absent `--actor` falls back to the default
+    # `aw set` further down in `apply_status_change`, which is parenthesis-free by construction, so
+    # this never fires on the common no-flag path.
+    _passed_actor = getattr(args, "actor", None)
+    if _passed_actor is not None and str(_passed_actor).strip():
+        from agent_workflows import attention_contract as _ac
+
+        _actor_problem = _ac.actor_refusal(str(_passed_actor))
+        if _actor_problem is not None:
+            return False, _actor_problem
+
     return True, None
 
 
@@ -599,6 +626,17 @@ def apply_status_change(
     today = datetime.datetime.now(datetime.timezone.utc).date().strftime("%Y-%m-%d")
     message = getattr(args, "message", None) or f"status set to {norm_status}"
     actor = getattr(args, "actor", None) or "aw set"
+    # THE BACKSTOP for the actor-shape gate (plan fn2l1u E-07). `validate_transition_allowed` refuses
+    # this in the CLI pre-flight with a clean one-line message; this raise catches a DIRECT caller of
+    # this function that never ran that pre-flight. It is checked BEFORE the `--by-human` /
+    # `--allow-open-questions` suffixes are folded in and before any file is touched, so a refused
+    # call writes nothing. See `attention_contract.actor_refusal` for why the parenthesis refusal
+    # remains correct even though the readers now tolerate that shape.
+    from agent_workflows import attention_contract as _ac
+
+    _actor_problem = _ac.actor_refusal(actor)
+    if _actor_problem is not None:
+        raise ValueError(_actor_problem)
     if getattr(args, "by_human", False):
         actor = f"{actor}, --by-human"
     # apprvguard d7bnhc E-06: an OVERRIDDEN approval must be auditable in the ARTIFACT, not only in
