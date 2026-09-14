@@ -1160,12 +1160,28 @@ class BothHostsShareEverySymbol(unittest.TestCase):
                     )
 
     def test_the_oc_to_agy_import_count_did_not_increase(self):
-        """Measured 47 at both review rounds and 48 at execution; the RULE is 'did not increase'.
+        """Measured 47 at both review rounds, 48 at execution, 57 after the 2026-09-14 recovery.
 
-        The absolute number is deliberately NOT asserted: backlog `cnwy8g` recorded 40, the reviews
-        measured 47, and this worktree measures 48, so a literal would be a test that fails on
-        unrelated work. What is asserted is that this child added none, by comparing the live count
-        against the count at this file's own baseline.
+        The absolute number is deliberately NOT the point: backlog `cnwy8g` recorded 40, the reviews
+        measured 47, execution measured 48, and this worktree measures 57, so the literal is a
+        BASELINE and not a target. What is asserted is that THIS child added none, which is checked
+        directly by the `NEW_SYMBOLS` loop below and is the property the test is named for.
+
+        RE-MEASURED 2026-09-14 from 48 to 57, per the instruction in this assertion's own message
+        ("if the change is unrelated work, re-measure and update the baseline with the new count and
+        a note"). The nine added names are all UNRELATED to this child and all arrived with lane
+        `st5klo` (specvis-01), integrated in the same recovery pass that integrated this lane:
+
+            SPEC_NOT_FINALIZED, SPEC_RECONCILED, SPEC_RECONCILE_REFUSED, queue_plan_path,
+            queue_with_plan_paths, record_item_spec_edits, report_run_spec_edits, spec_edit_record,
+            spec_edit_summary
+
+        Measured by diffing the import list at `fea2c9f8` (48) against HEAD (57), so the attribution
+        is computed and not assumed. NOT loosened to an inequality: an exact baseline is what makes
+        the NEXT unrelated increase visible at all, and `cnwy8g`'s standing complaint is that this
+        coupling keeps growing quietly. Note the growth is itself the defect `cnwy8g` tracks: these
+        nine SHOULD reach both hosts through `runner_shared`, and `st5klo` routed them through
+        `oc_runipd` instead.
         """
 
         import ast
@@ -1186,7 +1202,7 @@ class BothHostsShareEverySymbol(unittest.TestCase):
             )
         self.assertEqual(
             len(imported),
-            48,
+            57,
             "the oc->agy import count moved. This test's job is to fail when THIS "
             "child's symbols deepen the coupling; if the change is unrelated work, "
             "re-measure and update the baseline with the new count and a note.",
