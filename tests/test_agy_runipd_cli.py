@@ -205,7 +205,17 @@ class AgySelfFinalizeTests(unittest.TestCase):
             state["options"]["no_verify"] = False
 
             (run_dir / "outcomes" / "01-agy001.json").write_text(
-                json.dumps({"disposition": "executed", "pushed": False}),
+                json.dumps(
+                    {
+                        "disposition": "executed",
+                        "pushed": False,
+                        # defreport (`b7xarm`): a CONFORMING agent now states its defect
+                        # report affirmatively. Without it the driver correctly spends its
+                        # one same-session re-ask, and this fake would then re-run its own
+                        # `git commit` and fail on an already-clean tree.
+                        "defect_report": {"state": "none-found", "findings": []},
+                    }
+                ),
                 encoding="utf-8",
             )
             (run_dir / "outcomes" / "01-agy001-verification.json").write_text(
@@ -248,7 +258,17 @@ class AgySelfFinalizeTests(unittest.TestCase):
             state["options"]["no_verify"] = False
 
             (run_dir / "outcomes" / "01-agy001.json").write_text(
-                json.dumps({"disposition": "executed", "pushed": False}),
+                json.dumps(
+                    {
+                        "disposition": "executed",
+                        "pushed": False,
+                        # defreport (`b7xarm`): a CONFORMING agent now states its defect
+                        # report affirmatively. Without it the driver correctly spends its
+                        # one same-session re-ask, and this fake would then re-run its own
+                        # `git commit` and fail on an already-clean tree.
+                        "defect_report": {"state": "none-found", "findings": []},
+                    }
+                ),
                 encoding="utf-8",
             )
             (run_dir / "outcomes" / "01-agy001-verification.json").write_text(
@@ -333,7 +353,17 @@ class AgyWorktreeIsolationTests(unittest.TestCase):
             (
                 run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
             ).write_text(
-                json.dumps({"disposition": "executed", "pushed": False}),
+                json.dumps(
+                    {
+                        "disposition": "executed",
+                        "pushed": False,
+                        # defreport (`b7xarm`): a CONFORMING agent now states its defect
+                        # report affirmatively. Without it the driver correctly spends its
+                        # one same-session re-ask, and this fake would then re-run its own
+                        # `git commit` and fail on an already-clean tree.
+                        "defect_report": {"state": "none-found", "findings": []},
+                    }
+                ),
                 encoding="utf-8",
             )
             return 0, "ses1", str(run_dir / "log"), ["agy"]
@@ -387,7 +417,17 @@ class AgyWorktreeIsolationTests(unittest.TestCase):
                 (
                     run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
                 ).write_text(
-                    json.dumps({"disposition": "executed", "pushed": False}),
+                    json.dumps(
+                        {
+                            "disposition": "executed",
+                            "pushed": False,
+                            # defreport (`b7xarm`): a CONFORMING agent now states its defect
+                            # report affirmatively. Without it the driver correctly spends its
+                            # one same-session re-ask, and this fake would then re-run its own
+                            # `git commit` and fail on an already-clean tree.
+                            "defect_report": {"state": "none-found", "findings": []},
+                        }
+                    ),
                     encoding="utf-8",
                 )
                 return 0, "ses1", str(run_dir / "log"), ["agy"]
@@ -547,7 +587,17 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
             (
                 run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
             ).write_text(
-                json.dumps({"disposition": "executed", "pushed": False}),
+                json.dumps(
+                    {
+                        "disposition": "executed",
+                        "pushed": False,
+                        # defreport (`b7xarm`): a CONFORMING agent now states its defect
+                        # report affirmatively. Without it the driver correctly spends its
+                        # one same-session re-ask, and this fake would then re-run its own
+                        # `git commit` and fail on an already-clean tree.
+                        "defect_report": {"state": "none-found", "findings": []},
+                    }
+                ),
                 encoding="utf-8",
             )
             return 0, "ses1", str(run_dir / "log"), ["agy"]
@@ -575,7 +625,17 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
             (
                 run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
             ).write_text(
-                json.dumps({"disposition": "executed", "pushed": False}),
+                json.dumps(
+                    {
+                        "disposition": "executed",
+                        "pushed": False,
+                        # defreport (`b7xarm`): a CONFORMING agent now states its defect
+                        # report affirmatively. Without it the driver correctly spends its
+                        # one same-session re-ask, and this fake would then re-run its own
+                        # `git commit` and fail on an already-clean tree.
+                        "defect_report": {"state": "none-found", "findings": []},
+                    }
+                ),
                 encoding="utf-8",
             )
             return 0, "ses1", str(run_dir / "log"), ["agy"]

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import functools
 import hashlib
 import json
 import os
@@ -2549,6 +2550,7 @@ Before exiting, write valid JSON to {outcome} with at least:
   "decision_ids": [],
   "deferred_question_ids": [],
   "incomplete_requirements": [],
+{runner_shared.defect_report_schema_literal()}
   "partial_work_location": null,
   "recommended_next_action": "...",
   "pushed": false
@@ -2556,7 +2558,7 @@ Before exiting, write valid JSON to {outcome} with at least:
 
 The disposition must describe the actual repository result, not merely your effort.
 Explicitly confirm pushed=false.
-{reporting_contract.prompt_block()}"""
+{runner_shared.defect_report_prompt_block()}{reporting_contract.prompt_block()}"""
 
 
 def build_verifier_prompt(
@@ -3843,6 +3845,107 @@ def execute_item(
     item["status"] = disposition
     item["last_outcome"] = outcome
     item["verification_status"] = verify_disp
+
+    # defreport 01 (`b7xarm`) E-04/E-05/E-06, the MIRROR of `oc_runipd`: validate the turn's defect
+    # report, re-ask ONCE in the SAME conversation when it is absent or ambiguous, and persist the
+    # normalized record at this existing per-item seam. Both hosts must write it, or a consumer's
+    # behavior would depend on which runner executed the plan. The POLICY is the shared
+    # `runner_shared` code; only the resume spelling is this host's (see `_resume_for_defect_reask`).
+    if not is_review:
+        defect_verdict = runner_shared.validate_defect_report(outcome)
+        reask_session = attempt.get("session_id")
+        warranted, reask_reason = runner_shared.defect_reask_is_warranted(
+            defect_verdict,
+            disposition=disposition,
+            session_id=reask_session,
+            already_reasked=bool(attempt.get("defect_reasked")),
+        )
+        reask_verdict = None
+        if warranted:
+            reask_prompt = write_prompt(
+                run_dir,
+                item,
+                runner_shared.defect_reask_message(defect_verdict),
+                attempt_no,
+                suffix="defect-reask",
+            )
+            attempt["defect_reask_prompt"] = str(reask_prompt)
+            attempt["defect_reasked"] = True
+            try:
+                reask_verdict, reask_rc = runner_shared.perform_defect_reask(
+                    verdict=defect_verdict,
+                    prompt_path=reask_prompt,
+                    outcome_path=run_dir
+                    / "outcomes"
+                    / f"{item['position']:02d}-{item['id6']}.json",
+                    # THIS HOST'S RESUME SPELLING: `session_id=` plus `use_continue=False`, because
+                    # `run_agy_turn` emits `--conversation <id>` where the oc twin emits `--session`.
+                    # `use_continue` is deliberately FALSE: `--continue` resumes "the previous
+                    # conversation", which on an isolated lane is exactly the cross-tree carryover
+                    # `lanesess` (`xd9sll`) exists to prevent. Resume an EXPLICIT observed id or do
+                    # not resume at all (the shared predicate already refuses when there is none).
+                    #
+                    # Passed as a NAME through `resume_via_launcher`, so this adds no third
+                    # `run_agy_turn(` call site; the telemetry wiring test pins that count at two.
+                    resume=lambda reask_prompt_path: runner_shared.resume_via_launcher(
+                        run_agy_turn,
+                        # Positional prefix for the same measured reason as the oc twin: the existing
+                        # test doubles take these positionally.
+                        (state, run_dir, item, reask_prompt_path, attempt_no),
+                        {
+                            "session_id": reask_session,
+                            "use_continue": False,
+                            "log_suffix": "defect-reask",
+                            "label_suffix": "defect-reask",
+                            "work_dir": work_dir,
+                            "tracker": tracker,
+                        },
+                    ),
+                    recollect=(
+                        functools.partial(
+                            lane_containment.collect_lane_submissions,
+                            run_dir=run_dir,
+                            item=item,
+                            run_id=state["run_id"],
+                            lane_root=Path(work_dir),
+                            plan_path=plan_path,
+                            attempt=attempt_no,
+                        )
+                        if work_dir
+                        else None
+                    ),
+                    session_turn_counts=(
+                        None
+                        if work_dir
+                        else state.setdefault("session_turn_counts", {})
+                    ),
+                    session_id=reask_session,
+                )
+                attempt["defect_reask_exit_code"] = reask_rc
+            except (KeyboardInterrupt, StallTimeout):
+                reask_verdict = None
+        record = runner_shared.defect_report_record(
+            defect_verdict,
+            reasked=warranted,
+            reask_reason=reask_reason,
+            reask_verdict=reask_verdict,
+        )
+        attempt["defect_report"] = record
+        item["defect_report"] = record
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "defect-report-recorded",
+                "id6": item["id6"],
+                "attempt": attempt_no,
+                "state": record["state"],
+                "verdict": record["verdict"],
+                "findings": len(record["findings"]),
+                "coerced": record["coerced"],
+                "reasked": record["reasked"],
+            },
+        )
 
     # novalnomerge-01 (evgi9n) E-01/E-04: when no verifier ran, the DRIVER runs the suite itself and
     # that observed result is the trust signal. NOTE THE SEMANTIC DIFFERENCE from `oc_runipd`: this

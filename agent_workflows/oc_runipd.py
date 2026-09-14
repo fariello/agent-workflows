@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import functools
 import hashlib
 import json
 import os
@@ -4926,6 +4927,7 @@ Before exiting, write valid JSON to {outcome} with at least:
   "decision_ids": [],
   "deferred_question_ids": [],
   "incomplete_requirements": [],
+{runner_shared.defect_report_schema_literal()}
   "partial_work_location": null,
   "recommended_next_action": "...",
   "pushed": false
@@ -4933,7 +4935,7 @@ Before exiting, write valid JSON to {outcome} with at least:
 
 The disposition must describe the actual repository result, not merely your effort. If no
 material question arose, say so in the summary. Explicitly confirm pushed=false.
-{reporting_contract.prompt_block()}"""
+{runner_shared.defect_report_prompt_block()}{reporting_contract.prompt_block()}"""
 
 
 def build_verifier_prompt(
@@ -5402,6 +5404,10 @@ def run_opencode(
     # presentation detail and would break silently the day a log filename changes. Defaulted, so
     # every existing call site and every test that calls this function positionally is unchanged.
     telemetry_phase: str = runner_shared.TELEMETRY_PHASE_EXECUTE,
+    # defreport 01 (`b7xarm`) E-05: an EXPLICIT session to resume, used only by the defect re-ask.
+    # Keyword-only and defaulted, so no existing call site changes and no existing turn's argv moves.
+    # See where it is consumed below for why resuming here is safe on an isolated lane.
+    resume_session: str | None = None,
 ) -> tuple[int, str | None, Path, list[str]]:
     options = state.get("options", {})
     opencode = options.get("opencode") or "opencode"
@@ -5436,6 +5442,18 @@ def run_opencode(
             raw_session = None
 
     session = None if (fresh_session or isolated_turn or is_rotation) else raw_session
+    # defreport 01 (`b7xarm`) E-05: the ONE caller that may resume a session an isolated turn would
+    # otherwise refuse, and it is safe for the exact reason the isolated-turn refusal above exists.
+    # That refusal prevents carrying ANOTHER lane's session into THIS tree (lanesess `xd9sll`: a
+    # session's own project binding overrides `--dir`, and four consecutive lanes were lost to it).
+    # The defect re-ask resumes THIS attempt's OWN session, observed from THIS turn in THIS lane, so
+    # the binding it carries is the lane we want; a fresh session would instead have to re-derive the
+    # agent's findings from the diff, which is both more expensive and less accurate.
+    #
+    # Passed ONLY by the re-ask call site and defaulted to None, so every other turn's argv is
+    # byte-identical and `tests/test_lane_session_isolation.py` still sees no `--session` on a lane.
+    if resume_session:
+        session = resume_session
     if session:
         argv.extend(["--session", session])
 
@@ -6726,6 +6744,137 @@ def execute_item(
     item["status"] = disposition
     item["last_outcome"] = outcome
     item["verification_status"] = verify_disp
+
+    # defreport 01 (`b7xarm`) E-04/E-05/E-06: VALIDATE the turn's defect report, RE-ASK ONCE in the
+    # SAME session when it is absent or ambiguous, and PERSIST the normalized record at this existing
+    # per-item seam, beside `last_outcome`/`status`/`verification_status`.
+    #
+    # WHY HERE: the record's whole purpose is to let a later consumer distinguish "no defects found"
+    # from "never asked", so it must be written wherever the other per-item results are written, by
+    # BOTH hosts. A field written by one host only would make a gate's behavior depend on which runner
+    # executed the plan. See `runner_shared.defect_report_record` for the location/shape contract.
+    #
+    # THE RE-ASK REUSES THIS HOST'S OWN RESUME PATH. `run_opencode` already passes `--session <id>`
+    # and already captured the id for THIS attempt, so the launcher is handed to the shared step as a
+    # NAME: no second resume mechanism, and no new `run_opencode(` call site (two tests pin that
+    # count at exactly two so a third launch path cannot inherit the wrong frozen profile).
+    if not is_review:
+        defect_verdict = runner_shared.validate_defect_report(outcome)
+        reask_session = attempt.get("session_id")
+        warranted, reask_reason = runner_shared.defect_reask_is_warranted(
+            defect_verdict,
+            disposition=disposition,
+            session_id=reask_session,
+            already_reasked=bool(attempt.get("defect_reasked")),
+        )
+        reask_verdict = None
+        if warranted:
+            reask_prompt = write_prompt(
+                run_dir,
+                item,
+                runner_shared.defect_reask_message(defect_verdict),
+                attempt_no,
+                suffix="defect-reask",
+            )
+            attempt["defect_reask_prompt"] = str(reask_prompt)
+            attempt["defect_reasked"] = True
+            try:
+                reask_verdict, reask_rc = runner_shared.perform_defect_reask(
+                    verdict=defect_verdict,
+                    prompt_path=reask_prompt,
+                    outcome_path=run_dir
+                    / "outcomes"
+                    / f"{item['position']:02d}-{item['id6']}.json",
+                    # THIS HOST'S RESUME SPELLING, and only this host's. OpenCode resumes with
+                    # `--session <id>`, which `run_opencode` emits from `resume_session`; the
+                    # Antigravity twin passes `session_id=`/`use_continue=False` instead, because it
+                    # emits `--conversation <id>`. A single hardcoded flag in shared code would fail
+                    # silently on one host, which is the one-sided-guard defect class this repo has
+                    # been bitten by, so the shared step owns the POLICY and each host owns its argv.
+                    #
+                    # The launcher is passed as a NAME (via `resume_via_launcher`) rather than called
+                    # here, so this adds NO third `run_opencode(` call site: both
+                    # `tests/test_oc_runipd.py::...test_one_argv_builder_serves_both_call_sites` and
+                    # the telemetry wiring test pin that count at exactly two, on purpose, so a third
+                    # launch path cannot appear and inherit the wrong frozen launch profile.
+                    #
+                    # RESUMING IS SAFE EVEN ON AN ISOLATED LANE, for the same reason the blanket
+                    # isolated-turn refusal exists: that refusal stops ANOTHER lane's session being
+                    # carried into this tree (lanesess `xd9sll`), whereas this resumes the session
+                    # THIS attempt observed in THIS lane. `defect_reask_is_warranted` already refuses
+                    # when no session id was observed at all.
+                    resume=lambda reask_prompt_path: runner_shared.resume_via_launcher(
+                        run_opencode,
+                        # The launcher's own POSITIONAL prefix, kept positional on purpose: every
+                        # existing driver test double is `def fake_run(state, rd, item, plan_path,
+                        # prompt_path, attempt_no, **kwargs)`, so passing these by keyword raises
+                        # `TypeError` against each of them (measured: ten integration tests).
+                        (
+                            state,
+                            run_dir,
+                            item,
+                            plan_path,
+                            reask_prompt_path,
+                            attempt_no,
+                        ),
+                        {
+                            "log_suffix": "defect-reask",
+                            "label_suffix": "defect-reask",
+                            "tracker": tracker,
+                            "work_dir": work_dir,
+                            "resume_session": reask_session,
+                        },
+                    ),
+                    recollect=(
+                        functools.partial(
+                            lane_containment.collect_lane_submissions,
+                            run_dir=run_dir,
+                            item=item,
+                            run_id=state["run_id"],
+                            lane_root=Path(work_dir),
+                            plan_path=plan_path,
+                            attempt=attempt_no,
+                        )
+                        if work_dir
+                        else None
+                    ),
+                    # The third session rule, applied rather than left unstated: a re-ask consumes a
+                    # turn against `max_items_per_session`. Only for a NON-isolated turn, because an
+                    # isolated lane's session is never promoted into the rotation ledger at all.
+                    session_turn_counts=(
+                        None
+                        if work_dir
+                        else state.setdefault("session_turn_counts", {})
+                    ),
+                    session_id=reask_session,
+                )
+                attempt["defect_reask_exit_code"] = reask_rc
+            except (KeyboardInterrupt, StallTimeout):
+                # An interrupted follow-up is NOT retried: the re-ask is bounded at exactly one, and
+                # the record below says plainly that it produced nothing.
+                reask_verdict = None
+        record = runner_shared.defect_report_record(
+            defect_verdict,
+            reasked=warranted,
+            reask_reason=reask_reason,
+            reask_verdict=reask_verdict,
+        )
+        attempt["defect_report"] = record
+        item["defect_report"] = record
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "defect-report-recorded",
+                "id6": item["id6"],
+                "attempt": attempt_no,
+                "state": record["state"],
+                "verdict": record["verdict"],
+                "findings": len(record["findings"]),
+                "coerced": record["coerced"],
+                "reasked": record["reasked"],
+            },
+        )
 
     # novalnomerge-01 (evgi9n) E-01/E-03: when validation is OFF, the DRIVER runs the suite itself and
     # that observed result is the trust signal, because `verify_disp` stays None and the old gate could
