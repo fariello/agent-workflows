@@ -2507,31 +2507,50 @@ def verify_lane_input_manifest(
 # ---- R5.4: the clean-base guard ---------------------------------------------------------------------
 
 
-def parse_porcelain_paths(porcelain: str) -> set[str]:
-    """Every path named by `git status --short`/`--porcelain` output.
+def parse_porcelain_entries(porcelain: str) -> list[tuple[str, str]]:
+    """Every `(status, path)` pair named by `git status --short`/`--porcelain` output.
 
-    THE ONE PORCELAIN PARSER (spec R6.1). It was previously written TWICE, inline and identically, in
-    `oc_runipd.dirty_tree_overlap` and `agy_runipd.dirty_tree_overlap`; both now delegate here, and
-    the clean-base guard below uses it rather than adding a third copy. Forking a rule is
-    non-conforming even while the copies agree (R6.1), and this one had already been copied once.
+    THE ONE PORCELAIN PARSER (spec R6.1), and the ONLY place the porcelain FORMAT is decoded. It was
+    previously written TWICE, inline and identically, in `oc_runipd.dirty_tree_overlap` and
+    `agy_runipd.dirty_tree_overlap`; both delegate to `parse_porcelain_paths` below, which delegates
+    here. Forking a rule is non-conforming even while the copies agree (R6.1).
+
+    THE STATUS IS RETURNED, not discarded, because the retention inventory (spec R5.5, plan `xdr83v`)
+    must distinguish a dirty TRACKED file from an UNTRACKED one from an IGNORED one, and those three
+    differ only in these two columns (` M`, `??`, `!!`). Adding a second parser that kept the columns
+    would have been the fork R6.1 forbids, so the existing path-only parser became a projection of
+    this one rather than its sibling.
 
     Format: `XY<space><path>`, where a rename or copy renders as `orig -> dest`. BOTH endpoints of a
-    rename are returned, because a rename dirties the origin and the destination and a caller asking
-    "is this path dirty?" must get `True` for either.
+    rename are returned under the same status, because a rename dirties the origin and the destination
+    and a caller asking "is this path dirty?" must get `True` for either.
     """
-    paths: set[str] = set()
+    entries: list[tuple[str, str]] = []
     for line in porcelain.splitlines():
         if not line.strip():
             continue
         # Strip the two status columns and the following space: entries are `XY path` (min 3 chars).
+        status = line[:2] if len(line) > 3 else ""
         entry = line[3:] if len(line) > 3 else line.strip()
-        if " -> " in entry:
-            orig, dest = entry.split(" -> ", 1)
-            paths.add(orig.strip())
-            paths.add(dest.strip())
-        else:
-            paths.add(entry.strip())
-    return {p for p in paths if p}
+        endpoints = (
+            [part.strip() for part in entry.split(" -> ", 1)]
+            if " -> " in entry
+            else [entry.strip()]
+        )
+        for path in endpoints:
+            if path:
+                entries.append((status, path))
+    return entries
+
+
+def parse_porcelain_paths(porcelain: str) -> set[str]:
+    """Every path named by `git status --short`/`--porcelain` output.
+
+    A PROJECTION of `parse_porcelain_entries` (spec R6.1), kept because the clean-base guard and both
+    drivers' `dirty_tree_overlap` want only the paths and the call sites read better without a
+    discarded status. It holds no format knowledge of its own.
+    """
+    return {path for _status, path in parse_porcelain_entries(porcelain)}
 
 
 class CleanBaseResult(NamedTuple):
@@ -2645,3 +2664,643 @@ def attachments_outside_lane(argv: Sequence[str], lane_root: Path) -> list[str]:
         if target == lane_real or lane_real not in target.parents:
             outside.append(value)
     return outside
+
+
+# ---- R5.5 / R5.6 / R5.6a: retention -----------------------------------------------------------------
+#
+# WHY AN INVENTORY EXISTS AT ALL, since a driver could simply tear a lane down after a successful
+# integration. `teardown_isolation_worktree` calls `worktree_lease.teardown_worktree(force=True)`,
+# which deletes the lane BRANCH and force-removes the worktree, so uncommitted and untracked lane
+# files go unrecoverably (that function's own docstring records this). The measured failure this
+# guards is not hypothetical: treating IGNORED content as disposable is what destroyed lane content
+# silently before, which is why spec R5.5 names ignored files EXPLICITLY rather than leaving them to
+# an enumeration default.
+#
+# THE ASYMMETRY IS DELIBERATE (spec R5.5, plan `xdr83v` F-3). A wrongly destroyed lane can lose a
+# whole turn's work and cannot be undone; a wrongly preserved lane costs disk and a later cleanup. So
+# every ambiguous case, INCLUDING a failure of the inventory itself, resolves to PRESERVE.
+#
+# TWO DIFFERENT SOURCES ANSWER TWO DIFFERENT QUESTIONS, and conflating them was a real defect caught
+# in review (plan `xdr83v` PR-001):
+#   * "did the DRIVER write this?" is answered by the SEALED INPUT MANIFEST (`nna8yz`, spec R5.1),
+#     never by a hardcoded path list, so the two definitions of driver-written content cannot drift;
+#   * "was the worker's SUBMISSION collected?" is answered by the ATTEMPT-KEYED COLLECTION RECEIPT
+#     (`cqx5v7`, spec R2.5), because the input manifest records INPUTS and collection is OUTPUT.
+# Guessing either from path presence is what the spec forbids: it would preserve every successful lane
+# forever, or delete output whose collection FAILED.
+#
+# HONEST LIMIT, stated because spec Goal 5 requires it. This is a DRIVER-SIDE REFUSAL, not a boundary.
+# It stops the driver from destroying a lane it cannot account for; it does not stop a human or another
+# process from running `git worktree remove --force` on the same lane. What it guarantees is that no
+# code path in this toolkit force-removes a lane whose contents are unexplained.
+
+#: Enumeration flags for the retention inventory, kept as one named constant because the containment
+#: property depends on ALL THREE and dropping any one silently narrows the guarantee:
+#:
+#:   * `--porcelain` for the machine format `parse_porcelain_entries` decodes;
+#:   * `--untracked-files=all` so a file nested inside an untracked DIRECTORY is reported individually
+#:     rather than collapsed to the directory, which is what makes per-file classification possible;
+#:   * `--ignored=traditional` so IGNORED files are seen AT ALL, and seen per FILE.
+#:
+#: `traditional` RATHER THAN `matching`, measured rather than assumed: with `--ignored=matching` git
+#: reports the ignored DIRECTORY (`!! .aw/state/`) instead of the files inside it, so a lane holding
+#: an unexplained file under an ignored directory that ALSO holds driver-written content would be
+#: classified by that directory alone. `traditional` reports `!! .aw/state/deep/nested/f.txt`, which is
+#: the granularity the manifest and receipt comparison needs.
+LANE_INVENTORY_STATUS_ARGS = (
+    "status",
+    "--porcelain",
+    "--untracked-files=all",
+    "--ignored=traditional",
+)
+
+#: Porcelain status columns for untracked and ignored entries. Everything else in a porcelain line is
+#: a TRACKED path with an index or worktree modification, i.e. dirty tracked content.
+_PORCELAIN_UNTRACKED = "??"
+_PORCELAIN_IGNORED = "!!"
+
+#: The three reason codes a refusal names, plus the inventory-failure one. Reason codes rather than
+#: prose, because spec R5.6 requires the event to name WHICH condition held and a caller (or a test)
+#: must be able to assert the condition rather than match a sentence.
+RETENTION_DIRTY_TRACKED = "dirty-tracked-file"
+RETENTION_UNKNOWN_UNTRACKED = "unknown-untracked-file"
+RETENTION_UNKNOWN_IGNORED = "unknown-ignored-file"
+RETENTION_UNCOLLECTED_SUBMISSION = "uncollected-submission"
+RETENTION_INVENTORY_FAILED = "inventory-failed"
+
+#: How many offending paths the human-facing `reason` sentence names before summarizing the rest.
+#:
+#: A CAP IS NECESSARY AND IS NOT A LOSS OF EVIDENCE. Measured while building this: a real lane whose
+#: `__pycache__` trees are ignored inventoried 4134 unknown ignored files, and inlining all of them
+#: would produce a "reason" no human reads and a summary section that buries every other lane. The
+#: EXACT COUNT is always stated, the full lists always survive in `as_dict()` (so the event carries
+#: every path), and only the SENTENCE is truncated. Truncating the recorded evidence instead would be
+#: the dishonest choice.
+RETENTION_REASON_PATH_LIMIT = 10
+
+
+def _name_paths(paths: Sequence[str]) -> str:
+    """`a, b, c` for a short list; `a, b, c, ... and N more` past `RETENTION_REASON_PATH_LIMIT`."""
+    shown = list(paths[:RETENTION_REASON_PATH_LIMIT])
+    rest = len(paths) - len(shown)
+    text = ", ".join(shown)
+    if rest > 0:
+        text += ", ... and {0} more".format(rest)
+    return text
+
+
+class LaneInventory(NamedTuple):
+    """What a lane holds, classified for the retention decision (spec R5.5).
+
+    `readable` is `False` when the enumeration itself could not run. That is NOT the same as an empty
+    inventory and must never be treated as one: an inventory that could not run knows nothing, so
+    `classified` is `False` and the lane is preserved (spec R5.5's fail-toward-preservation rule).
+    """
+
+    lane_root: str
+    readable: bool
+    dirty_tracked: tuple[str, ...] = ()
+    unknown_untracked: tuple[str, ...] = ()
+    unknown_ignored: tuple[str, ...] = ()
+    discardable: tuple[str, ...] = ()
+    uncollected_submission: bool = False
+    failure: str | None = None
+    submission_detail: str | None = None
+
+    @property
+    def unknown(self) -> tuple[str, ...]:
+        """Every path the driver cannot account for, in one tuple, sorted."""
+        return tuple(
+            sorted(self.dirty_tracked + self.unknown_untracked + self.unknown_ignored)
+        )
+
+    @property
+    def classified(self) -> bool:
+        """True only when EVERY condition in R5.5 is answered and none of them holds."""
+        return self.readable and not self.unknown and not self.uncollected_submission
+
+    @property
+    def reason_codes(self) -> tuple[str, ...]:
+        """WHICH conditions held, as stable codes (spec R5.6). Empty for a classified lane."""
+        codes: list[str] = []
+        if not self.readable:
+            codes.append(RETENTION_INVENTORY_FAILED)
+        if self.dirty_tracked:
+            codes.append(RETENTION_DIRTY_TRACKED)
+        if self.unknown_untracked:
+            codes.append(RETENTION_UNKNOWN_UNTRACKED)
+        if self.unknown_ignored:
+            codes.append(RETENTION_UNKNOWN_IGNORED)
+        if self.uncollected_submission:
+            codes.append(RETENTION_UNCOLLECTED_SUBMISSION)
+        return tuple(codes)
+
+    @property
+    def reason(self) -> str:
+        """One human sentence naming the specific conditions and the paths behind them.
+
+        NAMES THE CONDITION AND ITS EVIDENCE, deliberately, because spec R5.6 forbids a generic
+        message: "preserved" with no reason is what forced a hand inspection of five lanes to find the
+        one that mattered.
+        """
+        if self.classified:
+            return "every path in the lane is accounted for; teardown is authorized"
+        parts: list[str] = []
+        if not self.readable:
+            parts.append(
+                "the lane inventory could not run ({0}), so nothing about this lane is known".format(
+                    self.failure or "reason unavailable"
+                )
+            )
+        if self.dirty_tracked:
+            parts.append(
+                "{0} dirty TRACKED file(s): {1}".format(
+                    len(self.dirty_tracked), _name_paths(self.dirty_tracked)
+                )
+            )
+        if self.unknown_untracked:
+            parts.append(
+                "{0} unknown UNTRACKED file(s): {1}".format(
+                    len(self.unknown_untracked), _name_paths(self.unknown_untracked)
+                )
+            )
+        if self.unknown_ignored:
+            parts.append(
+                "{0} unknown IGNORED file(s): {1}".format(
+                    len(self.unknown_ignored), _name_paths(self.unknown_ignored)
+                )
+            )
+        if self.uncollected_submission:
+            parts.append(
+                "an uncollected submission ({0})".format(
+                    self.submission_detail or "no attempt-keyed collection receipt"
+                )
+            )
+        return "the lane holds content the driver cannot account for: " + "; ".join(
+            parts
+        )
+
+    def as_dict(self) -> dict[str, Any]:
+        """The inventory as event/state fields, so a record carries the evidence, not a summary."""
+        return {
+            "lane_root": self.lane_root,
+            "inventory_readable": self.readable,
+            "inventory_failure": self.failure,
+            "dirty_tracked": list(self.dirty_tracked),
+            "unknown_untracked": list(self.unknown_untracked),
+            "unknown_ignored": list(self.unknown_ignored),
+            "discardable": list(self.discardable),
+            "uncollected_submission": self.uncollected_submission,
+            "submission_detail": self.submission_detail,
+            "retention_reasons": list(self.reason_codes),
+        }
+
+
+def driver_written_lane_paths(lane_root: Path | str) -> set[str]:
+    """The lane-relative paths the DRIVER itself materialized, read from the SEALED MANIFEST (R5.5).
+
+    FROM THE MANIFEST, NEVER A HARDCODED PATH LIST (plan `xdr83v` F-4, spec R6.1): the manifest child
+    `nna8yz` writes is the single record of what the driver put in the lane, so deriving this from it
+    means the two cannot drift the first time the control layout changes. A hardcoded list would agree
+    today and be wrong silently after the next layout change.
+
+    Returns the LISTED INPUTS of every revision present, plus each revision's manifest FILE. The
+    manifest does not list itself - it cannot, since its own digest is not knowable while it is being
+    written - so its path is DERIVED from the manifest module's own `lane_input_manifest_path` rather
+    than spelled out here, which keeps one definition of the layout (R6.1).
+
+    THE REVISION DIRECTORY IS DELIBERATELY *NOT* RETURNED, and that choice is the difference between
+    manifest-sourced and path-sourced classification. Returning the directory would make ANY file a
+    worker dropped inside it discardable, so an unexplained file would be destroyed because of WHERE it
+    sits rather than because a record accounts for it - which is the hardcoded-path-list behavior spec
+    R5.5 forbids and the wrong direction for the fail-toward-preservation rule. So an unexpected file
+    under a revision directory stays UNKNOWN and preserves the lane.
+
+    An unreadable or absent manifest yields the EMPTY set, not a guess. That is the same fail-closed
+    direction: with no record of what the driver wrote, everything in the lane is unknown and the lane
+    is preserved.
+    """
+    root = Path(lane_root)
+    paths: set[str] = set()
+    latest = latest_lane_input_revision(root)
+    if latest is None:
+        return paths
+    for revision in range(1, latest + 1):
+        document = read_lane_input_manifest(root, revision)
+        if document is None:
+            continue
+        # The manifest FILE, derived from the owning module's own layout function so this holds no
+        # second copy of the path grammar.
+        with contextlib.suppress(ValueError):
+            paths.add(
+                lane_input_manifest_path(root, revision).relative_to(root).as_posix()
+            )
+        for entry in document.get("inputs") or []:
+            declared = entry.get("path")
+            if isinstance(declared, str) and declared:
+                paths.add(declared)
+    return paths
+
+
+class SubmissionRetention(NamedTuple):
+    """Whether a lane's submissions are accounted for, and which lane paths that authorizes (R2.5)."""
+
+    uncollected: bool
+    detail: str | None
+    collected_paths: tuple[str, ...]
+
+
+def submission_retention(
+    *,
+    run_dir: Path | None,
+    item: dict[str, Any] | None,
+    lane_root: Path | str,
+    attempt: int | None = None,
+) -> SubmissionRetention:
+    """Answer "is a submission still uncollected?" from the COLLECTION RECEIPT (spec R2.5, R5.5).
+
+    THE RECEIPT IS THE ONLY AUTHORITY, and this is the half a reviewer caught being wrong (plan
+    `xdr83v` OQ-02): the sealed INPUT manifest records what was materialized IN, while collection is
+    OUT, so the manifest cannot answer this. Nor may path presence answer it - a submission can sit at
+    the driver-side destination because a PREVIOUS attempt put it there, and a collection can have
+    FAILED after creating the destination directory. So:
+
+      * NO receipt            -> UNCOLLECTED. Absence means not collected (R2.5), never "nothing to
+                                collect", because a driver that crashed before collecting leaves
+                                exactly this state and its lane holds the only copy.
+      * receipt `in-progress` -> UNCOLLECTED. The collection was interrupted part-way.
+      * any submission `failed` -> UNCOLLECTED, naming it. A failure recorded as failed is precisely
+                                what R2.5 requires so it is distinguishable from a lane that wrote
+                                nothing.
+      * complete, every submission `collected` or `absent` -> accounted for.
+
+    `collected_paths` is the lane-relative source of each submission the receipt says was COLLECTED,
+    which is what authorizes discarding that file: the driver provably holds its own copy (R2.2 keeps
+    the lane's copy too, and this is where that copy is finally spent). A submission recorded `absent`
+    authorizes NOTHING, so a file that appears under the submission tree anyway stays unknown.
+    """
+    if run_dir is None or item is None:
+        return SubmissionRetention(
+            uncollected=True,
+            detail="no run directory or item was supplied, so no collection receipt can be read",
+            collected_paths=(),
+        )
+    n = attempt_key(item) if attempt is None else attempt
+    receipt = read_collection_receipt(run_dir, item, n)
+    if receipt is None:
+        return SubmissionRetention(
+            uncollected=True,
+            detail=(
+                "no attempt-keyed collection receipt at {0}; absence means NOT collected "
+                "(spec R2.5)".format(collection_receipt_path(run_dir, item, n).name)
+            ),
+            collected_paths=(),
+        )
+    if receipt.get("status") != RECEIPT_COMPLETE:
+        return SubmissionRetention(
+            uncollected=True,
+            detail="collection receipt status is {0!r}, not {1!r}".format(
+                receipt.get("status"), RECEIPT_COMPLETE
+            ),
+            collected_paths=(),
+        )
+    lane = Path(lane_root)
+    collected: list[str] = []
+    failed: list[str] = []
+    for record in receipt.get("submissions") or []:
+        result = record.get("result")
+        if result == "failed":
+            failed.append(str(record.get("name")))
+            continue
+        if result != "collected":
+            continue
+        source = record.get("source")
+        if not isinstance(source, str) or not source:
+            continue
+        with contextlib.suppress(ValueError):
+            collected.append(Path(source).relative_to(lane).as_posix())
+    if failed:
+        return SubmissionRetention(
+            uncollected=True,
+            detail="collection FAILED for: {0}".format(", ".join(sorted(failed))),
+            collected_paths=tuple(sorted(collected)),
+        )
+    return SubmissionRetention(
+        uncollected=False,
+        detail="collection receipt is complete and records no failure",
+        collected_paths=tuple(sorted(collected)),
+    )
+
+
+def _is_within(candidate: str, prefixes: Sequence[str]) -> bool:
+    """True when the POSIX-style `candidate` IS one of `prefixes` or lies underneath one.
+
+    Segment-aware on purpose: a plain `startswith` would let `.aw/state/lane-inputs-scratch/x` be
+    absorbed by the prefix `.aw/state/lane-inputs`, which would classify an unknown file as
+    driver-written - the exact direction this whole function must never fail in.
+    """
+    for prefix in prefixes:
+        if not prefix:
+            continue
+        clean = prefix.rstrip("/")
+        if candidate == clean or candidate.startswith(clean + "/"):
+            return True
+    return False
+
+
+def inventory_lane(
+    *,
+    lane_root: Path | str,
+    run_dir: Path | None = None,
+    item: dict[str, Any] | None = None,
+    attempt: int | None = None,
+    git_runner: Callable[[Path, list[str]], tuple[int, str, str]] | None = None,
+) -> LaneInventory:
+    """Classify everything a lane holds BEFORE any teardown decision (spec R5.5, criterion A15).
+
+    HOST-NEUTRAL (spec R2.6): both drivers call THIS, and neither reimplements any part of it, so the
+    rule cannot be present on one host and absent on the other (orchestrator CID-2/CID-3).
+
+    Enumerates with `LANE_INVENTORY_STATUS_ARGS`, which SEES IGNORED FILES. That is the specific
+    hazard this function exists for (plan `xdr83v` F-1): enumerating only untracked content would
+    leave ignored content invisible, and "ignored means disposable" is exactly the reasoning that
+    destroyed lane content silently before.
+
+    Then each entry is classified:
+      * a DIRTY TRACKED path is always UNKNOWN. The driver never writes tracked content into a lane as
+        control data (everything it materializes lands under the gitignored `.aw/state/` prefix), so a
+        tracked modification is by construction the worker's work;
+      * an untracked or ignored path is DISCARDABLE when the SEALED MANIFEST says the driver wrote it,
+        or when the COLLECTION RECEIPT says that submission was collected;
+      * everything else is UNKNOWN, bucketed by whether git called it untracked or ignored so the
+        refusal can name WHICH condition held (R5.6).
+
+    FAILS TOWARD PRESERVATION. A non-zero git exit, an unreadable lane, or any exception yields
+    `readable=False`, which makes `classified` False. `git_runner` is injectable for tests only; it
+    defaults to the shared `runner_shared._run_git` so no second git wrapper is introduced (R6.1).
+    """
+    lane = Path(lane_root)
+    runner = git_runner or runner_shared._run_git
+    try:
+        rc, out, err = runner(lane, list(LANE_INVENTORY_STATUS_ARGS))
+    except Exception as exc:  # pragma: no cover - defensive; any failure must preserve
+        return LaneInventory(
+            lane_root=str(lane),
+            readable=False,
+            failure="{0}: {1}".format(type(exc).__name__, exc),
+        )
+    if rc != 0:
+        return LaneInventory(
+            lane_root=str(lane),
+            readable=False,
+            failure="git {0} exited {1}: {2}".format(
+                " ".join(LANE_INVENTORY_STATUS_ARGS), rc, (err or out).strip()
+            ),
+        )
+
+    submissions = submission_retention(
+        run_dir=run_dir, item=item, lane_root=lane, attempt=attempt
+    )
+    accounted = sorted(
+        driver_written_lane_paths(lane) | set(submissions.collected_paths)
+    )
+
+    dirty_tracked: list[str] = []
+    unknown_untracked: list[str] = []
+    unknown_ignored: list[str] = []
+    discardable: list[str] = []
+    for status, path in parse_porcelain_entries(out):
+        if status not in (_PORCELAIN_UNTRACKED, _PORCELAIN_IGNORED):
+            dirty_tracked.append(path)
+            continue
+        if _is_within(path, accounted) or runner_shared.generated_manifest_paths(
+            [path]
+        ):
+            # THE GENERATED INDEX MANIFESTS (`INDEX.json`/`INDEX.md`) are driver-written too, and this
+            # is MEASURED rather than anticipated: `aw ipd finalize` - which the DRIVER runs, inside
+            # the lane - calls `ipd_lifecycle._refresh_plans_index_fail_loud`, so EVERY successfully
+            # finalized lane holds them. Without this clause the gate preserved every successful lane
+            # forever, which is the "refusing always" failure that would make the whole rule useless.
+            #
+            # THE PREDICATE IS THE EXISTING SHARED ONE (`generated_manifest_paths`, spec R6.1), not a
+            # second name list: the repository already has ONE definition of "this file is a generated
+            # manifest, so a difference in it is not substantive and is fixed by regenerating rather
+            # than by editing", and the integration layer already consumes it for exactly that reason.
+            #
+            # WHY WIDENING DISCARDABILITY IS SAFE *HERE* SPECIFICALLY, since widening is the dangerous
+            # direction: these two files are byte-deterministically regenerated from the artifact files
+            # by `aw index plans`, are gitignored in an installed repository, and are deliberately
+            # excluded from every `aw` verb's commit set. So losing one costs a mechanical regeneration,
+            # never work. Matched by BASENAME rather than by ignore status on purpose, because a fresh
+            # test repo has no installed ignore file and reports them UNTRACKED while this repository
+            # reports them IGNORED - and the rule must hold in both.
+            discardable.append(path)
+        elif status == _PORCELAIN_UNTRACKED:
+            unknown_untracked.append(path)
+        else:
+            unknown_ignored.append(path)
+
+    return LaneInventory(
+        lane_root=str(lane),
+        readable=True,
+        dirty_tracked=tuple(sorted(set(dirty_tracked))),
+        unknown_untracked=tuple(sorted(set(unknown_untracked))),
+        unknown_ignored=tuple(sorted(set(unknown_ignored))),
+        discardable=tuple(sorted(set(discardable))),
+        uncollected_submission=submissions.uncollected,
+        submission_detail=submissions.detail,
+    )
+
+
+class LaneTeardownDecision(NamedTuple):
+    """Whether a lane was torn down, and if not, exactly why (spec R5.5, R5.6)."""
+
+    torn_down: bool
+    inventory: LaneInventory
+    error: str | None = None
+
+    @property
+    def preserved(self) -> bool:
+        return not self.torn_down
+
+    @property
+    def reason(self) -> str:
+        if self.error is not None:
+            return "teardown was authorized but failed: {0}".format(self.error)
+        return self.inventory.reason
+
+    @property
+    def reason_codes(self) -> tuple[str, ...]:
+        return self.inventory.reason_codes
+
+
+def teardown_lane_if_classified(
+    *,
+    repo: Path,
+    handle: Any,
+    run_dir: Path | None = None,
+    item: dict[str, Any] | None = None,
+    attempt: int | None = None,
+    teardown: Callable[[Path, Any], None] | None = None,
+    git_runner: Callable[[Path, list[str]], tuple[int, str, str]] | None = None,
+) -> LaneTeardownDecision:
+    """THE teardown gate (spec R5.5). Tear a lane down ONLY when the inventory accounts for all of it.
+
+    ONE DEFINITION, called by both drivers (spec R6.1, R2.6, orchestrator CID-2/CID-3). A driver may
+    not call `teardown_isolation_worktree` for a lane on its own: that function force-removes the
+    worktree AND deletes the branch, so reaching it without this gate is what destroys unexplained
+    content.
+
+    Returns a decision rather than raising, because the caller must RECORD the refusal (R5.6) and a
+    preservation is a normal outcome, not an error. A teardown that was authorized but then FAILED is
+    reported with its error and counts as preserved, since the lane is still there.
+
+    FAIL TOWARD PRESERVATION, including a lane whose inventory could not run at all: see
+    `inventory_lane`. `teardown`/`git_runner` are injectable for tests; the defaults are the shared
+    implementations so no second teardown path and no second git wrapper exist.
+    """
+    inventory = inventory_lane(
+        lane_root=getattr(handle, "path", ""),
+        run_dir=run_dir,
+        item=item,
+        attempt=attempt,
+        git_runner=git_runner,
+    )
+    if not inventory.classified:
+        return LaneTeardownDecision(torn_down=False, inventory=inventory)
+    remove = teardown or runner_shared.teardown_isolation_worktree
+    try:
+        remove(repo, handle)
+    except Exception as exc:
+        return LaneTeardownDecision(
+            torn_down=False,
+            inventory=inventory,
+            error="{0}: {1}".format(type(exc).__name__, exc),
+        )
+    return LaneTeardownDecision(torn_down=True, inventory=inventory)
+
+
+#: The ONE preservation event name (spec R5.6, orchestrator CID-2). The driver ALREADY emitted this
+#: event when a non-executed item's lane survived; `record_lane_preserved` below is now its single
+#: emitter, and the retention refusal reuses it rather than introducing a second preservation event
+#: that a reader would have to know to look for.
+LANE_PRESERVED_EVENT = "worktree-preserved"
+
+
+def record_preserved_lane_state(
+    *,
+    item: dict[str, Any],
+    handle: Any,
+    reason: str,
+    reason_codes: Sequence[str] = (),
+) -> None:
+    """Write the durable `preserved_*` fields for a lane that survived, WITHOUT emitting an event.
+
+    THE STATE WRITE IS NOT OPTIONAL BOOKKEEPING, it is what makes R5.6a possible: a driver's summary
+    is regenerated from `state.json` on every save, so a preservation that exists only as an event can
+    never appear in the summary a human reads. `format_preserved_lanes` renders exactly these fields.
+
+    SEPARATE FROM THE EVENT ON PURPOSE, and this is the R5.6a-versus-CID-2 seam. A lane preserved for a
+    REFUSED MISSING INPUT (spec R3.2, child `y5od1h`) already has its own dedicated event, so calling
+    the full `record_lane_preserved` there would emit a SECOND event for one preservation, which CID-2
+    forbids. That path therefore records only the state, and the summary still names it - which is what
+    R5.6a actually requires ("name each preserved lane and the reason"), independent of which rule
+    preserved it.
+    """
+    item["preserved_worktree"] = str(getattr(handle, "path", ""))
+    item["preserved_branch"] = getattr(handle, "branch", None)
+    # laneorphan-01 (`zwnjp3`) E-04: carry the real lane identity and base too, so the reclamation
+    # classifier can read them back instead of reconstructing a name that attempt-scoping may have
+    # changed.
+    item["preserved_lane_id"] = getattr(handle, "lane_id", None)
+    item["preserved_base"] = getattr(handle, "base_commit", None)
+    item["preserved_disposition"] = getattr(handle, "disposition", "created")
+    item["preserved_reason"] = reason
+    item["preserved_retention_reasons"] = list(reason_codes)
+
+
+def record_lane_preserved(
+    *,
+    run_dir: Path,
+    item: dict[str, Any],
+    handle: Any,
+    reason: str,
+    reason_codes: Sequence[str] = (),
+    detail: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Record a preserved lane in DURABLE STATE and as the ONE preservation event (R5.6, R5.6a).
+
+    ONE EMITTER FOR ONE EVENT (spec R6.1, CID-2). Both drivers previously carried an inline copy of
+    this block; both now call this, so the event's shape and the `preserved_*` field set have a single
+    definition. The `reason`/`retention_reasons` fields are the R5.6 addition: the event existed but
+    said only THAT a lane survived, never WHY, which is why a reader could not distinguish an
+    unintegrated lane from one holding unexplained content. The retention refusal EXTENDS this event
+    rather than adding a second preservation event a reader would have to know to look for.
+    """
+    record_preserved_lane_state(
+        item=item, handle=handle, reason=reason, reason_codes=reason_codes
+    )
+    event: dict[str, Any] = {
+        "at": runner_shared.utc_now(),
+        "event": LANE_PRESERVED_EVENT,
+        "id6": item.get("id6"),
+        "worktree": item["preserved_worktree"],
+        "branch": item["preserved_branch"],
+        "lane_id": item["preserved_lane_id"],
+        "base_commit": item["preserved_base"],
+        "status": item.get("status"),
+        "reason": reason,
+        "retention_reasons": list(reason_codes),
+    }
+    if detail:
+        event.update(detail)
+    runner_shared.append_jsonl(run_dir / "events.jsonl", event)
+    return event
+
+
+def format_preserved_lanes(state: dict[str, Any]) -> list[str]:
+    """The summary section naming every preserved lane AND WHY (spec R5.6a, criterion A15b).
+
+    WHY THIS IS A REQUIREMENT AND NOT A NICETY, measured: run `run-20260901T042331Z-118022` preserved
+    TWO lanes and mentioned it ZERO times in the summary a human reads, five preserved lanes were on
+    disk at the time, and the maintainer learned work had been stranded by ASKING rather than from the
+    run's output. An event nobody reads is close to no record at all, and a summary reporting success
+    while the log records preservation reproduces the silent stranding this whole effort exists to
+    remove.
+
+    ONE RENDERER, called by BOTH drivers' `write_report` (spec R6.1): the two reports diverge in
+    format, but "which lanes survived and why" must not diverge in CONTENT. Returns `[]` when nothing
+    was preserved, so an unaffected run's report is byte-identical to before.
+    """
+    lines: list[str] = []
+    for item in state.get("queue", []) or []:
+        if not item.get("preserved_worktree"):
+            continue
+        lines.append(
+            "- `{0}` (position {1}) lane `{2}`".format(
+                item.get("id6"), item.get("position"), item.get("preserved_branch")
+            )
+        )
+        lines.append("  - Worktree: `{0}`".format(item.get("preserved_worktree")))
+        reason = item.get("preserved_reason")
+        if reason:
+            lines.append("  - Why preserved: {0}".format(reason))
+        codes = item.get("preserved_retention_reasons") or []
+        if codes:
+            lines.append(
+                "  - Retention conditions: {0}".format(
+                    ", ".join("`{0}`".format(code) for code in codes)
+                )
+            )
+    if not lines:
+        return []
+    return [
+        "",
+        "## Preserved lanes (NOT torn down)",
+        "",
+        "Each lane below still exists on disk and still holds its branch. It was preserved rather "
+        "than destroyed because the driver could not account for its contents, or because its work "
+        "was never integrated (spec `7ckptx` R5.5, R5.6a).",
+        "",
+        *lines,
+    ]

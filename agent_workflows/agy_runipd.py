@@ -2159,6 +2159,10 @@ def write_report(run_dir: Path, state: dict[str, Any]) -> None:
             hint = item.get("dependency_block_recovery")
             if hint:
                 lines.append(f"  - Recovery: {hint}")
+    # lanectn xdr83v E-03 (spec R5.6a), the exact counterpart of the `oc_runipd` site and the SAME
+    # shared renderer: the two reports diverge in format, but "which lanes survived and why" must not
+    # diverge in CONTENT, and a rule present on one host only is a DEFECT (CID-3).
+    lines.extend(lane_containment.format_preserved_lanes(state))
     lines.extend(
         [
             "",
@@ -3875,6 +3879,10 @@ def execute_item(
                     wt_handle is not None
                     and lane_containment.lane_preserved_for_missing_input(item)
                 ):
+                    missing_input_reason = (
+                        "a missing-input report was refused; the lane is preserved and "
+                        "paused (spec 7ckptx R3.2) so its evidence is not destroyed"
+                    )
                     append_jsonl(
                         run_dir / "events.jsonl",
                         {
@@ -3883,11 +3891,17 @@ def execute_item(
                             "id6": item["id6"],
                             "branch": wt_handle.branch,
                             "worktree": str(wt_handle.path),
-                            "reason": (
-                                "a missing-input report was refused; the lane is preserved and "
-                                "paused (spec 7ckptx R3.2) so its evidence is not destroyed"
-                            ),
+                            "reason": missing_input_reason,
                         },
+                    )
+                    # lanectn xdr83v E-03 (spec R5.6a), the exact counterpart of the `oc_runipd` site:
+                    # this path has its OWN event, so record only the durable state (a second
+                    # preservation event would fork the rule, CID-2) and let the summary name the lane.
+                    lane_containment.record_preserved_lane_state(
+                        item=item,
+                        handle=wt_handle,
+                        reason=missing_input_reason,
+                        reason_codes=("missing-input-refused",),
                     )
                     print(
                         pal(
@@ -3898,9 +3912,35 @@ def execute_item(
                         file=sys.stderr,
                     )
                 elif wt_handle is not None:
-                    with contextlib.suppress(Exception):
-                        teardown_isolation_worktree(repo, wt_handle)
-                    wt_handle = None
+                    # lanectn xdr83v E-02/E-03 (spec R5.5, R5.6), the exact counterpart of the
+                    # `oc_runipd` site: teardown goes through the SAME shared gate, so the retention
+                    # rule cannot be present on one host and absent on the other (CID-3 makes a rule in
+                    # one driver only a DEFECT). Same inventory, same refusal, same event.
+                    decision = lane_containment.teardown_lane_if_classified(
+                        repo=repo,
+                        handle=wt_handle,
+                        run_dir=run_dir,
+                        item=item,
+                    )
+                    if decision.torn_down:
+                        wt_handle = None
+                    else:
+                        lane_containment.record_lane_preserved(
+                            run_dir=run_dir,
+                            item=item,
+                            handle=wt_handle,
+                            reason=decision.reason,
+                            reason_codes=decision.reason_codes,
+                            detail=decision.inventory.as_dict(),
+                        )
+                        print(
+                            pal(
+                                f"  ! lane {wt_handle.branch} PRESERVED (not torn down): "
+                                f"{decision.reason}",
+                                "yellow",
+                            ),
+                            file=sys.stderr,
+                        )
                 disposition = "executed"
                 attempt["disposition"] = "executed"
                 attempt["finalized"] = True
@@ -3965,28 +4005,20 @@ def execute_item(
     # pass, finalize refused, or integration deferred) rather than tearing it away; child-03 owns the
     # guard + resolution.
     if wt_handle is not None and item.get("status") != "executed":
-        item["preserved_worktree"] = str(wt_handle.path)
-        item["preserved_branch"] = wt_handle.branch
-        # laneorphan-01 (`zwnjp3`) E-04: carry the real lane identity and base too, so the
-        # reclamation classifier can read them back instead of reconstructing a name that
-        # attempt-scoping may have changed.
-        item["preserved_lane_id"] = wt_handle.lane_id
-        item["preserved_base"] = wt_handle.base_commit
-        item["preserved_disposition"] = getattr(wt_handle, "disposition", "created")
-        save_state(run_dir, state)
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": utc_now(),
-                "event": "worktree-preserved",
-                "id6": item["id6"],
-                "worktree": str(wt_handle.path),
-                "branch": wt_handle.branch,
-                "lane_id": wt_handle.lane_id,
-                "base_commit": wt_handle.base_commit,
-                "status": item.get("status"),
-            },
+        # lanectn xdr83v E-03 (spec R5.6, R6.1), the exact counterpart of the `oc_runipd` site: the
+        # `preserved_*` writes and the preservation EVENT were an inline copy in BOTH drivers; both now
+        # call the ONE shared emitter, so every preservation carries a REASON and the two cannot drift.
+        lane_containment.record_lane_preserved(
+            run_dir=run_dir,
+            item=item,
+            handle=wt_handle,
+            reason=(
+                f"the item finished {item.get('status')!r} rather than executed, so its work was "
+                "never integrated; the lane is kept attributably for a later turn"
+            ),
+            reason_codes=("not-integrated",),
         )
+        save_state(run_dir, state)
         print(
             pal(
                 f"  \u2022 IPD {item['id6']} work preserved on lane {wt_handle.branch} "

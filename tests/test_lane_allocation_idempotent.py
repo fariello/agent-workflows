@@ -371,12 +371,41 @@ class TestDriverSymmetry(unittest.TestCase):
             )
 
     def test_g_both_drivers_record_lane_identity_at_allocation(self):
+        # UPDATED by `lanectn` child `xdr83v` (spec 7ckptx R5.6/R6.1), consciously and not weakened.
+        #
+        # The ALLOCATION-time writes are still asserted as driver source text, because each driver
+        # still performs them itself. The PRESERVATION-time write moved: `item["preserved_lane_id"]`
+        # (with the rest of the `preserved_*` field set and the preservation event) had an inline COPY
+        # in both drivers, and the retention work collapsed them into the ONE shared emitter
+        # `lane_containment.record_lane_preserved` so every preservation also carries a REASON. A text
+        # match on the driver would now fail for the RIGHT reason - the copy is gone - so it is
+        # replaced by an assertion of the same property in its new home, which is strictly stronger:
+        # each driver must REACH the shared recorder, and the recorder must WRITE the field.
         for module in (OC, AGY):
             source = Path(module.__file__).read_text(encoding="utf-8")
             self.assertIn('attempt["worktree_lane_id"]', source, module.__name__)
             self.assertIn('attempt["worktree_base"]', source, module.__name__)
             self.assertIn('attempt["worktree_disposition"]', source, module.__name__)
-            self.assertIn('item["preserved_lane_id"]', source, module.__name__)
+            self.assertIn(
+                "lane_containment.record_lane_preserved(", source, module.__name__
+            )
+
+        from agent_workflows import lane_containment
+
+        class _H:
+            path = Path("/lane")
+            branch = "aw/lane/sym001"
+            lane_id = "sym001"
+            base_commit = "c" * 40
+            disposition = "created"
+
+        item: dict = {}
+        lane_containment.record_preserved_lane_state(
+            item=item, handle=_H(), reason="symmetry probe"
+        )
+        self.assertEqual(item["preserved_lane_id"], "sym001")
+        self.assertEqual(item["preserved_base"], "c" * 40)
+        self.assertEqual(item["preserved_disposition"], "created")
 
     def test_g_both_drivers_reclaim_on_the_existing_interrupt_path(self):
         for module in (OC, AGY):
