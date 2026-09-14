@@ -37,7 +37,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: define the smallest report that answers the question
 
-- [ ] E-01 DEFINE THE TRI-STATE REPORT SCHEMA IN `runner_shared.py`, host-neutral, and BUDGET ITS SIZE EXPLICITLY. Three states must be distinguishable and the third must not be silently reachable: FOUND (one or more findings), NONE-FOUND (an affirmative statement that the agent looked and found nothing), and ABSENT (neither statement present), which is the state E-04 re-asks on.
+- [x] E-01 DEFINE THE TRI-STATE REPORT SCHEMA IN `runner_shared.py`, host-neutral, and BUDGET ITS SIZE EXPLICITLY. Three states must be distinguishable and the third must not be silently reachable: FOUND (one or more findings), NONE-FOUND (an affirmative statement that the agent looked and found nothing), and ABSENT (neither statement present), which is the state E-04 re-asks on.
   DO NOT ENCODE THE STATE AS AN EMPTY LIST. That is the whole defect: `incomplete_requirements: []` already means both "checked, nothing" and "never looked". The state must be carried by an explicit value, so a missing key and a considered "none" are different bytes.
   SIZE IS A BINDING CONSTRAINT, NOT A PREFERENCE. The maintainer accepted JSON on the express condition that the report stay SMALL, because the format concern applies to larger payloads. So: a flat structure, a fixed and minimal key set, and no nesting beyond one list of small objects. Write the budget into the schema comment along with the reason, so a later author who wants to add a fifth field sees why they should not.
   EACH FINDING NEEDS ONLY WHAT A CARRIER DECISION REQUIRES: what was found, and where. Resist adding severity taxonomies, reproduction steps or triage fields; every one of those is a field an agent can get wrong and none is needed to decide whether a backlog item should exist.
@@ -46,11 +46,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   MIND THE PROMPT'S TOTAL COST, which is the concrete form of the size budget. Measured at review HEAD: the non-isolated execute prompt is 5591 characters, of which the reporting contract already occupies 1707. State the report block's character cost against that 5591 baseline so the maintainer's small-payload condition is checkable in a number rather than an adjective.
   - Depends on: none
   - Expected outcome: one host-neutral tri-state schema with a fixed minimal key set, ABSENT distinguishable from NONE-FOUND by explicit value rather than emptiness, and a written size budget with its rationale.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: ask for it, affirmatively and negatively
 
-- [ ] E-02 PUT THE DEMAND IN BOTH EXECUTE PROMPTS, in `oc_runipd.build_prompt` and `agy_runipd.build_prompt`, alongside the existing outcome-JSON block. RE-LOCATE BY SYMBOL; the plan's original line numbers were partly stale within a day (`agy_runipd.build_prompt` is at `:2343`, not `:2297`) and are deliberately not repeated here.
+- [x] E-02 PUT THE DEMAND IN BOTH EXECUTE PROMPTS, in `oc_runipd.build_prompt` and `agy_runipd.build_prompt`, alongside the existing outcome-JSON block. RE-LOCATE BY SYMBOL; the plan's original line numbers were partly stale within a day (`agy_runipd.build_prompt` is at `:2343`, not `:2297`) and are deliberately not repeated here.
   THERE IS EXACTLY ONE PLACE THIS TEXT MAY GO, AND PUTTING IT ANYWHERE ELSE BREAKS THE SUITE. `tests/test_reporting_contract.py::test_all_prose_surfaces_are_byte_equal_to_the_source` finds the reporting-contract heading in each built prompt and asserts that EVERYTHING FROM THERE TO THE END is byte-equal to `reporting_contract.contract_text()`. So any prose appended AFTER the contract block fails that test on both hosts. VERIFIED SAFE at review HEAD: the outcome-JSON literal sits at index 3465 and the contract begins at 3758, so extending the outcome block IN PLACE is legal, and `prompt_block()` must remain the LAST thing in the prompt. State that constraint where the executor will see it, because "append to the prompt" is the obvious wrong move.
   ALSO CHECK THE OTHER PROMPT TEST BEFORE EDITING: `tests/test_lane_prompt_purity.py` digest-compares a BOUNDED block of the non-isolated prompt (from `Plan file at launch:` to `Prior attempt:`) on BOTH drivers, so an insertion inside THAT window fails too. The outcome-JSON literal is outside it, so the intended edit is clear on both counts; verify rather than assume, since both files are under concurrent edit.
   DEMAND BOTH DIRECTIONS EXPLICITLY. The prompt must say that finding nothing is a REPORTABLE RESULT that must be stated, not an absence to be left implicit. An instruction that only describes what to do when something IS found produces exactly today's ambiguity.
@@ -59,28 +59,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT REMOVE OR REPURPOSE `incomplete_requirements`. It has a live reader (`run_viewer.py:910`, `:1662`) and a distinct meaning (this plan's own unmet requirements). Adding a second, differently-scoped field is correct; overloading the first would break a working display.
   - Depends on: E-01
   - Expected outcome: both execute prompts demand the report, state that finding nothing must be affirmatively reported, name briefly what counts, use identical wording, and leave `incomplete_requirements` intact.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 TEACH THE PROMPT THE CARRIER RULE, which is the maintainer's ruling and the reason this plan feeds `rnkqrc`. The agent must be told: for each finding, FILE A BACKLOG ITEM. A spec may and should be written where a spec is genuinely what the work needs, and it should be referenced, but A SPEC IS NEVER THE CARRIER.
+- [x] E-03 TEACH THE PROMPT THE CARRIER RULE, which is the maintainer's ruling and the reason this plan feeds `rnkqrc`. The agent must be told: for each finding, FILE A BACKLOG ITEM. A spec may and should be written where a spec is genuinely what the work needs, and it should be referenced, but A SPEC IS NEVER THE CARRIER.
   DELEGATE NO JUDGEMENT ABOUT "JUST A SPEC". The maintainer explicitly chose the rule that removes it: always file the backlog item, treat any spec as supporting material. Do NOT implement a branch where the agent decides a case is spec-only and files something different; that judgement is the failure mode the rule exists to prevent, and the maintainer said plainly they do not know when "just a spec" would be enough.
   NAME THE TOOL, NOT THE FILE FORMAT. The agent should be pointed at `aw backlog new`, because a hand-written backlog file misses the minted id6 and the clustered filename, and the repository's own conventions forbid hand-naming records.
   DO NOT MAKE THE AGENT BLOCK ON FILING. If filing fails or the agent is out of scope to file, the REPORT is still required: an unreported finding is the defect this plan closes, and a reported-but-unfiled finding is strictly better than silence. State that order of priority explicitly in the prompt.
   - Depends on: E-02
   - Expected outcome: both prompts instruct the agent to file a backlog item per finding via `aw backlog new`, name a spec as supporting material only, delegate no just-a-spec judgement, and prioritize reporting over filing when the two conflict.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: validate the shape, then re-ask once
 
-- [ ] E-04 VALIDATE PER FIELD WITH TOLERANT COERCION, because the measured defect is shape, not syntax. Agents here emit valid JSON (0 of 223 malformed, re-verified in review) while missing an intended ELEMENT shape at a rate that depends entirely on whether the prompt SHOWS the shape.
+- [x] E-04 VALIDATE PER FIELD WITH TOLERANT COERCION, because the measured defect is shape, not syntax. Agents here emit valid JSON (0 of 223 malformed, re-verified in review) while missing an intended ELEMENT shape at a rate that depends entirely on whether the prompt SHOWS the shape.
   THE RATE ON THIS PLAN'S OWN FIELD IS 100%, NOT 50%, AND THAT CHANGES THE DESIGN. Corrected in review: the 132/131 figure is `rbftpl`'s measurement of the VERIFIER field `tests_run` (35 files), which this plan's Scope excludes. On `incomplete_requirements`, the execute-turn field this plan sits beside, all 210 entries across 188 files are BARE STRINGS and none is a dict, because the literal shows `[]` and never an element. CONSEQUENCE: treat coercion as the EXPECTED path rather than a tolerated exception, and make E-01's literal SHOW one filled example element, since the measured difference between a shown shape and an unshown one is the whole 100%.
   COERCE WHAT IS SAFELY COERCIBLE AND SAY SO. A bare string where a small object was expected carries the same fact in prose; accept it into a normalized form and RECORD that a coercion happened, rather than discarding a real finding on a formatting technicality. Discarding it would reproduce the silence this plan exists to end.
   DISTINGUISH THE THREE OUTCOMES THE VALIDATOR CAN REACH, and do not collapse them: VALID (used as-is), COERCED (used, with the coercion recorded), ABSENT-OR-AMBIGUOUS (triggers E-05's re-ask). Collapsing coerced into valid hides how often the schema is being missed; collapsing it into invalid throws away findings.
   NEVER RAISE, AND NEVER FAIL THE TURN ON THIS ALONE. A validator that crashes on unexpected input is a validator that gets wrapped in a bare `except` and neutered, which is exactly what happened to the spec-edit announcement (`oc_runipd.py:4149-4151`, `except Exception: pass`). Return a structured verdict.
   - Depends on: E-03
   - Expected outcome: a non-raising per-field validator returning VALID / COERCED / ABSENT-OR-AMBIGUOUS, coercing a bare string into the normalized finding form while recording the coercion, and never failing the turn by itself.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 RE-ASK ONCE, IN THE SAME SESSION, when E-04 reports ABSENT-OR-AMBIGUOUS. This is the maintainer's chosen design and it was chosen over the cheaper alternative deliberately: refusing the outcome as malformed would discard a whole turn's work over a missing report.
+- [x] E-05 RE-ASK ONCE, IN THE SAME SESSION, when E-04 reports ABSENT-OR-AMBIGUOUS. This is the maintainer's chosen design and it was chosen over the cheaper alternative deliberately: refusing the outcome as malformed would discard a whole turn's work over a missing report.
   IT MUST BE THE SAME SESSION, NOT A NEW TURN. The value is that the agent still holds the context of what it just did; a fresh session would have to re-derive its own findings from the diff, which is both expensive and less accurate. There is no re-ask LOOP today, so the loop is new machinery and must be built as one narrow, reusable step rather than inline in one host's dispatch path.
   BUT THE SESSION-RESUME PRIMITIVE ALREADY EXISTS ON BOTH HOSTS, AND THE TWO SPELL IT DIFFERENTLY. Do NOT build a resume mechanism: reuse the one each driver has. `oc_runipd.run_opencode` passes `--session <id>` and `agy_runipd.run_agy_turn` passes `--conversation <id>` (with `--continue` as its fallback), and both already capture the id per attempt (`attempt["session_id"]`, `extract_session_id`, `state["set_sessions"]`). The re-ask must go through those existing argv paths, which also means the shared step needs a per-host resume adapter rather than one literal flag. A single hardcoded `--session` would silently fail on agy, which is precisely the one-sided-guard class of defect the repo has been bitten by before.
   THREE EXISTING SESSION RULES CONSTRAIN THE RE-ASK AND MUST BE OBEYED, NOT REDISCOVERED. (1) An ISOLATED turn is ALWAYS a fresh session by deliberate decision (`isolated_turn = bool(work_dir)`), because an opencode session carries its own project binding that OVERRIDES `--dir`; the recorded measurement is that four consecutive lanes were lost this way. So on an isolated lane turn there may be NO session to resume, and the re-ask predicate must handle that case explicitly rather than resuming into the wrong worktree. (2) `max_items_per_session` (default 4) ROTATES a session once its turn count is reached, so the session a re-ask wants may already have been rotated away. (3) A re-ask consumes a turn against that same counter, so state whether the re-ask counts toward the rotation budget. Decide and record all three; an unstated answer here is a live-run bug, not a detail.
@@ -90,11 +90,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT RE-ASK A TURN THAT HAS NOTHING TO REPORT ON. A turn that never started work, or was stopped, or was blocked before doing anything, should not be billed for a follow-up. Decide the predicate from the turn's own recorded disposition and state it.
   - Depends on: E-04
   - Expected outcome: exactly one same-session re-ask naming the specific violation, skipped for a turn that did no work, with a durable record when the re-ask itself yields nothing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: persist it where a gate can read it, and prove it
 
-- [ ] E-06 PERSIST THE NORMALIZED REPORT ON THE RUN RECORD, beside the fields that already carry per-item results (`item["last_outcome"]`, at `oc_runipd.py:6654` and `agy_runipd.py:3706` at review HEAD; re-locate by name), so a later consumer reads a normalized structure rather than re-parsing an agent's raw file.
+- [x] E-06 PERSIST THE NORMALIZED REPORT ON THE RUN RECORD, beside the fields that already carry per-item results (`item["last_outcome"]`, at `oc_runipd.py:6654` and `agy_runipd.py:3706` at review HEAD; re-locate by name), so a later consumer reads a normalized structure rather than re-parsing an agent's raw file.
   THIS IS THE HANDOFF TO `rnkqrc`, so make it legible as such. Record the tri-state explicitly, the normalized findings, whether a coercion occurred, and whether a re-ask happened and what it produced. A gate that must distinguish "no defects found" from "never asked" needs all four.
   DO NOT BUILD THE GATE HERE. `rnkqrc` owns the transition refusal. This plan's obligation ends at producing a reliable, machine-readable record; consuming it is that plan's E-02 through E-04.
   BUT BE HONEST THAT THE HANDOFF IS NOT YET REACHABLE BY THE CONSUMER, because a reviewer of the pair must see it. `rnkqrc` declares `Scope-Paths: agent_workflows/check_engine.py, agent_workflows/ipd_lint.py, agent_workflows/ipd_schema.py, tests/test_durable_capture.py` and its E-01 through E-04 read the PLAN FILE's typed fields; its history says its predicate "should additionally read the NORMALIZED report `b7xarm` E-06 persists on the run record", which is a path in `.aw/records/runs/` that none of its declared modules reads today. So E-06's record is necessary but not sufficient: `rnkqrc` will need a reader it has not scoped. Do NOT build that reader here (it is that plan's side of the seam), and do NOT quietly assume the handoff works. WRITE THE RECORD'S LOCATION AND SHAPE DOWN in the plan's own output so `rnkqrc`'s executor has a contract to code against, and flag the gap as a finding for that plan.
@@ -102,16 +102,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   WRITE IT ON BOTH HOSTS AT THE SAME SEAM. Both drivers already write these per-item fields in mirrored code; a field written by one host only would make the gate's behavior depend on which runner executed the plan.
   - Depends on: E-05
   - Expected outcome: the normalized report, its tri-state, any coercion, and the re-ask result all persisted on the run record by BOTH hosts at the existing per-item seam, with no gate logic added.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 PROVE EVERY STATE AND THE TWO CASES THAT MUST NOT FIRE, in a new `tests/test_defect_report.py`. Minimum cases: (a) FOUND with well-formed findings, used as-is; (b) NONE-FOUND stated affirmatively, accepted with NO re-ask; (c) ABSENT, triggering exactly ONE re-ask; (d) a bare string where an object was expected, COERCED and recorded as coerced rather than discarded; (e) the re-ask itself producing nothing, recorded durably; (f) a turn that did no work, NOT re-asked; (g) both hosts producing the identical persisted shape.
+- [x] E-07 PROVE EVERY STATE AND THE TWO CASES THAT MUST NOT FIRE, in a new `tests/test_defect_report.py`. Minimum cases: (a) FOUND with well-formed findings, used as-is; (b) NONE-FOUND stated affirmatively, accepted with NO re-ask; (c) ABSENT, triggering exactly ONE re-ask; (d) a bare string where an object was expected, COERCED and recorded as coerced rather than discarded; (e) the re-ask itself producing nothing, recorded durably; (f) a turn that did no work, NOT re-asked; (g) both hosts producing the identical persisted shape.
   CASE (b) IS THE POINT OF THE WHOLE PLAN. An affirmative "I looked and found nothing" must be accepted silently and must be distinguishable on disk from case (c). If a test cannot tell (b) from (c), the plan has not been implemented.
   CASE (d) IS THE MEASURED DEFECT. Assert the coercion is RECORDED, not just that it succeeded, since a silent coercion hides a 50% schema-miss rate.
   ASSERT THE RE-ASK IS BOUNDED AT ONE, explicitly, by counting invocations. An off-by-one here is an unbounded spend on a live run.
   DO NOT SPEND REAL MODEL TURNS. Stub the host invocation the way the existing driver tests do; a test that actually calls a model is neither deterministic nor free.
   - Depends on: E-06
   - Expected outcome: seven cases passing, with NONE-FOUND provably distinguishable from ABSENT on disk, the coercion recorded, the re-ask count asserted as exactly one, and no real model turn spent.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -251,40 +251,239 @@ DOCUMENT THE CARRIER RULE WHERE AN AGENT WILL MEET IT, not only in the prompt. I
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the schema definition with its comment. Show FOUND, NONE-FOUND and ABSENT are distinguishable by an explicit value and NOT by list emptiness. Paste the written size budget and its rationale, and state the final key count. Confirm by grep that the schema is defined ONCE and referenced by both hosts. Show the literal SHOWS a filled example element (the 100%-prose measurement is the reason). State the report block's character cost against the measured 5591-character prompt baseline, so the small-payload condition is a number.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: SCHEMA at `agent_workflows/runner_shared.py` under the `# ---- THE DEFECT REPORT (defreport 01, \`b7xarm\`)` banner. The three states are NAMED CONSTANTS, so a considered "none" and a missing key are DIFFERENT BYTES:
+    `DEFECT_REPORT_KEY = "defect_report"`, `DEFECT_REPORT_FOUND = "found"`, `DEFECT_REPORT_NONE_FOUND = "none-found"`, `DEFECT_REPORT_ABSENT = "absent"`, `DEFECT_REPORT_STATES = (FOUND, NONE_FOUND, ABSENT)`.
+    NOT BY EMPTINESS, proven by the two persisted records in V-06: a NONE-FOUND report carries `"findings": []` AND `"state": "none-found"`, while ABSENT carries `"findings": []` and `"state": "absent"`; the lists are identical and the records differ. `tests/test_defect_report.py::SchemaTests::test_absent_is_not_reachable_by_an_empty_list` asserts it.
+    SIZE BUDGET, written into the schema comment with its rationale (quoted): "SIZE IS A BINDING CONSTRAINT, NOT A PREFERENCE (plan OQ-02). The maintainer accepted JSON for this report ON THE EXPRESS CONDITION that it stay SMALL... * FOUR keys at the top level... and TWO keys per finding (`what`, `where`). Nothing nested beyond one list of small objects. * NO severity taxonomy, NO reproduction steps, NO triage fields... A later author who wants a fifth key should re-open OQ-02 first, because accretion is exactly how the format decision would be answered by default rather than on purpose."
+    FINAL KEY COUNT: TWO top-level report keys (`state`, `findings`) and TWO per finding (`DEFECT_FINDING_KEYS == ('what', 'where')`). Asserted by `test_the_key_set_is_the_written_budget`.
+    DEFINED ONCE, REFERENCED BY BOTH HOSTS (measured):
+    ```
+    $ python3 -c "...count defs..."
+    agent_workflows.oc_runipd references shared schema: True | references shared prompt: True | inlines literal: False
+    agent_workflows.agy_runipd references shared schema: True | references shared prompt: True | inlines literal: False
+    schema defined once: 1
+    ```
+    THE LITERAL SHOWS A FILLED ELEMENT (this is the 100%-prose fix):
+    ```
+      "defect_report": {
+        "state": "found|none-found",
+        "findings": [
+          {"what": "what is wrong, in one sentence", "where": "file/symbol or artifact id"}
+        ]
+      },
+    ```
+    CHARACTER COST, stated as a NUMBER. The plan's 5591 figure was measured at REVIEW head; RE-MEASURED at execution head the pre-change prompts are 5465 (oc) and 5061 (agy), and the baseline is corrected rather than inherited. After: 6603 and 6199, i.e. +1138 characters on BOTH hosts (967 demand block + 170 schema literal + separator). `tests/test_defect_report.py::PromptSizeBudgetTests` pins a 1500-character ceiling against those measured baselines and asserts both hosts pay the SAME cost.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the added prompt text from BOTH hosts and show they are byte-identical (preferably by showing both reference ONE constant, per the `reporting_contract` precedent). Quote the sentence that requires finding nothing to be affirmatively reported. Quote the sentence naming what counts beyond this plan's own requirements. Paste `git diff` proving the `incomplete_requirements` literal is unchanged on both hosts. PASTE `tests/test_reporting_contract.py` AND `tests/test_lane_prompt_purity.py` PASSING, and show the reporting-contract block is still the LAST thing in each built prompt (the byte-equality-to-end invariant).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BYTE-IDENTICAL BY CONSTRUCTION, not by eyeball: both hosts interpolate the SAME two accessors, `{runner_shared.defect_report_schema_literal()}` inside the outcome literal and `{runner_shared.defect_report_prompt_block()}` before `reporting_contract.prompt_block()`. `test_both_hosts_carry_byte_identical_text_from_one_constant` asserts the constant is present in both built prompts; `test_the_schema_lives_in_ONE_module_referenced_by_both_hosts` asserts NEITHER host inlines it and neither DEFINES the symbols (AST).
+    THE ADDED TEXT (one constant, rendered):
+    ```
+    ## Defect report (REQUIRED, both directions)
 
-- [ ] V-03 validates E-03
-  - Required evidence: paste the carrier-rule text from both prompts. Show it names `aw backlog new`, states a spec is supporting material only, and contains NO branch asking the agent to judge a just-a-spec case. Quote the sentence establishing that reporting outranks filing when the two conflict.
-  - Observed evidence:
-  - Result: pending
+    State whether this turn found any bugs, gaps or concerns. Finding NOTHING is a REPORTABLE RESULT
+    that you must state affirmatively, not an absence you may leave implicit: write
+    `"state": "none-found"` with an empty `findings` list. Omitting the report is not
+    the same answer and will cost you a follow-up question.
 
-- [ ] V-04 validates E-04
+    WHAT COUNTS, beyond this plan's own unmet requirements (which stay in `incomplete_requirements`): a
+    bug in adjacent code, a gap between a spec and its implementation, and a design concern you had to
+    work around. Keep each finding to `what` and `where`.
+
+    FOR EACH FINDING, FILE A BACKLOG ITEM with `aw backlog new`, so the defect has a durable carrier a
+    gate can see. Write a spec too where a spec is genuinely what the work needs, and reference it, but
+    a spec is supporting material and is NEVER the carrier. If filing fails or is outside your scope,
+    STILL REPORT THE FINDING: reporting outranks filing.
+    ```
+    BOTH-DIRECTIONS SENTENCE, quoted: "Finding NOTHING is a REPORTABLE RESULT that you must state affirmatively, not an absence you may leave implicit". Plus the incentive statement: "Omitting the report is not the same answer and will cost you a follow-up question."
+    WHAT-COUNTS SENTENCE, quoted: "WHAT COUNTS, beyond this plan's own unmet requirements (which stay in `incomplete_requirements`): a bug in adjacent code, a gap between a spec and its implementation, and a design concern you had to work around."
+    `incomplete_requirements` UNCHANGED, negative proof by diff (empty output = no change to that literal on either host, and ZERO diff lines in the reader):
+    ```
+    $ git diff agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py | grep -E "^[-+].*incomplete_requirements"
+    (no output)
+    $ git diff agent_workflows/run_viewer.py | wc -l
+    0
+    ```
+    THE CONTRACT IS STILL LAST (byte-equality-to-end), measured on both hosts:
+    ```
+    $ python3 -c "...assert prompt[start:].strip('\n') == contract_text().strip('\n')..."
+    agent_workflows.oc_runipd chars: 6603
+      ok contract-to-end byte equal; defect block present
+    agent_workflows.agy_runipd chars: 6199
+      ok contract-to-end byte equal; defect block present
+    ```
+    BOTH PROMPT TESTS PASSING (the two this change could realistically break):
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest tests/test_reporting_contract.py tests/test_lane_prompt_purity.py tests/test_runner_shared.py tests/test_session_rotation.py tests/test_lane_session_isolation.py
+    173 passed in 7.13s
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: paste the carrier-rule text from both prompts. Show it names `aw backlog new`, states a spec is supporting material only, and contains NO branch asking the agent to judge a just-a-spec case. Quote the sentence establishing that reporting outranks filing.
+  - Observed evidence: THE CARRIER RULE, from the ONE shared constant both prompts render (so "both prompts" is the same bytes):
+    "FOR EACH FINDING, FILE A BACKLOG ITEM with `aw backlog new`, so the defect has a durable carrier a gate can see. Write a spec too where a spec is genuinely what the work needs, and reference it, but a spec is supporting material and is NEVER the carrier. If filing fails or is outside your scope, STILL REPORT THE FINDING: reporting outranks filing."
+    NAMES THE TOOL, NOT A PATH: `aw backlog new`, asserted by `test_the_carrier_rule_names_the_tool_and_fences_the_spec`. A hand-written backlog file would miss the minted id6 and the clustered filename, which repo convention forbids.
+    SPEC IS SUPPORTING MATERIAL ONLY: "a spec is supporting material and is NEVER the carrier".
+    NO JUST-A-SPEC JUDGEMENT IS DELEGATED, asserted NEGATIVELY by `test_no_just_a_spec_judgement_is_delegated`, which fails if the prompt contains "just a spec", "if it is only a spec", or "decide whether a spec". The prompt has no conditional branch about spec-only cases at all: the instruction is unconditional ("FOR EACH FINDING, FILE A BACKLOG ITEM").
+    REPORTING OUTRANKS FILING, quoted: "If filing fails or is outside your scope, STILL REPORT THE FINDING: reporting outranks filing." The reason is written into `defect_report_prompt_block`'s docstring: an unreported finding is the defect this closes, so a reported-but-unfiled finding is strictly better than silence.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the validator and its three return states. Paste a test showing a bare string COERCED into the normalized form WITH the coercion recorded, and state why discarding it would have been wrong. Paste proof the validator does not raise on malformed input, and `git diff` showing no bare `except Exception: pass` was introduced.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE VALIDATOR is `runner_shared.validate_defect_report(outcome) -> DefectReportVerdict`, returning a NamedTuple, never raising. THE THREE VERDICTS ARE DISTINCT CONSTANTS, deliberately not collapsed: `DEFECT_VERDICT_VALID = "valid"`, `DEFECT_VERDICT_COERCED = "coerced"`, `DEFECT_VERDICT_ABSENT_OR_AMBIGUOUS = "absent-or-ambiguous"`, with `DefectReportVerdict.needs_reask` true ONLY for the third.
+    COERCION RECORDED, not silent (actual record for a bare-string finding):
+    ```
+    {
+      "coerced": true,
+      "coercions": [
+        "a finding was a bare string rather than an object: 'run_viewer mis-renders a null cost'"
+      ],
+      "findings": [{"what": "run_viewer mis-renders a null cost", "where": "unspecified"}],
+      "state": "found",
+      "verdict": "coerced"
+    }
+    ```
+    WHY DISCARDING WOULD HAVE BEEN WRONG: the entry carries the SAME FACT in prose, and the measured element-shape miss rate on the sibling field was total (every entry a bare string, because the literal showed `[]` with no element). Dropping such an entry would discard a REAL finding on a formatting technicality and reproduce exactly the silence this plan exists to end. That is why coercion is treated as the EXPECTED path and E-01's literal now SHOWS a filled element.
+    NEVER RAISES, proven over 14 malformed inputs (`None`, `""`, a bare list, a bare int/float/bool, `{"defect_report": 7}`, `{"state": None, "findings": None}`, `{"findings": [None, {}, "", 5]}`, a dict where a list was expected, ...):
+    ```
+    tests/test_defect_report.py::ValidatorTests::test_the_validator_never_raises_on_any_input PASSED
+    ```
+    Each returns a verdict in `DEFECT_VERDICTS` and a state in `DEFECT_REPORT_STATES`.
+    NO BARE `except` INTRODUCED, asserted by AST (`test_no_bare_except_was_introduced_around_the_new_code` fails if any bare `ExceptHandler` appears at or after the defect-report banner) and by diff: the only exception handling added is `except (OSError, ValueError)` in `read_defect_report_outcome` (a TYPED handler over a file read, where absence and invalid JSON are legitimate observations), `contextlib.suppress(Exception)` around the OPTIONAL lane recollection, and `except (KeyboardInterrupt, StallTimeout)` at each host's re-ask call (the same typed pair the neighbouring verifier call already uses). No `except Exception: pass` anywhere.
+  - Result: pass
 
-- [ ] V-05 validates E-05
-  - Required evidence: paste the re-ask implementation showing it reuses the SAME session rather than opening a new turn, AND show the argv for BOTH hosts (`--session` for oc, `--conversation` for agy), proving no single hardcoded flag is used. Paste the invocation COUNT asserted as exactly one. Paste an example re-ask message showing it names the SPECIFIC violation rather than repeating the original instruction. Paste the no-work-turn case showing no re-ask fired, and state the predicate used. STATE IN WRITING the answers to the three session rules: the isolated-turn case (always a fresh session, so possibly nothing to resume), the rotated-session case (`max_items_per_session`, default 4), and whether the re-ask counts against that budget.
-  - Observed evidence:
-  - Result: pending
+- [x] V-05 validates E-05
+  - Required evidence: paste the re-ask implementation showing it reuses the SAME session rather than opening a new turn, AND show the argv for BOTH hosts (`--session` for oc, `--conversation` for agy), proving no single hardcoded flag is used. Paste the invocation COUNT asserted as exactly one. Paste an example re-ask message showing it names the SPECIFIC violation rather than repeating the original instruction. Paste the no-work-turn case showing no re-ask fired, and state the predicate used. STATE IN WRITING the answers to the three session rules: the isolated-turn case (always a fresh session, so possibly nothing to resume), the rotated-session case (`max_items_per_session`, default 4), and whether the re-ask counts against that rotation budget.
+  - Observed evidence: SAME SESSION, NOT A NEW TURN. `runner_shared.perform_defect_reask` calls an INJECTED `resume(prompt_path)`; each host binds its own launcher through `runner_shared.resume_via_launcher`, and each passes the id observed for THIS attempt (`reask_session = attempt.get("session_id")`). oc passes `resume_session=reask_session` into `run_opencode`, which emits `--session`; agy passes `session_id=reask_session, use_continue=False` into `run_agy_turn`, which emits `--conversation`.
+    BOTH HOSTS' ARGV MEASURED, so a single hardcoded flag cannot pass:
+    ```
+    tests/test_defect_report.py::HostResumeSpellingTests::test_opencode_resumes_with_session PASSED
+    tests/test_defect_report.py::HostResumeSpellingTests::test_antigravity_resumes_with_conversation PASSED
+    ```
+    The agy test additionally asserts `--session` is ABSENT from its argv, which is what a hardcoded oc flag would have produced.
+    INVOCATION COUNT ASSERTED AS EXACTLY ONE, by counting calls (not by reading a log):
+    ```
+    tests/test_defect_report.py::ReaskExecutionTests::test_case_c_exactly_one_invocation_and_the_answer_is_picked_up PASSED
+        self.assertEqual(len(calls), 1, "the re-ask must be spent EXACTLY once, never looped")
+    tests/test_defect_report.py::ReaskExecutionTests::test_case_e_a_fruitless_reask_is_recorded_durably PASSED
+        self.assertEqual(len(calls), 1, "still exactly one attempt")
+    ```
+    Boundedness is STRUCTURAL: `perform_defect_reask` contains no loop, and `defect_reask_is_warranted(..., already_reasked=True)` refuses permanently ("the single permitted re-ask has already been spent").
+    THE RE-ASK NAMES THE SPECIFIC VIOLATION (example, for a `state: found` with an empty findings list):
+    ```
+    Your turn is finished and its outcome file is written, but the REQUIRED defect report
+    is missing or unusable, so one question remains.
 
-- [ ] V-06 validates E-06
+    WHAT WAS WRONG: `state` said found but `findings` was empty, so what was found is unknown
+    ...
+    ```
+    `test_it_names_the_SPECIFIC_violation_not_the_original_instruction` asserts the violation string appears AND that the original demand ("FOR EACH FINDING, FILE A BACKLOG ITEM") does NOT, so a generic re-ask cannot pass.
+    NO-WORK TURN NOT RE-ASKED. PREDICATE: `defect_reask_is_warranted` refuses when the item's disposition is in `DEFECT_REASK_SKIPPED_STATUSES = {blocked, dependency-blocked, not-attempted, interrupted, unknown_outcome, queued, running}`, with reason "the turn did no reportable work (disposition ...)".
+    ```
+    tests/test_defect_report.py::ReaskPredicateTests::test_case_f_a_turn_that_did_no_work_is_not_reasked PASSED
+    ```
+    THE THREE SESSION RULES, ANSWERED IN WRITING (also written into `defect_reask_is_warranted`'s docstring so a live run cannot rediscover them):
+    (1) ISOLATED TURN: an isolated turn is ALWAYS a fresh session by deliberate decision (`isolated_turn = bool(work_dir)`; an opencode session's own project binding overrides `--dir`, and four consecutive lanes were lost proving it). ANSWER: when no session id was observed for the attempt, the re-ask is REFUSED, not attempted ("no resumable session was observed for this turn, so the same-session re-ask is impossible"); the report is still recorded as ABSENT, which is the honest observation. Asserted by `test_session_rule_1_no_session_means_no_reask`. NOTE the re-ask DOES resume when an isolated turn DID observe a session id, and that is safe for the same reason the blanket refusal exists: the refusal prevents carrying ANOTHER lane's session into this tree, whereas this resumes the session THIS attempt observed in THIS lane.
+    (2) ROTATED SESSION: `max_items_per_session` (default 4) rotates a session away once its turn count is reached. ANSWER: the re-ask consumes ONLY `attempt["session_id"]`, the id actually observed for THIS attempt, never `state["set_sessions"]` or `state["session_id"]`, so a rotated-away session cannot be resumed by accident. Asserted by `test_session_rule_2_a_rotated_session_cannot_be_resumed_by_accident`.
+    (3) DOES IT COUNT AGAINST THE BUDGET: YES, and it is counted explicitly rather than left implicit. `perform_defect_reask` increments `session_turn_counts[session_id]`, and each host passes that live counter for a NON-isolated turn (`None` for an isolated one, whose session is never promoted into the rotation ledger at all). The accepted consequence is that a re-asked item may rotate its session one item earlier. Asserted by `test_session_rule_3_the_reask_counts_against_the_rotation_budget` (2 -> 3).
+    NOT GATED ON `supports_session_resume`, per the plan's prohibition: that field is TRUE for opencode only while agy demonstrably resumes via `--conversation`, so wiring the re-ask to it would wrongly refuse agy. Reported as a finding instead (F-18 confirmed).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the persisted record for a FOUND case and for a NONE-FOUND case SIDE BY SIDE and show they differ from each other and from an ABSENT case. Confirm all four facts are present (tri-state, normalized findings, coercion flag, re-ask result). Show both hosts write the identical shape. Confirm no gate logic was added, since `rnkqrc` owns that. PASTE THE RECORD'S DOCUMENTED LOCATION AND SHAPE as the contract `rnkqrc`'s executor codes against, and confirm the test builds its records in tmp_path rather than reading the gitignored `.aw/records/runs/`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THREE RECORDS SIDE BY SIDE, actual output, showing NONE-FOUND is distinguishable from ABSENT (the plan's central property) and both from FOUND:
+    ```
+    NONE-FOUND                              ABSENT                                   FOUND (coerced)
+    {                                       {                                        {
+      "coerced": false,                       "coerced": false,                        "coerced": true,
+      "coercions": [],                        "coercions": [],                         "coercions": ["a finding was a bare string rather than an object: '...'"],
+      "findings": [],                         "findings": [],                          "findings": [{"what": "...", "where": "unspecified"}],
+      "reask_reason": "",                     "reask_reason": "",                      "reask_reason": "",
+      "reask_state": null,                    "reask_state": null,                     "reask_state": null,
+      "reask_verdict": null,                  "reask_verdict": null,                   "reask_verdict": null,
+      "reasked": false,                       "reasked": false,                        "reasked": false,
+      "state": "none-found",                  "state": "absent",                       "state": "found",
+      "verdict": "valid"                      "verdict": "absent-or-ambiguous"         "verdict": "coerced"
+    }                                       }                                        }
+    ```
+    NOTE the `findings` lists of the first two are BYTE-IDENTICAL (`[]`) and the records still differ, which is precisely the "not encoded as an empty list" requirement. `test_none_found_and_absent_DIFFER_on_disk` asserts the three serialize differently.
+    ALL FOUR FACTS PRESENT AND SEPARATE: tri-state (`state`), normalized findings (`findings`), coercion (`coerced` + `coercions`), and re-ask result (`reasked` + `reask_reason` + `reask_state` + `reask_verdict`). A fruitless re-ask is therefore distinguishable from a successful one and from no re-ask at all:
+    ```
+    tests/test_defect_report.py::PersistedRecordTests::test_all_four_facts_are_present_and_separate PASSED
+    tests/test_defect_report.py::ReaskExecutionTests::test_case_e_a_fruitless_reask_is_recorded_durably PASSED
+      -> record: reasked=True, state="absent", reask_state="absent", reask_verdict="absent-or-ambiguous"
+    ```
+    BOTH HOSTS, IDENTICAL SHAPE, AT THE SAME SEAM: both write `attempt["defect_report"] = record` and `item["defect_report"] = record` immediately AFTER the existing `item["last_outcome"] = outcome` line, from the SAME `runner_shared.defect_report_record(...)`, plus a `defect-report-recorded` event. `test_case_g_both_hosts_write_the_identical_shape_at_the_same_seam` asserts the strings AND the source ordering relative to the existing seam.
+    NO GATE LOGIC ADDED, asserted by AST over the STATEMENTS of the persistence block (not a prose grep): the block contains no `raise DriverError`, no `item["status"] =`, no `disposition =`, no `driver_finalize(` and no `return`. `test_no_gate_logic_was_added` PASSED on both hosts.
+    THE DOCUMENTED CONTRACT FOR `rnkqrc`'s EXECUTOR, quoted from `defect_report_record`'s docstring: "LOCATION: `state["queue"][i]["defect_report"]` in `<run_dir>/state.json`, written at the SAME per-item seam as `item["last_outcome"]`/`item["status"]`/`item["verification_status"]`, by BOTH host drivers. `<run_dir>` is `.aw/records/runs/<run-id>/`, which is GITIGNORED, so a TEST must build its records in a tmp_path fixture and never assert against the live tree. SHAPE: `{"state", "verdict", "findings", "coerced", "coercions", "reasked", "reask_reason", "reask_state", "reask_verdict"}`." The docstring also states the HONEST LIMIT (F-16): `rnkqrc` declares only `check_engine.py`, `ipd_lint.py`, `ipd_schema.py` and its test file and reads plan-file fields, so this record is NECESSARY but not SUFFICIENT and the reader is unscoped on its side of the seam. `test_the_documented_location_and_shape_are_stated_for_the_consumer` asserts the docstring carries the location, `state.json`, the GITIGNORED warning and every shape key.
+    TMP_PATH ONLY, never the live run tree: `test_this_test_file_never_reads_the_live_run_tree` scans this test file and fails on any `.aw/records/runs` reference outside the explanatory comment. Every record above is built in a `tempfile.TemporaryDirectory()`.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste the ACTUAL passing output of all seven cases. QUOTE the NONE-FOUND versus ABSENT assertion separately as the plan's central property. Show the host invocation is stubbed and no real model turn was spent, and that no fixture reads the gitignored run tree. THEN paste the BARE `python3 -m pytest` summaries before and after AND the failing node ids from each, and state the failure-set delta as a set OF NODE IDS. Confirm the pre-existing `test_reporting_contract::ParityTests::test_only_expected_files_contain_the_full_contract_prose` failure is present in BOTH runs and was not "fixed".
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL SEVEN CASES PASSING (actual node ids from the run):
+    ```
+    (a) FOUND used as-is        tests/test_defect_report.py::ValidatorTests::test_case_a_found_with_wellformed_findings_is_used_as_is PASSED
+    (b) NONE-FOUND, no re-ask   tests/test_defect_report.py::ValidatorTests::test_case_b_none_found_is_accepted_with_no_reask PASSED
+                                tests/test_defect_report.py::ReaskPredicateTests::test_case_b_none_found_is_never_reasked PASSED
+    (c) ABSENT -> ONE re-ask    tests/test_defect_report.py::ValidatorTests::test_case_c_absent_is_absent_and_names_the_violation PASSED
+                                tests/test_defect_report.py::ReaskExecutionTests::test_case_c_exactly_one_invocation_and_the_answer_is_picked_up PASSED
+    (d) bare string COERCED     tests/test_defect_report.py::ValidatorTests::test_case_d_a_bare_string_is_COERCED_and_the_coercion_RECORDED PASSED
+    (e) fruitless re-ask kept   tests/test_defect_report.py::ReaskExecutionTests::test_case_e_a_fruitless_reask_is_recorded_durably PASSED
+    (f) no-work turn NOT asked  tests/test_defect_report.py::ReaskPredicateTests::test_case_f_a_turn_that_did_no_work_is_not_reasked PASSED
+    (g) both hosts same shape   tests/test_defect_report.py::PersistedRecordTests::test_case_g_both_hosts_write_the_identical_shape_at_the_same_seam PASSED
+    ```
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest tests/test_defect_report.py -o addopts=""
+    collected 50 items
+    tests/test_defect_report.py ............................................ [ 88%]
+    ......                                                                   [100%]
+    ============================== 50 passed in 0.76s ==============================
+    ```
+    THE CENTRAL PROPERTY, QUOTED SEPARATELY (from `test_none_found_and_absent_DIFFER_on_disk`):
+    ```
+    self.assertNotEqual(a, b, "NONE-FOUND and ABSENT must be distinguishable on disk")
+    ```
+    where `a`/`b` are `json.dumps(record, sort_keys=True)` of the two persisted records; both carry `"findings": []`, and they differ in `state` ("none-found" vs "absent") and `verdict` ("valid" vs "absent-or-ambiguous").
+    NO REAL MODEL TURN SPENT, asserted by AST rather than by claim: `test_no_real_model_turn_can_be_spent` walks this file for every `subprocess.run`/`Popen`/`check_call`/`check_output` and asserts the ONLY spawned binary is `git`. The host launch path is stubbed exactly as the existing driver tests stub it (`Popen` replaced with a `fake_popen` that raises `stop-before-launch` after capturing argv; `options` name `/bin/false`), and the re-ask tests inject a plain Python `resume` callable. No fixture reads the gitignored run tree (`test_this_test_file_never_reads_the_live_run_tree`).
+    BARE SUITE, BEFORE AND AFTER, WITH THE FAILING NODE IDS.
+    A CORRECTION TO THIS V-ITEM'S OWN PREMISE, recorded rather than quietly worked around: the plan (from review) expected `1 failed, 5958 passed` with the failure being `test_reporting_contract::ParityTests::test_only_expected_files_contain_the_full_contract_prose`. That failure is NOT present in this lane at all, in either run, so it CANNOT be confirmed "present in both runs" and no attempt was made to fix it. Its recorded cause was another party's gitignored `opencode-recovery/` tree in the maintainer's main checkout; this isolated lane has no such tree (`test_only_expected_files_contain_the_full_contract_prose` asks git for TRACKED files and passed here).
+    WHAT THE FIRST BARE RUN DID SHOW is a DIFFERENT, ENVIRONMENTAL failure set of 17, and diagnosing it mattered because inheriting it would have made the delta meaningless:
+    ```
+    $ python3 -m pytest
+    17 failed, 6770 passed, 3 skipped, 2 xfailed in 76.97s (0:01:16)
+    ```
+    CAUSE, measured: this managed lane turn runs with `AW_EXECUTION_ROLE=worker` exported into the agent's environment (the runner sets it so an in-lane `aw ipd begin/finalize` refuses with AW-LIFECYCLE-ROLE-001). The test suite INHERITS it, so every lifecycle-transition test is refused authority it expects to have. Proven by clearing exactly that one variable and changing nothing else:
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest tests/test_worker_role_refusal.py tests/test_ipd_lifecycle_cli.py
+    64 passed in 3.16s
+    ```
+    BEFORE (clean environment, the honest baseline):
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest
+    6787 passed, 3 skipped, 2 xfailed in 153.52s (0:02:33)      # failing node ids: NONE
+    ```
+    AFTER:
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest
+    6837 passed, 3 skipped, 2 xfailed in 71.29s (0:01:11)       # failing node ids: NONE
+    ```
+    FAILURE-SET DELTA, AS A SET OF NODE IDS: AFTER minus BEFORE = {} (EMPTY). Both sets are empty, so the criterion holds. The +50 passed is exactly this plan's new `tests/test_defect_report.py`.
+    TEN EXISTING TESTS WERE FIXED, NOT MASKED, and the reason is worth stating because it is the feature working. Ten driver-integration tests failed mid-implementation (`WorktreeIsolationTests`, `FailClosedIntegrationGuardTests` and their agy twins). CAUSE: their fake agent writes `{"disposition": "executed", "pushed": False}` with NO defect report, so the driver CORRECTLY spent its one re-ask, and the fake (not being idempotent) re-ran its own `git commit` and died on an already-clean tree. Their outcome fixtures now state `"defect_report": {"state": "none-found", "findings": []}`, i.e. they were updated to write a CONFORMING outcome, which is what a real agent must now do. No product behavior was weakened and no assertion was relaxed.
+    HOOKS AND SANITIZER:
+    ```
+    $ python3 -m pre_commit run ruff --files <the six changed files>
+    ruff.....................................................................Passed
+    $ python3 -m pre_commit run ruff-format --files <the six changed files>
+    ruff-format..............................................................Passed
+    $ aw sanitize --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

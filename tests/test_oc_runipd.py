@@ -78,7 +78,17 @@ class DriverTests(unittest.TestCase):
             run_dir = root / "run"
             (run_dir / "outcomes").mkdir(parents=True)
             (run_dir / "outcomes" / "01-aaaaaa.json").write_text(
-                json.dumps({"disposition": "executed", "pushed": False}),
+                json.dumps(
+                    {
+                        "disposition": "executed",
+                        "pushed": False,
+                        # defreport (`b7xarm`): a CONFORMING agent now states its defect
+                        # report affirmatively. Without it the driver correctly spends its
+                        # one same-session re-ask, and this fake would then re-run its own
+                        # `git commit` and fail on an already-clean tree.
+                        "defect_report": {"state": "none-found", "findings": []},
+                    }
+                ),
                 encoding="utf-8",
             )
             item = {
@@ -2509,7 +2519,17 @@ class SelfFinalizeWiringTests(unittest.TestCase):
             ):
                 # write an outcome so reconcile reports substantially-complete
                 (run_dir / "outcomes" / "01-wir001.json").write_text(
-                    json.dumps({"disposition": "executed", "pushed": False}),
+                    json.dumps(
+                        {
+                            "disposition": "executed",
+                            "pushed": False,
+                            # defreport (`b7xarm`): a CONFORMING agent now states its defect
+                            # report affirmatively. Without it the driver correctly spends its
+                            # one same-session re-ask, and this fake would then re-run its own
+                            # `git commit` and fail on an already-clean tree.
+                            "defect_report": {"state": "none-found", "findings": []},
+                        }
+                    ),
                     encoding="utf-8",
                 )
                 driver.execute_item(run_dir, state, item, recovery=False)
@@ -2525,7 +2545,17 @@ class SelfFinalizeWiringTests(unittest.TestCase):
             state["options"]["no_audit"] = False  # exercise the verify path
 
             (run_dir / "outcomes" / "01-wir001.json").write_text(
-                json.dumps({"disposition": "executed", "pushed": False}),
+                json.dumps(
+                    {
+                        "disposition": "executed",
+                        "pushed": False,
+                        # defreport (`b7xarm`): a CONFORMING agent now states its defect
+                        # report affirmatively. Without it the driver correctly spends its
+                        # one same-session re-ask, and this fake would then re-run its own
+                        # `git commit` and fail on an already-clean tree.
+                        "defect_report": {"state": "none-found", "findings": []},
+                    }
+                ),
                 encoding="utf-8",
             )
             # verifier outcome -> verified
@@ -2571,7 +2601,17 @@ class SelfFinalizeWiringTests(unittest.TestCase):
             )
 
             (run_dir / "outcomes" / "01-wir001.json").write_text(
-                json.dumps({"disposition": "executed", "pushed": False}),
+                json.dumps(
+                    {
+                        "disposition": "executed",
+                        "pushed": False,
+                        # defreport (`b7xarm`): a CONFORMING agent now states its defect
+                        # report affirmatively. Without it the driver correctly spends its
+                        # one same-session re-ask, and this fake would then re-run its own
+                        # `git commit` and fail on an already-clean tree.
+                        "defect_report": {"state": "none-found", "findings": []},
+                    }
+                ),
                 encoding="utf-8",
             )
 
@@ -2608,7 +2648,17 @@ class SelfFinalizeWiringTests(unittest.TestCase):
             state["options"]["no_audit"] = False
 
             (run_dir / "outcomes" / "01-wir001.json").write_text(
-                json.dumps({"disposition": "executed", "pushed": False}),
+                json.dumps(
+                    {
+                        "disposition": "executed",
+                        "pushed": False,
+                        # defreport (`b7xarm`): a CONFORMING agent now states its defect
+                        # report affirmatively. Without it the driver correctly spends its
+                        # one same-session re-ask, and this fake would then re-run its own
+                        # `git commit` and fail on an already-clean tree.
+                        "defect_report": {"state": "none-found", "findings": []},
+                    }
+                ),
                 encoding="utf-8",
             )
             (run_dir / "outcomes" / "01-wir001-verification.json").write_text(
@@ -2648,7 +2698,17 @@ class SelfFinalizeWiringTests(unittest.TestCase):
             state, item = self._state_and_item(repo, plan, self_finalize=False)
 
             (run_dir / "outcomes" / "01-wir001.json").write_text(
-                json.dumps({"disposition": "executed", "pushed": False}),
+                json.dumps(
+                    {
+                        "disposition": "executed",
+                        "pushed": False,
+                        # defreport (`b7xarm`): a CONFORMING agent now states its defect
+                        # report affirmatively. Without it the driver correctly spends its
+                        # one same-session re-ask, and this fake would then re-run its own
+                        # `git commit` and fail on an already-clean tree.
+                        "defect_report": {"state": "none-found", "findings": []},
+                    }
+                ),
                 encoding="utf-8",
             )
             begin_calls, fin_calls = [], []
@@ -2747,7 +2807,17 @@ class WorktreeIsolationTests(unittest.TestCase):
             (
                 run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
             ).write_text(
-                json.dumps({"disposition": "executed", "pushed": False}),
+                json.dumps(
+                    {
+                        "disposition": "executed",
+                        "pushed": False,
+                        # defreport (`b7xarm`): a CONFORMING agent now states its defect
+                        # report affirmatively. Without it the driver correctly spends its
+                        # one same-session re-ask, and this fake would then re-run its own
+                        # `git commit` and fail on an already-clean tree.
+                        "defect_report": {"state": "none-found", "findings": []},
+                    }
+                ),
                 encoding="utf-8",
             )
             state_calls["n"] += 1
@@ -2803,7 +2873,20 @@ class WorktreeIsolationTests(unittest.TestCase):
                         / "outcomes"
                         / f"{item['position']:02d}-{item['id6']}.json"
                     ).write_text(
-                        json.dumps({"disposition": "executed", "pushed": False}),
+                        json.dumps(
+                            {
+                                "disposition": "executed",
+                                "pushed": False,
+                                # defreport (`b7xarm`): a CONFORMING agent now states its defect
+                                # report affirmatively. Without it the driver correctly spends its
+                                # one same-session re-ask, and this fake would then re-run its own
+                                # `git commit` and fail on an already-clean tree.
+                                "defect_report": {
+                                    "state": "none-found",
+                                    "findings": [],
+                                },
+                            }
+                        ),
                         encoding="utf-8",
                     )
                     return 0, "ses1", str(run_dir / "log"), ["oc"]
@@ -3010,7 +3093,17 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
             (
                 run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
             ).write_text(
-                json.dumps({"disposition": "executed", "pushed": False}),
+                json.dumps(
+                    {
+                        "disposition": "executed",
+                        "pushed": False,
+                        # defreport (`b7xarm`): a CONFORMING agent now states its defect
+                        # report affirmatively. Without it the driver correctly spends its
+                        # one same-session re-ask, and this fake would then re-run its own
+                        # `git commit` and fail on an already-clean tree.
+                        "defect_report": {"state": "none-found", "findings": []},
+                    }
+                ),
                 encoding="utf-8",
             )
             return 0, "ses1", str(run_dir / "log"), ["oc"]
@@ -3047,7 +3140,17 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
             (
                 run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
             ).write_text(
-                json.dumps({"disposition": "executed", "pushed": False}),
+                json.dumps(
+                    {
+                        "disposition": "executed",
+                        "pushed": False,
+                        # defreport (`b7xarm`): a CONFORMING agent now states its defect
+                        # report affirmatively. Without it the driver correctly spends its
+                        # one same-session re-ask, and this fake would then re-run its own
+                        # `git commit` and fail on an already-clean tree.
+                        "defect_report": {"state": "none-found", "findings": []},
+                    }
+                ),
                 encoding="utf-8",
             )
             return 0, "ses1", str(run_dir / "log"), ["oc"]
@@ -4045,10 +4148,12 @@ def _parse_argv(argv: list) -> tuple:
     def fake_init(args):
         raise driver.DriverError("stop-before-side-effects")
 
-    with mock.patch.object(driver, "build_parser", spying_parser), mock.patch.object(
-        driver, "initialize_run", fake_init
-    ), mock.patch.object(
-        driver, "resolve_run_dir", side_effect=driver.DriverError("stop")
+    with (
+        mock.patch.object(driver, "build_parser", spying_parser),
+        mock.patch.object(driver, "initialize_run", fake_init),
+        mock.patch.object(
+            driver, "resolve_run_dir", side_effect=driver.DriverError("stop")
+        ),
     ):
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
@@ -4153,8 +4258,9 @@ class LaunchProfileGrammarTests(unittest.TestCase):
 
         with mock.patch.object(driver, "build_parser", spying_parser):
             err = io.StringIO()
-            with contextlib.redirect_stderr(err), contextlib.redirect_stdout(
-                io.StringIO()
+            with (
+                contextlib.redirect_stderr(err),
+                contextlib.redirect_stdout(io.StringIO()),
             ):
                 rc = driver.main(["resume", "run-xyz"])
         self.assertEqual(rc, 2, err.getvalue())

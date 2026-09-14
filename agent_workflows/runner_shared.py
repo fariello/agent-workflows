@@ -5059,3 +5059,712 @@ def stop_active_samplers() -> int:
             stopped += 1
         unregister_active_sampler(sampler)
     return stopped
+
+
+# ---- THE DEFECT REPORT (defreport 01, `b7xarm`) --------------------------------------------------
+#
+# THE DEFECT THIS CLOSES. An execute turn's outcome JSON already carries
+# `incomplete_requirements`, and the run viewer already renders it, but an EMPTY list means BOTH "I
+# checked and found nothing" and "I never looked", and no code path asks which. Measured at
+# authoring across the execute-turn outcome corpus: a majority of files carry an empty list, and no
+# reader can tell an affirmative "nothing to report" from an unasked question. So an agent that
+# stumbles across a real bug and says nothing is INDISTINGUISHABLE from one that verified there was
+# nothing to say.
+#
+# WHY A SECOND FIELD RATHER THAN REUSING THE FIRST. `incomplete_requirements` is scoped to THIS
+# plan's own unmet requirements and has a live reader (`run_viewer`). A bug in ADJACENT code, a gap
+# between a spec and its implementation, or a design concern worked around is none of those, so it
+# has no typed home today. Overloading the existing field would break a working display; adding a
+# differently-scoped field does not.
+#
+# THE STATE IS CARRIED BY AN EXPLICIT VALUE, NEVER BY EMPTINESS. That is the whole point: a missing
+# key and a considered "none" must be DIFFERENT BYTES. `DEFECT_REPORT_NONE_FOUND` is an affirmative
+# claim; `DEFECT_REPORT_ABSENT` is the state the re-ask fires on.
+#
+# SIZE IS A BINDING CONSTRAINT, NOT A PREFERENCE (plan OQ-02). The maintainer accepted JSON for this
+# report ON THE EXPRESS CONDITION that it stay SMALL, because the format concern (agents emitting
+# rigorous JSON less reliably than structured markdown) applies to LARGER payloads. So the budget
+# below is a contract, not a style note:
+#
+#   * FOUR keys at the top level (`state`, `findings`, plus nothing else the agent must write), and
+#     TWO keys per finding (`what`, `where`). Nothing nested beyond one list of small objects.
+#   * NO severity taxonomy, NO reproduction steps, NO triage fields. Every added field is a field an
+#     agent can get wrong, and none of them is needed to decide the only question the report feeds:
+#     should a backlog item exist? A later author who wants a fifth key should re-open OQ-02 first,
+#     because accretion is exactly how the format decision would be answered by default rather than
+#     on purpose.
+#   * The rendered prompt block is measured against the prompt baseline in
+#     `tests/test_defect_report.py::PromptSizeBudgetTests`, so the small-payload condition is
+#     checkable as a NUMBER rather than asserted as an adjective.
+#
+# ONE SCHEMA, BOTH HOSTS. Defined ONCE here and referenced by `oc_runipd` and `agy_runipd`, on the
+# `reporting_contract` precedent (one canonical constant plus an accessor, with a test asserting both
+# drivers reference rather than inline it). The two prompt builders are a known divergence surface
+# and a second copy of a schema literal is how they silently disagree.
+
+#: The report's key inside the agent-written outcome JSON.
+DEFECT_REPORT_KEY: str = "defect_report"
+
+#: One or more findings were reported.
+DEFECT_REPORT_FOUND: str = "found"
+
+#: The agent AFFIRMATIVELY states it looked and found nothing. Accepted silently; never re-asked.
+DEFECT_REPORT_NONE_FOUND: str = "none-found"
+
+#: Neither statement is present. This is the ONLY state that triggers the re-ask.
+DEFECT_REPORT_ABSENT: str = "absent"
+
+DEFECT_REPORT_STATES: tuple[str, ...] = (
+    DEFECT_REPORT_FOUND,
+    DEFECT_REPORT_NONE_FOUND,
+    DEFECT_REPORT_ABSENT,
+)
+
+#: The validator's three verdicts. Kept DISTINCT deliberately: collapsing COERCED into VALID hides
+#: how often the schema is missed, and collapsing it into the re-ask case throws away real findings.
+DEFECT_VERDICT_VALID: str = "valid"
+DEFECT_VERDICT_COERCED: str = "coerced"
+DEFECT_VERDICT_ABSENT_OR_AMBIGUOUS: str = "absent-or-ambiguous"
+
+DEFECT_VERDICTS: tuple[str, ...] = (
+    DEFECT_VERDICT_VALID,
+    DEFECT_VERDICT_COERCED,
+    DEFECT_VERDICT_ABSENT_OR_AMBIGUOUS,
+)
+
+#: The two keys a finding carries, and the complete budget for one. `what` is the defect; `where` is
+#: enough to find it again. That is exactly what a carrier decision needs.
+DEFECT_FINDING_KEYS: tuple[str, ...] = ("what", "where")
+
+#: What a coerced bare string's missing `where` becomes, so a normalized finding always has both keys
+#: and a consumer never has to branch on absence.
+DEFECT_WHERE_UNSPECIFIED: str = "unspecified"
+
+
+def defect_report_schema_literal() -> str:
+    """The report as it appears INSIDE the execute prompt's outcome-JSON literal.
+
+    SHOWS A FILLED EXAMPLE ELEMENT ON PURPOSE, and that is the single most load-bearing detail in
+    this function. Measured across the execute-turn outcome corpus: EVERY entry agents wrote into
+    `incomplete_requirements` was a BARE STRING and none was an object, because the literal shows
+    `[]` and never an element. An element shape the prompt does not SHOW is missed every time, so
+    showing one is what makes the object form reachable at all.
+
+    Returned as a fragment to be interpolated into each host's existing outcome literal (there is
+    exactly one legal insertion region in those prompts; see `defect_report_prompt_block`).
+    """
+
+    return (
+        f'  "{DEFECT_REPORT_KEY}": {{\n'
+        f'    "state": "{DEFECT_REPORT_FOUND}|{DEFECT_REPORT_NONE_FOUND}",\n'
+        f'    "findings": [\n'
+        f'      {{"what": "what is wrong, in one sentence", '
+        f'"where": "file/symbol or artifact id"}}\n'
+        f"    ]\n"
+        f"  }},"
+    )
+
+
+def defect_report_prompt_block() -> str:
+    """The demand itself: state findings AFFIRMATIVELY AND NEGATIVELY, and file a carrier.
+
+    THE WORDING IS IDENTICAL ON BOTH HOSTS BY CONSTRUCTION, because both call this one function.
+    `tests/test_defect_report.py` asserts neither driver inlines the prose, which turns host symmetry
+    into a structural property rather than a diff someone has to eyeball.
+
+    WHERE THIS MAY BE PLACED, stated here because "append it to the prompt" is the obvious wrong
+    move and it BREAKS THE SUITE. `tests/test_reporting_contract.py` asserts that everything from the
+    reporting-contract heading TO THE END of each built prompt is byte-equal to
+    `reporting_contract.contract_text()`, on both hosts. So this block must go BEFORE
+    `reporting_contract.prompt_block()`, which must remain the LAST thing in the prompt.
+    `tests/test_lane_prompt_purity.py` additionally digest-pins a bounded EARLY block (from
+    `Plan file at launch:` to `Prior attempt:`), so this must not land inside that window either.
+    The region around the outcome-JSON literal satisfies both.
+
+    THE CARRIER RULE IS THE MAINTAINER'S RULING AND DELEGATES NO JUDGEMENT (plan E-03). ALWAYS file
+    a backlog item; a spec is supporting material and NEVER the carrier. The wording deliberately
+    contains no branch inviting the agent to decide a case is "just a spec": that judgement is the
+    failure mode the rule exists to prevent, and the maintainer said plainly they do not know when
+    "just a spec" would be enough.
+
+    REPORTING OUTRANKS FILING, also deliberately. An unreported finding is the defect this whole
+    mechanism closes, so a reported-but-unfiled finding is strictly better than silence.
+    """
+
+    return f"""
+## Defect report (REQUIRED, both directions)
+
+State whether this turn found any bugs, gaps or concerns. Finding NOTHING is a REPORTABLE RESULT
+that you must state affirmatively, not an absence you may leave implicit: write
+`"state": "{DEFECT_REPORT_NONE_FOUND}"` with an empty `findings` list. Omitting the report is not
+the same answer and will cost you a follow-up question.
+
+WHAT COUNTS, beyond this plan's own unmet requirements (which stay in `incomplete_requirements`): a
+bug in adjacent code, a gap between a spec and its implementation, and a design concern you had to
+work around. Keep each finding to `what` and `where`.
+
+FOR EACH FINDING, FILE A BACKLOG ITEM with `aw backlog new`, so the defect has a durable carrier a
+gate can see. Write a spec too where a spec is genuinely what the work needs, and reference it, but
+a spec is supporting material and is NEVER the carrier. If filing fails or is outside your scope,
+STILL REPORT THE FINDING: reporting outranks filing.
+"""
+
+
+class DefectReportVerdict(NamedTuple):
+    """The validator's structured answer. NEVER an exception (see `validate_defect_report`).
+
+    Fields:
+      * `verdict`: one of :data:`DEFECT_VERDICTS`.
+      * `state`: one of :data:`DEFECT_REPORT_STATES`, the TRI-STATE a consumer branches on.
+      * `findings`: the NORMALIZED findings, each a dict with exactly :data:`DEFECT_FINDING_KEYS`.
+      * `coerced`: whether any input had to be coerced into the normalized form.
+      * `coercions`: WHAT was coerced, so a silent coercion cannot hide a schema miss.
+      * `violation`: a short statement of what was missing or ambiguous, fed back verbatim to the
+        agent by the re-ask. Empty when the report was usable.
+    """
+
+    verdict: str
+    state: str
+    findings: tuple[dict[str, str], ...]
+    coerced: bool
+    coercions: tuple[str, ...]
+    violation: str
+
+    @property
+    def needs_reask(self) -> bool:
+        """True only for ABSENT-OR-AMBIGUOUS. An affirmative NONE-FOUND is never re-asked.
+
+        Plan OQ-03, resolved: distrusting "I found nothing" after a large turn would punish the
+        honest affirmative answer this mechanism exists to elicit (the omitter gets the same
+        treatment, so the incentive to answer disappears) and would convert a bounded one-shot into a
+        routine second turn on most items.
+        """
+
+        return self.verdict == DEFECT_VERDICT_ABSENT_OR_AMBIGUOUS
+
+
+def _normalize_finding(raw: Any) -> tuple[dict[str, str] | None, str | None]:
+    """One finding, normalized. Returns `(finding, coercion_note)`; `finding` is None if unusable.
+
+    COERCION IS THE EXPECTED PATH, NOT A TOLERATED EXCEPTION. Measured: every entry agents wrote
+    into the sibling list field was a bare string, because the literal never showed an element. A
+    bare string carries the SAME FACT in prose, so it is accepted into the normalized form and the
+    coercion is RECORDED. Discarding it would throw away a real finding on a formatting technicality
+    and reproduce the silence this whole mechanism exists to end.
+    """
+
+    if isinstance(raw, dict):
+        what = str(raw.get("what") or "").strip()
+        where = str(raw.get("where") or "").strip()
+        if not what:
+            # A dict with no `what` says nothing. Fall back to any single scalar it does carry
+            # rather than dropping it, and record the coercion.
+            scalars = [
+                str(v).strip()
+                for v in raw.values()
+                if isinstance(v, (str, int, float)) and str(v).strip()
+            ]
+            if not scalars:
+                return None, "a finding object carried no readable text"
+            what = scalars[0]
+            return (
+                {"what": what, "where": where or DEFECT_WHERE_UNSPECIFIED},
+                f"a finding object had no `what`; used {what!r}",
+            )
+        if not where:
+            return (
+                {"what": what, "where": DEFECT_WHERE_UNSPECIFIED},
+                f"a finding object had no `where`; recorded as {DEFECT_WHERE_UNSPECIFIED!r}",
+            )
+        return {"what": what, "where": where}, None
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return None, "a finding was an empty string"
+        return (
+            {"what": text, "where": DEFECT_WHERE_UNSPECIFIED},
+            f"a finding was a bare string rather than an object: {text[:80]!r}",
+        )
+    if isinstance(raw, (int, float, bool)):
+        return (
+            {"what": str(raw), "where": DEFECT_WHERE_UNSPECIFIED},
+            f"a finding was a bare {type(raw).__name__} rather than an object",
+        )
+    return None, f"a finding was an unusable {type(raw).__name__}"
+
+
+def validate_defect_report(outcome: Any) -> DefectReportVerdict:
+    """Validate the defect report PER FIELD, tolerantly, and NEVER raise.
+
+    THE MEASURED DEFECT IS SHAPE, NOT SYNTAX, and that decides the design. Across the agent-written
+    outcome corpus there were ZERO malformed JSON files, ZERO markdown fences and ZERO unterminated
+    strings, while the intended ELEMENT shape of a list field was missed in every single entry. So
+    this validates TYPES and coerces what is safely coercible; it does not re-parse or reformat.
+
+    NEVER RAISES, AND NEVER FAILS THE TURN BY ITSELF. A validator that crashes on unexpected input is
+    a validator that gets wrapped in a bare `except` and neutered, which is exactly what happened to
+    the spec-edit announcement in `oc_runipd` (and why plan `st5klo` exists to undo it). It returns a
+    verdict for every input, including `None`, a string, or a list.
+
+    Accepts either the whole outcome dict or the report itself, because a caller holding one should
+    not have to know which shape the other expects.
+    """
+
+    report: Any = None
+    if isinstance(outcome, dict):
+        if DEFECT_REPORT_KEY in outcome:
+            report = outcome.get(DEFECT_REPORT_KEY)
+        elif "state" in outcome or "findings" in outcome:
+            report = outcome
+        else:
+            return DefectReportVerdict(
+                verdict=DEFECT_VERDICT_ABSENT_OR_AMBIGUOUS,
+                state=DEFECT_REPORT_ABSENT,
+                findings=(),
+                coerced=False,
+                coercions=(),
+                violation=(
+                    f"the outcome JSON carries no `{DEFECT_REPORT_KEY}` key, so it is unknown "
+                    "whether you looked for bugs, gaps or concerns and found none, or never looked"
+                ),
+            )
+    else:
+        report = outcome
+
+    if report is None:
+        return DefectReportVerdict(
+            verdict=DEFECT_VERDICT_ABSENT_OR_AMBIGUOUS,
+            state=DEFECT_REPORT_ABSENT,
+            findings=(),
+            coerced=False,
+            coercions=(),
+            violation=(
+                f"`{DEFECT_REPORT_KEY}` was null, which does not say whether you found nothing or "
+                "never looked"
+            ),
+        )
+
+    coercions: list[str] = []
+
+    # A bare string or a bare list where the object was expected: the SAME tolerance the element
+    # shape gets, for the same reason. `"defect_report": "none found"` is a real answer.
+    if isinstance(report, str):
+        text = report.strip()
+        lowered = text.lower()
+        if not text:
+            return DefectReportVerdict(
+                verdict=DEFECT_VERDICT_ABSENT_OR_AMBIGUOUS,
+                state=DEFECT_REPORT_ABSENT,
+                findings=(),
+                coerced=False,
+                coercions=(),
+                violation=(
+                    f"`{DEFECT_REPORT_KEY}` was an empty string, which states neither findings nor "
+                    "an affirmative none-found"
+                ),
+            )
+        if _reads_as_none_found(lowered):
+            return DefectReportVerdict(
+                verdict=DEFECT_VERDICT_COERCED,
+                state=DEFECT_REPORT_NONE_FOUND,
+                findings=(),
+                coerced=True,
+                coercions=(
+                    f"`{DEFECT_REPORT_KEY}` was the bare string {text[:80]!r}, read as an "
+                    f"affirmative {DEFECT_REPORT_NONE_FOUND}",
+                ),
+                violation="",
+            )
+        report = {"state": DEFECT_REPORT_FOUND, "findings": [text]}
+        coercions.append(
+            f"`{DEFECT_REPORT_KEY}` was a bare string rather than an object; read as one finding"
+        )
+    elif isinstance(report, list):
+        report = {
+            "state": DEFECT_REPORT_FOUND if report else DEFECT_REPORT_ABSENT,
+            "findings": report,
+        }
+        coercions.append(
+            f"`{DEFECT_REPORT_KEY}` was a bare list rather than an object; read as `findings`"
+        )
+
+    if not isinstance(report, dict):
+        return DefectReportVerdict(
+            verdict=DEFECT_VERDICT_ABSENT_OR_AMBIGUOUS,
+            state=DEFECT_REPORT_ABSENT,
+            findings=(),
+            coerced=False,
+            coercions=(),
+            violation=(
+                f"`{DEFECT_REPORT_KEY}` was a {type(report).__name__}; it must be an object with "
+                "`state` and `findings`"
+            ),
+        )
+
+    raw_findings = report.get("findings")
+    findings: list[dict[str, str]] = []
+    if raw_findings is None:
+        pass
+    elif isinstance(raw_findings, list):
+        for entry in raw_findings:
+            normalized, note = _normalize_finding(entry)
+            if note:
+                coercions.append(note)
+            if normalized is not None:
+                findings.append(normalized)
+    else:
+        normalized, note = _normalize_finding(raw_findings)
+        coercions.append(
+            f"`findings` was a {type(raw_findings).__name__} rather than a list"
+            + (f"; {note}" if note else "")
+        )
+        if normalized is not None:
+            findings.append(normalized)
+
+    raw_state = report.get("state")
+    state = str(raw_state).strip().lower() if raw_state is not None else ""
+
+    if state in (DEFECT_REPORT_FOUND, DEFECT_REPORT_NONE_FOUND):
+        pass
+    elif state and _reads_as_none_found(state):
+        coercions.append(f"`state` was {state!r}, read as {DEFECT_REPORT_NONE_FOUND}")
+        state = DEFECT_REPORT_NONE_FOUND
+    elif state and findings:
+        coercions.append(f"`state` was {state!r}, read as {DEFECT_REPORT_FOUND}")
+        state = DEFECT_REPORT_FOUND
+    elif not state and findings:
+        # Findings without a state is unambiguous in substance: something WAS found.
+        coercions.append(
+            f"`state` was missing but {len(findings)} finding(s) were present; read as "
+            f"{DEFECT_REPORT_FOUND}"
+        )
+        state = DEFECT_REPORT_FOUND
+    else:
+        # No usable state AND no findings. This is EXACTLY the ambiguity the whole mechanism
+        # exists to end, so it must not be quietly read as none-found.
+        return DefectReportVerdict(
+            verdict=DEFECT_VERDICT_ABSENT_OR_AMBIGUOUS,
+            state=DEFECT_REPORT_ABSENT,
+            findings=(),
+            coerced=bool(coercions),
+            coercions=tuple(coercions),
+            violation=(
+                f"`{DEFECT_REPORT_KEY}` carried no findings and no explicit "
+                f'`"state": "{DEFECT_REPORT_NONE_FOUND}"`, so an empty report is '
+                "indistinguishable from an unasked question"
+            ),
+        )
+
+    if state == DEFECT_REPORT_NONE_FOUND and findings:
+        # A contradiction, resolved TOWARD the findings: they are the evidence, the label is not.
+        coercions.append(
+            f"`state` said {DEFECT_REPORT_NONE_FOUND} while {len(findings)} finding(s) were "
+            f"present; read as {DEFECT_REPORT_FOUND}"
+        )
+        state = DEFECT_REPORT_FOUND
+
+    if state == DEFECT_REPORT_FOUND and not findings:
+        return DefectReportVerdict(
+            verdict=DEFECT_VERDICT_ABSENT_OR_AMBIGUOUS,
+            state=DEFECT_REPORT_ABSENT,
+            findings=(),
+            coerced=bool(coercions),
+            coercions=tuple(coercions),
+            violation=(
+                f"`state` said {DEFECT_REPORT_FOUND} but `findings` was empty, so what was found "
+                "is unknown"
+            ),
+        )
+
+    return DefectReportVerdict(
+        verdict=DEFECT_VERDICT_COERCED if coercions else DEFECT_VERDICT_VALID,
+        state=state,
+        findings=tuple(findings),
+        coerced=bool(coercions),
+        coercions=tuple(coercions),
+        violation="",
+    )
+
+
+#: Phrases a bare "nothing to report" answer takes. Kept SMALL and used only where the alternative is
+#: discarding an answer the agent plainly gave; it is never used to invent a none-found from silence.
+_NONE_FOUND_PHRASES: tuple[str, ...] = (
+    "none-found",
+    "none found",
+    "none",
+    "no findings",
+    "nothing found",
+    "nothing to report",
+    "no defects",
+    "no bugs",
+    "no issues",
+    "clean",
+)
+
+
+def _reads_as_none_found(lowered: str) -> bool:
+    """Whether a lowercased scalar is an affirmative none-found rather than a finding."""
+
+    text = lowered.strip().strip(".!").strip()
+    if text in _NONE_FOUND_PHRASES:
+        return True
+    return len(text) <= 40 and any(p in text for p in _NONE_FOUND_PHRASES)
+
+
+def defect_reask_message(verdict: DefectReportVerdict) -> str:
+    """The re-ask, naming the SPECIFIC violation rather than repeating the original instruction.
+
+    A generic re-ask invites the same output again, so the violation the validator recorded is fed
+    back verbatim. This is also where a SHAPE violation gets its second chance to be stated
+    correctly.
+    """
+
+    return f"""Your turn is finished and its outcome file is written, but the REQUIRED defect report
+is missing or unusable, so one question remains.
+
+WHAT WAS WRONG: {verdict.violation}
+
+Answer it now by REWRITING ONLY the `{DEFECT_REPORT_KEY}` object in the outcome JSON you already
+wrote. Change nothing else in that file, make no further code edits, and create no commit.
+
+If you found bugs, gaps or concerns, say so:
+
+{defect_report_schema_literal()}
+
+If you looked and found nothing, say THAT, affirmatively:
+
+  "{DEFECT_REPORT_KEY}": {{"state": "{DEFECT_REPORT_NONE_FOUND}", "findings": []}},
+
+An empty or missing report is not an answer: it cannot be told apart from never having looked.
+"""
+
+
+#: Item statuses for which a re-ask is NOT billed, because the turn has nothing to report ON.
+#: A turn that never started work, was stopped, or was blocked before doing anything should not be
+#: charged for a follow-up question about findings it had no opportunity to make.
+DEFECT_REASK_SKIPPED_STATUSES: frozenset[str] = frozenset(
+    {
+        "blocked",
+        "dependency-blocked",
+        "not-attempted",
+        "interrupted",
+        "unknown_outcome",
+        "queued",
+        "running",
+    }
+)
+
+
+def defect_reask_is_warranted(
+    verdict: DefectReportVerdict,
+    *,
+    disposition: str | None,
+    session_id: str | None,
+    already_reasked: bool = False,
+) -> tuple[bool, str]:
+    """Decide whether to spend ONE follow-up turn. Returns `(warranted, reason)`.
+
+    BOUNDED AT EXACTLY ONE ATTEMPT, by contract. An unbounded or multi-attempt loop converts a
+    missing field into an open-ended spend, so `already_reasked` closes the gate permanently for this
+    item. If the single re-ask also yields nothing, THAT fact is recorded durably: "the agent was
+    asked and did not answer" is itself a finding a human should see, and it is materially different
+    from "nobody asked".
+
+    THE THREE EXISTING SESSION RULES ARE OBEYED HERE RATHER THAN REDISCOVERED AT RUNTIME:
+
+      1. AN ISOLATED TURN IS ALWAYS A FRESH SESSION, by deliberate decision (`isolated_turn =
+         bool(work_dir)` in `oc_runipd.run_opencode`, mirrored in `agy_runipd.execute_item`), because
+         an opencode session carries its own project binding that OVERRIDES `--dir`; four consecutive
+         lanes were lost proving it. So on an isolated lane turn there may be NO session to resume.
+         This function therefore REFUSES when no session id was observed rather than resuming into
+         the wrong worktree: no session, no re-ask. The report is still recorded ABSENT, which is
+         itself the honest observation.
+      2. `max_items_per_session` (default 4) ROTATES a session once its turn count is reached, so the
+         session a re-ask wants may already have been rotated away. The caller passes the session id
+         it ACTUALLY observed for THIS attempt (`attempt["session_id"]`), never a set-wide one, so a
+         rotated-away session cannot be resumed by accident.
+      3. A RE-ASK CONSUMES A TURN AGAINST THAT ROTATION BUDGET, and it is COUNTED: the callers reuse
+         their normal launch path, which is what increments `session_turn_counts`. Stated explicitly
+         because an unstated answer here is a live-run bug, not a detail. The consequence is
+         deliberate and acceptable: a re-asked item may rotate its session one item earlier.
+    """
+
+    if not verdict.needs_reask:
+        return False, "the report was usable; no follow-up needed"
+    if already_reasked:
+        return False, "the single permitted re-ask has already been spent"
+    status = (disposition or "").strip()
+    if status in DEFECT_REASK_SKIPPED_STATUSES:
+        return False, f"the turn did no reportable work (disposition {status!r})"
+    if not session_id:
+        return (
+            False,
+            "no resumable session was observed for this turn, so the same-session re-ask is "
+            "impossible (an isolated turn is always a fresh session by design)",
+        )
+    return True, "the report is absent or ambiguous and the turn's session is resumable"
+
+
+def read_defect_report_outcome(outcome_path: Path | str | None) -> Any:
+    """Re-read an agent-written outcome file, returning `None` rather than raising on any failure.
+
+    Used by the re-ask to see what the follow-up produced. Absence, invalid JSON and an unreadable
+    file are all legitimate OBSERVATIONS here (each ends up recorded as a still-absent report), so
+    none of them may propagate as an exception and kill the turn.
+    """
+
+    if outcome_path is None:
+        return None
+    path = Path(outcome_path)
+    try:
+        if not path.is_file():
+            return None
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def resume_via_launcher(
+    launcher: Callable[..., Any],
+    launch_args: Sequence[Any],
+    launch_kwargs: dict[str, Any],
+) -> Any:
+    """Call a host's OWN launcher for the follow-up turn, by NAME injection.
+
+    THE INJECTION IS THE POINT, and it is the established local pattern rather than a novelty: five
+    symbols in this module already receive a host dependency as a parameter (`run_checked` gets
+    `env_builder`, `save_state` gets `write_report`, and so on) precisely so a shared body can reach
+    host-specific behavior without either driver forking the body.
+
+    IT ALSO KEEPS A MEASURED PROMISE. `tests/test_oc_runipd.py::...
+    test_one_argv_builder_serves_both_call_sites` and the telemetry wiring tests pin that each host's
+    launcher has EXACTLY TWO callers (the executor and the verifier), so no third launch path can
+    appear unnoticed and inherit the wrong frozen launch profile. A re-ask that CALLED
+    `run_opencode(...)` inside the driver would be that third caller; passing the launcher as a NAME
+    satisfies the re-ask without adding one.
+
+    THE POSITIONAL SHAPE IS PRESERVED DELIBERATELY, and this is not a style choice. Every existing
+    driver test double replaces the launcher with a function whose leading parameters are POSITIONAL
+    (`def fake_run(state, rd, item, plan_path, prompt_path, attempt_no, **kwargs)`), so a shared
+    caller that passed those by keyword would raise `TypeError` against a dozen existing fakes:
+    measured, ten integration tests broke that way on the first attempt. `launch_args` therefore
+    carries the host's own positional prefix and `launch_kwargs` only what each host spells
+    differently (OpenCode's `resume_session=<id>` versus Antigravity's `session_id=<id>` plus
+    `use_continue=False`), so this function holds no host knowledge at all.
+    """
+
+    return launcher(*launch_args, **launch_kwargs)
+
+
+def perform_defect_reask(
+    *,
+    verdict: DefectReportVerdict,
+    prompt_path: Path,
+    outcome_path: Path | str | None,
+    resume: Callable[..., Any],
+    recollect: Callable[[], Any] | None = None,
+    session_turn_counts: dict[str, int] | None = None,
+    session_id: str | None = None,
+) -> tuple[DefectReportVerdict, int]:
+    """Spend the ONE permitted follow-up turn in the SAME session, then re-validate.
+
+    Returns `(verdict_after, exit_code)`. `verdict_after` is the re-validated report, which may still
+    be ABSENT-OR-AMBIGUOUS: that outcome is RECORDED rather than retried, because "the agent was
+    asked and did not answer" is itself a finding a human should see and is materially different from
+    "nobody asked". THIS FUNCTION NEVER LOOPS; boundedness is structural, not a counter.
+
+    THE RESUME PRIMITIVE IS THE HOST'S OWN, INJECTED AS A NAME. `oc_runipd` resumes with
+    `--session <id>` and `agy_runipd` with `--conversation <id>` (falling back to `--continue`), so a
+    single hardcoded flag here would silently fail on one host: precisely the one-sided-guard defect
+    class this repository has been bitten by. The caller therefore binds its OWN launcher (with
+    `functools.partial` over `resume_via_launcher`, so the launcher appears as a NAME and no launcher
+    call-site count moves, exactly as `run_checked` is injected), and this function calls
+    `resume(prompt_path)` with the follow-up prompt as its ONE argument.
+
+    `recollect` exists for an ISOLATED turn: the worker rewrites the outcome file inside its lane, so
+    the driver must collect it again before re-reading. Bound by the caller to its lane collection,
+    `None` for a non-isolated turn.
+
+    `session_turn_counts` implements the third session rule EXPLICITLY: a re-ask CONSUMES a turn
+    against `max_items_per_session`, so the caller passes the live counter for a non-isolated turn and
+    the bump happens HERE, in one place, rather than being an unstated live-run behavior.
+    """
+
+    exit_code = 0
+    result = resume(prompt_path)
+    if isinstance(result, tuple) and result:
+        try:
+            exit_code = int(result[0])
+        except (TypeError, ValueError):
+            exit_code = 0
+    elif isinstance(result, int):
+        exit_code = result
+
+    if session_turn_counts is not None and session_id:
+        session_turn_counts[session_id] = session_turn_counts.get(session_id, 0) + 1
+
+    if recollect is not None:
+        # A failed collection must not discard the turn: the re-read below simply finds the older
+        # copy and the report stays recorded as absent, which is the honest observation.
+        with contextlib.suppress(Exception):
+            recollect()
+
+    after = validate_defect_report(read_defect_report_outcome(outcome_path))
+    if after.needs_reask:
+        # Preserve WHY the follow-up failed, so the record names the second violation and not the
+        # first: "asked, still silent" is the fact a human needs.
+        after = after._replace(
+            violation=(
+                f"re-asked once and the report is still unusable: {after.violation}"
+                if after.violation
+                else "re-asked once and the report is still unusable"
+            )
+        )
+    return after, exit_code
+
+
+def defect_report_record(
+    verdict: DefectReportVerdict,
+    *,
+    reasked: bool = False,
+    reask_reason: str = "",
+    reask_verdict: DefectReportVerdict | None = None,
+) -> dict[str, Any]:
+    """The NORMALIZED record persisted on the run record, beside the other per-item results.
+
+    THE LOCATION AND SHAPE, written down here because this is the CONTRACT a consumer codes against
+    (plan `rnkqrc`, `durablecapture-01`, is the transition gate that will read it):
+
+      * LOCATION: `state["queue"][i]["defect_report"]` in `<run_dir>/state.json`, written at the
+        SAME per-item seam as `item["last_outcome"]`/`item["status"]`/`item["verification_status"]`,
+        by BOTH host drivers. `<run_dir>` is `.aw/records/runs/<run-id>/`, which is GITIGNORED, so a
+        TEST must build its records in a tmp_path fixture and never assert against the live tree.
+      * SHAPE: `{"state", "verdict", "findings", "coerced", "coercions", "reasked",
+        "reask_reason", "reask_state", "reask_verdict"}`.
+
+    ALL FOUR FACTS A GATE NEEDS ARE PRESENT AND SEPARATE: the tri-state (`state`), the normalized
+    findings (`findings`), whether a coercion occurred (`coerced`/`coercions`), and whether a re-ask
+    happened and what it produced (`reasked`/`reask_state`/`reask_verdict`). A gate that must
+    distinguish "no defects found" from "never asked" needs all four, and it must be able to tell
+    "asked and answered" from "asked and still silent".
+
+    NO GATE LOGIC LIVES HERE. This function produces the record; refusing a transition against it is
+    `rnkqrc`'s job. HONEST LIMIT worth stating: that plan declares only `check_engine.py`,
+    `ipd_lint.py`, `ipd_schema.py` and its test file, and its checks read the PLAN FILE's typed
+    fields, so nothing it has scoped reads a run record yet. This record is therefore NECESSARY but
+    not SUFFICIENT for that handoff, and the reader is unscoped on ITS side of the seam.
+    """
+
+    final = reask_verdict or verdict
+    return {
+        "state": final.state,
+        "verdict": final.verdict,
+        "findings": [dict(f) for f in final.findings],
+        "coerced": bool(verdict.coerced or final.coerced),
+        "coercions": list(verdict.coercions)
+        + list(reask_verdict.coercions if reask_verdict else ()),
+        "reasked": bool(reasked),
+        "reask_reason": reask_reason,
+        "reask_state": (reask_verdict.state if reask_verdict is not None else None),
+        "reask_verdict": (reask_verdict.verdict if reask_verdict is not None else None),
+    }
