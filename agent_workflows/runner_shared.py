@@ -3920,6 +3920,110 @@ def read_set_membership(repo: Path, setid: str) -> SetMembership:
     )
 
 
+def _split_table_row_naive(line: str) -> list[str]:
+    """Split a `| a | b |` row on every pipe, exactly as this module has always done.
+
+    Kept as a named function ONLY so :func:`child_table_rows` can take a splitter and both consumers
+    can share ONE row-walk. It is NOT backtick-aware: a pipe inside a backtick span shifts every
+    later column, which is why the digest uses the other splitter (see :func:`child_table_rows`).
+    """
+
+    match = _TABLE_ROW_RE.match(line)
+    body = match.group("body") if match else line
+    return [c.strip() for c in body.split("|")]
+
+
+def _split_table_row_backtick_aware(line: str) -> list[str]:
+    """Split a row WITHOUT breaking on a pipe inside a backtick span.
+
+    THE SPLITTER ITSELF IS NOT RE-IMPLEMENTED HERE. ``ipd_set_plan._split_table_row`` already exists
+    for exactly this reason (``setgraph`` E-01: a backticked pipe silently rejected four
+    orchestrators whose header was canonical), and this Set spends an item per child on NOT forking a
+    symbol. So this is a thin adapter over that one definition, imported LAZILY for the reason the
+    section note above gives (that module's closure is heavy and most runs never reach this code).
+    Importing a private name across modules is the deliberate trade: the alternative is a second copy
+    of a 25-line parser whose two versions would silently disagree, which is precisely the failure
+    ``2r306y``/``818uru`` made this module's admission rule about. ``ipd_set_plan`` imports
+    ``runner_shared`` only lazily inside one CLI function, so there is no module-level cycle.
+
+    Falls back to the naive split if that private helper is ever renamed, because a digest that
+    RAISES would take down a run over a table-formatting detail; a digest computed with the naive
+    split is still stable and still child-table sensitive, merely coarser on a backticked pipe.
+    """
+
+    try:
+        from agent_workflows.ipd_set_plan import (  # noqa: PLC0415 - see the docstring
+            _split_table_row,
+        )
+    except Exception:  # pragma: no cover - defensive: never fail a run over a splitter
+        return _split_table_row_naive(line)
+    return [c.strip() for c in _split_table_row(line)]
+
+
+def child_table_rows(
+    orchestrator_text: str, *, backtick_aware: bool = True
+) -> tuple[tuple[str, ...], ...]:
+    """Every row of an orchestrator's `## Child IPDs...` table, as FULL CELL TUPLES.
+
+    THE HEADER ROW IS INCLUDED and rows come back in DOCUMENT ORDER; only the markdown
+    alignment/separator row (`|---|:--:|`) is dropped, because it is layout rather than content.
+    Nothing else is filtered: a caller that wants only Order tokens takes cell 0 itself, which is
+    what :func:`parse_declared_child_orders` now does.
+
+    WHY THIS EXISTS AS ITS OWN FUNCTION (orchprobe-02 `8tgg6g` E-01). `parse_declared_child_orders`
+    already located this section by schema heading, matched its rows and skipped its alignment row,
+    and then discarded every cell but the first. The probe cache needs the SAME rows with ALL their
+    cells, and a second scanner would give the retirement gate and the cache two different
+    definitions of "a child row". So the row-walk is factored here and BOTH call it.
+
+    WHY THE CELL TEXT AND NOT A PARSED GRAPH, which is the whole reason the probe digest can exist.
+    ``ipd_set_plan.parse_child_table`` returns ``{order: (dep_orders,)}`` and nothing else, so
+    swapping a child's Id or rewriting its description leaves its result BYTE-IDENTICAL (measured on
+    `yeh7gc`: ``{'1': (), '2': (), '3': ()}`` before and after both edits). A cache keyed on that
+    would be blind to exactly the edits a coverage question turns on, and since the probe SENDS the
+    child table as its payload, an edit the key ignores would serve a STALE verdict under apparent
+    authority. Keyed on cell text, all three edits move the key.
+
+    ``backtick_aware`` selects the splitter, and the DEFAULT is the safe one:
+
+      * ``True``  -> ``ipd_set_plan._split_table_row``, which does not break on a pipe inside a
+        backtick span. Required for an ALL-CELLS consumer: measured 2026-09-14, three live
+        orchestrators (`94dhrt`, `mvz3d2`, `rreixg`) contain such a row, one splitting 12 cells
+        instead of 4, so a backticked plan filename would fragment into bogus columns.
+      * ``False`` -> the historical naive ``split("|")``, preserved for
+        :func:`parse_declared_child_orders`, which reads only cell 0. Measured on the same corpus,
+        cell 0 is IDENTICAL under both splitters for every row of every orchestrator, so that
+        function's behavior is bit-for-bit what it was; it is deliberately left on the naive split
+        rather than being changed by a plan whose subject is the cache.
+    """
+
+    from agent_workflows import (
+        ipd_schema as _ipd_schema,
+    )  # local: see the section note above
+
+    heading = getattr(_ipd_schema, "H_CHILD_IPDS", _CHILD_IPDS_HEADING)
+    split = (
+        _split_table_row_backtick_aware if backtick_aware else _split_table_row_naive
+    )
+    rows: list[tuple[str, ...]] = []
+    in_section = False
+    for raw in (orchestrator_text or "").splitlines():
+        if raw.startswith("## "):
+            in_section = raw[3:].strip() == heading
+            continue
+        if not in_section:
+            continue
+        if not _TABLE_ROW_RE.match(raw):
+            continue
+        cells = split(raw)
+        if not cells:
+            continue
+        if all(_TABLE_SEPARATOR_CELL_RE.match(c or "-") for c in cells if c != ""):
+            continue  # alignment row: layout, not a declared child
+        rows.append(tuple(cells))
+    return tuple(rows)
+
+
 def parse_declared_child_orders(orchestrator_text: str) -> tuple[tuple[str, ...], bool]:
     """Read the Order tokens an orchestrator's child table DECLARES.
 
@@ -3945,33 +4049,21 @@ def parse_declared_child_orders(orchestrator_text: str) -> tuple[tuple[str, ...]
     token is the word `last`. Those are returned as tokens like any other; the CALLER resolves them,
     and since neither can ever resolve to an Order they refuse. That keeps this function a parser and
     puts the policy in one place.
+
+    THE ROW-WALK IS NOW SHARED with the probe cache's digest (orchprobe-02 `8tgg6g` E-01): it comes
+    from :func:`child_table_rows`, so the retirement gate and the cache cannot disagree about what a
+    child row IS. This function keeps its OWN behavior exactly: it asks for the historical naive
+    split (`backtick_aware=False`), because it reads only cell 0 and cell 0 is measured IDENTICAL
+    under both splitters across every live orchestrator, so a plan about the cache does not get to
+    change what this gate parses.
     """
 
-    from agent_workflows import (
-        ipd_schema as _ipd_schema,
-    )  # local: see the section note above
-
-    heading = getattr(_ipd_schema, "H_CHILD_IPDS", _CHILD_IPDS_HEADING)
     tokens: list[str] = []
-    in_section = False
     saw_row = False
-    for raw in (orchestrator_text or "").splitlines():
-        if raw.startswith("## "):
-            in_section = raw[3:].strip() == heading
-            continue
-        if not in_section:
-            continue
-        row = _TABLE_ROW_RE.match(raw)
-        if not row:
-            continue
-        cells = [c.strip() for c in row.group("body").split("|")]
-        if not cells:
-            continue
-        first = cells[0]
+    for cells in child_table_rows(orchestrator_text, backtick_aware=False):
+        first = cells[0] if cells else ""
         if not first:
             continue
-        if all(_TABLE_SEPARATOR_CELL_RE.match(c or "-") for c in cells if c != ""):
-            continue  # alignment row: layout, not a declared child
         saw_row = True
         # Strip the decorations a prose table uses around a token (`` `01` ``, `**01**`).
         token = first.strip("`*_ ").strip()
@@ -4129,6 +4221,365 @@ def evaluate_set_retirement(repo: Path, setid: str) -> RetirementDecision:
             f"child(ren) are {SET_RETIREMENT_DONE_STATUS} ({executed}), and every row of the "
             "orchestrator's child table resolves to a plan"
         ),
+    )
+
+
+# ==================================================================================================
+# orchprobe-02 (`8tgg6g`): THE ORCHESTRATOR PROBE VERDICT CACHE, KEYED ON CONTENT
+# ==================================================================================================
+#
+# WHAT THIS IS FOR. Child 03 (`m7gvuz`) asks a MODEL whether an orchestrator carries work no child
+# covers. That answer costs tokens and time, and re-asking it about an UNMODIFIED orchestrator buys
+# nothing, so the verdict is cached against a digest of the orchestrator's content.
+#
+# WHY NOT A WHOLE-FILE HASH, which is the obvious key and a MEASURED dead end. `ipd_lifecycle`
+# already tried it: `plan_content_digest` hashes exact bytes, and `frozen_region_digest` exists
+# precisely because that made a begin receipt "go stale on every CORRECT execution" (backlog
+# `xmqv5l`). A conforming executor MUST tick checkboxes, fill `Observed evidence` and append
+# `## Workflow history`, so the byte digest changed while the reviewed contract had not. A
+# byte-keyed probe cache would repeat that error and re-spend on every tick.
+#
+# WHY NOT REUSE `frozen_region_digest`, since it already solves most of this. Measured at review and
+# RE-MEASURED at execution: it is UNCHANGED by a checkbox tick, a filled `Observed evidence`, an
+# appended history line and a prose edit, and it DOES change on an E-item action edit. Four of the
+# five properties this cache needs already hold. The ONE gap is the one that matters here: a
+# CHILD-TABLE edit leaves it unchanged, because `_requirements_from_plan` reads only `Scope-Paths`,
+# E-item text and V-item text. Child-table sensitivity is therefore the SOLE reason this function
+# exists, which is why `probe_cache_digest` includes the child table's ROW CELLS and why the test
+# module proves that specific difference rather than asserting parity.
+#
+# AND WHY THE ROW CELLS RATHER THAN A PARSED GRAPH. `ipd_set_plan.parse_child_table` returns
+# `{order: (dep_orders,)}`, so an Id swap and a description rewrite leave it BYTE-IDENTICAL while
+# only adding or removing a row moves it. Since child 03 SENDS the child table as the probe payload,
+# a row edit the key ignored would serve a STALE verdict under apparent authority - the one way this
+# cache can be actively wrong rather than merely useless. Payload and key are the same two inputs
+# BY CONSTRUCTION: `probe_cache_payload` is what both read.
+#
+# WHAT IS DELIBERATELY DROPPED relative to `frozen_region_digest`: `Scope-Paths` and V-item text.
+# The probe reasons about neither (it asks whether the parent's ACTIONS are covered by children), so
+# including them would re-probe on an edit that cannot change the answer.
+#
+# THE TWO EXISTING DIGESTS ARE NOT TOUCHED. `frozen_region_digest` is a begin-receipt gate input and
+# `plan_content_digest` is the receipt's identity; changing either would alter an unrelated safety
+# check. This is a THIRD function with a different purpose.
+
+#: The tri-state a cache read returns. `unknown` is what a MISS resolves to, and child 03 must treat
+#: it as blocking: the entire point of the gate is that silence stops meaning safe. A tri-state
+#: rather than `Optional[bool]` because a cached FAIL and an absent entry are different facts and a
+#: caller that cannot tell them apart cannot report the right thing.
+PROBE_VERDICT_PASS = "pass"
+PROBE_VERDICT_FAIL = "fail"
+PROBE_VERDICT_UNKNOWN = "unknown"
+
+#: The store's schema version, so a later shape change can be detected rather than mis-parsed.
+PROBE_VERDICT_STORE_SCHEMA_VERSION = 1
+
+#: The store's filename under the checkout's `.aw/state/runtime/` control tree.
+_PROBE_VERDICT_STORE_NAME = "orchestrator-probe-verdicts.json"
+
+#: How long a recorded verdict stays trustworthy, in days.
+#:
+#: WHY A BOUND AT ALL, given the digest already proves the orchestrator has not changed: a digest
+#: match says nothing about whether the ANSWER is still trustworthy. This cache stores LLM output,
+#: and an unbounded cache of LLM verdicts eventually answers for a model nobody would ask. The store
+#: records WHICH model answered for that reason, and this bound is what makes that record actionable
+#: instead of decorative.
+#:
+#: WHY 30 DAYS. It is long enough that the cache actually saves the re-probes it exists to save
+#: (an orchestrator typically sits in `pending/` for days to weeks), and short enough that a verdict
+#: cannot outlive the model generation that produced it by much - vendor model turnover here is
+#: measured in weeks. Callers may override per read; nothing hardcodes it at a call site.
+DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS = 30
+
+#: Why a stored verdict was NOT served, so a caller can say which guard rejected it rather than only
+#: that something did. Empty when the verdict WAS served.
+PROBE_STALE_MISS = "no-entry"
+PROBE_STALE_CORRUPT = "unreadable-entry"
+PROBE_STALE_MODEL_CHANGED = "model-changed"
+PROBE_STALE_TOO_OLD = "older-than-bound"
+
+
+class ProbeVerdict(NamedTuple):
+    """A cache READ result: the verdict actually served, plus what the store held.
+
+    `verdict` is one of the three `PROBE_VERDICT_*` values and is the ONLY field a gate may act on.
+    `recorded_verdict`, `recorded_at` and `model` describe the stored entry (empty when there was
+    none), so a caller can report "a fail was recorded by <model> on <date> but is past the bound"
+    rather than a bare `unknown`. `stale_reason` is one of the `PROBE_STALE_*` values, or empty when
+    the stored verdict was served as-is.
+
+    READS ONLY. Nothing here writes, and a read never repairs the store.
+    """
+
+    verdict: str
+    recorded_verdict: str = ""
+    recorded_at: str = ""
+    model: str = ""
+    stale_reason: str = ""
+
+    @property
+    def is_hit(self) -> bool:
+        """True iff a stored verdict was SERVED (not merely present)."""
+        return not self.stale_reason
+
+
+def probe_cache_payload(orchestrator_text: str) -> dict[str, Any]:
+    """The exact two inputs the probe reasons about: E-item ACTION TEXT and child-table ROW CELLS.
+
+    Returned as a mapping rather than a string so child 03 can render the SAME object into its
+    prompt that :func:`probe_cache_digest` hashes. That identity is a requirement, not a
+    convenience: if the probe reads something the key does not cover, editing that thing serves a
+    stale verdict.
+
+    Deterministic by construction: E-item texts are SORTED (the digest must not depend on document
+    order of two textually identical items) and rows are kept in DOCUMENT ORDER as tuples-of-cells,
+    since a table's order is part of what it says.
+
+    THE ACTION TEXT IS TAKEN STRUCTURALLY, not by a text rule: `ipd_lint.parse` puts a leaf's
+    indented `- Key: value` sub-fields in `Leaf.fields` and its checkbox in `Leaf.checked`, while
+    `Leaf.text` is the action alone. That is why ticking a box, filling `Observed evidence` or
+    appending history CANNOT move this payload - the same structural exclusion
+    `ipd_lifecycle.frozen_region_digest` relies on, for the same `xmqv5l` reason.
+    """
+
+    from agent_workflows import ipd_lint as _lint  # local: see the section note above
+
+    doc = _lint.parse(orchestrator_text or "")
+    return {
+        "e_items": sorted(
+            lf.text for lf in doc.exec_leaves if lf.kind == "E" and lf.text.strip()
+        ),
+        "child_table_rows": [list(row) for row in child_table_rows(orchestrator_text)],
+    }
+
+
+def probe_cache_digest(orchestrator_text: str) -> str:
+    """A stable sha256 over ONLY what an orchestrator-coverage probe's answer depends on.
+
+    COVERED (a change here re-probes): each E-item's action text, and the child table's row cells
+    (header row included, in document order).
+
+    NOT COVERED (a change here must NOT re-probe): the `[ ]`/`[x]` checkbox marks, `Execution
+    state:`, `Result:`, `Observed evidence:`, `## Workflow history`, and every prose section -
+    INCLUDING the explanatory paragraphs that sit inside the `## Child IPDs...` section beside its
+    table, which are not the table.
+
+    DELIBERATE DIVERGENCE FROM :func:`ipd_lifecycle.frozen_region_digest`, stated because the
+    overlap is large and the difference is the entire justification for a second function:
+
+      * CHILD-TABLE ROWS ARE IN here and are OUT there. That is the only new sensitivity, and it is
+        why this exists: `_requirements_from_plan` reads only `Scope-Paths`, E-item text and V-item
+        text, so a child-table edit does not move the frozen digest (measured).
+      * `Scope-Paths` and V-ITEM TEXT ARE OUT here and are IN there. The probe asks whether the
+        parent's ACTIONS are covered by children; neither a scope entry nor a validation row can
+        change that answer, so including them would re-probe for nothing.
+
+    Serialization is deterministic (`sort_keys=True` over the payload above), so the digest is
+    stable across processes and dict-ordering changes.
+    """
+
+    serialized = json.dumps(
+        probe_cache_payload(orchestrator_text), sort_keys=True, ensure_ascii=True
+    )
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def probe_verdict_store_path(repo_root: Path) -> Path:
+    """The verdict store: `<checkout>/.aw/state/runtime/orchestrator-probe-verdicts.json`.
+
+    ROUTED THROUGH `ipd_lifecycle.checkout_control_root`, never composed as `repo_root/".aw"/...`,
+    for the reason backlog `dh0uno` recorded: an in-lane invocation's `repo_root` is the LANE, so
+    hand-composition produced a SECOND control store the driver could not see and lane teardown then
+    deleted. Every linked worktree of a checkout therefore resolves to ONE store, which is what makes
+    a verdict recorded inside a lane visible to the driver that launched it.
+
+    Sited beside the begin receipts and the finalize journals (`state/`), which is machine-local by
+    framework policy: `install_wizard` raises `InvalidPolicyError` for a policy that would TRACK
+    `state_runtime`, and the framework-owned `.aw/.gitignore` ships an anchored `/state/` entry in
+    BOTH `_AW_GITIGNORE_TEMPLATE` and the `_ensure_aw_gitignore` back-fill (landed 2026-09-12,
+    commit `ee38864c`), so the file is ignored in a fresh ADOPTER and not only here. That matters
+    because the entries record LLM verdicts against machine-local plan content; a tracked store would
+    be a leak-sanitizer concern, not merely untidiness.
+    """
+
+    from agent_workflows import (
+        ipd_lifecycle as _lifecycle,
+    )  # local: see the section note above
+
+    return (
+        _lifecycle.checkout_control_root(repo_root)
+        / "state"
+        / "runtime"
+        / _PROBE_VERDICT_STORE_NAME
+    )
+
+
+def _read_probe_verdict_store(repo_root: Path) -> dict[str, Any]:
+    """The store's `entries` mapping, or `{}` when it is absent, unreadable or malformed.
+
+    A CORRUPT STORE READS AS EMPTY rather than raising. The cache is an optimization: a caller that
+    crashes because a JSON file was truncated by a power loss has converted a saved token into a
+    failed run, and the fail-closed direction here is a MISS, which blocks. So every error path
+    returns `{}` and the gate re-probes.
+    """
+
+    path = probe_verdict_store_path(repo_root)
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    entries = raw.get("entries")
+    if not isinstance(entries, dict):
+        return {}
+    return entries
+
+
+def record_probe_verdict(
+    repo_root: Path,
+    digest: str,
+    verdict: str,
+    *,
+    model: str | None,
+    recorded_at: str | None = None,
+) -> Path:
+    """Store `verdict` under `digest`, with WHEN and WHICH MODEL answered. Returns the store path.
+
+    BOTH POLARITIES ARE CACHED, per the maintainer's OQ-01 ruling, and re-evaluate-on-change is what
+    makes a cached FAIL safe: the remedy for "this orchestrator carries uncovered work" is to move
+    that work into a new child, which edits BOTH the parent's checklist text and its child table,
+    and the digest covers both. So a genuine fix changes the key and discards the entry; a stale
+    complaint cannot be served. `tests/test_orchestrator_probe_cache.py` proves that with the fixture
+    the ruling specified, and proves the test can FAIL by mutating the digest to ignore the rows.
+
+    `model` may be `None`. That is not defensive: `runner_profiles.resolve` returns `model=None` with
+    provenance `host-default` whenever no flag, named profile or per-runner default supplies one, and
+    the runner prints `model=(host default)` for it, so a run frequently cannot name the model it is
+    about to use. It is recorded as an empty string and :func:`read_probe_verdict` decides what an
+    absent model means (see its docstring).
+
+    Writes ATOMICALLY through :func:`atomic_write_json` (the module's existing helper), so a crash
+    mid-write cannot leave a half-written store; and it merges rather than replaces, so recording one
+    verdict never discards another orchestrator's.
+    """
+
+    if verdict not in (PROBE_VERDICT_PASS, PROBE_VERDICT_FAIL):
+        raise ValueError(
+            "a probe verdict store holds only "
+            f"{PROBE_VERDICT_PASS!r} or {PROBE_VERDICT_FAIL!r}; refusing to record "
+            f"{verdict!r}. {PROBE_VERDICT_UNKNOWN!r} is the ABSENCE of an answer and "
+            "recording it would turn 'not probed' into a stored fact"
+        )
+    entries = dict(_read_probe_verdict_store(repo_root))
+    entries[str(digest)] = {
+        "verdict": verdict,
+        "recorded_at": recorded_at or utc_now(),
+        "model": model or "",
+    }
+    path = probe_verdict_store_path(repo_root)
+    atomic_write_json(
+        path,
+        {
+            "schema_version": PROBE_VERDICT_STORE_SCHEMA_VERSION,
+            "entries": entries,
+        },
+    )
+    return path
+
+
+def read_probe_verdict(
+    repo_root: Path,
+    digest: str,
+    *,
+    model: str | None = None,
+    max_age_days: int = DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS,
+    now: "dt.datetime | None" = None,
+) -> ProbeVerdict:
+    """Read the verdict for `digest`, FAILING CLOSED to `unknown`.
+
+    A MISS IS `unknown`, NEVER `pass`. "Not probed" and "probed and cleared" are different facts,
+    and a cache whose miss looked like a pass would silently restore the exact
+    silence-means-safe behavior this gate exists to end.
+
+    THE STALENESS RULE, and it discriminates rather than rejecting everything:
+
+      1. NO ENTRY, or an entry that is not a usable object / carries no recognized verdict ->
+         `unknown` (`no-entry` / `unreadable-entry`).
+      2. OLDER THAN `max_age_days` -> `unknown` (`older-than-bound`). This is the guard that ALWAYS
+         applies, deliberately, and see (3) for why that phrasing is load-bearing.
+      3. RECORDED BY A DIFFERENT MODEL than the caller names -> `unknown` (`model-changed`).
+         A verdict is only as good as its author, so a run using a different model re-probes.
+      4. Otherwise the recorded verdict is served as-is.
+
+    THE `model=None` CASE IS DECIDED, NOT DISCOVERED, because it is the COMMON case: measured,
+    `runner_profiles.resolve` returns `model=None` with provenance `host-default` whenever nothing
+    supplies one. DECISION: when EITHER side's model is unknown (the caller passes `None`/empty, or
+    the entry recorded none), the model comparison is SKIPPED and the TIME BOUND alone decides.
+    The rejected alternative was "an unknown model never matches", i.e. re-probe: it is superficially
+    the fail-closed choice, but since the host-default case is routine it would make the cache miss
+    almost always, which is a cache that does not exist. It would also be a rule whose primary key is
+    a value that is usually absent. The time bound still applies in full, so an unnameable model
+    buys age tolerance and nothing else; the honest limit, stated rather than hidden, is that a
+    verdict from an unnamed model A can be served to a run that is also using an unnamed model B
+    within the bound.
+
+    An unparseable `recorded_at` is treated as INFINITELY OLD (`older-than-bound`), never as fresh:
+    the failure direction for a timestamp we cannot read is to re-probe.
+    """
+
+    entries = _read_probe_verdict_store(repo_root)
+    raw = entries.get(str(digest))
+    if raw is None:
+        return ProbeVerdict(
+            verdict=PROBE_VERDICT_UNKNOWN, stale_reason=PROBE_STALE_MISS
+        )
+    if not isinstance(raw, dict):
+        return ProbeVerdict(
+            verdict=PROBE_VERDICT_UNKNOWN, stale_reason=PROBE_STALE_CORRUPT
+        )
+    recorded = str(raw.get("verdict") or "")
+    recorded_at = str(raw.get("recorded_at") or "")
+    recorded_model = str(raw.get("model") or "")
+    if recorded not in (PROBE_VERDICT_PASS, PROBE_VERDICT_FAIL):
+        return ProbeVerdict(
+            verdict=PROBE_VERDICT_UNKNOWN,
+            recorded_verdict=recorded,
+            recorded_at=recorded_at,
+            model=recorded_model,
+            stale_reason=PROBE_STALE_CORRUPT,
+        )
+
+    stale = ProbeVerdict(
+        verdict=PROBE_VERDICT_UNKNOWN,
+        recorded_verdict=recorded,
+        recorded_at=recorded_at,
+        model=recorded_model,
+    )
+
+    # (2) The bound that always applies.
+    moment = now or dt.datetime.now(dt.timezone.utc)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    try:
+        stamped = dt.datetime.fromisoformat(recorded_at)
+    except ValueError:
+        return stale._replace(stale_reason=PROBE_STALE_TOO_OLD)
+    if stamped.tzinfo is None:
+        stamped = stamped.replace(tzinfo=dt.timezone.utc)
+    if (moment - stamped) > dt.timedelta(days=max_age_days):
+        return stale._replace(stale_reason=PROBE_STALE_TOO_OLD)
+
+    # (3) The model guard, skipped when either side cannot name a model (see the docstring).
+    current_model = (model or "").strip()
+    if current_model and recorded_model and current_model != recorded_model:
+        return stale._replace(stale_reason=PROBE_STALE_MODEL_CHANGED)
+
+    return ProbeVerdict(
+        verdict=recorded,
+        recorded_verdict=recorded,
+        recorded_at=recorded_at,
+        model=recorded_model,
     )
 
 
