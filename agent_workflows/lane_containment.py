@@ -2554,30 +2554,70 @@ def parse_porcelain_paths(porcelain: str) -> set[str]:
 
 
 class CleanBaseResult(NamedTuple):
-    """Whether a checkout is a valid base for an unattended isolated turn (spec R5.4)."""
+    """Whether a checkout is a valid base for an unattended turn (spec R5.4).
+
+    `shared_tree` SELECTS WHICH REASON IS TRUE, and it exists because the original wording was FALSE
+    on the other path (dirtybase `3i0aaz` E-03, finding F-9). The lane message says "unattended
+    ISOLATED turn" and blames a lane "created from HEAD" for silently omitting the dirty paths;
+    neither clause is true of a `--no-isolate-worktree` run, which is not isolated and omits nothing.
+    Emitting a refusal whose stated reason is wrong is worse than the silence it replaces.
+
+    DEFAULTED, so this stays additive: every pre-existing construction, call, and assertion keeps its
+    exact meaning and only the new shared-tree call site opts in.
+    """
 
     clean: bool
     dirty_paths: tuple[str, ...]
+    shared_tree: bool = False
 
     @property
     def reason(self) -> str:
         if self.clean:
             return "target checkout has no dirty tracked paths"
+        paths = ", ".join(self.dirty_paths)
+        if self.shared_tree:
+            # THE SHARED-TREE REASON. The turn will execute IN this tree, so the hazard is not an
+            # omission: it is that the turn's OWN changes cannot be distinguished from the
+            # uncommitted work already here when it commits or finalizes.
+            #
+            # THE REMEDY NAMED IS ONE THE OPERATOR MAY ACTUALLY APPLY, and it deliberately does not
+            # ask anyone to touch work that may not be theirs (the discipline `z2isfg` established
+            # for the begin-time gate): dropping `--no-isolate-worktree` gives the turn a clean
+            # frozen base of its own, which resolves this without disturbing the dirty tree at all.
+            return (
+                "refusing to launch an unattended turn that SHARES this checkout: the target "
+                f"checkout has {len(self.dirty_paths)} dirty TRACKED path(s), so the turn's own "
+                "changes could not be told apart from the uncommitted work already here at commit "
+                f"or finalize time: {paths}. Re-run WITHOUT --no-isolate-worktree, so the turn "
+                "executes in its own worktree against a clean frozen base. If those changes belong "
+                "to another agent or human sharing this checkout, do NOT touch their work; if they "
+                "are yours, land them or set them aside first"
+            )
         return (
             "refusing to launch an unattended isolated turn: the target checkout has "
             f"{len(self.dirty_paths)} dirty TRACKED path(s), which a lane created from HEAD would "
-            "silently omit: " + ", ".join(self.dirty_paths)
+            "silently omit: " + paths
         )
 
 
 def evaluate_clean_base(
     porcelain: str,
+    *,
+    shared_tree: bool = False,
 ) -> CleanBaseResult:
     """Classify `git status --porcelain --untracked-files=no` output for the R5.4 guard.
 
     PURE, taking the text rather than running git, so both drivers share the RULE while each supplies
     its own runner (the two modules deliberately keep separate git wrappers), and so a test can drive
     every case without a repository.
+
+    `shared_tree` CHANGES THE MESSAGE AND NOTHING ELSE (dirtybase `3i0aaz` E-03). The tracked/untracked
+    SCOPE is identical on both paths - untracked content is reported once per run by
+    `runner_shared.report_untracked_dirt_at_run_start` and refuses on NEITHER path - so the only
+    difference between an isolated and a shared-tree refusal is which true sentence it prints. That
+    symmetry is deliberate (the plan's OQ-01, resolved by the maintainer) and is asserted in
+    `tests/test_dirty_base_gate.py`, so a later reader cannot mistake it for an accident of where the
+    check was inserted.
 
     UNTRACKED FILES ARE EXCLUDED BY THE CALLER'S `--untracked-files=no`, and that exclusion is
     DELIBERATE (spec R5.4, plan finding F-4). A lane is created from a COMMIT, so an untracked file's
@@ -2597,7 +2637,9 @@ def evaluate_clean_base(
     integration time because there is no `changed_files` yet.
     """
     dirty = sorted(parse_porcelain_paths(porcelain))
-    return CleanBaseResult(clean=not dirty, dirty_paths=tuple(dirty))
+    return CleanBaseResult(
+        clean=not dirty, dirty_paths=tuple(dirty), shared_tree=bool(shared_tree)
+    )
 
 
 # ---- R5.3: attachment localization ------------------------------------------------------------------
@@ -2716,8 +2758,15 @@ LANE_INVENTORY_STATUS_ARGS = (
 
 #: Porcelain status columns for untracked and ignored entries. Everything else in a porcelain line is
 #: a TRACKED path with an index or worktree modification, i.e. dirty tracked content.
-_PORCELAIN_UNTRACKED = "??"
-_PORCELAIN_IGNORED = "!!"
+#:
+#: PUBLIC (they lost their leading underscore in dirtybase `3i0aaz`) because they are the VOCABULARY
+#: of the format this module is the single decoder of, and a second consumer arrived: the once-per-run
+#: untracked report in `runner_shared` must select `??` entries and reject tracked ones. The
+#: alternatives were both worse than exporting the name - re-spelling `"??"` in the other module makes
+#: two places that know the format, and reaching for a private name across a module boundary is the
+#: same coupling with less honesty.
+PORCELAIN_UNTRACKED = "??"
+PORCELAIN_IGNORED = "!!"
 
 #: The three reason codes a refusal names, plus the inventory-failure one. Reason codes rather than
 #: prose, because spec R5.6 requires the event to name WHICH condition held and a caller (or a test)
@@ -3070,7 +3119,7 @@ def inventory_lane(
     unknown_ignored: list[str] = []
     discardable: list[str] = []
     for status, path in parse_porcelain_entries(out):
-        if status not in (_PORCELAIN_UNTRACKED, _PORCELAIN_IGNORED):
+        if status not in (PORCELAIN_UNTRACKED, PORCELAIN_IGNORED):
             dirty_tracked.append(path)
             continue
         if _is_within(path, accounted) or runner_shared.generated_manifest_paths(
@@ -3095,7 +3144,7 @@ def inventory_lane(
             # test repo has no installed ignore file and reports them UNTRACKED while this repository
             # reports them IGNORED - and the rule must hold in both.
             discardable.append(path)
-        elif status == _PORCELAIN_UNTRACKED:
+        elif status == PORCELAIN_UNTRACKED:
             unknown_untracked.append(path)
         else:
             unknown_ignored.append(path)

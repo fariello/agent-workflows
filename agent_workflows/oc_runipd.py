@@ -1952,16 +1952,24 @@ def build_lane_outcome(repo: Path, handle: Any, id6: str) -> Any:
     return runner_shared.build_lane_outcome(repo, handle, id6, run_checked=run_checked)
 
 
-def evaluate_clean_base_for_launch(repo: Path) -> lane_containment.CleanBaseResult:
-    """lanectn Order 02 (`nna8yz`) E-05, spec R5.4: is `repo` a complete base for an isolated turn?
+def evaluate_clean_base_for_launch(
+    repo: Path, *, shared_tree: bool = False
+) -> lane_containment.CleanBaseResult:
+    """lanectn Order 02 (`nna8yz`) E-05, spec R5.4: is `repo` a complete base for an unattended turn?
 
     Thin: this supplies THIS module's git runner and the `--untracked-files=no` scope; the RULE is
     `lane_containment.evaluate_clean_base`, which the agy twin calls with its own runner so the two
     hosts cannot drift (CID-3). See that function for why untracked files are excluded and for how
     this differs from the integration-time `dirty_tree_overlap` above.
+
+    `shared_tree` is PASSED THROUGH, never interpreted (dirtybase `3i0aaz` E-03). It selects which
+    true refusal sentence the shared rule produces - a `--no-isolate-worktree` turn is not isolated
+    and omits nothing, so the lane wording would be false for it - and it changes NOTHING about what
+    counts as dirty. Deciding the message here would fork the rule (R6.1) and let the two hosts drift
+    on a containment guarantee (CID-3).
     """
     _rc, out, _err = _run_git(repo, ["status", "--porcelain", "--untracked-files=no"])
-    return lane_containment.evaluate_clean_base(out)
+    return lane_containment.evaluate_clean_base(out, shared_tree=shared_tree)
 
 
 def integrate_lane_branch(
@@ -2800,6 +2808,18 @@ def initialize_run(args: argparse.Namespace) -> Path:
     runner_shared.refuse_unimplemented_run_flags(args)
     runner_shared.evaluate_unverifiable_admission(args)
     runner_shared.resolve_retry_budget(getattr(args, "retry_budget", None))
+
+    # dirtybase Order 01 (`3i0aaz`) E-02: REPORT the target checkout's UNTRACKED content ONCE, here,
+    # and do not refuse on it. This is the `aw install` case - 130+ uncommitted, largely untracked
+    # files - which the per-item clean-base guard excludes BY DESIGN (see `evaluate_clean_base`).
+    #
+    # THIS SEAM IS "RUN START" AND `execute_item` IS NOT. The clean-base guard runs per queue entry,
+    # so a report placed beside it would say the same thing once per item. Placed here, beside the
+    # shared flag refusals, it fires exactly once and before the run directory exists.
+    #
+    # IT CANNOT FAIL THE RUN: the helper swallows an unreadable tree and returns an empty report.
+    # A report that could refuse would be the tracked-dirt guard wearing a report's clothes.
+    runner_shared.report_untracked_dirt_at_run_start(repo)
 
     queue_ids = expand_selectors(manifest, args.selectors, repo=repo)
 
@@ -6182,27 +6202,68 @@ def execute_item(
     wt_handle = None
     work_dir: str | None = None
 
-    # lanectn Order 02 (`nna8yz`) E-05, spec R5.4: REFUSE an unattended isolated turn whose target
-    # checkout has dirty TRACKED paths, BEFORE anything is spawned or allocated.
+    # lanectn Order 02 (`nna8yz`) E-05, spec R5.4: REFUSE an unattended turn whose target checkout has
+    # dirty TRACKED paths, BEFORE anything is spawned or allocated.
     #
-    # THE FAILURE THIS REMOVES: a lane is created from a COMMIT, so an uncommitted tracked edit in the
-    # target checkout is simply ABSENT from the lane, and nothing told the worker its base was
-    # incomplete. It would then reason about, test against, and commit on top of a tree missing a
-    # change the maintainer believed was there.
+    # THE FAILURE THIS REMOVES ON THE ISOLATED PATH: a lane is created from a COMMIT, so an
+    # uncommitted tracked edit in the target checkout is simply ABSENT from the lane, and nothing told
+    # the worker its base was incomplete. It would then reason about, test against, and commit on top
+    # of a tree missing a change the maintainer believed was there.
+    #
+    # dirtybase Order 01 (`3i0aaz`) E-03: THE CONDITION NO LONGER REQUIRES `isolate`, and the RULE is
+    # untouched. This block previously read `if isolate and ...`, so a `--no-isolate-worktree` run - the
+    # case where dirt is MOST dangerous, because the agent writes directly into the tree it is
+    # polluting - skipped the guard entirely. `shared_tree=not isolate` selects the true refusal
+    # sentence for that case; the isolated wording would be FALSE there (that turn is not isolated and
+    # omits nothing). Only the condition and the message changed: no second predicate, no second
+    # `git status`, and the tracked-only scope is IDENTICAL on both paths.
+    #
+    # `aw ipd begin` DOES NOT COVER THE SHARED-TREE CASE, so this is genuinely additional and the two
+    # must not later be "simplified" into one. Begin's dirty check is SCOPE-SCOPED
+    # (`_baseline_ambiguity` over the plan's frozen `Scope-Paths`, delegating to
+    # `run_evidence.dirty_within`) and returns `clean` for dirt OUTSIDE that scope BY DESIGN, which is
+    # the deliberate path-overlap rule that keeps concurrent agents from blocking each other. This
+    # guard is WHOLE-TREE.
     #
     # PLACED HERE, ahead of `driver_begin` and `allocate_isolation_worktree`, because R5.4 requires the
     # refusal to occur before any worker process is spawned and because refusing before begin leaves
     # NO lifecycle side effect to unwind: no receipt is written, no lane is allocated, nothing to
-    # reconcile. Untracked files do NOT trigger this (see `evaluate_clean_base`).
-    if isolate and self_finalize and not is_review:
-        base = evaluate_clean_base_for_launch(repo)
-        if not base.clean:
+    # reconcile. Untracked files do NOT trigger this on EITHER path (see `evaluate_clean_base`); they
+    # are reported once per run from `initialize_run` instead.
+    if self_finalize and not is_review:
+        base = evaluate_clean_base_for_launch(repo, shared_tree=not isolate)
+        # `3i0aaz` E-05: the three-way verdict (proceed / consented / refuse) is ONE shared decision
+        # both hosts consume, never a per-driver `if`. A policy decided in each driver's own body is
+        # exactly how the `--full-auto` default came to differ between the two runners.
+        decision = runner_shared.clean_base_launch_decision(
+            base,
+            allow_dirty_base=bool(
+                state.get("options", {}).get("allow_dirty_base", False)
+            ),
+        )
+        if decision.consented:
+            # RECORDED, not merely permitted: an audit of a run that trampled something must be able
+            # to see that the operator chose this, and which paths it covered.
+            attempt["clean_base_consented"] = decision.reason
+            attempt["clean_base_dirty_paths"] = list(decision.dirty_paths)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "clean-base-consented",
+                    "id6": item["id6"],
+                    "dirty_paths": list(decision.dirty_paths),
+                    "detail": decision.reason,
+                },
+            )
+            print(pal(f"  {decision.reason}", "yellow"), file=sys.stderr)
+        elif decision.refused:
             attempt["ended_at"] = utc_now()
-            attempt["clean_base_refused"] = base.reason
-            attempt["clean_base_dirty_paths"] = list(base.dirty_paths)
+            attempt["clean_base_refused"] = decision.reason
+            attempt["clean_base_dirty_paths"] = list(decision.dirty_paths)
             attempt["disposition"] = "blocked"
             item["status"] = "blocked"
-            item["clean_base_refusal"] = base.reason
+            item["clean_base_refusal"] = decision.reason
             save_state(run_dir, state)
             append_jsonl(
                 run_dir / "events.jsonl",
@@ -6210,13 +6271,13 @@ def execute_item(
                     "at": utc_now(),
                     "event": "clean-base-refused",
                     "id6": item["id6"],
-                    "dirty_paths": list(base.dirty_paths),
-                    "detail": base.reason,
+                    "dirty_paths": list(decision.dirty_paths),
+                    "detail": decision.reason,
                 },
             )
             print(
                 pal(
-                    f"\u2717 IPD {seq:02d}/{total} {item['id6']} refused: {base.reason}",
+                    f"\u2717 IPD {seq:02d}/{total} {item['id6']} refused: {decision.reason}",
                     "red",
                 ),
                 file=sys.stderr,

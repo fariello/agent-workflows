@@ -1296,16 +1296,22 @@ def make_integration_validation_runner(
     return _runner
 
 
-def evaluate_clean_base_for_launch(repo: Path) -> lane_containment.CleanBaseResult:
-    """lanectn Order 02 (`nna8yz`) E-05, spec R5.4: is `repo` a complete base for an isolated turn?
+def evaluate_clean_base_for_launch(
+    repo: Path, *, shared_tree: bool = False
+) -> lane_containment.CleanBaseResult:
+    """lanectn Order 02 (`nna8yz`) E-05, spec R5.4: is `repo` a complete base for an unattended turn?
 
     The MIRROR of the oc twin, and deliberately as thin as it: it supplies the git invocation and the
     `--untracked-files=no` scope, while the RULE lives once in `lane_containment.evaluate_clean_base`.
     Re-deciding here what counts as dirty would fork the rule (spec R6.1) and let the two hosts drift
     on a containment guarantee (CID-3).
+
+    `shared_tree` is PASSED THROUGH, never interpreted (dirtybase `3i0aaz` E-03), for the same reason
+    and in the same shape as the oc twin: it selects which true refusal sentence the shared rule
+    produces and changes nothing about what counts as dirty.
     """
     _rc, out, _err = _run_git(repo, ["status", "--porcelain", "--untracked-files=no"])
-    return lane_containment.evaluate_clean_base(out)
+    return lane_containment.evaluate_clean_base(out, shared_tree=shared_tree)
 
 
 def integrate_lane_branch(
@@ -1928,6 +1934,12 @@ def initialize_run(args: argparse.Namespace) -> Path:
     runner_shared.refuse_unimplemented_run_flags(args)
     runner_shared.evaluate_unverifiable_admission(args)
     runner_shared.resolve_retry_budget(getattr(args, "retry_budget", None))
+
+    # dirtybase Order 01 (`3i0aaz`) E-02, the MIRROR of the oc twin (which carries the full note):
+    # report the checkout's UNTRACKED content ONCE per run, at this same pre-durable seam, without
+    # refusing. Wired on both hosts deliberately - a visibility rule present on one runner only is
+    # how `--full-auto` came to mean opt-in on one host and opt-out on the other.
+    runner_shared.report_untracked_dirt_at_run_start(repo)
 
     # hostdefault-02 (`ybkmzp`) E-04: resolve THIS run's verification decision here, at the same
     # pre-durable seam as the refusals above and BEFORE the run directory is created below, so a
@@ -3397,15 +3409,40 @@ def execute_item(
     # Same shared RULE (`lane_containment.evaluate_clean_base`), same placement ahead of begin and lane
     # allocation, same untracked exclusion. A containment rule present on one host only is a DEFECT
     # (CID-3), which is why this is wired here rather than left to the oc driver.
-    if isolate and self_finalize and not is_review:
-        base = evaluate_clean_base_for_launch(repo)
-        if not base.clean:
+    #
+    # dirtybase Order 01 (`3i0aaz`) E-03/E-05, mirrored for the same CID-3 reason (the oc twin carries
+    # the full note): the condition no longer requires `isolate`, so a `--no-isolate-worktree` run is
+    # guarded too; `shared_tree=not isolate` picks the sentence that is TRUE for that case; and the
+    # proceed/consent/refuse verdict is the ONE shared decision, not a per-driver `if`.
+    if self_finalize and not is_review:
+        base = evaluate_clean_base_for_launch(repo, shared_tree=not isolate)
+        decision = runner_shared.clean_base_launch_decision(
+            base,
+            allow_dirty_base=bool(
+                state.get("options", {}).get("allow_dirty_base", False)
+            ),
+        )
+        if decision.consented:
+            attempt["clean_base_consented"] = decision.reason
+            attempt["clean_base_dirty_paths"] = list(decision.dirty_paths)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "clean-base-consented",
+                    "id6": item["id6"],
+                    "dirty_paths": list(decision.dirty_paths),
+                    "detail": decision.reason,
+                },
+            )
+            print(pal(f"  {decision.reason}", "yellow"), file=sys.stderr)
+        elif decision.refused:
             attempt["ended_at"] = utc_now()
-            attempt["clean_base_refused"] = base.reason
-            attempt["clean_base_dirty_paths"] = list(base.dirty_paths)
+            attempt["clean_base_refused"] = decision.reason
+            attempt["clean_base_dirty_paths"] = list(decision.dirty_paths)
             attempt["disposition"] = "blocked"
             item["status"] = "blocked"
-            item["clean_base_refusal"] = base.reason
+            item["clean_base_refusal"] = decision.reason
             save_state(run_dir, state)
             append_jsonl(
                 run_dir / "events.jsonl",
@@ -3413,13 +3450,13 @@ def execute_item(
                     "at": utc_now(),
                     "event": "clean-base-refused",
                     "id6": item["id6"],
-                    "dirty_paths": list(base.dirty_paths),
-                    "detail": base.reason,
+                    "dirty_paths": list(decision.dirty_paths),
+                    "detail": decision.reason,
                 },
             )
             print(
                 pal(
-                    f"\u2717 IPD {seq:02d}/{total} {item['id6']} refused: {base.reason}",
+                    f"\u2717 IPD {seq:02d}/{total} {item['id6']} refused: {decision.reason}",
                     "red",
                 ),
                 file=sys.stderr,

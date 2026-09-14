@@ -1880,12 +1880,21 @@ class RunPolicyFlag(NamedTuple):
 RESUME_REFUSE = "refuse"
 RESUME_NONE_DEFAULT = "none-default"
 
-#: Spec 25kzda 2.1's NINE policy flags, in the order the spec's grammar block lists them.
+#: Spec 25kzda 2.1's policy flags, in the order the spec's grammar block lists them.
 #:
 #: `--allow-drafts` JOINED THIS TABLE with `revsweep-02` (`6ypimw`), which implemented spec 2.5a's
 #: draft admission gate. `uyeko5` deliberately left it out (it owned the other eight and registering a
 #: ninth as a refusal would have collided on these lines for no gain); it is registered here now that
 #: its BEHAVIOR ships, which is this table's own rule - a flag never parses and silently does nothing.
+#:
+#: `--allow-dirty-base` JOINED with dirtybase Order 01 (`3i0aaz`), which added the dirty-base refusal
+#: on the shared-tree path and therefore needed the CONSENT half in the same change: shipping a
+#: refusal with no sanctioned override is how an operator learns to work around a gate instead of
+#: through it. Spec 2.1 declares it in the same commit, because `tests/test_run_flag_surface.py` reads
+#: the spec FILE in BOTH directions and a row here that 2.1 does not declare fails the suite.
+#:
+#: THE COUNT IS DELIBERATELY NOT STATED. It said "NINE" and was already one edit behind by the time a
+#: tenth arrived; the contract test derives the expected set from the spec for exactly this reason.
 RUN_POLICY_FLAGS: tuple = (
     RunPolicyFlag(
         flag="--allow-mixed",
@@ -2001,6 +2010,21 @@ RUN_POLICY_FLAGS: tuple = (
             "changed on --resume: the frozen value stands"
         ),
         resume_rule=RESUME_REFUSE,
+    ),
+    RunPolicyFlag(
+        flag="--allow-dirty-base",
+        dest="allow_dirty_base",
+        kind="bool",
+        implemented=True,
+        owner="runner_shared.clean_base_launch_decision",
+        help=(
+            "Acknowledge that the target checkout has uncommitted changes to TRACKED files and "
+            "launch anyway. Without it, such a base is REFUSED before anything is spawned, naming "
+            "the paths. Consent covers this run's base ONLY: the approval, scope, and V-evidence "
+            "gates still apply, and a lane whose changed files OVERLAP a dirty path is still "
+            "refused at integration. It does not apply to UNTRACKED content, which is reported at "
+            "run start and refuses on nothing, and it does not silence that report"
+        ),
     ),
 )
 
@@ -2130,6 +2154,236 @@ def refuse_unimplemented_run_flags(args: Any) -> None:
                 f"The flag is registered so it fails HERE, loudly, rather than parsing and "
                 f"silently doing nothing"
             )
+
+
+# ---- dirtybase Order 01 (`3i0aaz`): the dirty-base cases a LANE guard cannot reach ----------------
+#
+# THREE QUESTIONS ABOUT A DIRTY TREE ARE ASKED IN THIS REPOSITORY, and confusing any two of them is
+# the failure this section exists to prevent. They are listed once, here, because the distinction is
+# what makes each one's scope defensible:
+#
+#   1. INTEGRATION TIME, RELATIVE (`dirty_tree_overlap` above): does an INCOMING lane's
+#      `changed_files` INTERSECT main's dirty paths, i.e. would merging clobber an un-owned edit?
+#      Answered only after a lane's work exists. Empty when the sets are disjoint.
+#   2. PER ITEM, PRE-LAUNCH, TRACKED ONLY (`lane_containment.evaluate_clean_base`, plan `nna8yz`
+#      E-05): is the TRACKED tree clean, i.e. is HEAD a complete base? REFUSES. Runs once per queue
+#      entry, inside `execute_item`.
+#   3. ONCE PER RUN, UNTRACKED (`evaluate_untracked_dirt` below): what UNTRACKED content is sitting
+#      in the tree the operator is about to spend hours against? REPORTS, and deliberately does not
+#      refuse.
+#
+# WHY (3) REPORTS RATHER THAN REFUSING, since the asymmetry looks like an oversight and is not.
+# Refusing on untracked content would make an unattended run unstartable in essentially any working
+# checkout (`evaluate_clean_base`'s own docstring says so, and `tests/test_lane_clean_base.py
+# ::test_case_3_an_untracked_file_does_NOT_refuse` pins it), and a gate that false-positives on
+# correct behavior trains operators to bypass it. The measured incident is the other half: a stray
+# `aw install` wrote 130+ uncommitted, largely UNTRACKED files into a working tree and on at least two
+# occasions an agent did not realize the pollution was its own. Reporting puts that in front of the
+# operator before any spend without making the run unstartable.
+
+
+#: `git status` arguments for the once-per-run untracked report.
+#:
+#: `--untracked-files=all` IS LOAD-BEARING and is not a stylistic preference. Git's DEFAULT porcelain
+#: collapses an untracked DIRECTORY to a single directory entry, so the 130-file `aw install` case
+#: would report as a handful of directory names and hide exactly the scale this report exists to
+#: surface. This repository has already been bitten by that default elsewhere and says so.
+UNTRACKED_REPORT_STATUS_ARGS = ("status", "--porcelain", "--untracked-files=all")
+
+#: How many untracked paths the report ENUMERATES before it stops and states the total instead.
+#:
+#: Bounded because a 130-path wall of text at 05:00 is the unread log this report is replacing. The
+#: TOTAL is always stated exactly; only the enumeration is sampled.
+UNTRACKED_REPORT_SAMPLE_LIMIT = 12
+
+
+class UntrackedDirtReport(NamedTuple):
+    """What UNTRACKED content a checkout holds at run start (dirtybase `3i0aaz` E-02)."""
+
+    total: int
+    sample: tuple[str, ...]
+
+    @property
+    def clean(self) -> bool:
+        return self.total == 0
+
+    @property
+    def notice(self) -> str:
+        """The operator-facing report, stating the CONSEQUENCE and not merely the fact.
+
+        THE CONSEQUENCE IS CONDITIONAL, and overstating it is how an operator is trained to ignore a
+        report. Integration refuses a lane only when that lane's `changed_files` INTERSECT a dirty
+        path (`dirty_tree_overlap` returns `[]` for disjoint sets), so "your lanes will be refused" is
+        false. For UNTRACKED paths it is doubly conditional: a lane is built from a COMMIT, so it does
+        not carry them and normally cannot overlap them at all.
+
+        THE REAL HAZARD IS THE MEASURED ONE, so it is the one named: an agent reading this tree can
+        mistake another party's uncommitted pollution, or its OWN, for the repository's real state.
+
+        NO REMEDY THAT TOUCHES UN-OWNED WORK IS SUGGESTED. This says what is there; deciding whose it
+        is and what to do about it belongs to the human. Nothing here tells anyone to commit, stash,
+        reset, or clean.
+        """
+        if self.clean:
+            return "run start: no untracked content in the target checkout"
+        shown = ", ".join(self.sample)
+        more = self.total - len(self.sample)
+        listed = shown if more <= 0 else f"{shown}, and {more} more"
+        return (
+            f"run start: the target checkout holds {self.total} UNTRACKED path(s), which this run "
+            "does NOT refuse on and does NOT touch: "
+            f"{listed}. Any lane whose changed files OVERLAP one of these paths will be refused at "
+            "integration; a lane whose changes are disjoint from them will not. Untracked paths are "
+            "normally disjoint from a lane by construction, because a lane is created from a commit "
+            "and does not carry them. The hazard worth your attention is a different one: an agent "
+            "reading this tree can mistake this content for the repository's real state, so if you "
+            "did not expect it, decide whose it is before spending a run against it."
+        )
+
+
+def evaluate_untracked_dirt(
+    porcelain: str,
+    *,
+    sample_limit: int = UNTRACKED_REPORT_SAMPLE_LIMIT,
+) -> UntrackedDirtReport:
+    """Classify `git status --porcelain --untracked-files=all` output for the E-02 report.
+
+    PURE, taking the text rather than running git, exactly as `lane_containment.evaluate_clean_base`
+    is: both hosts share the RULE while each supplies its own git runner, and a test can drive every
+    case with no repository.
+
+    THE PARSER IS THE SHARED ONE and this function holds NO porcelain format knowledge: no
+    `splitlines`, no column slicing, no ` -> ` handling. It calls `lane_containment
+    .parse_porcelain_entries`, which is that module's declared single decoder of the format, and it
+    reuses that module's own `??` status constant rather than re-spelling it.
+
+    WHY THE DECODER AND NOT ITS `parse_porcelain_paths` PROJECTION, since the projection is the more
+    commonly cited name: this report must include UNTRACKED entries and EXCLUDE tracked ones, and
+    that distinction lives ENTIRELY in the two status columns the projection discards by construction
+    (`parse_porcelain_paths` is literally `{path for _status, path in parse_porcelain_entries(...)}`).
+    Using the projection would report dirty TRACKED paths too, which is question (2)'s business - it
+    REFUSES on them - and would restate that refusal as a report.
+
+    THE IMPORT IS LAZY because `lane_containment` imports THIS module at module scope, so a
+    module-level import here would be circular. That is the established idiom in this file for a peer
+    module it cannot import at module scope (`worktree_lease`, `orchestrate_isolation`,
+    `ipd_lifecycle`, `run_recovery`, `selectors` are all imported this way).
+    """
+
+    from agent_workflows import lane_containment
+
+    untracked = sorted(
+        path
+        for status, path in lane_containment.parse_porcelain_entries(porcelain)
+        if status == lane_containment.PORCELAIN_UNTRACKED
+    )
+    limit = max(0, int(sample_limit))
+    return UntrackedDirtReport(total=len(untracked), sample=tuple(untracked[:limit]))
+
+
+def report_untracked_dirt_at_run_start(
+    repo: Path,
+    *,
+    git_runner: Callable[..., tuple[int, str, str]] | None = None,
+    stream: Any = None,
+) -> UntrackedDirtReport:
+    """Emit the E-02 untracked report for `repo`, ONCE per run, and return what it found.
+
+    CALLED FROM `initialize_run` ON BOTH HOSTS, beside `refuse_unimplemented_run_flags`, and that
+    placement is the whole point of the item. "Run start" has exactly one home: the `nna8yz` E-05
+    guard is PER ITEM inside `execute_item`, so a report placed beside THAT would fire once per queue
+    entry and say the same thing N times. This seam also runs before the run directory exists, so the
+    report cannot be mistaken for durable run state.
+
+    IT NEVER RAISES AND NEVER REFUSES. A report that could fail the run would be question (2) wearing
+    a report's clothes. An unreadable tree yields an empty report rather than an exception, because
+    failing a run over an inability to describe untracked content would be a strictly worse outcome
+    than the silence this replaces (and question (2) fails closed on an unreadable tree already).
+    """
+
+    runner = git_runner or _run_git
+    try:
+        rc, out, _err = runner(Path(repo), list(UNTRACKED_REPORT_STATUS_ARGS))
+    except Exception:  # pragma: no cover - defensive: a report must not fail a run
+        return UntrackedDirtReport(total=0, sample=())
+    if rc != 0:
+        return UntrackedDirtReport(total=0, sample=())
+    report = evaluate_untracked_dirt(out)
+    if not report.clean:
+        print(report.notice, file=stream if stream is not None else sys.stderr)
+    return report
+
+
+#: The three verdicts a pre-launch clean-base decision can reach (dirtybase `3i0aaz` E-03/E-05).
+CLEAN_BASE_PROCEED = "proceed"
+CLEAN_BASE_CONSENTED = "consented"
+CLEAN_BASE_REFUSE = "refuse"
+
+
+class CleanBaseDecision(NamedTuple):
+    """WHETHER a turn may launch against this base, and WHY (dirtybase `3i0aaz`).
+
+    ONE DECISION REACHED FROM BOTH HOSTS. The `--full-auto` default diverged between the two drivers
+    precisely because each decided a policy question in its own body, so the policy lives here and
+    each `execute_item` consumes the verdict. What stays per host is only the durable bookkeeping
+    (its own attempt record, its own event log), which is host state and not policy.
+    """
+
+    verdict: str
+    dirty_paths: tuple[str, ...]
+    reason: str
+
+    @property
+    def refused(self) -> bool:
+        return self.verdict == CLEAN_BASE_REFUSE
+
+    @property
+    def consented(self) -> bool:
+        return self.verdict == CLEAN_BASE_CONSENTED
+
+
+def clean_base_launch_decision(
+    base: Any,
+    *,
+    allow_dirty_base: bool = False,
+) -> CleanBaseDecision:
+    """Turn a `lane_containment.CleanBaseResult` plus the operator's consent into a launch verdict.
+
+    THE RULE IS NOT RE-DECIDED HERE. What is dirty, and how a refusal reads, is
+    `lane_containment.evaluate_clean_base`'s (plan `nna8yz` E-05, extended by `3i0aaz` E-03 with a
+    shared-tree message variant). This adds exactly one thing: `--allow-dirty-base` turns a REFUSAL
+    into a recorded CONSENT.
+
+    WHAT CONSENT DOES NOT WAIVE, which is the sentence a future reader will rely on. It acknowledges
+    a dirty TRACKED base for THIS run and nothing else. It does not waive the approval gate, the
+    scope gate, the V-evidence checks, or the integration-time dirty-overlap refusal - that last one
+    protects a DIFFERENT party's work at a DIFFERENT time and is not this flag's to waive. It also
+    does not suppress the once-per-run untracked report: consenting to proceed is not a request to be
+    told less.
+    """
+
+    if base.clean:
+        return CleanBaseDecision(
+            verdict=CLEAN_BASE_PROCEED, dirty_paths=(), reason=base.reason
+        )
+    if allow_dirty_base:
+        return CleanBaseDecision(
+            verdict=CLEAN_BASE_CONSENTED,
+            dirty_paths=tuple(base.dirty_paths),
+            reason=(
+                "--allow-dirty-base: proceeding over "
+                f"{len(base.dirty_paths)} dirty TRACKED path(s) by explicit operator consent: "
+                + ", ".join(base.dirty_paths)
+                + ". Consent covers this base for this run ONLY: the approval, scope, and "
+                "V-evidence gates still apply, and a lane whose changed files overlap one of these "
+                "paths will still be refused at integration"
+            ),
+        )
+    return CleanBaseDecision(
+        verdict=CLEAN_BASE_REFUSE,
+        dirty_paths=tuple(base.dirty_paths),
+        reason=base.reason,
+    )
 
 
 def refuse_frozen_flags_on_resume(args: Any) -> None:
