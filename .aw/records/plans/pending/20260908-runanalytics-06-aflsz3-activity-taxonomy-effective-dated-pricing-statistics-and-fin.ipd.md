@@ -37,51 +37,51 @@ RIGHT-SIZING NOTE. Authored with THREE E-items, as were all ten children of this
 
 ### Task group 1: Attribution
 
-- [ ] E-01 Implement the versioned taxonomy as a MULTI-LABEL classifier over structured signals, not a single-label precedence chain.
+- [x] E-01 Implement the versioned taxonomy as a MULTI-LABEL classifier over structured signals, not a single-label precedence chain.
   THIS IS THE LARGEST CORRECTION IN THIS REVIEW AND IT IS MEASURED. The authored item asks for "precedence, overlap, uncertainty, and unclassified accounting", which reads as one winning class per event. Measured over all 22787 real bash tool calls in the corpus: 84.7 percent contain MORE THAN ONE shell segment (after stripping a leading `cd X &&`, which 45.3 percent carry), and when each segment is classified independently, 41.9 percent of commands match TWO OR MORE classes, 49.4 percent match exactly one, and 8.7 percent match none. So overlap is the NORM, not the exception a precedence rule handles. A single-label taxonomy discards the second class in two of every five commands, and which class it discards is an artifact of the precedence order rather than of the data. Emit a SET of labels per event with a per-label share, and reserve precedence for the narrow case of choosing a display label.
   THE ONLY CLASSIFIABLE SIGNAL IS THE COMMAND STRING PLUS THE TOOL NAME. Measured: the corpus holds 32333 `tool_use` parts across 462 session files with exactly 10 distinct tool names (`bash` 22757, `edit` 5512, `read` 2332, `todowrite` 1074, `write` 575, `grep` 49, `glob` 21, `task` 11, `invalid` 1, `skill` 1). `edit`/`read`/`write` carry a `filePath` (8420 of 8421 do), which is a clean structured signal. `bash` carries only the command text. That matters for the privacy boundary: classifying bash REQUIRES reading command text, and the plan forbids PERSISTING it, so classification must happen at ingest and only the derived labels may cross into a fact.
   - Depends on: none
   - Expected outcome: a versioned classifier returning a LABEL SET per event with per-label evidence naming the matched rule and the matched segment kind (never the command text itself); precedence used only to pick a display label and documented as such; no prompt, response or command content persisted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Publish the UNCLASSIFIED and OVERLAP accounting as first-class measured outputs with a regression floor.
+- [x] E-02 Publish the UNCLASSIFIED and OVERLAP accounting as first-class measured outputs with a regression floor.
   MEASURED TARGETS, so "unclassified accounting" is not a promise without a number. Segment-level class hits across 104116 segments: inspection/search 30540, git 9158, implementation/editing 5909, tests 3975, aw-tooling 3598, lint/format 93, dependency/install 17, idle/wait 12. Command-level: 8.7 percent match no class at all. The top unclassified heads are `echo` (14895 segments), an empty segment (3834), `python3` (3807, which is ambiguous by nature since it runs both tests and ad-hoc analysis), a `def` continuation line (1432) and `cd` (1257). Two consequences. FIRST, `echo` is the single largest unclassified head and is almost entirely progress narration, so a class for it is worth having rather than leaving an eighth of segments in `other/unknown`. SECOND, a bare `python3` head cannot be resolved without inspecting its arguments, which is exactly the ambiguity the confidence score exists to record.
   - Depends on: E-01
   - Expected outcome: per-class and unclassified shares published as measured outputs with the corpus figures as a recorded baseline; a test that fails if the unclassified command share regresses above the measured 8.7 percent by more than a declared margin; `other/unknown` never silently absorbs a growing share.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: The analytics and their honesty limits
 
-- [ ] E-03 Implement the TIME model so it publishes unattributed time rather than implying activity accounts for elapsed time.
+- [x] E-03 Implement the TIME model so it publishes unattributed time rather than implying activity accounts for elapsed time.
   MEASURED, AND THE RATIO IS THE POINT. Summing every `tool_use` part's own `time.start`/`time.end` (present on 32365 of 32365, so 100 percent coverage) gives 48036 s of tool activity, 13.3 h. Summing every run's `created_at`..`updated_at` gives 1254107 s, 348.4 h. So TOOL ACTIVITY IS 3.8 PERCENT OF RUN WALL TIME and 96.2 percent is unattributed: model inference, queueing and idle. At the attempt grain the figure is 9.6 percent of 246.9 h. Any "where did the time go" chart that shows only classified activity is therefore showing 4 percent of the truth, which is worse than showing nothing because it looks complete. Publish `unattributed_time` as the dominant term, by default, on every time view.
   ALSO MEASURED: 27 attempts have tool activity EXCEEDING their own wall time, because 25 session ids are SHARED by 2 to 5 attempts (80 of 179 attempts live in a shared session). Apportioning a shared session's activity to each attempt double counts it. Attribute a shared session's time once and mark the attempts as sharing it.
   - Depends on: E-01
   - Expected outcome: every time view publishes `observed_activity_time`, `unattributed_time` and `overlap_time` with unattributed shown by default; a shared session's activity is attributed once, never once per attempt; a test with the measured 3.8 percent ratio proving activity is never scaled up to fill elapsed time.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Implement the instruction-burden analysis as a TOKEN and COST measure, since the time measure it was authored as is empty.
+- [x] E-04 Implement the instruction-burden analysis as a TOKEN and COST measure, since the time measure it was authored as is empty.
   THE FLAGSHIP ANALYSIS AS AUTHORED MEASURES 0.014 PERCENT OF ELAPSED TIME. Required analysis 1 is "instruction/spec/documentation-read time, cost, and tokens per IPD". Measured: all 2334 `read` tool calls in the entire corpus total 183.2 s of duration, which is 0.38 percent of the 48036 s of tool time, which is itself 3.8 percent of wall time. So instruction-read TIME is about 0.014 percent of elapsed time and will render as a flat line indistinguishable from zero.
   THE BURDEN IS REAL BUT IT IS INJECTED, NOT READ. Measured: the median session's FIRST step already carries 15067 input tokens (mean 25401, p90 44668) before the agent reads anything, and `AGENTS.md` alone is 33101 bytes (~8275 tokens) of always-loaded context, with `CONTRIBUTING.md` ~3594, `GUIDING_PRINCIPLES.md` ~2558 and `RELEASING.md` ~899. The 474 prompt files have a median size of 2895 bytes. So the honest analysis is: what does the standing instruction corpus COST per turn, in tokens and dollars, and how does that scale with the number of turns. Read-tool time is a footnote, and the plan must say so rather than charting it as the headline.
   - Depends on: E-03
   - Expected outcome: instruction burden measured as injected input tokens and their priced cost per turn and per IPD, with the standing-instruction byte inventory recorded; read-tool time reported as a labeled footnote with its measured 0.38-percent-of-tool-time share; V-04 publishes the 0.014 percent figure so no reader mistakes a flat chart for an absent cost.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Implement the remaining required analyses that the corpus CAN support, and refuse the ones it cannot.
+- [x] E-05 Implement the remaining required analyses that the corpus CAN support, and refuse the ones it cannot.
   Cover the analyses whose sample sizes are adequate: per-IPD cost/token/time (179 attempts across 118 distinct id6), the activity-class shares from E-01, the implementation-versus-inspection ratio (measured `edit` 5512 versus `read` 2332 calls, and by file category `source-code` 38.0 percent / `plan-or-ipd` 37.5 percent / `test-code` 13.0 percent of the 8421 file-touching calls), cache utilization (measured cache_read is 98.62 percent of all 5795743803 tokens and 72.1 percent of spend), cost concentration (measured: the top 10 percent of attempts hold 22.8 percent of spend, top 20 percent hold 39.6 percent), and the within-session cost gradient (measured: mean cost per step rises monotonically across position deciles, $0.0781 in the first to $0.1290 in the last, a 1.27x first-to-last-decile ratio at n=345 sessions with 20+ steps). Those last two ARE the corpus-supported additional analyses the plan asked to select at execution time, and they are named here rather than left to be invented.
   - Depends on: E-04
   - Expected outcome: each supported analysis has a schema-level and a numeric golden test in both aggregate and phase-separated modes; each names its measured sample size; the six analyses named above are implemented, so the "choose four more at execution" requirement is discharged with evidence rather than deferred.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Make every UNDER-POWERED required analysis return the plan's own `cannot-determine` verdict rather than a chart.
+- [x] E-06 Make every UNDER-POWERED required analysis return the plan's own `cannot-determine` verdict rather than a chart.
   MEASURED SAMPLE SIZES, AND FOUR REQUIRED ANALYSES CANNOT BE COMPUTED. Across all 135 runs and 733 queue items: only 6 items have more than one attempt (405 have exactly one, 322 have zero), only 6 attempts carry `recovery: true`, and only 3 attempts have disposition `merge-conflict`. So required analysis 5 (failed-merge waste, retry/recovery cost), 8 (merge/conflict share and recurrence), 10 (test failure/retry loops and time-to-first-pass) and 11 (instruction burden versus retries) each rest on n between 3 and 6. This plan simultaneously mandates those analyses AND mandates statistical rigor with confidence warnings, which is a contradiction unless under-powered slices return a refusal. They must return `cannot-determine` with the measured n, exactly as the plan's own findings contract already requires for insufficient evidence.
   Also measured: verifier phase separation is only partly available. 57 session files are verifier logs holding $64.08 of spend, but ZERO attempts carry `verify_cost` or `verify_tokens`, so required analysis 13 (review versus execute versus verifier) must derive the verifier phase from the session FILENAME and label that derivation as such.
   - Depends on: E-05
   - Expected outcome: a shared under-power predicate with a declared minimum n, applied to at least the four analyses measured at n<=6, returning `cannot-determine` plus the observed n instead of a rendered result; the verifier phase derived from the log filename and LABELED derived; a test proving a chart cannot be produced for an under-powered slice.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Pricing and statistics
 
-- [ ] E-07 Implement effective-dated pricing against the MEASURED two-era schedule, and validate it against recorded cost.
+- [x] E-07 Implement effective-dated pricing against the MEASURED two-era schedule, and validate it against recorded cost.
   THE PLAN ASSUMED PRICE HISTORY WOULD HAVE TO BE ASSERTED FROM AN EXTERNAL SOURCE. Measured, it is RECOVERABLE FROM THE CORPUS EXACTLY, which makes the schedule testable rather than declarative. Fitting cost against token components per day yields two clean eras and nothing in between:
   ERA A, through the step at 2026-08-29T01:30:43Z: input $5.00/Mtok, output $25.00/Mtok, cache_read FREE. Reproduces 7917 steps to floating-point exactness.
   ERA B, from the step at 2026-08-29T05:38:43Z: input $5.50/Mtok, output $27.50/Mtok, cache_read $0.55/Mtok (exactly 10 percent of input, the standard cached-read discount). Reproduces 21731 steps exactly.
@@ -89,24 +89,24 @@ RIGHT-SIZING NOTE. Authored with THREE E-items, as were all ten children of this
   TWO CONSEQUENCES FOR THE SCHEMA. First, `cache_write` must NOT be a rate column: measured, cache_write is 0 in all 29611 steps that report a cache object, so a write rate would be untestable and inventing one is guessing. Second, price shares are dominated by cache: least-squares over the Era B steps apportions 72.1 percent of $2855.75 to cache_read, 20.7 percent to output and 7.6 percent to input, and cache_read is 98.62 percent of all tokens. A pricing view that omits cache reads omits nearly three quarters of the money.
   - Depends on: E-06
   - Expected outcome: an effective-dated schedule carrying provider/model/variant, input/output/cache-read rates, currency, effective interval and source/version, with the measured two eras and their boundary instants as seed data; recorded cost preserved separately from estimated cost and never overwritten; a validation that the schedule reproduces recorded cost for the 29648 fitting steps and REFUSES rather than guessing for the 23 that do not; no cache_write rate column.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Implement the statistical layer, with model comparison gated on the measured 1.1 percent model-identity coverage.
+- [x] E-08 Implement the statistical layer, with model comparison gated on the measured 1.1 percent model-identity coverage.
   REQUIRED ANALYSIS 12 IS MODEL/PROVIDER/VARIANT COMPARISON, AND THE IDENTITY IS ALMOST ENTIRELY ABSENT. Measured: `options.model` is null in 130 of 135 runs and set in 5 (`google/gemini-3.8-flash` 3, `uri/its_direct/pt3-claude-opus-4.8-1m-us` 2). `options.launch_profile` is absent in 102 of 135 runs and, where present, records `model: host-default` in 31 of 33 provenance blocks. NO attempt record carries a model key at all. Only 16 of 462 session files mention `modelID`, and only at `part.state.metadata.model.modelID` on a `task` sub-agent call, so it identifies the SUB-AGENT's model rather than the main agent's. Net: a model is resolvable for 2 of 179 attempts carrying usage, 1.1 percent. So price-era stratification is genuinely available (E-07's two eras cover 99.92 percent of steps) but MODEL stratification is not, and a comparison chart drawn over 1.1 percent coverage is a fabrication. Order 04 (`5f2h8i`) states model identity "must be recorded per file and must not be inferred later from a single run-level snapshot", so the coverage improves for FUTURE runs only; historical comparison stays refused.
   Standard-library computation is sufficient and is the house pattern: `benchmark_metrics.wilson_score_interval` (`:59`) already implements interval reporting stdlib-only for this repository, and `MetricValue` (`:95`) already carries `sample_size`, `ci_lower`, `ci_upper` and `is_available`. Reuse that shape rather than inventing a second uncertainty vocabulary.
   - Depends on: E-07
   - Expected outcome: distributions report sample size, missingness, median, mean, standard deviation and deterministic robust quantiles, in the existing `MetricValue`-shaped vocabulary; model comparison REFUSES with the measured coverage figure until identity coverage exceeds a declared threshold, while price-era stratification proceeds; no new runtime dependency.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Findings
 
-- [ ] E-09 Implement the ranked-findings contract, including the confounder the corpus already contains.
+- [x] E-09 Implement the ranked-findings contract, including the confounder the corpus already contains.
   Each finding carries rank, affected slice, effect size and units, sample and coverage, uncertainty, data-quality caveats, alternative explanations, and a low-risk next experiment. Insufficient evidence yields a `cannot-determine` finding, never advice.
   A REAL SIMPSON'S-PARADOX HAZARD IS ALREADY IN THIS DATA, so the required warning has a concrete exemplar rather than a synthetic one. Blended cost per million tokens jumps from a median of $0.054 to $0.071 in the Era A days to $0.635 to $0.737 in the Era B days, a more-than-nine-fold apparent rise. That is NOT a rate change of that magnitude: the Era B rates are only 10 percent higher, and the apparent jump is caused by cache_read going from FREE to billable while cache_read is 98.62 percent of tokens. Any cost-efficiency comparison that pools across the 2026-08-29 boundary will therefore attribute a pricing-policy change to workflow behavior. Stratify by price era before any cost comparison, and make that the shipped exemplar for the paradox warning.
   ALSO REQUIRED, because it is the finding this corpus most clearly supports: cost concentration and the within-session gradient (E-05) are association only. The step-cost rise across position deciles ($0.0781 to $0.1290) is consistent with context growth, but it is equally consistent with harder work later in a session, and the plan forbids asserting the first. State both.
   - Depends on: E-08
   - Expected outcome: findings meet the full evidence/caveat/experiment contract with ranking stability tests; the price-era Simpson's-paradox case ships as a golden test using the measured figures; no causal language anywhere in the output, verified by an explicit check; no recommendation on an under-powered slice.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -243,50 +243,752 @@ THE INTERPRETATION GUIDE MUST CARRY THE REFUSALS, NOT ONLY THE RESULTS, and that
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the classifier's output for a command that is simultaneously git and test, showing a LABEL SET rather than a winner, with the matched rule and segment kind per label and NO command text in the persisted record. Paste the re-measured multi-class share from the executing worktree (41.9 percent of commands at two or more classes, 84.7 percent multi-segment at review; RE-MEASURE, the corpus grows). Paste the tool-name census (10 distinct names at review) and proof that `bash` classification consumes command text at ingest only.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE LABEL SET FOR A COMMAND THAT IS SIMULTANEOUSLY GIT AND TEST, with
+    per-label evidence naming the matched rule and segment kind, and NO command text. Actual output
+    of `classify_command("cd /repo && git status && python3 -m pytest").to_dict()`:
+    ```
+    {"taxonomy_version": 1,
+     "labels": ["git", "inspection-search", "tests"],
+     "display_label": "tests",
+     "evidence": {
+      "git":               {"rule": "git:status",           "segment_kind": "command-subcommand", "confidence": "high", "segment_count": 1},
+      "inspection-search": {"rule": "git:status",           "segment_kind": "command-subcommand", "confidence": "high", "segment_count": 1},
+      "tests":             {"rule": "python-module:pytest", "segment_kind": "module-invocation",  "confidence": "high", "segment_count": 1}},
+     "shares": {"git": 0.333333, "inspection-search": 0.333333, "tests": 0.333333},
+     "segment_count": 2, "had_leading_cd": true,
+     "is_multi_class": true, "is_unclassified": false, "is_ambiguous": false}
+    ```
+    THREE labels, not a winner. Note `display_label: "tests"` sits ALONGSIDE the full set rather
+    than replacing it, which is the demoted role precedence now has.
+    THE SINGLE-LABEL LOSS IS DEMONSTRATED, NOT ASSERTED.
+    `test_a_single_label_taxonomy_would_DISCARD_a_real_class` simulates the rejected design on the
+    same input and asserts the discarded set is non-empty, so the falsified design stays executable
+    and cannot be quietly reintroduced.
+    CLASSIFICATION CONSUMES COMMAND TEXT AT INGEST ONLY, proven mechanically rather than by
+    inspection. `assert_no_command_text` checks every token of the input against the serialized
+    record, excluding this module's own closed vocabulary (derived from the rule tables, so adding a
+    rule keeps the check correct). It returned clean for the command above.
+    THE CHECK EARNED ITS KEEP DURING IMPLEMENTATION BY CATCHING A REAL LEAK. An earlier revision
+    built the `aw` rule as `f"aw:{first_arg}"`, interpolating the next token UNBOUNDED, so
+    `aw <anything>` would have carried `<anything>` into a persisted rule identifier. The same shape
+    existed on the python-module rule. Both now resolve through a closed vocabulary before
+    interpolation, and both are pinned by regression tests
+    (`test_an_UNRECOGNIZED_aw_subcommand_does_not_reach_the_record`,
+    `test_an_UNRECOGNIZED_python_module_does_not_reach_the_record`). Actual behavior now:
+    ```
+    classify_command("aw supersecretsubcommand --flag")  ->  rule "aw"                        (token absent)
+    classify_command("aw ipd lint")                      ->  rule "aw:ipd"                    (granularity kept)
+    classify_command("python3 -m secretinternalmodule")  ->  rule "python-module:unrecognized" (token absent)
+    ```
+    A CONTROL PROVES THE CHECKER IS NOT VACUOUS: `test_the_leak_CHECK_ITSELF_fires_on_a_planted_leak`
+    plants a command string in a record and asserts the refusal names it.
+    TOOL-NAME CENSUS: the measured 10-name census is recorded as a LABELED SNAPSHOT in
+    `CORPUS_BASELINE["tool_name_counts"]` (bash 22757 the largest) and asserted to hold ten names.
+    It is NOT restated as a current measurement; see the corpus note below.
+    THE STRUCTURED-SIGNAL ASYMMETRY IS IMPLEMENTED: `edit`/`read`/`write` classify from the TOOL NAME
+    with the file CATEGORY as corroboration and need no free text at all; only `bash` reads a command
+    string. A file path contributes its category and never itself:
+    ```
+    classify_tool_call("edit", file_path="<an absolute source path>")
+      -> rule "tool:edit+category:source-code", kind "file-category"; the path is absent from the record
+    ```
+    CORPUS RE-MEASUREMENT: NOT PERFORMED IN THIS LANE, AND THE PLAN'S FIGURES ARE THEREFORE NOT
+    RESTATED AS CURRENT. Recorded as DECISION 03-aflsz3-D1. This plan executed in an isolated worker
+    worktree; the live corpus is absent there BY CONSTRUCTION, not by accident. Measured in the lane:
+    ```
+    $ [ -d .aw/records/runs ] && echo yes || echo no
+    no
+    $ echo "AW_EXECUTION_ROLE=${AW_EXECUTION_ROLE:-unset}"
+    AW_EXECUTION_ROLE=worker
+    $ python3 -c "from agent_workflows.runner_shared import state_root; from pathlib import Path; print(state_root(Path.cwd()).is_dir())"
+    False
+    ```
+    `.aw/.gitignore` carries `records/runs/` ("never committed"), so a fresh worktree cannot contain
+    it, and `worktree_lease.FORBIDDEN_WORKER_PATH_HINTS` contains `.aw/records/runs/`, so a
+    worker-role lane may not read it either. The plan itself mandates the resolution ("FIXTURES ARE
+    AUTHORITATIVE; THE LIVE CORPUS IS A READ-ONLY SMOKE CHECK") and its fourth stop condition
+    forbids a corpus-coupled test. Every review-time figure is therefore encoded as an EXPLICITLY
+    LABELED baseline constant (`provenance: review-time-snapshot`, `measured_at: 2026-09-08`,
+    `is_current: False`) which no analysis reads as an input, and every analysis recomputes its
+    value from whatever data it is given. HANDED OFF, one call each on a box with a corpus:
+    `run_analytics_taxonomy.accumulate(...)`, `run_analytics_pricing.validate_against_recorded(...)`.
+    Tests: 51 in `tests/test_run_analytics_taxonomy.py`, all passing (output pasted at V-09).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the per-class and unclassified shares re-measured in the executing worktree against the review baseline (inspection/search 30540, git 9158, implementation/editing 5909, tests 3975, aw-tooling 3598; 8.7 percent of commands unclassified). Paste the regression test failing when the unclassified share is pushed above the floor, then passing. Paste the top unclassified heads showing `echo` handled rather than dumped into `other/unknown`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE ACCOUNTING IS A MEASURED OUTPUT COMPUTED FROM INPUT. Actual
+    `ClassAccounting.format_report()` over a 12-command fixture corpus built from literals:
+    ```
+    taxonomy_version=1  commands=12  segments=13
+    multi-class share   0.1667 (2 commands at 2+ classes)
+    single-class share  0.6667 (8)
+    UNCLASSIFIED share  0.0833 (1)  [coverage gap; the regression floor]
+    AMBIGUOUS share     0.0833 (1)  [data property, NOT a gap]
+    multi-segment share 0.0833 (1)
+    leading-cd share    0.0833 (1)
+    per-class command counts (a multi-label command counts in EVERY label):
+      inspection-search        commands=3        segment_mass=1.83
+      git                      commands=2        segment_mass=1.33
+      implementation-editing   commands=2        segment_mass=1.50
+      other-unknown            commands=2        segment_mass=2.00
+      aw-tooling               commands=1        segment_mass=1.00
+      dependency-install       commands=1        segment_mass=1.00
+      idle-wait                commands=1        segment_mass=1.00
+      lint-format              commands=1        segment_mass=1.00
+      narration                commands=1        segment_mass=1.00
+      tests                    commands=0.33 (mass)
+    regression floor: ok - unclassified command share 0.0833 is within the baseline 0.0870 plus margin 0.0200
+    ```
+    EVERY class the baseline measured a count for is reachable from a command, asserted by
+    `test_the_measured_class_vocabulary_is_covered_by_rules`. The per-class SEGMENT MASS sums to the
+    classified command count (asserted to 1.0 for a single multi-label command), so a per-class
+    proportion is computable without the double counting that per-label COUNTS would introduce.
+    THE REGRESSION FLOOR FAILS THEN PASSES, in one test
+    (`test_the_unclassified_share_regression_floor_FAILS_when_coverage_regresses`). Actual behavior:
+    ```
+    corpus with 50 percent unrecognizable commands:
+      REGRESSED - unclassified command share 0.5000 exceeds the measured baseline 0.0870
+                  plus margin 0.0200 (= 0.1070) over 20 commands
+    clean corpus:
+      ok - unclassified command share 0.0000 is within the baseline 0.0870 plus margin 0.0200
+    ```
+    So the floor DISCRIMINATES rather than always firing. An EMPTY corpus deliberately does not
+    regress (`no-commands-classified`): no data is not a regression, and reporting one would fire on
+    every empty fixture.
+    `echo` IS HANDLED RATHER THAN DUMPED INTO `other/unknown`. It is the measured largest
+    unclassified head (14895 segments, an eighth of all), and it now classifies as its own
+    `narration` class: `classify_command("echo 'starting'") -> labels ("narration",)`, asserted by
+    `test_echo_is_NARRATION_rather_than_dumped_into_other_unknown`.
+    UNCLASSIFIED AND AMBIGUOUS ARE SEPARATE ACCOUNTED STATES (DECISION 03-aflsz3-D4), which is the
+    property that keeps the floor meaningful. A bare `python3` (measured 3807 segments, genuinely
+    both tests and ad-hoc analysis) is AMBIGUOUS with LOW confidence and is NOT counted in the
+    coverage gap; an unrecognized head is. Actual:
+    ```
+    classify_command("python3")           -> is_ambiguous=True   is_unclassified=False  rule "ambiguous-interpreter:python3"
+    classify_command("wibblefrotz --xyz") -> is_ambiguous=False  is_unclassified=True   (no evidence: no rule matched)
+    classify_command("python3 -m pytest") -> is_ambiguous=False  labels ("tests",)      confidence high
+    ```
+    Without that separation a rising `other-unknown` share would be unattributable to either a
+    taxonomy defect or a shift in the command mix, which is exactly what the floor exists to detect.
+    THE BASELINE CANNOT CONTAMINATE A MEASUREMENT:
+    `test_every_share_is_computed_from_the_INPUT_not_the_baseline` asserts the observed share differs
+    from the baseline figure, and `compare_to_baseline()` marks EVERY row `baseline_is_current: False`.
+    CORPUS RE-MEASUREMENT: NOT PERFORMED IN THIS LANE, AND THE PLAN'S FIGURES ARE THEREFORE NOT
+    RESTATED AS CURRENT. Recorded as DECISION 03-aflsz3-D1. This plan executed in an isolated worker
+    worktree; the live corpus is absent there BY CONSTRUCTION, not by accident. Measured in the lane:
+    ```
+    $ [ -d .aw/records/runs ] && echo yes || echo no
+    no
+    $ echo "AW_EXECUTION_ROLE=${AW_EXECUTION_ROLE:-unset}"
+    AW_EXECUTION_ROLE=worker
+    $ python3 -c "from agent_workflows.runner_shared import state_root; from pathlib import Path; print(state_root(Path.cwd()).is_dir())"
+    False
+    ```
+    `.aw/.gitignore` carries `records/runs/` ("never committed"), so a fresh worktree cannot contain
+    it, and `worktree_lease.FORBIDDEN_WORKER_PATH_HINTS` contains `.aw/records/runs/`, so a
+    worker-role lane may not read it either. The plan itself mandates the resolution ("FIXTURES ARE
+    AUTHORITATIVE; THE LIVE CORPUS IS A READ-ONLY SMOKE CHECK") and its fourth stop condition
+    forbids a corpus-coupled test. Every review-time figure is therefore encoded as an EXPLICITLY
+    LABELED baseline constant (`provenance: review-time-snapshot`, `measured_at: 2026-09-08`,
+    `is_current: False`) which no analysis reads as an input, and every analysis recomputes its
+    value from whatever data it is given. HANDED OFF, one call each on a box with a corpus:
+    `run_analytics_taxonomy.accumulate(...)`, `run_analytics_pricing.validate_against_recorded(...)`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the re-measured activity-versus-wall ratio (48036 s of tool activity against 1254107 s of run wall time, 3.8 percent, at review) and show `unattributed_time` published as the dominant term by default. Paste a shared-session fixture proving activity is attributed ONCE, and state how many real attempts exceeded their own wall time before the fix (27 at review). Include a mutation check: scale activity to fill elapsed time, show a test fails, revert.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: UNATTRIBUTED TIME IS PUBLISHED AS THE DOMINANT TERM. Actual
+    `TimeModel.format_report()` on a fixture reproducing the measured 3.8 percent activity ratio,
+    which also contains a SHARED session (two attempts reporting the same 19s span):
+    ```
+    DOMINANT TERM: unattributed
+    unattributed_seconds            962.0  (96.2000% of wall)
+    observed_activity_s              38.0  (3.8000% of wall)
+    overlap_seconds                  19.0
+    wall_seconds                   1000.0
+    shared sessions        1 (2 attempts), double count avoided 19.0s
+    ```
+    `dominant_term()` returns `unattributed`, and `to_dict()` EMITS `unattributed_seconds` FIRST
+    (asserted by `test_the_serialized_form_leads_with_unattributed_time`), so a serialized view
+    cannot bury the term that accounts for 96 percent of elapsed time.
+    A SHARED SESSION'S ACTIVITY IS ATTRIBUTED ONCE, not once per attempt. Two attempts each reporting
+    the same 100s span yield `observed_activity_seconds = 100.0`, not 200.0, with
+    `double_counted_seconds_avoided = 100.0`, `shared_session_count = 1`,
+    `attempts_sharing_a_session = 2`.
+    THE MEASURED DEFECT IS REPRODUCED AND SHOWN FIXED.
+    `test_WITHOUT_the_shared_session_rule_activity_would_EXCEED_wall_time` computes the naive sum
+    (200s) against a 150s wall window, asserts the naive sum exceeds wall time (the defect that made
+    27 real attempts appear to spend more time on tools than they existed for), then asserts the
+    corrected model does not.
+    THE MUTATION CHECK REQUIRED BY THIS ITEM:
+    `test_activity_is_NEVER_scaled_up_to_fill_elapsed_time` takes the measured 38s of activity in a
+    1000s window, applies the mutation (activity := wall), and asserts the two differ by the
+    1000/38 factor. Scaling activity to fill elapsed time would manufacture 96 percent of the number.
+    A NEGATIVE UNATTRIBUTED VALUE IS REPORTED RATHER THAN CLAMPED, asserted by
+    `test_a_NEGATIVE_unattributed_value_is_reported_rather_than_clamped`. A negative is real evidence
+    of a clock or attribution defect (it is what the shared-session double count produced on 27 real
+    attempts), so flooring it would erase the signal that led to this correction.
+    OVERLAP WITHIN A SESSION IS REPORTED: two intervals overlapping by 10s yield a 30s union with
+    `overlap_seconds = 10.0`, i.e. the double counting is made visible rather than smoothed.
+    HOW MANY REAL ATTEMPTS EXCEEDED THEIR OWN WALL TIME BEFORE THE FIX: 27 at review, over 25 shared
+    session ids covering 80 of 179 attempts. Recorded as a LABELED SNAPSHOT in
+    `CORPUS_BASELINE["attempts_exceeding_own_wall"]`; NOT re-measured here.
+    CORPUS RE-MEASUREMENT: NOT PERFORMED IN THIS LANE, AND THE PLAN'S FIGURES ARE THEREFORE NOT
+    RESTATED AS CURRENT. Recorded as DECISION 03-aflsz3-D1. This plan executed in an isolated worker
+    worktree; the live corpus is absent there BY CONSTRUCTION, not by accident. Measured in the lane:
+    ```
+    $ [ -d .aw/records/runs ] && echo yes || echo no
+    no
+    $ echo "AW_EXECUTION_ROLE=${AW_EXECUTION_ROLE:-unset}"
+    AW_EXECUTION_ROLE=worker
+    $ python3 -c "from agent_workflows.runner_shared import state_root; from pathlib import Path; print(state_root(Path.cwd()).is_dir())"
+    False
+    ```
+    `.aw/.gitignore` carries `records/runs/` ("never committed"), so a fresh worktree cannot contain
+    it, and `worktree_lease.FORBIDDEN_WORKER_PATH_HINTS` contains `.aw/records/runs/`, so a
+    worker-role lane may not read it either. The plan itself mandates the resolution ("FIXTURES ARE
+    AUTHORITATIVE; THE LIVE CORPUS IS A READ-ONLY SMOKE CHECK") and its fourth stop condition
+    forbids a corpus-coupled test. Every review-time figure is therefore encoded as an EXPLICITLY
+    LABELED baseline constant (`provenance: review-time-snapshot`, `measured_at: 2026-09-08`,
+    `is_current: False`) which no analysis reads as an input, and every analysis recomputes its
+    value from whatever data it is given. HANDED OFF, one call each on a box with a corpus:
+    `run_analytics_taxonomy.accumulate(...)`, `run_analytics_pricing.validate_against_recorded(...)`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the instruction-burden output as tokens and priced cost per turn, with the standing-instruction byte inventory (`AGENTS.md` 33101 bytes at review). PASTE THE 0.014 PERCENT FIGURE EXPLICITLY, with its derivation (183.2 s of read-tool time over 48036 s of tool time over 1254107 s of wall time), and show read time labeled a footnote. This item's whole purpose is that a reader must not mistake a flat chart for an absent cost, so the number must appear in the output, not only in this plan.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE 0.014 PERCENT FIGURE APPEARS IN THE OUTPUT, WITH ITS DERIVATION, WHICH IS
+    THIS ITEM'S WHOLE PURPOSE. Actual `instruction_burden(...)` output:
+    ```
+    {"median_first_step_input_tokens": 15067.0,
+     "cost_per_turn_usd": 0.0828685,
+     "turn_count": 100,
+     "total_injected_cost_usd": 8.28685,
+     "standing_instruction_bytes":  {"AGENTS.md": 33101, "CONTRIBUTING.md": 14376,
+                                     "GUIDING_PRINCIPLES.md": 10232, "RELEASING.md": 3596},
+     "standing_instruction_tokens_approx": {"AGENTS.md": 8275, "CONTRIBUTING.md": 3594,
+                                     "GUIDING_PRINCIPLES.md": 2558, "RELEASING.md": 899},
+     "standing_instruction_total_bytes": 61305,
+     "standing_instruction_total_tokens_approx": 15326,
+     "read_time_footnote": {
+       "label": "FOOTNOTE, NOT A HEADLINE",
+       "basis": "review-time-snapshot-2026-09-08-NOT-CURRENT",
+       "read_tool_seconds": 183.2,
+       "share_of_tool_time": 0.0038,
+       "share_of_tool_time_percent": "0.38%",
+       "share_of_wall_time": 0.00014,
+       "share_of_wall_time_percent": "0.014%",
+       "derivation": "183.2 s of read-tool time / 48036 s of tool time = 0.38% of tool time; tool time / 1254107 s of wall time, so read time is 0.014% of elapsed",
+       "why_it_is_a_footnote": "a time chart of instruction reading renders as a flat line indistinguishable from zero; the instruction burden is INJECTED CONTEXT measured in tokens and dollars, not time spent reading. Do not read the flat line as an absent cost"}}
+    ```
+    THE FIGURE IS IN THE OUTPUT, NOT ONLY IN THE PLAN: `share_of_wall_time_percent` is the literal
+    string `"0.014%"`, asserted by `test_the_0_014_PERCENT_figure_is_published_in_the_OUTPUT`, which
+    also asserts the three derivation terms (183.2 s, 48036 s, 1254107 s) each appear.
+    READ TIME IS LABELED A FOOTNOTE, with the reason a reader must not draw the wrong conclusion
+    stated in the payload itself (`label`, `why_it_is_a_footnote`).
+    THE BURDEN IS MEASURED WHERE IT EXISTS: injected input tokens (median first step 15067) priced at
+    the era rate, $0.0828685 per turn, scaling with turn count. `AGENTS.md` alone is 33101 bytes
+    (~8275 tokens) of always-loaded context, and the standing corpus totals ~15326 tokens per turn.
+    A NOTE ON PRECISION, since it was a real defect found in testing: `cost_per_turn_usd` is rounded
+    to 9 places and not 6. A per-turn cost is a fraction of a cent MULTIPLIED by a turn count, so
+    truncating at 1e-6 introduces an error that scales with the run ($0.0828685 became $0.082868,
+    compounding visibly over 100 turns).
+    OBSERVED DURATIONS OVERRIDE THE SNAPSHOT WHEN SUPPLIED, and the basis says which:
+    ```
+    read=10.0s tool=1000.0s wall=100000.0s -> basis "observed-in-this-corpus", share_of_wall "0.010%"
+    no durations supplied                  -> basis "review-time-snapshot-2026-09-08-NOT-CURRENT"
+    ```
+    A PARTIAL duration set deliberately falls back rather than mixing bases
+    (`test_a_PARTIAL_duration_set_falls_back_rather_than_mixing_bases`): the derivation is a chain of
+    two ratios, so an observed numerator over a snapshot denominator would produce a number belonging
+    to neither.
+    CORPUS RE-MEASUREMENT: NOT PERFORMED IN THIS LANE, AND THE PLAN'S FIGURES ARE THEREFORE NOT
+    RESTATED AS CURRENT. Recorded as DECISION 03-aflsz3-D1. This plan executed in an isolated worker
+    worktree; the live corpus is absent there BY CONSTRUCTION, not by accident. Measured in the lane:
+    ```
+    $ [ -d .aw/records/runs ] && echo yes || echo no
+    no
+    $ echo "AW_EXECUTION_ROLE=${AW_EXECUTION_ROLE:-unset}"
+    AW_EXECUTION_ROLE=worker
+    $ python3 -c "from agent_workflows.runner_shared import state_root; from pathlib import Path; print(state_root(Path.cwd()).is_dir())"
+    False
+    ```
+    `.aw/.gitignore` carries `records/runs/` ("never committed"), so a fresh worktree cannot contain
+    it, and `worktree_lease.FORBIDDEN_WORKER_PATH_HINTS` contains `.aw/records/runs/`, so a
+    worker-role lane may not read it either. The plan itself mandates the resolution ("FIXTURES ARE
+    AUTHORITATIVE; THE LIVE CORPUS IS A READ-ONLY SMOKE CHECK") and its fourth stop condition
+    forbids a corpus-coupled test. Every review-time figure is therefore encoded as an EXPLICITLY
+    LABELED baseline constant (`provenance: review-time-snapshot`, `measured_at: 2026-09-08`,
+    `is_current: False`) which no analysis reads as an input, and every analysis recomputes its
+    value from whatever data it is given. HANDED OFF, one call each on a box with a corpus:
+    `run_analytics_taxonomy.accumulate(...)`, `run_analytics_pricing.validate_against_recorded(...)`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste a schema-level AND a numeric golden result for each supported analysis in both aggregate and phase-separated modes, each carrying its sample size. Paste the four named additions with their re-measured figures: cost concentration (top 10 percent holding 22.8 percent of spend at review), the within-session gradient ($0.0781 first decile to $0.1290 last, 1.27x, n=345 sessions), price-era stratified efficiency, and missingness bias ($394.19 unaccounted across 215 files). Paste the implementation-versus-inspection ratio with its file-category breakdown.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: EACH SUPPORTED ANALYSIS HAS A SCHEMA-LEVEL AND A NUMERIC GOLDEN TEST, and each
+    carries its sample size. All assertions are against FIXTURES built from literals; the plan's
+    review-time figures are recorded as labeled baseline constants and are NOT restated as current.
+    PER-IPD USAGE (measured support: 179 attempts, 118 distinct id6). Fixture of 20 IPDs with costs
+    1..20: `verdict=computed`, `sample_size=20`, distributions for cost/tokens/wall/attempts each
+    carrying `sample_size`; numerically `median=10.5`, `minimum=1.0`, `maximum=20.0`.
+    A RETRIED IPD COUNTS ONCE, not five times
+    (`test_per_ipd_usage_counts_a_RETRIED_ipd_once_not_five_times`): the sample is "what does an IPD
+    cost", so five attempts on one id6 aggregate to one observation of $5.00 rather than five of $1.
+    IMPLEMENTATION VERSUS INSPECTION, with the measured tool counts as the fixture input:
+    ```
+    edit 5512 + write 575 = 6087 implementation;  read 2332 + grep 49 + glob 21 = 2402 inspection
+    ratio 2.534555;  implementation_share value 0.717163 with a Wilson interval strictly bracketing it
+    file categories: source-code 3200 / plan-or-ipd 3158 / test-code 1095, shares summing to 1.0
+    ```
+    The share carries an INTERVAL because the same ratio over 30 and over 30000 calls are different
+    claims; `wilson_score_interval` is the SHIPPED function, asserted identical by `is`.
+    CACHE UTILIZATION, the largest single lever: fixture reproducing the measured proportions yields
+    `cache_share_of_tokens 0.9862` and `cache_share_of_spend 0.7183`. It deliberately applies NO
+    under-power test, and says so in its `reason`: a token census is a total, not a sample, so an
+    under-power test on it would be a category error.
+    THE FOUR NAMED ADDITIONS ARE IMPLEMENTED, so the plan's "choose four more at execution"
+    requirement is discharged in code rather than deferred:
+    (a) COST CONCENTRATION - fixture of 90x$1 + 10x$10: `total_spend_usd 190.0`,
+        `top_decile_spend_share 0.526316` (100/190), `max_cost_usd 10.0`. Carries an
+        `ASSOCIATION ONLY` caveat. Refuses when total spend is zero, because a concentration share of
+        nothing is undefined rather than 0.
+    (b) WITHIN-SESSION GRADIENT - 20 sessions x 20 steps rising linearly:
+        `first_decile_mean_cost_usd 0.0794`, `last_decile_mean_cost_usd 0.1277`,
+        `first_to_last_ratio > 1.2`, `is_monotonic_increasing True`, `session_count 20`. Sessions
+        below 20 steps are EXCLUDED (a 3-step session's "last decile" is one step), and a 50-session
+        fixture of 3-step sessions correctly returns `cannot-determine` at n=0.
+    (c) PRICE-ERA STRATIFIED efficiency - `run_analytics_pricing.stratify_by_era` separates the eras
+        and keeps an unresolvable era under `unknown` rather than dropping it, so a pooled comparison
+        cannot hide behind a silently shrunken denominator. It is also the paradox control at V-09.
+    (d) MISSINGNESS BIAS - 100 logs at $10 against 87 recorded attempts: `session_log_total_usd
+        1000.0`, `recorded_attempt_total_usd 870.0`, `unaccounted_usd 130.0`,
+        `unaccounted_session_count 13`, `unaccounted_share_of_spend 0.13`. An attempt with no log is
+        reported SEPARATELY (different cause, different fix). Caveats state that a per-IPD chart
+        built only from attempts UNDERSTATES spend, and that closing the gap is a RUNNER change.
+    THE GRADIENT STATES BOTH EXPLANATIONS AND ASSERTS NEITHER, which the plan requires explicitly:
+    its caveat names `ASSOCIATION ONLY`, `context growth` and `harder work`, asserted by
+    `test_the_gradient_states_BOTH_explanations_and_asserts_neither`.
+    PHASE-SEPARATED MODE: `verifier_phase_summary` reports cost per phase
+    (`{"execute": 10.0, "review": 5.0, "verify": 1.0}` on a three-log fixture) alongside the
+    aggregate analyses, so both views exist. See V-06 for the derived-phase labeling.
+    CORPUS RE-MEASUREMENT: NOT PERFORMED IN THIS LANE, AND THE PLAN'S FIGURES ARE THEREFORE NOT
+    RESTATED AS CURRENT. Recorded as DECISION 03-aflsz3-D1. This plan executed in an isolated worker
+    worktree; the live corpus is absent there BY CONSTRUCTION, not by accident. Measured in the lane:
+    ```
+    $ [ -d .aw/records/runs ] && echo yes || echo no
+    no
+    $ echo "AW_EXECUTION_ROLE=${AW_EXECUTION_ROLE:-unset}"
+    AW_EXECUTION_ROLE=worker
+    $ python3 -c "from agent_workflows.runner_shared import state_root; from pathlib import Path; print(state_root(Path.cwd()).is_dir())"
+    False
+    ```
+    `.aw/.gitignore` carries `records/runs/` ("never committed"), so a fresh worktree cannot contain
+    it, and `worktree_lease.FORBIDDEN_WORKER_PATH_HINTS` contains `.aw/records/runs/`, so a
+    worker-role lane may not read it either. The plan itself mandates the resolution ("FIXTURES ARE
+    AUTHORITATIVE; THE LIVE CORPUS IS A READ-ONLY SMOKE CHECK") and its fourth stop condition
+    forbids a corpus-coupled test. Every review-time figure is therefore encoded as an EXPLICITLY
+    LABELED baseline constant (`provenance: review-time-snapshot`, `measured_at: 2026-09-08`,
+    `is_current: False`) which no analysis reads as an input, and every analysis recomputes its
+    value from whatever data it is given. HANDED OFF, one call each on a box with a corpus:
+    `run_analytics_taxonomy.accumulate(...)`, `run_analytics_pricing.validate_against_recorded(...)`.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste each of the four under-powered analyses returning `cannot-determine` WITH its observed n, re-measured (6 multi-attempt items of 733, 6 recovery attempts, 3 merge-conflict attempts at review). Paste proof that requesting a chart for one of them refuses rather than renders. Paste the verifier-phase derivation from the session filename, LABELED derived, with the measured verifier spend ($64.08 across 57 logs) and the fact that zero attempts carry `verify_cost`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE FOUR MEASURED-UNDER-POWERED REQUIRED ANALYSES EACH RETURN
+    `cannot-determine` WITH THEIR OBSERVED n, and a chart CANNOT be produced from any of them. Actual
+    output of `refuse_under_powered_required_analyses()`:
+    ```
+    failed-merge-waste-and-retry-cost:               cannot-determine n=3 renderable=False
+      chart REFUSED: analysis 'failed-merge-waste-and-retry-cost' returned 'cannot-determine' (n=3): ...
+    merge-conflict-share-and-recurrence:             cannot-determine n=3 renderable=False
+      chart REFUSED: analysis 'merge-conflict-share-and-recurrence' returned 'cannot-determine' (n=3)...
+    test-failure-retry-loops-and-time-to-first-pass: cannot-determine n=6 renderable=False
+      chart REFUSED: analysis 'test-failure-retry-loops-and-time-to-first-pass' returned 'cannot-dete...
+    instruction-burden-versus-retries:               cannot-determine n=6 renderable=False
+      chart REFUSED: analysis 'instruction-burden-versus-retries' returned 'cannot-determine' (n=6): ...
+    ```
+    The full refusal reason on each: `observed n=<N> is below the declared minimum n=12; the corpus
+    cannot support this analysis and a rendered result would be an artifact of the individual
+    observations`.
+    A CHART REFUSES RATHER THAN RENDERS, which is the mechanism and not a convention.
+    `AnalysisResult.renderable` is False for every non-computed verdict, and `require_values()`
+    RAISES rather than returning an empty dict, because an empty dict is precisely what a renderer
+    would plot as zero. Asserted for all four by
+    `test_requesting_a_CHART_for_an_under_powered_slice_REFUSES_rather_than_renders`.
+    ONE SHARED PREDICATE, so the four analyses and any future slice cannot diverge on what counts as
+    enough data: `under_power_verdict` with `MINIMUM_SAMPLE_SIZE = 12`, refusing at n in
+    {0, 1, 3, 6, 11} and proceeding at n in {12, 13, 1000}. The threshold is defensible on its own
+    terms (the smallest n at which a median and an IQR are more than a restatement of the individual
+    observations) rather than reverse-engineered to exclude the known cases.
+    THE MIRROR-IMAGE DEFECT IS ALSO GUARDED. A required analysis whose n has GROWN past the minimum
+    is COMPUTED rather than refused forever
+    (`test_a_required_analysis_whose_n_has_GROWN_is_computed_rather_than_refused`, n=500 ->
+    `verdict=computed`). Refusing permanently would be as wrong as charting n=3.
+    THE MEASURED SAMPLE SIZES THAT FORCE THE REFUSALS are recorded as a LABELED SNAPSHOT: 733 queue
+    items of which 6 have more than one attempt, 6 recovery attempts, 3 merge-conflict attempts. NOT
+    re-measured here.
+    THE VERIFIER PHASE IS DERIVED FROM THE LOG FILENAME AND LABELED DERIVED. The derivation is
+    relocated BY NAME, not by line: `oc_runipd.run_opencode` passes `log_suffix="verify"` to
+    `attempt_log_path`, which produces `<NN>-<id6>-attempt-<n>-verify.jsonl`; the runner's own
+    comment states the coupling is a presentation detail rather than a data field, which is exactly
+    why anything read off it is labeled. Actual:
+    ```
+    verifier_phase_of_log("03-aflsz3-attempt-1-verify.jsonl") -> ("verify",  is_derived=True)
+    verifier_phase_of_log("03-aflsz3-attempt-1.jsonl")        -> ("execute", is_derived=True)
+    verifier_phase_summary(...) -> is_derived=True
+                                   verify_phase_provenance "derived-from-log-filename"
+                                   attempts_carrying_verify_cost 0
+                                   cost_by_phase_usd {"execute": 10.0, "review": 5.0, "verify": 1.0}
+    ```
+    The caveat states plainly that the attribution depends on the runner's log naming and would break
+    silently if that naming changed. The measured verifier spend ($64.08 across 57 logs, with ZERO
+    attempts carrying `verify_cost`) is recorded as a labeled snapshot.
+    CORPUS RE-MEASUREMENT: NOT PERFORMED IN THIS LANE, AND THE PLAN'S FIGURES ARE THEREFORE NOT
+    RESTATED AS CURRENT. Recorded as DECISION 03-aflsz3-D1. This plan executed in an isolated worker
+    worktree; the live corpus is absent there BY CONSTRUCTION, not by accident. Measured in the lane:
+    ```
+    $ [ -d .aw/records/runs ] && echo yes || echo no
+    no
+    $ echo "AW_EXECUTION_ROLE=${AW_EXECUTION_ROLE:-unset}"
+    AW_EXECUTION_ROLE=worker
+    $ python3 -c "from agent_workflows.runner_shared import state_root; from pathlib import Path; print(state_root(Path.cwd()).is_dir())"
+    False
+    ```
+    `.aw/.gitignore` carries `records/runs/` ("never committed"), so a fresh worktree cannot contain
+    it, and `worktree_lease.FORBIDDEN_WORKER_PATH_HINTS` contains `.aw/records/runs/`, so a
+    worker-role lane may not read it either. The plan itself mandates the resolution ("FIXTURES ARE
+    AUTHORITATIVE; THE LIVE CORPUS IS A READ-ONLY SMOKE CHECK") and its fourth stop condition
+    forbids a corpus-coupled test. Every review-time figure is therefore encoded as an EXPLICITLY
+    LABELED baseline constant (`provenance: review-time-snapshot`, `measured_at: 2026-09-08`,
+    `is_current: False`) which no analysis reads as an input, and every analysis recomputes its
+    value from whatever data it is given. HANDED OFF, one call each on a box with a corpus:
+    `run_analytics_taxonomy.accumulate(...)`, `run_analytics_pricing.validate_against_recorded(...)`.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste the schedule reproducing RECORDED cost over the real corpus in the executing worktree, reporting exact-match counts per era (7917 Era A and 21731 Era B of 29671 at review, 23 residual). Name the two boundary instants and show a step on each side priced by the correct era. Paste a `reasoning`-bearing unpriced-model step being REFUSED rather than estimated. Paste proof there is no cache_write rate column and the measurement behind it (cache_write 0 in all 29611 steps reporting a cache object). Paste recorded and estimated cost side by side, distinct.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE SCHEDULE REPRODUCES RECORDED COST EXACTLY IN BOTH ERAS. Actual
+    `PriceSchedule.format_report()`:
+    ```
+    pricing_schema_version=1 schedule_version=2026-09-08
+    priced components: input, output, cache (NO cache_write rate column; cache_write measured 0 in all 29611 steps)
+      era-a    <any>/<any>  [2026-01-01T00:00:00Z .. 2026-08-29T05:38:43Z)  input=$5.00 output=$25.00 cache_read=$0.00  exact_matches=7917   source=fit-to-recorded-cost
+      era-b    <any>/<any>  [2026-08-29T05:38:43Z .. open)                  input=$5.50 output=$27.50 cache_read=$0.55  exact_matches=21731  source=fit-to-recorded-cost
+    ```
+    Actual `validate_against_recorded(...)` over a 20-step fixture whose recorded costs were computed
+    from the two measured rate sets:
+    ```
+    {"pricing_schema_version": 1, "steps_supplied": 20, "steps_priced": 20,
+     "exact_matches": 20, "mismatches": 0, "refusals": 0,
+     "per_era": {"era-a": {"checked": 10, "exact": 10, "mismatched": 0, "estimated_usd": 0.4125,  "recorded_usd": 0.4125},
+                 "era-b": {"checked": 10, "exact": 10, "mismatched": 0, "estimated_usd": 1.96625, "recorded_usd": 1.96625}},
+     "boundary_instants": {"era_a_last_step": "2026-08-29T01:30:43Z",
+                           "era_b_first_step": "2026-08-29T05:38:43Z",
+                           "note": "no interleaving was measured across this boundary"},
+     "has_cache_write_rate_column": false}
+    ```
+    20 of 20 exact, 0 mismatches. THE EXACT-MATCH REPORT CAN FAIL, which is what makes it evidence:
+    `test_a_WRONG_rate_is_caught_rather_than_absorbed_by_tolerance` feeds a recorded cost of $999
+    against a $5.50 estimate and asserts `exact_matches=0, mismatches=1, delta=-993.50`. The default
+    tolerance is FLOATING-POINT (1e-9), not a business tolerance: a 1 percent error is asserted NOT
+    to count as exact.
+    THE TWO BOUNDARY INSTANTS, WITH A STEP ON EACH SIDE PRICED BY THE CORRECT ERA:
+    ```
+    price_step(at="2026-08-29T01:30:43Z") -> era_id "era-a"   (the last Era A step)
+    price_step(at="2026-08-29T05:38:43Z") -> era_id "era-b"   (the first Era B step)
+    ```
+    The interval is from-INCLUSIVE to-EXCLUSIVE, so the boundary instant belongs to era B ALONE
+    (`era_a.covers(boundary)` is False, `era_b.covers(boundary)` is True). A closed-closed interval
+    would make it belong to both, and the corpus locates that boundary to the step.
+    NUMERIC ERA CHECKS: 1 Mtok input + 0.1 Mtok output + 10 Mtok cache prices to $7.50 in Era A
+    (cache FREE) and $13.75 in Era B, and the Era B cache_read rate is asserted to be EXACTLY 10
+    percent of its input rate.
+    A REASONING-BEARING STEP IS REFUSED RATHER THAN ESTIMATED:
+    ```
+    price_step(tokens={"input":1000,"output":100,"reasoning":50}, at="2026-09-01T00:00:00Z")
+      -> is_refused=True, estimated_usd=None
+      -> "step carries reasoning=50 and no reasoning rate is recoverable from this corpus;
+          these are exactly the 23 residual steps, and pricing one would silently omit a billed component"
+    ```
+    A `reasoning` key of ZERO is priced normally, so the refusal is on a BILLED component and not on
+    the key's presence. The named unpriced model is refused and NAMED
+    (`google/gemini-3.8-flash`), as are an unknown date, an unparseable instant, a currency mismatch,
+    and an unknown model against a model-specific schedule (refused rather than inheriting rates).
+    THERE IS NO cache_write RATE COLUMN, and the measurement behind it is recorded.
+    `PriceRates` has no `cache_write_per_mtok` attribute (asserted with `hasattr`),
+    `rate_for("cache_write")` RAISES, `cache_write` is absent from `PRICED_COMPONENTS`, and the
+    serialized form carries `"cache_write_per_mtok": null` with the note `cache_write was measured 0
+    in all 29611 steps reporting a cache object, so a write rate would be untestable invention`.
+    THE SINGLE-RATE JUSTIFICATION IS FALSIFIABLE, NOT ASSUMED (DECISION 03-aflsz3-D2). The schema's
+    single `cache` component is priced at the cache-read rate BECAUSE cache_write was measured 0
+    everywhere; a step reporting a nonzero write is therefore REFUSED rather than mispriced:
+    ```
+    validate_against_recorded([{... "cache_write": 42}])
+      -> refusals=1, steps_priced=0
+      -> "step reports cache_write=42, which was measured 0 in all 29611 corpus steps; the single
+          `cache` component is priced at the cache-read rate ON THAT BASIS, so a nonzero write
+          invalidates the equivalence and pricing REFUSES rather than mispricing"
+    ```
+    RECORDED AND ESTIMATED COST SIDE BY SIDE, DISTINCT, and recorded never overwritten:
+    ```
+    price_step(tokens={"input":1_000_000}, at="2026-09-01T00:00:00Z", recorded_usd=99.0)
+      -> recorded_usd 99.0 (untouched) | estimated_usd 5.50 | authoritative_usd 99.0
+      -> cost_is_estimate False (recorded wins) | delta -93.50
+    with no recorded value: cost_is_estimate True, authoritative_usd == estimated_usd
+    ```
+    COMPONENT SPEND SHARES confirm cache dominates Era B (>0.70 of spend against <0.10 for input),
+    which is why a pricing view omitting cache reads omits most of the money. A negative rate is
+    refused at construction.
+    CORPUS RE-MEASUREMENT: NOT PERFORMED IN THIS LANE, AND THE PLAN'S FIGURES ARE THEREFORE NOT
+    RESTATED AS CURRENT. Recorded as DECISION 03-aflsz3-D1. This plan executed in an isolated worker
+    worktree; the live corpus is absent there BY CONSTRUCTION, not by accident. Measured in the lane:
+    ```
+    $ [ -d .aw/records/runs ] && echo yes || echo no
+    no
+    $ echo "AW_EXECUTION_ROLE=${AW_EXECUTION_ROLE:-unset}"
+    AW_EXECUTION_ROLE=worker
+    $ python3 -c "from agent_workflows.runner_shared import state_root; from pathlib import Path; print(state_root(Path.cwd()).is_dir())"
+    False
+    ```
+    `.aw/.gitignore` carries `records/runs/` ("never committed"), so a fresh worktree cannot contain
+    it, and `worktree_lease.FORBIDDEN_WORKER_PATH_HINTS` contains `.aw/records/runs/`, so a
+    worker-role lane may not read it either. The plan itself mandates the resolution ("FIXTURES ARE
+    AUTHORITATIVE; THE LIVE CORPUS IS A READ-ONLY SMOKE CHECK") and its fourth stop condition
+    forbids a corpus-coupled test. Every review-time figure is therefore encoded as an EXPLICITLY
+    LABELED baseline constant (`provenance: review-time-snapshot`, `measured_at: 2026-09-08`,
+    `is_current: False`) which no analysis reads as an input, and every analysis recomputes its
+    value from whatever data it is given. HANDED OFF, one call each on a box with a corpus:
+    `run_analytics_taxonomy.accumulate(...)`, `run_analytics_pricing.validate_against_recorded(...)`.
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste distributions carrying sample size, missingness, median, mean, standard deviation and deterministic quantiles, in the `MetricValue`-shaped vocabulary, with the reuse of `benchmark_metrics`'s existing shape shown rather than a second vocabulary. Paste model comparison REFUSING with the re-measured identity coverage (2 of 179 attempts, 1.1 percent at review) while price-era stratification proceeds. Paste `pip freeze`-equivalent proof that no runtime dependency was added beyond the single declared `filelock`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: DISTRIBUTIONS ARE EXPRESSED IN THE SHIPPED `MetricValue` VOCABULARY, REUSED
+    RATHER THAN COPIED (DECISION 03-aflsz3-D3). `Distribution.as_metric_values()` returns instances
+    whose TYPE IS the shipped class, asserted with `assertIs(type(metric), MetricValue)` for every
+    statistic, and `st.wilson_score_interval is benchmark_metrics.wilson_score_interval` is asserted
+    identical. Each `MetricValue` carries `sample_size`, `is_available` and the interval bounds with
+    their existing meanings. A `Distribution` reports:
+    ```
+    sample_size, missing_count, coverage, minimum, maximum, mean, median, stdev, p25, p75, p90, unit
+    ```
+    `missing_count` IS ITS OWN FIELD and is not folded into `sample_size`: "40 values observed and 12
+    records had none" is a different fact from "40 values observed", which is the same distinction
+    Order 05's four-state provenance exists for.
+    MISSING IS NEVER ZERO, carried through from Order 05's rule. `describe("x", [1.0, None, 3.0,
+    None])` yields `sample_size=2, missing_count=2, mean=2.0` (the Nones did not drag the mean toward
+    0) and `coverage=0.5`. An EMPTY sample yields `None` for every statistic rather than zeros, and a
+    zero-valued sample is asserted DISTINCT from an absent one. `stdev` of ONE observation is `None`
+    rather than 0, because the dispersion of a single observation is undefined.
+    DETERMINISTIC QUANTILES: linear interpolation on sorted order, written out so the definition is
+    auditable rather than version-dependent. `quantile([1,2,3,4], 0.5) == 2.5` and `0.25 -> 1.75`,
+    asserted stable across repeated calls. A quantile of an EMPTY sample is REFUSED ("a quantile of
+    no observations is not zero; it is undefined") and an out-of-range q is refused.
+    SMALL, EMPTY, SKEWED, NON-FINITE AND NON-NUMERIC SAMPLES are all covered: a skewed sample reports
+    median 1.0 against mean >100 so the skew is visible, and NaN/inf/bool/str all count as missing.
+    MODEL COMPARISON REFUSES AT THE MEASURED COVERAGE while price-era stratification proceeds. Actual
+    output on a fixture reproducing the measured 2-of-179:
+    ```
+    verdict=refused  n=2  coverage=0.011173
+    reason: model identity resolves for 2 of 179 attempts (coverage 0.0112), below the declared
+            threshold 0.80; a comparison drawn over this coverage would measure the minority and
+            report it as the whole
+    ```
+    `renderable` is False, so no chart can be drawn. `host-default` does NOT count as a resolved
+    model (31 of 33 provenance blocks record it, and it identifies nothing): a 50-attempt fixture of
+    `host-default` refuses at n=0.
+    BOTH TEMPTING INFERENCES ARE REFUSED BY NAME in the caveats, asserted by
+    `test_BOTH_tempting_inferences_are_refused_BY_NAME`: deriving the model from the RUN DATE
+    (which conflates model identity with PRICE ERA and manufactures the confound F-10 documents) and
+    reading a `task` SUB-AGENT's `modelID` (which identifies a different model than the one that did
+    the work). The caveats also state that `price-era stratification IS available`.
+    THE REFUSAL IS NOT PERMANENT: at 40 attempts with resolvable models the analysis COMPUTES and
+    returns per-model distributions, so coverage improving for future runs unlocks it.
+    THE BENCHMARK DOLLAR-COST GUARD STILL FIRES AND WAS NOT RELAXED, which is the plan's third stop
+    condition as a test. `test_the_benchmark_dollar_cost_GUARD_still_fires_and_was_not_relaxed`
+    asserts all six forbidden keys remain in `benchmark_metrics._FORBIDDEN_COST_KEYS` AND that
+    `evaluate_trial_metrics` still raises `MetricError` on a usage mapping carrying `cost`. This
+    plan imports only `MetricValue` and `wilson_score_interval`, neither of which has a cost check,
+    and never calls `evaluate_trial_metrics`. `benchmark_metrics.py` is NOT in this plan's diff.
+    NO RUNTIME DEPENDENCY WAS ADDED. `pyproject.toml` still declares exactly one runtime dependency:
+    ```
+    $ grep -n '^dependencies' pyproject.toml
+    50:dependencies = ["filelock>=3"]
+    ```
+    `pyproject.toml` is NOT in this plan's diff (the commit touches 7 files, all under
+    `agent_workflows/run_analytics_*` and `tests/test_run_analytics_*`), and
+    `test_no_new_runtime_dependency_is_imported` asserts the module's own source imports none of
+    numpy/scipy/pandas/statsmodels/sklearn. All four modules are stdlib-only plus in-repo imports.
+    CORPUS RE-MEASUREMENT: NOT PERFORMED IN THIS LANE, AND THE PLAN'S FIGURES ARE THEREFORE NOT
+    RESTATED AS CURRENT. Recorded as DECISION 03-aflsz3-D1. This plan executed in an isolated worker
+    worktree; the live corpus is absent there BY CONSTRUCTION, not by accident. Measured in the lane:
+    ```
+    $ [ -d .aw/records/runs ] && echo yes || echo no
+    no
+    $ echo "AW_EXECUTION_ROLE=${AW_EXECUTION_ROLE:-unset}"
+    AW_EXECUTION_ROLE=worker
+    $ python3 -c "from agent_workflows.runner_shared import state_root; from pathlib import Path; print(state_root(Path.cwd()).is_dir())"
+    False
+    ```
+    `.aw/.gitignore` carries `records/runs/` ("never committed"), so a fresh worktree cannot contain
+    it, and `worktree_lease.FORBIDDEN_WORKER_PATH_HINTS` contains `.aw/records/runs/`, so a
+    worker-role lane may not read it either. The plan itself mandates the resolution ("FIXTURES ARE
+    AUTHORITATIVE; THE LIVE CORPUS IS A READ-ONLY SMOKE CHECK") and its fourth stop condition
+    forbids a corpus-coupled test. Every review-time figure is therefore encoded as an EXPLICITLY
+    LABELED baseline constant (`provenance: review-time-snapshot`, `measured_at: 2026-09-08`,
+    `is_current: False`) which no analysis reads as an input, and every analysis recomputes its
+    value from whatever data it is given. HANDED OFF, one call each on a box with a corpus:
+    `run_analytics_taxonomy.accumulate(...)`, `run_analytics_pricing.validate_against_recorded(...)`.
+  - Result: pass
 
-- [ ] V-09 validates E-09
+- [x] V-09 validates E-09
   - Required evidence: paste a ranked finding set showing every contract field, and a ranking-stability test. Paste the price-era Simpson's-paradox golden test using the measured figures (median blended $/Mtok $0.054 to $0.071 in Era A days versus $0.635 to $0.737 in Era B, driven by cache_read becoming billable while being 98.62 percent of tokens, not by the 10 percent rate change), showing a pooled comparison flagged. Paste the no-causal-language check firing on a planted causal claim, then clean. Paste an under-powered slice yielding `cannot-determine` instead of advice.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: A RANKED FINDING SET SHOWING EVERY CONTRACT FIELD. Actual
+    `format_findings_report()` output for the shipped price-era finding plus one refusal:
+    ```
+    findings_schema_version=1  findings=2  actionable=1  cannot-determine=1
+
+    #1 [HIGH] F-PRICE-ERA: Blended cost per million tokens differs about ninefold across the price-era boundary, while the published rates differ by 10 percent
+        slice        : all priced steps, split at the boundary instant 2026-08-29T05:38:43Z
+        effect       : 8.9437 fold difference in blended USD per million tokens
+        sample       : n=2  coverage=1.0000
+        uncertainty  : the two ranges are $0.054-$0.071 and $0.635-$0.737 of daily medians, so the fold figure is a ratio of range endpoints and not a point estimate; the comparison is between two eras, i.e. n=2 at the era grain
+        caveat       : these are review-time daily medians (measured 2026-09-08) over a corpus that grows with every run; re-measure before citing them as current
+        caveat       : cache_read is 98.62% of all tokens, so a blended per-token rate is dominated by one component and is a poor summary of the others
+        alternative  : THE CO-OCCURRING SCHEDULE CHANGE, which is the account this data supports: the cache_read rate moved from free to billable at 2026-08-29T05:38:43Z while cache_read is 98.62% of tokens, so the two eras price nearly all of the same token volume differently
+        alternative  : a change in workflow behavior across the same period (more or fewer cache reads per unit of work) would produce a similar blended-rate movement and is not separable without stratifying
+        alternative  : a change in the mix of models or runs across the boundary would also move a blended rate while no rate and no behavior changed
+        next test    : stratify every cost comparison by price era and re-compute; if the within-era comparisons agree while the pooled one differs, the pooled figure is an artifact of the schedule change and not a measurement of workflow efficiency
+        recommend    : stratify by price era before comparing cost across the 2026-08-29 boundary; a pooled comparison is not interpretable as a workflow measurement
+
+    #2 [CANNOT-DETERMINE] F-99: CANNOT DETERMINE: merge-conflict-share-and-recurrence (observed n=3)
+        ... recommend    : (none; insufficient evidence for advice)
+    ```
+    THE PRICE-ERA SIMPSON'S-PARADOX GOLDEN TEST USES THE MEASURED FIGURES: era A daily medians
+    $0.054-$0.071 against era B $0.635-$0.737, cache_read 98.62 percent of tokens, actual rate rise
+    10 percent, boundary `2026-08-29T05:38:43Z`. The effect size is asserted to equal 0.635/0.071
+    exactly. The title names BOTH the ninefold apparent rise and the 10 percent real one.
+    A POOLED COMPARISON IS FLAGGED, a stratified one is not:
+    ```
+    detect_pooled_era_comparison(eras_present=["era-a","era-b"], is_stratified=False)
+      -> "SIMPSON'S-PARADOX HAZARD: this comparison pools 2 price eras (era-a, era-b) without
+          stratifying. ... an apparent 9-fold rise, while the published rates moved only 10%.
+          The mechanism is that cache_read became billable while being 98.62% of all tokens.
+          Stratify by price era before comparing cost"
+    detect_pooled_era_comparison(..., is_stratified=True)  -> ""   (not flagged)
+    detect_pooled_era_comparison(eras_present=["era-b"], is_stratified=False) -> ""  (nothing to confound)
+    ```
+    THE NO-CAUSAL-LANGUAGE CHECK FIRES ON A PLANTED CLAIM, THEN IS CLEAN. Actual refusal:
+    ```
+    build_finding(title="Context growth causes the per-step cost to rise")
+      -> FindingRefusal: finding 'F-01' field 'title' contains causal language ['causes'];
+         this layer reports association and may not assert causation. Restate as an observed
+         association, or move the claim into `alternative_explanations` as one competing account
+         among others
+    ```
+    And the honest phrasing ("Per-step cost is associated with position in the session") builds
+    cleanly, so the check DISCRIMINATES. EVERY human-readable field is scanned, not just the title
+    (asserted for title, affected_slice, uncertainty, next_experiment, recommendation, and both
+    caveat and alternative lists). 15 causal constructions are covered; CORRELATION language is
+    explicitly PERMITTED ("correlated with", "an association was observed", "consistent with"),
+    since naming an association is exactly what this layer may do. The shipped paradox finding passes
+    its own check: its MECHANISM is causal, so it is stated as a co-occurrence inside
+    `alternative_explanations` rather than as the headline.
+    AN UNDER-POWERED SLICE YIELDS `cannot-determine` INSTEAD OF ADVICE. A `cannot-determine` finding
+    carries the observed n in its title, `effect_size=None`, and an EMPTY recommendation; supplying
+    one is REFUSED ("advice on insufficient evidence is exactly what this contract forbids"). It
+    still meets the FULL evidence contract, and its alternatives include the one a reader most needs
+    and most often forgets: "the effect may be absent entirely".
+    EVERY REFUSAL BECOMES A FINDING AND NONE IS DROPPED (a silently absent refusal is
+    indistinguishable from an oversight), while a COMPUTED result does NOT auto-generate one
+    (manufacturing one finding per analysis is how a report fills with empty assertions).
+    RANKING STABILITY: severity orders before effect magnitude; magnitude is ABSOLUTE so a negative
+    effect still ranks; coverage breaks an effect tie; and the finding-id TIEBREAK makes the order
+    REPRODUCIBLE, asserted by ranking the same pair in both input orders and requiring identical
+    output. A `cannot-determine` finding ranks LAST but still APPEARS. The severity order is asserted
+    TOTAL over every `Severity` member. Ranking is asserted stable across repeated calls.
+    THE CONTRACT REFUSES SIX WAYS, each with its own test: no alternative explanation, no uncertainty
+    statement, no data-quality caveat, no next experiment, no title, and a recommendation on a
+    refusal.
+    CORPUS RE-MEASUREMENT: NOT PERFORMED IN THIS LANE, AND THE PLAN'S FIGURES ARE THEREFORE NOT
+    RESTATED AS CURRENT. Recorded as DECISION 03-aflsz3-D1. This plan executed in an isolated worker
+    worktree; the live corpus is absent there BY CONSTRUCTION, not by accident. Measured in the lane:
+    ```
+    $ [ -d .aw/records/runs ] && echo yes || echo no
+    no
+    $ echo "AW_EXECUTION_ROLE=${AW_EXECUTION_ROLE:-unset}"
+    AW_EXECUTION_ROLE=worker
+    $ python3 -c "from agent_workflows.runner_shared import state_root; from pathlib import Path; print(state_root(Path.cwd()).is_dir())"
+    False
+    ```
+    `.aw/.gitignore` carries `records/runs/` ("never committed"), so a fresh worktree cannot contain
+    it, and `worktree_lease.FORBIDDEN_WORKER_PATH_HINTS` contains `.aw/records/runs/`, so a
+    worker-role lane may not read it either. The plan itself mandates the resolution ("FIXTURES ARE
+    AUTHORITATIVE; THE LIVE CORPUS IS A READ-ONLY SMOKE CHECK") and its fourth stop condition
+    forbids a corpus-coupled test. Every review-time figure is therefore encoded as an EXPLICITLY
+    LABELED baseline constant (`provenance: review-time-snapshot`, `measured_at: 2026-09-08`,
+    `is_current: False`) which no analysis reads as an input, and every analysis recomputes its
+    value from whatever data it is given. HANDED OFF, one call each on a box with a corpus:
+    `run_analytics_taxonomy.accumulate(...)`, `run_analytics_pricing.validate_against_recorded(...)`.
+
+    BARE SUITE AND `git diff --check` FROM THIS WORKTREE, against the baseline this executor
+    measured itself, comparing failing NODE IDS and never totals.
+    BASELINE, measured bare at the lane's starting HEAD `22ba2a3b` BEFORE any edit:
+    ```
+    $ python3 -m pytest
+    17 failed, 6420 passed, 3 skipped, 2 xfailed in 69.90s (0:01:09)
+    ```
+    AFTER, measured bare at HEAD `c28fb7c3`:
+    ```
+    $ python3 -m pytest
+    17 failed, 6601 passed, 3 skipped, 2 xfailed in 68.11s (0:01:08)
+    ```
+    NODE-ID DELTA IS EMPTY, which is the criterion:
+    ```
+    $ diff <(baseline FAILED lines, sorted) <(after FAILED lines, sorted) && echo "EMPTY DELTA"
+    EMPTY DELTA: identical failing node IDs
+    ```
+    +181 passed, the three new test files. ALL 17 PRE-EXISTING FAILURES ARE LANE-ENVIRONMENT
+    COUPLINGS, NOT CODE DEFECTS, and they are a DIFFERENT set from the two the plan recorded at
+    review (the plan's two were live-corpus couplings; these are worker-role couplings, because this
+    lane runs with `AW_EXECUTION_ROLE=worker`). Diagnosed:
+    ```
+    $ python3 -m pytest tests/test_ipd_lifecycle_cli.py::BeginCliTests::test_cli_happy_path_exit_0_and_writes_receipt
+    AW-LIFECYCLE-ROLE-001: the runner owns begin/finalize for managed lanes; a worker-role
+    process must not run them (refused: aw ipd begin).
+    $ python3 -m pytest tests/test_worker_role_refusal.py::ChildEnvWorkerRoleTests::test_driver_own_process_is_not_worker_role
+    E  AssertionError: 'worker' == 'worker'
+    ```
+    The last one asserts the DRIVER's own environment is not worker-marked, which cannot hold inside
+    a worker lane by construction. None is in this plan's scope and none touches
+    `run_analytics_*`.
+    THE THREE NEW FILES IN ISOLATION:
+    ```
+    $ python3 -m pytest tests/test_run_analytics_taxonomy.py tests/test_run_analytics_statistics.py tests/test_run_analytics_findings.py -o addopts="" -q
+    181 passed in 0.44s
+    ```
+    ```
+    $ git diff --check
+    (no output; clean)
+    ```
+    LEAK SANITIZER, consumed rather than reimplemented:
+    ```
+    $ python3 -m agent_workflows check-local-leaks . --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,
+     "verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    THE SANITIZER CAUGHT A REAL FIXTURE DEFECT IN THIS PLAN'S OWN WORK, reported because it is
+    evidence the gate is live: the first revision of the taxonomy privacy test used a
+    home-directory-shaped literal path, and the pre-commit hook REJECTED the commit at `fail`
+    severity. The fixture now uses a non-user-directory absolute path that exercises the same code
+    path, with the reason recorded at the constant. All pre-commit hooks pass on the final commit
+    (`ruff`, `ruff-format`, `local-leaks`, the plan-lifecycle guards).
+  - Result: pass
 
 Additionally, and NOT as a separate V-item because it validates no single E-item: V-09 must also carry bare `python3 -m pytest` and `git diff --check` from the executing worktree, against the baseline the executor measured itself, comparing failing NODE IDS and never totals.
 
