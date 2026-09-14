@@ -446,6 +446,57 @@ class AnalyzeOptionSurfaceTests(_RepoFixture):
             before, after, "a source run file changed; analyze must never write one"
         )
 
+    def test_keep_snapshot_publishes_an_immutable_snapshot(self):
+        """`--keep-snapshot LABEL` is WIRED, not merely parsed.
+
+        Registered-but-unimplemented is the specific failure this asserts against: a flag that parses,
+        documents itself in `--help`, and then does nothing is worse than an absent one, because the
+        caller believes a snapshot exists.
+        """
+
+        from agent_workflows import run_analytics_report as report_mod
+        from agent_workflows.runner_shared import analytics_snapshots_dir
+
+        out, err, rc = _run(
+            ["runs", "analyze", "--keep-snapshot", "s1", "--agent", *self._dir()]
+        )
+        self.assertEqual(rc, 0, out + err)
+        snapshot_dir = analytics_snapshots_dir(self.repo) / "s1"
+        self.assertTrue(snapshot_dir.is_dir(), f"no snapshot at {snapshot_dir}")
+        # The manifest is Order 07's completeness signal and is written LAST, so its presence means
+        # the snapshot is whole rather than a readable half.
+        self.assertEqual(report_mod.verify_bundle(snapshot_dir), [])
+        self.assertTrue((snapshot_dir / report_mod.INDEX_FILENAME).is_file())
+
+    def test_a_snapshot_label_that_is_not_one_path_component_is_refused(self):
+        """A traversing label is refused by Order 07 and reported, never written."""
+
+        for label in ("../escape", "a/b", ".."):
+            with self.subTest(label=label):
+                out, err, rc = _run(
+                    [
+                        "runs",
+                        "analyze",
+                        "--keep-snapshot",
+                        label,
+                        "--agent",
+                        *self._dir(),
+                    ]
+                )
+                self.assertEqual(rc, 2, out + err)
+
+    def test_the_snapshot_lands_inside_the_reserved_namespace(self):
+        from agent_workflows.runner_shared import path_is_within_analytics
+
+        _run(["runs", "analyze", "--keep-snapshot", "s2", "--agent", *self._dir()])
+        from agent_workflows.runner_shared import analytics_snapshots_dir
+
+        self.assertTrue(
+            path_is_within_analytics(
+                analytics_snapshots_dir(self.repo) / "s2", self.repo
+            )
+        )
+
     def test_an_unresolvable_target_is_refused_not_silently_swept(self):
         out, err, rc = _run(
             ["runs", "analyze", "totalgibberish", "--agent", *self._dir()]

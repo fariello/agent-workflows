@@ -32,6 +32,7 @@ declared contract checkable rather than aspirational.
 from __future__ import annotations
 
 import argparse
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -433,6 +434,52 @@ def _resolve_run_dirs(
     return run_viewer.resolve_target_runs_detailed(targets, repo)
 
 
+def _publish_snapshot(
+    repo: Path, label: str, report: Any
+) -> tuple[dict[str, Any], str]:
+    """Publish an IMMUTABLE snapshot of this sweep. Returns ``(published, refusal_message)``.
+
+    Delegates entirely to Order 07's :func:`run_analytics_report.publish_snapshot`, which owns the
+    layout, the manifest-last completeness signal, and the refusal for a target outside the reserved
+    analytics namespace. This function contributes only the CONTENT and the error translation, because
+    a snapshot's shape is Order 07's contract and duplicating it here would create a second one.
+
+    A REFUSAL IS RETURNED, NOT RAISED, so the caller reports it through the same record shape as every
+    other failure and the sweep that already succeeded is not discarded by an exception.
+    """
+
+    from agent_workflows import run_analytics_report as report_mod
+
+    index = (
+        "<!doctype html><html><head><meta charset='utf-8'>"
+        f"<title>Run analytics snapshot {report_mod.REPORT_SCHEMA_VERSION}</title></head>"
+        "<body><h1>Run analytics snapshot</h1>"
+        "<p>Machine-readable companion: analysis.json</p></body></html>"
+    )
+    analysis = json.dumps(report.to_dict(), indent=2, sort_keys=True) + "\n"
+    try:
+        published = report_mod.publish_snapshot(
+            label,
+            {
+                report_mod.INDEX_FILENAME: index,
+                "analysis.json": analysis,
+            },
+            repo=repo,
+        )
+    except report_mod.PublicationError as exc:
+        return {}, f"the snapshot was refused: {exc}"
+    except OSError as exc:
+        return {}, f"the snapshot could not be written: {type(exc).__name__}"
+    return (
+        {
+            "label": label,
+            "directory": str(published.directory),
+            "files": list(published.files),
+        },
+        "",
+    )
+
+
 def run_analyze(args: argparse.Namespace) -> int:
     """`aw runs analyze`: update the cache and publish the local report bundle.
 
@@ -500,18 +547,37 @@ def run_analyze(args: argparse.Namespace) -> int:
         f"{totals.get('rebuild', 0)} rebuilt, {skipped} skipped"
     )
 
+    snapshot_label = getattr(args, "keep_snapshot", None)
+    snapshot: dict[str, Any] = {}
+    if snapshot_label:
+        published, refusal = _publish_snapshot(repo, str(snapshot_label), report)
+        if refusal:
+            return _emit(
+                _cannot_run(
+                    "runs analyze",
+                    refusal,
+                    next_cmd="aw runs analyze --list",
+                ),
+                args,
+            )
+        snapshot = published
+
+    data: dict[str, Any] = {"totals": dict(totals), "findings": skipped}
+    if snapshot:
+        data["snapshot"] = snapshot
+
     result = CommandResult(
         command="runs analyze",
         status=status,
         exit_code=exit_code,
-        summary=summary,
+        summary=summary + (f", snapshot {snapshot_label}" if snapshot else ""),
         applied=True,
         evidence=[
             Evidence("runs", totals.get("total", 0), "measured"),
             Evidence("cache_hits", totals.get("hit", 0), "measured"),
             Evidence("skipped", skipped, "measured" if skipped else "verified"),
         ],
-        data={"totals": dict(totals), "findings": skipped},
+        data=data,
         next_actions=[NextAction("aw runs query overview", "inspect")],
     )
     rc = _emit(result, args)
