@@ -369,8 +369,11 @@ class TestOneIssuePredicate:
         """The extraction must not change what the pre-existing terms mean."""
         for field in ("missing_entirely", "location_mismatch", "status_mismatch"):
             audit = run_viewer.StepArtifactAudit(
-                id6="aaa111", stem="s", run_status="executed", **{field: True}
+                id6="aaa111", stem="s", run_status="executed"
             )
+            # Set the one term under test, rather than passing it as **kwargs: a splatted dict widens
+            # to every field's type and makes a type checker complain about unrelated parameters.
+            setattr(audit, field, True)
             assert run_viewer.step_has_issue(audit, _step()) is True, field
 
     def test_a_refused_step_is_reported_without_any_flag(self):
