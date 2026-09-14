@@ -1,12 +1,12 @@
 - Id: 7ts6ek
-- Status: open
+- Status: done
 - Set: 7ts6ek
 - Priority: high
 - Work-Kind: bug
 - Summary: finalize's commit-cohesion scope audit demands reasons for other plans' paths when several lanes share a hot file
 
 ## Workflow history
-- 2026-09-14 set (aw backlog): MEASURED KNOCK-ON, same root cause: 'aw check plans' findings rose 151 -> 623 across the ten recovery merges, and check.scope-drift now flags exactly the ten recovered plans (3i0aaz, b7xarm, zexed1, mm5p3v, ixis0c, 8tgg6g, r2i1b1, st5klo, fn2l1u) plus their dependents (9xycbh, d7qoxv). Bisected per merge: 151 at base, 184 after 3i0aaz, 336 after zexed1, 447 after 8tgg6g, 501 after st5klo, 623 at HEAD. Cause is the same as this item: the code landed while the plan is still 'approved' in pending/ because finalize cannot be run, so the scope audit sees declared paths changed with no terminal transition. These 472 extra findings are an ARTIFACT of the unfinalizable state, not independent defects, and they should clear when finalize is unblocked and the ten plans move to executed/. Do not chase them separately.
+- 2026-09-14 set (aw backlog): FIXED by plan gys47u (scopeexact-01), executed 2026-09-14. _run_record_committed_paths reads the driver's own per-item commit SHAs from .aw/records/runs/*/outcomes/ and decides attribution exactly, with commit cohesion kept as the fallback for any tree without a run corpus. 8tgg6g went from 19 demanded --scope-reason paths to 0. All ten recovered plans are now finalized to executed/ except ixis0c, which correctly refuses because its E-01 is genuinely unperformed. The predicted knock-on cleared as stated: aw check plans went 623 -> 287 findings and check.scope-drift no longer names any recovered plan; grouped issue types are now BELOW the pre-incident baseline (13 lifecycle-transition-invalid + 4 scope-drift, versus 17 + 4 + 1 at fea2c9f8).
 
 ## What happens
 
