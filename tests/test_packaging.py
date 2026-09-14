@@ -43,6 +43,44 @@ FORBIDDEN_FILES = (
 )
 
 
+#: runanalytics Order 07 (`6eq3oq`) E-02: the browser assets that MUST ship, named EXPLICITLY.
+#:
+#: WHY A POSITIVE, PER-ASSET ASSERTION EXISTS AT ALL. Everything else in this file asserts what must
+#: NOT be present (`FORBIDDEN_TOP`, `FORBIDDEN_AGENTS_SUBSTRINGS`, `FORBIDDEN_FILES`) plus a handful
+#: of named modules, so before this list the suite would have passed with EVERY browser asset
+#: missing (measured: `7 passed`, and none of the seven would have noticed).
+#:
+#: AND THE FAILURE MODE IS SILENT, WHICH IS WHY ABSENCE-ONLY TESTING IS NOT ENOUGH HERE. Measured
+#: with a probe package at execution: hatchling HONORS `.gitignore`, and a wheel built with an asset
+#: matching an ignore pattern OMITTED it with exit code 0 and no warning on stderr. A missing asset
+#: is therefore not a build error a human would see; it is a report that renders unstyled and inert
+#: after install, with a green suite.
+#:
+#: Kept in sync with `run_analytics_spa.REQUIRED_ASSETS`, and `test_declared_assets_match_the_module`
+#: asserts that rather than trusting it, so adding an asset to the module without adding it here
+#: fails instead of silently reducing coverage.
+REQUIRED_BROWSER_ASSETS = (
+    "agent_workflows/run_analytics_assets/app.css",
+    "agent_workflows/run_analytics_assets/app.js",
+)
+
+
+def _build_sdist(outdir: Path) -> Path:
+    """Build an sdist into outdir; return its path. Raises to signal a skip on failure."""
+
+    subprocess.run(
+        [sys.executable, "-m", "build", "--sdist", "--outdir", str(outdir)],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    sdists = list(outdir.glob("*.tar.gz"))
+    if not sdists:
+        raise RuntimeError("no sdist produced")
+    return sdists[0]
+
+
 def _build_wheel(outdir: Path) -> Path:
     """Build a wheel into outdir; return its path. Raises to signal a skip on failure."""
 
@@ -109,6 +147,101 @@ class PackagingTests(unittest.TestCase):
         self.assertIn("agent_workflows/leak_sanitizer_config.py", self.names)
         # revnjq / IPD m2h1z4: layout_inventory module must ship so migrate-layout works.
         self.assertIn("agent_workflows/layout_inventory.py", self.names)
+
+    def test_wheel_ships_every_browser_asset_BY_NAME(self):
+        """runanalytics Order 07 (`6eq3oq`) E-02: a POSITIVE assertion, one per asset.
+
+        The rest of this file asserts ABSENCE of forbidden content, which would pass with every
+        asset missing. This asserts PRESENCE, by name, because the failure mode is silent: hatchling
+        honors `.gitignore` and drops a matching asset from the wheel at exit 0 with no warning
+        (probe-verified).
+        """
+
+        missing = [name for name in REQUIRED_BROWSER_ASSETS if name not in self.names]
+        self.assertEqual(
+            missing,
+            [],
+            f"browser asset(s) missing from the wheel: {missing}. A gitignored or "
+            f"out-of-package asset is dropped SILENTLY by hatchling at exit 0, so this positive "
+            f"assertion is the only thing that catches it. Present assets: "
+            f"{[n for n in self.names if 'run_analytics_assets' in n]}",
+        )
+
+    def test_wheel_browser_assets_are_NON_EMPTY(self):
+        """A zero-byte asset ships as happily as a real one and renders exactly as badly."""
+
+        z = zipfile.ZipFile(self.wheel)
+        for name in REQUIRED_BROWSER_ASSETS:
+            with self.subTest(asset=name):
+                self.assertGreater(len(z.read(name)), 0, f"{name} shipped empty")
+
+    def test_declared_assets_match_the_module(self):
+        """The list above cannot silently fall behind the module's own declaration."""
+
+        from agent_workflows.run_analytics_spa import ASSETS_DIRNAME, REQUIRED_ASSETS
+
+        expected = tuple(
+            f"agent_workflows/{ASSETS_DIRNAME}/{name}" for name in REQUIRED_ASSETS
+        )
+        self.assertEqual(sorted(REQUIRED_BROWSER_ASSETS), sorted(expected))
+
+    def test_a_gitignored_asset_would_be_DETECTED_rather_than_silently_dropped(self):
+        """The measured hatchling behavior, reproduced, so the hazard is demonstrated not asserted.
+
+        Builds a throwaway probe package whose asset directory contains a gitignored file, and shows
+        the wheel omits it at exit 0. That is the mechanism this module's positive assertion defends
+        against, and demonstrating it here means the defense rests on a reproduced measurement rather
+        than on a review note.
+        """
+
+        with tempfile.TemporaryDirectory() as td:
+            probe = Path(td)
+            (probe / "pkg" / "assets").mkdir(parents=True)
+            (probe / "pkg" / "__init__.py").write_text("", encoding="utf-8")
+            for name in ("kept.css", "ignored.css"):
+                (probe / "pkg" / "assets" / name).write_text("a{}", encoding="utf-8")
+            (probe / "pyproject.toml").write_text(
+                "[build-system]\n"
+                'requires = ["hatchling"]\n'
+                'build-backend = "hatchling.build"\n'
+                "[project]\n"
+                'name = "awprobepkg"\n'
+                'version = "0.0.1"\n'
+                "[tool.hatch.build.targets.wheel]\n"
+                'packages = ["pkg"]\n',
+                encoding="utf-8",
+            )
+            (probe / ".gitignore").write_text("ignored.css\n", encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "build",
+                    "--wheel",
+                    "--outdir",
+                    str(probe / "dist"),
+                ],
+                cwd=str(probe),
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                self.skipTest(f"probe build unavailable: {result.stderr[-300:]}")
+            wheels = list((probe / "dist").glob("*.whl"))
+            names = zipfile.ZipFile(wheels[0]).namelist()
+            # The measured behavior: exit 0, kept file present, ignored file SILENTLY absent.
+            self.assertEqual(result.returncode, 0)
+            self.assertIn("pkg/assets/kept.css", names)
+            self.assertNotIn(
+                "pkg/assets/ignored.css",
+                names,
+                "hatchling no longer honors .gitignore; the positive per-asset assertion above is "
+                "still correct but this test's stated rationale needs updating",
+            )
+            print(
+                "MEASURED: hatchling honored .gitignore and omitted pkg/assets/ignored.css "
+                f"from the wheel at exit {result.returncode} with no warning"
+            )
 
     def test_wheel_bundles_workflow_tree_under_data(self):
         # AC-2/AC-8: the shipped bundle is mapped under agent_workflows/_data/.aw/system/,
@@ -302,6 +435,68 @@ class PackagingTests(unittest.TestCase):
                     f"migrate-layout --help failed:\nstdout: {cli_res.stdout}\nstderr: {cli_res.stderr}",
                 )
                 self.assertNotIn("ModuleNotFoundError", cli_res.stderr)
+
+
+class SdistBrowserAssetTests(unittest.TestCase):
+    """runanalytics Order 07 (`6eq3oq`) E-02: the assets must ship in the SDIST too.
+
+    A SEPARATE CLASS because it needs a separate build, and a separate ASSERTION because the sdist
+    include list is a different mechanism from the wheel's: `[tool.hatch.build.targets.sdist].include`
+    is an EXPLICIT ALLOWLIST (`/agent_workflows`, `/.aw/system`, `/hatch_build.py`, `/pyproject.toml`,
+    `/README.md`, `/LICENSE`, `/NOTICE`), so anything outside `/agent_workflows` is absent from the
+    sdist even when the wheel carries it. Asserting only the wheel would leave that half unchecked.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            import build  # noqa: F401
+        except ImportError:
+            raise unittest.SkipTest("the 'build' package is not installed")
+        cls._tmp = tempfile.TemporaryDirectory()
+        try:
+            cls.sdist = _build_sdist(Path(cls._tmp.name))
+        except OSError as exc:
+            cls._tmp.cleanup()
+            raise unittest.SkipTest(f"sdist build unavailable: {exc}")
+        except (subprocess.CalledProcessError, RuntimeError) as exc:
+            cls._tmp.cleanup()
+            detail = getattr(exc, "stderr", "") or getattr(exc, "stdout", "") or ""
+            raise AssertionError(
+                f"sdist build FAILED though 'build' is installed; a packaging defect:\n{detail}"
+            )
+        import tarfile
+
+        with tarfile.open(cls.sdist) as tar:
+            # Strip the leading `<name>-<version>/` component so names match the wheel's form.
+            cls.names = [
+                member.name.split("/", 1)[1]
+                for member in tar.getmembers()
+                if "/" in member.name
+            ]
+
+    @classmethod
+    def tearDownClass(cls):
+        if hasattr(cls, "_tmp"):
+            cls._tmp.cleanup()
+
+    def test_sdist_ships_every_browser_asset_BY_NAME(self):
+        missing = [name for name in REQUIRED_BROWSER_ASSETS if name not in self.names]
+        self.assertEqual(
+            missing,
+            [],
+            f"browser asset(s) missing from the sdist: {missing}. The sdist `include` is an "
+            f"explicit allowlist, so an asset outside /agent_workflows is absent even when the "
+            f"wheel carries it. Present: {[n for n in self.names if 'run_analytics_assets' in n]}",
+        )
+
+    def test_sdist_ships_the_analytics_modules_that_read_those_assets(self):
+        for module in (
+            "agent_workflows/run_analytics_spa.py",
+            "agent_workflows/run_analytics_report.py",
+        ):
+            with self.subTest(module=module):
+                self.assertIn(module, self.names)
 
 
 if __name__ == "__main__":
