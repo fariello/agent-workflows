@@ -8,18 +8,18 @@
 - Scope: Add ONE shared resolution helper to `runner_shared.py` that turns a driver's parsed args plus its host name into the resolved verification decision, and call it from BOTH drivers' freeze sites, each writing its OWN existing frozen key with its OWN polarity (`oc` writes `validate`/`no_audit`, `agy` writes `no_verify`). Record the resolved value and its provenance tier in the durable launch record. Give antigravity the `--validate`/`--no-validate` surface it lacks so the tri-state is expressible there. NO change to the resolver, the registry, the precedence order, or either host's EFFECTIVE default when nothing is configured.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_novalnomerge_integration.py, tests/test_runner_profiles_e2e.py, docs/runner-profiles.md, .aw/records/backlog
 - Item-Dependencies: executed:tm2cz8
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: hostdefault
 - Order: 2
 - Highest E allocated: 09
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: ybkmzp
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: h7qsje
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-14 executed (aw oc run): aw oc run self-finalize: ybkmzp verified (set hostdefault, attempt 2). [Scope reconciliation - in-scope-unmodified tests/test_agy_runipd_cli.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-08 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-601..PR-610
 
