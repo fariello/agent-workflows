@@ -486,15 +486,43 @@ class FullAutoImpliesUnattendedTests(unittest.TestCase):
         self.assertTrue(self.frozen(full_auto=True)["unattended"])
 
     def test_full_auto_implies_nothing_else(self):
+        """The IMPLICATION is about BOOLEAN policy, so the exemption is derived, not enumerated.
+
+        THE EXEMPTION WAS A HARDCODED NAME LIST (`full_auto`, `unattended`, `retry_budget`) and is now
+        `row.kind != "bool"` plus the two flags the implication is ABOUT. That is the same
+        maintenance-tax fix this file's own `test_the_owned_set_is_every_declared_flag_this_surface_claims`
+        already documents for its literal count: a name list of non-bool rows silently makes THIS test
+        the thing that blocks the next non-bool flag, for a reason unrelated to what it asserts.
+
+        Measured when `integpath-03` (`51vw4y`) registered a second int and a first choice row: the
+        assertion failed with `AssertionError: 10 is not false ... --full-auto must not imply
+        --integration-retry-limit`, where 10 is that flag's DEFAULT and is present whether or not
+        `--full-auto` was passed. `assertFalse` on a non-bool frozen value tests nothing about an
+        implication; it tests that the value happens to be falsy, which for a counter means "switched
+        off" and for a policy word means "not a legal value".
+
+        WHAT IS DELIBERATELY NOT WEAKENED: every BOOLEAN row is still asserted, so the property spec
+        `:134` states ("--full-auto implies --unattended and nothing else") is still enforced against
+        exactly the flags it can be violated for. A non-bool row that `--full-auto` wrongly SET would
+        be caught by that flag's own freeze test, which asserts its effective resolved value.
+        """
         frozen = self.frozen(full_auto=True)
         for row in runner_shared.RUN_POLICY_FLAGS:
-            if row.dest in ("full_auto", "unattended", "retry_budget"):
+            if row.dest in ("full_auto", "unattended") or row.kind != "bool":
                 continue
             with self.subTest(flag=row.flag):
                 self.assertFalse(
                     frozen[row.dest],
                     f"--full-auto must not imply {row.flag} (spec :134)",
                 )
+        # Stated positively so the derived exemption above cannot quietly become "exempt everything":
+        # at least the shipped boolean policy flags must actually have been checked.
+        checked = [
+            row.flag
+            for row in runner_shared.RUN_POLICY_FLAGS
+            if row.kind == "bool" and row.dest not in ("full_auto", "unattended")
+        ]
+        self.assertGreaterEqual(len(checked), 6, checked)
 
     def test_unattended_alone_does_not_imply_full_auto(self):
         self.assertFalse(self.frozen(unattended=True)["full_auto"])

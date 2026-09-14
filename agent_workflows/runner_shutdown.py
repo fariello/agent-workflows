@@ -79,6 +79,11 @@ KNOWN_ITEM_STATUSES = frozenset(
         "queued",
         "running",
         "interrupted",
+        # integpath-03 (`51vw4y`): a lane whose integration was REFUSED on transient dirty-path
+        # overlap and is awaiting a re-attempt. Listed under in-flight, NOT terminal, which is the
+        # whole point of the status: the item is not done, and R3's coherence check must recognize it
+        # or a run holding one would read as "an undefined state" and refuse its own resume.
+        "integration-deferred",
     }
 )
 

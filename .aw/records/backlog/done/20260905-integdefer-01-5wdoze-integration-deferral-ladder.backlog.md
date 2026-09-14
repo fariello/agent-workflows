@@ -1,5 +1,5 @@
 - Id: 5wdoze
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Set: integdefer
 - Priority: high
@@ -7,8 +7,7 @@
 - Summary: a refused lane integration is terminal on first attempt: add the defer/poll/ask ladder so transient dirt in main does not permanently block a verified lane
 
 ## Workflow history
-- 2026-09-07 graduated (aw set): Graduated to plans 6sb3yu (integpath-02, the shared extraction seam) and 51vw4y (integpath-03, the three-rung deferral ladder). Provenance also recorded on orchestrator cczotj. Closed by 51vw4y, which delivers the ladder.
-- 2026-09-05 created (aw backlog): a refused lane integration is terminal on first attempt: add the defer/poll/ask ladder so transient dirt in main does not permanently block a verified lane
+- 2026-09-14 set (aw backlog): Closed by plan 51vw4y (integpath-03), which delivers the three-rung deferral ladder this item designed. WHAT SHIPPED, matching the item's own approved design: a NON-TERMINAL integration-deferred status kept out of both runners' TERMINAL_STATES (the single change that makes a re-attempt possible, and what stops the cascade killing dependents); rung 1 defer-and-re-attempt at the top of the dispatch loop, costing no agent turn and always routing through execute_merge_and_revalidate_gate; rung 2 a poll bounded BOTH by count and by main's activity staleness, triggered by the loop's own runnable is None so the all-deferred case is covered and not just the last-item case; rung 3 a timeout-bounded operator ask suppressed via the shipped is_interactive_run so an unattended run can never stop on an unseen question; then terminal integration-blocked with the lane preserved, which is today's outcome reached LAST instead of FIRST. The separate --integration-retry-limit budget (default 10) never borrows run_recovery.DEFAULT_RETRY_LIMIT, the category error this item named explicitly, and --on-integration-blocked=block reproduces the previous behavior exactly. The ladder is scoped to the TRANSIENT dirty-overlap arm only: merge-conflict still goes terminal on its first attempt and consumes no budget. The item's two DECLINED options were honored: no content-based narrowing and no path-pattern allowlists. Verified: 28 new ladder tests plus a synthetic replay of the measured incident on BOTH hosts (defer then integrate, no paid turn); bare suite 1 failed 6828 passed before, 1 failed 6858 passed after, the single failure pre-existing and unrelated. Blocks-Release: next was inherited by 51vw4y, which carries From-Backlog: 5wdoze and the same gate, so the release gate is preserved by handoff and not dropped.
 
 MEASURED INCIDENT. Run `run-20260905T050043Z-639569` (34 items, 7h40m, \$165.90). Four items
 finished their work, passed their gates, finalized on their lane branches, and then FAILED TO

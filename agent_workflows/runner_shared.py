@@ -137,6 +137,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from collections.abc import Container, Mapping, MutableMapping, Sequence
 from pathlib import Path
 from typing import (
@@ -1068,6 +1069,774 @@ def integrate_lane_branch(
     )
 
 
+# ==================================================================================================
+# integpath-03 (`51vw4y`): THE INTEGRATION DEFERRAL LADDER
+# ==================================================================================================
+#
+# THE DEFECT, MEASURED RATHER THAN REASONED. `integrate_lane_branch` above REFUSES on a contaminated
+# base and that refusal is CORRECT and unchanged by this section. What was wrong is what happened
+# NEXT: the caller wrote `integration-blocked`, which sits in both runners' `TERMINAL_STATES`, so the
+# item was never re-attempted for the rest of the run. One transient condition, permanent loss.
+#
+# Run `run-20260905T050043Z-639569` (34 items, 7h40m, $183.95, of which $88.23 went on the four
+# refused lanes): four items finished their work, passed their gates, finalized on their lane
+# branches, and then failed to integrate on dirty-path overlap (`76gsmv` 08:06:32, `eyh1fu` 08:51:26,
+# `txc9l1` 10:48:33, `uyeko5` 11:47:04). Three more (`6ypimw`, `wpomxa`, `5slbpi`) cascaded to
+# `dependency-blocked` because their prerequisites never reached `executed`. Seven of 34 items lost.
+# All four merged clean against main afterwards: the work was never in conflict, it was refused
+# because of WHEN it was attempted. A lane refused at 08:06 would have integrated at 08:40 when the
+# next item finished. NOTHING WAITED, which is the whole defect.
+#
+# WHY REPETITION IS A LEGITIMATE STRATEGY HERE, WHICH IS NOT GENERALLY TRUE. The refusal cause is
+# another writer's UNCOMMITTED file in a shared checkout, so it clears on its own. That is why this
+# ladder gets its own budget and must never borrow `run_recovery.DEFAULT_RETRY_LIMIT`, whose own
+# rationale is that "a retry cannot turn failure into success by mere repetition" - true of a paid
+# correction turn, false of an integration re-attempt costing one `git status` and one `git
+# merge-tree`.
+#
+# ONLY THE DIRTY-OVERLAP ARM DEFERS, AND THAT SCOPING IS LOAD-BEARING. `integrate_lane_branch`
+# returns THREE kinds. `"merge-conflict"` means the reused gate returned a non-passing result (real
+# conflict, stale base, combined-red, scope), which repetition does NOT fix; deferring it would spin
+# the ladder against a genuine failure and burn the budget for nothing, and every positive-arm test
+# would still pass. :func:`classify_integration_refusal` is the single place that decision is made.
+#
+# RE-VERIFICATION IS MANDATORY ON EVERY ATTEMPT and is not this section's job to skip: a lane
+# verified against yesterday's main is not verified against today's, so each re-attempt calls
+# `integrate_lane_branch` again, which routes through
+# `orchestrate_isolation.execute_merge_and_revalidate_gate`. There is deliberately no fast path that
+# takes a clean `merge-tree` as sufficient.
+
+#: The NON-TERMINAL status a deferred integration carries. Deliberately NOT in either runner's
+#: `TERMINAL_STATES`: that absence is the single fact that makes a re-attempt possible, keeps
+#: `cascade_dependency_blocked` from killing dependents, and keeps the orchestrator waiting.
+INTEGRATION_DEFERRED_STATUS = "integration-deferred"
+
+#: The terminal status a deferred integration ends at when the ladder is exhausted. Today's outcome,
+#: reached LAST instead of FIRST.
+INTEGRATION_BLOCKED_STATUS = "integration-blocked"
+
+#: The refusal kind that is TRANSIENT and therefore deferrable (un-owned dirty overlap in main).
+INTEGRATION_REFUSAL_TRANSIENT = "integration-blocked"
+
+#: The refusal kind that is NOT transient and must stay terminal on its first attempt.
+INTEGRATION_REFUSAL_CONFLICT = "merge-conflict"
+
+#: `--integration-retry-limit`'s default. TEN, not `DEFAULT_RETRY_LIMIT`'s two, because the two count
+#: different things (see the section header). Ten cheap re-attempts is the maintainer-approved value.
+DEFAULT_INTEGRATION_RETRY_LIMIT = 10
+
+#: `--on-integration-blocked`'s vocabulary. `block` reproduces the pre-ladder behavior EXACTLY, which
+#: is what makes this change safe to adopt: an operator who distrusts the ladder can pin it off.
+ON_INTEGRATION_BLOCKED_DEFER = "defer"
+ON_INTEGRATION_BLOCKED_POLL = "poll"
+ON_INTEGRATION_BLOCKED_ASK = "ask"
+ON_INTEGRATION_BLOCKED_BLOCK = "block"
+ON_INTEGRATION_BLOCKED_CHOICES = (
+    ON_INTEGRATION_BLOCKED_DEFER,
+    ON_INTEGRATION_BLOCKED_POLL,
+    ON_INTEGRATION_BLOCKED_ASK,
+    ON_INTEGRATION_BLOCKED_BLOCK,
+)
+
+#: Rung 2's poll-count bound: how many times the runner re-checks main when NOTHING else is
+#: dispatchable. Paired with the staleness bound below; NEITHER is sufficient alone.
+DEFAULT_INTEGRATION_POLL_LIMIT = 10
+
+#: Rung 2's per-poll sleep, seconds.
+DEFAULT_INTEGRATION_POLL_INTERVAL = 30.0
+
+#: Rung 2's STALENESS bound, seconds (about one hour). Ten polls at 30s is five minutes whether main
+#: is alive or has been idle since yesterday, so a poll count alone is the WRONG SOLE BOUND: it makes
+#: the wait arbitrary. Measuring main's last activity is what makes it EVIDENCE-BASED - if nothing has
+#: moved in main for an hour, nobody is about to commit and polling is superstition.
+DEFAULT_INTEGRATION_STALENESS_LIMIT = 3600.0
+
+#: Which bound ended a rung-2 poll, reported so "polled 10x over 5m; main last active 3m ago" and
+#: "gave up immediately, main idle 4h" are distinguishable facts. The second tells the operator the
+#: dirt is ABANDONED and needs a human, which is a different action from the first.
+POLL_BOUND_COUNT = "poll-count-exhausted"
+POLL_BOUND_STALE = "main-inactive"
+POLL_BOUND_CLEARED = "dirt-cleared"
+
+
+def classify_integration_refusal(integ_kind: str) -> bool:
+    """Is this refusal the TRANSIENT one the deferral ladder may re-attempt?
+
+    ONE definition, so the two hosts cannot disagree about which arm defers. `True` only for the
+    dirty-overlap refusal; `False` for `merge-conflict` and for anything unrecognized, which is the
+    fail-closed direction (an unknown kind keeps today's terminal path rather than acquiring a retry
+    loop nobody reasoned about).
+    """
+
+    return integ_kind == INTEGRATION_REFUSAL_TRANSIENT
+
+
+def resolve_integration_retry_limit(cli_value: Any) -> int:
+    """`--integration-retry-limit`'s effective value: CLI over the default of 10.
+
+    DELIBERATELY NOT CLAMPED TO SPEC 2.1's 0..10 RANGE, which bounds the CORRECTION budget
+    specifically (`resolve_retry_budget` reaches that bound through
+    `run_recovery.validate_retry_budget`). Conflating the two is the category error spec 2.1's new
+    Rules bullet and backlog `5wdoze` both name explicitly. A NEGATIVE value is refused, because a
+    negative count of re-attempts is not a policy, it is a typo.
+    """
+
+    if cli_value is None:
+        return DEFAULT_INTEGRATION_RETRY_LIMIT
+    try:
+        value = int(cli_value)
+    except (TypeError, ValueError) as exc:
+        raise RunFlagRefusal(
+            f"--integration-retry-limit: {cli_value!r} is not an integer"
+        ) from exc
+    if value < 0:
+        raise RunFlagRefusal(
+            f"--integration-retry-limit: {value} is negative; it counts integration "
+            "re-attempts, so the minimum is 0 (never re-attempt)"
+        )
+    return value
+
+
+def resolve_on_integration_blocked(cli_value: Any) -> str:
+    """`--on-integration-blocked`'s effective value, validated against the closed vocabulary."""
+
+    if cli_value is None:
+        return ON_INTEGRATION_BLOCKED_DEFER
+    value = str(cli_value).strip().lower()
+    if value not in ON_INTEGRATION_BLOCKED_CHOICES:
+        raise RunFlagRefusal(
+            f"--on-integration-blocked: {cli_value!r} is not one of "
+            f"{list(ON_INTEGRATION_BLOCKED_CHOICES)}"
+        )
+    return value
+
+
+class IntegrationDeferralDecision(NamedTuple):
+    """What to do with an integration that was just REFUSED, and why.
+
+    `status` is the status to write: :data:`INTEGRATION_DEFERRED_STATUS` (non-terminal, re-attempt
+    later) or :data:`INTEGRATION_BLOCKED_STATUS` / `merge-conflict` (terminal, today's behavior).
+    `deferred` is the same fact as a bool for a caller that only branches. `attempts_used` is the
+    running count AFTER this refusal, and `limit` the budget it is measured against, so a report can
+    say "3 of 10" rather than merely "deferred".
+    """
+
+    status: str
+    deferred: bool
+    reason: str
+    attempts_used: int
+    limit: int
+
+
+def decide_integration_deferral(
+    *,
+    integ_kind: str,
+    attempts_used: int,
+    limit: int,
+    policy: str = ON_INTEGRATION_BLOCKED_DEFER,
+) -> IntegrationDeferralDecision:
+    """RUNG 1's decision: does this refusal DEFER, or is it terminal?
+
+    THE FOUR REASONS A REFUSAL STAYS TERMINAL, each deliberate:
+
+    * the kind is NOT the transient dirty-overlap one (`merge-conflict` and anything unrecognized);
+    * `--on-integration-blocked=block`, the operator pinning today's behavior;
+    * the budget is exhausted, so a permanently dirty path cannot spin the loop forever; or
+    * the budget is zero, which is `block` spelled as a count.
+
+    `attempts_used` is the count INCLUDING the attempt that just failed, so the first refusal arrives
+    as 1. PURE: it writes no state, touches no file, and consults no clock, which is what lets every
+    rung transition be pinned by a unit test with no live run.
+    """
+
+    if not classify_integration_refusal(integ_kind):
+        return IntegrationDeferralDecision(
+            status=INTEGRATION_REFUSAL_CONFLICT,
+            deferred=False,
+            reason=(
+                f"integration refusal kind {integ_kind!r} is not the transient dirty-overlap "
+                "condition; repetition cannot fix a conflict, stale base, combined-red "
+                "revalidation, or scope violation, so it is terminal on its first attempt"
+            ),
+            attempts_used=attempts_used,
+            limit=limit,
+        )
+    if policy == ON_INTEGRATION_BLOCKED_BLOCK:
+        return IntegrationDeferralDecision(
+            status=INTEGRATION_BLOCKED_STATUS,
+            deferred=False,
+            reason=(
+                "--on-integration-blocked=block: the operator pinned the pre-ladder behavior, so "
+                "the first refusal is terminal and the lane is preserved"
+            ),
+            attempts_used=attempts_used,
+            limit=limit,
+        )
+    if attempts_used > limit:
+        return IntegrationDeferralDecision(
+            status=INTEGRATION_BLOCKED_STATUS,
+            deferred=False,
+            reason=(
+                f"integration re-attempt budget exhausted ({attempts_used - 1} re-attempt(s) after "
+                f"the first, limit {limit}); the overlapping dirty path never cleared, so the lane "
+                "is preserved and a human owns it"
+            ),
+            attempts_used=attempts_used,
+            limit=limit,
+        )
+    return IntegrationDeferralDecision(
+        status=INTEGRATION_DEFERRED_STATUS,
+        deferred=True,
+        reason=(
+            f"integration DEFERRED (attempt {attempts_used} of {limit + 1}): main holds un-owned "
+            "dirty paths overlapping this change, which is transient by nature, so the lane is "
+            "preserved and integration is re-attempted through the full revalidate gate once other "
+            "work advances"
+        ),
+        attempts_used=attempts_used,
+        limit=limit,
+    )
+
+
+def deferred_integration_items(state: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Every queue item currently sitting in the non-terminal deferred state, in queue order."""
+
+    return [
+        item
+        for item in (state.get("queue") or [])
+        if isinstance(item, dict) and item.get("status") == INTEGRATION_DEFERRED_STATUS
+    ]
+
+
+def main_last_activity_age(repo: Path, *, now: float | None = None) -> float | None:
+    """How long ago ANYTHING last moved in main, in seconds, or `None` when unmeasurable.
+
+    THE NEWER of two signals, because either alone answers the wrong question:
+
+    * main's HEAD COMMIT TIME - somebody landed work; and
+    * the most recent MTIME among main's dirty (or untracked) files - somebody is editing right now
+      and has not committed yet, which is precisely the state that caused the refusal.
+
+    A run that consulted only HEAD would call an actively-edited tree idle and give up on a lane that
+    was about to be integrable; one that consulted only mtimes would call a freshly-committed tree
+    idle. So rung 2's staleness bound needs the NEWER, and this returns exactly that.
+
+    WALL-CLOCK, NOT LOOP ITERATIONS (OQ-01). The bound distinguishes "someone is actively working in
+    main and will commit shortly" from "this dirt was abandoned yesterday", which is a statement about
+    elapsed real time. An iteration count would also couple the wait to QUEUE SIZE, so a run with one
+    deferred item and nothing else to do would give up faster than an identical run with more items,
+    which is backwards.
+
+    Returns `None` rather than 0.0 or infinity when neither signal can be read, so a caller can tell
+    "no evidence" from "very recent" and fail toward NOT polling on a repository it cannot observe.
+    """
+
+    current = time.time() if now is None else now
+    newest: float | None = None
+
+    rc, out, _err = _run_git(repo, ["log", "-1", "--format=%ct"])
+    if rc == 0 and out.strip():
+        try:
+            newest = float(out.strip().splitlines()[0])
+        except (TypeError, ValueError):
+            newest = None
+
+    rc, out, _err = _run_git(repo, ["status", "--short", "--untracked-files=all"])
+    if rc == 0:
+        for line in out.splitlines():
+            if not line.strip():
+                continue
+            entry = line[3:] if len(line) > 3 else line.strip()
+            if " -> " in entry:
+                entry = entry.split(" -> ", 1)[1]
+            candidate = repo / entry.strip()
+            try:
+                mtime = candidate.stat().st_mtime
+            except OSError:
+                continue
+            if newest is None or mtime > newest:
+                newest = mtime
+
+    if newest is None:
+        return None
+    return max(0.0, current - newest)
+
+
+class PollOutcome(NamedTuple):
+    """The result of one rung-2 poll episode, shaped so a report can be HONEST about it.
+
+    `bound` is which of the three conditions ended it (:data:`POLL_BOUND_CLEARED`,
+    :data:`POLL_BOUND_COUNT`, :data:`POLL_BOUND_STALE`), `polls` how many checks were made, and
+    `last_activity_age` main's measured idle time at the end (`None` when unmeasurable). `detail` is
+    one operator-facing sentence naming both the bound and the age, because "polled 10x over 5m; main
+    last active 3m ago" and "gave up immediately, main idle 4h" demand different human responses.
+    """
+
+    cleared: bool
+    bound: str
+    polls: int
+    last_activity_age: float | None
+    detail: str
+
+
+def poll_for_integration_window(
+    repo: Path,
+    changed_files: Sequence[str],
+    *,
+    poll_limit: int = DEFAULT_INTEGRATION_POLL_LIMIT,
+    interval: float = DEFAULT_INTEGRATION_POLL_INTERVAL,
+    staleness_limit: float = DEFAULT_INTEGRATION_STALENESS_LIMIT,
+    sleep: Callable[[float], None] | None = None,
+    overlap: Callable[[Path, Sequence[str]], list[str]] | None = None,
+    activity_age: Callable[[Path], float | None] | None = None,
+) -> PollOutcome:
+    """RUNG 2: wait for the overlapping dirt to clear, bounded TWICE, when nothing else can run.
+
+    TWO INDEPENDENT BOUNDS, BOTH REQUIRED, and the second is the one carrying the design's argument:
+
+    (i) ``poll_limit`` - a maximum number of checks; and
+    (ii) ``staleness_limit`` - stop when main's last activity (see :func:`main_last_activity_age`) is
+         older than this. Ten polls at 30s is five minutes whether main is alive or has been idle
+         since yesterday, so bound (i) alone makes the wait ARBITRARY. Bound (ii) is what makes it
+         evidence-based, and it is checked BEFORE the first sleep so an abandoned tree costs no wait
+         at all.
+
+    The staleness bound also fires when the age is UNMEASURABLE (`None`), which is the fail-closed
+    direction: a repository whose activity cannot be observed is not one to sit and wait on.
+
+    `sleep`/`overlap`/`activity_age` are injectable so a test controls time and dirt instead of
+    sleeping for real. The defaults are the shared implementations, so there is no second overlap
+    check and no second clock.
+    """
+
+    _sleep = time.sleep if sleep is None else sleep
+    _overlap = dirty_tree_overlap if overlap is None else overlap
+    _age = main_last_activity_age if activity_age is None else activity_age
+
+    polls = 0
+    age = _age(repo)
+    while True:
+        if not _overlap(repo, changed_files):
+            return PollOutcome(
+                cleared=True,
+                bound=POLL_BOUND_CLEARED,
+                polls=polls,
+                last_activity_age=age,
+                detail=(
+                    f"the overlapping dirty path cleared after {polls} poll(s); integration is "
+                    "re-attempted through the full revalidate gate"
+                ),
+            )
+        age = _age(repo)
+        if age is None or age > staleness_limit:
+            described = "unmeasurable" if age is None else f"{int(age)}s ago"
+            return PollOutcome(
+                cleared=False,
+                bound=POLL_BOUND_STALE,
+                polls=polls,
+                last_activity_age=age,
+                detail=(
+                    f"stopped polling after {polls} poll(s): main was last active {described} "
+                    f"(staleness bound {int(staleness_limit)}s), so nobody is about to commit and "
+                    "the overlapping dirt looks ABANDONED; it needs a human, not more waiting"
+                ),
+            )
+        if polls >= poll_limit:
+            return PollOutcome(
+                cleared=False,
+                bound=POLL_BOUND_COUNT,
+                polls=polls,
+                last_activity_age=age,
+                detail=(
+                    f"stopped polling after {polls} poll(s) (poll bound {poll_limit}); main was "
+                    f"last active {int(age)}s ago, so it IS still active and the dirt may yet "
+                    "clear, but this run has waited its budget"
+                ),
+            )
+        polls += 1
+        _sleep(interval)
+
+
+def record_integration_refusal(
+    *,
+    run_dir: Path,
+    state: MutableMapping[str, Any],
+    item: MutableMapping[str, Any],
+    attempt: MutableMapping[str, Any],
+    integ_kind: str,
+    integ_reason: str,
+    branch: str | None,
+    save_state: Callable[..., Any],
+    append_jsonl: Callable[..., Any],
+) -> IntegrationDeferralDecision:
+    """Record ONE refused integration and return the ladder's decision. Shared by both hosts.
+
+    THIS IS RUNG 1's WRITE SITE, and it is shared for the reason integpath-02 collapsed its three
+    neighbours: the two hosts' copies of this block had ALREADY drifted once, so a ladder written into
+    each would be written twice and fixed once. Each host keeps only its own printing.
+
+    WHAT IT DOES, in order: count this attempt (durably, so a resume cannot lose the count and restart
+    the budget), ask :func:`decide_integration_deferral` for the verdict, write the resulting status,
+    and emit an event that names the RUNG rather than merely the failure. What it deliberately does NOT
+    do is tear the lane down or touch main: the lane is preserved on every branch of the decision, and
+    the refusal condition itself is `integrate_lane_branch`'s and is not revisited here.
+
+    THE BUDGET LIVES ON THE ITEM, not on the attempt record. A deferred item is re-attempted from the
+    dispatch loop WITHOUT a new agent turn, so there is no new attempt record to count in; counting per
+    attempt would reset the budget on every retry and make it unbounded, which is the exact spin the
+    limit exists to prevent.
+    """
+
+    options = state.get("options") or {}
+    limit = int(options.get("integration_retry_limit", DEFAULT_INTEGRATION_RETRY_LIMIT))
+    policy = str(options.get("on_integration_blocked", ON_INTEGRATION_BLOCKED_DEFER))
+    attempts_used = int(item.get("integration_attempts", 0)) + 1
+    item["integration_attempts"] = attempts_used
+
+    decision = decide_integration_deferral(
+        integ_kind=integ_kind,
+        attempts_used=attempts_used,
+        limit=limit,
+        policy=policy,
+    )
+
+    # The diagnostic reason string these two keys carried BEFORE this plan is preserved verbatim: it is
+    # read by existing reports, and F-3 records that its presence once made a reader think the ladder
+    # already existed. It says WHY the integration was refused; the ladder's own verdict is the
+    # separate `integration_ladder` record below, so the two facts are not conflated.
+    attempt["integration_deferred"] = integ_reason
+    item["integration_deferral"] = integ_reason
+    attempt["disposition"] = decision.status
+    attempt["finalized"] = True
+    item["status"] = decision.status
+    ladder = {
+        "kind": integ_kind,
+        "deferrable": classify_integration_refusal(integ_kind),
+        "status": decision.status,
+        "deferred": decision.deferred,
+        "attempts_used": decision.attempts_used,
+        "limit": decision.limit,
+        "policy": policy,
+        "verdict": decision.reason,
+    }
+    item["integration_ladder"] = ladder
+    attempt["integration_ladder"] = ladder
+    save_state(run_dir, state)
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": (
+                "ipd-integration-deferred"
+                if decision.deferred
+                else (
+                    "ipd-integration-blocked"
+                    if decision.status == INTEGRATION_BLOCKED_STATUS
+                    else "ipd-merge-conflict"
+                )
+            ),
+            "id6": item.get("id6"),
+            "setid": item.get("setid"),
+            "detail": integ_reason,
+            "verdict": decision.reason,
+            "attempts_used": decision.attempts_used,
+            "limit": decision.limit,
+            "policy": policy,
+            "branch": branch,
+        },
+    )
+    return decision
+
+
+def reattempt_deferred_integrations(
+    *,
+    repo: Path,
+    run_dir: Path,
+    state: MutableMapping[str, Any],
+    integrate: Callable[..., tuple[bool, str, str]],
+    finish_integrated: Callable[..., None],
+    save_state: Callable[..., Any],
+    append_jsonl: Callable[..., Any],
+    handle_for: Callable[[Mapping[str, Any]], Any],
+    validation_runner_for: Callable[[Mapping[str, Any]], Any],
+    poll: bool = False,
+    interactive: bool = False,
+    ask: bool = False,
+) -> list[dict[str, Any]]:
+    """RUNG 1 (and, with ``poll``/``ask``, rungs 2 and 3): retry every deferred item's integration.
+
+    CALLED FROM THE TOP OF THE DISPATCH LOOP, which is why rung 1 costs nothing: that loop already
+    reloads state and already runs `cascade_dependency_blocked` each iteration, so the next item's
+    completion IS the natural retry trigger. Zero waiting, zero tokens, nothing blocked.
+
+    EVERY RE-ATTEMPT GOES THROUGH ``integrate``, i.e. through `integrate_lane_branch` and therefore
+    through `orchestrate_isolation.execute_merge_and_revalidate_gate`. There is deliberately no
+    shortcut that treats a clean `dirty_tree_overlap` as sufficient: that would prove only the absence
+    of un-owned dirt, and say nothing about whether the suite still passes against today's main.
+
+    ``poll``/``ask`` are passed by the caller when NOTHING ELSE IS DISPATCHABLE (the loop's own
+    `runnable is None`), which is rung 2's trigger. That condition covers both the last-item case and
+    the case where five items remain and ALL are deferred - a last-item test would miss the second.
+
+    Returns the per-item records for the report.
+    """
+
+    records: list[dict[str, Any]] = []
+    for item in deferred_integration_items(state):
+        handle = handle_for(item)
+        if handle is None:
+            # The lane is gone (torn down out of band, or a resume in a checkout that never had it).
+            # Fail toward the terminal state rather than looping on something unreachable.
+            item["status"] = INTEGRATION_BLOCKED_STATUS
+            item["integration_ladder"] = {
+                "status": INTEGRATION_BLOCKED_STATUS,
+                "deferred": False,
+                "verdict": (
+                    "the deferred lane could not be resolved in this checkout, so the deferral "
+                    "cannot be retried here; the item is terminal and whatever branch exists is "
+                    "left untouched"
+                ),
+            }
+            save_state(run_dir, state)
+            records.append({"id6": item.get("id6"), "outcome": "lane-unresolvable"})
+            continue
+
+        if poll:
+            outcome = poll_for_integration_window(
+                repo,
+                tuple(item.get("integration_changed_files") or ()),
+                poll_limit=int(
+                    (state.get("options") or {}).get(
+                        "integration_poll_limit", DEFAULT_INTEGRATION_POLL_LIMIT
+                    )
+                ),
+            )
+            item["integration_poll"] = {
+                "bound": outcome.bound,
+                "polls": outcome.polls,
+                "last_activity_age": outcome.last_activity_age,
+                "detail": outcome.detail,
+                "cleared": outcome.cleared,
+            }
+            save_state(run_dir, state)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "ipd-integration-poll",
+                    "id6": item.get("id6"),
+                    "bound": outcome.bound,
+                    "polls": outcome.polls,
+                    "last_activity_age": outcome.last_activity_age,
+                    "detail": outcome.detail,
+                },
+            )
+
+        integrated, reason, kind = integrate(item, handle)
+        if integrated:
+            finish_integrated(item, handle, reason)
+            records.append(
+                {"id6": item.get("id6"), "outcome": "integrated", "detail": reason}
+            )
+            continue
+
+        attempts = item.get("attempts") or [{}]
+        decision = record_integration_refusal(
+            run_dir=run_dir,
+            state=state,
+            item=item,
+            attempt=attempts[-1] if attempts else {},
+            integ_kind=kind,
+            integ_reason=reason,
+            branch=getattr(handle, "branch", None),
+            save_state=save_state,
+            append_jsonl=append_jsonl,
+        )
+        if not decision.deferred and ask and interactive:
+            # RUNG 3, reached only when rungs 1 and 2 are exhausted. `interactive` is the CALLER's
+            # `is_interactive_run`, so an unattended run never arrives here with `ask` honored.
+            answer = ask_operator_about_integration(
+                str(item.get("id6") or ""), reason, interactive=interactive
+            )
+            item["integration_ask"] = {
+                "asked": answer.asked,
+                "retry": answer.retry,
+                "detail": answer.detail,
+            }
+            if answer.retry:
+                # One more attempt, still through the full gate. It does NOT reopen the budget: on
+                # refusal the decision below re-derives from the same exhausted count and goes terminal.
+                integrated, reason, kind = integrate(item, handle)
+                if integrated:
+                    finish_integrated(item, handle, reason)
+                    records.append(
+                        {
+                            "id6": item.get("id6"),
+                            "outcome": "integrated-after-ask",
+                            "detail": reason,
+                        }
+                    )
+                    continue
+            save_state(run_dir, state)
+        records.append(
+            {
+                "id6": item.get("id6"),
+                "outcome": "deferred" if decision.deferred else "terminal",
+                "detail": decision.reason,
+            }
+        )
+    return records
+
+
+def resolve_exhausted_deferrals(
+    run_dir: Path,
+    state: MutableMapping[str, Any],
+    *,
+    save_state: Callable[..., Any],
+    append_jsonl: Callable[..., Any],
+) -> list[str]:
+    """OQ-03: no run may END with an item still in the non-terminal deferred state.
+
+    WHY THIS IS A REQUIREMENT AND NOT TIDINESS. `integration-deferred` is BY DEFINITION not a
+    disposition: a run that ends on one has fabricated neither success nor failure, leaving the
+    operator with no signal and the next resume with an ambiguous item. So once every rung is
+    exhausted each remaining deferred item is resolved to TERMINAL `integration-blocked`, with the lane
+    preserved - which is precisely today's outcome, reached LAST instead of FIRST. That is honest, and
+    it is also what makes the deferral safe to add: the worst case is the behavior we already had.
+
+    The recovery route from there is unchanged and already documented: `--retry-incomplete` re-queues an
+    `integration-blocked` item, and child 04 (`rl67b0`) adds the `integrate` verb.
+
+    Returns the id6s it resolved, so the caller can report them.
+    """
+
+    resolved: list[str] = []
+    for item in deferred_integration_items(state):
+        ladder = dict(item.get("integration_ladder") or {})
+        item["status"] = INTEGRATION_BLOCKED_STATUS
+        ladder.update(
+            {
+                "status": INTEGRATION_BLOCKED_STATUS,
+                "deferred": False,
+                "verdict": (
+                    "every rung of the deferral ladder was exhausted (re-attempts, the bounded "
+                    "poll, and the bounded operator question), so the item is resolved to the "
+                    "TERMINAL state with its lane preserved rather than left non-terminal: a run "
+                    "must never end on a status that is not a disposition"
+                ),
+            }
+        )
+        item["integration_ladder"] = ladder
+        attempts = item.get("attempts") or []
+        if attempts:
+            attempts[-1]["disposition"] = INTEGRATION_BLOCKED_STATUS
+        resolved.append(str(item.get("id6") or ""))
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "ipd-integration-blocked",
+                "id6": item.get("id6"),
+                "setid": item.get("setid"),
+                "detail": item.get("integration_deferral"),
+                "verdict": ladder["verdict"],
+                "attempts_used": item.get("integration_attempts"),
+                "poll": item.get("integration_poll"),
+                "ask": item.get("integration_ask"),
+            },
+        )
+    if resolved:
+        save_state(run_dir, state)
+    return resolved
+
+
+class AskOutcome(NamedTuple):
+    """The result of rung 3's operator question. `asked` is False when it was SUPPRESSED."""
+
+    asked: bool
+    answer: str | None
+    retry: bool
+    detail: str
+
+
+def ask_operator_about_integration(
+    id6: str,
+    reason: str,
+    *,
+    interactive: bool,
+    timeout: float | None = None,
+    prompt: Callable[..., str | None] | None = None,
+) -> AskOutcome:
+    """RUNG 3: ask the operator whether to retry once more, WITHOUT the ability to hang the run.
+
+    TWO HARD CONSTRAINTS, both of which have already been paid for once in this repository:
+
+    * SUPPRESSED WITHOUT AN ANSWER CHANNEL. `interactive` comes from
+      :func:`is_interactive_run`, which tests BOTH a real TTY and the absence of `--unattended`
+      (the operator declaring nobody is there, which must win over a TTY that happens to exist).
+      An unattended overnight run must NEVER stop on a question nobody will see; that is strictly
+      worse than today's terminal refusal. No second TTY test is written here.
+    * IT CANNOT WAIT FOREVER. The prompt is :func:`prompt_for_gate_phrase`, which uses `select`
+      with a bounded timeout and never a blocking read, and on no answer this returns
+      `retry=False` so the caller goes TERMINAL with the lane preserved. An unbounded ask would
+      rebuild exactly the deadlock `qyaime` closed, whose own honest limit was that the ask is
+      "bounded and recorded, not architecturally prevented" - so the bound is the architecture here.
+
+    Returns an :class:`AskOutcome`; `retry=True` only on an explicit affirmative answer.
+    """
+
+    if not interactive:
+        return AskOutcome(
+            asked=False,
+            answer=None,
+            retry=False,
+            detail=(
+                "the operator question was SUPPRESSED: this run has no interactive answer channel "
+                "(no TTY, or --unattended), so it must not stop on a question nobody will see"
+            ),
+        )
+    # Resolved HERE rather than as a default argument because `GATE_PROMPT_TIMEOUT` is defined further
+    # down this module (with the gate prompt it belongs to) and this section sits with the integration
+    # code it serves. Reusing that constant is deliberate: the two prompts in this package must not
+    # disagree about how long a run may wait for a human.
+    if timeout is None:
+        timeout = GATE_PROMPT_TIMEOUT
+    _prompt = prompt_for_gate_phrase if prompt is None else prompt
+    question = (
+        f"  ? lane {id6} cannot integrate: {reason}\n"
+        f"    Retry the integration now? [y/N] (no answer in {timeout}s = give up, "
+        "lane preserved): "
+    )
+    answer = _prompt(question, timeout=timeout)
+    if answer is None:
+        return AskOutcome(
+            asked=True,
+            answer=None,
+            retry=False,
+            detail=(
+                f"the operator question TIMED OUT after {timeout}s with no answer, so the item is "
+                "terminal and the lane is preserved; no code path waits on this prompt indefinitely"
+            ),
+        )
+    typed = answer.strip().lower()
+    if typed[:1] == "y":
+        return AskOutcome(
+            asked=True,
+            answer=typed,
+            retry=True,
+            detail="the operator asked for one more integration attempt",
+        )
+    return AskOutcome(
+        asked=True,
+        answer=typed,
+        retry=False,
+        detail=(
+            f"the operator declined a further attempt ({typed!r}), so the item is terminal and the "
+            "lane is preserved"
+        ),
+    )
+
+
 def reconcile_item_on_interrupt(
     repo: Path,
     run_dir: Path,
@@ -1847,8 +2616,12 @@ class RunPolicyFlag(NamedTuple):
     Fields:
       * ``flag``        - the exact operator-facing spelling (what the spec declares).
       * ``dest``        - the argparse destination, hence the run-state option key.
-      * ``kind``        - ``"bool"`` (a `BooleanOptionalAction`, matching shipped `--full-auto`) or
-                          ``"int"``.
+      * ``kind``        - ``"bool"`` (a `BooleanOptionalAction`, matching shipped `--full-auto`),
+                          ``"int"``, or ``"choice"`` (a closed string vocabulary carried in
+                          ``choices``). ``"choice"`` arrived with integpath-03's
+                          `--on-integration-blocked`, whose value SELECTS A POLICY rather than
+                          toggling one, so argparse must reject an unrecognized spelling at parse
+                          time instead of leaving a typo to be discovered mid-run.
       * ``implemented`` - whether the flag's BEHAVIOR ships. False means registered-and-refusing:
                           the flag parses, appears in `--help`, and REFUSES with `not yet
                           implemented`. Carried as data so the contract test can assert the refusal
@@ -1874,6 +2647,10 @@ class RunPolicyFlag(NamedTuple):
     help: str
     freeze: bool = True
     resume_rule: str = "none-default"
+    #: The closed vocabulary for a ``kind="choice"`` row; empty for every other kind. Carried as DATA
+    #: for this table's founding reason: a vocabulary spelled at the `add_argument` call instead would
+    #: have to be repeated on both hosts' parsers, which is the duplication this table exists to end.
+    choices: tuple = ()
 
 
 #: The `resume` re-declaration rules, named rather than spelled inline at each comparison.
@@ -2026,6 +2803,48 @@ RUN_POLICY_FLAGS: tuple = (
             "run start and refuses on nothing, and it does not silence that report"
         ),
     ),
+    # integpath-03 (`51vw4y`) E-02/E-05: the integration deferral ladder's two flags. They are in
+    # THIS table, and not on each host's parser, on the maintainer's 2026-09-07 OQ-04 ruling: the
+    # shared spec-governed table is what stops the two hosts diverging, which is the failure
+    # `--full-auto` already demonstrated (default `False` on one host, `True` on the other). Spec
+    # `25kzda` 2.1 was amended to DECLARE both in the same change that registers them here, because
+    # `tests/test_run_flag_surface.py` reads that section as a FILE in BOTH directions.
+    RunPolicyFlag(
+        flag="--integration-retry-limit",
+        dest="integration_retry_limit",
+        kind="int",
+        implemented=True,
+        owner="runner_shared.decide_integration_deferral",
+        help=(
+            "Integration RE-ATTEMPTS allowed for a lane refused because main holds un-owned dirty "
+            "paths overlapping the incoming change, a non-negative integer defaulting to 10. THIS "
+            "IS NOT --retry-budget: that counts paid agent correction turns and is bounded 0..10; "
+            "this counts integration re-attempts, is not bounded by that range, and neither moves "
+            "the other. Repetition genuinely can succeed here, because the blocker is another "
+            "writer's transient uncommitted file, and each re-attempt costs one git status plus one "
+            "git merge-tree and no agent turn. Every re-attempt runs the full merge-and-revalidate "
+            "gate. Cannot be changed on --resume: the frozen value stands"
+        ),
+        resume_rule=RESUME_REFUSE,
+    ),
+    RunPolicyFlag(
+        flag="--on-integration-blocked",
+        dest="on_integration_blocked",
+        kind="choice",
+        implemented=True,
+        owner="runner_shared.decide_integration_deferral",
+        help=(
+            "What to do when an integration is refused because main holds un-owned dirty paths "
+            "overlapping the incoming change. 'defer' (the default) re-attempts while other work "
+            "remains, then polls, then asks, then goes terminal; 'poll' starts at the bounded poll; "
+            "'ask' starts at the bounded question; 'block' REPRODUCES THE PREVIOUS BEHAVIOR exactly, "
+            "marking the item terminal integration-blocked on the first refusal. No setting "
+            "integrates over a contaminated base, and none stashes, resets, or cleans another "
+            "writer's work. The ask is suppressed with no TTY or under --unattended, and carries its "
+            "own timeout, so no setting can wait indefinitely"
+        ),
+        choices=ON_INTEGRATION_BLOCKED_CHOICES,
+    ),
 )
 
 #: `{flag: RunPolicyFlag}`, for a caller that has a spelling and wants the row.
@@ -2101,6 +2920,18 @@ def register_run_policy_flags(
                 type=int,
                 default=None,
                 metavar="N",
+                help=row.help,
+            )
+        elif row.kind == "choice":
+            # `default=None` on BOTH parsers, not only on `resume`. For a choice flag `None` means
+            # "the operator said nothing", which is what lets the resolver apply the documented
+            # default in ONE place (`resolve_on_integration_blocked`) rather than argparse baking a
+            # second copy of it into two parsers.
+            parser.add_argument(
+                row.flag,
+                dest=row.dest,
+                choices=list(row.choices),
+                default=None,
                 help=row.help,
             )
         else:  # pragma: no cover - the table is closed; a new kind is a programming error
@@ -2426,12 +3257,38 @@ def freeze_run_policy_flags(args: Any) -> dict:
         (never a bare `None` that a later reader has to re-resolve, and re-resolve differently).
     """
 
+    def _supplied(dest: str) -> Any:
+        """The value for a NON-BOOL row, with a placeholder `bool` read as NOT SUPPLIED.
+
+        WHY THIS EXISTS RATHER THAN A BARE `getattr`. A namespace built GENERICALLY over this table -
+        `{row.dest: False for row in RUN_POLICY_FLAGS}`, the idiom the shipped contract test uses in
+        four places - hands every row `False`, including the int and choice rows. That value never
+        comes from argparse, which declares `default=None` for them precisely so "absent" is
+        distinguishable, so a `bool` here can only mean "this namespace was filled in generically"
+        and the correct reading is ABSENT.
+
+        The RESOLVERS stay strict on purpose: a negative count and an unrecognized policy word are
+        still refused, because those are real operator errors. Only the placeholder is tolerated, and
+        only here, where the placeholder is actually produced.
+        """
+
+        value = getattr(args, dest, None)
+        return None if isinstance(value, bool) else value
+
     frozen: dict = {}
     for row in RUN_POLICY_FLAGS:
         if not row.freeze:
             continue
         if row.dest == "retry_budget":
             frozen[row.dest] = resolve_retry_budget(getattr(args, row.dest, None))
+        elif row.dest == "integration_retry_limit":
+            # integpath-03 (`51vw4y`) E-02: resolved to its EFFECTIVE integer here, exactly as
+            # `retry_budget` is, so no later reader has to re-resolve a bare `None` (and re-resolve it
+            # differently). Its own resolver, NOT `resolve_retry_budget`: the two count different
+            # quantities and this one is deliberately not clamped to spec 2.1's 0..10 range.
+            frozen[row.dest] = resolve_integration_retry_limit(_supplied(row.dest))
+        elif row.dest == "on_integration_blocked":
+            frozen[row.dest] = resolve_on_integration_blocked(_supplied(row.dest))
         else:
             frozen[row.dest] = bool(getattr(args, row.dest, False) or False)
     if frozen.get("full_auto"):

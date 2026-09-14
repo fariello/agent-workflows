@@ -1993,6 +1993,139 @@ def integrate_lane_branch(
     )
 
 
+def retry_deferred_integrations(
+    run_dir: Path,
+    state: dict[str, Any],
+    *,
+    poll: bool = False,
+    ask: bool = False,
+) -> list[dict[str, Any]]:
+    """integpath-03 (`51vw4y`) E-03/E-04/E-05: re-attempt this host's DEFERRED integrations.
+
+    A thin adapter: the LADDER is the shared `runner_shared.reattempt_deferred_integrations`, and this
+    binds the four things that are host-specific - this host's `integrate_lane_branch` wrapper (which
+    carries its own `host_label`, so a re-attempt's merge commit still names the right driver), its
+    validation runner, its lane-handle reconstruction, and what "finished" means here.
+
+    THE LANE HANDLE IS REBUILT FROM DURABLE STATE, not held in memory. A re-attempt happens in a LATER
+    dispatch-loop iteration than the turn that deferred it, so the `WorktreeHandle` from that turn is
+    long out of scope; the `preserved_*` fields the shared preservation emitter already writes are what
+    make the lane findable again, which is exactly what they exist for.
+    """
+
+    from agent_workflows import worktree_lease
+
+    repo = Path(state["repo"])
+
+    def _handle_for(item: Any) -> Any:
+        branch = item.get("preserved_branch")
+        worktree = item.get("preserved_worktree")
+        if not branch:
+            return None
+        rc, _out, _err = _run_git(repo, ["rev-parse", "--verify", str(branch)])
+        if rc != 0:
+            return None
+        return worktree_lease.WorktreeHandle(
+            lane_id=str(item.get("preserved_lane_id") or item.get("id6") or ""),
+            path=Path(worktree) if worktree else Path(""),
+            branch=str(branch),
+            base_commit=str(item.get("preserved_base") or ""),
+        )
+
+    def _integrate(item: Any, handle: Any) -> tuple[bool, str, str]:
+        return integrate_lane_branch(
+            repo,
+            handle,
+            str(item.get("id6") or ""),
+            make_integration_validation_runner(state, run_dir, item),
+        )
+
+    def _finish(item: Any, handle: Any, reason: str) -> None:
+        """The success path for a lane that integrated on a RE-attempt.
+
+        It mirrors the first-attempt success path deliberately: the plan is already in `executed/` on
+        the lane branch (finalize ran during the original turn), so what remains is to record
+        `executed`, tear the lane down through the SHARED containment gate (never
+        `teardown_isolation_worktree` directly, which force-deletes branch and files), and close the
+        backlog item, which is the one moment a run can know the last carrier landed.
+        """
+        item["status"] = "executed"
+        item["integrated"] = reason
+        attempts = item.get("attempts") or []
+        if attempts:
+            attempts[-1]["disposition"] = "executed"
+            attempts[-1]["integrated"] = reason
+        decision = lane_containment.teardown_lane_if_classified(
+            repo=repo, handle=handle, run_dir=run_dir, item=item
+        )
+        if not decision.torn_down:
+            lane_containment.record_lane_preserved(
+                run_dir=run_dir,
+                item=item,
+                handle=handle,
+                reason=decision.reason,
+                reason_codes=decision.reason_codes,
+                detail=decision.inventory.as_dict(),
+            )
+        else:
+            for key in (
+                "preserved_worktree",
+                "preserved_branch",
+                "preserved_lane_id",
+                "preserved_base",
+                "preserved_reason",
+                "preserved_retention_reasons",
+            ):
+                item.pop(key, None)
+        with contextlib.suppress(DriverError):
+            item["last_plan_path"] = str(
+                resolve_plan_path(repo, item.get("configured_file", ""), item["id6"])
+            )
+        save_state(run_dir, state)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "ipd-integrated-after-deferral",
+                "id6": item.get("id6"),
+                "setid": item.get("setid"),
+                "integration": reason,
+                "attempts_used": item.get("integration_attempts"),
+            },
+        )
+        print(
+            Palette(should_color(sys.stdout))(
+                f"  \u2713 IPD {item.get('id6')} integrated to main on a deferred re-attempt "
+                f"({reason})",
+                "green",
+            )
+        )
+        process_backlog_close(run_dir, state, item)
+        save_state(run_dir, state)
+
+    return runner_shared.reattempt_deferred_integrations(
+        repo=repo,
+        run_dir=run_dir,
+        state=state,
+        integrate=_integrate,
+        finish_integrated=_finish,
+        save_state=save_state,
+        append_jsonl=append_jsonl,
+        handle_for=_handle_for,
+        validation_runner_for=lambda item: make_integration_validation_runner(
+            state, run_dir, dict(item)
+        ),
+        poll=poll,
+        interactive=runner_shared.is_interactive_run(
+            argparse.Namespace(
+                unattended=bool((state.get("options") or {}).get("unattended")),
+                full_auto=bool((state.get("options") or {}).get("full_auto")),
+            )
+        ),
+        ask=ask,
+    )
+
+
 def make_integration_validation_runner(
     state: dict[str, Any], run_dir: Path, item: dict[str, Any]
 ) -> Any:
@@ -2808,6 +2941,16 @@ def initialize_run(args: argparse.Namespace) -> Path:
     runner_shared.refuse_unimplemented_run_flags(args)
     runner_shared.evaluate_unverifiable_admission(args)
     runner_shared.resolve_retry_budget(getattr(args, "retry_budget", None))
+    # integpath-03 (`51vw4y`) E-02/E-05: refused HERE too, for the same reason and at the same seam -
+    # before the run directory exists, so a malformed value costs the operator nothing. A negative
+    # re-attempt count and an unrecognized ladder rung are operator errors, and an overnight run must
+    # learn of them now rather than at the first refused integration hours later.
+    runner_shared.resolve_integration_retry_limit(
+        getattr(args, "integration_retry_limit", None)
+    )
+    runner_shared.resolve_on_integration_blocked(
+        getattr(args, "on_integration_blocked", None)
+    )
 
     # dirtybase Order 01 (`3i0aaz`) E-02: REPORT the target checkout's UNTRACKED content ONCE, here,
     # and do not refuse on it. This is the `aw install` case - 130+ uncommitted, largely untracked
@@ -6118,6 +6261,21 @@ def reconcile_disposition(
             return "substantially-complete", outcome
         if disposition in TERMINAL_STATES - {"dependency-blocked", "not-attempted"}:
             return disposition, outcome
+    # integpath-03 (`51vw4y`) E-01: PASS THE NON-TERMINAL DEFERRAL THROUGH, EXPLICITLY.
+    #
+    # THIS IS THE SILENT-DOWNGRADE TRAP, and it is the single highest-risk line of this plan rather
+    # than bookkeeping. `integration-deferred` is DELIBERATELY absent from `TERMINAL_STATES` (that
+    # absence is what makes a re-attempt possible), so the set-difference branch above SKIPS it and
+    # control reaches the fallback below, which would relabel a deferred item `partial`. `partial` IS
+    # terminal, so the deferral would be destroyed, the item never re-attempted, and today's permanent
+    # loss reproduced - while every ladder unit test still passed, because none of them route through
+    # here. The status must therefore be named explicitly, on BOTH hosts.
+    #
+    # It is checked AFTER the outcome block on purpose: an agent's self-reported outcome never gets to
+    # CLAIM a deferral (the driver decides that from the real integration attempt), so this reads the
+    # status the driver already wrote onto the item.
+    if item.get("status") == runner_shared.INTEGRATION_DEFERRED_STATUS:
+        return runner_shared.INTEGRATION_DEFERRED_STATUS, outcome
     return ("partial" if exit_code == 0 else "failed-safely"), outcome
 
 
@@ -6886,40 +7044,36 @@ def execute_item(
                     make_integration_validation_runner(state, run_dir, item),
                 )
             if not integrated:
-                # driverfin-03 (7kbtkw) E-01/E-02: fail closed. A contaminated base yields
-                # `integration-blocked`; a non-passing gate result / real merge conflict yields
-                # `merge-conflict`. Either way main is left UNTOUCHED (the gate is diff-based and any
-                # real merge was aborted), the verified lane branch/worktree is PRESERVED for a
-                # human/serial resolution, and the child is NOT faked executed (its set therefore is
-                # NOT reported finished - the orchestrator only finalizes when all children executed).
-                fail_status = (
-                    "integration-blocked"
-                    if integ_kind == "integration-blocked"
-                    else "merge-conflict"
+                # driverfin-03 (7kbtkw) E-01/E-02: fail closed. Main is left UNTOUCHED (the gate is
+                # diff-based and any real merge was aborted), the verified lane branch/worktree is
+                # PRESERVED, and the child is NOT faked executed (its set therefore is NOT reported
+                # finished - the orchestrator only finalizes when all children executed).
+                #
+                # integpath-03 (`51vw4y`) E-01/E-03: WHICH status that is now comes from the SHARED
+                # ladder instead of a local two-way mapping. `merge-conflict` still goes terminal on
+                # its FIRST attempt, unchanged; only the transient dirty-overlap arm defers, and only
+                # while its own budget lasts. `record_integration_refusal` writes the status, the
+                # counters and the event; the lane is preserved on every branch.
+                #
+                # THE CHANGED FILE LIST IS STORED HERE because rung 2 needs it later, from the
+                # dispatch loop, where no `LaneOutcome` is in scope: it is what `dirty_tree_overlap`
+                # is re-checked against while polling.
+                with contextlib.suppress(Exception):
+                    item["integration_changed_files"] = list(
+                        build_lane_outcome(repo, wt_handle, item["id6"]).changed_files
+                    )
+                decision = runner_shared.record_integration_refusal(
+                    run_dir=run_dir,
+                    state=state,
+                    item=item,
+                    attempt=attempt,
+                    integ_kind=integ_kind,
+                    integ_reason=integ_reason,
+                    branch=wt_handle.branch if wt_handle else None,
+                    save_state=save_state,
+                    append_jsonl=append_jsonl,
                 )
-                fail_event = (
-                    "ipd-integration-blocked"
-                    if fail_status == "integration-blocked"
-                    else "ipd-merge-conflict"
-                )
-                attempt["disposition"] = fail_status
-                attempt["finalized"] = True
-                attempt["integration_deferred"] = integ_reason
-                item["status"] = fail_status
-                item["integration_deferral"] = integ_reason
-                # Leave the worktree/branch in place (NOT torn down) for a later human/serial fix.
-                save_state(run_dir, state)
-                append_jsonl(
-                    run_dir / "events.jsonl",
-                    {
-                        "at": utc_now(),
-                        "event": fail_event,
-                        "id6": item["id6"],
-                        "setid": item["setid"],
-                        "detail": integ_reason,
-                        "branch": wt_handle.branch if wt_handle else None,
-                    },
-                )
+                fail_status = decision.status
                 lane_branch = wt_handle.branch if wt_handle else "(none)"
                 print(
                     pal(
@@ -6929,6 +7083,14 @@ def execute_item(
                     ),
                     file=sys.stderr,
                 )
+                if decision.deferred:
+                    print(
+                        pal(
+                            f"    -> {decision.reason}",
+                            "cyan",
+                        ),
+                        file=sys.stderr,
+                    )
                 disposition = fail_status
             else:
                 # lanectn y5od1h E-01 (spec R3.2): PRESERVE AND PAUSE is enforced HERE, not merely
@@ -7417,6 +7579,11 @@ def run_queue(
                 # is clean / the conflict is resolved on the preserved lane branch.
                 "integration-blocked",
                 "merge-conflict",
+                # integpath-03 (`51vw4y`): a DEFERRED integration can outlive its run (an interrupt or
+                # a crash between the deferral and the next loop iteration), and it is by definition
+                # non-terminal, so a resume must be able to pick it up. Listed here rather than left to
+                # the ladder alone because the ladder only runs inside a live dispatch loop.
+                "integration-deferred",
             }:
                 item["status"] = "queued"
                 item["recovery_next"] = True
@@ -7473,8 +7640,23 @@ def run_queue(
         if cascade_dependency_blocked(state, run_dir):
             save_state(run_dir, state)
             state = load_state(run_dir)
+        # integpath-03 (`51vw4y`) E-03: RUNG 1. Re-attempt every DEFERRED integration here, at the top
+        # of the loop, which is why it costs nothing: this loop already reloads state and already
+        # cascades each iteration, so the previous item's completion IS the natural retry trigger. Zero
+        # waiting, zero tokens, no agent turn. Every attempt routes through the full revalidate gate.
+        #
+        # ORDERED AFTER THE CASCADE DELIBERATELY: `integration-deferred` is NOT in `TERMINAL_STATES`,
+        # so the cascade leaves a deferred item's dependents alone rather than killing them, and an
+        # integration that succeeds HERE promotes the item to `executed` before the selection below
+        # asks whether anything depends on it. That ordering is what converts the measured seven-of-34
+        # cascade loss into no loss at all.
+        if runner_shared.deferred_integration_items(state):
+            retry_deferred_integrations(run_dir, state)
+            save_state(run_dir, state)
+            state = load_state(run_dir)
+            register_signal_report(run_dir, state)
         queued = [item for item in state["queue"] if item["status"] == "queued"]
-        if not queued:
+        if not queued and not runner_shared.deferred_integration_items(state):
             # runstop 1qxuke (E-03, OQ-01): the FINAL-set boundary. A level-2 request on the last set
             # drains the queue, so the loop leaves here rather than at the consent check below. The
             # deliberate stop must STILL be recorded (spec R21), otherwise a stop that happened to
@@ -7520,6 +7702,39 @@ def run_queue(
                     _record_deliberate_stop(run_dir, state, wind_down)
                     stop_recorded = True
                 break
+            # integpath-03 (`51vw4y`) E-04/E-05: RUNGS 2 AND 3, and `runnable is None` IS the trigger.
+            #
+            # THE TRIGGER IS "is there anything else I could dispatch", not "is this the last item",
+            # and that distinction is why this sits here rather than behind a queue-length test: this
+            # one condition covers BOTH the last-item case and the case where five items remain and ALL
+            # are deferred, which a last-item test would miss entirely.
+            #
+            # Rung 2 polls, bounded BOTH by count and by main's activity staleness; rung 3 then asks,
+            # suppressed without a TTY and bounded by its own timeout. `ask=True` is passed
+            # unconditionally because the SHARED ladder resolves the interactive predicate itself
+            # (`is_interactive_run`, which also honors `--unattended`), so an unattended overnight run
+            # can never stop on a question nobody will see.
+            #
+            # SPEC OQ-03: the run must NOT end leaving an item in a non-terminal state, so after these
+            # rungs any still-deferred item is resolved to terminal `integration-blocked` with the lane
+            # preserved, which is today's honest outcome reached LAST instead of FIRST.
+            if runner_shared.deferred_integration_items(state):
+                retry_deferred_integrations(run_dir, state, poll=True, ask=True)
+                save_state(run_dir, state)
+                state = load_state(run_dir)
+                register_signal_report(run_dir, state)
+                if runner_shared.deferred_integration_items(state):
+                    runner_shared.resolve_exhausted_deferrals(
+                        run_dir,
+                        state,
+                        save_state=save_state,
+                        append_jsonl=append_jsonl,
+                    )
+                    save_state(run_dir, state)
+                if [it for it in state["queue"] if it["status"] == "queued"]:
+                    # An integration that landed during the rungs above can have unblocked a dependent,
+                    # so go round again rather than declaring the queue drained.
+                    continue
             for item in queued:
                 _, missing, why = dependency_status_detailed(item, state)
                 item["status"] = "dependency-blocked"
