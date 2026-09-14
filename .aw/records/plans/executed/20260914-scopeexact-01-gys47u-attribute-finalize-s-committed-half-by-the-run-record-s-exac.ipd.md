@@ -6,16 +6,16 @@
 - Scope: Add an EXACT attribution source (the run record's per-item `commits[].sha`) ahead of the existing cohesion heuristic in `ipd_lifecycle`, keeping cohesion as the fallback and keeping every fail-closed property. Reader only; no writer, no new gate, no change to the refusal condition.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, tests/test_finalize_exact_attribution.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: scopeexact
 - Order: 1
 - Highest E allocated: 05
 - Author: recovery-agent
 - Id: gys47u
-- Approval: 2026-09-14, human ("approved"): Maintainer instruction 2026-09-14: 'Why not? That does not sound like we're ready to move forward and complete all the plans.' in direct response to this defect being filed as backlog 7ts6ek and deferred. That is an explicit instruction to fix it rather than file it, so it is recorded here as the approval attestation per the AGENTS.md contract for acting on a backlog item, and no separate approve round trip is taken. Both open questions are resolved from repository evidence; neither is blocking.
 - From-Backlog: 7ts6ek
 
 ## Workflow history
+- 2026-09-14 executed (opencode/its_direct-pt3-claude-opus-5): Exact run-record attribution added ahead of commit cohesion; all E/V items verified with pasted evidence, 12 new tests, whole suite 7308 passed.
 - 2026-09-14 approved (aw set, --by-human): Maintainer instruction 2026-09-14: 'Why not? That does not sound like we're ready to move forward and complete all the plans.' in direct response to this defect being filed as backlog 7ts6ek and deferred. That is an explicit instruction to fix it rather than file it, so it is recorded here as the approval attestation per the AGENTS.md contract for acting on a backlog item, and no separate approve round trip is taken. Both open questions are resolved from repository evidence; neither is blocking.
 
 - 2026-09-14 draft (recovery-agent): created.
