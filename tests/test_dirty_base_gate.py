@@ -683,7 +683,17 @@ class NoSpawnAndNothingTouchedTests(unittest.TestCase):
 
                 spawns = self._drive(driver, spawn, run_dir, state, item)
 
-                self.assertEqual(spawns, 1, "consent must let the turn launch")
+                # RE-MEASURED 2026-09-14 when lane `b7xarm` (defreport-01) was integrated. This
+                # asserted `== 1`; the property it exists to pin is that the clean-base guard
+                # LAUNCHED the turn instead of refusing before any spawn (the `== 0` cases above),
+                # so the bound is `>= 1`, not a spawn count. `b7xarm` adds ONE bounded same-session
+                # re-ask when a turn returns no conforming defect report, and this fixture's fake
+                # spawn returns none, so a second launch here is that re-ask working as designed
+                # (`runner_shared.defect_reask_is_warranted`). It fires only because the fake's
+                # disposition is `partial`; every refusal case in this class keeps `== 0` because
+                # `blocked` is in `DEFECT_REASK_SKIPPED_STATUSES`, which is what makes this
+                # relaxation safe rather than a loosening that would hide a guard regression.
+                self.assertGreaterEqual(spawns, 1, "consent must let the turn launch")
                 self.assertNotEqual(item["status"], "blocked")
                 self.assertNotIn("clean_base_refusal", item)
                 # NON-VACUITY. Pre-change this path had NO guard at all (the call was gated on
@@ -725,7 +735,11 @@ class NoSpawnAndNothingTouchedTests(unittest.TestCase):
 
                 spawns = self._drive(driver, spawn, run_dir, state, item)
 
-                self.assertEqual(spawns, 1, "untracked dirt must not refuse")
+                # RE-MEASURED 2026-09-14 with lane `b7xarm`; see the sibling consent test for the
+                # full reasoning. `>= 1` because `b7xarm`'s one bounded defect-report re-ask can add
+                # a second launch; the property pinned here is that untracked dirt does NOT refuse
+                # before the spawn, which the `== 0` refusal cases in this class still hold exactly.
+                self.assertGreaterEqual(spawns, 1, "untracked dirt must not refuse")
                 self.assertNotIn("clean_base_refusal", item)
                 # NON-VACUITY: it must launch because the guard RAN and found the tracked tree
                 # clean, not because the guard was skipped. Pre-change this passed for the latter
