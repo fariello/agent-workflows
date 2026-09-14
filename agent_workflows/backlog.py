@@ -42,6 +42,17 @@ Status is encoded BOTH by directory and by the `- Status:` bullet, and the two M
 `aw backlog new|set|check`: `new` creates a conformant item; `set` transitions status (moving the
 file between the disposition dirs) and appends history; `check` validates the tree fail-closed with
 the shared `Drift`/`--agent`/exit convention. Stdlib only; reuses `artifact_core` + `attention_contract`.
+
+Both CLASSIFICATION fields (`- Priority:` and `- Work-Kind:`) are settable on an EXISTING item via
+`aw backlog set --priority` / `--work-kind` (bklgkind b5sfwm), on both spellings of that verb, and the
+write PERSISTS ON A NO-OP TRANSITION so a pure reclassification needs no status change. NEITHER FLAG
+ACCEPTS THE `-` CLEARING SENTINEL, and the omission is deliberate rather than an oversight (OQ-02,
+ruled 2026-09-10): both fields are REQUIRED here, so clearing one would leave an item `validate_item`
+reports as `backlog.priority-invalid`/`backlog.kind-invalid` and `aw check backlog` exits nonzero on.
+A required field may be RETARGETED, never emptied. The sibling `aw ipd set`/`aw specs set` flags do
+still accept `-` because the field is optional on those record types today; that spelling is a known
+loose end for `planprio` child `lkexaw`, which owns making both fields required on plans too, and is
+not a precedent to copy back here.
 """
 
 from __future__ import annotations
@@ -481,6 +492,25 @@ def run_set(args) -> int:
             f"aw backlog set: --status must be one of {sorted(STATUSES)} and a path is required\n"
         )
         return 2
+    # bklgkind b5sfwm E-03: validate the two CLASSIFICATION flags BEFORE resolving or writing
+    # anything. Argparse `choices` already covers the CLI route, but this function is called directly
+    # by tests and by other code, and the shared line writers deliberately do NOT enforce the enum
+    # ("the ENUM check ... is enforced by `aw check` / validate_spec, not here"). Refusing here with
+    # the same exit-2 shape `run_new` uses keeps a direct caller from producing an item that
+    # `validate_item` rejects. NOTE `-` IS NOT ACCEPTED (OQ-02): both fields are REQUIRED on a backlog
+    # item, so clearing one manufactures a `backlog.kind-invalid`/`backlog.priority-invalid` item.
+    set_work_kind = getattr(args, "work_kind", None)
+    set_priority = getattr(args, "priority", None)
+    if set_work_kind is not None and set_work_kind not in KINDS:
+        sys.stderr.write(
+            f"aw backlog set: --work-kind must be one of {sorted(KINDS)}\n"
+        )
+        return 2
+    if set_priority is not None and set_priority not in PRIORITIES:
+        sys.stderr.write(
+            f"aw backlog set: --priority must be one of {sorted(PRIORITIES)}\n"
+        )
+        return 2
     # IPD laykok E-03: close the path-only outlier - resolve via the ONE unified resolver so
     # `aw backlog set` now accepts an id6/setid/status/stem/substring, not just a literal path.
     from agent_workflows import selectors as _sel
@@ -569,6 +599,30 @@ def run_set(args) -> int:
         from agent_workflows import releases as _releases
 
         rendered = _releases.set_blocks_release_line(rendered, item.blocks_release)
+
+    # bklgkind b5sfwm E-03/E-04: apply the two CLASSIFICATION fields. APPLIED AFTER THE RENDER,
+    # THROUGH THE SHARED LINE WRITERS, exactly as `--blocks-release` above is, so `_render_item` stays
+    # untouched and BOTH spellings of this verb funnel through ONE write mechanism: the positional
+    # spelling reaches the same `releases.set_work_kind_line` / `set_priority_line` primitives via
+    # `status_set.apply_status_change`. Writing to the parsed item before the render would fork the
+    # mechanism and make the two spellings' output impossible to compare byte for byte.
+    #
+    # These writes are HOISTED OUT OF EVERY STATUS BRANCH and keyed only on flag presence, which IS
+    # the "persists on a no-op transition" mechanism: a pure reclassification restates the item's
+    # current status, changes no directory, and still rewrites the metadata line. The values were
+    # validated at the top of this function, because these writers deliberately do not.
+    #
+    # THE ORDER OF THESE TWO WRITES IS DELIBERATE AND MATCHES `apply_status_change` (Priority first,
+    # then Work-Kind). Both writers INSERT directly after `- Status:`, so whichever runs LAST ends up
+    # the higher line; writing them in the other order would leave the two spellings of this one verb
+    # emitting the same fields in a different order, which V-03 compares.
+    if set_work_kind is not None or set_priority is not None:
+        from agent_workflows import releases as _releases
+
+        if set_priority is not None:
+            rendered = _releases.set_priority_line(rendered, set_priority)
+        if set_work_kind is not None:
+            rendered = _releases.set_work_kind_line(rendered, set_work_kind)
 
     # bklggrad orb9zb E-04: release-gate close-legitimacy gate. `rendered` now reflects the
     # POST-mutation item (including any same-call `--blocks-release -` de-gate), so a

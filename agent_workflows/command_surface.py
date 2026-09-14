@@ -1234,6 +1234,14 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
             "--gate-kind",
             "--gate-ref",
             "--blocks-release",
+            # bklgkind b5sfwm E-05: the two CLASSIFICATION setters, DECLARED and not merely accepted.
+            # Their absence was why a mislabeled item's Work-Kind had to be hand-edited. This entry is
+            # now MORE complete but still NOT complete: `--evidence`, `--yes` and `--commit/--no-commit`
+            # are accepted by the parser and remain undeclared here, left alone deliberately because
+            # they are outside this plan's fence. The existing agreement test is one-directional
+            # (it checks declared-minus-accepted, so an accepted-but-undeclared flag passes today).
+            "--work-kind",
+            "--priority",
             "--dry-run",
             "--json",
             "--agent",
