@@ -78,6 +78,15 @@ from agent_workflows.render_stream import (
     _STATUS_COLOR,
     Heartbeat,
     Palette,
+    # orchprobe (r2i1b1) E-01/E-02: the ONE refusal record, carrying a reason AND a remedy, defined in
+    # `render_stream` because that module imports no first-party module and `runner_shared` already
+    # imports IT (so the reverse edge the renderer needs cannot exist). Record a refusal through
+    # `record_refusal`, never by assigning the key, so the writer cannot drift from the reader.
+    REFUSAL_KEY as REFUSAL_KEY,
+    Refusal as Refusal,
+    record_integration_refusal,
+    record_refusal as record_refusal,
+    refusal_of_item as refusal_of_item,
     Statusline,
     StreamTracker,
     _one_line,
@@ -6846,6 +6855,19 @@ def execute_item(
                 attempt["integration_deferred"] = integ_reason
                 item["status"] = fail_status
                 item["integration_deferral"] = integ_reason
+                # orchprobe (r2i1b1) E-02, the SOURCE HALF of F-4's repair. These two statuses were in
+                # the summary's diagnostics allowlist yet rendered NOTHING, because that branch reads
+                # `driver_error` while this site writes `integration_deferral`; measured, the bug cost
+                # the maintainer an unhelpful report twice (`ueg5cf`, `pgq326`). OQ-02 resolved it in
+                # this direction deliberately: record the reason under the name the reader reads,
+                # rather than teaching the renderer a second field name. `integration_deferral` is
+                # KEPT for the existing consumers that assert on it.
+                record_integration_refusal(
+                    item,
+                    code=fail_status,
+                    reason=integ_reason,
+                    branch=wt_handle.branch if wt_handle else None,
+                )
                 # Leave the worktree/branch in place (NOT torn down) for a later human/serial fix.
                 save_state(run_dir, state)
                 append_jsonl(

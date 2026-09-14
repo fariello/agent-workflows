@@ -21,7 +21,15 @@ from agent_workflows import agent_schema as _agent_schema
 from agent_workflows import platform_lock
 from agent_workflows import artifact_audit as _audit
 from agent_workflows.attention import _TREE_COLOR_256, _identity_stem
-from agent_workflows.render_stream import format_tokens
+from agent_workflows.render_stream import (
+    format_tokens,
+    # orchprobe (r2i1b1) E-03/E-04: the SHARED refusal record and its reader. This viewer never
+    # re-derives the storage key, because a reader looking under a different name than the writer
+    # uses is exactly the defect F-4 measured in the run-summary renderer.
+    REFUSAL_KEY,
+    Refusal,
+    refusal_of_item,
+)
 from agent_workflows.runner_shared import (
     analytics_root,
     path_is_within_analytics,
@@ -98,6 +106,11 @@ class StepSummary:
     is_live: bool = False
     elapsed_seconds: float | None = None
     elapsed_str: str | None = None
+    # orchprobe (r2i1b1) E-04/E-05: the refusal the run recorded for this step, as the JSON-safe
+    # mapping `render_stream.Refusal.to_dict` produces (`code`/`reason`/`remedy`). Carried as a plain
+    # dict rather than the dataclass so `dataclasses.asdict` renders it directly into the `--json` and
+    # `--agent` payloads as DISCRETE FIELDS; read it through `step_refusal`, never by hand.
+    refusal: dict[str, str] | None = None
 
     @property
     def is_projected(self) -> bool:
@@ -450,6 +463,65 @@ def find_artifact_file(repo_root: Path, id6: str, stem: str) -> Path | None:
     collision calls ``artifact_audit.find_artifact`` directly.
     """
     return _audit.find_artifact(repo_root, id6, stem).path
+
+
+def step_issue_reasons(
+    audit: _audit.ArtifactAudit,
+    step: StepSummary | None = None,
+) -> list[str]:
+    """Every reason ``aw runs`` should report this step as an issue, most specific first.
+
+    THE ONE PREDICATE, AND THE EXTRACTION WAS THE POINT (orchprobe r2i1b1 E-03/F-2). The same
+    three-term expression ``missing_entirely or location_mismatch or status_mismatch`` was copied at
+    FIVE sites: ``format_artifact_audit_summary``, ``render_steps_table``, and three ``run_viewer_cli``
+    branches serving ``--json``, ``--agent --issues`` and human ``--issues``. Extending one copy is
+    precisely how the surfaces come to DISAGREE, with the table saying YES while ``--json`` omits the
+    same item, so the extraction landed BEFORE the extension rather than after it.
+
+    TWO INDEPENDENT REASON CLASSES, which is why this returns a list rather than a bool:
+
+    * an ARTIFACT DISCREPANCY, the original three terms, meaning the plan file is in the wrong
+      DIRECTORY or its on-disk status disagrees with what the run recorded; and
+    * a REFUSAL (E-04), meaning the run declined to do something for a SEMANTIC reason. Every one of
+      these previously left the column reading ``no``, because all three original terms describe
+      location drift and a refused item's artifact is typically exactly where it should be.
+    """
+    reasons: list[str] = []
+    refusal = step_refusal(step) if step is not None else None
+    if refusal is not None:
+        reasons.append(f"refused: {refusal.reason}")
+    if audit.missing_entirely:
+        reasons.append("artifact missing")
+    elif audit.location_mismatch:
+        reasons.append("artifact in unexpected directory")
+    if audit.status_mismatch:
+        reasons.append("on-disk status disagrees with the run record")
+    return reasons
+
+
+def step_has_issue(
+    audit: _audit.ArtifactAudit,
+    step: StepSummary | None = None,
+) -> bool:
+    """True when ``aw runs`` should flag this step. The ONE predicate all five surfaces call.
+
+    ``step`` is optional ONLY because ``format_artifact_audit_summary`` receives bare audits with no
+    step in hand; pass it whenever available, since a refusal is recorded on the STEP and is invisible
+    from the audit alone.
+    """
+    return bool(step_issue_reasons(audit, step))
+
+
+def step_refusal(step: StepSummary | None) -> Refusal | None:
+    """The refusal recorded for one step, or None.
+
+    Reads through the SHARED reader (``render_stream.refusal_of_item``) rather than re-deriving the
+    key, so this viewer cannot look under a name different from the one the runners write: that exact
+    reader/writer split is the defect F-4 measured.
+    """
+    if step is None:
+        return None
+    return refusal_of_item({REFUSAL_KEY: step.refusal} if step.refusal else {})
 
 
 def audit_step_artifact(
@@ -870,6 +942,14 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                         verify_tokens=step_v_toks,
                         elapsed_seconds=step_el_sec,
                         elapsed_str=step_el_str,
+                        # orchprobe (r2i1b1) E-04: read the refusal the runner recorded through the
+                        # SHARED reader, which tolerates a run directory frozen before this record
+                        # existed (it returns None) and normalizes a malformed one rather than raising.
+                        refusal=(
+                            _rf.to_dict()
+                            if (_rf := refusal_of_item(item)) is not None
+                            else None
+                        ),
                     )
                 )
 
@@ -1388,8 +1468,15 @@ def render_box_table(
 def format_artifact_audit_summary(
     audits: list[StepArtifactAudit],
     term: Term,
+    steps: list[StepSummary] | None = None,
 ) -> str:
-    """Format a table of artifact location and status discrepancies."""
+    """Format a table of artifact location and status discrepancies, plus any REFUSALS.
+
+    ``steps`` is optional and additive (orchprobe r2i1b1 E-04): passed, this reports a refused item
+    even when its artifact sits exactly where it belongs, which is the normal case for a semantic
+    refusal and is why every such item previously left this table empty. Omitted, the artifact table
+    is byte-identical to before.
+    """
     seen: set[str] = set()
     discrepancies: list[StepArtifactAudit] = []
     for a in audits:
@@ -1397,11 +1484,16 @@ def format_artifact_audit_summary(
         if key in seen:
             continue
         seen.add(key)
-        if a.missing_entirely or a.location_mismatch or a.status_mismatch:
+        # orchprobe (r2i1b1) E-03: through the ONE predicate. This site receives bare audits with no
+        # step in hand, so it cannot see a refusal; a refused item reaches the REFUSALS block below
+        # through the `steps` argument instead.
+        if step_has_issue(a):
             discrepancies.append(a)
 
+    refusal_block = format_refusal_summary(steps or [], term)
+
     if not discrepancies:
-        return ""
+        return refusal_block
 
     headers = [
         "Item",
@@ -1471,7 +1563,52 @@ def format_artifact_audit_summary(
         rows.append([item_id, exp_loc, act_loc_disp, exp_st, act_st_disp])
 
     title = "Artifact & Status Discrepancies"
-    return render_box_table(title, headers, rows, term, aligns)
+    table = render_box_table(title, headers, rows, term, aligns)
+    return f"{table}\n\n{refusal_block}" if refusal_block else table
+
+
+def format_refusal_summary(steps: list[StepSummary], term: Term) -> str:
+    """The REFUSALS block: what the run declined, why, and WHAT TO DO ABOUT IT.
+
+    RENDERED WITHOUT ANY FLAG (orchprobe r2i1b1 E-05/F-5). `render_step_details` runs only under
+    ``if detail:``, so a remedy placed only there leaves the default ``aw runs`` showing ``Issue: YES``
+    while never saying why or what to do, which defeats the purpose: the reader who most needs the
+    remedy is the one who just saw YES with no flag.
+
+    THE REMEDY IS WHY THIS BLOCK EXISTS AT ALL, not decoration. `AGENTS.md` records the measured
+    failure mode: a refusal that names only the prohibition gets complied with by DELETION, so a
+    message like "abd123 contains items that are not allowed" plausibly gets fixed by deleting items
+    someone thought important enough to write. Every line here therefore pairs the reason with the
+    constructive action.
+    """
+    refused: list[tuple[StepSummary, Refusal]] = []
+    seen: set[str] = set()
+    for st in steps:
+        rf = step_refusal(st)
+        if rf is None:
+            continue
+        key = st.id6 or st.stem
+        if key in seen:
+            continue
+        seen.add(key)
+        refused.append((st, rf))
+
+    if not refused:
+        return ""
+
+    def _c(text: str, color: int, bold: bool = False) -> str:
+        return (
+            term.color256(text, color, bold=bold)
+            if getattr(term, "color", False)
+            else text
+        )
+
+    lines = [_c("Refusals (what the run declined, and what to do):", 214, bold=True)]
+    for st, rf in refused:
+        ident = st.stem or (f"{st.setid}-{st.id6}" if st.setid else st.id6)
+        lines.append(f"  {_c('!', 196, bold=True)} {ident} [{rf.code}]: {rf.reason}")
+        lines.append(f"    {_c('→ remedy:', 46, bold=True)} {rf.remedy}")
+    return "\n".join(lines)
 
 
 def render_steps_table(
@@ -1545,9 +1682,11 @@ def render_steps_table(
         else:
             v_disp = "-"
 
-        has_issue = (
-            audit.missing_entirely or audit.location_mismatch or audit.status_mismatch
-        )
+        # orchprobe (r2i1b1) E-03/E-04: through the ONE predicate, WITH the step, so a semantic
+        # refusal reads YES here instead of `no`. The three original terms all describe a plan being in
+        # the wrong DIRECTORY, so a refused item whose artifact is exactly where it belongs used to
+        # leave this column reading `no`.
+        has_issue = step_has_issue(audit, step)
         if has_issue:
             if audit.is_live:
                 issue_disp = (
@@ -1590,6 +1729,21 @@ def render_step_details(steps: list[StepSummary], term: Term) -> list[str]:
     lines = []
     for step in steps:
         details = []
+        # orchprobe (r2i1b1) E-05: the FULL, untruncated reason and remedy. This is the detail view,
+        # so nothing is elided here; the flagless reader is served by `format_refusal_summary`
+        # instead, because this function runs ONLY under `if detail:`.
+        refusal = step_refusal(step)
+        if refusal is not None:
+            details.append(
+                term.color256(f"  ! refused [{refusal.code}]: {refusal.reason}", 196)
+                if getattr(term, "color", False)
+                else f"  ! refused [{refusal.code}]: {refusal.reason}"
+            )
+            details.append(
+                term.color256(f"    → remedy: {refusal.remedy}", 46)
+                if getattr(term, "color", False)
+                else f"    → remedy: {refusal.remedy}"
+            )
         if step.incomplete_requirements:
             for req in step.incomplete_requirements:
                 details.append(
@@ -2749,7 +2903,13 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         return 0
 
     # Collect artifact audits across displayed steps
+    #
+    # orchprobe (r2i1b1) E-04: the STEP is collected alongside its audit, in the same order, because a
+    # refusal is recorded on the step and is invisible from the audit alone. Without this, the machine
+    # surfaces below could not see a refusal even though the ONE predicate can, which is the surface
+    # DISAGREEMENT F-2 predicts (the table saying YES while `--json` omits the same item).
     all_audits: list[StepArtifactAudit] = []
+    all_steps: list[StepSummary] = []
     if latest_only:
         latest_steps_dict: dict[str, tuple[RunSummary, StepSummary]] = {}
         for s in summaries:
@@ -2758,20 +2918,39 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                 latest_steps_dict[key] = (s, step)
         for _, st in latest_steps_dict.values():
             all_audits.append(audit_step_artifact(st, repo_root))
+            all_steps.append(st)
     else:
         for s in summaries:
             for st in s.steps:
                 all_audits.append(audit_step_artifact(st, repo_root))
+                all_steps.append(st)
+
+    def _issue_records() -> list[dict[str, Any]]:
+        """The issue set for the machine surfaces: artifact discrepancies AND refusals.
+
+        ONE builder for `--json` and `--agent --issues` (r2i1b1 E-04), so the two cannot disagree.
+        Each record keeps the artifact-audit shape it always had, and a refused step additionally
+        carries `refusal` with `code`/`reason`/`remedy` as DISCRETE fields rather than embedded prose
+        (E-05), so a tool can read the remedy without parsing a sentence.
+        """
+        out: list[dict[str, Any]] = []
+        for audit, step in zip(all_audits, all_steps):
+            reasons = step_issue_reasons(audit, step)
+            if not reasons:
+                continue
+            rec = asdict(audit)
+            if rec.get("actual_path"):
+                rec["actual_path"] = str(rec["actual_path"])
+            rec["issue_reasons"] = reasons
+            rf = step_refusal(step)
+            if rf is not None:
+                rec["refusal"] = rf.to_dict()
+            out.append(rec)
+        return out
 
     if is_json:
-        disc = [
-            asdict(a)
-            for a in all_audits
-            if a.missing_entirely or a.location_mismatch or a.status_mismatch
-        ]
-        for d in disc:
-            if d.get("actual_path"):
-                d["actual_path"] = str(d["actual_path"])
+        # orchprobe (r2i1b1) E-03/E-04: through the ONE builder over the ONE predicate.
+        disc = _issue_records()
 
         if issues_only:
             payload = {"artifact_discrepancies": disc}
@@ -2808,14 +2987,9 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
 
     if is_agent:
         if issues_only:
-            disc = [
-                asdict(a)
-                for a in all_audits
-                if a.missing_entirely or a.location_mismatch or a.status_mismatch
-            ]
-            for d in disc:
-                if d.get("actual_path"):
-                    d["actual_path"] = str(d["actual_path"])
+            # orchprobe (r2i1b1) E-03/E-04: the SAME builder `--json` uses, so the two machine
+            # surfaces cannot report different issue sets.
+            for d in _issue_records():
                 print(json.dumps(d, separators=(",", ":"), ensure_ascii=False))
             return 0
         if latest_only:
@@ -2839,15 +3013,20 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
 
     # Human display
     if issues_only:
-        disc = [
-            a
-            for a in all_audits
-            if a.missing_entirely or a.location_mismatch or a.status_mismatch
-        ]
+        # orchprobe (r2i1b1) E-03/E-04: through the ONE predicate, WITH the steps, so `--issues`
+        # reports a refusal rather than claiming a clean run. The old wording named only artifacts,
+        # which would have been a lie about a refused run.
+        disc = [a for a, st in zip(all_audits, all_steps) if step_has_issue(a, st)]
         if not disc:
+            # WORDING DELIBERATELY UNCHANGED (r2i1b1 D-1). This line is reached only when there is
+            # NOTHING to report (no discrepancy AND no refusal), so it is never shown on a refused
+            # run and cannot mislead. It is pinned by `tests/test_run_viewer.py`, which this plan does
+            # NOT declare in `Scope-Paths`, and E-04 requires a clean run to be unchanged at all five
+            # surfaces; broadening the sentence would have edited an undeclared test to no reader's
+            # benefit.
             term.line("no artifact or status discrepancies found")
             return 0
-        term.line(format_artifact_audit_summary(all_audits, term))
+        term.line(format_artifact_audit_summary(all_audits, term, steps=all_steps))
         return 0
 
     if latest_only:
@@ -2856,7 +3035,9 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                 summaries, term, detail=detail, short=short, repo_root=repo_root
             )
         )
-        audit_summary_txt = format_artifact_audit_summary(all_audits, term)
+        audit_summary_txt = format_artifact_audit_summary(
+            all_audits, term, steps=all_steps
+        )
         if audit_summary_txt:
             term.line("")
             term.line(audit_summary_txt)
@@ -2864,7 +3045,9 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
 
     if summary_only:
         term.line(format_multi_run_summary(summaries, term))
-        audit_summary_txt = format_artifact_audit_summary(all_audits, term)
+        audit_summary_txt = format_artifact_audit_summary(
+            all_audits, term, steps=all_steps
+        )
         if audit_summary_txt:
             term.line("")
             term.line(audit_summary_txt)
@@ -2883,7 +3066,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         term.line("")
         term.line(format_multi_run_summary(summaries, term))
 
-    audit_summary_txt = format_artifact_audit_summary(all_audits, term)
+    audit_summary_txt = format_artifact_audit_summary(all_audits, term, steps=all_steps)
     if audit_summary_txt:
         term.line("")
         term.line(audit_summary_txt)

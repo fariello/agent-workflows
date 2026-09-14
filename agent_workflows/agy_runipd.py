@@ -63,6 +63,15 @@ from agent_workflows.render_stream import (
     render_run_summary_table,
     install_exit_signal_handler,
     statusline_action_for_item,
+    # orchprobe (r2i1b1) E-01/E-02: the ONE refusal record (reason AND remedy), imported from
+    # `render_stream` and NEVER from `oc_runipd`, so this shared symbol does not deepen the
+    # oc-to-agy coupling that backlog `cnwy8g` tracks. Same object in both hosts, asserted by
+    # object identity in `tests/test_refusal_surfacing.py`.
+    REFUSAL_KEY as REFUSAL_KEY,
+    Refusal as Refusal,
+    record_integration_refusal,
+    record_refusal as record_refusal,
+    refusal_of_item as refusal_of_item,
     execution_index as execution_index,
     Palette as Palette,
     _strip_ansi as _strip_ansi,
@@ -3955,6 +3964,15 @@ def execute_item(
                 attempt["integration_deferred"] = integ_reason
                 item["status"] = fail_status
                 item["integration_deferral"] = integ_reason
+                # orchprobe (r2i1b1) E-02, the SOURCE HALF of F-4's repair; see the twin comment in
+                # `oc_runipd`. ONE shared writer with ONE shared remedy wording, so the two hosts
+                # cannot drift the way `Heartbeat` once did.
+                record_integration_refusal(
+                    item,
+                    code=fail_status,
+                    reason=integ_reason,
+                    branch=wt_handle.branch if wt_handle else None,
+                )
                 disposition = fail_status
                 save_state(run_dir, state)
                 append_jsonl(
