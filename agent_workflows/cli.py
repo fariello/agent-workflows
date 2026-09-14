@@ -4163,6 +4163,43 @@ def _build_parser() -> argparse.ArgumentParser:
             "clear it with '--blocks-release -'."
         ),
     )
+    # bklgkind b5sfwm E-01/E-02: the two CLASSIFICATION setters, so a mislabeled item is correctable
+    # with the verb that OWNS its frontmatter instead of by hand. Both mirror `aw ipd set`'s pair with
+    # ONE deliberate difference, ruled by the maintainer on 2026-09-10 (OQ-02): NO `-` CLEARING
+    # SENTINEL HERE. `Priority` and `Work-Kind` are REQUIRED on a backlog item (backlog.validate_item
+    # emits `backlog.priority-invalid` / `backlog.kind-invalid` on an absent value), so a `-` would
+    # manufacture an item `aw check backlog` reports as an error. A required field may be RETARGETED
+    # here, never emptied. The choices are DERIVED from the shared vocabularies rather than typed, so
+    # this registration cannot drift from what `aw check` validates (pinned by
+    # tests/test_work_kind.py::test_the_cli_choices_match_the_shared_vocab).
+    #
+    # READ THE VOCABULARY FROM ITS ONE DEFINITION, following the `RUNS_VIEWER_LEAF_NAMES` precedent
+    # above: a function-local import inside the parser builder, so importing `cli` does not eagerly
+    # pull in `backlog`. The two existing registrations (`ipd set`, `specs set`) type the five values
+    # out by hand and are pinned to `backlog.KINDS` only by a test; a third hand-written copy would
+    # widen that drift surface for no gain.
+    from agent_workflows import backlog as _backlog_vocab_mod
+
+    p_backlog_set.add_argument(
+        "--work-kind",
+        dest="work_kind",
+        default=None,
+        choices=sorted(_backlog_vocab_mod.KINDS),
+        help="Set the item's Work-Kind ("
+        + "|".join(sorted(_backlog_vocab_mod.KINDS))
+        + "). Persists on a no-op transition. No '-' clear: the field is REQUIRED on a "
+        "backlog item (OQ-02).",
+    )
+    p_backlog_set.add_argument(
+        "--priority",
+        dest="priority",
+        default=None,
+        choices=sorted(_backlog_vocab_mod.PRIORITIES),
+        help="Set the item's Priority ("
+        + "|".join(sorted(_backlog_vocab_mod.PRIORITIES))
+        + "). Persists on a no-op transition. No '-' clear: the field is REQUIRED on a "
+        "backlog item (OQ-02).",
+    )
     p_backlog_set.add_argument(
         "--dry-run", action="store_true", help="Preview without writing."
     )

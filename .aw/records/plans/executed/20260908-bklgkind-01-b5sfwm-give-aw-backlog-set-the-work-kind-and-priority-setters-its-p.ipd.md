@@ -6,18 +6,21 @@
 - Scope: Register `--work-kind` and `--priority` on the `aw backlog set` subparser, validate both against the single shared vocabularies in `backlog.py` (`KINDS`, `PRIORITIES`) rather than a second literal list, make both persist on a NO-OP transition (a pure reclassification changes no status), and make both work on BOTH of the verb's two spellings (the positional `<status> <selector>` form and the `<path> --status` form, which dispatch to two different code paths). Update the declared command surface so the flags are not merely present but declared, and pin all of it with tests including the no-op case this defect was hit on.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/backlog.py, agent_workflows/command_surface.py, tests/test_work_kind.py, tests/test_backlog_work_kind_rename.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: bklgkind
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: b5sfwm
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: a220ap
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-14 executed (aw oc run): aw oc run self-finalize: b5sfwm verified (set bklgkind, attempt 1).
+- 2026-09-14 executed (opencode its_direct/pt3-claude-opus-5-1m-us): All 7 E-items performed and all 7 V-items verified with pasted evidence; the full evidence bundle is in the run's submission dir (`evidence/*.txt`). Implemented OQ-02's ruling AS RULED: `--work-kind` and `--priority` are registered on `aw backlog set` WITHOUT the `-` clearing sentinel, with choices DERIVED from `backlog.KINDS`/`PRIORITIES` (no third hand-written literal), and both spellings of the verb now write through the SAME shared post-render line writers, which V-03 proves by diffing the two resulting metadata blocks to IDENTICAL. `check backlog` gains no diagnostic (112 checked, 0 errors, 0 warnings), so the F-12 conflict is resolved rather than papered over.
+  THE SUITE BASELINE IN THIS LANE IS NOT WHAT F-17 PREDICTED, and it is worth recording because it will recur for anyone executing inside a runner lane. Measured BEFORE any edit: `17 failed, 6601 passed, 3 skipped, 2 xfailed`, not the one `test_reporting_contract.py` failure F-17 named (that test now PASSES here). All 17 are the lifecycle role guard correctly REFUSING begin/finalize because the driver sets `AW_EXECUTION_ROLE=worker` for the lane (`AW-LIFECYCLE-ROLE-001`), all 17 sit in runner/lifecycle modules untouched by this plan, and all 17 pass with that one variable unset. AFTER this change: `17 failed, 6611 passed` with the failing NODE IDS IDENTICAL to baseline (verified by diffing the sorted `FAILED` lines: empty), and a control run with `env -u AW_EXECUTION_ROLE` is FULLY GREEN at `6628 passed, 3 skipped, 2 xfailed`, exactly 10 more than the 6618 green baseline, matching the 10 tests added. Recorded as DECISION 04-b5sfwm-D1 rather than treated as a blocker, and explicitly NOT "fixed" by weakening the guard.
+  TWO THINGS ARE REPORTED RATHER THAN ACCEPTED, per V-04's own instruction. FIRST, with `--message` omitted NEITHER spelling's history record names the classification change (`status set to open` / `status -> open`), so an audit trail records that something happened without recording what; this is pre-existing behavior of the two shared history writers, confirmed pre-existing by stashing this change and re-measuring, and changing a default message shared by every record type is outside this fence. Callers reclassifying an item should pass `--message`. SECOND, the `backlog set` command-surface entry is now MORE complete but still NOT complete: `--evidence`, `--yes`, `--commit/--no-commit` and `--dir` remain accepted-but-undeclared, left alone deliberately, and the existing agreement test is one-directional so it cannot catch them.
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False; `review_findings.subject_gating_blocks` -> empty; `plan_readiness.newest_verdict` polarity -> positive (not negative). Specifically, its blocking OQ-02 was answered on 2026-09-10 (no `-` clearing sentinel on either sibling verb), and its prose verdict is POSITIVE. Performed at HEAD `5692797e` at the maintainer's explicit instruction of 2026-09-10, who was shown that 12 of 15 `no-go` plans were held by stale bookkeeping and chose to have them fixed with evidence recorded rather than re-reviewed. This is the SECOND such cleanup in one session; the durable fix is plan `qhy3i3` E-07, authored and awaiting approval. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
@@ -36,55 +39,55 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: register the two flags
 
-- [ ] E-01 Register `--work-kind` on the `aw backlog set` subparser `p_backlog_set` (created at `cli.py:4053` and running through `_add_commit_flags(p_backlog_set)` at `:4103`, re-measured at review; this plan's `:3966-4016` coordinates are stale by ~87 lines, so LOCATE BY THE SYMBOL `p_backlog_set`, never by line). Mirror the `aw ipd set` registration at `cli.py:1308-1315`: `dest="work_kind"`, `default=None`, `choices` covering the vocabulary, and help text stating the persists-on-a-no-op-transition behavior. DERIVE THE CHOICES LIST FROM `backlog.KINDS` (`backlog.py:70`) RATHER THAN TYPING A THIRD LITERAL. Both existing setter registrations hardcode the five values (`cli.py:1312` for `ipd set`, `cli.py:4334` for `specs set`) and are pinned to the shared vocabulary only by a test (`tests/test_work_kind.py:212-236`); adding a third hand-written copy widens a known drift surface, and the sorted vocabulary is a one-expression substitute.
+- [x] E-01 Register `--work-kind` on the `aw backlog set` subparser `p_backlog_set` (created at `cli.py:4053` and running through `_add_commit_flags(p_backlog_set)` at `:4103`, re-measured at review; this plan's `:3966-4016` coordinates are stale by ~87 lines, so LOCATE BY THE SYMBOL `p_backlog_set`, never by line). Mirror the `aw ipd set` registration at `cli.py:1308-1315`: `dest="work_kind"`, `default=None`, `choices` covering the vocabulary, and help text stating the persists-on-a-no-op-transition behavior. DERIVE THE CHOICES LIST FROM `backlog.KINDS` (`backlog.py:70`) RATHER THAN TYPING A THIRD LITERAL. Both existing setter registrations hardcode the five values (`cli.py:1312` for `ipd set`, `cli.py:4334` for `specs set`) and are pinned to the shared vocabulary only by a test (`tests/test_work_kind.py:212-236`); adding a third hand-written copy widens a known drift surface, and the sorted vocabulary is a one-expression substitute.
   DO NOT COPY THE `-` CLEAR SEMANTICS ONTO BACKLOG WITHOUT DECIDING WHAT IT MEANS, AND THIS IS THE MOST IMPORTANT CORRECTION IN THIS PLAN (review, F-12, and OQ-02). On a PLAN or a SPEC, `Work-Kind` and `Priority` are OPTIONAL, so `-` clearing them is a legal end state. On a BACKLOG ITEM both fields are REQUIRED: `backlog.validate_item` emits `backlog.kind-invalid` when `item.kind not in KINDS` (`:207-213`) and `backlog.priority-invalid` when `item.priority not in PRIORITIES` (`:199-205`), and `tests/test_work_kind.py::BacklogAsymmetryTests` exists specifically to assert that this asymmetry is deliberate and must not be "unified" away. MEASURED AT REVIEW on a scratch item: driving the positional path with `--work-kind -` REMOVES the line and `backlog.validate_item` then reports `backlog.kind-invalid`, and `aw check backlog` exits with `errors 1`. The same holds for `--priority -` yielding `backlog.priority-invalid`. So a `-` clear on this verb MANUFACTURES AN INVALID ITEM, which contradicts this plan's own validation requirement that `check backlog` "must not gain a diagnostic". Resolve OQ-02 before implementing: either omit `-` from this verb's choices (recommended) or accept it and state why an invalid item is acceptable.
   - Depends on: none
   - Expected outcome: `aw backlog set --help` lists `--work-kind` with a vocabulary DERIVED from `backlog.KINDS`, an out-of-vocabulary value is rejected by argparse before any file is touched, and the `-` question is resolved per OQ-02 rather than copied from the plan-side twin.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Register `--priority` on the same subparser, mirroring `aw ipd set --priority`, validated against `backlog.PRIORITIES` (`backlog.py:69`). THIS ITEM EXISTS BECAUSE THE BACKLOG ITEM'S PREMISE WAS WRONG IN THE PLAN'S FAVOUR: the item says `Priority` is already reachable, and it is not. RE-CONFIRMED AT REVIEW by running `python3 -m agent_workflows backlog set --help`: the flag list is exactly `--no-color --agent --json --dir --status --message --gate-kind --gate-ref --blocks-release --evidence --dry-run --yes --commit/--no-commit`, with neither classification flag present, and `--priority` appears only on `aw backlog new`. Leaving it out would ship a fix whose own justification ("the tool must own the frontmatter") still fails one field over, and would guarantee a duplicate item.
+- [x] E-02 Register `--priority` on the same subparser, mirroring `aw ipd set --priority`, validated against `backlog.PRIORITIES` (`backlog.py:69`). THIS ITEM EXISTS BECAUSE THE BACKLOG ITEM'S PREMISE WAS WRONG IN THE PLAN'S FAVOUR: the item says `Priority` is already reachable, and it is not. RE-CONFIRMED AT REVIEW by running `python3 -m agent_workflows backlog set --help`: the flag list is exactly `--no-color --agent --json --dir --status --message --gate-kind --gate-ref --blocks-release --evidence --dry-run --yes --commit/--no-commit`, with neither classification flag present, and `--priority` appears only on `aw backlog new`. Leaving it out would ship a fix whose own justification ("the tool must own the frontmatter") still fails one field over, and would guarantee a duplicate item.
   THE SAME REQUIRED-FIELD PROBLEM APPLIES HERE (F-12): `Priority` is required on a backlog item, so `--priority -` produces `backlog.priority-invalid`, measured. Whatever OQ-02 decides for `--work-kind` must apply identically to `--priority`; deciding them differently would create a new asymmetry inside one verb.
   - Depends on: none
   - Expected outcome: `aw backlog set --help` lists `--priority` with a vocabulary derived from `backlog.PRIORITIES`; both classification fields are reachable on an existing item; the `-` decision matches E-01's.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make both spellings honor the flags
 
-- [ ] E-03 Handle the `--status` spelling, which does NOT share the plan/spec write path and is the only place new write code is needed. THE FORK IS NOW MEASURED RATHER THAN INFERRED, and its discriminator is worth stating precisely: `aw backlog set` forks on whether `--status` WAS PASSED (`if getattr(args, "status", None) is None:` at `cli.py:11232`), not on whether a positional status exists. When absent it dispatches to `status_set.run_set_command(..., scoped_type="backlog")` (`:11233-11238`); when present it sets `args.path` from `args.args[0]` and calls `backlog.run_set` (`:11239-11245`). This plan's `:11140-11156` citations are stale by ~90 lines; locate by the `backlog_cmd == "set"` branch.
+- [x] E-03 Handle the `--status` spelling, which does NOT share the plan/spec write path and is the only place new write code is needed. THE FORK IS NOW MEASURED RATHER THAN INFERRED, and its discriminator is worth stating precisely: `aw backlog set` forks on whether `--status` WAS PASSED (`if getattr(args, "status", None) is None:` at `cli.py:11232`), not on whether a positional status exists. When absent it dispatches to `status_set.run_set_command(..., scoped_type="backlog")` (`:11233-11238`); when present it sets `args.path` from `args.args[0]` and calls `backlog.run_set` (`:11239-11245`). This plan's `:11140-11156` citations are stale by ~90 lines; locate by the `backlog_cmd == "set"` branch.
   BOTH HALVES OF THE ASYMMETRY WERE PROVEN AT REVIEW BY EXECUTION, so E-03's premise is confirmed and its scope is exactly right. Driving `status_set.run_set_command` with `work_kind='bug', priority='high'` on a same-status call rewrote BOTH lines and printed `unchanged` for the status; driving `backlog.run_set` with the identical namespace left both lines at their old values. So the positional spelling needs a parser change only (F-5) and the `--status` spelling needs a writer (F-6).
   DO NOT SET THE FIELDS ON THE PARSED ITEM BEFORE THE RENDER; USE THE POST-RENDER LINE WRITERS, WHICH IS WHAT THE IN-FILE PRECEDENT DOES (review, F-13). This plan prescribes mutating the item before `_render_item`, but `run_set`'s own `--blocks-release` handling does the opposite: it calls `releases.set_blocks_release_line(rendered, br)` AFTER the render, under the comment "Applied after render so `_render_item` stays untouched" (`backlog.py:560-571`). Follow that precedent with `releases.set_work_kind_line` and `releases.set_priority_line`, the SAME primitives `status_set.apply_status_change` funnels through, so the two spellings share one write mechanism rather than having a parsed-item path on one side and a line-writer path on the other. That also keeps `_render_item` untouched, avoids the `-`-clear ambiguity of a required dataclass field, and makes the two spellings byte-comparable in V-03.
   VALIDATE EXPLICITLY IN THIS PATH, because the shared writers deliberately do NOT validate: `set_work_kind_line`'s docstring says "The ENUM check (value in backlog.KINDS) is enforced by `aw check` / validate_spec, not here". Argparse `choices` covers the CLI route, but `run_set` is called directly by tests (`tests/test_backlog_work_kind_rename.py:212`, `:324`) and could be called with an arbitrary value, so refuse an out-of-vocabulary value with the same exit-2 shape `backlog new` uses (`backlog.py:369-378`).
   - Depends on: E-01, E-02
   - Expected outcome: both `aw backlog set open <selector> --work-kind bug` and `aw backlog set <path> --status open --work-kind bug` persist the change through the SAME shared line writers; the same holds for `--priority`; `_render_item` is unmodified; an out-of-vocabulary value passed directly to `run_set` is refused with exit 2.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Make a PURE RECLASSIFICATION work, i.e. a call that changes no status. This is the exact case the defect was hit on (the item records reclassifying `cnwy8g`, `fjs11i`, `a8eufb` from `followup` to `bug` with no status change) and it is the one most likely to be missed, because the verb is named for transitions.
+- [x] E-04 Make a PURE RECLASSIFICATION work, i.e. a call that changes no status. This is the exact case the defect was hit on (the item records reclassifying `cnwy8g`, `fjs11i`, `a8eufb` from `followup` to `bug` with no status change) and it is the one most likely to be missed, because the verb is named for transitions.
   THE POSITIONAL SPELLING IS NOW CONFIRMED BY EXECUTION, NOT BY READING. Measured at review: driving `run_set_command` on an already-`open` item with target `open` plus both flags rewrote both metadata lines and reported the status as `unchanged`, with no file move. The mechanism is as described: the Work-Kind write (`status_set.py:767-773`) and the Priority write (`:754-760`) are hoisted out of every status branch, keyed only on `getattr(args, <field>, None) is not None`, and `apply_status_change` has no same-status early return. So E-04's job on that spelling is to pin the behavior, not to create it.
   ON THE `--status` SPELLING, confirm a same-status call is not short-circuited before the write. Note `run_set` refuses outright unless `new_status in STATUSES` (`backlog.py:479-483`), so a reclassification through this spelling ALWAYS restates a status; there is no flags-only invocation here, which is itself worth stating in the evidence because it means this spelling can never express "change only the classification".
   A HISTORY RECORD MUST BE APPENDED for the reclassification, because an untracked classification change is an unauditable one, and the item's own history is the precedent: the deviation was recorded by hand so it would be auditable. BUT NOTE THE TWO SPELLINGS RECORD HISTORY DIFFERENTLY and check what each actually writes rather than assuming parity: `run_set` calls `_reattach_history(...)` with the target status plus `args.message` AND appends to the global sidecar via `record_history.append` (`backlog.py:537-559`), whereas the positional path goes through `apply_status_change`. If a no-op reclassification on either spelling produces a history line that says only "status -> open" with no mention of the classification change, that is a REPORTABLE GAP: the audit trail would record that something happened without recording what. Say which line each spelling emits and whether the message names the field change.
   - Depends on: E-03
   - Expected outcome: setting an item's current status again while passing `--work-kind bug` persists the new kind AND appends a history record; no file move occurs; the history text each spelling emits is stated, and any failure to name the classification change is reported.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Update the DECLARED command surface so the flags are declared and not merely present. `command_surface.COMMAND_INVENTORY` carries an entry for `command="backlog set"` at `command_surface.py:1198-1216` whose `legacy_flags` (`:1204-1212`) list neither field, while the `backlog new` entry does list its `--work-kind` and `--kind` (`:1178-1194`). Add both flags to the `backlog set` declaration.
+- [x] E-05 Update the DECLARED command surface so the flags are declared and not merely present. `command_surface.COMMAND_INVENTORY` carries an entry for `command="backlog set"` at `command_surface.py:1198-1216` whose `legacy_flags` (`:1204-1212`) list neither field, while the `backlog new` entry does list its `--work-kind` and `--kind` (`:1178-1194`). Add both flags to the `backlog set` declaration.
   KNOW WHAT THE EXISTING ENFORCEMENT ACTUALLY CHECKS, BECAUSE IT IS ONE-DIRECTIONAL (review, F-14). `tests/test_backlog_work_kind_rename.py:424-434` asserts, for `backlog new` only, that `--work-kind`/`--kind` are declared AND that `declared - accepted == set()`, i.e. every DECLARED flag is really accepted. It does NOT assert the converse, so an ACCEPTED-but-undeclared flag passes today. Measured: the `backlog set` declaration already omits `--evidence`, `--yes` and `--commit/--no-commit`, all of which the parser accepts, so this entry is incomplete beyond the two fields this plan adds. Add the two fields as scoped; do NOT silently "fix" the other three omissions under this plan's fence, and do NOT claim the declaration is now complete. If you believe the converse check is worth adding, say so as a follow-up rather than widening here, since it would fail on other verbs too.
   - Depends on: E-01, E-02
   - Expected outcome: the `backlog set` inventory entry declares `--work-kind` and `--priority`, both of which the parser accepts; the pre-existing omission of `--evidence`/`--yes`/`--commit` is noted and left alone.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it
 
-- [ ] E-06 Add the test the backlog item explicitly requires, plus its siblings. The item's stated requirement is verbatim: "a test asserting a reclassification with NO status change is persisted and appends a history record, because that no-op case is the one this defect was hit on." Follow the existing template rather than inventing a shape: `tests/test_work_kind.py::PlanSetterTests::test_set_writes_persists_on_noop_and_clears` (`:337-377`) is the plan-side twin, and its `-`-clears half is at `:362-377`. Cover, for BOTH spellings from E-03: (a) a no-op reclassification persists and appends history; (b) an out-of-vocabulary value is refused and NOTHING is written; (c) the same for `--priority`.
+- [x] E-06 Add the test the backlog item explicitly requires, plus its siblings. The item's stated requirement is verbatim: "a test asserting a reclassification with NO status change is persisted and appends a history record, because that no-op case is the one this defect was hit on." Follow the existing template rather than inventing a shape: `tests/test_work_kind.py::PlanSetterTests::test_set_writes_persists_on_noop_and_clears` (`:337-377`) is the plan-side twin, and its `-`-clears half is at `:362-377`. Cover, for BOTH spellings from E-03: (a) a no-op reclassification persists and appends history; (b) an out-of-vocabulary value is refused and NOTHING is written; (c) the same for `--priority`.
   THE `-` CLEAR CASE IS CONDITIONAL ON OQ-02 AND MUST NOT BE COPIED FROM THE PLAN-SIDE TWIN (F-12). The twin asserts that `-` clears the field, which is correct THERE because the field is optional on a plan. Asserting the same on a backlog item would PIN a test to a state `backlog.validate_item` rejects and `aw check backlog` reports as an error, measured. So: if OQ-02 omits `-`, assert instead that `-` is REFUSED by argparse and nothing is written; if OQ-02 admits `-`, the test must ALSO assert the resulting `aw check backlog` diagnostic and the plan must say why an invalid item is an acceptable end state. Either way, add a test asserting that a successful set leaves the item VALID (`backlog.validate_item` returns no `backlog.kind-invalid`/`backlog.priority-invalid`), which is the property that distinguishes this verb from its plan-side twin.
   EXTEND THE EXISTING NAMESPACE RATHER THAN WRITING A NEW FIXTURE: `tests/test_backlog_work_kind_rename.py` already calls `backlog.run_set` twice (`:212`, `:324`) but only for rename/gate preservation, and its `_SetArgs` namespace (`:492-509`) has NO `work_kind` or `priority` attribute (confirmed at review), so it needs those two fields added. Note `run_set` reads them with `getattr(..., None)` if E-03 follows the surrounding style, so an un-extended namespace would silently no-op rather than raising, which is exactly the failure mode that would let a green test suite hide an unimplemented flag.
   - Depends on: E-03, E-04
   - Expected outcome: the no-op reclassification case is pinned by a test that FAILS before E-03/E-04 (proven by reverting the change in the executing worktree, not by citing a historical HEAD) and passes after; the refusal case is pinned; the `-` case matches OQ-02's ruling; a post-set validity assertion exists.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Extend the anti-drift test that pins the argparse choices to the shared vocabulary. `tests/test_work_kind.py:212-236` (`test_the_cli_choices_match_the_shared_vocab`) currently asserts `set(backlog.KINDS) | {"-"}` for the `("ipd","set")` and `("specs","set")` paths only. Add `("backlog","set")` to it, so the third registration cannot drift from `backlog.KINDS`. If E-01 derived the choices from the vocabulary rather than typing them, this test becomes a cheap regression fence rather than the only defense; keep it either way, because it is what makes the "one vocabulary" property checkable.
+- [x] E-07 Extend the anti-drift test that pins the argparse choices to the shared vocabulary. `tests/test_work_kind.py:212-236` (`test_the_cli_choices_match_the_shared_vocab`) currently asserts `set(backlog.KINDS) | {"-"}` for the `("ipd","set")` and `("specs","set")` paths only. Add `("backlog","set")` to it, so the third registration cannot drift from `backlog.KINDS`. If E-01 derived the choices from the vocabulary rather than typing them, this test becomes a cheap regression fence rather than the only defense; keep it either way, because it is what makes the "one vocabulary" property checkable.
   - Depends on: E-01
   - Expected outcome: the vocabulary-agreement test covers all three `set` verbs and fails if any registration diverges from `backlog.KINDS`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -146,9 +149,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - `python3 -m pytest` bare, per the repository contract. Paste the actual summary line. CORRECTED AT REVIEW (F-17): the stated baseline of `1 failed, 5648 passed` is stale AND its attribution is wrong. Measured: `1 failed, 5929 passed, 3 skipped, 2 xfailed`, and the single failure is `tests/test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose`, which is ENVIRONMENTAL (a gitignored local `opencode-recovery/` dump) and may be absent elsewhere; `tests/test_orchestrator_retirement.py` is 112 PASSED, so do not excuse a failure there. Measure your own baseline and compare failing NODE IDS, never totals.
+  - AT EXECUTION (2026-09-14), following that instruction exactly: BEFORE `17 failed, 6601 passed, 3 skipped, 2 xfailed`; AFTER `17 failed, 6611 passed, 3 skipped, 2 xfailed`; the failing NODE IDS are IDENTICAL (a `diff` of the sorted `FAILED` lines is empty). The review-predicted `test_reporting_contract.py` failure did NOT occur here (that test passes). The 17 are the lifecycle role guard refusing begin/finalize under the driver's `AW_EXECUTION_ROLE=worker`; a control run with `env -u AW_EXECUTION_ROLE python3 -m pytest` is FULLY GREEN both before (`6618 passed`) and after (`6628 passed`), the +10 being exactly this plan's new tests. Full logs: `evidence/baseline-bare-suite.txt`, `evidence/final-bare-suite.txt`, and the two `-no-worker-role` controls.
 - `python3 -m pytest tests/test_work_kind.py tests/test_backlog_work_kind_rename.py` for the focused surface. Baseline at review: 50 passed. Both files must be GREEN before and after.
+  - AT EXECUTION: `50 passed` before (matching the review baseline exactly), `60 passed` after. Green both times.
 - Manual, on a scratch item in a fixture repo, with the exit code measured UNPIPED (`cmd >/dev/null 2>&1; echo $?`): a no-op reclassification on each spelling; an out-of-vocabulary refusal that writes nothing; and the `-` case as OQ-02 rules.
+  - DONE, all exit codes measured unpiped as specified. No-op reclassification on each spelling: exit 0, field rewritten, file not moved (V-04, run in a real git fixture so `git status --short` shows ` M` and no rename/delete pair). Out-of-vocabulary refusal: exit 2 with the file byte-identical afterwards, on BOTH the argparse route and the direct `run_set` route. The `-` case: REFUSED with exit 2 on both fields and both routes, per OQ-02.
 - `python3 -m agent_workflows check backlog` must not gain a diagnostic. THIS REQUIREMENT IS THE ONE THAT CATCHES F-12, so treat it as load-bearing rather than routine: measured at review, a `-` clear on either field makes this command report `errors 1`. If the implementation admits `-`, this requirement and that behavior are in direct conflict and the conflict must be resolved (OQ-02), not papered over by omitting the check from the evidence.
+  - SATISFIED, and treated as load-bearing. `python3 -m agent_workflows check backlog` on the live tree: exit 0, `checked 112 / errors 0 / warnings 0` (`evidence/check-backlog.txt`). The conflict is resolved at the SOURCE rather than papered over: because OQ-02's ruling was implemented, `-` is not in either flag's `choices` and is also refused on the direct `run_set` route, so no invocation of this verb can produce the `errors 1` state the review measured. The F-12 hazard was independently re-confirmed before the fix (a `-` clear via the positional path did yield `['backlog.priority-invalid', 'backlog.kind-invalid']`), which is why the refusal is enforced in two places rather than one.
 
 ## Spec / documentation sync
 
@@ -185,40 +192,308 @@ THE RELEASE GATE IS THIS PLAN'S ALONE, WHICH CHANGES WHAT ITS FINALIZE OWES (F-1
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the full `python3 -m agent_workflows backlog set --help` output showing `--work-kind` with its choices, AND paste the output of a rejected out-of-vocabulary call (`backlog set open <sel> --work-kind bogus`) with its exit code measured unpiped. Paste the source lines added to `cli.py` showing the choices are derived from `backlog.KINDS` rather than typed. STATE OQ-02'S RECORDED ANSWER and show the choices list matches it: if `-` was omitted, paste a `--work-kind -` call being REFUSED; if admitted, paste the resulting `aw check backlog` output honestly, including any diagnostic.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `--help` now advertises the flag with a vocabulary-derived choices list (full output in the outcome bundle at `evidence/v01-v02-backlog-set-help.txt`):
 
-- [ ] V-02 validates E-02
+    ```text
+      --work-kind {bug,chore,feature,followup,security}
+                            Set the item's Work-Kind
+                            (bug|chore|feature|followup|security). Persists on a
+                            no-op transition. No '-' clear: the field is REQUIRED
+                            on a backlog item (OQ-02).
+    ```
+
+    THE CHOICES ARE DERIVED, NOT TYPED (the added `cli.py` lines; note the function-local import follows the `RUNS_VIEWER_LEAF_NAMES` precedent in the same builder, so importing `cli` does not eagerly import `backlog`):
+
+    ```python
+    from agent_workflows import backlog as _backlog_vocab_mod
+
+    p_backlog_set.add_argument(
+        "--work-kind",
+        dest="work_kind",
+        default=None,
+        choices=sorted(_backlog_vocab_mod.KINDS),
+        ...
+    ```
+
+    OQ-02'S RECORDED ANSWER IS "NO `-` ON EITHER FLAG", and the registration matches it. Both refusals measured UNPIPED (`cmd >/dev/null 2>&1; echo $?`), evidence `evidence/v01-v02-refusals.txt`:
+
+    ```text
+    $ aw backlog set open scr001 --work-kind bogus --dir <fixture> --no-commit
+    exit=2
+    agent-workflows backlog set: error: argument --work-kind: invalid choice: 'bogus' (choose from 'bug', 'chore', 'feature', 'followup', 'security')
+
+    $ aw backlog set open scr001 --work-kind - --dir <fixture> --no-commit
+    exit=2
+    agent-workflows backlog set: error: argument --work-kind: invalid choice: '-' (choose from 'bug', 'chore', 'feature', 'followup', 'security')
+
+    # and nothing was written by either refusal:
+    - Priority: medium
+    - Work-Kind: followup
+    ```
+
+    Because `-` cannot reach a file at all, the F-12 conflict is GONE rather than papered over: `python3 -m agent_workflows check backlog` on the live tree exits 0 with `checked 112 / errors 0 / warnings 0` (`evidence/check-backlog.txt`).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the same `--help` output showing `--priority` with the `backlog.PRIORITIES` vocabulary, and paste a rejected out-of-vocabulary `--priority` call with its unpiped exit code. Confirm the `-` handling matches E-01's exactly, since deciding the two fields differently would create a new asymmetry inside one verb.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: same `--help` run as V-01:
 
-- [ ] V-03 validates E-03
+    ```text
+      --priority {high,low,medium}
+                            Set the item's Priority (high|low|medium). Persists on
+                            a no-op transition. No '-' clear: the field is
+                            REQUIRED on a backlog item (OQ-02).
+    ```
+
+    Derived from `backlog.PRIORITIES` by the same expression shape (`choices=sorted(_backlog_vocab_mod.PRIORITIES)`). Refusals measured UNPIPED (`evidence/v01-v02-refusals.txt`):
+
+    ```text
+    $ aw backlog set open scr001 --priority urgent --dir <fixture> --no-commit
+    exit=2
+    agent-workflows backlog set: error: argument --priority: invalid choice: 'urgent' (choose from 'high', 'low', 'medium')
+
+    $ aw backlog set open scr001 --priority - --dir <fixture> --no-commit
+    exit=2
+    ```
+
+    THE `-` HANDLING MATCHES E-01 EXACTLY: neither flag accepts the sentinel, so there is no new asymmetry inside the verb. Both are also refused on the direct-call route, not merely by argparse: `run_set({'priority': '-'}) -> rc=2 file_unchanged=True` (`evidence/v03-direct-run_set-refusal.txt`).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: on a scratch fixture item, run BOTH spellings and paste, for each, the command, its exit code, and a `grep '^- Work-Kind:\|^- Priority:'` of the resulting file showing the new values. The two spellings must be shown separately, because they traverse different code (the `--status`-presence fork at `cli.py:11232-11245`); a single demonstration does not validate this item. PASTE THE DIFF OF `backlog.run_set` showing the fields are written through `releases.set_work_kind_line`/`set_priority_line` AFTER the render, matching the `--blocks-release` precedent (F-13); a diff that mutates the parsed item before `_render_item` fails this item. Paste a direct `run_set` call with an out-of-vocabulary value showing exit 2 and no write, since the shared writers do not validate.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BOTH SPELLINGS SHOWN SEPARATELY on scratch fixture items (`evidence/v03-both-spellings.txt`). The fork was re-located by symbol: it is the `backlog_cmd == "set"` branch at `cli.py:11462`, testing `getattr(args, "status", None) is None`.
 
-- [ ] V-04 validates E-04
+    ```text
+    ############ SPELLING 1: POSITIONAL (<status> <selector>) ############
+    $ aw backlog set open pos001 --work-kind bug --priority high
+    -    backlog     20260908-bkl-01-pos001  [medium]  unchanged
+    exit(unpiped)=0
+    --- grep of the resulting file:
+    - Work-Kind: bug
+    - Priority: high
+
+    ############ SPELLING 2: --status (<path> --status <status>) ############
+    $ aw backlog set <path> --status open --work-kind bug --priority high
+    aw backlog set: 20260908-bkl-01-sta001-a-scratch-item.backlog.md -> open
+    exit(unpiped)=0
+    --- grep of the resulting file:
+    - Work-Kind: bug
+    - Priority: high
+
+    ############ the two spellings agree line for line ############
+    IDENTICAL metadata block
+    ```
+
+    THE WRITE IS POST-RENDER THROUGH THE SHARED WRITERS, matching the `--blocks-release` precedent (full diff in `evidence/v03-run-set-diff.txt`); the added hunk sits immediately AFTER the `set_blocks_release_line` block and `_render_item` is untouched (`git diff | grep -c 'def _render_item'` as a changed line = 0):
+
+    ```python
+    if set_work_kind is not None or set_priority is not None:
+        from agent_workflows import releases as _releases
+
+        if set_priority is not None:
+            rendered = _releases.set_priority_line(rendered, set_priority)
+        if set_work_kind is not None:
+            rendered = _releases.set_work_kind_line(rendered, set_work_kind)
+    ```
+
+    The call ORDER matches `apply_status_change` (Priority then Work-Kind) deliberately: both writers insert after `- Status:`, so the order decides field order, and matching it is what makes the two spellings byte-comparable above (DECISION 04-b5sfwm-D2).
+
+    DIRECT `run_set` CALLS ARE REFUSED WITH EXIT 2 AND NO WRITE, since the shared writers deliberately do not validate (`evidence/v03-direct-run_set-refusal.txt`):
+
+    ```text
+    aw backlog set: --work-kind must be one of ['bug', 'chore', 'feature', 'followup', 'security']
+    aw backlog set: --priority must be one of ['high', 'low', 'medium']
+      run_set({'work_kind': 'bogus'}) -> rc=2  file_unchanged=True
+      run_set({'priority': 'urgent'}) -> rc=2  file_unchanged=True
+      run_set({'work_kind': '-'})     -> rc=2  file_unchanged=True
+      run_set({'priority': '-'})      -> rc=2  file_unchanged=True
+      run_set(valid)                  -> rc=0  kind=bug  priority=high
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste a same-status reclassification call (item already `open`, run with target status `open` plus `--work-kind bug`), its exit code, the resulting `- Work-Kind:` line, the appended `## Workflow history` record, and a `git status --short` or `ls` showing the file did NOT move directories. Do this for both spellings. QUOTE THE HISTORY TEXT EACH SPELLING EMITTED and state whether it names the classification change or only the status; if it says only "status -> open", report that as a gap rather than accepting it, since an audit trail that records the transition but not the reclassification defeats the item's stated purpose.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: run in a real git fixture repo so `git status --short` is meaningful (`evidence/v04-noop-reclassification.txt`). Item already `open`, target status `open`: a PURE reclassification.
 
-- [ ] V-05 validates E-05
+    ```text
+    ############ SPELLING 1 (POSITIONAL) ############
+    $ aw backlog set open nop001 --work-kind bug --message "reclassify followup -> bug"
+    -    backlog     20260908-bkl-01-nop001  [medium]  unchanged
+    exit(unpiped)=0
+    - Id: nop001
+    - Status: open
+    - Work-Kind: bug
+    - Set: bkl
+    - Priority: medium
+    - Summary: A scratch item for manual validation.
+    - 2026-09-14 open (aw set): reclassify followup -> bug
+    - 2026-09-08 created (aw backlog): A scratch item for manual validation.
+    --- git status --short (MODIFIED, not moved: no R/D pair)
+     M .aw/records/backlog/open/20260908-bkl-01-nop001-a-scratch-item.backlog.md
+    --- still in open/: 20260908-bkl-01-nop001-a-scratch-item.backlog.md
+
+    ############ SPELLING 2 (--status) ############
+    $ aw backlog set <path> --status open --work-kind bug --message "reclassify followup -> bug"
+    aw backlog set: 20260908-bkl-01-nop002-a-scratch-item.backlog.md -> open
+    exit(unpiped)=0
+    - Work-Kind: bug          (full block: Id/Status/Work-Kind/Set/Priority/Summary)
+    - 2026-09-13 set (aw backlog): reclassify followup -> bug
+    --- git status --short
+     M .aw/records/backlog/open/20260908-bkl-01-nop002-a-scratch-item.backlog.md
+    --- still in open/: 20260908-bkl-01-nop002-a-scratch-item.backlog.md
+    ```
+
+    THE HISTORY TEXT EACH SPELLING EMITS, MEASURED WITH AND WITHOUT `--message` (`evidence/v04-history-text.txt`):
+
+    ```text
+    POSITIONAL, no --message : - 2026-09-14 open (aw set): status set to open
+    POSITIONAL, --message    : - 2026-09-14 open (aw set): reclassify followup -> bug
+    --status,   no --message : - 2026-09-13 set (aw backlog): status -> open
+    --status,   --message    : - 2026-09-13 set (aw backlog): reclassify followup -> bug
+    ```
+
+    REPORTED AS A GAP, NOT ACCEPTED, exactly as this item requires. With `--message` OMITTED, NEITHER spelling names the classification change: one says `status set to open` and the other `status -> open`, so an audit trail would record that something happened without recording what. This is PRE-EXISTING behavior of the two shared history writers (`status_set.apply_status_change` builds its own default message; `backlog._reattach_history` builds `status -> <status>`), NOT something this plan introduced, and changing a default history message shared by every record type is well outside this fence. Practical consequence for callers: pass `--message` when reclassifying. Two smaller pre-existing findings from the same measurement, recorded in the decisions register: the global `.aw/records/history.jsonl` sidecar is appended by the `--status` spelling but not the positional one (confirmed pre-existing by stashing this change and re-measuring), and the two spellings stamp different dates because one uses UTC and the other local time.
+
+    Note the `--status` spelling can never express a classification-ONLY call: `run_set` refuses unless a status is supplied, so a reclassification there always restates the current status. The inline history block on that spelling also keeps only the LATEST record by design (`_reattach_history`), which is why a later message-less call replaces the line above.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the diff of the `backlog set` entry in `command_surface.py`, and paste the assertion that covers it. STATE HONESTLY WHAT THAT ASSERTION CHECKS: measured at review, the existing agreement test covers `backlog new` only and checks `declared - accepted == set()`, not the converse, so it does NOT prove the declaration is complete. Note that `--evidence`, `--yes` and `--commit/--no-commit` remain undeclared on this entry and were deliberately left alone; do not report the entry as complete.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the diff (`evidence/v05-command-surface.txt`):
 
-- [ ] V-06 validates E-06
+    ```diff
+    @@ -1234,6 +1234,14 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
+                 "--gate-kind",
+                 "--gate-ref",
+                 "--blocks-release",
+    +            # bklgkind b5sfwm E-05: the two CLASSIFICATION setters, DECLARED and not merely accepted.
+    +            # ... This entry is now MORE complete but still NOT complete ...
+    +            "--work-kind",
+    +            "--priority",
+                 "--dry-run",
+                 "--json",
+                 "--agent",
+    ```
+
+    The covering assertion is the NEW `tests/test_backlog_work_kind_rename.py::FlagSurfaceTests::test_the_set_verb_declares_its_classification_flags`, which asserts both flags are in `legacy_flags`, both are accepted by the real parser, and `declared - accepted == set()`.
+
+    WHAT THAT ASSERTION DOES NOT CHECK, stated plainly: it is ONE-DIRECTIONAL, exactly like its `backlog new` sibling. It proves the declaration is not aspirational (nothing declared is unaccepted); it does NOT prove the declaration is COMPLETE, because an accepted-but-undeclared flag still passes. MEASURED after this change:
+
+    ```text
+    declared - accepted:  set()
+    accepted - declared:  ['--commit', '--dir', '--evidence', '--no-commit', '--yes']
+    ```
+
+    So THE ENTRY IS NOT COMPLETE and I do not report it as such. `--evidence`, `--yes` and `--commit`/`--no-commit` remain undeclared and were left alone deliberately as outside this plan's fence (`--dir` appears in the same set and is likewise untouched). The converse check that would catch this class is a reasonable follow-up; it would fail on other verbs too, so it belongs to whoever audits that surface rather than here.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the new tests' names and the actual `python3 -m pytest tests/test_work_kind.py tests/test_backlog_work_kind_rename.py` summary line, compared against the review-measured baseline of 50 passed. ALSO paste proof the no-op test is meaningful: its failure output produced by reverting YOUR OWN source change in the executing worktree (for example `git stash` of the source hunk), not a claim about a historical HEAD. A test that passes both before and after validates nothing. Paste the POST-SET VALIDITY assertion showing `backlog.validate_item` reports no `backlog.kind-invalid`/`backlog.priority-invalid` after a successful set, and show the `_SetArgs` namespace extended with both new attributes (F-12, and note an un-extended namespace would silently no-op rather than raise).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: TEN new tests (`evidence/v06-focused-tests.txt`), nine in a new `BacklogSetClassificationTests` class plus one on `FlagSurfaceTests`:
 
-- [ ] V-07 validates E-07
+    ```text
+    BacklogSetClassificationTests::test_a_noop_reclassification_persists_on_the_positional_spelling
+    BacklogSetClassificationTests::test_a_noop_reclassification_persists_on_the_status_spelling
+    BacklogSetClassificationTests::test_priority_is_settable_on_both_spellings
+    BacklogSetClassificationTests::test_both_fields_together_land_identically_on_both_spellings
+    BacklogSetClassificationTests::test_an_out_of_vocabulary_value_is_refused_and_nothing_is_written
+    BacklogSetClassificationTests::test_a_clear_sentinel_is_refused_on_both_fields
+    BacklogSetClassificationTests::test_run_set_refuses_an_out_of_vocabulary_value_passed_directly
+    BacklogSetClassificationTests::test_a_reclassification_preserves_the_typed_gate_and_its_spelling
+    BacklogSetClassificationTests::test_a_reclassification_preserves_a_blocks_release_gate
+    FlagSurfaceTests::test_the_set_verb_declares_its_classification_flags
+    ```
+
+    ACTUAL focused-pair summary line, against the review baseline of 50 passed:
+
+    ```text
+    $ python3 -m pytest tests/test_work_kind.py tests/test_backlog_work_kind_rename.py
+    ............................................................             [100%]
+    60 passed in 7.93s
+    ```
+
+    PROOF THE NO-OP TESTS ARE MEANINGFUL, produced by reverting MY OWN source change in THIS worktree (`git apply -R` of a source-only patch covering `agent_workflows/{backlog,cli}.py`, leaving the tests in place), NOT by citing a historical HEAD (`evidence/v06-revert-proof.txt`):
+
+    ```text
+    $ git apply -R <source-only patch>   # reverted
+    FAILED tests/test_work_kind.py::SharedVocabularyTests::test_the_cli_choices_match_the_shared_vocab
+    FAILED tests/test_backlog_work_kind_rename.py::FlagSurfaceTests::test_the_set_verb_declares_its_classification_flags
+    FAILED ...BacklogSetClassificationTests::test_run_set_refuses_an_out_of_vocabulary_value_passed_directly
+    FAILED ...BacklogSetClassificationTests::test_a_noop_reclassification_persists_on_the_positional_spelling
+    FAILED ...BacklogSetClassificationTests::test_priority_is_settable_on_both_spellings
+    FAILED ...BacklogSetClassificationTests::test_both_fields_together_land_identically_on_both_spellings
+    FAILED ...BacklogSetClassificationTests::test_a_noop_reclassification_persists_on_the_status_spelling
+    FAILED ...BacklogSetClassificationTests::test_a_reclassification_preserves_a_blocks_release_gate
+    FAILED ...BacklogSetClassificationTests::test_a_reclassification_preserves_the_typed_gate_and_its_spelling
+    9 failed, 51 passed in 5.81s
+
+    $ git apply <source-only patch>      # restored
+    60 passed in 2.71s
+    ```
+
+    BOTH no-op tests are in that failing set, so neither passes vacuously. (The two that still pass reverted are the `-`-refusal and out-of-vocab-refusal cases, which is correct: with no flags registered argparse rejects the unknown option, so they refuse for a different reason.)
+
+    THE POST-SET VALIDITY ASSERTION, the property that distinguishes this verb from its plan-side twin:
+
+    ```python
+    def _assert_item_valid(self, path: Path) -> None:
+        rules = _rules(path)
+        self.assertNotIn("backlog.kind-invalid", rules)
+        self.assertNotIn("backlog.priority-invalid", rules)
+        self.assertEqual(rules, [], f"{path.name} is not conformant after the set")
+    ```
+
+    `_SetArgs` EXTENDED WITH BOTH ATTRIBUTES, with the F-12 hazard written into its docstring (an un-extended namespace would silently NO-OP rather than raise, because `run_set` reads both with `getattr(..., None)`, so a green suite could otherwise hide an unimplemented flag):
+
+    ```diff
+             self.evidence = kw.get("evidence")
+    +        self.work_kind = kw.get("work_kind")
+    +        self.priority = kw.get("priority")
+             self.force = kw.get("force", False)
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the extended `test_the_cli_choices_match_the_shared_vocab` source showing `("backlog","set")` in its enumeration, its passing result, and the failure message produced when one registration is temporarily perturbed (prove the fence bites).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the extended enumeration (`evidence/v07-vocab-fence.txt`); note the helper gained a `dest` parameter so the Priority twin is pinned by the same fence:
+
+    ```python
+        expected = set(backlog.KINDS) | {"-"}
+        self.assertEqual(_choices_for(("ipd", "set")), expected)
+        self.assertEqual(_choices_for(("specs", "set")), expected)
+        # The third registration: same vocabulary, no clearing sentinel (the field is REQUIRED here).
+        self.assertEqual(_choices_for(("backlog", "set")), set(backlog.KINDS))
+        self.assertNotIn("-", _choices_for(("backlog", "set")))
+        # Its Priority twin is pinned the same way, so the two fields cannot diverge inside one verb.
+        self.assertEqual(
+            _choices_for(("backlog", "set"), dest="priority"), set(backlog.PRIORITIES)
+        )
+        self.assertNotIn("-", _choices_for(("backlog", "set"), dest="priority"))
+    ```
+
+    The `backlog set` expectation deliberately EXCLUDES `-` while the other two include it, which is OQ-02's ruling asserted as a property rather than left to a comment.
+
+    IT PASSES:
+
+    ```text
+    $ python3 -m pytest tests/test_work_kind.py -o addopts="" -k cli_choices
+    tests/test_work_kind.py .                                                [100%]
+    1 passed, 23 deselected in 0.36s
+    ```
+
+    AND THE FENCE BITES. Temporarily dropped `security` from the new registration's choices, re-ran, then restored (verified restored: `grep -c 'TEMP PERTURBATION' agent_workflows/cli.py` = 0):
+
+    ```text
+    >       self.assertEqual(_choices_for(("backlog", "set")), set(backlog.KINDS))
+    E       AssertionError: Items in the second set but not the first:
+    E       'security'
+
+    tests/test_work_kind.py:243: AssertionError
+    FAILED tests/test_work_kind.py::SharedVocabularyTests::test_the_cli_choices_match_the_shared_vocab
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

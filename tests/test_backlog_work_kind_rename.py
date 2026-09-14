@@ -22,8 +22,10 @@ sessions mutate concurrently, so asserting against it would be flaky and could m
 
 from __future__ import annotations
 
+import io
 import re
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -385,11 +387,398 @@ class MigratedCorpusTests(unittest.TestCase):
         self.assertNotIn(readme, backlog._iter_items(REPO_ROOT))
 
 
+class BacklogSetClassificationTests(unittest.TestCase):
+    """bklgkind b5sfwm E-06: `aw backlog set` can CORRECT a mislabeled classification.
+
+    The defect these tests pin: neither `Work-Kind` nor `Priority` was settable on an EXISTING item,
+    although `aw ipd set` and `aw specs set` both set both fields on their record types, so an agent
+    reclassifying a mislabeled item had to hand-edit frontmatter the tool otherwise owns. The measured
+    harm was an audit miss (the 2026-09-03 all-bugs-block-release audit selects on `Work-Kind: bug`).
+
+    TWO THINGS MAKE THESE CASES LOAD-BEARING RATHER THAN ROUTINE.
+
+    FIRST, the verb has TWO DISPATCH PATHS that do not share a write path, and only one of them worked.
+    The fork tests whether `--status` was PASSED: absent goes to `status_set.run_set_command`, whose
+    Work-Kind/Priority writers are record-type-agnostic and already hoisted out of every status branch;
+    present goes to `backlog.run_set`, which had no writer at all. So every case here is asserted on
+    BOTH spellings, and a single demonstration would have validated only half the surface.
+
+    SECOND, the case the defect was actually hit on is the NO-OP: a pure reclassification changes no
+    status, and the verb is named for transitions. A test that only reclassified while also moving the
+    item would pass against an implementation that wrote the field solely inside a status branch.
+
+    NOTE THE DELIBERATE ASYMMETRY WITH THE PLAN-SIDE TWIN (OQ-02, ruled 2026-09-10): there is NO `-`
+    clearing sentinel here. Both fields are REQUIRED on a backlog item, so clearing one manufactures an
+    item `validate_item` and `aw check backlog` reject; `test_a_clear_sentinel_is_refused_on_both_fields`
+    pins the refusal, and `_assert_item_valid` pins the property that distinguishes this verb from the
+    plan-side one.
+    """
+
+    ITEM = """- Id: {id6}
+- Status: open
+- Set: bkl
+- Priority: medium
+- Work-Kind: followup
+- Summary: A test item.
+
+## Workflow history
+- 2026-09-08 created (aw backlog): A test item.
+
+Body.
+"""
+
+    def _item(self, root: Path, id6: str, status: str = "open") -> Path:
+        d = root / ".aw" / "records" / "backlog" / status
+        d.mkdir(parents=True, exist_ok=True)
+        p = d / f"20260908-bkl-01-{id6}-a-test-item.backlog.md"
+        p.write_text(self.ITEM.format(id6=id6), encoding="utf-8")
+        return p
+
+    def _fields(self, path: Path) -> dict:
+        item = backlog.parse_item(path.read_text(encoding="utf-8"))
+        return {"kind": item.kind, "priority": item.priority, "status": item.status}
+
+    def _assert_item_valid(self, path: Path) -> None:
+        """The property that distinguishes this verb from `aw ipd set`: a successful set must leave the
+        item VALID. Both fields are required here, so a write that removed one would pass a
+        "did the line change?" assertion while producing an item the repository's checker rejects."""
+
+        rules = _rules(path)
+        self.assertNotIn("backlog.kind-invalid", rules)
+        self.assertNotIn("backlog.priority-invalid", rules)
+        self.assertEqual(rules, [], f"{path.name} is not conformant after the set")
+
+    def _run_cli(self, argv: list) -> int:
+        """Drive the SHIPPED parser + dispatch, so the fork itself is exercised."""
+
+        from agent_workflows import cli
+
+        buf = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(buf):
+            rc = cli.main(argv)
+        self._last_output = buf.getvalue()
+        return rc
+
+    # -- the no-op reclassification: the exact case the defect was hit on ----------------
+
+    def test_a_noop_reclassification_persists_on_the_positional_spelling(self):
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            p = self._item(root, "noop01")
+            self.assertEqual(self._fields(p)["kind"], "followup")
+            rc = self._run_cli(
+                [
+                    "backlog",
+                    "set",
+                    "open",  # SAME status the item already carries: a pure reclassification
+                    "noop01",
+                    "--work-kind",
+                    "bug",
+                    "--dir",
+                    str(root),
+                    "--message",
+                    "reclassify followup -> bug",
+                    "--no-commit",
+                ]
+            )
+            self.assertEqual(rc, 0, self._last_output)
+            items = backlog._iter_items(root)
+            self.assertEqual(len(items), 1)
+            after = items[0]
+            self.assertEqual(self._fields(after)["kind"], "bug")
+            self.assertEqual(self._fields(after)["status"], "open")
+            # the file did NOT move: a reclassification is not a transition
+            self.assertEqual(after.parent.name, "open")
+            self.assertEqual(after.resolve(), p.resolve())
+            # a history record was appended, so the change is auditable
+            self.assertIn("## Workflow history", after.read_text(encoding="utf-8"))
+            self.assertIn(
+                "reclassify followup -> bug", after.read_text(encoding="utf-8")
+            )
+            self._assert_item_valid(after)
+
+    def test_a_noop_reclassification_persists_on_the_status_spelling(self):
+        """The spelling that had NO writer at all before this change.
+
+        Note this spelling can never express a classification-ONLY call: `run_set` refuses unless a
+        status is supplied, so a reclassification here always restates the current status.
+        """
+
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            p = self._item(root, "noop02")
+            rc = self._run_cli(
+                [
+                    "backlog",
+                    "set",
+                    str(p),
+                    "--status",
+                    "open",  # restating the current status
+                    "--work-kind",
+                    "bug",
+                    "--dir",
+                    str(root),
+                    "--message",
+                    "reclassify followup -> bug",
+                    "--no-commit",
+                ]
+            )
+            self.assertEqual(rc, 0, self._last_output)
+            after = backlog._iter_items(root)[0]
+            self.assertEqual(self._fields(after)["kind"], "bug")
+            self.assertEqual(after.parent.name, "open")
+            self.assertIn(
+                "reclassify followup -> bug", after.read_text(encoding="utf-8")
+            )
+            self._assert_item_valid(after)
+
+    def test_priority_is_settable_on_both_spellings(self):
+        """The field the backlog item wrongly believed already worked: it was only on `backlog new`."""
+
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            p = self._item(root, "prio01")
+            self.assertEqual(
+                self._run_cli(
+                    [
+                        "backlog",
+                        "set",
+                        "open",
+                        "prio01",
+                        "--priority",
+                        "high",
+                        "--dir",
+                        str(root),
+                        "--no-commit",
+                    ]
+                ),
+                0,
+                self._last_output,
+            )
+            after = backlog._iter_items(root)[0]
+            self.assertEqual(self._fields(after)["priority"], "high")
+            self._assert_item_valid(after)
+
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            p = self._item(root, "prio02")
+            self.assertEqual(
+                self._run_cli(
+                    [
+                        "backlog",
+                        "set",
+                        str(p),
+                        "--status",
+                        "open",
+                        "--priority",
+                        "high",
+                        "--dir",
+                        str(root),
+                        "--no-commit",
+                    ]
+                ),
+                0,
+                self._last_output,
+            )
+            after = backlog._iter_items(root)[0]
+            self.assertEqual(self._fields(after)["priority"], "high")
+            self._assert_item_valid(after)
+
+    def test_both_fields_together_land_identically_on_both_spellings(self):
+        """One write mechanism, so the two spellings' metadata blocks agree line for line.
+
+        Compared as text (with the id and the history normalized away) because the two spellings reach
+        the SAME `releases.set_work_kind_line` / `set_priority_line` primitives; a forked
+        implementation that mutated the parsed item on one side would drift in field ORDER here even
+        though both files carried the right values.
+        """
+
+        blocks = []
+        for id6, argv_tail in (
+            ("both01", ["open", "both01"]),
+            ("both02", ["__PATH__", "--status", "open"]),
+        ):
+            with TemporaryDirectory() as td:
+                root = Path(td)
+                p = self._item(root, id6)
+                argv = ["backlog", "set"] + [
+                    str(p) if a == "__PATH__" else a for a in argv_tail
+                ]
+                argv += [
+                    "--work-kind",
+                    "security",
+                    "--priority",
+                    "low",
+                    "--dir",
+                    str(root),
+                    "--no-commit",
+                ]
+                self.assertEqual(self._run_cli(argv), 0, self._last_output)
+                after = backlog._iter_items(root)[0]
+                self.assertEqual(self._fields(after)["kind"], "security")
+                self.assertEqual(self._fields(after)["priority"], "low")
+                self._assert_item_valid(after)
+                meta = [
+                    line
+                    for line in after.read_text(encoding="utf-8").split("\n")
+                    if line.startswith("- ") and not line.startswith("- 2026")
+                ]
+                blocks.append([re.sub(r"^- Id: \w+$", "- Id: <id6>", m) for m in meta])
+        self.assertEqual(
+            blocks[0], blocks[1], "the two spellings disagree on the block"
+        )
+
+    # -- refusals ------------------------------------------------------------------------
+
+    def test_an_out_of_vocabulary_value_is_refused_and_nothing_is_written(self):
+        for id6, argv_tail in (
+            ("bad001", ["open", "bad001"]),
+            ("bad002", ["__PATH__", "--status", "open"]),
+        ):
+            with TemporaryDirectory() as td:
+                root = Path(td)
+                p = self._item(root, id6)
+                before = p.read_text(encoding="utf-8")
+                argv = ["backlog", "set"] + [
+                    str(p) if a == "__PATH__" else a for a in argv_tail
+                ]
+                argv += ["--work-kind", "bogus", "--dir", str(root), "--no-commit"]
+                with self.assertRaises(SystemExit) as cm:
+                    self._run_cli(argv)
+                self.assertNotEqual(cm.exception.code, 0)
+                self.assertEqual(p.read_text(encoding="utf-8"), before)
+
+    def test_a_clear_sentinel_is_refused_on_both_fields(self):
+        """OQ-02: `-` is NOT accepted here, unlike on `aw ipd set`.
+
+        LOAD-BEARING NEGATIVE. Both fields are REQUIRED on a backlog item, so a `-` clear removes the
+        line and leaves an item `validate_item` reports as `backlog.kind-invalid` /
+        `backlog.priority-invalid` and `aw check backlog` exits nonzero on. Copying the plan-side
+        twin's `-` semantics onto this verb would therefore have shipped a documented way to
+        manufacture an invalid item; this asserts argparse refuses it before any file is touched.
+        """
+
+        for flag in ("--work-kind", "--priority"):
+            with TemporaryDirectory() as td:
+                root = Path(td)
+                p = self._item(root, "clr001")
+                before = p.read_text(encoding="utf-8")
+                with self.assertRaises(SystemExit) as cm:
+                    self._run_cli(
+                        [
+                            "backlog",
+                            "set",
+                            "open",
+                            "clr001",
+                            flag,
+                            "-",
+                            "--dir",
+                            str(root),
+                            "--no-commit",
+                        ]
+                    )
+                self.assertNotEqual(cm.exception.code, 0, flag)
+                self.assertEqual(p.read_text(encoding="utf-8"), before, flag)
+
+    def test_run_set_refuses_an_out_of_vocabulary_value_passed_directly(self):
+        """The shared line writers do NOT validate ("enforced by `aw check` ... not here"), and this
+        function is called directly by tests and other code, so the refusal must live in `run_set`
+        itself rather than relying on argparse `choices`."""
+
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            p = self._item(root, "dir001")
+            before = p.read_text(encoding="utf-8")
+            rc = backlog.run_set(
+                _SetArgs(dir=str(root), path="dir001", status="open", work_kind="bogus")
+            )
+            self.assertEqual(rc, 2)
+            self.assertEqual(p.read_text(encoding="utf-8"), before)
+            rc = backlog.run_set(
+                _SetArgs(dir=str(root), path="dir001", status="open", priority="urgent")
+            )
+            self.assertEqual(rc, 2)
+            self.assertEqual(p.read_text(encoding="utf-8"), before)
+            # and the '-' sentinel is refused on this route too, not merely by argparse
+            rc = backlog.run_set(
+                _SetArgs(dir=str(root), path="dir001", status="open", work_kind="-")
+            )
+            self.assertEqual(rc, 2)
+            self.assertEqual(p.read_text(encoding="utf-8"), before)
+
+    # -- the classification write does not disturb neighbouring fields -------------------
+
+    def test_a_reclassification_preserves_the_typed_gate_and_its_spelling(self):
+        """`- Gate-Kind:` is a DIFFERENT field; the writers are full-line anchored on `- Work-Kind:`."""
+
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            _write_item(root, "gat001", GATE_ITEM)
+            rc = self._run_cli(
+                [
+                    "backlog",
+                    "set",
+                    "blocked",
+                    "gat001",
+                    "--work-kind",
+                    "bug",
+                    "--gate-kind",
+                    "artifact",
+                    "--gate-ref",
+                    "abc123",
+                    "--dir",
+                    str(root),
+                    "--no-commit",
+                ]
+            )
+            self.assertEqual(rc, 0, self._last_output)
+            after = backlog._iter_items(root)[0]
+            text = after.read_text(encoding="utf-8")
+            self.assertIn("- Work-Kind: bug", text)
+            self.assertIn("- Gate-Kind: artifact", text)
+            self.assertNotIn("Gate-Work-Kind", text)
+            item = backlog.parse_item(text)
+            self.assertEqual(item.gate_kind, "artifact")
+            self.assertEqual(item.gate_ref, "abc123")
+
+    def test_a_reclassification_preserves_a_blocks_release_gate(self):
+        """The classification write is applied through the same post-render mechanism as
+        `--blocks-release`, so the two must not clobber each other."""
+
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            p = self._item(root, "brl001")
+            p.write_text(
+                p.read_text(encoding="utf-8").replace(
+                    "- Summary: A test item.",
+                    "- Summary: A test item.\n- Blocks-Release: next",
+                ),
+                encoding="utf-8",
+            )
+            rc = self._run_cli(
+                [
+                    "backlog",
+                    "set",
+                    "open",
+                    "brl001",
+                    "--work-kind",
+                    "bug",
+                    "--dir",
+                    str(root),
+                    "--no-commit",
+                ]
+            )
+            self.assertEqual(rc, 0, self._last_output)
+            text = backlog._iter_items(root)[0].read_text(encoding="utf-8")
+            self.assertIn("- Work-Kind: bug", text)
+            self.assertIn("- Blocks-Release: next", text)
+
+
 class FlagSurfaceTests(unittest.TestCase):
     """E-02/E-05: `--work-kind` is preferred, `--kind` is kept, and the declaration agrees."""
 
-    def _accepted_flags(self):
-        """Every option string the real `backlog new` subparser accepts.
+    def _accepted_flags(self, leaf: str = "new"):
+        """Every option string the real `backlog <leaf>` subparser accepts.
 
         Walks the parser the CLI actually builds, so the assertion is about the shipped surface and
         not about a re-declaration in the test.
@@ -411,10 +800,10 @@ class FlagSurfaceTests(unittest.TestCase):
         backlog_parser = _subparser(_build_parser(), "backlog")
         if backlog_parser is None:
             self.fail("no `backlog` subparser")
-        new_parser = _subparser(backlog_parser, "new")
-        if new_parser is None:
-            self.fail("no `backlog new` subparser")
-        return {opt for a in new_parser._actions for opt in a.option_strings}
+        leaf_parser = _subparser(backlog_parser, leaf)
+        if leaf_parser is None:
+            self.fail(f"no `backlog {leaf}` subparser")
+        return {opt for a in leaf_parser._actions for opt in a.option_strings}
 
     def test_both_spellings_are_accepted_by_the_parser(self):
         accepted = self._accepted_flags()
@@ -432,6 +821,30 @@ class FlagSurfaceTests(unittest.TestCase):
         self.assertIn("--kind", declared)
         # every declared flag is really accepted (the declaration is not aspirational)
         self.assertEqual(declared - self._accepted_flags(), set())
+
+    def test_the_set_verb_declares_its_classification_flags(self):
+        """bklgkind b5sfwm E-05: the two flags are DECLARED, not merely accepted.
+
+        STATED HONESTLY, because this test could easily be read as proving more than it does: like its
+        `backlog new` sibling it checks `declared - accepted == set()`, i.e. that every declared flag is
+        really accepted. It is ONE-DIRECTIONAL, so an accepted-but-undeclared flag still passes, and
+        this entry indeed still omits `--evidence`, `--yes` and `--commit`/`--no-commit`, which were
+        left alone deliberately as outside this plan's fence. So this asserts the two fields are
+        declared and the declaration is not aspirational; it does NOT assert the entry is complete.
+        """
+
+        declared = None
+        for d in command_surface.COMMAND_INVENTORY:
+            if d.command == "backlog set":
+                declared = set(d.legacy_flags)
+        self.assertIsNotNone(declared)
+        assert declared is not None
+        self.assertIn("--work-kind", declared)
+        self.assertIn("--priority", declared)
+        accepted = self._accepted_flags("set")
+        self.assertIn("--work-kind", accepted)
+        self.assertIn("--priority", accepted)
+        self.assertEqual(declared - accepted, set())
 
     def test_the_preferred_spelling_wins_when_both_are_passed(self):
         with TemporaryDirectory() as td:
@@ -490,7 +903,13 @@ class _NewArgs:
 
 
 class _SetArgs:
-    """Minimal `aw backlog set` args namespace."""
+    """Minimal `aw backlog set` args namespace.
+
+    bklgkind b5sfwm E-06 added `work_kind` and `priority`. THIS MATTERS MORE THAN IT LOOKS: `run_set`
+    reads them with `getattr(..., None)`, following the surrounding style, so a namespace MISSING the
+    attributes silently no-ops instead of raising. A test suite driving an un-extended namespace would
+    therefore stay green against an implementation that never wrote the fields at all.
+    """
 
     def __init__(self, **kw):
         self.dir = kw.get("dir")
@@ -501,6 +920,8 @@ class _SetArgs:
         self.gate_ref = kw.get("gate_ref")
         self.blocks_release = kw.get("blocks_release")
         self.evidence = kw.get("evidence")
+        self.work_kind = kw.get("work_kind")
+        self.priority = kw.get("priority")
         self.force = kw.get("force", False)
         self.apply = kw.get("apply", True)
         self.json = False

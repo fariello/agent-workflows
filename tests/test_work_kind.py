@@ -210,14 +210,21 @@ class SharedVocabularyTests(unittest.TestCase):
                 self.assertIn(member, drift[0].detail)
 
     def test_the_cli_choices_match_the_shared_vocab(self) -> None:
-        """The argparse `choices` list is a literal, exactly as the `--priority` precedent's is
-        (`choices=["low","medium","high","-"]` appears three times in cli.py). A literal there is
-        unavoidable at parser-build time, so this test PINS it to the shared vocabulary: if
-        `backlog.KINDS` ever gains or loses a member, this fails rather than letting the CLI
-        silently accept a different set from what `aw check` validates."""
+        """The argparse `choices` list is a literal on two of the three `set` verbs, exactly as the
+        `--priority` precedent's is (`choices=["low","medium","high","-"]`). A literal there is
+        unavoidable at parser-build time, so this test PINS every registration to the shared
+        vocabulary: if `backlog.KINDS` ever gains or loses a member, this fails rather than letting the
+        CLI silently accept a different set from what `aw check` validates.
+
+        bklgkind b5sfwm E-07 extended this to the THIRD verb, `backlog set`, which derives its choices
+        from `backlog.KINDS` rather than typing them. Its expected set deliberately EXCLUDES the `-`
+        clearing sentinel: `Work-Kind` is REQUIRED on a backlog item (`backlog.kind-invalid`) while it
+        is OPTIONAL on a plan and a spec, so clearing it there manufactures an item `aw check backlog`
+        rejects. That asymmetry is the maintainer's 2026-09-10 ruling (OQ-02), not an oversight, and
+        asserting it here is what stops a later "unification" from re-adding `-`."""
         parser = cli._build_parser()
 
-        def _choices_for(path: tuple[str, ...]) -> set[str]:
+        def _choices_for(path: tuple[str, ...], dest: str = "work_kind") -> set[str]:
             node = parser
             for name in path:
                 sub = next(
@@ -226,14 +233,20 @@ class SharedVocabularyTests(unittest.TestCase):
                     if isinstance(a, argparse._SubParsersAction)
                 )
                 node = sub.choices[name]
-            action = next(
-                a for a in node._actions if getattr(a, "dest", "") == "work_kind"
-            )
+            action = next(a for a in node._actions if getattr(a, "dest", "") == dest)
             return set(action.choices or ())
 
         expected = set(backlog.KINDS) | {"-"}
         self.assertEqual(_choices_for(("ipd", "set")), expected)
         self.assertEqual(_choices_for(("specs", "set")), expected)
+        # The third registration: same vocabulary, no clearing sentinel (the field is REQUIRED here).
+        self.assertEqual(_choices_for(("backlog", "set")), set(backlog.KINDS))
+        self.assertNotIn("-", _choices_for(("backlog", "set")))
+        # Its Priority twin is pinned the same way, so the two fields cannot diverge inside one verb.
+        self.assertEqual(
+            _choices_for(("backlog", "set"), dest="priority"), set(backlog.PRIORITIES)
+        )
+        self.assertNotIn("-", _choices_for(("backlog", "set"), dest="priority"))
 
     def test_the_symbol_name_is_unchanged(self) -> None:
         """Order 9trlc3 renamed the on-disk FIELD, not the vocabulary SYMBOL. E-01 forbids
