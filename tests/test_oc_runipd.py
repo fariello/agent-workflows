@@ -5251,26 +5251,64 @@ class VerifierRoutingNoOpDefaultTests(unittest.TestCase):
 
 
 class VerifierRoutingHostAsymmetryTests(unittest.TestCase):
-    """E-05(a): this capability is OpenCode-only BY CONSTRUCTION, not merely by scope choice."""
+    """E-05(a): MODEL ROUTING is OpenCode-only BY CONSTRUCTION, not merely by scope choice.
 
-    def test_the_agy_runner_has_no_profile_integration_at_all(self):
-        from agent_workflows import agy_runipd
+    REWRITTEN BY `hostdefault-02` (`ybkmzp`) E-09, because the property this class originally pinned
+    became FALSE and the honest replacement is narrower rather than absent. It used to assert that
+    `agy_runipd` referenced NO profile symbol at all, which stood for "antigravity has no profile
+    integration whatsoever". That host now participates in the `validate` chain deliberately: a
+    stored per-model verification choice decides its runs, resolved through
+    `runner_shared.resolve_verification_decision`.
+
+    WHAT IS STILL TRUE, and is what these cases now pin: `verify_with` MODEL ROUTING remains
+    opencode-only, so no antigravity run can be verified by a different model, and that host keeps no
+    `launch_profile` provenance record. Those are the two limits the `--verify-with` help text and
+    `docs/runner-profiles.md` claim, so they are asserted positively instead of being inferred from a
+    zero symbol count.
+    """
+
+    def test_the_agy_runner_joins_the_validate_chain_but_not_verify_with_routing(self):
+        from agent_workflows import agy_runipd, runner_shared
 
         source = Path(agy_runipd.__file__).read_text(encoding="utf-8")
-        for symbol in (
-            "runner_profiles",
-            "resolve_launch_profile",
-            "launch_profile",
-            "verify_with",
-        ):
+
+        # (1) MODEL ROUTING IS STILL OC-ONLY. The surviving half of the original assertion: this host
+        # neither reads nor freezes a verifier launch, so `verify_with` cannot route anything here.
+        for symbol in ("verify_with", "launch_profile", "resolve_launch_profile"):
             self.assertEqual(
                 source.count(symbol),
                 0,
-                f"agy_runipd now references {symbol!r}; the OC-only claim needs re-measuring",
+                f"agy_runipd now references {symbol!r}; the OC-only MODEL ROUTING claim needs "
+                f"re-measuring",
             )
+        self.assertFalse(hasattr(agy_runipd, "launch_profile_record"))
+        self.assertFalse(hasattr(agy_runipd, "resolve_launch_pair"))
+
+        # (2) BUT IT DOES PARTICIPATE IN THE `validate` CHAIN, through the SHARED resolution rather
+        # than a per-driver copy of it. Asserted on the resolution actually reached, not on a
+        # substring: a stored `defaults.validate` must decide an agy run's frozen posture.
+        self.assertTrue(hasattr(agy_runipd, "resolve_verification_decision"))
+        self.assertIs(
+            agy_runipd.runner_shared.resolve_verification_decision,
+            runner_shared.resolve_verification_decision,
+        )
+        with tempfile.TemporaryDirectory() as td:
+            with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": td}, clear=False):
+                store = Path(td) / "agent-workflows" / "runner-profiles.json"
+                store.parent.mkdir(parents=True, exist_ok=True)
+                store.write_text(
+                    json.dumps({"schema_version": 2, "defaults": {"validate": False}}),
+                    encoding="utf-8",
+                )
+                args = agy_runipd.build_parser().parse_args(
+                    ["start", "demo", "--repo", "."]
+                )
+                stored = agy_runipd.resolve_verification_decision(args)
+        self.assertIs(stored.validate, False)
+        self.assertEqual(stored.provenance, "defaults")
         print(
-            "agy_runipd references runner_profiles/resolve_launch_profile/launch_profile/"
-            "verify_with exactly 0 times: profile routing is OC-only by construction"
+            "agy_runipd references verify_with/launch_profile 0 times (model routing is OC-only) "
+            "while a stored defaults.validate DOES decide its verification posture"
         )
 
     def test_the_flag_help_says_opencode_host_only(self):

@@ -2680,10 +2680,20 @@ def resolve_launch_pair(
             model=getattr(args, "model", None),
             variant=getattr(args, "variant", None),
             agent=getattr(args, "agent", None),
+            # hostdefault-02 (`ybkmzp`) E-03: the operator's TRI-STATE verification flag, threaded
+            # into the EXECUTOR resolution so tier 1 registers as `explicit` and the stored
+            # per-model choice reaches the run when the operator said nothing. `None` here means
+            # SILENCE and must fall through to the profile store; it must never collapse to `False`,
+            # which is why `start`'s `--validate` now defaults `None` like `resume`'s always has.
+            validate=getattr(args, "validate", None),
             verify_with=getattr(args, "verify_with", None),
         )
         if executor.verify_with is None:
             return executor, None
+        # NO `validate=` HERE, DELIBERATELY. This second resolution answers WHICH profile verifies,
+        # never WHETHER one does (`docs/runner-profiles.md`: "IT SAYS WHICH, NOT WHETHER"). Threading
+        # the flag in would let a verifier profile's own `validate` field re-decide the gate, which
+        # is a second switch for one behavior and exactly what the tri-state chain exists to prevent.
         verifier = runner_profiles.resolve(
             cfg, runner="oc", profile=executor.verify_with
         )
@@ -2725,6 +2735,15 @@ def launch_profile_record(
         "model": resolved.model,
         "variant": resolved.variant,
         "agent": resolved.agent,
+        # hostdefault-02 (`ybkmzp`) E-05: the resolved verification DECISION, recorded beside the
+        # tier that produced it so `state.json` says both what was decided and who decided it. ONE
+        # key, not two: the `provenance` mapping copied below ALREADY carries `validate`'s tier
+        # (`explicit` / `profile` / `default-profile` / `defaults` / `shipped-default`), so
+        # duplicating the tier here would create a second place for it to drift.
+        #
+        # A RUN CREATED BEFORE THIS CHANGE HAS NO SUCH KEY, so every reader of this record must read
+        # it defensively; the shipped test that renders an older record must keep passing.
+        "validate": resolved.validate,
         "provenance": dict(resolved.provenance),
     }
 
@@ -3042,8 +3061,15 @@ def initialize_run(args: argparse.Namespace) -> Path:
             "verbosity": getattr(args, "verbosity", 0) or 0,
             "stall_timeout": getattr(args, "stall_timeout", DEFAULT_STALL_TIMEOUT),
             "full_auto": full_auto,
-            "validate": getattr(args, "validate", False),
-            "no_audit": not getattr(args, "validate", False),
+            # hostdefault-02 (`ybkmzp`) E-03: the RESOLVED decision, not the raw flag. `--validate`
+            # is a tri-state whose absent value falls through to the profile store, so reading
+            # `args` here would discard the operator's stored per-model choice; `resolved_launch`
+            # already carries the resolution from the ONE store read at the top of this function, so
+            # no second `runner_profiles.load()` is needed (a second read would reopen the window
+            # `kgpptv` deliberately closed). `no_audit` is DERIVED from the same resolved value so
+            # the two frozen keys can never disagree.
+            "validate": resolved_launch.validate,
+            "no_audit": not resolved_launch.validate,
             "self_finalize": getattr(args, "self_finalize", True),
             "isolate_worktree": getattr(args, "isolate_worktree", True),
             "max_items_per_session": getattr(args, "max_items_per_session", 4),
@@ -7920,8 +7946,20 @@ LAUNCH IDENTITY (model / variant / agent):
         "--audit",
         dest="validate",
         action=argparse.BooleanOptionalAction,
-        default=False,
-        help="Run the turn-2 independent clean-session verification of executed plans (default: false; pass --validate to enable)",
+        # hostdefault-02 (`ybkmzp`) E-03: `None`, NOT `False`, matching this driver's `resume` parser
+        # which has always shipped `default=None` for exactly this reason. The flag is a genuine
+        # TRI-STATE now: `None` means the operator said nothing, which falls THROUGH to the
+        # runner-profile store's per-model choice, while an explicit `--no-validate` is a decision
+        # that wins over every stored tier. With `default=False` those two cases are
+        # indistinguishable, so a stored `validate: true` could never take effect.
+        #
+        # THE EFFECTIVE DEFAULT IS UNCHANGED: with nothing configured, tier 4 is
+        # `RUNNER_REGISTRY["oc"].validate_default`, which is `False`, so a bare invocation still does
+        # NOT verify. Only the mechanism moved, from a parser default to the resolver's bottom tier.
+        default=None,
+        help="Run the turn-2 independent clean-session verification of executed plans (default: the "
+        "runner-profile store's per-model choice, which on this host resolves to false when nothing "
+        "is configured; pass --validate to enable for this run)",
     )
     start.add_argument(
         "--no-self-finalize",

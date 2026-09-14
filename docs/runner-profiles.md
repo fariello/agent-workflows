@@ -136,11 +136,60 @@ absent level falls through rather than reading as false:
 1. An explicit `--validate` / `--no-validate`.
 2. The profile's own `validate`.
 3. The store's `defaults.validate`.
-4. The shipped default, which is off.
+4. The shipped default for the host that is running, which is off on opencode and on on
+   antigravity.
+
+Tier 4 is PER HOST because the two shipped hosts want opposite postures: `aw oc run` does not
+verify unless you ask, and `aw agy run` verifies unless you decline. Nothing you configure changes
+that floor; it only applies when no flag, no profile, and no `defaults.validate` said anything.
 
 This exists because verification is worth different amounts on different models. A profile whose
 model rarely benefits can record `validate: false` while a cheaper one records `true`, instead of
 your having to remember a flag on every invocation.
+
+BOTH HOSTS HONOR THIS CHAIN. `aw oc run` and `aw agy run` resolve it the same way, so a stored
+per-model choice decides either one. The flags differ only in spelling: opencode accepts
+`--validate` / `--no-validate` (with `--verify` and `--audit` as aliases), and antigravity accepts
+`--validate` / `--no-validate` plus its long standing `--no-verify` (alias `--no-audit`), which
+means exactly `--no-validate`. Passing a contradictory pair such as `--no-verify --validate` is
+refused before the run starts rather than resolved by precedence, because either winner would be a
+verification decision you did not make.
+
+### Setting the verification default on antigravity, by hand
+
+No `aw` command writes an antigravity profile or `defaults.validate` yet. The profile wizard and
+`aw oc profile add` create opencode profiles only, and `aw agy profile` does not exist. Until a
+writer surface ships, edit `~/.config/agent-workflows/runner-profiles.json` yourself.
+
+Antigravity accepts no `--profile` flag and has no `as <profile>` clause, so a profile reaches an
+antigravity run ONLY by being that host's default profile. Both parts are required:
+
+```json
+{
+  "schema_version": 2,
+  "profiles": {
+    "agy-quiet": {"runner": "agy", "model": "google/gemini-3-pro", "validate": false}
+  },
+  "defaults": {
+    "profiles": {"agy": "agy-quiet"}
+  }
+}
+```
+
+With that store, `aw agy run <selector>` skips the verifier turn, and `aw agy run --validate
+<selector>` still runs it, because an explicit flag always wins.
+
+To set one default for every host and profile that does not state its own, use `defaults.validate`:
+
+```json
+{
+  "schema_version": 2,
+  "defaults": {"validate": true}
+}
+```
+
+That tier sits below a profile's own `validate` and above each host's shipped posture, so it is the
+way to turn verification on everywhere without naming a profile.
 
 ## Verifying with a different model
 
@@ -184,9 +233,11 @@ Four things are worth knowing:
   a verifier profile on a run with verification off, and the setting simply waits.
 - RESOLUTION IS ONE HOP. If the profile you verify with names a `verify_with` of its own, that
   value is ignored while it is acting as the verifier. There is no chain, so there is no loop.
-- IT IS OPENCODE ONLY. The Antigravity runner does not read runner profiles at all, so it neither
-  honors `verify_with` nor any other profile field. Verifying under a DIFFERENT RUNNER than the one
-  that executed is also not available: this routes the model, not the host.
+- IT IS OPENCODE ONLY, and the limit is per FIELD rather than per host. The antigravity runner
+  honors `validate`, so a stored per-model verification choice decides its runs too, but it does not
+  honor `verify_with`, `variant`, or `agent`: it keeps no verifier launch of its own, and its
+  registry row supports neither a model variant nor an agent. Verifying under a DIFFERENT RUNNER
+  than the one that executed is also not available: this routes the model, not the host.
 
 A reference that names a profile which does not exist is refused when the store is read, before a
 run has any durable side effect. That refusal is deliberate: falling back to the executor's model

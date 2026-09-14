@@ -816,6 +816,75 @@ class PublishedContractParityTests(unittest.TestCase):
         self.assertFalse(rp.SHIPPED_VALIDATE_DEFAULT)
         self.assertEqual(r.provenance["validate"], "shipped-default")
 
+    def test_the_documented_hand_edit_json_is_actually_valid(self):
+        """`hostdefault-02` (`ybkmzp`) E-08: the manual step is a DELIVERABLE, so it must PARSE.
+
+        The doc tells an operator to hand-edit `runner-profiles.json` because no `aw` command writes
+        an antigravity profile yet. A documented example that the schema refuses is worse than no
+        example: it sends the operator to debug their own typing. This extracts the JSON blocks
+        LITERALLY out of the shipped doc and feeds them to the real loader, so the example cannot
+        drift from the schema.
+
+        THIS CAUGHT A REAL DEFECT during execution: the first draft wrote `"model": "gemini-3-pro"`,
+        which `validate_model` refuses because it demands an exact `provider/model` identifier.
+        """
+
+        import json
+        import re
+
+        section = self.text.split(
+            "### Setting the verification default on antigravity, by hand"
+        )[1].split("## Verifying with a different model")[0]
+        blocks = re.findall(r"```json\n(.*?)```", section, re.S)
+        self.assertEqual(len(blocks), 2, "the doc must show BOTH documented stores")
+
+        agy_profile = rp.from_document(json.loads(blocks[0]))
+        self.assertIs(
+            rp.resolve(agy_profile, runner="agy").validate,
+            False,
+            "the documented agy store must actually turn verification OFF on that host",
+        )
+        self.assertEqual(
+            rp.resolve(agy_profile, runner="agy").provenance["validate"],
+            rp.PROVENANCE_DEFAULT_PROFILE,
+            "it applies via defaults.profiles because agy accepts no --profile",
+        )
+        # An explicit flag still wins, which is what the doc promises right after the block.
+        self.assertIs(
+            rp.resolve(agy_profile, runner="agy", validate=True).validate, True
+        )
+
+        validate_default = rp.from_document(json.loads(blocks[1]))
+        for host in ("oc", "agy"):
+            resolved = rp.resolve(validate_default, runner=host)
+            self.assertIs(resolved.validate, True, host)
+            self.assertEqual(
+                resolved.provenance["validate"], rp.PROVENANCE_DEFAULTS, host
+            )
+
+    def test_the_doc_states_no_aw_command_writes_the_agy_configuration(self):
+        """The honesty half of E-08: the gap is stated, and it is still true.
+
+        Re-measured rather than quoted: the wizard is opencode-only and nothing in the package calls
+        `set_validate_default`, so `defaults.validate` has no writer either.
+        """
+
+        self.assertIn("No `aw` command writes an antigravity profile", self.text)
+        from agent_workflows import runner_profile_wizard
+
+        self.assertEqual(runner_profile_wizard.RUNNER, "oc")
+        callers = [
+            path
+            for path in (REPO_ROOT / "agent_workflows").rglob("*.py")
+            if "set_validate_default" in path.read_text(encoding="utf-8")
+            and path.name != "runner_profiles.py"
+        ]
+        self.assertEqual(
+            callers,
+            [],
+            "a writer now exists; the doc's manual-step claim needs updating",
+        )
+
     def test_the_doc_names_the_real_store_location_and_reserved_names(self):
         self.assertIn("runner-profiles.json", self.text)
         self.assertEqual(rp.STORE_NAME, "runner-profiles.json")
@@ -850,28 +919,45 @@ class PublishedContractParityTests(unittest.TestCase):
         self.assertNotIn("\u2013", self.text)
 
     def test_the_doc_states_the_verify_with_limits_rather_than_implying_parity(self):
-        """`runprofile` Order 06 (`kgpptv`) E-05(a).
+        """`runprofile` Order 06 (`kgpptv`) E-05(a), narrowed by `hostdefault-02` (`ybkmzp`) E-09.
 
-        "The verifier can use a different profile" reads as host-agnostic and is NOT: the Antigravity
-        runner has ZERO profile integration, so the doc must say so rather than let a reader infer
-        parity. It must also not imply a different RUNNER can verify, which is deferred (OQ-01).
+        "The verifier can use a different profile" reads as host-agnostic and is NOT, so the doc must
+        state the limit rather than let a reader infer parity. It must also not imply a different
+        RUNNER can verify, which is deferred (OQ-01).
+
+        WHAT CHANGED AND WHY. This case used to assert the doc sentence "does not read runner
+        profiles" plus a ZERO count of profile symbols in `agy_runipd`. Both became FALSE when
+        `ybkmzp` wired the `validate` tri-state into BOTH hosts: antigravity now honors a stored
+        per-model verification choice. The limit that survives is narrower and is what is pinned now:
+        `verify_with` MODEL ROUTING is opencode-only, so the doc must say WHICH FIELDS each host
+        honors instead of claiming one host reads nothing. Asserting the per-field wording keeps this
+        a real check: a doc that merely mentioned `verify_with` would still fail.
         """
 
         self.assertIn("verify_with", self.text)
-        # It is OpenCode only, and the doc says which host does NOT participate.
+        # It is OpenCode only FOR `verify_with`, and the doc says so per FIELD rather than per host.
         self.assertIn("OPENCODE ONLY", self.text.upper())
-        self.assertIn("does not read runner profiles", self.text)
+        # The per-field honoring table: `validate` on both hosts, `verify_with` on opencode only.
+        self.assertIn("honors `validate`", self.text)
+        self.assertIn(
+            "does not\n  honor `verify_with`, `variant`, or `agent`", self.text
+        )
         # And it must not promise cross-runner verification.
         self.assertIn("routes the model, not the host", self.text)
-        # The claim is true: the agy runner references no profile symbol at all.
+        # The doc's claim must not have reverted to the superseded absolute one.
+        self.assertNotIn("does not read runner profiles at all", self.text)
+        # THE CLAIM IS TRUE, measured: the agy runner references no verifier-ROUTING symbol, while it
+        # does reach the shared verification resolution.
         agy = (REPO_ROOT / "agent_workflows" / "agy_runipd.py").read_text(
             encoding="utf-8"
         )
-        for symbol in ("runner_profiles", "launch_profile", "verify_with"):
+        for symbol in ("launch_profile", "verify_with"):
             self.assertEqual(agy.count(symbol), 0, symbol)
+        self.assertIn("resolve_verification_decision", agy)
         print(
-            "doc states the OC-only limit; agy_runipd references 0 profile symbols, so the "
-            "limit is a property of the system rather than of the doc's wording"
+            "doc states the per-field limit; agy_runipd references verify_with/launch_profile 0 "
+            "times yet does resolve the shared verification decision, so the limit is a property "
+            "of the system rather than of the doc's wording"
         )
 
     def test_the_doc_and_the_schema_agree_on_the_written_version(self):
