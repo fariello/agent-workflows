@@ -8,16 +8,16 @@
 - Scope: The verdict store and its key. IN: a digest over ONLY what the probe's answer depends on (the orchestrator's E-item action text plus its child table), excluding execution state, checkbox marks, workflow history, and prose sections; a per-repo verdict store recording digest, verdict, timestamp, and the model that answered; read/write helpers with a fail-closed miss; a child-table extraction, since no existing parser exposes it in a form this digest can consume. OUT: the probe itself and its prompt (child 03), the refusal surfacing (child 01), and any change to `plan_content_digest` or `frozen_region_digest`, which other gates depend on.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_orchestrator_probe_cache.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: orchprobe
 - Order: 2
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 8tgg6g
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-14 executed (opencode/recovery): Recovered stranded lane and finalized: all seven E-items performed and seven V-items verified with pasted evidence in run-20260914T020813Z-2543555; integration was refused only by the binary suite gate on an unrelated red test, now fixed. Attribution via run-record-exact (gys47u).
 - 2026-09-14 executed (opencode/its_direct/pt3-claude-opus-5-1m-us): E-01..E-07 PERFORMED and V-01..V-07 verified with pasted evidence, in lane worktree `8tgg6g` from start HEAD `fea2c9f8`. Code commit `b816200c`, touching only the two declared `Scope-Paths` (`agent_workflows/runner_shared.py`, `tests/test_orchestrator_probe_cache.py`); `engine.py` was NOT touched, as the fence requires.
   E-04's PREREQUISITE HAD ALREADY LANDED, which is why this child could execute in full rather than stopping at E-03. OQ-03 assigned the installer `state/` ignore fix to `yvvf98`; measured at execution, commit `ee38864c` (2026-09-12, backlog `2812t3`) added anchored `/state/` to BOTH `_AW_GITIGNORE_TEMPLATE` and the `_ensure_aw_gitignore` back-fill list, i.e. exactly the two edits F-11 measured as required, plus `MachineLocalStateGitignoreTests`. Verified independently here in throwaway repos carrying only installer output, on BOTH the fresh-install and the already-installed back-fill paths (`git check-ignore` rc=0, attributed to `.aw/.gitignore`). ONE RESIDUE RAISED, NOT CLOSED: that commit records no `kw5y2s` spec amendment, which is owed by that work rather than by this child (whose fence excludes both `engine.py` and the spec). Recorded as DECISION 05-8tgg6g-D2.
   TWO ROUND-2 CORRECTIONS WERE RE-MEASURED AT EXECUTION, not taken on trust. F-4 holds: `frozen_region_digest` still ignores all four executor mutations and still moves on an E-item edit, and it does NOT move on any of the three child-table edits, so child-table sensitivity remains the SOLE justification for a new digest. F-10 holds: `parse_child_table(...).rows` is byte-identical for an Id swap and a description rewrite (`{'1': (), '2': (), '3': ()}` both sides) and moves only for a row ADD. Both are pinned as CONTRAST tests, so if either function ever gains the sensitivity this child relies on it lacking, the suite fails and tells the reader to re-derive the design.
