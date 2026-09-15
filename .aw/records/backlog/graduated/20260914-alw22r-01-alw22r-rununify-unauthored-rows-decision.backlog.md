@@ -1,12 +1,12 @@
 - Id: alw22r
-- Status: open
+- Status: graduated
 - Set: alw22r
 - Priority: medium
 - Work-Kind: chore
 - Summary: rununify orchestrator 5e4sb6 refuses every run on its two deliberately-unauthored child rows and needs a scope decision
 
 ## Workflow history
-- 2026-09-14 created (aw backlog): Observed refusing in three separate runs on 2026-09-14. Both authored children (2r306y, 818uru) are executed; rows 03+ and last are deliberate placeholders, so this needs a human scope decision (author / re-scope / park), not a patch.
+- 2026-09-15 set (aw backlog): GRADUATED 2026-09-15 to nine children of the rununify Set (i3d6ml, tx6q0h, ct4w0a, sy7uwh, yrqyxb, ty3cj6, orziju, s16omw, 3dki3o), all authored to-review and lint-conforming. The orchestrator 5e4sb6 no longer refuses with unauthored-child-rows; it now refuses for unfinished-children with an empty unauthored-rows tuple, which is honest and actionable. Decision taken rather than deferred: the maintainer ruled 2026-09-14 that oc_runipd is preferred unless a difference is a real capability, and ruled the four genuine conflicts individually (UNION for extract_session_id, ADOPT OC for driver_begin, OVERRIDE child 02's PlanRecord pin, CORE-PLUS-HOOK for the five large functions). The '46 undecided symbols' figure that stalled this Set for two weeks was STALE: re-measured at HEAD it is four.
 
 ## What happens
 
