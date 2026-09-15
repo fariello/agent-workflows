@@ -917,15 +917,57 @@ class RealRepositorySets(unittest.TestCase):
         )
         self.assertTrue(parsed)
 
-    def test_rununify_refuses_for_unauthored_rows_not_for_unfinished_children(self):
-        """The 2.5 case: both children ARE executed, so a naive rule would retire `5e4sb6`."""
+    def test_runstop_refuses_for_unauthored_rows_not_for_unfinished_children(self):
+        """The 2.5 case: every child IS executed, so a naive rule would retire the orchestrator.
 
-        m = rs.read_set_membership(REPO_ROOT, "rununify")
+        RE-MEASURED 2026-09-15, per this class's own instruction to re-measure rather than loosen, and
+        RE-POINTED from `rununify` to `runstop`, which carries the identical shape today (all children
+        `executed`, and the refusal caused purely by unresolvable child-table rows).
+
+        WHY IT MOVED: `rununify`'s placeholder rows `03+` and `last` were RESOLVED. They stood
+        unauthored by deliberate design, because the parent refused to invent child scopes before the
+        code was measured, and the runner correctly refused to retire the parent on every run for two
+        weeks as a result. On the maintainer's 2026-09-14 ruling (`oc_runipd` is the preferred version
+        unless a difference is a real capability) the two rows were replaced with nine named children
+        `i3d6ml`, `tx6q0h`, `ct4w0a`, `sy7uwh`, `yrqyxb`, `ty3cj6`, `orziju`, `s16omw`, `3dki3o`. So
+        `rununify` now refuses for UNFINISHED CHILDREN, which is honest and actionable, rather than for
+        unauthored rows, which was a structural dead end.
+
+        The property this test exists to pin is unchanged and is now pinned against a Set that still has
+        it. `runstop` refuses on rows `00` and `-` while every child is `executed`; `selfcommit`
+        (row `02`) is the obvious successor if `runstop` is ever completed.
+        """
+
+        m = rs.read_set_membership(REPO_ROOT, "runstop")
         self.assertEqual({c.status for c in m.children}, {"executed"})
-        d = rs.evaluate_set_retirement(REPO_ROOT, "rununify")
+        d = rs.evaluate_set_retirement(REPO_ROOT, "runstop")
         self.assertFalse(d.eligible)
         self.assertEqual(d.reason, rs.RETIRE_REFUSED_UNAUTHORED_CHILD_ROWS)
-        self.assertEqual(set(d.unauthored_rows), {"03+", "last"})
+        self.assertEqual(set(d.unauthored_rows), {"00", "-"})
+
+    def test_rununify_now_refuses_for_unfinished_children_not_unauthored_rows(self):
+        """The companion to the move above: `rununify`'s placeholders are gone.
+
+        ADDED 2026-09-15. This asserts the FIX rather than the old defect, so a regression that
+        reintroduced an unresolvable child row would fail here loudly instead of silently restoring a
+        refusal that repeats on every run. The nine children are `to-review` at authoring; as they
+        execute this reason stays `unfinished-children` and the Set becomes eligible only when all nine
+        are `executed`, which is the correct terminal condition.
+        """
+
+        d = rs.evaluate_set_retirement(REPO_ROOT, "rununify")
+        self.assertFalse(d.eligible)
+        self.assertEqual(d.reason, rs.RETIRE_REFUSED_UNFINISHED_CHILDREN)
+        self.assertEqual(d.unauthored_rows, ())
+        m = rs.read_set_membership(REPO_ROOT, "rununify")
+        # NON-VACUITY: the table must actually RESOLVE now, so the refusal above is about child
+        # STATUS and not a table this reader failed to parse.
+        assert m.orchestrator is not None
+        _tokens, parsed = rs.parse_declared_child_orders(
+            m.orchestrator.path.read_text(encoding="utf-8")
+        )
+        self.assertTrue(parsed)
+        self.assertGreaterEqual(len(m.children), 11)
 
     def test_runprofile_is_not_refused_for_unauthored_rows(self):
         """RE-MEASURED 2026-09-08, per this class's instruction to re-measure rather than loosen.
