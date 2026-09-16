@@ -155,6 +155,16 @@ class _InjectedFault(RuntimeError):
     """Test-only fault injected at a named finalize checkpoint to exercise rollback/recovery."""
 
 
+class _CommitRefused(RuntimeError):
+    """The lifecycle commit itself was REJECTED (a hook said no), as distinct from an internal error.
+
+    Carried as its own type so the transaction can hand a hook rejection to the SAME observed-state
+    classification a git failure has always taken (which diagnoses a concurrent-writer cause and fails
+    closed), instead of collapsing it into the generic "mutation failed" branch and losing that
+    diagnosis.
+    """
+
+
 # Memoized checkout -> control-root resolutions (E-07). Keyed on the RESOLVED ``start`` path, so two
 # different start paths that resolve differently can never share an entry; the value is the resolved
 # control root. Only a POSITIVE resolution (git answered and a main worktree was established) is
@@ -1844,6 +1854,217 @@ def _refresh_plans_index_fail_loud(repo_root: Path) -> None:
         )
 
 
+# --------------------------------------------------------------------------------------
+# Landing a lifecycle commit made in a coordinator-owned worktree (plan `u23gbn`).
+#
+# WHAT THIS BUYS AND WHAT IT DOES NOT. The transaction's status edit, plan move and commit happen in a
+# throwaway worktree on its own branch, so the SHARED checkout is never mid-move and is never the tree
+# `pre-commit` stashes. But a ref that advanced with the shared working tree left behind is WORSE than
+# today's window, not better: measured, HEAD then says `executed/` while the tree still holds
+# `pending/`, which reads as an unexplained REVERSE rename. So the shared tree must still be brought
+# into line, and the honest mechanism is a fast-forward that GIT performs and that REFUSES rather than
+# clobbers.
+#
+# THE FF-ONLY MERGE MUST BE THE THING THAT ADVANCES THE BRANCH. Do not move the ref first and then
+# reconcile: measured twice, `git merge --ff-only <landed>` after the ref already points at `<landed>`
+# prints "Already up to date." and exits 0 WITHOUT touching the working tree, leaving a staged
+# `D `/`A ` pair for the plan's two paths while REPORTING SUCCESS, and git never performs the
+# would-be-overwritten check, so the peer-protecting refusal becomes unreachable.
+# --------------------------------------------------------------------------------------
+
+#: The shared checkout was fast-forwarded onto the landed commit; the branch advanced.
+RECONCILED_OK = "reconciled"
+#: Git REFUSED because landing would overwrite a local change (or an untracked squatter) in the shared
+#: tree. rc=1, `error:` prefix, tree DIRTY at the objecting path, branch NOT advanced, commit NOT
+#: reachable from the branch. The peer's bytes are intact and MUST be left that way.
+RECONCILED_REFUSED = "refused-would-overwrite"
+#: A peer COMMIT landed on the branch since the worktree's snapshot, so no fast-forward exists. rc=128,
+#: `fatal:` prefix, tree typically CLEAN, branch NOT advanced. Same condition `commit_isolated` reports
+#: as `ISO_RACED`, so the vocabulary is deliberately reused: the work exists as a reachable commit and
+#: the operator retries.
+RECONCILED_RACED = "raced"
+
+
+class ReconcileLanding(NamedTuple):
+    """The outcome of landing a worktree commit into the shared checkout by fast-forward.
+
+    ``status`` is one of :data:`RECONCILED_OK`, :data:`RECONCILED_REFUSED`, :data:`RECONCILED_RACED`.
+    ``returncode`` is git's OWN exit code, which is how the two failure arms are told apart (1 for the
+    would-be-overwritten refusal, 128 for divergence); never string-match git's prose, which differs
+    between them and across versions. ``paths`` names what git objected to on the refusal arm.
+    """
+
+    status: str
+    returncode: int
+    detail: str
+    paths: Tuple[str, ...] = ()
+
+
+_MERGE_REFUSAL_MARKERS = (
+    "would be overwritten by merge",
+    "would be overwritten by checkout",
+)
+
+
+def _parse_merge_refusal_paths(text: str) -> Tuple[str, ...]:
+    """The paths git named in a would-be-overwritten refusal (best effort, for the operator).
+
+    Deliberately best-effort and NEVER load-bearing: the ARM is decided by the exit code, and this
+    only enriches the message a human reads. Git lists the offending paths one per line, tab-indented,
+    between its `error:` line and its `Please ...` advice.
+    """
+    paths: List[str] = []
+    collecting = False
+    for line in (text or "").splitlines():
+        low = line.lower()
+        if any(marker in low for marker in _MERGE_REFUSAL_MARKERS):
+            collecting = True
+            continue
+        if collecting:
+            if line.startswith(("\t", "    ")):
+                candidate = line.strip()
+                if candidate:
+                    paths.append(candidate)
+                continue
+            break
+    return tuple(paths)
+
+
+def _release_own_plan_edit_before_landing(
+    repo_root: Path,
+    plan_rel: str,
+    *,
+    landed: str,
+    dest_rel: str,
+    mirrored_bytes: str,
+    committed_bytes: Optional[str],
+) -> Optional[str]:
+    """Clear the transaction's OWN uncommitted plan edit from the shared tree, or leave it alone.
+
+    WHY THIS IS NECESSARY AND IS NOT A FORCED MERGE. THIS WAS FOUND BY A TEST WRITTEN FOR THIS CHANGE,
+    not predicted: an executing agent normally ticks its own `E-*` items and fills its `V-*` evidence
+    and has NOT COMMITTED those edits when finalize runs. MEASURED on the pre-change code, finalize
+    succeeded and carried those uncommitted bytes into the lifecycle commit. With the mutation moved
+    into a coordinator worktree, the shared tree still holds that dirty plan file, so
+    `git merge --ff-only` REFUSES ("Your local changes to the following files would be overwritten by
+    merge"), and the single most common finalize in the repository would start failing.
+
+    THE DISTINCTION THAT MAKES THIS SAFE, and it is the whole point. The refusal exists to protect
+    bytes that would be LOST. Here they cannot be lost, and that is PROVED rather than assumed before
+    anything is written:
+
+    * the shared tree's bytes at the plan's original path are EXACTLY the bytes this transaction
+      mirrored into its worktree, i.e. the INPUT to the commit that just landed; and
+    * the landed commit's blob at the plan's destination path is EXACTLY what the worktree produced
+      from those bytes.
+
+    So the content is already durable in a commit, and dropping the working-tree copy at the OLD path
+    is precisely what "the plan moved" means. If EITHER check fails the bytes are somebody else's (or
+    are not accounted for), and this function writes NOTHING and returns None, leaving
+    :func:`land_worktree_commit` to refuse and report - which is exactly the contended arm, and it must
+    keep refusing.
+
+    NARROW BY CONSTRUCTION: it touches ONE path, the plan's own original path, and never inspects or
+    clears anything else in the tree. A co-worker's unrelated dirty file needs no clearing anyway,
+    because a fast-forward that does not write it does not care that it is dirty (measured).
+
+    Returns the operation performed (for the record), or None when nothing was cleared.
+    """
+    plan_abs = repo_root / plan_rel
+    try:
+        current = plan_abs.read_text(encoding="utf-8")
+    except OSError:
+        return None  # absent: nothing of ours to clear, and the merge decides
+    if current != mirrored_bytes:
+        return None  # somebody else's content: refuse to touch it
+    if committed_bytes is None:
+        return None
+    rc, blob, _err = _git(repo_root, ["show", f"{landed}:{dest_rel}"])
+    if rc != 0 or blob != committed_bytes:
+        # The landed commit does not demonstrably carry these bytes, so clearing them could lose
+        # content. Fail closed: leave the tree alone and let the merge refuse.
+        return None
+    # THE MINIMAL OPERATION: restore this ONE path to what HEAD already says, which is the state the
+    # fast-forward expects to rename FROM. It is not `reset --hard`, not `checkout -f`, and not a
+    # forced merge: it is a single path whose current content is provably carried by the commit about
+    # to land, so nothing can be lost.
+    rc, _out, _err = _git(repo_root, ["checkout", "HEAD", "--", plan_rel])
+    if rc == 0:
+        return f"released this transaction's own uncommitted edit at {plan_rel}"
+    return None
+
+
+def land_worktree_commit(
+    repo_root: Path, landed: str, *, expected_base: Optional[str] = None
+) -> ReconcileLanding:
+    """Advance the shared checkout onto ``landed`` with a REFUSING fast-forward, and classify.
+
+    THE SINGLE OPERATION, deliberately: `git merge --ff-only <landed>` moves the ref AND updates the
+    working tree at once, and it is the operation whose refusal protects a co-worker. Never
+    `update-ref` first (see the module comment above), and never resolve a refusal by forcing it
+    (`git checkout -f`, `git reset --hard`, or a manual file move): git's refusal is protecting a
+    co-worker's uncommitted bytes and destroying them is the exact harm this change exists to stop.
+
+    THE THREE ARMS, each measured rather than inferred:
+
+    * CLEAN (rc=0): "Updating <old>..<new> / Fast-forward". An unrelated peer's dirty or staged file
+      is untouched and its bytes are verbatim.
+    * REFUSED (rc=1, `error:`): a local change to (or an untracked squatter at) a path the merge would
+      write. HEAD is NOT advanced and the working tree keeps the peer's content.
+    * RACED (rc=128, `fatal: Not possible to fast-forward`): a peer commit landed since the snapshot,
+      so the branch DIVERGED and no fast-forward exists. HEAD is NOT advanced and the tree is clean.
+
+    ``expected_base`` is optional and diagnostic only: when given and the branch has already moved off
+    it, the RACED detail says so explicitly instead of leaving the operator to infer it.
+    """
+    rc, out, err = _git(repo_root, ["merge", "--ff-only", landed])
+    combined = f"{out}\n{err}".strip()
+    if rc == 0:
+        # "Already up to date." means the ref ALREADY pointed at (or past) `landed`, so this call did
+        # not land anything and the working tree was not touched. That is the no-op ordering bug, and
+        # it must not be reported as a successful reconciliation.
+        if "already up to date" in combined.lower():
+            return ReconcileLanding(
+                RECONCILED_RACED,
+                rc,
+                (
+                    f"the branch already pointed at or past {landed[:12]}, so the fast-forward was a "
+                    "NO-OP and the shared working tree was NOT updated. Something advanced the ref "
+                    "before this reconciliation ran (a separate `update-ref` is the classic cause); "
+                    f"git said: {combined}"
+                ),
+            )
+        return ReconcileLanding(RECONCILED_OK, rc, combined or "fast-forwarded")
+
+    lowered = combined.lower()
+    if any(marker in lowered for marker in _MERGE_REFUSAL_MARKERS):
+        paths = _parse_merge_refusal_paths(combined)
+        named = ", ".join(paths) if paths else "(git named no path)"
+        return ReconcileLanding(
+            RECONCILED_REFUSED,
+            rc,
+            (
+                f"git REFUSED to fast-forward the shared checkout onto {landed[:12]} because landing "
+                f"it would overwrite local changes at: {named}. The branch was NOT advanced and those "
+                "bytes are intact; that refusal is CORRECT and must not be forced. Land or set that "
+                f"edit aside and re-run. git said: {combined}"
+            ),
+            paths,
+        )
+
+    detail = (
+        f"the shared branch could not be fast-forwarded onto {landed[:12]}: it has DIVERGED, so a peer "
+        f"commit landed since this transaction's snapshot. The work is preserved as commit "
+        f"{landed[:12]} (cherry-pick or retry); the branch was NOT moved. git said: {combined}"
+    )
+    if expected_base:
+        rc_now, now, _e = _git(repo_root, ["rev-parse", "HEAD"])
+        current = now.strip() if rc_now == 0 else ""
+        if current and current != expected_base:
+            detail += f" The branch moved from {expected_base[:12]} to {current[:12]} meanwhile."
+    return ReconcileLanding(RECONCILED_RACED, rc, detail)
+
+
 class ReconcileOutcome(NamedTuple):
     """The result of the two-way scope reconciliation (Order 05, qmt3yk).
 
@@ -2035,11 +2256,28 @@ def _rollback_precommit(repo_root: Path, journal: Dict[str, Any]) -> Tuple[bool,
     and regenerates the plans index from the CURRENT corpus. Byte-equality with the snapshot is
     required only when no concurrent plan-state change occurred; an incompatible concurrent change
     is classified `unknown-outcome` and stopped WITHOUT a destructive restore.
+
+    IT DOES NOT UNDO THE FF-ONLY MERGE, AND MUST NOT LEARN TO (plan `u23gbn` E-08). Two cases, both
+    already settled elsewhere: if the reconciliation SUCCEEDED then the lifecycle commit has landed and
+    this is not the right tool at all (`_resume_post_commit` resumes a landed commit and deliberately
+    never reverts one); if it REFUSED then nothing was written to the shared tree and there is nothing
+    to restore. So do not add a "helpful" `git reset`/`checkout` here.
+
+    BOTH RESTORES ARE NOW CONCURRENCY-GUARDED, which the destination's always was and the ORIGIN's was
+    not. Since the transaction performs its mutations in a coordinator-owned worktree, the shared-tree
+    file at ``original_path`` is NEVER TOUCHED by this transaction, so an unconditional write there
+    would overwrite whatever a peer currently has. MEASURED before the guard existed: a peer's
+    uncommitted edit (`- Status: approved\\nPEER EDIT IN FLIGHT, uncommitted\\n`) was replaced by the
+    snapshot bytes and the peer's content was gone, and because the destructive write happens before
+    the later steps, even a rollback that REPORTS failure had already destroyed it.
     """
     orig_rel = journal["original_path"]
     dest_rel = journal.get("dest_path")
     orig_abs = repo_root / orig_rel
     orig_bytes = journal["original_bytes"]
+    # The bytes this transaction believes it left at the ORIGIN. Absent (the ordinary case now) means
+    # the transaction never wrote there, so the correct default is to leave the file alone entirely.
+    origin_written = journal.get("origin_written_bytes")
 
     # 1. Remove the moved destination (if the move happened) unless a concurrent change altered it.
     if dest_rel and dest_rel != orig_rel:
@@ -2063,17 +2301,47 @@ def _rollback_precommit(repo_root: Path, journal: Dict[str, Any]) -> Tuple[bool,
             except OSError as exc:
                 return (False, f"rollback could not remove {dest_rel}: {exc}")
 
-    # 2. Restore the plan's original bytes at its original path (atomic).
+    # 2. Restore the plan's original bytes at its original path (atomic) - but ONLY when this
+    #    transaction is the party that changed that path, or the file is simply missing.
+    #
+    #    THE GUARD, and why it is the same shape step 1 already had. Step 1 refuses to delete a
+    #    DESTINATION whose bytes are not the ones it wrote, so it cannot clobber a concurrent writer
+    #    that legitimately owns that path. The ORIGIN needed no such guard while the transaction moved
+    #    the file itself: nothing else could be there. Now that the move happens in a coordinator
+    #    worktree, the shared-tree origin is untouched by us, so an unconditional write is an
+    #    unconditional overwrite of a peer's in-flight edit. Restore only when (a) the file is absent
+    #    (a genuine half-move to undo), (b) the current bytes are already what we would write (a no-op
+    #    that keeps the rollback idempotent), or (c) the current bytes are exactly what THIS
+    #    transaction recorded writing there. Anything else is somebody else's content: refuse with
+    #    unknown-outcome naming the path, exactly as step 1 does, rather than destroy it.
     try:
-        orig_abs.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(
-            dir=str(orig_abs.parent), prefix=".rb-", suffix=".md"
+        current_origin: Optional[str] = orig_abs.read_text(encoding="utf-8")
+    except OSError:
+        current_origin = None
+    if current_origin is None:
+        restore_origin = True
+    elif current_origin == orig_bytes:
+        restore_origin = False  # already correct; writing would be a no-op
+    elif origin_written is not None and current_origin == origin_written:
+        restore_origin = True  # our own mutation, so undoing it is ours to do
+    else:
+        return (
+            False,
+            "unknown-outcome: the plan's original path {0} holds content this transaction did not "
+            "write (a concurrent writer's in-flight edit); refusing a destructive restore. Those "
+            "bytes are intact and were NOT overwritten.".format(orig_rel),
         )
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(orig_bytes)
-        os.replace(tmp, str(orig_abs))
-    except OSError as exc:
-        return (False, f"rollback could not restore {orig_rel}: {exc}")
+    if restore_origin:
+        try:
+            orig_abs.parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(
+                dir=str(orig_abs.parent), prefix=".rb-", suffix=".md"
+            )
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(orig_bytes)
+            os.replace(tmp, str(orig_abs))
+        except OSError as exc:
+            return (False, f"rollback could not restore {orig_rel}: {exc}")
 
     # 3. Restore the exact prior Git-index entries for lifecycle-owned paths (no disjoint work).
     owned = journal.get("owned_paths", [])
@@ -2215,13 +2483,28 @@ ROLLUP_SHARED_GATES: Tuple[str, ...] = (
     # Status legality: the plan must not ALREADY be terminal
     # (`ipd_schema.checkpoint_allows_status('pre-transition', ...)`).
     "status-legality",
-    # The plan file move into `executed/` (`status_set.apply_status_change`).
+    # The plan file move into `executed/` (`status_set.apply_status_change`). PERFORMED IN A
+    # COORDINATOR-OWNED WORKTREE since plan `u23gbn`, not in the shared checkout, so the shared tree is
+    # never mid-move; the shared tree is then brought into line by the refusing fast-forward below.
     "plan-move",
     # The FAIL-LOUD owned plans-index refresh, which re-runs `--check` and RAISES if it did not
-    # converge (`_refresh_plans_index_fail_loud`), so a stale index is a transaction failure.
+    # converge (`_refresh_plans_index_fail_loud`), so a stale index is a transaction failure. It runs
+    # AFTER the reconciliation (plan `u23gbn` E-07): with the move relocated to the worktree, refreshing
+    # earlier scanned a shared disk that did not yet reflect the transition, so the manifest converged
+    # against the OLD layout and the gate PASSED while leaving the repository in the exact
+    # `check.stale-index-stale` state it exists to prevent. Being post-commit, a failure here is
+    # committed-incomplete rather than a rollback; it is still fail-loud and still refuses.
     "plans-index-refresh-fail-loud",
-    # The single PATH-SCOPED lifecycle commit over exactly `owned_paths` (never `git add -A`).
+    # The single PATH-SCOPED lifecycle commit over exactly `owned_paths` (never `git add -A`), produced
+    # in the coordinator worktree and landed in the shared checkout by the fast-forward below.
     "path-scoped-lifecycle-commit",
+    # The REFUSING fast-forward that lands that commit (`land_worktree_commit`, plan `u23gbn` E-06).
+    # It is the SINGLE step that advances the branch AND updates the shared working tree, and it is
+    # deliberately the operation whose REFUSAL protects a co-worker's uncommitted bytes: never forced,
+    # and never preceded by an `update-ref` (which makes it a no-op that reports success and makes the
+    # refusal unreachable). Named as a gate because a change that forced it, or that advanced the ref
+    # some other way, would silently remove the protection while every other gate still passed.
+    "refusing-fast-forward-reconciliation",
     # `post-transition` lint on the committed plan, INCLUDING the terminal attribution rule
     # (`_check_terminal_attribution`), which is what forces the honest history entry of E-04.
     "post-transition-lint",
@@ -2384,6 +2667,26 @@ def retire_orchestrator(
 
     ``env`` defaults to ``os.environ`` and exists so the worker-role refusal is testable without
     mutating global process state, mirroring `worker_role_active`'s own design.
+
+    WHERE THE WRITES HAPPEN, AND WHAT REMAINS IN THE SHARED CHECKOUT (plan `u23gbn`). The status edit,
+    the plan move and the commit all happen in a THROWAWAY WORKTREE ON ITS OWN BRANCH, created and
+    owned by the COORDINATOR, so the shared checkout is never mid-move and is never the tree
+    ``pre-commit`` stashes. Two shared-checkout writes REMAIN, and this docstring names them rather
+    than letting a reader infer a stronger property than is true:
+
+    * the ``git merge --ff-only`` that LANDS the commit, which is the single step that advances the
+      branch and updates the working tree together, and which REFUSES rather than clobbers when a
+      peer's uncommitted change is in the way (:func:`land_worktree_commit`); and
+    * the post-reconciliation plans-manifest refresh, which writes only GITIGNORED generated views.
+
+    THE ROLE IS STILL ``coordinator``, and the worktree does not change that. The first gate below
+    refuses when ``AW_EXECUTION_ROLE=worker``; the scratch worktree is a coordinator-owned tree, NOT a
+    worker lane, and the role variable is neither set nor emulated in it.
+
+    DO NOT REINTRODUCE SHARED-TREE MUTATION, and do not read this as atomicity: a ref update alone was
+    MEASURED to leave the shared tree dirty in the INVERSE direction (HEAD at ``executed/`` while the
+    working tree still holds ``pending/``), which is worse than the window it replaces. The window is
+    SHORTER and its one remaining write is git's own refusing fast-forward; it is not gone.
     """
     from agent_workflows import ipd_lint as _lint
     from agent_workflows import ipd_schema as _schema
@@ -2768,10 +3071,45 @@ def _finalize_transaction(
 ) -> FinalizeResult:
     """The journaled two-phase terminal transaction (called under the finalize lock).
 
-    Phases: PREPARED (snapshot) -> MUTATING (status/move/index, working-tree only) ->
-    READY_TO_COMMIT -> commit -> classify by OBSERVED state -> post-transition -> COMPLETE. Any
-    pre-commit failure/interrupt rolls back idempotently; a committed-incomplete transaction resumes
-    via the SAME command with no history rewrite; ambiguous evidence is unknown-outcome (fail closed).
+    Phases: PREPARED (snapshot) -> MUTATING (status edit + plan move, IN A COORDINATOR-OWNED
+    WORKTREE) -> READY_TO_COMMIT -> commit THERE -> land in the shared checkout by a REFUSING
+    fast-forward -> classify by OBSERVED state -> post-reconciliation index refresh ->
+    post-transition -> COMPLETE. Any pre-commit failure/interrupt rolls back idempotently; a
+    committed-incomplete transaction resumes via the SAME command with no history rewrite; ambiguous
+    evidence is unknown-outcome (fail closed).
+
+    WHERE THE MUTATIONS HAPPEN, AND WHAT THAT DOES AND DOES NOT BUY (plan `u23gbn`). The status edit,
+    the plan move and the commit all happen in a throwaway worktree on its OWN branch, created and
+    owned by the coordinator, so the SHARED checkout is never mid-move and is never the tree
+    ``pre-commit`` stashes. MEASURED BEFORE the change, sampling `git status --porcelain` in the
+    shared tree at two instants of a successful retirement: post-move it read
+    ``RM <pending> -> <executed>`` and pre-commit ``R  <same>`` plus the two untracked manifests.
+
+    THE WINDOW SHRINKS, IT DOES NOT VANISH, and this docstring says so because the stronger claim was
+    measured FALSE. A ref that advances while the shared working tree still holds the old layout is
+    WORSE than the window it replaces: HEAD says ``executed/`` while the tree holds ``pending/``,
+    which reads as an unexplained REVERSE rename. So the shared tree is still written, by exactly ONE
+    step: a ``git merge --ff-only`` that git itself performs, that updates the ref and the tree
+    together, and that REFUSES rather than clobbers when a peer's uncommitted change is in the way
+    (see :func:`land_worktree_commit`). Plus the post-reconciliation manifest refresh, which writes
+    only gitignored generated views.
+
+    WHICH LAYER COVERS WHICH FAILURE, since the journal and the worktree are complementary and
+    deleting either would be a mistake:
+
+    * THE WORKTREE shortens the WITHIN-INVOCATION exposure of the shared checkout. It cannot classify
+      anything, and it does not survive the process.
+    * THE JOURNAL covers ACROSS-INVOCATION crashes. ``PHASE_PREPARED``/``PHASE_MUTATING``/
+      ``PHASE_READY_TO_COMMIT`` are rolled back idempotently on the next invocation;
+      ``PHASE_COMMITTED_INCOMPLETE`` is RESUMED, never reverted; ``PHASE_UNKNOWN_OUTCOME`` fails
+      closed. A compare-and-swap or a fast-forward can express none of that.
+
+    A REFUSED RECONCILIATION IS NOT ``PHASE_COMMITTED_INCOMPLETE``. In this ordering the ff-only merge
+    IS the branch advance, so a refusal leaves the lifecycle commit UNREACHABLE from the branch:
+    nothing is committed as far as the branch is concerned, so the transaction rolls back and reports
+    the refusal (or the race) honestly. ``PHASE_COMMITTED_INCOMPLETE`` is reached only AFTER the merge
+    succeeded, which is also why a post-commit manifest-refresh failure lands there rather than being
+    rolled back.
     """
     import argparse
 
@@ -2882,56 +3220,6 @@ def _finalize_transaction(
             exit_code, None, f"{reason}; rolled back to pre-finalize state.", evidence
         )
 
-    # --- MUTATING: status write + file move (working-tree only), then owned-index refresh. ---
-    journal["phase"] = PHASE_MUTATING
-    _write_finalize_journal(repo_root, journal)
-    try:
-        _fault("before_mutation")
-        ns = argparse.Namespace(actor=actor, message=message, by_human=False)
-        dest_path, _norm = _ss.apply_status_change(rec, "executed", repo_root, ns)
-        # Record the moved bytes so rollback can distinguish our write from a concurrent one.
-        try:
-            journal["moved_bytes"] = dest_path.read_text(encoding="utf-8")
-        except OSError:
-            journal["moved_bytes"] = None
-        journal["dest_path"] = _repo_relative(repo_root, dest_path)
-        _write_finalize_journal(repo_root, journal)
-        _fault("after_move")
-        _refresh_plans_index_fail_loud(repo_root)
-        _fault("after_index")
-    except _InjectedFault as exc:
-        return _rollback_and_return(f"fault-injected finalize failure ({exc})")
-    except Exception as exc:
-        return _rollback_and_return(f"finalize mutation failed ({exc})")
-
-    dest_path = repo_root / journal["dest_path"]
-
-    # --- READY_TO_COMMIT: stage only owned paths, then the single lifecycle commit. ---
-    #
-    # TWO PATH SETS, deliberately, because `git add` and `commit_isolated` need different things now
-    # that `apply_status_change` relocates with `git mv`.
-    #
-    # `git mv` STAGES the rename, so the plan's OLD location is already in the index and is gone from
-    # disk. Passing it to `git add` fails with "pathspec did not match any files" and rolls the whole
-    # finalize back, so `add_paths` covers only paths that still EXIST. But `commit_isolated` mirrors
-    # each named path into a private worktree and propagates a DELETION for one that is absent, so it
-    # must still hear about the old location or the commit would contain the addition alone -- exactly
-    # the half-move that left a dirty tree and refused 27 items of run `run-20260913T031350Z-1732436`.
-    add_paths = [p for p in owned_paths if (repo_root / p).exists()]
-    stage = list(owned_paths)
-    if add_paths:
-        rc, _out, err = _git(repo_root, ["add", "--", *add_paths])
-        if rc != 0:
-            return _rollback_and_return(f"git add failed ({err.strip()})")
-    journal["phase"] = PHASE_READY_TO_COMMIT
-    journal["staged"] = stage
-    _write_finalize_journal(repo_root, journal)
-
-    try:
-        _fault("before_commit")
-    except _InjectedFault as exc:
-        return _rollback_and_return(f"fault-injected before commit ({exc})")
-
     # The subject grammar is `artifact_core`'s (IPD `zexed1` E-02), not a local literal: the pre-commit
     # gate and the run viewer's discrepancy classifier both MATCH what is produced here, and a
     # hand-written copy in any one of them drifts silently (see `artifact_core.finalize_commit_subject`).
@@ -2940,30 +3228,147 @@ def _finalize_transaction(
         f"\n\n{message}\n\n"
         f"Executed by {actor} via aw ipd finalize."
     )
-    # ISOLATED COMMIT (isocommit). Committing in the SHARED tree lets `pre-commit` stash the whole
-    # working tree, run the hooks, then restore the stash OVER anything a peer wrote meanwhile,
-    # DESTROYING that write (measured 2026-09-06; it is what made retirement of `84j8d7` refuse with a
-    # reason that had nothing to do with its Set). `commit_isolated` runs the SAME hooks in a private
-    # detached worktree and then advances this branch under a compare-and-swap, so the shared tree is
-    # never stashed and a concurrent writer cannot be clobbered by US.
+
+    # --- MUTATING + READY_TO_COMMIT + the commit, ALL IN A COORDINATOR-OWNED WORKTREE (`u23gbn`). ---
     #
-    # WHY THE JOURNAL/CLASSIFY MACHINERY BELOW STILL WORKS UNCHANGED: it classifies by OBSERVED
-    # repository state in `repo_root` (HEAD moved + our `lifecycle(<id>)` subject marker), and the CAS
-    # ref update makes exactly that observable. So the transaction's phases, rollback, and
-    # committed-incomplete resume are unaffected; only WHERE the commit is produced changed.
+    # WHAT MOVED AND WHY. These three used to happen in the SHARED checkout: the status edit and the
+    # `git mv` there, then `commit_isolated` copying those paths into a private DETACHED worktree to
+    # keep `pre-commit`'s stash off the shared tree. That left a real window in which the shared tree
+    # held a moved-but-uncommitted plan (measured: `RM <pending> -> <executed>` at the post-move
+    # instant). Now the mutation happens in the worktree too, so the shared tree is never mid-move.
+    #
+    # WHY NOT `commit_isolated`, which already exists for this. Its copy direction is SHARED ->
+    # WORKTREE (`shutil.copy2(src, dst)` per named path, propagating a deletion when the shared source
+    # is absent), so a mutation performed in a DIFFERENT worktree is invisible to it and the paths it
+    # would be told to commit do not exist in the shared tree at all. MEASURED: it returns
+    # `error` / "git add failed in isolated worktree: fatal: pathspec '<executed path>' did not match
+    # any files", HEAD unmoved, nothing committed. It also performs the ref advance itself, under a
+    # CAS, which is precisely the step that must NOT precede the fast-forward below. It is therefore
+    # left entirely alone (it still backs `git_commit_helper.offer_commit`, the shared self-commit path
+    # behind every other `aw` verb) and this path uses the `coordinator_worktree` sibling instead.
+    #
+    # THE PLAN'S CURRENT BYTES ARE MIRRORED IN, not read from HEAD, and that is behavior-preserving
+    # rather than a nicety: MEASURED on the pre-change code, an executing agent's UNCOMMITTED evidence
+    # edits to its own plan file are carried into the lifecycle commit today. Snapshotting HEAD instead
+    # would silently drop them.
     from agent_workflows import commit_lock as _clock
 
-    _iso = _clock.commit_isolated(repo_root, stage, message=commit_msg)
-    if _iso.status == _clock.ISO_COMMITTED:
-        rc, err = 0, ""
+    journal["phase"] = PHASE_MUTATING
+    _write_finalize_journal(repo_root, journal)
+
+    landed: Optional[str] = None
+    landing: Optional[ReconcileLanding] = None
+    stage = list(owned_paths)
+    try:
+        with _clock.coordinator_worktree(
+            repo_root, label=plan_id, base=pre_head
+        ) as coord:
+            _fault("before_mutation")
+            # Mirror the plan's CURRENT shared-tree bytes to the worktree copy, so an uncommitted
+            # in-progress edit rides the transition exactly as it does today.
+            wt_plan = coord.path / plan_rel
+            wt_plan.parent.mkdir(parents=True, exist_ok=True)
+            wt_plan.write_text(original_bytes, encoding="utf-8")
+            wt_rec = _ss.read_artifact_record(wt_plan, coord.path)
+            if wt_rec is None:
+                raise RuntimeError(
+                    f"could not read the plan record inside the coordinator worktree ({wt_plan})"
+                )
+            ns = argparse.Namespace(actor=actor, message=message, by_human=False)
+            wt_dest, _norm = _ss.apply_status_change(wt_rec, "executed", coord.path, ns)
+            dest_rel = _repo_relative(coord.path, wt_dest)
+            # Record the moved bytes so rollback can distinguish our write from a concurrent one, and
+            # so the post-reconciliation checks read the same content the commit carries.
+            try:
+                journal["moved_bytes"] = wt_dest.read_text(encoding="utf-8")
+            except OSError:
+                journal["moved_bytes"] = None
+            journal["dest_path"] = dest_rel
+            journal["worktree_branch"] = coord.branch
+            _write_finalize_journal(repo_root, journal)
+            _fault("after_move")
+
+            # Stage only paths that still EXIST: `git mv` already staged the rename and removed the
+            # old path from disk, and `git add` on a vanished path exits 128 ("pathspec did not match
+            # any files"), which would abort the whole transaction. The rename is already in this
+            # worktree's index, so the commit carries BOTH halves of the move.
+            owned_paths = [plan_rel, dest_rel]
+            stage = list(owned_paths)
+            add_paths = [p for p in owned_paths if (coord.path / p).exists()]
+            if add_paths:
+                rc, _out, err = _git(coord.path, ["add", "--", *add_paths])
+                if rc != 0:
+                    raise RuntimeError(
+                        f"git add failed in the coordinator worktree ({err.strip()})"
+                    )
+            journal["phase"] = PHASE_READY_TO_COMMIT
+            journal["staged"] = stage
+            journal["owned_paths"] = owned_paths
+            _write_finalize_journal(repo_root, journal)
+            _fault("before_commit")
+
+            # The REAL commit, hooks and all, in a tree nothing else writes to. `pre-commit` stashes
+            # and restores HERE, so a peer's in-flight write in the shared tree cannot be clobbered by
+            # us. NO pathspec: this worktree's index holds exactly our own rename.
+            rc, out, err = _git(coord.path, ["commit", "-m", commit_msg])
+            if rc != 0:
+                combined = f"{out}\n{err}".strip()
+                raise _CommitRefused(
+                    f"the lifecycle commit was rejected in the coordinator worktree (hooks ran): "
+                    f"{combined}"
+                )
+            rc, sha, err = _git(coord.path, ["rev-parse", "HEAD"])
+            if rc != 0:
+                raise RuntimeError(f"cannot resolve the worktree commit: {err.strip()}")
+            landed = sha.strip()
+            journal["worktree_commit"] = landed
+            _write_finalize_journal(repo_root, journal)
+
+            # Release THIS TRANSACTION'S OWN uncommitted edit to the plan file, and nothing else, so
+            # the fast-forward is not blocked by the very bytes it is landing. Provably lossless (the
+            # bytes are verified to be our own mirror input AND to be carried by the landed commit) and
+            # a no-op in every other case, including a peer's edit, which must keep refusing below.
+            released = _release_own_plan_edit_before_landing(
+                repo_root,
+                plan_rel,
+                landed=landed,
+                dest_rel=dest_rel,
+                mirrored_bytes=original_bytes,
+                committed_bytes=journal.get("moved_bytes"),
+            )
+            if released:
+                evidence.setdefault("reconciliation_prep", []).append(released)
+
+            # --- LAND IT: the ff-only merge is the SINGLE step that advances the branch AND updates
+            # the shared working tree. Never `update-ref` first (that makes this a reporting-success
+            # no-op and hides the peer-protecting refusal), and never force a refusal.
+            landing = land_worktree_commit(repo_root, landed, expected_base=pre_head)
+    except _InjectedFault as exc:
+        return _rollback_and_return(f"fault-injected finalize failure ({exc})")
+    except _CommitRefused as exc:
+        # A hook rejection. Nothing landed and the branch never moved, so the shape the classification
+        # below expects is a nonzero rc plus operator-facing text.
+        rc, err = 1, str(exc)
+    except Exception as exc:
+        return _rollback_and_return(f"finalize mutation failed ({exc})")
     else:
-        # Preserve the shape the classification below expects: a nonzero rc plus stderr-ish text.
-        rc, err = 1, _iso.detail
-        if _iso.status == _clock.ISO_RACED:
-            # A peer commit landed between our snapshot and the ref move. Our work is preserved as a
-            # reachable commit (named in the detail) and the branch was NOT moved, so rolling back is
-            # correct and loses nothing.
-            err = f"{_iso.detail} [isolated commit preserved: {_iso.commit}]"
+        assert landing is not None
+        if landing.status == RECONCILED_OK:
+            rc, err = 0, ""
+        else:
+            # REFUSED or RACED. In this ordering the ff-only merge IS the branch advance, so the
+            # lifecycle commit is NOT reachable from the branch and nothing is committed as far as the
+            # branch is concerned: rolling back is correct and loses nothing, because the coordinator
+            # worktree's commit was deliberately abandoned with its branch.
+            rc, err = 1, landing.detail
+            evidence["reconciliation"] = {
+                "status": landing.status,
+                "returncode": landing.returncode,
+                "paths": list(landing.paths),
+                "detail": landing.detail,
+            }
+
+    dest_path = repo_root / journal["dest_path"]
 
     # --- CLASSIFY the commit boundary by OBSERVED repository state (E-03). ---
     lifecycle_commit = _lifecycle_commit_exists(repo_root, pre_head, plan_id)
@@ -2996,6 +3401,44 @@ def _finalize_transaction(
     journal["phase"] = PHASE_COMMITTED_INCOMPLETE
     journal["lifecycle_commit"] = lifecycle_commit
     _write_finalize_journal(repo_root, journal)
+
+    # --- THE FAIL-LOUD PLANS-INDEX REFRESH, DELIBERATELY AFTER THE RECONCILIATION (`u23gbn` E-07). ---
+    #
+    # THIS ORDERING IS LOAD-BEARING, NOT TIDINESS. The refresh regenerates the manifests by SCANNING
+    # THE PLANS TREE ON DISK and then re-runs `--check`, RAISING if it did not converge. While the
+    # relocation happened in the shared tree, running it inside the mutating phase was correct: the
+    # disk already showed the plan at `executed/`. Once the relocation moved into the coordinator
+    # worktree, the shared disk still showed `pending/` at that point, so the manifest was generated
+    # describing the OLD layout, converged against it, and the gate PASSED -- and then the merge
+    # relocated the file and the manifest was instantly stale. MEASURED: the manifest named the
+    # `pending/` path and not the `executed/` one, and `aw index plans --check` returned rc=1 with
+    # `check.stale-index-stale` on BOTH manifests, which is exactly the state the gate exists to
+    # prevent, reported as success. So the gate did not merely mis-order, it INVERTED.
+    #
+    # DO NOT INSTEAD REGENERATE IN THE WORKTREE. The manifests are GITIGNORED, so a fresh worktree
+    # never receives them, a regeneration there is discarded with the worktree, and the shared copies
+    # keep their stale bytes.
+    #
+    # A FAILURE HERE IS NOW POST-COMMIT, hence COMMITTED-INCOMPLETE rather than a rollback: the journal
+    # is already in that phase above, the commit has LANDED, and a landed lifecycle commit is resumed,
+    # never reverted. The remedy is mechanical and local (`aw index plans`), because the manifests are
+    # gitignored generated views that no `aw` verb commits.
+    try:
+        _refresh_plans_index_fail_loud(repo_root)
+        _fault("after_index")
+    except Exception as exc:
+        evidence["plans_index_refresh"] = {"error": str(exc)}
+        return FinalizeResult(
+            EXIT_FINDINGS,
+            lifecycle_commit,
+            f"finalize is COMMITTED-INCOMPLETE for {plan_id}: the lifecycle commit "
+            f"{lifecycle_commit[:12]} LANDED, but the fail-loud plans-index refresh did not converge "
+            f"({exc}). The commit is NOT rolled back (a landed lifecycle commit is resumed, never "
+            "reverted) and the manifests are gitignored generated views, so the remedy is to run "
+            f"`aw index plans` and then re-run the SAME command to resume.",
+            evidence,
+            (f"plans-index refresh failed after the lifecycle commit: {exc}",),
+        )
 
     return _complete_after_commit(
         repo_root, dest_path, plan_id, lifecycle_commit, actor, evidence

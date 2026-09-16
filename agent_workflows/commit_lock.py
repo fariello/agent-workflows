@@ -292,6 +292,93 @@ def commit_isolated(
         _git(repo_root, ["worktree", "prune"])
 
 
+class WorktreeCommit(NamedTuple):
+    """A coordinator-owned branch worktree in which a caller performs and commits its mutations.
+
+    ``path`` is the worktree directory, ``branch`` the short-lived branch it is checked out on, and
+    ``base`` the commit it was created at. Nothing about it is advanced on the caller's branch: the
+    caller lands the work with its own ``git merge --ff-only <commit>`` and can therefore see (and
+    report) a refusal instead of clobbering a peer.
+    """
+
+    path: Path
+    branch: str
+    base: str
+
+
+COORDINATOR_WORKTREE_PREFIX = "aw/coordinator/"
+
+
+@contextlib.contextmanager
+def coordinator_worktree(
+    repo_root: Path, *, label: str, base: Optional[str] = None
+) -> Iterator[WorktreeCommit]:
+    """Yield a throwaway worktree ON ITS OWN BRANCH, owned by the COORDINATOR, and clean it up.
+
+    WHY A SIBLING OF :func:`commit_isolated` RATHER THAN A PARAMETER ON IT (plan `u23gbn` OQ-04,
+    resolved by the maintainer). ``commit_isolated`` exists to commit onto the branch the operator's
+    OWN checkout has checked out, and git permits only ONE worktree per branch, so it must use
+    ``--detach``, which leaves it no branch to commit onto, which is why it then moves the ref itself
+    under a compare-and-swap. That CAS is exactly the step a caller which wants to reconcile the
+    shared tree by fast-forward must NOT have already performed (measured: after a CAS the
+    ``--ff-only`` merge prints "Already up to date." and never touches the working tree, so the
+    peer-protecting refusal becomes unreachable). Minting a NEW branch removes all of that: the
+    one-worktree-per-branch rule is satisfied for free, the commit is an ordinary commit, and the
+    branch advance becomes the CALLER's single ``git merge --ff-only``.
+
+    ``commit_isolated`` IS DELIBERATELY LEFT UNTOUCHED. It backs ``git_commit_helper.offer_commit``,
+    the one shared self-commit path behind ``aw set``/``aw rename``/``aw commit``/``aw archive``/
+    ``aw specs``/``work_cmd`` and the runners, which ``AGENTS.md`` names as immune by construction to
+    sweeping a co-worker's work into a commit. Teaching it a caller-supplied worktree plus a
+    no-advance mode would put that guarantee behind a combination no existing caller exercises.
+
+    THE MUTATION HAPPENS HERE, NOT IN THE SHARED TREE, which is the whole point: unlike
+    ``commit_isolated`` this helper copies NOTHING in. The caller performs its edits and its
+    relocation inside ``path`` and commits there. So a caller must NOT assume the shared tree's
+    uncommitted content is present; mirror in whatever it needs first (see
+    ``ipd_lifecycle._finalize_transaction``, which mirrors the plan's CURRENT bytes so an executing
+    agent's uncommitted evidence edits still ride the lifecycle commit, as they do today).
+
+    CLEANUP is unconditional and removes the worktree AND the branch. That is safe here BECAUSE the
+    caller has already landed (or deliberately abandoned) the commit: a landed commit is reachable
+    from the caller's branch and survives the branch deletion, while an unlanded one is intentionally
+    discarded. Do not use this helper to hold work across invocations.
+    """
+    import shutil
+    import tempfile
+
+    rc, head, err = _git(repo_root, ["rev-parse", "HEAD"])
+    if rc != 0:
+        raise RuntimeError(
+            f"cannot resolve HEAD for a coordinator worktree: {err.strip()}"
+        )
+    base_sha = (base or head).strip()
+
+    # A unique branch per invocation: two retirements (or a retirement and a finalize) can be in
+    # flight in one checkout, and a shared branch name would make the second `worktree add` fail.
+    suffix = f"{os.getpid()}-{int(time.time() * 1000) % 1_000_000}"
+    branch = f"{COORDINATOR_WORKTREE_PREFIX}{label}-{suffix}"
+    wt = Path(tempfile.mkdtemp(prefix=".aw-coordinator-", dir=str(repo_root.parent)))
+    created_branch = False
+    try:
+        rc, _o, err = _git(
+            repo_root, ["worktree", "add", "-q", "-b", branch, str(wt), base_sha]
+        )
+        if rc != 0:
+            raise RuntimeError(
+                f"could not create the coordinator worktree on {branch}: {err.strip()}"
+            )
+        created_branch = True
+        yield WorktreeCommit(path=wt, branch=branch, base=base_sha)
+    finally:
+        _git(repo_root, ["worktree", "remove", "--force", str(wt)])
+        if wt.exists():
+            shutil.rmtree(wt, ignore_errors=True)
+        _git(repo_root, ["worktree", "prune"])
+        if created_branch:
+            _git(repo_root, ["branch", "-D", branch])
+
+
 def try_acquire(repo_root: Path, *, owner: str) -> bool:
     """Take the lock if free or STALE. Returns False when a LIVE process holds it.
 

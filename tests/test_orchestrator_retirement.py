@@ -2077,7 +2077,22 @@ class TheSharedGatesActuallyFireOnTheRollupPath(RollupTransitionCase):
         )
 
     def test_a_FAILING_plans_index_refresh_fails_the_whole_transaction(self):
-        """Fail-loud, not the `status_set` swallow: a stale index is a transaction failure."""
+        """Fail-loud, not the `status_set` swallow: a stale index still FAILS the transaction.
+
+        WHAT CHANGED, AND WHY IT IS NOT A WEAKENING (plan `u23gbn` E-07). The refresh used to run
+        INSIDE the mutating phase, so a failure rolled back and HEAD was unmoved. It now runs AFTER
+        the reconciliation, because the relocation happens in a coordinator-owned worktree and the
+        SHARED disk still shows the plan at `pending/` during the mutating phase: refreshing there
+        generated a manifest describing the OLD layout, converged against it, and the gate PASSED,
+        after which the merge relocated the file and the manifest was instantly stale. That INVERTED
+        the gate into a false pass leaving `check.stale-index-stale` unreported.
+
+        So the gate is still FAIL-LOUD and still refuses; what moved is the classification. The
+        lifecycle commit has LANDED by the time the refresh runs, so the outcome is
+        COMMITTED-INCOMPLETE and the commit is deliberately NOT reverted (a landed lifecycle commit is
+        resumed, never rolled back), with a mechanical local remedy because the manifests are
+        gitignored generated views.
+        """
 
         from unittest import mock
 
@@ -2091,7 +2106,21 @@ class TheSharedGatesActuallyFireOnTheRollupPath(RollupTransitionCase):
             res = self.retire(orch, "idx", apply=True)
         self.assertNotEqual(res.exit_code, LC.EXIT_OK)
         self.assertIn("index boom", res.message)
-        self.assertEqual(_git(self.root, "rev-parse", "HEAD").strip(), head)
+        # NOT reported as success, and recorded as committed-incomplete rather than rolled back.
+        self.assertIn("COMMITTED-INCOMPLETE", res.message)
+        journal = LC.read_finalize_journal(self.root, "orc000")
+        assert journal is not None
+        self.assertEqual(journal["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
+        # The commit LANDED, so HEAD moved and the plan is at its executed/ path. Reverting it is
+        # exactly what `_resume_post_commit` refuses to do.
+        self.assertNotEqual(_git(self.root, "rev-parse", "HEAD").strip(), head)
+        self.assertEqual(res.commit, _git(self.root, "rev-parse", "HEAD").strip())
+        self.assertTrue(
+            (
+                self.root
+                / ".aw/records/plans/executed/20260906-idx-00-orc000-synthetic.ipd.md"
+            ).is_file()
+        )
 
     def test_post_transition_lint_gates_the_rollup_too(self):
         """The honesty checker still runs; the rollup skips only the PRE-transition E/V checkpoint."""
@@ -2161,6 +2190,14 @@ class GateParityBetweenTheTwoPaths(unittest.TestCase):
         "plans-index-refresh-fail-loud": "_refresh_plans_index_fail_loud raises",
         "path-scoped-lifecycle-commit": "git commit -- <owned_paths>",
         "post-transition-lint": "_complete_after_commit lints post-transition",
+        # plan `u23gbn` E-06. Listed HERE, in the contract table, for the same reason the lock and the
+        # journal are: it is the step whose REFUSAL protects a co-worker's uncommitted bytes, so a
+        # change that forced it (or that advanced the ref some other way, making it a no-op) would
+        # remove the protection while every other assertion in this file still passed.
+        "refusing-fast-forward-reconciliation": (
+            "land_worktree_commit runs `git merge --ff-only` as the SINGLE branch advance and "
+            "REFUSES rather than clobbering"
+        ),
     }
 
     def test_every_required_gate_is_declared_shared(self):
@@ -3635,6 +3672,794 @@ class TheDocumentedClaimMatchesTheCode(unittest.TestCase):
         once, _ = engine.merge_aw_block(current, sections, default_header="# AGENTS")
         twice, _ = engine.merge_aw_block(once, sections, default_header="# AGENTS")
         self.assertEqual(once, twice, "a second render must be a no-op")
+
+
+# ==================================================================================================
+# THE COORDINATOR-OWNED WORKTREE AND THE REFUSING FAST-FORWARD (plan `u23gbn`)
+# ==================================================================================================
+
+
+def _executable_source(func) -> str:
+    """``func``'s source with COMMENTS AND ITS DOCSTRING removed, for a "does not call X" assertion.
+
+    WHY THIS IS NOT PEDANTRY. The functions asserted against here deliberately NAME the operations
+    they must never perform (`git update-ref`, `git reset --hard`, `git checkout -f`), because naming
+    them with the reason is what stops a future reader reintroducing the defect. A substring check over
+    the raw source therefore fails on the WARNING rather than on the behavior, and the cheapest way to
+    make such a test pass is to delete the warning. Stripping comments and the docstring keeps the
+    assertion pointed at the code.
+    """
+    import ast
+    import inspect
+    import textwrap
+
+    src = textwrap.dedent(inspect.getsource(func))
+    tree = ast.parse(src)
+    body = tree.body[0]
+    assert isinstance(body, (ast.FunctionDef, ast.AsyncFunctionDef))
+    statements = list(body.body)
+    if (
+        statements
+        and isinstance(statements[0], ast.Expr)
+        and isinstance(statements[0].value, ast.Constant)
+        and isinstance(statements[0].value.value, str)
+    ):
+        statements = statements[1:]
+    # `ast.unparse` drops comments and normalizes the docstring away entirely, which is exactly the
+    # normalization wanted: what remains is executable code and nothing else.
+    return "\n".join(ast.unparse(node) for node in statements)
+
+
+def _git_arg_lists(func) -> list[list[str]]:
+    """The LITERAL leading git arguments of each `_git(..., [...])` call in ``func``.
+
+    Stronger than a substring check and immune to prose: it reads the argument LIST of every `_git`
+    call, so an assertion can say "this function runs no `git reset`" without tripping over a message
+    that merely contains the word "reset" (or "the shared checkout"). Only leading string CONSTANTS are
+    collected; a variable argument stops that call's list, which is fine because the subcommand is
+    always a literal.
+    """
+    import ast
+    import inspect
+    import textwrap
+
+    tree = ast.parse(textwrap.dedent(inspect.getsource(func)))
+    calls: list[list[str]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        target = node.func
+        name = getattr(target, "id", None) or getattr(target, "attr", None)
+        if name != "_git" or len(node.args) < 2:
+            continue
+        arglist = node.args[1]
+        if not isinstance(arglist, (ast.List, ast.Tuple)):
+            continue
+        literal: list[str] = []
+        for element in arglist.elts:
+            if isinstance(element, ast.Constant) and isinstance(element.value, str):
+                literal.append(element.value)
+            else:
+                break
+        if literal:
+            calls.append(literal)
+    return calls
+
+
+class TheSharedCheckoutIsNotWhereTheMutationHappens(RollupTransitionCase):
+    """E-05/V-05: MEASURE the shared checkout at each observable instant of a SUCCESSFUL retirement.
+
+    WHY NOT FAULT INJECTION, which the plan originally prescribed and which cannot work. Injecting a
+    fault RAISES `_InjectedFault` and ABORTS the transaction, so by construction it can only ever
+    observe a FAILED retirement. These tests use a real observation SEAM instead, which needs no
+    production change: patch a function the transaction calls at the instant of interest and delegate
+    to the real one.
+
+    THE ASSERTION IS A COMPARISON, NOT A CLAIM OF CLEANLINESS. The pre-change baseline, measured at
+    HEAD `73e284a6` by patching `_refresh_plans_index_fail_loud` (post-move) and
+    `commit_lock.commit_isolated` (pre-commit), was:
+
+        post-move:   RM .aw/records/plans/pending/<plan> -> .aw/records/plans/executed/<plan>
+                      M peer.txt
+        pre-commit:  R  .aw/records/plans/pending/<plan> -> .aw/records/plans/executed/<plan>
+                      M peer.txt
+                     ?? .aw/records/plans/INDEX.json
+                     ?? .aw/records/plans/INDEX.md
+
+    THE INSTANTS MOVE, WHICH IS WHY THEY ARE NAMED EXPLICITLY. Both original patch points are changed
+    by this plan: the index refresh relocated to AFTER the reconciliation (so it is no longer the
+    post-move instant) and `commit_isolated` is no longer the call that commits this transaction. The
+    counterpart instants in the new sequence are:
+
+    * POST-MOVE  -> the moment `land_worktree_commit` is entered, i.e. after the status edit, the plan
+      move AND the commit have all happened in the coordinator worktree and immediately BEFORE the
+      shared checkout is touched at all. It is the strictly LATER counterpart of the old post-move
+      sample, so anything the old sample showed must be absent here a fortiori.
+    * PRE-COMMIT -> the same instant, for the same reason: the commit no longer happens in a second
+      step against the shared tree, so "immediately before the commit" and "immediately before the
+      shared tree is written" are now the same point. Asserted as a separate sample anyway, taken
+      inside the coordinator worktree's `git commit`, so a future change that reintroduces a
+      shared-tree commit step is caught.
+
+    THE RESIDUE THAT REMAINS, enumerated rather than left to be inferred: the peer's own unrelated
+    dirty file (never ours to touch), and after the transaction the two GITIGNORED plans manifests
+    (`INDEX.json`/`INDEX.md`), which are regenerated generated views that no `aw` verb commits and
+    which do not appear in this repository's own `git status` at all because `.aw/.gitignore` ignores
+    them. What must NOT appear at either instant is a staged rename of the plan or the plan present at
+    its `executed/` path in the shared tree.
+    """
+
+    def _retire_with_samples(self, setid: str):
+        """Retire, sampling `git status --porcelain` in the SHARED tree at both instants."""
+
+        from unittest import mock
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set(setid, [("aaa111", 1, "executed", "executed")])
+        # A peer's unrelated uncommitted edit, so a sample can distinguish plan dirt from peer dirt.
+        (self.root / "peer.txt").write_text("peer v1\n", encoding="utf-8")
+        _git(self.root, "add", "peer.txt")
+        import subprocess
+
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "peer base"], cwd=self.root, check=True
+        )
+        (self.root / "peer.txt").write_text("peer v2 UNCOMMITTED\n", encoding="utf-8")
+
+        samples: dict[str, str] = {}
+        real_land = LC.land_worktree_commit
+        real_git = LC._git
+
+        def spy_land(repo_root, landed, *, expected_base=None):
+            samples["pre-shared-write"] = _git(repo_root, "status", "--porcelain")
+            return real_land(repo_root, landed, expected_base=expected_base)
+
+        def spy_git(root, args):
+            # The commit inside the coordinator worktree: sample the SHARED tree at that instant.
+            if (
+                args
+                and args[0] == "commit"
+                and Path(root).resolve() != self.root.resolve()
+            ):
+                samples["pre-commit"] = _git(self.root, "status", "--porcelain")
+            return real_git(root, args)
+
+        # NOTE the seam is `ipd_lifecycle._git`, NOT `commit_lock._git`: the commit is no longer made
+        # by `commit_isolated`, so patching that module would observe nothing and pass vacuously.
+        pre = _git(self.root, "rev-parse", "HEAD").strip()
+        with mock.patch.object(LC, "land_worktree_commit", spy_land):
+            with mock.patch.object(LC, "_git", spy_git):
+                res = self.retire(orch, setid, apply=True)
+        return orch, res, samples, pre
+
+    def test_neither_instant_shows_a_staged_rename_or_the_moved_plan(self):
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch, res, samples, _pre = self._retire_with_samples("instant")
+        self.assertEqual(res.exit_code, LC.EXIT_OK, f"{res.message} {res.findings}")
+        self.assertIn("pre-commit", samples, "the pre-commit instant was never sampled")
+        self.assertIn(
+            "pre-shared-write",
+            samples,
+            "the pre-shared-write instant was never sampled",
+        )
+        for instant, text in samples.items():
+            with self.subTest(instant=instant):
+                lines = [ln for ln in text.splitlines() if ln.strip()]
+                # NO staged rename of the plan (`R`/`RM` in the first column) at all.
+                self.assertEqual(
+                    [ln for ln in lines if ln[:1] == "R"],
+                    [],
+                    f"the shared checkout holds a staged rename at the {instant} instant: {lines}",
+                )
+                # And the plan is not present at its executed/ path in the shared tree yet.
+                self.assertEqual(
+                    [ln for ln in lines if "/executed/" in ln],
+                    [],
+                    f"the moved plan appears in the shared tree at the {instant} instant: {lines}",
+                )
+                # The ONLY entry is the peer's own file, which was never ours to touch.
+                self.assertEqual(
+                    [ln for ln in lines if "peer.txt" not in ln],
+                    [],
+                    f"unexpected shared-tree residue at the {instant} instant: {lines}",
+                )
+        # And the plan file itself was never moved out from under the shared tree mid-transaction:
+        # it is at pending/ at both instants and at executed/ only afterwards.
+        self.assertFalse(orch.exists())
+        self.assertTrue(
+            (
+                self.root
+                / ".aw/records/plans/executed/20260906-instant-00-orc000-synthetic.ipd.md"
+            ).is_file()
+        )
+
+    def test_the_peers_uncommitted_bytes_survive_verbatim(self):
+        _orch, res, _samples, _pre = self._retire_with_samples("peerbytes")
+        self.assertEqual(res.exit_code, 0, res.message)
+        self.assertEqual(
+            (self.root / "peer.txt").read_text(encoding="utf-8"),
+            "peer v2 UNCOMMITTED\n",
+        )
+
+    def test_main_advances_by_exactly_one_commit_carrying_only_the_rename(self):
+        _orch, res, _samples, pre = self._retire_with_samples("onecommit")
+        self.assertEqual(res.exit_code, 0, res.message)
+        self.assertEqual(
+            _git(self.root, "rev-list", "--count", f"{pre}..HEAD").strip(), "1"
+        )
+        assert res.commit is not None
+        self.assertEqual(_git(self.root, "rev-parse", "HEAD").strip(), res.commit)
+        changed = set(
+            _git(
+                self.root,
+                "show",
+                "--name-only",
+                "--no-renames",
+                "--format=",
+                res.commit,
+            ).split()
+        )
+        self.assertEqual(
+            changed,
+            {
+                ".aw/records/plans/pending/20260906-onecommit-00-orc000-synthetic.ipd.md",
+                ".aw/records/plans/executed/20260906-onecommit-00-orc000-synthetic.ipd.md",
+            },
+            sorted(changed),
+        )
+
+    def test_the_commit_is_produced_in_a_worktree_that_is_NOT_the_shared_checkout(self):
+        """The property E-01 is really about, asserted on the observed commit CWD.
+
+        A test that only checked the end state could not distinguish "committed in a worktree" from
+        "committed in the shared tree and then cleaned up", which is exactly the difference that
+        matters to a peer whose file `pre-commit` would otherwise stash.
+        """
+
+        from unittest import mock
+
+        from agent_workflows import commit_lock as CL
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("wtcommit", [("aaa111", 1, "executed", "executed")])
+        real_git = LC._git
+        commit_roots: list[str] = []
+
+        def spy_git(root, args):
+            if args and args[0] == "commit":
+                commit_roots.append(str(root))
+            return real_git(root, args)
+
+        with mock.patch.object(LC, "_git", spy_git):
+            res = self.retire(orch, "wtcommit", apply=True)
+        self.assertEqual(res.exit_code, LC.EXIT_OK, res.message)
+        self.assertTrue(commit_roots, "no git commit was observed at all")
+        for root in commit_roots:
+            with self.subTest(root=root):
+                self.assertNotEqual(
+                    Path(root).resolve(),
+                    self.root.resolve(),
+                    "the lifecycle commit ran in the SHARED checkout, which is what lets "
+                    "pre-commit stash a peer's in-flight write",
+                )
+        # No coordinator worktree or branch is left behind.
+        self.assertNotIn("aw-coordinator-", _git(self.root, "worktree", "list"))
+        self.assertNotIn(
+            CL.COORDINATOR_WORKTREE_PREFIX, _git(self.root, "branch", "--list", "-a")
+        )
+
+
+class TheSharedTreeIsReconciledByARefusingFastForward(RollupTransitionCase):
+    """E-06/V-06: the three arms of the reconciliation, exercised through the REAL code path.
+
+    Each arm is measured, not asserted from prose, and the arms are distinguished by git's EXIT CODE
+    plus the tree state, never by string-matching git's message (the two failure arms word themselves
+    differently: `error:` with rc=1 for the would-be-overwritten refusal, `fatal:` with rc=128 for
+    divergence).
+    """
+
+    def test_the_clean_arm_fast_forwards_and_leaves_only_the_peers_dirt(self):
+        import subprocess
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("ffclean", [("aaa111", 1, "executed", "executed")])
+        (self.root / "peer.txt").write_text("peer v1\n", encoding="utf-8")
+        _git(self.root, "add", "peer.txt")
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "peer base"], cwd=self.root, check=True
+        )
+        (self.root / "peer.txt").write_text("peer v2 UNCOMMITTED\n", encoding="utf-8")
+
+        from unittest import mock
+
+        seen: dict[str, object] = {}
+        real_land = LC.land_worktree_commit
+
+        def spy(repo_root, landed, *, expected_base=None):
+            out = real_land(repo_root, landed, expected_base=expected_base)
+            seen["landing"] = out
+            return out
+
+        with mock.patch.object(LC, "land_worktree_commit", spy):
+            res = self.retire(orch, "ffclean", apply=True)
+        self.assertEqual(res.exit_code, LC.EXIT_OK, f"{res.message} {res.findings}")
+        landing = seen["landing"]
+        self.assertEqual(landing.status, LC.RECONCILED_OK, landing.detail)  # type: ignore[union-attr]
+        self.assertEqual(landing.returncode, 0)  # type: ignore[union-attr]
+        # THE NO-OP ORDERING IS RULED OUT EXPLICITLY: the broken sequence passes every other
+        # assertion here, and its signature is git reporting "Already up to date." while the tree
+        # keeps a staged D/A pair.
+        self.assertIn("Fast-forward", landing.detail)  # type: ignore[union-attr]
+        self.assertNotIn("Already up to date", landing.detail)  # type: ignore[union-attr]
+        porcelain = [
+            ln
+            for ln in _git(self.root, "status", "--porcelain").splitlines()
+            if ln.strip()
+        ]
+        # NOTHING ABOUT THE PLAN: no staged rename, no half-move, no `D `/`A ` pair (the exact
+        # signature of the no-op ordering). The peer's own entry stays, and so do the two GENERATED
+        # plans manifests, which this fixture's `.gitignore` does not cover but the real repository's
+        # `.aw/.gitignore` does (verified there with `git check-ignore`), so they cannot dirty a real
+        # checkout. Enumerated rather than filtered away, so the residue is a stated property.
+        self.assertEqual(
+            [ln for ln in porcelain if "peer.txt" not in ln and "/INDEX." not in ln],
+            [],
+            f"the shared checkout holds more than the peer's dirt: {porcelain}",
+        )
+        self.assertEqual(
+            [ln for ln in porcelain if "-orc000-" in ln],
+            [],
+            f"the plan itself is dirty in the shared checkout after landing: {porcelain}",
+        )
+        self.assertEqual(
+            (self.root / "peer.txt").read_text(encoding="utf-8"),
+            "peer v2 UNCOMMITTED\n",
+        )
+        self.assertTrue(
+            (
+                self.root
+                / ".aw/records/plans/executed/20260906-ffclean-00-orc000-synthetic.ipd.md"
+            ).is_file()
+        )
+
+    def test_the_ff_only_merge_is_what_advances_the_branch_not_a_separate_update_ref(
+        self,
+    ):
+        """The ordering bug F-10 measured, pinned at the SOURCE as well as by behavior.
+
+        A separate `update-ref` before the reconciliation makes the merge a no-op that REPORTS
+        SUCCESS, and makes the peer-protecting refusal unreachable because git never performs the
+        would-be-overwritten check. That cannot be observed from a passing happy path, so it is
+        asserted directly.
+        """
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        # CODE ONLY, with comments and docstrings stripped. Both deliberately DISCUSS `update-ref` and
+        # the forcing commands in order to FORBID them, and a naive substring check over the whole
+        # source would fail on the explanation rather than on the behavior, which would pressure a
+        # future reader into deleting the warning that keeps the defect from coming back.
+        code = _executable_source(LC._finalize_transaction)
+        self.assertNotIn(
+            "update-ref",
+            code,
+            "the transaction must not advance the branch itself; the ff-only merge in "
+            "`land_worktree_commit` is the single step that moves the ref AND the working tree",
+        )
+        self.assertIn("land_worktree_commit", code)
+        # THE LANDER'S ACTUAL GIT ARGUMENT LISTS, not its prose. Its message legitimately contains the
+        # words "checkout" ("the shared checkout") and "reset" would be equally easy to say in an
+        # explanation, so the assertion inspects the git invocations themselves: the only mutating one
+        # may be the ff-only merge.
+        land_calls = _git_arg_lists(LC.land_worktree_commit)
+        self.assertIn(
+            ["merge", "--ff-only"],
+            [c[:2] for c in land_calls],
+            f"the lander must run the ff-only merge; observed {land_calls}",
+        )
+        forbidden = {"reset", "checkout", "restore", "clean", "stash", "update-ref"}
+        for call in land_calls:
+            with self.subTest(call=call):
+                self.assertNotIn(
+                    call[0] if call else "",
+                    forbidden,
+                    "a refusal must never be forced or worked around: git is protecting a "
+                    f"co-worker's uncommitted bytes (observed `git {' '.join(call)}`)",
+                )
+
+    def test_the_contended_arm_refuses_and_the_peers_bytes_survive(self):
+        """A local modification to the plan being moved: git refuses (rc=1) and nothing is lost.
+
+        THE ORCHESTRATOR'S OWN dirty plan file is refused UP FRONT by
+        `_assert_rollup_touched_only_owned_paths`, so this arm is reached on the rollup path only by a
+        race in which the file becomes dirty DURING the transaction. That race is what is simulated:
+        the peer's edit lands while the coordinator worktree is committing.
+        """
+
+        from unittest import mock
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("ffdirty", [("aaa111", 1, "executed", "executed")])
+        head = _git(self.root, "rev-parse", "HEAD").strip()
+        original = orch.read_text(encoding="utf-8")
+        peer_bytes = original + "\nPEER EDIT IN FLIGHT, uncommitted\n"
+        real_git = LC._git
+
+        def spy_git(root, args):
+            # Land the peer's edit on the plan file just as the worktree commits, i.e. after the
+            # up-front dirty check has already passed.
+            if (
+                args
+                and args[0] == "commit"
+                and Path(root).resolve() != self.root.resolve()
+            ):
+                orch.write_text(peer_bytes, encoding="utf-8")
+            return real_git(root, args)
+
+        seen: dict[str, object] = {}
+        real_land = LC.land_worktree_commit
+
+        def spy_land(repo_root, landed, *, expected_base=None):
+            out = real_land(repo_root, landed, expected_base=expected_base)
+            seen["landing"] = out
+            return out
+
+        with mock.patch.object(LC, "_git", spy_git):
+            with mock.patch.object(LC, "land_worktree_commit", spy_land):
+                res = self.retire(orch, "ffdirty", apply=True)
+
+        landing = seen["landing"]
+        self.assertEqual(landing.status, LC.RECONCILED_REFUSED, landing.detail)  # type: ignore[union-attr]
+        self.assertEqual(landing.returncode, 1, landing.detail)  # type: ignore[union-attr]
+        self.assertIn(
+            ".aw/records/plans/pending/20260906-ffdirty-00-orc000-synthetic.ipd.md",
+            landing.paths,  # type: ignore[union-attr]
+        )
+        # NOT reported as success, and the refusal is surfaced with git's own text.
+        self.assertNotEqual(res.exit_code, LC.EXIT_OK, res.message)
+        self.assertIn("would be overwritten", res.message)
+        # THE PEER'S BYTES SURVIVE, verbatim, which is the whole point.
+        self.assertEqual(orch.read_text(encoding="utf-8"), peer_bytes)
+        # The branch was NOT advanced, so the commit is NOT reachable: this is emphatically NOT
+        # committed-incomplete, and the recorded classification must agree with that reality.
+        self.assertEqual(_git(self.root, "rev-parse", "HEAD").strip(), head)
+        journal = LC.read_finalize_journal(self.root, "orc000")
+        if journal is not None:
+            self.assertNotEqual(journal.get("phase"), LC.PHASE_COMMITTED_INCOMPLETE)
+
+    def test_the_diverged_arm_is_a_race_with_its_own_exit_code(self):
+        """A peer COMMIT landing mid-transaction: rc=128, no fast-forward exists, tree clean."""
+
+        import subprocess
+        from unittest import mock
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("ffrace", [("aaa111", 1, "executed", "executed")])
+        real_git = LC._git
+
+        def spy_git(root, args):
+            if (
+                args
+                and args[0] == "commit"
+                and Path(root).resolve() != self.root.resolve()
+            ):
+                # A peer commits something unrelated to main while we are committing.
+                (self.root / "peer.txt").write_text("peer landed\n", encoding="utf-8")
+                subprocess.run(["git", "add", "peer.txt"], cwd=self.root, check=True)
+                subprocess.run(
+                    ["git", "commit", "-q", "-m", "peer landed first"],
+                    cwd=self.root,
+                    check=True,
+                )
+            return real_git(root, args)
+
+        seen: dict[str, object] = {}
+        real_land = LC.land_worktree_commit
+
+        def spy_land(repo_root, landed, *, expected_base=None):
+            out = real_land(repo_root, landed, expected_base=expected_base)
+            seen["landing"] = out
+            seen["landed"] = landed
+            return out
+
+        with mock.patch.object(LC, "_git", spy_git):
+            with mock.patch.object(LC, "land_worktree_commit", spy_land):
+                res = self.retire(orch, "ffrace", apply=True)
+
+        landing = seen["landing"]
+        self.assertEqual(landing.status, LC.RECONCILED_RACED, landing.detail)  # type: ignore[union-attr]
+        self.assertEqual(landing.returncode, 128, landing.detail)  # type: ignore[union-attr]
+        self.assertIn("DIVERGED", landing.detail)  # type: ignore[union-attr]
+        self.assertNotEqual(res.exit_code, LC.EXIT_OK, res.message)
+        # The peer's commit is untouched and still the tip; ours was never landed.
+        self.assertEqual(
+            _git(self.root, "log", "-1", "--format=%s").strip(), "peer landed first"
+        )
+        import subprocess as _sp
+
+        ancestor = _sp.run(
+            ["git", "merge-base", "--is-ancestor", str(seen["landed"]), "HEAD"],
+            cwd=self.root,
+            capture_output=True,
+        )
+        self.assertNotEqual(
+            ancestor.returncode,
+            0,
+            "the abandoned commit must NOT be reachable from main",
+        )
+        # And the plan is back where it started, untouched.
+        self.assertTrue(orch.is_file())
+
+
+class TheIndexGateIsStillLiveUnderTheNewOrdering(RollupTransitionCase):
+    """E-07/V-07: prove the `plans-index-refresh-fail-loud` gate GUARDS, not merely that it is named.
+
+    F-9 established that the test pinning this gate asserts only that its NAME appears in
+    `ROLLUP_SHARED_GATES`, so a gate lost IN FACT would be invisible. F-12 then measured exactly such
+    a loss: with the relocation moved into the coordinator worktree, a refresh left in its old position
+    scanned a shared disk that still showed `pending/`, converged against the OLD layout, and PASSED,
+    after which the merge made the manifest instantly stale.
+    """
+
+    def _manifest(self) -> str:
+        return (self.root / ".aw" / "records" / "plans" / "INDEX.json").read_text(
+            encoding="utf-8"
+        )
+
+    def _index_check_rc(self) -> int:
+        import argparse
+
+        from agent_workflows import plans_index as PIDX
+
+        return PIDX.run_index(
+            argparse.Namespace(
+                dir=str(self.root),
+                check=True,
+                agent=False,
+                json=False,
+                no_color=True,
+                limit=None,
+                quiet=True,
+            )
+        )
+
+    def test_the_manifest_names_the_executed_path_and_check_is_clean(self):
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("idxlive", [("aaa111", 1, "executed", "executed")])
+        res = self.retire(orch, "idxlive", apply=True)
+        self.assertEqual(res.exit_code, LC.EXIT_OK, f"{res.message} {res.findings}")
+        manifest = self._manifest()
+        name = "20260906-idxlive-00-orc000-synthetic.ipd.md"
+        self.assertIn(f"executed/{name}", manifest)
+        self.assertNotIn(f"pending/{name}", manifest)
+        self.assertEqual(
+            self._index_check_rc(),
+            0,
+            "aw index plans --check must be clean after a successful retirement; a "
+            "check.stale-index-stale finding means the refresh still runs BEFORE the reconciliation",
+        )
+
+    def test_the_old_position_would_have_produced_a_stale_manifest(self):
+        """THE BASELINE, so this class distinguishes the fix from the falsely-passing gate it replaces.
+
+        Reproduces the OLD ordering directly: refresh while the plan is still at `pending/` in the
+        shared tree (which is where it sits when the mutation happens in the worktree), then relocate
+        as the merge would. The refresh does NOT raise -- the gate passes -- and `--check` is then
+        stale on both manifests.
+        """
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("idxstale", [("aaa111", 1, "executed", "executed")])
+        # The gate PASSES here, which is the inversion: it converged against the old layout.
+        LC._refresh_plans_index_fail_loud(self.root)
+        name = "20260906-idxstale-00-orc000-synthetic.ipd.md"
+        self.assertIn(f"pending/{name}", self._manifest())
+        self.assertNotIn(f"executed/{name}", self._manifest())
+        # Now relocate, as the ff-only merge does, and the manifest is instantly stale.
+        dest = self.root / ".aw" / "records" / "plans" / "executed" / orch.name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        _git(
+            self.root,
+            "mv",
+            str(orch.relative_to(self.root)),
+            str(dest.relative_to(self.root)),
+        )
+        self.assertNotEqual(
+            self._index_check_rc(),
+            0,
+            "the baseline must be STALE, or this test is not measuring the defect",
+        )
+
+    def test_the_gate_still_REFUSES_on_a_genuine_non_convergence(self):
+        """Fail-loud, not fail-quiet: a refresh that cannot converge still fails the transaction."""
+
+        from unittest import mock
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("idxrefuse", [("aaa111", 1, "executed", "executed")])
+        with mock.patch.object(
+            LC,
+            "_refresh_plans_index_fail_loud",
+            side_effect=RuntimeError("did not converge"),
+        ):
+            res = self.retire(orch, "idxrefuse", apply=True)
+        self.assertNotEqual(res.exit_code, LC.EXIT_OK, res.message)
+        self.assertIn("did not converge", res.message)
+        # POST-COMMIT, so committed-incomplete and NOT rolled back.
+        self.assertIn("COMMITTED-INCOMPLETE", res.message)
+        journal = LC.read_finalize_journal(self.root, "orc000")
+        assert journal is not None
+        self.assertEqual(journal["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
+
+    def test_the_refresh_runs_AFTER_the_reconciliation_not_before(self):
+        """Pinned as an ORDER of observed calls, because the wrong order still passes the happy path."""
+
+        from unittest import mock
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("idxorder", [("aaa111", 1, "executed", "executed")])
+        order: list[str] = []
+        real_land = LC.land_worktree_commit
+        real_refresh = LC._refresh_plans_index_fail_loud
+
+        def spy_land(repo_root, landed, *, expected_base=None):
+            order.append("reconcile")
+            return real_land(repo_root, landed, expected_base=expected_base)
+
+        def spy_refresh(repo_root):
+            order.append("refresh")
+            return real_refresh(repo_root)
+
+        with mock.patch.object(LC, "land_worktree_commit", spy_land):
+            with mock.patch.object(LC, "_refresh_plans_index_fail_loud", spy_refresh):
+                res = self.retire(orch, "idxorder", apply=True)
+        self.assertEqual(res.exit_code, 0, res.message)
+        self.assertEqual(
+            order,
+            ["reconcile", "refresh"],
+            "the refresh must scan a disk that already holds the final layout",
+        )
+
+
+class AFailedRetirementCannotDestroyAPeersInFlightEdit(RollupTransitionCase):
+    """E-08/V-08: the one requirement here whose failure means DATA LOSS rather than a wrong report.
+
+    `_rollback_precommit` step 2 used to write `journal["original_bytes"]` over `original_path`
+    UNCONDITIONALLY. That was correct while this transaction was the party that moved that file away:
+    nothing else could legitimately be there. Once the relocation happens in the coordinator worktree
+    the shared-tree file is NEVER TOUCHED by the transaction, so the same write becomes an
+    unconditional overwrite of whatever a peer has there.
+
+    MEASURED before the guard, with a worktree-shaped journal and a peer edit in flight:
+    before `'- Status: approved\\nPEER EDIT IN FLIGHT, uncommitted\\n'`, after
+    `'- Status: approved\\nORIGINAL\\n'` -- the peer's bytes destroyed. And because the destructive
+    write happens before the later steps, even a rollback that REPORTS FAILURE had already destroyed
+    it.
+    """
+
+    def _worktree_shaped_journal(self, orch: Path, original: str) -> dict:
+        from agent_workflows import ipd_lifecycle as LC
+
+        rel = LC._repo_relative(self.root, orch)
+        return {
+            "plan_id": "orc000",
+            "original_path": rel,
+            "original_bytes": original,
+            "dest_path": rel.replace("/pending/", "/executed/"),
+            "owned_paths": [rel, rel.replace("/pending/", "/executed/")],
+            "git_index_entries": {},
+            "moved_bytes": original,
+            "phase": LC.PHASE_MUTATING,
+        }
+
+    def test_a_peers_edit_at_the_plans_original_path_is_NOT_overwritten(self):
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("rbpeer", [("aaa111", 1, "executed", "executed")])
+        original = orch.read_text(encoding="utf-8")
+        peer_bytes = original + "\nPEER EDIT IN FLIGHT, uncommitted\n"
+        orch.write_text(peer_bytes, encoding="utf-8")
+
+        ok, msg = LC._rollback_precommit(
+            self.root, self._worktree_shaped_journal(orch, original)
+        )
+
+        # The bytes are IDENTICAL before and after: nothing was written.
+        self.assertEqual(orch.read_text(encoding="utf-8"), peer_bytes)
+        # And the rollback REFUSED rather than reporting a clean restore, naming the path.
+        self.assertFalse(ok, msg)
+        self.assertIn("unknown-outcome", msg)
+        self.assertIn(LC._repo_relative(self.root, orch), msg)
+
+    def test_a_genuine_half_move_is_STILL_restored(self):
+        """The guard must not break the case rollback exists for: an absent origin IS restored."""
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("rbhalf", [("aaa111", 1, "executed", "executed")])
+        original = orch.read_text(encoding="utf-8")
+        journal = self._worktree_shaped_journal(orch, original)
+        # Simulate the half-move the rollback undoes: origin gone, destination holding our bytes.
+        dest = self.root / journal["dest_path"]
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(original, encoding="utf-8")
+        orch.unlink()
+
+        ok, msg = LC._rollback_precommit(self.root, journal)
+        self.assertTrue(ok, msg)
+        self.assertTrue(orch.is_file(), "an absent origin must be restored")
+        self.assertEqual(orch.read_text(encoding="utf-8"), original)
+        self.assertFalse(dest.exists(), "the moved destination must be removed")
+
+    def test_the_rollback_is_IDEMPOTENT_when_the_origin_already_matches(self):
+        """Re-running a completed rollback must be a no-op, not a refusal."""
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("rbidem", [("aaa111", 1, "executed", "executed")])
+        original = orch.read_text(encoding="utf-8")
+        journal = self._worktree_shaped_journal(orch, original)
+        for attempt in (1, 2):
+            with self.subTest(attempt=attempt):
+                ok, msg = LC._rollback_precommit(self.root, journal)
+                self.assertTrue(ok, msg)
+                self.assertEqual(orch.read_text(encoding="utf-8"), original)
+
+    def test_a_real_FAILED_retirement_leaves_a_peers_edit_intact(self):
+        """End to end through the real transaction, not only the rollback helper.
+
+        A fault injected after the move rolls back. The peer's edit to the plan's pending path (landed
+        during the transaction, after the up-front dirty check) must survive byte for byte.
+        """
+
+        from unittest import mock
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("rbreal", [("aaa111", 1, "executed", "executed")])
+        original = orch.read_text(encoding="utf-8")
+        peer_bytes = original + "\nPEER EDIT IN FLIGHT, uncommitted\n"
+        head = _git(self.root, "rev-parse", "HEAD").strip()
+        real_git = LC._git
+
+        def spy_git(root, args):
+            # The peer writes while the coordinator worktree is STAGING its own rename, i.e. after the
+            # up-front dirty check has passed and before the transaction fails. `git add` is used as
+            # the seam rather than `git mv` because the relocation goes through
+            # `artifact_core.git_mv`, which owns its own subprocess and is not this wrapper.
+            if (
+                args
+                and args[0] == "add"
+                and Path(root).resolve() != self.root.resolve()
+            ):
+                orch.write_text(peer_bytes, encoding="utf-8")
+            return real_git(root, args)
+
+        with mock.patch.object(LC, "_git", spy_git):
+            res = self.retire(
+                orch, "rbreal", apply=True, fault_injection="before_commit"
+            )
+        self.assertIn(
+            "PEER EDIT IN FLIGHT",
+            peer_bytes,
+            "fixture sanity: the peer edit must have been composed",
+        )
+        self.assertNotEqual(res.exit_code, LC.EXIT_OK, res.message)
+        self.assertEqual(
+            orch.read_text(encoding="utf-8"),
+            peer_bytes,
+            "a failed retirement destroyed a co-worker's uncommitted bytes",
+        )
+        self.assertEqual(_git(self.root, "rev-parse", "HEAD").strip(), head)
 
 
 if __name__ == "__main__":  # pragma: no cover

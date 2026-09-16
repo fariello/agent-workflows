@@ -593,15 +593,30 @@ class FinalizeTests(unittest.TestCase):
         self.assertTrue(plan.is_file())
 
     def test_fail_loud_index_refresh_aborts_transaction(self):
-        # If the owned plans-index refresh fails, finalize must FAIL (not swallow + report success).
+        """A failing owned plans-index refresh must FAIL the transaction, never swallow + succeed.
+
+        THE CLASSIFICATION MOVED, THE GATE DID NOT (plan `u23gbn` E-07). The refresh now runs AFTER
+        the reconciliation, because the plan move happens in a coordinator-owned worktree: refreshing
+        during the mutating phase scanned a SHARED disk that still showed the plan at `pending/`, so
+        the manifest described the OLD layout, converged, and the gate PASSED -- then the merge
+        relocated the file and the manifest was instantly stale, i.e. the gate inverted into a false
+        pass. Running it after the merge means a failure is POST-COMMIT, hence EXIT_FINDINGS +
+        committed-incomplete rather than EXIT_CANNOT_RUN + rollback. It is emphatically still fail-loud:
+        finalize does not report success.
+        """
         self._begin()
         self._do_inscope_work_and_commit()
         with mock.patch.object(
             LC, "_refresh_plans_index_fail_loud", side_effect=RuntimeError("index boom")
         ):
             result = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
-        self.assertEqual(result.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertNotEqual(result.exit_code, LC.EXIT_OK)
+        self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
         self.assertIn("index", result.message.lower())
+        self.assertIn("COMMITTED-INCOMPLETE", result.message)
+        journal = LC.read_finalize_journal(self.root, "abc123")
+        assert journal is not None
+        self.assertEqual(journal["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
 
     def test_missing_actor_or_message_cannot_run(self):
         self._begin()
@@ -982,7 +997,18 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         self.assertFalse(self._executed_path().exists())
         self.assertEqual(self._head(), head_before)
 
-    def test_fault_after_index_rolls_back(self):
+    def test_fault_after_index_is_committed_incomplete_not_rolled_back(self):
+        """The `after_index` checkpoint is now POST-COMMIT, so it resumes rather than rolls back.
+
+        RENAMED AND RE-ASSERTED (plan `u23gbn` E-07), not weakened. `after_index` fires immediately
+        after the fail-loud plans-index refresh, and that refresh moved to AFTER the reconciliation
+        (the plan move happens in a coordinator-owned worktree, so refreshing during the mutating phase
+        scanned a disk that did not yet reflect the transition and the gate falsely passed). By the time
+        this fault fires the lifecycle commit has LANDED, so the honest outcome is
+        committed-incomplete: reverting a landed lifecycle commit is exactly what `_resume_post_commit`
+        refuses to do. The PRE-commit checkpoints (`before_mutation`, `after_move`, `before_commit`)
+        still roll back, which their own tests assert.
+        """
         self._begin_and_work()
         result = LC.finalize(
             self.root,
@@ -992,9 +1018,14 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
             apply=True,
             fault_injection="after_index",
         )
-        self.assertEqual(result.exit_code, LC.EXIT_CANNOT_RUN)
-        self.assertTrue(self.plan.is_file())
-        self.assertFalse(self._executed_path().exists())
+        self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
+        self.assertIn("COMMITTED-INCOMPLETE", result.message)
+        # The commit landed: the plan IS at executed/ and the pending copy is gone.
+        self.assertFalse(self.plan.exists())
+        self.assertTrue(self._executed_path().is_file())
+        journal = LC.read_finalize_journal(self.root, "abc123")
+        assert journal is not None
+        self.assertEqual(journal["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
 
     def test_crash_restart_before_commit_recovers_on_reinvocation(self):
         # A pre-commit fault leaves a rolled-back state; a fresh finalize then succeeds cleanly.
@@ -1165,6 +1196,265 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         self.assertFalse(LC.receipt_path_for(self.root, "abc123").exists())
         # No finalize lock left behind.
         self.assertFalse(LC.finalize_lock_path(self.root).exists())
+
+
+class TheORDINARYFinalizeAlsoMutatesOffTheSharedCheckout(unittest.TestCase):
+    """plan `u23gbn`: the relocation is in the SHARED transaction body, so EVERY plan gets it.
+
+    WHY THIS CLASS EXISTS RATHER THAN LEAVING IT TO THE ROLLUP SUITE. `_finalize_transaction` has
+    exactly two callers, `finalize` (every ordinary plan, and `aw set executed`) and
+    `retire_orchestrator`. The maintainer resolved the architecture question (OQ-03) to change that
+    SHARED body in place rather than fork a rollup-specific one, precisely because a forked copy's
+    divergence would be invisible: the test pinning gate parity checks only that a gate's NAME is
+    listed. So the blast radius is the ordinary terminal transition, and it must be asserted HERE, on
+    the path 500+ plans take, not only on the four-per-corpus rollup path.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _init_git(self.root)
+        (self.root / "agent_workflows").mkdir()
+        (self.root / "tests").mkdir()
+        self.plan = _write_plan(
+            self.root, _completed_plan_text(), "20260824-demo-01-abc123-demo.ipd.md"
+        )
+        _commit_all(self.root, "init")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _head(self) -> str:
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+    def _porcelain(self) -> list:
+        out = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        return [ln for ln in out.splitlines() if ln.strip()]
+
+    def _begin_and_work(self):
+        LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+        (self.root / "agent_workflows" / "demo.py").write_text("x\n", encoding="utf-8")
+        (self.root / "tests" / "test_demo.py").write_text("x\n", encoding="utf-8")
+        _commit_all(self.root, "in-scope work")
+
+    def test_the_shared_tree_is_never_mid_move_during_an_ordinary_finalize(self):
+        """Sampled at the instant before the shared checkout is written at all."""
+        self._begin_and_work()
+        # A peer's unrelated uncommitted edit, which must be untouched throughout.
+        (self.root / "peer.txt").write_text("peer v1\n", encoding="utf-8")
+        _commit_all(self.root, "peer base")
+        (self.root / "peer.txt").write_text("peer v2 UNCOMMITTED\n", encoding="utf-8")
+
+        samples = {}
+        real_land = LC.land_worktree_commit
+
+        def spy(repo_root, landed, *, expected_base=None):
+            samples["pre-shared-write"] = self._porcelain()
+            return real_land(repo_root, landed, expected_base=expected_base)
+
+        pre = self._head()
+        with mock.patch.object(LC, "land_worktree_commit", spy):
+            result = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+        self.assertEqual(
+            result.exit_code, LC.EXIT_OK, f"{result.message} {result.findings}"
+        )
+
+        sampled = samples["pre-shared-write"]
+        self.assertEqual(
+            [ln for ln in sampled if ln[:1] == "R"],
+            [],
+            f"the shared checkout holds a staged rename mid-transaction: {sampled}",
+        )
+        self.assertEqual(
+            [ln for ln in sampled if "/executed/" in ln],
+            [],
+            f"the moved plan is present in the shared tree mid-transaction: {sampled}",
+        )
+        self.assertEqual(
+            [ln for ln in sampled if "peer.txt" not in ln and "/INDEX." not in ln],
+            [],
+            f"unexpected shared-tree residue mid-transaction: {sampled}",
+        )
+        # The peer's bytes survive verbatim, and main advanced by exactly one commit.
+        self.assertEqual(
+            (self.root / "peer.txt").read_text(encoding="utf-8"),
+            "peer v2 UNCOMMITTED\n",
+        )
+        count = subprocess.run(
+            ["git", "rev-list", "--count", f"{pre}..HEAD"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        self.assertEqual(count, "1")
+
+    def test_the_commit_is_produced_outside_the_shared_checkout(self):
+        self._begin_and_work()
+        real_git = LC._git
+        commit_roots = []
+
+        def spy_git(root, args):
+            if args and args[0] == "commit":
+                commit_roots.append(Path(root).resolve())
+            return real_git(root, args)
+
+        with mock.patch.object(LC, "_git", spy_git):
+            result = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+        self.assertEqual(result.exit_code, LC.EXIT_OK, result.message)
+        self.assertTrue(commit_roots, "no git commit was observed at all")
+        for root in commit_roots:
+            with self.subTest(root=str(root)):
+                self.assertNotEqual(root, self.root.resolve())
+
+    def test_an_UNCOMMITTED_plan_edit_still_rides_the_lifecycle_commit(self):
+        """BEHAVIOR PRESERVATION, measured on the pre-change code before being relied on.
+
+        A self-executing agent marks its own E/V items and fills evidence, and often has not committed
+        those edits when finalize runs. Before this change the transaction edited and committed the
+        plan file IN PLACE, so those uncommitted bytes were carried into the lifecycle commit
+        (measured). A coordinator worktree snapshots a COMMIT, so the transaction must mirror the
+        plan's CURRENT bytes in or it would silently drop the agent's evidence.
+        """
+        self._begin_and_work()
+        self.plan.write_text(
+            self.plan.read_text(encoding="utf-8")
+            + "\nUNCOMMITTED EVIDENCE EDIT BY THE EXECUTOR\n",
+            encoding="utf-8",
+        )
+        result = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+        self.assertEqual(
+            result.exit_code, LC.EXIT_OK, f"{result.message} {result.findings}"
+        )
+        moved = self.root / ".aw" / "records" / "plans" / "executed" / self.plan.name
+        self.assertIn("UNCOMMITTED EVIDENCE EDIT", moved.read_text(encoding="utf-8"))
+        assert result.commit is not None
+        blob = subprocess.run(
+            [
+                "git",
+                "show",
+                f"{result.commit}:.aw/records/plans/executed/{self.plan.name}",
+            ],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        self.assertIn(
+            "UNCOMMITTED EVIDENCE EDIT",
+            blob,
+            "the executor's uncommitted evidence edits were dropped from the lifecycle commit",
+        )
+
+    def test_a_refused_reconciliation_rolls_back_and_is_NOT_committed_incomplete(self):
+        """The classification must match reality: an unlanded commit is not "committed".
+
+        In this ordering the ff-only merge IS the branch advance, so a refusal leaves the lifecycle
+        commit unreachable from the branch. Calling that `committed-incomplete` would assert a landed
+        commit that does not exist.
+        """
+        self._begin_and_work()
+        head = self._head()
+        original = self.plan.read_text(encoding="utf-8")
+        peer_bytes = original + "\nPEER EDIT IN FLIGHT, uncommitted\n"
+        real_git = LC._git
+
+        def spy_git(root, args):
+            # The peer's edit to the plan lands while the worktree is committing, so the ff-only
+            # merge would have to overwrite it.
+            if (
+                args
+                and args[0] == "commit"
+                and Path(root).resolve() != self.root.resolve()
+            ):
+                self.plan.write_text(peer_bytes, encoding="utf-8")
+            return real_git(root, args)
+
+        with mock.patch.object(LC, "_git", spy_git):
+            result = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+
+        self.assertNotEqual(result.exit_code, LC.EXIT_OK, result.message)
+        self.assertIn("would be overwritten", result.message)
+        # THE PEER'S BYTES SURVIVE, and the branch never moved.
+        self.assertEqual(self.plan.read_text(encoding="utf-8"), peer_bytes)
+        self.assertEqual(self._head(), head)
+        journal = LC.read_finalize_journal(self.root, "abc123")
+        if journal is not None:
+            self.assertNotEqual(journal.get("phase"), LC.PHASE_COMMITTED_INCOMPLETE)
+
+    def test_the_edit_release_is_narrow_and_provably_lossless(self):
+        """The helper that unblocks OUR OWN edit must refuse every other case, or it is a data hazard.
+
+        It exists only because the shared tree legitimately holds the transaction's own uncommitted
+        plan bytes at finalize time. It must therefore write NOTHING when the bytes are not provably
+        (a) exactly what this transaction mirrored in and (b) exactly what the landed commit carries.
+        """
+        self._begin_and_work()
+        original = self.plan.read_text(encoding="utf-8")
+        peer_bytes = original + "\nPEER EDIT, not ours\n"
+        self.plan.write_text(peer_bytes, encoding="utf-8")
+        plan_rel = LC._repo_relative(self.root, self.plan)
+        dest_rel = plan_rel.replace("/pending/", "/executed/")
+        head = self._head()
+
+        cases = {
+            # The bytes on disk are NOT what we mirrored in: somebody else's content.
+            "foreign bytes": dict(mirrored_bytes=original, committed_bytes=original),
+            # We know what we mirrored, but nothing records what the commit carries.
+            "no committed bytes": dict(mirrored_bytes=peer_bytes, committed_bytes=None),
+            # The commit does not carry these bytes (there is no such commit content at all here).
+            "commit does not carry them": dict(
+                mirrored_bytes=peer_bytes, committed_bytes=peer_bytes
+            ),
+        }
+        for name, kwargs in cases.items():
+            with self.subTest(case=name):
+                released = LC._release_own_plan_edit_before_landing(
+                    self.root,
+                    plan_rel,
+                    landed=head,
+                    dest_rel=dest_rel,
+                    **kwargs,
+                )
+                self.assertIsNone(released, f"{name}: it must write nothing")
+                self.assertEqual(
+                    self.plan.read_text(encoding="utf-8"),
+                    peer_bytes,
+                    f"{name}: the bytes on disk were modified",
+                )
+
+    def test_no_coordinator_worktree_or_branch_is_left_behind(self):
+        self._begin_and_work()
+        result = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+        self.assertEqual(result.exit_code, LC.EXIT_OK, result.message)
+        worktrees = subprocess.run(
+            ["git", "worktree", "list"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        branches = subprocess.run(
+            ["git", "branch", "--list"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        self.assertNotIn("aw-coordinator-", worktrees)
+        self.assertNotIn("aw/coordinator/", branches)
 
 
 class DelegationAndBypassRemovalTests(unittest.TestCase):
