@@ -11,7 +11,7 @@
 
 ## Workflow history
 
-- 2026-09-01 approved (aw specs, --by-human): AMENDED AND RE-APPROVED 2026-09-01 by maintainer decision after /aw plan-review found a SECURITY defect in the approved text (child y5od1h finding PR-002). THE DEFECT: R3.3a said to derive the secret reject vocabulary from THIS repository's .gitignore headings, but the toolkit is INSTALLED INTO OTHER repositories whose ignore files may rename, restructure, or omit those headings, and the requirement defined no behavior for an absent, empty, or malformed source. An empty derived vocabulary means nothing is treated as a secret, so a credentials file would have been permitted and copied into a lane on request. Deriving a SECURITY rule from an optional project-authored file with no floor was the error. THE FIX, chosen by the maintainer: fail closed with a built-in floor. R3.3a-1a requires a toolkit-carried secret vocabulary applied UNCONDITIONALLY, never disabled or subtracted from by a target repository. R3.3a-1b makes target-repository declarations a strict UNION with the floor, so a target can only ever WIDEN the reject set. R3.3a-2 requires that an absent, unreadable, empty, or malformed target source leaves the driver on the floor with the unavailability RECORDED, never failing open and never aborting the run, while a failure to load the FLOOR itself refuses the request outright. Added criteria A7b-1 (the floor holds against a synthetic target with NO ignore file, which is the test that would have caught the original defect), A7b-2 (union never subtraction), and A7b-3 (each bad-source shape fails closed and says so). Traceability re-verified; R3.3a-1 is a parent id whose halves are cited separately, now documented in Section 4.
+- 2026-09-16 note (aw specs): AMENDED 2026-09-16 by dirtygates Order 01 (d7qoxv) E-04: R5.4's dirty-tracked-base obligation is SPLIT BY PATH rather than removed. SHARED TREE (--no-isolate-worktree) KEEPS the refusal verbatim in force, because the turn executes in the polluted tree and cannot tell its own changes from the uncommitted work already there at commit or finalize time; that half is what approved release-blocking plan 3i0aaz E-03 builds on and it is deliberately preserved. ISOLATED turns now REPORT the dirty paths and PROCEED. WHY, measured 2026-09-13: a lane cut from HEAD lacking an uncommitted tracked change failed its validation EXACTLY as committing that same change with no lane involved failed, so the refusal never prevented the stale-base harm it named, it only deferred it to whenever the operator committed. What actually catches a stale base is the merge-and-revalidate gate, which re-runs validation against the combined result. MEASURED COST of keeping it: across three consecutive runs the gate blocked 27 of 42, 23 of 41 and 18 of 43 queue items, each refusal naming exactly ONE uncommitted markdown file no plan declared, cascading 36 further items into dependency-blocked (reviews were exempt, so this was the majority of each run and not a total failure). A14 rewritten to assert BOTH halves separately, and new A14b requires the RULE's classification (clean=False, paths named, identical on both paths) be pinned separately from the CALLER's disposition, so an implementation cannot achieve the isolated behavior by making the rule report clean. Untracked exclusion unchanged on both paths.
 ## 0. Concepts (kept distinct)
 
 These four are routinely conflated, and every requirement below depends on keeping them apart.
@@ -413,11 +413,40 @@ therefore establish link independence, not merely symlink absence.
 
 R5.3 Every `--file` style attachment handed to an isolated worker MUST resolve inside the lane.
 
-R5.4 Before an unattended isolated turn, the target checkout MUST have no dirty TRACKED paths, and a
-refusal MUST name them and occur BEFORE any worker process is spawned. Untracked files are deliberately
-EXCLUDED: a lane is created from a commit, so untracked content was never silently omitted the way an
-uncommitted tracked edit is, and refusing on untracked files would make an unattended run unstartable in
-any working checkout.
+R5.4 Before an unattended turn, the driver MUST evaluate whether the target checkout has dirty TRACKED
+paths, and MUST do so BEFORE any worker process is spawned. The EVALUATION is uniform; the CONSEQUENCE is
+SPLIT BY PATH, and both halves are normative:
+
+- SHARED TREE (`--no-isolate-worktree`): the turn MUST be REFUSED, and the refusal MUST name the dirty
+  paths. The turn executes IN the polluted tree, so at commit or finalize time its own changes cannot be
+  told apart from the uncommitted work already there. This is the case where dirt is MOST dangerous and it
+  keeps the full obligation.
+- ISOLATED: the turn MUST NOT be refused. The dirty paths MUST still be REPORTED, naming them, and MUST be
+  recorded in durable run state so the observation is auditable rather than only printed.
+
+AMENDED 2026-09-13/16 by dirtygates Order 01 (`d7qoxv`); the original text required the refusal on the
+isolated path unconditionally. THE AMENDMENT IS A SPLIT, NOT A REMOVAL, and the shared-tree obligation
+above is deliberately preserved in force because dirtybase Order 01 (`3i0aaz`) E-03 extends it.
+
+WHY THE ISOLATED REFUSAL WAS WITHDRAWN, stated so it is not restored on intuition. It did not prevent the
+harm it named; it deferred it. MEASURED 2026-09-13: a worker lane cut from HEAD that lacked an uncommitted
+tracked change passed its new test inside the lane, merged with no overlap, then failed against the real
+tree; committing that same change with NO lane involved produced the IDENTICAL failure. So the lane was
+never the cause, and the refusal only postponed the failure to whenever the operator committed, which had
+to happen anyway. What ACTUALLY catches a stale base is the merge-and-revalidate gate, which re-runs
+validation against the COMBINED result and so produces a real test failure instead of an inference from a
+dirty file.
+
+THE MEASURED COST OF KEEPING IT, which is why this is an amendment rather than a note: across three
+consecutive runs on 2026-09-13 the gate blocked 27 of 42, 23 of 41, and 18 of 43 queue items, each refusal
+naming exactly ONE uncommitted markdown file that no plan declared, and cascading 36 further items into
+`dependency-blocked`. Reviews were exempt and some items still ran, so this was not a total failure of
+each run, but the majority of every run was lost to a file no lane would have touched.
+
+Untracked files remain deliberately EXCLUDED on BOTH paths: a lane is created from a commit, so untracked
+content was never silently omitted the way an uncommitted tracked edit is, and refusing on untracked files
+would make an unattended run unstartable in any working checkout. Untracked content is REPORTED once per
+run instead.
 
 R5.5 Teardown MUST be refused while a lane holds content the driver cannot classify: a dirty tracked
 file, an unknown untracked OR IGNORED file, or an unimported submission. The enumeration MUST include
@@ -567,9 +596,20 @@ re-flag it as a traceability gap.
   can restore the write bit. (R5.1a)
 - A13. Every attachment handed to an isolated worker resolves inside the lane, asserted over ALL
   attachments with at least two checked. (R5.3)
-- A14. With a dirty TRACKED file, an unattended isolated run is refused before any worker process is
-  spawned, naming the dirty paths; with a clean tree it proceeds; an UNTRACKED file does NOT trigger the
-  refusal. (R5.4)
+- A14. With a dirty TRACKED file, the evaluation happens before any worker process is spawned, and its
+  consequence is asserted SEPARATELY FOR EACH PATH, because a single assertion would hide half the
+  requirement. (i) SHARED TREE (`--no-isolate-worktree`): the run is REFUSED and the refusal names the
+  dirty paths. (ii) ISOLATED: the run PROCEEDS, and the dirty paths are reported AND present in durable run
+  state. (iii) With a clean tree it proceeds on both paths. (iv) An UNTRACKED file triggers no refusal on
+  either path. AMENDED with R5.4 by `d7qoxv`: a test asserting an isolated refusal now asserts behavior the
+  spec forbids, and a test asserting only that the isolated turn proceeds does NOT satisfy this criterion,
+  because it would pass equally if the report were silently dropped. (R5.4)
+- A14b. THE SHARED RULE AND THE CALLER'S DISPOSITION ARE PINNED SEPARATELY. Show that the rule still
+  classifies a dirty tracked tree as NOT CLEAN and still names the paths on BOTH paths (identical
+  classification, identical path list), and that only the isolated CALLER declines to refuse. A test that
+  achieves the isolated behavior by making the rule report CLEAN fails this criterion: that would discard
+  the dirty-path list the report exists to print and would leave the shared-tree refusal unreachable
+  through the same rule. (R5.4, R6.1)
 - A15. A lane holding an unknown untracked file is not torn down and an event records the reason; the same
   for an unknown IGNORED file; a fully classified clean lane is torn down. (R5.5, R5.6)
 - A15b. THE PRESERVATION IS VISIBLE WITHOUT READING THE EVENT LOG. Paste the run's summary output for a run

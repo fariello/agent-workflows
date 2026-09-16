@@ -276,20 +276,41 @@ class SharedTreeGuardRuleTests(unittest.TestCase):
         for forbidden in ("git stash", "git reset", "git clean", "--force"):
             self.assertNotIn(forbidden, reason)
 
-    def test_the_ISOLATED_reason_is_UNCHANGED(self):
-        """What proves E-03 relaxed a CONDITION rather than rewriting a RULE."""
+    def test_the_ISOLATED_reason_is_DISTINCT_and_names_the_paths(self):
+        """What proved E-03 relaxed a CONDITION rather than rewriting a RULE: the two paths differ.
+
+        RETARGETED 2026-09-16 by dirtygates Order 01 (`d7qoxv`) E-05, which amended spec R5.4 so the
+        ISOLATED path REPORTS instead of refusing. This test previously pinned the isolated refusal
+        SENTENCE byte-for-byte; that exact sentence is what `d7qoxv` replaces, so asserting it now
+        asserts behavior the amended spec FORBIDS.
+
+        WHAT E-03's PROOF ACTUALLY NEEDED, and what is preserved here: that the shared-tree variant is
+        a VARIANT reached through the ONE shared rule, not a second rule, and that the two paths are
+        distinguishable. Both are still asserted - the isolated sentence still names every dirty path
+        and is still NOT the shared-tree sentence - so the property this test defends survives the
+        amendment. The classification half is pinned by
+        `test_the_tracked_scope_is_IDENTICAL_on_both_paths` below, which needed no change at all.
+        """
         result = lane_containment.evaluate_clean_base(" M a.py\nM  b.py\n")
-        self.assertEqual(
-            result.reason,
-            "refusing to launch an unattended isolated turn: the target checkout has 2 dirty "
-            "TRACKED path(s), which a lane created from HEAD would silently omit: a.py, b.py",
-        )
+        self.assertFalse(result.clean)
+        self.assertIn("a.py", result.reason)
+        self.assertIn("b.py", result.reason)
+        self.assertIn("2 dirty TRACKED path(s)", result.reason)
+        # The isolated path REPORTS (`d7qoxv`): it is not the shared-tree refusal sentence.
+        self.assertFalse(result.refuses)
+        self.assertNotIn("SHARES this checkout", result.reason)
+        self.assertNotIn("refusing to launch", result.reason)
 
     def test_the_default_is_the_isolated_wording(self):
-        """Additive: every pre-existing call keeps its exact meaning."""
-        self.assertIn(
-            "isolated turn", lane_containment.evaluate_clean_base(" M a.py\n").reason
-        )
+        """Additive: every pre-existing call still gets the ISOLATED sentence, not the shared one.
+
+        The wording it checks for was updated with `d7qoxv`'s amendment (the isolated sentence no
+        longer says "refusing"), but the property is the original one: `shared_tree` defaults to False,
+        so an un-flagged call keeps the isolated meaning.
+        """
+        reason = lane_containment.evaluate_clean_base(" M a.py\n").reason
+        self.assertIn("isolated turn", reason)
+        self.assertNotIn("SHARES this checkout", reason)
 
     def test_the_tracked_scope_is_IDENTICAL_on_both_paths(self):
         """OQ-01: only the MESSAGE differs. The clean/dirty verdict does not."""
@@ -426,13 +447,23 @@ class ConsentDecisionTests(unittest.TestCase):
         self.assertFalse(decision.consented)
 
     def test_dirty_without_consent_REFUSES(self):
-        decision = runner_shared.clean_base_launch_decision(self._dirty())
+        """RETARGETED to the SHARED-TREE base by `d7qoxv` E-05, which is where the refusal now lives.
+
+        The consent surface exists to override a REFUSAL, and after spec R5.4's path split only the
+        shared-tree path refuses. Driving this with the ISOLATED base would now assert a refusal the
+        amended spec forbids; the isolated base's verdict is pinned by
+        `ConsentIsNotConsultedWhereNothingRefusesTests` below.
+        """
+        decision = runner_shared.clean_base_launch_decision(
+            self._dirty(shared_tree=True)
+        )
         self.assertTrue(decision.refused)
         self.assertEqual(decision.dirty_paths, ("a.py",))
 
     def test_dirty_WITH_consent_proceeds_and_is_labelled_consented(self):
+        """RETARGETED to the SHARED-TREE base with its sibling above (`d7qoxv` E-05)."""
         decision = runner_shared.clean_base_launch_decision(
-            self._dirty(), allow_dirty_base=True
+            self._dirty(shared_tree=True), allow_dirty_base=True
         )
         self.assertTrue(decision.consented)
         self.assertFalse(decision.refused)
@@ -440,7 +471,7 @@ class ConsentDecisionTests(unittest.TestCase):
 
     def test_the_consent_reason_names_the_paths_and_what_is_NOT_waived(self):
         reason = runner_shared.clean_base_launch_decision(
-            self._dirty(), allow_dirty_base=True
+            self._dirty(shared_tree=True), allow_dirty_base=True
         ).reason
         self.assertIn("a.py", reason)
         self.assertIn("--allow-dirty-base", reason)
@@ -448,12 +479,61 @@ class ConsentDecisionTests(unittest.TestCase):
         self.assertIn("V-evidence", reason)
 
     def test_the_refusal_reason_is_the_SHARED_RULES_own(self):
-        """Consent adds a verdict; it does not restate what dirty means or how a refusal reads."""
+        """Consent adds a verdict; it does not restate what dirty means or how a refusal reads.
+
+        Unchanged by `d7qoxv`: the decision still carries the RULE's own sentence on BOTH paths, which
+        is what keeps the wording single-sourced whether it refuses or reports.
+        """
         for shared_tree in (False, True):
             base = self._dirty(shared_tree=shared_tree)
             decision = runner_shared.clean_base_launch_decision(base)
             with self.subTest(shared_tree=shared_tree):
                 self.assertEqual(decision.reason, base.reason)
+
+
+class ConsentIsNotConsultedWhereNothingRefusesTests(unittest.TestCase):
+    """`d7qoxv` E-05: an ISOLATED dirty base WARNS, and consent is not claimed over it.
+
+    WHY THIS IS A SEPARATE ASSERTION AND NOT A TWEAK TO THE CONSENT TESTS. Reporting `consented` on a
+    path that never refused would record that the operator overrode a guard which never fired - a false
+    audit entry in the one direction an audit most needs to trust, and it would also destroy the
+    consent flag's signal value by making it appear routinely on runs that needed no override.
+    """
+
+    def _isolated_dirty(self) -> Any:
+        return lane_containment.evaluate_clean_base(" M a.py\n")
+
+    def test_an_isolated_dirty_base_WARNS_rather_than_refusing(self):
+        decision = runner_shared.clean_base_launch_decision(self._isolated_dirty())
+        self.assertEqual(decision.verdict, runner_shared.CLEAN_BASE_WARN)
+        self.assertTrue(decision.warned)
+        self.assertFalse(decision.refused)
+        self.assertFalse(decision.consented)
+        self.assertEqual(decision.dirty_paths, ("a.py",))
+
+    def test_consent_does_not_relabel_a_warning_as_consented(self):
+        """`--allow-dirty-base` overrides a refusal; it must not claim credit where none was needed."""
+        decision = runner_shared.clean_base_launch_decision(
+            self._isolated_dirty(), allow_dirty_base=True
+        )
+        self.assertEqual(decision.verdict, runner_shared.CLEAN_BASE_WARN)
+        self.assertFalse(decision.consented)
+
+    def test_the_verdict_is_read_from_the_RULE_not_decided_per_host(self):
+        """R6.1/CID-3: the split lives in `CleanBaseResult.refuses`, which both hosts reach."""
+        self.assertFalse(self._isolated_dirty().refuses)
+        self.assertTrue(self._dirty_shared().refuses)
+        self.assertFalse(lane_containment.evaluate_clean_base("").refuses)
+        source = inspect.getsource(runner_shared.clean_base_launch_decision)
+        self.assertIn("base.refuses", source)
+        # And neither driver re-decides it with its own `isolate` test in the branch.
+        for name, driver, _spawn in DRIVERS:
+            with self.subTest(driver=name):
+                body = inspect.getsource(driver.execute_item)
+                self.assertIn("decision.warned", body)
+
+    def _dirty_shared(self) -> Any:
+        return lane_containment.evaluate_clean_base(" M a.py\n", shared_tree=True)
 
 
 class ConsentFlagSurfaceTests(unittest.TestCase):
@@ -749,8 +829,20 @@ class NoSpawnAndNothingTouchedTests(unittest.TestCase):
                     "shared_tree=not isolate", inspect.getsource(driver.execute_item)
                 )
 
-    def test_the_ISOLATED_path_still_refuses_with_its_OWN_unchanged_message(self):
-        """E-03 relaxed a condition; the isolated case must be byte-for-byte as `nna8yz` left it."""
+    def test_the_ISOLATED_path_REPORTS_and_LAUNCHES_and_still_touches_nothing(self):
+        """RETARGETED 2026-09-16 by dirtygates Order 01 (`d7qoxv`) E-05.
+
+        WHAT THIS USED TO ASSERT, and why it could not stay. It pinned the ISOLATED refusal message
+        byte-for-byte, as E-03's proof that it had relaxed a CONDITION rather than rewritten a RULE.
+        Spec R5.4 has since been amended to SPLIT that obligation by path: the shared-tree turn is
+        still refused (asserted by this class's sibling above, which is unchanged and remains E-03's
+        real proof), while an isolated turn is REPORTED and PROCEEDS.
+
+        WHAT IS PRESERVED, because it is the half that was never about the refusal: the guard STILL
+        TOUCHES NOTHING. The tree snapshot comparison is kept exactly as it was, so a change that
+        launched the turn by stashing, resetting or otherwise disturbing another party's uncommitted
+        work still fails here.
+        """
         for name, driver, spawn in DRIVERS:
             with self.subTest(driver=name), tempfile.TemporaryDirectory() as tmp:
                 repo, run_dir, state, item = self._fixture(Path(tmp), isolate=True)
@@ -759,14 +851,19 @@ class NoSpawnAndNothingTouchedTests(unittest.TestCase):
 
                 spawns = self._drive(driver, spawn, run_dir, state, item)
 
-                self.assertEqual(spawns, 0)
-                self.assertEqual(item["status"], "blocked")
-                self.assertEqual(
-                    item["clean_base_refusal"],
-                    "refusing to launch an unattended isolated turn: the target checkout has 1 "
-                    "dirty TRACKED path(s), which a lane created from HEAD would silently omit: "
-                    "tracked.txt",
-                )
+                # LAUNCHED, not refused. `>= 1` for the `b7xarm` re-ask reason this class records.
+                self.assertGreaterEqual(spawns, 1, "the isolated turn must launch")
+                self.assertNotEqual(item["status"], "blocked")
+                self.assertNotIn("clean_base_refusal", item)
+                # The paths are still NAMED, in durable state: removing the refusal must not remove
+                # the operator's signal.
+                attempt = item["attempts"][-1]
+                self.assertIn("tracked.txt", attempt["clean_base_dirty_paths"])
+                self.assertIn("tracked.txt", attempt["clean_base_warning"])
+                # NON-VACUITY: it launched because the guard RAN and reported, not because it was
+                # skipped. And consent was NOT claimed, since nothing refused.
+                self.assertNotIn("clean_base_consented", attempt)
+                # NOTHING WAS TOUCHED, the assertion this test keeps verbatim from before the split.
                 self.assertEqual(self._tree_snapshot(repo), before)
 
     def test_the_guard_still_PRECEDES_spawn_and_allocation_structurally(self):

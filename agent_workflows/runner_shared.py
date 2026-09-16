@@ -3082,6 +3082,98 @@ class UntrackedDirtReport(NamedTuple):
         )
 
 
+class TrackedDirtReport(NamedTuple):
+    """What DIRTY TRACKED content a checkout holds at run start (dirtygates `d7qoxv` E-01).
+
+    THE SIBLING OF `UntrackedDirtReport`, AND DELIBERATELY A SEPARATE TYPE. The untracked report
+    answers "what is sitting here that git does not track?"; this answers "which tracked paths is HEAD
+    missing?". They were kept apart because `3i0aaz` pins the untracked rule to untracked entries ONLY
+    (`test_tracked_dirt_is_NOT_in_this_report`), and folding tracked paths into that total would break
+    the very distinction that plan established.
+
+    WHY THIS EXISTS AT ALL, given the per-item guard already records the same paths. The guard runs
+    once per QUEUE ENTRY inside `execute_item`, so an operator-facing line there says the same thing N
+    times - the exact defect `3i0aaz`'s own review rejected in its PR-005. The RECORD stays per
+    attempt, so each attempt is self-describing; the OPERATOR-FACING sentence is emitted ONCE, here.
+    """
+
+    total: int
+    sample: tuple[str, ...]
+
+    @property
+    def clean(self) -> bool:
+        return self.total == 0
+
+    @property
+    def notice(self) -> str:
+        """The operator-facing run-start line, stating the CONSEQUENCE and not merely the fact.
+
+        IT MUST NOT PROMISE A REFUSAL, because after `d7qoxv` an isolated turn is no longer refused
+        over these paths. It also must not imply they are harmless: a lane is cut from HEAD, so it
+        genuinely does not carry them, and that can surface later as a test failure at
+        merge-and-revalidate time. Both halves are stated, and which one bites depends on isolation.
+
+        NO REMEDY THAT TOUCHES UN-OWNED WORK IS SUGGESTED, the same discipline `z2isfg` established
+        and the untracked report keeps: nothing here tells anyone to commit, stash, reset, or clean.
+        """
+        if self.clean:
+            return "run start: no dirty tracked paths in the target checkout"
+        shown = ", ".join(self.sample)
+        more = self.total - len(self.sample)
+        listed = shown if more <= 0 else f"{shown}, and {more} more"
+        return (
+            f"run start: the target checkout has {self.total} dirty TRACKED path(s), which an "
+            "isolated turn's lane does NOT carry because a lane is created from HEAD: "
+            f"{listed}. This does NOT refuse an isolated turn: a lane cut from a commit fails in "
+            "exactly the same way whether or not it was refused first, so validation at "
+            "merge-and-revalidate time is what surfaces a genuinely stale base, with real evidence. "
+            "A turn sharing this checkout (--no-isolate-worktree) IS still refused, because its own "
+            "changes could not be told apart from the uncommitted work already here. If you did not "
+            "expect these paths, decide whose they are before spending a run against them."
+        )
+
+
+def evaluate_tracked_dirt(
+    porcelain: str,
+    *,
+    sample_limit: int = UNTRACKED_REPORT_SAMPLE_LIMIT,
+) -> TrackedDirtReport:
+    """Classify porcelain output for the once-per-run TRACKED-dirt report (`d7qoxv` E-01).
+
+    PURE, taking the text rather than running git, exactly as its untracked sibling and
+    `lane_containment.evaluate_clean_base` are, so every case is reachable with no repository.
+
+    THE PARSER IS THE SHARED ONE and this function holds NO porcelain format knowledge: it calls
+    `lane_containment.parse_porcelain_entries`, the declared single decoder, and reuses that module's
+    own status constants rather than re-spelling them.
+
+    IT MUST NOT RE-DECIDE WHAT "DIRTY TRACKED" MEANS, and it does not: the R5.4 verdict remains
+    `lane_containment.evaluate_clean_base`'s. This is a REPORTING projection over the same porcelain,
+    which is why it takes the `--untracked-files=all` text the run-start report already fetched rather
+    than issuing a second `git status`.
+
+    IGNORED ENTRIES ARE EXCLUDED for the same reason the untracked report excludes them: `!!` is
+    configuration, not pollution. In practice they are absent anyway, since the run-start invocation
+    does not pass `--ignored`.
+    """
+
+    from agent_workflows import lane_containment
+
+    tracked = sorted(
+        {
+            path
+            for status, path in lane_containment.parse_porcelain_entries(porcelain)
+            if status
+            not in (
+                lane_containment.PORCELAIN_UNTRACKED,
+                lane_containment.PORCELAIN_IGNORED,
+            )
+        }
+    )
+    limit = max(0, int(sample_limit))
+    return TrackedDirtReport(total=len(tracked), sample=tuple(tracked[:limit]))
+
+
 def evaluate_untracked_dirt(
     porcelain: str,
     *,
@@ -3140,6 +3232,16 @@ def report_untracked_dirt_at_run_start(
     a report's clothes. An unreadable tree yields an empty report rather than an exception, because
     failing a run over an inability to describe untracked content would be a strictly worse outcome
     than the silence this replaces (and question (2) fails closed on an unreadable tree already).
+
+    IT ALSO EMITS THE TRACKED-DIRT LINE (dirtygates `d7qoxv` E-01), EXTENDING THIS REPORT RATHER THAN
+    ADDING A SECOND ONE. That is deliberate and was the coordination `d7qoxv` E-01 required: two
+    adjacent dirty-tree reports at run start would make the operator read the same tree described
+    twice. The two lines answer different questions (untracked pollution versus an incomplete base)
+    and are emitted from ONE `git status`, so there is no second subprocess either.
+
+    THE RETURN VALUE IS STILL THE UNTRACKED REPORT, so every existing caller and assertion is
+    unchanged; the tracked report is available through `evaluate_tracked_dirt` for a test that wants
+    it. Widening the return type would have been a breaking change for a reporting nicety.
     """
 
     runner = git_runner or _run_git
@@ -3152,13 +3254,26 @@ def report_untracked_dirt_at_run_start(
     report = evaluate_untracked_dirt(out)
     if not report.clean:
         print(report.notice, file=stream if stream is not None else sys.stderr)
+    # ORDERED AFTER the untracked line, and silent on a clean tracked tree for the same reason: a
+    # report that always fires is a report nobody reads.
+    tracked = evaluate_tracked_dirt(out)
+    if not tracked.clean:
+        print(tracked.notice, file=stream if stream is not None else sys.stderr)
     return report
 
 
-#: The three verdicts a pre-launch clean-base decision can reach (dirtybase `3i0aaz` E-03/E-05).
+#: The verdicts a pre-launch clean-base decision can reach (dirtybase `3i0aaz` E-03/E-05).
 CLEAN_BASE_PROCEED = "proceed"
 CLEAN_BASE_CONSENTED = "consented"
 CLEAN_BASE_REFUSE = "refuse"
+#: dirtygates Order 01 (`d7qoxv`) E-01: a dirty base that is REPORTED and proceeds anyway.
+#:
+#: DISTINCT FROM `CLEAN_BASE_CONSENTED`, and conflating the two would destroy the consent flag's
+#: signal value. Consent means the OPERATOR passed `--allow-dirty-base` over a refusal that still
+#: stands (the shared-tree case); this verdict means the rule never refused in the first place, so
+#: there was nothing to consent to. An audit must be able to tell "a human overrode a guard" from "no
+#: guard applied here", which is exactly the distinction a single merged verdict would erase.
+CLEAN_BASE_WARN = "warn"
 
 
 class CleanBaseDecision(NamedTuple):
@@ -3182,6 +3297,11 @@ class CleanBaseDecision(NamedTuple):
     def consented(self) -> bool:
         return self.verdict == CLEAN_BASE_CONSENTED
 
+    @property
+    def warned(self) -> bool:
+        """A dirty base that is REPORTED and launched anyway (dirtygates `d7qoxv`, isolated path)."""
+        return self.verdict == CLEAN_BASE_WARN
+
 
 def clean_base_launch_decision(
     base: Any,
@@ -3190,10 +3310,22 @@ def clean_base_launch_decision(
 ) -> CleanBaseDecision:
     """Turn a `lane_containment.CleanBaseResult` plus the operator's consent into a launch verdict.
 
-    THE RULE IS NOT RE-DECIDED HERE. What is dirty, and how a refusal reads, is
-    `lane_containment.evaluate_clean_base`'s (plan `nna8yz` E-05, extended by `3i0aaz` E-03 with a
-    shared-tree message variant). This adds exactly one thing: `--allow-dirty-base` turns a REFUSAL
-    into a recorded CONSENT.
+    THE RULE IS NOT RE-DECIDED HERE. What is dirty, how a refusal reads, and WHETHER this path refuses
+    at all are all `lane_containment.evaluate_clean_base`'s (plan `nna8yz` E-05, extended by `3i0aaz`
+    E-03 with a shared-tree message variant, amended by dirtygates `d7qoxv` E-01/E-03 so the isolated
+    path REPORTS). This adds exactly one thing: `--allow-dirty-base` turns a REFUSAL into a recorded
+    CONSENT.
+
+    THE WARN VERDICT IS READ FROM THE RULE, NEVER DECIDED HERE (`d7qoxv` E-01). `CleanBaseResult
+    .refuses` answers "does this dirty base refuse?", so a dirty ISOLATED base reaches
+    `CLEAN_BASE_WARN` and a dirty SHARED tree still reaches `CLEAN_BASE_REFUSE`. Writing that split as
+    an `if isolate` in either driver's body is the failure this whole function exists to prevent: that
+    is precisely how the `--full-auto` default came to differ between the two runners.
+
+    CONSENT IS NOT CONSULTED ON A PATH THAT DOES NOT REFUSE, and the ordering below is load-bearing.
+    `--allow-dirty-base` exists to override a REFUSAL; reporting `consented` where nothing was refused
+    would claim the operator overrode a guard that never fired, which is a false audit record in the
+    one direction an audit most needs to trust.
 
     WHAT CONSENT DOES NOT WAIVE, which is the sentence a future reader will rely on. It acknowledges
     a dirty TRACKED base for THIS run and nothing else. It does not waive the approval gate, the
@@ -3206,6 +3338,14 @@ def clean_base_launch_decision(
     if base.clean:
         return CleanBaseDecision(
             verdict=CLEAN_BASE_PROCEED, dirty_paths=(), reason=base.reason
+        )
+    if not base.refuses:
+        # The isolated path: the base IS dirty and is NOT clean, but it does not refuse, so this is a
+        # report. The paths ride along so the caller records them without re-deriving anything.
+        return CleanBaseDecision(
+            verdict=CLEAN_BASE_WARN,
+            dirty_paths=tuple(base.dirty_paths),
+            reason=base.reason,
         )
     if allow_dirty_base:
         return CleanBaseDecision(

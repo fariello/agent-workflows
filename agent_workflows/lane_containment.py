@@ -2556,14 +2556,28 @@ def parse_porcelain_paths(porcelain: str) -> set[str]:
 class CleanBaseResult(NamedTuple):
     """Whether a checkout is a valid base for an unattended turn (spec R5.4).
 
-    `shared_tree` SELECTS WHICH REASON IS TRUE, and it exists because the original wording was FALSE
+    `shared_tree` SELECTS WHICH SENTENCE IS TRUE, and it exists because the original wording was FALSE
     on the other path (dirtybase `3i0aaz` E-03, finding F-9). The lane message says "unattended
     ISOLATED turn" and blames a lane "created from HEAD" for silently omitting the dirty paths;
     neither clause is true of a `--no-isolate-worktree` run, which is not isolated and omits nothing.
     Emitting a refusal whose stated reason is wrong is worse than the silence it replaces.
 
+    THE TWO PATHS NOW DIFFER IN CONSEQUENCE AS WELL AS IN WORDING (dirtygates Order 01 `d7qoxv`
+    E-03, spec R5.4 as amended). The SHARED-TREE sentence is still a REFUSAL, because a turn writing
+    directly into a polluted tree cannot tell its own changes from the uncommitted work already there
+    at commit or finalize time. The ISOLATED sentence is now a REPORT, because that turn's lane is cut
+    from a COMMIT: measured 2026-09-13, a lane missing an uncommitted change fails IDENTICALLY to
+    committing that change with no lane involved, so the gate never prevented the stale-base failure
+    it named - it only deferred it to whenever the operator committed, which had to happen anyway. The
+    merge-and-revalidate gate re-runs the suite against the COMBINED result and is what actually
+    catches a stale base, with real evidence instead of a guess.
+
+    BOTH SHAPES REMAIN EXPRESSIBLE ON PURPOSE. This type is the ONE string both call sites consume,
+    so hard-coding a report-only wording would leave the shared-tree refusal (approved plan `3i0aaz`
+    E-03, `Blocks-Release: next`) printing a sentence that contradicts its own behavior.
+
     DEFAULTED, so this stays additive: every pre-existing construction, call, and assertion keeps its
-    exact meaning and only the new shared-tree call site opts in.
+    exact meaning and only the shared-tree call site opts in.
     """
 
     clean: bool
@@ -2571,14 +2585,29 @@ class CleanBaseResult(NamedTuple):
     shared_tree: bool = False
 
     @property
+    def refuses(self) -> bool:
+        """Whether this result's CONSEQUENCE is a refusal rather than a report (R5.4 as amended).
+
+        THE VERDICT IS THE RULE'S, NOT EACH CALLER'S, which is why it is a property here rather than
+        an `if isolate` in two driver bodies: that is precisely how `--full-auto` came to mean opt-in
+        on one host and opt-out on the other. `runner_shared.clean_base_launch_decision` reads this to
+        decide `refuse` versus `warn`, so neither driver re-decides it.
+
+        NOT THE SAME QUESTION AS `clean`. A dirty ISOLATED base is NOT clean (the classification is
+        untouched, and the paths are still named) yet it does not refuse. Collapsing the two would
+        either resurrect the refusal this plan removed or silence the report that replaced it.
+        """
+        return not self.clean and self.shared_tree
+
+    @property
     def reason(self) -> str:
         if self.clean:
             return "target checkout has no dirty tracked paths"
         paths = ", ".join(self.dirty_paths)
         if self.shared_tree:
-            # THE SHARED-TREE REASON. The turn will execute IN this tree, so the hazard is not an
-            # omission: it is that the turn's OWN changes cannot be distinguished from the
-            # uncommitted work already here when it commits or finalizes.
+            # THE SHARED-TREE REASON, and it is still a REFUSAL. The turn will execute IN this tree,
+            # so the hazard is not an omission: it is that the turn's OWN changes cannot be
+            # distinguished from the uncommitted work already here when it commits or finalizes.
             #
             # THE REMEDY NAMED IS ONE THE OPERATOR MAY ACTUALLY APPLY, and it deliberately does not
             # ask anyone to touch work that may not be theirs (the discipline `z2isfg` established
@@ -2593,10 +2622,22 @@ class CleanBaseResult(NamedTuple):
                 "to another agent or human sharing this checkout, do NOT touch their work; if they "
                 "are yours, land them or set them aside first"
             )
+        # THE ISOLATED REASON, and it is a REPORT (dirtygates `d7qoxv`). It still NAMES the paths,
+        # because the operator's signal is the whole value that survives removing the refusal, and it
+        # states WHERE a genuine stale base will actually surface rather than implying none can.
+        #
+        # NO REMEDY THAT TOUCHES UN-OWNED WORK IS SUGGESTED, the same discipline the shared-tree
+        # sentence and the untracked report both keep: this says what is there and where it would
+        # bite, and whose it is stays the human's call.
         return (
-            "refusing to launch an unattended isolated turn: the target checkout has "
-            f"{len(self.dirty_paths)} dirty TRACKED path(s), which a lane created from HEAD would "
-            "silently omit: " + paths
+            "proceeding with an unattended isolated turn over an incomplete base: the target "
+            f"checkout has {len(self.dirty_paths)} dirty TRACKED path(s), which this turn's lane "
+            "(created from HEAD) does NOT carry: "
+            + paths
+            + ". This no longer refuses the turn, because a lane cut from a commit fails in exactly "
+            "the same way whether or not it was refused first; if the missing change matters, the "
+            "merge-and-revalidate gate re-runs validation against the combined result and will "
+            "surface it there with real evidence"
         )
 
 
@@ -2611,13 +2652,27 @@ def evaluate_clean_base(
     its own runner (the two modules deliberately keep separate git wrappers), and so a test can drive
     every case without a repository.
 
-    `shared_tree` CHANGES THE MESSAGE AND NOTHING ELSE (dirtybase `3i0aaz` E-03). The tracked/untracked
-    SCOPE is identical on both paths - untracked content is reported once per run by
-    `runner_shared.report_untracked_dirt_at_run_start` and refuses on NEITHER path - so the only
-    difference between an isolated and a shared-tree refusal is which true sentence it prints. That
-    symmetry is deliberate (the plan's OQ-01, resolved by the maintainer) and is asserted in
-    `tests/test_dirty_base_gate.py`, so a later reader cannot mistake it for an accident of where the
-    check was inserted.
+    `shared_tree` CHANGES THE MESSAGE AND THE CONSEQUENCE, BUT NOT THE CLASSIFICATION (dirtybase
+    `3i0aaz` E-03, amended by dirtygates `d7qoxv` E-03). The tracked/untracked SCOPE is identical on
+    both paths - untracked content is reported once per run by
+    `runner_shared.report_untracked_dirt_at_run_start` and refuses on NEITHER path - and `clean` /
+    `dirty_paths` are computed identically for both, which is asserted in
+    `tests/test_dirty_base_gate.py::test_the_tracked_scope_is_IDENTICAL_on_both_paths`. What DOES
+    differ is what the caller then does, and `CleanBaseResult.refuses` is where that lives: a dirty
+    SHARED tree REFUSES, a dirty ISOLATED base is REPORTED and proceeds.
+
+    THIS FUNCTION STILL CLASSIFIES A DIRTY ISOLATED TREE AS `clean=False`, and that is deliberate
+    rather than a leftover. The RULE's job is "is HEAD a complete base?", and the honest answer is no;
+    only the CALLER's disposition moved. Collapsing the two - returning `clean=True` for a dirty
+    isolated tree - would silently discard the dirty-path list the report exists to print, and would
+    make the two hosts' `--no-isolate-worktree` refusal unreachable through the same rule.
+
+    WHY THE ISOLATED PATH STOPPED REFUSING, since a future reader will otherwise "fix" it back.
+    MEASURED 2026-09-13: a lane cut from HEAD that lacked an uncommitted change failed its validation
+    in EXACTLY the way committing that change with no lane involved failed, so the refusal prevented
+    nothing and merely deferred the failure to whenever the operator committed. The cost of keeping it
+    was measured on three consecutive runs - 27 of 42, 23 of 41 and 18 of 43 queue items refused, each
+    naming ONE uncommitted markdown file, cascading 36 more into `dependency-blocked`.
 
     UNTRACKED FILES ARE EXCLUDED BY THE CALLER'S `--untracked-files=no`, and that exclusion is
     DELIBERATE (spec R5.4, plan finding F-4). A lane is created from a COMMIT, so an untracked file's
@@ -2635,6 +2690,13 @@ def evaluate_clean_base(
     HEAD a complete base? Neither subsumes the other: a dirty file OUTSIDE the incoming change is
     irrelevant to integration but still makes the base incomplete here, and this check cannot run at
     integration time because there is no `changed_files` yet.
+
+    THE CONTRAST IS NOW SHARPER, NOT WEAKER, after `d7qoxv`: on the isolated path the two checks differ
+    in CONSEQUENCE as well as in question, since this one REPORTS a disjoint dirty path while the
+    overlap check REFUSES an intersecting one. That is the correct asymmetry: an intersecting dirty
+    path means merging would CLOBBER a specific un-owned edit, which is a live, unrecoverable harm at
+    that moment; a disjoint one merely means HEAD was an incomplete base, which the revalidation step
+    surfaces on its own.
     """
     dirty = sorted(parse_porcelain_paths(porcelain))
     return CleanBaseResult(

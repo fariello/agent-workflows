@@ -3583,6 +3583,13 @@ def execute_item(
     # the full note): the condition no longer requires `isolate`, so a `--no-isolate-worktree` run is
     # guarded too; `shared_tree=not isolate` picks the sentence that is TRUE for that case; and the
     # proceed/consent/refuse verdict is the ONE shared decision, not a per-driver `if`.
+    #
+    # dirtygates Order 01 (`d7qoxv`) E-02, mirrored from the oc twin for the SAME parity requirement
+    # (spec `7ckptx` R2.6 + criterion A5c: the shared-code home is declared and neither driver holds a
+    # second copy). The CONSEQUENCE is split by path: a SHARED-TREE turn is still REFUSED, an ISOLATED
+    # turn is REPORTED and PROCEEDS. The oc twin carries the measurement and the full reasoning; note
+    # the split itself lives in `CleanBaseResult.refuses`, read by the shared decision, so this host
+    # cannot drift from that one.
     if self_finalize and not is_review:
         base = evaluate_clean_base_for_launch(repo, shared_tree=not isolate)
         decision = runner_shared.clean_base_launch_decision(
@@ -3591,7 +3598,24 @@ def execute_item(
                 state.get("options", {}).get("allow_dirty_base", False)
             ),
         )
-        if decision.consented:
+        if decision.warned:
+            # `d7qoxv` E-02: the ISOLATED path REPORTS and PROCEEDS. The RECORD is per attempt (each
+            # attempt must be self-describing); the OPERATOR-FACING line is emitted ONCE per run from
+            # the run-start report, because this block runs once per QUEUE ENTRY. No disposition, no
+            # `item["status"]`, no `return`: the turn continues to begin and lane allocation.
+            attempt["clean_base_warning"] = decision.reason
+            attempt["clean_base_dirty_paths"] = list(decision.dirty_paths)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "clean-base-warning",
+                    "id6": item["id6"],
+                    "dirty_paths": list(decision.dirty_paths),
+                    "detail": decision.reason,
+                },
+            )
+        elif decision.consented:
             attempt["clean_base_consented"] = decision.reason
             attempt["clean_base_dirty_paths"] = list(decision.dirty_paths)
             append_jsonl(

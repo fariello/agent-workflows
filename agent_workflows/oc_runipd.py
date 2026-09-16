@@ -6708,21 +6708,35 @@ def execute_item(
     wt_handle = None
     work_dir: str | None = None
 
-    # lanectn Order 02 (`nna8yz`) E-05, spec R5.4: REFUSE an unattended turn whose target checkout has
-    # dirty TRACKED paths, BEFORE anything is spawned or allocated.
-    #
-    # THE FAILURE THIS REMOVES ON THE ISOLATED PATH: a lane is created from a COMMIT, so an
-    # uncommitted tracked edit in the target checkout is simply ABSENT from the lane, and nothing told
-    # the worker its base was incomplete. It would then reason about, test against, and commit on top
-    # of a tree missing a change the maintainer believed was there.
+    # lanectn Order 02 (`nna8yz`) E-05, spec R5.4: evaluate the target checkout's TRACKED cleanliness
+    # BEFORE anything is spawned or allocated, and act on it per path.
     #
     # dirtybase Order 01 (`3i0aaz`) E-03: THE CONDITION NO LONGER REQUIRES `isolate`, and the RULE is
     # untouched. This block previously read `if isolate and ...`, so a `--no-isolate-worktree` run - the
     # case where dirt is MOST dangerous, because the agent writes directly into the tree it is
-    # polluting - skipped the guard entirely. `shared_tree=not isolate` selects the true refusal
-    # sentence for that case; the isolated wording would be FALSE there (that turn is not isolated and
-    # omits nothing). Only the condition and the message changed: no second predicate, no second
-    # `git status`, and the tracked-only scope is IDENTICAL on both paths.
+    # polluting - skipped the guard entirely. `shared_tree=not isolate` selects the true sentence for
+    # that case; the isolated wording would be FALSE there (that turn is not isolated and omits
+    # nothing). No second predicate, no second `git status`, and the tracked-only scope is IDENTICAL on
+    # both paths.
+    #
+    # dirtygates Order 01 (`d7qoxv`) E-01: THE CONSEQUENCE IS NOW SPLIT BY PATH, which is the amended
+    # R5.4. A SHARED-TREE turn is still REFUSED (its own changes could not be told apart from the
+    # uncommitted work already here at commit or finalize time). An ISOLATED turn is REPORTED and
+    # PROCEEDS.
+    #
+    # WHY THE ISOLATED REFUSAL WENT, because it looks like a safety regression and is not. It claimed to
+    # prevent a worker reasoning against an incomplete base, but MEASURED 2026-09-13 a lane cut from
+    # HEAD that lacked an uncommitted change failed EXACTLY as committing that change with no lane
+    # involved failed: the gate never prevented the failure, it deferred it to whenever the operator
+    # committed, which had to happen anyway. Meanwhile it cost 27 of 42, 23 of 41 and 18 of 43 queue
+    # items across three consecutive runs, each naming ONE uncommitted markdown file, cascading 36 more
+    # into `dependency-blocked`. The thing that ACTUALLY catches a stale base is the
+    # merge-and-revalidate gate, which re-runs validation against the COMBINED result and so reports a
+    # real test failure instead of a guess about a dirty file.
+    #
+    # THE VERDICT IS THE SHARED RULE'S, NOT AN `if isolate` HERE. `clean_base_launch_decision` reads
+    # `CleanBaseResult.refuses`, so the split cannot drift between the two hosts - which is exactly how
+    # the `--full-auto` default came to differ between them.
     #
     # `aw ipd begin` DOES NOT COVER THE SHARED-TREE CASE, so this is genuinely additional and the two
     # must not later be "simplified" into one. Begin's dirty check is SCOPE-SCOPED
@@ -6747,7 +6761,32 @@ def execute_item(
                 state.get("options", {}).get("allow_dirty_base", False)
             ),
         )
-        if decision.consented:
+        if decision.warned:
+            # dirtygates Order 01 (`d7qoxv`) E-01: the ISOLATED path REPORTS and PROCEEDS.
+            #
+            # THE RECORD IS PER ATTEMPT AND THE OPERATOR-FACING LINE IS NOT (the plan's OQ-01). Each
+            # attempt must be self-describing, so the paths land here in durable state under a
+            # NON-refusal key; the human-facing sentence is emitted ONCE per run from the run-start
+            # report in `initialize_run`, because this block runs once per QUEUE ENTRY and a print here
+            # would repeat the same message N times. (The run-start helper is named there, not here:
+            # `3i0aaz` pins by source inspection that this function does not reference it.)
+            #
+            # NOTE WHAT IS DELIBERATELY ABSENT: no `disposition`, no `item["status"]`, no `return`. The
+            # turn proceeds to begin and lane allocation. A genuinely stale base surfaces at
+            # merge-and-revalidate, which re-runs validation against the COMBINED result.
+            attempt["clean_base_warning"] = decision.reason
+            attempt["clean_base_dirty_paths"] = list(decision.dirty_paths)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "clean-base-warning",
+                    "id6": item["id6"],
+                    "dirty_paths": list(decision.dirty_paths),
+                    "detail": decision.reason,
+                },
+            )
+        elif decision.consented:
             # RECORDED, not merely permitted: an audit of a run that trampled something must be able
             # to see that the operator chose this, and which paths it covered.
             attempt["clean_base_consented"] = decision.reason
