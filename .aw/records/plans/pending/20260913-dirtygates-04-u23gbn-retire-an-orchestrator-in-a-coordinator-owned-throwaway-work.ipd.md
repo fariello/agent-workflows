@@ -41,7 +41,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: do the mutations off the shared checkout
 
-- [ ] E-01 Perform the retirement's mutation sequence (the status edit and the plan move) in a throwaway worktree created and owned by the COORDINATOR, so the shared checkout is not the place those mutations happen. The existing pattern to reuse is `commit_lock.commit_isolated` (`commit_lock.py:210-292`), which snapshots HEAD into a detached worktree, mirrors the paths, runs the real hooks there, and advances the branch under a compare-and-swap; it exists precisely because committing in the shared tree lets `pre-commit` stash and then restore over a peer's write. THE ROLE MUST REMAIN `coordinator`: retirement's first gate refuses when `AW_EXECUTION_ROLE=worker` (`ipd_lifecycle.py:2237-2246`), and this worktree is a coordinator-owned scratch tree, NOT a worker lane. Do not set, inherit, or emulate the worker role in it.
+- [x] E-01 Perform the retirement's mutation sequence (the status edit and the plan move) in a throwaway worktree created and owned by the COORDINATOR, so the shared checkout is not the place those mutations happen. The existing pattern to reuse is `commit_lock.commit_isolated` (`commit_lock.py:210-292`), which snapshots HEAD into a detached worktree, mirrors the paths, runs the real hooks there, and advances the branch under a compare-and-swap; it exists precisely because committing in the shared tree lets `pre-commit` stash and then restore over a peer's write. THE ROLE MUST REMAIN `coordinator`: retirement's first gate refuses when `AW_EXECUTION_ROLE=worker` (`ipd_lifecycle.py:2237-2246`), and this worktree is a coordinator-owned scratch tree, NOT a worker lane. Do not set, inherit, or emulate the worker role in it.
   - THE OUTCOME BELOW WAS WEAKENED AT REVIEW BECAUSE THE ORIGINAL WAS UNOBTAINABLE, and an executor must know that before starting. It read "a retirement performs no edit, move, or commit in the shared checkout; main advances by one ref update", and F-7 measures why that cannot hold: after a worktree commit and a bare CAS, the shared checkout reads `R  p/executed/plan.md -> p/pending/plan.md` -- dirty in the INVERSE direction, because HEAD holds the plan under `executed/` while the working tree still holds it under `pending/`. Adding `commit_isolated`'s own trailing `git reset --quiet HEAD -- <rel>` (`commit_lock.py:281-284`) does not clean it either; it produces ` D p/executed/plan.md` plus `?? p/pending/`. So the shared tree MUST still be reconciled, which is E-06's job, and E-01's honest deliverable is that the mutation and the commit stop happening there, not that nothing happens there.
   - OQ-03 IS ANSWERED: option (a), CHANGE THE SHARED `_finalize_transaction` IN PLACE; do NOT fork a rollup-specific body. CORRECTED AT REVIEW ROUND 2 (PR-014): this bullet previously said "DO NOT IMPLEMENT THIS UNTIL OQ-03 IS ANSWERED", which would stall an executor on a resolved question. Know the consequence the answer carries: the change reaches EVERY plan's terminal transition, not only a rollup retirement, so `tests/test_ipd_lifecycle_cli.py` is a required part of validation and no `77tr3o` amendment is expected (that was the "fork" branch, which was not taken).
   - `commit_isolated` CANNOT BE REUSED AT ALL HERE, AND THE REASON IS ITS COPY DIRECTION, NOT ONLY ITS CAS. FOUND AND MEASURED AT REVIEW ROUND 3 (PR-021, F-11), and this supersedes the earlier "resolve the tension" instruction, which understated the problem. `commit_isolated` creates its OWN worktree and mirrors each named path FROM the shared tree INTO it (`shutil.copy2(src, dst)`, `commit_lock.py:226-231`), propagating a DELETION when the shared-tree source is absent (`dst.unlink()`, `:232-234`). The direction is shared -> worktree. So a mutation performed in a DIFFERENT, coordinator-owned worktree is invisible to it, and the paths it is asked to commit do not exist in the shared tree at all. MEASURED against the real function: mutate in a coordinator worktree, then call `commit_isolated(repo, ["p/pending/plan.md","p/executed/plan.md"])`; it returned `error` / "git add failed in isolated worktree: fatal: pathspec 'p/executed/plan.md' did not match any files", HEAD unmoved and nothing committed. Two worktrees cannot be reconciled by a helper whose whole contract is "copy the shared tree's version of these paths".
@@ -49,34 +49,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - DO NOT DUPLICATE `commit_isolated`'S BODY. Its CAS arm, its `ISO_RACED` honesty and its cleanup `finally` are the parts worth keeping; what must change is that the branch advance becomes the CALLER's step. Prefer teaching `commit_isolated` (or a sibling in the same module) to return the landed sha WITHOUT advancing the ref, and to accept a caller-supplied worktree, over writing a second near-copy in `ipd_lifecycle`. Whichever route is taken, `agent_workflows/commit_lock.py` and `tests/test_isolated_commit.py` become this plan's files and MUST be added to `Scope-Paths`; the 12 tests in that suite pin the current contract and any signature change must keep them green.
   - Depends on: none
   - Expected outcome: the status edit, the plan move and the commit all occur in a coordinator-owned detached worktree; the branch is NOT advanced there; and the only remaining shared-checkout writes are E-06's ff-only merge and E-07's index refresh.
-  - Execution state: pending
-- [ ] E-02 Keep the journalled transaction and its rollback, and state plainly what each layer now guarantees. The journal (`PHASE_PREPARED` -> `PHASE_MUTATING` -> `PHASE_READY_TO_COMMIT` -> `PHASE_COMMITTED_INCOMPLETE`/`PHASE_COMPLETE`, `:132-147`) plus `_rollback_precommit` (`:1874`) handle crash recovery ACROSS invocations; the throwaway worktree shortens the shared-tree exposure WITHIN one invocation. These are complementary, not redundant. Do NOT delete the journal in the belief the worktree replaces it: `PHASE_COMMITTED_INCOMPLETE` and `PHASE_UNKNOWN_OUTCOME` still classify outcomes the CAS cannot.
+  - Execution state: performed
+- [x] E-02 Keep the journalled transaction and its rollback, and state plainly what each layer now guarantees. The journal (`PHASE_PREPARED` -> `PHASE_MUTATING` -> `PHASE_READY_TO_COMMIT` -> `PHASE_COMMITTED_INCOMPLETE`/`PHASE_COMPLETE`, `:132-147`) plus `_rollback_precommit` (`:1874`) handle crash recovery ACROSS invocations; the throwaway worktree shortens the shared-tree exposure WITHIN one invocation. These are complementary, not redundant. Do NOT delete the journal in the belief the worktree replaces it: `PHASE_COMMITTED_INCOMPLETE` and `PHASE_UNKNOWN_OUTCOME` still classify outcomes the CAS cannot.
   - THE JOURNAL MUST NOW COVER ONE MORE FAILURE, which is a consequence of E-06 rather than of the worktree. Once the commit lands by CAS but the shared-tree fast-forward REFUSES, the repository is in a genuinely new state: the transition is committed and correct on the ref, while the working tree still shows the old layout. That is a `PHASE_COMMITTED_INCOMPLETE` situation and must be recorded as one, not reported as success and not rolled back (rolling back a landed commit is exactly what `_resume_post_commit` refuses to do, `:2884-2891`). Say so in the journal's phase documentation.
   - Depends on: E-01
   - Expected outcome: crash recovery still works; the docstrings say which layer covers within-invocation exposure and which covers across-invocation crashes; and a refused reconciliation is classified committed-incomplete rather than as success or as a rollback.
-  - Execution state: pending
-- [ ] E-08 Make `_rollback_precommit` STOP writing to the shared checkout for a mutation it no longer performed there. FOUND AND MEASURED AT REVIEW ROUND 3 (PR-024, F-14): this is the one finding in this plan whose failure mode is DESTROYING A CO-WORKER'S UNCOMMITTED BYTES, which is the exact harm the whole Set exists to stop.
+  - Execution state: performed
+- [x] E-08 Make `_rollback_precommit` STOP writing to the shared checkout for a mutation it no longer performed there. FOUND AND MEASURED AT REVIEW ROUND 3 (PR-024, F-14): this is the one finding in this plan whose failure mode is DESTROYING A CO-WORKER'S UNCOMMITTED BYTES, which is the exact harm the whole Set exists to stop.
   - THE DEFECT, and why it is CREATED by E-01 rather than merely uncovered. Step 2 of `_rollback_precommit` (`:1910-1920`) unconditionally writes `journal["original_bytes"]` over `original_path`. That is correct TODAY, because this transaction is the party that moved that file away, so nothing else can legitimately be there. Once E-01 performs the relocation in the coordinator worktree, the shared-tree file is NEVER TOUCHED by the transaction, so the same write becomes an unconditional overwrite of whatever the shared tree currently holds. Note the asymmetry that makes this reachable: step 1 (`:1888-1908`) DOES carry a concurrency guard, comparing the destination against `journal["moved_bytes"]` and refusing a destructive restore on mismatch, but `original_path` has no such guard because until now it needed none.
   - MEASURED, against the real function. With a journal shaped as the new sequence leaves it and a peer edit in flight at the plan's pending path, `_rollback_precommit` overwrote the peer's content with the snapshot bytes: before `'- Status: approved\nPEER EDIT IN FLIGHT, uncommitted\n'`, after `'- Status: approved\nORIGINAL\n'`. The peer's bytes were gone. (The call also returned `ok=False` for an unrelated fixture reason, the manifest path, which is itself instructive: the destructive write happens in step 2 and is NOT undone by the later failure, so a rollback that reports failure has already destroyed the edit.)
   - THE FIX: give `original_path` the same guard `dest_path` already has. Restore it only when the transaction actually mutated it, or when its current bytes match what the transaction believes it wrote; otherwise refuse the destructive restore and classify unknown-outcome, exactly as step 1 does, naming the path. Under the new sequence the ordinary case needs no write at all, because the shared-tree file was never moved, so the correct default becomes "leave it alone".
   - THIS ALSO MEANS THE ROLLBACK MUST NOT UNDO THE FF-ONLY MERGE. If the reconciliation succeeded, the commit has landed and the rollback path is not the right tool (see E-02). If it refused, nothing was written and there is nothing to restore. Say both in the docstring so a later reader does not add a "helpful" reset.
   - Depends on: E-01
   - Expected outcome: a rollback performed after a worktree-side mutation writes NOTHING at the plan's original path when the shared-tree bytes are not the transaction's own, refuses with an unknown-outcome classification naming the path instead, and a test proves a peer's in-flight edit to the plan file survives a failed retirement byte for byte.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: measure what the window actually became
 
-- [ ] E-05 Add a test that measures the shared checkout's state at each observable instant of a SUCCESSFUL retirement, and pins the improvement the change actually delivers rather than a claim of cleanliness the mechanism cannot support (see E-01's weakened outcome and F-7).
+- [x] E-05 Add a test that measures the shared checkout's state at each observable instant of a SUCCESSFUL retirement, and pins the improvement the change actually delivers rather than a claim of cleanliness the mechanism cannot support (see E-01's weakened outcome and F-7).
   - THE PLAN ORIGINALLY PRESCRIBED A TECHNIQUE THAT CANNOT WORK, corrected here. It said to use "the fault-injection hooks `after_move` and `before_commit`" to observe those instants. Fault injection RAISES `_InjectedFault` and aborts the transaction (`:2593-2595`, `:154-155`), so it can only ever observe a FAILED retirement; by construction it cannot observe a successful one at those points. USE THE SEAM REVIEW ACTUALLY USED, which needs no production change: patch `_refresh_plans_index_fail_loud` to sample `git status --porcelain` at the post-move instant, and patch `commit_lock.commit_isolated` to sample it at the pre-commit instant, delegating to the real function in both cases. That produced the F-1a measurement and is reproducible.
   - THE ASSERTION IS A COMPARISON, NOT AN ABSOLUTE. Record the samples before the change (F-1a's values are the baseline: `RM pending/... -> executed/...` at post-move, `R  ...` plus the two untracked manifests at pre-commit) and after it, and assert that the post-change samples show NO staged rename and NO moved plan in the shared tree at either instant. Whatever residue remains must be enumerated in the test's own docstring, so the next reader learns the real property instead of inferring a stronger one. F-1a's baseline was RE-MEASURED at review round 3 against HEAD `5b0396b0` and reproduced exactly, so it is trustworthy as a baseline; capture it again anyway, since the plan's own rule is that a baseline comes from the same commit.
   - THE SEAM ITSELF MOVES, WHICH THE EXECUTOR MUST HANDLE RATHER THAN DISCOVER (added at review round 3). Both patch points named above are changed by this plan's own items: E-07 relocates `_refresh_plans_index_fail_loud` to AFTER the reconciliation, so it is no longer the post-move instant, and F-11 establishes that `commit_isolated` is no longer the call that commits this transaction, so patching it no longer observes the pre-commit instant. So capture the BEFORE samples FIRST, against unmodified code, using the seam as described; then choose the equivalent post-change instants in the new sequence (immediately after the coordinator worktree's commit and immediately before the ff-only merge are the natural ones) and say in the test's docstring which instant each sample corresponds to and why it is the counterpart of the original. A test that silently samples different instants before and after is not a comparison.
   - Depends on: E-01, E-02, E-06, E-07
   - Expected outcome: a test that names, for each observable instant, exactly what the shared checkout holds after the change, and fails if the mutation or the commit returns to the shared tree.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: reconcile the shared tree honestly
 
-- [ ] E-06 Bring the shared checkout into line with the new HEAD by a fast-forward that git performs and that REFUSES rather than clobbers. This item exists because review measured that E-01 alone leaves the tree dirty in the inverse direction (F-7), which is worse than the state it replaces.
+- [x] E-06 Bring the shared checkout into line with the new HEAD by a fast-forward that git performs and that REFUSES rather than clobbers. This item exists because review measured that E-01 alone leaves the tree dirty in the inverse direction (F-7), which is worse than the state it replaces.
   - THE MECHANISM, measured in a scratch repo before being prescribed: after the CAS advances the branch, run the reconciliation in the shared checkout as a `--ff-only` merge of the landed commit. VERIFIED CLEAN CASE: with an unrelated peer edit in flight (`peer.txt` modified), the ff-only merge applied the rename, left `git status --porcelain` reading exactly ` M peer.txt`, and the peer's uncommitted bytes were preserved verbatim. VERIFIED REFUSAL CASE: with a local modification to the very plan file being moved, git REFUSED (rc=1, "Your local changes to the following files would be overwritten by merge"), the working tree kept the peer's content, and nothing was lost. That refusal is the correct outcome and must be reported, never forced: do NOT reach for `git checkout -f`, `git reset --hard`, or a manual file move, each of which destroys the co-worker's edit that git just protected.
   - THE ORDER OF CAS-THEN-FF-ONLY IS WRONG AND WOULD SHIP A NO-OP. FOUND AND MEASURED AT REVIEW ROUND 2 (PR-013), reproduced twice. If `git update-ref refs/heads/main <new> <old>` runs FIRST, then by the time the reconciliation runs the branch ALREADY points at the landed commit, so `git merge --ff-only <landed>` prints "Already up to date." and exits 0 WITHOUT TOUCHING THE WORKING TREE. Measured shared-tree state after that sequence: `D  p/executed/plan.md`, `A  p/pending/plan.md`, ` M peer.txt`. So the reconciliation reports SUCCESS while leaving the tree dirty in the inverse direction, which is exactly the state F-7 says must not be shipped, and the ff-only refusal branch this item relies on becomes UNREACHABLE (there is nothing left to fast-forward, so git never checks for an overwrite).
   - THE CORRECT SEQUENCE IS TO LET THE FF-ONLY MERGE BE THE THING THAT ADVANCES THE BRANCH. Do NOT advance `refs/heads/main` yourself and then reconcile. Instead leave the branch where it is and run `git merge --ff-only <landed-commit>` in the shared checkout as the SINGLE operation: it moves the ref AND updates the working tree in one step, and it is the operation whose refusal protects a peer. MEASURED, same fixture, with an unrelated peer edit in flight: rc=0, "Updating <old>..<new> / Fast-forward", the plan ends at its `executed/` path, `p/pending/` is gone, `git status --porcelain` reads exactly ` M peer.txt`, the peer's bytes are verbatim, and HEAD equals the landed commit. MEASURED CONTENDED CASE, same sequence with a peer modification to the plan being moved: rc=1 with git's own "Your local changes to the following files would be overwritten by merge: p/pending/plan.md ... Aborting", the peer's edit intact, and HEAD NOT ADVANCED. Note the consequence for E-02: in this ordering a refusal leaves the commit UNREACHABLE FROM main rather than landed-but-unreconciled, so it is NOT `PHASE_COMMITTED_INCOMPLETE`; classify it by what actually happened and say which, rather than inheriting E-02's wording.
@@ -85,18 +85,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - A DIVERGED BRANCH IS A THIRD ARM, DISTINCT FROM THE CONTENDED ONE, AND IT MUST BE CLASSIFIED SEPARATELY. FOUND AT REVIEW ROUND 3 (PR-023, F-13). E-06 as written measures only two cases (clean, and a peer editing the moved file). If a peer COMMITS anything to main between the coordinator worktree's snapshot and the merge, the branch has DIVERGED and no fast-forward exists. MEASURED: `git merge --ff-only <landed>` then exits **128** (not 1) with "fatal: Not possible to fast-forward, aborting", HEAD unmoved, the landed commit NOT an ancestor of HEAD, and the shared tree CLEAN (`git status --porcelain` empty) with the plan still at `pending/`. This is exactly the condition `commit_isolated` reports as `ISO_RACED` today, so classify it the same way and reuse that vocabulary rather than inventing a second one: the work exists as a reachable commit, the branch was not moved, and the operator is told to retry. Distinguish the arms by EXIT CODE and by whether the tree is dirty, not by string-matching git's prose, which differs between the two (`error:` + rc=1 for the overwrite refusal, `fatal:` + rc=128 for divergence).
   - Depends on: E-01
   - Expected outcome: on the clean path the shared checkout ends with the plan in `executed/`, no staged rename, `git status --porcelain` showing only unrelated peer dirt, and HEAD equal to the landed commit; on the contended path the reconciliation refuses with git's own text (rc=1), the peer's bytes survive, main is NOT advanced, and the outcome is reported honestly with the objecting paths named; on the diverged path (rc=128) the outcome is reported as a race with the landed commit named. The ff-only merge, not a separate `update-ref`, MUST be what advances the branch.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: keep the index gate live under the new ordering
 
-- [ ] E-07 Refresh the plans manifests AFTER the reconciliation lands the rename, not before it, and keep the fail-loud gate meaningful. THIS ITEM EXISTS BECAUSE REVIEW ROUND 3 MEASURED THAT E-01 SILENTLY BREAKS THE `plans-index-refresh-fail-loud` GATE (PR-022, F-12), which `ROLLUP_SHARED_GATES` (`:2066`) declares the rollup keeps and which spec `77tr3o` OQ-1 requires a test to pin.
+- [x] E-07 Refresh the plans manifests AFTER the reconciliation lands the rename, not before it, and keep the fail-loud gate meaningful. THIS ITEM EXISTS BECAUSE REVIEW ROUND 3 MEASURED THAT E-01 SILENTLY BREAKS THE `plans-index-refresh-fail-loud` GATE (PR-022, F-12), which `ROLLUP_SHARED_GATES` (`:2066`) declares the rollup keeps and which spec `77tr3o` OQ-1 requires a test to pin.
   - THE MECHANISM OF THE BREAKAGE, measured in the repository's own fixture. `_refresh_plans_index_fail_loud` (`:1656-1695`) regenerates the manifests by scanning the plans tree ON DISK (`plans_index.scan_plans` walks `plans_dir.rglob("*.md")`, `plans_index.py:99`) and then re-runs `--check` and RAISES if it did not converge. Today it runs at `:2700`, INSIDE the mutating phase, AFTER the shared-tree `git mv`, so the disk it scans already shows the plan at `executed/`. Once E-01 moves that relocation into the coordinator worktree, the shared disk still shows the plan at `pending/` when the refresh runs, so the manifest is generated describing the OLD layout, converges against it, and the gate PASSES. Then the ff-only merge relocates the file and the manifest is instantly stale. MEASURED: after that sequence, the manifest contained the `pending/` path and not the `executed/` one, and `aw index plans --check` returned rc=1 reporting `INDEX.json: check.stale-index-stale` and `INDEX.md: check.stale-index-stale`, both at `warning` severity (`check_engine.py:336`), which fails the gate.
   - WHY THIS IS THE SERIOUS ONE. The gate does not merely mis-order; it INVERTS. It reports success on a manifest it can already tell is about to be wrong, and the repository is left in exactly the `check.stale-index-stale` state the gate exists to prevent, with no failure recorded. F-9 already established that the test guarding this gate (`tests/test_orchestrator_retirement.py:2079`, `:2104`) asserts only that the gate's NAME appears in `ROLLUP_SHARED_GATES`, so it cannot detect a gate lost in fact. That is the same invisible-divergence class OQ-03 was resolved to avoid, arriving by a different door.
   - THE FIX: move the refresh to AFTER the reconciliation succeeds, so it scans a disk that already holds the final layout, and keep it fail-loud. Note the consequence for the journal, which is E-02's business: the refresh then happens AFTER the commit has landed, so a refresh failure is no longer a pre-commit failure that can be rolled back. It is a `PHASE_COMMITTED_INCOMPLETE` condition and must be recorded as one. Do NOT roll back a landed commit to undo a manifest regeneration; the manifests are gitignored generated views (`.aw/.gitignore:45-46`) whose remedy is mechanical (`aw index plans`), and `_resume_post_commit` (`:2884-2891`) already establishes that a landed lifecycle commit is resumed, never reverted.
   - DO NOT INSTEAD REGENERATE IN THE WORKTREE. F-9 measured that route and it fails: the manifests are gitignored, a fresh detached worktree never receives them, and a regeneration there is discarded with the worktree while the shared copies keep stale bytes. That is how OQ-02 was resolved, and this item must not reopen it.
   - Depends on: E-01, E-06
   - Expected outcome: the manifests are regenerated from the post-reconciliation disk, `aw index plans --check` is clean in the fixture after a successful retirement, the fail-loud gate still raises on a genuine non-convergence, and a post-commit refresh failure is classified committed-incomplete rather than rolled back.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -234,36 +234,330 @@ items. The index-residue fix and its assertions belong to Order 06 and are valid
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a successful retirement showing the orchestrator in `executed/` on main, and paste the resulting commit's `git show --name-status`, which must contain ONLY the plan rename. Then paste the two `git status --porcelain` samples taken at the post-move and pre-commit instants (via E-05's seam, NOT fault injection) and state, in words, exactly what each shows. DO NOT ASSERT THEY ARE EMPTY: F-7 measures that they cannot be, and V-01 originally demanded proof of a property the mechanism does not have. The passing criterion is that neither sample contains a staged rename of the plan and neither shows the plan present at its `executed/` path in the shared tree before the commit. Also paste `git rev-list --count <pre>..<post>` showing main advanced by exactly one commit.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: PASS. Baseline captured FIRST, against unmodified code at HEAD `73e284a6`
+    (transcript: `.aw/state/lane-submissions/run-20260916T182835Z-1650244/05-u23gbn/attempt-1/evidence/baseline-f1a-f12-f14.txt`);
+    post-change transcript in the same directory as `postchange-v01-v08.txt`. Durable assertions live in
+    `tests/test_orchestrator_retirement.py::TheSharedCheckoutIsNotWhereTheMutationHappens` (4 tests) and
+    `tests/test_ipd_lifecycle_cli.py::TheORDINARYFinalizeAlsoMutatesOffTheSharedCheckout` (6 tests), all passing.
+
+    THE SUCCESSFUL RETIREMENT, post-change:
+
+        retire exit_code: 0 | message: finalized orc000 -> executed at 75da7deb334e (actor aw oc run model=test)
+        commit --name-status: R082  .aw/records/plans/pending/20260906-post1a-00-orc000-synthetic.ipd.md   .aw/records/plans/executed/20260906-post1a-00-orc000-synthetic.ipd.md
+        rev-list --count pre..post: 1
+
+    So the commit contains ONLY the plan rename, and main advanced by exactly one commit.
+
+    THE TWO INSTANT SAMPLES, post-change (`git status --porcelain` in the SHARED checkout), with an
+    unrelated peer's uncommitted edit to `peer.txt` in flight throughout:
+
+        pre-commit (inside the coordinator worktree's `git commit`):   " M peer.txt"
+        pre-shared-write (the post-move counterpart, immediately
+          before the shared checkout is written at all):              " M peer.txt"
+
+    IN WORDS. Each sample shows exactly ONE entry, the peer's own unrelated modified file, which was
+    never this transaction's to touch. Neither sample contains a staged rename of the plan (no `R`/`RM`
+    entry at all) and neither shows the plan present at its `executed/` path in the shared tree. THIS IS
+    NOT A CLAIM OF EMPTINESS: the peer's dirt is present and is expected, and after the transaction the
+    two GITIGNORED plans manifests appear as `?? INDEX.json` / `?? INDEX.md` in this fixture (they cannot
+    dirty the real repository, whose `.aw/.gitignore` ignores them; see F-3a).
+
+    THE BASELINE THIS IMPROVES ON, for comparison (same fixture shape, unmodified code):
+
+        post-move:   "RM .aw/records/plans/pending/<plan> -> .aw/records/plans/executed/<plan>" + " M peer.txt"
+        pre-commit:  "R  .aw/records/plans/pending/<plan> -> .aw/records/plans/executed/<plan>" + " M peer.txt"
+                     + "?? .aw/records/plans/INDEX.json" + "?? .aw/records/plans/INDEX.md"
+
+    The staged rename that was present at BOTH pre-change instants is absent at both post-change ones.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste a crash-recovery case (a stale pre-commit journal) still recovering correctly, and paste the docstring text stating which layer covers within-invocation exposure and which covers across-invocation crashes. ALSO paste the new committed-incomplete case from E-02's second bullet: a retirement whose commit landed but whose reconciliation refused, showing the journal phase is `PHASE_COMMITTED_INCOMPLETE`, that the landed commit is still reachable, and that no rollback of it was attempted.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: PASS, with ONE PART OF THE DEMAND REPORTED AS UNSATISFIABLE BY CONSTRUCTION
+    rather than faked; that is stated first because it is the honest half.
+
+    THE UNSATISFIABLE PART. This item asks for "a retirement whose commit landed but whose reconciliation
+    refused, showing the journal phase is `PHASE_COMMITTED_INCOMPLETE`". THAT STATE CANNOT EXIST in the
+    ordering the plan itself corrected. F-10 established that the ff-only merge must BE the branch
+    advance, so a refusal means the branch never moved and the commit is NOT reachable from it: nothing
+    landed as far as the branch is concerned. E-06's own bullet says exactly this ("in this ordering a
+    refusal leaves the commit UNREACHABLE FROM main rather than landed-but-unreconciled, so it is NOT
+    `PHASE_COMMITTED_INCOMPLETE`; classify it by what actually happened"), and V-06's third bullet
+    repeats it. The two demands are therefore in direct conflict, and this V-item's wording is the
+    stale one; it was written when the CAS-then-reconcile ordering was still assumed. MEASURED, so this
+    is not an argument from prose (`postchange-v01-v08.txt`, contended arm):
+
+        classification: refused-would-overwrite | git rc: 1
+        HEAD unmoved: True
+        is the abandoned commit an ancestor of HEAD: False
+        journal after: unknown-outcome
+
+    The recorded class agrees with reality. `tests/test_ipd_lifecycle_cli.py::
+    TheORDINARYFinalizeAlsoMutatesOffTheSharedCheckout::
+    test_a_refused_reconciliation_rolls_back_and_is_NOT_committed_incomplete` PINS that it is not
+    reported as committed-incomplete, which is the property this item was really protecting.
+
+    THE COMMITTED-INCOMPLETE CASE THAT DOES EXIST is the POST-COMMIT one E-07 creates, and it is
+    evidenced instead. Measured:
+
+        retire exit_code: 1
+        message: finalize is COMMITTED-INCOMPLETE for orc000: the lifecycle commit 013e5ddb2dec LANDED,
+          but the fail-loud plans-index refresh did not converge (did not converge). The commit is NOT
+          rolled back (a landed lifecycle commit is resumed, never reverted) ...
+        recorded phase: committed-incomplete
+
+    The commit is reachable, no rollback of it was attempted, and the outcome is not success.
+
+    CRASH RECOVERY STILL WORKS, on both paths (actual runner output):
+
+        $ python3 -m pytest -o addopts="" tests/test_orchestrator_retirement.py -q \
+            -k "test_a_stale_pre_commit_journal_is_ROLLED_BACK_before_a_fresh_attempt or \
+                test_the_transaction_journal_is_written_and_cleared or \
+                test_an_injected_pre_commit_FAULT_rolls_the_rollup_back"
+        3 passed, 127 deselected in 0.58s
+
+        $ python3 -m pytest -o addopts="" tests/test_ipd_lifecycle_cli.py -q \
+            -k "test_crash_restart_before_commit_recovers_on_reinvocation or \
+                test_committed_incomplete_then_same_command_resume or \
+                test_rollback_preserves_disjoint_dirty_and_staged_work or \
+                test_journal_records_ownership_and_is_atomic_before_mutation"
+        4 passed, 76 deselected in 0.76s
+
+    THE DOCSTRING NAMING WHICH LAYER COVERS WHAT (`ipd_lifecycle._finalize_transaction`, verbatim):
+
+        WHICH LAYER COVERS WHICH FAILURE, since the journal and the worktree are complementary and
+        deleting either would be a mistake:
+
+        * THE WORKTREE shortens the WITHIN-INVOCATION exposure of the shared checkout. It cannot classify
+          anything, and it does not survive the process.
+        * THE JOURNAL covers ACROSS-INVOCATION crashes. ``PHASE_PREPARED``/``PHASE_MUTATING``/
+          ``PHASE_READY_TO_COMMIT`` are rolled back idempotently on the next invocation;
+          ``PHASE_COMMITTED_INCOMPLETE`` is RESUMED, never reverted; ``PHASE_UNKNOWN_OUTCOME`` fails
+          closed. A compare-and-swap or a fast-forward can express none of that.
+
+    The journal is intact: no phase and no rollback path was deleted.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste the observation test's actual samples at both instants, before and after the change, side by side, so the improvement is visible as a diff rather than asserted. The before values must match F-1a (`RM pending/... -> executed/...`; then `R  ...` plus the two untracked manifests) or the discrepancy must be explained. Also paste the test's docstring enumerating what residue remains, and confirm the test does NOT use `fault_injection` for these instants (which raises and aborts, `:2593-2595`, so it cannot observe a successful run).
   - ALSO STATE WHICH INSTANTS THE POST-CHANGE SAMPLES CORRESPOND TO, and why each is the counterpart of the pre-change one. Per E-05's third bullet both original patch points move under E-07 and F-11, so a post-change sample taken at a differently-chosen instant is not comparable. If the counterpart instants are not defensibly equivalent, say so plainly rather than presenting the pair as a diff.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: PASS. The test is
+    `tests/test_orchestrator_retirement.py::TheSharedCheckoutIsNotWhereTheMutationHappens`, 4 tests, all
+    passing (verbose run in `evidence/new-tests-verbose.txt`).
+
+    IT DOES NOT USE `fault_injection` FOR THESE INSTANTS, confirmed: the plan's original prescription
+    cannot work, because injecting a fault RAISES `_InjectedFault` and ABORTS the transaction, so it can
+    only ever observe a FAILED retirement. The test patches `land_worktree_commit` and
+    `ipd_lifecycle._git`, each DELEGATING to the real function, so it observes a genuinely SUCCESSFUL
+    retirement. (The class docstring states this.)
+
+    SIDE BY SIDE, same fixture shape, same `git status --porcelain` command:
+
+        instant                     | BEFORE (HEAD 73e284a6, unmodified)                        | AFTER
+        ----------------------------+-----------------------------------------------------------+------------------
+        post-move / pre-shared-write| RM .../pending/<plan> -> .../executed/<plan>              | " M peer.txt"
+                                    | " M peer.txt"                                             |
+        pre-commit                  | R  .../pending/<plan> -> .../executed/<plan>              | " M peer.txt"
+                                    | " M peer.txt"                                             |
+                                    | ?? .aw/records/plans/INDEX.json                           |
+                                    | ?? .aw/records/plans/INDEX.md                             |
+
+    The BEFORE values match F-1a exactly (re-measured at execution time rather than trusted; transcript
+    `evidence/baseline-f1a-f12-f14.txt`).
+
+    WHICH INSTANTS THE POST-CHANGE SAMPLES CORRESPOND TO, and why they are the counterparts. Both
+    original patch points move under this plan, exactly as E-05's third bullet warned, so the instants
+    are named rather than assumed:
+
+    * POST-MOVE -> the moment `land_worktree_commit` is ENTERED, i.e. after the status edit, the plan
+      move AND the commit have all happened in the coordinator worktree and immediately BEFORE the shared
+      checkout is touched at all. This is DEFENSIBLY EQUIVALENT AND THEN SOME: it is strictly LATER in
+      the sequence than the old post-move instant, so anything the old sample showed must be absent here
+      a fortiori. `_refresh_plans_index_fail_loud` is no longer this instant (E-07 moved it after the
+      reconciliation), which is why the seam changed.
+    * PRE-COMMIT -> sampled INSIDE the coordinator worktree's own `git commit` invocation. `commit_isolated`
+      is no longer the call that commits this transaction (F-11), so patching it would observe nothing and
+      pass vacuously; the counterpart is the commit that actually happens.
+
+    THE TEST'S OWN DOCSTRING ENUMERATES THE REMAINING RESIDUE, verbatim: "the peer's own unrelated dirty
+    file (never ours to touch), and after the transaction the two GITIGNORED plans manifests
+    (`INDEX.json`/`INDEX.md`), which are regenerated generated views that no `aw` verb commits and which
+    do not appear in this repository's own `git status` at all because `.aw/.gitignore` ignores them.
+    What must NOT appear at either instant is a staged rename of the plan or the plan present at its
+    `executed/` path in the shared tree."
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: paste BOTH reconciliation cases from the real code path, not from a scratch repo. CLEAN: an unrelated peer file dirty in the shared checkout, the retirement succeeding, and `git status --porcelain` afterwards showing the peer's entry and nothing about the plan, with the peer's bytes shown unchanged. CONTENDED: a local modification to the plan being moved, git's ACTUAL refusal text pasted, the peer's bytes shown intact, the result reported honestly naming the objecting path, and proof that no `checkout -f` / `reset --hard` / manual move was performed (paste the reconciliation's own command line).
   - THE NO-OP MUST BE RULED OUT EXPLICITLY (F-10), because the broken ordering PASSES every assertion above except this one. Paste the reconciliation's actual git output and show it is NOT "Already up to date.": on the clean path it must read "Updating <old>..<new>" / "Fast-forward". Additionally paste the shared checkout's `git status --porcelain` and show it contains NO staged `D `/`A ` pair for the plan's two paths, which is the exact signature of the no-op ordering. State whether the implementation advances `refs/heads/main` separately; if it does, this item FAILS regardless of the other evidence.
   - ON THE CONTENDED PATH, state and prove which outcome class was recorded and that it matches reality: in the corrected ordering the commit is NOT reachable from main, so `PHASE_COMMITTED_INCOMPLETE` would be a FALSE classification. Paste `git merge-base --is-ancestor <landed> HEAD` (or equivalent) to show whether the commit landed, and show the recorded phase agrees with it.
   - Also paste `aw index plans --check` clean after the successful case, per the index-gate requirement above.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: PASS, all THREE arms, through the REAL code path (`retire_orchestrator` in the
+    repository's own git-backed fixture, not a scratch repo). Tests:
+    `tests/test_orchestrator_retirement.py::TheSharedTreeIsReconciledByARefusingFastForward`, 4 tests,
+    passing. Transcript: `evidence/postchange-v01-v08.txt`.
+
+    THE IMPLEMENTATION DOES NOT ADVANCE `refs/heads/main` SEPARATELY. Stated explicitly because this item
+    fails outright if it does. The reconciliation is one command,
+    `_git(repo_root, ["merge", "--ff-only", landed])` (`ipd_lifecycle.land_worktree_commit`), and
+    `test_the_ff_only_merge_is_what_advances_the_branch_not_a_separate_update_ref` asserts on the parsed
+    git ARGUMENT LISTS (comments and docstrings stripped, so the check cannot be satisfied by deleting a
+    warning) that `_finalize_transaction` contains no `update-ref` and that the lander runs no `reset`,
+    `checkout`, `restore`, `clean`, `stash` or `update-ref`.
+
+    CLEAN ARM, with an unrelated peer file dirty in the shared checkout:
+
+        classification: reconciled | git rc: 0
+        git said: Updating d0b1f2b..75da7de / Fast-forward
+        status afterwards: " M peer.txt" + "?? .aw/records/plans/INDEX.json" + "?? .aw/records/plans/INDEX.md"
+        peer.txt bytes: 'peer v2 UNCOMMITTED\n'   (unchanged, verbatim)
+        aw index plans --check rc: 0
+
+    THE NO-OP IS RULED OUT EXPLICITLY. git's output reads "Updating <old>..<new>" / "Fast-forward" and NOT
+    "Already up to date."; the test asserts both. The shared status contains NO staged `D `/`A ` pair for
+    the plan's two paths (nothing about the plan at all), which is the exact signature of the broken
+    ordering. `land_worktree_commit` additionally CLASSIFIES an "Already up to date." rc=0 as a race
+    rather than success, so the no-op cannot be reported as a clean reconciliation even if it occurred.
+
+    CONTENDED ARM (a peer's edit to the plan being moved lands mid-transaction). git's ACTUAL text:
+
+        classification: refused-would-overwrite | git rc: 1
+        objecting paths: ('.aw/records/plans/pending/20260906-postcont-00-orc000-synthetic.ipd.md',)
+        Updating 032d7c0..04c4fd5
+
+        error: Your local changes to the following files would be overwritten by merge:
+                .aw/records/plans/pending/20260906-postcont-00-orc000-synthetic.ipd.md
+        Please commit your changes or stash them before you merge.
+        Aborting
+
+        retire exit_code: 2
+        PEER BYTES SURVIVED: True
+        HEAD unmoved: True
+        is the abandoned commit an ancestor of HEAD: False
+        journal after: unknown-outcome
+
+    WHICH OUTCOME CLASS WAS RECORDED, AND THAT IT MATCHES REALITY: `git merge-base --is-ancestor <landed>
+    HEAD` returns NONZERO, i.e. the commit is NOT reachable from main, so `PHASE_COMMITTED_INCOMPLETE`
+    would be a FALSE classification and is not what was recorded. The refusal is surfaced with git's own
+    text and the objecting path named. NO FORCING WAS PERFORMED: the reconciliation's own command line is
+    `git merge --ff-only <landed>` and nothing else (asserted on the parsed argument lists, above).
+
+    DIVERGED ARM (a peer COMMIT lands on main mid-transaction) - a THIRD arm with its own exit code:
+
+        classification: raced | git rc: 128
+        fatal: Not possible to fast-forward, aborting. The branch moved from b869c480c5ec to cf366be1a22c meanwhile.
+        retire exit_code: 2
+        tip subject: peer landed first
+        is the preserved commit an ancestor of HEAD: False
+        preserved commit named in the message: True
+        shared status: ''            (clean, unlike the contended arm)
+        plan back at pending/: True
+
+    The arms are distinguished by EXIT CODE and tree state (1 + dirty vs 128 + clean), never by
+    string-matching git's prose, whose wording differs between them.
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: prove the index gate is LIVE under the new ordering, not merely still named. After a successful retirement in the fixture, paste the generated `INDEX.json` content (or a grep of it) showing it names the plan's `executed/` path and does NOT name its `pending/` path, and paste `aw index plans --check` returning clean. Then paste the baseline for comparison: the same two samples taken with the refresh left in its OLD position (before the reconciliation), which per F-12 must show the `pending/` path present, the `executed/` path absent, and `--check` failing with `check.stale-index-stale` on both manifests. A V-07 that shows only the passing case cannot distinguish the fix from the falsely-passing gate it replaces.
   - ALSO prove the gate still REFUSES. Paste a case where the manifest genuinely cannot converge and show `_refresh_plans_index_fail_loud` still raises and the transaction still fails closed, so the fix did not turn a fail-loud gate into a fail-quiet one. State which phase a post-commit refresh failure is recorded as, and show it is not reported as success and not rolled back.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-08 validates E-08
+  - Observed evidence: PASS, with BOTH the passing case and the falsely-passing baseline it replaces, so
+    the two are distinguishable. Tests:
+    `tests/test_orchestrator_retirement.py::TheIndexGateIsStillLiveUnderTheNewOrdering`, 4 tests, passing.
+    Transcripts: `evidence/postchange-v01-v08.txt` and `evidence/baseline-f1a-f12-f14.txt`.
+
+    POST-CHANGE, after a successful retirement in the fixture (grep of the generated `INDEX.json`):
+
+        observed call ORDER: ['reconcile', 'refresh']
+        manifest grep, executed/ path present: True
+        manifest grep, pending/ path present : False
+        aw index plans --check rc: 0
+
+    The refresh is proven to run AFTER the reconciliation as an ORDER of observed calls, not merely by a
+    passing happy path (`test_the_refresh_runs_AFTER_the_reconciliation_not_before`), because the wrong
+    order also passes a happy path.
+
+    THE BASELINE, i.e. the refresh left in its OLD position, measured against unmodified code:
+
+        refresh with the plan still at pending/: RAISED? no (the gate PASSED)
+        manifest names the pending/ path: True
+        manifest names the executed/ path: False
+        INDEX.json: check.stale-index-stale: INDEX.json is out of date; run 'aw index plans'
+        INDEX.md: check.stale-index-stale: INDEX.md is out of date; run 'aw index plans'
+        aw index plans --check rc after the relocation: 1
+
+    That is the inversion in full: the gate PASSED on a manifest describing the OLD layout, and the
+    repository was then left in exactly the `check.stale-index-stale` state the gate exists to prevent,
+    with no failure recorded. `test_the_old_position_would_have_produced_a_stale_manifest` pins it, so
+    the fix and the falsely-passing gate cannot be confused by a later reader.
+
+    THE GATE STILL REFUSES (fail-loud, not fail-quiet):
+
+        retire exit_code: 1
+        message: finalize is COMMITTED-INCOMPLETE for orc000: the lifecycle commit 013e5ddb2dec LANDED,
+          but the fail-loud plans-index refresh did not converge (did not converge). The commit is NOT
+          rolled back (a landed lifecycle commit is resumed, never reverted) and the manifests are
+          gitignored generated views, so the remedy is to run `aw index plans` and then re-run the SAME
+          command to resume.
+        recorded phase: committed-incomplete
+
+    WHICH PHASE A POST-COMMIT REFRESH FAILURE IS RECORDED AS: `committed-incomplete`. It is NOT reported
+    as success (exit_code 1, EXIT_FINDINGS) and the landed commit is NOT rolled back, consistent with
+    `_resume_post_commit`, which resumes a landed lifecycle commit and never reverts one. Two
+    pre-existing tests that pinned the OLD classification were updated with the reason recorded in their
+    docstrings rather than deleted: `test_a_FAILING_plans_index_refresh_fails_the_whole_transaction`
+    (retirement) and `test_fail_loud_index_refresh_aborts_transaction` +
+    `test_fault_after_index_is_committed_incomplete_not_rolled_back` (ordinary finalize).
+  - Result: pass
+- [x] V-08 validates E-08
   - Required evidence: paste the peer-preservation case from the real code path. Set a peer's uncommitted edit at the plan's pending path, drive a FAILED retirement whose rollback runs, and paste the file's bytes BEFORE and AFTER, showing them identical. Then paste the recorded outcome, showing the rollback REFUSED the destructive restore and classified unknown-outcome naming that path, rather than reporting a clean restore.
   - THE PRE-FIX BASELINE MUST BE PASTED TOO, because this V-item is otherwise satisfiable by a fixture that never had a peer edit. Per F-14 the pre-fix measurement is: before `'- Status: approved\nPEER EDIT IN FLIGHT, uncommitted\n'`, after `'- Status: approved\nORIGINAL\n'`. Show your own equivalent before-and-after against the unfixed code, then the same case passing after the fix.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS, with the PRE-FIX baseline pasted first, since that is what makes this item
+    more than a fixture that never had a peer edit. Tests:
+    `tests/test_orchestrator_retirement.py::AFailedRetirementCannotDestroyAPeersInFlightEdit`, 4 tests,
+    passing.
+
+    PRE-FIX BASELINE, measured against unmodified code at HEAD `73e284a6` with a worktree-shaped journal
+    and a peer edit in flight at the plan's pending path (`evidence/baseline-f1a-f12-f14.txt`):
+
+        BEFORE bytes (tail): 'ost-gate lifecycle move).\n\nPEER EDIT IN FLIGHT, uncommitted\n'
+        rollback ok: True | message: pre-commit state restored (plan bytes/path + owned Git-index; index regenerated).
+        AFTER bytes (tail): ' gate prose (execution contract, post-gate lifecycle move).\n'
+        PEER EDIT SURVIVED: False
+
+    The peer's bytes were DESTROYED, and the rollback reported a clean restore while doing it. That
+    matches F-14's measurement in kind (F-14 used a minimal plan whose tail read
+    `'- Status: approved\nORIGINAL\n'`; this fixture uses the repository's real conforming scaffold, so
+    the surrounding bytes differ while the loss is identical).
+
+    POST-FIX, the SAME call, same fixture shape (`evidence/postchange-v01-v08.txt`):
+
+        BEFORE bytes (tail): 'ost-gate lifecycle move).\n\nPEER EDIT IN FLIGHT, uncommitted\n'
+        rollback ok: False
+        rollback message: unknown-outcome: the plan's original path
+          .aw/records/plans/pending/20260906-postrb-00-orc000-synthetic.ipd.md holds content this
+          transaction did not write (a concurrent writer's in-flight edit); refusing a destructive
+          restore. Those bytes are intact and were NOT overwritten.
+        AFTER bytes (tail): 'ost-gate lifecycle move).\n\nPEER EDIT IN FLIGHT, uncommitted\n'
+        PEER EDIT SURVIVED: True
+        BYTES IDENTICAL: True
+
+    The bytes are IDENTICAL before and after, and the rollback REFUSED the destructive restore and
+    classified `unknown-outcome` NAMING the path, instead of reporting a clean restore.
+
+    END TO END through the real transaction, not only the helper (a fault-injected retirement whose
+    rollback runs, with the peer's edit landing during the transaction):
+
+        retire exit_code: 2
+        message: fault-injected finalize failure (before_commit); rollback FAILED (unknown-outcome: the
+          plan's original path ...postrbe2e... holds content this transaction did not write ...);
+          journal retained, repository NOT reported restored.
+        PEER BYTES IDENTICAL: True
+        HEAD unmoved: True
+
+    THE GUARD IS NOT OVER-BROAD, which matters because a guard that refused everything would break the
+    case rollback exists for. Two further tests pin the other directions:
+    `test_a_genuine_half_move_is_STILL_restored` (an ABSENT origin is restored and the moved destination
+    removed) and `test_the_rollback_is_IDEMPOTENT_when_the_origin_already_matches` (re-running a
+    completed rollback is a no-op, not a refusal).
+  - Result: pass
 
 ## Approval and execution gate
 
