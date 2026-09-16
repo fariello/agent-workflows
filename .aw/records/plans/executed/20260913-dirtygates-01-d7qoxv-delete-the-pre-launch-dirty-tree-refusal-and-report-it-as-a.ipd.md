@@ -8,18 +8,18 @@
   NOTE THE TITLE OVERSTATES WHAT SHIPS. "Delete the pre-launch dirty-tree refusal" was accurate when this plan was authored; after OQ-02 resolved, the refusal is RETAINED for the shared-tree path and only the isolated path becomes a report. The filename is not being changed (renaming would churn the `<slug>` and every cross-reference for no behavioral gain, and AGENTS.md reserves plan naming to `aw rename plans`), so THIS Scope line governs and the title does not.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/lane_containment.py, tests/test_lane_clean_base.py, .aw/records/specs/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
 - Item-Dependencies: executed:3i0aaz
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: dirtygates
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: d7qoxv
-- Approval: 2026-09-14, recorded via aw ipd set: status set to approved
 - Priority: high
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-16 executed (aw oc run): aw oc run self-finalize: d7qoxv verified (set dirtygates, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/runner_shared.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_dirty_base_gate.py: changed by the plan's approved execution (auto-reconciled by aw oc run)]
 - 2026-09-14 approved (aw set): OQ-03 resolved to option (c): 3i0aaz executes FIRST and collects its empty-diff proof; this edge records that maintainer-ruled ordering
 - 2026-09-14 approved (aw set): status set to approved
 - 2026-09-13 reviewed (maintainer, --by-human attestation via askme): MAINTAINER ATTESTATION 2026-09-13: readiness set to `go-pending-approval` BY THE MAINTAINER, not by an agent and not by a review. The prior `no-go` was written by this plan's own earlier review round while a blocking question was open; the maintainer then answered every open question in this plan through the `askme` workflow on 2026-09-13, one interactive prompt at a time, and each answer is recorded in this plan's `## Open questions` with its reasoning. Asked directly how the stale verdict should be cleared, the maintainer chose to attest it themselves rather than fund a further review round, having read every resolution as it was written. THE ALTERNATIVE WAS PRICED AND REJECTED ON EVIDENCE: the round that ran earlier the same day cost 3h 02m and $106.07 across nine items, cleared three plans, and raised four NEW blocking questions on the rest, so a further round was not expected to yield a clean sheet. NO AGENT WROTE THIS VALUE ON ITS OWN AUTHORITY. Recorded here because the auto-approve predicate reads this field FIRST (`plan_readiness.is_plan_review_approved`), so a stale `no-go` is a live refusal that would have silently skipped this plan when the Set executed.
