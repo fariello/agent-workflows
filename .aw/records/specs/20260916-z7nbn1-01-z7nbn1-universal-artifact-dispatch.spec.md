@@ -9,7 +9,7 @@
 
 ## Workflow history
 
-- 2026-09-16 to-review (aw specs): Authored from the maintainer's 2026-09-16 architectural statement, which ANSWERS the design question plan mng63x (specdispatch-01) reserved to them in its blocking OQ-01. Every 'already built' and 'not built' claim is measured at HEAD and re-verified: selector knows 9 types across 13 consuming modules, configured_file is read at 37 sites, ACTION_PLAN has 4 occurrences (defined and mapped but never dispatched), and all SPEC-* conformance codes grep to 0 enforcement. Three open questions remain for the maintainer, one blocking (same-run enqueue versus report for produced artifacts).
+- 2026-09-16 to-review (aw specs): MAINTAINER RULINGS RECORDED 2026-09-16, all three open questions resolved. OQ-01: NO FOLLOW for now; a production action REPORTS the artifacts it created and does not enqueue them, with --follow-generated becoming the opt-in same-run mechanism once implemented (the safe default, because the frozen queue is what resume reads). OQ-02: PARTIALLY IN SCOPE, the four SPEC-PLAN-* codes only, because they verify Section 3's production actions; also CORRECTED this spec's own 4.4, there are THIRTEEN such codes not eleven and they are declared in approved spec 25kzda 4.8, so they are agreed requirements never implemented rather than speculative work. OQ-03: SUPERSEDE mng63x, and its Blocks-Release: next carries forward to whatever plan graduates from this spec. Added acceptance criteria 5.5a (report-only proven by comparing the queue id set before and after) and 5.5b (gate carry tested in both directions).
 ## 0. Why this spec exists
 
 `aw oc run reviews --type spec` can SELECT the specs awaiting review. Nothing can then RUN one. Plan
@@ -166,10 +166,13 @@ assumes a plan.
 the action-order tuple, and the two table entries. So 1.6's third bullet and all of Section 3 are
 unbuilt.
 
-4.4 THE ELEVEN `SPEC-*` CONFORMANCE CODES ARE UNBUILT. Measured: every `SPEC-*` code greps to ZERO
-enforcement under `agent_workflows/`; the single textual hit is an unrelated prose comment. A plan MUST
-NOT treat them as existing enforcement, which is the error an earlier draft of `mng63x` E-04 made.
-Whether to build them is `OQ-02`.
+4.4 THIRTEEN `SPEC-*` CONFORMANCE CODES ARE DECLARED BUT UNBUILT, and they are declared in section 4.8
+of spec `25kzda`, whose `- Status:` is `approved`. They are therefore AGREED REQUIREMENTS THAT WERE NEVER
+IMPLEMENTED, not speculative future work. Measured: every one greps to ZERO enforcement under
+`agent_workflows/`; the single textual `SPEC-` hit in the package is an unrelated prose comment. A plan
+MUST NOT treat them as existing enforcement, which is the error an earlier draft of `mng63x` E-04 made.
+`OQ-02` rules FOUR of them IN SCOPE here (the `SPEC-PLAN-*` family) because they verify Section 3's
+production actions; the other NINE stay with `25kzda` 4.8.
 
 ## 5. Acceptance criteria
 
@@ -191,6 +194,16 @@ handler ran.
 5.5 An approved spec dispatched as a production action emits at least one conformant artifact carrying
 `- From-Spec:` pointing at that spec, and the spec is NOT marked as completed work (3.3).
 
+5.5a REPORT-ONLY IS PROVEN, not assumed (OQ-01). The artifacts a production action emits do NOT enter the
+running queue: after such a run, the frozen `state['queue']` contains exactly the items it was created
+with, and the emitted artifacts appear as REPORTED next actions. Proven by comparing the queue id set
+before the first turn against the queue id set at run end, and by showing a resume of that run dispatches
+nothing new.
+
+5.5b THE RELEASE GATE CARRIES FORWARD (OQ-03). A spec carrying `- Blocks-Release: <R>` that produces a
+plan yields a plan carrying the SAME value, and a spec with no gate yields a plan with none invented.
+This is `SPEC-PLAN-GATE-CARRY` (OQ-02, in scope) and both directions must be tested.
+
 5.6 No second action table exists: an AST or grep check proves `_ACTION_TABLES` is the only
 type-plus-status-to-action mapping in the package.
 
@@ -206,29 +219,58 @@ individually justified in the executing plan. A count alone is not evidence; the
 ### OQ-01: Are artifacts produced by a production action enqueued into the SAME run, or reported for a later one?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Notes: Section 3.4 states the two options. Enqueueing is more autonomous but lets one run's output
-  become its own input, which makes a run's scope unbounded at freeze time and interacts with the frozen
-  queue that `resume` reads. Reporting keeps the queue frozen and predictable at the cost of a second
-  invocation. The repository already reserves this question with an unimplemented `--follow-generated`
-  flag (owner backlog `x8diyb`), so a ruling should say whether that flag IS this mechanism.
+- Resolution: RULED 2026-09-16 by the maintainer: NO FOLLOW FOR NOW. A production action REPORTS the
+  artifacts it created as next actions; it does NOT enqueue them into the running queue. When
+  `--follow-generated` is implemented (owner backlog `x8diyb`), that flag becomes the opt-in mechanism
+  for the same-run behavior, and the default stays report-only.
+  WHY THIS IS THE SAFE DEFAULT, recorded so it is not "simplified" later: enqueueing makes a run's scope
+  unbounded at freeze time, and the frozen `state['queue']` is what `resume` reads after an interruption,
+  so a run that grew its own queue could not be resumed deterministically. Report-only keeps the queue a
+  fixed set decided before the first turn.
+  CONSEQUENCE FOR REQUIREMENT 1.6 AND SECTION 3: a production action's success is measured by the
+  artifacts it WROTE and their provenance links, never by those artifacts having also run. Acceptance
+  criterion 5.5 already states it this way and needs no change.
 
-### OQ-02: Are the eleven unbuilt `SPEC-*` conformance codes in scope for this work?
+### OQ-02: Are the unbuilt `SPEC-*` conformance codes in scope for this work?
 
 - Blocking: no
-- Status: open
-- Owner: maintainer
-- Notes: 4.4 measured them as zero-enforcement. Requirement 1.3 needs SOME conformance gate for specs;
-  it does not require it to be those eleven codes. Building them is a defensible separate concern, and
-  saying so explicitly prevents a plan from either assuming they exist or silently inventing a
-  substitute.
+- Status: resolved
+- Owner: maintainer (decided 2026-09-16 after the codes were explained; see the correction below)
+- Resolution: PARTIALLY IN SCOPE. The FOUR `SPEC-PLAN-*` codes ARE in scope (`SPEC-PLAN-COUNT`,
+  `SPEC-PLAN-CONFORMANCE`, `SPEC-PLAN-TRACE`, `SPEC-PLAN-GATE-CARRY`),
+  because they are the verification layer for the production actions Section 3 defines. The remaining
+  codes (`SPEC-REVIEW-*`, `SPEC-APPROVAL-AUTHORITY`, `SPEC-IMPLEMENTING-*`, `SPEC-LINKED-PLANS`,
+  `SPEC-CHILD-OUTCOMES`, `SPEC-IMPLEMENTED-*`) are NOT required by this spec and remain owned by
+  `25kzda` 4.8 for separate work.
+  A CORRECTION TO THIS SPEC'S OWN 4.4: the count is THIRTEEN codes, not eleven, and they are declared in
+  section 4.8 of spec `25kzda`, whose `- Status:` is `approved`. So they are not speculative future work:
+  they are AGREED REQUIREMENTS THAT WERE NEVER IMPLEMENTED. Measured at HEAD, every one greps to zero
+  enforcement under `agent_workflows/`.
+  WHAT THE IN-SCOPE ONES REQUIRE, in plain terms, since each maps directly onto a Section 3 obligation:
+  `SPEC-PLAN-COUNT` (at least one new plan was really created and no duplicate active plan already
+  existed), `SPEC-PLAN-CONFORMANCE` (each new plan is canonical, `to-review`, in `pending/`, carries
+  `From-Spec`, and has concrete Scope-Paths), `SPEC-PLAN-TRACE` (every mandatory spec requirement maps to
+  at least one E item and every acceptance criterion to at least one V item), and
+  `SPEC-PLAN-GATE-CARRY` (a spec's `Blocks-Release` is copied to the plan EXACTLY and an absent gate is
+  never invented). That last one is the mechanical enforcement of the maintainer's OQ-03 ruling that a
+  release gate carries forward.
+  NOT IN SCOPE BUT WORTH NAMING: `SPEC-APPROVAL-AUTHORITY` requires that a HUMAN approved the exact
+  reviewed digest and states that `--full-auto` does not satisfy it. It is the anti-forgery gate for spec
+  approval and deserves its own work rather than being folded in here.
 
 ### OQ-03: Does this spec supersede plan `mng63x`, or is that plan re-authored against it?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
+- Resolution: SUPERSEDE, ruled 2026-09-16, and THE RELEASE GATE CARRIES FORWARD. `mng63x` chose no shape
+  and did not contemplate production actions, so editing E-02 to E-04 item by item would leave a plan
+  whose findings argue toward a decision now already made; its own instruction prescribes superseding in
+  exactly this case. Its `- Blocks-Release: next` MUST be carried by whatever plan graduates from this
+  spec, per the close-legitimacy rule that a blocking item may only close through handoff, cited
+  evidence, or explicit de-gating. Mechanically enforced by `SPEC-PLAN-GATE-CARRY` once built (OQ-02).
 - Notes: `mng63x` is `reviewed` with `- Readiness: no-go` and its own instruction is explicit: "IF THE
   RULING CHANGES THIS PLAN'S SHAPE ... SUPERSEDE this plan rather than editing E-02 to E-04 item by
   item." This ruling does change its shape, since it chooses the generalize-the-queue direction and adds
