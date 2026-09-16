@@ -123,6 +123,27 @@ RELOCATED_RUN_CHECKED_CALLERS: dict[str, int] = {
     "build_lane_outcome": 3,
 }
 
+# Shared `run_checked` callers that were BORN HERE rather than relocated from a runner, mapped the
+# same way. THE DISTINCTION IS LOAD-BEARING AND IS WHY THIS IS A SECOND TABLE, not a fifth entry
+# above: the census test SUBTRACTS the relocated total from each runner's pre-move count, because
+# those calls left the runners. A natively-shared function never had a call site in either runner, so
+# subtracting it would under-count the census by one per host and mask a genuinely rewritten call.
+# The injection test, in contrast, must see BOTH tables, since every shared caller of `run_checked`
+# has to take it as a keyword-only parameter regardless of how it got here.
+#
+# dirtygates-03 (`9iq461`): `collect_lane_earned_paths` makes ONE call (`git diff --name-only` over
+# the lane branch's `base..branch` range). It is defined in this module from the start precisely so
+# BOTH hosts reach it here instead of one importing it from the other (backlog `cnwy8g`).
+NATIVE_SHARED_RUN_CHECKED_CALLERS: dict[str, int] = {
+    "collect_lane_earned_paths": 1,
+}
+
+#: Every shared function that calls `run_checked`, however it arrived. The injection test reads this.
+ALL_SHARED_RUN_CHECKED_CALLERS: dict[str, int] = {
+    **RELOCATED_RUN_CHECKED_CALLERS,
+    **NATIVE_SHARED_RUN_CHECKED_CALLERS,
+}
+
 # The 2 symbols that could NOT move, with the reason pinned in `UnmovableSymbolTests`.
 UNMOVABLE = ("disable_lane_prompt",)
 
@@ -1136,6 +1157,27 @@ class WrapperTests(unittest.TestCase):
         ("agy_runipd", "save_state"): 4,
     }
 
+    #: dirtygates-03 (`9iq461`): THE LANE-SIDE BACKLOG CLOSE's new caller, ONE per host, NAMED as this
+    #: table's rule requires.
+    #:
+    #: WHERE: in each host's `execute_item`, inside the `fin_rc == 0` branch, immediately after the
+    #: lane-side `process_backlog_close(...)` call that this plan ADDED there. The close is now
+    #: performed IN THE LANE before integration (so the item's move rides the merge instead of being
+    #: written into the shared checkout mid-run), and its verdict must be persisted at that point for
+    #: the same reason the pre-existing post-merge close persists its own: the record is what the
+    #: `Backlog items left open` report reads, and a crash between the close and the merge would
+    #: otherwise lose it.
+    #:
+    #: NO EXISTING CALL SITE WAS REWRITTEN, which is the only thing the wrapper ruling protects. The
+    #: pre-existing post-merge `process_backlog_close(...)` + `save_state(...)` pair is still there,
+    #: unmodified, now guarded so it serves the NON-ISOLATED path; and the close logic itself remains
+    #: the ONE shared `oc_runipd.process_backlog_close` that `agy_runipd` imports by name, so neither
+    #: host carries a second copy of the decision.
+    LANE_BACKLOG_CLOSE_CALL_SITES = {
+        ("oc_runipd", "save_state"): 1,
+        ("agy_runipd", "save_state"): 1,
+    }
+
     def call_sites(self, runner: str, name: str) -> int:
         tree = ast.parse(module_source(_MODULES[runner]))
         return sum(
@@ -1176,6 +1218,7 @@ class WrapperTests(unittest.TestCase):
                 expected += self.ADDED_CALL_SITES.get((runner, name), 0)
                 expected += self.CLEAN_BASE_GUARD_CALL_SITES.get((runner, name), 0)
                 expected += self.INTEGRATION_LADDER_CALL_SITES.get((runner, name), 0)
+                expected += self.LANE_BACKLOG_CLOSE_CALL_SITES.get((runner, name), 0)
                 self.assertEqual(
                     self.call_sites(runner, name),
                     expected,
@@ -1200,9 +1243,16 @@ class WrapperTests(unittest.TestCase):
         gate would then happily revalidate as an empty change and merge. If someone makes that change,
         the call set below shrinks and this fails.
 
-        BOTH ASSERTIONS ARE DRIVEN BY `RELOCATED_RUN_CHECKED_CALLERS` rather than by literals, so the
-        next extraction that brings a `run_checked` caller into this module extends ONE table instead
-        of editing two hand-written sets that can silently disagree.
+        BOTH ASSERTIONS ARE DRIVEN BY THE TABLES rather than by literals, so the next extraction that
+        brings a `run_checked` caller into this module extends a table instead of editing two
+        hand-written sets that can silently disagree.
+
+        THE TWO TABLES ARE NOT INTERCHANGEABLE (dirtygates-03 `9iq461`). This test reads
+        `ALL_SHARED_RUN_CHECKED_CALLERS`, because the injection obligation applies to EVERY shared
+        caller. The census test reads only `RELOCATED_RUN_CHECKED_CALLERS`, because only a relocated
+        caller's calls LEFT a runner and may be subtracted there. Adding a natively-shared function to
+        the relocated table would silently under-count the census by one per host, which is exactly
+        the kind of masked rewrite the census exists to catch.
         """
         tree = ast.parse(module_source(runner_shared))
         callers: dict[str, int] = {}
@@ -1219,14 +1269,17 @@ class WrapperTests(unittest.TestCase):
                     callers[node.name] = count
         self.assertEqual(
             callers,
-            RELOCATED_RUN_CHECKED_CALLERS,
+            ALL_SHARED_RUN_CHECKED_CALLERS,
             "the shared `run_checked` callers (and their call counts) must match "
-            "`RELOCATED_RUN_CHECKED_CALLERS`; rewriting one onto `_run_git` would be a "
-            "BEHAVIOR CHANGE, and an unrecorded new caller breaks the call-site census",
+            "`ALL_SHARED_RUN_CHECKED_CALLERS`; rewriting one onto `_run_git` would be a "
+            "BEHAVIOR CHANGE, and an unrecorded new caller breaks the call-site census. A NEW "
+            "shared caller belongs in `NATIVE_SHARED_RUN_CHECKED_CALLERS`; only a caller that "
+            "MOVED out of a runner belongs in `RELOCATED_RUN_CHECKED_CALLERS`, which the census "
+            "subtracts",
         )
         # And each takes it as a parameter rather than closing over a global, which is what makes the
         # call resolvable at all.
-        for name in sorted(RELOCATED_RUN_CHECKED_CALLERS):
+        for name in sorted(ALL_SHARED_RUN_CHECKED_CALLERS):
             with self.subTest(symbol=name):
                 node = next(
                     n

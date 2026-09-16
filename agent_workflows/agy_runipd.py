@@ -1312,6 +1312,18 @@ def build_lane_outcome(repo: Path, handle: Any, id6: str) -> Any:
     return runner_shared.build_lane_outcome(repo, handle, id6, run_checked=run_checked)
 
 
+def collect_lane_earned_paths(repo: Path, handle: Any) -> list[str]:
+    """The repo-relative paths a LANE BRANCH produced (dirtygates-03 `9iq461` E-03).
+
+    The MIRROR of the oc twin and equally thin: it binds THIS host's `run_checked` and nothing else.
+    The implementation and its rationale live once in `runner_shared.collect_lane_earned_paths`, so
+    neither host imports it from the other (backlog `cnwy8g`).
+    """
+    return runner_shared.collect_lane_earned_paths(
+        repo, handle, run_checked=run_checked
+    )
+
+
 def make_integration_validation_runner(
     state: dict[str, Any], run_dir: Path, item: dict[str, Any]
 ) -> Any:
@@ -1462,7 +1474,13 @@ def retry_deferred_integrations(
                 "green",
             )
         )
-        process_backlog_close(run_dir, state, item)
+        # dirtygates-03 (`9iq461`), symmetric with `oc_runipd`: the original turn already attempted
+        # the close IN ITS LANE, so an eligible item arrives with this merge and this call skips. Kept
+        # for the one case it still answers (an item not eligible during the original turn but eligible
+        # now). The guard prevents re-evaluating an already-closed item, which would answer
+        # `item is already done` and overwrite the success record with a refusal.
+        if not (item.get("backlog_close") or {}).get("closed"):
+            process_backlog_close(run_dir, state, item)
         save_state(run_dir, state)
 
     return runner_shared.reattempt_deferred_integrations(
@@ -4262,6 +4280,22 @@ def execute_item(
             finalize_repo, current_plan_for_finalize, item["id6"], actor, fin_message
         )
         if fin_rc == 0:
+            # dirtygates-03 (`9iq461`) E-01/E-05, the EXACT counterpart of the `oc_runipd` site: close
+            # the backlog item HERE, IN THE LANE, before integration and while the lane still exists, so
+            # its move rides the same merge as the code and NOTHING is written to the shared checkout
+            # mid-run. Eligibility is still decided against MAIN inside `process_backlog_close` (OQ-01);
+            # only the WRITE is redirected. A rule present in one driver only is a DEFECT (spec `7ckptx`
+            # R4 treats a host-only guard as a divergence), which is why this is the same shared call
+            # and not a second mechanism.
+            if wt_handle is not None:
+                process_backlog_close(
+                    run_dir,
+                    state,
+                    item,
+                    lane_repo=Path(work_dir) if work_dir else None,
+                    lane_handle=wt_handle,
+                )
+                save_state(run_dir, state)
             # driverfin-02: the plan is now in executed/ ON the lane branch. If isolated, integrate the
             # verified branch back to main via the REUSED gate + a driver ff/controlled merge, then
             # tear down the worktree. A non-passing gate result (or merge-back conflict) leaves the
@@ -4434,10 +4468,17 @@ def execute_item(
                     )
                 )
                 # bkclose (zhr6mc) E-02/E-03/E-04, symmetric with `oc_runipd`: the plan is genuinely
-                # `executed` on main here, which is the one moment a run can know the last carrier
-                # landed. The SHARED `process_backlog_close` fails closed and records its reason
-                # either way, so a refusal is reported (E-06) rather than swallowed.
-                process_backlog_close(run_dir, state, item)
+                # `executed` on main here, which is the moment the last carrier landed. The SHARED
+                # `process_backlog_close` fails closed and records its reason either way, so a refusal
+                # is reported (E-06) rather than swallowed.
+                #
+                # dirtygates-03 (`9iq461`) E-01/E-02/E-05: THIS SITE IS NOW THE NON-ISOLATED PATH ONLY,
+                # exactly as in `oc_runipd`. An isolated turn already closed the item in its lane before
+                # the merge. The guard is on the RECORD, not on `wt_handle`, because a successful
+                # teardown sets `wt_handle` to None above; and it exists so a second evaluation cannot
+                # answer `item is already done` and overwrite the success record with a refusal.
+                if not (item.get("backlog_close") or {}).get("closed"):
+                    process_backlog_close(run_dir, state, item)
                 save_state(run_dir, state)
         else:
             attempt["finalize_refused"] = fin_msg

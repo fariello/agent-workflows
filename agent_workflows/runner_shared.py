@@ -2402,6 +2402,108 @@ def plan_bucket(path: Path) -> str | None:
     return None
 
 
+# --- dirtygates-03 (`9iq461`): the two facts a LANE-SIDE backlog close needs ---------------------
+#
+# WHY THESE LIVE HERE AND NOT IN `oc_runipd`. Both hosts perform the lane-side close, so a symbol
+# defined in `oc_runipd` and imported by `agy_runipd` would deepen exactly the coupling backlog
+# `cnwy8g` tracks and that `test_the_oc_to_agy_import_count_did_not_increase` measures. That guard
+# states the rule plainly ("both hosts must reach it through runner_shared"), so these are defined in
+# the shared module from the start rather than re-baselined later. They need nothing host-specific
+# except `run_checked`, which is already injected here for the same reason.
+
+
+def lane_executed_carrier_override(
+    repo: Path,
+    lane_repo: Path,
+    item: Mapping[str, Any],
+) -> dict[str, str]:
+    """Map this item's own plan from the path MAIN shows it at to the path THE LANE shows it at.
+
+    dirtygates-03 (`9iq461`) E-03. Returns `{}` for a non-isolated turn, for a turn whose plan cannot
+    be resolved in either tree, or whenever the two views AGREE (nothing to override then, so the
+    ordinary main-side read already answers correctly).
+
+    THE ONE FACT THIS SUPPLIES is "the caller's own plan is terminal `executed`", which is true on the
+    lane branch and not yet true in `repo` because the merge has not happened. Everything else about
+    the verdict is still read from `repo`, which is what keeps the multi-carrier protection intact.
+    Best-effort and never raising: an empty map can only ever WITHHOLD a close, the safe direction.
+
+    NOTE THE DIFFERENCE BETWEEN THE TWO TREES IS A DIRECTORY DIFFERENCE, NOT A CONTENT ONE
+    (`plan_bucket` is a pure path inspector and "does no IO and must not learn to"). So do NOT later
+    "fix" this by reading file contents: the whole question is which lifecycle DIRECTORY the carrier
+    file sits in within the tree being scanned.
+    """
+    if Path(lane_repo).resolve() == Path(repo).resolve():
+        return {}
+    configured = item.get("configured_file", "") or ""
+    id6 = item.get("id6") or ""
+    if not id6:
+        return {}
+    try:
+        lane_plan = resolve_plan_path(Path(lane_repo), configured, id6)
+    except (DriverError, OSError):
+        return {}
+    if plan_bucket(lane_plan) != "executed":
+        # Nothing to assert: the lane does not show it executed either, so the ordinary read is right.
+        return {}
+    try:
+        main_plan = resolve_plan_path(Path(repo), configured, id6)
+    except (DriverError, OSError):
+        return {}
+
+    def _rel(path: Path, root: Path) -> str:
+        try:
+            return str(Path(path).resolve().relative_to(Path(root).resolve()))
+        except ValueError:
+            return str(path)
+
+    main_rel = _rel(main_plan, repo)
+    lane_rel = _rel(lane_plan, lane_repo)
+    if main_rel == lane_rel:
+        return {}
+    return {main_rel: lane_rel}
+
+
+def collect_lane_earned_paths(
+    repo: Path, handle: Any, *, run_checked: Callable[..., str]
+) -> list[str]:
+    """The repo-relative paths a LANE BRANCH produced: `git diff --name-only <base>..<branch>`.
+
+    dirtygates-03 (`9iq461`) E-03, and the fix for a hazard that plan's F-7 named but mis-diagnosed.
+
+    F-7 SAID the earned-paths diff would fail or return nothing in main because the lane's commits
+    live on the lane branch. MEASURED IN A SCRATCH REPO, BOTH HALVES OF THAT ARE WRONG AND ONE REAL
+    PROBLEM IS LEFT. A linked worktree SHARES the object database and the ref namespace with its
+    parent, so `git diff <sha>..<sha>` over lane commits resolves IDENTICALLY from either cwd (both
+    printed the same path, rc=0); the cwd was never the problem. The real problem is the RANGE:
+    `collect_earned_paths` diffs the ATTEMPT's `starting_head..ending_head`, and both of those are
+    `git_head(repo)` -- MAIN's HEAD, sampled before and after the turn. For an isolated turn main's
+    HEAD does not move, so that range is `X..X`, which is EMPTY (measured). Nothing in it fails
+    loudly; the earned set is simply empty, and since the earned gate can only ever WITHHOLD a close,
+    the result would be a close that silently NEVER happens. So the fix is to name the range that
+    holds the work, which is the lane's `base_commit..branch`.
+
+    ``run_checked`` is INJECTED for the reason this module's docstring gives: the shared `run_checked`
+    takes a host-specific `env_builder`, so this body cannot resolve a module-level one. Do NOT
+    "simplify" it onto `_run_git`: that would stop a failed `git diff` raising and would make an
+    UNPARSEABLE range indistinguishable from an empty one.
+
+    Best-effort and never raising, exactly like `collect_earned_paths`: an empty result withholds a
+    close rather than manufacturing one.
+    """
+    base = getattr(handle, "base_commit", None)
+    branch = getattr(handle, "branch", None)
+    if not base or not branch:
+        return []
+    try:
+        out = run_checked(
+            ["git", "diff", "--name-only", f"{base}..{branch}"], cwd=Path(repo)
+        )
+    except (DriverError, OSError):
+        return []
+    return [line.strip() for line in out.splitlines() if line.strip()]
+
+
 def describe_unresolved_plan_selector(repo: Path | None, sel_str: str) -> str:
     """Provide an informative, context-aware error message when a plan selector cannot be resolved."""
     r = repo or Path(".")

@@ -2967,6 +2967,28 @@ class LaneInventory(NamedTuple):
         }
 
 
+def _is_driver_written_history_sidecar(path: str) -> bool:
+    """Is ``path`` (lane-relative, porcelain-style) the GLOBAL history sidecar?
+
+    dirtygates-03 (`9iq461`). Split out as its own named predicate rather than inlined so the
+    inventory's classification loop keeps reading as a list of named rules, and so the path comes from
+    `record_history.SIDECAR_RELPATH` (the one definition of where the sidecar lives) instead of a
+    second hardcoded literal that could drift from it.
+
+    Deliberately an EXACT match on that one relative path: nothing else under the records tree, and no
+    other `.jsonl`, is treated as driver-written by this rule.
+
+    NOTE THE `./` PREFIX IS REMOVED WITH `removeprefix`, NOT `lstrip`. `lstrip("./")` strips a CHARACTER
+    SET, so it eats the leading dot of `.aw/...` and yields `aw/records/history.jsonl`, which matches
+    nothing. That was written here first and measured failing, so it is recorded rather than silently
+    corrected: every path this predicate cares about begins with a dot.
+    """
+    from agent_workflows import record_history as _rh
+
+    candidate = path.strip().strip('"')
+    return candidate.removeprefix("./") == _rh.SIDECAR_RELPATH
+
+
 def driver_written_lane_paths(lane_root: Path | str) -> set[str]:
     """The lane-relative paths the DRIVER itself materialized, read from the SEALED MANIFEST (R5.5).
 
@@ -3205,6 +3227,31 @@ def inventory_lane(
             # never work. Matched by BASENAME rather than by ignore status on purpose, because a fresh
             # test repo has no installed ignore file and reports them UNTRACKED while this repository
             # reports them IGNORED - and the rule must hold in both.
+            discardable.append(path)
+        elif _is_driver_written_history_sidecar(path):
+            # THE GLOBAL HISTORY SIDECAR is driver-written too, for the same MEASURED reason the index
+            # manifests above are, and it became reachable in a lane only when dirtygates-03 (`9iq461`)
+            # moved the BACKLOG CLOSE inside the lane: `aw backlog set` appends one record to
+            # `.aw/records/history.jsonl` (`backlog.run_set` -> `record_history.append`), so every lane
+            # that closes a backlog item now holds it. MEASURED before this clause existed: such a lane
+            # was PRESERVED with "1 unknown IGNORED file(s): .aw/records/history.jsonl" on every run,
+            # which is the same "refusing always" failure the index clause was added to prevent. Plans
+            # are deliberately EXCLUDED from the sidecar, which is why a finalize-only lane never hit
+            # this and the file had never appeared in a lane before.
+            #
+            # WHY DISCARDING IS SAFE HERE, since widening discardability is the dangerous direction and
+            # this is the one judgement in this change that deserves stating plainly: the sidecar is
+            # explicitly NON-AUTHORITATIVE by its own contract -- "no aw command's correctness depends
+            # on it (deleting the sidecar changes only what an audit query can report)" -- it is
+            # APPEND-ONLY so line order is irrelevant and nothing is overwritten, and it is gitignored
+            # (`.aw/.gitignore`), so it is never committed and never reaches main from either tree. The
+            # authoritative record of the same transition is the item file's own `## Workflow history`
+            # block, which DOES ride the merge. So the cost of dropping the lane's copy is one missing
+            # audit line, while the cost of NOT dropping it is a preserved lane on every close.
+            #
+            # SCOPED NARROWLY AND ON PURPOSE: exactly this one relative path, taken from
+            # `record_history.SIDECAR_RELPATH` rather than pattern-matched, so no other `.jsonl` and no
+            # other file under the records tree is swept in by accident.
             discardable.append(path)
         elif status == PORCELAIN_UNTRACKED:
             unknown_untracked.append(path)

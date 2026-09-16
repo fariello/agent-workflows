@@ -227,6 +227,9 @@ from agent_workflows.runner_shared import (
     describe_unresolved_plan_selector as describe_unresolved_plan_selector,
 )
 from agent_workflows.runner_shared import (
+    lane_executed_carrier_override as lane_executed_carrier_override,
+)
+from agent_workflows.runner_shared import (
     plan_bucket as plan_bucket,
 )
 from agent_workflows.runner_shared import (
@@ -1431,7 +1434,11 @@ def resolve_backlog_item(repo: Path, item_id6: str) -> Path | None:
 
 
 def evaluate_backlog_close(
-    repo: Path, item_id6: str, earned_paths: Iterable[str]
+    repo: Path,
+    item_id6: str,
+    earned_paths: Iterable[str],
+    *,
+    executed_overrides: Mapping[str, str] | None = None,
 ) -> BacklogCloseVerdict:
     """Decide whether THIS run may now close backlog item ``item_id6``, and why not if it may not.
 
@@ -1442,9 +1449,32 @@ def evaluate_backlog_close(
     FAIL CLOSED (E-04). Every lookup below is wrapped: a missing item, an unreadable tree, or a
     raising helper yields `close=False` plus a recorded reason, never an escaping exception and never
     an optimistic close.
+
+    ``executed_overrides`` (dirtygates-03 `9iq461` E-03) maps ONE carrier's path AS ``repo`` SEES IT
+    to the path it ALREADY occupies in the caller's lane worktree, and asserts that this single
+    carrier is terminal `executed` even though ``repo`` still shows it in `pending/`.
+
+    WHY THIS NARROW ESCAPE HATCH EXISTS, and why it is not a hole. OQ-01 resolved that eligibility is
+    evaluated in MAIN, because the question "have ALL carriers of this item proved the work?" is a
+    claim about SEVERAL plans and carrier discovery scans the FILESYSTEM (F-6), so only main's view
+    sees every sibling's true bucket. But the runner now performs the item's MOVE inside the lane,
+    BEFORE the merge, and at that instant main legitimately still shows THIS run's own plan in
+    `pending/` -- so a literal main-only evaluation would refuse EVERY close, forever, and would do so
+    silently (the run summary would simply list the item as left open). Measured pre-fix, the close
+    ran AFTER the merge, which is exactly how main came to show the plan executed; moving the write
+    earlier means that one fact must now be supplied explicitly rather than read.
+    A WORKER MAY ASSERT FACTS ABOUT ITS OWN ITEM, which is the same role rule `retire_orchestrator`
+    enforces from the other side. So the override is deliberately limited to the caller's OWN
+    just-finalized plan, and it is a MAPPING rather than a set so the verdict can cite the path the
+    carrier REALLY occupies (its `executed/` path) instead of main's stale `pending/` one, which would
+    be a false citation. SIBLING carriers are still read from ``repo`` with no override, so the
+    multi-carrier protection F-5/F-12 measured (21 of 108 carried items have more than one carrier,
+    the tail running 9, 6, 5) is untouched: an item whose sibling has not run still does not close.
+    Defaults to None, so every caller that does not pass it behaves exactly as before.
     """
     from agent_workflows import check_engine as _ce
 
+    overrides = dict(executed_overrides or {})
     earned = {p for p in earned_paths if p}
 
     try:
@@ -1484,6 +1514,16 @@ def evaluate_backlog_close(
         except ValueError:
             return str(path)
 
+    def _cited(path: Path) -> str:
+        """The path to CITE for a carrier: its overridden (real) location if one was supplied.
+
+        The distinction matters because the citation becomes the `--evidence` argument, and
+        `check_engine.resolve_evidence_artifact` must be able to RESOLVE it (F-11). Citing main's
+        stale `pending/` path for a plan that actually sits in `executed/` would be a false citation
+        of a file that does not exist where the claim says it does.
+        """
+        return overrides.get(_rel(path), _rel(path))
+
     ipds = [p for p in carriers if _carrier_kind(p) == CARRIER_KIND_IPD]
     others = [p for p in carriers if _carrier_kind(p) == CARRIER_KIND_OTHER]
 
@@ -1494,6 +1534,14 @@ def evaluate_backlog_close(
         # would have closed it while half its work was unwritten.
         unexecuted: list[str] = []
         for plan in ipds:
+            # dirtygates-03 (`9iq461`) E-03: the caller's OWN just-finalized plan is asserted
+            # executed, because at this point in the run its move exists only on the lane branch and
+            # `repo` still shows it in `pending/`. EVERY OTHER CARRIER IS READ FROM `repo` WITH NO
+            # OVERRIDE, which is the whole point: main's view is the only one that sees a sibling's
+            # true bucket, and a lane-side scan would see this plan executed and answer more
+            # permissively than main would.
+            if _rel(plan) in overrides:
+                continue
             try:
                 bucket = plan_bucket(plan)
             except Exception as exc:  # fail closed
@@ -1513,8 +1561,11 @@ def evaluate_backlog_close(
                 None,
             )
         # E-04: the run must have EARNED it. The deciding carrier has to be one this run produced,
-        # not one it found already finished.
-        earned_ipds = [p for p in ipds if _rel(p) in earned]
+        # not one it found already finished. BOTH spellings of an overridden carrier's path count as
+        # earned: `collect_earned_paths` derives its set from `git diff`, which reports the LANE's
+        # post-move `executed/` path, while the carrier scan found the same plan at main's `pending/`
+        # path. Testing only one spelling would refuse a close the run demonstrably earned.
+        earned_ipds = [p for p in ipds if _rel(p) in earned or _cited(p) in earned]
         if not earned_ipds:
             return BacklogCloseVerdict(
                 False,
@@ -1526,8 +1577,8 @@ def evaluate_backlog_close(
         return BacklogCloseVerdict(
             True,
             "every IPD carrier is executed and this run executed "
-            + ", ".join(sorted(_rel(p) for p in earned_ipds)),
-            _rel(earned_ipds[0]),
+            + ", ".join(sorted(_cited(p) for p in earned_ipds)),
+            _cited(earned_ipds[0]),
             CARRIER_KIND_IPD,
         )
 
@@ -1607,10 +1658,27 @@ def collect_earned_paths(repo: Path, item: dict[str, Any]) -> list[str]:
     return earned
 
 
+def collect_lane_earned_paths(repo: Path, handle: Any) -> list[str]:
+    """The repo-relative paths a LANE BRANCH produced (dirtygates-03 `9iq461` E-03).
+
+    A one-line wrapper binding THIS host's `run_checked`, in the SAME shape as the other four
+    injected-dependency wrappers in this module (`git_head`, `git_status`, `git_common_dir`,
+    `build_lane_outcome`). The IMPLEMENTATION and the full rationale live in
+    `runner_shared.collect_lane_earned_paths`; it is defined there, not here, so BOTH hosts reach it
+    through `runner_shared` rather than one host importing it from the other (backlog `cnwy8g`).
+    """
+    return runner_shared.collect_lane_earned_paths(
+        repo, handle, run_checked=run_checked
+    )
+
+
 def close_backlog_item(
     repo: Path, item_path: Path, item_id6: str, evidence: str, message: str
 ) -> tuple[int, str]:
     """Close a backlog item `done` through the LIFECYCLE-OWNED setter, never by editing the file.
+
+    ``repo`` is the tree the setter operates on: it is where the item file MOVES and, inseparably,
+    the ``repo_root`` the release-gate predicate evaluates against (see the warning below).
 
     THE `--status` SPELLING IS DELIBERATE AND LOAD-BEARING (zhr6mc D1). `aw backlog set <status>
     <selector>` (positional) dispatches to `status_set.run_set_command`, which does NOT run the
@@ -1620,6 +1688,19 @@ def close_backlog_item(
     a `graduated` item carrying `Blocks-Release: next` closed with NO evidence via the positional
     form (exit 0) and was REFUSED via this one. The runner must be gated, so it uses this form; do
     not "simplify" it back to the positional spelling.
+
+    `--dir` IS NOT MERELY "WHERE THE FILE MOVES" (dirtygates-03 `9iq461` F-10/F-11). Because the
+    gated route runs `check_engine.evaluate_blocking_close`, this ONE argument also chooses the tree
+    that predicate scans for release-gate carriers (`check_engine.py`'s `done` branch calls
+    `find_from_backlog_artifacts(repo_root, item_id6)`) and the tree its `--evidence` citation is
+    resolved against (`resolve_evidence_artifact(repo_root, evidence)`). `backlog.run_set` derives
+    both from the same `resolve_verb_repo_root(args.dir)`, so THE TWO CANNOT BE SPLIT FROM HERE: one
+    `--dir` is one tree for the move AND the gate. That is why `process_backlog_close` performs the
+    MOVE in the lane but takes the ELIGIBILITY decision against main BEFORE calling this, and why the
+    evidence it cites is a path that resolves in the lane. Do not "simplify" this to a lane-only
+    evaluation: in the lane this run's own plan already sits in `executed/`, so a lane-side carrier
+    scan is MORE likely to find a satisfying carrier than main's, and the error direction is the
+    permissive one -- a release-gated item could close `done` that main's view would refuse.
     """
     cmd = pinned_module_argv(
         [
@@ -1653,10 +1734,18 @@ def commit_backlog_close(repo: Path, item_id6: str, message: str) -> str | None:
 
     Returns the new commit sha, or None when nothing was committed.
 
-    WHY COMMIT AT ALL (zhr6mc D2): `aw backlog set` moves the file (graduated/ -> done/) and does
-    not commit, so leaving it would hand the next turn a dirty main tree -- which the `z2isfg`
-    begin-dirty gate and the `driverfin-03` dirty-overlap gate both consume, and which is precisely
-    the contamination those gates exist to stop.
+    WHICH PATH STILL CALLS THIS (dirtygates-03 `9iq461` E-02): the NON-ISOLATED one only
+    (`--no-isolate-worktree`), where the setter genuinely wrote into the shared checkout and leaving
+    the move uncommitted would hand the next turn a dirty tree. AN ISOLATED TURN NO LONGER CALLS IT:
+    its move happens in the lane and is swept up by the lane's own finalize commit, so it rides the
+    merge and arrives on main as part of one ref update. Making a SECOND commit on main there would be
+    the exact mid-run write to the shared checkout this plan removes. Kept, not deleted, because the
+    non-isolated path is a supported escape hatch (orchestrator `8lfoum` OQ-01 resolved to keep it).
+
+    WHY COMMIT AT ALL ON THAT PATH (zhr6mc D2): `aw backlog set` moves the file (graduated/ -> done/)
+    and does not commit, so leaving it would hand the next turn a dirty main tree -- which the
+    `z2isfg` begin-dirty gate and the `driverfin-03` dirty-overlap gate both consume, and which is
+    precisely the contamination those gates exist to stop.
 
     WHY THIS HELPER: `git_commit_helper.offer_commit` snapshots the index BEFORE staging, stages only
     the explicit paths, commits only the intersection of those paths with what it itself staged, and
@@ -1735,20 +1824,71 @@ def commit_backlog_close(repo: Path, item_id6: str, message: str) -> str | None:
 
 
 def process_backlog_close(
-    run_dir: Path, state: dict[str, Any], item: dict[str, Any]
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    *,
+    lane_repo: Path | None = None,
+    lane_handle: Any = None,
 ) -> None:
     """After a plan reaches `executed`, close its backlog item if this run earned it (E-02/E-03/E-04).
 
     Records the verdict on the queue item either way, so E-06 can report every item left open WITH
     ITS REASON rather than merely noting that something did not happen.
+
+    THE DECISION AND THE WRITE HAPPEN IN DIFFERENT TREES, DELIBERATELY (dirtygates-03 `9iq461`).
+    ``lane_repo`` is the isolated turn's lane worktree, passed BEFORE the merge, and ``lane_handle``
+    its `WorktreeHandle` (whose `base_commit..branch` range is where the turn's commits actually are).
+    When both are None (a `--no-isolate-worktree` turn, or a post-merge caller) everything behaves
+    exactly as it did before.
+
+    WHY SPLIT THEM. The write must be in the LANE so the item's move rides the lane's finalize commit
+    and reaches main through the SAME merge as the code: a merge is atomic, so the bookkeeping lands
+    if and only if the work lands, and NOTHING is written to the shared checkout while the run is
+    still going. That mid-run write is not a theoretical tidiness point -- measured 2026-09-13, one
+    item's uncommitted close left main dirty and a whole-tree gate then refused 27 of 42, 23 of 41 and
+    18 of 43 remaining queue items across three consecutive runs.
+    The DECISION must be taken against MAIN (OQ-01, resolved) because it asks whether ALL carriers of
+    the item prove the work. That is a claim about several plans, carrier discovery scans the
+    FILESYSTEM (`find_from_backlog_artifacts`), and 21 of 108 carried items have more than one carrier
+    (one has nine), so a lane-side evaluation could close an item whose sibling carrier never ran.
+    The single fact the lane legitimately contributes -- "my own plan is executed" -- is passed
+    explicitly as `executed_overrides`, which is a worker asserting a fact about its OWN item.
     """
     item_id6 = item.get("from_backlog")
     if not item_id6:
         return
     repo = Path(state["repo"])
-    item["earned_paths"] = collect_earned_paths(repo, item)
+    # THE TREE THE MOVE HAPPENS IN. `repo` for a non-isolated turn (unchanged behavior); the lane for
+    # an isolated one, so the move is swept into the lane's commit and arrives via the merge.
+    write_repo = Path(lane_repo) if lane_repo is not None else repo
+    isolated = write_repo.resolve() != repo.resolve()
+    # THE EARNED SET, AND THE TRAP IN IT (E-03; the plan's F-7, corrected by measurement).
+    # `collect_earned_paths` diffs the ATTEMPT's `starting_head..ending_head`, and both of those are
+    # MAIN's HEAD sampled around the turn. For an ISOLATED turn main's HEAD never moves, so that range
+    # is `X..X` and yields NOTHING -- and because the earned gate can only ever WITHHOLD a close, the
+    # visible symptom would not be an error but a close that silently never happens again. So the lane
+    # branch's own range is added, which is where the work actually is. It is read with `cwd=repo`
+    # deliberately: a linked worktree shares the object database and refs with its parent, so the range
+    # resolves identically from either cwd (measured; the cwd was never the issue, the RANGE was).
+    earned_paths = collect_earned_paths(repo, item)
+    if isolated and lane_handle is not None:
+        for path in collect_lane_earned_paths(repo, lane_handle):
+            if path not in earned_paths:
+                earned_paths.append(path)
+    item["earned_paths"] = earned_paths
+    overrides: dict[str, str] = {}
+    if isolated:
+        with contextlib.suppress(Exception):  # fail closed: no override = fewer closes
+            overrides = lane_executed_carrier_override(repo, write_repo, item)
     try:
-        verdict = evaluate_backlog_close(repo, item_id6, run_earned_paths(state))
+        # ELIGIBILITY AGAINST MAIN. `repo`, never `write_repo`.
+        verdict = evaluate_backlog_close(
+            repo,
+            item_id6,
+            run_earned_paths(state),
+            executed_overrides=overrides,
+        )
     except Exception as exc:  # fail closed: never let a close attempt break the run
         item["backlog_close"] = {
             "item": item_id6,
@@ -1762,6 +1902,9 @@ def process_backlog_close(
         "reason": verdict.reason,
         "rule": verdict.rule,
         "evidence": verdict.evidence,
+        # Recorded so an operator (and V-01) can tell from the run's own state WHICH tree performed
+        # the write, rather than inferring it from the absence of a commit.
+        "wrote_in": "lane" if isolated else "main",
     }
     if not verdict.close:
         item["backlog_close"] = record
@@ -1776,7 +1919,9 @@ def process_backlog_close(
             },
         )
         return
-    item_path = resolve_backlog_item(repo, item_id6)
+    # RESOLVE THE ITEM IN THE TREE THE MOVE WILL HAPPEN IN. A lane-side move driven by a main-side
+    # path is exactly the half-state this plan removes.
+    item_path = resolve_backlog_item(write_repo, item_id6)
     if item_path is None:  # fail closed (raced away between evaluation and close)
         record["reason"] = f"backlog item {item_id6} disappeared before the close"
         item["backlog_close"] = record
@@ -1786,7 +1931,7 @@ def process_backlog_close(
         f"({verdict.reason}); evidence {verdict.evidence}"
     )
     rc, out = close_backlog_item(
-        repo, item_path, item_id6, verdict.evidence or "", message
+        write_repo, item_path, item_id6, verdict.evidence or "", message
     )
     if rc != 0:
         # E-04 fail-closed: a refused setter leaves the item ALONE and the refusal is the reason.
@@ -1804,7 +1949,22 @@ def process_backlog_close(
         )
         return
     record["closed"] = True
-    record["commit"] = commit_backlog_close(repo, item_id6, message)
+    # E-02: COMMIT IN THE TREE THE MOVE HAPPENED IN, WHICH IS THE WHOLE OF THE FIX.
+    #
+    # For an ISOLATED turn that is the LANE, so this commit lands on the lane BRANCH and reaches main
+    # through the same merge as the code: no commit is made on main, which is what E-02 asked for. It
+    # is a SEPARATE lane commit rather than part of the finalize commit, necessarily so -- the close
+    # can only be evaluated once the plan IS `executed`, which is what finalize makes true, so it
+    # cannot precede it. That costs nothing: both commits are on the lane branch, and a merge takes the
+    # branch or nothing, so the maintainer's stated property holds exactly ("the move lands if and only
+    # if the merge lands").
+    #
+    # AND THE COMMIT IS NOT OPTIONAL HERE. Leaving the move uncommitted in the lane would be worse than
+    # the bug being fixed: `integrate_lane_branch` merges the BRANCH (`git diff base..branch`), so an
+    # uncommitted change is not in the merge at all, and `teardown_lane_if_classified` then refuses to
+    # tear down a lane holding a dirty tracked file -- so the close would be silently dropped AND the
+    # lane stranded. For a NON-ISOLATED turn this is the pre-existing behavior, unchanged.
+    record["commit"] = commit_backlog_close(write_repo, item_id6, message)
     item["backlog_close"] = record
     append_jsonl(
         run_dir / "events.jsonl",
@@ -1816,6 +1976,7 @@ def process_backlog_close(
             "evidence": verdict.evidence,
             "rule": verdict.rule,
             "commit": record["commit"],
+            "wrote_in": record["wrote_in"],
         },
     )
     print(
@@ -2359,6 +2520,17 @@ def retry_deferred_integrations(
         `executed`, tear the lane down through the SHARED containment gate (never
         `teardown_isolation_worktree` directly, which force-deletes branch and files), and close the
         backlog item, which is the one moment a run can know the last carrier landed.
+
+        dirtygates-03 (`9iq461`): THE COMMON CASE NO LONGER CLOSES ANYTHING HERE. The original turn
+        already attempted the close IN ITS LANE (right after finalize, before integration), so an
+        eligible item's move is on the lane branch and arrives with THIS merge; the guard below then
+        skips, and no write reaches the shared checkout. The call is kept for the one case it still
+        answers -- an item that was NOT eligible during the original turn (e.g. a sibling carrier had
+        not executed yet) and may be eligible now -- which is pre-existing behavior and is left intact
+        rather than silently dropped. HONEST LIMIT, recorded rather than hidden: in that narrow case
+        the close does still write to main mid-run, because the lane is torn down above and there is no
+        lane left to write in. Removing that last case needs a coordinator-owned throwaway worktree,
+        which is Order 04's mechanism and deliberately outside this plan's scope.
         """
         item["status"] = "executed"
         item["integrated"] = reason
@@ -2411,7 +2583,11 @@ def retry_deferred_integrations(
                 "green",
             )
         )
-        process_backlog_close(run_dir, state, item)
+        # Skip when the lane-side close already succeeded: re-evaluating would answer
+        # `item is already done` (close=False) and OVERWRITE the success record with a refusal, so a
+        # correct close would be reported to the operator as "left open".
+        if not (item.get("backlog_close") or {}).get("closed"):
+            process_backlog_close(run_dir, state, item)
         save_state(run_dir, state)
 
     return runner_shared.reattempt_deferred_integrations(
@@ -7558,6 +7734,33 @@ def execute_item(
             finalize_repo, current_plan_for_finalize, item["id6"], actor, fin_message
         )
         if fin_rc == 0:
+            # dirtygates-03 (`9iq461`) E-01: CLOSE THE BACKLOG ITEM HERE, IN THE LANE, BEFORE the
+            # integration and while the lane still exists. The plan's own move is already committed on
+            # the lane branch by the finalize above; the item's move is committed as a second LANE
+            # commit, so both transitions sit on the lane branch and reach main through the SAME merge,
+            # landing if and only if it lands.
+            #
+            # WHY THIS IS NOT WHERE IT USED TO BE. The close previously ran AFTER `integrate_lane_branch`
+            # AND AFTER `teardown_isolation_worktree` (so the lane no longer existed), writing the move
+            # and a second commit into the SHARED CHECKOUT mid-run. The comment there argued the close
+            # had to wait until the plan was "genuinely executed on main"; that reasoning does not
+            # survive, because a merge is ATOMIC -- if it succeeds both moves land, if it fails neither
+            # does -- so riding the merge gets the property that comment wanted, and gets it without
+            # touching main. The cost of the old ordering was measured: on 2026-09-13 one item's
+            # uncommitted close left main dirty and a whole-tree gate then refused 27 of 42, 23 of 41
+            # and 18 of 43 remaining items across three consecutive runs.
+            #
+            # ELIGIBILITY IS STILL DECIDED AGAINST MAIN inside `process_backlog_close` (OQ-01); only the
+            # WRITE is redirected. A non-isolated turn passes no lane and behaves exactly as before.
+            if wt_handle is not None:
+                process_backlog_close(
+                    run_dir,
+                    state,
+                    item,
+                    lane_repo=Path(work_dir) if work_dir else None,
+                    lane_handle=wt_handle,
+                )
+                save_state(run_dir, state)
             # driverfin-02: the plan is now in executed/ ON the lane branch (inside the worktree). If
             # isolated, integrate the verified branch back to main via the REUSED integration gate +
             # a driver fast-forward/controlled merge, then tear down the worktree. On a non-passing
@@ -7752,10 +7955,22 @@ def execute_item(
                     )
                 )
                 # bkclose (zhr6mc) E-02/E-03/E-04: the plan is now genuinely `executed` on main, so
-                # this is the exact moment the last carrier landed and the only moment a run can know
-                # it. Attempt the close here; `process_backlog_close` fails closed and records its
-                # reason either way, so a refusal is reported (E-06) rather than swallowed.
-                process_backlog_close(run_dir, state, item)
+                # this is the moment the last carrier landed. `process_backlog_close` fails closed and
+                # records its reason either way, so a refusal is reported (E-06) rather than swallowed.
+                #
+                # dirtygates-03 (`9iq461`) E-01/E-02: THIS SITE IS NOW THE NON-ISOLATED PATH ONLY. An
+                # isolated turn already closed the item IN ITS LANE, before the merge, so its move rode
+                # the merge and nothing was written to the shared checkout. The guard is on the RECORD
+                # rather than on `wt_handle`, because `wt_handle` is set to None by a successful
+                # teardown a few lines above and would no longer distinguish the two paths here.
+                #
+                # WHY A GUARD AND NOT JUST A CONDITION: without it, a second call for an
+                # already-closed item would evaluate `item is already done`, i.e. `close=False`, and
+                # OVERWRITE the successful record with a refusal -- turning a correct close into a
+                # "left open" line in the operator's report (E-04 protects the reporting, so this
+                # matters even though the item on disk would be right).
+                if not (item.get("backlog_close") or {}).get("closed"):
+                    process_backlog_close(run_dir, state, item)
                 save_state(run_dir, state)
         else:
             attempt["finalize_refused"] = fin_msg
