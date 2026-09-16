@@ -37,38 +37,38 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: move the write into the lane
 
-- [ ] E-01 Move the backlog item's status change so it happens in the LANE tree rather than main. Today `process_backlog_close(run_dir, state, item)` is called at `oc_runipd.py:6863`, AFTER `integrate_lane_branch` (`:6740`) and AFTER `teardown_isolation_worktree` (`:6825`), and it operates on `repo` (main). The plan's own move already happens in the lane because `finalize_repo = Path(work_dir) if (work_dir and wt_handle) else repo` (`:6713`). Perform the item's move against the lane tree in that same window, so the lane's finalize commit carries BOTH the plan transition and the backlog transition. Preserve the non-isolated case (`wt_handle is None`) exactly as it behaves today.
+- [x] E-01 Move the backlog item's status change so it happens in the LANE tree rather than main. Today `process_backlog_close(run_dir, state, item)` is called at `oc_runipd.py:6863`, AFTER `integrate_lane_branch` (`:6740`) and AFTER `teardown_isolation_worktree` (`:6825`), and it operates on `repo` (main). The plan's own move already happens in the lane because `finalize_repo = Path(work_dir) if (work_dir and wt_handle) else repo` (`:6713`). Perform the item's move against the lane tree in that same window, so the lane's finalize commit carries BOTH the plan transition and the backlog transition. Preserve the non-isolated case (`wt_handle is None`) exactly as it behaves today.
   THE MECHANISM IS ALREADY THERE, VERIFIED AT REVIEW (F-8), so do not invent one: `close_backlog_item` shells `aw backlog set <id6> --status done ... --dir <repo> --no-commit` (`:1316-1328`), so redirecting the MOVE at the lane is passing the lane path as `--dir`, and the setter already does not commit. DO NOT CHANGE THE `--status done` SPELLING while you are in that call: the positional form (`aw backlog set done <selector>`) dispatches elsewhere and SKIPS `check_engine.evaluate_blocking_close`, so the runner's close would stop being gated. The function's own docstring records this as measured and load-bearing.
   ALSO REDIRECT `resolve_backlog_item`, not only the setter. `process_backlog_close` resolves the item path against `repo` (`:1467`) before calling the setter, and it must resolve in whichever tree the move will happen so the two agree; a lane-side move driven by a main-side path is the half-state this plan exists to remove.
   `--dir` IS NOT ONLY "WHERE THE FILE MOVES", AND THIS IS THE ITEM'S REAL HAZARD (F-10). The gated setter route runs `check_engine.evaluate_blocking_close` (the same gate F-8 protects by forbidding a spelling change), and that predicate uses its `repo_root` to SCAN THE TREE for release-gate carriers (`check_engine.py:2026`). So passing the lane as `--dir` silently re-points the CLOSE-LEGITIMACY gate at the lane's filesystem view. The error direction is the unsafe one: in the lane this plan's own file is already in `executed/` carrying its `From-Backlog` line, so a lane-side scan is MORE likely to find a satisfying carrier than main's and could legitimize a `done` on a release-gated item main would refuse. DECIDE AND STATE IN A COMMENT which tree the legitimacy gate evaluates against; MAIN is the safe answer, for exactly the reason OQ-01 chose main for the eligibility evaluation. If keeping the gate on main means the move and the gate cannot share one `--dir`, say so plainly rather than quietly accepting the lane for both: that may mean moving the file with the setter pointed at the lane while the LEGITIMACY decision was already taken against main (which E-03 does anyway), or teaching the call to pass the two separately.
   THE EVIDENCE CITATION IS RESOLVED BY THAT SAME GATE (F-11), so it must be valid in whichever tree evaluates it: the SATISFIED route accepts a close only when `resolve_evidence_artifact(repo_root, evidence)` resolves (`check_engine.py:2036`). The evidence is typically this plan's own plan path, which is exactly the path whose LOCATION differs between lane and main. Verify the chosen tree resolves it, and cover that case in a test.
   - Depends on: none
   - Expected outcome: for an isolated turn, `git status --porcelain` in MAIN is unchanged across the whole item, the backlog move appears in the merge, AND the close-legitimacy gate plus its evidence resolution are evaluated against a deliberately chosen tree that is named in a comment.
-  - Execution state: pending
-- [ ] E-02 Remove the now-redundant separate close COMMIT on main. `commit_backlog_close` (`:1340-1422`) exists solely because the setter moves the file without committing and "leaving it would hand the next turn a dirty main tree". Once the move rides the lane's commit, a second commit on main is not merely unnecessary, it is the exact mid-run write this plan removes. Do not delete the helper blindly: it is also reachable from the non-isolated path, which must keep working.
+  - Execution state: performed
+- [x] E-02 Remove the now-redundant separate close COMMIT on main. `commit_backlog_close` (`:1340-1422`) exists solely because the setter moves the file without committing and "leaving it would hand the next turn a dirty main tree". Once the move rides the lane's commit, a second commit on main is not merely unnecessary, it is the exact mid-run write this plan removes. Do not delete the helper blindly: it is also reachable from the non-isolated path, which must keep working.
   - Depends on: E-01
   - Expected outcome: no commit is created on main by the close on the isolated path; the non-isolated path still commits as before.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: keep the eligibility decision honest
 
-- [ ] E-03 Evaluate eligibility IN MAIN, BEFORE the merge, and perform only the MOVE in the lane (OQ-01, resolved: option (a)). `evaluate_backlog_close` (`:1122`) asks two questions: may this run close at all (the `earned_paths` gate), and do ALL carriers of the item prove the work. Keep that call against `repo` (main), where the coordinator sees every carrier's true state, because carrier discovery scans the FILESYSTEM (F-6) and 21 of 108 carried items have more than one carrier, one with NINE (F-5), so a lane-side evaluation could close an item whose sibling carrier has not run. THE ORDERING THAT FOLLOWS: evaluate before integration while the lane still exists, and if the verdict is `close`, perform the move inside the lane so it rides the merge. A `close=False` verdict must still be recorded with its reason (E-04). The `earned_paths` gate MUST keep refusing a close this run did not earn.
+- [x] E-03 Evaluate eligibility IN MAIN, BEFORE the merge, and perform only the MOVE in the lane (OQ-01, resolved: option (a)). `evaluate_backlog_close` (`:1122`) asks two questions: may this run close at all (the `earned_paths` gate), and do ALL carriers of the item prove the work. Keep that call against `repo` (main), where the coordinator sees every carrier's true state, because carrier discovery scans the FILESYSTEM (F-6) and 21 of 108 carried items have more than one carrier, one with NINE (F-5), so a lane-side evaluation could close an item whose sibling carrier has not run. THE ORDERING THAT FOLLOWS: evaluate before integration while the lane still exists, and if the verdict is `close`, perform the move inside the lane so it rides the merge. A `close=False` verdict must still be recorded with its reason (E-04). The `earned_paths` gate MUST keep refusing a close this run did not earn.
   SOLVE THE EARNED-PATHS PROBLEM EXPLICITLY OR THIS ITEM SILENTLY DISABLES ALL CLOSING (F-7). `evaluate_backlog_close`'s `earned_paths` argument comes from `run_earned_paths(state)`, fed by `collect_earned_paths`, which runs `git diff --name-only <starting_head>..<ending_head>` with `cwd=repo` (`:1279-1281`). For an isolated turn BOTH commits live on the LANE BRANCH, so BEFORE the merge that diff fails or returns nothing in main. The function is best-effort by design and its docstring says fewer earned paths "can only ever WITHHOLD a close": therefore evaluating in main pre-merge does not raise, it QUIETLY yields an empty earned set and the gate refuses every close forever. Choose one and say which in the code comment: (a) compute `earned_paths` from the LANE (`work_dir`) where the commits exist, while keeping the CARRIER scan against main, which is the split OQ-01 actually implies; or (b) resolve the lane commits from main by SHA, which works because the lane branch ref is visible in the same repository (`git diff` on a branch's commits does not require checkout). Option (a) is preferred and is the smaller change.
   DO NOT ACCEPT A GREEN E-05 AS PROOF THIS WORKED. E-05's regression asserts items 2 and 3 run and MAIN stays clean; a permanently-refusing close satisfies all of that. V-03 therefore requires a POSITIVE close (an item actually reaching `done` via the merge) plus the earned-paths gate still refusing an unearned close, which is the only pair that distinguishes "correct" from "silently disabled".
   - Depends on: E-01
   - Expected outcome: a multi-carrier item whose sibling has not executed is never closed, an ELIGIBLE item IS still closed (proving the earned-paths computation survived the move), and the decision is taken from main's carrier view while the write lands via the merge.
-  - Execution state: pending
-- [ ] E-04 Preserve the fail-closed behavior and the reporting. `evaluate_backlog_close` wraps every lookup and returns a recorded reason rather than raising, and `process_backlog_close` records the verdict either way so the run summary can list every item left open WITH its reason (the `Backlog items left open` block). Moving the work must not lose that reporting, and must not turn a recorded refusal into an escaping exception that fails the item.
+  - Execution state: performed
+- [x] E-04 Preserve the fail-closed behavior and the reporting. `evaluate_backlog_close` wraps every lookup and returns a recorded reason rather than raising, and `process_backlog_close` records the verdict either way so the run summary can list every item left open WITH its reason (the `Backlog items left open` block). Moving the work must not lose that reporting, and must not turn a recorded refusal into an escaping exception that fails the item.
   - Depends on: E-01, E-03
   - Expected outcome: the run summary still lists every item left open with its reason, and no close path can raise.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: parity and regression
 
-- [ ] E-05 Apply the same change to `agy_runipd.py` and add the regression that this Set exists for: a queue of at least three isolated execute items where item 1 closes a backlog item, and items 2 and 3 still run. Assert MAIN's `git status --porcelain` is empty after item 1. That single assertion is what would have caught the original defect, and its absence is why three runs failed identically.
+- [x] E-05 Apply the same change to `agy_runipd.py` and add the regression that this Set exists for: a queue of at least three isolated execute items where item 1 closes a backlog item, and items 2 and 3 still run. Assert MAIN's `git status --porcelain` is empty after item 1. That single assertion is what would have caught the original defect, and its absence is why three runs failed identically.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: both hosts behave identically and the cross-item contamination cannot regress silently.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -109,7 +109,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Scope check
 
-- Over-scope: none. The change is confined to the two runners and their tests.
+AT EXECUTION (2026-09-16) THE ACTUAL FILE SET DIFFERED FROM THE DECLARATION, and the honest reconciliation is stated here rather than left to `--scope-reason` alone. What was declared: `agent_workflows/oc_runipd.py`, `agent_workflows/agy_runipd.py`, `tests/test_oc_runipd.py`, `tests/test_agy_runipd_cli.py`.
+
+WHAT WAS ACTUALLY CHANGED, with the reason for each:
+
+| path | declared? | why |
+|---|---|---|
+| `agent_workflows/oc_runipd.py` | yes | the close path itself (E-01..E-04) |
+| `agent_workflows/agy_runipd.py` | yes | host parity (E-05) |
+| `agent_workflows/runner_shared.py` | NO | the two new helpers live here, NOT in a host. See below. |
+| `agent_workflows/lane_containment.py` | NO | required, or every closing lane is preserved. See below. |
+| `tests/test_runner_backlog_close_in_lane.py` (new) | NO | the plan's tests, in a new module rather than the two declared ones |
+| `tests/test_runner_shared.py` | NO | its call-site census REFUSES an unnamed new `save_state` call site |
+| `tests/test_oc_runipd.py`, `tests/test_agy_runipd_cli.py` | declared, UNMODIFIED | the tests went in a dedicated module instead |
+
+`agent_workflows/runner_shared.py`, AND WHY THIS IS THE RIGHT CALL RATHER THAN A CONVENIENCE. Both hosts need `lane_executed_carrier_override` and `collect_lane_earned_paths`. Defining them in `oc_runipd` and importing them into `agy_runipd` would deepen exactly the coupling backlog `cnwy8g` tracks, and `test_the_oc_to_agy_import_count_did_not_increase` measures that count with an exact baseline and states the rule outright ("both hosts must reach it through `runner_shared`"). Putting them in the shared module keeps that count UNCHANGED, so no baseline was re-based and the guard was satisfied rather than edited. `collect_lane_earned_paths` needs the host's own `run_checked`, so each host keeps a one-line wrapper, which is the established `build_lane_outcome` shape.
+
+`agent_workflows/lane_containment.py`, WHICH IS THE ONE GENUINELY UNFORESEEN EDIT. `aw backlog set` appends to the global history sidecar (`.aw/records/history.jsonl`), so a lane that closes a backlog item now holds that file; the lane teardown gate then REFUSED every such lane with "1 unknown IGNORED file(s): .aw/records/history.jsonl". Measured on the first end-to-end run. This was never reachable before because PLANS are excluded from the sidecar, so a finalize-only lane never wrote it. It is the same "refuses always" failure the adjacent generated-`INDEX` clause exists to prevent, and it is fixed the same way, scoped to that one exact relative path taken from `record_history.SIDECAR_RELPATH`. Left unfixed, this plan would trade a dirty main tree for a preserved worktree and branch per closing item.
+
+`agent_workflows/check_engine.py` WAS **NOT** TOUCHED, which the plan's own under-scope note asked to be stated explicitly. The `--dir` redirect does reach two predicates there (F-10/F-11), and V-01 records the consequence: one `--dir` cannot be split from the caller, so the setter's move and its release gate necessarily share a tree. Rather than edit that high-blast-radius shared module (used by `aw check` and the pre-commit hook), the ELIGIBILITY decision was taken against main BEFORE the setter call, which is the alternative E-01 authorised. The residual coupling is filed as backlog `10pcd5` instead of being fixed silently here.
+
+- Over-scope: `runner_shared.py`, `lane_containment.py` and `tests/test_runner_shared.py` are outside the declaration, each for a reason given above; none broadens what this plan DOES, and each is the minimum needed to make the declared change work and stay measurable.
 - UNDER-SCOPE, ADDED AT REVIEW ROUND 2: `agent_workflows/check_engine.py` is NOT declared, and F-10/F-11 show the `--dir` redirect reaches two predicates that live there (`evaluate_blocking_close`'s carrier scan and its evidence resolution). If E-01 achieves the correct tree split WITHOUT touching that module, which is the expected and preferred outcome, the omission is right and those functions must be left alone. If it turns out the two `repo_root` uses cannot be separated from the caller, then `check_engine.py` MUST be added in the same pass, and a change there is high-blast-radius shared code used by `aw check` and the pre-commit hook as well as the runner. State which case you hit; do not edit it silently.
 - NO INTENT COLLISION, VERIFIED AT REVIEW, which distinguishes this plan from Orders 01 and 02. The three approved `Blocks-Release: next` plans that contradict those two (`fujm0y`, `51vw4y`, `3i0aaz`) mention `process_backlog_close`, `commit_backlog_close` and the backlog close ZERO times between them. Two of them DO declare `oc_runipd.py`/`agy_runipd.py` in their `Scope-Paths`, but that is ordinary file overlap in different regions, which the runner's worktree isolation and merge-and-revalidate gate already handle; it is not a contradictory instruction. So this plan is independently approvable and executable. NOTE THE QUESTION NUMBER MOVED: that collision was the orchestrator's OQ-03 when this line was written, was renumbered to its OQ-02, and is now RESOLVED to the path split, so it constrains nothing here either way. This plan was never affected.
 - Under-scope: this plan does not remove the `commit_backlog_close` helper, because the non-isolated path still needs it. If review wants isolation to be mandatory, that is a separate decision and a separate plan.
@@ -127,7 +147,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Spec / documentation sync
 
 - No spec is expected to change: `bkclose (zhr6mc)` introduced the close and this plan moves WHERE it happens, not WHETHER. VERIFIED AT REVIEW rather than left as a pre-execution chore: the specs tree contains NO requirement that fixes the backlog close to the main checkout (grepped for `zhr6mc`, `backlog_close`, and close-plus-main phrasings across `.aw/records/specs/`; no hit binds the close to a tree). Re-check cheaply at execution in case a spec landed since, but treat this as settled rather than an open risk. If one does appear, amend it in this plan and add the spec file to `Scope-Paths` first.
+  RE-CHECKED AT EXECUTION (2026-09-16) as instructed, and it holds: NO spec was amended and none needed to be. No `.spec.md` file is in this change's diff.
 - Update the comment at `oc_runipd.py:6859-6862`, which currently states the reasoning F-3 disproves.
+  DONE. That comment now records that this site serves the NON-ISOLATED path only, states why the "wait until it is genuinely executed on main" reasoning does not survive (a merge is atomic, so riding it gets the same property without touching main), and explains why the guard keys on the close RECORD rather than on `wt_handle` (a successful teardown sets `wt_handle` to None above, so it would no longer distinguish the two paths). The agy twin carries the matching comment.
 
 ## Open questions
 
@@ -142,29 +164,252 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste MAIN's `git status --porcelain` immediately after an isolated item that closed a backlog item, showing it EMPTY. Paste the merge commit's `--name-status` showing the backlog item's move inside it.
   - NAME THE TREE THE CLOSE-LEGITIMACY GATE RAN AGAINST, and prove it (F-10). State in the evidence which tree `evaluate_blocking_close` evaluated (main or the lane) and paste the code comment recording that choice. Then paste the DISCRIMINATING case: a RELEASE-GATED item (one carrying `- Blocks-Release:`) whose only would-be carrier is THIS plan's own file, which sits in `executed/` in the lane and still in `pending/` in main. The two trees give different verdicts there, so this is the case that proves which tree was used. An implementation that closes it because the LANE view found a carrier has widened a release gate and FAILS this item, even with main's status empty and the merge correct.
   - PROVE THE EVIDENCE PATH RESOLVES IN THAT TREE (F-11). Paste the `verdict.evidence` string actually passed to the setter and show `resolve_evidence_artifact` resolving it in the chosen tree. If the evidence is this plan's own plan path, say which location it carried, since that path differs between lane and main.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: produced by running the REAL `oc_runipd.execute_item` path against a live git repo with an isolated lane (harness `.aw/state/scratch-9iq461/v_evidence.py`, full transcript at `.aw/state/lane-submissions/run-20260916T182835Z-1650244/04-9iq461/attempt-1/v-evidence.txt`), plus `tests/test_runner_backlog_close_in_lane.py` (22 passed).
+
+    MAIN's `git status --porcelain -uall` DURING the turn, and AFTER the whole item:
+
+    ```text
+    --- MAIN `git status --porcelain` DURING the turn ---
+    ''
+    --- MAIN `git status --porcelain` AFTER the whole item ---
+    ''
+    ```
+
+    The item's move IS INSIDE THE MERGED RANGE (`git diff --name-status <before>..HEAD`), alongside the plan transition and the agent's own file:
+
+    ```text
+    A	.aw/records/backlog/done/20260913-demo-01-bbbbbb-demo-item.backlog.md
+    D	.aw/records/backlog/graduated/20260913-demo-01-bbbbbb-demo-item.backlog.md
+    R092	.aw/records/plans/pending/20260913-demo-01-aaaaaa-demo.ipd.md	.aw/records/plans/executed/20260913-demo-01-aaaaaa-demo.ipd.md
+    A	src/aaaaaa.txt
+    ```
+
+    The recorded verdict, including the new `wrote_in` field that names the tree the write happened in:
+
+    ```json
+    {
+      "item": "bbbbbb", "closed": true, "rule": "ipd",
+      "reason": "every IPD carrier is executed and this run executed .aw/records/plans/executed/20260913-demo-01-aaaaaa-demo.ipd.md",
+      "evidence": ".aw/records/plans/executed/20260913-demo-01-aaaaaa-demo.ipd.md",
+      "wrote_in": "lane", "commit": "458d0b0a0b141ab4289b373c0268ca5b2b7b7bd5"
+    }
+    ```
+
+    THE TREE THE CLOSE-LEGITIMACY GATE RAN AGAINST IS **THE LANE**, and the honest reason is that ONE `--dir` CANNOT BE SPLIT. `backlog.run_set` derives both the destination root and `evaluate_blocking_close`'s `repo_root` from the same `resolve_verb_repo_root(args.dir)`, so the setter's move and its gate necessarily share a tree. Measured at the call:
+
+    ```text
+    --dir passed to the setter     : LANE
+    evidence cited                 : .aw/records/plans/executed/20260913-demo-01-aaaaaa-demo.ipd.md
+    evidence resolves in gate tree  : True
+    evidence resolves in main       : False
+    Blocks-Release preserved on the closed item : True
+    ```
+
+    SO THE PLAN'S PREFERRED ANSWER (gate on main) WAS NOT ACHIEVABLE WITHOUT EDITING `check_engine`/`backlog`, and per the plan's own scope check the correct response was to NOT edit that shared module silently. What was done instead is exactly the split E-01 authorised as the alternative: **the ELIGIBILITY DECISION is taken against MAIN** (E-03/V-03, `evaluate_backlog_close(repo, ...)` with `repo` never `write_repo`), while the setter's move plus its own gate run in the lane. The choice is recorded in a comment on `close_backlog_item`, as required:
+
+    ```text
+    `--dir` IS NOT MERELY "WHERE THE FILE MOVES" (dirtygates-03 `9iq461` F-10/F-11). Because the
+    gated route runs `check_engine.evaluate_blocking_close`, this ONE argument also chooses the tree
+    that predicate scans for release-gate carriers ... and the tree its `--evidence` citation is
+    resolved against ... `backlog.run_set` derives both from the same `resolve_verb_repo_root(args.dir)`,
+    so THE TWO CANNOT BE SPLIT FROM HERE: one `--dir` is one tree for the move AND the gate. That is why
+    `process_backlog_close` performs the MOVE in the lane but takes the ELIGIBILITY decision against main
+    BEFORE calling this, and why the evidence it cites is a path that resolves in the lane.
+    ```
+
+    THE DISCRIMINATING RELEASE-GATE CASE, MEASURED, AND IT CORRECTS F-10's PREMISE. The item carries `- Blocks-Release: next` and its only candidate carrier is this plan's own file (`executed/` in the lane, `pending/` in main):
+
+    ```text
+      evidence=main's pending path    legitimate=True  path=SATISFIED resolvable=True
+      evidence=lane's executed path   legitimate=False path=None     resolvable=False
+      with NO evidence at all       : legitimate=False severity=error
+      reason: backlog item carries Blocks-Release 'next'; closing it `done` would silently drop that release gate
+    ```
+
+    F-10 PREDICTED THE LANE VIEW WOULD BE THE **PERMISSIVE** ONE VIA THE HANDOFF ARM. That is NOT what happens, and the difference matters: `find_from_backlog_artifacts` keys on the `- From-Backlog:` FIELD, not on the lifecycle bucket, so it finds the carrier in BOTH trees and the HANDOFF verdict is identical either way (here HANDOFF cannot fire at all, because the carrier does not itself carry `Blocks-Release`). What actually differs between the trees is only whether the **evidence path resolves**, i.e. the SATISFIED arm. So the gate is NOT widened by the lane: it is if anything STRICTER there, and the fail-closed arm remains reachable (third line above, asserted by `TheReleaseGateIsNotWidened::test_a_release_gated_item_with_NO_carrier_link_is_still_refused`). The gate field also survives the close (`Blocks-Release preserved: True`).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste `git log --oneline` for the item's window showing NO separate "closed by aw oc run" commit on main for the isolated path, and paste a non-isolated run showing its close still commits.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `git log --oneline` for the isolated item's window:
+
+    ```text
+    458d0b0 closed by aw oc run: IPD aaaaaa executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260913-demo-01-aaaaaa-demo.ipd.md); evidence .aw/records/plans/executed/20260913-demo-01-aaaaaa-demo.ipd.md
+    579118c lifecycle(aaaaaa): finalize aaaaaa -> executed
+    b990372 demo(aaaaaa): create the file
+    ```
+
+    READ THAT PRECISELY, BECAUSE THE DISTINCTION IS THE WHOLE OF E-02. A close commit IS present in the window and MUST be: it is what carries the move into the merge. What E-02 removes is a commit **authored on main**, and the proof is the commit's parentage:
+
+    ```text
+    close commits in window     : 1
+    close commit parent subject : 'lifecycle(aaaaaa): finalize aaaaaa -> executed'
+      -> parent is the LANE's finalize commit, so the close was authored IN THE LANE
+    ```
+
+    Had the driver committed on main after the merge (the pre-fix behavior), the close would be main's tip with the MERGE RESULT as its parent. Instead it sits directly on the lane's finalize commit, i.e. it was made on the lane branch and arrived by fast-forward. Pinned by `TheCloseHappensInTheLane::test_main_stays_clean_and_the_move_rides_the_merge`, which asserts exactly this parentage.
+
+    THE NON-ISOLATED PATH STILL COMMITS, asserted rather than assumed (`--no-isolate-worktree`):
+
+    ```text
+    --- NON-ISOLATED (`--no-isolate-worktree`): still moves AND still commits ---
+      ✓ IPD aaaaaa finalized -> executed/ and integrated to main (in-place (no isolation))
+      ✓ backlog item bbbbbb closed done (evidence .aw/records/plans/executed/20260913-demo-01-aaaaaa-demo.ipd.md)
+      wrote_in : main
+      closed   : True
+      commit   : 4a4cd904197649b7a17d33256ba5cc31e7bc5912   <- committed via commit_backlog_close
+      item     : done
+      backlog tree porcelain: ''
+    ```
+
+    So `commit_backlog_close` is retained and still reached (the plan's under-scope note is honored), and that path leaves its tree clean exactly as before.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste a multi-carrier test result showing an item with an UNEXECUTED sibling carrier is NOT closed, with the recorded reason. Paste a case proving the `earned_paths` gate still refuses a close the run did not earn. Prove the evaluation ran against MAIN (not the lane) by asserting on a fixture where the two views differ: the lane has this plan executed, main does not yet, and the verdict must be computed from main's view.
   - MANDATORY POSITIVE CASE (F-7), because every negative case above is also satisfied by a close path that refuses UNCONDITIONALLY: paste an eligible single-carrier item actually reaching `done` through the merge, with the item file's new path shown in the merge's `--name-status`. State which option E-03 took for `earned_paths` (compute in the lane, or resolve lane commits by SHA from main) and paste the non-empty earned set that proves the gate had real input rather than an empty one. A close-path change whose only evidence is refusals is indistinguishable from a broken one.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: THE MULTI-CARRIER REFUSAL, on a THREE-carrier shape per F-12 (the real tail is 9/6/5/4/4/4, so a pair would be the easiest case rather than a representative one). Two sibling carriers unexecuted, the run's own plan executed:
+
+    ```text
+    --- THREE-CARRIER item, two siblings unexecuted (F-12 shape) ---
+    item status   : executed
+    closed        : False
+    reason        : IPD carrier(s) not executed: .aw/records/plans/pending/20260913-demo-02-cccccc-demo.ipd.md, .aw/records/plans/pending/20260913-demo-03-dddddd-demo.ipd.md
+    item on disk  : graduated
+    siblings named: True, True
+    ```
+
+    The ITEM STILL EXECUTED while the backlog item stayed `graduated`, which is the intended asymmetry: the run's work landed, the Set-level claim did not.
+
+    THE EVALUATION RAN AGAINST MAIN, proved on a fixture where the two views DIFFER. In the lane this plan's file is in `executed/`; in main it is still `pending/`. The verdict is computed from main's carrier view, with the lane contributing exactly ONE fact (its own plan is executed) via the new `executed_overrides` mapping, and NO override for any sibling:
+
+    ```text
+    main's view, with the lane's own-plan fact supplied -> close=False
+    reason names the unexecuted SIBLING, i.e. main's bucket for it was read, not the lane's
+    ```
+
+    (`EligibilityIsDecidedInMain::test_the_verdict_is_main_s_view_not_the_lane_s_permissive_one`, plus `test_the_override_is_limited_to_the_callers_own_plan`, which STRUCTURALLY asserts via AST that the helper's only non-empty return is the single own-plan mapping, so it cannot later widen into a general "treat pending as executed" switch.)
+
+    THE EARNED GATE STILL REFUSES A CLOSE THE RUN DID NOT EARN:
+
+    ```text
+    close=False  reason=this run executed none of its carriers, so the close was not earned (all carriers were already executed before this run)
+    ```
+
+    THE MANDATORY POSITIVE CASE: an eligible single-carrier item ACTUALLY REACHING `done` through the merge, with a NON-EMPTY earned set:
+
+    ```text
+    --- POSITIVE CASE: an eligible single-carrier item REACHES done via the merge ---
+    closed        : True
+    reason        : every IPD carrier is executed and this run executed .aw/records/plans/executed/20260913-demo-01-aaaaaa-demo.ipd.md
+    item on disk  : done
+    EARNED SET (non-empty is the discriminator vs a starved gate):
+        .aw/records/plans/executed/20260913-demo-01-aaaaaa-demo.ipd.md
+        src/aaaaaa.txt
+    --- the item's new path inside the merge ---
+    A	.aw/records/backlog/done/20260913-demo-01-bbbbbb-demo-item.backlog.md
+    D	.aw/records/backlog/graduated/20260913-demo-01-bbbbbb-demo-item.backlog.md
+    R092	.aw/records/plans/pending/20260913-demo-01-aaaaaa-demo.ipd.md	.aw/records/plans/executed/20260913-demo-01-aaaaaa-demo.ipd.md
+    A	src/aaaaaa.txt
+    ```
+
+    WHICH `earned_paths` OPTION WAS TAKEN, AND WHY NEITHER OF F-7's TWO WAS RIGHT AS STATED. F-7 offered (a) compute in the lane, or (b) resolve lane commits by SHA from main, on the premise that the diff would fail or return nothing with `cwd=main`. MEASURED IN A SCRATCH REPO, THAT PREMISE IS WRONG: a linked worktree shares the object database and refs with its parent, so `git diff <sha>..<sha>` over lane commits resolves IDENTICALLY from either cwd (both printed the same path, rc=0). Option (a) would have been a no-op.
+
+    THE REAL DEFECT WAS THE **RANGE**, not the cwd: `collect_earned_paths` diffs the attempt's `starting_head..ending_head`, and both are `git_head(repo)` -- MAIN's HEAD sampled around the turn -- which for an isolated turn does not move, making the range `X..X` and therefore EMPTY. Measured:
+
+    ```text
+    the attempt's OWN recorded range (main HEAD..main HEAD)  -> (empty), rc=0
+    the lane range by BRANCH NAME, cwd=main                  -> executed/plan.md, item-done.md, rc=0
+    ```
+
+    So the fix NAMES THE RANGE THAT HOLDS THE WORK: a new `runner_shared.collect_lane_earned_paths` diffs the lane's `base_commit..branch`, read with `cwd=repo`. F-7's CONCLUSION was nevertheless correct and load-bearing -- an empty earned set would have made the gate refuse every close SILENTLY forever, since the earned gate can only withhold -- which is exactly why V-03 demanded this positive case. Both halves are pinned by `TheEarnedPathsRangeIsTheLaneBranch`, including an explicit assertion that the attempt's own range is empty. The corrected diagnosis is filed as backlog `h5a3ba` so the stale finding does not mislead a later reader.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste a run summary containing the `Backlog items left open` block with at least one reason, proving the reporting survived. Paste a forced-failure case showing a recorded refusal rather than a traceback.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: the `Backlog items left open` block, rendered by the shipped `render_unclosed_report`, WITH its reason:
+
+    ```text
+    --- Backlog items left open ---
+      - bbbbbb: IPD carrier(s) not executed: x.ipd.md, y.ipd.md
+      (this run's own items only; `aw attention` owns the cross-tree view)
+    ```
+
+    A FORCED SETTER FAILURE is RECORDED as the reason and the item is left ALONE, with no traceback escaping:
+
+    ```text
+    --- a FORCED setter failure is RECORDED, not raised ---
+    closed=False  reason=setter refused the close: induced setter failure
+    item left at: graduated  (no traceback escaped)
+    ```
+
+    A FORCED EVALUATION failure likewise records rather than raises, so a broken predicate cannot fail the item:
+
+    ```json
+    {
+      "item": "bbbbbb",
+      "closed": false,
+      "reason": "close evaluation failed: induced evaluation failure"
+    }
+    ```
+
+    ONE REPORTING HAZARD WAS FOUND AND FIXED WHILE DOING THIS, and it is the reason both post-merge call sites are now guarded. Moving the close earlier means the item can already be `done` when the pre-existing post-merge site runs; a second evaluation would answer `item is already done`, i.e. `close=False`, and OVERWRITE the success record with a refusal, so a CORRECT close would be reported to the operator as "left open". The guard `if not (item.get("backlog_close") or {}).get("closed"):` prevents that in both hosts, and `BothHostsBehaveIdentically::test_the_post_merge_close_is_guarded_against_overwriting_a_success` fails without it (verified: it is one of the four that fail when the change is reverted in place).
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste the three-item regression output showing items 2 and 3 executed and MAIN clean after item 1. Paste the equivalent for agy. Paste the bare full-suite counts before and after with the FAILED-set diff.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE THREE-ITEM REGRESSION, run through the real `execute_item` for each item in turn, sampling MAIN's porcelain after each:
+
+    ```text
+    ▶ IPD 01/3 aaaaaa  set=demo  action=execute  attempt 1
+      ✓ isolated worktree aw/lane/aaaaaa at .../.aw/worktrees/aaaaaa
+      ✓ backlog item bbbbbb closed done (evidence .aw/records/plans/executed/20260913-demo-01-aaaaaa-demo.ipd.md)
+      ✓ IPD aaaaaa finalized -> executed/ and integrated to main (fast-forward integrated to main)
+    ✓ IPD 01/3 aaaaaa (execute) -> executed  (exit 0)
+      after aaaaaa: status=executed  main porcelain=''
+    ▶ IPD 02/3 cccccc ...
+    ✓ IPD 02/3 cccccc (execute) -> executed  (exit 0)
+      after cccccc: status=executed  main porcelain=''
+    ▶ IPD 03/3 dddddd ...
+    ✓ IPD 03/3 dddddd (execute) -> executed  (exit 0)
+      after dddddd: status=executed  main porcelain=''
+      item bbbbbb            : done
+      item 1 wrote_in        : lane
+    ```
+
+    Items 2 and 3 both executed and MAIN was clean after item 1, which is the exact shape of run `run-20260913T031148Z-1722898` that lost 23 of 41 items.
+
+    HONEST NOTE ON WHAT THAT ALONE PROVES, measured by REVERTING the change in place and re-running rather than assumed: the cross-item assertions PASS EVEN PRE-FIX. The root cause of the dirty tree was the un-paired move, already fixed separately by commit `c53849e5` (`git mv`), so a post-merge close now commits both halves and leaves main clean too. What this Set removes is the remaining mid-run WRITE, which is why the discriminating assertion is `wrote_in == "lane"`. With the fix reverted, FOUR of the new tests fail:
+
+    ```text
+    FAILED tests/test_runner_backlog_close_in_lane.py::TheCloseHappensInTheLane::test_main_stays_clean_and_the_move_rides_the_merge
+    FAILED tests/test_runner_backlog_close_in_lane.py::ThreeItemsAndMainStaysClean::test_item_one_closing_a_backlog_item_does_not_block_items_two_and_three
+    FAILED tests/test_runner_backlog_close_in_lane.py::BothHostsBehaveIdentically::test_both_drivers_close_in_the_lane_before_integrating
+    FAILED tests/test_runner_backlog_close_in_lane.py::BothHostsBehaveIdentically::test_the_post_merge_close_is_guarded_against_overwriting_a_success
+    4 failed, 13 passed
+    ```
+
+    So the new tests DO detect the defect, which is the property E-05 exists for.
+
+    THE agy HOST, exercised end to end rather than asserted about (its turn signature and verifier key differ, so a shared fake would not have caught a divergence):
+
+    ```text
+    tests/test_runner_backlog_close_in_lane.py::AgyHostClosesInTheLaneToo::test_agy_closes_in_the_lane_and_leaves_main_clean PASSED [ 50%]
+    tests/test_runner_backlog_close_in_lane.py::AgyHostClosesInTheLaneToo::test_agy_three_items_and_main_stays_clean PASSED [100%]
+    ============================== 2 passed in 5.73s ===============================
+    ```
+
+    BARE FULL-SUITE COUNTS, BEFORE AND AFTER, from the SAME commit (`5f0bb8d8`), run as `python3 -m pytest` with no added flags:
+
+    ```text
+    BEFORE : 7328 passed, 3 skipped, 2 xfailed in 79.32s (0:01:19)   EXIT=0
+    AFTER  : 7350 passed, 3 skipped, 2 xfailed in 82.29s (0:01:22)   EXIT=0
+    ```
+
+    FAILED-SET DIFF: **empty in both directions** (zero failures before, zero after). The delta is +22 passed, which is exactly the new `tests/test_runner_backlog_close_in_lane.py` module.
+
+    ONE MEASUREMENT CAVEAT, STATED RATHER THAN GLOSSED, because a naive baseline here is wrong. This turn runs with `AW_EXECUTION_ROLE=worker` exported, and 21 tests legitimately fail under that variable because they exercise `aw ipd begin`/`finalize`, which the worker-role gate REFUSES by design (`AW-LIFECYCLE-ROLE-001`). That is the guard working, not a regression, and it is unrelated to this plan. Both runs above were therefore taken with `env -u AW_EXECUTION_ROLE`, identically, so the comparison is apples to apples. The 21-failure worker-role baseline is preserved alongside at `suite-baseline.txt` for audit.
+  - Result: pass
 
 ## Approval and execution gate
 
