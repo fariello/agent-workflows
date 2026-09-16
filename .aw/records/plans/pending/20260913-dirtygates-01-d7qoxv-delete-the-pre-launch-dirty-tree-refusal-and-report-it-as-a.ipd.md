@@ -41,45 +41,45 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: replace the refusal with a report
 
-- [ ] E-01 In `oc_runipd.py` at the pre-launch gate (`:6123`, `base = evaluate_clean_base_for_launch(repo)`), stop writing a terminal disposition when the base is not clean. Today the not-clean branch sets `attempt["disposition"] = "blocked"`, `item["status"] = "blocked"`, records `clean_base_refused` / `clean_base_dirty_paths`, saves state and skips the turn. Instead: record the observation on the attempt under a NON-refusal key (e.g. `clean_base_warning` / `clean_base_dirty_paths`) so the run record still carries the fact, and PROCEED to `driver_begin` and lane allocation. Do not change `evaluate_clean_base`'s classification itself (E-03 owns the shared rule's docstring).
+- [x] E-01 In `oc_runipd.py` at the pre-launch gate (`:6123`, `base = evaluate_clean_base_for_launch(repo)`), stop writing a terminal disposition when the base is not clean. Today the not-clean branch sets `attempt["disposition"] = "blocked"`, `item["status"] = "blocked"`, records `clean_base_refused` / `clean_base_dirty_paths`, saves state and skips the turn. Instead: record the observation on the attempt under a NON-refusal key (e.g. `clean_base_warning` / `clean_base_dirty_paths`) so the run record still carries the fact, and PROCEED to `driver_begin` and lane allocation. Do not change `evaluate_clean_base`'s classification itself (E-03 owns the shared rule's docstring).
   THE STDERR WARNING DOES NOT GO HERE, per OQ-01 which is RESOLVED. This bullet previously said to "emit the dirty-path list as a WARNING to stderr" at this per-item call site, and OQ-01 then contradicted it: `execute_item` runs ONCE PER QUEUE ENTRY, so a stderr line here repeats the same message N times, which is the exact defect `3i0aaz`'s own review rejected (its PR-005). SPLIT BY PURPOSE: the per-attempt RECORD stays HERE (each attempt must be self-describing), and the OPERATOR-FACING stderr line goes ONCE PER RUN from `initialize_run` (`oc_runipd.py:2732`, `agy_runipd.py:1800`, beside `runner_shared.refuse_unimplemented_run_flags` at `:2781`/`:1836` -- all four anchors verified at review). If you prefer de-duplicating at the call site instead, that is acceptable, but say which you did in a comment; do NOT ship the N-times version.
   COORDINATE THE `initialize_run` SEAM, DO NOT ADD A PARALLEL REPORT. `3i0aaz` E-02 is approved to add an UNTRACKED-dirt report at that same seam. Whichever plan lands second must EXTEND the first's report rather than adding a second adjacent dirty-tree report, or the operator gets two overlapping messages at run start. Check for it before writing.
   KEEP THE THREE OTHER `blocked` PRODUCERS INTACT. Verified at review that `item["status"] = "blocked"` is written at three sites per host (`oc_runipd.py:6129`, `:6174`, `:6244`; `agy_runipd.py:3269`, `:3302`, `:3381`), and only the FIRST is this gate. Do not generalize the change: the other two are different refusals with their own reasons.
   - Depends on: none
   - Expected outcome: an isolated turn launched against a checkout holding a dirty tracked path proceeds, and the run record carries the dirty paths as a warning rather than a refusal.
-  - Execution state: pending
-- [ ] E-02 Apply the byte-equivalent change to `agy_runipd.py` at `:3262-3263`, which is the same gate with the same placement (its own comment at `:3258-3261` states it shares the RULE via `lane_containment.evaluate_clean_base`). HOST PARITY IS A REQUIREMENT, not a nicety, and CITED CORRECTLY AT REVIEW: the authority is spec `7ckptx` R2.6 plus its acceptance criterion A5c ("THE SHARED-CODE HOME IS DECLARED ... neither driver holds a second copy"), reinforced by the R6.1 single-definition rule, NOT R4, which governs the host PERMISSION POSTURE and says nothing about guard parity. Note also that the agy comment's citation of "CID-3" is dead: `CID-3` appears NOWHERE in the specs tree (grepped at review), so do not chase it; R2.6/A5c is the live requirement. `z2isfg` already left agy behind once on the neighbouring begin-dirty gate ("AGY IS DEFERRED, NOT DONE"), which is exactly the asymmetry this item must not repeat.
+  - Execution state: performed
+- [x] E-02 Apply the byte-equivalent change to `agy_runipd.py` at `:3262-3263`, which is the same gate with the same placement (its own comment at `:3258-3261` states it shares the RULE via `lane_containment.evaluate_clean_base`). HOST PARITY IS A REQUIREMENT, not a nicety, and CITED CORRECTLY AT REVIEW: the authority is spec `7ckptx` R2.6 plus its acceptance criterion A5c ("THE SHARED-CODE HOME IS DECLARED ... neither driver holds a second copy"), reinforced by the R6.1 single-definition rule, NOT R4, which governs the host PERMISSION POSTURE and says nothing about guard parity. Note also that the agy comment's citation of "CID-3" is dead: `CID-3` appears NOWHERE in the specs tree (grepped at review), so do not chase it; R2.6/A5c is the live requirement. `z2isfg` already left agy behind once on the neighbouring begin-dirty gate ("AGY IS DEFERRED, NOT DONE"), which is exactly the asymmetry this item must not repeat.
   BOTH CALL SITES ARE ALREADY IDENTICAL, VERIFIED AT REVIEW, so this is a mirrored edit and not a reconciliation: oc `:6122-6148` and agy `:3262` open with the same `if isolate and self_finalize and not is_review:` condition and the same `evaluate_clean_base_for_launch(repo)` call, and each host defines that wrapper once (`oc_runipd.py:1955`, `agy_runipd.py:1299`).
   - Depends on: E-01
   - Expected outcome: both hosts warn and proceed; no host retains the refusal.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: keep the rule honest where it is defined
 
-- [ ] E-03 Update `lane_containment.CleanBaseResult.reason` (`:2543-2551`) and `evaluate_clean_base`'s docstring (`:2554-2582`) so the text describes a WARNING rather than a refusal. The current `reason` string literally begins "refusing to launch an unattended isolated turn", which would otherwise be printed by a code path that no longer refuses. Preserve the `clean` / `dirty_paths` shape and the deliberate `--untracked-files=no` exclusion unchanged.
+- [x] E-03 Update `lane_containment.CleanBaseResult.reason` (`:2543-2551`) and `evaluate_clean_base`'s docstring (`:2554-2582`) so the text describes a WARNING rather than a refusal. The current `reason` string literally begins "refusing to launch an unattended isolated turn", which would otherwise be printed by a code path that no longer refuses. Preserve the `clean` / `dirty_paths` shape and the deliberate `--untracked-files=no` exclusion unchanged.
   THE `dirty_tree_overlap` CROSS-REFERENCE STAYS AND STAYS TRUE, which is simpler than this item originally assumed. CORRECTED AT REVIEW ROUND 2: the earlier text warned that "Order 02 changes that neighbour" and told this item not to invalidate the cross-reference. Order 02's deletion is WITHDRAWN (its OQ-03 resolved to KEEP AND IMPROVE), so `dirty_tree_overlap` remains a live symbol and the contrasting paragraph at `lane_containment.py:2571` needs no coordination with any sibling. Rewrite only the half describing THIS check, and leave the half describing the integration-time check exactly as it is: after this plan the contrast is sharper, not weaker, because one side becomes a report while the other stays a refusal.
   NOTE THE REASON STRING IS ALSO A SHARED-TREE STRING, which is why E-04's path split matters here too. `CleanBaseResult.reason` is produced by the ONE rule both call sites use, and approved plan `3i0aaz` E-03 is signed off to route a shared-tree refusal through it (its own review found the current wording FALSE for that path, since it says "unattended isolated turn"). So do NOT hard-code a warning-only wording that a refusal can no longer use: keep the structure able to express both, or `3i0aaz` inherits a string that contradicts its behavior.
   - Depends on: E-01
   - Expected outcome: the emitted text matches the behavior; no string claims a refusal that cannot happen.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the contract and its tests
 
-- [ ] E-04 Amend spec `7ckptx` R5.4 (`:416-420`) and acceptance criterion A14 (`:570-572`) SO THE OBLIGATION IS SPLIT BY PATH, NOT REMOVED. R5.4 today says the checkout "MUST have no dirty TRACKED paths, and a refusal MUST name them and occur BEFORE any worker process is spawned", stated unconditionally. The amended requirement MUST: (i) replace the refusal with a REPORTING obligation for an ISOLATED turn, which is the only path this plan changes and the only path F-3 disproves; and (ii) PRESERVE the refusal obligation for the NON-ISOLATED (shared-tree) path verbatim in force, because F-3 does not transfer there and approved release-blocking plan `3i0aaz` E-03 is signed off to extend exactly that refusal to it, calling it "the case where dirt is MOST dangerous, since the agent writes directly into the tree it is polluting". A wholesale replacement would silently negate a release blocker, and a weakened R5.4 cannot be un-shipped once other plans are reviewed against it.
+- [x] E-04 Amend spec `7ckptx` R5.4 (`:416-420`) and acceptance criterion A14 (`:570-572`) SO THE OBLIGATION IS SPLIT BY PATH, NOT REMOVED. R5.4 today says the checkout "MUST have no dirty TRACKED paths, and a refusal MUST name them and occur BEFORE any worker process is spawned", stated unconditionally. The amended requirement MUST: (i) replace the refusal with a REPORTING obligation for an ISOLATED turn, which is the only path this plan changes and the only path F-3 disproves; and (ii) PRESERVE the refusal obligation for the NON-ISOLATED (shared-tree) path verbatim in force, because F-3 does not transfer there and approved release-blocking plan `3i0aaz` E-03 is signed off to extend exactly that refusal to it, calling it "the case where dirt is MOST dangerous, since the agent writes directly into the tree it is polluting". A wholesale replacement would silently negate a release blocker, and a weakened R5.4 cannot be un-shipped once other plans are reviewed against it.
   RECORD WHY IN THE AMENDMENT: (a) for an isolated turn the gate does not prevent a stale-base failure, it defers it (F-3); (b) the merge-and-revalidate gate already re-runs the suite against the combined result, which is where a genuine stale base surfaces with real evidence (F-4); (c) the measured cost was 68 refusals across three runs (27 of 42, 23 of 41, 18 of 43), each naming one uncommitted backlog file, plus 36 cascaded `dependency-blocked` (F-6). Use those measured figures, NOT "100% batch failure", which F-6 disproves. KEEP R5.4's untracked-file exclusion and its rationale, which remain correct. A14 must be rewritten to assert warning-and-proceed FOR THE ISOLATED PATH and to keep asserting the refusal for the shared-tree path, so the criterion still pins what `3i0aaz` builds on.
   SCOPE THE AMENDMENT TO THE ISOLATED CASE ONLY. This is SETTLED, not pending: the orchestrator's OQ-02 and this plan's OQ-02 both resolved to the path split, so proceed on that basis rather than waiting. R5.4's subject is "an unattended isolated turn", and this plan's F-3 disproof is about a LANE cut from HEAD; it says nothing about a shared-tree run, where the worker writes into the polluted tree directly. Approved plan `3i0aaz` E-03 is signed off to EXTEND this refusal to the `--no-isolate-worktree` path. So the amended R5.4 MUST NOT read as "no dirty-base refusal exists anywhere": write it as a reporting obligation for the ISOLATED path and leave the shared-tree question to `3i0aaz`, The maintainer did NOT answer it the other way, so there is no such case to state. An amendment that silently removes the obligation for both paths would negate an approved release blocker through a spec edit, which is the highest-leverage change a run can make.
   DO NOT HAND-EDIT THE SPEC'S `- Status:` (it is `approved`); record the amendment in the spec's own history with `aw specs note`, which is what the declared-spec-edit mechanism expects.
   - Depends on: E-01, E-02
   - Expected outcome: the spec and the code agree, the amendment states the measured figures from F-6 rather than the disproved rate, and R5.4 still carries an obligation for the non-isolated path unless OQ-03 removed it.
-  - Execution state: pending
-- [ ] E-05 Update `tests/test_lane_clean_base.py` so it pins the NEW contract, and add the regression that the old contract lacked: a queue of several isolated execute items, with one dirty tracked path OUTSIDE every plan's declared scope, completes every item. That test is the direct regression for run `run-20260913T031148Z-1722898` (23 of 41 items blocked). Also assert the warning names the dirty path, so removing the refusal does not silently remove the operator's signal.
+  - Execution state: performed
+- [x] E-05 Update `tests/test_lane_clean_base.py` so it pins the NEW contract, and add the regression that the old contract lacked: a queue of several isolated execute items, with one dirty tracked path OUTSIDE every plan's declared scope, completes every item. That test is the direct regression for run `run-20260913T031148Z-1722898` (23 of 41 items blocked). Also assert the warning names the dirty path, so removing the refusal does not silently remove the operator's signal.
   FOUR NAMED TESTS WILL FAIL AND EACH MUST BE RETARGETED DELIBERATELY, ENUMERATED AT REVIEW so no executor discovers them by running the suite and then guesses (baseline: `python3 -m pytest tests/test_lane_clean_base.py` is `15 passed`). (1) `test_case_1_a_dirty_tracked_file_refuses_and_names_it:105` and (2) `test_case_1_a_staged_tracked_change_also_refuses:114` assert the REFUSAL classification; both must become warn-and-proceed assertions, and note they exercise `evaluate_clean_base` (the pure rule, which E-03 keeps classifying `clean=False`), so decide explicitly whether the RULE still reports not-clean while only the CALLER stops refusing. That distinction is the whole design and a test that blurs it will hide a regression. (3) `test_refusal_records_the_dirty_paths_on_the_attempt:192` asserts the literal source strings `attempt["clean_base_dirty_paths"]` and `"event": "clean-base-refused"` by SOURCE INSPECTION of `execute_item`, so E-01's rename to a non-refusal key breaks it textually; retarget it to the new key and event name rather than deleting it, because it is the only thing pinning that the paths reach durable state instead of only stderr. (4) `test_case_3_an_untracked_file_does_NOT_refuse:123` must stay GREEN unchanged; if it goes red you have widened the tracked/untracked scope, which F-5 forbids.
   A FIFTH TEST EXISTS AND MUST BE DISPOSED OF EXPLICITLY (F-10), because the census of four was incomplete. `test_the_two_checks_answer_different_questions:274` asserts the clean-base/overlap CONTRAST, with a docstring stating "clean-base REFUSES, overlap does not ... asserted as behaviour so the two checks cannot quietly collapse into one". Its assertions are on the RULE (`evaluate_clean_base_for_launch` reporting `clean=False` for a disjoint dirty path) which E-03 KEEPS, so it will probably stay GREEN with no code change. That is exactly the trap: it stays green while its docstring becomes false, since after this plan the isolated CALLER no longer refuses. CORRECT ITS DOCSTRING to say the RULE reports not-clean and the SHARED-TREE caller refuses while the isolated caller reports, and do NOT change its assertions. If it goes red, you have changed the rule rather than the caller, which E-03 forbids.
   THE FILE ITSELF IS CONTESTED, SO READ OQ-03 BEFORE TOUCHING IT (F-9). Approved plan `3i0aaz` requires this exact file to stay green WITH AN EMPTY DIFF as its own load-bearing proof, and deliberately leaves it out of its `Scope-Paths` so any edit is a declared violation. This item edits four of its tests and declares it. That is a real contradiction between two plans, not a merge-order problem, and it is blocking. Do NOT start E-05 before OQ-03 is answered.
   KEEP `test_guard_precedes_spawn_and_allocation:172` GREEN AND MEANINGFUL. It asserts the guard call precedes both the spawn and the lane allocation. After this change the call still runs there (it now warns), so the test should still pass; if you move the call, that ordering property is what R5.4's "before any worker process is spawned" clause becomes under a reporting obligation, so preserve it rather than deleting the test.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: the suite fails if the refusal is reintroduced, fails if the warning stops naming the paths, and all four enumerated tests are retargeted (not deleted) with the untracked-exclusion test still green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -179,31 +179,274 @@ IF OQ-03 RULES THAT `3i0aaz` OWNS THE FILE, E-01 through E-04 still stand and ar
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the run output for an isolated execute item launched against a checkout with a dirty tracked path, showing the item PROCEEDING and the warning text. Paste the attempt record from `state.json` showing the dirty paths recorded under a non-refusal key and no `blocked` status.
   - PROVE THE WARNING IS NOT PER-ITEM (OQ-01). Paste a run of at least THREE isolated items against the same dirty tree and show the operator-facing stderr line appears ONCE, not three times. State whether you emitted from `initialize_run` or de-duplicated at the call site. Separately show the per-attempt RECORD present on EVERY item, since those two must not be conflated.
   - PROVE THE OTHER TWO `blocked` PRODUCERS ARE UNTOUCHED. Paste `grep -n 'item\["status"\] = "blocked"' agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` and show three sites per host still present, with only the clean-base one changed.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: |
+      EXECUTED 2026-09-16. The isolated path now RECORDS and PROCEEDS; the shared-tree path is untouched.
+
+      END-TO-END, THREE ISOLATED ITEMS, ONE DIRTY TRACKED PATH OUTSIDE EVERY PLAN'S SCOPE (each plan
+      declares `src/`, the dirt is `notes.md`). Actual output:
+
+        git status: M notes.md
+        --- RUN START OUTPUT (emitted once) ---
+        run start: the target checkout has 1 dirty TRACKED path(s), which an isolated turn's lane does
+        NOT carry because a lane is created from HEAD: notes.md. This does NOT refuse an isolated turn:
+        a lane cut from a commit fails in exactly the same way whether or not it was refused first, so
+        validation at merge-and-revalidate time is what surfaces a genuinely stale base, with real
+        evidence. A turn sharing this checkout (--no-isolate-worktree) IS still refused, because its own
+        changes could not be told apart from the uncommitted work already here. If you did not expect
+        these paths, decide whose they are before spending a run against them.
+        > IPD 01/3 prb001  set=probe  action=execute  attempt 1
+          + isolated worktree aw/lane/prb001 at .../prb001
+        * IPD 01/3 prb001 (execute) -> partial  (exit 0)
+        > IPD 02/3 prb002  set=probe  action=execute  attempt 1
+        * IPD 02/3 prb002 (execute) -> partial  (exit 0)
+        > IPD 03/3 prb003  set=probe  action=execute  attempt 1
+        * IPD 03/3 prb003 (execute) -> partial  (exit 0)
+        --- PER ITEM ---
+          prb001: status='partial' launched=yes dirty_paths=['notes.md'] blocked=False
+          prb002: status='partial' launched=yes dirty_paths=['notes.md'] blocked=False
+          prb003: status='partial' launched=yes dirty_paths=['notes.md'] blocked=False
+        clean-base-warning events: 3
+        clean-base-refused events: 0
+
+      ALL THREE LAUNCHED where the old contract blocked all three. No item is `blocked`, no
+      `clean_base_refusal` key is written, and the per-attempt record carries the dirty path.
+
+      PER-ATTEMPT RECORD UNDER A NON-REFUSAL KEY, from the attempt itself:
+        proceeding with an unattended isolated turn over an incomplete base: the target checkout has 1
+        dirty TRACKED path(s), which this turn's lane (created from HEAD) does NOT carry: notes.md. ...
+
+      THE WARNING IS NOT PER-ITEM (OQ-01). The operator-facing line was emitted ONCE for the run, from
+      `initialize_run`'s run-start report (extending `3i0aaz` E-02's existing report at that seam rather
+      than adding a second adjacent one), while the RECORD is present on EVERY one of the three attempts
+      (`clean-base-warning events: 3` above). METHOD: emitted from `initialize_run`, NOT de-duplicated at
+      the call site; the per-item branch contains no `print(` at all, which
+      `test_the_operator_facing_line_is_ONCE_PER_RUN_not_once_per_item` asserts structurally on both hosts.
+      ONE git call serves both lines, asserted by that same test
+      (`emitter.count("runner(Path(repo)") == 1`).
+
+      THE OTHER TWO `blocked` PRODUCERS ARE UNTOUCHED, three sites per host still present:
+        $ grep -n 'item\["status"\] = "blocked"' agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py
+        agent_workflows/oc_runipd.py:6810:            item["status"] = "blocked"
+        agent_workflows/oc_runipd.py:6855:            item["status"] = "blocked"
+        agent_workflows/oc_runipd.py:6925:                item["status"] = "blocked"
+        agent_workflows/agy_runipd.py:3637:            item["status"] = "blocked"
+        agent_workflows/agy_runipd.py:3670:            item["status"] = "blocked"
+        agent_workflows/agy_runipd.py:3749:                item["status"] = "blocked"
+      The first per host is the clean-base gate (now reached only on the shared-tree path); the begin
+      refusal and the third refusal are unchanged.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste the diff hunks for both hosts side by side, or a test that exercises both call sites, proving the change is symmetric. Naming the two line numbers is NOT sufficient evidence; show the code.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: |
+      HOST PARITY PROVEN BY COMPARING THE CODE, not by citing line numbers. The two warn branches were
+      extracted and compared with comments and blank lines stripped:
+
+        $ python3 - <<'EOF'
+        ... extract `if decision.warned:` .. `elif decision.refused:` from each host, strip comments ...
+        CODE IDENTICAL: True
+        27 27
+        EOF
+
+      Both hosts' 27 code lines are byte-identical. The oc branch (`oc_runipd.py`) and the agy branch
+      (`agy_runipd.py`) both read:
+
+        if decision.warned:
+            attempt["clean_base_warning"] = decision.reason
+            attempt["clean_base_dirty_paths"] = list(decision.dirty_paths)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "clean-base-warning",
+                    "id6": item["id6"],
+                    "dirty_paths": list(decision.dirty_paths),
+                    "detail": decision.reason,
+                },
+            )
+        elif decision.consented:
+            ...
+
+      BOTH CALL SITES ARE ALSO EXERCISED BEHAVIORALLY: every case in
+      `IsolatedPathReportsRatherThanRefusesTests` and `SharedTreePathStillRefusesTests` loops over both
+      drivers (`_SPAWNS` / `DRIVERS`), and `tests/test_dirty_base_gate.py`'s retargeted
+      `test_the_ISOLATED_path_REPORTS_and_LAUNCHES_and_still_touches_nothing` does the same. Neither host
+      retains the isolated refusal, and neither lost the shared-tree one.
+
+      CITATION CORRECTED PER F-8: the authority for parity is spec `7ckptx` R2.6 + A5c (shared-code home
+      declared, neither driver holds a second copy) plus R6.1, NOT R4. The split itself lives in
+      `lane_containment.CleanBaseResult.refuses` and is read by `runner_shared
+      .clean_base_launch_decision`, so the hosts consume ONE decision and cannot drift.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: `grep` output proving no shipped string in `lane_containment.py` claims "refusing to launch" for this gate, plus the new text.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: |
+      NO SHIPPED STRING CLAIMS A REFUSAL THE ISOLATED PATH CANNOT PERFORM:
+
+        $ grep -n "refusing to launch" agent_workflows/lane_containment.py
+        2617:                "refusing to launch an unattended turn that SHARES this checkout: the target "
+
+      ONE hit remains and it is the SHARED-TREE sentence, which still refuses and must keep that wording.
+      The isolated sentence no longer says "refusing"; it now reads:
+
+        "proceeding with an unattended isolated turn over an incomplete base: the target checkout has
+        {n} dirty TRACKED path(s), which this turn's lane (created from HEAD) does NOT carry: {paths}.
+        This no longer refuses the turn, because a lane cut from a commit fails in exactly the same way
+        whether or not it was refused first; if the missing change matters, the merge-and-revalidate gate
+        re-runs validation against the combined result and will surface it there with real evidence"
+
+      THE STRUCTURE STILL EXPRESSES BOTH SHAPES, which the plan's execution gate requires so `3i0aaz`
+      E-03 does not inherit a contradictory string: `CleanBaseResult.reason` branches on `shared_tree`,
+      the refusal branch is unchanged, and the new `CleanBaseResult.refuses` property carries the verdict.
+      `tests/test_dirty_base_gate.py::test_the_shared_tree_reason_is_TRUE_for_a_shared_tree` and
+      `::test_the_shared_tree_reason_names_a_remedy_the_operator_may_apply` pass UNCHANGED.
+
+      `clean` / `dirty_paths` and the `--untracked-files=no` exclusion are preserved: the docstring
+      rewrite states explicitly that the rule still classifies a dirty isolated tree `clean=False`, and
+      `test_the_tracked_scope_is_IDENTICAL_on_both_paths` and
+      `test_case_3_an_untracked_file_does_NOT_refuse` both pass unchanged.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste the amended R5.4 and A14 text, and confirm `aw specs check` conforms. The amendment must contain the measurement (three runs, the item counts) rather than only the new obligation. CRITICALLY, paste the clause that PRESERVES the refusal obligation for the non-isolated path, and state explicitly that `3i0aaz` E-03 still has a requirement to build on; an amendment that leaves R5.4 with no shared-tree obligation fails this item even if `aw specs check` passes.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: |
+      SPEC `7ckptx` AMENDED, SPLIT BY PATH, AND `aw specs check` CONFORMS:
+
+        $ aw specs check .aw/records/specs/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
+        aw specs check: all specs conform.
+
+      THE AMENDED R5.4, opening and the two normative halves:
+
+        R5.4 Before an unattended turn, the driver MUST evaluate whether the target checkout has dirty
+        TRACKED paths, and MUST do so BEFORE any worker process is spawned. The EVALUATION is uniform;
+        the CONSEQUENCE is SPLIT BY PATH, and both halves are normative:
+
+        - SHARED TREE (`--no-isolate-worktree`): the turn MUST be REFUSED, and the refusal MUST name the
+          dirty paths. The turn executes IN the polluted tree, so at commit or finalize time its own
+          changes cannot be told apart from the uncommitted work already there. This is the case where
+          dirt is MOST dangerous and it keeps the full obligation.
+        - ISOLATED: the turn MUST NOT be refused. The dirty paths MUST still be REPORTED, naming them,
+          and MUST be recorded in durable run state so the observation is auditable rather than only
+          printed.
+
+      THE PRESERVATION CLAUSE V-04 DEMANDS IS THE FIRST BULLET ABOVE: "the turn MUST be REFUSED, and the
+      refusal MUST name the dirty paths", still normative, still MUST. STATED EXPLICITLY: approved
+      release-blocking plan `3i0aaz` E-03 STILL HAS A REQUIREMENT TO BUILD ON. Its shared-tree refusal is
+      not merely permitted, it is REQUIRED by the amended R5.4, and the amendment says so in terms:
+      "THE AMENDMENT IS A SPLIT, NOT A REMOVAL, and the shared-tree obligation above is deliberately
+      preserved in force because dirtybase Order 01 (`3i0aaz`) E-03 extends it."
+
+      THE MEASUREMENT IS IN THE AMENDMENT, using the F-6 figures and NOT the disproved "100% failure":
+        "across three consecutive runs on 2026-09-13 the gate blocked 27 of 42, 23 of 41, and 18 of 43
+        queue items, each refusal naming exactly ONE uncommitted markdown file that no plan declared, and
+        cascading 36 further items into `dependency-blocked`. Reviews were exempt and some items still
+        ran, so this was not a total failure of each run, but the majority of every run was lost to a
+        file no lane would have touched."
+      The F-3 disproof and the F-4 downstream-catch reason are both recorded there too.
+
+      A14 REWRITTEN to assert BOTH halves separately (shared tree REFUSED naming the paths; isolated
+      PROCEEDS with the paths reported AND in durable state; clean tree proceeds on both; untracked
+      refuses on neither), and it states that a test asserting an isolated refusal now asserts behavior
+      the spec forbids. NEW A14b requires the RULE's classification be pinned SEPARATELY from the
+      CALLER's disposition, so an implementation cannot get the isolated behavior by making the rule
+      report `clean=True`.
+
+      UNTRACKED EXCLUSION AND ITS RATIONALE KEPT, verbatim in force on both paths.
+
+      `- Status:` NOT hand-edited (still `approved`); the amendment is recorded in the spec's own history
+      with `aw specs note`, and the spec file is declared in this plan's `Scope-Paths`.
+
+      ASSERTED AS A TEST, not only in prose:
+      `tests/test_lane_clean_base.py::SharedTreePathStillRefusesTests
+      ::test_the_spec_still_carries_a_shared_tree_obligation` reads the spec text and fails if R5.4 loses
+      its `MUST be REFUSED` clause or A14 loses either half.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest tests/test_lane_clean_base.py` output with the count (baseline `15 passed`, re-measured at review), and paste the bare full-suite counts before and after with the FAILED-set diff, both captured from the SAME commit. A green subset alone is not sufficient.
   - ACCOUNT FOR ALL FIVE AFFECTED TESTS BY NAME (F-10), not four: `:105`, `:114`, `:192` retargeted; `:123` green UNCHANGED (if it goes red you widened the tracked/untracked scope, which F-5 forbids); `:274` `test_the_two_checks_answer_different_questions` green with its DOCSTRING corrected and its assertions untouched. State the disposition of each, and paste the corrected `:274` docstring, since a test whose docstring documents a behavior the code no longer has is the failure mode this bullet exists to prevent.
   - STATE THE RULE-VERSUS-CALLER DECISION EXPLICITLY, because it is the whole design and a test that blurs it hides a regression: confirm `evaluate_clean_base` still classifies `clean=False` for a dirty tracked tree (the RULE unchanged) while the isolated CALLER no longer refuses, and paste an assertion that pins both halves.
   - PASTE THE OQ-03 AUTHORITY. Since `3i0aaz` requires this file to stay byte-identical, paste the answer to OQ-03 that authorized editing it (or the new-file route it selected). Editing this file without that authority is a declared scope violation against an approved release-blocking plan.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      TARGET SUITE, baseline `15 passed` re-measured at review, now:
+
+        $ python3 -m pytest tests/test_lane_clean_base.py -o addopts="" -p no:randomly
+        ============================== 24 passed in 2.95s ==============================
+
+      FULL SUITE, BARE, BEFORE AND AFTER FROM THE SAME COMMIT (`4350ebc`). Both captured with
+      `AW_EXECUTION_ROLE` unset; see the DEFECT note below for why the raw lane env differs.
+
+        BEFORE: 7309 passed, 3 skipped, 2 xfailed in 78.48s
+        AFTER:  7321 passed, 3 skipped, 2 xfailed in 79.16s
+
+      FAILED-SET DIFF: empty before, empty after. Zero failures either side; +12 net new passing tests.
+
+      ALL FIVE AFFECTED TESTS ACCOUNTED FOR BY NAME (F-10), each disposition stated:
+        1. `:105` `test_case_1_a_dirty_tracked_file_refuses_and_names_it` -> RETARGETED and RENAMED to
+           `test_case_1_a_dirty_tracked_file_is_classified_not_clean_and_named`. Still asserts
+           `clean=False`, the path in `dirty_paths`, and the path in `reason`; adds
+           `assertFalse(result.refuses)`.
+        2. `:114` `test_case_1_a_staged_tracked_change_also_refuses` -> RETARGETED and RENAMED to
+           `test_case_1_a_staged_tracked_change_is_also_not_clean`. Adds the shared-tree control:
+           `assertTrue(shared.refuses)` with identical `dirty_paths`.
+        3. `:192` `test_refusal_records_the_dirty_paths_on_the_attempt` -> RETARGETED (not deleted) to
+           `test_the_dirty_paths_are_recorded_on_BOTH_dispositions`. Now requires BOTH
+           `"event": "clean-base-refused"` AND `"event": "clean-base-warning"` plus
+           `attempt["clean_base_warning"]`, so neither half can be silently dropped.
+        4. `:123` `test_case_3_an_untracked_file_does_NOT_refuse` -> GREEN, UNCHANGED. Not edited at all;
+           the tracked/untracked scope was not widened (F-5 honored).
+        5. `:274` `test_the_two_checks_answer_different_questions` -> GREEN, ASSERTIONS UNTOUCHED,
+           DOCSTRING CORRECTED. Corrected first line and the correction note:
+
+             """A dirty file OUTSIDE the incoming change: the clean-base RULE reports it not-clean, the
+             overlap check reports no overlap.
+
+             DOCSTRING CORRECTED BY `d7qoxv` E-05, ASSERTIONS DELIBERATELY UNTOUCHED. It used to say
+             "clean-base REFUSES", which after the R5.4 path split is true only of the SHARED-TREE
+             caller: the RULE classifies not-clean on both paths, the shared-tree caller refuses, and the
+             ISOLATED caller now reports and proceeds. The assertions below are all on the RULE, which is
+             unchanged, so this test stays green - and that is exactly why the docstring had to be fixed
+             by hand. A test that stays green while its stated purpose becomes false is how the next
+             reader is misled.
+
+             IF THIS GOES RED, the RULE was changed rather than the caller, which `d7qoxv` E-03 forbids.
+             ..."""
+
+      `test_guard_precedes_spawn_and_allocation:172` KEPT GREEN AND MEANINGFUL, unedited: the guard call
+      still precedes both the spawn and the lane allocation (it now warns there instead of refusing).
+
+      THE RULE-VERSUS-CALLER DECISION, STATED EXPLICITLY: the RULE still classifies a dirty tracked tree
+      `clean=False` on BOTH paths and still names the paths; only the isolated CALLER stopped refusing.
+      The verdict is carried by the new `CleanBaseResult.refuses` property, so it is the RULE's and not
+      an `if isolate` in either driver. Both halves are pinned in one assertion:
+
+        result = driver.evaluate_clean_base_for_launch(self.repo)      # isolated
+        self.assertFalse(result.clean)                                  # RULE unchanged
+        self.assertIn("tracked.txt", result.dirty_paths)                # paths still named
+        self.assertFalse(result.refuses)                                # CALLER no longer refuses
+        shared = driver.evaluate_clean_base_for_launch(self.repo, shared_tree=True)
+        self.assertTrue(shared.refuses)                                 # other path still refuses
+        self.assertEqual(shared.dirty_paths, result.dirty_paths)        # identical classification
+
+      NEW MULTI-ITEM REGRESSION, the direct regression for `run-20260913T031148Z-1722898` (23 of 41
+      blocked): `test_a_whole_queue_of_isolated_items_survives_one_out_of_scope_dirty_path` queues THREE
+      isolated execute items with one dirty tracked path outside every plan's declared scope and asserts
+      every item launches and none is `blocked`, on BOTH hosts. The warning is asserted to NAME the path
+      in durable state (`test_the_warning_NAMES_the_dirty_path_in_durable_state`) and as an event
+      (`test_the_warning_is_recorded_as_an_EVENT_naming_the_paths`), so removing the refusal did not
+      remove the operator's signal.
+
+      OQ-03 AUTHORITY FOR EDITING THIS FILE, quoted from the plan's own resolution:
+        "RESOLVED 2026-09-13 by the maintainer: OPTION (c), SEQUENCE DELIBERATELY. Approved plan `3i0aaz`
+        runs FIRST and collects its empty-diff proof; THIS plan runs second and is explicitly permitted
+        to break that property, because the proof is meaningful only at `3i0aaz`'s execution and is spent
+        once collected."
+      THE ORDERING CONDITION IS SATISFIED ON DISK: `3i0aaz` is already executed at
+      `.aw/records/plans/executed/20260907-dirtybase-01-3i0aaz-guard-the-ungated-dirty-base-cases-nna8yz-leaves-open-untrac.ipd.md`,
+      so its empty-diff proof was collected before this turn. `- Item-Dependencies: executed:3i0aaz` is
+      declared in this plan's front matter and is met.
+  - Result: pass
 
 ## Approval and execution gate
 
