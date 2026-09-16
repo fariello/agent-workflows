@@ -45,6 +45,7 @@ import re
 import tempfile
 import unittest
 from typing import Any
+from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
 
@@ -1709,6 +1710,52 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
     def _passing_runner(self):
         return lambda _diff, _files: True
 
+    def _renaming_lane(self, repo: pathlib.Path, id6: str, *, orig: str, dest: str):
+        """A lane that RENAMES ``orig`` -> ``dest``, plus a handle for it.
+
+        dirtygates-02 (`metc8b`): this shape is what makes git's local-changes refusal REACHABLE while
+        the pre-merge `dirty_tree_overlap` guard is retained, so it is not an exotic case - it is the
+        shape of every plan moving `pending/` -> `executed/`. `build_lane_outcome` derives
+        `changed_files` from `git diff --name-only`, which applies RENAME DETECTION and reports only
+        ``dest``; the merge must nonetheless DELETE ``orig`` in main, so dirt on ``orig`` passes the
+        guard (it is not in the incoming set) and git then refuses.
+
+        ``orig`` must already exist and be committed on main. The body is long enough that git scores
+        the pair as a rename rather than an add+delete.
+        """
+        from agent_workflows import worktree_lease
+
+        base = self._git(repo, "rev-parse", "HEAD")
+        branch = f"aw/lane/{id6}"
+        self._git(repo, "branch", branch)
+        wt = repo.parent / f"wt-{id6}"
+        self._git(repo, "worktree", "add", "-q", str(wt), branch)
+        self._git(wt, "mv", orig, dest)
+        self._git(wt, "commit", "-qm", f"lane {id6}: rename {orig} -> {dest}")
+        return worktree_lease.WorktreeHandle(
+            lane_id=id6, path=wt, branch=branch, base_commit=base
+        )
+
+    def _renamable_body(self) -> str:
+        """Content long enough for git's rename detection to score a move as R100."""
+        return "".join(f"line {i}\n" for i in range(40))
+
+    def _git_trace(self, repo: pathlib.Path):
+        """Record every `git` argv `runner_shared` runs, so a test can assert what was NOT run.
+
+        `merge --abort` on a refusal that never started a merge exits 128 and its result is discarded,
+        so its absence CANNOT be observed from the repository state afterwards. The passing criterion
+        is that the call is not made, which requires seeing the calls.
+        """
+        calls: list[list[str]] = []
+        real = runner_shared._run_git
+
+        def traced(r, args, **kwargs):
+            calls.append(list(args))
+            return real(r, args, **kwargs)
+
+        return calls, mock.patch.object(runner_shared, "_run_git", traced)
+
     def test_a_clean_lane_still_integrates_and_carries_ITS_OWN_host_label(self):
         """The clean path, plus the ONE value E-02 parameterized and so the one most likely miswired.
 
@@ -1840,6 +1887,275 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                     handle.branch,
                     self._git(repo, "branch", "--format=%(refname:short)"),
                 )
+
+    def _refusal_repo(self, tmp: pathlib.Path, id6: str):
+        """Main + a lane whose merge git will REFUSE TO START because main holds local changes.
+
+        Built as the rename shape, which is what reaches this branch past the retained pre-merge
+        `dirty_tree_overlap` guard: the lane renames `moved.txt` -> `dest.txt` (so `changed_files` is
+        `['dest.txt']` only), and main has an uncommitted edit to `moved.txt`, which the merge must
+        delete. Returns `(repo, handle, head_before, dirty_before)`.
+        """
+        repo = self._repo(tmp)
+        body = self._renamable_body()
+        (repo / "moved.txt").write_text(body, encoding="utf-8")
+        self._git(repo, "add", "moved.txt")
+        self._git(repo, "commit", "-qm", "add moved.txt")
+        handle = self._renaming_lane(repo, id6, orig="moved.txt", dest="dest.txt")
+        # The guard passes precisely because rename detection hides the origin from `changed_files`.
+        lane_changed = self._git(
+            repo, "diff", "--name-only", f"{handle.base_commit}..{handle.branch}"
+        ).split()
+        self.assertEqual(lane_changed, ["dest.txt"])
+        dirty_before = body + "un-owned local edit\n"
+        (repo / "moved.txt").write_text(dirty_before, encoding="utf-8")
+        self.assertEqual(
+            runner_shared.dirty_tree_overlap(repo, lane_changed),
+            [],
+            "the retained guard must PASS here, or this test is not reaching git's own refusal",
+        )
+        return repo, handle, self._git(repo, "rev-parse", "HEAD"), dirty_before
+
+    def test_a_local_changes_refusal_is_integration_blocked_NOT_a_merge_conflict(self):
+        """dirtygates-02 (`metc8b`) E-02: git refusing to START a merge is not a content conflict.
+
+        MEASURED WITNESS: lanes `bzz5e6` and `f6idxs` (2026-09-13) each finalized verified work and
+        were recorded `merge-conflict` carrying git's own "Your local changes ..." text. That kind is
+        TERMINAL on its first attempt (`classify_integration_refusal`), so the misclassification is
+        what converted a self-clearing condition into permanent in-run loss.
+
+        BOTH ROUTES to the refusal are covered, because they differ in how the `--ff-only` attempt
+        fails and only the structural discriminator classifies both: with main ADVANCED it fails as
+        diverged, and with main NOT advanced it is ITSELF refused with the same text and execution
+        falls through to the `--no-ff` attempt. A branch nested under a "main advanced" assumption
+        would pass the first and fail the second.
+        """
+        import tempfile
+
+        for runner in BOTH:
+            for advanced in (True, False):
+                with (
+                    self.subTest(runner=runner, main_advanced=advanced),
+                    tempfile.TemporaryDirectory() as tmp,
+                ):
+                    repo, handle, _base, dirty_before = self._refusal_repo(
+                        pathlib.Path(tmp), "ddd444"
+                    )
+                    if advanced:
+                        (repo / "other.txt").write_text("moved on\n", encoding="utf-8")
+                        self._git(repo, "add", "other.txt")
+                        self._git(repo, "commit", "-qm", "main advances")
+                    head_before = self._git(repo, "rev-parse", "HEAD")
+
+                    integrated, reason, kind = _MODULES[runner].integrate_lane_branch(
+                        repo, handle, "ddd444", self._passing_runner()
+                    )
+
+                    self.assertFalse(integrated, reason)
+                    self.assertEqual(
+                        kind,
+                        "integration-blocked",
+                        f"a refusal to START a merge is the TRANSIENT arm, not a conflict: {reason}",
+                    )
+                    # Git's OWN words, naming the offending file, carried verbatim.
+                    self.assertIn("Your local changes", reason)
+                    self.assertIn("moved.txt", reason)
+                    # And NOT the conflict helper's hard-coded phrase, which is the reported defect.
+                    self.assertNotIn("merge-back conflict", reason)
+                    # Main is exactly as found and the lane is intact (E-03).
+                    self.assertEqual(self._git(repo, "rev-parse", "HEAD"), head_before)
+                    self.assertEqual(
+                        (repo / "moved.txt").read_text(encoding="utf-8"), dirty_before
+                    )
+                    self.assertIn(
+                        handle.branch,
+                        self._git(repo, "branch", "--format=%(refname:short)"),
+                    )
+
+    def test_the_two_failure_classes_are_told_apart_STRUCTURALLY_not_by_message_text(
+        self,
+    ):
+        """The discriminator is `MERGE_HEAD`, so it cannot break under a localized or newer git.
+
+        Asserted at the level that matters: the two conditions are driven through
+        `integrate_lane_branch` under a git whose MESSAGES ARE NOT ENGLISH (`LC_ALL`/`LANGUAGE` forced
+        to a non-English locale), and each must still land on its own kind. A text-keyed
+        implementation passes a same-locale test and misclassifies silently here.
+        """
+        import os
+        import tempfile
+
+        # `merge_in_progress` itself: absent before any merge, present mid-conflict, absent after abort.
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(pathlib.Path(tmp))
+            handle = self._lane(repo, "eee555", path="clash.txt", body="lane\n")
+            self.assertFalse(runner_shared.merge_in_progress(repo))
+            (repo / "clash.txt").write_text("main\n", encoding="utf-8")
+            self._git(repo, "add", "clash.txt")
+            self._git(repo, "commit", "-qm", "main writes clash.txt")
+            import subprocess
+
+            subprocess.run(
+                ["git", "merge", "--no-ff", "--no-edit", "-m", "x", handle.branch],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+            )
+            self.assertTrue(
+                runner_shared.merge_in_progress(repo),
+                "a real conflict STARTS the merge, so MERGE_HEAD must exist",
+            )
+            self.assertEqual(runner_shared.conflicted_paths(repo), ["clash.txt"])
+            self._git(repo, "merge", "--abort")
+            self.assertFalse(runner_shared.merge_in_progress(repo))
+
+        # Now both classes end-to-end under a NON-ENGLISH git locale.
+        forced = {
+            "LC_ALL": "C.UTF-8",
+            "LANG": "C.UTF-8",
+            "LANGUAGE": "de_DE:de",
+            "GIT_TEST_GETTEXT_POISON": "1",
+        }
+        with mock.patch.dict(os.environ, forced):
+            with tempfile.TemporaryDirectory() as tmp:
+                repo, handle, _h, _d = self._refusal_repo(pathlib.Path(tmp), "fff666")
+                _integrated, _reason, kind = runner_shared.integrate_lane_branch(
+                    repo,
+                    handle,
+                    "fff666",
+                    self._passing_runner(),
+                    host_label="aw oc run",
+                    run_checked=oc_runipd.run_checked,
+                )
+                self.assertEqual(
+                    kind,
+                    "integration-blocked",
+                    "classification must not depend on git's message language",
+                )
+            with tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(pathlib.Path(tmp))
+                handle = self._lane(repo, "ggg777", path="clash.txt", body="lane\n")
+                (repo / "clash.txt").write_text("main\n", encoding="utf-8")
+                self._git(repo, "add", "clash.txt")
+                self._git(repo, "commit", "-qm", "main writes clash.txt")
+                _integrated, _reason, kind = runner_shared.integrate_lane_branch(
+                    repo,
+                    handle,
+                    "ggg777",
+                    self._passing_runner(),
+                    host_label="aw oc run",
+                    run_checked=oc_runipd.run_checked,
+                )
+                self.assertEqual(
+                    kind,
+                    "merge-conflict",
+                    "a real conflict must stay the TERMINAL kind in any locale",
+                )
+
+    def test_merge_abort_is_issued_for_a_conflict_and_NOT_for_a_refusal(self):
+        """F-6: with no `MERGE_HEAD`, `git merge --abort` exits 128 and is pointless.
+
+        Its result was discarded, so its absence is invisible in the repository afterwards; the argv
+        trace is what makes "the call is not made" observable rather than merely tolerated.
+        """
+        import tempfile
+
+        # (a) the local-changes refusal: NO abort.
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, handle, _h, _d = self._refusal_repo(pathlib.Path(tmp), "hhh888")
+            calls, patcher = self._git_trace(repo)
+            with patcher:
+                _i, _r, kind = runner_shared.integrate_lane_branch(
+                    repo,
+                    handle,
+                    "hhh888",
+                    self._passing_runner(),
+                    host_label="aw oc run",
+                    run_checked=oc_runipd.run_checked,
+                )
+            self.assertEqual(kind, "integration-blocked")
+            self.assertNotIn(
+                ["merge", "--abort"],
+                calls,
+                f"no merge was started, so nothing must be aborted; ran {calls}",
+            )
+
+        # (b) the genuine content conflict: abort IS issued, and main is left clean by it.
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(pathlib.Path(tmp))
+            handle = self._lane(repo, "iii999", path="clash.txt", body="lane\n")
+            (repo / "clash.txt").write_text("main\n", encoding="utf-8")
+            self._git(repo, "add", "clash.txt")
+            self._git(repo, "commit", "-qm", "main writes clash.txt")
+            calls, patcher = self._git_trace(repo)
+            with patcher:
+                _i, reason, kind = runner_shared.integrate_lane_branch(
+                    repo,
+                    handle,
+                    "iii999",
+                    self._passing_runner(),
+                    host_label="aw oc run",
+                    run_checked=oc_runipd.run_checked,
+                )
+            self.assertEqual(kind, "merge-conflict")
+            self.assertIn(["merge", "--abort"], calls)
+            # The `mergemsg` contract: the conflicted path is named, from the conflict's STDOUT.
+            self.assertIn("clash.txt", reason)
+            self.assertIn("merge-back conflict", reason)
+            self.assertNotIn("Not possible to fast-forward", reason)
+            # E-03: no partial merge survives, and the lane is preserved.
+            self.assertEqual(self._git(repo, "status", "--short"), "")
+            self.assertFalse(runner_shared.merge_in_progress(repo))
+            self.assertIn(
+                handle.branch, self._git(repo, "branch", "--format=%(refname:short)")
+            )
+
+    def test_the_pre_merge_dirty_overlap_guard_is_STILL_IN_PLACE(self):
+        """OQ-03 resolved to KEEP the prediction, so its removal is a FAILURE of this plan.
+
+        Two approved release-blocking plans (`fujm0y` widening its input, `51vw4y` building a deferral
+        ladder on its arm) are signed off to improve this exact symbol, so an implementation that
+        reclassified the post-merge branch by deleting the pre-merge check would negate them.
+        """
+        src = module_source(runner_shared)
+        self.assertIn("def dirty_tree_overlap(", src)
+        node = next(
+            n
+            for n in ast.parse(src).body
+            if isinstance(n, ast.FunctionDef) and n.name == "integrate_lane_branch"
+        )
+        called = {
+            sub.func.id
+            for sub in ast.walk(node)
+            if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name)
+        }
+        self.assertIn(
+            "dirty_tree_overlap",
+            called,
+            "the pre-merge overlap prediction must still be CALLED by the integration path",
+        )
+
+    def test_the_local_changes_refusal_arm_is_DEFERRABLE_by_the_ladder(self):
+        """Why the reclassification is not a cosmetic relabel.
+
+        `classify_integration_refusal` defers ONLY `integration-blocked`; `merge-conflict` is terminal
+        on its first attempt. So the kind this branch returns decides whether verified work gets
+        another attempt or is lost for the run.
+        """
+        self.assertTrue(
+            runner_shared.classify_integration_refusal("integration-blocked")
+        )
+        self.assertFalse(runner_shared.classify_integration_refusal("merge-conflict"))
+        first = runner_shared.decide_integration_deferral(
+            integ_kind="integration-blocked", attempts_used=1, limit=10
+        )
+        self.assertTrue(first.deferred)
+        self.assertEqual(first.status, "integration-deferred")
+        conflict = runner_shared.decide_integration_deferral(
+            integ_kind="merge-conflict", attempts_used=1, limit=10
+        )
+        self.assertFalse(conflict.deferred)
+        self.assertEqual(conflict.status, "merge-conflict")
 
     def test_the_kind_vocabulary_is_UNCHANGED_by_the_extraction(self):
         """The three `kind` values are a CONTRACT read by callers and by run state.

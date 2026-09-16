@@ -418,6 +418,69 @@ def conflicted_paths(repo: Path) -> list[str]:
     return sorted(p.strip() for p in out.splitlines() if p.strip())
 
 
+def merge_in_progress(repo: Path) -> bool:
+    """Did the last `git merge` ACTUALLY START, i.e. does `MERGE_HEAD` exist?
+
+    dirtygates-02 (`metc8b`) E-02: this is the STRUCTURAL DISCRIMINATOR between the two ways a
+    `git merge` can fail, and it deliberately does NOT look at git's message text.
+
+    MEASURED (git 2.43.0, four scratch repositories):
+
+    * a CONTENT CONFLICT starts the merge, so `MERGE_HEAD` EXISTS, `git diff --diff-filter=U` names
+      the conflicted paths, and `git merge --abort` succeeds (rc=0) leaving a clean tree; while
+    * a LOCAL-CHANGES REFUSAL ("error: Your local changes to the following files would be overwritten
+      by merge") never starts the merge at all, so `MERGE_HEAD` is ABSENT, `--diff-filter=U` is EMPTY,
+      the working-tree content survives untouched, HEAD is unmoved, and `git merge --abort` FAILS
+      rc=128 with "fatal: There is no merge to abort (MERGE_HEAD missing)".
+
+    WHY NOT MATCH THE MESSAGE. Git's English is localizable (`LANG`/`LC_ALL` change it) and its
+    wording moves between versions, so a text test passes in the author's locale and MISCLASSIFIES
+    silently everywhere else. Misclassification is expensive here, not cosmetic: `merge-conflict` is
+    terminal on its first attempt by `classify_integration_refusal`, so a text test that fails in a
+    different locale converts a self-clearing condition into permanent in-run loss. The `MERGE_HEAD`
+    file is git's own plumbing state and carries no language.
+
+    Read via `git rev-parse --verify --quiet MERGE_HEAD` rather than probing `.git/MERGE_HEAD` on the
+    filesystem, because in a LINKED WORKTREE `.git` is a FILE pointing at
+    `<common>/worktrees/<name>/`, so a path probe would look in the wrong directory and always report
+    False. Every integration in this module runs in main, but the helper is shared and must not be a
+    trap for a worktree caller.
+    """
+    rc, _out, _err = _run_git(repo, ["rev-parse", "--verify", "--quiet", "MERGE_HEAD"])
+    return rc == 0
+
+
+def format_local_changes_refusal_reason(*, merge_stdout: str, merge_stderr: str) -> str:
+    """The operator-facing reason for a merge git REFUSED TO START because main holds local changes.
+
+    dirtygates-02 (`metc8b`) E-02. DELIBERATELY NOT :func:`format_merge_conflict_reason`, which is a
+    separate function for a reason that is easy to undo by "simplifying" the two together:
+
+    * that helper HARD-CODES the words "merge-back conflict" into every string it builds, and this
+      condition is NOT a conflict. Reusing it reproduced exactly the misleading
+      "merge-back conflict; error: Your local changes ..." text that the two stranded lanes of
+      2026-09-13 recorded (`bzz5e6`, `f6idxs`), which is the defect E-02 exists to fix; and
+    * its whole contract is CONFLICTED PATHS read from the index, and a refusal to start leaves NONE
+      (`conflicted_paths` returns `[]` here, as its own docstring notes).
+
+    Git's own text already NAMES the offending files, so it is carried VERBATIM rather than
+    re-worded: a summary would be a second place that can drift from what git actually said.
+
+    STDERR FIRST here, which is the OPPOSITE of the conflict helper's stdout-first order, and both are
+    correct because git writes the two classes to different streams (measured): a content conflict
+    goes to STDOUT ("CONFLICT (content): ...", empty stderr), while this refusal goes to STDERR
+    ("error: Your local changes ...", empty stdout). Each helper reads the stream its own class
+    actually uses, and falls back to the other so an unexpected routing still reports something.
+    """
+    detail = (merge_stderr or "").strip() or (merge_stdout or "").strip()
+    head = (
+        "integration refused by git: main has uncommitted local changes to file(s) this merge "
+        "would overwrite, so the merge never started (no conflict, nothing to resolve); it is "
+        "re-attempted once the base is clean"
+    )
+    return f"{head}; {detail}" if detail else head
+
+
 def generated_manifest_paths(paths: Sequence[str]) -> list[str]:
     """The subset of ``paths`` that are GENERATED index manifests (`INDEX.json` / `INDEX.md`).
 
@@ -997,6 +1060,20 @@ def integrate_lane_branch(
     3. driverfin-03 (7kbtkw) E-02: on a NON-passing gate result (or a real git conflict) leave main
        UNTOUCHED, return kind ``"merge-conflict"`` with the failing paths/reason, and do NOT fake
        executed; a human/serial ordering owns resolution via the preserved lane branch.
+    4. dirtygates-02 (`metc8b`) E-02: a merge git REFUSED TO START because main holds uncommitted local
+       changes to a file the merge would overwrite is NOT a content conflict, and is returned as
+       ``"integration-blocked"`` (the TRANSIENT arm the deferral ladder may re-attempt) carrying git's
+       own message. The two failure classes are told apart by :func:`merge_in_progress` - a structural
+       `MERGE_HEAD` test - and NOT by matching git's localizable English. No `git merge --abort` is
+       issued for this class, because no merge was ever started.
+
+       NOTE THIS IS REACHABLE DESPITE STEP 0's GUARD, which is why the arm is needed and not dead
+       code. `dirty_tree_overlap` intersects main's dirt with the lane's `changed_files`, and that set
+       comes from `git diff --name-only`, which applies RENAME DETECTION: a lane that renamed
+       ``a`` -> ``b`` reports only ``b``, yet the merge must still DELETE ``a`` in main, so locally
+       modified ``a`` passes step 0 and git then refuses. Measured, and it is the shape of every plan
+       moving `pending/` -> `executed/`. (`fujm0y` is approved to widen step 0's input; this arm is
+       correct either way, because git remains the authority on its own preconditions.)
 
     Returns ``(integrated, reason, kind)`` where ``kind`` is one of ``"integrated"``,
     ``"integration-blocked"``, or ``"merge-conflict"``. ``integrated=True`` (kind ``"integrated"``)
@@ -1065,17 +1142,57 @@ def integrate_lane_branch(
     )
     if rc == 0:
         return True, "controlled non-ff merge integrated to main", "integrated"
-    # A real merge conflict: abort so main stays clean (no markers/partial merge); a human/serial
-    # ordering resolves it via the preserved lane branch (E-02).
-    # Capture the conflicted paths BEFORE aborting - the abort clears the index state they live in.
-    conflicted = conflicted_paths(repo)
-    _run_git(repo, ["merge", "--abort"])
+    # The merge FAILED. Which of the two ways it can fail decides the outcome kind, and that is
+    # decided STRUCTURALLY (dirtygates-02 `metc8b` E-02).
+    #
+    # WHY THIS SPLIT EXISTS, measured rather than reasoned. Lanes `bzz5e6` and `f6idxs` (2026-09-13)
+    # each finished their work, passed their gate, finalized on their lane branch, and were then
+    # recorded `merge-conflict` carrying git's own "Your local changes to the following files would be
+    # overwritten by merge" text. That is NOT a content conflict: git never started the merge, left no
+    # conflicted path, and the condition clears itself the moment the un-owned edit is committed. It
+    # belongs on `integration-blocked`, the TRANSIENT arm.
+    #
+    # AND THE ARM IS LOAD-BEARING, so do NOT "simplify" the two kinds back together.
+    # `classify_integration_refusal` defers ONLY `integration-blocked`; `merge-conflict` is terminal on
+    # its FIRST attempt, deliberately, because repetition cannot resolve a real conflict. So a
+    # local-changes refusal recorded as `merge-conflict` is excluded from the deferral ladder and its
+    # verified work is lost for the rest of the run - which is exactly what happened to those two
+    # lanes. Conversely, routing a REAL conflict onto `integration-blocked` would spin the ladder
+    # against a failure repetition cannot fix.
+    #
+    # THE DISCRIMINATOR IS `MERGE_HEAD`, NOT GIT'S ENGLISH (see `merge_in_progress`): a content
+    # conflict STARTS the merge (`MERGE_HEAD` present, `U` entries listed), while a local-changes
+    # refusal never starts it (`MERGE_HEAD` absent, no `U` entries). Message text is localizable and
+    # version-dependent, so a text test would misclassify silently outside the author's locale.
+    #
+    # DO NOT NEST THIS UNDER A "MAIN ADVANCED" ASSUMPTION. Measured: the refusal is reached by TWO
+    # routes. With main advanced, the `--ff-only` attempt fails as diverged and the `--no-ff` attempt
+    # refuses (rc=2). With main NOT advanced, `--ff-only` ITSELF refuses with the same text (rc=1) and
+    # execution falls through to the `--no-ff` attempt, which refuses identically. Keying only on the
+    # structural test classifies both correctly; keying on "main advanced" would miss the second.
+    if merge_in_progress(repo):
+        # A real merge conflict: abort so main stays clean (no markers/partial merge); a human/serial
+        # ordering resolves it via the preserved lane branch (E-02).
+        # Capture the conflicted paths BEFORE aborting - the abort clears the index state they live in.
+        conflicted = conflicted_paths(repo)
+        _run_git(repo, ["merge", "--abort"])
+        return (
+            False,
+            format_merge_conflict_reason(
+                repo, merge_stdout=out2, merge_stderr=err2, paths=conflicted
+            ),
+            "merge-conflict",
+        )
+
+    # Git REFUSED TO START the merge, so there is nothing to abort and NO abort is issued: with no
+    # `MERGE_HEAD`, `git merge --abort` exits 128 ("fatal: There is no merge to abort"). Main is
+    # already exactly as it was found - HEAD unmoved and the uncommitted edit intact - because git
+    # checks this precondition BEFORE touching the working tree, which is what makes attempting the
+    # merge safe. The lane branch and worktree are preserved by the caller, unchanged by this arm.
     return (
         False,
-        format_merge_conflict_reason(
-            repo, merge_stdout=out2, merge_stderr=err2, paths=conflicted
-        ),
-        "merge-conflict",
+        format_local_changes_refusal_reason(merge_stdout=out2, merge_stderr=err2),
+        "integration-blocked",
     )
 
 

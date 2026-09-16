@@ -642,6 +642,110 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
 
         return fake_turn
 
+    def _fake_agent_renames_in_worktree(self, run_dir, repo, *, orig, dest, dirty):
+        """An agent whose lane RENAMES a tracked file, then dirties the rename ORIGIN in main.
+
+        dirtygates-02 (`metc8b`), agy twin. `changed_files` comes from `git diff --name-only`, which
+        applies rename detection and reports only ``dest``, so dirt on ``orig`` PASSES the pre-merge
+        `dirty_tree_overlap` guard while the merge must still delete ``orig`` and git refuses to start.
+        """
+
+        def fake_turn(state, rd, item, prompt_path, attempt_no, **kwargs):
+            work_dir = kwargs.get("work_dir")
+            if kwargs.get("log_suffix") == "verify":
+                (
+                    run_dir
+                    / "outcomes"
+                    / f"{item['position']:02d}-{item['id6']}-verification.json"
+                ).write_text(json.dumps({"verdict": "CONFORMING"}), encoding="utf-8")
+                return 0, "vses", str(run_dir / "vlog"), ["agy"]
+            wt = Path(work_dir)
+            subprocess.run(["git", "mv", orig, dest], cwd=wt, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", f"demo: rename {orig} -> {dest}"],
+                cwd=wt,
+                check=True,
+            )
+            (repo / orig).write_text(dirty, encoding="utf-8")
+            (
+                run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
+            ).write_text(
+                json.dumps(
+                    {
+                        "disposition": "executed",
+                        "pushed": False,
+                        "defect_report": {"state": "none-found", "findings": []},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            return 0, "ses1", str(run_dir / "log"), ["agy"]
+
+        return fake_turn
+
+    def test_a_real_git_local_changes_refusal_is_DEFERRED_not_recorded_merge_conflict(
+        self,
+    ):
+        """dirtygates-02 (`metc8b`) E-02, end-to-end on the agy host (the thinner suite).
+
+        Both hosts branch on `kind`, so proving this on one only would leave the other free to drift.
+        Here the PRE-MERGE guard PASSES and the refusal comes from git itself; the recorded kind must
+        be the deferrable `integration-blocked`, not the terminal `merge-conflict` that stranded lanes
+        `bzz5e6` and `f6idxs` on 2026-09-13.
+        """
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "agy001")
+            body = "".join(f"line {i}\n" for i in range(40))
+            (repo / "moved.txt").write_text(body, encoding="utf-8")
+            subprocess.run(["git", "add", "moved.txt"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "add moved.txt"], cwd=repo, check=True
+            )
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+            head_before = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=repo, text=True, capture_output=True
+            ).stdout.strip()
+            dirty = body + "un-owned local edit\n"
+
+            with mock.patch.object(
+                agy_runipd,
+                "run_agy_turn",
+                self._fake_agent_renames_in_worktree(
+                    run_dir, repo, orig="moved.txt", dest="dest.txt", dirty=dirty
+                ),
+            ):
+                agy_runipd.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(
+                item["integration_ladder"]["kind"],
+                "integration-blocked",
+                f"git refused to START the merge: {item.get('integration_deferral')}",
+            )
+            self.assertEqual(item["status"], "integration-deferred")
+            self.assertNotIn(item["status"], agy_runipd.TERMINAL_STATES)
+            reason = item["integration_deferral"]
+            self.assertIn("Your local changes", reason)
+            self.assertIn("moved.txt", reason)
+            self.assertNotIn("merge-back conflict", reason)
+            # MAIN untouched: HEAD unmoved, the un-owned edit intact, no partial merge left behind.
+            self.assertEqual(
+                subprocess.run(
+                    ["git", "rev-parse", "HEAD"],
+                    cwd=repo,
+                    text=True,
+                    capture_output=True,
+                ).stdout.strip(),
+                head_before,
+            )
+            self.assertEqual((repo / "moved.txt").read_text(encoding="utf-8"), dirty)
+            self.assertFalse((repo / ".git" / "MERGE_HEAD").exists())
+            self.assertFalse(
+                (repo / ".aw" / "records" / "plans" / "executed" / plan.name).is_file()
+            )
+            self.assertEqual(item.get("preserved_branch"), "aw/lane/agy001")
+
     def test_dirty_overlapping_base_refuses_integration(self):
         # V-01 (agy): a dirty overlapping MAIN base refuses integration (integration-blocked); gate
         # not invoked; MAIN's un-owned edit intact; verified branch/worktree preserved.

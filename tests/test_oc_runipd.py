@@ -3235,6 +3235,128 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
             events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
             self.assertIn("ipd-integration-deferred", events)
 
+    def _fake_agent_renames_in_worktree(self, run_dir: Path, *, orig: str, dest: str):
+        """An agent whose lane RENAMES a tracked file, the shape that reaches git's own refusal.
+
+        dirtygates-02 (`metc8b`): `changed_files` comes from `git diff --name-only`, which applies
+        rename detection and reports only ``dest``. So un-owned dirt on ``orig`` passes the pre-merge
+        `dirty_tree_overlap` guard (it is not in the incoming set) while the merge must still DELETE
+        ``orig`` in main, and git refuses to start. This is the shape of every plan moving
+        `pending/` -> `executed/`, which is why the two lanes of 2026-09-13 hit it.
+        """
+
+        def fake_run(state, rd, item, plan_path, prompt_path, attempt_no, **kwargs):
+            work_dir = kwargs.get("work_dir")
+            if kwargs.get("fresh_session"):
+                (
+                    run_dir
+                    / "outcomes"
+                    / f"{item['position']:02d}-{item['id6']}-verification.json"
+                ).write_text(json.dumps({"verdict": "CONFORMING"}), encoding="utf-8")
+                return 0, "vses", str(run_dir / "vlog"), ["oc"]
+            wt = Path(work_dir)
+            subprocess.run(["git", "mv", orig, dest], cwd=wt, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", f"demo: rename {orig} -> {dest}"],
+                cwd=wt,
+                check=True,
+            )
+            (
+                run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
+            ).write_text(
+                json.dumps(
+                    {
+                        "disposition": "executed",
+                        "pushed": False,
+                        "defect_report": {"state": "none-found", "findings": []},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            return 0, "ses1", str(run_dir / "log"), ["oc"]
+
+        return fake_run
+
+    def test_a_real_git_local_changes_refusal_is_DEFERRED_not_recorded_merge_conflict(
+        self,
+    ):
+        """dirtygates-02 (`metc8b`) E-02, end-to-end on this host.
+
+        THE MEASURED DEFECT: lanes `bzz5e6` and `f6idxs` (2026-09-13) each finalized verified work,
+        then `git merge` REFUSED because main held an uncommitted edit to a file the merge would
+        overwrite. Both were recorded `merge-conflict`, which is TERMINAL on its first attempt, so the
+        work was lost for the rest of the run. It is not a conflict: git never started the merge and
+        the condition clears itself once the dirt is committed, so it belongs on the deferrable arm.
+
+        Unlike the sibling dirty-overlap test, the PRE-MERGE guard PASSES here (rename detection hides
+        the origin path from `changed_files`) and the gate really runs; the refusal comes from git.
+        """
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            # A tracked file long enough for git to score its move as a rename.
+            body = "".join(f"line {i}\n" for i in range(40))
+            (repo / "moved.txt").write_text(body, encoding="utf-8")
+            subprocess.run(["git", "add", "moved.txt"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "add moved.txt"], cwd=repo, check=True
+            )
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+            head_before = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=repo, text=True, capture_output=True
+            ).stdout.strip()
+
+            dirty = body + "un-owned local edit\n"
+
+            agent = self._fake_agent_renames_in_worktree(
+                run_dir, orig="moved.txt", dest="dest.txt"
+            )
+
+            def agent_then_dirty_main(*a, **k):
+                rc = agent(*a, **k)
+                if not k.get("fresh_session"):
+                    # Un-owned, uncommitted edit to the RENAME ORIGIN, added after begin.
+                    (repo / "moved.txt").write_text(dirty, encoding="utf-8")
+                return rc
+
+            with mock.patch.object(driver, "run_opencode", agent_then_dirty_main):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            # The refusal is the DEFERRABLE class, so the ladder re-attempts it: NOT merge-conflict.
+            self.assertEqual(
+                item["integration_ladder"]["kind"],
+                "integration-blocked",
+                f"git refused to START the merge, so it is not a conflict: {item.get('integration_deferral')}",
+            )
+            self.assertEqual(item["status"], "integration-deferred")
+            self.assertNotIn(item["status"], driver.TERMINAL_STATES)
+            self.assertTrue(item["integration_ladder"]["deferred"])
+            # Git's own words are the recorded reason, and NOT the conflict helper's phrase.
+            reason = item["integration_deferral"]
+            self.assertIn("Your local changes", reason)
+            self.assertIn("moved.txt", reason)
+            self.assertNotIn("merge-back conflict", reason)
+            # MAIN is exactly as found: HEAD unmoved, the un-owned edit not clobbered, no partial merge.
+            self.assertEqual(
+                subprocess.run(
+                    ["git", "rev-parse", "HEAD"],
+                    cwd=repo,
+                    text=True,
+                    capture_output=True,
+                ).stdout.strip(),
+                head_before,
+            )
+            self.assertEqual((repo / "moved.txt").read_text(encoding="utf-8"), dirty)
+            self.assertFalse((repo / ".git" / "MERGE_HEAD").exists())
+            # The plan did NOT reach main's executed/, and the lane is preserved for the re-attempt.
+            self.assertFalse(
+                (repo / ".aw" / "records" / "plans" / "executed" / plan.name).is_file()
+            )
+            self.assertEqual(item.get("preserved_branch"), "aw/lane/wir001")
+            events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+            self.assertIn("ipd-integration-deferred", events)
+
     def test_non_passing_gate_records_merge_conflict_main_pristine(self):
         # V-02: a non-passing integration-gate result leaves MAIN with NO conflict markers/partial
         # merge, records `merge-conflict` with the gate's failing paths + preserved branch, emits the
