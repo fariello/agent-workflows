@@ -8,18 +8,18 @@
 - Scope: REVISED 2026-09-13 to OQ-03 option (b): the pre-merge overlap prediction is KEPT (two approved plans improve it), and this plan now only RECLASSIFIES a real `git merge` local-changes refusal from `merge-conflict` to the deferrable `integration-blocked`, and proves that path is non-destructive. Excludes the pre-launch gate (Order 01), the backlog close (Order 03), orchestrator retirement (Order 04), and the merge-and-revalidate suite run, which is KEPT.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: dirtygates
 - Order: 2
 - Highest E allocated: 05
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: metc8b
-- Approval: 2026-09-14, recorded via aw ipd set: status set to approved
 - Priority: high
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-16 executed (aw oc run): aw oc run self-finalize: metc8b verified (set dirtygates, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/agy_runipd.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/oc_runipd.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-14 approved (aw set): status set to approved
 - 2026-09-13 reviewed (aw set): /plan-review round 2 (individual): APPROVE WITH REVISIONS APPLIED; PR-207..PR-213 all FIXED; readiness go-pending-approval
 - 2026-09-13 reviewed (opencode (its_direct/pt3-claude-opus-5-1m-us)): /plan-review ROUND 2 (individual review of this child, prompted by the orchestrator's OQ-04): APPROVE WITH REVISIONS APPLIED; PR-207..PR-213 all FIXED; readiness no-go -> go-pending-approval. `aw ipd lint` CONFORMING at `--phase author` before and `--phase review-finalize` after. ROUND 1'S BLOCKER PR-201 IS DISCHARGED and the withdrawal verified in the executable text: the checklist holds exactly E-02 and E-03, changes 1/4/5 are marked WITHDRAWN, and `dirty_tree_overlap` keeps its single definition (`runner_shared.py:888`) and sole live caller (`:1003`). THE CENTRAL MECHANISM WAS RE-MEASURED IN TWO SCRATCH REPOS AND HOLDS: a local-changes refusal gives rc=2, NO `MERGE_HEAD`, empty `--diff-filter=U`, `merge --abort` rc=128, dirty content surviving and HEAD unmoved; a real content conflict gives `MERGE_HEAD` present, `U:f.txt`, and `merge --abort` rc=0 leaving a clean tree. TWO GAPS FOUND IN HOW THE SURVIVING ITEM REACHES ITS GOAL, both in code the withdrawn deletion would have removed, so round 1 could not see them. PR-207 (HIGH): the reason string is built by `format_merge_conflict_reason`, which HARD-CODES "merge-back conflict" (`:451`, `:468`) and whose contract is conflicted-paths-from-the-index, which a local-changes refusal has none of; reusing it reproduces the exact misleading text this item exists to fix while passing a `kind`-only assertion, and its test file was undeclared. PR-208 (HIGH): the refusal has TWO routes and the plan described one; measured, with main NOT advanced the ff-only attempt itself refuses with the same text and its output is deliberately discarded at `:1036`, so the branch must key ONLY on the structural test and must not be nested under a main-advanced assumption. PR-209: V-03 covered one of the two failure kinds E-03 claims, and nothing required proof the abort became CONDITIONAL. PR-210: the Goal and Concern still described the withdrawn deletion, including a "do NOT execute" instruction for a resolved question. PR-211: two dead declared paths DROPPED from `Scope-Paths`, and one of them (`tests/test_lane_clean_base.py`) was a standing conflict with approved release-blocker `3i0aaz`, which requires it byte-identical. No product code was modified by this review.
