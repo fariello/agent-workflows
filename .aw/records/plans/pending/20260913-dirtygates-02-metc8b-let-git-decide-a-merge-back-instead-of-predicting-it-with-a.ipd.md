@@ -41,7 +41,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: let the merge speak
 
-- [ ] E-02 Map a REAL git refusal onto the existing `integration-blocked` outcome, preserving the caller contract. THIS IS NOW THE PLAN'S ONLY SUBSTANTIVE ITEM (with E-03 proving it safe): OQ-03 resolved to option (b), so E-01/E-04/E-05 are withdrawn and nothing here is gated. Its `- Depends on:` is `none` because it touches only the failure branch AFTER the merge attempt, which is correct whether or not the prediction ever changes (F-7).
+- [x] E-02 Map a REAL git refusal onto the existing `integration-blocked` outcome, preserving the caller contract. THIS IS NOW THE PLAN'S ONLY SUBSTANTIVE ITEM (with E-03 proving it safe): OQ-03 resolved to option (b), so E-01/E-04/E-05 are withdrawn and nothing here is gated. Its `- Depends on:` is `none` because it touches only the failure branch AFTER the merge attempt, which is correct whether or not the prediction ever changes (F-7).
   KNOW WHAT THE RECLASSIFICATION BUYS TODAY, VERIFIED AT REVIEW ROUND 2, because it is easy to mistake this for a cosmetic relabel. Both `integration-blocked` and `merge-conflict` are in `TERMINAL_STATES` at HEAD on BOTH hosts (obtained by importing both modules), so within a single run the two are equally terminal and this change alone rescues no item. What it changes is REAL and in two places. FIRST, `resume` already re-queues both kinds (`oc_runipd.py:7234-7247` lists `integration-blocked` and `merge-conflict` together), so the immediate win is an HONEST RECORD rather than a retry: a contaminated base stops being reported as a content conflict needing human resolution. SECOND and more importantly, `51vw4y` E-01 makes ONLY the `integration-blocked` arm non-terminal and deliberately leaves `merge-conflict` terminal, so an item misclassified today would be excluded from that ladder tomorrow. Say this in the code comment, so nobody later "simplifies" the two kinds back together. `integrate_lane_branch` returns `(integrated, reason, kind)` with `kind` in `{"integrated", "integration-blocked", "merge-conflict"}` (`:986-988`), and `oc_runipd` branches on exactly those (`:6753-6762`). A refusal caused by local changes ("error: Your local changes to the following files would be overwritten by merge") is NOT a content conflict, so it must land on `integration-blocked` (base contaminated, retry once clean) rather than `merge-conflict` (needs human resolution). The `reason` MUST carry git's own stderr, which already names the files, instead of a re-worded summary.
   THIS IS THE PLAN'S REAL DELIVERABLE, AND IT ALREADY HAS A MEASURED WITNESS, so implement it against that evidence rather than a synthetic case. Today this exact condition is MISCLASSIFIED as `merge-conflict`: lanes `bzz5e6` and `f6idxs` each recorded `status: merge-conflict` with `integration_deferral` = "merge-back conflict; error: Your local changes to the following files would be overwritten by merge: `<backlog path>`. Merge with strategy ort failed." (F-4). Under `51vw4y`'s approved ladder, `merge-conflict` is TERMINAL while `integration-blocked` is deferrable, so this misclassification is exactly what converts a recoverable condition into permanent in-run loss. E-02 therefore delivered value independently of the withdrawn deletion, which is why it is what remains of this plan after OQ-03 resolved to (b).
   DISTINGUISH BY THE FAILURE MODE, NOT BY STRING-MATCHING GIT'S ENGLISH, because git's message text is localizable and version-dependent. The robust discriminator is measured and available: on a local-changes refusal git NEVER STARTS the merge, so `.git/MERGE_HEAD` is ABSENT and `conflicted_paths` returns `[]`; on a real content conflict `MERGE_HEAD` EXISTS and `conflicted_paths` returns the `U` entries. Verified at review in a scratch repo (main advanced AND dirty on an overlapping path): rc=2, no `MERGE_HEAD`, and `git diff --diff-filter=U` empty. Prefer that structural test; if you also match text, treat it as a secondary hint only and say so in a comment.
@@ -50,11 +50,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DECIDE HOW THE REASON IS BUILT, BECAUSE THE HELPER HARD-CODES THE WRONG WORDS (F-8). The `merge-conflict` branch builds its reason with `format_merge_conflict_reason` (`:1058-1062`), which writes the literal "merge-back conflict" into every string it produces (`:451`, `:468`) and whose entire contract is about CONFLICTED PATHS read from the index. A local-changes refusal has NO conflicted paths, so reusing that helper would reproduce today's misleading "merge-back conflict; error: Your local changes..." wording under a new `kind`. PREFERRED: build the local-changes reason separately, carrying git's stderr verbatim, and leave the helper untouched. If you instead teach the helper a second class, you MUST preserve its measured `mergemsg` contract (use the conflicting merge's STDOUT, never fall back to the ff-only output) and you MUST add `tests/test_merge_conflict_reason.py` to `Scope-Paths`, which currently omits it although it holds four direct calls to the helper.
   - Depends on: none
   - Expected outcome: the two failure classes stay distinguishable by a structural test rather than by English text, the branch is not nested under a main-advanced assumption, the recorded reason quotes git without the false "merge-back conflict" prefix, and no `git merge --abort` is issued when no merge is in progress.
-  - Execution state: pending
-- [ ] E-03 Assert the merge attempt is non-destructive on the refusal path. Git aborts and leaves both main and the uncommitted edit intact (F-2), and the existing code already aborts a real conflict "leaving main clean, no markers/partial merge". Verify no new code path can leave a partial merge, and that the lane branch/worktree is still PRESERVED on both failure kinds so the work is recoverable.
+  - Execution note (2026-09-16): added `runner_shared.merge_in_progress` (the structural `MERGE_HEAD` discriminator, read via `git rev-parse --verify --quiet MERGE_HEAD` so it is also correct in a linked worktree, where `.git` is a FILE and a path probe would always report False) and `runner_shared.format_local_changes_refusal_reason` (the separate reason builder). Split the post-merge failure path in `integrate_lane_branch` on `merge_in_progress(repo)`: merge started -> unchanged `merge-conflict` arm (capture `conflicted_paths`, abort, `format_merge_conflict_reason`); merge never started -> new `integration-blocked` arm carrying git's stderr verbatim and issuing NO abort. TOOK F-8's PREFERRED ROUTE: `format_merge_conflict_reason` is UNTOUCHED, so `tests/test_merge_conflict_reason.py` needed no change and stays undeclared (verified green, 13 passed). The branch keys ONLY on the structural test and is NOT nested under any main-advanced condition (F-9), and the `--ff-only` output discard at the old `:1036` is left exactly as it was.
+    ONE CORRECTION TO THIS ITEM'S OWN PREMISE, found by reading HEAD rather than trusting the plan text. The paragraph above says "Both `integration-blocked` and `merge-conflict` are in `TERMINAL_STATES` at HEAD on BOTH hosts ... so this change alone rescues no item". THAT IS NOW STALE: `51vw4y`'s ladder HAS LANDED (`runner_shared.INTEGRATION_DEFERRED_STATUS`, `classify_integration_refusal`, `decide_integration_deferral`, `retry_deferred_integrations`), so `integration-blocked` reaching `classify_integration_refusal` now DEFERS to the non-terminal `integration-deferred` on its first refusal while `merge-conflict` stays terminal. Measured: `decide_integration_deferral(integ_kind="integration-blocked", attempts_used=1, limit=10)` returns `status='integration-deferred', deferred=True`, and the same call with `merge-conflict` returns `status='merge-conflict', deferred=False`. So the reclassification is NOT merely an honest record, it is what makes this condition retryable, which is a STRONGER outcome than the item predicted and requires no change to the item's design.
+    AND THE ARM IS NOT DEAD CODE DESPITE THE RETAINED PRE-MERGE GUARD, which the plan never explains and an executor must know or they will conclude the branch is unreachable. MEASURED: `build_lane_outcome` derives `changed_files` from `git diff --name-only`, which applies RENAME DETECTION, so a lane that renames `a` -> `b` reports ONLY `b`; the merge must still DELETE `a` in main, so un-owned dirt on `a` passes `dirty_tree_overlap` (it is not in the incoming set) and git then refuses. That is the shape of every plan moving `pending/` -> `executed/`, and it is exactly how lanes `bzz5e6`/`f6idxs` reached a real git refusal with the guard in place (F-4 recorded the guard returning `[]` for them). Both new host-level tests are built on that shape, so they exercise the real route rather than a synthetic one.
+  - Execution state: performed
+- [x] E-03 Assert the merge attempt is non-destructive on the refusal path. Git aborts and leaves both main and the uncommitted edit intact (F-2), and the existing code already aborts a real conflict "leaving main clean, no markers/partial merge". Verify no new code path can leave a partial merge, and that the lane branch/worktree is still PRESERVED on both failure kinds so the work is recoverable.
   - Depends on: E-02
   - Expected outcome: a refused integration leaves main exactly as found and the lane intact.
-  - Execution state: pending
+  - Execution note (2026-09-16): verified by measurement on BOTH failure kinds and BOTH routes to the refusal, not by reasoning. Local-changes refusal (main advanced AND main not advanced): HEAD unmoved, `git status --porcelain` identical before and after (` M moved.txt`), the dirty file's bytes identical, no `merge --abort` in the recorded git argv, lane branch AND worktree both present. Content conflict: `merge --abort` IS issued, `merge_in_progress` False afterwards, `git status --short` EMPTY, no `<<<<<<<` markers, lane branch present. No new code path can leave a partial merge, because the only arm that starts a merge is the pre-existing one and it still aborts unconditionally within that arm; the new arm never starts a merge (git validates the precondition before touching the working tree, which is what makes attempting the merge safe).
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -108,11 +112,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - A test proving the `integration-blocked` reason does not carry the false "merge-back conflict" prefix, and that the content-conflict reason still names its conflicted paths from stdout (F-8, preserving the `mergemsg` contract).
 - Both hosts exercised, since both re-export the symbol and both branch on `kind` (`oc_runipd.py:6753-6762` and the agy twin). Note the shared function has four production call sites and five test call sites (`tests/test_oc_runipd.py:3251`, `tests/test_agy_runipd_cli.py:756`, `tests/test_runner_shared.py:1685`, `:1715`, `:1775`), all of which unpack `(integrated, reason, kind)`; E-02 adds no parameter, so none should need a signature change. Confirm that rather than assuming it.
 - The full suite run bare (`python3 -m pytest`), with the failure set compared against a baseline captured from the SAME commit before any edit; paste both counts and the FAILED-set diff. Do not state a baseline from memory: sibling reviews in this Set each found a plan's claimed baseline wrong.
+- SATISFIED 2026-09-16, with one environmental finding worth recording because it would make a future executor mis-state a baseline in exactly the way this bullet warns about. The FIRST baseline run at `dc88a99a` (before any edit) reported `20 failed, 7301 passed, 3 skipped, 2 xfailed`. Those 20 failures are NOT in the code and NOT flakes: every one is caused by `AW_EXECUTION_ROLE=worker` being set in the lane turn's own environment and INHERITED by the subprocesses the tests spawn, so the driver-only lifecycle verbs refuse with `AW-LIFECYCLE-ROLE-001` inside the tests' own fixtures. Proven by re-running the identical 20 selected tests with the variable cleared and nothing else changed: `20 passed`. The honest pre-edit baseline is therefore `7321 passed, 3 skipped, 2 xfailed, 0 failed` (`env -u AW_EXECUTION_ROLE python3 -m pytest`), and after this plan's edits the same command reports `7328 passed, 3 skipped, 2 xfailed` in 80.06s. FAILED-set diff: EMPTY both before and after (no failures in either run). Delta `+7 passed` = the seven tests added here (five in `tests/test_runner_shared.py`, one host-level test in each of `tests/test_oc_runipd.py` and `tests/test_agy_runipd_cli.py`). The three tests that assert the new behavior were also confirmed to FAIL against the unmodified `runner_shared.py` with the new test file in place (`3 failed, 7 passed`), the failure text being the exact reported defect (`merge-back conflict; error: Your local changes ...`), so they are real regressions and not vacuous.
 
 ## Spec / documentation sync
 
 - NO SPEC AMENDMENT IS EXPECTED, and the search this line used to demand is now moot. SIMPLIFIED AT REVIEW ROUND 2: it previously said to hunt the specs tree for the requirement behind `driverfin-03 (7kbtkw) E-01` in case one MANDATED the pre-merge prediction, which mattered only while this plan proposed to delete it. The prediction is KEPT, so a requirement mandating it is satisfied either way and cannot be violated by this plan. What DOES remain worth a cheap check is the opposite direction: whether any requirement PINS the `merge-conflict` classification for a local-changes refusal, since E-02 changes exactly that mapping. If one does, amend it here and declare the spec file first.
 - `wtiso_gate.py:287-296` describes the refusal in prose as a shipped fact. After the revision that text remains TRUE (the refusal still ships), so it needs no change; recorded here so a later reader does not "fix" it.
+- CHECK PERFORMED 2026-09-16, AND NO SPEC AMENDMENT WAS NEEDED, so no `.spec.md` file is declared or touched by this plan. The cheap check this section asks for is whether any requirement PINS the `merge-conflict` classification for a local-changes refusal. Searched the specs tree for the phrases that would carry such a requirement (`grep -rn "local changes\|Your local changes\|merge-back conflict" .aw/records/specs/`): ZERO matches, so no spec describes this failure condition at all, let alone fixes its kind. The only two specs mentioning `merge-conflict` merely ENUMERATE the status vocabulary and are unaffected because the vocabulary is unchanged: `77tr3o` R-2 lists it among the states that do NOT qualify for orchestrator retirement (still true, and `integration-blocked` is in the same list, so an item moving between the two cannot become retirement-eligible), and `uonrjg`'s table maps both to the `blocked` attention class (still true; the pre-existing `integration-deferred` mapping is `51vw4y`'s, not this plan's).
 
 ## Open questions
 
@@ -145,21 +151,97 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the recorded `(integrated, reason, kind)` for a conflicting-dirty-path case, showing `kind == "integration-blocked"` and git's own "Your local changes" text inside `reason`. Also paste a genuine content-conflict case showing `kind == "merge-conflict"`, proving the two are not collapsed. PASTE THE DISCRIMINATOR ITSELF, not only its outcome: show that the two branches are chosen by the structural test (`MERGE_HEAD` present/absent, `--diff-filter=U` non-empty/empty) and NOT by matching git's English, since a text match would silently break under a localized or newer git. Paste evidence that NO `git merge --abort` is issued on the local-changes branch (F-6: it exits 128 there), for example the recorded git invocations for that case.
   - PROVE THE EXISTING GUARD SURVIVED, which is the property the OQ-03 resolution turns on and which no other V-item covers. Paste `grep -n "dirty_tree_overlap" agent_workflows/runner_shared.py` showing BOTH the definition (`:888`) and the live call site (`:1003`) still present, and paste the pre-merge refusal still returning `integration-blocked` for the overlap case. An implementation that reclassifies the post-merge branch by removing the pre-merge check FAILS this item even if every assertion above passes.
   - ALSO PASTE THE ARM THAT MUST NOT MOVE: a genuine content conflict still recorded `merge-conflict`, together with the reason that arm matters (`51vw4y` E-01 makes only `integration-blocked` deferrable). Collapsing both kinds onto `integration-blocked` would satisfy the first bullet and silently make a human-resolution case auto-retry forever.
   - PASTE THE REASON STRING ITSELF AND SHOW IT DOES NOT SAY "merge-back conflict" (F-8). The shared helper hard-codes that phrase (`runner_shared.py:451`, `:468`), so reusing it would reproduce today's misleading "merge-back conflict; error: Your local changes..." wording under a new `kind`, which is the exact defect this item exists to fix. State which route E-02 took (a separate reason builder, or teaching the helper a second class) and, if the latter, paste `tests/test_merge_conflict_reason.py` green AND confirm the file was added to `Scope-Paths`.
   - PROVE THE `mergemsg` CONTRACT SURVIVED, whichever route you took: the content-conflict reason must still be built from the conflicting merge's STDOUT and must NEVER fall back to the `--ff-only` output. That fallback was a measured defect (run `run-20260906T162533Z-1552446`) and the helper's docstring forbids it; a new branch beside it must not reintroduce it. Paste a content-conflict reason showing the conflicted path named.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: ALL FIVE REQUIRED ITEMS SATISFIED, measured 2026-09-16 by driving `runner_shared.integrate_lane_branch` through each case and recording the returned triple, the discriminator readings, and the git argv actually issued; the full pasted output follows in this item's continuation lines below.
+    ROUTE TAKEN, stated first because a later bullet depends on it: F-8's PREFERRED route. `format_merge_conflict_reason` is UNTOUCHED and a separate `format_local_changes_refusal_reason` was added, so `tests/test_merge_conflict_reason.py` needed no edit, was NOT added to `Scope-Paths`, and stays green (`21 passed` for that file plus the agy guard class; the file's own 13 tests all pass).
+    (1) THE LOCAL-CHANGES CASE, `(integrated, reason, kind)` as returned by `runner_shared.integrate_lane_branch`, with the retained guard PASSING first so git's own refusal is what fires:
+    ```
+    lane changed_files (rename-detected)  = ['dest.txt']
+    RETAINED pre-merge dirty_tree_overlap = []  <- passes, so git's own refusal is reached
+    RESULT (integrated, kind) = (False, 'integration-blocked')
+    RESULT reason = 'integration refused by git: main has uncommitted local changes to file(s) this merge would overwrite, so the merge never started (no conflict, nothing to resolve); it is re-attempted once the base is clean; error: Your local changes to the following files would be overwritten by merge:\n\tmoved.txt\nPlease commit your changes or stash them before you merge.\nAborting\nMerge with strategy ort failed.'
+    DISCRIMINATOR merge_in_progress(MERGE_HEAD) = False
+    DISCRIMINATOR conflicted_paths (--diff-filter=U) = []
+    git argv issued = [['status', '--short', '--untracked-files=all'], ['merge', '--ff-only', 'aw/lane/ddd444'], ['merge', '--no-ff', '--no-edit', '-m', 'integrate(aw oc run): merge verified lane ddd444 to main', 'aw/lane/ddd444'], ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD']]
+    'merge --abort' issued? False
+    ```
+    `kind == "integration-blocked"`, git's own "Your local changes" text is inside `reason` and NAMES `moved.txt`, and the argv list shows NO `merge --abort` on this branch (F-6). Identical output was produced for BOTH routes (main advanced and main NOT advanced); see V-03.
+    (2) THE ARM THAT MUST NOT MOVE, a genuine content conflict, same harness:
+    ```
+    RESULT (integrated, kind) = (False, 'merge-conflict')
+    RESULT reason = 'merge-back conflict in 1 file(s): clash.txt; Auto-merging clash.txt\nCONFLICT (add/add): Merge conflict in clash.txt\nAutomatic merge failed; fix conflicts and then commit the result.'
+    conflicted path named from STDOUT? True
+    ff-only text absent (mergemsg contract)? True
+    'merge --abort' issued? True
+    git argv issued = [['status', '--short', '--untracked-files=all'], ['merge', '--ff-only', 'aw/lane/ccc333'], ['merge', '--no-ff', '--no-edit', '-m', 'integrate(aw oc run): merge verified lane ccc333 to main', 'aw/lane/ccc333'], ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD'], ['diff', '--name-only', '--diff-filter=U'], ['merge', '--abort']]
+    ```
+    The two kinds are NOT collapsed, and WHY that matters is now measurable rather than prospective, because `51vw4y` has landed:
+    ```
+    kind='integration-blocked': deferrable=True  first-attempt status='integration-deferred' deferred=True
+    kind='merge-conflict':      deferrable=False first-attempt status='merge-conflict'      deferred=False
+    ```
+    (3) THE DISCRIMINATOR IS STRUCTURAL, NOT TEXTUAL, proven at the level that matters rather than by inspection. The argv above shows the ONLY question asked before branching is `git rev-parse --verify --quiet MERGE_HEAD`; the readings differ exactly as the two classes require (`MERGE_HEAD` absent + `U` empty for the refusal; present + `U == ['clash.txt']` mid-conflict). Beyond that, `test_the_two_failure_classes_are_told_apart_STRUCTURALLY_not_by_message_text` drives BOTH conditions end-to-end through `integrate_lane_branch` under a NON-ENGLISH git locale (`LANGUAGE=de_DE:de`, `GIT_TEST_GETTEXT_POISON=1`) and each still lands on its own kind, which a text-keyed implementation cannot pass.
+    (4) THE PRE-MERGE GUARD SURVIVED, `grep -n "dirty_tree_overlap" agent_workflows/runner_shared.py` (line numbers moved from the plan's `:888`/`:1003` because Order 01 `d7qoxv` landed first; the definition and the LIVE CALL SITE are both present):
+    ```
+    966:def dirty_tree_overlap(repo: Path, changed_files: Sequence[str]) -> list[str]:
+    1095:    overlap = dirty_tree_overlap(repo, lane.changed_files)
+    1540:    _overlap = dirty_tree_overlap if overlap is None else overlap
+    ```
+    and the pre-merge refusal still returns `integration-blocked` for the overlap case: `test_a_dirty_overlapping_path_still_refuses_with_main_untouched PASSED` (both hosts). A new AST test, `test_the_pre_merge_dirty_overlap_guard_is_STILL_IN_PLACE PASSED`, now fails the suite if a later change removes the call from `integrate_lane_branch`. `test_the_kind_vocabulary_is_UNCHANGED_by_the_extraction PASSED`, so the three-value `kind` contract is unchanged.
+    (5) THE REASON STRING DOES NOT SAY "merge-back conflict" on the new arm (see (1)), while the content-conflict reason still does and still NAMES its conflicted path from the conflict's STDOUT with no `--ff-only` text present (see (2)), so the `mergemsg` contract is intact.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: for a refused integration, paste `git status --porcelain` and the content of the dirty file BEFORE and AFTER, proving both unchanged, plus `git rev-parse HEAD` unchanged and the lane branch still present.
   - COVER BOTH FAILURE KINDS, since E-03 claims non-destructiveness "on both failure kinds" and the evidence above describes only the local-changes one. For the CONTENT-CONFLICT case, paste `git status --porcelain` after the branch runs showing it EMPTY (no conflict markers, no partial merge, no `U` entries) and the lane branch still present. Measured at review as the expected behavior: a real conflict leaves `MERGE_HEAD` and `U:` entries, and `git merge --abort` returns rc=0 leaving a clean tree.
   - PROVE THE ABORT IS CONDITIONAL, WHICH IS THE ONE NEW WAY THIS ITEM CAN REGRESS (F-6). Paste the recorded git invocations for BOTH kinds, showing `merge --abort` IS issued for the content conflict and is NOT issued for the local-changes refusal. Measured at review: on the local-changes path `git merge --abort` exits 128 with "fatal: There is no merge to abort (MERGE_HEAD missing)"; today that rc is discarded so it is silent, and the passing criterion is that the call is not made rather than that its failure is tolerated.
   - PROVE IT UNDER BOTH ROUTES TO THE REFUSAL (F-9): once with main ADVANCED past the lane base, and once with main NOT advanced (where the ff-only attempt is itself refused and execution falls through). Both must classify `integration-blocked` and both must leave the tree untouched. A single main-advanced case is not sufficient, because it would pass even if the branch were wrongly nested under a main-advanced condition.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: NON-DESTRUCTIVENESS CONFIRMED ON BOTH FAILURE KINDS AND BOTH ROUTES, measured 2026-09-16: HEAD unmoved, `git status --porcelain` and the dirty file's bytes identical before and after on the refusal path; empty status with no markers and no partial merge after the content-conflict path; the lane branch and worktree preserved in every case; and the abort proven CONDITIONAL from the recorded git argv. Full pasted output follows in this item's continuation lines below.
+    (1) BOTH ROUTES TO THE LOCAL-CHANGES REFUSAL (F-9), before/after, from the same harness as V-02. ROUTE A, main ADVANCED past the lane base:
+    ```
+    BEFORE: HEAD=dfcf2471762a status='M moved.txt'
+    BEFORE: moved.txt tail='e 39\nun-owned local edit\n'
+    RESULT (integrated, kind) = (False, 'integration-blocked')
+    'merge --abort' issued? False
+    AFTER: HEAD=dfcf2471762a status='M moved.txt'
+    AFTER: moved.txt tail='e 39\nun-owned local edit\n'
+    HEAD unchanged? True
+    dirty content unchanged? True
+    lane branch preserved? True
+    lane worktree preserved? True
+    ```
+    ROUTE B, main NOT advanced (so `git merge --ff-only` is ITSELF refused and execution falls through to the `--no-ff` attempt):
+    ```
+    BEFORE: HEAD=26f821f6bb04 status='M moved.txt'
+    BEFORE: moved.txt tail='e 39\nun-owned local edit\n'
+    RESULT (integrated, kind) = (False, 'integration-blocked')
+    'merge --abort' issued? False
+    AFTER: HEAD=26f821f6bb04 status='M moved.txt'
+    AFTER: moved.txt tail='e 39\nun-owned local edit\n'
+    HEAD unchanged? True
+    dirty content unchanged? True
+    lane branch preserved? True
+    lane worktree preserved? True
+    ```
+    Both classify `integration-blocked` and both leave the tree untouched, so the branch is demonstrably NOT nested under a main-advanced condition. `git status --porcelain` is byte-identical before and after in each route, as is the dirty file's content, and `git rev-parse HEAD` is unmoved.
+    (2) THE CONTENT-CONFLICT KIND, the second failure class E-03 claims:
+    ```
+    BEFORE: HEAD=31389c7e7825 status=''
+    RESULT (integrated, kind) = (False, 'merge-conflict')
+    'merge --abort' issued? True
+    AFTER: merge_in_progress=False status=''
+    HEAD unchanged? True
+    no conflict markers in file? True
+    lane branch preserved? True
+    ```
+    `git status --porcelain` after the branch runs is EMPTY (no partial merge, no `U` entries, no markers) and the lane branch is present.
+    (3) THE ABORT IS CONDITIONAL, the one new way this item could regress. Recorded git argv for BOTH kinds, pasted in full under V-02 bullet (1) and (2): the local-changes route ends at `['rev-parse', '--verify', '--quiet', 'MERGE_HEAD']` with NO `['merge', '--abort']` anywhere in the list, while the content-conflict route contains `['diff', '--name-only', '--diff-filter=U']` followed by `['merge', '--abort']`. The passing criterion is that the call is NOT MADE, not that its rc=128 failure is tolerated, and the argv trace is what makes that observable (the rc was and still is discarded). `test_merge_abort_is_issued_for_a_conflict_and_NOT_for_a_refusal` pins this in the suite by the same argv-trace method.
+    (4) NO NEW PATH CAN LEAVE A PARTIAL MERGE. Only one arm starts a merge and it is the pre-existing one, which still aborts unconditionally WITHIN that arm; the new arm never starts a merge at all, so there is nothing to leave behind. Asserted as `merge_in_progress(repo) is False` after both kinds.
+  - Result: pass
 ## Approval and execution gate
 
 - Size assessment: standard
