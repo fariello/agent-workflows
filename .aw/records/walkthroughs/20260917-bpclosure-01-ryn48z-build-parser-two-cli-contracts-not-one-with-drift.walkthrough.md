@@ -1,11 +1,12 @@
-# build_parser: two CLI contracts, not one with drift
+# Walkthrough: `build_parser`, two CLI contracts rather than one with drift (`rununify` Order 10, `s16omw`)
 
 - Date: 2026-09-17
-- Plan: `.aw/records/plans/executed/20260915-rununify-10-s16omw-split-build-parser-into-a-shared-core-and-a-thin-host-hook.ipd.md`
-- Id: s16omw
-- Set: rununify (Order 10)
-- Execution HEAD: `4a1bb873e68d8c5a52a3c735a1d5a04c2ef11adf`
-- Author: opencode/its_direct-pt3-claude-opus-5-1m-us
+- Id: ryn48z
+- Target-Id: s16omw
+- Plan: `.aw/records/plans/pending/20260915-rununify-10-s16omw-split-build-parser-into-a-shared-core-and-a-thin-host-hook.ipd.md`
+- Base commit: `4a1bb873`
+- Executed by: opencode/its_direct-pt3-claude-opus-5-1m-us, in lane `aw/lane/s16omw`
+- Set: bpclosure (this walkthrough's own Set; the plan it documents belongs to `rununify`, referenced above by `Target-Id`, because a walkthrough may not reuse the Set id of another artifact type)
 
 ## What this plan did, and what it did not
 
