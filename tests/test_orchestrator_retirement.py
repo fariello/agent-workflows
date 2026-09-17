@@ -861,34 +861,47 @@ class RealRepositorySets(unittest.TestCase):
         self.assertTrue(d.eligible, d.detail)
         self.assertEqual(d.reason, rs.RETIRE_ELIGIBLE)
 
-    def test_lanectn_is_now_eligible_every_child_executed(self):
-        """RE-MEASURED 2026-09-14, per this class's own instruction to re-measure rather than loosen.
+    def test_lanectn_refuses_naming_its_one_unfinished_verification_child(self):
+        """RE-MEASURED 2026-09-16, per this class's own instruction to re-measure rather than loosen.
 
-        THIRD re-measurement of this Set, and the reason is the same every time: a stranded lane got
-        recovered, so a child legitimately became `executed`.
+        FOURTH re-measurement of this Set, and the first whose cause is not a recovered lane.
 
           * originally `{"nna8yz": "approved", "xdr83v": "approved"}`
           * 2026-09-08: `nna8yz` recovered and finalized, leaving `{"xdr83v": "approved"}`
-          * 2026-09-14: `xdr83v` integrated (commit `fea2c9f8`), so ALL SIX children are `executed`
-            (`cqx5v7`, `nna8yz`, `lhmrhx`, `y5od1h`, `xdr83v`, `604wra`) and the Set is ELIGIBLE.
+          * 2026-09-14: `xdr83v` integrated (commit `fea2c9f8`), so all six children were `executed`
+            and the Set was ELIGIBLE.
+          * 2026-09-16: a SEVENTH child was AUTHORED (`4fodkt`, Order 07), so the Set is REFUSED again
+            with `unfinished-children`. This flip is a new child appearing, not a child completing.
 
-        The 2026-09-14 flip is what turned this test red and, because the runner gates lane integration
-        on a bare whole-repo `pytest`, that one red test refused integration for EVERY lane that
-        finished afterwards: eight plans stranded in one night. Recorded here because it is the
-        strongest available argument that a real-repository assertion must be re-measured PROMPTLY.
+        WHY THE NEW CHILD EXISTS, because it explains why this assertion should not simply be pointed
+        back at eligibility later without thought. Orchestrator `h0zljh` carried an E-02 that no child
+        covered: demonstrate every live acceptance criterion of spec `7ckptx` Section 4 and write a
+        verification record. Retirement SKIPS the pre-transition E/V checkpoint by design
+        (`ROLLUP_OMITTED_GATES['pre-transition-ev-checkpoint']`), so with all six children `executed`
+        that item would have been marked complete having never been performed. `4fodkt` carries the
+        work as a real child, and its presence is what now correctly blocks the parent until the
+        verification is actually executed. So THIS REFUSAL IS THE DESIRED STATE, not a regression.
 
-        The unfinished-children REFUSAL is not lost. It moved to
-        `test_commitguard_refuses_naming_its_one_unfinished_child` below, which pins it against a Set
-        that genuinely has one unfinished child today, exactly as the `runprofile` case was re-pointed
-        on 2026-09-08. Asserting a refusal here as well would pin a repository state that has now
-        changed three times rather than the behavior this test is named for.
+        THE ELIGIBILITY ASSERTION IS NOT LOST. It moved to
+        `test_wslayout_is_eligible_all_five_children_executed` above, which pins the eligible case
+        against a Set that genuinely has every child `executed` today. Keeping an eligibility
+        assertion here as well would pin a repository state that has now changed four times rather
+        than the behavior this test is named for. This is the same re-pointing the `runprofile` case
+        got on 2026-09-08 and the unfinished-children case got on 2026-09-14, in the other direction.
+
+        A NOTE ON URGENCY, preserved from the previous docstring because it is the strongest argument
+        this class contains: the runner gates lane integration on a bare whole-repo `pytest`, so one
+        red test here refuses integration for EVERY lane that finishes afterwards. On 2026-09-14 that
+        stranded eight plans in one night. Re-measure PROMPTLY; do not leave this red.
         """
 
         d = rs.evaluate_set_retirement(REPO_ROOT, "lanectn")
-        self.assertTrue(d.eligible, d.detail)
-        self.assertEqual(d.reason, rs.RETIRE_ELIGIBLE)
+        self.assertFalse(d.eligible, d.detail)
+        self.assertEqual(d.reason, rs.RETIRE_REFUSED_UNFINISHED_CHILDREN)
+        self.assertIn("4fodkt", d.detail or "")
         m = rs.read_set_membership(REPO_ROOT, "lanectn")
-        self.assertEqual({c.status for c in m.children}, {"executed"})
+        unfinished = {c.id6: c.status for c in m.children if c.status != "executed"}
+        self.assertEqual(set(unfinished), {"4fodkt"}, unfinished)
 
     def test_commitguard_refuses_naming_its_one_unfinished_child(self):
         """The unfinished-children refusal, pinned against a Set that HAS one today.

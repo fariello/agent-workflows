@@ -1,12 +1,13 @@
 # Review findings: plan 4fodkt
 
-- Plan: `.aw/records/plans/pending/20260916-lanectn-07-4fodkt-demonstrate-the-whole-set-acceptance-criteria-of-spec-7ckptx.ipd.md`
-- Set: lanectn
-- Order: 7
+- Subject-Id: 4fodkt
+- Subject-Type: ipd
+- Reviewed-At: 2026-09-16
 - Reviewer: opencode/its_direct-pt3-claude-opus-5-1m-us
-- Date: 2026-09-16
 - Verdict: APPROVE WITH REVISIONS APPLIED
 - Readiness: go-pending-approval
+- Set: lanectn
+- Order: 7
 
 ## Round 1
 
