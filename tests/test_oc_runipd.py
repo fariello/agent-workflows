@@ -282,7 +282,12 @@ class ReviewPlanRoutingTests(unittest.TestCase):
 
                     # Verify review slash command format
                     if prompt.startswith("/plan-review"):
-                        target_file = prompt.split()[-1]
+                        # dirtygates-05 (`ajxr5d`): read the COMMAND LINE, not the last token of the
+                        # whole prompt. An isolated review's prompt is the `/plan-review <path>` line
+                        # FOLLOWED BY the in-lane statement on its own lines, so `split()[-1]` would
+                        # pick a word out of that prose. A real slash command parses its own line, so
+                        # this fixture now does too.
+                        target_file = prompt.splitlines()[0].split()[-1]
                         p = pathlib.Path(target_file)
                         if not p.is_absolute():
                             p = pathlib.Path.cwd() / p
@@ -1542,7 +1547,9 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
                 'prompt = args[args.index("--") + 1] if "--" in args else ""',
                 'session = args[args.index("--session") + 1] if "--session" in args else ("ses_" + "fullauto")',
                 'if prompt.startswith("/plan-review"):',
-                "    target_file = prompt.split()[-1]",
+                # dirtygates-05 (`ajxr5d`): the COMMAND LINE, not the prompt's last token; an
+                # isolated review's prompt carries the in-lane statement after the command line.
+                "    target_file = prompt.splitlines()[0].split()[-1]",
                 "    p = pathlib.Path(target_file)",
                 "    if not p.is_absolute():",
                 "        p = pathlib.Path.cwd() / p",
@@ -1669,7 +1676,12 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
                     session = args[args.index('--session') + 1] if '--session' in args else ("ses" + "_" + "nofa")
 
                     if prompt.startswith("/plan-review"):
-                        target_file = prompt.split()[-1]
+                        # dirtygates-05 (`ajxr5d`): read the COMMAND LINE, not the last token of the
+                        # whole prompt. An isolated review's prompt is the `/plan-review <path>` line
+                        # FOLLOWED BY the in-lane statement on its own lines, so `split()[-1]` would
+                        # pick a word out of that prose. A real slash command parses its own line, so
+                        # this fixture now does too.
+                        target_file = prompt.splitlines()[0].split()[-1]
                         p = pathlib.Path(target_file)
                         if not p.is_absolute():
                             p = pathlib.Path.cwd() / p

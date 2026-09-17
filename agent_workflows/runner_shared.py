@@ -936,6 +936,599 @@ def teardown_isolation_worktree(repo: Path, handle: Any) -> None:
     worktree_lease.teardown_worktree(repo, handle, force=True)
 
 
+# ---- the REVIEW SWEEP LANE ------------------------------------------------------------------------
+# dirtygates Order 05 (`ajxr5d`) E-02/E-04/E-11, OQ-02 + OQ-04 (both resolved by the maintainer).
+#
+# WHY A REVIEW NEEDS A LANE AT ALL, measured rather than argued. A review turn is NOT read-only with
+# respect to the tree: it edits the plan under review and adds a review record, and it committed both
+# to MAIN (commit `a9510164`). Worse, measured live 2026-09-13, reviewing the orchestrator `8lfoum`
+# produced commit `59cdc718` holding FIVE files, three of them SIBLING CHILD PLANS (`d7qoxv`,
+# `metc8b`, `u23gbn`) that were still `queued` in the same run, so one item's turn rewrote three other
+# items' pending input before their turns ran. Those files sat uncommitted for ~36 minutes and a
+# concurrent execute run had its items refused against them.
+#
+# WHY ONE LANE FOR THE WHOLE SWEEP AND NOT ONE PER REVIEW (OQ-02, maintainer). A review writes only two
+# files, both scoped to the plan under review, so reviews in a shared lane touch DISJOINT paths and
+# there is nothing to collide over. And one lane is what makes SESSION SHARING safe by construction:
+# incident `lanesess xd9sll` was N TREES to ONE session (sessions keyed per SET, worktrees allocated
+# per ITEM, so an opencode session's own directory binding overrode `--dir`), and ONE tree to ONE
+# session cannot reproduce that cardinality mismatch. The accepted cost, stated plainly: the sweep
+# shares one lane, so a conflict strands that review rather than only that item's merge.
+#
+# WHY THE LANE MUST BE REFRESHED (OQ-04, maintainer chose option (a)). The lane is cut ONCE at
+# `base_commit="HEAD"`, and every review then merges to main, so main advances while the lane keeps its
+# original base. Measured in a scratch repo: after two reviews merged, the lane still read `peer v1`
+# while main read `peer v2`, and a plan a peer corrected ON MAIN mid-sweep read its PRE-correction text
+# inside the lane. In a nine-item sweep, review 9 would read a tree eight merges behind - which is the
+# exact opposite of the cross-plan awareness one shared lane was chosen to preserve.
+
+#: The sweep lane's identity. NOT an item id6, deliberately: it is a COORDINATOR-owned resource whose
+#: lifetime spans many items, so keying it on any one item's id6 would make that item's completion look
+#: like the lane's owner. Prefixed `review-sweep-` so `_lane_records_from_state`'s reader and an
+#: operator reading `git worktree list` can both tell what it is at a glance.
+REVIEW_SWEEP_LANE_PREFIX = "review-sweep-"
+
+
+def review_sweep_lane_id(run_id: str) -> str:
+    """The sweep lane's id for `run_id`, e.g. `review-sweep-run-2026...`.
+
+    RUN-SCOPED, so two concurrent runs each get their own sweep lane instead of fighting over one, and
+    so an interrupted run's sweep lane is attributable to the run that left it.
+    """
+    return "{0}{1}".format(REVIEW_SWEEP_LANE_PREFIX, run_id)
+
+
+def is_review_sweep_lane_id(lane_id: str) -> bool:
+    """Whether `lane_id` designates a review sweep lane rather than a per-item execute lane."""
+    return bool(lane_id) and str(lane_id).startswith(REVIEW_SWEEP_LANE_PREFIX)
+
+
+def allocate_review_sweep_worktree(repo: Path, run_id: str) -> Any:
+    """Allocate the ONE lane every review turn of `run_id` runs in (E-02).
+
+    Reuses `worktree_lease.allocate_worktree`, the SAME machinery an execute lane uses, so there is no
+    second isolation path: the only difference is the lane IDENTITY (run-scoped, not item-scoped) and
+    the fact that the coordinator allocates it once instead of the per-item path allocating it per turn.
+
+    IDEMPOTENT for the same run, which is what makes it safe to call before every review turn rather
+    than requiring the caller to remember whether it already holds one: `allocate_worktree` ADOPTS an
+    existing EMPTY lane at the same base and ATTEMPT-SCOPES alongside one holding work. Note the
+    adoption path is the common one only for a lane that is still at its base; once the sweep's first
+    review has committed, callers must reuse the handle they already have rather than re-allocating,
+    because a lane holding work would be attempt-scoped into a SECOND tree. See `refresh_sweep_lane`
+    for how a reused handle is kept current.
+    """
+    from agent_workflows import worktree_lease
+
+    return worktree_lease.allocate_worktree(
+        repo, review_sweep_lane_id(run_id), base_commit="HEAD"
+    )
+
+
+class SweepLaneRefresh(NamedTuple):
+    """The outcome of one attempt to bring the sweep lane up to main (E-02, OQ-04 option (a)).
+
+    Carries WHY it did or did not happen, not merely whether: a refusal is a normal outcome (the lane
+    legitimately holds an in-flight edit, or it has diverged) and the next review must be told which,
+    because a stale tree changes what that review READS while a diverged one changes what it can MERGE.
+    """
+
+    refreshed: bool
+    reason: str
+    #: The lane's HEAD after this call, so a caller can record what the next turn actually reads.
+    head: str | None = None
+    #: True when the lane was ALREADY current, which is the no-op case and not a failure.
+    already_current: bool = False
+
+
+def refresh_sweep_lane(repo: Path, handle: Any, *, main_ref: str = "HEAD") -> SweepLaneRefresh:
+    """Fast-forward the sweep lane to main between reviews (OQ-04 option (a), the maintainer's choice).
+
+    THE DEFECT THIS CLOSES, measured at review round 2 (finding F-14): the sweep lane is cut once at
+    sweep start and NOTHING refreshed it, so cross-plan awareness - one of the two reasons OQ-02 chose a
+    single lane - degraded monotonically with every merge. Verified before writing this: no rebase,
+    refresh, or re-base-onto helper existed anywhere in `worktree_lease.py` or either runner.
+
+    IT IS `--ff-only`, AND THAT IS THE WHOLE SAFETY ARGUMENT. A fast-forward can only ever move the lane
+    FORWARD to a commit that already contains its history, so it cannot rewrite, drop, or reorder a
+    commit the lane holds. If the lane has DIVERGED (it holds a commit main does not), git REFUSES and
+    this reports that refusal instead of forcing anything. Never `rebase`, never `merge --no-ff`, never
+    `reset --hard`: each of those can move or discard lane work, and the lane may hold a review that has
+    not merged yet.
+
+    IT REFUSES ON A DIRTY LANE, BEFORE TOUCHING GIT. A review's own in-flight edits live in the lane's
+    working tree, and `git merge --ff-only` updates tracked files, so refreshing over uncommitted work
+    risks a checkout conflict at best and a silent overwrite of an edit at worst. A dirty lane is
+    therefore left EXACTLY as it is and the staleness is reported, which is the conservative half of the
+    trade OQ-04 accepted.
+    """
+    lane_path = Path(getattr(handle, "path", "") or "")
+    if not lane_path.is_dir():
+        return SweepLaneRefresh(
+            refreshed=False, reason="the sweep lane's worktree is not present on disk"
+        )
+
+    rc, dirty_out, _err = _run_git(lane_path, ["status", "--porcelain"])
+    if rc != 0:
+        return SweepLaneRefresh(
+            refreshed=False,
+            reason="could not read the sweep lane's status; left untouched",
+        )
+    if dirty_out.strip():
+        return SweepLaneRefresh(
+            refreshed=False,
+            reason=(
+                "the sweep lane holds UNCOMMITTED work, so it was left exactly as it is rather than "
+                "risk a refresh overwriting an in-flight review edit"
+            ),
+        )
+
+    rc, target, _err = _run_git(repo, ["rev-parse", main_ref])
+    if rc != 0:
+        return SweepLaneRefresh(
+            refreshed=False, reason=f"could not resolve {main_ref} in the main checkout"
+        )
+    target_sha = target.strip()
+
+    rc, before, _err = _run_git(lane_path, ["rev-parse", "HEAD"])
+    lane_head = before.strip() if rc == 0 else None
+    if lane_head and lane_head == target_sha:
+        return SweepLaneRefresh(
+            refreshed=False,
+            reason="the sweep lane is already at main; nothing to refresh",
+            head=lane_head,
+            already_current=True,
+        )
+
+    rc, _out, err = _run_git(lane_path, ["merge", "--ff-only", target_sha])
+    if rc != 0:
+        # A DIVERGED lane, which is the expected refusal when a review's merge has not landed yet. Not
+        # an error and not a data-loss risk: the lane keeps its own commits, main keeps its own, and the
+        # next review simply reads a tree that is behind. Reported so the run record can say so.
+        return SweepLaneRefresh(
+            refreshed=False,
+            reason=(
+                "the sweep lane could not fast-forward to main (it holds commits main does not); "
+                "left untouched: " + (err or "").strip()
+            ),
+            head=lane_head,
+        )
+    rc, after, _err = _run_git(lane_path, ["rev-parse", "HEAD"])
+    return SweepLaneRefresh(
+        refreshed=True,
+        reason="the sweep lane was fast-forwarded to main",
+        head=after.strip() if rc == 0 else target_sha,
+    )
+
+
+#: Where the sweep lane's identity lives in durable run state. RUN-LEVEL, not per item, because the
+#: lane is a COORDINATOR resource whose lifetime spans many items: recording it under one item would
+#: make that item's completion look like the lane's owner and would leave the lane unfindable after it.
+REVIEW_SWEEP_LANE_KEY = "review_sweep_lane"
+
+
+def review_sweep_lane_record(state: dict[str, Any]) -> dict[str, Any] | None:
+    """The sweep lane this run allocated, read back from durable state, or None."""
+    record = state.get(REVIEW_SWEEP_LANE_KEY)
+    return record if isinstance(record, dict) and record.get("branch") else None
+
+
+def lane_records_including_sweep(state: dict[str, Any]) -> list[dict[str, Any]]:
+    """Every lane this run allocated, INCLUDING the review sweep lane (`ajxr5d` E-11).
+
+    COMPOSES `_lane_records_from_state` rather than editing it, and that is deliberate rather than
+    stylistic: that function's body is pinned BYTE-FOR-BYTE against a pre-move fingerprint fixture
+    (`runner_shared_premove_fingerprints.json`, captured at HEAD `1ecc5891`) which proves it was a PURE
+    MOVE out of the two runners. Editing it would break that proof for a reason unrelated to what the
+    proof is about. So the per-item reader stays exactly as it was and the sweep lane is added here.
+
+    WHY THE SWEEP LANE NEEDS ITS OWN SOURCE AT ALL, since a review turn does record its lane on its own
+    attempt (so the per-item reader usually finds it): a run interrupted BETWEEN reviews, or one whose
+    sweep lane was allocated and then refused before any attempt recorded it, leaves a lane no attempt
+    names. Without the RUN-LEVEL record the interrupt reclaimer would not see it, and the lane would be
+    leaked with no owner - which is exactly the orphan class `laneorphan-01` exists to prevent.
+
+    De-duplicated by `(branch, worktree)` exactly as the per-item reader does, so the common case yields
+    ONE record and not two.
+    """
+    lanes = _lane_records_from_state(state)
+    sweep = review_sweep_lane_record(state)
+    if sweep is None or sweep.get("retired"):
+        return lanes
+    key = "{0}|{1}".format(sweep.get("branch"), sweep.get("worktree"))
+    if any(
+        "{0}|{1}".format(rec.get("branch"), rec.get("worktree")) == key for rec in lanes
+    ):
+        return lanes
+    lanes.append(
+        {
+            "worktree": sweep.get("worktree"),
+            "branch": sweep.get("branch"),
+            "lane_id": sweep.get("lane_id"),
+            "base_commit": sweep.get("base_commit"),
+            "disposition": sweep.get("disposition"),
+            # NOT an item's id6, because the lane belongs to no ITEM. The lane id is carried in that slot
+            # so a report names something an operator can act on rather than an empty column.
+            "id6": sweep.get("lane_id"),
+            "status": "review-sweep",
+        }
+    )
+    return lanes
+
+
+def review_sweep_lane_handle(state: dict[str, Any]) -> Any | None:
+    """Rebuild the sweep lane's `WorktreeHandle` from durable state, or None if none was allocated.
+
+    REBUILT FROM STATE rather than held in memory, for the reason `retry_deferred_integrations` rebuilds
+    its own handles: the coordinator's retirement happens in a LATER stack frame than the turn that
+    allocated the lane, and an interrupted run must be able to find the lane in a whole new process.
+    """
+    from agent_workflows import worktree_lease
+
+    record = review_sweep_lane_record(state)
+    if record is None:
+        return None
+    return worktree_lease.WorktreeHandle(
+        lane_id=str(record.get("lane_id") or ""),
+        path=Path(str(record.get("worktree") or "")),
+        branch=str(record.get("branch") or ""),
+        base_commit=str(record.get("base_commit") or ""),
+    )
+
+
+#: Where the sweep's SHARED SESSION id lives. RUN-LEVEL and keyed to the sweep, NOT to a set, because
+#: the review sweep is a run-wide sweep: `aw oc run reviews` selects every plan awaiting review across
+#: every Set, and the CLI's promise is that "all reviews in a run share the same session for continuity".
+#: Keying it per set would silently split that continuity the first time a sweep spanned two Sets.
+REVIEW_SWEEP_SESSION_KEY = "review_sweep_session"
+
+
+def turn_runs_in_review_sweep_lane(
+    state: dict[str, Any], work_dir: str | None
+) -> bool:
+    """Whether `work_dir` IS this run's sweep lane (`ajxr5d` E-04).
+
+    THE DISTINCTION THIS DRAWS IS THE WHOLE OF `xd9sll`'s RULE, correctly stated. That incident is
+    usually summarized as "an isolated turn must never reuse a session", but the recorded CAUSE is a
+    MISMATCH OF CARDINALITY: sessions were keyed per SET while worktrees were allocated per ITEM, so
+    lanes 2..N inherited lane 1's session and an opencode session's own directory binding overrode
+    `--dir`. The invariant that actually holds is therefore NARROWER and stronger: never carry one
+    session into a DIFFERENT TREE.
+
+    A per-item execute lane is a different tree on every turn, so it must keep getting a fresh session -
+    unchanged. The review sweep lane is ONE tree for every review in the run, so one session in it
+    cannot reproduce the incident by construction, which is why OQ-02's one-lane ruling dissolved the
+    apparent conflict with the sweep's promised continuity rather than trading against it.
+
+    COMPARED BY RESOLVED PATH, not by string: a symlinked or relative spelling of the same tree is the
+    same tree, and answering False for it would silently drop the continuity this exists to preserve.
+    """
+    if not work_dir:
+        return False
+    record = review_sweep_lane_record(state)
+    if record is None:
+        return False
+    recorded = str(record.get("worktree") or "")
+    if not recorded:
+        return False
+    try:
+        return os.path.realpath(str(work_dir)) == os.path.realpath(recorded)
+    except OSError:  # pragma: no cover - defensive
+        return str(work_dir) == recorded
+
+
+def acquire_review_sweep_lane(
+    repo: Path,
+    run_dir: Path,
+    state: dict[str, Any],
+    *,
+    save_state: Callable[[Path, dict[str, Any]], None],
+) -> tuple[Any, SweepLaneRefresh | None]:
+    """Return the ONE lane every review turn of this run shares, allocating it on first use (E-02).
+
+    Returns `(handle, refresh)` where `refresh` is None on the allocating call (a brand-new lane is cut
+    from HEAD and is current by construction) and the `SweepLaneRefresh` outcome on every reuse.
+
+    ALLOCATED LAZILY ON THE FIRST REVIEW rather than eagerly at run start, and this is a deliberate
+    narrowing of the plan's wording ("allocated by the COORDINATOR once, before the first review
+    dispatches"). The property that matters is ONE LANE FOR THE WHOLE SWEEP, and lazy allocation delivers
+    exactly that while additionally not cutting a worktree for a run that contains no review items at
+    all. It is still coordinator-owned in the sense that decides the semantics: the lane is keyed on the
+    RUN, its record lives in run-level state, and its retirement is the coordinator's (see
+    `retire_review_sweep_lane`), so no item's turn can destroy the lane the next review needs.
+
+    THE REFRESH IS HERE, ON REUSE, WHICH IS THE ONLY PLACE IT IS BOTH CORRECT AND SUFFICIENT (OQ-04
+    option (a)). It runs before the next review is dispatched and after the previous one's merge has had
+    its chance to land, which is precisely the window the maintainer's ruling names. A refusal (dirty or
+    diverged lane) is returned rather than raised: a stale tree is a reportable condition, not a reason
+    to abandon a review.
+    """
+    existing = review_sweep_lane_handle(state)
+    if existing is not None and Path(existing.path).is_dir():
+        refresh = refresh_sweep_lane(repo, existing)
+        record = dict(review_sweep_lane_record(state) or {})
+        record["turns"] = int(record.get("turns", 0)) + 1
+        record["last_refresh"] = refresh.reason
+        record["last_refresh_refreshed"] = refresh.refreshed
+        if refresh.head:
+            record["head"] = refresh.head
+        state[REVIEW_SWEEP_LANE_KEY] = record
+        save_state(run_dir, state)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "review-sweep-lane-refreshed",
+                "lane_id": existing.lane_id,
+                "branch": existing.branch,
+                "refreshed": refresh.refreshed,
+                "detail": refresh.reason,
+                "head": refresh.head,
+            },
+        )
+        return existing, refresh
+
+    handle = allocate_review_sweep_worktree(repo, str(state.get("run_id") or ""))
+    state[REVIEW_SWEEP_LANE_KEY] = {
+        "lane_id": handle.lane_id,
+        "branch": handle.branch,
+        "worktree": str(handle.path),
+        "base_commit": handle.base_commit,
+        "disposition": getattr(handle, "disposition", "created"),
+        "displaced_from": getattr(handle, "displaced_from", None),
+        "turns": 1,
+    }
+    save_state(run_dir, state)
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "review-sweep-lane-allocated",
+            "lane_id": handle.lane_id,
+            "branch": handle.branch,
+            "worktree": str(handle.path),
+            "base_commit": handle.base_commit,
+            "disposition": getattr(handle, "disposition", "created"),
+        },
+    )
+    return handle, None
+
+
+def retire_review_sweep_lane(
+    repo: Path,
+    run_dir: Path,
+    state: dict[str, Any],
+    *,
+    save_state: Callable[[Path, dict[str, Any]], None],
+    reason: str = "sweep complete",
+) -> dict[str, Any] | None:
+    """Retire the sweep lane at the END of the run, preserving it if it still holds work (E-11).
+
+    Returns a record of what happened, or None when this run allocated no sweep lane. Idempotent: once
+    the lane is gone the record is marked and a second call is a no-op, so wiring it into more than one
+    coordinator exit path (normal drain, refused item, interrupt) is safe.
+
+    CLASSIFIES BEFORE DESTROYING, through `lane_containment.teardown_review_sweep_lane`, which is the
+    EXISTING spec-R5.5 gate. So a sweep ending with an unmerged review keeps its lane, its branch and
+    its commit, and the run record says which condition held. That is not a nicety: a stranded review is
+    the measured failure mode of a shared lane whose merge conflicts, and force-removing the lane would
+    convert a recoverable stranding into destroyed work.
+    """
+    from agent_workflows import lane_containment
+
+    record = review_sweep_lane_record(state)
+    if record is None or record.get("retired"):
+        return record
+    handle = review_sweep_lane_handle(state)
+    if handle is None:
+        return record
+    # EVERY REVIEW ITEM THAT USED THE LANE is handed to the gate, because the submission-retention
+    # question is per ITEM while the lane is shared: with no items the gate correctly refuses (absence of
+    # a receipt means NOT collected, spec R2.5), which would make a clean shared lane unretirable.
+    decision = lane_containment.teardown_review_sweep_lane(
+        repo=repo,
+        handle=handle,
+        run_dir=run_dir,
+        items=[
+            entry
+            for entry in state.get("queue", [])
+            if entry.get("action") == "review" or entry.get("review_integrated") is not None
+        ],
+    )
+    record = dict(record)
+    record["retired"] = bool(decision.torn_down)
+    record["retire_reason"] = decision.reason if not decision.torn_down else reason
+    record["retire_reason_codes"] = list(decision.reason_codes)
+    if not decision.torn_down:
+        # PRESERVED, and named where a reader looks. The lane holds something the gate could not
+        # account for, which for a sweep lane is most often a review whose merge did not land.
+        record["preserved_worktree"] = str(handle.path)
+        record["preserved_branch"] = handle.branch
+    state[REVIEW_SWEEP_LANE_KEY] = record
+    save_state(run_dir, state)
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": (
+                "review-sweep-lane-retired"
+                if decision.torn_down
+                else "review-sweep-lane-preserved"
+            ),
+            "lane_id": handle.lane_id,
+            "branch": handle.branch,
+            "worktree": str(handle.path),
+            "detail": record["retire_reason"],
+            "reason_codes": list(decision.reason_codes),
+        },
+    )
+    return record
+
+
+def commit_review_lane_output(
+    repo: Path, handle: Any, id6: str, *, host_label: str
+) -> tuple[str | None, tuple[str, ...]]:
+    """Commit a review turn's UNCOMMITTED lane output to the lane branch, so the merge can carry it.
+
+    Returns `(commit_sha_or_None, committed_paths)`. `None` means the lane tree was already clean, which
+    is the normal case for a review that committed its own work; NO empty commit is ever made.
+
+    WHY THIS IS REQUIRED AND IS NOT THE DRIVER OVERSTEPPING (`ajxr5d`, found while executing E-03). Before
+    isolation, a review that edited the plan and wrote its record but did NOT commit left those files in
+    MAIN's working tree, where the operator saw them and could commit them - the dirty window this plan
+    exists to close, but also, incidentally, a place the work survived. In a lane, uncommitted files are
+    INVISIBLE to `integrate_lane_branch`, which merges the BRANCH (`git diff base..branch`), and the lane
+    is later torn down. So isolating a review WITHOUT this step would silently DESTROY the output of any
+    review that did not commit for itself, which is a strictly worse outcome than the dirty tree. Landing
+    the work is therefore the conservative choice, not the liberal one.
+
+    IT IS PATH-SCOPED, ALWAYS, and never `git add -A`/`git add .`/`git commit -a` (the execution contract
+    forbids all three). The staged set is exactly what `git status --porcelain` reports INSIDE THE LANE,
+    which by construction is only this turn's own work: the lane is cut fresh from HEAD for the sweep and
+    nothing else writes to it. It also cannot sweep a co-worker's edit into a commit, because a co-worker
+    works in the shared checkout and not in the driver's lane.
+
+    NO HOOK-SUPPRESSING FLAG IS USED, and no `--no-verify`: this is an ordinary `git commit`, so whatever
+    a repository's hooks would say about a review's output they still say. A hook REJECTION is returned as
+    "nothing committed" (`None`), which leaves the work in the lane and makes the integration a no-op that
+    the caller reports rather than a silent loss.
+    """
+    wt = Path(getattr(handle, "path", "") or "")
+    if not wt.is_dir():
+        return None, ()
+    rc, out, _err = _run_git(wt, ["status", "--porcelain"])
+    if rc != 0 or not out.strip():
+        return None, ()
+    paths: list[str] = []
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        entry = line[3:] if len(line) > 3 else ""
+        if " -> " in entry:  # a rename: stage BOTH endpoints or the commit is half a move
+            old, new = entry.split(" -> ", 1)
+            paths.extend([old.strip().strip('"'), new.strip().strip('"')])
+        elif entry.strip():
+            paths.append(entry.strip().strip('"'))
+    paths = sorted({p for p in paths if p})
+    if not paths:
+        return None, ()
+    rc, _out, _err = _run_git(wt, ["add", "--", *paths])
+    if rc != 0:
+        return None, ()
+    subject = f"review({host_label}): record the review of {id6}"
+    rc, _out, _err = _run_git(
+        wt,
+        [
+            "commit",
+            "-m",
+            subject,
+            "-m",
+            (
+                "Committed by the driver because the review turn left its output uncommitted in its "
+                "lane. Path-scoped to the paths the turn itself wrote; hooks ran normally."
+            ),
+            "--",
+            *paths,
+        ],
+    )
+    if rc != 0:
+        # A hook refused, or there was nothing to commit after all. Leave the work in the lane: the
+        # caller reports a non-integration and the lane is PRESERVED rather than torn down.
+        return None, tuple(paths)
+    rc, sha, _err = _run_git(wt, ["rev-parse", "HEAD"])
+    return (sha.strip() if rc == 0 else None), tuple(paths)
+
+
+class ReviewWriteScope(NamedTuple):
+    """WHAT one review turn wrote, split into what a review is FOR and what it reached beyond (E-10).
+
+    ``allowed`` is the plan under review plus its own review record. ``out_of_scope`` is everything
+    else, and ``queued_siblings`` is the subset of that which belongs to an item STILL QUEUED in the
+    same run - the measured harm (F-9), and the one case the run record must never be silent about.
+    """
+
+    changed: tuple[str, ...]
+    allowed: tuple[str, ...]
+    out_of_scope: tuple[str, ...]
+    queued_siblings: tuple[str, ...]
+
+    @property
+    def clean(self) -> bool:
+        return not self.out_of_scope
+
+
+def review_record_path_fragment(id6: str) -> str:
+    """The distinguishing fragment of a review record's filename for plan `id6`.
+
+    Reviews are named by the uniform artifact grammar (`...-<id6>-<slug>.review.md`), so an id6 plus the
+    `.review.md` type facet identifies THIS plan's record without this module having to know the whole
+    naming grammar (which `artifact_core` owns and which must not be re-forked here).
+    """
+    return str(id6)
+
+
+def classify_review_writes(
+    changed_files: Sequence[str],
+    *,
+    id6: str,
+    queued_id6s: Sequence[str] = (),
+) -> ReviewWriteScope:
+    """Split a review lane's changed paths into the two files a review is FOR and anything beyond (E-10).
+
+    A REVIEW'S LEGITIMATE OUTPUT IS EXACTLY TWO FILES, measured on commit `a9510164`: the plan under
+    review (revisions applied) and its review record. A path is `allowed` when it carries this plan's
+    OWN id6; everything else is out of scope.
+
+    THE SHAPE CHOSEN IS PERMIT-AND-RECONCILE, NOT REFUSE (E-10's explicit choice, recorded in the plan's
+    decisions register). WHY: an ORCHESTRATOR review SHOULD read its children - that is exactly how this
+    Set's collision with three approved plans was caught - and it may have a genuine reason to correct a
+    child's text. Refusing would break that legitimate case, and the objection measured in F-9 was never
+    that the write happened but that it happened SILENTLY, to an item that had not had its turn. So the
+    write is permitted and NAMED, mirroring the execute path's own two-way scope reconciliation
+    (`_compute_scope_reconciliation`), which is reachable only from finalize and therefore never runs for
+    a review.
+
+    `queued_id6s` lets the caller flag the specific harm rather than only the general case: a path
+    carrying ANOTHER item's id6 while that item is still `queued` in this run is a queued item's input
+    being rewritten by a different item's turn.
+    """
+    changed = tuple(p for p in changed_files if str(p).strip())
+    allowed: list[str] = []
+    out_of_scope: list[str] = []
+    others = tuple(str(other) for other in queued_id6s if str(other) and str(other) != str(id6))
+    queued_siblings: list[str] = []
+    for path in changed:
+        if str(id6) in path:
+            allowed.append(path)
+            continue
+        out_of_scope.append(path)
+        if any(other in path for other in others):
+            queued_siblings.append(path)
+    return ReviewWriteScope(
+        changed=changed,
+        allowed=tuple(allowed),
+        out_of_scope=tuple(out_of_scope),
+        queued_siblings=tuple(queued_siblings),
+    )
+
+
+def describe_review_write_scope(scope: ReviewWriteScope, *, id6: str) -> str:
+    """One operator-facing sentence for a review whose writes went beyond its own two files (E-10)."""
+    if scope.clean:
+        return (
+            f"review {id6} wrote only its own plan and review record "
+            f"({len(scope.allowed)} path(s))"
+        )
+    detail = f"review {id6} also wrote {len(scope.out_of_scope)} path(s) outside its own plan and " \
+        f"review record: {', '.join(scope.out_of_scope)}"
+    if scope.queued_siblings:
+        detail += (
+            "; of those, these belong to items still QUEUED in this run: "
+            + ", ".join(scope.queued_siblings)
+        )
+    return detail
+
+
 # ---- lane -> main integration --------------------------------------------------------------------
 # integpath-02 (`6sb3yu`): the integration REFUSAL and the DIRTY-OVERLAP CHECK were defined in BOTH
 # runners and had already drifted, so the three behavior changes the `integpath` Set makes would each
@@ -1034,6 +1627,22 @@ def build_lane_outcome(
     )
 
 
+#: dirtygates Order 05 (`ajxr5d`) E-03, OQ-01 (resolved by the maintainer: WIDEN the shared function
+#: rather than fork a second merge path). THE ACTION KIND vocabulary `integrate_lane_branch` accepts.
+#:
+#: WHY IT IS A DECLARED VOCABULARY AND NOT A BOOLEAN. A `skip_revalidation=True` flag would state the
+#: MECHANISM and hide the REASON, and the reason is the whole justification: a review turn produces no
+#: code and therefore has nothing to revalidate, whereas an execute turn does and must be revalidated.
+#: Naming the action makes the gate's own docstring able to say WHY it skipped, and makes a future
+#: third action have to declare itself rather than inherit whichever branch it happens to fall into.
+INTEGRATION_ACTION_EXECUTE = "execute"
+INTEGRATION_ACTION_REVIEW = "review"
+INTEGRATION_ACTION_KINDS: tuple[str, ...] = (
+    INTEGRATION_ACTION_EXECUTE,
+    INTEGRATION_ACTION_REVIEW,
+)
+
+
 def integrate_lane_branch(
     repo: Path,
     handle: Any,
@@ -1042,9 +1651,31 @@ def integrate_lane_branch(
     *,
     host_label: str,
     run_checked: Callable[..., str],
+    action_kind: str,
 ) -> tuple[bool, str, str]:
     """Integrate a verified lane branch back to main behind the REUSED integration gate, failing
     closed on a contaminated base or a non-passing gate result.
+
+    ``action_kind`` SELECTS WHETHER STEP 1's REVALIDATION GATE RUNS, and it is stated by the caller.
+    ``"execute"`` runs the merge-and-revalidate gate exactly as before. ``"review"`` SKIPS IT, and the
+    skip is TRUE rather than convenient: a review turn's whole output is the plan under review plus its
+    review record (measured on commit ``a9510164``), so there is no code to revalidate and no test
+    result the gate could compute. THE SKIP IS EXPLICIT AND NEVER SYNTHESIZED (plan `ajxr5d` OQ-01's
+    load-bearing line): this function does NOT construct a passing `IntegrationGateResult`, does not
+    hand a "validation passed" value to the gate, and does not call `validation_runner` for a review.
+    Passing a fake attestation into a gate is the same family of defect as hand-writing a
+    `- Readiness:` field, and it is forbidden here for the same reason. Skipping a gate for an action
+    that produces nothing for it to check is simply a true statement; forging its verdict is not.
+
+    ``action_kind`` HAS NO DEFAULT DELIBERATELY, for the reason ``host_label`` has none, only stronger:
+    a default would let a new caller silently skip revalidation (if the default were ``"review"``) or
+    silently revalidate an action with nothing to revalidate (if it were ``"execute"``), and either
+    mis-binding is invisible until it matters. It is REFUSED rather than coerced when unrecognized, so
+    a typo cannot fall through to whichever branch happens to be first. The per-host WRAPPERS bind it
+    as a literal exactly as they bind ``host_label``, so their signatures do not change and
+    `tests/test_runner_shared.py::LaneIntegrationExtractionTests
+    ::test_each_wrapper_keeps_the_ORIGINAL_signature` stays green untouched; the REVIEW path calls the
+    review-bound wrapper rather than reaching around it.
 
     0. driverfin-03 (7kbtkw) E-01 DIRTY-TREE GUARD: BEFORE invoking the gate, assert the MAIN tree has
        no un-owned dirty paths overlapping the incoming lane's `changed_files`. If it does, REFUSE:
@@ -1089,6 +1720,17 @@ def integrate_lane_branch(
     """
     from agent_workflows import orchestrate_isolation
 
+    if action_kind not in INTEGRATION_ACTION_KINDS:
+        # FAIL CLOSED on an unrecognized kind rather than defaulting to either branch. Defaulting to
+        # `execute` would revalidate a review (a gate call with nothing to check), and defaulting to
+        # `review` would skip revalidation for an execute turn, which is the one thing this parameter
+        # exists to keep impossible. A typo must be a refusal, not a silent choice.
+        raise DriverError(
+            "integrate_lane_branch: unrecognized action_kind {0!r}; expected one of {1}".format(
+                action_kind, ", ".join(repr(k) for k in INTEGRATION_ACTION_KINDS)
+            )
+        )
+
     lane = build_lane_outcome(repo, handle, id6, run_checked=run_checked)
 
     # E-01: fail closed on a contaminated integration base BEFORE running the gate.
@@ -1103,26 +1745,37 @@ def integrate_lane_branch(
             "integration-blocked",
         )
 
-    result = orchestrate_isolation.execute_merge_and_revalidate_gate(
-        integration_base_commit=handle.base_commit,
-        lane_outcomes=[lane],
-        merge_order=[id6],
-        full_validation_runner=validation_runner,
-    )
-    if not result.passed:
-        # E-02: a non-passing gate result is diff-based (no partial merge to abort). Record the gate's
-        # failing findings + paths so a human/serial ordering can resolve the preserved lane branch.
-        failing = "; ".join(
-            f"{f.check_name}[{f.lane_id}]: {f.message}" for f in result.findings
+    # dirtygates Order 05 (`ajxr5d`) E-03: THE ONE STEP A REVIEW SKIPS, and it is skipped by NOT
+    # RUNNING, never by fabricating a verdict. `result` stays None for a review and the `not
+    # result.passed` refusal below is therefore not consulted; no `IntegrationGateResult` is
+    # constructed, `validation_runner` is never called, and nothing is recorded as having validated.
+    # Steps 0 (the dirty-overlap guard above) and 2-4 (the real merge below) are FULLY SHARED, which is
+    # the reason OQ-01 chose to widen this function rather than fork a review-only merge path: those
+    # steps carry the ff-only-then-no-ff sequence, the capture-conflicted-paths-BEFORE-abort ordering,
+    # and the `host_label` merge subject, all of which a second implementation would have to duplicate.
+    if action_kind == INTEGRATION_ACTION_EXECUTE:
+        result = orchestrate_isolation.execute_merge_and_revalidate_gate(
+            integration_base_commit=handle.base_commit,
+            lane_outcomes=[lane],
+            merge_order=[id6],
+            full_validation_runner=validation_runner,
         )
-        detail = failing or result.message
-        return (
-            False,
-            f"integration gate did not pass ({result.status}): {detail}",
-            "merge-conflict",
-        )
+        if not result.passed:
+            # E-02: a non-passing gate result is diff-based (no partial merge to abort). Record the
+            # gate's failing findings + paths so a human/serial ordering can resolve the preserved lane
+            # branch.
+            failing = "; ".join(
+                f"{f.check_name}[{f.lane_id}]: {f.message}" for f in result.findings
+            )
+            detail = failing or result.message
+            return (
+                False,
+                f"integration gate did not pass ({result.status}): {detail}",
+                "merge-conflict",
+            )
 
-    # Gate passed (conflict-free, revalidated). Perform the real integration onto main.
+    # Gate passed (conflict-free, revalidated), or - for a review - was correctly not run. Perform the
+    # real integration onto main.
     # NOTE the ff-only attempt's output is DELIBERATELY discarded: its failure is the EXPECTED
     # "main advanced" case, not an error, so it must never reach the operator-facing reason (mergemsg).
     rc, _out, _err = _run_git(repo, ["merge", "--ff-only", handle.branch])

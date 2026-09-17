@@ -2265,7 +2265,16 @@ def reclaim_lanes_on_interrupt(
     """
     from agent_workflows import worktree_lease
 
-    lanes = [describe_lane(repo, rec) for rec in _lane_records_from_state(state)]
+    # dirtygates Order 05 (`ajxr5d`) E-11: read lanes through the SWEEP-AWARE composer, so an interrupt
+    # BETWEEN reviews reclaims the review sweep lane too instead of leaking it with no owner. The
+    # per-item reader is composed rather than edited (its body is fingerprint-pinned as a pure move); see
+    # `runner_shared.lane_records_including_sweep`. The classification and preservation below are
+    # UNCHANGED and apply to the sweep lane exactly as to a per-item lane: a lane holding work is left
+    # entirely alone and snapshotted, which is what keeps a stranded review recoverable.
+    lanes = [
+        describe_lane(repo, rec)
+        for rec in runner_shared.lane_records_including_sweep(state)
+    ]
     if not lanes:
         return []
     if not interactive:
@@ -2454,6 +2463,14 @@ def integrate_lane_branch(
     the gate call, `--ff-only` then the controlled `--no-ff` fallback, the abort that leaves main
     clean, and the three returned `kind` values). This wrapper binds THIS host's `run_checked` and its
     OWN `host_label`, so the merge subject on main still reads `integrate(aw oc run): ...`.
+
+    dirtygates Order 05 (`ajxr5d`) E-03: it now also binds `action_kind="execute"` as a LITERAL, exactly
+    as it binds `host_label`. THE SIGNATURE IS DELIBERATELY UNCHANGED, and that is the point:
+    `tests/test_runner_shared.py::LaneIntegrationExtractionTests
+    ::test_each_wrapper_keeps_the_ORIGINAL_signature` asserts each wrapper's kwonly list is EMPTY with
+    the docstring "no wrapper may expose the injected parameter", and adding `*, action_kind: str` here
+    was MEASURED to fail it. The review path calls `integrate_review_lane_branch` below rather than
+    reaching around either wrapper, so no existing call site changes.
     """
     return runner_shared.integrate_lane_branch(
         repo,
@@ -2462,6 +2479,34 @@ def integrate_lane_branch(
         validation_runner,
         host_label="aw oc run",
         run_checked=run_checked,
+        action_kind=runner_shared.INTEGRATION_ACTION_EXECUTE,
+    )
+
+
+def integrate_review_lane_branch(
+    repo: Path, handle: Any, id6: str
+) -> tuple[bool, str, str]:
+    """Integrate a REVIEW lane back to main: one merge, no revalidation (`ajxr5d` E-03, OQ-01).
+
+    THE SIBLING WRAPPER, not a second implementation. Steps 0 and 2-4 of the shared function (the
+    dirty-overlap guard, the ff-only-then-no-ff merge sequence, the capture-conflicted-paths-BEFORE-abort
+    ordering, the `host_label` merge subject) are the SAME code an execute integration runs; only the
+    revalidation gate is skipped, and it is skipped by NOT RUNNING rather than by any fabricated verdict.
+
+    `validation_runner` IS NOT A PARAMETER HERE, and its absence is the contract made structural. There
+    is no runner to pass because there is nothing to validate: a review's whole output is the plan under
+    review plus its review record. `None` is handed to the shared function, which for `action_kind
+    ="review"` never touches it. A caller therefore CANNOT supply a synthetic validation result through
+    this path even by mistake, which is what OQ-01's load-bearing line requires.
+    """
+    return runner_shared.integrate_lane_branch(
+        repo,
+        handle,
+        id6,
+        None,
+        host_label="aw oc run",
+        run_checked=run_checked,
+        action_kind=runner_shared.INTEGRATION_ACTION_REVIEW,
     )
 
 
@@ -5022,23 +5067,39 @@ def build_review_prompt(
     run_dir: Path,
     plan_path: Path,
     repo: Path,
+    lane_root: Path | None = None,
 ) -> str:
-    """Return EXACTLY the slash command for a review turn: `/plan-review <relative path>`.
+    """Return the slash command for a review turn: `/plan-review <relative path>`, plus - for an
+    ISOLATED review - the in-lane statement on its OWN LINES after it.
 
-    Deliberately prose-free (terseout `ntf6sx` E-05). This value is handed to the host as ONE
-    argv element after `--`, so anything appended to it is absorbed by the slash command's
-    `$ARGUMENTS` and parsed as additional path arguments. Never append instructions here; the
-    review turn inherits the concise-reporting contract from the generated command shim's
-    pointer line plus the installed `AGENTS.md#aw:reporting` section. If a future change truly
-    must add prose to a review turn, it goes on a separate line AFTER the command, never on
-    the command line itself.
+    Deliberately prose-free ON THE COMMAND LINE (terseout `ntf6sx` E-05). This value is handed to the
+    host as ONE argv element after `--`, so anything appended to the COMMAND LINE is absorbed by the
+    slash command's `$ARGUMENTS` and parsed as additional path arguments. That constraint is about the
+    LINE, not about the string: the docstring's own escape clause is that prose "goes on a separate line
+    AFTER the command, never on the command line itself", and that is exactly the shape used below.
+
+    dirtygates Order 05 (`ajxr5d`) E-02: `lane_root` makes the two halves an isolated turn needs BOTH
+    true. FIRST the path: it is resolved against the LANE, so the command names the lane's own copy of
+    the plan. SECOND the statement: the shared `lane_containment.isolation_notice` is appended, and it is
+    MANDATORY rather than decorative. The guard it satisfies exists because of a measured incident (run
+    `run-20260831T153226Z-3424176`, plan `y6mfgo`) in which the prompt carried MAIN's absolute plan path
+    with no statement of isolation, and the agent read `../../../DECISIONS.md` and committed 18 files
+    into MAIN while its lane stayed at zero commits. `--dir` alone does not convey isolation, so the
+    path fix WITHOUT the statement is the half-fix that was already measured insufficient.
+
+    A NON-isolated review (`lane_root is None`) returns the byte-identical single line it always did,
+    which is spec R1.3's requirement that non-isolated execution not be degraded by isolation work.
     """
 
+    root = lane_root if lane_root is not None else repo
     try:
-        rel_path = str(plan_path.relative_to(repo))
+        rel_path = str(plan_path.relative_to(root))
     except ValueError:
         rel_path = str(plan_path)
-    return f"/plan-review {rel_path}"
+    command = f"/plan-review {rel_path}"
+    if lane_root is None:
+        return command
+    return command + "\n" + lane_containment.isolation_notice(lane_root)
 
 
 # ---- recovery routing: verify-and-continue vs fresh execution ------------------------------------
@@ -6105,11 +6166,36 @@ def run_opencode(
     # 8zgybk's and streamed under 8zgybk's session; four consecutive lanes were lost this way.
     # Therefore an isolated turn (work_dir set) is ALWAYS a fresh session, exactly like the verifier.
     isolated_turn = bool(work_dir)
+    # dirtygates Order 05 (`ajxr5d`) E-04: THE ONE ISOLATED TREE A SESSION MAY LEGITIMATELY PERSIST IN,
+    # and it does NOT relax `xd9sll`'s rule - it states that rule precisely for the first time.
+    #
+    # The recorded cause of `xd9sll` is a CARDINALITY MISMATCH, not isolation as such: sessions were
+    # keyed per SET while worktrees were allocated per ITEM, so lanes 2..N inherited lane 1's session and
+    # the session's own directory binding overrode `--dir`. So the invariant is "never carry one session
+    # into a DIFFERENT tree", and a per-item execute lane violates it on every turn (unchanged below,
+    # still always fresh) while the REVIEW SWEEP LANE cannot violate it at all: it is ONE tree for every
+    # review in the run, which is exactly why OQ-02 chose one lane for the sweep.
+    #
+    # THE SESSION READ HERE IS THE SWEEP'S OWN, not the set's. A review sweep is run-wide (`reviews`
+    # selects across every Set), and the CLI promises continuity across the whole sweep, so a per-set key
+    # would split it the first time a sweep spanned two Sets. `set_sessions` is deliberately left
+    # untouched for the sweep: promoting a lane session into it is what would re-arm the carryover for a
+    # LATER execute turn in the same set.
+    sweep_lane_turn = runner_shared.turn_runs_in_review_sweep_lane(state, work_dir)
     max_items = options.get("max_items_per_session", 4)
     raw_session = (
-        state.get("session_id")
-        or state.get("set_sessions", {}).get(item["setid"])
-        or options.get("session")
+        # THE OPERATOR'S EXPLICIT `--session` STILL SEEDS THE SWEEP, which is why the fallback is here
+        # rather than the sweep key being read alone. `--session <id>` is documented as the session to
+        # "attach/reuse across turns for multi-plan continuity", so honoring it for an execute turn and
+        # ignoring it for a review would break the one surface whose whole purpose is continuity - and it
+        # is SAFE, because the operator names one id for one run and the sweep is one tree.
+        state.get(runner_shared.REVIEW_SWEEP_SESSION_KEY) or options.get("session")
+        if sweep_lane_turn
+        else (
+            state.get("session_id")
+            or state.get("set_sessions", {}).get(item["setid"])
+            or options.get("session")
+        )
     )
     is_rotation = False
     if raw_session and max_items and max_items > 0:
@@ -6118,7 +6204,11 @@ def run_opencode(
             is_rotation = True
             raw_session = None
 
-    session = None if (fresh_session or isolated_turn or is_rotation) else raw_session
+    session = (
+        None
+        if (fresh_session or (isolated_turn and not sweep_lane_turn) or is_rotation)
+        else raw_session
+    )
     # defreport 01 (`b7xarm`) E-05: the ONE caller that may resume a session an isolated turn would
     # otherwise refuse, and it is safe for the exact reason the isolated-turn refusal above exists.
     # That refusal prevents carrying ANOTHER lane's session into THIS tree (lanesess `xd9sll`: a
@@ -6180,6 +6270,15 @@ def run_opencode(
     # resolve inside the lane. Both values below are therefore localized against the manifest E-01
     # materialized, via the shared `localize_attachment` (the agy twin has no `--file` surface at all -
     # it passes its prompt inline - so there is nothing to mirror there; see that driver's launch path).
+    #
+    # dirtygates Order 05 (`ajxr5d`) E-01/E-02: THE LOCALIZATION IS NOW REACHED BY A REVIEW TOO, and it
+    # needed no change to be so. `lane_root_for_attachments` is derived from `work_dir`, which is now set
+    # for an isolated review, so a review's plan attachment resolves inside the sweep lane exactly as an
+    # execute turn's does. This site was the SEVENTH `not is_review` guard, which the plan's original
+    # six-site census omitted (finding F-8): the `not is_review` test remaining below governs only the
+    # RUNBOOK attachment, and it is correct there for a reason of substance rather than of tree - a
+    # review turn is not given the driver runbook at all, because its whole instruction is the
+    # `/plan-review` slash command (see `build_review_prompt`, which is deliberately prose-free).
     #
     # CORRECTION TO THIS PLAN'S FINDING F-3, recorded because the plan asserted the opposite and an
     # executor trusting it would have fixed only half the defect. F-3 says "the plan path is ALREADY
@@ -6724,8 +6823,19 @@ def run_opencode(
 
 
 def reconcile_disposition(
-    repo: Path, item: dict[str, Any], run_dir: Path, exit_code: int
+    repo: Path,
+    item: dict[str, Any],
+    run_dir: Path,
+    exit_code: int,
+    plan_repo: Path | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
+    """Score one finished turn. `plan_repo` (`ajxr5d` E-09) is the tree to READ THE PLAN FROM.
+
+    DEFAULTED TO `repo`, so every existing call site and every existing behavior is unchanged; passed
+    only by the main-turn call site, and only when the turn ran in a lane. See the review branch below
+    for why an isolated review MUST read the lane, and why there is no "read it after the merge instead"
+    alternative.
+    """
     # runstop foi1b3 (E-03, spec R18/R21/R22): the DELIBERATE-STOP branch, which MUST precede every
     # other branch below, including the exit-code fallback.
     #
@@ -6753,8 +6863,28 @@ def reconcile_disposition(
         # to re-run it. Neither level ever returns a success state (spec R22).
         return runner_stop.STOPPED_DISPOSITION, None
     if item.get("action") == "review":
+        # dirtygates Order 05 (`ajxr5d`) E-09: READ THE PLAN FROM THE TREE THAT HOLDS THE REVISION.
+        #
+        # THE DEFECT, and it is a SCORING defect rather than a cosmetic one. This branch derives the
+        # disposition from the plan's `- Status:` field. Once a review runs in a lane, the revised plan is
+        # ON THE LANE and MAIN still reads `to-review` until the merge lands, so a `repo`-only read makes
+        # the status comparison ALWAYS miss: a review that legitimately set `approved` would be recorded
+        # merely `reviewed`, and the check would stop discriminating at all, so it could no longer help
+        # tell a real review from a turn that did nothing.
+        #
+        # THE LANE READ IS THE ONLY REACHABLE ANSWER, not a preference (plan finding F-15). The
+        # disposition is computed BEFORE the integration block in both hosts, and there is no call to
+        # this function anywhere after it, so "compute it after the merge and read main" describes a
+        # branch that does not exist. `plan_repo` therefore defaults to `repo`, which keeps the
+        # non-isolated read byte-identical, and the main-turn call site passes the lane when there is one.
+        #
+        # THE PATTERN IS REUSED, NOT INVENTED: the verifier path already resolves its plan as
+        # `plan_repo = Path(work_dir) if work_dir else repo` for exactly this reason.
+        source = plan_repo or repo
         try:
-            current_plan = resolve_plan_path(repo, item["configured_file"], item["id6"])
+            current_plan = resolve_plan_path(
+                source, item["configured_file"], item["id6"]
+            )
             text = current_plan.read_text(encoding="utf-8")
             status = _read_status(text)
         except Exception:
@@ -7005,6 +7135,87 @@ def execute_item(
             )
             return
 
+    # dirtygates Order 05 (`ajxr5d`) E-01/E-02: THE REVIEW SWEEP LANE, allocated HERE and deliberately
+    # OUTSIDE the `self_finalize and not is_review` block below.
+    #
+    # WHY IT IS A SEPARATE BRANCH RATHER THAN A WIDENED GUARD, which is the single most important
+    # structural fact about this change (plan finding F-7). The block below reads as a LIFECYCLE
+    # condition (`self_finalize`) but its BODY contains the worktree allocation, so a reader classifying
+    # these guards by their conditions concludes "leave it alone" and thereby ships a review that never
+    # gets a lane at all. Equally, DELETING `not is_review` from it would make a review call
+    # `driver_begin` and claim execution authority it must never have. So the site is SPLIT: the
+    # allocation a review needs is hoisted out into this branch, and the lifecycle calls (`driver_begin`,
+    # and the finalize/suite-check pair further down) stay review-exempt exactly as they are.
+    #
+    # ONE LANE FOR THE WHOLE SWEEP (OQ-02), refreshed between reviews (OQ-04 option (a)). The lane is
+    # keyed on the RUN and its record lives in run-level state, so every review turn of this run gets the
+    # SAME tree - which is also what keeps the shared review session safe, since `xd9sll` was N trees to
+    # one session and one tree to one session cannot reproduce it.
+    sweep_refresh = None
+    if is_review and isolate:
+        try:
+            wt_handle, sweep_refresh = runner_shared.acquire_review_sweep_lane(
+                repo, run_dir, state, save_state=save_state
+            )
+            work_dir = str(wt_handle.path)
+            # The lane is recorded at RUN level by the shared helper (it is not this item's lane to
+            # own), and ALSO on this attempt, because the attempt record is what makes a turn
+            # self-describing and what `_lane_records_from_state` reads.
+            attempt["worktree"] = work_dir
+            attempt["worktree_branch"] = wt_handle.branch
+            attempt["worktree_lane_id"] = wt_handle.lane_id
+            attempt["worktree_base"] = wt_handle.base_commit
+            attempt["worktree_disposition"] = getattr(
+                wt_handle, "disposition", "created"
+            )
+            attempt["review_sweep_lane"] = True
+            if sweep_refresh is not None:
+                attempt["review_sweep_lane_refreshed"] = sweep_refresh.refreshed
+                attempt["review_sweep_lane_refresh_reason"] = sweep_refresh.reason
+            save_state(run_dir, state)
+            print(
+                pal(
+                    f"  \u2713 review sweep lane {wt_handle.branch} at {work_dir}"
+                    + (
+                        ""
+                        if sweep_refresh is None
+                        else (
+                            " (refreshed to main)"
+                            if sweep_refresh.refreshed
+                            else f" ({sweep_refresh.reason})"
+                        )
+                    ),
+                    "cyan",
+                )
+            )
+        except Exception as exc:
+            # FAIL CLOSED, exactly as the execute path's allocation failure does. A review that cannot
+            # get its lane must NOT silently fall back to running in the shared checkout: that fallback
+            # is the very behavior this plan exists to remove, and it would be invisible.
+            attempt["ended_at"] = utc_now()
+            attempt["disposition"] = "blocked"
+            item["status"] = "blocked"
+            item["worktree_error"] = str(exc)
+            save_state(run_dir, state)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "review-sweep-lane-alloc-failed",
+                    "id6": item["id6"],
+                    "detail": str(exc),
+                },
+            )
+            print(
+                pal(
+                    f"\u2717 IPD {seq:02d}/{total} {item['id6']} review sweep lane "
+                    f"allocation failed; not launching. {exc}",
+                    "red",
+                ),
+                file=sys.stderr,
+            )
+            return
+
     if self_finalize and not is_review:
         actor = driver_actor(state)
         # lanetruth Order 01 (af7i6p) E-04: verify, ONCE per process, that a pinned nested `aw`
@@ -7133,6 +7344,13 @@ def execute_item(
     # only from `repo`, so an isolated turn received MAIN's absolute path for its own plan file and no
     # statement that it was in a lane. The agent read `../../../DECISIONS.md` and committed 18 files
     # into MAIN while the lane branch stayed at zero commits. `--dir` alone does not convey isolation.
+    #
+    # dirtygates Order 05 (`ajxr5d`) E-02: THE REVIEW TURN GETS THE SAME TREATMENT, in its own branch
+    # below rather than by widening this guard's condition. The two builds are NOT interchangeable -
+    # this one calls `build_prompt` and materializes the lane input manifest, while a review's whole
+    # instruction is the `/plan-review` slash command - so folding them together would either hand a
+    # review the executor's prompt or hand an executor the review's. Both halves of the `y6mfgo` lesson
+    # are applied to the review path: the lane-resolved plan path AND the explicit in-lane statement.
     if work_dir and not is_review:
         lane_root = Path(work_dir)
         # Prefer the LANE's copy of the plan. `sync_receipt_into_worktree` and the verifier turn
@@ -7194,6 +7412,63 @@ def execute_item(
             # own cwd and we do not depend on that being the lane), but INSIDE the lane, which is what
             # R5.3 requires.
             attempt["lane_runbook_path"] = str(lane_root / runbook_entry.path)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "lane-inputs-materialized",
+                "id6": item["id6"],
+                "revision": lane_manifest.revision,
+                "manifest": str(lane_manifest.manifest_path),
+                "inputs": [entry.path for entry in lane_manifest.entries],
+            },
+        )
+        save_state(run_dir, state)
+
+    # dirtygates Order 05 (`ajxr5d`) E-02: THE REVIEW PROMPT'S LANE REBUILD, the twin of the block above.
+    #
+    # Both halves of the `y6mfgo` lesson are applied here: the plan path is resolved against the LANE
+    # (so the slash command names the lane's own copy) and the shared isolation notice is appended (so
+    # the turn is TOLD it is in a lane). The path fix alone was the measured half-fix.
+    #
+    # THE INPUT MANIFEST IS MATERIALIZED FOR A REVIEW TOO, and it is not redundant with the lane's own
+    # tracked copy of the plan. It is what `driver_written_lane_paths` reads, which is what the teardown
+    # gate uses to tell driver-written content from a worker's unexplained content (spec R5.5), and it is
+    # what `localize_attachment` reads to point the `--file` attachment inside the lane. Without it a
+    # review's attachment silently falls back to MAIN's path (`localize_attachment` returns its fallback
+    # when no manifest exists), which is exactly the R5.3 violation this plan closes. The RUNBOOK is
+    # deliberately not materialized: a review turn is never handed it.
+    if work_dir and is_review:
+        lane_root = Path(work_dir)
+        try:
+            lane_plan_path = resolve_plan_path(
+                lane_root, item["configured_file"], item["id6"]
+            )
+        except DriverError:
+            lane_plan_path = plan_path
+        prompt = build_review_prompt(
+            item, state, run_dir, lane_plan_path, repo, lane_root=lane_root
+        )
+        prompt_path = write_prompt(run_dir, item, prompt, attempt_no)
+        attempt["prompt"] = str(prompt_path)
+        attempt["prompt_sha256"] = sha256_file(prompt_path)
+        attempt["lane_plan_path"] = str(lane_plan_path)
+        # A REVISION PER REVIEW, not a shared `rev-1`, and this is a correctness requirement rather
+        # than tidiness. MEASURED while writing E-06's regression: with every review materializing
+        # revision 1, review 2 OVERWRITES review 1's manifest, so review 1's copied plan file is left
+        # on disk accounted for by nothing. `driver_written_lane_paths` then cannot explain it, the
+        # teardown gate correctly refuses ("2 unknown IGNORED file(s)"), and a perfectly clean sweep
+        # could never retire its lane. Distinct revisions keep EVERY review's inputs declared, which is
+        # also what spec R5.1a part (iii) means by a new revision rather than an in-place edit.
+        lane_manifest = lane_containment.materialize_lane_inputs(
+            lane_root=lane_root,
+            plan_path=lane_plan_path,
+            runbook_path=None,
+            repo=lane_root,
+            revision=int(item["position"]),
+        )
+        attempt["lane_input_manifest"] = str(lane_manifest.manifest_path)
+        attempt["lane_input_revision"] = lane_manifest.revision
         append_jsonl(
             run_dir / "events.jsonl",
             {
@@ -7329,6 +7604,32 @@ def execute_item(
         # exact carryover this fixes and would make the set-consistency check below fire on every
         # lane after the first ("changed session unexpectedly"), aborting the run.
         attempt["session_id"] = session_id
+        # dirtygates Order 05 (`ajxr5d`) E-04: the SWEEP's session is persisted under its OWN run-level
+        # key, so the next review of this run resumes it (the CLI's promised continuity) while
+        # `set_sessions` stays untouched. That separation is what keeps the promotion refusal below
+        # intact for every OTHER isolated turn: a per-item execute lane still promotes nothing, so
+        # `xd9sll`'s carryover cannot be re-armed by way of the sweep.
+        #
+        # THE CONSISTENCY CHECK IS MIRRORED, NOT DROPPED. The set-session path below refuses an
+        # unexplained session change, and moving reviews onto their own key would have silently retired
+        # that guard for the one action type that still shares a session at all. So the same rule is
+        # applied here, with the same planned-rotation escape: an id that changes when no rotation was due
+        # means the host did not resume the conversation we asked for, which for a sweep whose whole point
+        # is continuity is a real defect rather than a detail.
+        if runner_shared.turn_runs_in_review_sweep_lane(state, work_dir):
+            counts = state.setdefault("session_turn_counts", {})
+            existing_sweep = state.get(runner_shared.REVIEW_SWEEP_SESSION_KEY)
+            max_items = state.get("options", {}).get("max_items_per_session", 4)
+            existing_turns = counts.get(existing_sweep, 0) if existing_sweep else 0
+            sweep_rotation = bool(
+                max_items and max_items > 0 and existing_turns >= max_items
+            )
+            if existing_sweep and existing_sweep != session_id and not sweep_rotation:
+                raise DriverError(
+                    f"Review sweep changed session unexpectedly: {existing_sweep} -> {session_id}"
+                )
+            state[runner_shared.REVIEW_SWEEP_SESSION_KEY] = session_id
+            counts[session_id] = counts.get(session_id, 0) + 1
         if not work_dir:
             counts = state.setdefault("session_turn_counts", {})
             existing = state.setdefault("set_sessions", {}).get(item["setid"])
@@ -7373,7 +7674,25 @@ def execute_item(
     #
     # No-op for a NON-isolated turn (`work_dir` unset), and never raises for a turn that submitted
     # nothing: absence is a legitimate observation (R2.4) and reconciliation handles it already.
-    if work_dir and not is_review:
+    #
+    # dirtygates Order 05 (`ajxr5d`) E-08: THE GUARD IS WIDENED TO INCLUDE A REVIEW, and the reason is
+    # spec R2.1's must-ship-together rule rather than symmetry. E-02 makes the review prompt
+    # lane-relative, and `collect_lane_submissions`' own docstring states it "IS THE OTHER HALF OF R1 AND
+    # MUST SHIP WITH IT (spec R2.1)" because a lane-relative instruction whose output nobody collects
+    # fails INVISIBLY.
+    #
+    # WHAT A REVIEW TURN ACTUALLY SUBMITS, verified rather than assumed (E-08 required this either way).
+    # `build_review_prompt` is the `/plan-review` slash command plus the isolation notice, and it names no
+    # outcome JSON, no report and no decisions file, so a review turn writes NO lane-side submission
+    # today: every one of the three is recorded `absent`, which `_collect_one` handles as the legitimate
+    # observation R2.4 requires. THE CALL IS STILL CORRECT, and this is the difference between widening it
+    # and leaving a comment: the isolation notice DOES tell the turn that everything it writes "under the
+    # submission directory named below" is collected, and the review record itself is a tracked file that
+    # rides the merge. Collecting produces the R2.5 RECEIPT, which is what the teardown gate reads to tell
+    # driver-written content from unexplained content; without a receipt the sweep lane's own inventory
+    # can only ever say "unknown", and a lane that always looks unaccounted-for is a lane that can never
+    # be retired. So the receipt is the load-bearing output here, not the copies.
+    if work_dir and (not is_review or runner_shared.turn_runs_in_review_sweep_lane(state, work_dir)):
         try:
             collection = lane_containment.collect_lane_submissions(
                 run_dir=run_dir,
@@ -7414,7 +7733,22 @@ def execute_item(
         # lines below persists. Adding a call here would also move a call-site count that
         # `tests/test_runner_shared.py::WrapperTests` pins deliberately.
 
-    disposition, outcome = reconcile_disposition(repo, item, run_dir, exit_code)
+    # dirtygates Order 05 (`ajxr5d`) E-09: hand the reconciliation the tree that actually holds the
+    # revision. For an isolated REVIEW that is the lane, because the revised plan is committed there and
+    # main still reads `to-review` until the merge lands.
+    #
+    # THE EXECUTE PATH IS UNAFFECTED BY CONSTRUCTION, which is why passing the lane unconditionally is
+    # safe: `plan_repo` is consumed ONLY inside the review branch, and the execute branch's own
+    # `plan_bucket` read below still resolves against `repo`. That is deliberate rather than incidental -
+    # an execute turn's bucket check is asking "did finalize already move this plan on MAIN", and reading
+    # the lane would answer a different question.
+    disposition, outcome = reconcile_disposition(
+        repo,
+        item,
+        run_dir,
+        exit_code,
+        plan_repo=Path(work_dir) if work_dir else None,
+    )
 
     # Turn 2: independent skeptical verification in a fresh session. After a successful
     # execution turn, audit the work in a clean session (no inherited context); if the
@@ -7654,6 +7988,15 @@ def execute_item(
     # `.aw/state` (dh0uno), where 15 `test_run_viewer.py` tests fail for reasons unrelated to the work,
     # which would leave this gate closed forever.
     suite_result: SuiteCheckResult | None = None
+    # dirtygates Order 05 (`ajxr5d`) E-01: `integration_gate_relevant` KEEPS its `not is_review` term,
+    # and that is the SPLIT rather than an omission.
+    #
+    # This flag gates three things at once, which is exactly the overload finding F-7 warns about: the
+    # SUITE CHECK just below, `driver_finalize`, and the merge-back. The first two must stay
+    # review-exempt (a review runs no suite check and must never perform a terminal transition), so
+    # DELETING `not is_review` here - the tempting one-line "fix" - would make a review claim execution
+    # authority it must not have. Only the MERGE is wanted for a review, so the merge gets its own branch
+    # below and this condition is left exactly as it was.
     integration_gate_relevant = (
         self_finalize
         and not is_review
@@ -7684,6 +8027,144 @@ def execute_item(
         item["integration_signal"] = integration.signal
         item["verifier_ran"] = bool(validate)
     save_state(run_dir, state)
+
+    # dirtygates Order 05 (`ajxr5d`) E-03/E-05/E-10: LAND A REVIEW'S TWO FILES THROUGH ONE MERGE.
+    #
+    # This is the SPLIT half of the guard above: the merge a review wants, without the suite check,
+    # `driver_finalize`, or any lifecycle transition it must not perform. `integrate_review_lane_branch`
+    # takes no `validation_runner` at all, so the revalidation step is skipped STRUCTURALLY rather than
+    # by any fabricated "validation passed" value (OQ-01's load-bearing line).
+    #
+    # THE LANE IS NOT TORN DOWN HERE, deliberately, and this is the difference between a per-item lane
+    # and a sweep lane: the SAME tree serves every review in the run, so tearing it down after this
+    # review would destroy the lane the next one needs. Its retirement is the coordinator's, once, at
+    # run end (E-11, `runner_shared.retire_review_sweep_lane`).
+    if is_review and wt_handle is not None:
+        # FIRST land the turn's own output ON THE LANE, because `integrate_lane_branch` merges the BRANCH
+        # and cannot see uncommitted files. A review that committed for itself makes this a no-op; a review
+        # that did not would otherwise have its plan edit and review record DESTROYED with the lane, which
+        # is strictly worse than the dirty tree this plan removes. Path-scoped, hooks ran, no `add -A`.
+        review_commit, review_committed_paths = runner_shared.commit_review_lane_output(
+            repo, wt_handle, item["id6"], host_label="aw oc run"
+        )
+        if review_commit:
+            attempt["review_lane_commit"] = review_commit
+            attempt["review_lane_committed_paths"] = list(review_committed_paths)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "review-lane-output-committed",
+                    "id6": item["id6"],
+                    "commit": review_commit,
+                    "paths": list(review_committed_paths),
+                },
+            )
+        elif review_committed_paths:
+            # Staged but NOT committed: a hook refused. Record it, leave the work in the lane.
+            attempt["review_lane_commit_refused"] = list(review_committed_paths)
+        review_scope = None
+        try:
+            lane_changed = build_lane_outcome(repo, wt_handle, item["id6"]).changed_files
+        except Exception as exc:  # pragma: no cover - defensive; never kill a turn over reporting
+            lane_changed = ()
+            attempt["review_scope_error"] = f"{type(exc).__name__}: {exc}"
+        if lane_changed:
+            # E-10: NAME what this review wrote beyond its own two files, and say so LOUDLY when the
+            # extra path belongs to an item still QUEUED in this run. That is the measured harm (F-9):
+            # reviewing an orchestrator rewrote three sibling child plans that had not had their turns,
+            # and nothing checked it because `_compute_scope_reconciliation` is reachable only from
+            # `driver_finalize`, which a review never calls. The shape chosen is PERMIT-AND-RECONCILE
+            # rather than REFUSE, because an orchestrator review legitimately reads (and may correct) its
+            # children; the objection was that it did so SILENTLY.
+            review_scope = runner_shared.classify_review_writes(
+                lane_changed,
+                id6=item["id6"],
+                queued_id6s=[
+                    entry.get("id6", "")
+                    for entry in state.get("queue", [])
+                    if entry.get("status") == "queued"
+                ],
+            )
+            attempt["review_write_scope"] = {
+                "changed": list(review_scope.changed),
+                "allowed": list(review_scope.allowed),
+                "out_of_scope": list(review_scope.out_of_scope),
+                "queued_siblings": list(review_scope.queued_siblings),
+            }
+            item["review_write_scope"] = attempt["review_write_scope"]
+            if not review_scope.clean:
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "review-wrote-out-of-scope-paths",
+                        "id6": item["id6"],
+                        "out_of_scope": list(review_scope.out_of_scope),
+                        "queued_siblings": list(review_scope.queued_siblings),
+                        "detail": runner_shared.describe_review_write_scope(
+                            review_scope, id6=item["id6"]
+                        ),
+                    },
+                )
+                print(
+                    pal(
+                        "  ! "
+                        + runner_shared.describe_review_write_scope(
+                            review_scope, id6=item["id6"]
+                        ),
+                        "yellow",
+                    ),
+                    file=sys.stderr,
+                )
+            save_state(run_dir, state)
+
+        review_integrated, review_reason, review_kind = integrate_review_lane_branch(
+            repo, wt_handle, item["id6"]
+        )
+        attempt["review_integrated"] = review_integrated
+        attempt["review_integration_reason"] = review_reason
+        attempt["review_integration_kind"] = review_kind
+        item["review_integrated"] = review_integrated
+        save_state(run_dir, state)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": (
+                    "review-lane-integrated"
+                    if review_integrated
+                    else "review-lane-not-integrated"
+                ),
+                "id6": item["id6"],
+                "branch": wt_handle.branch,
+                "kind": review_kind,
+                "detail": review_reason,
+            },
+        )
+        if not review_integrated:
+            # FAIL CLOSED and SAY SO. Main is untouched (the shared function aborts a real conflict and
+            # never starts a refused merge), the review's work is still on the sweep lane, and the
+            # coordinator's retirement will PRESERVE that lane rather than force-remove it. This is the
+            # accepted cost of one shared lane, stated when OQ-02 was decided: a stranded review, never
+            # a lost edit.
+            item["review_integration_refusal"] = review_reason
+            save_state(run_dir, state)
+            print(
+                pal(
+                    f"  ! review {item['id6']} was NOT integrated to main ({review_kind}): "
+                    f"{review_reason}. Its work is preserved on {wt_handle.branch}.",
+                    "yellow",
+                ),
+                file=sys.stderr,
+            )
+        else:
+            print(
+                pal(
+                    f"  \u2713 review {item['id6']} integrated to main ({review_reason})",
+                    "cyan",
+                )
+            )
 
     # driverfin-01 (p7peqf): self-finalize step 2 - after an execute turn that EARNED integration, run
     # the gated `aw ipd finalize` with programmatic two-way scope reconciliation. GATE PRECISION: before
@@ -7999,7 +8480,17 @@ def execute_item(
     # finalize refused, or integration was deferred), PRESERVE it attributably rather than tearing it
     # away (forward-progress rule: never discard work). The branch holds the agent's commits; child-03
     # owns the guard + resolution. Record the preserved location so a later turn can find it.
-    if wt_handle is not None and item.get("status") != "executed":
+    #
+    # dirtygates Order 05 (`ajxr5d`) E-01/E-11: A REVIEW IS EXCLUDED, and this exclusion is required
+    # rather than tidy. This block's condition is `status != "executed"`, and a successful review's status
+    # is `reviewed` or `approved`, so without the exclusion EVERY review - including one that integrated
+    # perfectly - would be recorded as a lane "whose work was never integrated". That is false, and it is
+    # false in a load-bearing way: `preserved_*` is what `retry_deferred_integrations` and the lane
+    # reclaimer read, so a clean sweep would advertise a stranded lane that holds nothing. A REVIEW LANE's
+    # preservation decision belongs to the coordinator's retirement (`retire_review_sweep_lane`), which
+    # classifies the lane's actual CONTENT instead of inferring from one item's status - and which is also
+    # the only owner that can be right, since the same lane serves many items.
+    if wt_handle is not None and not is_review and item.get("status") != "executed":
         # lanectn xdr83v E-03 (spec R5.6, R6.1): the `preserved_*` field writes and the preservation
         # EVENT were an inline copy here and in `agy_runipd`; both now call the ONE shared emitter, so
         # the event's shape and the field set have a single definition and every preservation carries a
@@ -8026,6 +8517,21 @@ def execute_item(
 
     full_auto = state.get("options", {}).get("full_auto", False)
     auto_approved = False
+    # dirtygates Order 05 (`ajxr5d`) E-05: THIS STEP MUST RUN AFTER THE MERGE, and it does - the review
+    # integration block sits several hundred lines above, so the promotion below reads the POST-MERGE
+    # plan on MAIN. VERIFIED BY ORDERING rather than asserted: `integrate_review_lane_branch` is called
+    # from the `is_review and wt_handle is not None` branch earlier in this same function, and there is
+    # no path that reaches here without passing it.
+    #
+    # WHY THE ORDER IS LOAD-BEARING IN BOTH DIRECTIONS. It is not only a stale READ. This branch also
+    # WRITES: `set_plan_approved` shells out to `aw set` against `repo`, i.e. MAIN. Before this plan a
+    # review left the tree dirty anyway so the write was merely one more mid-run write; now that a review
+    # is isolated, running the promotion BEFORE the merge would be the one remaining write into the
+    # shared checkout mid-turn - the exact class of write this plan exists to remove. Ordering it after
+    # the merge fixes the stale read AND the stray write in one move.
+    #
+    # IT MUST STAY `auto-approved` AND NEVER `--by-human`. `set_plan_approved`'s docstring records that
+    # the machine asserting a human attestation was a defect deliberately fixed; do not "simplify" it.
     if is_review and disposition in ("reviewed", "approved") and full_auto:
         plan_curr = resolve_plan_path(repo, item["configured_file"], item["id6"])
         # The SHARED predicate (fullauto 97df1z): structured `- Readiness:` first, bounded
@@ -8625,6 +9131,28 @@ def run_queue(
             )
             print(f"IPD {runnable['id6']} failed safely: {exc}", file=sys.stderr)
     state = load_state(run_dir)
+    # dirtygates Order 05 (`ajxr5d`) E-11: RETIRE THE REVIEW SWEEP LANE, once, HERE.
+    #
+    # WHY HERE AND NOT PER ITEM. The sweep lane is ONE tree serving every review in the run, so the only
+    # correct owner of its teardown is the coordinator at the point where no further review can be
+    # dispatched. A per-item teardown would delete the lane the next review needs. This also closes the
+    # gap finding F-12 measured: `teardown_isolation_worktree` has exactly ONE call site per host and it
+    # is gated on `driver_finalize`'s return code, which a review never produces, so a review lane had NO
+    # reachable teardown at any nesting.
+    #
+    # IT CLASSIFIES BEFORE DESTROYING and therefore PRESERVES a lane that still holds work - a stranded
+    # review whose merge conflicted, or an interrupt between reviews. That is the shared spec-R5.5 gate's
+    # decision, not a second classifier: `teardown_isolation_worktree`'s own docstring forbids calling it
+    # on a lane holding work, and force-removing a stranded review's lane would turn a recoverable
+    # stranding into destroyed work.
+    #
+    # PLACED AFTER THE LOOP AND BEFORE THE REPORT so the report renders the retirement's outcome; and it
+    # is IDEMPOTENT, so wiring it into a second exit path later cannot double-retire.
+    with contextlib.suppress(Exception):
+        runner_shared.retire_review_sweep_lane(
+            Path(state["repo"]), run_dir, state, save_state=save_state
+        )
+        state = load_state(run_dir)
     write_report(run_dir, state)
     pal = Palette(should_color(sys.stdout))
     exit_reason = None
@@ -8846,7 +9374,9 @@ SELECTOR TYPES:
   - id6:      6-character unique ID (e.g. 'pr2nd0', '5ahblp')
   - setid:    IPD Set identifier (e.g. 'ipdrunner', 'execset')
   - filename: Path or filename of an IPD file (e.g. '.aw/records/plans/pending/...ipd.md')
-  - reviews:  Every IPD whose next legal action is review, swept in one shared session.
+  - reviews:  Every IPD whose next legal action is review, swept in one shared session
+              and one shared isolated worktree (so the sweep never writes to the shared
+              checkout; each review lands as one merge).
               Spelled 'reviews', 'review', or 'to-review'. Selects IPDs only; specs and
               backlog items are not reachable by any selector yet. Matching nothing is a
               success and exits 0, because a repository with nothing awaiting review is
@@ -8857,7 +9387,10 @@ SELECTOR TYPES:
 
 AUTOMATIC STATUS ROUTING:
   - to-review: Runs OpenCode with `/plan-review <plan_path>` to review and improve the plan.
-               All reviews in a run share the same OpenCode session for continuity.
+               All reviews in a run share the same OpenCode session for continuity, and
+               they run in ONE shared isolated worktree, so no review writes to the shared
+               checkout. Each review's plan edit and review record reach the main checkout
+               together, as one merge, after its turn.
   - approved:  Executes the plan step-by-step according to the execution runbook.
 
 LAUNCH IDENTITY (model / variant / agent):

@@ -1178,6 +1178,32 @@ class WrapperTests(unittest.TestCase):
         ("agy_runipd", "save_state"): 1,
     }
 
+    #: dirtygates-05 (`ajxr5d`): THE REVIEW SWEEP LANE's new callers, SIX per host, each NAMED as this
+    #: table's rule requires ("it is for a NEW caller only ... If a count moves and you cannot name the
+    #: new call site, the wrapper ruling has been undone").
+    #:
+    #: WHERE, per host, all six inside `execute_item` except the last:
+    #:   1. the sweep-lane ACQUISITION branch, persisting the lane record on this attempt;
+    #:   2. its FAIL-CLOSED arm, persisting the `blocked` refusal before returning (mirroring what the
+    #:      execute path's own allocation-failure arm does);
+    #:   3. the review PROMPT REBUILD, persisting the lane-relative prompt + input manifest;
+    #:   4. the review WRITE-SCOPE record (E-10), persisting which paths the review touched;
+    #:   5. the review INTEGRATION result, persisting whether the two files reached main;
+    #:   6. its refusal arm, persisting the preserved-lane reason.
+    #: A SEVENTH sits in `run_queue` rather than `execute_item`, and it is not counted here because it is
+    #: not a direct `save_state(` call: the coordinator's sweep-lane RETIREMENT (E-11) passes `save_state`
+    #: as a NAME to `runner_shared.retire_review_sweep_lane`, which is an injection and not a call site -
+    #: the same distinction `run_checked`'s wrapper already relies on.
+    #:
+    #: NO EXISTING CALL SITE WAS REWRITTEN, which is the only thing the wrapper ruling protects. The
+    #: sweep lane's allocation, refresh, teardown and write-scope classification are all in
+    #: `runner_shared`/`lane_containment`, so neither host carries a second copy of any decision; each
+    #: contributes only its own wiring and its own `host_label`/`action_kind` bindings.
+    REVIEW_SWEEP_LANE_CALL_SITES = {
+        ("oc_runipd", "save_state"): 6,
+        ("agy_runipd", "save_state"): 6,
+    }
+
     def call_sites(self, runner: str, name: str) -> int:
         tree = ast.parse(module_source(_MODULES[runner]))
         return sum(
@@ -1219,6 +1245,7 @@ class WrapperTests(unittest.TestCase):
                 expected += self.CLEAN_BASE_GUARD_CALL_SITES.get((runner, name), 0)
                 expected += self.INTEGRATION_LADDER_CALL_SITES.get((runner, name), 0)
                 expected += self.LANE_BACKLOG_CLOSE_CALL_SITES.get((runner, name), 0)
+                expected += self.REVIEW_SWEEP_LANE_CALL_SITES.get((runner, name), 0)
                 self.assertEqual(
                     self.call_sites(runner, name),
                     expected,
@@ -2079,6 +2106,10 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                     self._passing_runner(),
                     host_label="aw oc run",
                     run_checked=oc_runipd.run_checked,
+                    # dirtygates-05 (`ajxr5d`) E-03: the EXECUTE kind, stated explicitly. These cases are
+                    # about the merge failure classes, which are shared by both kinds, so `execute` keeps
+                    # them asserting exactly what they asserted before (the revalidation gate still runs).
+                    action_kind=runner_shared.INTEGRATION_ACTION_EXECUTE,
                 )
                 self.assertEqual(
                     kind,
@@ -2098,6 +2129,10 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                     self._passing_runner(),
                     host_label="aw oc run",
                     run_checked=oc_runipd.run_checked,
+                    # dirtygates-05 (`ajxr5d`) E-03: the EXECUTE kind, stated explicitly. These cases are
+                    # about the merge failure classes, which are shared by both kinds, so `execute` keeps
+                    # them asserting exactly what they asserted before (the revalidation gate still runs).
+                    action_kind=runner_shared.INTEGRATION_ACTION_EXECUTE,
                 )
                 self.assertEqual(
                     kind,
@@ -2125,6 +2160,10 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                     self._passing_runner(),
                     host_label="aw oc run",
                     run_checked=oc_runipd.run_checked,
+                    # dirtygates-05 (`ajxr5d`) E-03: the EXECUTE kind, stated explicitly. These cases are
+                    # about the merge failure classes, which are shared by both kinds, so `execute` keeps
+                    # them asserting exactly what they asserted before (the revalidation gate still runs).
+                    action_kind=runner_shared.INTEGRATION_ACTION_EXECUTE,
                 )
             self.assertEqual(kind, "integration-blocked")
             self.assertNotIn(
@@ -2149,6 +2188,10 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                     self._passing_runner(),
                     host_label="aw oc run",
                     run_checked=oc_runipd.run_checked,
+                    # dirtygates-05 (`ajxr5d`) E-03: the EXECUTE kind, stated explicitly. These cases are
+                    # about the merge failure classes, which are shared by both kinds, so `execute` keeps
+                    # them asserting exactly what they asserted before (the revalidation gate still runs).
+                    action_kind=runner_shared.INTEGRATION_ACTION_EXECUTE,
                 )
             self.assertEqual(kind, "merge-conflict")
             self.assertIn(["merge", "--abort"], calls)

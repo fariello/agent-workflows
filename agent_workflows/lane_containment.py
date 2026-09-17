@@ -3338,6 +3338,109 @@ def teardown_lane_if_classified(
     return LaneTeardownDecision(torn_down=True, inventory=inventory)
 
 
+def teardown_review_sweep_lane(
+    *,
+    repo: Path,
+    handle: Any,
+    run_dir: Path | None = None,
+    items: Sequence[dict[str, Any]] | None = None,
+    teardown: Callable[[Path, Any], None] | None = None,
+    git_runner: Callable[[Path, list[str]], tuple[int, str, str]] | None = None,
+) -> LaneTeardownDecision:
+    """Retire the REVIEW SWEEP LANE at the end of a sweep, classifying before destroying anything.
+
+    dirtygates Order 05 (`ajxr5d`) E-11. THE PROBLEM THIS SOLVES, AST-verified at review round 2: the
+    per-item teardown call site is reachable only through `if fin_rc == 0:` where `fin_rc` is
+    `driver_finalize`'s return code, and a review MUST NEVER call `driver_finalize`. So a review lane had
+    NO reachable teardown at any nesting, and no split of the enclosing integration guard could supply
+    one. This is that teardown, and it is COORDINATOR-OWNED and runs ONCE, matching the sweep lane's
+    single allocation: putting it on the per-item path would destroy the lane the NEXT review needs.
+
+    IT IS NOT UNCONDITIONAL, which is the load-bearing half. `runner_shared.teardown_isolation_worktree`
+    force-removes the worktree AND deletes the branch, and its own docstring states it "must only ever be
+    called on a lane that holds NO work". A sweep that ends with an UNMERGED review - a stranded conflict,
+    or an interrupted run - has a lane that DOES hold work. So this delegates to the EXISTING
+    `teardown_lane_if_classified` gate (spec R5.5), which inventories the lane first (including ignored
+    files) and REFUSES while it holds a dirty tracked file, unknown content, or an uncollected
+    submission. No second classifier is written and no second teardown path exists.
+
+    `items` IS EVERY ITEM THAT USED THE LANE, and it exists because the retention question is per ITEM
+    while the lane is SHARED. MEASURED while writing this plan's regression: with no item at all,
+    `submission_retention` answers "uncollected" by design ("absence means NOT collected", spec R2.5),
+    which is the correct fail-toward-preservation answer for one item but makes a SHARED lane
+    permanently unretirable no matter how clean it is. Passing ONE arbitrary item would be worse than
+    either, since it would answer a question about that item's submissions and silently call it the
+    lane's verdict.
+
+    SO EVERY ITEM MUST BE ACCOUNTED FOR, and the gate is run once per item with the SAME lane: the lane
+    is authorized for teardown only when NO item leaves an unexplained path or an uncollected
+    submission, and each item's own collected paths are what authorize discarding its own files. That
+    keeps R5.5's meaning ("the inventory accounts for ALL of it") true for a lane with many owners
+    instead of quietly weakening it to "accounts for one owner's part of it".
+
+    `items=None` still refuses on the submission question, which is the honest answer for a caller that
+    cannot say who used the lane: it does not know, so it preserves.
+    """
+    if not items:
+        return teardown_lane_if_classified(
+            repo=repo,
+            handle=handle,
+            run_dir=run_dir,
+            item=None,
+            teardown=teardown,
+            git_runner=git_runner,
+        )
+
+    # PROBE FIRST, DESTROY LAST. Every item's inventory must classify before anything is removed, so a
+    # lane is never half-torn-down because item 3 turned out to hold something.
+    worst: LaneInventory | None = None
+    accounted: set[str] = set()
+    for item in items:
+        probe = inventory_lane(
+            lane_root=getattr(handle, "path", ""),
+            run_dir=run_dir,
+            item=item,
+            git_runner=git_runner,
+        )
+        if not probe.readable or probe.uncollected_submission:
+            # An unreadable lane or an uncollected submission is a REFUSAL for the whole lane: neither is
+            # something another item's receipt can explain away.
+            return LaneTeardownDecision(torn_down=False, inventory=probe)
+        accounted.update(probe.discardable)
+        worst = probe if worst is None else worst
+
+    # NOW the union: a path one item's receipt accounts for is accounted for, full stop. The final
+    # verdict is computed from the LAST probe's unknown set minus everything any item explained.
+    final = inventory_lane(
+        lane_root=getattr(handle, "path", ""),
+        run_dir=run_dir,
+        item=items[-1],
+        git_runner=git_runner,
+    )
+    remaining_untracked = tuple(
+        p for p in final.unknown_untracked if p not in accounted
+    )
+    remaining_ignored = tuple(p for p in final.unknown_ignored if p not in accounted)
+    remaining_tracked = tuple(p for p in final.dirty_tracked if p not in accounted)
+    resolved = final._replace(
+        dirty_tracked=remaining_tracked,
+        unknown_untracked=remaining_untracked,
+        unknown_ignored=remaining_ignored,
+    )
+    if not resolved.classified:
+        return LaneTeardownDecision(torn_down=False, inventory=resolved)
+    remove = teardown or runner_shared.teardown_isolation_worktree
+    try:
+        remove(repo, handle)
+    except Exception as exc:
+        return LaneTeardownDecision(
+            torn_down=False,
+            inventory=resolved,
+            error="{0}: {1}".format(type(exc).__name__, exc),
+        )
+    return LaneTeardownDecision(torn_down=True, inventory=resolved)
+
+
 #: The ONE preservation event name (spec R5.6, orchestrator CID-2). The driver ALREADY emitted this
 #: event when a non-executed item's lane survived; `record_lane_preserved` below is now its single
 #: emitter, and the retention refusal reuses it rather than introducing a second preservation event

@@ -122,62 +122,112 @@ class SessionRotationTests(unittest.TestCase):
             "Turn 5 must rotate to a fresh session when max_items_per_session is 4",
         )
 
+    # dirtygates-05 (`ajxr5d`) E-04: THE THREE `execute_item` ROTATION TESTS BELOW EACH ASSERT BOTH
+    # SESSION HOMES NOW, and the reason is that this plan gave a review its own one.
+    #
+    # WHAT CHANGED AND WHY THESE TESTS HAD TO. Each of these used a REVIEW item to exercise the SET
+    # session's rotation and consistency rules, because a review was the only action that still shared a
+    # session at all (every isolated execute turn already gets a fresh one). A review now runs in the ONE
+    # sweep lane and carries the sweep's OWN run-level session key, so a review no longer writes
+    # `set_sessions` - which is deliberate: promoting a lane session into the set key is what would re-arm
+    # `xd9sll`'s cross-tree carryover for a LATER execute turn in that same set.
+    #
+    # SO EACH TEST NOW PINS THE RULE TWICE rather than being retargeted at whichever path still happens to
+    # pass. The isolated review must obey the rule under the SWEEP key, and a NON-isolated review must
+    # still obey it under `set_sessions` exactly as before (spec R1.3: non-isolated execution is a
+    # supported mode, not a degraded one). Asserting only one of the two would let a regression in the
+    # other pass silently, which is precisely how a rule with two homes rots.
+    def _rotation_state(self, *, max_items: int, isolated: bool) -> dict:
+        state = self._make_state(max_items=max_items)
+        state["options"]["isolate_worktree"] = isolated
+        return state
+
     def test_oc_runipd_planned_rotation_in_execute_item_does_not_raise(self):
-        """execute_item accepts a new session ID when planned rotation occurred."""
-        state = self._make_state(max_items=2)
-        state["set_sessions"]["demo"] = "mock_session_old"
-        state["session_turn_counts"]["mock_session_old"] = 2
-        item = {
-            "id6": "test01",
-            "setid": "demo",
-            "position": 1,
-            "action": "review",
-            "configured_file": "plan.ipd.md",
-            "attempts": [],
-        }
+        """execute_item accepts a new session ID when planned rotation occurred (BOTH homes)."""
+        for isolated, key in ((True, "sweep"), (False, "set")):
+            with self.subTest(isolated=isolated):
+                state = self._rotation_state(max_items=2, isolated=isolated)
+                if key == "sweep":
+                    state[oc_runipd.runner_shared.REVIEW_SWEEP_SESSION_KEY] = (
+                        "mock_session_old"
+                    )
+                else:
+                    state["set_sessions"]["demo"] = "mock_session_old"
+                state["session_turn_counts"]["mock_session_old"] = 2
+                item = {
+                    "id6": "test01",
+                    "setid": "demo",
+                    "position": 1,
+                    "action": "review",
+                    "configured_file": "plan.ipd.md",
+                    "attempts": [],
+                }
 
-        def mock_run_opencode(*args, **kwargs):
-            return 0, "mock_session_new", self.run_dir / "turn.log", ["opencode", "run"]
+                def mock_run_opencode(*args, **kwargs):
+                    return (
+                        0,
+                        "mock_session_new",
+                        self.run_dir / "turn.log",
+                        ["opencode", "run"],
+                    )
 
-        with patch(
-            "agent_workflows.oc_runipd.run_opencode", side_effect=mock_run_opencode
-        ), patch(
-            "agent_workflows.oc_runipd.reconcile_disposition",
-            return_value=("reviewed", {"status": "reviewed"}),
-        ):
-            oc_runipd.execute_item(self.run_dir, state, item, False)
+                with patch(
+                    "agent_workflows.oc_runipd.run_opencode",
+                    side_effect=mock_run_opencode,
+                ), patch(
+                    "agent_workflows.oc_runipd.reconcile_disposition",
+                    return_value=("reviewed", {"status": "reviewed"}),
+                ):
+                    oc_runipd.execute_item(self.run_dir, state, item, False)
 
-        self.assertEqual(state["set_sessions"]["demo"], "mock_session_new")
-        self.assertEqual(state["session_turn_counts"]["mock_session_new"], 1)
+                if key == "sweep":
+                    self.assertEqual(
+                        state[oc_runipd.runner_shared.REVIEW_SWEEP_SESSION_KEY],
+                        "mock_session_new",
+                    )
+                    # AND the set key is UNTOUCHED, which is the half that keeps the carryover closed.
+                    self.assertNotIn("demo", state.get("set_sessions", {}))
+                else:
+                    self.assertEqual(state["set_sessions"]["demo"], "mock_session_new")
+                self.assertEqual(state["session_turn_counts"]["mock_session_new"], 1)
 
     def test_oc_runipd_unplanned_session_change_raises_driver_error(self):
-        """execute_item raises DriverError if session changed unexpectedly before limit."""
-        state = self._make_state(max_items=4)
-        state["set_sessions"]["demo"] = "mock_session_old"
-        state["session_turn_counts"]["mock_session_old"] = 1  # Only 1 turn (limit is 4)
-        item = {
-            "id6": "test01",
-            "setid": "demo",
-            "position": 1,
-            "action": "review",
-            "configured_file": "plan.ipd.md",
-            "attempts": [],
-        }
+        """execute_item raises DriverError if the session changed unexpectedly (BOTH homes)."""
+        for isolated, key in ((True, "sweep"), (False, "set")):
+            with self.subTest(isolated=isolated):
+                state = self._rotation_state(max_items=4, isolated=isolated)
+                if key == "sweep":
+                    state[oc_runipd.runner_shared.REVIEW_SWEEP_SESSION_KEY] = (
+                        "mock_session_old"
+                    )
+                else:
+                    state["set_sessions"]["demo"] = "mock_session_old"
+                # Only 1 turn (limit is 4), so no rotation is due and the change is unexplained.
+                state["session_turn_counts"]["mock_session_old"] = 1
+                item = {
+                    "id6": "test01",
+                    "setid": "demo",
+                    "position": 1,
+                    "action": "review",
+                    "configured_file": "plan.ipd.md",
+                    "attempts": [],
+                }
 
-        def mock_run_opencode(*args, **kwargs):
-            return (
-                0,
-                "mock_session_unexp",
-                self.run_dir / "turn.log",
-                ["opencode", "run"],
-            )
+                def mock_run_opencode(*args, **kwargs):
+                    return (
+                        0,
+                        "mock_session_unexp",
+                        self.run_dir / "turn.log",
+                        ["opencode", "run"],
+                    )
 
-        with patch(
-            "agent_workflows.oc_runipd.run_opencode", side_effect=mock_run_opencode
-        ):
-            with self.assertRaises(oc_runipd.DriverError) as ctx:
-                oc_runipd.execute_item(self.run_dir, state, item, False)
-            self.assertIn("changed session unexpectedly", str(ctx.exception))
+                with patch(
+                    "agent_workflows.oc_runipd.run_opencode",
+                    side_effect=mock_run_opencode,
+                ):
+                    with self.assertRaises(oc_runipd.DriverError) as ctx:
+                        oc_runipd.execute_item(self.run_dir, state, item, False)
+                    self.assertIn("changed session unexpectedly", str(ctx.exception))
 
     def test_oc_runipd_disabled_rotation_with_zero(self):
         """When max_items_per_session is 0, session rotation is disabled."""
@@ -189,42 +239,67 @@ class SessionRotationTests(unittest.TestCase):
         self.assertEqual(argv[argv.index("--session") + 1], "mock_session_persist")
 
     def test_agy_runipd_rotation_at_limit(self):
-        """agy_runipd resets session_id and use_continue when threshold is reached."""
-        state = self._make_state(max_items=3)
-        state["set_sessions"]["demo"] = "agy_mock_session_1"
-        state["session_turn_counts"]["agy_mock_session_1"] = 3
-        item = {
-            "id6": "test01",
-            "setid": "demo",
-            "position": 1,
-            "action": "review",
-            "configured_file": "plan.ipd.md",
-            "attempts": [],
-        }
+        """agy_runipd resets session_id and use_continue at the threshold (BOTH homes)."""
+        for isolated, key in ((True, "sweep"), (False, "set")):
+            with self.subTest(isolated=isolated):
+                state = self._rotation_state(max_items=3, isolated=isolated)
+                if key == "sweep":
+                    state[agy_runipd.runner_shared.REVIEW_SWEEP_SESSION_KEY] = (
+                        "agy_mock_session_1"
+                    )
+                else:
+                    state["set_sessions"]["demo"] = "agy_mock_session_1"
+                state["session_turn_counts"]["agy_mock_session_1"] = 3
+                item = {
+                    "id6": "test01",
+                    "setid": "demo",
+                    "position": 1,
+                    "action": "review",
+                    "configured_file": "plan.ipd.md",
+                    "attempts": [],
+                }
 
-        captured_calls = []
+                captured_calls = []
 
-        def mock_run_agy_turn(
-            st, rd, itm, p_path, att_no, session_id=None, use_continue=False, **kwargs
-        ):
-            captured_calls.append(
-                {"session_id": session_id, "use_continue": use_continue}
-            )
-            return 0, "agy_ses_2", rd / "turn.log", ["agy"]
+                def mock_run_agy_turn(
+                    st,
+                    rd,
+                    itm,
+                    p_path,
+                    att_no,
+                    session_id=None,
+                    use_continue=False,
+                    **kwargs,
+                ):
+                    captured_calls.append(
+                        {"session_id": session_id, "use_continue": use_continue}
+                    )
+                    return 0, "agy_ses_2", rd / "turn.log", ["agy"]
 
-        with patch(
-            "agent_workflows.agy_runipd.run_agy_turn", side_effect=mock_run_agy_turn
-        ), patch(
-            "agent_workflows.agy_runipd.reconcile_disposition",
-            return_value=("reviewed", {"status": "reviewed"}),
-        ):
-            agy_runipd.execute_item(self.run_dir, state, item, False)
+                with patch(
+                    "agent_workflows.agy_runipd.run_agy_turn",
+                    side_effect=mock_run_agy_turn,
+                ), patch(
+                    "agent_workflows.agy_runipd.reconcile_disposition",
+                    return_value=("reviewed", {"status": "reviewed"}),
+                ):
+                    agy_runipd.execute_item(self.run_dir, state, item, False)
 
-        self.assertEqual(len(captured_calls), 1)
-        self.assertIsNone(captured_calls[0]["session_id"])
-        self.assertFalse(captured_calls[0]["use_continue"])
-        self.assertEqual(state["set_sessions"]["demo"], "agy_ses_2")
-        self.assertEqual(state["session_turn_counts"]["agy_ses_2"], 1)
+                self.assertEqual(len(captured_calls), 1)
+                # ROTATION HAPPENED: the id is dropped, and `--continue` is NOT used as a substitute for
+                # it (that flag resumes "the previous conversation", which is the carryover `xd9sll`
+                # forbids).
+                self.assertIsNone(captured_calls[0]["session_id"])
+                self.assertFalse(captured_calls[0]["use_continue"])
+                if key == "sweep":
+                    self.assertEqual(
+                        state[agy_runipd.runner_shared.REVIEW_SWEEP_SESSION_KEY],
+                        "agy_ses_2",
+                    )
+                    self.assertNotIn("demo", state.get("set_sessions", {}))
+                else:
+                    self.assertEqual(state["set_sessions"]["demo"], "agy_ses_2")
+                self.assertEqual(state["session_turn_counts"]["agy_ses_2"], 1)
 
 
 if __name__ == "__main__":
