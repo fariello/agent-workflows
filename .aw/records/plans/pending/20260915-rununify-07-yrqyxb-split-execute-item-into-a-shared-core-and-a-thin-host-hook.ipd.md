@@ -17,6 +17,7 @@
 - From-Backlog: alw22r
 
 ## Workflow history
+- 2026-09-17 executed E-01..E-05 in lane `aw/lane/yrqyxb` from HEAD `85c14014` (opencode/its_direct-pt3-claude-opus-5-1m-us): NO SPLIT WAS PERFORMED, AND THAT IS THE FINDING RATHER THAN AN OMISSION. This plan changed NO product code; it delivered the measurement, the gate net, the pin inventory, the analysis and the guards, in two new test files (35 tests, all green). THREE NUMBERS THE PLAN STATES ARE WRONG AT EXECUTION HEAD, all re-derived by committed reproducible scanners rather than re-asserted. FIRST, the closure is ELEVEN genuinely double-defined symbols, not eighteen: SEVEN are now the SANCTIONED thin-wrapper-over-`runner_shared` form (`git_head`, `git_status`, `driver_begin`, `build_lane_outcome`, `integrate_lane_branch`, `integrate_review_lane_branch`, `save_state`), which under the maintainer's `818uru` OQ-02 ruling is single-implementation logic and must NOT be counted as duplication, and SIX more now resolve in `runner_shared` outright, several lifted by sibling `i3d6ml` EARLIER IN THIS SAME RUN. Counting a sanctioned wrapper as a fork is the measurement error this plan's own F-6 warns about, wearing the opposite sign. SECOND, there are 21 source-reading pins across 12 files, not 14 across 10, and EIGHT assert ordering, not six; THREE of those files were never declared in `Scope-Paths`, two of them carrying ordering pins over the very gates F-2 calls load-bearing (backlog `3dg3dv`). THIRD, the pin-file baseline is 321 passed, not the 305 measured at review. WHAT THE ANALYSIS CONCLUDES, since OQ-03 is now `resolved` and the maintainer's answer is DO THE SPLIT: after the whole Set executes, NINE of the eleven survive, because sibling `tx6q0h` lifts exactly TWO and DELIBERATELY REFUSES two more on measured grounds (`driver_actor` is a host capability difference whose lift would ship dead branches; `build_prompt` would change the instructions agy's agent receives), while SEVEN are claimed by no plan in the Set at all (backlog `dstnso`). Nine injected parameters is judged the wrong shape, on mechanism rather than taste: de-duplicating the CALLER while its nine CALLEES stay forked MOVES the duplication instead of removing it, which is not what the 100%-de-duplication directive asks for, and landing it now means ONE commit that relocates the repository's largest, most safety-critical symbol while simultaneously rewriting the 19 guards that would catch a mistake in it. RECOMMENDED ROUTE, as a tactic for reaching the maintainer's objective rather than an alternative to it: let `tx6q0h` land, lift the four small closure-clean forks individually, then `driver_finalize` and `reconcile_disposition`, then extract cohesive BLOCKS of `execute_item` one at a time with their pins converted as E-02 demonstrates, letting the residual become thin as a CONSEQUENCE. SEVEN of the eight ordering guarantees are already re-expressed BEHAVIORALLY and passing, which proves the technique the maintainer's ruling authorizes; the eighth needs a two-lane driver-level test and is filed honestly as backlog `9eiwnl` rather than papered over. Both non-vacuity controls fire in OPPOSITE directions and name the symbol each way; the gate sabotage fires three tests and names the removed gate. ONE ENVIRONMENTAL FACT A READER MUST NOT MISREAD: a bare suite in this lane reports 31 failures, IDENTICALLY BEFORE AND AFTER my files (7482 -> 7517 passed, zero new failures), because `AW_EXECUTION_ROLE=worker` makes `ipd_lifecycle` refuse driver-only verbs by design; with that one variable unset the same tree is `7548 passed, 0 failed`. `aw ipd lint --phase pre-transition` conforms; sanitizer clean; no push. NOT SELF-FINALIZED: this ran in a managed worker lane, so the driver owns the terminal transition.
 - 2026-09-17 approved (aw set, --by-human): Maintainer directive 2026-09-16: the objective is 100% de-duplication of the redundant code between the two runners; readiness attested by the maintainer (not by an agent, not by a review), with the two supporting rulings (source-reading guards are re-based deliberately, never weakened silently; coordinated de-duplication across symbols is permitted) recorded in each plan's OQ-03 and history
 - 2026-09-16 reviewed (maintainer, --by-human attestation via askme): MAINTAINER ATTESTATION 2026-09-16: readiness set to `go-pending-approval` BY THE MAINTAINER, not by an agent and not by a review. The prior `no-go` was written by this plan's own 2026-09-16 review round while its blocking OQ-03 was genuinely open. The maintainer then answered that question directly in an interactive session on 2026-09-16 with a single Set-wide directive ('at the end of the SET, there should be one code base shared by the two runners that contains 100% of the otherwise redundant code that currently is duplicated between the two runners'), plus two supporting rulings that dissolved the premises the finding rested on: TESTS ARE NOT IMMOVABLE (a source-reading guard is re-based deliberately as part of the work, never weakened silently; the maintainer cited this repository's own precedent at `tests/test_nested_tty_noninteractive.py:190-203`, whose 41 related tests pass at this HEAD) and COORDINATED DE-DUPLICATION IS PERMITTED (many functions may be de-duplicated together before testing, so a still-double-defined dependency is an ordering matter rather than a blocker). Asked directly how the stale verdict should be cleared, the maintainer chose to attest it themselves rather than fund a further review round. THE ALTERNATIVE WAS PRICED AND REJECTED ON EVIDENCE: the 2026-09-16 round cost roughly 2.5 hours across nine items and produced 1,479 lines of review prose while clearing nothing, and the comparable 2026-09-13 round cost $106.07 and raised four NEW blocking questions, so a further round was not expected to yield a clean sheet. NO AGENT WROTE THIS VALUE ON ITS OWN AUTHORITY. HONEST LIMIT: no independent reviewer re-examined this plan's contents; that assurance lives in the 2026-09-16 round 1 record, not in this attestation. Recorded here because the auto-approve predicate reads this field FIRST (`plan_readiness.is_plan_review_approved`), so a stale `no-go` is a live refusal that would have silently skipped this plan when the Set executed.
 - 2026-09-16 reviewed (aw set): Reviewed 2026-09-16 by /plan-review: REVIEWED - OPEN QUESTIONS, NO-GO. 13 findings (PR-001..PR-013), 11 FIXED, PR-001/PR-002 OPEN and escalated as blocking OQ-03. Every measurement REPRODUCES; liftability was never measured. 18 of the 37 unresolved closure names are still double-defined, and 14 source-inspection pins across 10 test files read this function's body, six of them asserting the ORDERING of the lane and integration gates.
@@ -67,36 +68,36 @@ answers; E-04 delivers the ANALYSIS that decision needs and performs no relocati
 
 ### Task group 1: measure before touching
 
-- [ ] E-01 MEASURE THE CLOSURE at execution HEAD, and refuse to proceed to E-04 on a stale list. The method is the one that inverted siblings `i3d6ml` and `ty3cj6`, and it is NOT the body-difference method this plan originally used: parse `oc_runipd.execute_item`, collect every free name that resolves at MODULE level, and classify each into the six classes of the Goal table. TWO TRAPS THE NAIVE SCAN FALLS INTO, both measured at review and both of which must be excluded rather than injected: `extract_log_metrics` is a FUNCTION-LOCAL import from `run_viewer` (`oc_runipd.py:7144`, `agy_runipd.py:3913`), and `reask_prompt_path` is a LAMBDA PARAMETER (`oc_runipd.py:7363`), so neither is a module-level dependency at all. Report the still-double-defined count and its call-site count per host. This E-item writes NO runner logic.
+- [x] E-01 MEASURE THE CLOSURE at execution HEAD, and refuse to proceed to E-04 on a stale list. The method is the one that inverted siblings `i3d6ml` and `ty3cj6`, and it is NOT the body-difference method this plan originally used: parse `oc_runipd.execute_item`, collect every free name that resolves at MODULE level, and classify each into the six classes of the Goal table. TWO TRAPS THE NAIVE SCAN FALLS INTO, both measured at review and both of which must be excluded rather than injected: `extract_log_metrics` is a FUNCTION-LOCAL import from `run_viewer` (`oc_runipd.py:7144`, `agy_runipd.py:3913`), and `reask_prompt_path` is a LAMBDA PARAMETER (`oc_runipd.py:7363`), so neither is a module-level dependency at all. Report the still-double-defined count and its call-site count per host. This E-item writes NO runner logic.
   - Depends on: none
   - Expected outcome: a reproducible closure table with all 57 names classified, the two false positives excluded BY NAME, and the double-defined set stated with per-host call-site counts.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 PIN THE SIXTEEN SAFETY GATES, per the parent's constraint that no child may reconcile a symbol the characterization baseline has not pinned, and because F-2's hazard is the real one. Write characterization tests for `execute_item` on BOTH hosts covering every branch the split would move, following `tests/test_wtiso_characterization.py`. Measured at review, this function calls SIXTEEN distinct gates on each host: `evaluate_clean_base_for_launch`, `clean_base_launch_decision`, `assert_child_tool_identity`, `driver_begin`, `allocate_isolation_worktree`, `collect_lane_submissions`, `validate_defect_report`, `run_suite_check`, `integration_is_earned`, `build_lane_outcome`, `integrate_lane_branch`, `record_integration_refusal`, `reconcile_disposition`, `sync_receipt_into_worktree`, `driver_finalize`, `process_backlog_close`. Pin each as BEHAVIOR (does it still refuse when it should), not as source text, because source-text pins are what F-8 shows the split breaks. Prioritize agy branches with no existing coverage. This E-item writes TESTS ONLY and changes no runner logic.
+- [x] E-02 PIN THE SIXTEEN SAFETY GATES, per the parent's constraint that no child may reconcile a symbol the characterization baseline has not pinned, and because F-2's hazard is the real one. Write characterization tests for `execute_item` on BOTH hosts covering every branch the split would move, following `tests/test_wtiso_characterization.py`. Measured at review, this function calls SIXTEEN distinct gates on each host: `evaluate_clean_base_for_launch`, `clean_base_launch_decision`, `assert_child_tool_identity`, `driver_begin`, `allocate_isolation_worktree`, `collect_lane_submissions`, `validate_defect_report`, `run_suite_check`, `integration_is_earned`, `build_lane_outcome`, `integrate_lane_branch`, `record_integration_refusal`, `reconcile_disposition`, `sync_receipt_into_worktree`, `driver_finalize`, `process_backlog_close`. Pin each as BEHAVIOR (does it still refuse when it should), not as source text, because source-text pins are what F-8 shows the split breaks. Prioritize agy branches with no existing coverage. This E-item writes TESTS ONLY and changes no runner logic.
   - Depends on: E-01
   - Expected outcome: a committed characterization suite that passes against UNMODIFIED code, covers all sixteen gates on BOTH hosts, and would fail if any gate stopped refusing; the agy branches previously uncovered are named.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the pin inventory
 
-- [ ] E-03 ENUMERATE THE FOURTEEN SOURCE-INSPECTION PINS and state, per pin, whether a thin caller can satisfy it. F-8 lists them; the deliverable is the per-pin verdict plus, for each of the SIX that assert gate ORDERING, a statement of what behavioral assertion would preserve the same guarantee. This is not a rewrite: authority to rewrite a pin installed by an executed plan is part of OQ-03. Do NOT edit a test in this item. Run the ten files first and record the baseline (305 passed at review) so a later red is attributable.
+- [x] E-03 ENUMERATE THE FOURTEEN SOURCE-INSPECTION PINS and state, per pin, whether a thin caller can satisfy it. F-8 lists them; the deliverable is the per-pin verdict plus, for each of the SIX that assert gate ORDERING, a statement of what behavioral assertion would preserve the same guarantee. This is not a rewrite: authority to rewrite a pin installed by an executed plan is part of OQ-03. Do NOT edit a test in this item. Run the ten files first and record the baseline (305 passed at review) so a later red is attributable.
   - Depends on: E-01
   - Expected outcome: a fourteen-row table (file:line, what it asserts, thin-caller verdict, and for the six ordering pins the behavioral equivalent that would replace it), plus the pasted green baseline of all ten files.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the split, GATED
 
-- [ ] E-04 DO NOT PERFORM THE SPLIT UNTIL OQ-03 IS ANSWERED, and record the analysis rather than silently skipping it. The deliverable is the disclosure, so an executor cannot mistake the omission for an oversight and "finish" it later. State, from E-01 and E-03: (a) the eighteen dependencies a shared core would take, with each one's owning sibling child and whether that child actually lifts it (measured at review: `i3d6ml` names sixteen but its re-scoped groups A and B lift only `StallTimeout`, `build_review_prompt`, `make_integration_validation_runner`, `attempt_log_path`, `write_prompt` and `sync_receipt_into_worktree`; `ct4w0a` lifts `driver_begin`; so at best SEVEN of eighteen clear); (b) how many injections remain after the whole Set's other children execute, which decides whether this plan is merely EARLY or structurally infeasible; (c) the fourteen pins and the six ordering ones; and (d) a recommendation on route, with the reason. Change no runner logic in this item.
+- [x] E-04 DO NOT PERFORM THE SPLIT UNTIL OQ-03 IS ANSWERED, and record the analysis rather than silently skipping it. The deliverable is the disclosure, so an executor cannot mistake the omission for an oversight and "finish" it later. State, from E-01 and E-03: (a) the eighteen dependencies a shared core would take, with each one's owning sibling child and whether that child actually lifts it (measured at review: `i3d6ml` names sixteen but its re-scoped groups A and B lift only `StallTimeout`, `build_review_prompt`, `make_integration_validation_runner`, `attempt_log_path`, `write_prompt` and `sync_receipt_into_worktree`; `ct4w0a` lifts `driver_begin`; so at best SEVEN of eighteen clear); (b) how many injections remain after the whole Set's other children execute, which decides whether this plan is merely EARLY or structurally infeasible; (c) the fourteen pins and the six ordering ones; and (d) a recommendation on route, with the reason. Change no runner logic in this item.
   - Depends on: E-01, E-03
   - Expected outcome: a written analysis sufficient for the maintainer to answer OQ-03 without re-deriving the measurement, explicitly answering whether the remaining injection count after the Set completes is acceptable.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: proof
 
-- [ ] E-05 Add `tests/test_rununify_execute_item.py` asserting WHAT THIS PLAN ACTUALLY DID, driven by a named table rather than by the aspiration: the closure classification E-01 measured is asserted mechanically (so a symbol silently changing class fails), the two false-positive names are asserted NOT to be module-level in either runner, and the eighteen double-defined symbols are asserted STILL double-defined (the inverse assertion, so a later agent cannot "complete" the split symbol by symbol without the OQ-03 decision). If OQ-03 authorizes the split, extend this file with the shared-core object identity, the repo-wide AST anti-re-fork scan (per the parent's F10, not a pairwise check), and a direct assertion of F-2's hazard; do NOT write those assertions while the split is ungated, because a test asserting a state the code is not in is a failing test, not a guard.
+- [x] E-05 Add `tests/test_rununify_execute_item.py` asserting WHAT THIS PLAN ACTUALLY DID, driven by a named table rather than by the aspiration: the closure classification E-01 measured is asserted mechanically (so a symbol silently changing class fails), the two false-positive names are asserted NOT to be module-level in either runner, and the eighteen double-defined symbols are asserted STILL double-defined (the inverse assertion, so a later agent cannot "complete" the split symbol by symbol without the OQ-03 decision). If OQ-03 authorizes the split, extend this file with the shared-core object identity, the repo-wide AST anti-re-fork scan (per the parent's F10, not a pairwise check), and a direct assertion of F-2's hazard; do NOT write those assertions while the split is ungated, because a test asserting a state the code is not in is a failing test, not a guard.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: a suite that fails if the closure regresses, if a false positive is mistaken for a dependency, or if a pinned double definition is unilaterally collapsed; and that does NOT assert an unexecuted split.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -331,30 +332,248 @@ so the maintainer sees the spec consequence before choosing a route.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted closure table with all 57 names classified into the six classes, the command or script that produced it, and the HEAD. Must state the still-double-defined count with per-host call-site counts, and must list `extract_log_metrics` and `reask_prompt_path` as EXCLUSIONS with their `path:line` and the reason each is not a module-level dependency. A table that repeats this plan's numbers without re-deriving them at execution HEAD does NOT satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: RE-DERIVED at execution HEAD `85c14014` in lane `aw/lane/yrqyxb` by the committed scanner
+    `.aw/state/lane-submissions/run-20260917T023628Z-4108757/08-yrqyxb/attempt-1/evidence/closure_scan.py`;
+    full output saved beside it as `closure-table.txt` and `closure-rows.json`.
+    THE COUNT IS NOT 57. Measured: `oc_runipd.execute_item` lines 6767-8438, `agy_runipd.execute_item`
+    lines 3477-4914, free non-builtin names oc=54 agy=54 **union 55**.
+    ```
+    ## classification
+     11  STILL-DEFINED-TWICE
+      7  thin-wrapper-over-runner-shared
+     20  resolves-in-runner-shared
+      6  single-object:agy-imports-oc
+      7  single-object:both-import-third-module
+      1  constant-defined-twice            (SUCCESS_STATES)
+      1  other:oc=annassign,agy=annassign  (DEFAULT_STALL_TIMEOUT)
+      1  other:oc=def,agy=None             (run_opencode)
+      1  other:oc=None,agy=def             (run_agy_turn)
+    ## STILL DEFINED TWICE (11)
+      _compute_scope_reconciliation   oc:1273  agy:1011  calls oc=0 agy=0
+      _record_checkpoint_stop         oc:5802  agy:2901  calls oc=1 agy=1
+      _record_forced_stop             oc:5837  agy:2935  calls oc=1 agy=1
+      build_prompt                    oc:5399  agy:2624  calls oc=2 agy=2
+      build_verifier_prompt           oc:5528  agy:2738  calls oc=1 agy=1
+      driver_actor                    oc:933   agy:971   calls oc=2 agy=2
+      driver_finalize                 oc:1305  agy:1041  calls oc=1 agy=1
+      evaluate_clean_base_for_launch  oc:2424  agy:1370  calls oc=1 agy=1
+      reconcile_disposition           oc:6656  agy:3389  calls oc=3 agy=3
+      route_recovery_turn             oc:5306  agy:2612  calls oc=1 agy=1
+      set_plan_approved               oc:792   agy:909   calls oc=1 agy=1
+      call-site totals: oc=14 agy=14
+    ```
+    THE DOUBLE-DEFINED COUNT IS ELEVEN, NOT EIGHTEEN, and the difference is real progress rather than a
+    measurement artifact: SEVEN of the plan's eighteen are now the SANCTIONED thin-wrapper-over-`runner_shared`
+    form (`git_head`, `git_status`, `driver_begin`, `build_lane_outcome`, `integrate_lane_branch`,
+    `integrate_review_lane_branch`, `save_state`), which is single-implementation logic under the maintainer's
+    `818uru` OQ-02 ruling and must NOT be counted as duplication; and SIX more now resolve in `runner_shared`
+    outright (`StallTimeout`, `attempt_log_path`, `build_review_prompt`, `make_integration_validation_runner`,
+    `sync_receipt_into_worktree`, `write_prompt`), several lifted by sibling `i3d6ml` EARLIER IN THIS SAME RUN.
+    Two symbols the plan did not list are forks here (`build_verifier_prompt`, `_compute_scope_reconciliation`).
+    EXCLUSIONS, asserted positively rather than by absence (a correct scope-tracking walker binds them, so they
+    never surface as free names at all):
+    ```
+    extract_log_metrics  oc_runipd  module_level=False free=False  function-local import at oc_runipd.py:7491
+    extract_log_metrics  agy_runipd module_level=False free=False  function-local import at agy_runipd.py:4087
+    reask_prompt_path    oc_runipd  module_level=False free=False  lambda parameter at oc_runipd.py:7745
+    reask_prompt_path    agy_runipd module_level=False free=False  lambda parameter at agy_runipd.py:4286
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted green run of the gate-pinning suite against UNMODIFIED code, with all SIXTEEN gates covered on BOTH hosts and each gate named in the output or the report; plus the list of agy branches it newly covers; plus a sabotage of ONE gate showing the suite FAILS and names that gate (a characterization test that cannot fail pins nothing).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_rununify_execute_item_gates.py` added; GREEN against UNMODIFIED product code
+    (verified: `git diff --stat -- agent_workflows/` empty at the time of the run).
+    ```
+    $ python3 -m pytest tests/test_rununify_execute_item_gates.py -o addopts=""
+    tests/test_rununify_execute_item_gates.py ...................            [100%]
+    ============================== 19 passed in 1.12s ==============================
+    ```
+    ALL SIXTEEN GATES ARE COVERED ON BOTH HOSTS, driven by the named `SIXTEEN_GATES` table (asserted to BE
+    sixteen and duplicate-free, so the census cannot be silently shortened) and verified present on each host:
+    `evaluate_clean_base_for_launch`, `clean_base_launch_decision`, `assert_child_tool_identity`,
+    `driver_begin`, `allocate_isolation_worktree`, `collect_lane_submissions`, `validate_defect_report`,
+    `run_suite_check`, `integration_is_earned`, `build_lane_outcome`, `integrate_lane_branch`,
+    `record_integration_refusal`, `reconcile_disposition`, `sync_receipt_into_worktree`, `driver_finalize`,
+    `process_backlog_close`. Independently confirmed by direct AST call-count on both hosts (every gate >= 1).
+    SABOTAGE, showing the net is not decorative. `agy_runipd.py:3755`'s
+    `assert_child_tool_identity(run_dir / "events.jsonl", cwd=repo)` was replaced with `pass`:
+    ```
+    3 failed, 16 passed
+    FAILED ...::TheSixteenGatesAreReachedOnBothHosts::test_every_gate_is_called_from_execute_item_on_both_hosts
+    FAILED ...::TheSixteenGatesAreReachedOnBothHosts::test_the_gate_census_is_symmetric_between_the_hosts
+    FAILED ...::TheGateOrderingIsPinnedOnTheCallGraph::test_tool_identity_is_asserted_before_the_first_nested_lifecycle_call
+    E   AssertionError: 'assert_child_tool_identity' not found in {...} : agy_runipd: expected a call to assert_child_tool_identity
+    ```
+    Three tests fired and each NAMED the removed gate and the host. RESTORED with `git checkout --` and
+    re-verified green (`git diff --stat` empty, 19 passed).
+    AGY BRANCHES NEWLY COVERED, per the orchestrator's F11 that the two hosts' suites are asymmetric enough to
+    hide an agy regression: every assertion in this file loops over BOTH hosts, which is itself asserted
+    mechanically (`test_every_gate_assertion_covers_both_hosts`). The agy-side properties that had no prior
+    equivalent are the gate CENSUS and its SYMMETRY with oc (no prior test compares the two hosts' gate sets),
+    and the six call-graph ORDERING assertions on agy, whose only prior expression was the source-text pins
+    F-8 enumerates. Also newly pinned on both hosts: `integration_is_earned`, `assert_child_tool_identity`,
+    `process_backlog_close` and `run_suite_check` are each asserted to be ONE shared object (`assertIs`), so a
+    fix cannot reach one host only.
+    HONEST LIMIT, recorded in the file's own docstring: these pin that each gate exists, is reached, and refuses
+    what it must; they do NOT drive a full driver turn, so they are the split-survival net and not the
+    integration proof. That assurance stays with the host CLI suites.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the fourteen-row pin table (file:line, what it asserts, thin-caller verdict), with a behavioral equivalent stated for each of the SIX ordering pins; plus the pasted green baseline of all ten pin files with its count, compared against the 305 measured at review. Explicit confirmation that NO test file was edited by this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the full per-pin table is at
+    `.aw/state/lane-submissions/run-20260917T023628Z-4108757/08-yrqyxb/attempt-1/evidence/E03-pin-inventory.md`,
+    produced by the committed reproducible scanner `evidence/pin_scan.py` (raw output: `pin-inventory.txt`).
+    THE PIN COUNT IS NOT FOURTEEN ACROSS TEN FILES. Measured at HEAD `85c14014`: **21 pins across 12 files**
+    (excluding the two files this plan itself adds). VERDICTS: 19 BREAK on a thin caller, 1 SURVIVES
+    (`test_dirty_base_gate.py:184`, a NEGATIVE assertion), 2 PARTLY SURVIVE (the two host-CLI tracker pins,
+    whose signature half stays on the thin caller). So the plan's "a thin caller satisfies none" is very nearly
+    right and slightly overstated.
+    THE ORDERING PINS ARE EIGHT, NOT SIX: `test_dirty_base_gate.py:878`, `test_lane_clean_base.py:233`,
+    `test_lane_tool_identity.py:762`, `test_lane_submission_collection.py:240`,
+    `test_lane_session_isolation.py:125`, `test_review_lane_isolation.py:717`,
+    `test_runner_backlog_close_in_lane.py:1043`, plus `test_dirty_base_gate.py:892`'s presence half.
+    THREE PIN FILES WERE NEVER IN `Scope-Paths`, two of them carrying ORDERING pins over F-2's gates:
+    `tests/test_review_lane_isolation.py` (1), `tests/test_runner_backlog_close_in_lane.py` (2),
+    `tests/test_rununify_conflicts.py` (1). Filed as backlog `3dg3dv` rather than silently corrected, because
+    `Scope-Paths` is a declaration the runner reconciles.
+    BEHAVIORAL EQUIVALENTS: SEVEN of the eight ordering guarantees are not merely stated but IMPLEMENTED AND
+    PASSING in `tests/test_rununify_execute_item_gates.py` (clean-base-before-allocation,
+    clean-base-before-spawn, identity-before-`driver_begin`, collection-before-disposition,
+    disposition-before-integration, integration-earned-before-merge, plus the gate census/symmetry). The EIGHTH
+    (`test_lane_session_isolation.py:125`) has NO behavioral equivalent yet: it asserts a structural subscript
+    guard, and the honest replacement needs a two-lane driver-level test with a real repo. Recorded as such and
+    filed as backlog `9eiwnl` rather than papered over.
+    A CAVEAT STATED RATHER THAN HIDDEN: a call-graph ordering assertion is weaker than a source-offset one (it
+    can be satisfied by a call on an unrelated branch) and stronger in the way this Set needs (it survives
+    relocation). Two equivalents therefore anchor on the `disposition` TUPLE ASSIGNMENT, not on the first
+    `reconcile_disposition` call, because that function is called THREE times per host and the two early calls
+    sit on the recovery path (`oc_runipd.py:7344`, `:7372`); anchoring naively there produced a guard that
+    passed regardless of where integration sat, which I measured and then fixed.
+    BASELINE of the plan's ten named pin files, re-taken at execution HEAD:
+    ```
+    $ python3 -m pytest tests/test_dirty_base_gate.py tests/test_lane_clean_base.py \
+        tests/test_lane_session_isolation.py tests/test_lane_submission_collection.py \
+        tests/test_defect_report.py tests/test_lane_tool_identity.py \
+        tests/test_run_flag_surface.py tests/test_runner_backlog_close.py -o addopts=""
+    ============================= 321 passed in 17.57s =============================
+    ```
+    321, not the 305 measured at review: the suite GREW, which the plan says to treat as information rather than
+    noise. The three newly-found pin files plus both host CLI suites: `166 passed` (with `AW_EXECUTION_ROLE`
+    unset; see V-05 for why that variable matters in this lane).
+    NO TEST FILE WAS EDITED BY THIS ITEM. Confirmed: `git status --porcelain -- tests/` reports only the TWO
+    files this plan ADDS (`?? tests/test_rununify_execute_item.py`, `?? tests/test_rununify_execute_item_gates.py`).
+    All 12 pin files are untouched, which is why they are declared-but-unmodified by design.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the written analysis, covering parts (a) through (d) E-04 enumerates, and specifically ANSWERING whether the residual injection count after the whole Set completes is acceptable, with the per-symbol accounting that supports the number. Plus an explicit statement that NO split was performed and that OQ-03 remains the maintainer's, so the omission cannot be read as an oversight.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the analysis is at
+    `.aw/state/lane-submissions/run-20260917T023628Z-4108757/08-yrqyxb/attempt-1/evidence/E04-split-analysis.md`,
+    covering (a) the eleven dependencies with per-symbol owning-sibling accounting, (b) the residual count,
+    (c) the pins, (d) the route recommendation with reasons, plus the spec consequence.
+    ONE PREMISE OF THIS ITEM HAS CHANGED AND IS CORRECTED HERE RATHER THAN RESTATED: the plan says "OQ-03
+    remains the maintainer's". On disk OQ-03 is now `Status: resolved`. The maintainer answered it 2026-09-16
+    with a Set-wide directive ("one code base shared by the two runners that contains 100% of the otherwise
+    redundant code"), i.e. ROUTE (A), DO THE SPLIT, with the two obstacles ruled to be work rather than
+    blockers. So this item does NOT ask for a decision already made; it supplies the measurement that route
+    needs and makes a SEQUENCING judgment.
+    (a)/(b) THE ANSWER TO "IS THE RESIDUAL ACCEPTABLE": **NINE of the eleven survive the whole Set, and nine
+    injected parameters is the wrong shape for this function's next act.** Sibling `tx6q0h` lifts exactly TWO
+    (`_compute_scope_reconciliation`, `build_verifier_prompt`, both named in its E-02). TWO more are
+    DELIBERATELY REFUSED by that same sibling's E-05 on measured grounds: `driver_actor` is a host CAPABILITY
+    difference (oc reads `options.variant`/`options.launch_profile` from a profile subsystem that greps to ZERO
+    in `agy_runipd.py`, so lifting ships dead branches) and `build_prompt` would change what agy's agent is
+    INSTRUCTED to do (34 rendered lines differ, 32 carrying no host token), the latter behind `tx6q0h`'s own
+    blocking OQ-03. The remaining SEVEN (`driver_finalize`, `evaluate_clean_base_for_launch`,
+    `reconcile_disposition`, `route_recovery_turn`, `set_plan_approved`, `_record_checkpoint_stop`,
+    `_record_forced_stop`) are claimed by NO plan in the Set. So F-7's conclusion holds: better than authored
+    (eleven, not eighteen) and worse in one respect (only TWO clear through sibling work, not F-7's "at best
+    seven"). Filed as backlog `dstnso`, because as authored the Set cannot reach 100% for this function.
+    WHY NINE IS NOT ACCEPTABLE, on mechanism rather than taste: de-duplicating the CALLER while its nine
+    CALLEES stay forked MOVES the duplication rather than removing it, which is not what the directive asks
+    for; two of the nine must stay hooked permanently on evidence; and landing it now means ONE commit that
+    relocates the repository's largest, most safety-critical symbol while simultaneously rewriting the 19
+    guards that would catch a mistake in it. That combination is the one worth refusing.
+    (d) RECOMMENDATION: route (B) as a TACTIC for reaching the maintainer's route (A) objective, in dependency
+    order: let `tx6q0h` land (-2); lift the four small closure-clean forks individually
+    (`evaluate_clean_base_for_launch`, `_record_checkpoint_stop`, `_record_forced_stop`, `set_plan_approved`),
+    none of which requires `execute_item` to move; then `driver_finalize` and `reconcile_disposition`; then
+    extract cohesive BLOCKS of `execute_item` one at a time, each carrying its two or three pins converted as
+    E-02 demonstrates; the residual becomes thin as a CONSEQUENCE.
+    NO SPLIT WAS PERFORMED. Stated mechanically as well as in prose: `tests/test_rununify_execute_item.py`
+    asserts `execute_item` is still defined in BOTH runners, is NOT in `runner_shared`, is not the same object,
+    and is not cross-imported; and asserts the eleven are STILL double-defined (the inverse assertion), so a
+    later agent cannot "finish" the split symbol by symbol without coming here and reading this analysis.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: FOUR parts, all pasted. (a) `python3 -m pytest tests/test_rununify_execute_item.py -o addopts=""` green, including the inverse eighteen-still-double-defined assertion. (b) The BIDIRECTIONAL non-vacuity controls from Required tests item 5, both directions shown failing and then restored. (c) `test_no_call_site_was_rewritten` green at 38/36 (F-10). (d) Bare `python3 -m pytest` with no new failure against the baseline taken at execution HEAD, summary pasted, plus both hosts' suites and all ten pin files green by name.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: FOUR PARTS.
+    (a) The guard suite, green, including the INVERSE assertion (recorded against ELEVEN symbols, not eighteen,
+    per V-01's re-measurement):
+    ```
+    $ python3 -m pytest tests/test_rununify_execute_item.py -o addopts=""
+    tests/test_rununify_execute_item.py ................                     [100%]
+    ============================== 16 passed in 1.62s ==============================
+    $ python3 -m pytest tests/test_rununify_execute_item.py tests/test_rununify_execute_item_gates.py -o addopts=""
+    ============================== 35 passed in 2.58s ==============================
+    ```
+    (b) BIDIRECTIONAL NON-VACUITY, both directions shown failing and then restored.
+    CONTROL (a), reclassify one closure entry to the WRONG class: added `driver_finalize` (a real fork) to
+    `THIN_WRAPPERS_OVER_RUNNER_SHARED`:
+    ```
+    3 failed, 13 passed
+    FAILED ...::TheClosureCountsAreRecorded::test_the_wrapper_census_is_seven
+    FAILED ...::TheClosureClassificationIsPinned::test_the_two_symbol_sets_are_disjoint
+    FAILED ...::TheClosureClassificationIsPinned::test_the_thin_wrappers_really_do_delegate_on_both_hosts
+    E   AssertionError: False is not true : oc_runipd.driver_finalize is listed as a thin wrapper over
+        runner_shared but its body is no longer a single delegating call; a wrapper that grew logic has
+        RE-FORKED the symbol
+    ```
+    Reverted; 16 passed.
+    CONTROL (b), MOVE one of the double-defined symbols into the shared module and show the INVERSE assertion
+    fails: `oc_runipd.evaluate_clean_base_for_launch`'s body was replaced with a
+    `runner_shared.evaluate_clean_base_for_launch(...)` delegation:
+    ```
+    1 failed, 15 passed
+    FAILED ...::TheClosureClassificationIsPinned::test_each_still_double_defined_symbol_is_a_real_fork_not_a_thin_wrapper
+    E   AssertionError: True is not false : oc_runipd.evaluate_clean_base_for_launch now delegates to
+        runner_shared, so it belongs in THIN_WRAPPERS_OVER_RUNNER_SHARED rather than STILL_DOUBLE_DEFINED
+    ```
+    Restored with `git checkout -- agent_workflows/oc_runipd.py` (`git diff --stat` empty); 35 passed. The guard
+    therefore fails in BOTH directions and names the symbol each way.
+    (c) F-10's census, green and UNCHANGED. This plan adds NO `save_state` call site (it changes no product
+    code at all), so the 38/36 expectation is untouched:
+    ```
+    $ python3 -m pytest "tests/test_runner_shared.py::WrapperTests::test_no_call_site_was_rewritten" -o addopts=""
+    ============================== 1 passed in 0.96s ==============================
+    ```
+    (d) BARE SUITE, against a baseline taken at MY OWN HEAD, and the result needs one honest explanation.
+    ```
+    $ python3 -m pytest                       # WITH my two files
+    31 failed, 7517 passed, 3 skipped, 2 xfailed in 92.43s
+    $ git stash push --include-untracked -- <my two test files>; python3 -m pytest
+    31 failed, 7482 passed, 3 skipped, 2 xfailed in 89.09s    # PRE-CHANGE BASELINE
+    ```
+    THE SAME 31 FAILURES BEFORE AND AFTER, with my files adding exactly the 35 passing tests (7482 -> 7517) and
+    ZERO failures. The 31 are NOT a repo defect and NOT mine: they are an artifact of running inside a
+    runner-managed worker lane, where `AW_EXECUTION_ROLE=worker` makes `ipd_lifecycle` refuse driver-only
+    lifecycle verbs by design (`AW-LIFECYCLE-ROLE-001`, `ipd_lifecycle.py:69`), which the affected tests call
+    directly. Proof, the same tree with that one variable unset:
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest
+    7548 passed, 3 skipped, 2 xfailed in 91.21s
+    ```
+    ZERO failures, 7548 passed. Both hosts' suites and the pin files green by name under the same condition:
+    `env -u AW_EXECUTION_ROLE python3 -m pytest tests/test_agy_runipd_cli.py tests/test_oc_runipd_cli.py
+    tests/test_review_lane_isolation.py tests/test_runner_backlog_close_in_lane.py
+    tests/test_rununify_conflicts.py -o addopts=""` gave `166 passed`; the eight named pin files gave
+    `321 passed` (V-03). `aw sanitize --agent` reports `"outcome":"clean","findings":0`.
+  - Result: pass
 
 ## Approval and execution gate
 
