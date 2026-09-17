@@ -325,6 +325,22 @@ from agent_workflows.runner_shared import (
     write_prompt as write_prompt,
 )
 
+# rununify 05 (`ct4w0a`) E-02/E-04: the two symbols whose host definitions genuinely DISAGREED about
+# behavior, now defined ONCE in `runner_shared`. `extract_session_id` is the UNION and KEEPS everything
+# this host read (`conversation_id` plus the nested `result`/`init` lookup), because that is this host's
+# own wire format; oc's reader could not see it, so "oc wins" would have disabled session resume here
+# outright. `_SESSION_ID_KEYS` comes with it because it was defined TWICE with different contents.
+# `begin_baseline_env` is the baseline declaration this host previously did not send at all.
+from agent_workflows.runner_shared import (
+    _SESSION_ID_KEYS as _SESSION_ID_KEYS,
+)
+from agent_workflows.runner_shared import (
+    begin_baseline_env as begin_baseline_env,
+)
+from agent_workflows.runner_shared import (
+    extract_session_id as extract_session_id,
+)
+
 # lanetruth Order 01 (af7i6p) E-02: import the SINGLE shared definition of the nested-`aw` pin
 # rather than duplicating it here. Both drivers must stay symmetric, and a second copy is exactly
 # how the previous inert half-pin came to differ from what it looked like it did. `oc_runipd` does
@@ -964,40 +980,32 @@ def driver_actor(state: dict[str, Any]) -> str:
     return f"aw agy run model={model}" if model else "aw agy run"
 
 
-def driver_begin(repo: Path, id6: str, actor: str) -> tuple[int, str]:
+# rununify 05 (`ct4w0a`) E-04: the `driver_begin` LAUNCHER BODY is now defined ONCE in
+# `runner_shared` and this is the one-line wrapper that binds this host's pin helpers (which are
+# defined in `oc_runipd` and so cannot move into the shared module; see the shared definition's note
+# and the `818uru` OQ-02 ruling that prescribes injection for exactly this case).
+#
+# THIS HOST GAINS A CORRECTNESS FEATURE, which is the whole point of adopting oc's version rather than
+# keeping this one. The body that used to live here accepted no `isolated` and layered no baseline
+# declaration onto the child env, so an ISOLATED `aw agy run` turn asked `aw ipd begin` to gate on the
+# MAIN tree's cleanliness while the turn would actually execute in a LANE. That refused unrelated lanes
+# over a co-worker's uncommitted edit to a commonly-scoped file. The signature gains the same
+# keyword-only `isolated` (default `False`), so the existing three-argument call shape is unaffected.
+def driver_begin(
+    repo: Path, id6: str, actor: str, *, isolated: bool = False
+) -> tuple[int, str]:
     """Run the fail-closed `aw ipd begin <id6> --actor` gate before an execute turn.
 
-    Reuses the packaged `aw ipd begin` surface (subprocess to `python -m agent_workflows`,
-    mirroring `set_plan_approved`); begin writes the gitignored
-    `.aw/state/ipd-lifecycle/<id6>.receipt.json` receipt (execution authority) itself. Returns
-    (exit_code, stderr): exit 0 = receipt written; nonzero = refusal (no execution authority)."""
-    # lanetruth Order 01 (af7i6p): pinned to the runner's OWN tooling. As in oc_runipd, this site
-    # is not itself lane-shadowed (it runs against the MAIN tree, before any lane exists), but it
-    # is pinned anyway so exactly one launch shape exists across both drivers.
-    cmd = pinned_module_argv(
-        [
-            "ipd",
-            "begin",
-            id6,
-            "--actor",
-            actor,
-            "--dir",
-            str(repo),
-        ]
+    Delegates ENTIRELY to `runner_shared.driver_begin`, binding this host's `pinned_child_env` and
+    `pinned_module_argv`. See that function for the contract and for what `isolated` declares."""
+    return runner_shared.driver_begin(
+        repo,
+        id6,
+        actor,
+        isolated=isolated,
+        env_builder=pinned_child_env,
+        argv_builder=pinned_module_argv,
     )
-    result = subprocess.run(
-        cmd,
-        cwd=str(repo),
-        env=pinned_child_env(),
-        text=True,
-        # ttywedge Order 01 (g40w37): DENY the child a terminal. Without this, stdin is INHERITED, so a
-        # nested `aw` sees the operator's TTY, believes it may prompt, and blocks on input() forever
-        # while its prompt goes into the pipe below. Verified: a finalize wedged 1h49m this way.
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    return result.returncode, (result.stderr or result.stdout or "").strip()
 
 
 def _compute_scope_reconciliation(
@@ -2529,39 +2537,15 @@ def save_state(run_dir: Path, state: dict[str, Any]) -> None:
     runner_shared.save_state(run_dir, state, write_report=write_report)
 
 
-_SESSION_ID_KEYS = ("sessionID", "sessionId", "session_id", "conversation_id")
-
-
-def extract_session_id(log_path: Path) -> str | None:
-    """Return the session / conversation id from a streamed JSONL log."""
-    if not log_path.exists():
-        return None
-    fallback: str | None = None
-    with log_path.open("r", encoding="utf-8", errors="replace") as handle:
-        for line in handle:
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if not isinstance(event, dict):
-                continue
-            for key in _SESSION_ID_KEYS:
-                value = event.get(key)
-                if isinstance(value, str) and value.strip():
-                    return value
-            res = event.get("result")
-            if isinstance(res, dict):
-                for key in _SESSION_ID_KEYS:
-                    value = res.get(key)
-                    if isinstance(value, str) and value.strip():
-                        return value
-            init = event.get("init")
-            if isinstance(init, dict):
-                for key in _SESSION_ID_KEYS:
-                    value = init.get(key)
-                    if isinstance(value, str) and value.strip():
-                        return value
-    return fallback
+# `_SESSION_ID_KEYS` and `extract_session_id` are now defined ONCE in `runner_shared` and imported
+# above (rununify 05 `ct4w0a`). THE UNION KEPT EVERYTHING THIS HOST READ -- all four keys including
+# `conversation_id`, plus the nested `result`/`init` lookup -- because that is this host's own wire
+# format and oc's reader could not see it. WHAT CHANGED HERE is the return DISCIPLINE: this body
+# returned the FIRST non-empty hit, and the shared reader adopts oc's whole-file scan with a
+# `ses_`-prefix preference, so a log carrying a `conversation_id` EARLY and a `ses_` value LATER now
+# resolves to the `ses_` value. That is decision `06-ct4w0a-D1`, it occurred in 0 of 627 real logs, and
+# `tests/test_rununify_conflicts.py` pins it. The dead `fallback` local this body carried (initialized
+# to None, returned at the end, unreachable because every assigning branch returned first) is gone.
 
 
 # `_findings_block_reason` is now defined ONCE in `runner_shared` and imported above (rununify 03 `i3d6ml`).
@@ -3769,7 +3753,17 @@ def execute_item(
         # resolves to this runner's own tooling before letting one perform a lifecycle transition.
         # Memoized (no per-call subprocess). A mismatch is RUN-FATAL per OQ-02.
         assert_child_tool_identity(run_dir / "events.jsonl", cwd=repo)
-        begin_rc, begin_msg = driver_begin(repo, item["id6"], actor)
+        # rununify 05 (`ct4w0a`) E-04, mirroring lanetruth Order 02 (z2isfg) on the oc twin: declare
+        # the baseline the turn will ACTUALLY execute against. `isolate` is bound above and is the SAME
+        # flag that allocates the lane below, so begin and the execution tree cannot disagree. The lane
+        # does not exist yet at this point (it is allocated only after begin grants authority, and that
+        # fail-closed ordering is deliberately preserved), which is why this declares the frozen
+        # base-commit baseline rather than a path. Passed only when isolated, so the non-isolated path
+        # keeps its exact pre-existing three-argument call shape.
+        if isolate:
+            begin_rc, begin_msg = driver_begin(repo, item["id6"], actor, isolated=True)
+        else:
+            begin_rc, begin_msg = driver_begin(repo, item["id6"], actor)
         if begin_rc != 0:
             attempt["ended_at"] = utc_now()
             attempt["begin_refused"] = begin_msg

@@ -7876,3 +7876,201 @@ def attempt_log_path(
         / "sessions"
         / f"{item['position']:02d}-{item['id6']}-attempt-{attempt_no}{tag}.jsonl"
     )
+
+
+# ---- rununify 05 (`ct4w0a`): the TWO genuine behavior conflicts ----------------------------------
+#
+# TWO symbols whose host definitions genuinely DISAGREED about behavior rather than about strings or
+# style, resolved per the maintainer's 2026-09-14 per-symbol rulings and lifted here. They were held
+# back from `i3d6ml` for exactly that reason: lifting a symbol whose two bodies disagree requires
+# first DECIDING which behavior is correct, and that decision is recorded at each definition below.
+#
+# `extract_session_id` - UNION, not "oc wins". This is the one place in the whole Set where the
+#   standing oc-preferred ruling had to be EXCEPTED, and the exception is measurable rather than
+#   stylistic: oc's reader read three flat `session*` keys, while agy's read those plus
+#   `conversation_id` and also looked INSIDE a nested `result`/`init` object. `conversation_id` IS
+#   Antigravity's wire format, so adopting oc outright left agy unable to find its OWN session id.
+#   Verified by execution: oc's reader returned `None` on an agy-shaped log where agy's returned the
+#   id. Losing that silently disables session RESUME, and with it the `b7xarm` one-shot defect-report
+#   re-ask, which refuses to fire when no session was observed.
+#
+# `driver_begin` - ADOPT OC, because agy was measurably DEFICIENT. oc accepts `isolated` and layers
+#   `begin_baseline_env(isolated)` onto the child env, which tells `aw ipd begin` WHICH baseline to
+#   gate on; agy sent only the pinned env, so an ISOLATED agy turn asked begin to measure the MAIN
+#   tree when the turn would execute in a LANE. That is the "one does A, the other NOT A" case the
+#   standing ruling resolves toward oc, so agy GAINS a correctness feature here.
+#
+# WHY `driver_begin` TAKES TWO INJECTED DEPENDENCIES, since the plan that ordered this lift expected
+# none. `pinned_child_env` and `pinned_module_argv` are defined in `oc_runipd` and are the ONLY
+# definitions in the package; agy reaches them by IMPORTING them from `oc_runipd`, which makes them
+# the SAME OBJECT in both hosts but does NOT make them reachable from HERE. This module may never
+# import a runner (see the prohibition at the top, enforced by
+# `tests/test_runner_shared.py::NoRunnerImportTests`), so the lift condition is closure over names
+# THIS module can resolve, and neither name is one. They are therefore INJECTED, which is the
+# maintainer's ruled mechanism for this exact situation (`818uru` OQ-02) and is already how
+# `run_checked` -- the OTHER nested-`aw` launcher, sitting in this same module -- consumes this SAME
+# `pinned_child_env` dependency. Each host keeps a one-line wrapper at the original name and
+# signature, so no call site in either driver was rewritten, and the duplicated LAUNCHER BODY (the
+# thing this Set exists to remove) now exists exactly once.
+#
+# THE SESSION-ID KEY LIST IS SHARED TOO, and that matters more than it looks. It was defined TWICE
+# with DIFFERENT contents (oc three keys, agy four), so a reader who found either copy first would
+# re-fork the disagreement. There is one tuple now.
+
+# The four wire-format keys either host may see, and the ONE definition of that list.
+#
+# WHY ALL FOUR ARE KEPT DESPITE THREE BEING UNOBSERVED. A census of 627 real session logs (taken at
+# the 2026-09-16 review; this lane has no `.aw/records/runs` corpus, see V-01) found `sessionID`
+# 167,921 times and `conversation_id` twice, while `sessionId`, `session_id` and the whole `init`
+# nesting appeared ZERO times. The authoring plan's own rule would have DELETED those on that
+# evidence, and doing so would be wrong twice over. First, 627 logs cannot prove a wire format never
+# emits a shape; narrowing a READER on absence-of-evidence is irreversible in the direction that
+# loses data. Second, this tuple has a SECOND consumer: `oc_runipd._event_session_id` reads it LIVE
+# during a turn to hand the subagent-progress observer a parent session id, so narrowing it would
+# quietly change that path too. Widening it to four is INERT for that consumer, which hard-filters on
+# a `ses_` prefix that a `conversation_id` value never carries.
+_SESSION_ID_KEYS = ("sessionID", "sessionId", "session_id", "conversation_id")
+
+# The nested objects agy's launcher may wrap its id in, checked after the flat keys.
+_SESSION_ID_NESTS = ("result", "init")
+
+
+def extract_session_id(log_path: Path) -> str | None:
+    """Return the session / conversation id from a streamed JSONL log, for EITHER host.
+
+    THE UNION of what the two hosts read: all four keys of `_SESSION_ID_KEYS`, checked flat AND inside
+    a nested `result`/`init` mapping, with a non-dict event skipped rather than raising.
+
+    PRECEDENCE IS A DECISION, NOT AN EMERGENT PROPERTY (decision `06-ct4w0a-D1`). The two readers
+    disagreed about RETURN DISCIPLINE as well as about keys, and no union can keep both: agy returned
+    the FIRST non-empty hit immediately, while oc scanned the WHOLE file and kept a non-`ses_` value
+    only as a FALLBACK. This adopts OC's discipline, so on a log carrying agy's `conversation_id`
+    EARLY and a `ses_`-prefixed value LATER, this returns the `ses_` value where agy's reader returned
+    the `conversation_id`. Three reasons that is the right side to keep: oc's preference is a SHIPPED
+    TESTED CONTRACT (`tests/test_oc_runipd.py::test_extract_session_id_prefers_ses_prefixed_over_nonprefixed`)
+    whereas nothing anywhere pinned agy's ordering; the standing maintainer ruling prefers oc absent a
+    significant behavioral difference; and the affected shape needs an unprefixed id EARLY plus a
+    `ses_` id LATER in the SAME log, which is an OpenCode id appearing in an Antigravity log and
+    occurred in 0 of the 627 logs censused. `tests/test_rununify_conflicts.py` pins this answer so a
+    future change to it is a visible test edit rather than a silent drift.
+
+    A NOTE ON WHAT WAS DELETED: agy's body carried a dead `fallback` local, initialized to `None` and
+    returned at the end while every branch that could assign it returned immediately instead. It could
+    never be non-`None` at that return. Here `fallback` is LIVE and load-bearing (it is oc's
+    discipline), which is precisely why the dead twin had to go rather than be copied forward: a
+    reader comparing the two would otherwise conclude agy had a fallback discipline it did not have.
+    """
+    if not log_path.exists():
+        return None
+    fallback: str | None = None
+    with log_path.open("r", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            # agy's guard, kept: a JSONL line may legitimately be a list or a scalar, and `.get` on
+            # one raises. oc's reader had no such guard and would crash on an agy-shaped log.
+            if not isinstance(event, dict):
+                continue
+            scopes: list[Mapping[str, Any]] = [event]
+            for nest in _SESSION_ID_NESTS:
+                nested = event.get(nest)
+                if isinstance(nested, dict):
+                    scopes.append(nested)
+            for scope in scopes:
+                for key in _SESSION_ID_KEYS:
+                    value = scope.get(key)
+                    if not isinstance(value, str) or not value.strip():
+                        continue
+                    if value.startswith("ses_"):
+                        return value
+                    if fallback is None:
+                        fallback = value
+    return fallback
+
+
+def begin_baseline_env(isolated: bool) -> dict[str, str]:
+    """The child-env overlay declaring WHICH baseline `aw ipd begin` should measure.
+
+    lanetruth Order 02 (z2isfg). `begin` gates execution authority on this plan's in-scope paths being
+    unambiguous in the baseline the turn will EXECUTE against. For an isolated turn that baseline is a
+    fresh worktree cut at the frozen base commit, which is clean by construction, so uncommitted work
+    in the MAIN tree cannot reach it. Measuring the main tree there refused unrelated lanes over a
+    co-worker's edit to a commonly-scoped file, and the message's own remedy (commit or stash it) is
+    one the shared-checkout contract forbids. Only the DRIVER knows which case applies, so it declares
+    it here; a non-isolated turn sends nothing and the existing main-tree refusal is preserved verbatim.
+
+    Env rather than a CLI flag: `--dir` must keep meaning "the repo root" (the receipt stays under the
+    MAIN repo's state root even for an isolated turn) and a new flag would have to be declared in
+    `agent_workflows/cli.py`, which the plan that introduced this excluded.
+
+    SHARED SINCE rununify 05 (`ct4w0a`): it was defined in `oc_runipd` only, and lifting `driver_begin`
+    without it would have left the shared launcher reaching into a host. Note the ASYMMETRY it removes:
+    agy never called this, so an isolated `aw agy run` turn declared nothing and begin measured the
+    wrong tree."""
+    return {"AW_ISOLATED_BASELINE": "1"} if isolated else {}
+
+
+def driver_begin(
+    repo: Path,
+    id6: str,
+    actor: str,
+    *,
+    isolated: bool = False,
+    env_builder: Callable[[], Mapping[str, str]],
+    argv_builder: Callable[[Sequence[str]], list[str]],
+) -> tuple[int, str]:
+    """Run the fail-closed `aw ipd begin <id6> --actor` gate before an execute turn.
+
+    Reuses the packaged `aw ipd begin` surface (subprocess to `python -m agent_workflows`, mirroring
+    `set_plan_approved`/`finalize_orchestrator`); begin writes the gitignored
+    `.aw/state/ipd-lifecycle/<id6>.receipt.json` receipt (execution authority) itself. Returns
+    (exit_code, stderr): exit 0 = receipt written; nonzero = refusal (no execution authority).
+
+    `isolated` declares that the gated turn will execute in a fresh isolated worktree rather than in
+    `repo` itself, which selects the baseline begin measures (see `begin_baseline_env`). It does NOT
+    change where the receipt lives, nor the receipt's frozen `base_head`, which is always this repo's
+    HEAD because finalize consumes it as a git revision.
+
+    THE ONE DEFINITION SINCE rununify 05 (`ct4w0a`), previously one per host with agy's silently
+    lacking the `isolated` declaration. `env_builder` and `argv_builder` are INJECTED because the pin
+    helpers they bind (`pinned_child_env`, `pinned_module_argv`) are defined in `oc_runipd` and this
+    module may not import a runner; see the section header for the full reasoning and the
+    `818uru` OQ-02 ruling that prescribes this mechanism. Each host wraps this at the original name and
+    signature and binds its own, so both hosts still reach the SAME pin objects they did before."""
+    # lanetruth Order 01 (af7i6p): pinned to the runner's OWN tooling. NOTE this particular site
+    # is NOT itself lane-shadowed -- it runs with `cwd=str(repo)` (the MAIN tree) and the lane is
+    # allocated only AFTER begin returns -- but it is pinned anyway so exactly one shape exists
+    # across all launch sites and no future refactor can quietly make it lane-relative.
+    cmd = argv_builder(
+        [
+            "ipd",
+            "begin",
+            id6,
+            "--actor",
+            actor,
+            "--dir",
+            str(repo),
+        ]
+    )
+    result = subprocess.run(
+        cmd,
+        cwd=str(repo),
+        # lanetruth Order 01 (af7i6p) + Order 02 (z2isfg): the pinned env is the BASE and the
+        # baseline declaration is layered on top, so the turn measures the tree it will really
+        # execute in WITHOUT unpinning the tooling. The pin's arrival at the child is asserted
+        # BEHAVIORALLY by `tests/test_lane_tool_identity.py` (it reads the env this builds and
+        # checks the pin's markers), which is strictly stronger than the source-text search that
+        # guard used before this symbol was shared -- that search was measurably satisfiable by a
+        # COMMENT, and on oc a comment is what satisfied it.
+        env={**env_builder(), **begin_baseline_env(isolated)},
+        text=True,
+        # ttywedge Order 01 (g40w37): DENY the child a terminal. Without this, stdin is INHERITED, so a
+        # nested `aw` sees the operator's TTY, believes it may prompt, and blocks on input() forever
+        # while its prompt goes into the pipe below. Verified: a finalize wedged 1h49m this way.
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    return result.returncode, (result.stderr or result.stdout or "").strip()

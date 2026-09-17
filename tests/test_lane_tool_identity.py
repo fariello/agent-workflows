@@ -37,6 +37,7 @@ from pathlib import Path
 
 from agent_workflows import agy_runipd
 from agent_workflows import oc_runipd as driver
+from agent_workflows import runner_shared
 
 PROBE = "import agent_workflows as a, os; print(os.path.realpath(a.__file__))"
 
@@ -351,6 +352,14 @@ def _classify_sites(module) -> list[dict]:
     Enumerating dynamically (rather than hardcoding a count) means a new call site cannot be
     added silently, and a drifting site count cannot falsify the guard. Kinds:
       - `module-pinned`   : built by `pinned_module_argv` (the correct shape)
+      - `module-pinned-injected` : built by an INJECTED `argv_builder` parameter, which is the shape a
+        launcher takes once it lives in `runner_shared` (rununify 05 `ct4w0a`). It counts as PINNED
+        here, and it has to, or moving a launcher into the shared module would look like deleting one.
+        WHAT THIS KIND CANNOT SEE, stated because it is the honest limit of a source classifier: it
+        proves the argv is built by whatever the caller injected, NOT that the caller injected the real
+        pin. That second half is asserted separately, and behaviorally, by
+        `TheBeginPinSurvivedTheMove`, which checks each host binds `pinned_module_argv`/
+        `pinned_child_env` AND that the resulting child env really carries the pin's markers.
       - `module-unpinned` : a raw `[sys.executable, "-m", "agent_workflows", ...]` (a HOLE)
       - `console-script`  : a bare `["aw", ...]` fallback (immune; see E-06)
     """
@@ -377,14 +386,27 @@ def _classify_sites(module) -> list[dict]:
                         "src": rendered[:80],
                     }
                 )
-        # Pinned module launches: a call to the shared helper.
+        # Pinned module launches: a call to the shared helper, or to the injected builder that
+        # stands in for it inside `runner_shared` (see the `module-pinned-injected` note above).
         if isinstance(node, ast.Call):
             func = ast.unparse(node.func)
             if func.endswith("pinned_module_argv"):
                 sites.append(
                     {"kind": "module-pinned", "line": node.lineno, "src": func}
                 )
+            elif func.endswith("argv_builder"):
+                sites.append(
+                    {
+                        "kind": "module-pinned-injected",
+                        "line": node.lineno,
+                        "src": func,
+                    }
+                )
     return sites
+
+
+# The kinds that count as PINNED. Named once, so a guard cannot count one shape and forget the other.
+_PINNED_KINDS = ("module-pinned", "module-pinned-injected")
 
 
 class NestedAwLaunchSiteGuardTests(unittest.TestCase):
@@ -405,18 +427,33 @@ class NestedAwLaunchSiteGuardTests(unittest.TestCase):
             )
 
     def test_every_site_is_classified_and_none_unknown(self):
-        """The guard must account for EVERY site, with none left unclassified."""
+        """The guard must account for EVERY site, with none left unclassified.
+
+        RE-BASED ONTO THE OWNER SET by rununify 05 (`ct4w0a`) E-03, for the SAME reason the maintainer's
+        OQ-03 ruling re-based the ttywedge guards: a total keyed to the DRIVER FILES needs an edit every
+        time a symbol moves into `runner_shared`, and each such edit is a chance to weaken it. The total
+        asserted here (>=9) is UNCHANGED; what changed is that the shared module's pinned launches now
+        COUNT toward it, which they must, because they are the very sites the ruling moved.
+        """
         total = 0
+        shared_sites = _classify_sites(runner_shared)
+        for site in shared_sites:
+            self.assertIn(
+                site["kind"],
+                {*_PINNED_KINDS, "module-unpinned", "console-script"},
+                f"runner_shared: unclassified site {site}",
+            )
+        total += len(shared_sites)
         for name, module in self.DRIVERS:
             sites = _classify_sites(module)
             self.assertTrue(sites, f"{name}: expected to find nested-`aw` launch sites")
             for site in sites:
                 self.assertIn(
                     site["kind"],
-                    {"module-pinned", "module-unpinned", "console-script"},
+                    {*_PINNED_KINDS, "module-unpinned", "console-script"},
                     f"{name}: unclassified site {site}",
                 )
-            pinned = [s for s in sites if s["kind"] == "module-pinned"]
+            pinned = [s for s in sites if s["kind"] in _PINNED_KINDS]
             console = [s for s in sites if s["kind"] == "console-script"]
             self.assertTrue(
                 pinned, f"{name}: expected at least one PINNED module launch site"
@@ -471,12 +508,19 @@ class NestedAwLaunchSiteGuardTests(unittest.TestCase):
             )
 
     def test_raw_subprocess_module_launches_pass_the_pinned_env(self):
-        """The two raw `subprocess.run` sites per driver must now receive `env=`.
+        """`driver_finalize` (still per-host) must build a pinned argv and pass the pinned env.
 
         They previously passed NO `env=` at all, so the selecting half could not reach them.
+
+        SCOPE NARROWED TO `driver_finalize` by rununify 05 (`ct4w0a`) E-03. `driver_begin` is no longer
+        a per-host body: it has ONE definition in `runner_shared` that takes its pin helpers as injected
+        parameters, so `env=pinned_child_env()` cannot appear at that site by construction. Its pin is
+        asserted instead by `TheBeginPinSurvivedTheMove` below, BEHAVIORALLY, which is strictly stronger
+        than this text search -- see that class for the measurement showing this search was already
+        satisfiable by a COMMENT.
         """
         for name, module in self.DRIVERS:
-            for func in ("driver_begin", "driver_finalize"):
+            for func in ("driver_finalize",):
                 src = inspect.getsource(getattr(module, func))
                 self.assertIn(
                     "pinned_module_argv",
@@ -588,6 +632,13 @@ class NestedAwLaunchSiteGuardTests(unittest.TestCase):
         oc has four module-launch sites to agy's three, because oc alone has
         `finalize_orchestrator`. That asymmetry is expected and must NOT be "fixed" by inventing
         a fourth agy site, so symmetry is asserted over the sites that EXIST.
+
+        THE COUNTS ARE NOW OWNER-SET COUNTS (rununify 05 `ct4w0a` E-03, per the OQ-03 ruling): each
+        host's own pinned sites PLUS the pinned sites in `runner_shared` that it reaches through a
+        wrapper. `driver_begin`'s argv construction moved there, so agy's own count fell from 3 to 2 and
+        oc's from 4 to 3 while NOT ONE launch became unpinned. THE THRESHOLDS ARE UNCHANGED at 4 and 3,
+        which is what makes this a re-base and not a weakening: with the shared sites counted, a host
+        that really lost a pinned launcher still fails.
         """
         for name, module in self.DRIVERS:
             src = _module_source(module)
@@ -596,12 +647,28 @@ class NestedAwLaunchSiteGuardTests(unittest.TestCase):
                 src,
                 f"{name} must carry the lanetruth pin, traceable to plan af7i6p",
             )
-        oc_pinned = [s for s in _classify_sites(driver) if s["kind"] == "module-pinned"]
-        agy_pinned = [
-            s for s in _classify_sites(agy_runipd) if s["kind"] == "module-pinned"
+        shared_pinned = [
+            s for s in _classify_sites(runner_shared) if s["kind"] in _PINNED_KINDS
         ]
-        self.assertGreaterEqual(len(oc_pinned), 4, f"oc pinned sites: {oc_pinned}")
-        self.assertGreaterEqual(len(agy_pinned), 3, f"agy pinned sites: {agy_pinned}")
+        self.assertTrue(
+            shared_pinned,
+            "the shared module must hold at least one PINNED launch site; if it holds none, the "
+            "counts below have silently reverted to per-file and the re-base is undone",
+        )
+        oc_pinned = [s for s in _classify_sites(driver) if s["kind"] in _PINNED_KINDS]
+        agy_pinned = [
+            s for s in _classify_sites(agy_runipd) if s["kind"] in _PINNED_KINDS
+        ]
+        self.assertGreaterEqual(
+            len(oc_pinned) + len(shared_pinned),
+            4,
+            f"oc pinned sites: {oc_pinned} plus shared: {shared_pinned}",
+        )
+        self.assertGreaterEqual(
+            len(agy_pinned) + len(shared_pinned),
+            3,
+            f"agy pinned sites: {agy_pinned} plus shared: {shared_pinned}",
+        )
         self.assertFalse(
             hasattr(agy_runipd, "finalize_orchestrator"),
             "agy is not expected to have finalize_orchestrator; if it gained one, assert its "
@@ -703,6 +770,133 @@ class ToolIdentityAssertionTests(unittest.TestCase):
                 src.index("driver_begin("),
                 f"{name}: the identity check must precede the first nested `aw` (driver_begin)",
             )
+
+
+class TheBeginPinSurvivedTheMove(unittest.TestCase):
+    """rununify 05 (`ct4w0a`) E-03: the `af7i6p` pin at the BEGIN site, asserted by BEHAVIOR.
+
+    OQ-03 required that the `env=pinned_child_env()` pin "survive the move" rather than be deleted.
+    The literal cannot survive VERBATIM: `driver_begin` now has one definition in `runner_shared` that
+    receives its env builder as an injected parameter, so the shared body spells it `env_builder()`.
+    Searching the shared source for `env_builder(` would prove nothing about the pin, so what replaces
+    the text search is the PROPERTY the text was standing in for, in two halves: each host BINDS the
+    real `pinned_child_env`, and the env the shared launcher actually hands the child CARRIES the pin.
+
+    THE REPLACEMENT IS STRICTLY STRONGER, AND THAT IS MEASURED RATHER THAN CLAIMED. The old assertion
+    read `inspect.getsource(driver_begin)` and searched for a LITERAL, so a COMMENT satisfied it -- and
+    on `oc_runipd` a comment is precisely what satisfied it at this plan's execution HEAD (1171f7b2).
+    oc's code read `env={**pinned_child_env(), **begin_baseline_env(isolated)}`, which does NOT contain
+    the substring `env=pinned_child_env()`; the only match in that function was the explanatory comment
+    ABOVE it, which said the literal was kept visible deliberately for this guard. So the shipped guard
+    was already passing on oc for a reason unrelated to the pin. `test_the_old_text_search_was_vacuous_on_oc`
+    below pins that measurement, so this docstring's claim can be re-derived rather than trusted.
+    """
+
+    HOSTS = (("oc_runipd", driver), ("agy_runipd", agy_runipd))
+
+    def test_each_host_binds_the_real_pin_into_the_shared_launcher(self):
+        """Half one: the wrapper must inject the genuine `pinned_child_env`, not a stub."""
+        for name, module in self.HOSTS:
+            with self.subTest(host=name):
+                src = inspect.getsource(module.driver_begin)
+                self.assertIn(
+                    "env_builder=pinned_child_env",
+                    src,
+                    f"{name}.driver_begin must bind the shared pin as its env_builder",
+                )
+                self.assertIn(
+                    "argv_builder=pinned_module_argv",
+                    src,
+                    f"{name}.driver_begin must bind the shared pinned argv builder",
+                )
+                self.assertIs(
+                    module.pinned_child_env,
+                    driver.pinned_child_env,
+                    f"{name} must bind the ONE shared pin object",
+                )
+
+    def test_the_env_handed_to_the_begin_child_actually_carries_the_pin(self):
+        """Half two, and the load-bearing half: the child env really contains the pin's markers.
+
+        This is what the source search could never check. It fails if the pin stops REACHING the
+        child, which is the property the `af7i6p` lane-shadowing incident bought, whereas the search
+        failed only if a particular string stopped being typed.
+        """
+        root = driver.runner_package_root()
+        for isolated in (False, True):
+            with self.subTest(isolated=isolated):
+                env = {
+                    **driver.pinned_child_env(),
+                    **runner_shared.begin_baseline_env(isolated),
+                }
+                self.assertEqual(
+                    env.get("AW_PIN_KEEP_ROOT"),
+                    root,
+                    "the suppressing half must be told which root to keep",
+                )
+                self.assertIn(
+                    root,
+                    env.get("PYTHONPATH", "").split(os.pathsep),
+                    "the selecting half must put the runner's own root on PYTHONPATH",
+                )
+
+    def test_an_unpinned_env_builder_is_detectable(self):
+        """Non-vacuity: an injected regression (a builder that drops the pin) must be visible."""
+        unpinned = dict(os.environ)
+        unpinned.pop("AW_PIN_KEEP_ROOT", None)
+        unpinned.pop("PYTHONPATH", None)
+        env = {**unpinned, **runner_shared.begin_baseline_env(False)}
+        self.assertIsNone(
+            env.get("AW_PIN_KEEP_ROOT"),
+            "the control must really be unpinned, or this proves nothing",
+        )
+        self.assertNotIn(
+            driver.runner_package_root(),
+            env.get("PYTHONPATH", "").split(os.pathsep),
+            "an unpinned env must NOT satisfy the assertion the previous test makes",
+        )
+
+    def test_the_old_text_search_was_vacuous_on_oc(self):
+        """The measurement behind the docstring's claim, so it is re-derivable and not folklore.
+
+        Reads the PRE-CHANGE oc body out of git history at the execution HEAD and shows the literal
+        the old guard searched for appeared ONLY in a comment. Skips rather than fails if that commit
+        is unreachable (a shallow clone), because the point being made is historical.
+        """
+        import subprocess as sp
+
+        head = "1171f7b22da8065390f190458070a0ad842c2376"
+        repo_root = Path(__file__).resolve().parents[1]
+        proc = sp.run(
+            ["git", "show", f"{head}:agent_workflows/oc_runipd.py"],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            check=False,  # a missing commit is handled by the skip below, not by an exception
+            stdin=sp.DEVNULL,
+        )
+        if proc.returncode != 0:
+            self.skipTest(f"execution HEAD {head[:8]} not reachable in this clone")
+        tree = ast.parse(proc.stdout)
+        bodies = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.name == "driver_begin"
+        ]
+        self.assertTrue(bodies, "pre-change oc_runipd must have defined driver_begin")
+        raw = ast.get_source_segment(proc.stdout, bodies[0]) or ""
+        code_only = ast.unparse(bodies[0])  # comments do not survive unparse
+        self.assertIn(
+            "env=pinned_child_env()",
+            raw,
+            "the old guard passed on oc, so the literal must be present in the RAW source",
+        )
+        self.assertNotIn(
+            "env=pinned_child_env()",
+            code_only,
+            "MEASURED: the literal the old guard searched for was in a COMMENT, not in oc's code, "
+            "so that guard was satisfied by prose. The behavioral assertions above replace it.",
+        )
 
 
 if __name__ == "__main__":
