@@ -1640,13 +1640,31 @@ class BehaviorThroughWrapperTests(unittest.TestCase):
 
 
 class DiscoverPlansRecordTypeTests(unittest.TestCase):
-    """The FIFTH dependency the authoring measurement missed, and the subtlest one.
+    """PIN ONE OF TWO, INVERTED BY `sy7uwh`: the record types are now the SAME, deliberately.
 
-    `discover_plans` constructs records through `parse_plan_file`, and the two runners' `PlanRecord`
-    are DIFFERENT NamedTuples: oc's carries a `kind` field agy's lacks. A shared `discover_plans`
-    that built oc's type would hand agy a field its code never expects; one that built agy's would
-    DROP `kind`, which oc's `action_for` reads to decide whether a plan is an orchestrator. Either
-    failure is silent and type-shaped rather than a crash, which is why it gets its own test class.
+    WHAT THIS CLASS USED TO ASSERT, AND WHY IT NO LONGER DOES. `818uru` wrote this class to FORBID
+    unification: it asserted that the two runners' `PlanRecord` were DIFFERENT NamedTuples (oc's
+    carrying a `kind` field agy's lacked), that each runner got its OWN type out of `discover_plans`,
+    and its docstring said in terms "This plan may NOT unify them; that is a class (c) reconciliation
+    for a later child."
+
+    rununify 06 (`sy7uwh`) IS THAT LATER CHILD, authorized by the maintainer's 2026-09-14
+    unify-toward-oc ruling, so the assertions are INVERTED IN PLACE rather than deleted - the repo's
+    own precedent for a pinned decision a later phase deliberately reverses
+    (`tests/test_wtiso_characterization.py`). Deleting the guard would leave the override unrecorded
+    and the property unprotected; inverting it keeps a test that fails if the record ever re-forks.
+
+    WHY THE OVERRIDE IS LEGITIMATE RATHER THAN A REVERSAL FOR ITS OWN SAKE: the premise dissolved.
+    When `818uru` pinned the split, agy had NO use for `kind`. agy now imports the shared `action_for`,
+    which READS `kind` to detect an orchestrator, and it was supplying the field by RE-READING the plan
+    file per plan. Measured at `sy7uwh`'s execution: oc's field set was a strict SUPERSET of agy's
+    differing in exactly `kind`, so the merge lost nothing.
+
+    THE ORIGINAL WARNING STILL STANDS AND IS WHY THIS CLASS SURVIVES AT ALL: a shared constructor that
+    DROPPED `kind` would silently disable orchestrator detection, type-shaped rather than crashing. So
+    the last test below asserts the field is populated on BOTH hosts, and
+    `tests/test_rununify_record.py` carries the end-to-end derivation that a field-presence check
+    cannot substitute for.
     """
 
     def _repo(self, tmp: pathlib.Path) -> pathlib.Path:
@@ -1659,32 +1677,82 @@ class DiscoverPlansRecordTypeTests(unittest.TestCase):
         )
         return tmp
 
-    def test_the_two_PlanRecord_types_are_still_distinct_and_unmodified(self):
-        """This plan may NOT unify them; that is a class (c) reconciliation for a later child."""
-        self.assertIsNot(oc_runipd.PlanRecord, agy_runipd.PlanRecord)
-        self.assertIn("kind", oc_runipd.PlanRecord._fields)
-        self.assertNotIn("kind", agy_runipd.PlanRecord._fields)
+    def test_the_two_PlanRecord_types_are_now_ONE_shared_type(self):
+        """INVERTED BY `sy7uwh`, which this class's docstring authorizes and explains.
 
-    def test_each_runner_still_gets_its_OWN_record_type(self):
+        Was: `assertIsNot`, plus `kind` present on oc and ABSENT on agy. Now: one object, owned by
+        `runner_shared`, carrying `kind` for both hosts.
+        """
+        self.assertIs(oc_runipd.PlanRecord, agy_runipd.PlanRecord)
+        self.assertIs(oc_runipd.PlanRecord, runner_shared.PlanRecord)
+        self.assertIn("kind", runner_shared.PlanRecord._fields)
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                self.assertIn("kind", _MODULES[runner].PlanRecord._fields)
+
+    def test_no_field_was_lost_when_the_two_shapes_MERGED(self):
+        """The merge must be a UNION, not a redesign: `sy7uwh`'s OQ-02 forbids adding or dropping.
+
+        The pre-unification field sets are stated as LITERALS, measured at that plan's execution HEAD,
+        so this fails if a later change quietly drops a field either host used to have OR invents one
+        neither did.
+        """
+        oc_premove = (
+            "id6",
+            "setid",
+            "status",
+            "order",
+            "path",
+            "rel_path",
+            "dependencies",
+            "kind",
+            "dependency_error",
+            "from_backlog",
+        )
+        agy_premove = tuple(n for n in oc_premove if n != "kind")
+        shared = runner_shared.PlanRecord._fields
+        for name in oc_premove:
+            self.assertIn(name, shared, f"oc's `{name}` was LOST in the merge")
+        for name in agy_premove:
+            self.assertIn(name, shared, f"agy's `{name}` was LOST in the merge")
+        self.assertEqual(
+            set(shared),
+            set(oc_premove),
+            "the shared record must be exactly the UNION of the two pre-merge shapes; a field "
+            "nobody read before must not appear (`sy7uwh` OQ-02)",
+        )
+
+    def test_each_runner_now_gets_the_SAME_record_type(self):
+        """INVERTED BY `sy7uwh`. Was: each runner gets its OWN type out of `discover_plans`."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(pathlib.Path(tmp))
+            built = {}
+            for runner in BOTH:
+                with self.subTest(runner=runner):
+                    module = _MODULES[runner]
+                    found = module.discover_plans(repo)
+                    self.assertIn("aaaaaa", found)
+                    self.assertIs(type(found["aaaaaa"]), runner_shared.PlanRecord)
+                    built[runner] = found["aaaaaa"]
+            self.assertEqual(built["oc_runipd"], built["agy_runipd"])
+
+    def test_BOTH_paths_populate_kind(self):
+        """The original warning, now asserted for BOTH hosts rather than only oc.
+
+        `818uru` could only check oc here, because agy's record had no such field to check. That is the
+        payoff of the unification stated as a test: a shared constructor that dropped `kind` would
+        silently disable orchestrator detection on both hosts at once.
+        """
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._repo(pathlib.Path(tmp))
             for runner in BOTH:
                 with self.subTest(runner=runner):
-                    module = _MODULES[runner]
-                    found = module.discover_plans(repo)
-                    self.assertIn("aaaaaa", found)
-                    self.assertIs(type(found["aaaaaa"]), module.PlanRecord)
-
-    def test_the_oc_path_still_populates_kind(self):
-        """A shared constructor that dropped `kind` would silently disable orchestrator detection."""
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = self._repo(pathlib.Path(tmp))
-            record = oc_runipd.discover_plans(repo)["aaaaaa"]
-            self.assertEqual(record.kind, "child")
+                    record = _MODULES[runner].discover_plans(repo)["aaaaaa"]
+                    self.assertEqual(record.kind, "child")
 
 
 class PrintStatusRenderingTests(unittest.TestCase):
@@ -3611,9 +3679,10 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
         today's permanent loss while every ladder unit test above still passed.
         """
         for module in (oc_runipd, agy_runipd):
-            with self.subTest(
-                host=module.__name__
-            ), tempfile.TemporaryDirectory() as td:
+            with (
+                self.subTest(host=module.__name__),
+                tempfile.TemporaryDirectory() as td,
+            ):
                 run_dir = pathlib.Path(td) / "run"
                 (run_dir / "outcomes").mkdir(parents=True)
                 item = {

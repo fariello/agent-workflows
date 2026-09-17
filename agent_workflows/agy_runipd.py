@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import contextlib
 import functools
-import hashlib
 import json
 import os
 import re
@@ -26,7 +25,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Iterable, NamedTuple, Optional
+from typing import Any, Callable, Iterable, Optional
 
 # stallfp kaga7s: `Heartbeat` was a byte-identical INLINE COPY here, so a display fix in
 # `render_stream` silently did not reach `aw agy run`. It is now imported, like `Statusline`,
@@ -56,7 +55,12 @@ from agent_workflows import platform_lock, runner_shutdown
 # functions under the private names their call sites use, so a fix reaches both. The aliases are
 # deliberately the PERMISSIVE readers, preserving the whitespace tolerance these copies had;
 # `selectors`' strict internal readers back `aw find` and are unchanged.
-from agent_workflows.selectors import read_front_matter_id as _read_id
+#
+# `_read_id`'s `# noqa: F401` IS LOAD-BEARING (rununify 06 `sy7uwh`); see the fuller note in
+# `oc_runipd`. Once `parse_plan_file` moved to `runner_shared` this module stopped calling `_read_id`,
+# so `ruff --fix` removed the import as unused and broke the re-export
+# `tests/test_runner_refork_guard.py` requires of BOTH runners.
+from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - a DELIBERATE re-export; tests/test_runner_refork_guard.py requires it
 from agent_workflows.selectors import read_front_matter_status as _read_status
 
 from agent_workflows.render_stream import (
@@ -356,6 +360,26 @@ from agent_workflows.oc_runipd import (
 # live in the shared ``runner_stop`` module so both drivers consult ONE mechanism.
 from agent_workflows import runner_shared, runner_stop
 
+# rununify 06 (`sy7uwh`) E-02/E-03: the ONE plan record, its ONE reader, and the readers/constants that
+# reader closes over. This module used to define its own `PlanRecord` (identical to oc's except that it
+# LACKED `kind`), its own `parse_plan_file`, its own `build_dynamic_manifest` and its own
+# `_PLAN_FILENAME_RE`, and it imported the three readers FROM `oc_runipd`; there is now ONE of each and
+# the three readers reach this host through `runner_shared`, which drops the oc-to-agy import coupling
+# backlog `cnwy8g` tracks from 56 to 53. `plan_kind_from_file`/`resolve_manifest_kind` are this host's
+# former private `_plan_kind` legacy-manifest fallback, now shared so oc has it too (`sy7uwh` OQ-03).
+# The full rationale sits at each removed definition's old site further down this file.
+from agent_workflows.runner_shared import (
+    PlanRecord as PlanRecord,
+    _PLAN_FILENAME_RE as _PLAN_FILENAME_RE,
+    _read_from_backlog as _read_from_backlog,
+    _read_item_dependencies as _read_item_dependencies,
+    _read_kind as _read_kind,
+    build_dynamic_manifest as build_dynamic_manifest,
+    parse_plan_file as parse_plan_file,
+    plan_kind_from_file as plan_kind_from_file,
+    resolve_manifest_kind as resolve_manifest_kind,
+)
+
 # --- Cross-IPD dependency API (lanetruth-03 / 8guhs0): IMPORTED, never re-declared --------------
 #
 # `oc_runipd` owns ONE definition of each of these and `agy_runipd` binds the SAME objects, so the
@@ -396,7 +420,6 @@ from agent_workflows.oc_runipd import (
     BacklogCloseVerdict as BacklogCloseVerdict,
     CARRIER_KIND_IPD as CARRIER_KIND_IPD,
     CARRIER_KIND_OTHER as CARRIER_KIND_OTHER,
-    _read_from_backlog as _read_from_backlog,
     close_backlog_item as close_backlog_item,
     collect_earned_paths as collect_earned_paths,
     commit_backlog_close as commit_backlog_close,
@@ -415,13 +438,6 @@ from agent_workflows.oc_runipd import (
 from agent_workflows.oc_runipd import (
     DEPENDENCY_FATAL_RULES as DEPENDENCY_FATAL_RULES,
     _artifact_owners as _artifact_owners,
-    # orchretire-03 (`pgq326`) E-04: the `- Kind:` reader, IMPORTED not re-forked. The shared
-    # `action_for` reads `kind` to detect an orchestrator, and this module had no way to supply it, so
-    # its queue entries carried no `kind` and every plan derived `execute`. The reader stays in
-    # `oc_runipd` because moving it means moving `_KIND_RE` and the whole front-matter reader family
-    # with it, which is `cnwy8g`'s job; what matters here is that there is ONE definition.
-    _read_kind as _read_kind,
-    _read_item_dependencies as _read_item_dependencies,
     cascade_dependency_blocked as cascade_dependency_blocked,
     dependency_depth as dependency_depth,
     dependency_reasons as dependency_reasons,
@@ -519,15 +535,17 @@ DEPENDENCY_BLOCK_RECOVERY_HINT = (
 # Frontmatter and filename extraction regexes
 _ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
 _STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
+# `_PLAN_FILENAME_RE` is IMPORTED from `runner_shared` (rununify 06 `sy7uwh` E-03), not defined here.
+# It was BYTE-IDENTICAL to oc's copy and is closed over only by `parse_plan_file`, which moved to the
+# shared module, so it moved with it rather than being injected - the same rule `_SET_RE`/`_ORDER_RE`
+# already follow. A duplicate CONSTANT left behind would reproduce the defect one layer down.
+#
 # NOTE (lanetruth-03 / 8guhs0 E-01): there is deliberately NO dependency regex here. See the
 # identical note in `oc_runipd`. The canonical field NAME comes from
 # `ipd_schema.META_ITEM_DEPENDENCIES` and its GRAMMAR from `ipd_schema.parse_item_dependencies`; the
-# dependency API objects below are IMPORTED FROM `oc_runipd`, not re-declared, so the two drivers
-# cannot drift apart again. Re-adding a dependency regex here is a regression guarded by
+# dependency API objects below are IMPORTED (never re-declared), so the two drivers cannot drift apart
+# again. Re-adding a dependency regex here is a regression guarded by
 # tests/test_runner_item_dependencies.py.
-_PLAN_FILENAME_RE = re.compile(
-    r"^\d{8}-([a-z0-9_-]+)-(\d{1,3})-([a-z0-9]{6})-(.+)\.(ipd|draft|plan)\.md$"
-)
 
 # Terminal output verbosity for the streamed child-agent turn.
 OUTPUT_MODES = ("clean", "quiet", "raw")
@@ -1641,74 +1659,30 @@ def enforce_dependency_preflight(
         raise
 
 
-class PlanRecord(NamedTuple):
-    id6: str
-    setid: str
-    status: str
-    order: int
-    path: Path
-    rel_path: str
-    # CANONICAL TYPED edge tokens, never bare id6 strings (8guhs0 E-01); see the `oc_runipd` note.
-    dependencies: list[str]
-    dependency_error: str | None = None
-    # bkclose (zhr6mc) E-01: the plan's `- From-Backlog:` id6, kept symmetric with `oc_runipd`. Read
-    # through the SHARED `_read_from_backlog` (imported, not copied), so both drivers resolve the
-    # field name from `ipd_schema.META_FROM_BACKLOG` and cannot disagree.
-    from_backlog: str | None = None
-
-
-def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError:
-        return None
-    id6 = _read_id(text)
-    setid = _read_set(text)
-    status = _read_status(text)
-    order = _read_order(text)
-    deps, dep_err = _read_item_dependencies(text)
-    from_backlog = _read_from_backlog(text)
-    m = _PLAN_FILENAME_RE.match(path.name)
-    if m:
-        if not setid:
-            setid = m.group(1)
-        if order is None:
-            order = int(m.group(2))
-        if not id6:
-            id6 = m.group(3)
-    if not id6:
-        for part in path.name.split("-"):
-            if ID6_RE.fullmatch(part):
-                id6 = part
-                break
-    if not id6:
-        try:
-            rel = str(path.relative_to(repo))
-        except ValueError:
-            rel = str(path)
-        id6 = hashlib.sha256(rel.encode("utf-8")).hexdigest()[:6]
-    if not setid:
-        setid = "standalone"
-    if order is None:
-        order = 99
-    if not status:
-        bucket = plan_bucket(path)
-        status = bucket or "to-review"
-    try:
-        rel = str(path.relative_to(repo))
-    except ValueError:
-        rel = str(path)
-    return PlanRecord(
-        id6=id6,
-        setid=setid,
-        status=status,
-        order=order,
-        path=path.resolve(),
-        rel_path=rel,
-        dependencies=deps,
-        dependency_error=dep_err,
-        from_backlog=from_backlog,
-    )
+# rununify 06 (`sy7uwh`) E-02/E-03: `PlanRecord` and `parse_plan_file` are IMPORTED from
+# `runner_shared`, not defined here.
+#
+# WHAT WAS HERE AND WHY IT IS GONE. This module used to define its OWN `PlanRecord` - identical to oc's
+# except that it LACKED oc's `kind` field - and its own `parse_plan_file` to build it. `818uru` pinned
+# that split deliberately and wrote a test forbidding unification, deferring it to "a later child".
+# THIS WAS THAT CHILD, and the override is legitimate because the split's premise DISSOLVED: when it
+# was pinned this driver had no use for `kind`, and it now imports the shared `action_for`, which READS
+# `kind` to detect an orchestrator. So the missing field bought nothing and cost a redundant disk read
+# per plan, through the private `_plan_kind` helper that is also gone from the record path.
+#
+# THE FIELD SET IS oc's, per the Set's standing "oc is preferred" ruling, and it was measured to be a
+# strict SUPERSET of this module's, differing in exactly `kind` - so this host LOST NOTHING and GAINED
+# the field it was re-reading from disk. The two pins that asserted the split were INVERTED rather than
+# deleted (`tests/test_runner_shared.py::DiscoverPlansRecordTypeTests` and the single record-shape
+# assertion in `tests/test_orchestrator_retirement.py`), each now citing `sy7uwh`.
+# THE THREE READERS COME FROM `runner_shared` NOW, NOT FROM `oc_runipd`. They moved with
+# `parse_plan_file`, which closes over them, and the redirection REDUCES the oc-to-agy import coupling
+# backlog `cnwy8g` tracks by three (56 -> 53, re-measured in
+# `tests/test_orchestrator_probe_cache.py`). `_read_kind`'s old import comment here said the reader had
+# to stay in `oc_runipd` "because moving it means moving `_KIND_RE` and the whole front-matter reader
+# family with it, which is `cnwy8g`'s job"; moving `parse_plan_file` required exactly that, so it was
+# done, and `_KIND_RE`/`_PLAN_FILENAME_RE` moved too rather than being left as duplicate constants.
+# (The import itself is hoisted to the top-of-file shared-import block, per E402.)
 
 
 # rununify 02 (`818uru`) E-08: one-line wrapper over the shared `discover_plans`, binding THIS
@@ -1732,53 +1706,24 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
     )
 
 
-def _plan_kind(path: Path) -> str | None:
-    """The plan's `- Kind:` value, read from disk. orchretire-03 (`pgq326`) E-04.
-
-    A small reader rather than a `PlanRecord` field, because `818uru` PINNED this driver's record type
-    as distinct from oc's and explicitly forbade adding oc's `kind` field to it
-    (`tests/test_runner_shared.py::DiscoverPlansRecordTypeTests`); unifying the two is a later
-    reconciliation. The parsing itself is NOT duplicated: it delegates to the one shared `_read_kind`.
-    Returns None when the file is unreadable, which makes `action_for` fall back to `determine_action`
-    -- the pre-`pgq326` behavior, and the safe direction (a plan is agent-handled, never silently
-    retired)."""
-    try:
-        return _read_kind(path.read_text(encoding="utf-8"))
-    except OSError:
-        return None
-
-
-def build_dynamic_manifest(
-    repo: Path, discovered: dict[str, PlanRecord]
-) -> dict[str, Any]:
-    """Compile discovered plans into a manifest dictionary."""
-    plans_dict: dict[str, Any] = {}
-    sets_dict: dict[str, list[PlanRecord]] = {}
-    for id6, rec in discovered.items():
-        plans_dict[id6] = {
-            "set": rec.setid,
-            "file": rec.rel_path,
-            "status": rec.status,
-            "order": rec.order,
-            "dependencies": rec.dependencies,
-            # orchretire-03 (`pgq326`) E-04: `kind` carried through the manifest so the SHARED
-            # `action_for` can see it. Read from the plan file HERE rather than from `rec.kind`, because
-            # this driver's `PlanRecord` deliberately has no `kind` field (see `_plan_kind`). Without
-            # this key every plan derived `execute` and an approved orchestrator was AGENT-EXECUTED.
-            "kind": _plan_kind(rec.path),
-            # bkclose (zhr6mc) E-01: carried through the manifest, symmetric with `oc_runipd`.
-            "from_backlog": rec.from_backlog,
-        }
-        sets_dict.setdefault(rec.setid, []).append(rec)
-    sorted_sets: dict[str, Any] = {}
-    for setid, plist in sets_dict.items():
-        plist_sorted = sorted(plist, key=lambda x: (x.order, x.path.name))
-        sorted_sets[setid] = {"order": [x.id6 for x in plist_sorted]}
-    return {
-        "schema_version": SCHEMA_VERSION,
-        "plans": plans_dict,
-        "sets": sorted_sets,
-    }
+# rununify 06 (`sy7uwh`) E-03: `_plan_kind` and `build_dynamic_manifest` are GONE from this module, and
+# the two removals are for DIFFERENT reasons, which matters because conflating them would have caused a
+# regression.
+#
+# `build_dynamic_manifest` is now IMPORTED from `runner_shared` (see the import block below). The two
+# hosts' versions differed in exactly ONE expression - `'kind': rec.kind` on oc versus
+# `'kind': _plan_kind(rec.path)` here - so unifying the record collapsed the symbol for free.
+#
+# `_plan_kind` HAD TWO CALLERS AND ONLY ONE OF THEM WAS THE RECORD SPLIT. Its docstring described only
+# that first one (the `build_dynamic_manifest` line above), and deleting the helper on the strength of
+# that docstring would have destroyed the SECOND caller, a LEGACY-MANIFEST FALLBACK in
+# `initialize_run` with an entirely independent reason: a hand-written manifest carrying no `kind` key
+# made an APPROVED ORCHESTRATOR derive `execute` and be AGENT-EXECUTED, the exact defect
+# orchretire-03 (`pgq326`) fixed, and no test covered it. So the first caller became `rec.kind` and the
+# second was LIFTED to `runner_shared.plan_kind_from_file` / `resolve_manifest_kind` - given to BOTH
+# hosts rather than kept here, because oc lacked it entirely and the two hosts therefore DISAGREED
+# about a correctness gate in oc's disfavor (`sy7uwh` OQ-03, resolved by the maintainer 2026-09-16).
+# `tests/test_rununify_record.py` covers that fallback on both hosts for the first time.
 
 
 def expand_selectors(
@@ -2240,11 +2185,16 @@ def initialize_run(args: argparse.Namespace) -> Path:
         for id6 in queue_ids:
             plan_info = manifest["plans"].get(id6, {})
             st = plan_info.get("status")
-            if not st:
+            # rununify 06 (`sy7uwh`) E-03: resolve the path ONCE (the oc twin carries the full note); the
+            # kind fallback below needs it even when the manifest supplies a status.
+            probe_path = None
+            try:
+                probe_path = resolve_plan_path(repo, plan_info.get("file", ""), id6)
+            except Exception:
+                probe_path = None
+            if not st and probe_path is not None:
                 try:
-                    rec_probe = parse_plan_file(
-                        resolve_plan_path(repo, plan_info.get("file", ""), id6), repo
-                    )
+                    rec_probe = parse_plan_file(probe_path, repo)
                     st = rec_probe.status if rec_probe else None
                 except Exception:
                     st = None
@@ -2253,7 +2203,12 @@ def initialize_run(args: argparse.Namespace) -> Path:
             # same manifest, so the `--action` legality preflight and the dispatch cannot disagree about
             # an orchestrator's action. `determine_action` here (the pre-`pgq326` code) told the operator
             # an orchestrator's next action was `execute`.
-            preflight_items.append((id6, st, action_for(plan_info.get("kind"), st)))
+            # rununify 06 (`sy7uwh`) E-03: and now through the SAME `resolve_manifest_kind` as the queue
+            # build, so the "cannot disagree" claim above also covers a legacy manifest with no `kind`
+            # key, where this site read the raw `None` while the dispatch fell back to the plan file.
+            preflight_items.append(
+                (id6, st, action_for(resolve_manifest_kind(plan_info, probe_path), st))
+            )
         enforce_requested_action(requested_action, preflight_items)
 
     # runflags-01 (`uyeko5`) E-02: the SAME call site the opencode driver has, from the SAME shared
@@ -2328,11 +2283,12 @@ def initialize_run(args: argparse.Namespace) -> Path:
         # A draft/to-review orchestrator still takes `review` (its artifact must be review-complete
         # whichever way the Set is driven); only a past-review orchestrator becomes `orchestrate`, which
         # this driver's dispatch loop now ACTS on (E-07) instead of spending an agent turn.
-        kind = plan.get("kind")
-        if kind is None and p_path is not None:
-            # A hand-written manifest predating the `kind` key: read the plan file rather than silently
-            # deriving `execute` for an orchestrator. Same manifest-then-file fallback `from_backlog` uses.
-            kind = _plan_kind(p_path)
+        # rununify 06 (`sy7uwh`) E-03: the manifest-then-file resolution is now the SHARED
+        # `resolve_manifest_kind`, which oc's queue build also calls. This host had the fallback inline
+        # (through a private `_plan_kind`) and oc had NONE, so a hand-written manifest omitting the
+        # `kind` key made this host correctly RETIRE an approved orchestrator while oc spent an agent
+        # turn executing it. One shared resolution ends that disagreement in the safe direction.
+        kind = resolve_manifest_kind(plan, p_path)
         action = action_for(kind, status or "approved")
         queue.append(
             {
