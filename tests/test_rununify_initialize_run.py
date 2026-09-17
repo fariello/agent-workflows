@@ -146,16 +146,20 @@ LIVE_OPTION_KEY_UNION = 34  # 21 shared + 13 host-specific
 #: A REAL FORK: an independent definition in BOTH runner modules. Each becomes an injected parameter
 #: of a shared core, and injecting a symbol is the opposite of sharing it.
 #:
-#: SEVEN, not the plan's eight. `EmptyStatusSelection` was LIFTED into `runner_shared` by sibling
-#: `i3d6ml` at commit `d26c1061` between this plan's review and its execution, so the fork count
-#: improved by one through a sibling landing. That is the Set working as designed and it is recorded
-#: rather than silently absorbed.
+#: FIVE, not the plan's eight, and each reduction came from a SIBLING landing rather than from this
+#: plan. Recorded per reduction rather than silently absorbed, because the shrinking count IS the
+#: Set working as designed:
+#:   * `EmptyStatusSelection` LIFTED into `runner_shared` by sibling `i3d6ml` (commit `d26c1061`).
+#:   * `build_dynamic_manifest` and `parse_plan_file` UNIFIED into `runner_shared` by sibling
+#:     `sy7uwh` (integrated 2026-09-17), together with `PlanRecord`. Verified at integration:
+#:     `oc_runipd.build_dynamic_manifest is agy_runipd.build_dynamic_manifest` -> True and
+#:     `__module__` -> `agent_workflows.runner_shared`, likewise for `parse_plan_file`. They are
+#:     therefore no longer forks and MUST NOT be listed here; they moved to
+#:     RESOLVES_IN_RUNNER_SHARED below.
 STILL_DOUBLE_DEFINED = (
-    "build_dynamic_manifest",
     "enforce_dependency_preflight",
     "enforce_requested_action",
     "expand_selectors",
-    "parse_plan_file",
     "set_plan_approved",
     "write_report",
 )
@@ -168,8 +172,10 @@ RESOLVES_IN_RUNNER_SHARED = (
     "action_for",
     "append_jsonl",
     "atomic_write_json",
+    "build_dynamic_manifest",
     "load_json",
     "new_run_id",
+    "parse_plan_file",
     "resolve_plan_path",
     "sha256_file",
     "state_root",
@@ -204,10 +210,18 @@ EQUAL_CONSTANTS = ("DEFAULT_RUNBOOK_TEXT", "DEFAULT_STALL_TIMEOUT")
 #: prefer oc's over.
 OC_ONLY_SYMBOLS = ("launch_profile_record", "resolve_launch_pair")
 
-#: AGY-ONLY, likewise with no oc counterpart. `_plan_kind` exists ONLY because `agy.PlanRecord` lacks
-#: a `kind` field (the plan's F-4); sibling `sy7uwh` is the plan that unifies the record and would
-#: delete it. `DEFAULT_MODEL`/`DEFAULT_TIMEOUT` are this host's own launch defaults.
-AGY_ONLY_SYMBOLS = ("DEFAULT_MODEL", "DEFAULT_TIMEOUT", "_plan_kind")
+#: AGY-ONLY, likewise with no oc counterpart. `DEFAULT_MODEL`/`DEFAULT_TIMEOUT` are this host's own
+#: launch defaults.
+#:
+#: `_plan_kind` WAS HERE AND IS DELETED, exactly as this comment predicted: it existed ONLY because
+#: `agy.PlanRecord` lacked a `kind` field (the plan's F-4), and sibling `sy7uwh` (integrated
+#: 2026-09-17) unified the record and removed it. Verified at integration:
+#: `hasattr(agy_runipd, "_plan_kind")` -> False. Its legacy-manifest FALLBACK capability was not
+#: lost with the name; `sy7uwh` lifted it to shared `plan_kind_from_file`/`resolve_manifest_kind`
+#: and gave it to BOTH hosts, which repaired an oc defect (oc derived `execute` for an approved
+#: orchestrator named by a manifest omitting `kind`, and would have spent an agent turn on a plan
+#: that authors no code). Recorded rather than deleted silently so a reader does not re-add the name.
+AGY_ONLY_SYMBOLS = ("DEFAULT_MODEL", "DEFAULT_TIMEOUT")
 
 #: AGY-ONLY BUT ALREADY DELEGATING: agy's `resolve_verification_decision` is a one-line binding over
 #: `runner_shared.resolve_verification_decision`, which plan `ybkmzp` built. oc reaches the same
@@ -215,7 +229,14 @@ AGY_ONLY_SYMBOLS = ("DEFAULT_MODEL", "DEFAULT_TIMEOUT", "_plan_kind")
 #: not a fork, and F-3 is right that the two concerns must not be collapsed into one.
 AGY_ONLY_DELEGATING = ("resolve_verification_decision",)
 
-CLOSURE_TOTAL = 37
+#: RE-MEASURED 2026-09-17: 36, down from the 37 this plan measured at authoring. The reduction is
+#: `_plan_kind`, which sibling `sy7uwh` DELETED when it unified `PlanRecord` (see AGY_ONLY_SYMBOLS
+#: above). `initialize_run` no longer reaches it on either host, verified by
+#: `test_initialize_run_still_closes_over_every_pinned_symbol`, which compares the table against the
+#: names the FUNCTION actually reaches. Lowered rather than left, because a total that no longer
+#: matches the reached set makes every count derived from it wrong, including the injection count the
+#: split analysis rests on.
+CLOSURE_TOTAL = 36
 
 #: `__file__`. NOT A SYMBOL AND NOT INJECTABLE: a construct whose MEANING changes on relocation.
 #: Listed apart from every class above for that reason. See `TheDriverIdentityIsEvaluatedInEachRunner`.
@@ -721,7 +742,7 @@ class TheClosureClassificationIsPinned(unittest.TestCase):
         )
 
     def test_the_census_totals_are_what_was_measured(self):
-        self.assertEqual(len(STILL_DOUBLE_DEFINED), 7)
+        self.assertEqual(len(STILL_DOUBLE_DEFINED), 5)
         self.assertEqual(
             len(STILL_DOUBLE_DEFINED)
             + len(RESOLVES_IN_RUNNER_SHARED)
@@ -734,8 +755,8 @@ class TheClosureClassificationIsPinned(unittest.TestCase):
             + len(NON_RELOCATABLE)
             + 3,  # `Any`, `Path`, `runner_shared`: stdlib/module aliases, identity trivially true
             CLOSURE_TOTAL,
-            "the classes must partition the 37 measured names exactly; a total that does not reach "
-            "37 means a name was dropped from the table rather than reclassified",
+            "the classes must partition the measured names exactly; a total below CLOSURE_TOTAL "
+            "means a name was dropped from the table rather than reclassified",
         )
 
 
