@@ -6,7 +6,7 @@
 - Scope: Add a THIRD host end to end without adding a runner module, and let the attempt find whatever the seam is missing. The deliverable is either a working third host reached through `HostLabels` plus a thin entry point, or a precise, evidenced list of what the descriptor cannot express. Both outcomes are valuable; only an unexamined assumption is not.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_hostdedup_third_host.py, .aw/records/research
 - Item-Dependencies: executed:nmlx47
-- Status: draft
+- Status: to-review
 - Set: hostdedup
 - Order: 3
 - Highest E allocated: 06
@@ -14,6 +14,7 @@
 - Id: xdvglg
 
 ## Workflow history
+- 2026-09-17 to-review (aw set): Authored 2026-09-17 from an AST measurement at HEAD (34 forked symbols / ~1752 oc lines across the two runners); complete enough to critique
 
 - 2026-09-17 draft (opencode/its_direct-pt3-claude-opus-5-1m-us): created.
 

@@ -6,7 +6,7 @@
 - Scope: Finish the job for everything except the five large functions, and PROVE the result by adding a third host that has no runner module. Order 01 lifts the 17 byte-identical symbols; Order 02 unifies the 12 divergent ones behind the existing `HostLabels` descriptor and fixes the inverted agy->oc dependency; Order 03 demonstrates a runner-less host end to end. The five large functions are deliberately NOT re-planned here (see OQ-01).
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Set: hostdedup
 - Order: 0
 - Highest E allocated: 01
@@ -14,6 +14,7 @@
 - Id: a5wdne
 
 ## Workflow history
+- 2026-09-17 to-review (aw set): Authored 2026-09-17 from an AST measurement at HEAD (34 forked symbols / ~1752 oc lines across the two runners); complete enough to critique
 
 - 2026-09-17 draft (opencode/its_direct-pt3-claude-opus-5-1m-us): created.
 

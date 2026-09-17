@@ -6,7 +6,7 @@
 - Scope: Resolve all twelve to ONE definition in `runner_shared`, per-shape: reconcile the near-identical seven and lift them; RE-POINT the three agy stubs at `runner_shared` so the runner-to-runner import disappears; and for the two genuine differences, express the difference through `HostLabels` (or an added field) rather than a forked body. Also close the guard hole that let the inverted import be introduced.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_review_findings_cascade.py, tests/test_hostdedup_divergent_unify.py, tests/test_rununify_initialize_run.py
 - Item-Dependencies: executed:li44r9
-- Status: draft
+- Status: to-review
 - Set: hostdedup
 - Order: 2
 - Highest E allocated: 06
@@ -14,6 +14,7 @@
 - Id: nmlx47
 
 ## Workflow history
+- 2026-09-17 to-review (aw set): Authored 2026-09-17 from an AST measurement at HEAD (34 forked symbols / ~1752 oc lines across the two runners); complete enough to critique
 
 - 2026-09-17 draft (opencode/its_direct-pt3-claude-opus-5-1m-us): created.
 

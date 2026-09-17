@@ -6,7 +6,7 @@
 - Scope: Move these seventeen symbols to `runner_shared.py` as ONE definition each, and leave each host a thin delegating wrapper of the sanctioned form the repository already uses in 21 other places. This is the LOWEST-RISK tranche by construction: because the bodies are byte-identical, the shared definition is the existing body verbatim, with no parameterization to design and no behavior decision to make. Does NOT touch the twelve divergent symbols (Order 02) or the five large functions (out of Set; see Deferred).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_hostdedup_identical_lift.py, tests/test_rununify_initialize_run.py
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Set: hostdedup
 - Order: 1
 - Highest E allocated: 05
@@ -14,6 +14,7 @@
 - Id: li44r9
 
 ## Workflow history
+- 2026-09-17 to-review (aw set): Authored 2026-09-17 from an AST measurement at HEAD (34 forked symbols / ~1752 oc lines across the two runners); complete enough to critique
 
 - 2026-09-17 draft (opencode/its_direct-pt3-claude-opus-5-1m-us): created.
 
