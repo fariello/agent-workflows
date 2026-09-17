@@ -9,15 +9,17 @@
 - From-Spec: 7ckptx
 - From-Backlog: vqv9im
 - Blocks-Release: next
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: lanectn
 - Order: 7
 - Highest E allocated: 09
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: 4fodkt
+- Approval: 2026-09-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-17 approved (aw set): status set to approved
 - 2026-09-17 reviewed (aw set): /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 all FIXED; readiness go-pending-approval. DISCLOSED SELF-REVIEW (I authored this plan in the same session, so this round is weaker evidence than an independent one). THE BLOCKER PR-001: the pre-revision plan demonstrated all 31 live acceptance criteria in ONE E-item with ONE V-item, and aw ipd lint reported clean because its thresholds are >18 leaves / >5 groups while the plan had 4 leaves in 3 groups - exactly the case the rubric says a passing size lint does NOT clear. Measured, the criteria form six independent requirement families (R1 n=4, R2 n=5, R3 n=3, R4 n=10, R5 n=8, R6 n=1), so one item bundled six evidence surfaces and a single V-item was satisfiable by pasting the easy evidence and asserting the rest, which is the greenwash this plan exists to prevent. FIXED by splitting into six family items plus a closing reconciliation (E-02..E-07), re-authoring V-02..V-07 1:1, renumbering deliverables to E-08/E-09, and recording in the cohesion rationale why the count grew. FOUR HARDENINGS from the spec's own text: A14b's anti-cheat clause is now binding (report CLEAN means record A14b FAILED, not reinterpret); A4's sibling-preservation half shown separately, since proving only the once-only half passes while losing a sibling lane's work; the five adjacent A10* criteria may not share one observation; E-07 closes the enumeration against E-01 so the family split cannot strand a criterion the way the parent's copied list stranded A14b. OQ-01 RESOLVED FROM EVIDENCE not asked: runner_shared.evaluate_set_retirement already blocks the parent (this worktree eligible False / unfinished-children / '4fodkt (to-review)'; main without this plan eligible True), so authoring the plan IS the fix and no edit to h0zljh is made. Verified: lint clean at author and review-finalize; gating findings CLEAR; sanitizer clean; three spec claims re-derived (36/5/31, A14b citing R5.4/R6.1). NOT verified: any acceptance criterion actually passing - that is the plan's job.
 
 - 2026-09-16 to-review (opencode/its_direct-pt3-claude-opus-5-1m-us): Authored to carry `h0zljh` E-02, the whole-Set verification, which is work that exists ONLY on the Order-0 orchestrator and is covered by no child. Written per the `AGENTS.md` rule that a step found on a parent and covered by no child gets a CHILD rather than deletion. TWO MEASUREMENTS TAKEN AT AUTHORING, both reproducible: (1) spec `7ckptx` Section 4 defines 36 `A*` criteria of which exactly 5 are marked WITHDRAWN in the spec text (`A7b`, `A7b-1`, `A7b-2`, `A7b-3`, `A7c`, all withdrawn by `R3.3a`), leaving 31 LIVE; (2) the enumeration in `h0zljh` E-02 covers 30 of those 31 and OMITS `A14b`, which is live and load-bearing. That omission is exactly the failure mode E-02's own text warns about ("an enumeration copied from an earlier draft is how a withdrawn criterion gets demonstrated or a live one gets skipped"), so this plan re-derives the list from the spec at execution time rather than trusting either enumeration.
