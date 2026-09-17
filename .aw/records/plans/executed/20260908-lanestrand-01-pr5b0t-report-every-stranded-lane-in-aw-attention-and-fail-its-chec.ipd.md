@@ -10,18 +10,18 @@
 - Scope: Give `aw attention` a lane-visibility surface: report every stranded lane as an item needing attention with its branch, worktree path, `integration_signal` and plan id6, mapped onto the existing class vocabulary, carried in the `--agent`/`--json` payloads, and make `aw attention --check` exit nonzero while any lane is stranded. EXCLUDES the CAUSE of stranding (`daexj1` owns the suite gate); EXCLUDES the end-of-run report (`ys1dor` owns it, and this plan REUSES its vocabulary rather than choosing a second one); EXCLUDES any recovery, merge, or deletion action (`rl67b0` owns `aw integrate`); and EXCLUDES a new `aw lanes` verb, deferred with reasons.
 - Scope-Paths: agent_workflows/attention_contract.py, agent_workflows/attention.py, agent_workflows/runner_shared.py, tests/test_attention.py, tests/test_runner_shared.py, .aw/records/specs/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: lanestrand
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: pr5b0t
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: nuanaw
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-17 executed (aw oc run): aw oc run self-finalize: pr5b0t verified (set lanestrand, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/cli.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_attention_priority_blocker.py: changed by the plan's approved execution (auto-reconciled by aw oc run)]
 - 2026-09-17 executed (opencode its_direct/pt3-claude-opus-5-1m-us): implemented in lane `aw/lane/pr5b0t`, commit `b13a3f9e` (code + tests + spec amendment) and `19cbc780` (three backlog items for the defects found). All seven E-items performed and all seven V-items verified with pasted evidence; `aw ipd lint --phase pre-transition` CONFORMING. THE TERMINAL TRANSITION WAS NOT PERFORMED HERE and that is correct rather than incomplete: `aw ipd finalize` REFUSED with `AW-LIFECYCLE-ROLE-001` (the runner owns begin/finalize for a managed lane; a worker-role process must not run them), so the driver performs it after integrating this lane. TWO CORRECTIONS THE REVIEW DEMANDED WERE BOTH CONFIRMED BY MEASUREMENT rather than accepted on faith: `holds_work` is byte-identical before and after a `--no-ff` merge while `git merge-base --is-ancestor` flips, so the landing question is REQUIRED and is now a permanent regression test; and the absolute-home-path prohibition bound harder than expected, since the leak-sanitizer legitimately failed BOTH my test fixtures and my own first draft of the V-04 evidence block, all three now composed or elided. THE COST CLAIMS COULD NOT BE FULLY RE-MEASURED and this is stated rather than glossed: `.aw/records/runs/` is gitignored and absent from a lane worktree, and this turn's sandbox refused reads of the primary checkout, so the two dollar figures are NOT restated as verified; `xdr83v_attempt2` holding zero commits and `03ie04` holding two DID reproduce from the shared object store. THE LANE COUNT IS WORSE THAN THE PLAN'S ELEVEN: 14 of 38 `aw/lane/*` branches hold unmerged commits, filed for human triage as backlog `qliia1` and deliberately not touched. Suite failure-set delta EMPTY (31 failed before and after, same set, all environmental; 7420 -> 7441 passed).
 - 2026-09-13 approved (aw set): status set to approved
 
