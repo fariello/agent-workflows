@@ -79,39 +79,39 @@ deliverable is the ANALYSIS that decision needs, and it performs no relocation.
 
 ### Task group 1: measure before touching
 
-- [ ] E-01 MEASURE THE THREE POPULATIONS at execution HEAD, and refuse to proceed to E-04 on a stale list. This is the method that reversed siblings `i3d6ml` and `ty3cj6`, and it is NOT the body-difference method this plan originally used. (a) THE CLOSURE: parse `oc_runipd.main`, collect every free name resolving at MODULE level, and classify each into the five classes of the Goal table; name any symbol whose class changed since 2026-09-16. (b) THE SOURCE PINS: find every `inspect.getsource(<host>.main)` in `tests/`, and for each record the substring or AST shape it requires and whether a thin caller can still satisfy it (F-8 lists four). (c) THE PATCH SEAMS: find every `mock.patch.object`/`monkeypatch.setattr` on a host module naming a symbol in the closure, and classify each by whether a shared core would still observe it (F-9 measured 26 across four files). This E-item writes NO runner logic.
+- [x] E-01 MEASURE THE THREE POPULATIONS at execution HEAD, and refuse to proceed to E-04 on a stale list. This is the method that reversed siblings `i3d6ml` and `ty3cj6`, and it is NOT the body-difference method this plan originally used. (a) THE CLOSURE: parse `oc_runipd.main`, collect every free name resolving at MODULE level, and classify each into the five classes of the Goal table; name any symbol whose class changed since 2026-09-16. (b) THE SOURCE PINS: find every `inspect.getsource(<host>.main)` in `tests/`, and for each record the substring or AST shape it requires and whether a thin caller can still satisfy it (F-8 lists four). (c) THE PATCH SEAMS: find every `mock.patch.object`/`monkeypatch.setattr` on a host module naming a symbol in the closure, and classify each by whether a shared core would still observe it (F-9 measured 26 across four files). This E-item writes NO runner logic.
   - Depends on: none
   - Expected outcome: three reproducible tables in the execution report, with the method stated and the HEAD named; the count of still-double-defined names stated; the source-pin and patch-seam counts stated with each file and line.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 PIN THE CURRENT BEHAVIOR OF BOTH HOSTS, per the parent's E-02 constraint that no child may reconcile a symbol the characterization baseline has not pinned. Write characterization tests for `main` on BOTH hosts covering every branch the split would move, following the precedent of `tests/test_wtiso_characterization.py`. Cover, by name and on BOTH hosts: the five exit codes `main` actually returns (0, 2, 130, 143, and the `print_help` 0), the implicit-start shim including the `stop` non-rewrite, the four `except` arms in order, and the `--json` status branch's suppression of the pointer line. PRIORITIZE the agy side, which the parent measured as the less covered one. Assert on OBSERVABLE BEHAVIOR (return code, stdout, stderr, on-disk state), NOT on source text: adding a fifth source pin would hand the next refactor a problem this plan is documenting. This E-item writes TESTS ONLY and changes no runner logic.
+- [x] E-02 PIN THE CURRENT BEHAVIOR OF BOTH HOSTS, per the parent's E-02 constraint that no child may reconcile a symbol the characterization baseline has not pinned. Write characterization tests for `main` on BOTH hosts covering every branch the split would move, following the precedent of `tests/test_wtiso_characterization.py`. Cover, by name and on BOTH hosts: the five exit codes `main` actually returns (0, 2, 130, 143, and the `print_help` 0), the implicit-start shim including the `stop` non-rewrite, the four `except` arms in order, and the `--json` status branch's suppression of the pointer line. PRIORITIZE the agy side, which the parent measured as the less covered one. Assert on OBSERVABLE BEHAVIOR (return code, stdout, stderr, on-disk state), NOT on source text: adding a fifth source pin would hand the next refactor a problem this plan is documenting. This E-item writes TESTS ONLY and changes no runner logic.
   - Depends on: E-01
   - Expected outcome: a committed characterization suite that passes against UNMODIFIED code and would fail if either host's observable behavior moved; the agy branches previously uncovered are named; no new `inspect.getsource(main)` pin introduced.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 PIN THE EXIT-CODE CONTRACT THAT F-7 SHOWS IS SILENTLY BREAKABLE, as its own item because it is the one hazard whose failure mode is invisible. Assert, on BOTH hosts, that an empty status sweep returns 0 with `Nothing awaiting review` and creates no run directory, AND assert the STRUCTURAL fact that makes the hazard possible: each host's `EmptyStatusSelection` is a subclass of the shared `runner_shared.DriverError` and is NOT a subclass of the other host's. Existing coverage is `tests/test_run_flag_surface.py:1787` and `tests/test_agy_runipd_cli.py:1200`; this item adds the structural half those two do not assert, so a shared core that hardcoded one class would fail HERE rather than in production.
+- [x] E-03 PIN THE EXIT-CODE CONTRACT THAT F-7 SHOWS IS SILENTLY BREAKABLE, as its own item because it is the one hazard whose failure mode is invisible. Assert, on BOTH hosts, that an empty status sweep returns 0 with `Nothing awaiting review` and creates no run directory, AND assert the STRUCTURAL fact that makes the hazard possible: each host's `EmptyStatusSelection` is a subclass of the shared `runner_shared.DriverError` and is NOT a subclass of the other host's. Existing coverage is `tests/test_run_flag_surface.py:1787` and `tests/test_agy_runipd_cli.py:1200`; this item adds the structural half those two do not assert, so a shared core that hardcoded one class would fail HERE rather than in production.
   - Depends on: E-01
   - Expected outcome: a test that fails if either host's empty-sweep exit code moves off 0, plus a test that fails if the two `EmptyStatusSelection` classes are collapsed to one without proving both hosts still exit 0.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the split, GATED
 
-- [ ] E-04 DO NOT PERFORM THE SPLIT UNTIL OQ-03 IS ANSWERED, and record the analysis rather than silently skipping it. The deliverable is the disclosure, so an executor cannot mistake the omission for an oversight and "finish" it later. State, from E-01's tables: (a) the eleven dependencies a shared core would have to take (the 9 double-defined plus the 2 host-wrapped) and which of them the maintainer's `818uru` OQ-02 wrapper ruling already governs; (b) the four source pins with a verdict each; (c) the 26 patch seams, with an explicit statement of which are LOST rather than merely broken, since a lost seam degrades silently where a broken pin fails loudly; (d) whether re-ordering this plan AFTER siblings 07/08/09/10 would reduce the eleven, since `run_queue` (child 08), `initialize_run` (child 09), `build_parser` (child 10) and `render_continuation_hint`/`write_report` (child 04) are five of them, and note that sibling `ty3cj6`'s own review left child 08 NO-GO, so the declared `executed:ty3cj6` edge points at a plan that cannot currently execute; and (e) whether oc's `as <profile>` grammar (19 of the 46 differing lines) can live in a shared core at all, given agy has no profile subsystem.
+- [x] E-04 DO NOT PERFORM THE SPLIT UNTIL OQ-03 IS ANSWERED, and record the analysis rather than silently skipping it. The deliverable is the disclosure, so an executor cannot mistake the omission for an oversight and "finish" it later. State, from E-01's tables: (a) the eleven dependencies a shared core would have to take (the 9 double-defined plus the 2 host-wrapped) and which of them the maintainer's `818uru` OQ-02 wrapper ruling already governs; (b) the four source pins with a verdict each; (c) the 26 patch seams, with an explicit statement of which are LOST rather than merely broken, since a lost seam degrades silently where a broken pin fails loudly; (d) whether re-ordering this plan AFTER siblings 07/08/09/10 would reduce the eleven, since `run_queue` (child 08), `initialize_run` (child 09), `build_parser` (child 10) and `render_continuation_hint`/`write_report` (child 04) are five of them, and note that sibling `ty3cj6`'s own review left child 08 NO-GO, so the declared `executed:ty3cj6` edge points at a plan that cannot currently execute; and (e) whether oc's `as <profile>` grammar (19 of the 46 differing lines) can live in a shared core at all, given agy has no profile subsystem.
   - Depends on: E-01
   - Expected outcome: a written analysis sufficient for the maintainer to answer OQ-03 without re-deriving the measurement; no runner logic changed by this item.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: proof
 
-- [ ] E-05 Add `tests/test_rununify_main.py` and assert E-01's CLOSURE CLASSIFICATION mechanically, driven by a named table rather than by literals in the assertion bodies. A symbol that silently changes class must fail here. Do NOT write any assertion about a shared core: OQ-03 gates the split, and a test asserting a state the code is not in is a failing test rather than a guard.
+- [x] E-05 Add `tests/test_rununify_main.py` and assert E-01's CLOSURE CLASSIFICATION mechanically, driven by a named table rather than by literals in the assertion bodies. A symbol that silently changes class must fail here. Do NOT write any assertion about a shared core: OQ-03 gates the split, and a test asserting a state the code is not in is a failing test rather than a guard.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: a suite that fails if any of the 27 closure names changes class, driven by one table.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add the two INVERSE assertions to `tests/test_rununify_main.py`, in their own item because they guard against a different actor than E-05 does. E-05 guards against the CODE drifting; these guard against a later AGENT quietly clearing the obstacles in order to make a split pass. Assert that the four F-8 source pins are STILL PRESENT (naming each `path:line` and its required substring or AST shape), and that `main` is STILL DEFINED in both runners, each with a comment naming OQ-03 as the reason it must stay.
+- [x] E-06 Add the two INVERSE assertions to `tests/test_rununify_main.py`, in their own item because they guard against a different actor than E-05 does. E-05 guards against the CODE drifting; these guard against a later AGENT quietly clearing the obstacles in order to make a split pass. Assert that the four F-8 source pins are STILL PRESENT (naming each `path:line` and its required substring or AST shape), and that `main` is STILL DEFINED in both runners, each with a comment naming OQ-03 as the reason it must stay.
   - Depends on: E-05
   - Expected outcome: a suite that fails if a source pin is deleted or if `main` is unilaterally moved into `runner_shared`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -352,35 +352,522 @@ describing the divergence being removed, amend it in the SAME change and add the
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: THREE pasted tables with the command or script that produced each, and the HEAD. (a) The closure, all 27 names classified into the five classes of the Goal table, explicitly stating the count STILL DEFINED TWICE. (b) The source pins, each with its `path:line`, the substring or AST shape it requires, and a verdict on whether a thin caller satisfies it. (c) The patch seams, each with its `path:line` and the symbol patched, plus an explicit count. A table that merely repeats this plan's numbers without re-deriving them at execution HEAD does NOT satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: HEAD `761edad3`, lane `aw/lane/3dki3o`. All three populations RE-DERIVED at
+    execution HEAD by AST, not copied from the plan. The scripts are the ones the guard suite now
+    embeds (`tests/test_rununify_main.py::module_level_free_names` / `classify` / `ThePatchSeamPopulation.seams`).
 
-- [ ] V-02 validates E-02
+    **(a) THE CLOSURE. 27 module-level free names, and ONE HAS CHANGED CLASS SINCE 2026-09-16.**
+
+    ```
+    HEAD closure of oc_runipd.main: 27 module-level free names
+
+    1-shared-same-object                  9  DriverError, EmptyStatusSelection, Palette, json, load_state, render_run_summary_table, resolve_run_dir, should_color, sys
+    2-shared-name-host-wrapper            2  print_status, save_state
+    3-one-object-agy-imports-from-oc      5  emit_shutdown_report, install_exit_signal_handler, render_runs_pointer, report_run_spec_edits, runner_shared
+    4-still-defined-twice                 8  build_parser, handle_stop_command, initialize_run, install_stop_triggers, locked_run, render_continuation_hint, run_queue, write_report
+    5-oc-only                             3  ProfileClauseError, extract_profile_clause, print_launch_identity
+    TOTAL                                27
+
+    agy main closure size: 24
+    ```
+
+    | Class | Plan (2026-09-16) | HEAD (2026-09-17) |
+    |---|---|---|
+    | shared, same object | 8 | **9** |
+    | shared name, host wrapper | 2 | 2 |
+    | one object, agy imports from oc | 5 | 5 |
+    | **STILL DEFINED TWICE** | 9 | **8** |
+    | oc-only | 3 | 3 |
+
+    **THE COUNT STILL DEFINED TWICE IS 8**, stated explicitly as this item demands, down from the
+    plan's 9. THE SYMBOL THAT CHANGED CLASS IS `EmptyStatusSelection`, named as E-01 requires:
+
+    ```
+    oc.ESS is agy.ESS : True
+    oc.ESS is rs.ESS  : True
+    mro: ['EmptyStatusSelection', 'DriverError', 'RuntimeError', 'Exception', 'BaseException', 'object']
+    module: agent_workflows.runner_shared
+    ```
+
+    CAUSE: sibling `i3d6ml`, commit `d26c1061` ("lift the 9 closure-clean shared runner symbols into
+    runner_shared"). CONSEQUENCE: the plan's F-7 BLOCKER can no longer fire, because its mechanism
+    REQUIRED two distinct sibling classes. Recorded as backlog `18nlx8` and DECISION 12-3dki3o-D2
+    rather than by editing F-7, whose measurement was correct when made and was re-verified during
+    this execution (see V-03(b)).
+
+    ALSO MEASURED, since F-1's conclusion depends on it and V-01 is where a stale claim would show:
+
+    ```
+    oc source lines : 297      agy source lines: 205
+    oc AST-normalized : 133    agy AST-normalized: 111
+    similarity: 0.8115         differing lines: 46
+    ```
+
+    Every headline number in the plan reproduces EXACTLY. Classified by cause: 20 host CAPABILITY,
+    9 host LABEL, 17 residual, of which 12 are one two-line style difference repeated twice plus a
+    block reordering. So the genuine drift is about 5 lines of 133, and F-1 (not the Concern) is
+    right.
+
+    **(b) THE FOUR SOURCE PINS. Every one reproduces; a thin caller satisfies NONE.**
+
+    ```
+    tests/test_runner_backlog_close.py:923:                src = inspect.getsource(mod.main)
+    tests/test_runner_backlog_close.py:1073:                src = inspect.getsource(mod.main)
+    tests/test_runner_backlog_close.py:1089:                src = inspect.getsource(mod.main)
+    tests/test_run_flag_surface.py:837:            source = inspect.getsource(_MODULES[runner].main)
+    ```
+
+    | # | `path:line` | Requires | Thin caller satisfies it? |
+    |---|---|---|---|
+    | 1 | `test_runner_backlog_close.py:923` | AST of main's source: the `--json` branch must contain `json.dumps` and NOT `render_runs_pointer`, BOTH hosts | **NO.** A thin caller contains neither string. RE-BASEABLE; behavioral twin now exists (`TheJsonStatusBranch`). |
+    | 2 | `test_runner_backlog_close.py:1073` | source contains literal `install_exit_signal_handler()` AND literal `143` | **NO.** Weakest of the four (a comment satisfies it). RE-BASEABLE; twin asserts 143 through real behavior. |
+    | 3 | `test_runner_backlog_close.py:1089` | an `except` handler naming `KeyboardInterrupt` whose body contains `emit_shutdown_report` | **NO.** RE-BASEABLE; twin drives a real SIGINT-shaped interrupt. |
+    | 4 | `test_run_flag_surface.py:837` | source contains `refuse_frozen_flags_on_resume` and `apply_run_policy_flags_on_resume`, BOTH hosts | **NO.** RE-BASEABLE; twin proves the refusal (exit 2) and the application (state written). |
+
+    **(c) THE PATCH SEAMS. 28 total, of which 26 in the four files F-9 named, matching exactly.**
+
+    ```
+    TOTAL: 28  files: 5
+    BY SYMBOL:
+       run_queue                    7        locked_run                   6
+       resolve_run_dir              3        load_state                   3
+       build_parser                 3        emit_shutdown_report         2
+       install_stop_triggers        2        initialize_run               1
+       render_run_summary_table     1
+    BY FILE:
+       tests/test_interrupt_menu.py             12
+       tests/test_run_summary_table.py           8
+       tests/test_oc_runipd.py                   4
+       tests/test_oc_runipd_cli.py               2
+       tests/test_rununify_run_queue_characterization.py  2
+    seams in the FOUR files the plan named: 26
+    ```
+
+    Per-site listing (28 lines, `path:line` + symbol) is in the lane artifact
+    `e01-measurements.txt`; the same scan now runs as an assertion in
+    `tests/test_rununify_main.py::ThePatchSeamPopulation`.
+
+    A MEASUREMENT WARNING WORTH RECORDING: a scan matching only the DIRECT spelling
+    `patch.object(oc_runipd, ...)` finds just **10** of the 28. The other 18 are INDIRECT
+    (`patch.object(module, ...)` / `patch.object(driver, ...)` inside a both-hosts loop). My first
+    scan made exactly that error and reported 10; counting both spellings gives F-9's 26. Recorded
+    because it is how a scan can return a reassuring number and be wrong.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted green run of the characterization suite against UNMODIFIED code; the list of agy branches it newly covers, named; the five exit codes it pins per host, named; a sabotage of one pinned branch showing the suite FAILS (a characterization test that cannot fail pins nothing); and an explicit confirmation, with the grep result, that it added NO new `inspect.getsource(main)` pin.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: **GREEN AGAINST UNMODIFIED PRODUCT CODE.** `git diff agent_workflows/` was
+    empty for this run; this plan changes no product code at all.
 
-- [ ] V-03 validates E-03
+    ```
+    $ python3 -m pytest tests/test_rununify_main_characterization.py -o addopts=""
+    collected 26 items
+    tests/test_rununify_main_characterization.py ..........................  [100%]
+    ============================== 26 passed in 4.58s ==============================
+    ```
+
+    **THE FIVE EXIT CODES PINNED PER HOST, named** (class `TheFiveExitCodes`, every test looping
+    BOTH hosts through `subTest`):
+
+    | Code | Branch | Test |
+    |---|---|---|
+    | 0 | a completed command (`start --prepare-only`) | `test_exit_0_a_prepare_only_start_completes` |
+    | 0 | the `parser.print_help()` path when no subcommand resolves | `test_exit_0_no_subcommand_prints_help_rather_than_failing` |
+    | 2 | a `DriverError` translated to the host-prefixed stderr line | `test_exit_2_an_unresolvable_selector_is_translated_not_raised` |
+    | 130 | SIGINT through the `KeyboardInterrupt` funnel | `test_exit_130_sigint_funnels_through_keyboardinterrupt` |
+    | 143 | SIGTERM, distinguished ONLY by `"SIGTERM" in str(exc)` | `test_exit_143_sigterm_is_marked_by_the_message_not_a_second_handler` |
+
+    **AGY BRANCHES NEWLY COVERED, named as this item demands.** agy was the under-covered host, so
+    each of these is asserted on agy for the first time: its `print_help` return-0 path; its
+    `DriverError` translation INCLUDING the `runagy:` prefix (measured as asserted NOWHERE in
+    `tests/` before this file); its generic `except Exception` arm printing
+    `runagy: unexpected failure:` and RE-RAISING rather than swallowing; its
+    `just-terminate-no-cleanup` message variant; its `report` branch writing the file and printing
+    the path; its `--json` status suppression AND the plain-status inverse; its resume freeze
+    (`--retry-budget` refused) and apply (`--unattended` written to frozen options); its
+    `--agy-executable` resume write; and the ABSENCE of oc's profile subsystem asserted as a fact
+    (`extract_profile_clause`, `ProfileClauseError`, `print_launch_identity`, `--verify-with`).
+
+    **SABOTAGE, showing the suite CAN fail.** One pinned branch broken (`return 143 if is_sigterm
+    else 130` -> `return 130`) in `oc_runipd.main`:
+
+    ```
+    SABOTAGE APPLIED: oc main returns 130 for SIGTERM
+    >               self.assertEqual(rc, 143, err)
+    E               AssertionError: 130 != 143 : Terminated by SIGTERM; durable run state was preserved.
+    FAILED tests/test_rununify_main_characterization.py::TheFiveExitCodes::test_exit_143_sigterm_is_marked_by_the_message_not_a_second_handler
+    ========================= 1 failed, 25 passed in 4.61s =========================
+    ```
+
+    RESTORED and verified byte-identical (`git diff --stat -- agent_workflows/oc_runipd.py` empty),
+    then green again at 26 passed.
+
+    **NO NEW `inspect.getsource(main)` PIN, with the grep.** The only hit in the new file is PROSE
+    in its module docstring explaining why it adds none:
+
+    ```
+    $ grep -rn "getsource" tests/ --include=*.py | grep -iE "\.main|\"main\"|'main'"
+    tests/test_runner_backlog_close.py:923:                src = inspect.getsource(mod.main)
+    tests/test_runner_backlog_close.py:1073:                src = inspect.getsource(mod.main)
+    tests/test_runner_backlog_close.py:1089:                src = inspect.getsource(mod.main)
+    tests/test_rununify_main_characterization.py:9:`inspect.getsource(<host>.main)` and assert substrings or AST shapes of its body (inventoried in
+    tests/test_run_flag_surface.py:837:            source = inspect.getsource(_MODULES[runner].main)
+    ```
+
+    Four real pins, unchanged, and the census is now ASSERTED at exactly four by
+    `TheSourcePinsAreStillPresent::test_the_pin_population_is_still_exactly_four`, so a fifth cannot
+    be added silently either.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: THREE parts, all pasted. (a) The empty-sweep assertions green on BOTH hosts (exit 0, `Nothing awaiting review`, no run directory created). (b) The STRUCTURAL assertion green: each host's `EmptyStatusSelection` subclasses `runner_shared.DriverError` and is NOT a subclass of the other host's, with the measured `issubclass` results shown. (c) `tests/test_run_flag_surface.py` green with its 89-test baseline.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: **(a) THE EMPTY-SWEEP ASSERTIONS, BOTH HOSTS.**
 
-- [ ] V-04 validates E-04
+    ```
+    $ python3 -m pytest tests/test_rununify_main_characterization.py::TheEmptySweepExitCodeContract -o addopts=""
+    ....                                                                     [100%]
+    ============================== 4 passed in 0.40s ==============================
+    ```
+
+    `test_an_empty_review_sweep_exits_zero_on_both_hosts` asserts all three properties this item
+    names, per host: `rc == 0`, `Nothing awaiting review` on stdout, and
+    `(repo/".aw"/"records"/"runs").exists()` FALSE, i.e. no run directory created. A companion
+    (`test_a_plain_driver_error_still_exits_2_so_the_zero_is_not_blanket`) proves the 0 is not
+    blanket: a misspelled selector still exits 2.
+
+    **(b) THE STRUCTURAL ASSERTION, AND A CORRECTION TO WHAT IT CAN ASSERT.** This item asks for
+    "each host's `EmptyStatusSelection` subclasses `runner_shared.DriverError` and is NOT a subclass
+    of the other host's". THE SECOND HALF IS NO LONGER ASSERTABLE, because there is no longer an
+    "other host's" class to compare against: sibling `i3d6ml` (`d26c1061`) lifted the class into
+    `runner_shared` and both hosts now resolve the SAME object. Measured:
+
+    ```
+    oc.ESS is agy.ESS : True
+    oc.ESS is rs.ESS  : True
+    issubclass(rs.EmptyStatusSelection, rs.DriverError): True   (and it is NOT DriverError itself)
+    ```
+
+    So the structural half was pinned in the form the CURRENT code allows, which is strictly
+    stronger for the hazard's purpose: `test_empty_status_selection_is_ONE_shared_class_not_two_per_host`
+    fails the moment anyone re-forks the class, and
+    `test_the_shared_class_is_still_a_driver_error_subclass` keeps the subclass relation that makes
+    the `except` ordering load-bearing.
+
+    **F-7's MECHANISM WAS RE-VERIFIED BY CONSTRUCTION rather than taken on trust.** agy was
+    deliberately re-forked to its own sibling class, reproducing the exact shape F-7 described:
+
+    ```
+    SABOTAGE APPLIED: agy re-forked EmptyStatusSelection into its own class
+    E       AssertionError: <class 'agent_workflows.runner_shared.EmptyStatusSelection'> is not
+            <class 'agent_workflows.agy_runipd.EmptyStatusSelection'> : the two hosts'
+            EmptyStatusSelection must be the SAME object; two sibling classes let a shared `except`
+            arm miss one host and return 2 instead of 0 (F-7)
+    FAILED ...::test_empty_status_selection_is_ONE_shared_class_not_two_per_host
+    ========================= 1 failed, 3 passed in 0.40s ==========================
+    ```
+
+    And the PRODUCTION consequence F-7 predicted, through a shared core written against
+    `runner_shared`'s class exactly as a real split would be:
+
+    ```
+    agy.ESS is rs.ESS          : False
+    issubclass(agy.ESS, rs.ESS): False
+      -> Nothing awaiting review
+    oc's instance through the shared core : 0
+      -> runX: empty
+    agy's instance through the shared core: 2
+    ```
+
+    Exit 0 for the matching class, exit 2 for the sibling, violating spec `25kzda` 2.4a property 3
+    precisely as F-7 said. So F-7 was CORRECT when written and is now DISSOLVED by `i3d6ml`, which
+    is why it is recorded as backlog `18nlx8` rather than deleted. Sabotage restored and verified
+    byte-identical.
+
+    **(c) `tests/test_run_flag_surface.py` GREEN AT ITS 89-TEST BASELINE, exactly as the plan
+    predicted:**
+
+    ```
+    $ python3 -m pytest tests/test_run_flag_surface.py -o addopts=""
+    tests/test_run_flag_surface.py ......................................... [ 46%]
+    ................................................                         [100%]
+    ============================== 89 passed in 5.45s ==============================
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the written analysis itself, covering all five parts (a) through (e) that E-04 enumerates, with the four pins of F-8 and the 26 seams of F-9 each given a verdict, and the LOST-versus-BROKEN distinction stated for the seams. Plus an explicit statement that NO split was performed and that OQ-03 remains the maintainer's, so the omission cannot be read as an oversight.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE ANALYSIS IS THE TRACKED RECORD
+    `.aw/records/walkthroughs/20260917-mnclosure-01-zogmmg-main-is-an-entry-point-and-the-set-shared-nothing.walkthrough.md`
+    (committed at `1f57ae6c`). It is TRACKED rather than a lane note deliberately: the lane
+    submission tree is gitignored, the correction sibling `yrqyxb` had to make after the fact.
+    Summary of each of the five parts:
 
-- [ ] V-05 validates E-05
+    **(a) THE INJECTION SURFACE IS TEN, NOT ELEVEN.** 8 still-double-defined plus 2 host-wrapped,
+    because `EmptyStatusSelection` moved (V-01(a)). Of these, the maintainer's `818uru` OQ-02
+    wrapper ruling governs EXACTLY TWO, `print_status` and `save_state`, and both are already IN
+    that form: `runner_shared` owns the real function taking the host dependency as a parameter and
+    each runner keeps a one-line wrapper at the original name and signature. The other eight are
+    NOT governed by it, and the analysis states plainly why that matters: injecting a
+    still-double-defined symbol DE-DUPLICATES NOTHING, it relocates the call while leaving two
+    implementations behind it.
+
+    **(b) THE FOUR PINS, A VERDICT EACH: all four RE-BASEABLE, none satisfiable by a thin caller.**
+    Table in V-01(b) and in the walkthrough. Each now has a BEHAVIORAL TWIN added by E-02, which is
+    what converts "re-basing these is risky" into the trade the maintainer's 2026-09-16 ruling
+    invites (prefer a behavioral assertion where it loses no coverage). The twins do NOT authorize
+    deleting the pins: E-06 asserts all four still present and the census fixed at four.
+
+    **(c) THE 26 SEAMS, WITH THE LOST-VERSUS-BROKEN DISTINCTION STATED.** ALL 26 are at risk of
+    being LOST, not broken, and the distinction is the finding: a source pin BREAKS (it fails at its
+    own assertion, in red, naming itself) while a seam is LOST (the `with patch.object(...)` block
+    still runs, nothing raises, the test still PASSES, and what it now exercises is the real
+    `run_queue`, the real `locked_run` and the real `initialize_run` against a temp repo). Whether a
+    given seam survives depends on a design detail the plan does not specify, and this was verified
+    by construction: an import-time-frozen reference returned the real object while a call-time
+    reference honored the patch. Practical consequence recorded: all 26 must be converted to patch
+    the INJECTED PARAMETER, which is a rewrite of four test files including
+    `tests/test_oc_runipd.py:4123`'s `_parse_argv` helper that backs 12 launch-profile assertions.
+
+    **(d) RE-ORDERING AFTER THE SIBLINGS WOULD NOT REDUCE THE TEN, AND THIS IS THE SET-LEVEL
+    FINDING.** The question presumes children 04/07/08/09/10 will SHARE their symbols. They
+    executed WITHOUT doing so. Measured mechanically at this HEAD rather than read from their prose:
+
+    | Symbol | Child | Status | In `runner_shared`? | oc object is agy object? |
+    |---|---|---|---|---|
+    | `execute_item` | 07 `yrqyxb` | executed | NO | NO |
+    | `run_queue` | 08 `ty3cj6` | executed | NO | NO |
+    | `initialize_run` | 09 `orziju` | executed | NO | NO |
+    | `build_parser` | 10 `s16omw` | executed | NO | NO |
+
+    So ALL FIVE split children are now executed and NOT ONE shared its symbol; the Set's stated
+    objective (one shared code base holding 100% of the redundant code) is NOT met by the Set as
+    executed, and the five analyses are the input to a follow-on Set rather than a substitute for
+    one. THIS ALSO CORRECTS F-12 in the letter: `ty3cj6` IS executed, so the declared
+    `Item-Dependencies: executed:ty3cj6` edge is MET, not dangling; F-12's substance (the dependency
+    is insufficient rather than wrong) stands, since `run_queue` is still double-defined. The
+    walkthrough recommends the ordering for the follow-on: leaf helpers first, then
+    `initialize_run`/`build_parser`, then `run_queue`, then `execute_item`, and `main` LAST, since it
+    is the only one of the five that closes over the other four.
+
+    **(e) OC'S `as <profile>` GRAMMAR CANNOT LIVE IN A SHARED CORE.** 20 of the 46 differing lines
+    are host CAPABILITY, and the answer is given against this plan's own OQ-01 mechanical test (if a
+    boundary requires the shared core to contain an `if host == ...` branch, the boundary is wrong).
+    `extract_profile_clause` and `ProfileClauseError` DO NOT EXIST on agy, so this is not two hosts
+    doing the same thing differently; it is a subsystem one host has. The only placements are a host
+    branch (refused by OQ-01) or a caller-supplied hook (which IS the host hook, i.e. leaving it
+    where it is). ADDING it to agy is a FEATURE the parent Set forbids a child from making. The
+    analysis concludes that the shareable part of `main` is the ERROR-TRANSLATION TAIL, which needs
+    none of the eight double-defined symbols and breaks no patch seam, because all 26 seams sit on
+    the parse/route head.
+
+    **NO SPLIT WAS PERFORMED, and OQ-03's status stated precisely rather than left ambiguous.**
+    OQ-03 is `resolved` ON DISK: the maintainer answered it on 2026-09-16 with a Set-wide directive
+    (100% de-duplication, route (A) the objective). So this plan did NOT withhold the split pending a
+    decision that was already made; the phrase "OQ-03 remains the maintainer's" in this V-item's
+    required evidence is itself stale, and saying so is more useful than repeating it. The split was
+    withheld for two reasons of AUTHORITY and SEQUENCING, both recorded in DECISION 12-3dki3o-D1:
+    this plan's own approved scope changes NO product code (stated in four places, and V-04 itself
+    demands a statement that no split was performed), and `main` is the child most dependent on the
+    other four, so splitting the caller before the callees inverts the dependency order the
+    maintainer's own sequencing note asks for. THE OMISSION CANNOT BE READ AS AN OVERSIGHT because
+    it is asserted mechanically: `tests/test_rununify_main.py::TheSplitHasNotBeenPerformed` (4
+    tests) asserts both hosts still define `main`, the two are not one object, `runner_shared` has
+    no `main`, and neither host delegates to its peer, each with the instruction to re-base it in
+    the same change as the split.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: `python3 -m pytest tests/test_rununify_main.py -o addopts=""` green, pasted, plus the table the closure assertions are driven from, shown in the test source, plus a demonstration that changing one entry in that table makes the suite FAIL (a classification assertion that cannot fail pins nothing).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: **THE SUITE GREEN:**
 
-- [ ] V-06 validates E-06
+    ```
+    $ python3 -m pytest tests/test_rununify_main.py -o addopts=""
+    collected 20 items
+    tests/test_rununify_main.py ....................                         [100%]
+    ============================== 20 passed in 7.10s ==============================
+    ```
+
+    **THE TABLE THE ASSERTIONS ARE DRIVEN FROM**, in the test source as
+    `EXPECTED_CLOSURE` (27 entries, one per closure name) plus `CLOSURE_CLASSES` (the five class
+    definitions, each with the consequence for a split) and `EXPECTED_CLASS_COUNTS` (the histogram).
+    Excerpt showing the shape and the one changed entry:
+
+    ```python
+    EXPECTED_CLOSURE = {
+        # class 1: resolves in runner_shared, same object (9)
+        "DriverError": "shared-same-object",
+        "EmptyStatusSelection": "shared-same-object",
+        ...
+        # class 4: STILL DEFINED TWICE, i.e. the injection cost of a split (8)
+        "build_parser": "still-defined-twice",
+        ...
+        # class 5: oc-only, no agy counterpart (3)
+        "print_launch_identity": "oc-only",
+    }
+    EXPECTED_CLASS_COUNTS = {
+        "shared-same-object": 9, "shared-host-wrapper": 2,
+        "one-object-agy-imports-oc": 5, "still-defined-twice": 8, "oc-only": 3,
+    }
+    ```
+
+    NO literal appears in an assertion body: every closure test iterates the table, and membership is
+    checked BIDIRECTIONALLY (`test_every_name_is_in_the_table_and_the_table_has_no_extras`) so
+    neither a new closure name nor a stale table entry can hide.
+
+    **CHANGING ONE ENTRY MAKES THE SUITE FAIL** (a classification assertion that cannot fail pins
+    nothing):
+
+    ```
+    table entry falsified: run_queue still-defined-twice -> shared-same-object
+    E               - still-defined-twice
+    E               + shared-same-object
+    E                : run_queue changed closure class; a split's cost is a function of this
+                       classification, so the plan that reads it is now stale
+    FAILED tests/test_rununify_main.py::TheClosureClassification::test_each_name_is_still_in_its_expected_class
+    ========================= 1 failed, 19 passed in 6.89s =========================
+    ```
+
+    Restored; suite green again at 20 passed.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: FOUR parts, all pasted. (a) The two inverse assertions green, naming the four pins they check. (b) The BIDIRECTIONAL non-vacuity controls from Required tests item 5, both directions shown failing and then restored. (c) All SEVEN fenced test files green by name, plus `test_no_call_site_was_rewritten` with its 38/36 and 2/2 expectations unchanged. (d) Bare `python3 -m pytest` with no new failure against the baseline taken at execution HEAD, summary pasted, and the one pre-existing `test_the_terminal_rung_still_records_the_item_interrupted` failure either reproduced in the baseline or explained.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: **(a) THE TWO INVERSE ASSERTIONS GREEN.**
+
+    ```
+    $ python3 -m pytest tests/test_rununify_main.py -o addopts=""
+    ============================== 20 passed in 7.10s ==============================
+    ```
+
+    `TheSourcePinsAreStillPresent` (4 tests) checks the four pins NAMED in `SOURCE_PINS`:
+    `test_runner_backlog_close.py:923` `test_json_output_suppresses_the_pointer`;
+    `:1073` `test_the_sigterm_funnel_is_wired_in_both_drivers_main`;
+    `:1089` `test_both_drivers_report_from_their_keyboardinterrupt_funnel`; and
+    `test_run_flag_surface.py:837` `test_both_runners_refuse_and_apply_on_resume`. For each it
+    asserts the file still calls `inspect.getsource(<mod>.main)`, the test still exists by name, and
+    the required substrings are still required; plus the census is fixed at exactly FOUR, so a fifth
+    cannot be added either. `TheSplitHasNotBeenPerformed` (4 tests) asserts `main` is still defined
+    in both runners, the two are not one object, `runner_shared` has no `main`, and neither host
+    delegates to its peer.
+
+    **(b) THE BIDIRECTIONAL NON-VACUITY CONTROLS, both directions shown failing then restored.**
+
+    DIRECTION 1, the exit-code contract broken in the direction F-7 names (agy's
+    `EmptyStatusSelection` re-forked into its own sibling class), E-03's structural assertion FAILS:
+
+    ```
+    SABOTAGE APPLIED: agy re-forked EmptyStatusSelection into its own class
+    E       AssertionError: <class 'agent_workflows.runner_shared.EmptyStatusSelection'> is not
+            <class 'agent_workflows.agy_runipd.EmptyStatusSelection'>
+    FAILED ...TheEmptySweepExitCodeContract::test_empty_status_selection_is_ONE_shared_class_not_two_per_host
+    ========================= 1 failed, 3 passed in 0.40s ==========================
+    ```
+
+    NOTE ON FORM: this item's text says to break it "by making one host's `EmptyStatusSelection`
+    inherit from the other's". That phrasing presumes two per-host classes, which no longer exist
+    (V-03(b)). The control was therefore run in the shape that reproduces the SAME hazard against
+    current code, a re-fork, and it also reproduced the production consequence (exit 0 for the
+    matching class, exit 2 for the sibling; pasted in V-03(b)).
+
+    DIRECTION 2, one of the four F-8 source pins DELETED, E-06's inverse assertions FAIL:
+
+    ```
+    DELETED pin: test_the_sigterm_funnel_is_wired_in_both_drivers_main
+    FAILED tests/test_rununify_main.py::TheSourcePinsAreStillPresent::test_the_pin_population_is_still_exactly_four
+    FAILED tests/test_rununify_main.py::TheSourcePinsAreStillPresent::test_each_pin_test_still_exists_by_name
+    ========================= 2 failed, 18 passed in 7.29s =========================
+    ```
+
+    TWO guards catch it, not one. Both sabotages restored and verified byte-identical to HEAD
+    (`git status --porcelain` showed only my own new files afterwards).
+
+    **(c) THE SEVEN FENCED FILES, each green by name.**
+
+    ```
+    tests/test_runner_backlog_close.py   47 passed in 5.31s
+    tests/test_run_flag_surface.py       89 passed in 8.61s
+    tests/test_oc_runipd.py             185 passed in 51.33s
+    tests/test_oc_runipd_cli.py          18 passed in 1.52s
+    tests/test_interrupt_menu.py         15 passed in 0.37s
+    tests/test_run_summary_table.py      10 passed in 0.37s
+    tests/test_runner_stop_triggers.py    1 failed, 54 passed in 18.57s
+    ```
+
+    SIX of seven fully green. The seventh's single failure is the PRE-EXISTING
+    `test_the_terminal_rung_still_records_the_item_interrupted`, addressed in (d). ALL SEVEN were
+    left UNTOUCHED by this plan, as its scope check predicted, so each needs a `--scope-ack` at
+    finalize rather than a `--scope-reason`.
+
+    `test_no_call_site_was_rewritten` GREEN:
+
+    ```
+    $ python3 -m pytest "tests/test_runner_shared.py::WrapperTests::test_no_call_site_was_rewritten" -o addopts=""
+    tests/test_runner_shared.py .                                            [100%]
+    ============================== 1 passed in 1.09s ===============================
+    ```
+
+    THE `38/36` FIGURE THIS ITEM CITES IS STALE, and reporting that is more honest than transcribing
+    it. The test holds NO such literal: a `PREMOVE_CALL_SITES` baseline of 32/30 plus five
+    separately-named addition tables. Summed at this HEAD:
+
+    ```
+    ('oc_runipd', 'save_state'): 45      ('oc_runipd', 'print_status'): 2
+    ('agy_runipd', 'save_state'): 43     ('agy_runipd', 'print_status'): 2
+    ```
+
+    So `print_status` is 2/2 EXACTLY as the item says, and `save_state` has moved to 45/43 because
+    later plans added callers and NAMED each one, which is what that table's own rule requires. The
+    numbers were NOT edited: the table's documented rule forbids fixing a moved count by editing a
+    literal, and doing so would be the silent weakening the maintainer's 2026-09-16 ruling
+    prohibits. The claim BEHIND this item is that this plan rewrote no call site, and that is proven
+    directly and more strongly: `git diff agent_workflows/` is EMPTY for this execution. Filed as
+    backlog `yfbzqn`; see DECISION 12-3dki3o-D3.
+
+    **(d) BARE `python3 -m pytest`, NO NEW FAILURE AGAINST THE BASELINE TAKEN AT EXECUTION HEAD.**
+
+    BASELINE at `761edad3` BEFORE any change:
+
+    ```
+    7715 passed, 3 skipped, 2 xfailed in 104.30s (0:01:44)
+    ```
+
+    AFTER my changes:
+
+    ```
+    7761 passed, 3 skipped, 2 xfailed in 109.21s (0:01:49)
+    ```
+
+    Zero failures both before and after; +46 passed, exactly the count of the two new files.
+
+    TWO HONEST NOTES, because a bare-green report would otherwise be misleading.
+
+    FIRST, `test_the_terminal_rung_still_records_the_item_interrupted` does NOT appear in either bare
+    run, and the plan's Required tests item 8 expected it to fail. Both are true: the class carries
+    `@pytest.mark.slow` (`tests/test_runner_stop_triggers.py:785`) and `addopts` supplies
+    `-m 'not slow'`, so a BARE run DESELECTS it. Selected by node id it fails deterministically, 3 of
+    3:
+
+    ```
+    E       AssertionError: 'running' != 'interrupted'
+    E        : the interrupted item must be recorded `interrupted`, got {... 'status': 'running'}
+    FAILED tests/test_runner_stop_triggers.py::PreExistingInterruptContractTests::test_the_terminal_rung_still_records_the_item_interrupted
+    ```
+
+    NOT ATTRIBUTABLE TO THIS PLAN, shown three ways: it still fails with my two new files moved
+    aside, with `AW_EXECUTION_ROLE` unset, and with `AW_PIN_KEEP_ROOT` unset; and this plan changes
+    no product code. It exercises `main`'s exit-130 path, so it is squarely in this symbol's
+    territory and is filed as backlog `pe7g6r` (high) WITH the invisibility mechanism, which is the
+    more valuable half: the contract is broken right now and the mandated bare run cannot see it.
+
+    SECOND, an INTERMEDIATE bare run showed one failure that the rerun did not:
+    `test_runner_backlog_close.py::ShutdownReportOnInterrupt::test_sigint_produces_the_report_and_exits_130`,
+    a `subprocess.TimeoutExpired` after 30s rather than an assertion failure. It is load-related
+    flakiness under `-n auto`, not a regression: it passes 3 of 3 in isolation, it appeared in a
+    PRE-CHANGE baseline run as well, and the clean rerun above is fully green. Reported rather than
+    quietly discarded.
+  - Result: pass
 
 ## Approval and execution gate
 
