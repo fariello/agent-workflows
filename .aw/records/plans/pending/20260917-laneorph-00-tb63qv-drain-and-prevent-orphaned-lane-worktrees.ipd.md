@@ -6,7 +6,7 @@
 - Scope: Coordinate the two children. Order 01 fixes the reclaim predicate and tears a lane down when its work lands. Order 02 drains the 13 existing branches by evidence-cited disposition. This orchestrator holds NO work of its own beyond sequencing and the Set-level acceptance check.
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Set: laneorph
 - Order: 0
 - Highest E allocated: 01
@@ -14,6 +14,7 @@
 - Id: tb63qv
 
 ## Workflow history
+- 2026-09-17 to-review (aw set): Authored 2026-09-17 from a measured sweep of .aw/worktrees/ (38 worktrees/4.7G, 28 provably merged and clean) and of the 13 lane branches holding 76 unmerged commits; complete enough to critique
 
 - 2026-09-17 draft (opencode/its_direct-pt3-claude-opus-5-1m-us): created.
 

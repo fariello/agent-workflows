@@ -6,7 +6,7 @@
 - Scope: Decide, per branch, one of THREE dispositions with cited evidence: RECOVER (real work absent from `main`, needs merging or re-plandering), DELETE (superseded, or its substance provably landed elsewhere), or ESCALATE (cannot be decided from repository evidence; needs the maintainer). Then execute the DELETE and RECOVER decisions. This plan produces a decision RECORD first and acts second, because a branch deletion is irreversible in practice and 76 commits of history is not something to guess at.
 - Scope-Paths: .aw/records/research, .aw/records/backlog
 - Item-Dependencies: executed:65cuw0
-- Status: draft
+- Status: to-review
 - From-Backlog: qliia1
 - Set: laneorph
 - Order: 2
@@ -15,6 +15,7 @@
 - Id: ut0vzr
 
 ## Workflow history
+- 2026-09-17 to-review (aw set): Authored 2026-09-17 from a measured sweep of .aw/worktrees/ (38 worktrees/4.7G, 28 provably merged and clean) and of the 13 lane branches holding 76 unmerged commits; complete enough to critique
 
 - 2026-09-17 draft (opencode/its_direct-pt3-claude-opus-5-1m-us): created.
 

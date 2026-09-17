@@ -6,7 +6,7 @@
 - Scope: Add an explicit merged-ness reading to `LaneState`, make `reclaimable` honor it, tear a lane down at the end of a successful integration, and stop `aw attention` reporting a merged lane as stranded. Does NOT change what `commits_ahead` MEANS: that figure is still the correct input to the lane-REUSE question (`LANE_EMPTY`/`LANE_STALE`/`LANE_FOREIGN` decide whether a lane can be adopted for a fresh execution), so this adds a separate predicate rather than redefining an existing one.
 - Scope-Paths: agent_workflows/worktree_lease.py, agent_workflows/runner_shared.py, agent_workflows/attention.py, tests/test_worktree_lease_merged_reclaim.py
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - From-Backlog: a58s04
 - Set: laneorph
 - Order: 1
@@ -15,6 +15,7 @@
 - Id: 65cuw0
 
 ## Workflow history
+- 2026-09-17 to-review (aw set): Authored 2026-09-17 from a measured sweep of .aw/worktrees/ (38 worktrees/4.7G, 28 provably merged and clean) and of the 13 lane branches holding 76 unmerged commits; complete enough to critique
 
 - 2026-09-17 draft (opencode/its_direct-pt3-claude-opus-5-1m-us): created.
 
