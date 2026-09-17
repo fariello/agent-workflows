@@ -6,18 +6,18 @@
 - Scope: Make a failed retirement leave the shared checkout byte-identical to how it found it, and add the tree-cleanliness assertion the existing fault tests lack. Excludes relocating the retirement mutations into a worktree, which is Order 04 (`u23gbn`) and is gated on that plan's blocking OQ-03 about shared-versus-forked transaction code.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, tests/test_orchestrator_retirement.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: dirtygates
 - Order: 6
 - Highest E allocated: 02
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: 4xt6u4
-- Approval: 2026-09-14, recorded via aw ipd set: status set to approved
 - Priority: medium
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-17 executed (aw oc run): aw oc run self-finalize: 4xt6u4 verified (set dirtygates, attempt 1).
 - 2026-09-16 executed (opencode (its_direct/pt3-claude-opus-5-1m-us)): E-01/E-02 performed, V-01/V-02 verified with pasted evidence. F-1 reproduced first at HEAD `daa48f42` in both prior-state cases, confirming the defect and F-7's narrowing. THE MECHANISM DEVIATES FROM THE PLAN TEXT AND IS FLAGGED FOR HUMAN REVIEW (decision `07-4xt6u4-D1`): the plan prescribed reinstating the `index_json_before`/`index_md_before` journal keys and RESTORING the manifests on rollback; the implementation instead REMOVES the rollback's regeneration entirely, which meets the plan's stated acceptance property exactly. The reason is a new measurement made possible by Order 04 (`u23gbn`) having landed since review: across all three pre-commit fault points x both prior-state cases, the shared manifests are still byte-identical to their pre-attempt state at the instant `_rollback_precommit` is ENTERED, because the mutations happen in a coordinator worktree and the manifests are gitignored. Step 4 was therefore the SOLE creator of the residue, so not-writing and restoring have the same postcondition, and not-writing additionally fixes a measured peer-clobber (pre-fix the regeneration replaced a peer's concurrent manifest write) that a restore would not have. F-8 answered (decision `07-4xt6u4-D2`): the rollback-path fail-loud arm is dropped, the success-path gate is untouched. F-9 confirmed and honored: the midpoint (not end) is where the `before_commit` test's comparison sits. Six of the nine assertions were demonstrated FAILING against the pre-fix code. Full suite bare: 31 failed/7377 passed baseline -> 31 failed/7384 passed after, FAILED-set diff EMPTY (all 31 pre-existing and unrelated).
 - 2026-09-14 approved (aw set): status set to approved
 - 2026-09-13 reviewed (opencode (its_direct/pt3-claude-opus-5-1m-us)): /plan-review ROUND 1: APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. PR-601..PR-604, all FIXED, no open questions. F-1 independently reproduced at HEAD 54b6f7ce with identical values, so the plan's central measurement is sound. Four corrections, each measured: F-6 the prescribed journal keys index_json_before/index_md_before were DELIBERATELY deleted (674f2c68) and a standing comment at :2642-2645 forbids them, so the fix must update that comment or strand documentation that tells the next reader to undo it; F-7 regeneration is BYTE-EXACT when the manifests already exist, so the only real defect is create-where-absent and the fix must restore ABSENCE rather than merely snapshot bytes; F-8 replacing step 4 silently drops an untested fail-loud arm; F-9 E-02's second assertion site ends on a SUCCESSFUL retirement, so an emptiness assertion there would be false. No product code changed by this review.
