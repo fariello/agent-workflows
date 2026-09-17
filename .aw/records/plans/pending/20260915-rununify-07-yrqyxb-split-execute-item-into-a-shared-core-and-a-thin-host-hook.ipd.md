@@ -335,8 +335,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - [x] V-01 validates E-01
   - Required evidence: the pasted closure table with all 57 names classified into the six classes, the command or script that produced it, and the HEAD. Must state the still-double-defined count with per-host call-site counts, and must list `extract_log_metrics` and `reask_prompt_path` as EXCLUSIONS with their `path:line` and the reason each is not a module-level dependency. A table that repeats this plan's numbers without re-deriving them at execution HEAD does NOT satisfy this item.
   - Observed evidence: RE-DERIVED at execution HEAD `85c14014` in lane `aw/lane/yrqyxb` by the committed scanner
-    `.aw/state/lane-submissions/run-20260917T023628Z-4108757/08-yrqyxb/attempt-1/evidence/closure_scan.py`;
-    full output saved beside it as `closure-table.txt` and `closure-rows.json`.
+    the scanner reproduced in Appendix C of
+    `.aw/records/walkthroughs/20260917-eiclosure-01-pi4wof-execute-item-closure-measured-not-split.walkthrough.md` (also in this run's lane submission as `evidence/closure_scan.py`, with raw output
+    `closure-table.txt` / `closure-rows.json`).
     THE COUNT IS NOT 57. Measured: `oc_runipd.execute_item` lines 6767-8438, `agy_runipd.execute_item`
     lines 3477-4914, free non-builtin names oc=54 agy=54 **union 55**.
     ```
@@ -424,9 +425,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [x] V-03 validates E-03
   - Required evidence: the fourteen-row pin table (file:line, what it asserts, thin-caller verdict), with a behavioral equivalent stated for each of the SIX ordering pins; plus the pasted green baseline of all ten pin files with its count, compared against the 305 measured at review. Explicit confirmation that NO test file was edited by this item.
-  - Observed evidence: the full per-pin table is at
-    `.aw/state/lane-submissions/run-20260917T023628Z-4108757/08-yrqyxb/attempt-1/evidence/E03-pin-inventory.md`,
-    produced by the committed reproducible scanner `evidence/pin_scan.py` (raw output: `pin-inventory.txt`).
+  - Observed evidence: the full per-pin table is APPENDIX A of
+    `.aw/records/walkthroughs/20260917-eiclosure-01-pi4wof-execute-item-closure-measured-not-split.walkthrough.md`,
+    produced by the reproducible scanner in that file's Appendix C (raw output `pin-inventory.txt` in the
+    lane submission).
     THE PIN COUNT IS NOT FOURTEEN ACROSS TEN FILES. Measured at HEAD `85c14014`: **21 pins across 12 files**
     (excluding the two files this plan itself adds). VERDICTS: 19 BREAK on a thin caller, 1 SURVIVES
     (`test_dirty_base_gate.py:184`, a NEGATIVE assertion), 2 PARTLY SURVIVE (the two host-CLI tracker pins,
@@ -471,8 +473,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [x] V-04 validates E-04
   - Required evidence: the written analysis, covering parts (a) through (d) E-04 enumerates, and specifically ANSWERING whether the residual injection count after the whole Set completes is acceptable, with the per-symbol accounting that supports the number. Plus an explicit statement that NO split was performed and that OQ-03 remains the maintainer's, so the omission cannot be read as an oversight.
-  - Observed evidence: the analysis is at
-    `.aw/state/lane-submissions/run-20260917T023628Z-4108757/08-yrqyxb/attempt-1/evidence/E04-split-analysis.md`,
+  - Observed evidence: the analysis is APPENDIX B of
+    `.aw/records/walkthroughs/20260917-eiclosure-01-pi4wof-execute-item-closure-measured-not-split.walkthrough.md`,
     covering (a) the eleven dependencies with per-symbol owning-sibling accounting, (b) the residual count,
     (c) the pins, (d) the route recommendation with reasons, plus the spec consequence.
     ONE PREMISE OF THIS ITEM HAS CHANGED AND IS CORRECTED HERE RATHER THAN RESTATED: the plan says "OQ-03
