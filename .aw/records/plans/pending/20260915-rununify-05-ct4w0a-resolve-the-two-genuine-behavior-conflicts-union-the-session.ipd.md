@@ -73,43 +73,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the session id reader (UNION)
 
-EXECUTOR: DO NOT START. OQ-03 is `Blocking: yes` and the lint gate refuses this plan at every
-checkpoint until the maintainer answers it. Task group 2 (`driver_begin`) is what that answer governs;
-task group 1 (`extract_session_id`) is sound and unblocked on its own.
+EXECUTED 2026-09-17. OQ-03 was RESOLVED by the maintainer (option 2: re-base the guards on the OWNER
+SET) before this ran, so both task groups were in scope. What the executor found that the plan did not
+predict is recorded as F-15 through F-18 below; the load-bearing one is F-15, because the plan's premise
+that `driver_begin` "needs no new injection seam" is FALSE and a pure move was therefore impossible.
 
-- [ ] E-01 RE-RUN the census at execution HEAD and compare it against the review's 2026-09-16 baseline rather than starting from nothing. Scan `.aw/records/runs/*/sessions/*.jsonl` for both hosts and record: which of the four keys appear (`sessionID`, `sessionId`, `session_id`, `conversation_id`), whether any appear NESTED under a `result` or `init` object, and whether oc's `ses_`-prefix preference is observable (that is, whether ANY single log carries both a prefixed and an unprefixed value). THE REVIEW'S BASELINE, to be confirmed or contradicted by name: 627 logs; `sessionID` 167,921 events across 593 files, ALL `ses_`-prefixed; `conversation_id` 2 events in 2 files, both agy-produced, appearing BOTH flat and nested under `result`; `sessionId`, `session_id` and every `init` nesting ZERO; and ZERO files where the `ses_` preference is observable. Do not write the union from the two source listings alone.
+- [x] E-01 RE-RUN the census at execution HEAD and compare it against the review's 2026-09-16 baseline rather than starting from nothing. Scan `.aw/records/runs/*/sessions/*.jsonl` for both hosts and record: which of the four keys appear (`sessionID`, `sessionId`, `session_id`, `conversation_id`), whether any appear NESTED under a `result` or `init` object, and whether oc's `ses_`-prefix preference is observable (that is, whether ANY single log carries both a prefixed and an unprefixed value). THE REVIEW'S BASELINE, to be confirmed or contradicted by name: 627 logs; `sessionID` 167,921 events across 593 files, ALL `ses_`-prefixed; `conversation_id` 2 events in 2 files, both agy-produced, appearing BOTH flat and nested under `result`; `sessionId`, `session_id` and every `init` nesting ZERO; and ZERO files where the `ses_` preference is observable. Do not write the union from the two source listings alone.
   - Depends on: none
   - Expected outcome: a pasted per-host census at execution HEAD, stated as agreeing with or differing from the review's baseline figures above, with any difference named per shape. Note the corpus is gitignored and box-local (F-4): from an isolated lane, report `AW_MISSING_INPUT: .aw/records/runs` rather than guessing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Implement ONE `extract_session_id` in `runner_shared.py` as the UNION per the maintainer's ruling: all four keys, checked flat AND inside a nested `result` or `init` mapping, with a non-dict event skipped rather than raising. Collapse the two `_SESSION_ID_KEYS` constants into one shared 4-key tuple; it is `extract_session_id`'s ONLY module-level dependency, so the pair lifts cleanly. PRESERVE oc's `ses_`-prefix PREFERENCE and PRESERVE agy's `conversation_id` plus nesting. THREE THINGS THE REVIEW ESTABLISHED THAT CHANGE HOW THIS IS WRITTEN. (a) The union is NOT order-neutral: oc's rule scans the WHOLE file before returning a fallback while agy's returns the first hit immediately, so on a log carrying agy's `conversation_id` EARLY and a `ses_` value LATER the union returns the `ses_` value where agy returns the `conversation_id` today (F-6). That shape occurs in 0 of 627 logs, so it is latent, but it must be a STATED decision rather than an accident: record which host's answer the union changes and why that is acceptable. (b) Keep the unobserved keys and the `init` nesting DESPITE the census showing zero occurrences, because `_SESSION_ID_KEYS` is also read by oc's `_event_session_id` (`oc_runipd.py:3763`) and because deleting a key on 627 logs of evidence would be an irreversible narrowing of a wire-format reader on a sample that cannot prove absence; say so explicitly rather than invoking E-01's deletion clause (F-8). (c) Delete agy's DEAD `fallback` variable, which its body initializes and returns but can never reach non-None because every branch returns immediately (F-10).
+- [x] E-02 Implement ONE `extract_session_id` in `runner_shared.py` as the UNION per the maintainer's ruling: all four keys, checked flat AND inside a nested `result` or `init` mapping, with a non-dict event skipped rather than raising. Collapse the two `_SESSION_ID_KEYS` constants into one shared 4-key tuple; it is `extract_session_id`'s ONLY module-level dependency, so the pair lifts cleanly. PRESERVE oc's `ses_`-prefix PREFERENCE and PRESERVE agy's `conversation_id` plus nesting. THREE THINGS THE REVIEW ESTABLISHED THAT CHANGE HOW THIS IS WRITTEN. (a) The union is NOT order-neutral: oc's rule scans the WHOLE file before returning a fallback while agy's returns the first hit immediately, so on a log carrying agy's `conversation_id` EARLY and a `ses_` value LATER the union returns the `ses_` value where agy returns the `conversation_id` today (F-6). That shape occurs in 0 of 627 logs, so it is latent, but it must be a STATED decision rather than an accident: record which host's answer the union changes and why that is acceptable. (b) Keep the unobserved keys and the `init` nesting DESPITE the census showing zero occurrences, because `_SESSION_ID_KEYS` is also read by oc's `_event_session_id` (`oc_runipd.py:3763`) and because deleting a key on 627 logs of evidence would be an irreversible narrowing of a wire-format reader on a sample that cannot prove absence; say so explicitly rather than invoking E-01's deletion clause (F-8). (c) Delete agy's DEAD `fallback` variable, which its body initializes and returns but can never reach non-None because every branch returns immediately (F-10).
   - Depends on: E-01
   - Expected outcome: one definition both hosts reach; one shared `_SESSION_ID_KEYS`; oc's prefix preference and agy's key/nesting coverage BOTH demonstrably intact; the order-of-precedence change stated; the retention of unobserved branches justified rather than defaulted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the begin baseline (ADOPT OC)
 
-- [ ] E-03 FIRST, RESOLVE THE THREE GUARDS THAT LIFTING `driver_begin` BREAKS, before writing any lift, because each encodes a safety property and none can be satisfied by a naive move. MEASURED at review: (a) `tests/test_nested_tty_noninteractive.py:172` requires at least THREE `argv`/`cmd` subprocess sites per driver FILE and each host has exactly three, so removing one yields two and fails with "call sites vanished"; (b) `:218` requires each driver's own stdin-guarded count PLUS the shared count to be at least three, and today that is exactly `2 + 1`; (c) `tests/test_lane_tool_identity.py:486` asserts the LITERAL STRING `env=pinned_child_env()` inside `inspect.getsource(driver_begin)` for BOTH hosts, which no shared-definition-plus-wrapper arrangement can satisfy, and oc's own body carries a comment saying that literal is kept visible deliberately for exactly this guard. Whichever way OQ-03 is answered, update these guards to count a SHARED launcher the way `818uru` already taught (b) to do, and say why the new counting still refuses a real regression. Do NOT weaken a threshold merely to make the suite pass.
+- [x] E-03 FIRST, RESOLVE THE THREE GUARDS THAT LIFTING `driver_begin` BREAKS, before writing any lift, because each encodes a safety property and none can be satisfied by a naive move. MEASURED at review: (a) `tests/test_nested_tty_noninteractive.py:172` requires at least THREE `argv`/`cmd` subprocess sites per driver FILE and each host has exactly three, so removing one yields two and fails with "call sites vanished"; (b) `:218` requires each driver's own stdin-guarded count PLUS the shared count to be at least three, and today that is exactly `2 + 1`; (c) `tests/test_lane_tool_identity.py:486` asserts the LITERAL STRING `env=pinned_child_env()` inside `inspect.getsource(driver_begin)` for BOTH hosts, which no shared-definition-plus-wrapper arrangement can satisfy, and oc's own body carries a comment saying that literal is kept visible deliberately for exactly this guard. Whichever way OQ-03 is answered, update these guards to count a SHARED launcher the way `818uru` already taught (b) to do, and say why the new counting still refuses a real regression. Do NOT weaken a threshold merely to make the suite pass.
   - Depends on: none
   - Expected outcome: the three guards updated with their new counting rule stated, plus a demonstration that each still FAILS on an injected regression (a removed `stdin=`, an unpinned env), so the safety property survives the re-count rather than being traded for green.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Adopt oc's `driver_begin` as the single definition, including its `isolated: bool = False` keyword and its `begin_baseline_env(isolated)` child-env overlay, and route agy's call site through it. `begin_baseline_env` moves with it and is trivial to lift (a pure one-line function with ZERO module-level dependencies, `oc_runipd.py:915`); `pinned_child_env` and `pinned_module_argv` are the other two dependencies and are ALREADY shared objects (both hosts reach the same function), so the lift needs no new injection beyond them. THIS IS A CAPABILITY AGY GAINS: `aw ipd begin` gates execution authority on the plan's in-scope paths being unambiguous in the baseline the turn will EXECUTE against, and for an isolated turn that baseline is the LANE, not the main tree. Pass `isolated=` truthfully from each host's existing knowledge; VERIFIED at review that agy's `execute_item` already binds an `isolate` variable, so the truthful value is in scope at its call site (`agy_runipd.py:3641`) and no new plumbing is needed. Do not default it to `True` for agy just to make the call sites match.
+- [x] E-04 Adopt oc's `driver_begin` as the single definition, including its `isolated: bool = False` keyword and its `begin_baseline_env(isolated)` child-env overlay, and route agy's call site through it. `begin_baseline_env` moves with it and is trivial to lift (a pure one-line function with ZERO module-level dependencies, `oc_runipd.py:915`); `pinned_child_env` and `pinned_module_argv` are the other two dependencies and are ALREADY shared objects (both hosts reach the same function), so the lift needs no new injection beyond them. THIS IS A CAPABILITY AGY GAINS: `aw ipd begin` gates execution authority on the plan's in-scope paths being unambiguous in the baseline the turn will EXECUTE against, and for an isolated turn that baseline is the LANE, not the main tree. Pass `isolated=` truthfully from each host's existing knowledge; VERIFIED at review that agy's `execute_item` already binds an `isolate` variable, so the truthful value is in scope at its call site (`agy_runipd.py:3641`) and no new plumbing is needed. Do not default it to `True` for agy just to make the call sites match.
   - Depends on: E-03
   - Expected outcome: one definition; `begin_baseline_env` shared; an isolated agy turn now declares the lane baseline to `aw ipd begin`; a non-isolated turn on either host declares exactly what it does today.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Verify the adoption did not change the NON-isolated path on either host, since that is the path every current test exercises and a silent change there would be invisible. Compare the child env `driver_begin` builds for `isolated=False` against what each host built before this plan, and show they are equal. NOTE the review already established this is provable and cheap: `begin_baseline_env(False)` returns `{}`, and both hosts already reach ONE shared `pinned_child_env` (49 keys, equal across hosts), so `{**pinned_child_env(), **begin_baseline_env(False)} == pinned_child_env()` holds today. Paste it rather than reasoning about it.
+- [x] E-05 Verify the adoption did not change the NON-isolated path on either host, since that is the path every current test exercises and a silent change there would be invisible. Compare the child env `driver_begin` builds for `isolated=False` against what each host built before this plan, and show they are equal. NOTE the review already established this is provable and cheap: `begin_baseline_env(False)` returns `{}`, and both hosts already reach ONE shared `pinned_child_env` (49 keys, equal across hosts), so `{**pinned_child_env(), **begin_baseline_env(False)} == pinned_child_env()` holds today. Paste it rather than reasoning about it.
   - Depends on: E-04
   - Expected outcome: pasted proof that `isolated=False` produces a byte-identical child env to the pre-change behavior for BOTH hosts.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: proof
 
-- [ ] E-06 Add `tests/test_rununify_conflicts.py`: both symbols resolve to the SAME OBJECT from both hosts; the session reader finds an id for EVERY key and nesting shape in the union (not merely the observed ones, since three keys and the `init` nesting are unobserved yet retained per E-02(b), and an unobserved branch with no test is exactly how it rots); the `ses_` preference still holds; `driver_begin` emits the isolated declaration when and only when `isolated=True`; and an AST scan proves neither runner re-defines either symbol. ADD THE COVERAGE GAP THE REVIEW FOUND: agy's `conversation_id` key and its `result`/`init` nesting have ZERO test coverage anywhere in the suite today (F-11), which is why F-1's "adopting oc alone silently disables agy session resume" is currently true AND undetectable. A test for agy's wire format is the durable half of this plan's value.
+- [x] E-06 Add `tests/test_rununify_conflicts.py`: both symbols resolve to the SAME OBJECT from both hosts; the session reader finds an id for EVERY key and nesting shape in the union (not merely the observed ones, since three keys and the `init` nesting are unobserved yet retained per E-02(b), and an unobserved branch with no test is exactly how it rots); the `ses_` preference still holds; `driver_begin` emits the isolated declaration when and only when `isolated=True`; and an AST scan proves neither runner re-defines either symbol. ADD THE COVERAGE GAP THE REVIEW FOUND: agy's `conversation_id` key and its `result`/`init` nesting have ZERO test coverage anywhere in the suite today (F-11), which is why F-1's "adopting oc alone silently disables agy session resume" is currently true AND undetectable. A test for agy's wire format is the durable half of this plan's value.
   - Depends on: E-02, E-04
   - Expected outcome: a suite that fails if either capability is lost, naming which one; first-ever coverage for agy's `conversation_id` and nested shapes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -172,6 +173,19 @@ F-5 holds. The findings below are what the plan OMITTED.
 | F-12 | MEDIUM | `- Item-Dependencies: executed:i3d6ml` | **THE DEPENDENCY ON CHILD 03 IS UNFOUNDED for both symbols.** Closure-checked at review: `extract_session_id` references only `Path`, `json` and `_SESSION_ID_KEYS`, and `driver_begin` only `Path`, `subprocess`, `begin_baseline_env`, `pinned_child_env` and `pinned_module_argv`. None of those is among child 03's 48, and `pinned_child_env`/`pinned_module_argv` are already shared objects reachable from both hosts. So this plan waits on child 03 for nothing; the edge is removed, which frees it to run first. (This is the same unfounded-edge pattern found in child 04 on 2026-09-16.) |
 | F-13 | LOW | `- Scope-Paths:` as authored | **THE FENCE OMITS EVERY EXISTING TEST FILE THE CHANGE MUST EDIT.** `driver_begin` is referenced by SEVEN test files (`test_agy_runipd_cli.py`, `test_begin_dirty_gate_scope.py`, `test_dirty_base_gate.py`, `test_lane_tool_identity.py`, `test_nested_tty_noninteractive.py`, `test_oc_runipd.py`, `test_worker_role_refusal.py`), three of which F-9 shows must change; `extract_session_id` by `test_oc_runipd.py`. The five the re-scoped plan can actually touch are now fenced. |
 | F-14 | LOW | Required tests item 5 | **THE SUITE BASELINE IS UNSTATED AND ONE FAILURE IS PRE-EXISTING.** Measured at review, bare `python3 -m pytest`: `1 failed, 7308 passed, 3 skipped, 2 xfailed`. The failure is `tests/test_runner_backlog_close.py::ShutdownReportOnInterrupt::test_sigint_produces_the_report_and_exits_130`, a 30s subprocess timeout under parallel load that passes in isolation (`7 passed in 1.13s`). Named so the executor does not chase it. |
+
+### Findings added by the 2026-09-17 EXECUTION
+
+Four things the plan and both review rounds missed. F-15 is load-bearing: it falsifies a premise stated
+three times in this plan (the Scope line, E-04, and F-12) and it is the reason `driver_begin` could not
+be lifted as a pure move.
+
+| # | Sev | Where | Finding |
+|---|---|---|---|
+| F-15 | HIGH | `oc_runipd.py:550`, `:569`; `agy_runipd.py:333-337`; `runner_shared.py:31-38` | **"`pinned_child_env` AND `pinned_module_argv` ARE ALREADY SHARED OBJECTS, SO THE LIFT NEEDS NO NEW INJECTION SEAM" IS FALSE, and the same claim appears in the Scope line, in E-04 and in F-12.** Both are DEFINED in `oc_runipd` and are the only definitions in the package; agy reaches them by IMPORTING them from `oc_runipd`, which is what makes `agy.pinned_child_env is oc.pinned_child_env` return `True` and is what the review mistook for shared-module reachability. But the lift condition is closure over names `runner_shared` can RESOLVE, and it may never import a runner (`tests/test_runner_shared.py::NoRunnerImportTests`, enforced by AST at module level AND lazily). So a pure move raises `NameError`. Resolved by INJECTING both as keyword-only parameters with a one-line host wrapper each, which is the maintainer's ruled mechanism for exactly this case (`818uru` OQ-02) and is already how `run_checked` -- the OTHER nested-`aw` launcher, living in `runner_shared` -- consumes this SAME dependency. Recorded as decision `06-ct4w0a-D2`. Filed as backlog `tz1ucs`, because moving the pin helpers to a host-neutral home would make this and `driver_finalize` pure moves. |
+| F-16 | MEDIUM | `tests/test_lane_tool_identity.py:430`, `:603` | **FIVE GUARDS BREAK ON THE LIFT, NOT THE THREE F-9 ENUMERATED.** Two more are the same family (a count keyed to FILES rather than to the property): the classified-site total at `:430` requires `>= 9` package-wide and fell to 8, and the per-host pinned-site count at `:603` requires agy `>= 3` and fell to 2. Measured with the guard's own `_classify_sites`: oc 6 sites and agy 4 before, oc 5 and agy 3 after, because `driver_begin`'s argv construction moved. Both re-based onto the owner set exactly as OQ-03 ruled for the other three, thresholds UNCHANGED at 9/4/3 with the shared module's sites now counted. `_classify_sites` also had to learn one new kind, `module-pinned-injected`, or a launcher moving into the shared module would read as a launcher DELETED. Recorded as decision `06-ct4w0a-D4`. |
+| F-17 | MEDIUM | `agent_workflows/release_readiness.py:158`, `:179` | **TWO PRE-EXISTING NESTED-`aw` LAUNCHES HAVE NEITHER `stdin=` NOR THE `af7i6p` PIN, AND NO GUARD HAS EVER SEEN THEM.** Found by the package-wide completeness scan this plan had to add. `gate_leak_scan` and `gate_ipd_lint` each build a literal `[sys.executable, "-m", "agent_workflows", ...]` and call `subprocess.run` with no `stdin=subprocess.DEVNULL` and no `pinned_child_env`/`pinned_module_argv`. They were invisible to BOTH shipped guards because the ttywedge guard identified launchers by the first argument's NAME (`argv`/`cmd`) and scanned only the two driver files, and these pass an inline list literal in a third module. Exposure is bounded (both pass `--agent`, so the child is non-interactive on its own merits) but the protection is incidental rather than structural. NOW DETECTED, not fixed: `release_readiness.py` is outside this plan's `Scope-Paths`, so the two sites are recorded in `EXEMPT_OUTSIDE_OWNER_SET` with the reasoning and a THIRD such site now fails the suite. Filed as backlog `xzdudk`. |
+| F-18 | LOW | this lane's environment; F-14 superseded | **THE SUITE BASELINE IS 7451, NOT 7308, AND A BARE RUN IN A WORKER LANE REPORTS 31 FAILURES THAT ARE PURELY ENVIRONMENTAL.** Re-measured at execution HEAD `1171f7b2` before any change: `7451 passed, 3 skipped, 2 xfailed`, zero failures, so F-14's 7308 figure and its named flake are both superseded (that flake did not fire in either run). SEPARATELY: a bare `python3 -m pytest` in this isolated lane fails 31 tests because the lane sets `AW_EXECUTION_ROLE=worker`, which `ipd_lifecycle` reads to refuse driver-only lifecycle verbs; one of the 31 asserts the condition literally (`test_driver_own_process_is_not_worker_role` -> `'worker' == 'worker'`). All 31 reproduce at the UNMODIFIED HEAD, and unsetting that one variable yields the clean 7451. Named because an executor who does not know this will mistake 31 pre-existing environmental failures for regressions from the change. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -336,6 +350,31 @@ the new form be shown still refusing a real regression rather than merely passin
   MUST keep an injected-regression test proving they still fail when a launch site loses its `stdin=`,
   and the literal-text assertion at `tests/test_lane_tool_identity.py:486` must be re-pointed at the
   shared `driver_begin` rather than deleted, so the `env=pinned_child_env()` pin survives the move.
+  EXECUTED 2026-09-17, OPTION 2 AS RULED, and the result is recorded here because two details of the
+  ruling could not be honored literally and both are strengthenings rather than reductions.
+  FIRST, THE COUNT IS GONE, NOT RE-BASED. Option 2 said to "assert the TOTAL and the stdin coverage over
+  that set". The stdin coverage is now a UNIVERSAL (every non-exempt launcher in the owner set passes
+  `stdin=`, named by file and line when one does not) rather than a total, because a total can be
+  satisfied while one site is uncovered. The population is pinned separately so the universal cannot go
+  vacuous, and the two count-based guards in `test_lane_tool_identity.py` keep their thresholds (9, 4, 3)
+  verbatim with the shared module's sites added, which is the `818uru` "own plus shared" pattern applied
+  unchanged. No threshold was lowered anywhere.
+  SECOND, THE LITERAL AT `:486` COULD NOT BE RE-POINTED, AND IT WAS ALREADY VACUOUS. The ruling asked
+  that `env=pinned_child_env()` be re-pointed at the shared `driver_begin` rather than deleted. The
+  shared body receives its env builder as an injected parameter (F-15) and so spells it `env_builder()`;
+  the literal cannot appear there. MEASURED at execution HEAD: that assertion was ALREADY passing on oc
+  by matching a COMMENT, not code (oc's code read `env={**pinned_child_env(), **begin_baseline_env(...)}`).
+  So the pin is now asserted BEHAVIORALLY -- each host binds the real `pinned_child_env`, and the env the
+  launcher hands the child carries `AW_PIN_KEEP_ROOT` and the runner root on `PYTHONPATH` -- with an
+  unpinned-env control proving non-vacuity, and the vacuity measurement itself pinned as a test that
+  reads the pre-change body out of git. Recorded as decision `06-ct4w0a-D3`.
+  TWO MORE GUARDS BROKE THAN THE THREE THIS QUESTION NAMED (F-16), both the same file-keyed family, and
+  both were re-based the same way (decision `06-ct4w0a-D4`). AND THE RE-BASE OPENED ONE NEW HOLE, which is
+  closed rather than accepted: an owner-set guard cannot see a launcher in an unlisted module, so a
+  package-wide semantic scan now fails when the set of outside launches changes. It immediately found two
+  PRE-EXISTING unprotected nested-`aw` launches that no guard had ever seen (F-17, backlog `xzdudk`).
+  Both injected-regression demonstrations the ruling required are pasted in V-03.
+
   THE REVIEWER'S ANALYSIS BELOW IS PRESERVED and is the specification for the re-basing work.
   --- original analysis, recommendation now ratified ---
   NOT RESOLVABLE FROM REPOSITORY EVIDENCE. The evidence establishes
@@ -385,35 +424,387 @@ the new form be shown still refusing a real regression rather than merely passin
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted per-host census of session-log keys and nesting observed in real logs, produced at execution HEAD, EXPLICITLY COMPARED against the review's 2026-09-16 baseline (627 logs; `sessionID` 167,921 events / 593 files all `ses_`-prefixed; `conversation_id` 2 events / 2 files both flat and nested under `result`; `sessionId`, `session_id`, `init` all zero; zero files where the `ses_` preference is observable), stating agreement or naming each difference. From an isolated lane, `AW_MISSING_INPUT: .aw/records/runs` instead.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `AW_MISSING_INPUT: .aw/records/runs` - THE CENSUS CANNOT BE PERFORMED IN THIS
+    LANE, exactly as F-4 predicted and as E-01's own expected outcome instructed. Measured at execution
+    HEAD `1171f7b2` inside the isolated lane `.aw/worktrees/ct4w0a` (branch `aw/lane/ct4w0a`):
 
-- [ ] V-02 validates E-02
+    ```
+    $ ls -d .aw/records/runs
+    ls: cannot access '.aw/records/runs': No such file or directory
+    $ ls .aw/records/runs/*/sessions/*.jsonl 2>/dev/null | wc -l
+    0
+    $ find . -name "*.jsonl" -not -path "./.git/*" | wc -l
+    0
+    $ grep -n runs .aw/.gitignore
+    14:records/runs/
+    ```
+
+    So the corpus is absent for the DOCUMENTED reason (gitignored at `.aw/.gitignore:14`, therefore
+    box-local and never present on a lane branch), not because it was not looked for. Zero session logs
+    of any shape exist here, so no figure of the review's baseline can be confirmed OR contradicted from
+    this workspace.
+
+    WHAT WAS DONE INSTEAD, because E-02 depended on this measurement and "unmeasurable" is not the same
+    as "unconstrained". The review's 2026-09-16 baseline (627 logs; `sessionID` 167,921 events / 593
+    files all `ses_`-prefixed; `conversation_id` 2 events / 2 files, flat AND nested under `result`;
+    `sessionId`, `session_id`, `init` all ZERO; zero files where the `ses_` preference is observable) is
+    ADOPTED AS-IS and treated as the weakest kind of evidence it can be: it is used ONLY to justify
+    KEEPING branches, never to delete one. That direction matters and is the whole reason this V-item
+    does not block. A census can show a shape is COMMON; it cannot show a wire format never emits one,
+    so E-01's deletion clause is neutralized on principle (F-8) rather than on a count this lane could
+    not reproduce. Every one of the four keys and both nestings is retained and TESTED (V-02, V-06), so
+    the plan's outcome does not depend on the missing figure.
+    RESULT DISPOSITION, stated because `pass` on an unperformed census would otherwise look like a
+    claim nobody could check: this passes as `AW_MISSING_INPUT`, which is the outcome E-01 and this
+    V-item BOTH specify for execution in an isolated lane ("From an isolated lane, report
+    `AW_MISSING_INPUT: .aw/records/runs` rather than guessing"). No census figure is asserted here.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted `oc_runipd.extract_session_id is agy_runipd.extract_session_id` -> `True` and `__module__` -> `agent_workflows.runner_shared`; the single collapsed `_SESSION_ID_KEYS` with its four keys; a resolved id for EACH of the four keys and EACH nesting shape (`result` and `init`), including the three keys the census never observed; the mixed-value case returning the `ses_`-prefixed value (F-2); the PRECEDENCE decision from F-6 shown by executing the early-`conversation_id`/late-`ses_` log and stating which value the union returns and why that was chosen; and confirmation that agy's dead `fallback` is gone (F-10).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ONE definition, reached identically, with every capability of both readers
+    intact and the precedence change recorded.
 
-- [ ] V-03 validates E-03
+    ```
+    === V-02: object identity + module ===
+    oc.extract_session_id is agy.extract_session_id -> True
+    __module__ -> agent_workflows.runner_shared
+    is runner_shared.extract_session_id -> True
+    === the ONE collapsed key list ===
+    _SESSION_ID_KEYS = ('sessionID', 'sessionId', 'session_id', 'conversation_id')
+    _SESSION_ID_NESTS = ('result', 'init')
+    oc._SESSION_ID_KEYS is agy._SESSION_ID_KEYS -> True
+    ```
+
+    AN ID FOR EVERY KEY AND EVERY NESTING, including the three keys and the `init` path the census
+    never observed (retained per F-8, tested so they cannot rot):
+
+    ```
+    === flat ===
+      flat sessionID        -> 'id-sessionID'
+      flat sessionId        -> 'id-sessionId'
+      flat session_id       -> 'id-session_id'
+      flat conversation_id  -> 'id-conversation_id'
+    === nested ===
+      result/sessionID        -> 'n-sessionID'
+      result/sessionId        -> 'n-sessionId'
+      result/session_id       -> 'n-session_id'
+      result/conversation_id  -> 'n-conversation_id'
+      init  /sessionID        -> 'n-sessionID'
+      init  /sessionId        -> 'n-sessionId'
+      init  /session_id       -> 'n-session_id'
+      init  /conversation_id  -> 'n-conversation_id'
+    === the ses_ preference (unprefixed FIRST, prefixed LATER) ===
+      -> 'ses_real1'
+    ```
+
+    THE PRECEDENCE DECISION (F-6), executed rather than reasoned about, on a log carrying
+    `conversation_id` EARLY and a `ses_` value LATER:
+
+    ```
+    === V-02: THE PRECEDENCE DECISION (F-6) ===
+      union returns -> 'ses_LATER'
+    ```
+
+    WHICH HOST'S ANSWER MOVED AND WHY THAT WAS CHOSEN: agy's. Its pre-union body returned the FIRST
+    non-empty hit, so it answered `conv-EARLY` on this log; the union adopts oc's whole-file scan with a
+    `ses_` preference and answers `ses_LATER`. Chosen because oc's preference is a SHIPPED TESTED
+    CONTRACT (`tests/test_oc_runipd.py::test_extract_session_id_prefers_ses_prefixed_over_nonprefixed`)
+    while NOTHING anywhere pinned agy's ordering (F-11 measured zero coverage), because the standing
+    maintainer ruling prefers oc absent a significant behavioral difference, and because the affected
+    shape requires an OpenCode-style `ses_` id inside a log that also carries an Antigravity
+    `conversation_id` (0 of 627 logs). Recorded as decision `06-ct4w0a-D1` and PINNED by
+    `tests/test_rununify_conflicts.py::PrecedenceTests`, including a test asserting the answer agy's
+    pre-union discipline gave, so the change is visible in the suite and not only in prose.
+
+    AGY'S DEAD `fallback` IS GONE (F-10). Neither host holds a second body for it to live in, and in
+    the shared body `fallback` is LIVE because it IS oc's discipline:
+
+    ```
+      agent_workflows.oc_runipd: 'def extract_session_id' present -> False
+      agent_workflows.agy_runipd: 'def extract_session_id' present -> False
+      shared body's `fallback` is LIVE (it is oc's discipline): True
+    ```
+
+    RETENTION OF THE UNOBSERVED BRANCHES IS JUSTIFIED, NOT DEFAULTED (F-8), and the justification is
+    written at the definition itself: 627 logs cannot prove a wire format never emits a shape, so
+    narrowing a READER on that basis is absence-of-evidence reasoning and irreversible in the direction
+    that loses data; and `_SESSION_ID_KEYS` has a SECOND consumer, `oc_runipd._event_session_id`, which
+    reads the same tuple LIVE during a turn. Widening to four keys is inert for it (it hard-filters on a
+    `ses_` prefix, which a `conversation_id` value never carries); narrowing would have changed it.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the three re-counted guards shown GREEN, and, the load-bearing half, shown STILL FAILING on an injected regression: remove a `stdin=` from one nested-`aw` launch site and paste the named failure, then restore; unpin the env at one site and paste the named failure, then restore. Plus the new counting rule quoted from the test with a one-line statement of what it now refuses.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: FIVE guards were re-based, not three (F-16), all GREEN, and each shown to still
+    refuse a real regression. OQ-03's ruled option 2 (re-base on the OWNER SET) was applied.
 
-- [ ] V-04 validates E-04
+    GREEN, both files:
+
+    ```
+    $ python3 -m pytest tests/test_lane_tool_identity.py tests/test_nested_tty_noninteractive.py -o addopts="" -q
+    .................................................                        [100%]
+    49 passed in 5.92s
+    ```
+
+    THE NEW COUNTING RULE, quoted from the test, and WHAT IT REFUSES. From
+    `tests/test_nested_tty_noninteractive.py`:
+
+    ```
+    OWNER_SET = DRIVERS + ("agent_workflows/runner_shared.py",)
+    ```
+
+    and the guard body no longer counts at all, it QUANTIFIES:
+
+    ```
+    self.assertEqual(uncovered, [], "nested-`aw` launch site(s) in the owner set do not deny stdin: ...")
+    self.assertGreaterEqual(launchers, 4, ...)          # non-vacuity: the population is pinned
+    self.assertEqual(agent_popen_exemptions, 2, ...)    # only the two agent spawns may be exempt
+    ```
+
+    IT REFUSES: any nested-`aw` launcher ANYWHERE in the owner set that does not pass `stdin=`. That is
+    strictly stronger than the old `>= 3 per file`, because a count can be satisfied while one site is
+    uncovered, whereas a universal cannot. The old per-file thresholds are GONE rather than lowered; the
+    two remaining count-based guards in `test_lane_tool_identity.py` keep their thresholds (4 and 3)
+    verbatim and simply add the shared module's sites, which is the `818uru` "own plus shared" pattern.
+
+    THE OWNER SET AS MEASURED at execution HEAD (6 launchers, 4 stdin-covered, 2 exempt agent `Popen`s):
+
+    ```
+    ===== agent_workflows/oc_runipd.py
+      L1340 driver_finalize      popen=False stdin=True
+      L6325 run_opencode         popen=True  stdin=False   <- the agent spawn, exempt (backlog qyaime)
+    ===== agent_workflows/agy_runipd.py
+      L1074 driver_finalize      popen=False stdin=True
+      L3123 run_agy_turn         popen=True  stdin=False   <- the agent spawn, exempt
+    ===== agent_workflows/runner_shared.py
+      L636  run_checked          popen=False stdin=True
+      L7757 driver_begin         popen=False stdin=True    <- moved here by this plan
+    ```
+
+    INJECTED REGRESSION 1, A REMOVED `stdin=` (the load-bearing half). `stdin=subprocess.DEVNULL` was
+    deleted from the shared `driver_begin` launch site:
+
+    ```
+    E       AssertionError: Lists differ: ['agent_workflows/runner_shared.py:7757 (arg0=cmd)'] != []
+    E        : nested-`aw` launch site(s) in the owner set do not deny stdin: agent_workflows/runner_shared.py:7757 (arg0=cmd)
+    FAILED tests/test_nested_tty_noninteractive.py::CallerDevnullTests::test_every_nested_aw_run_denies_stdin
+    FAILED tests/test_nested_tty_noninteractive.py::CallerDevnullTests::test_symmetry_across_both_drivers
+    2 failed, 18 passed in 3.44s
+    ```
+
+    RESTORED and green (`20 passed in 3.77s`). Note the failure NAMES the file and line, which the old
+    per-file count could not do: it would only have said a total dropped.
+
+    INJECTED REGRESSION 2, AN UNPINNED ENV. oc's wrapper was changed to bind
+    `env_builder=lambda: dict(os.environ)` instead of the pin:
+
+    ```
+    E       AssertionError: 'env_builder=pinned_child_env' not found in '...env_builder=lambda: dict(__import__("os").environ)...'
+    E        : oc_runipd.driver_begin must bind the shared pin as its env_builder
+    FAILED tests/test_lane_tool_identity.py::TheBeginPinSurvivedTheMove::test_each_host_binds_the_real_pin_into_the_shared_launcher
+    1 failed, 28 passed in 2.09s
+    ```
+
+    RESTORED and green (`62 passed in 4.25s` with the new suite).
+
+    THE LITERAL-TEXT GUARD, AND WHY ITS REPLACEMENT IS STRONGER RATHER THAN WEAKER (decision
+    `06-ct4w0a-D3`). OQ-03 asked that `env=pinned_child_env()` at `tests/test_lane_tool_identity.py:486`
+    be "re-pointed at the shared `driver_begin` rather than deleted". The literal cannot survive
+    verbatim, because the shared body receives its env builder as a parameter and spells it
+    `env_builder()`. MEASURED, and this is the finding that decided the replacement: THE OLD ASSERTION
+    WAS ALREADY VACUOUS ON OC at execution HEAD:
+
+    ```
+    pre-change oc driver_begin, literal 'env=pinned_child_env()':
+      in RAW source (what the shipped guard read) : True
+      in CODE ONLY  (comments stripped)          : False
+    the only match in RAW was this COMMENT line:
+      # guard (tests/test_lane_tool_identity.py) asserts the literal `env=pinned_child_env()`
+    ```
+
+    oc's code read `env={**pinned_child_env(), **begin_baseline_env(isolated)}`, which does not contain
+    that substring; the guard was passing on oc by matching the comment that explained it. So the
+    replacement asserts the PROPERTY in two halves: each host BINDS the real `pinned_child_env`
+    (regression 2 above proves it fails otherwise), and the env the shared launcher actually hands the
+    child CARRIES the pin's markers (`AW_PIN_KEEP_ROOT` and the runner root on `PYTHONPATH`), with an
+    unpinned-env control showing that assertion is not vacuous. The vacuity measurement itself is pinned
+    as a test (`test_the_old_text_search_was_vacuous_on_oc`) reading the pre-change body out of git, so
+    this claim is re-derivable rather than folklore. `driver_finalize`'s half of the original guard is
+    UNCHANGED, because `driver_finalize` is still per-host and out of scope.
+
+    THE NEW HOLE THE RE-BASE OPENS, AND THE GUARD THAT CLOSES IT. An owner-set guard cannot see a
+    launcher in an unlisted module, which is worse than the per-file counting it replaced. So
+    `OwnerSetCompletenessTests` scans the WHOLE package by MEANING (a function that builds a nested-`aw`
+    argv through the pin helpers or a literal `-m agent_workflows`) and fails when the set of outside
+    launches changes. That scan immediately found two PRE-EXISTING unprotected sites (F-17, filed as
+    backlog `xzdudk`), which no previous guard had ever seen.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: pasted identity result for `driver_begin` AND for `begin_baseline_env`; the child env `driver_begin` builds for `isolated=True` on BOTH hosts showing `AW_ISOLATED_BASELINE=1` present; and the pasted agy call site showing `isolated=` receiving the truthful `isolate` value rather than a literal.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: one launcher, both dependencies shared, agy declaring the lane baseline for the
+    first time.
 
-- [ ] V-05 validates E-05
+    ```
+    === V-04: identity ===
+      begin_baseline_env: oc is agy -> True | __module__ -> agent_workflows.runner_shared
+      shared driver_begin reached by both -> True
+      __module__ of the shared launcher -> agent_workflows.runner_shared
+      host driver_begin holds NO subprocess body:
+        agent_workflows.oc_runipd: 'subprocess.run' in wrapper -> False
+        agent_workflows.agy_runipd: 'subprocess.run' in wrapper -> False
+    ```
+
+    NOTE HONESTLY WHAT IS AND IS NOT IDENTICAL, because the plan asked for "pasted identity result for
+    `driver_begin`": `oc_runipd.driver_begin is agy_runipd.driver_begin` is **False**, and that is
+    CORRECT rather than a shortfall. Each host keeps a one-line WRAPPER at the original name and
+    signature, because the launcher's two dependencies (`pinned_child_env`, `pinned_module_argv`) are
+    defined in `oc_runipd` and `runner_shared` may never import a runner (F-15, decision
+    `06-ct4w0a-D2`). The de-duplication claim is therefore asserted as: exactly ONE launcher BODY
+    exists in the package (neither wrapper contains `subprocess.run`, shown above), and both hosts
+    reach the SAME shared object (`True`, shown above). That is the maintainer's ruled shape for an
+    injected dependency (`818uru` OQ-02) and is identical to how `run_checked`, the other nested-`aw`
+    launcher, already lives in `runner_shared`.
+
+    THE ISOLATED DECLARATION, on BOTH hosts:
+
+    ```
+    === V-04: the child env for isolated=True on BOTH hosts ===
+      agent_workflows.oc_runipd:  AW_ISOLATED_BASELINE='1' keys=53
+      agent_workflows.agy_runipd: AW_ISOLATED_BASELINE='1' keys=53
+    ```
+
+    AGY'S CALL SITE PASSES THE TRUTHFUL VALUE, not a literal. `isolate` is the run's own flag, bound at
+    `agy_runipd.py:3594` and the SAME flag that allocates the lane below, so begin and the execution
+    tree cannot disagree:
+
+    ```
+    3594:    isolate = state.get("options", {}).get("isolate_worktree", True)
+    ...
+    3763-        if isolate:
+    3764:            begin_rc, begin_msg = driver_begin(repo, item["id6"], actor, isolated=True)
+    3765-        else:
+    3766:            begin_rc, begin_msg = driver_begin(repo, item["id6"], actor)
+    ```
+
+    The non-isolated branch keeps the exact pre-existing three-argument call shape, so a
+    `--no-isolate-worktree` agy run sends what it always sent. Both branches are pinned by
+    `tests/test_rununify_conflicts.py::BeginBaselineTests::test_agys_call_site_passes_the_truthful_isolate_value`,
+    and the fail-closed ordering (begin BEFORE the lane exists) is now asserted for BOTH hosts where it
+    was previously asserted for oc only.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: pasted byte-comparison of the `isolated=False` child env before and after the change, for both hosts, showing equality (and the key count, so an empty-dict false pass is visible).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: byte-identical on both hosts, with key counts so an empty-dict false pass is
+    visible.
 
-- [ ] V-06 validates E-06
+    ```
+    === V-05: isolated=False is BYTE-IDENTICAL to the bare pinned env (both hosts) ===
+      agent_workflows.oc_runipd:  equal=True keys_before=52 keys_after=52 AW_ISOLATED_BASELINE_present=False
+      agent_workflows.agy_runipd: equal=True keys_before=52 keys_after=52 AW_ISOLATED_BASELINE_present=False
+      begin_baseline_env(False) == {}
+
+    === V-05: the two hosts build the SAME env (one shared pinned_child_env) ===
+      oc.pinned_child_env is agy.pinned_child_env -> True
+      envs equal -> True
+    ```
+
+    52 keys before and after, not zero, so the equality is over a populated dict. The `isolated=True`
+    case adds exactly one key (53, shown in V-04), which bounds the change to the isolated path. This is
+    also asserted permanently, not just here, by
+    `tests/test_rununify_conflicts.py::BeginBaselineTests::test_the_non_isolated_child_env_is_byte_identical_to_the_bare_pin`
+    (including the key-count assertion), because every OTHER test in the suite exercises the
+    non-isolated path and a silent change there would be invisible.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: FOUR parts, all pasted. (a) `python3 -m pytest tests/test_rununify_conflicts.py -o addopts=""` green. (b) ALL THREE non-vacuity controls from Required tests item 2, each failing when its capability is removed and green when restored. (c) The NEW agy-wire-format coverage named test by test, since F-11 measured it at ZERO today, plus a demonstration that it fails against oc's reader (proving it tests the capability rather than the union's mere existence). (d) Bare `python3 -m pytest` at or above 7308 passed with no new failure judged against F-14's named flake, plus `tests/test_defect_report.py` and `tests/test_begin_dirty_gate_scope.py` green by name.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: FOUR parts.
+
+    (a) THE NEW SUITE GREEN:
+
+    ```
+    $ python3 -m pytest tests/test_rununify_conflicts.py -o addopts="" -q
+    .................................................................       [100%]
+    33 passed in 2.18s
+    ```
+
+    (b) THE NON-VACUITY CONTROLS, FOUR rather than the three the plan required (the `init` nesting got
+    one too, since it is retained-but-unobserved and therefore the likeliest branch to rot). Each is a
+    deliberately crippled REPLICA of the shared body run over the same fixture, so no shared state is
+    mutated where a parallel worker could observe it:
+
+    ```
+    NonVacuityControlTests::test_control_a_dropping_conversation_id_breaks_the_agy_shape PASSED
+    NonVacuityControlTests::test_control_b_dropping_the_ses_preference_breaks_the_mixed_case PASSED
+    NonVacuityControlTests::test_control_c_dropping_the_result_nesting_breaks_the_nested_shape PASSED
+    NonVacuityControlTests::test_control_d_dropping_the_init_nesting_breaks_the_retained_shape PASSED
+    ```
+
+    Each control asserts BOTH directions in one test: the crippled reader returns `None` (or the wrong
+    value, for (b)) AND the real reader still resolves correctly, which is the "restore" half. THE
+    CONTROLS ARE THEMSELVES GUARDED by `ControlFidelityTests`, which asserts the UNCRIPPLED replica
+    agrees with the real function across all seven fixture shapes; without that, a replica could drift
+    into proving something about a strawman.
+
+    (c) THE FIRST-EVER AGY WIRE-FORMAT COVERAGE (F-11 measured it at ZERO), named test by test, each
+    additionally shown to FAIL against oc's pre-union reader:
+
+    ```
+    AgyWireFormatTests::test_flat_conversation_id_resolves_and_oc_alone_would_have_missed_it PASSED
+    AgyWireFormatTests::test_conversation_id_nested_under_result_resolves PASSED
+    AgyWireFormatTests::test_conversation_id_nested_under_init_resolves PASSED
+    AgyWireFormatTests::test_a_realistic_agy_log_resolves_end_to_end PASSED
+    AgyWireFormatTests::test_oc_wire_format_still_resolves_too PASSED
+    ```
+
+    THE PROOF THAT THESE TEST THE CAPABILITY AND NOT THE UNION'S EXISTENCE: each of the four agy-shape
+    tests asserts `_oc_pre_union_reader(log) is None` on the same fixture. That reconstruction of oc's
+    pre-union body is itself verified against the SHIPPED body read out of git at HEAD `1171f7b2`
+    (`ControlFidelityTests::test_the_pre_union_oc_replica_matches_the_shipped_body_it_reconstructs`), so
+    the "oc would have missed it" claim is checked against real history rather than against memory.
+    This is F-1's central hazard made DETECTABLE for the first time.
+
+    (d) THE WHOLE SUITE, BARE:
+
+    ```
+    $ python3 -m pytest
+    7492 passed, 3 skipped, 2 xfailed in 163.52s (0:02:43)
+    ```
+
+    THE BASELINE IS RE-MEASURED, AND F-14's FIGURE IS SUPERSEDED. The plan required "at or above 7308
+    passed", measured at the 2026-09-16 review. At this execution HEAD the pre-change baseline is
+    **7451 passed, 3 skipped, 2 xfailed, zero failures**, so 7492 is +41 (the new file's 33 plus the 8
+    added to the two re-based guard files) with ZERO failures and zero regressions. F-14's named flake
+    (`test_sigint_produces_the_report_and_exits_130`) did NOT fire in either run.
+
+    ONE ENVIRONMENTAL CAVEAT, STATED PLAINLY BECAUSE IT AFFECTS HOW THESE NUMBERS WERE PRODUCED (F-18).
+    A bare `python3 -m pytest` in this lane reports **31 failures** BEFORE any change in this plan, and
+    all 31 are caused by the lane's own `AW_EXECUTION_ROLE=worker` marker, which `ipd_lifecycle` reads to
+    refuse driver-only lifecycle verbs. One of them asserts the condition directly:
+    `tests/test_worker_role_refusal.py::ChildEnvWorkerRoleTests::test_driver_own_process_is_not_worker_role`
+    -> `AssertionError: 'worker' == 'worker'`. Unsetting that one variable yields the clean 7451 above,
+    so every suite figure in this evidence was produced with `env -u AW_EXECUTION_ROLE`. This is a
+    property of the worker lane, NOT of this change, and the identical 31 failures reproduce at the
+    unmodified HEAD.
+
+    THE NAMED FILES, green:
+
+    ```
+    $ python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py tests/test_begin_dirty_gate_scope.py tests/test_defect_report.py -o addopts="" -q
+    322 passed in 41.50s
+    ```
+
+    `tests/test_begin_dirty_gate_scope.py` is the closest thing to a spec for what E-04 adopted (it pins
+    `begin_baseline_env`'s exact env dict per `isolated` value and `driver_begin`'s keyword-only
+    parameter with a `False` default) and it passes UNMODIFIED, which is the strongest single signal that
+    the adoption preserved the contract. `tests/test_defect_report.py` is green too, so the `b7xarm`
+    re-ask (which REFUSES when no session id was observed) is not disabled by the reader change.
+  - Result: pass
 
 ## Approval and execution gate
 
