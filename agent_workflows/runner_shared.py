@@ -8651,13 +8651,30 @@ def compute_scope_reconciliation(
     audit = evidence.get("scope_audit", {}) or {}
     out_of_scope = list(audit.get("out_of_scope_paths", []) or [])
     in_scope_unmodified = list(audit.get("in_scope_unmodified", []) or [])
+    # rcptwiden `63425h` E-04 (F-10): paths the execution ADDED to `Scope-Paths` after begin, under the
+    # accepted additive widening, ALSO demand a `--scope-reason` each, and they are NOT a subset of
+    # `out_of_scope_paths`. WHY THIS BRANCH IS LOAD-BEARING RATHER THAN DEFENSIVE: `finalize_precheck`
+    # judges out-of-scope against the RECEIPT's OLD fence, so an added path that is only UNCOMMITTED
+    # never appears there (measured: `out_of_scope_paths: []`, `disregarded_unowned_paths: [<path>]`).
+    # All three incidents the widening accept exists to fix were finalized by the RUNNER, so without
+    # this the lifecycle change converts a STALE refusal into a MISSING-REASON refusal and strands
+    # exactly the same lanes.
+    widened = list(audit.get("widened_paths", []) or [])
     reasons = {
         p: f"changed by the plan's approved execution (auto-reconciled by {labels.command})"
         for p in out_of_scope
     }
+    for p in widened:
+        # ONE reason per path: a path that is BOTH widened and out-of-scope (the committed-cohesive
+        # case) keeps the widening wording, which is the more accurate description of what happened.
+        reasons[p] = (
+            "declared in Scope-Paths during execution because the approved work required it "
+            f"(additive widening, auto-reconciled by {labels.command})"
+        )
     acks = {
         p: f"declared-but-unmodified (auto-acknowledged by {labels.command})"
         for p in in_scope_unmodified
+        if p not in set(widened)
     }
     return reasons, acks
 

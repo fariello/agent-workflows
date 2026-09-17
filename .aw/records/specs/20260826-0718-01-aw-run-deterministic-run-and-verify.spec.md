@@ -1006,10 +1006,31 @@ It must never retry these classes regardless of budget:
 - human approval gate;
 - hook bypass attempt;
 - push attempt;
-- changed frozen requirements;
+- changed frozen requirements, EXCEPT an additive scope widening as defined below;
 - any non-idempotent external action whose outcome is unknown.
 
 An out-of-scope mutation therefore fails and contains the item on the first occurrence even if ten retries remain. A human gate and dependency-not-met outcome are state gates, not retryable failures. Each permitted correction has a new attempt number and idempotency key and invalidates stale evidence from earlier attempts.
+
+#### 5.5a Additive scope widening is a finalize-time accept, not a retry
+
+A CHANGED FROZEN REQUIREMENT remains never-retryable. One difference class is carved out of it, because the previous rule punished the honest act and rewarded concealment.
+
+An executing agent that discovers it must touch a file its plan did not declare has two options. If it ADDS the path to `Scope-Paths`, that edit changes the plan's frozen region, the begin receipt goes stale, and finalize refuses. If it edits the file WITHOUT declaring it, finalize accepts: an uncommitted undeclared path is disregarded as unowned and demands nothing at all, and a committed one needs only a `--scope-reason`. So the declared edit failed while the concealed edit succeeded.
+
+MEASURED, which is why this is an amendment and not a preference. In run `run-20260917T023628Z-4108757` this refusal fired on three of twelve items (`i3d6ml`, `tx6q0h`, `sy7uwh`), consuming $95.71 and 3h10m of a $212.60 / 8h06m run, stranding three lanes, leaving orchestrator `5e4sb6` dependency-blocked and two backlog items unevaluated. In all three the only differing frozen category was `scope` and every change was purely additive.
+
+An ADDITIVE SCOPE WIDENING is therefore a finalize-time ACCEPT rather than a retry or a refusal. It is NOT a retry: nothing is re-dispatched, no budget is spent, and the same finalize call proceeds. All of the following must hold, and any one failing restores the unmodified never-retryable refusal:
+
+1. every frozen requirement category other than scope is byte-identical, proven by substituting the receipt's stored `scope_paths` into the plan's current frozen-region payload and reproducing the stored digest;
+2. no declared path was REMOVED. A removal is a contract reduction: it can retroactively place an already-made edit outside the fence, so a removal, and a mixed add-and-remove, still refuse with the removed path named. `Scope-Paths` entries are compared as SETS, so a reordering is not a change;
+3. at least one path was added;
+4. every added entry is a LITERAL FILE PATH. A directory entry (`tests/`), a bare directory that matches by prefix (`agent_workflows`), a directory-bounded entry (`agent_workflows/**`) and any glob (`*`) are all INELIGIBLE, because one such entry would convert a narrow fence into a repository-wide one and then nothing would be out of scope and nothing would demand a reason. That is strictly worse than the defect being fixed, where the refusal at least stops;
+5. the receipt and plan are of an eligible SHAPE. Three are ineligible and refuse unchanged: a legacy v1 receipt carrying no frozen-region digest (it is bound to the whole-file rule and must not be accepted under a rule it was never bound under, so the substitution is not attempted on it); a plan whose receipt recorded no declared allowlist, where declaring paths CONVERTS the scope model rather than widening it; and a plan that BECOMES grandfathered mid-execution, which empties the allowlist and reads as a removal; and
+6. every added path carries its own recorded `--scope-reason`. This demand is unconditional and independent of the out-of-scope reconciliation, because that reconciliation is computed against the receipt's ORIGINAL fence and an added path that is merely uncommitted never enters it. One reason per path satisfies both demands when a path is both widened and out-of-scope, and the accepted widening is recorded in the finalize evidence and the plan's terminal history, labelled as a widening rather than as an out-of-scope edit.
+
+The runner supplies condition 6 automatically for a driver-performed finalize, since that is how the measured failures occurred. On that path the recorded reason is machine-generated and therefore constitutes a RECORD of the widening rather than an agent's explanation; a hand-run finalize supplies a real one.
+
+Widening scope at `begin` time, and re-freezing mid-run, remain unsupported: either would let an execution rewrite the contract it is being gated against and then bless it, which is what the freeze exists to prevent.
 
 ### 5.6 Reporting
 

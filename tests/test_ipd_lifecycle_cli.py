@@ -518,16 +518,48 @@ class FinalizeTests(unittest.TestCase):
         self.assertTrue(self.plan.is_file())
 
     def test_stale_receipt_refuses(self):
-        """finalize refuses when the plan's frozen CONTRACT changed after begin.
+        """finalize refuses as STALE when the plan's frozen REQUIREMENTS changed after begin.
 
-        SEMANTIC CHANGE (wtiso-03 `rchpms` E-03, backlog `xmqv5l`): staleness is now keyed on the
+        SEMANTIC CHANGE 1 (wtiso-03 `rchpms` E-03, backlog `xmqv5l`): staleness is keyed on the
         frozen region, so the edit that must trigger the refusal is a REQUIREMENT/SCOPE change, not
         any byte change. This test used to append an HTML comment, which no longer invalidates (by
-        design - see `receipt_is_current`), so it now performs a real contract change: it adds a
-        Scope-Paths entry that was not in the approved plan.
+        design - see `receipt_is_current`).
+
+        SEMANTIC CHANGE 2 (rcptwiden `63425h` E-04): the edit it then used - ADDING a `Scope-Paths`
+        entry - is no longer a STALE refusal either, because an ADDITIVE widening whose every other
+        frozen category is byte-identical is now an accept-with-a-recorded-reason. That case is
+        asserted in :class:`AdditiveScopeWideningTests` below (it still REFUSES without a reason, so
+        nothing silently finalizes). The STALE assertion therefore moves to an edit that genuinely
+        rewrites the reviewed contract: an E-item's action text, which is never a widening.
         """
         self._begin()
-        # Change the reviewed CONTRACT after begin -> the frozen-region digest no longer matches.
+        # Change the reviewed CONTRACT after begin -> the frozen-region digest no longer matches, and
+        # the difference is NOT confined to an additive scope declaration.
+        self.plan.write_text(
+            self.plan.read_text().replace(
+                "- [x] E-01 ", "- [x] E-01 REWRITTEN REQUIREMENT ", 1
+            ),
+            encoding="utf-8",
+        )
+        self.assertIn(
+            "REWRITTEN REQUIREMENT", self.plan.read_text(), "E-text edit did not apply"
+        )
+        _commit_all(self.root, "rewrite a frozen requirement after begin")
+        result = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+        self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
+        self.assertTrue(
+            any("stale" in f.lower() or "digest" in f.lower() for f in result.findings)
+        )
+        self.assertTrue(self.plan.is_file(), "plan must be left unmoved")
+
+    def test_scope_addition_still_refuses_without_a_reason(self):
+        """The case this test used to cover still REFUSES; only the REASON it gives changed.
+
+        Guards against the one way rcptwiden `63425h` could have made the gate worse: an added
+        `Scope-Paths` entry must never SILENTLY finalize. It refuses, the plan stays put, and the
+        refusal now names the missing per-path `--scope-reason` instead of a stale receipt.
+        """
+        self._begin()
         self.plan.write_text(
             self.plan.read_text().replace(
                 "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py",
@@ -540,8 +572,13 @@ class FinalizeTests(unittest.TestCase):
         result = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
         self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
         self.assertTrue(
-            any("stale" in f.lower() or "digest" in f.lower() for f in result.findings)
+            any(
+                "agent_workflows/snuck_in.py" in f and "--scope-reason" in f
+                for f in result.findings
+            ),
+            f"expected a per-path reason demand, got {result.findings}",
         )
+        self.assertTrue(self.plan.is_file(), "plan must be left unmoved")
 
     def test_self_finalize_after_checklist_edits_no_stale_refusal(self):
         """END-TO-END xmqv5l REGRESSION: a self-executing agent's own checklist edits must NOT
@@ -877,6 +914,287 @@ class ReconciliationTests(unittest.TestCase):
             LC._parse_scope_ack_flags(["tests/", "docs/=not-needed"]),
             {"tests/": "acknowledged", "docs/": "not-needed"},
         )
+
+
+class AdditiveScopeWideningTests(unittest.TestCase):
+    """rcptwiden `63425h` E-04: an ADDITIVE `Scope-Paths` widening finalizes with a recorded reason.
+
+    THE DEFECT THIS CLOSES IS AN INCENTIVE INVERSION, not an inconvenience. An agent that discovered
+    mid-execution that it must touch an undeclared file had two options and the system punished the
+    honest one: DECLARING the path changed the plan's frozen region, so `receipt_is_current` returned
+    False and finalize refused as STALE, while editing the file WITHOUT declaring it finalized (and, if
+    the edit was merely uncommitted, was DISREGARDED and demanded no reason at all). Measured three
+    times in run `run-20260917T023628Z-4108757` on `i3d6ml`, `tx6q0h` and `sy7uwh`: $95.71 and 3h10m of
+    a $212.60 run, three lanes stranded, one orchestrator left `dependency-blocked`.
+
+    BOTH VARIANTS ARE ASSERTED THROUGHOUT, and that is the point rather than thoroughness for its own
+    sake. The reason requirement CANNOT ride on the existing out-of-scope reconciliation, because that
+    is computed against the RECEIPT's OLD fence: for an UNCOMMITTED added path `out_of_scope_paths` is
+    EMPTY, so a requirement expressed that way would be silently vacuous in the commonest case. The
+    uncommitted variant is therefore where a fake implementation would hide, and every test below that
+    can run in both runs in both.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _init_git(self.root)
+        (self.root / "agent_workflows").mkdir()
+        (self.root / "tests").mkdir()
+        self.plan = _write_plan(
+            self.root, _completed_plan_text(), "20260824-demo-01-abc123-demo.ipd.md"
+        )
+        (self.root / "agent_workflows" / "demo.py").write_text("x\n", encoding="utf-8")
+        (self.root / "tests" / "test_demo.py").write_text("x\n", encoding="utf-8")
+        _commit_all(self.root, "init")
+        res = LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+        self.assertEqual(res.exit_code, LC.EXIT_OK, res.message)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _do_the_work_and_widen(self, *, commit: bool, added="tests/test_extra.py"):
+        """Do in-scope work, ALSO touch an undeclared file, and DECLARE it (the honest act)."""
+        (self.root / "agent_workflows" / "demo.py").write_text("y\n", encoding="utf-8")
+        (self.root / "tests" / "test_demo.py").write_text("y\n", encoding="utf-8")
+        (self.root / added).write_text("z\n", encoding="utf-8")
+        self.plan.write_text(
+            self.plan.read_text().replace(
+                "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py",
+                "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py, " + added,
+            ),
+            encoding="utf-8",
+        )
+        self.assertIn(added, self.plan.read_text(), "the widening did not apply")
+        if commit:
+            _commit_all(self.root, "in-scope work plus the newly declared path")
+        else:
+            # The plan edit itself must be committed for the UNCOMMITTED variant to be about the
+            # ADDED FILE being uncommitted rather than about the plan being dirty.
+            subprocess.run(
+                ["git", "add", "--", str(self.plan.relative_to(self.root))],
+                cwd=self.root,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-q", "-m", "declare the newly needed path"],
+                cwd=self.root,
+                check=True,
+            )
+
+    def test_widening_finalizes_when_each_added_path_carries_a_reason(self):
+        """THE FIX, in both variants: the honest declaration now completes."""
+        for commit in (True, False):
+            with self.subTest(committed=commit):
+                self.setUp()
+                self._do_the_work_and_widen(commit=commit)
+                result = LC.finalize(
+                    self.root,
+                    self.plan,
+                    "opencode/test",
+                    "did the work",
+                    apply=True,
+                    scope_reasons={
+                        "tests/test_extra.py": "the approved work needed this test file"
+                    },
+                )
+                self.assertEqual(
+                    result.exit_code,
+                    LC.EXIT_OK,
+                    f"{result.message} / {result.findings}",
+                )
+                moved = (
+                    self.root
+                    / ".aw"
+                    / "records"
+                    / "plans"
+                    / "executed"
+                    / self.plan.name
+                )
+                self.assertTrue(moved.is_file(), "the plan did not reach executed/")
+                text = moved.read_text()
+                # THE ACCEPTED WIDENING IS ON THE PERMANENT RECORD, labelled as a widening rather
+                # than as an out-of-scope edit, and named exactly ONCE.
+                self.assertIn("widened-scope tests/test_extra.py", text)
+                self.assertIn("the approved work needed this test file", text)
+                self.assertEqual(
+                    text.count("tests/test_extra.py:"),
+                    1,
+                    "the path must be recorded once, not once per demand",
+                )
+                self.assertNotIn("out-of-scope tests/test_extra.py", text)
+                # And the evidence records the accept explicitly.
+                widening = result.evidence.get("frozen_region_widening", {})
+                self.assertTrue(widening.get("accepted"))
+                self.assertEqual(widening.get("added_paths"), ["tests/test_extra.py"])
+                self.assertEqual(
+                    result.evidence["scope_audit"]["widened_paths"],
+                    ["tests/test_extra.py"],
+                )
+                self.tearDown()
+
+    def test_widening_REFUSES_when_an_added_path_lacks_a_reason(self):
+        """THE F-9 CONTROL: the accept is NOT unconditional, and not vacuous when uncommitted.
+
+        A paste showing only the committed variant would not establish this: for the uncommitted
+        variant the added path never enters `out_of_scope_paths`, so a reason requirement inherited
+        from that set would demand nothing and this test would pass while the gate was open.
+        """
+        for commit in (True, False):
+            with self.subTest(committed=commit):
+                self.setUp()
+                self._do_the_work_and_widen(commit=commit)
+                result = LC.finalize(
+                    self.root, self.plan, "opencode/test", "m", apply=True
+                )
+                self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
+                self.assertTrue(
+                    any(
+                        "tests/test_extra.py" in f and "--scope-reason" in f
+                        for f in result.findings
+                    ),
+                    f"expected a reason demand for the added path, got {result.findings}",
+                )
+                self.assertTrue(self.plan.is_file(), "the plan must be left unmoved")
+                self.assertIn("--scope-reason tests/test_extra.py=", result.message)
+                self.tearDown()
+
+    def test_an_empty_reason_for_an_added_path_still_refuses(self):
+        """A blank reason is no reason, exactly as for an out-of-scope edit."""
+        self._do_the_work_and_widen(commit=False)
+        result = LC.finalize(
+            self.root,
+            self.plan,
+            "opencode/test",
+            "m",
+            apply=True,
+            scope_reasons={"tests/test_extra.py": "   "},
+        )
+        self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
+        self.assertTrue(self.plan.is_file())
+
+    def test_ONE_reason_satisfies_both_demands_in_the_committed_case(self):
+        """A widened path that is ALSO out-of-scope must not cost two answers.
+
+        In the committed-cohesive variant the same path appears in BOTH `out_of_scope_paths` (judged
+        against the receipt's old fence) and `widened_paths`, so without deduplication the honest
+        declaration would demand two reasons where the concealed edit demands none.
+        """
+        self._do_the_work_and_widen(commit=True)
+        rc, _msg, evidence, _f = LC.finalize_precheck(self.root, self.plan)
+        self.assertEqual(rc, LC.EXIT_OK)
+        audit = evidence["scope_audit"]
+        self.assertIn("tests/test_extra.py", audit["out_of_scope_paths"])
+        self.assertIn("tests/test_extra.py", audit["widened_paths"])
+
+        result = LC.finalize(
+            self.root,
+            self.plan,
+            "opencode/test",
+            "did the work",
+            apply=True,
+            scope_reasons={"tests/test_extra.py": "one reason, both demands"},
+        )
+        self.assertEqual(result.exit_code, LC.EXIT_OK, result.message)
+        moved = self.root / ".aw" / "records" / "plans" / "executed" / self.plan.name
+        self.assertEqual(
+            moved.read_text().count("tests/test_extra.py:"),
+            1,
+            "one supplied reason must produce ONE record, not one per demand",
+        )
+
+    def test_the_uncommitted_added_path_is_NOT_in_out_of_scope(self):
+        """THE MEASUREMENT F-9 RESTS ON, pinned so a future refactor cannot quietly undo it.
+
+        `finalize_precheck` judges out-of-scope against the RECEIPT's frozen `scope_paths`, so a path
+        added to the plan AFTER begin is measured against the OLD fence and, being merely dirty, is
+        DISREGARDED as unowned. This is exactly why the widening demand must be its own.
+        """
+        self._do_the_work_and_widen(commit=False)
+        rc, _msg, evidence, _f = LC.finalize_precheck(self.root, self.plan)
+        self.assertEqual(rc, LC.EXIT_OK)
+        audit = evidence["scope_audit"]
+        self.assertEqual(
+            audit["out_of_scope_paths"],
+            [],
+            "if this ever becomes non-empty, the widening demand's independence needs re-deriving",
+        )
+        self.assertIn("tests/test_extra.py", audit["disregarded_unowned_paths"])
+        self.assertEqual(audit["widened_paths"], ["tests/test_extra.py"])
+
+    def test_a_requirement_rewrite_still_refuses_as_STALE_even_with_reasons(self):
+        """GUARD-NOT-TOO-LOOSE, end to end: supplying reasons cannot buy a contract rewrite."""
+        self._do_the_work_and_widen(commit=True)
+        self.plan.write_text(
+            self.plan.read_text().replace(
+                "- [x] E-01 ", "- [x] E-01 REWRITTEN REQUIREMENT ", 1
+            ),
+            encoding="utf-8",
+        )
+        _commit_all(self.root, "also rewrite a frozen requirement")
+        result = LC.finalize(
+            self.root,
+            self.plan,
+            "opencode/test",
+            "m",
+            apply=True,
+            scope_reasons={"tests/test_extra.py": "needed it"},
+        )
+        self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
+        self.assertIn("STALE", result.message)
+        self.assertTrue(
+            any("requirement also changed" in f.lower() for f in result.findings),
+            f"the refusal should say WHY it is not a widening: {result.findings}",
+        )
+        self.assertTrue(self.plan.is_file())
+
+    def test_a_removal_refuses_and_NAMES_the_removed_path(self):
+        """E-05 end to end: a contract REDUCTION is refused loudly, with the path named."""
+        (self.root / "agent_workflows" / "demo.py").write_text("y\n", encoding="utf-8")
+        self.plan.write_text(
+            self.plan.read_text().replace(
+                "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py",
+                "- Scope-Paths: agent_workflows/demo.py",
+            ),
+            encoding="utf-8",
+        )
+        _commit_all(self.root, "narrow the fence after begin")
+        result = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+        self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
+        self.assertIn("STALE", result.message)
+        self.assertTrue(
+            any("REMOVED" in f and "tests/test_demo.py" in f for f in result.findings),
+            f"the removed path must be named: {result.findings}",
+        )
+        self.assertTrue(self.plan.is_file())
+
+    def test_a_directory_addition_refuses_and_NAMES_the_offending_entry(self):
+        """E-08 end to end: a fence-neutering widening must not be accepted with one reason."""
+        self._do_the_work_and_widen(commit=True, added="tests/test_extra.py")
+        self.plan.write_text(
+            self.plan.read_text().replace(", tests/test_extra.py", ", tests/"),
+            encoding="utf-8",
+        )
+        self.assertIn(
+            "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py, tests/",
+            self.plan.read_text(),
+        )
+        _commit_all(self.root, "widen to a whole directory")
+        result = LC.finalize(
+            self.root,
+            self.plan,
+            "opencode/test",
+            "m",
+            apply=True,
+            scope_reasons={"tests/": "I would like the whole tree please"},
+        )
+        self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
+        self.assertIn("STALE", result.message)
+        self.assertTrue(
+            any("tests/" in f and "DIRECTORY or GLOB" in f for f in result.findings),
+            f"the offending entry must be named: {result.findings}",
+        )
+        self.assertTrue(self.plan.is_file())
 
 
 class RollbackFailureSemanticsTests(unittest.TestCase):
