@@ -1198,6 +1198,23 @@ class BothHostsShareEverySymbol(unittest.TestCase):
         close over a name `runner_shared` cannot yet reach. So this is the FIRST reduction of the
         coupling `cnwy8g` tracks, and it is a reduction of one; the remaining 56 are the work still
         outstanding, not a baseline anyone should be comfortable with.
+
+        RE-MEASURED 2026-09-17 from 56 DOWN to 53 by rununify 06 (`sy7uwh`) E-03, again per this
+        assertion's own instruction, and again a DECREASE. The three names removed are computed by
+        diffing the import list at `85c14014` (56) against this HEAD (53) rather than assumed:
+
+            removed: ['_read_from_backlog', '_read_item_dependencies', '_read_kind']    added: []
+
+        WHY THESE THREE AND WHY NOW. All three are module-level READERS that `parse_plan_file` closes
+        over, and `sy7uwh` unified `parse_plan_file` itself, so they HAD to become resolvable in
+        `runner_shared` for that function to move at all - a naive move would have failed at import
+        time. That makes this reduction a byproduct of the record unification rather than a coupling
+        cleanup pursued for its own sake, which is worth saying because it also RETIRES a stated
+        excuse: `_read_kind`'s old import comment in `agy_runipd` said the reader had to stay in
+        `oc_runipd` "because moving it means moving `_KIND_RE` and the whole front-matter reader family
+        with it, which is `cnwy8g`'s job". Moving `parse_plan_file` required exactly that, so it was
+        done (`_KIND_RE` and `_PLAN_FILENAME_RE` moved too, rather than being left behind as duplicate
+        constants). 53 remain outstanding.
         """
 
         import ast
@@ -1218,7 +1235,7 @@ class BothHostsShareEverySymbol(unittest.TestCase):
             )
         self.assertEqual(
             len(imported),
-            56,
+            53,
             "the oc->agy import count moved. This test's job is to fail when THIS "
             "child's symbols deepen the coupling; if the change is unrelated work, "
             "re-measure and update the baseline with the new count and a note.",

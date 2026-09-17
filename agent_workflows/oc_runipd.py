@@ -14,7 +14,6 @@ from __future__ import annotations
 import argparse
 import contextlib
 import functools
-import hashlib
 import json
 import os
 import re
@@ -338,6 +337,25 @@ from agent_workflows.runner_shared import (
     extract_session_id as extract_session_id,
 )
 
+# rununify 06 (`sy7uwh`) E-02/E-03: the ONE plan record, its ONE reader, and the readers/constants that
+# reader closes over. All of these used to be DEFINED in this module (with `agy_runipd` importing three
+# of them FROM here and carrying its own divergent record and parser); there is now one of each, so the
+# two hosts cannot come to disagree about what a plan record IS. The full rationale sits at each removed
+# definition's old site further down this file. `plan_kind_from_file`/`resolve_manifest_kind` are the
+# legacy-manifest `kind` fallback this host previously LACKED (`sy7uwh` OQ-03).
+from agent_workflows.runner_shared import (
+    PlanRecord as PlanRecord,
+    _KIND_RE as _KIND_RE,
+    _PLAN_FILENAME_RE as _PLAN_FILENAME_RE,
+    _read_from_backlog as _read_from_backlog,
+    _read_item_dependencies as _read_item_dependencies,
+    _read_kind as _read_kind,
+    build_dynamic_manifest as build_dynamic_manifest,
+    parse_plan_file as parse_plan_file,
+    plan_kind_from_file as plan_kind_from_file,
+    resolve_manifest_kind as resolve_manifest_kind,
+)
+
 # rununify 01 (`2r306y`): `_read_id`/`_read_status` were defined in THIS module AND in
 # `agy_runipd`, both AST-identical to `selectors`' own readers, so one owner had three copies.
 # They are now the public `selectors` readers, bound to this module's historical private names
@@ -345,7 +363,16 @@ from agent_workflows.runner_shared import (
 # there is no cycle. NOTE the aliases are deliberately the PERMISSIVE readers: this module's
 # copies tolerated any whitespace after the `-` while `selectors`' internal readers require
 # exactly one space, and that strictness is a documented `aw find` matching contract.
-from agent_workflows.selectors import read_front_matter_id as _read_id
+#
+# `_read_id`'s `# noqa: F401` IS LOAD-BEARING, not clutter (rununify 06 `sy7uwh`). Once
+# `parse_plan_file` moved to `runner_shared`, this module stopped CALLING `_read_id` itself, so
+# `ruff --fix` deleted the import as unused -- and that silently broke a contract, because
+# `tests/test_runner_refork_guard.py` requires BOTH runners to keep exposing `_read_id` bound to
+# `selectors.read_front_matter_id` (measured: two tests failed with `oc_runipd._read_id is MISSING`).
+# The `as <same-name>` form alone was NOT enough (ruff removed it again on the next hook run), and this
+# module's `__all__` does not list the private readers, so the suppression is the mechanism that keeps
+# the re-export alive. `_read_status` is still called locally and so needs none.
+from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - a DELIBERATE re-export; tests/test_runner_refork_guard.py requires it
 from agent_workflows.selectors import read_front_matter_status as _read_status
 
 # The durable stop-request record and the cooperative-checkpoint poll (spec `c4gd2h` R7-R9/R11)
@@ -435,7 +462,13 @@ DEPENDENCY_BLOCK_RECOVERY_HINT = (
 # Frontmatter and filename extraction regexes
 _ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
 _STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
-_KIND_RE = re.compile(r"(?m)^-\s*Kind:\s*(\S+)\s*$")
+# `_KIND_RE` and `_PLAN_FILENAME_RE` are IMPORTED from `runner_shared` (rununify 06 `sy7uwh` E-03), not
+# defined here. They MOVED with `parse_plan_file`/`_read_kind`, which are the only things that close
+# over them: `_PLAN_FILENAME_RE` was byte-identical in both runners and `_KIND_RE` was oc-only, so
+# leaving a duplicate CONSTANT behind would reproduce the same defect one layer down - a fix to either
+# pattern would still not reach the runner carrying its own copy, which is exactly how `render_stream`'s
+# ANSI constants came to be re-forked. Both are re-exported below with the rest of the shared names.
+#
 # NOTE (lanetruth-03 / 8guhs0 E-01): there is deliberately NO dependency regex here. The runner
 # used to carry a private `_DEPS_RE` matching a LEGACY `Dependencies:`/`Depends-on:` field that no
 # plan in the tree uses, so the canonical `- Item-Dependencies:` statement was invisible and every
@@ -444,9 +477,6 @@ _KIND_RE = re.compile(r"(?m)^-\s*Kind:\s*(\S+)\s*$")
 # (see `_read_item_dependencies`). Spec 25kzda 2.10: "All surfaces call this evaluator; none
 # reimplement the rules." Re-adding a dependency regex here is a regression guarded by
 # tests/test_runner_item_dependencies.py.
-_PLAN_FILENAME_RE = re.compile(
-    r"^\d{8}-([a-z0-9_-]+)-(\d{1,3})-([a-z0-9]{6})-(.+)\.(ipd|draft|plan)\.md$"
-)
 
 # Terminal output verbosity for the streamed child-agent turn.
 OUTPUT_MODES = ("clean", "quiet", "raw")
@@ -1398,27 +1428,15 @@ class BacklogCloseVerdict(NamedTuple):
     rule: str | None
 
 
-def _read_from_backlog(text: str) -> str | None:
-    """The plan's `- From-Backlog:` id6, or None when the field is absent/empty.
-
-    THE FIELD NAME IS THE SCHEMA'S, NOT A LOCAL REGEX (zhr6mc E-01). `ipd_schema.META_FROM_BACKLOG`
-    is the single authority the checkers already use, so the runner and `aw check` cannot come to
-    disagree about what the field is called. The metadata block is read by `ipd_lint.parse`, the same
-    structural fence-aware reader the lint and lifecycle surfaces use -- identical in form to how
-    `_read_item_dependencies` reads its own field, and for the identical reason.
-    """
-    from agent_workflows import ipd_lint as _lint
-    from agent_workflows import ipd_schema as _schema
-
-    try:
-        fields = _lint.parse(text).meta_fields
-    except Exception:
-        return None
-    raw = (fields.get(_schema.META_FROM_BACKLOG) or "").strip()
-    if not raw or raw in {"-", "none", "unresolved"}:
-        return None
-    token = raw.split()[0].strip("\"'").strip()
-    return token if ID6_RE.fullmatch(token) else None
+# rununify 06 (`sy7uwh`) E-03: `_read_from_backlog` is IMPORTED from `runner_shared`, not defined here.
+# It is one of the six module-level readers `parse_plan_file` closes over, so it had to become resolvable
+# in the shared module for that function to move at all; leaving a SECOND copy behind would reproduce
+# exactly the defect this Set exists to end (a fix reaching one caller and not the other), one layer
+# down from the record itself. `agy_runipd` already bound this by name FROM this module, and
+# `tests/test_runner_backlog_close.py::SharedNotCopied` asserts object identity between the two hosts;
+# a shared definition re-exported here under the same name satisfies that assertion, because both hosts
+# now name the SAME object rather than one naming the other's.
+# (The import itself is hoisted to the top-of-file shared-import block, per E402.)
 
 
 def resolve_backlog_item(repo: Path, item_id6: str) -> Path | None:
@@ -2697,134 +2715,41 @@ def run_lock(run_dir: Path):
         held.release()
 
 
-def _read_kind(text: str) -> str | None:
-    """Read the IPD's `- Kind:` metadata (orchestrator|child). This is the RELIABLE
-    signal for 'is this an orchestrator' - NOT the Order number - matching
-    ipd_schema.KIND_ORCHESTRATOR/KIND_CHILD."""
-    m = _KIND_RE.search(text)
-    return m.group(1).lower() if m else None
+# rununify 06 (`sy7uwh`) E-02/E-03: `_read_kind`, `_read_item_dependencies`, `PlanRecord` and
+# `parse_plan_file` are IMPORTED from `runner_shared`, not defined here. All four used to live in THIS
+# module, with `agy_runipd` importing the two readers FROM here (three oc-to-agy imports removed by the
+# move) and carrying its OWN divergent `PlanRecord`/`parse_plan_file`. There is now ONE of each, so the
+# two hosts cannot come to disagree about what a plan record IS.
+#
+# WHY THE RECORD COULD BE UNIFIED AT ALL, since `818uru` deliberately pinned it as un-unifiable: the
+# reason it gave (agy had no use for `kind`) has DISSOLVED. agy imports the shared `action_for`, which
+# READS `kind` to detect an orchestrator, so the split had come to cost a redundant disk read per plan
+# and buy nothing. Measured: oc's field set was a strict SUPERSET of agy's, differing in exactly `kind`,
+# and the two `parse_plan_file` bodies differed in exactly the two lines that read and pass it.
+#
+# `_read_from_backlog` STAYS DEFINED HERE, deliberately and only for now: it is re-exported to agy by
+# name and is pinned by `tests/test_runner_backlog_close.py::SharedNotCopied`, which asserts object
+# identity between the hosts. Lifting it is a `cnwy8g` reduction for a later child, and the shared
+# module carries its own copy for `parse_plan_file`'s use; this module keeps binding its OWN so that
+# suite's identity assertion still names one object. See the note at the shared definition.
+# (The import itself is hoisted to the top-of-file shared-import block, per E402.)
 
 
-def _read_item_dependencies(text: str) -> tuple[list[str], str | None]:
-    """Read the plan's canonical `- Item-Dependencies:` statement as CANONICAL TYPED edge tokens.
-
-    Returns ``(edges, error)`` where ``edges`` is the list of canonical edge strings (e.g.
-    ``["executed:af7i6p", "exists:spec:d4e5f6", "state:backlog:done:g7h8j9"]``) and ``error`` is the
-    shared parser's message for a malformed statement (else None). `none`, `unresolved`, an empty
-    value, and an absent field all yield ``([], None)``; the MISSING-vs-`none` distinction is NOT the
-    runner's to judge (see `preflight_dependency_findings` and 8guhs0 OQ-02).
-
-    THE QUALIFIER IS PRESERVED, NOT STRIPPED. The deleted `_read_deps` kept only bare id6 tokens,
-    which would have silently degraded `exists:spec:<id6>` into an untyped id6 with different
-    release semantics (plan finding F4). The satisfaction rule depends on the kind, so the typed
-    token is what the record and the frozen queue must carry.
-
-    Two shared authorities, no private parsing: the field NAME is `ipd_schema`'s constant and the
-    metadata block is read by `ipd_lint.parse` (the same structural, fence-aware reader the lint and
-    lifecycle surfaces use, measured byte-identical to `check_engine`'s extraction across the whole
-    plans tree); the VALUE grammar is `ipd_schema.parse_item_dependencies`.
-    """
-    from agent_workflows import ipd_lint as _lint
-    from agent_workflows import ipd_schema as _schema
-
-    try:
-        fields = _lint.parse(text).meta_fields
-    except Exception:
-        return [], None
-    raw = fields.get(_schema.META_ITEM_DEPENDENCIES)
-    if raw is None:
-        return [], None
-    edges, _ready, err = _schema.parse_item_dependencies(raw)
-    if err:
-        return [], err
-    return [edge.canonical() for edge in edges], None
-
-
-class PlanRecord(NamedTuple):
-    id6: str
-    setid: str
-    status: str
-    order: int
-    path: Path
-    rel_path: str
-    # CANONICAL TYPED edge tokens (`executed:<id6>` / `exists:<type>:<id6>` /
-    # `state:<type>:<status>:<id6>`), never bare id6 strings: the qualifier decides the satisfaction
-    # rule (`dependency_status`). `dependency_error` carries the shared parser's message when the
-    # statement is malformed, so preflight can fail closed instead of silently seeing no edges.
-    dependencies: list[str]
-    kind: str | None = None
-    dependency_error: str | None = None
-    # bkclose (zhr6mc) E-01: the plan's `- From-Backlog:` id6, or None when the field is absent.
-    # Without this the runner could not know a backlog item was involved at all, so no automation
-    # could ever advance a `graduated` item to `done`. Read via `ipd_schema.META_FROM_BACKLOG`, never
-    # a local regex, so the runner and the checkers cannot disagree about the field name.
-    from_backlog: str | None = None
-
-
-def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError:
-        return None
-    id6 = _read_id(text)
-    setid = _read_set(text)
-    status = _read_status(text)
-    order = _read_order(text)
-    deps, dep_err = _read_item_dependencies(text)
-    kind = _read_kind(text)
-    from_backlog = _read_from_backlog(text)
-    m = _PLAN_FILENAME_RE.match(path.name)
-    if m:
-        if not setid:
-            setid = m.group(1)
-        if order is None:
-            order = int(m.group(2))
-        if not id6:
-            id6 = m.group(3)
-    if not id6:
-        for part in path.name.split("-"):
-            if ID6_RE.fullmatch(part):
-                id6 = part
-                break
-    if not id6:
-        try:
-            rel = str(path.relative_to(repo))
-        except ValueError:
-            rel = str(path)
-        id6 = hashlib.sha256(rel.encode("utf-8")).hexdigest()[:6]
-    if not setid:
-        setid = "standalone"
-    if order is None:
-        order = 99
-    if not status:
-        bucket = plan_bucket(path)
-        status = bucket or "to-review"
-    try:
-        rel = str(path.relative_to(repo))
-    except ValueError:
-        rel = str(path)
-    return PlanRecord(
-        id6=id6,
-        setid=setid,
-        status=status,
-        order=order,
-        path=path.resolve(),
-        rel_path=rel,
-        dependencies=deps,
-        kind=kind,
-        dependency_error=dep_err,
-        from_backlog=from_backlog,
-    )
-
-
-# rununify 02 (`818uru`) E-08: one-line wrapper over the shared `discover_plans`, binding THIS
-# driver's `parse_plan_file`. That injection carries TWO dependencies at once, which is why it is the
-# subtlest one in the plan: `parse_plan_file` is class (c) DIVERGED, AND it is what CONSTRUCTS this
-# module's `PlanRecord` - and the two drivers' `PlanRecord` are DIFFERENT NamedTuples (oc's carries a
-# `kind` field agy's lacks). A shared `discover_plans` that built one type would hand the other
-# driver a record shape its code never expects: build oc's and agy gets a stray field; build agy's
-# and oc LOSES `kind`, which `action_for` reads to detect an orchestrator. Both failures are silent
-# and type-shaped rather than a crash. Injecting the PARSER keeps each driver's own record type.
+# rununify 02 (`818uru`) E-08: one-line wrapper over the shared `discover_plans`, binding
+# `parse_plan_file`.
+#
+# THE INJECTION IS NOW VESTIGIAL, and saying so plainly matters because the comment this replaces
+# asserted the opposite as a design principle. `818uru` wrote that "the two drivers' `PlanRecord` are
+# DIFFERENT NamedTuples (oc's carries a `kind` field agy's lacks)" and that "injecting the PARSER keeps
+# each driver's own record type". rununify 06 (`sy7uwh`) unified BOTH the record and the parser, so
+# there is exactly one of each and this wrapper now injects the SHARED `parse_plan_file` - the same
+# object the agy wrapper injects. Nothing is kept apart any more.
+#
+# WHY THE PARAMETER STAYS ANYWAY, so nobody "finishes" this and breaks a guard: `discover_plans`'s
+# signature is fingerprint-pinned in `tests/fixtures/runner_shared_premove_fingerprints.json` and
+# enumerated in `tests/test_runner_shared.py::INJECTED`, and the maintainer's wrapper ruling exists
+# specifically to leave call sites untouched. Collapsing the seam is a later plan's work, not a
+# side effect of unifying a record.
 def discover_plans(repo: Path) -> dict[str, PlanRecord]:
     """Scan the repository for all IPD files, returning id6 -> PlanRecord."""
     return runner_shared.discover_plans(repo, parse_plan_file=parse_plan_file)
@@ -2867,34 +2792,11 @@ def dependency_target_id6(token: str) -> str | None:
     return edge.id6 if edge is not None else None
 
 
-def build_dynamic_manifest(
-    repo: Path, discovered: dict[str, PlanRecord]
-) -> dict[str, Any]:
-    """Compile discovered plans into a manifest dictionary."""
-    plans_dict: dict[str, Any] = {}
-    sets_dict: dict[str, list[PlanRecord]] = {}
-    for id6, rec in discovered.items():
-        plans_dict[id6] = {
-            "set": rec.setid,
-            "file": rec.rel_path,
-            "status": rec.status,
-            "order": rec.order,
-            "dependencies": rec.dependencies,
-            "kind": rec.kind,
-            # bkclose (zhr6mc) E-01: carried through the manifest so the frozen queue entry can hold
-            # it. Additive; a hand-written manifest lacking the key simply links no item.
-            "from_backlog": rec.from_backlog,
-        }
-        sets_dict.setdefault(rec.setid, []).append(rec)
-    sorted_sets: dict[str, Any] = {}
-    for setid, plist in sets_dict.items():
-        plist_sorted = sorted(plist, key=lambda x: (x.order, x.path.name))
-        sorted_sets[setid] = {"order": [x.id6 for x in plist_sorted]}
-    return {
-        "schema_version": SCHEMA_VERSION,
-        "plans": plans_dict,
-        "sets": sorted_sets,
-    }
+# rununify 06 (`sy7uwh`) E-03: `build_dynamic_manifest` is IMPORTED from `runner_shared` (see the
+# import block beside `PlanRecord` above), not defined here. The two hosts' versions differed in
+# exactly ONE expression - `'kind': rec.kind` here versus `'kind': _plan_kind(rec.path)` there - so
+# unifying the record collapsed this symbol for free, with oc's form surviving because it was already
+# the one in production on this host.
 
 
 def expand_selectors(
@@ -3542,16 +3444,32 @@ def initialize_run(args: argparse.Namespace) -> Path:
         for id6 in queue_ids:
             plan_info = manifest["plans"].get(id6, {})
             st = plan_info.get("status")
-            if not st:
+            # rununify 06 (`sy7uwh`) E-03: resolve the path ONCE, because the kind fallback below needs
+            # it too. Previously it was resolved only when the status was missing, so a legacy manifest
+            # WITH a status but WITHOUT a `kind` key had no path to fall back to.
+            probe_path = None
+            try:
+                probe_path = resolve_plan_path(repo, plan_info.get("file", ""), id6)
+            except Exception:
+                probe_path = None
+            if not st and probe_path is not None:
                 try:
-                    rec_probe = parse_plan_file(
-                        resolve_plan_path(repo, plan_info.get("file", ""), id6), repo
-                    )
+                    rec_probe = parse_plan_file(probe_path, repo)
                     st = rec_probe.status if rec_probe else None
                 except Exception:
                     st = None
             st = st or "approved"
-            preflight_items.append((id6, st, action_for(plan_info.get("kind"), st)))
+            # rununify 06 (`sy7uwh`) E-03: the SAME `resolve_manifest_kind` the queue build calls, which
+            # is what this block's own comment above already PROMISES ("read from the same
+            # manifest+plan-file status, so the two cannot disagree"). Before this, the promise held for
+            # STATUS but not for KIND: this line read the manifest's `kind` raw while the queue build
+            # (on the agy host) fell back to the plan file, so a legacy manifest could make the
+            # `--action` legality check tell the operator an orchestrator's next action was `execute`
+            # while the dispatch correctly treated it as `orchestrate`. One shared resolution at both
+            # sites on both hosts is what makes the promise true.
+            preflight_items.append(
+                (id6, st, action_for(resolve_manifest_kind(plan_info, probe_path), st))
+            )
         enforce_requested_action(requested_action, preflight_items)
 
     # runflags-01 (`uyeko5`) E-02: THE CALL SITE THAT MAKES `6lu3rq`'s MIXED-TYPE GATE REACHABLE.
@@ -3637,7 +3555,19 @@ def initialize_run(args: argparse.Namespace) -> Path:
         # Kind + Status decide the action (see action_for): a draft/to-review
         # orchestrator still needs its /plan-review; only a past-review orchestrator is
         # 'orchestrate' (not agent-executed; finalized when all children executed).
-        action = action_for(plan.get("kind"), status or "approved")
+        #
+        # rununify 06 (`sy7uwh`) E-03 / OQ-03: THE LEGACY-MANIFEST FALLBACK ARRIVES ON THIS HOST. This
+        # line used to read `plan.get("kind")` STRAIGHT THROUGH while the antigravity host re-read the
+        # plan file when the manifest omitted the key. That made the two hosts disagree about a
+        # correctness gate in THIS host's disfavor: measured, given a hand-written manifest naming an
+        # approved orchestrator with no `kind` key, `aw agy run` derived `orchestrate` and retired it
+        # while `aw oc run` derived `execute` and spent a paid agent turn on a plan that authors no
+        # code - the exact defect orchretire-03 (`pgq326`) fixed. `resolve_manifest_kind` is the ONE
+        # shared manifest-then-file resolution both hosts now call. The behavior change to this host is
+        # authorized by the maintainer's 2026-09-16 ruling and is a FIX; a GENERATED manifest always
+        # carries the key, so no ordinary run reads a second file.
+        kind = resolve_manifest_kind(plan, p_path)
+        action = action_for(kind, status or "approved")
         queue.append(
             {
                 "position": position,
@@ -3659,7 +3589,13 @@ def initialize_run(args: argparse.Namespace) -> Path:
                 # RESUME re-derives the same action and the durable record shows which items the runner
                 # treated as orchestrators. Additive and symmetric with the agy queue entry; `action`
                 # above is still what the dispatch reads.
-                "kind": plan.get("kind"),
+                #
+                # rununify 06 (`sy7uwh`) E-03: the RESOLVED kind, not the raw manifest value, which is
+                # what the agy entry has always frozen. Freezing the raw `None` from a legacy manifest
+                # while `action` was derived from the resolved value would make a RESUME disagree with
+                # the run that created it, and would make the durable record deny that the runner
+                # treated the item as an orchestrator when it did.
+                "kind": kind,
                 "initial_status": status or "approved",
                 "action": action,
                 "status": "queued"

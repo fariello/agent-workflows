@@ -2532,11 +2532,13 @@ class TheActionDecisionIsSHAREDCode(unittest.TestCase):
         """Without `kind` on the entry the shared decider cannot see an orchestrator at all.
 
         Asserted through the real `build_dynamic_manifest` + `discover_plans` path rather than a
-        hand-built dict, because the defect was that agy's record type has no `kind` field and nothing
-        supplied it from anywhere else.
+        hand-built dict, because the defect was that agy's record type had no `kind` field and nothing
+        supplied it from anywhere else. rununify 06 (`sy7uwh`) gave the shared record that field, so the
+        entry now gets it from `rec.kind` instead of from a per-plan re-read of the file; this test
+        passed before and after that change, which is why it is the guard the change was made under.
         """
 
-        from agent_workflows import agy_runipd
+        from agent_workflows import agy_runipd, oc_runipd
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -2554,9 +2556,19 @@ class TheActionDecisionIsSHAREDCode(unittest.TestCase):
             self.assertEqual(
                 agy_runipd.action_for(entry["kind"], entry["status"]), "orchestrate"
             )
-            # The record type itself is UNCHANGED: `818uru` pinned the two as distinct and that
-            # invariant is not this plan's to break.
-            self.assertNotIn("kind", agy_runipd.PlanRecord._fields)
+            # PIN TWO OF TWO, INVERTED BY rununify 06 (`sy7uwh`), which IS the "later child" that
+            # `818uru` deferred the unification to. This line used to read
+            # `assertNotIn("kind", agy_runipd.PlanRecord._fields)` with the comment "`818uru` pinned the
+            # two as distinct and that invariant is not this plan's to break" - true when it was
+            # written, and false now that `sy7uwh` has broken it deliberately and with authority. See
+            # `tests/test_runner_shared.py::DiscoverPlansRecordTypeTests` for the full override record.
+            #
+            # EVERYTHING ABOVE THIS LINE IS UNTOUCHED ON PURPOSE. This test is the best existing
+            # end-to-end guard for the silent, type-shaped failure the unification risks (a dropped
+            # `kind` disables orchestrator detection without crashing), so it had to keep passing
+            # BEFORE and AFTER with only this one record-shape assertion changed.
+            self.assertIn("kind", agy_runipd.PlanRecord._fields)
+            self.assertIs(agy_runipd.PlanRecord, oc_runipd.PlanRecord)
 
     def test_the_QUEUE_BUILD_derives_orchestrate_on_both_hosts(self):
         """The real `initialize_run` queue entry, not just the decider called by hand.
