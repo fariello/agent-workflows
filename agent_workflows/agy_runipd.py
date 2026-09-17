@@ -1559,6 +1559,35 @@ def retry_deferred_integrations(
     )
 
 
+def _integrate_stranded_lanes(
+    run_dir: Path, state: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """integpath-04 (`rl67b0`) E-03/E-04: this host's wiring for the resume-time integration pass.
+
+    The MIRROR of the oc twin and equally thin: the DECISION (which items qualify, the refusals, the
+    real validation runner, the gate call, the honest state write, E-04's hold-back) is the shared
+    `runner_shared.integrate_stranded_lanes`. This binds only the host-specific four: THIS host's
+    `integrate_lane_branch` wrapper (so a recovered merge subject on MAIN reads
+    `integrate(aw agy run): ...`), this host's bound `run_suite_check` and `process_backlog_close`
+    (injected because `runner_shared` may not import either driver), and where the operator-facing
+    lines go.
+    """
+
+    repo = Path(state["repo"])
+    pal = Palette(should_color(sys.stdout))
+    return runner_shared.integrate_stranded_lanes(
+        repo=repo,
+        run_dir=run_dir,
+        state=state,
+        integrate=integrate_lane_branch,
+        suite_check=run_suite_check,
+        save_state=save_state,
+        append_jsonl=append_jsonl,
+        process_backlog_close=process_backlog_close,
+        report=lambda message: print(pal(message, "cyan"), file=sys.stderr),
+    )
+
+
 @contextlib.contextmanager
 def run_lock(run_dir: Path):
     """Hold the run's ``driver.lock`` for this driver process.
@@ -4842,6 +4871,12 @@ def run_queue(
                 # the ladder alone because the ladder only runs inside a live dispatch loop.
                 "integration-deferred",
             }:
+                # integpath-04 (`rl67b0`) E-03/E-04, symmetric with `oc_runipd`: REMEMBER the status
+                # being overwritten, because the integration pass must follow the indeterminate refusal
+                # below and by then `item["status"]` no longer says the item was `integration-blocked`.
+                # The pass selects on durable lane facts plus this recorded prior disposition, and
+                # E-04's hold-back restores exactly this value rather than inventing one.
+                item["requeue_from_status"] = item["status"]
                 item["status"] = "queued"
                 item["recovery_next"] = True
         save_state(run_dir, state)
@@ -4861,6 +4896,24 @@ def run_queue(
             file=sys.stderr,
         )
         return 1
+
+    # integpath-04 (`rl67b0`) E-03/E-04, symmetric with `oc_runipd.run_queue` (CID-3): MERGE
+    # ALREADY-VERIFIED LANES INSTEAD OF RE-DISPATCHING THEM.
+    #
+    # PLACEMENT, stated exactly because it is the substance: AFTER the indeterminate refusal above (that
+    # refusal `return 1`s before anything starts, and main must not be mutated during a resume the
+    # driver is about to decline) and BEFORE the dispatch loop below (once an item is dispatched its
+    # lane has already been attempt-scoped into a second branch and the finished one abandoned). The
+    # requeue above dispatches nothing, so this is still strictly before any turn; what it does mean is
+    # that the pass selects on durable lane facts and `requeue_from_status`, not on `status`.
+    #
+    # No second lock (this is inside `locked_run` already), no flag, and it cannot abort the resume.
+    #
+    # NO STATE RELOAD AND NO `register_signal_report` REFRESH HERE, for the reason the oc twin records:
+    # the pass mutates THIS `state` dict and persists it, so the in-memory view is already current and
+    # the published reporter reference is the same object; a reload would also add a sixth
+    # `register_signal_report` site to a function whose five are pinned as a measured invariant.
+    _integrate_stranded_lanes(run_dir, state)
 
     tracker = StreamTracker()
     invocation_start_mono = time.monotonic()
@@ -5496,6 +5549,12 @@ AUTOMATIC STATUS ROUTING:
     # `agy` group, which forwards `argparse.REMAINDER` verbatim to this `main`.
     runner_stop.add_stop_parser(sub, command=_detect_driver_command())
 
+    # integpath-04 (`rl67b0`) E-02: the OUT-OF-BAND `integrate` verb, through the SHARED declaration
+    # so `aw agy run integrate` is the SAME verb as `aw oc run integrate` (orchestrator CID-3) rather
+    # than a second copy that could drift. Declared on THIS parser (where `start` lives), not on
+    # `cli.py`'s `agy` group, which forwards `argparse.REMAINDER` verbatim to this `main`.
+    runner_shared.add_integrate_parser(sub, command=_detect_driver_command())
+
     # hostdefault-02 (`ybkmzp`) E-02: prove the two verification spellings did not collide while this
     # parser was being built. Checked HERE because the hazard is a property of the registration
     # (a `--validate` alias list, or `conflict_handler="resolve"`, can silently steal `--no-verify`
@@ -5503,6 +5562,34 @@ AUTOMATIC STATUS ROUTING:
     assert_verification_flags_are_distinct(start)
 
     return parser
+
+
+def handle_integrate_command(args: argparse.Namespace) -> int:
+    """Execute the `integrate` verb: re-attempt integration for one verified lane, NO agent turn.
+
+    integpath-04 (`rl67b0`) E-02, the exact counterpart of `oc_runipd.handle_integrate_command`. THIN
+    by contract: the whole decision (lane resolution from durable state, every refusal, the real
+    validation runner, the gate call) is `runner_shared.reintegrate_lane`. This binds only what is
+    host-specific - THIS host's `integrate_lane_branch` wrapper, so a recovered merge subject reads
+    `integrate(aw agy run): ...` rather than the other driver's name, and this host's bound
+    `run_suite_check`, which the shared module may not import.
+
+    EXIT CONTRACT: 0 integrated, 1 refused (nothing merged, main untouched, lane preserved), 2 on a
+    driver error.
+    """
+
+    repo = Path(getattr(args, "repo", ".") or ".").resolve()
+    id6 = str(getattr(args, "id6", "") or "")
+    outcome = runner_shared.reintegrate_lane(
+        repo,
+        id6,
+        integrate=integrate_lane_branch,
+        suite_check=run_suite_check,
+        run_id=getattr(args, "run_id", None),
+    )
+    message = runner_shared.render_reintegration_result(outcome, id6=id6)
+    print(message, file=sys.stdout if outcome.integrated else sys.stderr)
+    return 0 if outcome.integrated else 1
 
 
 def handle_stop_command(args: argparse.Namespace) -> int:
@@ -5590,12 +5677,17 @@ def main(argv: list[str] | None = None) -> int:
     # `--version` entry guarded a flag NEITHER driver registers. THE TWO DRIVERS' SETS MUST STAY
     # IDENTICAL: `tests/test_runner_stop_triggers.py` regexes `subcommands = \{(.*?)\}` out of BOTH
     # source files, so a one-sided edit here is exactly the divergence that guard exists to catch.
+    # integpath-04 (`rl67b0`) E-02: `"integrate"` MUST be listed here for the SAME reason `stop` must -
+    # an unregistered first token becomes `start <token>`, so `integrate <id6>` would LAUNCH A RUN with
+    # `integrate` as a selector. Added in lockstep with the oc twin and with the inline copy in
+    # `tests/test_runner_stop_triggers.py`, which pins all three equal.
     subcommands = {
         "start",
         "resume",
         "status",
         "report",
         "stop",
+        "integrate",
         "-h",
         "--help",
     }
@@ -5621,6 +5713,11 @@ def main(argv: list[str] | None = None) -> int:
             # runstop 71vjbn (E-03/E-04): out-of-band, deliberately BEFORE any run-lock or state
             # mutation. It never starts a run and never creates the run directory.
             return handle_stop_command(args)
+        if args.command == "integrate":
+            # integpath-04 (`rl67b0`) E-02: out-of-band like `stop`, before any run-lock or state
+            # mutation. No run directory, no agent turn; it refuses a lane a LIVE process owns exactly
+            # because it holds no run lock.
+            return handle_integrate_command(args)
         if args.command == "start":
             run_dir = initialize_run(args)
             print(f"Run ID: {run_dir.name}")

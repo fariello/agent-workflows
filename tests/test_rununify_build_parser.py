@@ -101,12 +101,26 @@ STILL_DOUBLE_DEFINED = ("_add_output_mode_flags", "_detect_driver_command")
 LITERAL_PARTITION = {"shared": 17, "oc_only": 7, "agy_only": 10}
 
 #: E-01(a) on the LIVE parser objects: what an operator actually meets.
-LIVE_PARTITION = {"shared": 51, "oc_only": 8, "agy_only": 8}
+#:
+#: RE-MEASURED 2026-09-17 (shared 51 -> 52) by integpath-04 (`rl67b0`), which declared the `integrate`
+#: subcommand on BOTH hosts through the ONE shared `runner_shared.add_integrate_parser`. The single new
+#: entry is the positional `id6`; `--repo`, `-h` and `--help` were already shared, and `--run-id` is a
+#: dest-form positional-free flag whose spelling both hosts already carried nowhere else. Because the
+#: declaration is shared, the partition moved SYMMETRICALLY: neither `oc_only` nor `agy_only` changed,
+#: which is exactly the property this table exists to police.
+LIVE_PARTITION = {"shared": 52, "oc_only": 8, "agy_only": 8}
 
 #: E-03: the residual de-duplication payoff, as a NUMBER rather than an impression. Identical
 #: normalized code lines between the two `build_parser` bodies. THIS IS THE CEILING on what
 #: relocating the function could remove.
-IDENTICAL_NORMALIZED_LINES = 23
+#:
+#: RE-MEASURED 2026-09-17 (23 -> 24) by integpath-04 (`rl67b0`). A RISE here is normally NOT progress,
+#: so the reason is stated: the added line is IDENTICAL in both hosts precisely because the verb is
+#: declared through ONE shared helper
+#: (`runner_shared.add_integrate_parser(sub, command=_detect_driver_command())`), the same shape the
+#: `stop` declaration beside it already uses. So the ceiling rose by one because one more line of this
+#: function is now genuinely host-neutral, which is the direction this Set wants.
+IDENTICAL_NORMALIZED_LINES = 24
 
 #: E-03: `runner_shared.RUN_POLICY_FLAGS` rows, and the live option strings they account for.
 POLICY_FLAG_ROWS = 12
@@ -461,24 +475,36 @@ class TheResidualDeduplicationPayoffIsMeasured(unittest.TestCase):
         )
 
     def test_this_function_is_the_least_similar_of_the_five_large_functions(self):
-        """Similarity 0.4946, the finding the Concern contradicts and F-1 gets right."""
+        """Similarity 0.5053, the finding the Concern contradicts and F-1 gets right.
+
+        RE-MEASURED 2026-09-17 (0.4946 -> 0.5053) by integpath-04 (`rl67b0`): its one added line is the
+        SHARED `runner_shared.add_integrate_parser(...)` call, identical on both hosts, so the ratio
+        crossed 0.5 from below. THE FINDING STILL HOLDS and the threshold prose is kept honest rather
+        than quietly restated: this remains the LEAST similar of the five large functions, and the
+        substance of F-1 is that ordering, not the exact side of 0.5 the number sits on.
+        """
 
         matcher = SequenceMatcher(
             None, normalized_code_lines("oc"), normalized_code_lines("agy")
         )
         self.assertAlmostEqual(
             matcher.ratio(),
-            0.4946,
+            0.5053,
             places=3,
-            msg="build_parser's cross-host similarity moved from the measured 0.4946. Below ~0.5 "
-            "means the two functions share less than half their content, which is what makes "
+            msg="build_parser's cross-host similarity moved from the measured 0.5053. Around 0.5 "
+            "means the two functions share about half their content, which is what makes "
             "'mostly drift' the wrong description of this symbol",
         )
 
     def test_half_of_each_body_is_help_text_a_shared_core_would_have_to_parameterize(
         self,
     ):
-        expected = {"oc": 52.1, "agy": 42.0}
+        # RE-MEASURED 2026-09-17 by integpath-04 (`rl67b0`): 52.1 -> 50.3 on oc and 42.0 -> 40.5 on agy.
+        # Both fell because the added line is CODE with no help text of its own (the verb's own help
+        # strings live in `runner_shared`, shared, which is the point), so the literal share of each
+        # body dropped slightly. The claim this pins - that about half of each body is help text a
+        # shared core would have to parameterize - is unchanged.
+        expected = {"oc": 50.3, "agy": 40.5}
         for host, share in expected.items():
             with self.subTest(host=host):
                 source = inspect.getsource(HOSTS[host].build_parser)

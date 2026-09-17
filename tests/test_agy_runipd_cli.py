@@ -1203,6 +1203,193 @@ class AgyReviewAliasTests(unittest.TestCase):
                 )
 
 
+class AgyIntegrateVerbTests(unittest.TestCase):
+    """integpath-04 (`rl67b0`) E-02/E-05, agy half: the verb exists HERE too, at BOTH spellings.
+
+    The DECISION cases live once, in `tests/test_runner_shared.py::ReintegrationVerbTests`, because
+    `runner_shared.reintegrate_lane` is the single implementation. What must be proven per host is what
+    only that host can get wrong: reachability at both spellings, and the merge subject's own label. The
+    agy suite is the thinner of the two, which is exactly where a one-sided regression would hide.
+    """
+
+    def test_integrate_reaches_the_driver_instead_of_invalid_choice(self):
+        for group in ("agy", "antigravity"):
+            with self.subTest(group=group):
+                captured = {}
+
+                def fake_main(argv, _c=captured):
+                    _c["argv"] = list(argv)
+                    return 0
+
+                with mock.patch.object(agy_runipd, "main", fake_main):
+                    rc, out, err = _run_cli([group, "integrate", "mm6wuz"])
+                self.assertEqual(rc, 0, out + err)
+                self.assertNotIn("invalid choice", out + err)
+                self.assertEqual(captured["argv"], ["integrate", "mm6wuz"])
+
+    def test_the_verbatim_tail_reaches_the_driver(self):
+        captured = {}
+
+        def fake_main(argv, _c=captured):
+            _c["argv"] = list(argv)
+            return 0
+
+        with mock.patch.object(agy_runipd, "main", fake_main):
+            rc, _out, _err = _run_cli(
+                ["agy", "integrate", "mm6wuz", "--repo", "/tmp/x", "--run-id", "r1"]
+            )
+        self.assertEqual(rc, 0)
+        self.assertEqual(
+            captured["argv"],
+            ["integrate", "mm6wuz", "--repo", "/tmp/x", "--run-id", "r1"],
+        )
+
+    def test_the_driver_subcommand_help_states_the_no_turn_and_suite_costs(self):
+        out = io.StringIO()
+        with redirect_stdout(out), self.assertRaises(SystemExit) as ctx:
+            agy_runipd.main(["integrate", "--help"])
+        self.assertEqual(ctx.exception.code, 0)
+        text = " ".join(out.getvalue().split())
+        self.assertIn("COSTS NO AGENT TURN", text)
+        self.assertIn("repository suite in the PRIMARY checkout", text)
+        self.assertIn("merge-and-revalidate gate", text)
+        # The examples must name THIS host's command, or an operator copies the wrong line.
+        self.assertIn("aw agy run integrate", text)
+
+    def test_both_spellings_reach_the_shared_implementation_once(self):
+        from agent_workflows import runner_shared
+
+        for argv, route in (
+            (["integrate", "zzzzzz"], "driver"),
+            (["agy", "integrate", "zzzzzz"], "alias"),
+        ):
+            calls: list = []
+
+            def spy(repo, id6, **kwargs):
+                calls.append((id6, sorted(kwargs)))
+                return runner_shared.ReintegrationOutcome(
+                    integrated=False, code="no-lane-record", reason="fake"
+                )
+
+            with tempfile.TemporaryDirectory() as temp:
+                repo = Path(temp) / "repo"
+                repo.mkdir()
+                subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+                with mock.patch.object(runner_shared, "reintegrate_lane", spy):
+                    if route == "driver":
+                        rc = agy_runipd.main([*argv, "--repo", str(repo)])
+                    else:
+                        rc, _o, _e = _run_cli([*argv, "--repo", str(repo)])
+                self.assertEqual(rc, 1, f"{argv}: a refusal must exit 1")
+                self.assertEqual(len(calls), 1, f"{argv}: exactly one shared call")
+                self.assertEqual(calls[0][0], "zzzzzz")
+                self.assertIn("suite_check", calls[0][1])
+
+    def test_this_hosts_merge_subject_still_says_aw_agy_run(self):
+        """From a REAL merge: the label lands on MAIN, so a mis-binding is invisible until an audit."""
+        from tests.test_runner_shared import (
+            _passing_suite,
+            _repo_with_pending_plan,
+            _stranded_item,
+            _verified_lane,
+            _write_run_state,
+        )
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = _repo_with_pending_plan(root, "agi001")
+            lane = _verified_lane(repo, root, "agi001")
+            _write_run_state(repo, {"repo": str(repo), "queue": [_stranded_item(lane)]})
+            # Advance main so `--ff-only` fails and the LABELLED `--no-ff` merge is taken.
+            (repo / "other.txt").write_text("moved on\n", encoding="utf-8")
+            subprocess.run(["git", "add", "other.txt"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "main advances"], cwd=repo, check=True
+            )
+
+            with mock.patch.object(agy_runipd, "run_suite_check", _passing_suite):
+                rc = agy_runipd.main(["integrate", "agi001", "--repo", str(repo)])
+
+            self.assertEqual(rc, 0)
+            subject = subprocess.run(
+                ["git", "log", "-1", "--pretty=%s"],
+                cwd=repo,
+                text=True,
+                capture_output=True,
+            ).stdout.strip()
+            self.assertEqual(
+                subject, "integrate(aw agy run): merge verified lane agi001 to main"
+            )
+            self.assertNotIn("aw oc run", subject)
+
+
+class AgyResumeIntegratesInsteadOfDispatchingTests(unittest.TestCase):
+    """integpath-04 (`rl67b0`) E-03/E-06, agy half: THE TWO ABSENCES on this host's real `run_queue`."""
+
+    def _run(self, repo: Path, state: dict, *, retry_incomplete: bool):
+        from tests.test_runner_shared import _passing_suite, _write_run_state
+
+        run_dir = _write_run_state(repo, state, run_id="run-resume")
+
+        def must_not_launch(*_a, **_k):
+            raise AssertionError(
+                "an agent turn was DISPATCHED: the resume paid for a turn where a merge would do"
+            )
+
+        with (
+            mock.patch.object(agy_runipd, "run_agy_turn", must_not_launch),
+            mock.patch.object(agy_runipd, "run_suite_check", _passing_suite),
+        ):
+            rc = agy_runipd.run_queue(run_dir, retry_incomplete=retry_incomplete)
+        return rc, json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+
+    def test_a_bare_resume_merges_with_no_turn_and_no_second_lane(self):
+        from tests.test_runner_shared import (
+            _repo_with_pending_plan,
+            _stranded_item,
+            _verified_lane,
+        )
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = _repo_with_pending_plan(root, "agr001")
+            lane = _verified_lane(repo, root, "agr001")
+            state = {"repo": str(repo), "queue": [_stranded_item(lane)]}
+
+            _rc, final = self._run(repo, state, retry_incomplete=False)
+
+            self.assertEqual(final["queue"][0]["status"], "executed")
+            self.assertTrue((repo / "src" / "agr001.txt").is_file())
+            self.assertNotIn(
+                "_attempt2",
+                subprocess.run(
+                    ["git", "branch", "--list", "aw/lane/agr001*"],
+                    cwd=repo,
+                    text=True,
+                    capture_output=True,
+                ).stdout,
+            )
+
+    def test_with_the_flag_passed_it_integrates_rather_than_requeuing(self):
+        from tests.test_runner_shared import (
+            _repo_with_pending_plan,
+            _stranded_item,
+            _verified_lane,
+        )
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = _repo_with_pending_plan(root, "agr002")
+            lane = _verified_lane(repo, root, "agr002")
+            state = {"repo": str(repo), "queue": [_stranded_item(lane)]}
+
+            _rc, final = self._run(repo, state, retry_incomplete=True)
+
+            item = final["queue"][0]
+            self.assertEqual(item["status"], "executed")
+            self.assertNotIn("recovery_next", item)
+
+
 class AgyActionLegalityTests(unittest.TestCase):
     """revsweep 76gsmv E-03/V-03, agy half.
 

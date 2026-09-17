@@ -96,6 +96,12 @@ EXPECTED_CLOSURE = {
     "runner_shared": "one-object-agy-imports-oc",
     # class 4: STILL DEFINED TWICE, i.e. the injection cost of a split (8)
     "build_parser": "still-defined-twice",
+    # ADDED 2026-09-17 by integpath-04 (`rl67b0`): the `integrate` verb's per-host handler, the exact
+    # twin of `handle_stop_command` beside it and forked for the same reason. Each host binds its OWN
+    # `integrate_lane_branch` wrapper (so the merge subject on MAIN names the right driver) and its own
+    # `run_suite_check`, which `runner_shared` may not import; the DECISION is the single shared
+    # `runner_shared.reintegrate_lane`, so the fork is the wiring and not the logic.
+    "handle_integrate_command": "still-defined-twice",
     "handle_stop_command": "still-defined-twice",
     "initialize_run": "still-defined-twice",
     "install_stop_triggers": "still-defined-twice",
@@ -120,7 +126,13 @@ EXPECTED_CLASS_COUNTS = {
     # fork count falls by the same two, so the histogram still partitions the same population.
     "shared-host-wrapper": 4,
     "one-object-agy-imports-oc": 5,
-    "still-defined-twice": 6,
+    # RE-MEASURED 2026-09-17: 7, up from 6. integpath-04 (`rl67b0`) added `handle_integrate_command`
+    # per host. A RISE is normally a re-fork and therefore a defect, so the reason is stated: this is a
+    # NEW verb whose per-host half binds host-specific values only (the `integrate_lane_branch` wrapper
+    # carrying the merge subject's label, and `run_suite_check`, which `runner_shared` may not import),
+    # while the decision lives once in `runner_shared.reintegrate_lane`. Nothing previously shared was
+    # forked.
+    "still-defined-twice": 7,
     "oc-only": 3,
 }
 
@@ -280,9 +292,11 @@ class TheClosureClassification(unittest.TestCase):
             "in the commit which symbol moved and why",
         )
 
-    def test_the_closure_is_still_27_names(self):
-        self.assertEqual(len(measured_closure()), 27)
-        self.assertEqual(len(EXPECTED_CLOSURE), 27)
+    def test_the_closure_is_still_28_names(self):
+        # 28, up from 27: integpath-04 (`rl67b0`) added `handle_integrate_command`, the `integrate`
+        # verb's per-host handler, to `main`'s closure. The table above records its class and why.
+        self.assertEqual(len(measured_closure()), 28)
+        self.assertEqual(len(EXPECTED_CLOSURE), 28)
 
     def test_each_name_is_still_in_its_expected_class(self):
         for name, expected in sorted(EXPECTED_CLOSURE.items()):
@@ -310,18 +324,26 @@ class TheClosureClassification(unittest.TestCase):
     def test_the_still_double_defined_count_is_stated_not_implied(self):
         """The number that decides the split's injection cost, asserted on its own.
 
-        SIX, down from the nine plan `3dki3o` measured. A DROP here is progress and is recorded with
-        the sibling that caused it; a RISE means something was re-forked.
+        SEVEN, down from the nine plan `3dki3o` measured. A DROP here is progress and is recorded with
+        the sibling that caused it; a RISE means something was re-forked UNLESS the rise is a genuinely
+        new per-host verb, which is stated when it happens.
 
           * 9 -> 8: `EmptyStatusSelection` moved to `runner_shared` (sibling `i3d6ml`).
           * 8 -> 6: `render_continuation_hint` and `write_report` became one-line per-host wrappers
             over single `runner_shared` definitions when sibling `tx6q0h` lifted the eight host-label
             symbols behind its `HostLabels` descriptor (integrated 2026-09-17). They are now classed
             `shared-host-wrapper`, so the histogram above partitions the same population.
+          * 6 -> 7: integpath-04 (`rl67b0`) added `handle_integrate_command`, the `integrate` verb's
+            per-host handler and the exact twin of `handle_stop_command`. NOT a re-fork: nothing that
+            was shared became forked. The per-host half binds only host-specific values (this host's
+            `integrate_lane_branch` wrapper, which carries the merge subject's `aw oc run`/`aw agy run`
+            label onto MAIN, and this host's `run_suite_check`, which `runner_shared` is forbidden by
+            test from importing), and the decision itself is the one shared
+            `runner_shared.reintegrate_lane`.
         """
         measured = measured_closure()
         twice = sorted(n for n, c in measured.items() if c == "still-defined-twice")
-        self.assertEqual(len(twice), 6, twice)
+        self.assertEqual(len(twice), 7, twice)
         self.assertNotIn(
             "EmptyStatusSelection",
             twice,
@@ -330,15 +352,19 @@ class TheClosureClassification(unittest.TestCase):
         )
 
     def test_agys_own_closure_is_smaller_and_that_is_the_capability_gap(self):
-        """agy reads 24 module-level names against oc's 27; the 3 missing are oc's profile grammar.
+        """agy reads 25 module-level names against oc's 28; the 3 missing are oc's profile grammar.
 
         Pinned because it is the measurement that answers "how much of `main` is even shareable":
         the difference is a CAPABILITY agy has no subsystem for, not drift to reconcile.
+
+        RE-MEASURED 2026-09-17 (24/27 -> 25/28): integpath-04 (`rl67b0`) added
+        `handle_integrate_command` to BOTH hosts, so both counts rose by one and the GAP - which is what
+        this test is actually about - is unchanged at exactly oc's three profile-grammar symbols.
         """
         agy_names = module_level_free_names(agy_runipd, "main")
         oc_names = module_level_free_names(oc_runipd, "main")
-        self.assertEqual(len(agy_names), 24)
-        self.assertEqual(len(oc_names), 27)
+        self.assertEqual(len(agy_names), 25)
+        self.assertEqual(len(oc_names), 28)
         self.assertEqual(
             sorted(oc_names - agy_names),
             ["ProfileClauseError", "extract_profile_clause", "print_launch_identity"],
@@ -364,10 +390,14 @@ class TheMeasuredDivergence(unittest.TestCase):
         return [line for line in ast.unparse(fn).splitlines() if line.strip()]
 
     def test_the_two_bodies_are_still_the_measured_sizes(self):
-        self.assertEqual(len(inspect.getsourcelines(oc_runipd.main)[0]), 297)
-        self.assertEqual(len(inspect.getsourcelines(agy_runipd.main)[0]), 205)
-        self.assertEqual(len(self.normalized(oc_runipd, "main")), 133)
-        self.assertEqual(len(self.normalized(agy_runipd, "main")), 111)
+        # RE-MEASURED 2026-09-17 by integpath-04 (`rl67b0`), which added the `integrate` dispatch arm
+        # (plus its comment) to BOTH bodies: raw 297 -> 309 on oc and 205 -> 215 on agy, normalized
+        # 133 -> 135 and 111 -> 113. Both bodies grew by the SAME two normalized lines, which is why
+        # F-1's conclusion is untouched: the divergence did not move, both hosts gained the same verb.
+        self.assertEqual(len(inspect.getsourcelines(oc_runipd.main)[0]), 309)
+        self.assertEqual(len(inspect.getsourcelines(agy_runipd.main)[0]), 215)
+        self.assertEqual(len(self.normalized(oc_runipd, "main")), 135)
+        self.assertEqual(len(self.normalized(agy_runipd, "main")), 113)
 
     def test_the_similarity_is_still_about_0_81(self):
         import difflib
@@ -377,7 +407,10 @@ class TheMeasuredDivergence(unittest.TestCase):
             self.normalized(oc_runipd, "main"),
             self.normalized(agy_runipd, "main"),
         ).ratio()
-        self.assertAlmostEqual(ratio, 0.8115, places=3)
+        # 0.8145 after integpath-04 (`rl67b0`), from 0.8115: both bodies gained the same two lines, so
+        # the similarity moved slightly UP. F-1's conclusion (that `main` is the most
+        # capability-divergent of the five) is unaffected by a change in this direction.
+        self.assertAlmostEqual(ratio, 0.8145, places=3)
 
 
 # ==========================================================================================
