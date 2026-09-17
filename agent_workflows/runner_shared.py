@@ -980,6 +980,306 @@ def teardown_isolation_worktree(repo: Path, handle: Any) -> None:
     worktree_lease.teardown_worktree(repo, handle, force=True)
 
 
+# ---- STRANDED LANES: the reporting predicate (lanestrand-01 `pr5b0t` E-01/E-02) ------------------
+#
+# THE PREDICATE IS TWO SEPARATE QUESTIONS, and conflating them is the defect this section exists to
+# prevent. `describe_lane` answers the FIRST ("does this lane hold work?") and CANNOT answer the
+# SECOND ("has that work reached the integration target?"), because `inspect_lane` computes
+# `commits_ahead` as `rev-list --count <base_sha>..<head>` where `base_sha` is the commit the lane was
+# CUT FROM (read from the branch creation reflog by `worktree_lease._lane_base_sha`). That compares a
+# lane against ITS OWN BASE, never against main.
+#
+# MEASURED, not reasoned (lanestrand-01 E-01, on a throwaway repo built the way the runner builds a
+# lane, `git worktree add -b aw/lane/demo01 <path> <base>`):
+#
+#   BEFORE MERGE: state=HOLDS-WORK commits_ahead=1 holds_work=True   is-ancestor(lane,main) rc=1
+#   AFTER  MERGE: state=HOLDS-WORK commits_ahead=1 holds_work=True   is-ancestor(lane,main) rc=0
+#
+# So `holds_work` stays True FOREVER after a successful `--no-ff` merge, and a predicate resting on it
+# alone would report EVERY recovered lane as stranded permanently. Only
+# `git merge-base --is-ancestor <lane-branch> <target>` distinguished the two states.
+
+#: A lane that holds work which has NOT reached the integration target: unintegrated work, at risk of
+#: being lost silently. The word is `ys1dor`'s (its OQ-02 resolved the screaming-red outcome word as
+#: `STRANDED`), reused here rather than re-chosen, so the run summary and the cross-tree attention view
+#: name the same condition identically.
+LANE_STRANDED = "STRANDED"
+
+#: A lane whose work HAS reached the integration target. Not an attention item: reporting it is the
+#: same false positive in the other direction, and per the measurement above it is what a
+#: `holds_work`-only predicate would do to every recovered lane.
+LANE_LANDED = "LANDED"
+
+#: A lane holding no work at all (clean, no commits beyond its base, or already gone). Nothing to lose.
+LANE_EMPTY_OF_WORK = "EMPTY"
+
+#: A lane currently owned by a LIVE process. Deliberately NOT reported: a driver run in progress
+#: legitimately owns its lane, and a gate that reds during every normal run is a gate that gets
+#: bypassed (the failure mode backlog `gjadwm` records).
+LANE_LIVE = "LIVE"
+
+#: A lane whose landing question could NOT be answered (the branch is gone, or git refused). It stays
+#: VISIBLE as a stated unknown rather than resolving to a silent OK, which is the same ruling that
+#: shaped `1f9m2j`/`zexed1`: do not print a green verdict the data does not support.
+LANE_UNKNOWN = "UNKNOWN"
+
+LANE_REPORT_STATES: tuple[str, ...] = (
+    LANE_STRANDED,
+    LANE_LANDED,
+    LANE_EMPTY_OF_WORK,
+    LANE_LIVE,
+    LANE_UNKNOWN,
+)
+
+#: The states that need a human act, and are therefore worth reporting. `LANDED`, `EMPTY` and `LIVE`
+#: are correct behavior and are deliberately silent.
+LANE_ATTENTION_STATES: frozenset[str] = frozenset((LANE_STRANDED, LANE_UNKNOWN))
+
+#: The integration target the landing question asks about, when the run record names no other. Both
+#: drivers merge a verified lane into whatever the shared checkout has checked out, which is `main` in
+#: this repository (`integrate_lane_branch` runs a bare `git merge` in the main checkout), so `HEAD` is
+#: the honest fallback: it is the branch the merge would actually land on.
+LANE_INTEGRATION_TARGET_FALLBACK = "HEAD"
+
+
+def lane_work_has_landed(
+    repo: Path, branch: str, *, target: str = LANE_INTEGRATION_TARGET_FALLBACK
+) -> Optional[bool]:
+    """Has ``branch``'s work reached ``target``? True / False / None when unanswerable.
+
+    THE ONE GIT REACHABILITY QUESTION, and the only question in the stranded predicate that nothing
+    existing already answers (see this section's header for the measurement). `git merge-base
+    --is-ancestor <branch> <target>` is exact for both integration shapes the drivers produce: a
+    fast-forward makes the lane tip an ancestor of the target trivially, and the controlled `--no-ff`
+    merge makes it an ancestor through the merge commit.
+
+    RETURNS THREE VALUES ON PURPOSE. `None` means the question could not be answered (the branch no
+    longer exists, the target does not resolve, or git failed), and the caller must keep that visible
+    as an UNKNOWN instead of reading it as either answer. git's own exit convention is 0 = ancestor,
+    1 = not an ancestor, and anything else = error, which is why the error case is not folded into
+    `False`.
+    """
+    if not branch:
+        return None
+    rc, _out, _err = _run_git(repo, ["rev-parse", "--verify", "--quiet", branch])
+    if rc != 0:
+        return None
+    rc, _out, _err = _run_git(repo, ["rev-parse", "--verify", "--quiet", target])
+    if rc != 0:
+        return None
+    rc, _out, _err = _run_git(repo, ["merge-base", "--is-ancestor", branch, target])
+    if rc == 0:
+        return True
+    if rc == 1:
+        return False
+    return None
+
+
+def classify_lane_integration(
+    repo: Path,
+    lane: dict[str, Any],
+    *,
+    target: str = LANE_INTEGRATION_TARGET_FALLBACK,
+) -> dict[str, Any]:
+    """Classify ONE recorded lane as `STRANDED` / `LANDED` / `EMPTY` / `LIVE` / `UNKNOWN`.
+
+    THE TWO QUESTIONS, and which fact answers each:
+
+      1. "Does this lane hold work?"  -> :func:`describe_lane`, which supplies `holds_work`,
+         `commits_ahead`, `dirty`, `owner_live` and `owned_by_other_live_process`. This half is NOT
+         reimplemented here; reimplementing it is the duplication `nuanaw`'s one-reader constraint
+         forbids.
+      2. "Has that work reached the integration target?" -> :func:`lane_work_has_landed`, the ONE added
+         git reachability question. IT WENT IN A NEW HELPER RATHER THAN INTO `describe_lane` because
+         `describe_lane`'s body is pinned byte-for-byte against a pre-move fingerprint fixture
+         (`tests/fixtures/runner_shared_premove_fingerprints.json`, captured at HEAD `1ecc5891`) that
+         proves it was a PURE MOVE out of the two runners; editing it would break that proof for a
+         reason unrelated to what the proof is about, exactly as `lane_records_including_sweep`
+         records for `_lane_records_from_state`.
+
+    `holds_work` ALONE IS INSUFFICIENT AND MUST NOT BE TREATED AS SUFFICIENT BY A LATER READER. It is
+    computed against the lane's OWN creation base, so it stays True forever after a successful merge
+    (measured; see this section's header). A `holds_work`-only predicate reports every recovered lane
+    as stranded permanently.
+
+    ORDER OF DECISION, each exclusion deliberate:
+
+      * LIVE first. A live owner means a run is in progress and the lane is correctly held. `owner_live`
+        is `Optional[bool]` (`inspect_lane` sets it to `None` when no owner record exists), so `None` is
+        an UNKNOWN owner and never a "not live"; only an explicit `True`, or
+        `owned_by_other_live_process`, suppresses the report.
+      * EMPTY next. No commits beyond base and a clean tree means there is nothing to lose.
+      * Then the landing question. `True` -> LANDED (silent), `False` -> STRANDED, `None` -> UNKNOWN.
+
+    PURE ENOUGH TO TEST: it prints nothing, exits nothing, and takes no argparse namespace. Rendering
+    belongs to the consumer, and there is more than one consumer.
+
+    CONVERGENCE NOTE (`nuanaw` ask 5 / plan `pr5b0t` E-02). Plan `rl67b0` (`integpath-04`) builds a
+    lane RESOLVER for `aw <host> integrate <id6>` that reconstructs lane identity from the same
+    `preserved_lane_id`/`preserved_base`/`preserved_branch` fields and refuses on `owner_live`. It was
+    still `pending` when this landed, so this reader stands alone; when it lands, ITS resolver is the
+    intended merge point and the lane-identity half here should be replaced by DELETION rather than by a
+    rewrite. Do not fork a second lane resolver.
+    """
+    described = describe_lane(repo, lane)
+    branch = described.get("branch") or lane.get("branch") or ""
+    landed = lane_work_has_landed(repo, str(branch), target=target)
+
+    owner_live = described.get("owner_live")
+    live = bool(described.get("owned_by_other_live_process")) or owner_live is True
+
+    if live:
+        state = LANE_LIVE
+        why = "a live process currently owns this lane"
+    elif not described.get("holds_work"):
+        state = LANE_EMPTY_OF_WORK
+        why = "the lane holds no commits beyond its base and its tree is clean"
+    elif landed is True:
+        state = LANE_LANDED
+        why = "the lane's work is reachable from {0}".format(target)
+    elif landed is False:
+        state = LANE_STRANDED
+        why = "the lane holds work that is NOT reachable from {0}".format(target)
+    else:
+        state = LANE_UNKNOWN
+        why = (
+            "the lane holds work but whether it reached {0} could not be determined "
+            "(branch or target unresolvable)".format(target)
+        )
+
+    record = dict(described)
+    record["lane_state"] = state
+    record["landed"] = landed
+    record["integration_target"] = target
+    record["why"] = why
+    record["needs_attention"] = state in LANE_ATTENTION_STATES
+    return record
+
+
+def stranded_lane_records(
+    repo: Path,
+    states: Any,
+    *,
+    target: str = LANE_INTEGRATION_TARGET_FALLBACK,
+    attention_only: bool = True,
+) -> list[dict[str, Any]]:
+    """Every lane needing attention across ``states`` (an iterable of run-record ``state.json`` dicts).
+
+    THE ONE READER. Both the end-of-run summary and the cross-tree attention view consume this rather
+    than each deriving its own verdict, because two derivations of "is this work lost" would drift and
+    only one of them would be wrong at a time.
+
+    THE FACTS COME FROM THE RUN RECORD, NEVER FROM A FILESYSTEM WALK. The lane identity, branch, base
+    and integration signal are read back through :func:`lane_records_including_sweep` (which composes
+    `_lane_records_from_state` and adds the coordinator's review sweep lane); the only live probe is the
+    lane classification itself. This is why the historical record of a run keeps reporting what it did
+    at the time: a verdict derived from today's filesystem would report a recovered run clean and
+    rewrite history, which is what `xtklpd`'s review measured.
+
+    Each record carries `lane_state`, `landed`, `integration_target`, `why`, `needs_attention` plus
+    every `describe_lane` field, and additionally `run_id`, `id6`, `item_status`, `integration_signal`,
+    `preserved_reason` and `worktree` so a caller can render without a second pass. `integration_detail`
+    IS ON THE ATTEMPT AND NOT THE ITEM (`ys1dor` F-10 measured the item's 21 keys and it is absent), so
+    it is read from `item["attempts"][-1]` and tolerated as absent.
+
+    ABSOLUTE PATHS ARE NOT SANITIZED HERE, deliberately: `worktree` is returned as recorded because a
+    caller that must ACT on the lane needs the real path. RENDERING is where the repository-relative
+    rule binds (`preserved_worktree` is an absolute home path in most recorded items), and
+    `lane_worktree_display` below is the shared way to satisfy it.
+
+    De-duplicated by `(run_id, branch, worktree)`, so one lane named by both an attempt and the
+    item-level `preserved_*` fields yields one record.
+    """
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for state in states:
+        if not isinstance(state, dict):
+            continue
+        run_id = str(state.get("run_id") or "")
+        by_id: dict[str, dict[str, Any]] = {}
+        for item in state.get("queue") or []:
+            if isinstance(item, dict) and item.get("id6"):
+                by_id[str(item["id6"])] = item
+        try:
+            lanes = lane_records_including_sweep(state)
+        except Exception:
+            continue
+        for lane in lanes:
+            key = (
+                run_id,
+                str(lane.get("branch") or ""),
+                str(lane.get("worktree") or ""),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                record = classify_lane_integration(repo, lane, target=target)
+            except Exception:
+                # A lane we cannot classify is an UNKNOWN, never a silent pass.
+                record = {
+                    "lane_id": lane.get("lane_id"),
+                    "branch": lane.get("branch"),
+                    "worktree": lane.get("worktree"),
+                    "lane_state": LANE_UNKNOWN,
+                    "landed": None,
+                    "integration_target": target,
+                    "why": "the lane could not be classified",
+                    "needs_attention": True,
+                }
+            if attention_only and not record.get("needs_attention"):
+                continue
+            item = by_id.get(str(lane.get("id6") or ""), {})
+            attempts = item.get("attempts") or []
+            last_attempt = (
+                attempts[-1] if attempts and isinstance(attempts[-1], dict) else {}
+            )
+            record["run_id"] = run_id
+            record["id6"] = lane.get("id6")
+            record["item_status"] = lane.get("status") or item.get("status")
+            record["integration_signal"] = item.get(
+                "integration_signal"
+            ) or last_attempt.get("integration_signal")
+            record["integration_detail"] = last_attempt.get("integration_detail")
+            record["preserved_reason"] = item.get("preserved_reason")
+            record.setdefault("worktree", lane.get("worktree"))
+            out.append(record)
+    out.sort(key=lambda r: (str(r.get("branch") or ""), str(r.get("run_id") or "")))
+    return out
+
+
+def lane_worktree_display(repo: Path, worktree: Any) -> Optional[str]:
+    """A lane worktree rendered SAFE for a human board or an agent-consumed payload, or None.
+
+    THE PROHIBITION THIS EXISTS TO ENFORCE, measured rather than supposed: `preserved_worktree` is an
+    ABSOLUTE path under the maintainer's home directory in most recorded run items, and `ys1dor`'s
+    review independently measured the same field and FORBADE printing it. `aw attention --json` is a
+    payload agents paste and CI reads, and `attention.Item.path` is contractually "repo-relative
+    POSIX", so an absolute worktree would violate both the leak rule and the payload's own field
+    contract.
+
+    Returns a repository-relative POSIX path when the worktree lies inside ``repo`` (the normal case:
+    lanes live under `.aw/worktrees/<lane>`), and otherwise returns None so the caller OMITS it rather
+    than leaking it. Never returns an absolute path.
+    """
+    if not worktree:
+        return None
+    try:
+        candidate = Path(str(worktree))
+        root = Path(repo).resolve()
+        rel = candidate.resolve().relative_to(root)
+    except (ValueError, OSError, RuntimeError):
+        # Outside the repository (or unresolvable): omit rather than leak.
+        name = Path(str(worktree)).name
+        parent = Path(str(worktree)).parent.name
+        if parent == "worktrees" and name:
+            # The canonical lane shape, reconstructed WITHOUT the absolute prefix.
+            return ".aw/worktrees/{0}".format(name)
+        return None
+    text = rel.as_posix()
+    return text if text not in ("", ".") else None
+
+
 # ---- the REVIEW SWEEP LANE ------------------------------------------------------------------------
 # dirtygates Order 05 (`ajxr5d`) E-02/E-04/E-11, OQ-02 + OQ-04 (both resolved by the maintainer).
 #

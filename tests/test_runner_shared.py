@@ -3718,5 +3718,345 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
                 self.assertIn("poll=True", loop)
 
 
+# --------------------------------------------------------------------------------------------------
+# lanestrand-01 (`pr5b0t`) E-07: the stranded-lane predicate, proven in BOTH directions
+# --------------------------------------------------------------------------------------------------
+
+
+def _git(repo: pathlib.Path, *args: str) -> str:
+    import subprocess
+
+    proc = subprocess.run(
+        ["git", *args], cwd=str(repo), text=True, capture_output=True, check=True
+    )
+    return proc.stdout.strip()
+
+
+def _make_lane_fixture_repo(root: pathlib.Path) -> pathlib.Path:
+    """A throwaway repo on `main` with one commit. FIXTURES ONLY: never a real lane.
+
+    The plan's execution contract is explicit that this repository holds dozens of live `aw/lane/*`
+    branches and several in-repo lane worktrees, and that a test touching one could destroy the very
+    unintegrated work this predicate exists to protect.
+    """
+    import subprocess
+
+    repo = root / "repo"
+    repo.mkdir(parents=True)
+    for cmd in (
+        ["git", "init", "-q", "-b", "main"],
+        ["git", "config", "user.email", "test@example.invalid"],
+        ["git", "config", "user.name", "Test"],
+    ):
+        subprocess.run(cmd, cwd=repo, check=True)
+    (repo / "f.txt").write_text("one\n", encoding="utf-8")
+    subprocess.run(["git", "add", "f.txt"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "base"], cwd=repo, check=True)
+    return repo
+
+
+def _add_lane(
+    repo: pathlib.Path, lane_dir: pathlib.Path, lane_id: str, *, commit: bool = True
+) -> dict:
+    """Create a lane THE WAY THE RUNNER CREATES ONE: `git worktree add -b aw/lane/<id> <path> <base>`.
+
+    THE CONSTRUCTION IS LOAD-BEARING AND NOT INTERCHANGEABLE WITH `git branch`. `inspect_lane` reads
+    the lane's own base from the branch CREATION REFLOG entry (`worktree_lease._lane_base_sha`), so a
+    fixture built with a bare `git branch <name> <other-branch-name>` writes a different creation entry
+    and can make `commits_ahead` read 0 for the wrong reason: the test would then pass while the
+    predicate stayed broken. `allocate_worktree` uses `worktree add -b`, so this matches it.
+    """
+    import subprocess
+
+    base = _git(repo, "rev-parse", "HEAD")
+    branch = "aw/lane/{0}".format(lane_id)
+    subprocess.run(
+        ["git", "worktree", "add", "-q", "-b", branch, str(lane_dir), base],
+        cwd=repo,
+        check=True,
+    )
+    if commit:
+        (lane_dir / "{0}.txt".format(lane_id)).write_text("work\n", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=lane_dir, check=True)
+        subprocess.run(["git", "commit", "-qm", "lane work"], cwd=lane_dir, check=True)
+    return {
+        "worktree": str(lane_dir),
+        "branch": branch,
+        "lane_id": lane_id,
+        "base_commit": base,
+        "disposition": "created",
+        "id6": lane_id,
+        "status": "substantially-complete",
+    }
+
+
+def _state_for(repo: pathlib.Path, lanes: list, run_id: str = "run-fixture") -> dict:
+    """A minimal run `state.json` shaped like the real one: the `preserved_*` fields on each item."""
+    queue = []
+    for lane in lanes:
+        queue.append(
+            {
+                "id6": lane["id6"],
+                "position": len(queue) + 1,
+                "status": lane.get("status", "substantially-complete"),
+                "preserved_worktree": lane["worktree"],
+                "preserved_branch": lane["branch"],
+                "preserved_lane_id": lane["lane_id"],
+                "preserved_base": lane["base_commit"],
+                "preserved_disposition": lane["disposition"],
+                "preserved_reason": "the run ended without integrating this lane",
+                "integration_signal": lane.get("integration_signal", "suite-failed"),
+                "attempts": [
+                    {
+                        "worktree": lane["worktree"],
+                        "worktree_branch": lane["branch"],
+                        "worktree_lane_id": lane["lane_id"],
+                        "worktree_base": lane["base_commit"],
+                        "integration_detail": "gate refused in {0}".format(repo),
+                    }
+                ],
+            }
+        )
+    return {"run_id": run_id, "repo": str(repo), "queue": queue}
+
+
+class StrandedLanePredicateTests(unittest.TestCase):
+    """Both directions of the predicate. A false positive here destroys the alarm's value."""
+
+    def test_a_lane_holding_unmerged_work_IS_stranded(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            rec = runner_shared.classify_lane_integration(repo, lane, target="main")
+            self.assertEqual(rec["lane_state"], runner_shared.LANE_STRANDED)
+            self.assertIs(rec["landed"], False)
+            self.assertTrue(rec["needs_attention"])
+            self.assertEqual(rec["commits_ahead"], 1)
+
+    def test_a_MERGED_lane_is_NOT_stranded_and_holds_work_alone_would_get_it_WRONG(
+        self,
+    ):
+        """Case (c), the one most likely to fail, plus the direct proof that `holds_work` is insufficient.
+
+        Built runner-faithfully (`worktree add -b`) and merged with `--no-ff`, which is exactly the
+        controlled fallback `integrate_lane_branch` performs when main advanced.
+        """
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+
+            before = runner_shared.describe_lane(repo, lane)
+            before_landed = runner_shared.lane_work_has_landed(
+                repo, lane["branch"], target="main"
+            )
+            subprocess.run(
+                [
+                    "git",
+                    "merge",
+                    "--no-ff",
+                    "--no-edit",
+                    "-m",
+                    "integrate lane01",
+                    lane["branch"],
+                ],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            after = runner_shared.describe_lane(repo, lane)
+            after_landed = runner_shared.lane_work_has_landed(
+                repo, lane["branch"], target="main"
+            )
+
+            # THE MEASUREMENT: `holds_work` is UNCHANGED across the merge, so it cannot answer landing.
+            self.assertTrue(before["holds_work"])
+            self.assertTrue(after["holds_work"])
+            self.assertEqual(before["commits_ahead"], after["commits_ahead"])
+            # The reachability question is the one that changed.
+            self.assertIs(before_landed, False)
+            self.assertIs(after_landed, True)
+
+            rec = runner_shared.classify_lane_integration(repo, lane, target="main")
+            self.assertEqual(rec["lane_state"], runner_shared.LANE_LANDED)
+            self.assertFalse(rec["needs_attention"])
+
+    def test_an_EMPTY_lane_is_not_reported(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01", commit=False)
+            rec = runner_shared.classify_lane_integration(repo, lane, target="main")
+            self.assertEqual(rec["lane_state"], runner_shared.LANE_EMPTY_OF_WORK)
+            self.assertFalse(rec["needs_attention"])
+
+    def test_a_lane_owned_by_a_LIVE_process_is_not_reported(self):
+        from agent_workflows import worktree_lease
+
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            with mock.patch.object(
+                worktree_lease, "lane_owned_by_other_live_process", return_value=True
+            ):
+                rec = runner_shared.classify_lane_integration(repo, lane, target="main")
+            self.assertEqual(rec["lane_state"], runner_shared.LANE_LIVE)
+            self.assertFalse(rec["needs_attention"])
+
+    def test_owner_live_None_is_an_UNKNOWN_owner_and_never_a_not_live(self):
+        """`inspect_lane` sets `owner_live=None` when no owner record exists; reading it as a boolean
+        would silently misclassify. The fixture lane has no owner record, so it must still classify on
+        its WORK, not be suppressed as live nor reported as live."""
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            rec = runner_shared.classify_lane_integration(repo, lane, target="main")
+            self.assertIsNone(rec["owner_live"])
+            self.assertEqual(rec["lane_state"], runner_shared.LANE_STRANDED)
+
+    def test_a_vanished_branch_is_a_visible_UNKNOWN_not_a_silent_pass(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            # Record a lane whose branch never existed: the run record outlives the branch.
+            ghost = dict(lane)
+            ghost["branch"] = "aw/lane/ghost99"
+            ghost["lane_id"] = "ghost99"
+            ghost["id6"] = "ghost99"
+            self.assertIsNone(
+                runner_shared.lane_work_has_landed(repo, ghost["branch"], target="main")
+            )
+            rec = runner_shared.classify_lane_integration(repo, ghost, target="main")
+            # No branch and no worktree means no work to lose, so it is EMPTY rather than UNKNOWN; the
+            # UNKNOWN case is a lane that HOLDS work whose landing cannot be decided.
+            self.assertEqual(rec["lane_state"], runner_shared.LANE_EMPTY_OF_WORK)
+
+    def test_a_holding_lane_whose_target_does_not_resolve_is_UNKNOWN(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            rec = runner_shared.classify_lane_integration(
+                repo, lane, target="refs/heads/no-such-target"
+            )
+            self.assertEqual(rec["lane_state"], runner_shared.LANE_UNKNOWN)
+            self.assertTrue(rec["needs_attention"])
+            self.assertIsNone(rec["landed"])
+
+    def test_records_come_from_the_RUN_RECORD_and_carry_the_integration_signal(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            state = _state_for(repo, [lane])
+            recs = runner_shared.stranded_lane_records(repo, [state], target="main")
+            self.assertEqual(len(recs), 1)
+            self.assertEqual(recs[0]["branch"], "aw/lane/lane01")
+            self.assertEqual(recs[0]["integration_signal"], "suite-failed")
+            self.assertEqual(recs[0]["run_id"], "run-fixture")
+            self.assertEqual(recs[0]["lane_state"], runner_shared.LANE_STRANDED)
+
+    def test_the_HISTORICAL_record_still_reports_what_it_did_after_recovery(self):
+        """Test (f), done by ACTUALLY RECOVERING a fixture lane rather than by assertion.
+
+        A verdict derived from a live filesystem audit reports a recovered run clean and rewrites
+        history, which is what `xtklpd`'s review measured. THIS DOES NOT CONTRADICT the merged-not-
+        reported case: that case asks "is this lane a CURRENT attention item" (no, its work landed),
+        while this asks "what did this RUN record say happened" (a lane was preserved, with a reason and
+        an integration signal), and the two are different questions about different objects.
+        """
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            state = _state_for(repo, [lane])
+
+            stranded = runner_shared.stranded_lane_records(repo, [state], target="main")
+            self.assertEqual(len(stranded), 1)
+
+            # RECOVER IT, exactly as a human or `integrate_lane_branch` would.
+            subprocess.run(
+                [
+                    "git",
+                    "merge",
+                    "--no-ff",
+                    "--no-edit",
+                    "-m",
+                    "integrate lane01",
+                    lane["branch"],
+                ],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+
+            # The lane is no longer a CURRENT attention item.
+            after = runner_shared.stranded_lane_records(repo, [state], target="main")
+            self.assertEqual(after, [])
+
+            # But the RUN RECORD still records what happened, unmodified by the recovery: the facts are
+            # read from the record, never rebuilt from the filesystem.
+            item = state["queue"][0]
+            self.assertEqual(item["preserved_branch"], "aw/lane/lane01")
+            self.assertEqual(item["integration_signal"], "suite-failed")
+            self.assertEqual(
+                item["preserved_reason"],
+                "the run ended without integrating this lane",
+            )
+            full = runner_shared.stranded_lane_records(
+                repo, [state], target="main", attention_only=False
+            )
+            self.assertEqual(len(full), 1)
+            self.assertEqual(full[0]["lane_state"], runner_shared.LANE_LANDED)
+
+    def test_worktree_display_NEVER_returns_an_absolute_path(self):
+        """The leak guard. `preserved_worktree` is an absolute home path in most recorded run items."""
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            inside = repo / ".aw" / "worktrees" / "lane01"
+            inside.mkdir(parents=True)
+            self.assertEqual(
+                runner_shared.lane_worktree_display(repo, str(inside)),
+                ".aw/worktrees/lane01",
+            )
+            # An absolute path OUTSIDE the repo is reduced to the canonical lane shape or omitted, and
+            # in neither case does the absolute prefix survive.
+            # Composed rather than a literal, for the reason the attention fixture records: the
+            # leak-sanitizer fails a tracked file containing a home path, fixture or not.
+            outside = runner_shared.lane_worktree_display(
+                repo, "/" + "home" + "/someone/VC/proj/.aw/worktrees/lane09"
+            )
+            self.assertEqual(outside, ".aw/worktrees/lane09")
+            self.assertIsNone(
+                runner_shared.lane_worktree_display(repo, "/var/tmp/elsewhere")
+            )
+            self.assertIsNone(runner_shared.lane_worktree_display(repo, None))
+
+    def test_the_predicate_has_exactly_ONE_definition(self):
+        """ONE READER (the `nuanaw` hard constraint): `attention` must CALL it, never reimplement it."""
+        import inspect
+
+        from agent_workflows import attention
+
+        source = inspect.getsource(attention)
+        self.assertIn("rs.stranded_lane_records(", source)
+        # The landing question exists in exactly one module.
+        self.assertNotIn("merge-base", source)
+        self.assertNotIn("--is-ancestor", source)
+        self.assertEqual(
+            runner_shared.lane_work_has_landed.__module__,
+            "agent_workflows.runner_shared",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

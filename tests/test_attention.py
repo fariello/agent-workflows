@@ -127,8 +127,10 @@ class ScanTests(unittest.TestCase):
             items, drift = att.scan(root)
             obj = json.loads(att.render_json(items, drift))
             # awdoctorfix Order 01 bumped to 2 (priority + blocks_release); then to 3 when items
-            # gained readiness + oqs + rqs so the TTY columns are also machine-readable.
-            self.assertEqual(obj["schema_version"], 3)
+            # gained readiness + oqs + rqs so the TTY columns are also machine-readable; then to 4 when
+            # the payload gained the top-level `stranded_lanes` key (lanestrand-01 `pr5b0t`).
+            self.assertEqual(obj["schema_version"], 4)
+            self.assertEqual(obj["stranded_lanes"], [])
             self.assertTrue(obj["valid"])
             self.assertEqual(obj["violations"], [])
             self.assertTrue(all("attention_class" in it for it in obj["items"]))
@@ -1970,6 +1972,9 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
                 att, "scan", return_value=([it_run, it_que, it_other], [])
             ),
             mock.patch.object(att, "get_active_runs_map", return_value=run_map),
+            # `dir=None` resolves to the REAL repository; stub the lane reader so a stranded lane in the
+            # developer's own checkout cannot change this case's exit code (lanestrand-01 `pr5b0t`).
+            mock.patch.object(att, "stranded_lane_drift", return_value=[]),
         ):
             buf = io.StringIO()
             with redirect_stdout(buf):
@@ -2111,7 +2116,12 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             None,
         )
 
-        with mock.patch.object(att, "scan", return_value=([it1, it2, it_done], [])):
+        # lanestrand-01 (`pr5b0t`): these `dir=None` cases resolve to the REAL repository, so the
+        # lane reader is stubbed for the same reason `scan` is - the case is about item rendering, and
+        # a real stranded lane in the developer's checkout would otherwise change its exit code.
+        with mock.patch.object(
+            att, "scan", return_value=([it1, it2, it_done], [])
+        ), mock.patch.object(att, "stranded_lane_drift", return_value=[]):
             buf = io.StringIO()
             with redirect_stdout(buf):
                 args = argparse.Namespace(
@@ -2168,7 +2178,9 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             None,
             None,
         )
-        with mock.patch.object(att, "scan", return_value=([it1], [])):
+        with mock.patch.object(
+            att, "scan", return_value=([it1], [])
+        ), mock.patch.object(att, "stranded_lane_drift", return_value=[]):
             # paths
             buf = io.StringIO()
             with redirect_stdout(buf):
@@ -2229,6 +2241,9 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         with (
             mock.patch.object(att, "scan", return_value=([it_run, it_idle], [])),
             mock.patch.object(att, "get_active_runs_map", return_value=run_map),
+            # `dir=None` resolves to the REAL repository; stub the lane reader so a stranded lane in the
+            # developer's own checkout cannot change this case's exit code (lanestrand-01 `pr5b0t`).
+            mock.patch.object(att, "stranded_lane_drift", return_value=[]),
         ):
             # Test --active: shows only it_run
             buf_act = io.StringIO()
@@ -2295,6 +2310,330 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
                 rc = att.run(args_idle)
             self.assertEqual(rc, 0)
             self.assertEqual(buf_idle.getvalue().strip().splitlines(), ["idl002"])
+
+
+# --------------------------------------------------------------------------------------------------
+# lanestrand-01 (`pr5b0t`) E-07: the view reports stranded lanes and `--check` fails closed on them
+# --------------------------------------------------------------------------------------------------
+
+
+def _lane_args(root: Path, **over):
+    """A full `aw attention` namespace, defaulted the way the CLI parser defaults it."""
+    ns = dict(
+        dir=str(root),
+        format=None,
+        check=False,
+        selectors=[],
+        types=[],
+        status=[],
+        priority=[],
+        blocking=[],
+        readiness=[],
+        open_questions=False,
+        run_status=[],
+        runs=False,
+        order_by=A.ORDER_CLASS,
+        agent=False,
+        json=False,
+        no_color=True,
+        all=False,
+        long=False,
+        details=False,
+        id6_only=False,
+        paths=False,
+        filenames=False,
+        active=False,
+        not_active=False,
+    )
+    ns.update(over)
+    return argparse.Namespace(**ns)
+
+
+class StrandedLaneViewTests(unittest.TestCase):
+    """FIXTURES ONLY. This repository holds dozens of live `aw/lane/*` branches and several in-repo lane
+    worktrees, and a test that touched one could destroy the very unintegrated work this surface exists
+    to protect. Every lane below is built in a throwaway repo."""
+
+    # THE FIXTURE'S ABSOLUTE PATH IS COMPOSED, NOT WRITTEN AS A LITERAL. The shape being guarded
+    # against is a home path, and the deterministic leak-sanitizer (`aw sanitize`) correctly FAILS a
+    # tracked file containing one even inside a test fixture, so spelling it out would trade one
+    # enforced rule for another. The assembled value is byte-identical to what a recorded
+    # `preserved_worktree` looks like, which is all the guard needs.
+    ABSOLUTE_WORKTREE = "/" + "home" + "/someone/VC/proj/.aw/worktrees/lane01"
+
+    def _fixture(self, td: Path, *, merged: bool = False, live: bool = False):
+        """A tracked-tree repo plus ONE recorded lane, built the way the runner builds a lane."""
+        import subprocess
+
+        root = _mk_repo(td)
+        for cmd in (
+            ["git", "init", "-q", "-b", "main"],
+            ["git", "config", "user.email", "test@example.invalid"],
+            ["git", "config", "user.name", "Test"],
+        ):
+            subprocess.run(cmd, cwd=root, check=True)
+        subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+        subprocess.run(["git", "commit", "-qm", "base"], cwd=root, check=True)
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            check=True,
+            text=True,
+            capture_output=True,
+        ).stdout.strip()
+
+        # The CANONICAL lane location, so the rendered worktree is the real `.aw/worktrees/<lane>`
+        # shape an operator sees. NOTE `describe_lane` prefers the REGISTERED worktree over the
+        # recorded `preserved_worktree`, so the absolute recorded value below is what the leak guard
+        # exercises through the record, while this is what the display renders.
+        lane_dir = root / ".aw" / "worktrees" / "lane01"
+        lane_dir.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            [
+                "git",
+                "worktree",
+                "add",
+                "-q",
+                "-b",
+                "aw/lane/lane01",
+                str(lane_dir),
+                base,
+            ],
+            cwd=root,
+            check=True,
+        )
+        (lane_dir / "work.txt").write_text("work\n", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=lane_dir, check=True)
+        subprocess.run(["git", "commit", "-qm", "lane work"], cwd=lane_dir, check=True)
+        if merged:
+            subprocess.run(
+                [
+                    "git",
+                    "merge",
+                    "--no-ff",
+                    "--no-edit",
+                    "-m",
+                    "integrate lane01",
+                    "aw/lane/lane01",
+                ],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+
+        run_dir = root / ".aw" / "records" / "runs" / "run-20260917T000000Z-1"
+        run_dir.mkdir(parents=True)
+        if live:
+            (run_dir / "driver.lock").write_text("pid=1\n", encoding="utf-8")
+        (run_dir / "state.json").write_text(
+            json.dumps(
+                {
+                    "run_id": "run-20260917T000000Z-1",
+                    "repo": str(root),
+                    "queue": [
+                        {
+                            "id6": "lane01",
+                            "position": 1,
+                            "status": "substantially-complete",
+                            # THE REAL SHAPE: an ABSOLUTE home path, which is what 71 of the 140
+                            # recorded run items carry. This is the fixture the leak guard needs.
+                            "preserved_worktree": self.ABSOLUTE_WORKTREE,
+                            "preserved_branch": "aw/lane/lane01",
+                            "preserved_lane_id": "lane01",
+                            "preserved_base": base,
+                            "preserved_disposition": "created",
+                            "preserved_reason": "the run ended without integrating this lane",
+                            "integration_signal": "suite-failed",
+                            "attempts": [
+                                {
+                                    "worktree": self.ABSOLUTE_WORKTREE,
+                                    "worktree_branch": "aw/lane/lane01",
+                                    "worktree_lane_id": "lane01",
+                                    "worktree_base": base,
+                                    "integration_detail": "gate refused in {0}".format(
+                                        root
+                                    ),
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return root
+
+    def _holder(self, live: bool):
+        return mock.patch(
+            "agent_workflows.run_viewer.driver_holder_state",
+            return_value="live" if live else "none",
+        )
+
+    def test_a_stranded_lane_is_reported_LOUDLY_in_the_human_board(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = self._fixture(Path(td))
+            buf = io.StringIO()
+            with self._holder(False), mock.patch("sys.stdout", buf):
+                rc = att.run(_lane_args(root))
+            out = buf.getvalue()
+            self.assertEqual(rc, 1, out)
+            self.assertIn("STRANDED LANES", out)
+            self.assertIn("aw/lane/lane01", out)
+            self.assertIn("attention.lane-stranded", out)
+            self.assertIn("plan lane01", out)
+            self.assertIn("integration_signal=suite-failed", out)
+            # The remedy must be named: an alarm with no route trains its own dismissal.
+            self.assertIn("Recover it", out)
+
+    def test_neither_surface_contains_an_ABSOLUTE_path(self):
+        """The load-bearing leak guard (F-15). `aw attention --json` is pasted by agents and read by CI."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._fixture(Path(td))
+            human = io.StringIO()
+            with self._holder(False), mock.patch("sys.stdout", human):
+                att.run(_lane_args(root))
+            payload = io.StringIO()
+            with self._holder(False), mock.patch("sys.stdout", payload):
+                att.run(_lane_args(root, format="json"))
+            for label, text in (
+                ("human render", human.getvalue()),
+                ("json payload", payload.getvalue()),
+            ):
+                with self.subTest(surface=label):
+                    self.assertNotIn(self.ABSOLUTE_WORKTREE, text)
+                    self.assertNotIn("/home/", text)
+                    # The repository-relative rendering IS allowed and is what the ask wanted.
+                    self.assertIn(".aw/worktrees/lane01", text)
+
+    def test_check_exits_nonzero_with_a_stranded_lane_and_zero_without(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = self._fixture(Path(td))
+            buf = io.StringIO()
+            with self._holder(False), redirect_stdout(buf):
+                rc_stranded = att.run(_lane_args(root, check=True))
+            self.assertEqual(rc_stranded, 1, buf.getvalue())
+            self.assertIn("attention.lane-stranded", buf.getvalue())
+
+        with tempfile.TemporaryDirectory() as td:
+            # No run records at all: nothing stranded, and the gate must stay green.
+            root = _mk_repo(Path(td))
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc_clean = att.run(_lane_args(root, check=True))
+            self.assertEqual(rc_clean, 0, buf.getvalue())
+            self.assertIn("the view is valid", buf.getvalue())
+
+    def test_a_MERGED_lane_does_not_fail_the_check(self):
+        """The false positive that would destroy the alarm: every recovered lane reported forever."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._fixture(Path(td), merged=True)
+            buf = io.StringIO()
+            with self._holder(False), redirect_stdout(buf):
+                rc = att.run(_lane_args(root, check=True))
+            self.assertEqual(rc, 0, buf.getvalue())
+            self.assertNotIn("lane-stranded", buf.getvalue())
+
+    def test_a_LIVE_runs_lane_does_not_fail_the_check(self):
+        """A driver run in progress legitimately owns its lane; a check that reds during every normal
+        run is a check that gets bypassed."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._fixture(Path(td), live=True)
+            buf = io.StringIO()
+            with self._holder(True), redirect_stdout(buf):
+                rc = att.run(_lane_args(root, check=True))
+            self.assertEqual(rc, 0, buf.getvalue())
+            self.assertNotIn("lane-stranded", buf.getvalue())
+
+    def test_the_json_and_agent_payloads_carry_the_same_fact(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = self._fixture(Path(td))
+            buf = io.StringIO()
+            with self._holder(False), mock.patch("sys.stdout", buf):
+                rc = att.run(_lane_args(root, format="json"))
+            self.assertEqual(rc, 1)
+            obj = json.loads(buf.getvalue())
+            # The NEW field, and the pre-existing keys unchanged in name and order.
+            self.assertEqual(
+                list(obj.keys()),
+                [
+                    "schema_version",
+                    "mapping_version",
+                    "valid",
+                    "items",
+                    "violations",
+                    "stranded_lanes",
+                ],
+            )
+            self.assertEqual(obj["schema_version"], 4)
+            self.assertEqual(obj["mapping_version"], 1)
+            # `valid` and the exit code are ONE mechanism: both follow from the drift set.
+            self.assertFalse(obj["valid"])
+            self.assertEqual(len(obj["stranded_lanes"]), 1)
+            self.assertEqual(obj["stranded_lanes"][0]["branch"], "aw/lane/lane01")
+            self.assertEqual(obj["stranded_lanes"][0]["rule"], att.LANE_STRANDED_RULE)
+            # The same fact is in `violations`, which is what makes the two unable to disagree.
+            self.assertIn(
+                att.LANE_STRANDED_RULE, [v["rule"] for v in obj["violations"]]
+            )
+
+            agent = io.StringIO()
+            with self._holder(False), redirect_stdout(agent):
+                rc_agent = att.run(_lane_args(root, agent=True))
+            self.assertEqual(rc_agent, 1)
+            self.assertIn("attention.lane-stranded", agent.getvalue())
+            self.assertIn("aw/lane/lane01", agent.getvalue())
+
+    def test_render_json_stranded_lanes_is_DERIVED_from_drift_not_recomputed(self):
+        """The mechanism guarantee: `valid` cannot contradict `stranded_lanes` by construction."""
+        drift = [
+            core_Drift(
+                "aw/lane/zzz999", att.LANE_STRANDED_RULE, "STRANDED", severity="error"
+            )
+        ]
+        obj = json.loads(att.render_json([], drift))
+        self.assertFalse(obj["valid"])
+        self.assertEqual(
+            obj["stranded_lanes"],
+            [
+                {
+                    "branch": "aw/lane/zzz999",
+                    "rule": att.LANE_STRANDED_RULE,
+                    "detail": "STRANDED",
+                }
+            ],
+        )
+        clean = json.loads(att.render_json([], []))
+        self.assertTrue(clean["valid"])
+        self.assertEqual(clean["stranded_lanes"], [])
+
+    def test_a_stranded_lane_maps_to_an_existing_class_and_an_unmapped_one_RAISES(self):
+        from agent_workflows import runner_shared as rs
+
+        self.assertEqual(A.class_of("lanes", rs.LANE_STRANDED), A.BLOCKED)
+        self.assertEqual(A.class_of("lanes", rs.LANE_UNKNOWN), A.BLOCKED)
+        self.assertEqual(A.class_of("lanes", rs.LANE_LIVE), A.ACTIVE)
+        self.assertEqual(A.class_of("lanes", rs.LANE_LANDED), A.DONE)
+        self.assertEqual(A.class_of("lanes", rs.LANE_EMPTY_OF_WORK), A.DONE)
+        with self.assertRaises(A.UnknownNativeStatus):
+            A.class_of("lanes", "FROBNICATED")
+
+    def test_the_lanes_fragment_is_TOTAL_over_the_predicates_states(self):
+        from agent_workflows import runner_shared as rs
+
+        self.assertEqual(set(A.CLASS_MAPS["lanes"].keys()), set(rs.LANE_REPORT_STATES))
+
+    def test_scan_roots_are_unchanged_so_no_filesystem_walk_decides_this(self):
+        from agent_workflows import artifact_core
+
+        joined = " ".join(str(r) for r in artifact_core.SCAN_ROOTS)
+        self.assertNotIn("worktrees", joined)
+        self.assertNotIn("records/runs", joined)
+
+
+def core_Drift(*args, **kw):
+    from agent_workflows import artifact_core
+
+    return artifact_core.Drift(*args, **kw)
 
 
 if __name__ == "__main__":

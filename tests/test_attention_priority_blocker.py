@@ -95,8 +95,9 @@ class AttentionPriorityBlockerTests(unittest.TestCase):
         self.assertIn("- [backlog] .aw/records/backlog/open/a.backlog.md (open)", out)
 
     def test_schema_version_and_json_keys(self):
-        # Bumped to 3 when items gained readiness + oqs + rqs (was 2: priority + blocks_release).
-        self.assertEqual(attention.SCHEMA_VERSION, 3)
+        # Bumped to 3 when items gained readiness + oqs + rqs (was 2: priority + blocks_release), then
+        # to 4 when the payload gained the top-level `stranded_lanes` key (lanestrand-01 `pr5b0t`).
+        self.assertEqual(attention.SCHEMA_VERSION, 4)
         obj = json.loads(
             attention.render_json(
                 [_item(".aw/records/backlog/open/a.backlog.md", priority="low")], []

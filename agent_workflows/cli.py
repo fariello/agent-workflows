@@ -3666,7 +3666,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "next",
         aliases=["attention", "att", "todo"],
         parents=[common],
-        help="Read-only cross-tree view of what to work on (board or JSON to stdout); --order-by sequences it, --check fails closed. Aliases: 'aw attention', 'aw att', 'aw todo'.",
+        help="Read-only cross-tree view of what to work on (board or JSON to stdout), including any STRANDED lane holding unintegrated work; --order-by sequences it, --check fails closed. Aliases: 'aw attention', 'aw att', 'aw todo'.",
     )
     p_attention.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
@@ -3680,7 +3680,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p_attention.add_argument(
         "--check",
         action="store_true",
-        help="Validate all tracked trees; fail closed on any violation.",
+        help=(
+            "Validate all tracked trees AND report every stranded lane (work a driver run left "
+            "unintegrated); fail closed on any violation or stranded lane."
+        ),
     )
     p_attention.add_argument(
         "--all", action="store_true", help="Show done/parked groups in the board."

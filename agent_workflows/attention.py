@@ -30,7 +30,19 @@ from agent_workflows import specs as specs_mod
 from agent_workflows import term as T
 
 # 3: items gained readiness + oqs + rqs (2 was priority + blocks_release).
-SCHEMA_VERSION = 3
+# 4 (lanestrand-01 `pr5b0t` E-05): the payload gained the top-level `stranded_lanes` key. BUMPED
+# rather than added silently, on this payload's OWN precedent: both earlier bumps were purely ADDITIVE
+# too (items gained fields; nothing was removed or renamed), so "additive" has never been this
+# repository's reason to skip a bump. The decisive argument is that a consumer must be able to tell
+# whether `stranded_lanes` is ABSENT because this repository has no stranded lane or because the
+# producer predates the key, and only the version distinguishes those. Every pre-existing key keeps its
+# name, its position and its value.
+SCHEMA_VERSION = 4
+# MAPPING_VERSION is deliberately UNCHANGED at 1. It versions the native-status -> attention-class
+# mapping, and no existing `(tree, native_status)` pair maps anywhere new: `attention_contract`'s new
+# `lanes` fragment adds a SYNTHETIC tree whose states never previously had a class at all, and no
+# scanned artifact's class changed. Bumping it would tell every consumer to re-derive a mapping that is
+# byte-identical for every artifact they can see.
 MAPPING_VERSION = 1
 
 
@@ -1062,6 +1074,179 @@ def _backlog_record(
 
 
 # --------------------------------------------------------------------------------------
+# Stranded lanes (lanestrand-01 `pr5b0t` E-04/E-05/E-06)
+# --------------------------------------------------------------------------------------
+#
+# THE ONE CROSS-TREE VIEW COULD NOT SEE UNINTEGRATED WORK. Measured before this landed: `aw attention
+# --check` exited 0 while dozens of `aw/lane/*` branches held commits that had never reached main, and
+# plan `03ie04` was paid for TWICE ($16.59 then $32.83) because the first lane stranded silently.
+#
+# THE VERDICT COMES FROM THE RUN RECORD, NEVER FROM A FILESYSTEM WALK, and `SCAN_ROOTS` is deliberately
+# UNCHANGED. `.aw/worktrees` and `.aw/records/runs` stay outside the scan set: a verdict derived from
+# today's filesystem reports a RECOVERED run clean and rewrites history, which is what `xtklpd`'s
+# review measured. So lanes join at RENDER time from the run records, not as scanned files.
+#
+# THE PREDICATE IS NOT DEFINED HERE. `runner_shared.classify_lane_integration` owns it (one reader; see
+# its docstring for why `holds_work` alone cannot answer "did it land"), and this module only renders
+# and gates on the result.
+
+#: The stable rule id for a stranded lane, in the house `location<TAB>rule<TAB>detail` form (spec F4).
+#: STABLE because tests and agent remediation key on it.
+LANE_STRANDED_RULE = "attention.lane-stranded"
+
+#: The stable rule id for a lane whose landing question could not be answered. Separate from the
+#: stranded rule so a consumer can tell "provably unintegrated" from "unprovable", which are different
+#: human actions even though both fail the gate.
+LANE_UNKNOWN_RULE = "attention.lane-unknown"
+
+
+def lane_drift_severity(lane_state: str) -> str:
+    """The `Drift` severity for a lane state. Both reportable states FAIL the gate.
+
+    FAIL CLOSED, on `nuanaw` ask 3 and on the spec's G3. `artifact_core.drift_exit_code` exempts
+    exactly `info`, so an `info` severity would report the lane and still exit 0, which is the
+    self-contradiction (`valid: true` beside lost work) this whole surface exists to remove. UNKNOWN
+    fails too rather than warning: a landing question we cannot answer is not evidence the work landed.
+    """
+    return "error"
+
+
+def stranded_lane_drift(repo_root: Path) -> List[core.Drift]:
+    """Every stranded (or unprovable) lane, as `Drift` records. Read-only; never touches git state.
+
+    WHY A `Drift` AND NOT AN `Item`, which is the whole implementation question for E-05/E-06 and is
+    settled by MEASUREMENT rather than taste. `render_json` computes `valid` as `len(drift) == 0`, and
+    every `--check` exit path returns `core.drift_exit_code(drift)`. So emitting a stranded lane as a
+    non-`info` `Drift` makes the payload's honesty and the gate's exit code follow AUTOMATICALLY and by
+    the SAME mechanism, with no second definition of validity; an `Item`-only design would leave
+    `valid: true` and `--check` at 0 beside a stranded lane.
+
+    NO ABSOLUTE PATH REACHES EITHER SURFACE. `location` is the lane BRANCH (a git ref such as
+    `aw/lane/03ie04`, safe by construction) and the worktree is rendered repository-relative through
+    `runner_shared.lane_worktree_display`, which returns None rather than an absolute path. The
+    recorded `preserved_worktree` is an absolute home path in most run items, and `integration_detail`
+    embeds an absolute repository path, so NEITHER is printed.
+
+    Returns `[]` on any failure to read the run records, which is the honest answer for a repository
+    that has never run a driver: absence of run records is not evidence of a stranded lane.
+    """
+    try:
+        from agent_workflows import run_viewer
+        from agent_workflows import runner_shared as rs
+    except Exception:
+        return []
+
+    target_root = _resolve_runs_repo_root(repo_root)
+    try:
+        run_dirs = run_viewer.discover_run_dirs(target_root)
+    except Exception:
+        return []
+    if not run_dirs:
+        return []
+
+    states: List[Dict] = []
+    for run_dir in run_dirs:
+        state_file = run_dir / "state.json"
+        if not state_file.is_file():
+            continue
+        # A LIVE run's lanes must not fail the gate: a driver in progress legitimately owns them, and a
+        # check that reds during every normal run is a check that gets bypassed. The lane classifier
+        # ALSO excludes a live-owned lane on `owner_live`, so this is belt and braces on the cheaper
+        # signal (`driver.lock` holder liveness, the same one `get_active_runs_map` consumes).
+        try:
+            if run_viewer.driver_holder_state(run_dir) == run_viewer.HOLDER_LIVE:
+                continue
+        except Exception:
+            continue
+        try:
+            states.append(json.loads(state_file.read_text(encoding="utf-8")))
+        except Exception:
+            continue
+    if not states:
+        return []
+
+    try:
+        records = rs.stranded_lane_records(target_root, states)
+    except Exception:
+        return []
+
+    out: List[core.Drift] = []
+    for rec in records:
+        branch = str(rec.get("branch") or rec.get("lane_id") or "(unnamed lane)")
+        state = str(rec.get("lane_state") or rs.LANE_UNKNOWN)
+        rule = LANE_STRANDED_RULE if state == rs.LANE_STRANDED else LANE_UNKNOWN_RULE
+        bits = ["{0} lane".format(state)]
+        if rec.get("id6"):
+            bits.append("plan {0}".format(rec["id6"]))
+        if rec.get("commits_ahead"):
+            bits.append("{0} commit(s) beyond base".format(rec["commits_ahead"]))
+        if rec.get("dirty"):
+            bits.append("uncommitted changes")
+        if rec.get("integration_signal"):
+            bits.append("integration_signal={0}".format(rec["integration_signal"]))
+        display = rs.lane_worktree_display(target_root, rec.get("worktree"))
+        if display:
+            bits.append("worktree {0}".format(display))
+        if rec.get("run_id"):
+            bits.append("run {0}".format(rec["run_id"]))
+        detail = "{0}: {1}. {2}".format(
+            "; ".join(bits), rec.get("why") or "", lane_remedy_hint()
+        )
+        out.append(
+            core.Drift(
+                branch,
+                rule,
+                A.escape_detail(detail),
+                severity=lane_drift_severity(state),
+            )
+        )
+    out.sort(key=lambda d: (d.location, d.rule))
+    return out
+
+
+def lane_remedy_hint() -> str:
+    """The remedy to print beside a stranded lane. An alarm with no route trains its own dismissal.
+
+    NAMES ONLY A VERB THAT EXISTS AT RUNTIME. Plan `rl67b0` adds `aw <host> integrate <id6>`; it had
+    not landed when this shipped, so the honest remedy is the manual one and the verb is printed only
+    once it is really there. Do not print a verb that does not exist.
+    """
+    try:
+        from agent_workflows import cli as _cli  # noqa: F401
+    except Exception:
+        return "Recover it by hand: inspect the branch, then merge it."
+    integrate_exists = False
+    try:
+        from agent_workflows import oc_runipd as _oc
+
+        integrate_exists = hasattr(_oc, "cmd_integrate")
+    except Exception:
+        integrate_exists = False
+    if integrate_exists:
+        return "Recover it with `aw oc integrate <id6>`."
+    return (
+        "Recover it by hand: `git log main..<branch>` to see the work, then merge that branch "
+        "(no `aw integrate` verb exists yet)."
+    )
+
+
+def render_stranded_lane_section(drift: List[core.Drift]) -> str:
+    """The LOUD human section for stranded lanes, or `""` when none. One row per lane."""
+    from agent_workflows import runner_shared as rs
+
+    lanes = [d for d in drift if d.rule in (LANE_STRANDED_RULE, LANE_UNKNOWN_RULE)]
+    if not lanes:
+        return ""
+    header = (
+        "## {0} LANES ({1}): work that never reached the integration target\n".format(
+            rs.LANE_STRANDED, len(lanes)
+        )
+    )
+    body = "".join("- {0}: {1}\n".format(d.location, d.detail) for d in lanes)
+    return header + body
+
+
+# --------------------------------------------------------------------------------------
 # Renderers (deterministic)
 # --------------------------------------------------------------------------------------
 
@@ -1092,6 +1277,22 @@ def render_json(items: List[Item], drift: List[core.Drift]) -> str:
         ],
         "violations": [
             {"location": d.location, "rule": d.rule, "detail": d.detail} for d in drift
+        ],
+        # lanestrand-01 (`pr5b0t`) E-05: the machine-readable stranded-lane set. APPENDED, never a
+        # repurposed key, so an existing consumer parsing this payload is byte-unchanged in every
+        # pre-existing field and every pre-existing key keeps its position.
+        #
+        # DERIVED FROM `drift`, NOT RE-COMPUTED. That is what makes `valid` (computed as
+        # `len(drift) == 0` above) unable to contradict this list by construction: a stranded lane is
+        # in the payload if and only if it is in the drift set that decided `valid` and decides the
+        # `--check` exit code. A second derivation here could disagree, and only one of them would be
+        # wrong at a time.
+        #
+        # `location` is a git BRANCH and never a path, so nothing absolute can reach this payload.
+        "stranded_lanes": [
+            {"branch": d.location, "rule": d.rule, "detail": d.detail}
+            for d in drift
+            if d.rule in (LANE_STRANDED_RULE, LANE_UNKNOWN_RULE)
         ],
     }
     # canonical: fixed key order (insertion order above), 2-space indent, sorted item keys off, LF, final newline
@@ -2515,6 +2716,15 @@ def run(args) -> int:
 
     # No AW project at cwd or any ancestor (and none named via --dir): emit the verbose guidance
     # instead of a silent empty board. --check stays fail-closed-valid (nothing to violate).
+    #
+    # lanestrand-01 (`pr5b0t`) E-06: THE LANE CHECK DELIBERATELY DOES NOT APPLY ON THIS EARLY-RETURN
+    # PATH, and the decision is recorded rather than left implicit. A directory that is not an AW
+    # project has no `.aw/records/runs`, so there is no run record to read and therefore no lane a
+    # driver of THIS toolkit could have stranded; running the probe would answer "no lanes" after doing
+    # filesystem work, which is a slower way to reach the same 0. The honesty requirement is satisfied
+    # because the branch's own precondition ("there is no project here") is what makes the empty answer
+    # true, not an unexamined assumption: this is not the "prints a clean view without having looked"
+    # case, since there is nothing in scope to look at.
     if not explicit_dir and not is_project_dir(repo_root):
         if check:
             if ctx.is_agent or ctx.is_json:
@@ -2698,6 +2908,24 @@ def run(args) -> int:
         drift = [
             d for d in drift if (repo_root / d.location).resolve() in selected_paths
         ]
+
+    # lanestrand-01 (`pr5b0t`) E-04/E-05/E-06: JOIN THE STRANDED LANES AT RENDER TIME, after the
+    # artifact filters and before anything consumes `drift`.
+    #
+    # AFTER THE FILTERS DELIBERATELY. Each filter above prunes `drift` down to the SELECTED artifact
+    # paths, and a lane's `Drift` location is a git BRANCH that matches no path, so adding lanes before
+    # the filters would have every filter silently delete them. Adding them here also means one thing
+    # for both surfaces: `render_json` derives its `stranded_lanes` list from this same set, and
+    # `core.drift_exit_code` reads it for the exit code, so the payload's `valid` flag and the gate can
+    # never disagree.
+    #
+    # SUPPRESSED UNDER AN EXPLICIT NARROWING, matching what the filters above already do to artifact
+    # drift: a user who asked for `--types specs` asked about specs, and a lane belongs to no tree they
+    # selected. The DEFAULT invocation (what CI and an agent run) is the one that must fail closed, and
+    # it does.
+    if not type_filters and not selectors_arg:
+        drift = drift + stranded_lane_drift(repo_root)
+        drift.sort(key=lambda d: (d.location, d.rule))
 
     # Re-order the (possibly filtered) items. `scan()` already returned them in the default order, so
     # for `-o class` this is a no-op re-sort of an already-sorted list and the output is unchanged.
@@ -2958,6 +3186,20 @@ def run(args) -> int:
                 board += f"- {ident}: {w.rule}: {detail}\n"
                 if fix.strip():
                     board += f"    Fix: {fix.strip()}\n"
+
+        # lanestrand-01 (`pr5b0t`) E-04: the LOUD stranded-lane section. It is deliberately DUPLICATED
+        # information: the same lanes already appear in the board's `VIEW INVALID` violation block
+        # (because they are `Drift` records, which is what makes `--check` fail), and this section
+        # restates them under a heading naming the condition, with the remedy, so an operator reading a
+        # long board cannot mistake unintegrated work for one more contract nit. NOT advisory, unlike
+        # the two sections around it: these findings DO drive the exit code, through the drift set.
+        lane_section = render_stranded_lane_section(drift)
+        if lane_section:
+            if colored:
+                first, _, rest = lane_section.partition("\n")
+                board += term.color256(first.lstrip("# "), 203, bold=True) + "\n" + rest
+            else:
+                board += lane_section
 
         # worksequence i6015i E-08: surface an ordering notice (currently a dependency cycle under
         # `-o depth`) VISIBLY rather than absorbing it. Advisory only: it never affects the exit code,

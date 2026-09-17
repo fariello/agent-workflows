@@ -325,13 +325,55 @@ _RELEASES_MAP: Dict[str, str] = {
     "shipped": DONE,
 }
 
-# The registry of mapping fragments, one per tracked tree.
+# lanestrand-01 (`pr5b0t`) E-03: LANES, the one attention-visible thing that is NOT A FILE.
+#
+# THE TREE IS SYNTHETIC AND HAS NO `TreePolicy` ENTRY, DELIBERATELY. Every other fragment here keys a
+# tracked directory that `iter_scan_files` walks; a lane exists only as a git branch plus a run-record
+# field, so no scanned FILE may ever classify as `lanes` and adding it to `TREE_POLICY` would invite a
+# `SCAN_ROOTS` growth over `.aw/worktrees`, which `nuanaw` ask 4 and `xtklpd`'s measured ruling both
+# forbid (a filesystem-derived verdict rewrites history). The fragment lives HERE anyway, rather than
+# as a parallel lookup in `attention.py`, so a lane state nobody mapped raises `UnknownNativeStatus`
+# through the SAME `class_of` every other tree uses: a new lane state is then LOUD instead of silently
+# `ready`. This adds NO sixth attention class.
+#
+# THE KEYS ARE `runner_shared.LANE_REPORT_STATES`, and `tests/test_attention_contract.py` pins the two
+# sets equal so a state added there cannot silently go unmapped here. They are not imported at module
+# level because this module is deliberately dependency-light and must not pull the runner library into
+# every attention scan.
+#
+# THE MAPPING IS PER PREDICATE OUTCOME, NOT ONE BLANKET CLASS (plan `pr5b0t` OQ-01, resolved):
+#
+#   STRANDED -> blocked  Work exists and has not reached the integration target. It cannot proceed
+#                        without a human act (merge it, or decide to drop it), which is what `blocked`
+#                        means everywhere else in this view.
+#   UNKNOWN  -> blocked  The landing question could not be answered. Fail closed: a human must look.
+#                        Classing it `ready` would print a green verdict the data does not support.
+#   LIVE     -> active   A live process owns the lane, so work is EXPLICITLY in progress, which is this
+#                        contract's own definition of `active` ("never inferred"). It is NOT `blocked`:
+#                        nothing is owed by a human, and a view that reds during every normal driver run
+#                        is a view operators learn to ignore.
+#   LANDED   -> done     The work is reachable from the integration target. Nothing is owed ON THE LANE.
+#                        This stays `done` even when the lane's PLAN is not yet `executed`: the plan has
+#                        its own row in the `plans` tree and is already reported there, so classing the
+#                        lane `active` too would double-count one piece of work as two attention items.
+#   EMPTY    -> done     The lane holds no commits beyond its base and its tree is clean. There is
+#                        nothing to lose and nothing to do.
+_LANES_MAP: Dict[str, str] = {
+    "STRANDED": BLOCKED,
+    "UNKNOWN": BLOCKED,
+    "LIVE": ACTIVE,
+    "LANDED": DONE,
+    "EMPTY": DONE,
+}
+
+# The registry of mapping fragments, one per tracked tree (plus the synthetic `lanes` tree above).
 CLASS_MAPS: Dict[str, Dict[str, str]] = {
     "specs": _SPEC_MAP,
     "plans": _PLANS_MAP,
     "research": _RESEARCH_MAP,
     "backlog": _BACKLOG_MAP,
     "releases": _RELEASES_MAP,
+    "lanes": _LANES_MAP,
 }
 
 
