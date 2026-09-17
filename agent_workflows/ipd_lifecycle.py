@@ -501,16 +501,60 @@ def frozen_region_digest(text: str) -> str:
 
     Serialization is deterministic (``sort_keys=True`` over a mapping of sorted category lists) so the
     digest is stable across runs and dict-ordering changes.
+
+    THE PAYLOAD IS BUILT BY :func:`_frozen_region_payload`, NOT INLINE (rcptwiden `63425h` E-03), and
+    that indirection is load-bearing rather than tidy: :func:`frozen_region_comparison` reproduces this
+    exact payload with the RECEIPT's stored scope substituted in, and a second hand-written copy of the
+    literal would silently drift from this one. A drifted copy would make the substitution never
+    reproduce the stored digest, so the widening accept would never fire and the drift would present as
+    "the feature does not work" rather than as a diff.
     """
-    payload = {
-        "scope_paths": sorted(_frozen_scope_paths(text)),
-        "requirements": {
-            category: sorted(values)
-            for category, values in sorted(_requirements_from_plan(text).items())
-        },
-    }
-    serialized = json.dumps(payload, sort_keys=True, ensure_ascii=True)
+    serialized = json.dumps(
+        _frozen_region_payload(text), sort_keys=True, ensure_ascii=True
+    )
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _frozen_region_payload(
+    text: str,
+    *,
+    scope_paths_override: Optional[Sequence[str]] = None,
+) -> Dict[str, Any]:
+    """THE ONE payload shape the frozen-region digest hashes (rcptwiden `63425h` E-03).
+
+    Extracted from :func:`frozen_region_digest` so exactly one construction of the
+    ``{"scope_paths": ..., "requirements": {...}}`` literal exists. Two callers share it and MUST
+    share it:
+
+    * :func:`frozen_region_digest`, with no override, which is the receipt's validity key; and
+    * :func:`frozen_region_comparison`, with ``scope_paths_override`` set to the RECEIPT's stored
+      ``scope_paths``, which is the SUBSTITUTION TEST that decides whether anything OTHER than scope
+      changed.
+
+    ``scope_paths_override`` replaces BOTH scope inputs, and that is deliberate: the digest hashes the
+    scope twice, once as the top-level ``scope_paths`` allowlist and once inside
+    ``requirements["scope"]``, and for a non-grandfathered plan those two carry the same entries.
+    Substituting only one would leave the other reflecting the CURRENT plan, so the comparison would
+    never reproduce the stored digest and every widening would read as a requirement change. See
+    :func:`frozen_region_comparison` for why a GRANDFATHERED plan (where the two are NOT the same
+    field) is excluded from the substitution entirely rather than reasoned about here.
+    """
+    requirements = {
+        category: sorted(values)
+        for category, values in sorted(_requirements_from_plan(text).items())
+    }
+    scope_paths = sorted(_frozen_scope_paths(text))
+    if scope_paths_override is not None:
+        scope_paths = sorted(scope_paths_override)
+        # The `scope` requirement category mirrors the allowlist for a non-grandfathered plan, so it
+        # must be substituted in lockstep. `_requirements_from_plan` omits an EMPTY category, so an
+        # override of `[]` removes the key rather than writing an empty list, matching what
+        # `frozen_region_digest` would have produced for a plan with no declared allowlist.
+        if scope_paths:
+            requirements["scope"] = list(scope_paths)
+        else:
+            requirements.pop("scope", None)
+    return {"scope_paths": scope_paths, "requirements": requirements}
 
 
 def _requirements_from_plan(text: str) -> Dict[str, List[str]]:
@@ -856,6 +900,13 @@ def receipt_is_current(receipt: Dict[str, Any], plan_text: str) -> bool:
 
     OQ-01 rule (a) (digest invalidation) is what this predicate enforces; the path-overlap collision
     rule (b) remains Order 04's finalize responsibility, not this function's.
+
+    UNCHANGED BY rcptwiden `63425h`, deliberately. That plan lets finalize ACCEPT one specific class of
+    difference (an additive scope widening) with a recorded reason, but it does so by asking
+    :func:`frozen_region_comparison` a SECOND question AFTER this predicate has already said False. This
+    predicate keeps meaning exactly "is the frozen contract byte-identical", so every other caller
+    (`wtiso_gate`'s receipt-vs-attempt narrative, the `check.scope-drift` liveness read, every existing
+    test) sees what it always saw.
     """
     stored_frozen = receipt.get("frozen_region_digest")
     if stored_frozen is None:
@@ -863,6 +914,257 @@ def receipt_is_current(receipt: Dict[str, Any], plan_text: str) -> bool:
         # original whole-file rule rather than accepting it under a key it never recorded.
         return receipt.get("plan_content_digest") == plan_content_digest(plan_text)
     return stored_frozen == frozen_region_digest(plan_text)
+
+
+# --------------------------------------------------------------------------------------
+# The additive-widening comparison (rcptwiden `63425h` E-03/E-08/E-09)
+# --------------------------------------------------------------------------------------
+#
+# WHY THIS EXISTS. `frozen_region_digest` hashes ONE opaque payload, so a plan that honestly DECLARED a
+# newly-needed path and a plan that REWROTE its reviewed requirements are indistinguishable: both yield
+# one False from `receipt_is_current` and both are refused as STALE. Measured 2026-09-16/17 in run
+# `run-20260917T023628Z-4108757`, that refusal stranded three of twelve items (`i3d6ml`, `tx6q0h`,
+# `sy7uwh`) whose ONLY frozen difference was an ADDED `Scope-Paths` entry, costing $95.71 and 3h10m and
+# cascading into a `dependency-blocked` orchestrator. Meanwhile the CONCEALED edit finalized: an
+# undeclared uncommitted path is DISREGARDED as unowned and demands no reason at all (measured:
+# `out_of_scope_paths: []`, `disregarded_unowned_paths: ['tests/test_extra.py']`, precheck rc=0). So the
+# system refused the honest act and waved through the concealed one.
+#
+# THE FIX IS A NARROWING, NOT A REMOVAL, exactly as `receipt_is_current`'s own history was: the original
+# whole-file digest "refused every self-finalizing run" and was narrowed to the frozen region. This
+# finishes that narrowing for the one false-positive class it left.
+
+
+class FrozenRegionComparison(NamedTuple):
+    """WHICH frozen-region categories differ, instead of one opaque boolean.
+
+    ``added`` / ``removed`` are the ``Scope-Paths`` entry-set delta between the receipt's stored scope
+    and the plan's CURRENT scope, compared AS SETS OF ENTRY STRINGS (E-05): the declared order is not
+    semantic, so a pure reordering must read as unchanged rather than as a removal-plus-addition.
+
+    ``non_scope_identical`` is the SUBSTITUTION TEST's answer: True iff substituting the receipt's
+    stored ``scope_paths`` into the current plan's payload reproduces the stored
+    ``frozen_region_digest``. Because that digest is a collision-resistant hash over the WHOLE payload,
+    equality PROVES every non-scope requirement category (each E-item's action text, each V-item's row)
+    is byte-identical, without storing anything new.
+
+    ``eligible`` is the fail-closed gate on whether an additive-widening ACCEPT may even be considered,
+    and ``ineligible_reason`` names why not. It is False for every receipt/plan SHAPE this was not
+    reasoned about (E-09) and for a fence-neutering addition (E-08). When it is False the caller must
+    behave exactly as it did before this existed.
+    """
+
+    added: Tuple[str, ...]
+    removed: Tuple[str, ...]
+    non_scope_identical: bool
+    eligible: bool
+    ineligible_reason: str
+
+
+def scope_entry_is_literal_file(entry: str) -> bool:
+    """Is this ``Scope-Paths`` entry a LITERAL FILE PATH (the only widening-eligible shape)?
+
+    E-08, from F-11: a STRICT SUPERSET is not a safe accept condition on its own, because ONE added
+    entry can neuter the entire fence. Measured against :func:`_scope_match`: adding ``tests/`` admits
+    every file under ``tests/``; adding the bare directory ``agent_workflows`` admits the whole package
+    (a literal entry matches by PREFIX, see that function's last line); adding ``*`` admits
+    ``tests/test_secret.py``, ``agent_workflows/check_engine.py``, ``RELEASING.md`` and a spec file all
+    at once. An agent could therefore convert a four-file fence into a repo-wide one with one added
+    entry and one reason string, after which nothing is out of scope and nothing demands a reason. That
+    is strictly WORSE than the bug being fixed, because today's refusal at least stops.
+
+    So eligibility mirrors the CLASSIFICATION :func:`_scope_match` branches on, rather than inventing a
+    parallel notion of "looks like a file":
+
+    * a trailing ``/`` (``tests/``) is directory-bounded -> NOT eligible;
+    * a trailing ``/**`` (``agent_workflows/**``) is directory-bounded -> NOT eligible;
+    * any of ``*``, ``?``, ``[`` is a glob (``*``, ``tests/test_*.py``) -> NOT eligible;
+    * a BARE DIRECTORY (``agent_workflows``) contains no glob character yet matches by prefix, so it is
+      NOT eligible either. This is the case a naive "has no glob char" rule gets wrong, and it is
+      checked by the caller (which alone can see the filesystem) via :func:`_entry_is_bare_directory`.
+
+    Everything else is a literal file path and IS eligible. Pure: takes no filesystem.
+    """
+    e = entry.strip().replace("\\", "/")
+    if not e:
+        return False
+    if e.endswith("/") or e.endswith("/**"):
+        return False
+    if any(ch in e for ch in "*?["):
+        return False
+    return True
+
+
+def _entry_is_bare_directory(repo_root: Optional[Path], entry: str) -> bool:
+    """Does ``entry`` name an existing DIRECTORY, so ``_scope_match`` would admit the tree under it?
+
+    Separated from :func:`scope_entry_is_literal_file` because it is the one part of the eligibility
+    question that needs the filesystem, and the pure classifier must stay unit-testable without one.
+    Fails CLOSED in the direction that matters: with no ``repo_root`` to consult, an entry that cannot
+    be checked is NOT treated as a directory here, because the pure classifier has already rejected
+    every SHAPE that is directory-bounded without a filesystem (``tests/``, ``agent_workflows/**``,
+    globs); this only catches a bare name that HAPPENS to be a directory on disk.
+    """
+    if repo_root is None:
+        return False
+    e = entry.strip().replace("\\", "/")
+    if not e:
+        return False
+    try:
+        return (Path(repo_root) / e).is_dir()
+    except OSError:
+        return False
+
+
+def frozen_region_comparison(
+    receipt: Dict[str, Any],
+    plan_text: str,
+    *,
+    repo_root: Optional[Path] = None,
+) -> FrozenRegionComparison:
+    """Decompose a frozen-region MISMATCH into scope delta + "did anything else change?" (E-03).
+
+    PURE apart from the optional directory probe: takes the receipt dict and the plan TEXT, so it is
+    unit-testable with no git fixture. ``repo_root`` is used ONLY by
+    :func:`_entry_is_bare_directory` and may be omitted.
+
+    THE SUBSTITUTION TEST, and why it needs no new receipt state. ``begin`` already writes the frozen
+    ``scope_paths`` VERBATIM beside the digest, and ``finalize_precheck`` already reads that field. So
+    take the CURRENT plan text, replace its scope with the RECEIPT's stored scope, re-serialize with
+    :func:`_frozen_region_payload` (the SAME builder :func:`frozen_region_digest` uses, never a second
+    copy), and compare to the stored digest. Equality proves every non-scope category is byte-identical.
+    Verified against all three measured incidents: the substitution reproduces the stored digest for
+    `i3d6ml`, `tx6q0h` and `sy7uwh`, while a control that also rewrites an E-item's action text does not.
+
+    THE THREE INELIGIBLE SHAPES (E-09), each fail-closed and each named in ``ineligible_reason``:
+
+    (a) A LEGACY v1 receipt carries no ``frozen_region_digest`` and is deliberately bound to the
+        whole-file rule, which must "not be spuriously ACCEPTED by a rule it was never bound under".
+        The substitution is not even ATTEMPTED on it.
+    (b) A GRANDFATHERED plan has ``_frozen_scope_paths() == []`` while ``requirements["scope"]`` is
+        ``["grandfathered", <the free-form Scope prose>]``, so the two scope inputs are NOT the same
+        field. "Adding a path" there is not a widening of an allowlist, it is a CONVERSION from
+        no-fence to fence, i.e. a changed scope MODEL rather than an extended one.
+    (c) The MIRROR of (b): a plan that BECOMES grandfathered mid-execution empties the allowlist. That
+        must read as a REMOVAL, never as an unchanged empty set.
+
+    AND THE FENCE-NEUTERING CASE (E-08): if any ADDED entry is a directory or a glob, the comparison is
+    ineligible, so the caller refuses with today's message. See :func:`scope_entry_is_literal_file`.
+
+    A REMOVAL is reported but never eligible-by-itself (E-05): a contract REDUCTION can retroactively
+    make an already-made edit out-of-scope and is how a plan could be quietly re-fenced around whatever
+    it happened to touch. The caller's accept condition therefore also demands ``not removed``.
+    """
+    stored_digest = receipt.get("frozen_region_digest")
+    if stored_digest is None:
+        # (a) legacy v1: bound to the whole-file rule. Do NOT run the substitution at all.
+        return FrozenRegionComparison(
+            (),
+            (),
+            False,
+            False,
+            "legacy v1 receipt (no frozen_region_digest): bound to the whole-file rule",
+        )
+
+    stored_scope = list(receipt.get("scope_paths") or [])
+    current_scope = _frozen_scope_paths(plan_text)
+    current_is_grandfathered = _plan_is_grandfathered(plan_text)
+
+    added = tuple(sorted(set(current_scope) - set(stored_scope)))
+    removed = tuple(sorted(set(stored_scope) - set(current_scope)))
+
+    if current_is_grandfathered:
+        # (c) the plan BECAME grandfathered: the allowlist is gone. `_frozen_scope_paths` returns []
+        #     for a grandfathered plan, so `removed` above already names every previously declared
+        #     path; report that rather than an unchanged empty set, and refuse.
+        return FrozenRegionComparison(
+            (),
+            tuple(sorted(stored_scope)),
+            False,
+            False,
+            "the plan BECAME grandfathered mid-execution: its declared allowlist was emptied, "
+            "which is a scope REMOVAL and a changed scope model",
+        )
+    if not stored_scope and added:
+        # (b) the receipt was issued for a plan with NO machine allowlist (grandfathered or absent).
+        #     Declaring paths now CONVERTS the scope model rather than extending an allowlist.
+        return FrozenRegionComparison(
+            added,
+            removed,
+            False,
+            False,
+            "the receipt was issued for a plan with no declared allowlist (grandfathered/absent): "
+            "declaring paths now CHANGES the scope model rather than widening it",
+        )
+
+    # The substitution test: does anything OTHER than scope differ?
+    substituted = json.dumps(
+        _frozen_region_payload(plan_text, scope_paths_override=stored_scope),
+        sort_keys=True,
+        ensure_ascii=True,
+    )
+    non_scope_identical = (
+        hashlib.sha256(substituted.encode("utf-8")).hexdigest() == stored_digest
+    )
+
+    ineligible: List[str] = []
+    for entry in added:
+        if not scope_entry_is_literal_file(entry):
+            ineligible.append(entry)
+        elif _entry_is_bare_directory(repo_root, entry):
+            ineligible.append(entry)
+    if ineligible:
+        return FrozenRegionComparison(
+            added,
+            removed,
+            non_scope_identical,
+            False,
+            "added Scope-Paths entr"
+            + ("ies" if len(ineligible) > 1 else "y")
+            + " would widen the fence to a DIRECTORY or GLOB rather than a literal file: "
+            + ", ".join(ineligible),
+        )
+
+    return FrozenRegionComparison(added, removed, non_scope_identical, True, "")
+
+
+def _plan_is_grandfathered(text: str) -> bool:
+    """True when the plan's ``Scope-Paths`` is exactly the reserved ``grandfathered`` sentinel.
+
+    Needed because :func:`_frozen_scope_paths` returns ``[]`` for BOTH a grandfathered plan and a plan
+    with no ``Scope-Paths`` field at all, and the widening comparison must tell those apart from a plan
+    that genuinely declares nothing.
+    """
+    from agent_workflows import ipd_lint as _lint
+    from agent_workflows import ipd_schema as _schema
+
+    doc = _lint.parse(text)
+    sp_value = doc.meta_fields.get(_schema.META_SCOPE_PATHS)
+    if not sp_value:
+        return False
+    _paths, is_grandfathered, _errs = _schema.parse_scope_paths(sp_value)
+    return bool(is_grandfathered)
+
+
+def widening_is_acceptable(cmp_result: FrozenRegionComparison) -> bool:
+    """THE accept condition, stated in ONE place so no caller can paraphrase it loosely.
+
+    An additive widening is acceptable iff ALL of:
+
+    * ``eligible`` - the receipt/plan shape was reasoned about and no added entry neuters the fence;
+    * ``non_scope_identical`` - the substitution test proved nothing but scope changed;
+    * ``not removed`` - no contract REDUCTION, including inside a mixed add-and-remove (E-05); and
+    * ``added`` - there IS something added, so this never excuses a mismatch with no scope delta.
+
+    A reason per added path is demanded SEPARATELY, by the finalize path, because this predicate is pure
+    and knows nothing about the supplied ``--scope-reason`` map.
+    """
+    return bool(
+        cmp_result.eligible
+        and cmp_result.non_scope_identical
+        and not cmp_result.removed
+        and cmp_result.added
+    )
 
 
 # --------------------------------------------------------------------------------------
@@ -1609,14 +1911,58 @@ def finalize_precheck(
             evidence,
             (f"missing begin receipt at {receipt_path_for(repo_root, plan_id)}",),
         )
+    widened_paths: List[str] = []
     if not receipt_is_current(receipt, plan_text):
-        return (
-            EXIT_FINDINGS,
-            f"the begin receipt for {plan_id} is STALE: the plan content changed since begin; "
-            "re-run `aw ipd begin`.",
-            evidence,
-            ("plan content digest no longer matches the receipt",),
-        )
+        # THE ONE MISMATCH CLASS THAT IS A DECLARATION, NOT A CONTRACT REWRITE (rcptwiden `63425h`
+        # E-04). The digest is still the fast path and still the authority for "unchanged"; this
+        # structural comparison runs ONLY here, after the digest has already said "different", so an
+        # unchanged plan costs nothing new. An ADDITIVE widening of `Scope-Paths` whose every other
+        # frozen category is byte-identical is the honest declaration of a path the execution turned
+        # out to need, and refusing it is what stranded three lanes in run
+        # `run-20260917T023628Z-4108757` while the CONCEALED equivalent finalized. Every other
+        # mismatch - a removal, a mixed add-and-remove, a rewritten requirement, a directory/glob
+        # addition, an ineligible receipt shape - still refuses with the identical message below.
+        cmp_result = frozen_region_comparison(receipt, plan_text, repo_root=repo_root)
+        if not widening_is_acceptable(cmp_result):
+            stale_findings: List[str] = [
+                "plan content digest no longer matches the receipt"
+            ]
+            if cmp_result.ineligible_reason:
+                stale_findings.append(cmp_result.ineligible_reason)
+            if cmp_result.removed:
+                # E-05: a contract REDUCTION is named, because it can retroactively make an
+                # already-made edit out-of-scope and is how a plan could be quietly re-fenced.
+                stale_findings.append(
+                    "Scope-Paths entr"
+                    + ("ies" if len(cmp_result.removed) > 1 else "y")
+                    + " REMOVED since begin (a contract reduction, never accepted as a widening): "
+                    + ", ".join(cmp_result.removed)
+                )
+            if cmp_result.added and not cmp_result.non_scope_identical:
+                stale_findings.append(
+                    "Scope-Paths gained "
+                    + ", ".join(cmp_result.added)
+                    + " but a frozen REQUIREMENT also changed, so this is a contract rewrite rather "
+                    "than an additive widening"
+                )
+            return (
+                EXIT_FINDINGS,
+                f"the begin receipt for {plan_id} is STALE: the plan content changed since begin; "
+                "re-run `aw ipd begin`.",
+                evidence,
+                tuple(stale_findings),
+            )
+        widened_paths = list(cmp_result.added)
+        evidence["frozen_region_widening"] = {
+            "accepted": True,
+            "added_paths": list(cmp_result.added),
+            "non_scope_identical": True,
+            "note": (
+                "ADDITIVE Scope-Paths widening accepted: every frozen requirement category is "
+                "byte-identical and no declared path was removed. Each added path requires its own "
+                "--scope-reason (rcptwiden 63425h)."
+            ),
+        }
     evidence["pre_execution"] = receipt.get("pre_execution", {})
     base_head = str(receipt.get("base_head") or "").strip()
     if not base_head or base_head == "unversioned":
@@ -1785,6 +2131,15 @@ def finalize_precheck(
         "disregarded_unowned_paths": list(disregarded_unowned),
         "committed_paths": list(sources.committed),
         "working_tree_paths": list(sources.working_tree),
+        # rcptwiden `63425h` E-04: the paths this execution ADDED to `Scope-Paths` after begin, under
+        # the accepted additive widening. Its OWN key, for two reasons measured rather than assumed.
+        # FIRST, the demand cannot ride on `out_of_scope_paths`: this whole audit judges paths against
+        # the RECEIPT's frozen fence, so a newly-added path that is only UNCOMMITTED lands in
+        # `disregarded_unowned_paths` and `out_of_scope_paths` is EMPTY (measured), which would make a
+        # reason requirement expressed through that set silently vacuous. SECOND, the runner reads this
+        # key to auto-reason the widening (`runner_shared.compute_scope_reconciliation`), because all
+        # three incidents this fixes were finalized by the RUNNER and not by hand.
+        "widened_paths": list(widened_paths),
     }
     # The precheck itself no longer REFUSES on out-of-scope paths; that decision now belongs to the
     # two-way reconciliation in `finalize` (Order 05), which legitimizes an out-of-scope edit with a
@@ -2123,6 +2478,7 @@ def _reconcile_scope(
     scope_acks: Optional[Dict[str, str]] = None,
     interactive: bool = False,
     prompt=None,
+    widened: Optional[Sequence[str]] = None,
 ) -> ReconcileOutcome:
     """Reconcile the two-way scope delta (Order 05 qmt3yk). SURFACES + ATTRIBUTES; does not judge.
 
@@ -2131,17 +2487,37 @@ def _reconcile_scope(
     (acknowledge -> proceed). Answers come from the ``--scope-reason``/``--scope-ack`` flag maps
     (headless) or, on a TTY, from ONE batched ``prompt`` callback. A headless run with a non-empty
     delta and MISSING answers is fail-closed (``ok=False``) and names the exact re-invocation.
+
+    ``widened`` (rcptwiden `63425h` E-04) is the set of paths this execution ADDED to ``Scope-Paths``
+    after begin, under the accepted additive widening. Each one requires a reason UNCONDITIONALLY,
+    which is a demand this function must make ITSELF rather than inherit from ``out_of_scope``:
+    ``finalize_precheck`` judges out-of-scope against the RECEIPT's OLD fence, so an added path that is
+    only UNCOMMITTED never enters ``out_of_scope`` at all (measured: ``out_of_scope_paths: []``,
+    ``disregarded_unowned_paths: ['tests/test_extra.py']``). Expressing the requirement through that
+    set would therefore have shipped the LENIENT form while the plan claimed the strict one.
+
+    IT MUST ALSO NOT DOUBLE-DEMAND. In the COMMITTED-cohesive case the same path DOES appear in
+    ``out_of_scope``, so the two demands would otherwise both fire for one path and the terminal record
+    would name it twice. The requirement is therefore an ORDERED UNION, keyed by path, so ONE
+    ``--scope-reason`` per path satisfies both in either variant.
     """
     reasons: Dict[str, str] = dict(scope_reasons or {})
     acks: Dict[str, str] = dict(scope_acks or {})
+    widened_paths: List[str] = list(widened or [])
+
+    # ONE demand per path: every out-of-scope path plus every widened path, order-stable, deduped.
+    reason_required: List[str] = list(out_of_scope)
+    for p in widened_paths:
+        if p not in reason_required:
+            reason_required.append(p)
 
     # Clean delta: nothing to reconcile.
-    if not out_of_scope and not in_scope_unmodified:
+    if not reason_required and not in_scope_unmodified:
         return ReconcileOutcome(True, {}, {}, (), (), "")
 
     # Interactive: collect any missing answers via ONE batched prompt (TTY).
     if interactive and prompt is not None:
-        collected = prompt(list(out_of_scope), list(in_scope_unmodified))
+        collected = prompt(list(reason_required), list(in_scope_unmodified))
         # prompt returns ({path: reason}, {path: ack}); empty/None reason means "not given".
         for p, why in (collected.get("reasons") or {}).items():
             if why is not None and str(why).strip():
@@ -2153,18 +2529,33 @@ def _reconcile_scope(
                 else "acknowledged"
             )
 
-    missing_reasons = tuple(p for p in out_of_scope if not reasons.get(p, "").strip())
+    missing_reasons = tuple(
+        p for p in reason_required if not reasons.get(p, "").strip()
+    )
     # An in-scope-unmodified path is acknowledge-and-proceed; a missing ack in headless mode is
     # still surfaced (fail-closed) so the deviation cannot be silently skipped, but any non-empty
     # note (default "not-needed"/"acknowledged") satisfies it.
-    missing_acks = tuple(p for p in in_scope_unmodified if p not in acks)
+    #
+    # A WIDENED path is NEVER also demanded as an ack. It was added to `Scope-Paths` precisely because
+    # the execution needed to touch it, so it is by construction not "declared but unmodified"; and if
+    # it somehow were, the widening reason already covers it. Demanding both for one path would make
+    # the honest declaration cost two answers where the concealed edit costs none.
+    missing_acks = tuple(
+        p for p in in_scope_unmodified if p not in acks and p not in set(widened_paths)
+    )
 
     # Build the exact re-invocation to supply the missing answers headlessly.
     parts = [
         f"aw ipd finalize {plan_selector} --actor {actor!r} --message {message!r} --apply"
     ]
+    widened_set = set(widened_paths)
     for p in missing_reasons:
-        parts.append(f"--scope-reason {p}=<why-this-out-of-scope-edit-was-needed>")
+        if p in widened_set:
+            parts.append(
+                f"--scope-reason {p}=<why-this-path-had-to-be-added-to-Scope-Paths>"
+            )
+        else:
+            parts.append(f"--scope-reason {p}=<why-this-out-of-scope-edit-was-needed>")
     for p in missing_acks:
         parts.append(f"--scope-ack {p}[=not-needed]")
     needs_cmd = " ".join(parts)
@@ -2173,11 +2564,24 @@ def _reconcile_scope(
     return ReconcileOutcome(ok, reasons, acks, missing_reasons, missing_acks, needs_cmd)
 
 
-def _reconciliation_history_note(reasons: Dict[str, str], acks: Dict[str, str]) -> str:
-    """Render the reconciliation answers as a compact, verbatim note for the terminal record."""
+def _reconciliation_history_note(
+    reasons: Dict[str, str],
+    acks: Dict[str, str],
+    widened: Optional[Sequence[str]] = None,
+) -> str:
+    """Render the reconciliation answers as a compact, verbatim note for the terminal record.
+
+    A path this execution ADDED to ``Scope-Paths`` is labelled ``widened-scope`` rather than
+    ``out-of-scope`` (rcptwiden `63425h` E-04), because those are different acts and the permanent
+    record should not conflate them: an out-of-scope edit went OUTSIDE the declared fence, while a
+    widened path was DECLARED before the finalize that accepted it. Each path appears exactly ONCE
+    even when it is both (the committed-cohesive case), so one supplied reason reads as one record.
+    """
+    widened_set = set(widened or [])
     bits: List[str] = []
     for p in sorted(reasons):
-        bits.append(f"out-of-scope {p}: {reasons[p]}")
+        label = "widened-scope" if p in widened_set else "out-of-scope"
+        bits.append(f"{label} {p}: {reasons[p]}")
     for p in sorted(acks):
         bits.append(f"in-scope-unmodified {p}: {acks[p]}")
     if not bits:
@@ -3021,6 +3425,9 @@ def finalize(
     audit = evidence.get("scope_audit", {})
     out_of_scope = list(audit.get("out_of_scope_paths", []))
     in_scope_unmodified = list(audit.get("in_scope_unmodified", []))
+    # rcptwiden `63425h` E-04: paths ADDED to `Scope-Paths` under an accepted additive widening each
+    # demand their own reason, unconditionally and independently of `out_of_scope`.
+    widened = list(audit.get("widened_paths", []))
     reconcile = _reconcile_scope(
         plan_selector or (plan_path.name),
         actor,
@@ -3031,16 +3438,26 @@ def finalize(
         scope_acks=scope_acks,
         interactive=interactive,
         prompt=prompt,
+        widened=widened,
     )
     evidence["scope_reconciliation"] = {
         "reasons": reconcile.reasons,
         "acks": reconcile.acks,
         "resolved": reconcile.ok,
+        "widened_paths": list(widened),
     }
     if not reconcile.ok:
         findings_list: List[str] = []
+        widened_set = set(widened)
         for p in reconcile.missing_reasons:
-            findings_list.append(f"out-of-scope path needs a --scope-reason: {p}")
+            if p in widened_set:
+                # rcptwiden `63425h` E-04: name the act accurately. This path was DECLARED, so calling
+                # it out-of-scope would misdescribe the honest thing the executor did.
+                findings_list.append(
+                    "path ADDED to Scope-Paths after begin needs a --scope-reason: " + p
+                )
+            else:
+                findings_list.append(f"out-of-scope path needs a --scope-reason: {p}")
         for p in reconcile.missing_acks:
             findings_list.append(
                 f"declared-but-unmodified path needs a --scope-ack: {p}"
@@ -3090,7 +3507,9 @@ def finalize(
 
     # Fold the verbatim reconciliation note into the attributed history message so the deviation is
     # permanently on the record and attributable.
-    recon_note = _reconciliation_history_note(reconcile.reasons, reconcile.acks)
+    recon_note = _reconciliation_history_note(
+        reconcile.reasons, reconcile.acks, widened
+    )
     if recon_note:
         message = f"{message} [{recon_note}]"
 
