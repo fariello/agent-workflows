@@ -137,8 +137,54 @@ class AtomicWriteTests(unittest.TestCase):
         root = Path(tempfile.mkdtemp())
         target = root / "sub" / "f.md"
         C.atomic_write(target, "hello", prefix=".t-")
-        self.assertEqual(target.read_text(encoding="utf-8"), "hello")
+        # A MARKDOWN write is now normalized on the way out (per-line trailing whitespace stripped,
+        # exactly one final newline), so `"hello"` lands as `"hello\n"`. That is the assertion this
+        # test previously pinned the other way, changed deliberately by IPD `lqly9m` E-05: the mutating
+        # pre-commit hooks would otherwise "fix" every tool-written artifact and REJECT the commit,
+        # costing a full round trip for a stripped trailing space. The no-leftover property, which is
+        # what this test is actually about, is unchanged.
+        self.assertEqual(target.read_text(encoding="utf-8"), "hello\n")
         self.assertEqual(list(target.parent.glob(".t-*")), [])
+
+    def test_markdown_is_normalized_but_json_and_research_are_byte_for_byte(self):
+        """The normalization's SCOPE, which is the part that can silently corrupt if it is wrong.
+
+        `atomic_write` is NOT markdown-only: the leak-sanitizer allowlist and OpenCode's
+        `opencode.json` are written through this shape too, and the research trees are deliberately
+        excluded from every content-mutating pre-commit hook because their delivered formatting is
+        intentional. So both must pass through untouched.
+        """
+        root = Path(tempfile.mkdtemp())
+
+        md = root / "art.md"
+        C.atomic_write(md, "title   \n\nbody with trailing   \n\n\n")
+        self.assertEqual(
+            md.read_text(encoding="utf-8"), "title\n\nbody with trailing\n"
+        )
+
+        payload = '{\n  "model": "x"\n}   \n\n'
+        cfg = root / "opencode.json"
+        C.atomic_write(cfg, payload)
+        self.assertEqual(cfg.read_text(encoding="utf-8"), payload)
+
+        verbatim = "delivered heading   \nhard break  \nbody\n\n\n"
+        for rel in (
+            (".aw", "records", "research", "r.md"),
+            (".aw", "records", "docs", "research", "r.md"),
+            (".agents", "docs", "research", "r.md"),
+        ):
+            target = root.joinpath(*rel)
+            C.atomic_write(target, verbatim)
+            self.assertEqual(target.read_text(encoding="utf-8"), verbatim, rel)
+
+    def test_normalizer_is_idempotent_and_keeps_an_empty_write_empty(self):
+        self.assertEqual(C.normalize_artifact_markdown("a  \nb\t\n\n\n"), "a\nb\n")
+        once = C.normalize_artifact_markdown("a  \nb\t\n\n\n")
+        self.assertEqual(C.normalize_artifact_markdown(once), once)
+        # An all-whitespace body stays EMPTY rather than becoming a lone newline, which is what
+        # `end-of-file-fixer` itself would do.
+        self.assertEqual(C.normalize_artifact_markdown("   \n\n  \n"), "")
+        self.assertEqual(C.normalize_artifact_markdown(""), "")
 
 
 if __name__ == "__main__":

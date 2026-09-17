@@ -223,3 +223,309 @@ def test_documents_that_the_lock_alone_does_not_stop_a_writer_being_clobbered() 
     doc = commit_lock.__doc__ or ""
     assert "does NOT protect a plain WRITER" in doc
     assert "commit_isolated" in doc
+
+
+# --------------------------------------------------------------------------------------
+# ONE BOUNDED RETRY when a hook REWROTE our own paths (IPD lqly9m E-07/E-08/E-09)
+# --------------------------------------------------------------------------------------
+#
+# WHY THE RETRY LIVES HERE AND NOWHERE ELSE. The mutating hooks rewrite the file INSIDE the isolated
+# worktree, so the shared tree is untouched by design and a shared-tree re-hash detector could never
+# fire. `commit_isolated` is therefore the only layer that can observe its own rejection as a
+# self-rewrite rather than a refusal, and these tests pin both halves of that distinction.
+
+_HOOK_REWRITES_AND_REJECTS = """#!/bin/sh
+# The pre-commit auto-fix shape: FIX the staged file, then exit nonzero.
+changed=0
+for f in $(git diff --cached --name-only); do
+  [ -f "$f" ] || continue
+  sed -e 's/[ \t]*$//' "$f" > "$f.awtmp"
+  if cmp -s "$f" "$f.awtmp"; then
+    rm -f "$f.awtmp"
+  else
+    mv "$f.awtmp" "$f"
+    echo "Fixing $f"
+    changed=1
+  fi
+done
+[ "$changed" = 1 ] && exit 1
+exit 0
+"""
+
+_HOOK_REFUSES_WITHOUT_TOUCHING = """#!/bin/sh
+echo "refusing: policy violation" >&2
+exit 1
+"""
+
+
+def _install_hook(repo: Path, body: str) -> Path:
+    hook = repo / ".git" / "hooks" / "pre-commit"
+    hook.parent.mkdir(parents=True, exist_ok=True)
+    hook.write_text(body, encoding="utf-8")
+    hook.chmod(0o755)
+    return hook
+
+
+def test_a_hook_rewrite_is_classified_and_retried_exactly_once(
+    repo: Path, monkeypatch
+) -> None:
+    """MEASURED BASELINE: three consecutive calls used to return `hook-rejected` with no progress."""
+    _install_hook(repo, _HOOK_REWRITES_AND_REJECTS)
+    (repo / "art.md").write_text("trailing space here   \n", encoding="utf-8")
+    _git(repo, "add", "--", "art.md")
+
+    from agent_workflows import git_commit_helper as gch
+
+    attempts: list[list[str]] = []
+    real_git = gch._git
+
+    def spy(root, args):
+        if args and args[0] == "commit":
+            attempts.append(list(args))
+        return real_git(root, args)
+
+    monkeypatch.setattr(gch, "_git", spy)
+    res = commit_lock.commit_isolated(repo, ["art.md"], message="chore: art")
+
+    assert res.status == commit_lock.ISO_COMMITTED, res.detail
+    assert res.hook_fixed == ("art.md",), res
+    # EXACTLY two attempts: one retry, never a loop.
+    assert len(attempts) == 2, attempts
+    # The hook's own fix is what landed.
+    assert _git(repo, "show", "HEAD:art.md").stdout == "trailing space here\n"
+    assert "art.md" in res.detail
+
+
+def test_a_hook_refusal_is_not_retried_and_behaves_exactly_as_before(
+    repo: Path, monkeypatch
+) -> None:
+    """The property that keeps this from being `--no-verify` in disguise, asserted by ATTEMPT COUNT."""
+    _install_hook(repo, _HOOK_REFUSES_WITHOUT_TOUCHING)
+    (repo / "art.md").write_text("clean content\n", encoding="utf-8")
+    _git(repo, "add", "--", "art.md")
+    before = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+    from agent_workflows import git_commit_helper as gch
+
+    attempts: list[list[str]] = []
+    real_git = gch._git
+
+    def spy(root, args):
+        if args and args[0] == "commit":
+            attempts.append(list(args))
+        return real_git(root, args)
+
+    monkeypatch.setattr(gch, "_git", spy)
+    res = commit_lock.commit_isolated(repo, ["art.md"], message="chore: art")
+
+    assert res.status == commit_lock.ISO_HOOK_REJECTED, res
+    assert res.hook_fixed == ()
+    assert len(attempts) == 1, attempts
+    assert _git(repo, "rev-parse", "HEAD").stdout.strip() == before
+
+
+def test_a_second_rejection_after_the_retry_still_fails(repo: Path) -> None:
+    """One retry, never a fixed-point loop: a hook that rewrites EVERY time must still be refused."""
+    _install_hook(
+        repo,
+        "#!/bin/sh\n"
+        "for f in $(git diff --cached --name-only); do\n"
+        '  [ -f "$f" ] && printf "x" >> "$f"\n'
+        "done\n"
+        "exit 1\n",
+    )
+    (repo / "art.md").write_text("content\n", encoding="utf-8")
+    _git(repo, "add", "--", "art.md")
+
+    res = commit_lock.commit_isolated(repo, ["art.md"], message="chore: art")
+    assert res.status == commit_lock.ISO_HOOK_REJECTED, res
+    assert res.hook_fixed == ("art.md",)
+    assert "2 attempts" in res.detail
+
+
+def test_a_hook_fix_that_erases_the_whole_diff_is_nothing_to_commit(repo: Path) -> None:
+    """The commonest shape: a whitespace-ONLY edit whose fix restores what HEAD already holds."""
+    _install_hook(repo, _HOOK_REWRITES_AND_REJECTS)
+    (repo / "art.md").write_text("already clean\n", encoding="utf-8")
+    _git(repo, "add", "--", "art.md")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "seed art")
+    before = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    (repo / "art.md").write_text("already clean   \n", encoding="utf-8")
+    _git(repo, "add", "--", "art.md")
+
+    res = commit_lock.commit_isolated(
+        repo, ["art.md"], message="chore: whitespace only"
+    )
+
+    # NOT hook-rejected: the hook's fix left genuinely nothing to commit.
+    assert res.status == commit_lock.ISO_NOTHING, res
+    assert res.hook_fixed == ("art.md",), res
+    assert _git(repo, "rev-parse", "HEAD").stdout.strip() == before
+
+
+def test_an_absent_path_in_rel_does_not_raise(repo: Path) -> None:
+    """The FINALIZE shape: `rel` deliberately includes a path that was moved away.
+
+    `ipd_lifecycle` stages `[plan_rel, dest_rel]` and keeps `plan_rel` after the plan file moved, so a
+    naive per-path hash raises FileNotFoundError there, escaping as an exception instead of a result and
+    turning a recoverable whitespace rejection into a crash on the lifecycle path.
+    """
+    _install_hook(repo, _HOOK_REWRITES_AND_REJECTS)
+    (repo / "plan.md").write_text("plan\n", encoding="utf-8")
+    _git(repo, "add", "--", "plan.md")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "add plan")
+    _git(repo, "mv", "--", "plan.md", "dest.md")
+
+    res = commit_lock.commit_isolated(
+        repo, ["plan.md", "dest.md"], message="lifecycle(abc123): finalize"
+    )
+    assert res.status == commit_lock.ISO_COMMITTED, res.detail
+    assert isinstance(res, commit_lock.IsolatedCommitResult)
+
+
+def test_the_retry_leaves_the_shared_tree_reconciled_not_dirty(repo: Path) -> None:
+    """The hazard the retry itself creates, and the one this reconciliation exists to remove.
+
+    MEASURED before the fix: after a rewrite-then-retry, `git show HEAD:art.md` was
+    'trailing space here\\n' while the shared tree still read 'trailing space here   \\n' and
+    `git status --porcelain` reported ' M art.md'. That both re-presents the same whitespace to the same
+    hook next commit and can block a later lane integration (`dirty_tree_overlap`).
+    """
+    _install_hook(repo, _HOOK_REWRITES_AND_REJECTS)
+    (repo / "art.md").write_text("trailing space here   \n", encoding="utf-8")
+    _git(repo, "add", "--", "art.md")
+
+    res = commit_lock.commit_isolated(repo, ["art.md"], message="chore: art")
+
+    assert res.status == commit_lock.ISO_COMMITTED, res.detail
+    assert res.hook_fixed_diverged == ()
+    committed = _git(repo, "show", "HEAD:art.md").stdout
+    assert (repo / "art.md").read_text(encoding="utf-8") == committed
+    assert _git(repo, "status", "--porcelain").stdout == ""
+
+
+def test_a_peer_write_during_the_window_wins_over_the_write_back(
+    repo: Path, monkeypatch
+) -> None:
+    """The reconciliation is a CONTENT compare-and-swap, NOT the blind clobber isolation removed.
+
+    A peer that edits the same path while the hooks run must keep ITS content: our write-back declines,
+    reports the divergence, and destroys nothing.
+    """
+    _install_hook(repo, _HOOK_REWRITES_AND_REJECTS)
+    (repo / "art.md").write_text("trailing space here   \n", encoding="utf-8")
+    _git(repo, "add", "--", "art.md")
+
+    from agent_workflows import git_commit_helper as gch
+
+    peer_bytes = "PEER CONTENT WINS   \n"
+    real_git = gch._git
+
+    def spy(root, args):
+        rc, out, err = real_git(root, args)
+        if args and args[0] == "commit":
+            # The peer writes the SHARED path while the hooks run in the private worktree.
+            (repo / "art.md").write_text(peer_bytes, encoding="utf-8")
+        return rc, out, err
+
+    monkeypatch.setattr(gch, "_git", spy)
+    res = commit_lock.commit_isolated(repo, ["art.md"], message="chore: art")
+
+    assert res.status == commit_lock.ISO_COMMITTED, res.detail
+    assert res.hook_fixed == ("art.md",)
+    assert res.hook_fixed_diverged == ("art.md",), res
+    # The peer's bytes SURVIVE (both the hook window and our write-back), and we say so.
+    assert (repo / "art.md").read_text(encoding="utf-8") == peer_bytes
+    assert "another writer" in res.detail
+
+
+def test_one_lock_and_one_worktree_per_call_even_with_a_retry(
+    repo: Path, monkeypatch
+) -> None:
+    """E-08: the retry must happen INSIDE the same lock window and the SAME isolated worktree."""
+    _install_hook(repo, _HOOK_REWRITES_AND_REJECTS)
+    (repo / "art.md").write_text("trailing space here   \n", encoding="utf-8")
+
+    from agent_workflows import git_commit_helper as gch
+
+    worktree_adds: list[list[str]] = []
+    lock_seen_during_commits: list[bool] = []
+    real_git = gch._git
+
+    def spy(root, args):
+        if args[:2] == ["worktree", "add"]:
+            worktree_adds.append(list(args))
+        if args and args[0] == "commit":
+            owner = commit_lock.read_owner(repo)
+            lock_seen_during_commits.append(bool(owner and owner["pid"] == os.getpid()))
+        return real_git(root, args)
+
+    monkeypatch.setattr(gch, "_git", spy)
+    acquisitions: list[str] = []
+    real_acquire = commit_lock.try_acquire
+
+    def acquire_spy(repo_root, *, owner):
+        got = real_acquire(repo_root, owner=owner)
+        if got:
+            acquisitions.append(owner)
+        return got
+
+    monkeypatch.setattr(commit_lock, "try_acquire", acquire_spy)
+
+    out = gch.offer_commit(repo, ["art.md"], message="chore: art", assume_yes=True)
+
+    assert out.status == gch.STATUS_COMMITTED, out.message
+    assert out.hook_fixed == ("art.md",)
+    # TWO commit attempts, both inside ONE lock acquisition and ONE worktree.
+    assert lock_seen_during_commits == [True, True], lock_seen_during_commits
+    assert len(acquisitions) == 1, acquisitions
+    assert len(worktree_adds) == 1, worktree_adds
+    # Cleanup is unchanged: no leftover worktree registration or directory.
+    assert ".aw-isocommit-" not in _git(repo, "worktree", "list").stdout
+    assert not list(repo.parent.glob(".aw-isocommit-*"))
+    assert commit_lock.read_owner(repo) is None
+
+
+def test_documents_that_the_retry_is_bounded_and_the_refusal_unchanged() -> None:
+    """The two claims a reader must not have to infer, pinned so they cannot silently regress."""
+    # Whitespace-normalized so a reflowed docstring does not break the assertion on a line wrap.
+    doc = " ".join((commit_lock.commit_isolated.__doc__ or "").split())
+    assert "EXACTLY ONCE" in doc
+    assert "one retry, never a loop" in doc
+    assert "NEVER when a hook merely refused" in doc
+    # And the invariant the retry FALSIFIED must not still be stated unconditionally.
+    assert "THIS IS NOW CONDITIONAL" in (
+        Path(commit_lock.__file__).read_text(encoding="utf-8")
+    )
+
+
+def test_a_deletion_alongside_a_rewrite_does_not_lose_the_retry(repo: Path) -> None:
+    """The mixed shape, which a naive re-add of the WHOLE path set gets wrong.
+
+    MEASURED while building the retry: `git add` on an ALREADY-STAGED DELETION fails "pathspec did not
+    match any files" (the path is gone from disk AND from the index once its deletion is staged), and
+    `git add` stages NOTHING on failure. So re-adding all of `rel` turned a recoverable whitespace
+    rejection into `error` with the whole retry lost whenever one path in the set was a deletion --
+    exactly the shape a lifecycle-style commit passes. The retry therefore re-adds only the paths the
+    hook actually rewrote.
+    """
+    _install_hook(repo, _HOOK_REWRITES_AND_REJECTS)
+    (repo / "gone.md").write_text("bye\n", encoding="utf-8")
+    (repo / "keep.md").write_text("keep\n", encoding="utf-8")
+    _git(repo, "add", "--", "gone.md", "keep.md")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "seed both")
+
+    (repo / "gone.md").unlink()
+    (repo / "keep.md").write_text("keep changed   \n", encoding="utf-8")
+    _git(repo, "add", "--", "gone.md", "keep.md")
+
+    res = commit_lock.commit_isolated(
+        repo, ["gone.md", "keep.md"], message="chore: mixed"
+    )
+
+    assert res.status == commit_lock.ISO_COMMITTED, res.detail
+    assert res.hook_fixed == ("keep.md",), res
+    # BOTH halves landed: the deletion and the hook-fixed modification.
+    assert _git(repo, "cat-file", "-e", "HEAD:gone.md").returncode != 0
+    assert _git(repo, "show", "HEAD:keep.md").stdout == "keep changed\n"
+    assert _git(repo, "status", "--porcelain").stdout == ""
