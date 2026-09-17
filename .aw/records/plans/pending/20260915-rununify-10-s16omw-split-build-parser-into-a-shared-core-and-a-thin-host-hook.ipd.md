@@ -78,36 +78,36 @@ decision needs and performs no relocation.
 
 ### Task group 1: measure before touching
 
-- [ ] E-01 MEASURE THE FLAG SURFACE AND THE CLOSURE at execution HEAD, and refuse to proceed to E-04 on a stale list. TWO measurements, because the line count is the wrong unit for a parser. (a) Enumerate every `add_argument` option string on BOTH hosts across all four subparsers and classify each as shared / oc-only / agy-only; the Goal table records 17 / 7 / 10 at review. Additionally record, per host, the DEST each of `--validate`, `--no-validate`, `--verify`, `--no-verify`, `--audit`, `--no-audit` resolves to, because that is where the incompatible contract lives (F-7). (b) Run the closure test on `oc_runipd.build_parser`; the Goal table records 7 free names with only TWO still double-defined. This E-item writes NO runner logic.
+- [x] E-01 MEASURE THE FLAG SURFACE AND THE CLOSURE at execution HEAD, and refuse to proceed to E-04 on a stale list. TWO measurements, because the line count is the wrong unit for a parser. (a) Enumerate every `add_argument` option string on BOTH hosts across all four subparsers and classify each as shared / oc-only / agy-only; the Goal table records 17 / 7 / 10 at review. Additionally record, per host, the DEST each of `--validate`, `--no-validate`, `--verify`, `--no-verify`, `--audit`, `--no-audit` resolves to, because that is where the incompatible contract lives (F-7). (b) Run the closure test on `oc_runipd.build_parser`; the Goal table records 7 free names with only TWO still double-defined. This E-item writes NO runner logic.
   - Depends on: none
   - Expected outcome: both tables reproduced at execution HEAD; the 17/7/10 partition stated with members; the six verification-flag dests stated per host; the still-double-defined count stated; the ZERO-pin fact (F-9) confirmed or refuted by a repo-wide search for source inspection of `build_parser`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 PIN THE PER-HOST FLAG CONTRACT, which is what F-2's hazard actually requires and which no existing test states per host. Assert, for BOTH hosts, that the exact set of option strings each subparser registers is UNCHANGED (a table in the test, so an addition or removal fails), and assert the verification-dest asymmetry DIRECTLY: on oc `--verify`/`--audit`/`--no-verify` all resolve to dest `validate`; on agy `--verify`/`--audit` do NOT exist and `--no-verify`/`--no-audit` resolve to dest `no_verify` while `--validate`/`--no-validate` resolve to `validate`. Then add the characterization tests the parent's constraint requires. Prefer PARSER-OBJECT assertions over source inspection, following the 31 existing behavioral callers rather than introducing a pin this function has never had (F-9). This E-item writes TESTS ONLY and changes no runner logic.
+- [x] E-02 PIN THE PER-HOST FLAG CONTRACT, which is what F-2's hazard actually requires and which no existing test states per host. Assert, for BOTH hosts, that the exact set of option strings each subparser registers is UNCHANGED (a table in the test, so an addition or removal fails), and assert the verification-dest asymmetry DIRECTLY: on oc `--verify`/`--audit`/`--no-verify` all resolve to dest `validate`; on agy `--verify`/`--audit` do NOT exist and `--no-verify`/`--no-audit` resolve to dest `no_verify` while `--validate`/`--no-validate` resolve to `validate`. Then add the characterization tests the parent's constraint requires. Prefer PARSER-OBJECT assertions over source inspection, following the 31 existing behavioral callers rather than introducing a pin this function has never had (F-9). This E-item writes TESTS ONLY and changes no runner logic.
   - Depends on: E-01
   - Expected outcome: a committed suite that passes against UNMODIFIED code and FAILS if any host's flag set or any verification dest moves; agy's build-time guard `assert_verification_flags_are_distinct` still invoked and still passing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: what is already shared
 
-- [ ] E-03 ENUMERATE WHAT IS ALREADY SHARED, so the split's actual payoff is a measured number rather than an assumption. F-3 is correct that `runner_shared.register_run_policy_flags` already registers the 12 spec-governed `RUN_POLICY_FLAGS` rows and is called twice per host; state that, and state what REMAINS genuinely duplicated after accounting for it (measured at review: the four subparser skeletons, and the byte-identical `--repo`/`run_id`/`--json` registrations on `status`/`report`). Also state the STRING VOLUME the split would have to parameterize: roughly 8,400 characters of help/description text on oc and 5,100 on agy, 50 and 41 percent of each function's source. Do NOT edit product code in this item.
+- [x] E-03 ENUMERATE WHAT IS ALREADY SHARED, so the split's actual payoff is a measured number rather than an assumption. F-3 is correct that `runner_shared.register_run_policy_flags` already registers the 12 spec-governed `RUN_POLICY_FLAGS` rows and is called twice per host; state that, and state what REMAINS genuinely duplicated after accounting for it (measured at review: the four subparser skeletons, and the byte-identical `--repo`/`run_id`/`--json` registrations on `status`/`report`). Also state the STRING VOLUME the split would have to parameterize: roughly 8,400 characters of help/description text on oc and 5,100 on agy, 50 and 41 percent of each function's source. Do NOT edit product code in this item.
   - Depends on: E-01
   - Expected outcome: a written accounting of the residual duplication, with the payoff of a shared core stated as a number of lines rather than implied by the 47-line diff.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the split, GATED
 
-- [ ] E-04 DO NOT PERFORM THE SPLIT UNTIL OQ-03 IS ANSWERED, and record the analysis rather than silently skipping it. The deliverable is the disclosure, so an executor cannot mistake the omission for an oversight and "finish" it later. State, from E-01 through E-03: (a) the residual payoff from E-03 against the cost of parameterizing 17 host-specific option strings and 13,500 characters of help text; (b) that the oc-preferred ruling CANNOT apply, with the `assert_verification_flags_are_distinct` docstring quoted, since adopting oc's aliases would collide with agy's shipped `--no-verify`; (c) whether `_add_output_mode_flags` should move here, given child 04 assigns it to child 03 and child 03 as re-scoped does not lift it, so it is currently ORPHANED between two plans; and (d) a route recommendation with the reason. Change no runner logic in this item.
+- [x] E-04 DO NOT PERFORM THE SPLIT UNTIL OQ-03 IS ANSWERED, and record the analysis rather than silently skipping it. The deliverable is the disclosure, so an executor cannot mistake the omission for an oversight and "finish" it later. State, from E-01 through E-03: (a) the residual payoff from E-03 against the cost of parameterizing 17 host-specific option strings and 13,500 characters of help text; (b) that the oc-preferred ruling CANNOT apply, with the `assert_verification_flags_are_distinct` docstring quoted, since adopting oc's aliases would collide with agy's shipped `--no-verify`; (c) whether `_add_output_mode_flags` should move here, given child 04 assigns it to child 03 and child 03 as re-scoped does not lift it, so it is currently ORPHANED between two plans; and (d) a route recommendation with the reason. Change no runner logic in this item.
   - Depends on: E-01, E-03
   - Expected outcome: a written analysis sufficient for the maintainer to answer OQ-03 without re-deriving the measurement, explicitly answering whether a parser whose shared half is already shared warrants a shared core.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: proof
 
-- [ ] E-05 Add `tests/test_rununify_build_parser.py` asserting WHAT THIS PLAN ACTUALLY DID, driven by a named table rather than by the aspiration: the 17/7/10 flag partition asserted per host, the six verification dests asserted per host, the closure classification asserted, and `_add_output_mode_flags` / `_detect_driver_command` asserted STILL double-defined (the inverse assertion, so a later agent cannot collapse either without the OQ-03 decision). If OQ-03 authorizes the split, extend this file with shared-core object identity and the repo-wide AST anti-re-fork scan (per the parent's F10, not a pairwise check); do NOT write those assertions while the split is ungated, because a test asserting a state the code is not in is a failing test, not a guard.
+- [x] E-05 Add `tests/test_rununify_build_parser.py` asserting WHAT THIS PLAN ACTUALLY DID, driven by a named table rather than by the aspiration: the 17/7/10 flag partition asserted per host, the six verification dests asserted per host, the closure classification asserted, and `_add_output_mode_flags` / `_detect_driver_command` asserted STILL double-defined (the inverse assertion, so a later agent cannot collapse either without the OQ-03 decision). If OQ-03 authorizes the split, extend this file with shared-core object identity and the repo-wide AST anti-re-fork scan (per the parent's F10, not a pairwise check); do NOT write those assertions while the split is ungated, because a test asserting a state the code is not in is a failing test, not a guard.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: a suite that fails if any host's flag set changes, if a verification dest moves, or if a pinned double definition is unilaterally collapsed; and that does NOT assert an unexecuted split.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -250,6 +250,19 @@ per host; E-04 should say whether the spec acknowledges that `--no-verify` means
 hosts, because if it does not, the spec is currently incomplete and that is worth reporting even though
 fixing it is not this plan's job.
 
+ANSWERED AT EXECUTION 2026-09-17, AND THE ANSWER IS NO. `NO .spec.md FILE WAS CHANGED BY THIS PLAN`, which
+is correct: as re-scoped it registers no flag, so it forces no amendment. But the third consequence above was
+checked and the spec IS incomplete. Spec `25kzda` 2.1's grammar block declares neither `--validate` nor
+`--verify` nor `--no-verify`; only the twelve `RUN_POLICY_FLAGS` rows are spec-governed, which is why
+`tests/test_run_flag_surface.py` structurally CANNOT see the F-7 asymmetry (it checks the surface against the
+SPEC, in both directions, for the flags the spec declares). The runner `--no-verify` appears in the spec only
+in Section 2.1's 2026-09-05 amendment note and the `RUN-COMMIT-GATEWAY` rows, and there only to separate the
+RUNNER sense from the GIT sense. Nothing states that the flag means `--no-validate` on agy and is an alias of
+`--validate`'s tri-state on oc, nor that `--verify`/`--audit` do not exist on agy at all. So a live, shipped,
+operator-visible per-host difference is undocumented, and a future de-duplication has no spec sentence to
+check itself against. REPORTED RATHER THAN FIXED, per this section's own instruction, and filed as backlog
+`xdgorn` so it has a durable carrier instead of living in plan prose.
+
 ## Open questions
 
 ### OQ-01: Where exactly does the hook boundary belong?
@@ -358,30 +371,321 @@ fixing it is not this plan's job.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: BOTH tables pasted with the commands that produced them and the HEAD. (a) The flag partition per subparser with every option string classified, counts compared against the 17 / 7 / 10 measured at review. (b) The six verification-flag dests per host, showing oc's three-to-one collapse and agy's split. (c) The closure classification of all 7 free names with the still-double-defined pair named. (d) The repo-wide search confirming or refuting ZERO source-inspection pins on `build_parser` (F-9). A table that repeats this plan's numbers without re-deriving them at execution HEAD does NOT satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Execution HEAD `4a1bb873e68d8c5a52a3c735a1d5a04c2ef11adf`. Every number below was RE-DERIVED here, not copied from the review.
 
-- [ ] V-02 validates E-02
+    **(a) THE FLAG PARTITION, AND THE ONE NUMBER THAT MOVED.** The review's 17 / 7 / 10 REPRODUCES EXACTLY, but only by the method that produced it, and that method is not what an operator meets. Both are now measured and both are pinned.
+
+    METHOD A, the LIVE parser objects (`measure_e01a.py`, all five subparsers on both hosts):
+
+    ```
+    === subparsers per host ===
+    oc: ['report', 'resume', 'start', 'status', 'stop']
+    agy: ['report', 'resume', 'start', 'status', 'stop']
+
+    --- subparser `start` ---
+      shared   (44): [...]
+      oc-only  ( 8): ['--agent', '--audit', '--auto', '--no-auto', '--opencode', '--variant', '--verify', '--verify-with']
+      agy-only ( 8): ['--agy', '--agy-executable', '--dangerous', '--dangerously-skip-permissions', '--effort', '--new-session', '--no-dangerously-skip-permissions', '--timeout']
+    --- subparser `resume` ---
+      shared   (33): [...]
+      oc-only  ( 8): ['--audit', '--no-audit', '--no-validate', '--no-verify', '--validate', '--variant', '--verify', '--verify-with']
+      agy-only ( 2): ['--agy', '--agy-executable']
+    --- subparser `report` ---  shared (4), oc-only 0, agy-only 0
+    --- subparser `status` ---  shared (5), oc-only 0, agy-only 0
+    --- subparser `stop`   ---  shared (8), oc-only 0, agy-only 0
+
+    === WHOLE-CLI UNION PARTITION ===
+    counts: shared=51 oc-only=8 agy-only=8
+    ```
+
+    METHOD B, the review's SOURCE-LITERAL count (`measure_e01c.py`), which cannot see a `--no-X` that `BooleanOptionalAction` auto-generates nor anything a shared helper registers:
+
+    ```
+    oc: 37 literals, 24 distinct
+    agy: 37 literals, 27 distinct
+    SHARED   (17): ['--action', '--json', '--manifest', '--max-items-per-session', '--model', '--no-isolate-worktree', '--no-self-finalize', '--prepare-only', '--repo', '--retry-incomplete', '--run-id', '--runbook', '--session', '--stall-timeout', '--validate', 'run_id', 'selectors']
+    OC-ONLY  ( 7): ['--agent', '--audit', '--auto', '--opencode', '--variant', '--verify', '--verify-with']
+    AGY-ONLY (10): ['--agy', '--agy-executable', '--dangerous', '--dangerously-skip-permissions', '--effort', '--new-session', '--no-audit', '--no-dangerously-skip-permissions', '--no-verify', '--timeout']
+    counts (METHOD B): shared=17 oc-only=7 agy-only=10
+    ```
+
+    So the review's figure is CORRECT for what it measured and the live figure is 51 / 8 / 8. Both are asserted in `TheFlagPartitionIsPinnedByBothMeasurementMethods`, together with an assertion that the two methods still DISAGREE, so nobody later "fixes" one to match the other. NOTE the trap this exposes: `--no-verify` and `--no-audit` are literal-agy-only but LIVE-SHARED (verified: `--no-audit oc=True agy=True`), i.e. both hosts spell the same flag and mean different things by it, which is exactly (b).
+
+    Also re-derived: raw lines oc=352 agy=266 (review 347/264, drifted by 5 and 2); normalized code lines oc=46 agy=47 (exact); 23 identical, so 23 oc-side and 24 agy-side differ, which is the review's "47" as the SUM of both sides; similarity 0.4946 (EXACT, and the lowest of the five large functions).
+
+    **(b) THE SIX VERIFICATION DESTS PER HOST** (`measure_e01b.py`). oc's three-to-one collapse and agy's split both reproduce:
+
+    ```
+    --- `start` ---
+      oc : --validate->validate  --no-validate->validate  --verify->validate  --no-verify->validate  --audit->validate  --no-audit->validate
+      agy: --validate->validate  --no-validate->validate  --verify->None     --no-verify->no_verify  --audit->None     --no-audit->no_verify
+    --- `resume` ---
+      oc : --validate->validate  --no-validate->validate  --verify->validate  --no-verify->validate  --audit->validate  --no-audit->validate
+      agy: --validate->None      --no-validate->None      --verify->None      --no-verify->None      --audit->None      --no-audit->None
+    ```
+
+    A FACT THE REVIEW DID NOT RECORD: on agy `resume`, NONE of the six is registered. That is now pinned by `test_agy_registers_no_verification_flags_on_resume_at_all`, because a shared core registering oc's resume block on both hosts would hand agy six new flags.
+
+    **(c) THE CLOSURE, all 7 free names classified** (`measure_e01c.py`). Exactly as the review recorded, with only TWO still double-defined:
+
+    ```
+    free names (7): ['ACTION_CHOICES', 'DEFAULT_STALL_TIMEOUT', '_add_output_mode_flags', '_detect_driver_command', 'argparse', 'runner_shared', 'runner_stop']
+
+      ACTION_CHOICES          oc=True agy=True runner_shared=False  DOUBLE-DEFINED but EQUAL value
+      DEFAULT_STALL_TIMEOUT   oc=True agy=True runner_shared=False  DOUBLE-DEFINED but EQUAL value
+      _add_output_mode_flags  oc=True agy=True runner_shared=False  DOUBLE-DEFINED
+      _detect_driver_command  oc=True agy=True runner_shared=False  DOUBLE-DEFINED
+      argparse                oc=True agy=True runner_shared=False  SAME OBJECT (already single)
+      runner_shared           oc=True agy=True runner_shared=False  SAME OBJECT (already single)
+      runner_stop             oc=True agy=True runner_shared=False  SAME OBJECT (already single)
+    ```
+
+    STILL-DOUBLE-DEFINED PAIR NAMED: `_add_output_mode_flags` and `_detect_driver_command`. F-10's "cleanest closure in the Set" is confirmed (against `execute_item`'s 18 and `initialize_run`'s 34).
+
+    **(d) ZERO SOURCE-INSPECTION PINS, CONFIRMED (F-9).** 35 test files touch `build_parser`; a repo-wide search for the pin classes found none:
+
+    ```
+    $ grep -rln "build_parser" tests/ | wc -l
+    35
+    $ grep -rn "getsource" tests/ | grep -i "build_parser"    ->  no matches (exit 1)
+    $ grep -rn "build_parser" tests/ | grep -i "ast\.\|getsource\|readlines\|read()\|splitlines"  ->  no matches
+    ```
+
+    The only four hits for the name in a mocking context are `mock.patch.object(..., "build_parser", ...)` (`tests/test_oc_runipd_cli.py:158`, `tests/test_oc_runipd.py:4286`, `:4393`), which patch the OBJECT and are not source pins. This property is now itself guarded by `test_build_parser_still_carries_no_source_inspection_pin`, proven non-vacuous in V-05.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: THREE parts, all pasted. (a) The flag-contract suite green, showing each host's exact option-string set per subparser and the verification-dest asymmetry asserted directly. (b) Confirmation the assertions are made on the PARSER OBJECT and that no `inspect.getsource` of `build_parser` was introduced (F-9 preserved). (c) The characterization suite green against UNMODIFIED code with the previously uncovered agy branches named, plus a sabotage of one pinned branch showing the suite FAILS and names it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: **(a) THE FLAG-CONTRACT SUITE GREEN** against UNMODIFIED product code (`git status --porcelain agent_workflows/` empty at the time of the run):
 
-- [ ] V-03 validates E-03
+    ```
+    $ python3 -m pytest tests/test_rununify_build_parser_characterization.py -o addopts=""
+    collected 18 items
+    tests/test_rununify_build_parser_characterization.py ..................  [100%]
+    ============================== 18 passed in 0.24s ==============================
+    ```
+
+    `tests/test_rununify_build_parser_characterization.py` holds three classes. `EachHostRegistersExactlyItsOwnFlagSet` (4 tests) carries `EXPECTED_OPTION_STRINGS`, a per-host per-subparser table of the EXACT option-string set, so an addition or removal fails naming the flag; it also pins the 8/8 host-only partition with members and asserts the table is not stale against the live subparser names. `TheVerificationDestAsymmetryIsPinnedPerHost` (5 tests) asserts the dests DIRECTLY, in both directions: oc's six spellings all resolve to `validate` on BOTH `start` and `resume`; agy's `--verify`/`--audit` are ABSENT, `--no-verify`/`--no-audit` resolve to `no_verify`, `--validate`/`--no-validate` to `validate`; agy's `resume` registers none of the six; agy's build-time guard is called and is non-vacuous; and oc's lack of the guard is asserted as a decision rather than left as an omission.
+
+    **(b) PARSER-OBJECT ASSERTIONS, F-9 PRESERVED.** Every assertion in the new characterization file reaches the parser through `HOSTS[host].build_parser()` and then through the `_SubParsersAction`'s `choices`, `_actions`, `option_strings` and `dest`, or through a parsed `Namespace`. No `inspect.getsource` of `build_parser` was introduced anywhere. This is not merely asserted in prose: `tests/test_rununify_build_parser.py::test_build_parser_still_carries_no_source_inspection_pin` scans EVERY `tests/test_*.py` for the pin classes and passes, and V-05(b) shows it FAILING on a planted pin, so the claim is machine-checked in both directions. (The scanner assembles its needles at runtime so it cannot match its own literals; a hardcoded list made it fail on itself, and excluding the file would have been the wrong fix since this file must be scanned too.)
+
+    **(c) CHARACTERIZATION GREEN, THE PREVIOUSLY UNCOVERED AGY BRANCHES NAMED, AND SABOTAGE.** `TheBranchesASplitWouldMoveAreCharacterized` (9 tests) asserts what each parser PRODUCES, on BOTH hosts wherever the property is shared: a bare `start` freezes the measured defaults (`output_mode=clean`, `verbosity=0`, `stall_timeout=600.0`, `self_finalize=True`, `isolate_worktree=True`); `--quiet`/`--raw` are mutually exclusive; `resume` leaves `verbosity` ABSENT so a frozen tier survives; `--action` choices are constrained; the twelve already-shared policy rows parse identically; and `status`/`report` accept their positional and `--repo`.
+
+    THE AGY BRANCHES THAT HAD NO PER-HOST COVERAGE, now named and pinned by `test_agy_only_start_defaults_are_what_was_measured`: `--effort` (no default; the host decides downstream), `--timeout` (defaults to the module constant `DEFAULT_TIMEOUT = '240m'`), `--new-session` (`False`), and `--dangerously-skip-permissions`, which DEFAULTS TO TRUE. That last one was found by this validation rather than assumed: my first draft asserted `None`, the test failed, and reading the code showed the default is genuinely `True`, which is the opposite of what the flag name suggests and is exactly why it is now pinned with that reason recorded. `test_the_verification_tristate_reads_each_hosts_flags_as_measured` then carries the CONSEQUENCE through `agy_runipd.verification_flag_tristate`, including that `--no-verify --validate` is REFUSED rather than resolved by precedence. Two assumptions of mine were wrong here (`--effort` and `dangerously_skip_permissions`) and both were corrected to the measured truth rather than the test being loosened.
+
+    SABOTAGE, THREE DIRECTIONS, each shown failing and then restored:
+
+    ADDED FLAG (`--throwaway-control-flag` on oc `start`):
+
+    ```
+    E  AssertionError: Tuples differ: (['--throwaway-control-flag'], []) != ([], [])
+       : oc `start` flag surface CHANGED: added=['--throwaway-control-flag'] removed=[]...
+    FAILED ...::test_the_host_only_partition_is_what_was_measured
+    FAILED ...::test_every_subparser_registers_exactly_the_measured_option_strings
+    ========================= 2 failed, 16 passed in 0.35s =========================
+    ```
+
+    REMOVED FLAG (agy `--effort` deleted, the direction an over-eager de-duplication causes):
+
+    ```
+    E  + ([], []) : agy `start` flag surface CHANGED: added=[] removed=['--effort']...
+    FAILED ...::test_every_subparser_registers_exactly_the_measured_option_strings
+    FAILED ...::test_the_host_only_partition_is_what_was_measured
+    FAILED ...::test_agy_only_start_defaults_are_what_was_measured
+    ========================= 3 failed, 15 passed in 0.41s =========================
+    ```
+
+    THE F-7 COLLISION ITSELF is the third direction and is pasted in V-05(b). After each sabotage the file was restored with `git checkout --` / a byte-identical copy and `git status --porcelain agent_workflows/` confirmed EMPTY, then the suite re-run green (18 passed).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the residual-payoff accounting as NUMBERS: how many rows `RUN_POLICY_FLAGS` carries and how many times each host registers them; what remains genuinely duplicated after accounting for that; and the string-literal character counts per host. Plus an explicit statement of the split's remaining de-duplication payoff in lines, so the cost/benefit in OQ-03 rests on a measurement rather than an impression.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All figures from `measure_e03.py` at HEAD `4a1bb873`.
 
-- [ ] V-04 validates E-04
+    **WHAT IS ALREADY SHARED, AS NUMBERS.** F-3 is confirmed exactly:
+
+    ```
+    RUN_POLICY_FLAGS rows: 12
+    flags: ['--allow-mixed', '--allow-drafts', '--unattended', '--full-auto', '--allow-unverifiable',
+            '--unverifiable-ok', '--follow-generated', '--with-dependencies', '--retry-budget',
+            '--allow-dirty-base', '--integration-retry-limit', '--on-integration-blocked']
+    oc: register_run_policy_flags called 2 times in build_parser
+    agy: register_run_policy_flags called 2 times in build_parser
+
+    LIVE option strings on `start` attributable to the shared policy table: 21
+    SHARED live option strings: 51
+      of which already registered from the shared table: 21
+      remaining shared strings registered by DUPLICATED code: 30
+    ```
+
+    12 rows, 2 registrations per host, accounting for 21 of the 51 shared live option strings. Three further helpers are ALREADY single-implementation or already called from both hosts, measured from each `build_parser`'s call graph: `runner_shared.register_run_policy_flags`, `runner_stop.add_stop_parser` (which supplies the ENTIRE `stop` subparser, 8 option strings, identically on both hosts), plus the two still-forked-but-called `_add_output_mode_flags` and `_detect_driver_command`.
+
+    **WHAT REMAINS GENUINELY DUPLICATED: 23 IDENTICAL NORMALIZED CODE LINES.** This is the payoff figure, and it is stated as a number rather than implied:
+
+    ```
+    oc normalized code lines : 46
+    agy normalized code lines: 47
+    IDENTICAL normalized lines (the de-duplication ceiling): 23
+    ```
+
+    The 23, enumerated verbatim by the measurement: the `def` line; `add_subparsers`; four `add_parser` calls (`start`, `resume`, `status`, `report`); two `_add_output_mode_flags` calls; one `register_run_policy_flags` call; `add_stop_parser`; the `return`; and nine byte-identical `add_argument` registrations (`--run-id`, `--no-self-finalize`, `--no-isolate-worktree`, `--max-items-per-session` twice, `--repo` three times, `run_id` twice, `--retry-incomplete`). NOTE THE CORRECTION TO THE REVIEW: it estimated the residue as "the four subparser skeletons plus a handful of byte-identical registrations", which is the right shape but understates it; the measured ceiling is 23 lines, and it is now pinned as `IDENTICAL_NORMALIZED_LINES = 23` so a de-duplication must move it deliberately.
+
+    **THE STRING VOLUME A SHARED CORE MUST PARAMETERIZE:**
+
+    ```
+    oc : 8761 string-literal chars / 16829 source chars (52.1%), raw lines=352
+    agy: 5195 string-literal chars / 12372 source chars (42.0%), raw lines=266
+    ```
+
+    13,956 characters total, 52.1% and 42.0% of each function's source (review: ~8,400/~5,100, 50%/41%; reproduces).
+
+    **THE PAYOFF STATED PLAINLY, so OQ-03's cost/benefit rests on measurement:** relocating this function can remove AT MOST 23 duplicated lines, and doing so requires parameterizing 16 host-specific option strings (8 each way) plus ~14,000 characters of divergent help text whose content documents capabilities the other host does not have (oc's `as <profile>` precedence chain and profile freezing, against zero `runner_profiles` references in agy; agy's clean-session skeptical self-validation). The spec-governed half of the shared surface is already single-implementation, which is what makes the residue small. `test_the_spec_governed_half_is_already_shared_and_must_not_be_re_forked` and `test_the_policy_table_accounts_for_twenty_one_of_the_shared_live_strings` guard the "already shared" half against being silently re-forked by a future "shared core" that would then claim a payoff it did not deliver.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the written analysis, covering parts (a) through (d) E-04 enumerates, with the `assert_verification_flags_are_distinct` docstring quoted as the evidence that the oc-preferred ruling cannot apply, and an explicit disposition for the ORPHANED `_add_output_mode_flags` (F-8). Plus an explicit statement that NO split was performed and that OQ-03 remains the maintainer's, so the omission cannot be read as an oversight.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: The full analysis is `.aw/records/walkthroughs/20260917-bpclosure-01-s16omw-build-parser-two-cli-contracts-not-one-with-drift.walkthrough.md`. It is a TRACKED record rather than a lane note, deliberately: the lane submission tree is gitignored, which is the correction sibling `yrqyxb` had to make after the fact. Summary of each part:
 
-- [ ] V-05 validates E-05
+    **(a) RESIDUAL PAYOFF AGAINST COST.** Remove at most 23 duplicated lines; add a parameter surface of 16 host-specific option strings and 13,956 characters of help text. Full numbers in V-03. The analysis also corrects the plan's own Concern: "most of the divergence is DRIFT in shared logic" is FALSE for this symbol (23 identical of 46/47 lines, similarity 0.4946, the lowest of the five), and the plan's own F-1 says the opposite and is correct. An executor trusting the Concern would hunt for drift and find two intentional CLI contracts.
+
+    **(b) THE OC-PREFERRED RULING CANNOT APPLY, WITH THE DOCSTRING QUOTED.** The analysis quotes `assert_verification_flags_are_distinct` (`agent_workflows/agy_runipd.py:2034`) verbatim: "`BooleanOptionalAction` auto-generates a `--no-X` for every option string it is given, so registering `--validate` with oc's alias list (`--verify`, `--audit`) would generate `--no-verify` and `--no-audit`, which this parser already declares. With the default `conflict_handler` that raises at build time and is impossible to miss. With `conflict_handler=\"resolve\"` it does something far worse and SILENT: the new action STEALS `--no-verify`/`--no-audit`, and the shipped spelling stops meaning what every existing invocation and every piece of documentation says it means."
+
+    BOTH BRANCHES WERE EXECUTED RATHER THAN TAKEN ON TRUST, which no prior record in this Set did. The raising branch is pasted in V-05(b). The SILENT branch, reproduced in isolation with `conflict_handler="resolve"`:
+
+    ```
+    after resolve-handler theft: namespace = Namespace(validate=False)
+    has no_verify attr: False
+    --no-verify now resolves to dest: validate
+    ```
+
+    `args.no_verify` ceases to EXIST, so agy's freeze site reads `False` unconditionally: verification silently OFF by default on the host whose whole posture is verification ON. This is an A / NOT-A case, not an oc-preferred case.
+
+    **(c) DISPOSITION FOR THE ORPHANED `_add_output_mode_flags` (F-8), STATED EXPLICITLY.** F-8 reproduces: child 04 (`tx6q0h`) lifts `_detect_driver_command` and explicitly assigns `_add_output_mode_flags` to child 03; child 03 (`i3d6ml`) was re-scoped from 48 symbols to 9 (groups A and B) and group H, which holds it, was dropped (verified in `i3d6ml`'s own E-05 text and F-14). DISPOSITION: it should NOT move under this plan, because this plan as re-scoped changes no product code and lifting a shared helper is product code. RECOMMENDED OWNER: child 03, by re-adding group H, since it already owns the lift mechanism and the named-table test pattern; failing that, a new precursor child. Two facts make the lift a decision rather than a move, and both are now pinned: the two bodies genuinely DIFFER (`test_the_two_output_mode_helper_bodies_genuinely_differ`), and the helper carries a deliberate `verbosity_default` asymmetry (0 on `start`, `None` on `resume`) now characterized on BOTH hosts. FILED AS A DURABLE CARRIER: backlog `xw4rb7`, so the orphan does not live only in this prose.
+
+    **(d) ROUTE RECOMMENDATION.** Route (B) as the tactic, with an explicit statement of what route (A) can and cannot mean here. It CAN mean one shared skeleton builder holding the measured 23 lines, each host then adding its own flags and help; that removes the whole measured redundancy, which is what the maintainer's directive asks for. It CANNOT mean one function emitting both hosts' flag surfaces, because those are 16 strings apart and one difference is (b)'s incompatibility; a single function would need either a host branch inside the shared core (the duplication this Set exists to remove wearing a different shape, which this plan's own OQ-01 names as the mechanical test) or a caller-supplied dict of everything host-specific, which reduces the shared core to the skeleton, i.e. to route (B). So route (B) is not a lesser route (A) for this symbol; it is what route (A) resolves to once the verification asymmetry is respected. SEQUENCING: the two closure forks land first, after which the skeleton extraction has no remaining host-specific dependency and, uniquely in this Set, no source pin to re-base. Do not re-order plans by hand; the runner sorts by dependency depth and re-checks at dispatch.
+
+    **NO SPLIT WAS PERFORMED, and OQ-03's status is stated precisely rather than left ambiguous.** OQ-03 is `resolved` ON DISK: the maintainer answered it on 2026-09-16 with a Set-wide directive (100% de-duplication, route (A) as the objective, route (B)'s ordering permitted as a tactic). So this plan did NOT withhold the split pending a decision that was already made. It withheld it for two reasons of AUTHORITY rather than difficulty, both stated in the walkthrough: this plan's own re-scope, written into its E-items and its scope check at review, states that it changes NO product code and that E-04's deliverable is analysis, so performing the extraction would exceed the scope it was approved with; and its declared `Item-Dependencies: executed:tx6q0h` is UNMET at execution HEAD (`tx6q0h` is `approved` in `pending/`, not `executed`), so the one prerequisite the plan names has not landed. Doing the extraction anyway would have meant lifting a symbol another approved plan owns, in a plan whose dependency is unmet, against its own stated scope. WHAT REMAINS FOR THE MAINTAINER IS A SEQUENCING JUDGMENT, and the analysis makes a recommendation on it rather than asking. THE OMISSION CANNOT BE READ AS AN OVERSIGHT BECAUSE IT IS ASSERTED MECHANICALLY: `tests/test_rununify_build_parser.py::TheSplitHasNotBeenPerformed` (5 tests) asserts both hosts still define the function, `runner_shared` does not, the two definitions are not the same object, neither host delegates to its peer, and no source pin has appeared.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: FIVE parts, all pasted. (a) `python3 -m pytest tests/test_rununify_build_parser.py -o addopts=""` green, including the inverse still-double-defined assertions. (b) The BIDIRECTIONAL non-vacuity controls from Required tests item 7, both directions shown failing and then restored, the second demonstrating the suite would catch the F-7 collision. (c) `tests/test_run_flag_surface.py` green with its count, compared against the 89 measured at review. (d) Proof that `agy_runipd.build_parser()` still calls `assert_verification_flags_are_distinct` and builds without raising. (e) Bare `python3 -m pytest` with no new failure against the baseline taken at execution HEAD, summary pasted, plus both hosts' suites green by name.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: **(a) THE GUARD SUITE:**
+
+    ```
+    $ python3 -m pytest tests/test_rununify_build_parser.py -o addopts=""
+    collected 21 items
+    tests/test_rununify_build_parser.py .....................                [100%]
+    ============================== 21 passed in 1.06s ==============================
+    ```
+
+    Five classes. `TheClosureClassificationIsPinned` (5) asserts the closure is exactly the seven measured names, that the three classes are disjoint so the table cannot contradict itself, that the ALREADY_SINGLE names really are one object from both hosts, and that the EQUAL_CONSTANTS agree AND still hold their measured values (so "equal" cannot be satisfied by both hosts drifting together). `TheTwoRemainingForksAreStillForked` (3) is the INVERSE assertion: both forks still defined in both runners, neither in `runner_shared`, and the two `_add_output_mode_flags` bodies genuinely differing. `TheFlagPartitionIsPinnedByBothMeasurementMethods` (3) pins 17/7/10 by literal and 51/8/8 live and asserts the two methods still disagree. `TheResidualDeduplicationPayoffIsMeasured` (5) pins the 23-line ceiling, the 0.4946 similarity, the 52.1%/42.0% string share, and the already-shared policy half in both directions. `TheSplitHasNotBeenPerformed` (5) is the tripwire.
+
+    Both suites together: `39 passed in 1.25s`.
+
+    **(b) NON-VACUITY, BIDIRECTIONAL AND THEN SOME: FIVE controls, each shown failing and then restored.**
+
+    CONTROL 1, THE F-7 COLLISION, which is the control the plan specifically demands. oc's alias list registered on agy, exactly as a naive "resolve to oc" split would:
+
+    ```
+    E  argparse.ArgumentError: argument --validate/--no-validate/--verify/--no-verify/--audit/--no-audit:
+       conflicting option strings: --no-verify, --no-audit
+    FAILED ...::test_agys_build_time_collision_guard_is_still_called_and_still_passes
+    FAILED ...::test_agy_splits_the_spellings_across_two_dests_and_omits_two
+    FAILED ...::test_agy_registers_no_verification_flags_on_resume_at_all
+    (+12 more)
+    ========================= 15 failed, 3 passed in 2.67s =========================
+    ```
+
+    So the suite WOULD catch the F-7 collision, and the docstring's "raises at build time" branch is now a measured fact. Its SILENT branch is pasted in V-04(b).
+
+    CONTROL 2, AN ADDED FLAG (oc `start`): fails naming `--throwaway-control-flag`. Pasted in V-02(c).
+
+    CONTROL 3, A REMOVED FLAG (agy `--effort`): fails naming `removed=['--effort']`. Pasted in V-02(c).
+
+    CONTROL 4, THE SPLIT LANDING (`runner_shared` acquires a `build_parser`):
+
+    ```
+    FAILED ...::TheSplitHasNotBeenPerformed::test_runner_shared_does_not_define_a_build_parser_core
+    ========================= 1 failed, 20 passed in 1.18s =========================
+    ```
+
+    CONTROL 5, A FORK COLLAPSED PIECEMEAL (agy's `_detect_driver_command` rebound):
+
+    ```
+    FAILED ...::TheTwoRemainingForksAreStillForked::test_both_forks_are_still_defined_in_both_runners
+    FAILED ...::TheFlagPartitionIsPinnedByBothMeasurementMethods::test_the_live_partition_is_fifty_one_eight_eight
+    ========================= 2 failed, 19 passed in 1.31s =========================
+    ```
+
+    CONTROL 6, THE ANTI-PIN SCANNER (a real source pin planted in a scratch test file), proving that guard is not vacuous:
+
+    ```
+    E  AssertionError: Lists differ: ['test_zz_scratch_pin_control.py: getsource(oc_runipd.build_parser'] != []
+    FAILED ...::TheSplitHasNotBeenPerformed::test_build_parser_still_carries_no_source_inspection_pin
+    ========================= 1 failed, 20 passed in 1.10s =========================
+    ```
+
+    AFTER EVERY CONTROL the sabotage was reverted and `git status --porcelain agent_workflows/` confirmed EMPTY (and the scratch file deleted), with the suites re-run green: `39 passed`.
+
+    **(c) THE SPEC CONTRACT SUITE, MATCHING THE REVIEW'S 89 EXACTLY:**
+
+    ```
+    $ python3 -m pytest tests/test_run_flag_surface.py -o addopts=""
+    tests/test_run_flag_surface.py ......................................... [ 46%]
+    ................................................                        [100%]
+    ============================== 89 passed in 5.61s ==============================
+    ```
+
+    Also `tests/test_run_flag_surface.py tests/test_runner_shared.py` together: `223 passed in 23.76s`. NOTE: `tests/test_run_flag_surface.py` was declared in `Scope-Paths` and was NOT modified; E-02's assertions landed in the two new files instead, because that suite's job is code-versus-SPEC while this plan's is code-versus-each-HOST. It therefore needs a `--scope-ack`, per the plan's own execution contract which anticipated either outcome and asked which.
+
+    **(d) AGY'S BUILD-TIME GUARD STILL CALLED AND STILL PASSING.** `agent_workflows/agy_runipd.py:5838` still reads `assert_verification_flags_are_distinct(start)` at the end of `build_parser`, and `test_agys_build_time_collision_guard_is_still_called_and_still_passes` BUILDS the parser (a successful build IS the passing guard, since the guard raises `DriverError` on collision) rather than merely importing the module, then additionally proves the guard still REFUSES the collision it was installed for by handing it a deliberately stolen parser. Control 1 above is the end-to-end proof: when the collision is real, building fails.
+
+    **(e) BARE SUITE, NO NEW FAILURE, AGAINST A BASELINE TAKEN AT MY OWN HEAD BEFORE CHANGING ANYTHING.**
+
+    BASELINE, at `4a1bb873` before any edit:
+
+    ```
+    $ python3 -m pytest
+    31 failed, 7645 passed, 3 skipped, 2 xfailed in 105.51s (0:01:45)
+    ```
+
+    AFTER this plan's changes:
+
+    ```
+    $ python3 -m pytest
+    31 failed, 7684 passed, 3 skipped, 2 xfailed in 99.21s (0:01:39)
+    ```
+
+    THE FAILURE SETS ARE IDENTICAL, proven mechanically rather than by eye (both runs' `FAILED` lines captured, sorted, and diffed):
+
+    ```
+    $ diff baseline-failures.txt after-failures.txt && echo "IDENTICAL FAILURE SET: no new failure introduced"
+    IDENTICAL FAILURE SET: no new failure introduced
+    ```
+
+    39 more tests pass and none newly fails. THE 31 BASELINE FAILURES ARE ENVIRONMENTAL AND PRE-EXISTING, and the cause was diagnosed rather than assumed: the driver exports `AW_EXECUTION_ROLE=worker` into the lane, and `agent_workflows/ipd_lifecycle.py:69` correctly refuses `begin`/`finalize` for a worker-role process with `AW-LIFECYCLE-ROLE-001`; 31 tests across five files call those verbs without neutralizing the variable. Clearing it turns the whole suite green, which proves both the cause and that the tree is clean:
+
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest        # BEFORE my changes
+    7676 passed, 3 skipped, 2 xfailed in 99.32s (0:01:39)
+
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest        # AFTER my changes
+    7715 passed, 3 skipped, 2 xfailed in 102.82s (0:01:42)
+    ```
+
+    This is a real defect in test isolation (not a product defect, and the refusal itself must NOT be weakened) and is filed as backlog `770fkp`, because a red baseline in every lane invites an executor either to chase 31 phantom failures or to learn to wave failures away.
+
+    BOTH HOSTS' SUITES GREEN BY NAME:
+
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py -o addopts="-q"
+    251 passed in 39.34s
+    ```
+
+    (With the worker role left set, those two files show `17 failed, 234 passed`, all 17 members of the same environmental set.)
+  - Result: pass
 
 ## Approval and execution gate
 
