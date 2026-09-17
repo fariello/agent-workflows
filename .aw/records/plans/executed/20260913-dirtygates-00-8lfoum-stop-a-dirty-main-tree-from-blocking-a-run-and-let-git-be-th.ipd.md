@@ -7,18 +7,18 @@
   THE COLLISION WITH THREE APPROVED RELEASE-BLOCKING PLANS IS RESOLVED AND DISSOLVED, NOT PENDING. Round 1 of review found that `fujm0y`, `51vw4y` and `3i0aaz` (each `Status: approved`, `Blocks-Release: next`) were signed off to widen, preserve, or extend exactly what Orders 01 and 02 then proposed to delete. OQ-02 was resolved to answer (c) and BOTH children were revised accordingly: Order 01 now removes the refusal for the ISOLATED path only and its spec amendment PRESERVES R5.4's obligation for the shared-tree path that `3i0aaz` E-03 extends; Order 02 now KEEPS `dirty_tree_overlap` and reduces to reclassifying a git local-changes refusal from `merge-conflict` to `integration-blocked`. VERIFIED AT REVIEW ROUND 2 by re-reading both children: Order 02's E-01/E-04/E-05 are WITHDRAWN and its surviving items are E-02/E-03 only. So NO approved plan is contradicted, NO release blocker is negated, and Orders 01 and 02 are no longer gated on anything. Read "Collisions with approved work" below as the RECORD of a resolved conflict, not as a live warning.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, agent_workflows/lane_containment.py, agent_workflows/ipd_lifecycle.py, tests/test_lane_clean_base.py, tests/test_runner_shared.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_orchestrator_retirement.py, .aw/records/specs/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: dirtygates
 - Order: 0
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: 8lfoum
-- Approval: 2026-09-14, recorded via aw ipd set: status set to approved
 - Priority: high
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-17 executed (aw oc run): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set dirtygates reached executed, so the runner (run run-20260916T182835Z-1650244) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: d7qoxv, metc8b, 9iq461, u23gbn, ajxr5d, 4xt6u4.
 - 2026-09-14 approved (aw set): status set to approved
 - 2026-09-13 reviewed (maintainer, --by-human attestation via askme): MAINTAINER ATTESTATION 2026-09-13: readiness set to `go-pending-approval` BY THE MAINTAINER, not by an agent and not by a review. The prior `no-go` was written by this plan's own earlier review round while a blocking question was open; the maintainer then answered every open question in this plan through the `askme` workflow on 2026-09-13, one interactive prompt at a time, and each answer is recorded in this plan's `## Open questions` with its reasoning. Asked directly how the stale verdict should be cleared, the maintainer chose to attest it themselves rather than fund a further review round, having read every resolution as it was written. THE ALTERNATIVE WAS PRICED AND REJECTED ON EVIDENCE: the round that ran earlier the same day cost 3h 02m and $106.07 across nine items, cleared three plans, and raised four NEW blocking questions on the rest, so a further round was not expected to yield a clean sheet. NO AGENT WROTE THIS VALUE ON ITS OWN AUTHORITY. Recorded here because the auto-approve predicate reads this field FIRST (`plan_readiness.is_plan_review_approved`), so a stale `no-go` is a live refusal that would have silently skipped this plan when the Set executed.
 - 2026-09-13 reviewed (aw set): /plan-review round 2: APPROVE WITH REVISIONS APPLIED; PR-010..PR-022; readiness go-pending-approval
