@@ -861,7 +861,7 @@ class RealRepositorySets(unittest.TestCase):
         self.assertTrue(d.eligible, d.detail)
         self.assertEqual(d.reason, rs.RETIRE_ELIGIBLE)
 
-    def test_lanectn_refuses_naming_its_one_unfinished_verification_child(self):
+    def test_lanectn_is_eligible_again_now_the_verification_child_executed(self):
         """RE-MEASURED 2026-09-16, per this class's own instruction to re-measure rather than loosen.
 
         FOURTH re-measurement of this Set, and the first whose cause is not a recovered lane.
@@ -870,8 +870,12 @@ class RealRepositorySets(unittest.TestCase):
           * 2026-09-08: `nna8yz` recovered and finalized, leaving `{"xdr83v": "approved"}`
           * 2026-09-14: `xdr83v` integrated (commit `fea2c9f8`), so all six children were `executed`
             and the Set was ELIGIBLE.
-          * 2026-09-16: a SEVENTH child was AUTHORED (`4fodkt`, Order 07), so the Set is REFUSED again
-            with `unfinished-children`. This flip is a new child appearing, not a child completing.
+          * 2026-09-16: a SEVENTH child was AUTHORED (`4fodkt`, Order 07), so the Set was REFUSED again
+            with `unfinished-children`. That flip was a new child appearing, not a child completing.
+          * 2026-09-17: `4fodkt` reached `executed`, so all SEVEN children are `executed` and the Set is
+            ELIGIBLE again. This is the FIFTH re-measurement, and it is the state the 2026-09-16 entry
+            above predicted: authoring the child was what blocked the parent, and executing it is what
+            unblocks it. The verification the parent could never have performed is now performed.
 
         WHY THE NEW CHILD EXISTS, because it explains why this assertion should not simply be pointed
         back at eligibility later without thought. Orchestrator `h0zljh` carried an E-02 that no child
@@ -896,12 +900,14 @@ class RealRepositorySets(unittest.TestCase):
         """
 
         d = rs.evaluate_set_retirement(REPO_ROOT, "lanectn")
-        self.assertFalse(d.eligible, d.detail)
-        self.assertEqual(d.reason, rs.RETIRE_REFUSED_UNFINISHED_CHILDREN)
-        self.assertIn("4fodkt", d.detail or "")
+        self.assertTrue(d.eligible, d.detail)
+        self.assertEqual(d.reason, rs.RETIRE_ELIGIBLE)
         m = rs.read_set_membership(REPO_ROOT, "lanectn")
-        unfinished = {c.id6: c.status for c in m.children if c.status != "executed"}
-        self.assertEqual(set(unfinished), {"4fodkt"}, unfinished)
+        # The verification child is PRESENT and executed: its absence would mean the parent became
+        # eligible by losing the child rather than by the child completing, which is the failure the
+        # 2026-09-16 entry above exists to prevent.
+        self.assertIn("4fodkt", {c.id6 for c in m.children})
+        self.assertEqual({c.status for c in m.children}, {"executed"})
 
     def test_commitguard_refuses_naming_its_one_unfinished_child(self):
         """The unfinished-children refusal, pinned against a Set that HAS one today.
