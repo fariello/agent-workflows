@@ -6,7 +6,7 @@
 - Scope: TWO changes, one per defect, in the two places that own them. (1) BEHAVIOR: make the driver's finalize step idempotent, so an already-finalized item proceeds to INTEGRATION instead of being refused. (2) DIAGNOSIS: make `finalize_precheck` distinguish a CONSUMED receipt (the transition already succeeded) from a NEVER-ISSUED one (genuinely no authority), with distinct findings a caller can branch on. Also decide and DOCUMENT one owner of the transition per item, because idempotence alone masks the root defect rather than removing it.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_finidem_double_finalize.py, tests/test_ipd_lifecycle_cli.py
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - From-Backlog: 02371s
 - Set: finidem
 - Order: 1
@@ -15,6 +15,7 @@
 - Id: ld8lb3
 
 ## Workflow history
+- 2026-09-17 to-review (aw set): Authored 2026-09-17 from run-20260917T210518Z-1714328 (IPD 63425h false refusal); graduates backlog 02371s and 894vzu; complete enough to critique
 
 - 2026-09-17 draft (opencode/its_direct-pt3-claude-opus-5-1m-us): created.
 

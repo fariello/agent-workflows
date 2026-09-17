@@ -1,11 +1,12 @@
 - Id: 894vzu
-- Status: open
+- Status: graduated
 - Set: 894vzu
 - Priority: medium
 - Work-Kind: bug
 - Summary: A CONSUMED begin receipt (finalize already succeeded) and a NEVER-ISSUED one (no execution authority) produce an identical refusal message, so a completed lane is indistinguishable from an unauthorized one
 
 ## Workflow history
+- 2026-09-17 graduated (aw set): Graduated into IPD ld8lb3 alongside sibling 02371s; the plan's From-Backlog field is single-valued and holds 02371s, so this item's handoff is recorded in the plan's Backlog provenance section
 - 2026-09-17 created (aw backlog): A CONSUMED begin receipt (finalize already succeeded) and a NEVER-ISSUED one (no execution authority) produce an identical refusal message, so a completed lane is indistinguishable from an unauthorized one
 
 ## Observed
