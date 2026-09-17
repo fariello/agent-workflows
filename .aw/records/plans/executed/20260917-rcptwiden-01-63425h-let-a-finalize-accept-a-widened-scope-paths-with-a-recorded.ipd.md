@@ -7,16 +7,16 @@
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, tests/test_receipt_requirement_digest.py, tests/test_ipd_lifecycle_cli.py, tests/test_finalize_isolated_commit.py, tests/test_rununify_host_descriptor.py, .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
 - Blocks-Release: next
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: rcptwiden
 - Order: 1
 - Highest E allocated: 09
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: 63425h
-- Approval: 2026-09-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-17 executed (opencode/its_direct-pt3-claude-opus-5-1m-us): Executed: an additive Scope-Paths widening now finalizes with a recorded reason [Scope reconciliation - in-scope-unmodified .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md: amended in commit c610d6f2, before this receipt was issued; in-scope-unmodified agent_workflows/ipd_lifecycle.py: modified in commit c610d6f2, before this receipt was issued; in-scope-unmodified agent_workflows/runner_shared.py: modified in commit c610d6f2, before this receipt was issued; in-scope-unmodified tests/test_finalize_isolated_commit.py: modified in commit c610d6f2, before this receipt was issued; in-scope-unmodified tests/test_ipd_lifecycle_cli.py: modified in commit c610d6f2, before this receipt was issued; in-scope-unmodified tests/test_receipt_requirement_digest.py: modified in commit c610d6f2, before this receipt was issued; in-scope-unmodified tests/test_rununify_host_descriptor.py: modified in commit c610d6f2, before this receipt was issued]
 - 2026-09-17 approved (aw set): status set to approved
 - 2026-09-17 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-012 all FIXED; 2 non-blocking OQs (OQ-01 reason-per-added-path, OQ-02 directory/glob eligibility) both ship fail-closed. Reproduced the asymmetry end to end; withdrew false F-6; added the runner half, E-08 fence-neutering and E-09 ineligible shapes.
 
