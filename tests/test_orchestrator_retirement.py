@@ -958,19 +958,32 @@ class RealRepositorySets(unittest.TestCase):
         self.assertEqual(d.reason, rs.RETIRE_REFUSED_UNAUTHORED_CHILD_ROWS)
         self.assertEqual(set(d.unauthored_rows), {"00", "-"})
 
-    def test_rununify_now_refuses_for_unfinished_children_not_unauthored_rows(self):
-        """The companion to the move above: `rununify`'s placeholders are gone.
+    def test_rununify_is_now_eligible_every_child_executed(self):
+        """The companion to the move above, RE-MEASURED 2026-09-17 at its own predicted end state.
 
-        ADDED 2026-09-15. This asserts the FIX rather than the old defect, so a regression that
-        reintroduced an unresolvable child row would fail here loudly instead of silently restoring a
-        refusal that repeats on every run. The nine children are `to-review` at authoring; as they
-        execute this reason stays `unfinished-children` and the Set becomes eligible only when all nine
-        are `executed`, which is the correct terminal condition.
+        ADDED 2026-09-15 asserting `unfinished-children`, and its docstring stated the terminal
+        condition explicitly: "as they execute this reason stays `unfinished-children` and the Set
+        becomes eligible only when all nine are `executed`, which is the correct terminal condition."
+        All ELEVEN children are now `executed` (the original two plus the nine that replaced rows
+        `03+`/`last`), so the Set is ELIGIBLE and the assertion is re-pointed rather than loosened.
+
+        WHY IT MOVED, and it is the whole point of the Set: `rununify`'s placeholder rows stood
+        unauthored by deliberate design and the runner correctly refused the parent for two weeks. The
+        rows were resolved into nine named children on the maintainer's 2026-09-14 ruling, and the
+        2026-09-17 directive ("one code base shared by the two runners that contains 100% of the
+        otherwise redundant code") carried them to completion. The last three (`i3d6ml`, `tx6q0h`,
+        `sy7uwh`) were finalized out of band after their begin receipts went stale on an ADDITIVE
+        `Scope-Paths` declaration, the defect filed as plan `63425h`.
+
+        THE UNAUTHORED-ROWS REFUSAL IS NOT LOST: it is pinned by
+        `test_the_unauthored_child_rows_refusal_is_pinned_against_runstop` above, against a Set that
+        still has that property today. Asserting a refusal here as well would pin a repository state
+        that has now changed twice.
         """
 
         d = rs.evaluate_set_retirement(REPO_ROOT, "rununify")
-        self.assertFalse(d.eligible)
-        self.assertEqual(d.reason, rs.RETIRE_REFUSED_UNFINISHED_CHILDREN)
+        self.assertTrue(d.eligible, d.detail)
+        self.assertEqual(d.reason, rs.RETIRE_ELIGIBLE)
         self.assertEqual(d.unauthored_rows, ())
         m = rs.read_set_membership(REPO_ROOT, "rununify")
         # NON-VACUITY: the table must actually RESOLVE now, so the refusal above is about child
@@ -981,6 +994,7 @@ class RealRepositorySets(unittest.TestCase):
         )
         self.assertTrue(parsed)
         self.assertGreaterEqual(len(m.children), 11)
+        self.assertEqual({c.status for c in m.children}, {"executed"})
 
     def test_runprofile_is_not_refused_for_unauthored_rows(self):
         """RE-MEASURED 2026-09-08, per this class's instruction to re-measure rather than loosen.
