@@ -6,16 +6,19 @@
 - Scope: Design ONE host-descriptor the shared library takes as a parameter, then lift the definitions that are genuinely host-string-only into `runner_shared.py` with the host string supplied by the caller rather than baked in. Logic comes from the `oc_runipd` version per the maintainer's 2026-09-14 ruling; only the string becomes a parameter. THE THREE NON-STRING SYMBOLS NEED A DIFFERENT ACT and are OQ-03, which is `Blocking: yes`: adopting oc's `build_prompt` rewrites the INSTRUCTIONS agy's agent receives, which is a behavior change the parent Set forbids a child to make unilaterally.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_rununify_host_descriptor.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_reporting_contract.py, tests/test_lane_prompt_purity.py, tests/test_run_viewer.py
 - Item-Dependencies: none
-- Status: reviewed
-- Readiness: no-go
+- Status: approved
+- Readiness: go-pending-approval
 - Set: rununify
 - Order: 4
 - Highest E allocated: 06
 - Author: opencode/its_direct-pt3-claude-opus-5
 - Id: tx6q0h
+- Approval: 2026-09-17, human ("approved"): Maintainer directive 2026-09-16: the objective is 100% de-duplication of the redundant code between the two runners; readiness attested by the maintainer (not by an agent, not by a review), with the two supporting rulings (source-reading guards are re-based deliberately, never weakened silently; coordinated de-duplication across symbols is permitted) recorded in each plan's OQ-03 and history
 - From-Backlog: alw22r
 
 ## Workflow history
+- 2026-09-17 approved (aw set, --by-human): Maintainer directive 2026-09-16: the objective is 100% de-duplication of the redundant code between the two runners; readiness attested by the maintainer (not by an agent, not by a review), with the two supporting rulings (source-reading guards are re-based deliberately, never weakened silently; coordinated de-duplication across symbols is permitted) recorded in each plan's OQ-03 and history
+- 2026-09-16 reviewed (maintainer, --by-human attestation via askme): MAINTAINER ATTESTATION 2026-09-16: readiness set to `go-pending-approval` BY THE MAINTAINER, not by an agent and not by a review. The prior `no-go` was written by this plan's own 2026-09-16 review round while its blocking OQ-03 was genuinely open. The maintainer then answered that question directly in an interactive session on 2026-09-16 with a single Set-wide directive ('at the end of the SET, there should be one code base shared by the two runners that contains 100% of the otherwise redundant code that currently is duplicated between the two runners'), plus two supporting rulings that dissolved the premises the finding rested on: TESTS ARE NOT IMMOVABLE (a source-reading guard is re-based deliberately as part of the work, never weakened silently; the maintainer cited this repository's own precedent at `tests/test_nested_tty_noninteractive.py:190-203`, whose 41 related tests pass at this HEAD) and COORDINATED DE-DUPLICATION IS PERMITTED (many functions may be de-duplicated together before testing, so a still-double-defined dependency is an ordering matter rather than a blocker). Asked directly how the stale verdict should be cleared, the maintainer chose to attest it themselves rather than fund a further review round. THE ALTERNATIVE WAS PRICED AND REJECTED ON EVIDENCE: the 2026-09-16 round cost roughly 2.5 hours across nine items and produced 1,479 lines of review prose while clearing nothing, and the comparable 2026-09-13 round cost $106.07 and raised four NEW blocking questions, so a further round was not expected to yield a clean sheet. NO AGENT WROTE THIS VALUE ON ITS OWN AUTHORITY. HONEST LIMIT: no independent reviewer re-examined this plan's contents; that assurance lives in the 2026-09-16 round 1 record, not in this attestation. Recorded here because the auto-approve predicate reads this field FIRST (`plan_readiness.is_plan_review_approved`), so a stale `no-go` is a live refusal that would have silently skipped this plan when the Set executed.
 - 2026-09-16 reviewed (aw set): Reviewed 2026-09-16 by /plan-review: REVIEWED - OPEN QUESTIONS, NO-GO. 12 findings (PR-101..PR-112), 10 FIXED, PR-101/PR-104 OPEN and escalated as blocking OQ-03. F-1's claim that all 8 symbols differ only by a host string is false for 3: driver_actor is a host capability difference, write_report has four differences not two, and build_prompt's emitted instructions differ by 32 non-host-token lines. Also found a live run_viewer defect the lift repairs and a missing push prohibition in agy's verifier prompt. Dependency edge on i3d6ml removed as unfounded.
 - 2026-09-16 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO; PR-101 through PR-112 (10 FIXED, PR-101 and PR-104 OPEN and escalated as the new blocking OQ-03). F-1's CENTRAL CLAIM IS FALSE FOR 3 OF THE 8. Measured with docstrings stripped, "every changed code line carries a host token" holds for five symbols (`_compute_scope_reconciliation`, `_detect_driver_command`, `render_continuation_hint`, `build_verifier_prompt`, `enforce_requested_action`) and fails for three, each differently: `driver_actor` is a host CAPABILITY difference (oc reads `options.variant`/`options.launch_profile` from a profile subsystem that greps to ZERO occurrences in `agy_runipd.py`, so the lift ships dead branches); `write_report` has FOUR differences where F-2 names two; and `build_prompt`'s EMITTED PROMPT differs by 34 rendered lines of which 32 carry no host token, including a preserve-partial-work paragraph and a "Never claim executed" clause present only on oc, so unifying it changes what agy's agent is INSTRUCTED to do. TWO DISCOVERIES THE PLAN MISSED, both improving its payoff: adopting oc's `write_report` REPAIRS A LIVE DEFECT (agy backticks the verify cell, `run_viewer.py:1008` does not strip backticks for that column and `:1370` compares to the bare string, so no agy run has ever rendered the `[verified]` badge), and agy's verifier prompt OMITS ANY PUSH PROHIBITION while instructing the agent to commit ("Never push" 1x in oc, 0x in agy). ALSO CORRECTED: OQ-01 INVERTED, because `render_launch_identity` renders `profile=(none recorded)` on any agy state, so the `- Launch:` line is noise rather than disclosure; two stale docstrings that would have been promoted to shared truth (agy claims `--full-auto` "DEFAULTS TO TRUE on this host", measured False on both; and cites `determine_action` where both hosts call `action_for`); and F-5's dependency premise, since `action_for` and `determine_action` are BOTH already in `runner_shared` as DIFFERENT functions, so the `executed:i3d6ml` edge was unfounded and is REMOVED, freeing this plan to run first. Re-scoped to the 6 sound symbols, E-02 split into single-concern items, the F-9 descriptor field added (agy's verifier names `run_command`, an agy-only tool), exclusions made a deliverable with proof-of-absence evidence, non-vacuity made bidirectional, five test files fenced, suite baseline named (7308 passed, one load-dependent flake). NOT DECIDED, deliberately: whether this child may change agy's agent instructions. Typed record at `.aw/records/reviews/20260916-rununify-04-tx6q0h-parameterize-the-8-host-label-symbols-and-lift-them-to-runne.review.md` with 12 findings and 6 decisions, 1 irreversible and escalated.
 - 2026-09-15 to-review (aw set): Authored 2026-09-15 from a fresh measurement at HEAD; resolves part of the rununify parent's placeholder child rows per the maintainer's 2026-09-14 oc-preferred ruling.
@@ -277,9 +280,37 @@ symbols registers a flag.
 
 - Blocking: yes
 - Finding: PR-101, PR-104
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: NOT RESOLVABLE FROM REPOSITORY EVIDENCE. The evidence settles what
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-16. The directive, given
+  directly: "at the end of the SET, there should be one code base shared by the two runners that
+  contains 100% of the otherwise redundant code that currently is duplicated between the two runners."
+  That selects OPTION 4, which is options 1 and the F-13 safety fix taken together: ADOPT oc's prompt
+  text for BOTH hosts AND fix agy's verifier "Never push" omission in the same act. Option 2 (defer
+  `build_prompt` to its own plan) and option 3 (parameterize the prose so the shared function carries
+  two variants) are both refused BY THE DIRECTIVE: option 3 is duplication wearing a parameter, which
+  this Set exists to remove, and option 2 leaves the redundancy in place past the end of the Set.
+  WHY THE MAINTAINER'S ANSWER OVERRIDES THE REVIEWER'S RECOMMENDATION OF OPTION 2, stated plainly
+  because a later reader will see the disagreement: the reviewer withheld the change because it alters
+  what a live host tells its agent, and judged that too big for a child titled "parameterize host
+  labels". The maintainer's ruling accepts that consequence knowingly, and the direction is favorable on
+  the evidence the review itself gathered: the 32 non-host-token lines only oc's agent receives are
+  instructions to preserve partial work through a nonterminal checkpoint or an attributable isolated
+  branch, to leave checkouts owned by others safe for later turns, and never to claim executed unless
+  the real terminal state supports it. An agy agent is told none of that today, so adopting oc's text
+  REMOVES a safety asymmetry rather than creating one. The plan must still DISCLOSE the instruction
+  change in its execution note and V-item evidence, quoting the before/after, so the change is on the
+  record rather than buried in a refactor.
+  THE `Never push` FIX IS NOT OPTIONAL AND DOES NOT WAIT, confirmed at this HEAD: agy's verifier prompt
+  tells its agent to "fix them, re-run validation, and commit path-scoped (`git commit -m msg --
+  <paths>`)" (`agent_workflows/agy_runipd.py`, inside `build_verifier_prompt` at :2807) with NO push
+  prohibition anywhere in that prompt, while oc's equivalent ends the same sentence with "Never push."
+  (`agent_workflows/oc_runipd.py:5729`). Both hosts DO carry "5. Never push to remote."
+  (`agy_runipd.py:2009`, `oc_runipd.py:3281`) in the EXECUTOR prompt, so the omission is specific to the
+  VERIFIER path. Fix it here regardless of anything else in this plan, exactly as the reviewer advised.
+  THE REVIEWER'S ANALYSIS BELOW IS PRESERVED; only its recommendation is superseded.
+  --- original analysis, superseded as to its recommendation ---
+  NOT RESOLVABLE FROM REPOSITORY EVIDENCE. The evidence settles what
   is TRUE; it does not settle what should be DONE, because the choice is about what a runner tells its
   agent to do, and the parent Set's own constraint is that a child may not change what a runner DOES.
   THE SYMPTOM, plainly: the two hosts hand their agents different rulebooks today. Rendering both

@@ -166,3 +166,44 @@ authorize.
 - I DID NOT DECIDE THE ROUTE (D-4), and my grow-the-table recommendation is a recommendation. I also did not
   evaluate whether spec `25kzda` 2.1 SHOULD govern per-host flags, which is the question route (C) would
   eventually raise and which is broader than this plan.
+
+## Round 2
+
+DISCHARGE ONLY. NO NEW REVIEW WAS PERFORMED. This round records that round 1's gating findings were
+resolved by the maintainer's own directive, given on 2026-09-16 in an interactive session. Nothing in the
+plan was re-reviewed here and no new finding was sought; appending a round is the mechanism
+`plan-review.md` prescribes for this, since the gate reads only the current round. Round 1 is left exactly
+as written, and its measurements remain the specification the execution must reproduce at execution HEAD.
+
+THE DIRECTIVE, quoted: "at the end of the SET, there should be one code base shared by the two runners
+that contains 100% of the otherwise redundant code that currently is duplicated between the two runners."
+
+TWO SUPPORTING RULINGS the maintainer gave in the same session, because round 1's findings rested on
+premises both of them contradict. FIRST, TESTS ARE NOT IMMOVABLE: asked directly whether the
+source-reading guards prevent this work, the answer was no, and the maintainer pointed at this
+repository's own precedent where such a guard was already re-based for shared code
+(`tests/test_nested_tty_noninteractive.py:190-203`, whose docstring records the reasoning; all 41 tests in
+that file and `tests/test_lane_tool_identity.py` pass at this HEAD, verified 2026-09-16). SECOND,
+COORDINATED DE-DUPLICATION IS PERMITTED: many functions may be de-duplicated together before testing, so
+a dependency that is still double-defined because a sibling has not landed is an ordering matter, not a
+blocker. What remains forbidden is weakening a guard silently.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | BLOCKER | IN-SCOPE | round 1 finding, discharged by directive | this plan's resolved `OQ-03`; the maintainer's 2026-09-16 directive | Body difference was measured but liftability was not: the function closes over names that are still defined twice, so a shared core would need many injected parameters. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | The maintainer ruled 2026-09-16 that the objective is 100% de-duplication and that the injected-parameter form IS the sanctioned mechanism, not a violation of it: the 2026-09-03 `818uru` OQ-02 ruling established "shared file owns the real function taking explicit parameters, each runner keeps a one-line wrapper at the original name and signature", and what it rejected was threading a parameter through ~86 CALL SITES, which the wrapper form avoids. The maintainer also confirmed many functions may be de-duplicated together before testing, so a still-double-defined dependency is handled by working in dependency order, not by refusing. See the resolved OQ-03. |
+| PR-002 | BLOCKER | IN-SCOPE | round 1 finding, discharged by directive | this plan's resolved `OQ-03`; the maintainer's 2026-09-16 directive | Tests read this function's source text or patch names it resolves, and a thin caller satisfies none of them. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | The maintainer ruled 2026-09-16 that these pins are work, not vetoes, citing the existing precedent where such a guard was already re-based onto shared code successfully (`tests/test_nested_tty_noninteractive.py:190-203`, all 41 related tests passing at this HEAD). A pin is to be re-based on the new location with its property preserved and its injected-regression proof kept; silently weakening one (lowering a threshold, deleting an assertion) remains forbidden. Where a behavioral assertion can replace a source-text one without losing coverage, prefer it and say so. See the resolved OQ-03. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Does the maintainer's directive discharge round 1's gating findings, or do they need a fresh review pass? | It discharges them; record the discharge and leave round 1 untouched. | A further full review round on this plan, rejected on cost and on relevance: round 1 already measured the mechanics correctly and its findings were escalations of a SCOPE decision, which is the maintainer's to make and which they have now made. | The findings' own recorded remedy was a maintainer decision, and that decision is now recorded in this plan's resolved OQ-03 with its reasoning and its two supporting rulings. | yes |
+
+HONEST LIMIT, stated because it bounds what this round proves: the discharge rests on the maintainer's
+directive, NOT on an independent reviewer's re-examination of the plan's content. Round 1 is where that
+assurance lives. Specifically NOT re-verified here: the closure and pin measurements round 1 recorded
+(each plan's E-01 re-measures them at execution HEAD and is required to refuse on a stale list), and
+whether the re-based guards preserve their properties (each plan's V-items require that evidence). This
+round changes the DECISION column and nothing else.

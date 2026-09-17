@@ -6,16 +6,19 @@
 - Scope: Collapse the two record types into one in `runner_shared.py` and unify their two readers. This DELIBERATELY OVERRIDES the earlier decision recorded by this Set's own child `818uru`, which pinned the two types as distinct and wrote a test asserting it; that test must be inverted, not deleted. CORRECTED AT REVIEW 2026-09-16: there are TWO pins, not one (`tests/test_orchestrator_retirement.py:2470` also asserts agy's record lacks `kind`, in a file this plan never named), and E-03's instruction to DELETE `_plan_kind` would REGRESS a live agy capability, because the helper has a SECOND call site (`agy_runipd.py:2260`) serving a legacy-manifest fallback that has nothing to do with the record split and that oc has never had. See F-7 and F-8.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, tests/test_rununify_record.py, tests/test_orchestrator_retirement.py
 - Item-Dependencies: none
-- Status: reviewed
-- Readiness: no-go
+- Status: approved
+- Readiness: go-pending-approval
 - Set: rununify
 - Order: 6
 - Highest E allocated: 05
 - Author: opencode/its_direct-pt3-claude-opus-5
 - Id: sy7uwh
+- Approval: 2026-09-17, human ("approved"): Maintainer directive 2026-09-16: the objective is 100% de-duplication of the redundant code between the two runners; readiness attested by the maintainer (not by an agent, not by a review), with the two supporting rulings (source-reading guards are re-based deliberately, never weakened silently; coordinated de-duplication across symbols is permitted) recorded in each plan's OQ-03 and history
 - From-Backlog: alw22r
 
 ## Workflow history
+- 2026-09-17 approved (aw set, --by-human): Maintainer directive 2026-09-16: the objective is 100% de-duplication of the redundant code between the two runners; readiness attested by the maintainer (not by an agent, not by a review), with the two supporting rulings (source-reading guards are re-based deliberately, never weakened silently; coordinated de-duplication across symbols is permitted) recorded in each plan's OQ-03 and history
+- 2026-09-16 reviewed (maintainer, --by-human attestation via askme): MAINTAINER ATTESTATION 2026-09-16: readiness set to `go-pending-approval` BY THE MAINTAINER, not by an agent and not by a review. The prior `no-go` was written by this plan's own 2026-09-16 review round while its blocking OQ-03 was genuinely open. The maintainer then answered that question directly in an interactive session on 2026-09-16 with a single Set-wide directive ('at the end of the SET, there should be one code base shared by the two runners that contains 100% of the otherwise redundant code that currently is duplicated between the two runners'), plus two supporting rulings that dissolved the premises the finding rested on: TESTS ARE NOT IMMOVABLE (a source-reading guard is re-based deliberately as part of the work, never weakened silently; the maintainer cited this repository's own precedent at `tests/test_nested_tty_noninteractive.py:190-203`, whose 41 related tests pass at this HEAD) and COORDINATED DE-DUPLICATION IS PERMITTED (many functions may be de-duplicated together before testing, so a still-double-defined dependency is an ordering matter rather than a blocker). Asked directly how the stale verdict should be cleared, the maintainer chose to attest it themselves rather than fund a further review round. THE ALTERNATIVE WAS PRICED AND REJECTED ON EVIDENCE: the 2026-09-16 round cost roughly 2.5 hours across nine items and produced 1,479 lines of review prose while clearing nothing, and the comparable 2026-09-13 round cost $106.07 and raised four NEW blocking questions, so a further round was not expected to yield a clean sheet. NO AGENT WROTE THIS VALUE ON ITS OWN AUTHORITY. HONEST LIMIT: no independent reviewer re-examined this plan's contents; that assurance lives in the 2026-09-16 round 1 record, not in this attestation. Recorded here because the auto-approve predicate reads this field FIRST (`plan_readiness.is_plan_review_approved`), so a stale `no-go` is a live refusal that would have silently skipped this plan when the Set executed.
 - 2026-09-16 reviewed (aw set): Reviewed 2026-09-16 by /plan-review: REVIEWED - OPEN QUESTIONS, NO-GO. 8 findings (PR-301..PR-308), 7 FIXED, PR-301 OPEN and escalated as blocking OQ-03. All six original findings reproduce and the unification is sound. Blocker is an omission: _plan_kind has two callers and deleting it would reintroduce the pgq326 defect (an approved orchestrator in a legacy manifest gets agent-executed) on a path no test covers. Also found a second pin the plan never named, six readers parse_plan_file closes over, a third unrelated PlanRecord, and an unfounded dependency edge pointing the wrong way.
 - 2026-09-16 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO; PR-301 through PR-308 (7 FIXED, PR-301 OPEN and escalated as the new blocking OQ-03). ALL SIX ORIGINAL FINDINGS REPRODUCE and the plan's central judgement is correct: oc's `PlanRecord` IS a strict superset differing in exactly `kind`, `parse_plan_file` differs in exactly the two lines that read and pass it, F-5's one-expression `build_dynamic_manifest` difference is exact, and F-2's premise for overriding `818uru` really has dissolved. THE BLOCKER IS AN OMISSION: `_plan_kind` has TWO callers and E-03 says to delete the helper. Only `agy_runipd.py:1693` is the record-split workaround its docstring describes; `:2260` is a LEGACY-MANIFEST FALLBACK (no `kind` key in a hand-written manifest -> re-read the plan file) that oc has never had. MEASURED both ways: with it an approved orchestrator derives `orchestrate`, without it `execute`, so it would be AGENT-EXECUTED, reproducing exactly the defect `orchretire-03` (`pgq326`) fixed, on a path NO test covers, so every existing test would have stayed green. That also raised a question the plan could not know to ask and which the standing ruling reserves for the maintainer: the hosts already DISAGREE about this correctness gate in oc's disfavor, an A/NOT-A case, so whether the fallback stays agy-only, is given to both, or is dropped is OQ-03. TWO FURTHER OMISSIONS: there are TWO pins asserting the split, not one (`tests/test_orchestrator_retirement.py:2470` also asserts agy's record lacks `kind`, in a file the plan never fenced, whose surrounding test is also the best end-to-end guard for F-3's silent failure and must survive), and `parse_plan_file` closes over SIX module-level readers absent from `runner_shared`, so a naive move fails at import time. ALSO: a THIRD unrelated `PlanRecord` in `plans.py` will trip the parent's required repo-wide scan and must be allowlisted rather than "fixed" or the scan narrowed; E-01's premise 3 was reported too cleanly (nothing REQUIRES the field's absence, but two tests ASSERT it); and the `executed:i3d6ml` edge is unfounded AND POINTS THE WRONG WAY, since child 03's `discover_plans`/`expand_selectors` need `parse_plan_file` which THIS plan unifies, so it is removed and this plan should run BEFORE child 03 (third unfounded edge found in this Set today). Re-scoped: E-03 moves the six readers and removes only the record-split call site while preserving the fallback, E-04 inverts BOTH pins with citations, E-05 adds the first-ever fallback coverage plus the allowlisted repo-wide scan, a second non-vacuity control deletes the helper to prove the failure, one test file fenced, four further suites named, baseline named (7308 passed, one load-dependent flake). NOT DECIDED, deliberately: the fallback's disposition; note OQ-03 is narrow and option 1 makes the plan executable immediately with no behavior change. Typed record at `.aw/records/reviews/20260916-rununify-06-sy7uwh-unify-the-plan-record-type-and-its-two-readers-overriding-th.review.md` with 8 findings and 5 decisions, 1 irreversible and escalated.
 - 2026-09-15 to-review (aw set): Authored 2026-09-15 from a fresh measurement at HEAD; resolves part of the rununify parent's placeholder child rows per the maintainer's 2026-09-14 oc-preferred ruling.
@@ -267,9 +270,33 @@ noted here so it is visibly out of scope rather than merely unmentioned.
 
 - Blocking: yes
 - Finding: PR-301
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: NOT RESOLVABLE FROM REPOSITORY EVIDENCE. The evidence settles that
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-16. The directive, given
+  directly: "at the end of the SET, there should be one code base shared by the two runners that
+  contains 100% of the otherwise redundant code that currently is duplicated between the two runners."
+  That selects OPTION 2: GIVE THE FALLBACK TO BOTH HOSTS by lifting it into the shared manifest-reading
+  path, so oc also re-reads `- Kind:` when a manifest omits it. Option 1 (preserve as agy-only) is
+  refused because it deliberately leaves the two hosts disagreeing on a correctness gate, which is
+  exactly the drift this Set exists to end, and it leaves the fallback duplicated-by-absence rather than
+  shared. Option 3 (drop it from both) is refused because it knowingly reintroduces a defect a prior
+  plan deliberately fixed, and nothing in the directive asks for capability to be removed.
+  WHY OPTION 2 IS THE SAFE DIRECTION, restating the review's own measurement: today, given a
+  hand-written manifest that omits the `kind` key and names an approved orchestrator, `aw agy run`
+  re-reads the plan file, sees `- Kind: orchestrator` and correctly RETIRES it, while `aw oc run`
+  derives `execute` and spends a paid agent turn executing a plan that authors no code. Both were
+  measured at review. So oc is the DEFICIENT host here, and the Set's standing "oc is preferred" ruling
+  does not apply, because this is precisely the A / NOT-A exception that ruling carves out. Unifying
+  toward agy's behavior fixes a real oc defect; unifying toward oc's would install the defect in both.
+  THE BEHAVIOR CHANGE TO oc IS HEREBY AUTHORIZED, which is the authorization the question asked for.
+  The plan must still prove it end to end rather than assert it: V-03 already requires a demonstration
+  that agy's legacy-manifest fallback still derives `orchestrate` for an approved orchestrator when the
+  manifest omits `kind`, and per that item's own closing sentence it must now show oc doing the same.
+  Add the missing test the review found (the fallback is uncovered today), so the shared path is pinned
+  for both hosts rather than for neither.
+  THE REVIEWER'S ANALYSIS BELOW IS PRESERVED; its recommendation is ratified.
+  --- original analysis, recommendation now ratified ---
+  NOT RESOLVABLE FROM REPOSITORY EVIDENCE. The evidence settles that
   the fallback EXISTS, is agy-only, is uncovered by tests, and must not be deleted; it does not settle
   whether the two hosts should now behave the SAME way here, and that is a behavior question about a
   correctness gate rather than a refactor detail.

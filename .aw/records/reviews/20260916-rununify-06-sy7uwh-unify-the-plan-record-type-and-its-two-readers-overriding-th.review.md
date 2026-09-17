@@ -143,3 +143,43 @@ are recorded only.
 - I DID NOT DECIDE THE FALLBACK's FATE (D-2), and my recommendation of option 2 is a recommendation. I
   also did not evaluate whether hand-written manifests should remain supported at all, which is the
   premise option 3 would need and which is a broader product question than this plan.
+
+## Round 2
+
+DISCHARGE ONLY. NO NEW REVIEW WAS PERFORMED. This round records that round 1's gating findings were
+resolved by the maintainer's own directive, given on 2026-09-16 in an interactive session. Nothing in the
+plan was re-reviewed here and no new finding was sought; appending a round is the mechanism
+`plan-review.md` prescribes for this, since the gate reads only the current round. Round 1 is left exactly
+as written, and its measurements remain the specification the execution must reproduce at execution HEAD.
+
+THE DIRECTIVE, quoted: "at the end of the SET, there should be one code base shared by the two runners
+that contains 100% of the otherwise redundant code that currently is duplicated between the two runners."
+
+TWO SUPPORTING RULINGS the maintainer gave in the same session, because round 1's findings rested on
+premises both of them contradict. FIRST, TESTS ARE NOT IMMOVABLE: asked directly whether the
+source-reading guards prevent this work, the answer was no, and the maintainer pointed at this
+repository's own precedent where such a guard was already re-based for shared code
+(`tests/test_nested_tty_noninteractive.py:190-203`, whose docstring records the reasoning; all 41 tests in
+that file and `tests/test_lane_tool_identity.py` pass at this HEAD, verified 2026-09-16). SECOND,
+COORDINATED DE-DUPLICATION IS PERMITTED: many functions may be de-duplicated together before testing, so
+a dependency that is still double-defined because a sibling has not landed is an ordering matter, not a
+blocker. What remains forbidden is weakening a guard silently.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-301 | BLOCKER | IN-SCOPE | round 1 finding, discharged by directive | this plan's resolved `OQ-03`; the maintainer's 2026-09-16 directive | One host has a legacy-manifest fallback the other lacks, so the two disagree on a correctness gate and the plan could not decide the direction. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | The maintainer ruled 2026-09-16 for option 2: give the fallback to BOTH hosts. This is the A / NOT-A exception to the "oc is preferred" rule, and the deficient host is oc (it spends a paid agent turn executing an orchestrator that authors no code where the other host correctly retires it). The behavior change to oc is authorized; V-03 must demonstrate the fallback for both hosts and add the missing test. See the resolved OQ-03. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Does the maintainer's directive discharge round 1's gating findings, or do they need a fresh review pass? | It discharges them; record the discharge and leave round 1 untouched. | A further full review round on this plan, rejected on cost and on relevance: round 1 already measured the mechanics correctly and its findings were escalations of a SCOPE decision, which is the maintainer's to make and which they have now made. | The findings' own recorded remedy was a maintainer decision, and that decision is now recorded in this plan's resolved OQ-03 with its reasoning and its two supporting rulings. | yes |
+
+HONEST LIMIT, stated because it bounds what this round proves: the discharge rests on the maintainer's
+directive, NOT on an independent reviewer's re-examination of the plan's content. Round 1 is where that
+assurance lives. Specifically NOT re-verified here: the closure and pin measurements round 1 recorded
+(each plan's E-01 re-measures them at execution HEAD and is required to refuse on a stale list), and
+whether the re-based guards preserve their properties (each plan's V-items require that evidence). This
+round changes the DECISION column and nothing else.

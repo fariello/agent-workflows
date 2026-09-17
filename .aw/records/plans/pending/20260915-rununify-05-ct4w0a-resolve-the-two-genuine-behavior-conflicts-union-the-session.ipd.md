@@ -6,16 +6,19 @@
 - Scope: Unify both through `runner_shared.py` using the maintainer's 2026-09-14 per-symbol rulings: UNION for `extract_session_id`, and ADOPT OC for `driver_begin` (agy gains the isolated-baseline declaration it silently lacks). CORRECTED AT REVIEW 2026-09-16: the union is NOT "a superset harming neither host" (F-6, it changes agy's answer on a log carrying both shapes), and lifting `driver_begin` BREAKS THREE EXISTING STRUCTURAL GUARDS that count subprocess launch sites per driver FILE (F-9), which is the reason its disposition is now OQ-03 and `Blocking: yes`.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_rununify_conflicts.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_nested_tty_noninteractive.py, tests/test_lane_tool_identity.py, tests/test_begin_dirty_gate_scope.py
 - Item-Dependencies: none
-- Status: reviewed
-- Readiness: no-go
+- Status: approved
+- Readiness: go-pending-approval
 - Set: rununify
 - Order: 5
 - Highest E allocated: 06
 - Author: opencode/its_direct-pt3-claude-opus-5
 - Id: ct4w0a
+- Approval: 2026-09-17, human ("approved"): Maintainer directive 2026-09-16: the objective is 100% de-duplication of the redundant code between the two runners; readiness attested by the maintainer (not by an agent, not by a review), with the two supporting rulings (source-reading guards are re-based deliberately, never weakened silently; coordinated de-duplication across symbols is permitted) recorded in each plan's OQ-03 and history
 - From-Backlog: alw22r
 
 ## Workflow history
+- 2026-09-17 approved (aw set, --by-human): Maintainer directive 2026-09-16: the objective is 100% de-duplication of the redundant code between the two runners; readiness attested by the maintainer (not by an agent, not by a review), with the two supporting rulings (source-reading guards are re-based deliberately, never weakened silently; coordinated de-duplication across symbols is permitted) recorded in each plan's OQ-03 and history
+- 2026-09-16 reviewed (maintainer, --by-human attestation via askme): MAINTAINER ATTESTATION 2026-09-16: readiness set to `go-pending-approval` BY THE MAINTAINER, not by an agent and not by a review. The prior `no-go` was written by this plan's own 2026-09-16 review round while its blocking OQ-03 was genuinely open. The maintainer then answered that question directly in an interactive session on 2026-09-16 with a single Set-wide directive ('at the end of the SET, there should be one code base shared by the two runners that contains 100% of the otherwise redundant code that currently is duplicated between the two runners'), plus two supporting rulings that dissolved the premises the finding rested on: TESTS ARE NOT IMMOVABLE (a source-reading guard is re-based deliberately as part of the work, never weakened silently; the maintainer cited this repository's own precedent at `tests/test_nested_tty_noninteractive.py:190-203`, whose 41 related tests pass at this HEAD) and COORDINATED DE-DUPLICATION IS PERMITTED (many functions may be de-duplicated together before testing, so a still-double-defined dependency is an ordering matter rather than a blocker). Asked directly how the stale verdict should be cleared, the maintainer chose to attest it themselves rather than fund a further review round. THE ALTERNATIVE WAS PRICED AND REJECTED ON EVIDENCE: the 2026-09-16 round cost roughly 2.5 hours across nine items and produced 1,479 lines of review prose while clearing nothing, and the comparable 2026-09-13 round cost $106.07 and raised four NEW blocking questions, so a further round was not expected to yield a clean sheet. NO AGENT WROTE THIS VALUE ON ITS OWN AUTHORITY. HONEST LIMIT: no independent reviewer re-examined this plan's contents; that assurance lives in the 2026-09-16 round 1 record, not in this attestation. Recorded here because the auto-approve predicate reads this field FIRST (`plan_readiness.is_plan_review_approved`), so a stale `no-go` is a live refusal that would have silently skipped this plan when the Set executed.
 - 2026-09-16 reviewed (aw set): Reviewed 2026-09-16 by /plan-review: REVIEWED - OPEN QUESTIONS, NO-GO. 10 findings (PR-201..PR-210), 9 FIXED, PR-201 OPEN and escalated as blocking OQ-03. All five original findings reproduce; this is the best-founded child of the Set. Blocker is an omission: lifting driver_begin breaks three existing safety guards that count subprocess launch sites per driver file. Also performed E-01's census (627 logs), which shows three of four keys unobserved and oc's ses_ preference unexercisable, and found the union is not the strict superset the plan claims. Dependency edge on i3d6ml removed as unfounded.
 - 2026-09-16 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO; PR-201 through PR-210 (9 FIXED, PR-201 OPEN and escalated as the new blocking OQ-03). EVERY CLAIM IN THIS PLAN'S FINDINGS TABLE REPRODUCES, which makes it the best-founded child of the Set: F-1's capability loss was confirmed BY EXECUTION (oc's reader returns `None` on an agy-shaped log where agy's returns the id), and F-2 through F-5 all verify. The defects are OMISSIONS. THE BLOCKER: lifting `driver_begin` breaks THREE existing safety guards the plan never names. Each driver file has exactly three `argv`/`cmd` subprocess sites, and `tests/test_nested_tty_noninteractive.py:172` requires at least three PER FILE (so removing one fails "call sites vanished"), `:218` requires own-plus-shared at least three (today exactly `2 + 1`), and `tests/test_lane_tool_identity.py:486` asserts the LITERAL `env=pinned_child_env()` inside each host's `driver_begin` source, which a shared definition cannot provide. Those guards encode a 1h49m TTY wedge and the `af7i6p` lane-shadowing incident, and the easy fix (lower the threshold) is one `818uru`'s own docstring already refuses in writing, so HOW to re-count them is a human's call. I ALSO PERFORMED E-01's CENSUS (627 logs), because the union's design depends on a measurement the plan deferred: `sessionID` 167,921 events / 593 files ALL `ses_`-prefixed; `conversation_id` 2 events / 2 files, both agy-produced, flat AND nested under `result`; `sessionId`, `session_id` and the whole `init` path ZERO; and ZERO logs where oc's `ses_` preference is observable. Two consequences the plan did not anticipate: E-01's own deletion clause would narrow a wire-format reader on absence-of-evidence AND silently change oc's live `_event_session_id` (a second consumer of the same constant, never mentioned); and oc's `ses_` preference is a TESTED CONTRACT rather than an observed behavior. ALSO CORRECTED: the union is NOT "a strict superset harming neither host" (executed counter-example: agy returns `conv-FIRST` where the union returns `ses_LATER`, latent since 0 of 627 logs carry that shape, but an unchosen precedence change); agy's `conversation_id` and nesting have ZERO test coverage anywhere, so F-1's headline hazard is true AND undetectable; agy carries a dead `fallback` variable; and the `executed:i3d6ml` edge is unfounded for both symbols and is REMOVED, freeing the plan to run first. Re-scoped with the guard re-count as its own E-item requiring an injected-regression demonstration, the census as a named baseline, the precedence decision pinned by a test, first-ever agy wire-format coverage, five test files fenced, and the suite baseline named (7308 passed, one load-dependent flake). NOT DECIDED, deliberately: how to re-count three shipped safety guards. Typed record at `.aw/records/reviews/20260916-rununify-05-ct4w0a-resolve-the-two-genuine-behavior-conflicts-union-the-session.review.md` with 10 findings and 5 decisions, 1 irreversible and escalated.
 - 2026-09-15 to-review (aw set): Authored 2026-09-15 from a fresh measurement at HEAD; resolves part of the rununify parent's placeholder child rows per the maintainer's 2026-09-14 oc-preferred ruling.
@@ -303,9 +306,39 @@ the new form be shown still refusing a real regression rather than merely passin
 
 - Blocking: yes
 - Finding: PR-201
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: NOT RESOLVABLE FROM REPOSITORY EVIDENCE. The evidence establishes
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-16. The directive, given
+  directly: "at the end of the SET, there should be one code base shared by the two runners that
+  contains 100% of the otherwise redundant code that currently is duplicated between the two runners."
+  That REFUSES options 3 and 4 outright: option 3 declines to lift `driver_begin` at all, and option 4
+  keeps a per-host wrapper containing a real duplicated `subprocess.run` purely to satisfy a test, which
+  the plan itself calls "duplication wearing a wrapper". Both leave redundancy standing at the end of
+  the Set.
+  THE ANSWER IS OPTION 2, the reviewer's own recommendation: RE-BASE THE GUARDS ON THE OWNER SET rather
+  than on files. Enumerate every nested-`aw` launcher wherever it now lives (shared or per-host) and
+  assert the TOTAL and the stdin coverage over that set. Option 1 (extend the `818uru` per-file pattern)
+  is acceptable as a FALLBACK only if option 2 proves larger than this child can carry, and if taken it
+  must be recorded as a deliberate narrowing with the reason, not as an equivalent choice.
+  WHY OPTION 2 RATHER THAN 1, given the maintainer ruled tests are changeable: with seven more children
+  in this Set moving symbols between files, a guard keyed to FILES needs an edit every time anything
+  moves, and each such edit is an opportunity to weaken it by accident. A guard keyed to the OWNER SET
+  states the property that actually matters ("every nested `aw` launch denies stdin, wherever it lives")
+  and stops needing maintenance. That is strictly stronger, and the maintainer's ruling that tests are
+  work rather than blockers is what makes the larger change available.
+  THE MAINTAINER'S RULING ON TESTS, which this question needed and did not have: asked directly whether
+  these source-reading guards prevent the work, the answer was that they do not. This repository has
+  ALREADY adapted this exact guard for shared code once: `tests/test_nested_tty_noninteractive.py:190-203`
+  counts the shared file's launch sites toward BOTH runners, its docstring records the reasoning, and all
+  41 tests in that file plus `tests/test_lane_tool_identity.py` pass at this HEAD (verified 2026-09-16).
+  So re-basing a guard is sanctioned work. WHAT REMAINS FORBIDDEN is what `818uru`'s docstring already
+  forbids and this plan must not do: lowering a threshold so a failure disappears. The rewritten guards
+  MUST keep an injected-regression test proving they still fail when a launch site loses its `stdin=`,
+  and the literal-text assertion at `tests/test_lane_tool_identity.py:486` must be re-pointed at the
+  shared `driver_begin` rather than deleted, so the `env=pinned_child_env()` pin survives the move.
+  THE REVIEWER'S ANALYSIS BELOW IS PRESERVED and is the specification for the re-basing work.
+  --- original analysis, recommendation now ratified ---
+  NOT RESOLVABLE FROM REPOSITORY EVIDENCE. The evidence establishes
   the breakage precisely; it does not establish what the guards SHOULD assert once a launcher is shared,
   and getting that wrong trades away a safety property this repository has already paid for.
   THE SYMPTOM, plainly: two of these guards exist so that no nested `aw` process can inherit the

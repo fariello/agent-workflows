@@ -6,16 +6,19 @@
 - Scope: Move the liftable subset to `runner_shared.py`, taking the `oc_runipd` version as the source per the maintainer's 2026-09-14 ruling, and leave each host reaching the shared name. THE EXACT SUBSET IS NOT YET SETTLED and is OQ-03, which is `Blocking: yes`: the re-scope needed to make this plan sound restructures a Set with nine pending children and an approved orchestrator whose retirement gate reads the child table, so it is the maintainer's call, not the executor's. No behavior change, no host parameter needed (the 8 symbols that DO need one are child 04's).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, tests/test_rununify_lift.py, tests/test_runner_refork_guard.py, tests/test_runner_backlog_close.py, tests/test_runner_shutdown.py, tests/test_orchestrator_probe_cache.py, tests/test_lane_allocation_idempotent.py
 - Item-Dependencies: none
-- Status: reviewed
-- Readiness: no-go
+- Status: approved
+- Readiness: go-pending-approval
 - Set: rununify
 - Order: 3
 - Highest E allocated: 05
 - Author: opencode/its_direct-pt3-claude-opus-5
 - Id: i3d6ml
+- Approval: 2026-09-17, human ("approved"): Maintainer directive 2026-09-16: the objective is 100% de-duplication of the redundant code between the two runners; readiness attested by the maintainer (not by an agent, not by a review), with the two supporting rulings (source-reading guards are re-based deliberately, never weakened silently; coordinated de-duplication across symbols is permitted) recorded in each plan's OQ-03 and history
 - From-Backlog: alw22r
 
 ## Workflow history
+- 2026-09-17 approved (aw set, --by-human): Maintainer directive 2026-09-16: the objective is 100% de-duplication of the redundant code between the two runners; readiness attested by the maintainer (not by an agent, not by a review), with the two supporting rulings (source-reading guards are re-based deliberately, never weakened silently; coordinated de-duplication across symbols is permitted) recorded in each plan's OQ-03 and history
+- 2026-09-16 reviewed (maintainer, --by-human attestation via askme): MAINTAINER ATTESTATION 2026-09-16: readiness set to `go-pending-approval` BY THE MAINTAINER, not by an agent and not by a review. The prior `no-go` was written by this plan's own 2026-09-16 review round while its blocking OQ-03 was genuinely open. The maintainer then answered that question directly in an interactive session on 2026-09-16 with a single Set-wide directive ('at the end of the SET, there should be one code base shared by the two runners that contains 100% of the otherwise redundant code that currently is duplicated between the two runners'), plus two supporting rulings that dissolved the premises the finding rested on: TESTS ARE NOT IMMOVABLE (a source-reading guard is re-based deliberately as part of the work, never weakened silently; the maintainer cited this repository's own precedent at `tests/test_nested_tty_noninteractive.py:190-203`, whose 41 related tests pass at this HEAD) and COORDINATED DE-DUPLICATION IS PERMITTED (many functions may be de-duplicated together before testing, so a still-double-defined dependency is an ordering matter rather than a blocker). Asked directly how the stale verdict should be cleared, the maintainer chose to attest it themselves rather than fund a further review round. THE ALTERNATIVE WAS PRICED AND REJECTED ON EVIDENCE: the 2026-09-16 round cost roughly 2.5 hours across nine items and produced 1,479 lines of review prose while clearing nothing, and the comparable 2026-09-13 round cost $106.07 and raised four NEW blocking questions, so a further round was not expected to yield a clean sheet. NO AGENT WROTE THIS VALUE ON ITS OWN AUTHORITY. HONEST LIMIT: no independent reviewer re-examined this plan's contents; that assurance lives in the 2026-09-16 round 1 record, not in this attestation. Recorded here because the auto-approve predicate reads this field FIRST (`plan_readiness.is_plan_review_approved`), so a stale `no-go` is a live refusal that would have silently skipped this plan when the Set executed.
 - 2026-09-16 reviewed (aw set): Reviewed 2026-09-16 by /plan-review: REVIEWED - OPEN QUESTIONS, NO-GO. 12 findings (PR-001..PR-012), 10 FIXED, PR-001/PR-004 OPEN and escalated as blocking OQ-03. Plan linted clean but measured the wrong property (body equality, not closure), so 43 of its 48 symbols are not liftable as written and 11 must never move. Revised in place to the 9 sound symbols; the re-scope decision is the maintainer's.
 - 2026-09-16 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO; PR-001 through PR-012 (10 FIXED, PR-001 and PR-004 OPEN and escalated as the new blocking OQ-03). THE PLAN LINTED CLEAN AND WAS NOT EXECUTABLE, because it measured the wrong property: it partitioned the 66 shared symbols by BODY EQUALITY and treated the 48 that agree as liftable, but a definition can move only if every module-level name it closes over resolves in `runner_shared`. Re-measured with that closure test at HEAD `476354fc`: 5 of 48 are liftable, 4 more are liftable but change observable output, 11 must NEVER move, and 28 need a prerequisite. As written each of E-02/E-03/E-04 would fail partway through on an import-time `NameError` after partially relocating a 9,375-line and a 5,727-line module. WORST FINDING: E-02 directed the executor to DELETE the 10 `INJECTED` host wrappers, which are already single-implementation and whose wrapper is a maintainer ruling (`818uru` OQ-02, quoted in `oc_runipd.py:557`, asserted by `SingleDefinitionTests`) with two recorded rejected alternatives; E-03 separately included `disable_lane_prompt`, pinned unmovable in three places because lifting it silently breaks prompt suppression in unattended runs. Also found a Set-level cycle the dependency checker cannot see (6 symbols need children 04/05/06, all of which declare `executed:i3d6ml`), a right-sizing failure the count-based lint could not detect (~1,850 lines in three items), and two right answers resting on false premises, both corrected: OQ-02's "nothing parses these filenames" is false (`run_analytics_statistics.py:1248` does, so agy's verifier logs are TODAY misclassified and adopting oc's form REPAIRS a live defect), and `write_prompt`'s difference is semantic rather than tag order. REVISED IN PLACE to 9 sound symbols with the 11 exclusions converted into a deliverable plus proof-of-absence evidence, bidirectional non-vacuity, 5 missing test files fenced, and the suite bar corrected against a measured pre-existing flake (7308 passed, 1 load-dependent timeout that passes in isolation). NOT DECIDED, deliberately: which of four re-scopes the Set should take, since each restructures a Set with nine pending children and an approved orchestrator. Typed record at `.aw/records/reviews/20260916-rununify-03-i3d6ml-lift-the-48-non-conflicting-shared-runner-symbols-into-runne.review.md` with 12 findings and 5 decisions, 2 of them irreversible and escalated.
 - 2026-09-15 to-review (aw set): Authored 2026-09-15 from a fresh measurement at HEAD; resolves part of the rununify parent's placeholder child rows per the maintainer's 2026-09-14 oc-preferred ruling.
@@ -317,9 +320,45 @@ no per-runner binding fails those tests without any spec having changed.
 
 - Blocking: yes
 - Finding: PR-001, PR-004
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: NOT RESOLVABLE FROM REPOSITORY EVIDENCE, which is why it is asked
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-16, and the answer is NONE OF
+  THE FOUR OPTIONS AS FRAMED. The maintainer's directive, given directly: "at the end of the SET,
+  there should be one code base shared by the two runners that contains 100% of the otherwise
+  redundant code that currently is duplicated between the two runners." Restated as this plan's
+  instruction: the objective is COMPLETE de-duplication, not a chosen subset of it, so an option that
+  lands 9 of 48 symbols and defers 39 does not satisfy it and neither does one that retires the Set.
+  WHAT THE MAINTAINER ALSO RULED, because it dissolves the premise the four options rested on:
+  (1) TESTS ARE NOT IMMOVABLE. Asked directly whether the source-reading guards prevent this work, the
+  maintainer's answer was that they do not, and that this repository has ALREADY adapted exactly such a
+  guard for shared code: `tests/test_nested_tty_noninteractive.py:190-203` counts the shared file's
+  launch sites toward BOTH runners, its docstring records the reasoning, and all 41 tests in that file
+  and `tests/test_lane_tool_identity.py` pass at this HEAD. So a source-reading pin is a thing to
+  UPDATE DELIBERATELY as part of the work, recording what it now asserts and why that is still the same
+  property. It is NOT a veto. What remains forbidden is WEAKENING a guard silently (lowering a
+  threshold to make a failure disappear), which is a different act from re-basing it on the new
+  location of the code.
+  (2) DE-DUPLICATION MAY PROCEED ACROSS SYMBOLS TOGETHER rather than one isolated symbol at a time.
+  The maintainer asked directly whether anything prevented changing many functions and de-duplicating
+  them all before testing; nothing does. This removes the mutual-blocking deadlock: group (e)'s six
+  symbols wait on children 04/05/06 only if each child must land alone, and the directive explicitly
+  permits the coordinated route.
+  THEREFORE, for this plan: execute the full sweep toward 100%. Groups A and B (the 9 sound today) land
+  as already written in E-02/E-03. Groups E, F and H (the 15 gated on a constant, helper or import
+  move) are IN SCOPE for this plan: perform the precursor move and then the lift, in the same pass,
+  rather than deferring them to a new child. Group G's 6 (needing a symbol children 04/05/06 own) are
+  lifted by whichever of those children reaches the symbol first, or by this plan if it gets there
+  first; the E-01 measurement at execution HEAD decides, and either outcome satisfies the directive.
+  THE ELEVEN EXCLUSIONS IN GROUP (c) STAND AND ARE THE ONE DOCUMENTED EXCEPTION TO "100%", because they
+  are not redundancy: 10 carry a per-host wrapper the maintainer's own 2026-09-03 ruling installed
+  (which IS the de-duplicated form, the real function living once in `runner_shared` with a one-line
+  binding per host), and 1 (`disable_lane_prompt`) writes a module-level `global` that must stay
+  per-runner, pinned by `UnmovableSymbolTests`. E-04 must state this distinction explicitly in the
+  deliverable so a later reader does not read "11 excluded" as "11 still duplicated".
+  THE ORIGINAL REVIEWER'S ANALYSIS BELOW IS PRESERVED because its measurement is sound and E-01 must
+  reproduce it; only its CONCLUSION (that a re-scope decision was needed) is superseded.
+  --- original analysis, superseded as to its conclusion ---
+  NOT RESOLVABLE FROM REPOSITORY EVIDENCE, which is why it is asked
   rather than decided. The evidence settles WHAT IS TRUE (the measurement in F-7 and the Goal table);
   it does not settle what this Set should DO about it, and every available answer changes the shape of
   a Set that has nine pending children plus an approved orchestrator (`5e4sb6`) whose retirement gate

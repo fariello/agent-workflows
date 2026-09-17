@@ -6,16 +6,19 @@
 - Scope: Extract the host-neutral core of `run_queue` into `runner_shared.py`, leaving each host a thin hook supplying only what is genuinely its own. Logic resolves to the `oc_runipd` version per the maintainer's 2026-09-14 ruling except where a difference is a real capability, which is called out per difference below. RE-SCOPED AT REVIEW: this plan may not execute as a split until the maintainer decides OQ-03, because the split cannot be performed at this point in the Set without either injecting a dozen dependencies (a shape the maintainer already ruled against at scale) or breaking three source-inspection pins that four other plans installed. E-05 is the deliverable this plan can honestly produce today.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_rununify_run_queue.py, tests/test_oc_runipd_cli.py, tests/test_agy_runipd_cli.py, tests/test_lane_tool_identity.py, tests/test_runner_backlog_close.py, tests/test_runner_shared.py, tests/test_runner_stop.py, tests/test_orchestrator_retirement.py
 - Item-Dependencies: executed:i3d6ml
-- Status: reviewed
-- Readiness: no-go
+- Status: approved
+- Readiness: go-pending-approval
 - Set: rununify
 - Order: 8
 - Highest E allocated: 05
 - Author: opencode/its_direct-pt3-claude-opus-5
 - Id: ty3cj6
+- Approval: 2026-09-17, human ("approved"): Maintainer directive 2026-09-16: the objective is 100% de-duplication of the redundant code between the two runners; readiness attested by the maintainer (not by an agent, not by a review), with the two supporting rulings (source-reading guards are re-based deliberately, never weakened silently; coordinated de-duplication across symbols is permitted) recorded in each plan's OQ-03 and history
 - From-Backlog: alw22r
 
 ## Workflow history
+- 2026-09-17 approved (aw set, --by-human): Maintainer directive 2026-09-16: the objective is 100% de-duplication of the redundant code between the two runners; readiness attested by the maintainer (not by an agent, not by a review), with the two supporting rulings (source-reading guards are re-based deliberately, never weakened silently; coordinated de-duplication across symbols is permitted) recorded in each plan's OQ-03 and history
+- 2026-09-16 reviewed (maintainer, --by-human attestation via askme): MAINTAINER ATTESTATION 2026-09-16: readiness set to `go-pending-approval` BY THE MAINTAINER, not by an agent and not by a review. The prior `no-go` was written by this plan's own 2026-09-16 review round while its blocking OQ-03 was genuinely open. The maintainer then answered that question directly in an interactive session on 2026-09-16 with a single Set-wide directive ('at the end of the SET, there should be one code base shared by the two runners that contains 100% of the otherwise redundant code that currently is duplicated between the two runners'), plus two supporting rulings that dissolved the premises the finding rested on: TESTS ARE NOT IMMOVABLE (a source-reading guard is re-based deliberately as part of the work, never weakened silently; the maintainer cited this repository's own precedent at `tests/test_nested_tty_noninteractive.py:190-203`, whose 41 related tests pass at this HEAD) and COORDINATED DE-DUPLICATION IS PERMITTED (many functions may be de-duplicated together before testing, so a still-double-defined dependency is an ordering matter rather than a blocker). Asked directly how the stale verdict should be cleared, the maintainer chose to attest it themselves rather than fund a further review round. THE ALTERNATIVE WAS PRICED AND REJECTED ON EVIDENCE: the 2026-09-16 round cost roughly 2.5 hours across nine items and produced 1,479 lines of review prose while clearing nothing, and the comparable 2026-09-13 round cost $106.07 and raised four NEW blocking questions, so a further round was not expected to yield a clean sheet. NO AGENT WROTE THIS VALUE ON ITS OWN AUTHORITY. HONEST LIMIT: no independent reviewer re-examined this plan's contents; that assurance lives in the 2026-09-16 round 1 record, not in this attestation. Recorded here because the auto-approve predicate reads this field FIRST (`plan_readiness.is_plan_review_approved`), so a stale `no-go` is a live refusal that would have silently skipped this plan when the Set executed.
 - 2026-09-16 reviewed (aw set): Reviewed 2026-09-16 by /plan-review: REVIEWED - OPEN QUESTIONS, NO-GO. 11 findings (PR-001..PR-011), 9 FIXED, PR-001/PR-002 OPEN and escalated as blocking OQ-03. The plan's 12-differing-line measurement REPRODUCES exactly, but liftability was never measured: `run_queue` closes over 27 names absent from `runner_shared`, 11 of them still double-defined, so the "relocation with a parameter" it promises is a twelve-parameter injection.
 
 - 2026-09-16 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO; PR-001 through PR-011 (9 FIXED, PR-001 and PR-002 OPEN and escalated as the new blocking OQ-03). EVERY NUMBER THE PLAN STATES REPRODUCED and its reasoning about DIFFERENCES is sound: 381/336 lines, 229/227 code lines, exactly 12 differing code lines, exactly 2 bearing a host token, and all seven enumerated differences are real and correctly classified. F-2's hazard is real but its PREMISE IS FALSE IN THE DIRECTION THAT MATTERS: `register_signal_report` is NOT oc-only, `agy_runipd.py:343` imports it and `oc.register_signal_report is agy.register_signal_report` is True today, so the plan's headline hazard ("must become a capability the descriptor declares") describes work already done; the REAL asymmetry is the CALL COUNT (oc calls it 5 times inside `run_queue`, agy 3), which is a genuine agy defect the plan does not name: agy skips the refresh after both integration-ladder state reloads, so a signal arriving there reports from a pre-reload snapshot. THE BLOCKING DEFECT is the same class that reversed sibling `i3d6ml`: the plan measured BODY DIFFERENCE and inferred LIFTABILITY. Closure-measured at HEAD `34aa40c0`, `run_queue` closes over 41 module-level names; 14 resolve in `runner_shared`, 27 do not, and 11 of the 27 are functions still DEFINED TWICE (`execute_item`, `retry_deferred_integrations`, `reconcile_interrupted`, `requeue_interrupted`, `reclaim_lanes_on_interrupt`, `_observe_between_turn_stop`, `_record_deliberate_stop`, `render_continuation_hint`, `write_report`, `driver_actor`, `disable_lane_prompt`), one of which (`disable_lane_prompt`) is pinned PERMANENTLY unmovable by `UnmovableSymbolTests` and can therefore never resolve. Also found: THREE SOURCE-INSPECTION PINS read `inspect.getsource(module.run_queue)` and assert substrings that a thin caller would no longer contain (`tests/test_runner_backlog_close.py:1228`, `tests/test_oc_runipd_cli.py:233`, `tests/test_agy_runipd_cli.py:1465`), plus three more that parse its source or count its call sites (`tests/test_lane_tool_identity.py:666`, `tests/test_runner_stop.py:607`, `tests/test_runner_shared.py:3234`/`:3270`), and `tests/test_orchestrator_retirement.py:3483` requires an `orchestrate` branch to remain in agy's OWN `run_queue` AST; none of the seven files was fenced. And `test_no_call_site_was_rewritten` counts `save_state` call sites per runner (38 oc / 36 agy, verified passing), of which 13 per host are inside `run_queue`, so the split moves a third of the counted population and the wrapper-ruling measurement fails unless the plan accounts for it. REVISED IN PLACE: the false hazard corrected, the closure measurement added as a gating E-01, the seven test files fenced, the six pins enumerated for the executor, non-vacuity made bidirectional, and E-05 added as the deliverable this plan can honestly produce today. NOT DECIDED, deliberately: whether to inject twelve dependencies, to re-order this plan behind the eleven, or to reduce the scope to the two-line host-token parameterization, since each restructures a Set with nine pending children.
@@ -247,9 +250,47 @@ report either way. E-01, E-02, E-04 and E-05 touch no operator-visible contract.
 
 - Blocking: yes
 - Finding: PR-001, PR-002
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: NOT DECIDED, deliberately, because every route restructures a Set
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-16, and the answer is ROUTE (A)
+  AS THE OBJECTIVE, with the route's stated obstacles ruled to be work rather than blockers. The
+  maintainer's directive, given directly: "at the end of the SET, there should be one code base shared
+  by the two runners that contains 100% of the otherwise redundant code that currently is duplicated
+  between the two runners." So DO THE SPLIT. Routes (C) and (D) are refused: both leave this function
+  duplicated, which the directive forbids. Route (B)'s re-ordering is PERMITTED as a tactic (see below)
+  but is not itself the answer, because it defers rather than achieves.
+  THE TWO OBSTACLES THIS QUESTION RESTED ON WERE BOTH RULED ON DIRECTLY, and both dissolve:
+  (1) TESTS ARE NOT IMMOVABLE. Asked whether the source-reading pins prevent this work, the maintainer's
+  answer was that they do not, and this repository has ALREADY adapted such a guard for shared code:
+  `tests/test_nested_tty_noninteractive.py:190-203` counts the shared file's launch sites toward BOTH
+  runners, its docstring records why, and all 41 tests in that file plus `tests/test_lane_tool_identity.py`
+  pass at this HEAD. A source-reading pin is therefore something to UPDATE DELIBERATELY as part of the
+  work: re-base it on the code's new location, record what it now asserts, and prove it still catches the
+  regression it was installed for (an injected-regression test, which several of these pins already have).
+  WHAT REMAINS FORBIDDEN is WEAKENING a guard silently, i.e. lowering a threshold or deleting an assertion
+  so a failure disappears. Re-basing is not weakening. Where a pin asserts the ORDER of safety gates, the
+  ordering property must survive the move; assert it on the shared implementation, and if a behavioral
+  assertion can replace a source-text one without losing coverage, prefer it and say so.
+  (2) THE INJECTED-DEPENDENCY COUNT IS NOT A VETO, AND THE MECHANISM IS ALREADY RULED. This question
+  treated N injected parameters as a reason to stop, and cited the maintainer's 2026-09-03 `818uru`
+  OQ-02 ruling as being against it. That reads the ruling backwards. The ruling ESTABLISHED the
+  mechanism to use: `runner_shared` owns the real function taking each outside dependency as an explicit
+  PARAMETER, and each runner keeps a ONE-LINE wrapper at the ORIGINAL name and ORIGINAL signature that
+  binds its own dependency (see the executed plan's E-02 note). What that ruling rejected was threading a
+  parameter through ~86 CALL SITES, which the wrapper form specifically avoids. So a shared core with N
+  parameters plus a thin per-host wrapper IS the sanctioned form, not a violation of it.
+  (3) SIBLING COUPLING IS NOT A BLOCKER EITHER. The maintainer confirmed directly that many functions may
+  be de-duplicated together before testing, so a dependency that is still double-defined because a SIBLING
+  has not landed is to be handled by doing the work in dependency order within the Set, not by refusing.
+  Where this plan's dependency count falls materially once a sibling lands, run in that order (route (B)'s
+  tactic) and say so in the execution note; where it does not, inject and wrap per (2).
+  HOW TO SEQUENCE, since every one of these five children asked the same question: the runner already
+  sorts by dependency depth and re-checks dependencies at dispatch, so declared `Item-Dependencies` are
+  sufficient to order the work. Do not re-order plans by hand.
+  THE ORIGINAL REVIEWER'S MEASUREMENT BELOW IS PRESERVED and E-01 must reproduce it at execution HEAD;
+  only its CONCLUSION (that a route decision was owed by the maintainer) is superseded.
+  --- original analysis, superseded as to its conclusion ---
+  NOT DECIDED, deliberately, because every route restructures a Set
   that has nine pending children and an approved orchestrator, and that is a scope-and-sequencing call
   the maintainer owns. THE MEASUREMENT, not an opinion: `run_queue` closes over 41 module-level names;
   14 resolve in `runner_shared`, 11 are still DEFINED TWICE, and `disable_lane_prompt` is pinned

@@ -6,16 +6,19 @@
 - Scope: Extract the host-neutral core of `build_parser` into `runner_shared.py`, leaving each host a thin hook supplying only what is genuinely its own. Logic resolves to the `oc_runipd` version per the maintainer's 2026-09-14 ruling except where a difference is a real capability, which is called out per difference below. RE-SCOPED AT REVIEW: the split is GATED on OQ-03, because the measured shared content is 17 flag strings that are ALREADY registered from shared code (`runner_shared.register_run_policy_flags`, 12 spec-governed rows) plus four subparser skeletons, while everything else is each host's own CLI contract. The oc-preferred ruling cannot apply to a flag surface: adopting oc's `--verify`/`--audit` aliases on agy would COLLIDE with agy's shipped `--no-verify`, which is exactly what `assert_verification_flags_are_distinct` exists to catch.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_rununify_build_parser.py, tests/test_run_flag_surface.py
 - Item-Dependencies: executed:tx6q0h
-- Status: reviewed
-- Readiness: no-go
+- Status: approved
+- Readiness: go-pending-approval
 - Set: rununify
 - Order: 10
 - Highest E allocated: 05
 - Author: opencode/its_direct-pt3-claude-opus-5
 - Id: s16omw
+- Approval: 2026-09-17, human ("approved"): Maintainer directive 2026-09-16: the objective is 100% de-duplication of the redundant code between the two runners; readiness attested by the maintainer (not by an agent, not by a review), with the two supporting rulings (source-reading guards are re-based deliberately, never weakened silently; coordinated de-duplication across symbols is permitted) recorded in each plan's OQ-03 and history
 - From-Backlog: alw22r
 
 ## Workflow history
+- 2026-09-17 approved (aw set, --by-human): Maintainer directive 2026-09-16: the objective is 100% de-duplication of the redundant code between the two runners; readiness attested by the maintainer (not by an agent, not by a review), with the two supporting rulings (source-reading guards are re-based deliberately, never weakened silently; coordinated de-duplication across symbols is permitted) recorded in each plan's OQ-03 and history
+- 2026-09-16 reviewed (maintainer, --by-human attestation via askme): MAINTAINER ATTESTATION 2026-09-16: readiness set to `go-pending-approval` BY THE MAINTAINER, not by an agent and not by a review. The prior `no-go` was written by this plan's own 2026-09-16 review round while its blocking OQ-03 was genuinely open. The maintainer then answered that question directly in an interactive session on 2026-09-16 with a single Set-wide directive ('at the end of the SET, there should be one code base shared by the two runners that contains 100% of the otherwise redundant code that currently is duplicated between the two runners'), plus two supporting rulings that dissolved the premises the finding rested on: TESTS ARE NOT IMMOVABLE (a source-reading guard is re-based deliberately as part of the work, never weakened silently; the maintainer cited this repository's own precedent at `tests/test_nested_tty_noninteractive.py:190-203`, whose 41 related tests pass at this HEAD) and COORDINATED DE-DUPLICATION IS PERMITTED (many functions may be de-duplicated together before testing, so a still-double-defined dependency is an ordering matter rather than a blocker). Asked directly how the stale verdict should be cleared, the maintainer chose to attest it themselves rather than fund a further review round. THE ALTERNATIVE WAS PRICED AND REJECTED ON EVIDENCE: the 2026-09-16 round cost roughly 2.5 hours across nine items and produced 1,479 lines of review prose while clearing nothing, and the comparable 2026-09-13 round cost $106.07 and raised four NEW blocking questions, so a further round was not expected to yield a clean sheet. NO AGENT WROTE THIS VALUE ON ITS OWN AUTHORITY. HONEST LIMIT: no independent reviewer re-examined this plan's contents; that assurance lives in the 2026-09-16 round 1 record, not in this attestation. Recorded here because the auto-approve predicate reads this field FIRST (`plan_readiness.is_plan_review_approved`), so a stale `no-go` is a live refusal that would have silently skipped this plan when the Set executed.
 - 2026-09-16 reviewed (aw set): Reviewed 2026-09-16 by /plan-review: REVIEWED - OPEN QUESTIONS, NO-GO. 12 findings (PR-001..PR-012), 10 FIXED, PR-001/PR-002 OPEN and escalated as blocking OQ-03. The counts reproduce and the CONCLUSION inverts: 47 differing lines out of 46/47 total means similarity 0.4946, the LOWEST in the Set, and the flag surface is 17 shared / 7 oc-only / 10 agy-only with `--no-verify` deliberately mapping to different dests per host.
 
 - 2026-09-16 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO; PR-001 through PR-012 (10 FIXED, PR-001 and PR-002 OPEN and escalated as the new blocking OQ-03). THE NUMBERS REPRODUCE AND THE INFERENCE INVERTS, which makes this the mirror image of sibling `orziju`. Verified at HEAD `7936c13d`: 347/264 raw lines, 271/212 code lines, 47 differing lines under AST normalization with docstrings stripped, 22 bearing a host token (the plan says 23; close enough to be a rounding of the same measurement). BUT 47 differing lines out of 46 oc and 47 agy TOTAL normalized lines means the functions share almost nothing, and SequenceMatcher agrees: similarity 0.4946, the LOWEST of the five large functions by a wide margin (`initialize_run` 0.9345, `execute_item` 0.851). So the Concern's "most of the divergence is DRIFT in shared logic" is FALSE HERE; F-1's own instinct ("the MOST host-specific of the five") is the correct reading and the Concern contradicts it. MEASURED THE FLAG SURFACE FLAG-BY-FLAG, which no prior review of this Set did: 17 shared option strings, 7 OC-ONLY (`--agent`, `--audit`, `--auto`, `--opencode`, `--variant`, `--verify`, `--verify-with`), 10 AGY-ONLY (`--agy`, `--agy-executable`, `--dangerous`, `--dangerously-skip-permissions`, `--effort`, `--new-session`, `--no-audit`, `--no-dangerously-skip-permissions`, `--no-verify`, `--timeout`). THE SHARPEST FINDING: `--no-verify` resolves to dest `validate` on oc and dest `no_verify` on agy, and `--verify`/`--audit` exist ONLY on oc. That is not drift, it is an intentional incompatibility that agy DEFENDS with a build-time guard `assert_verification_flags_are_distinct` (`agy_runipd.py:1959`), whose docstring records the measured hazard: registering oc's alias list on agy would make `BooleanOptionalAction` auto-generate `--no-verify`/`--no-audit` and, under `conflict_handler="resolve"`, SILENTLY STEAL agy's shipped spellings. oc has no such guard and needs none. So the Set's oc-preferred ruling CANNOT be applied here, and F-2's warning not to touch a flag is not merely a caution but a proof that the oc version cannot win. WHAT IS ACTUALLY SHARED, measured: the 12 spec-governed `RUN_POLICY_FLAGS` rows already registered through `runner_shared.register_run_policy_flags` (both hosts call it twice, F-3 is CORRECT), the four subparser skeletons, and `--repo`/`run_id`/`--json` on `status`/`report` which are byte-identical. THE GOOD NEWS THE PLAN DOES NOT CLAIM, and it is the reason this is the most executable of the five: the closure is the CLEANEST in the Set (7 free names, only TWO still double-defined: `_add_output_mode_flags` and `_detect_driver_command`; `ACTION_CHOICES` and `DEFAULT_STALL_TIMEOUT` are equal constants), and there are ZERO source-inspection pins on `build_parser` (against 14 for `execute_item` and 11 for `initialize_run`), because 31 test files call `build_parser()` BEHAVIORALLY. A relocation here breaks no pin. ALSO CORRECTED: `Item-Dependencies: executed:tx6q0h` gains only ONE of the two remaining symbols, since child 04 lifts `_detect_driver_command` and explicitly ASSIGNS `_add_output_mode_flags` to child 03, which was re-scoped to 9 symbols and does not lift it, so neither sibling clears it; and 50 percent of oc's `build_parser` source is string-literal content (41 percent on agy), so F-5's "help/usage text: supplied by child 04's descriptor" understates the volume by an order of magnitude. REVISED IN PLACE: flag-surface table added to the Goal, the verification-dest collision added as F-7, the zero-pin and clean-closure findings recorded as F-9/F-10 (the two GOOD findings in this plan), the Concern corrected, gating E-01 added, the split narrowed to E-04's analysis, five items in place of three, `tests/test_run_flag_surface.py` fenced, non-vacuity made bidirectional. NOT DECIDED: whether a parser whose shared content is already shared is worth a shared core at all.
@@ -278,9 +281,47 @@ fixing it is not this plan's job.
 
 - Blocking: yes
 - Finding: PR-001, PR-002
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: NOT DECIDED, deliberately. Unlike the other four split children, the
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-16, and the answer is ROUTE (A)
+  AS THE OBJECTIVE, with the route's stated obstacles ruled to be work rather than blockers. The
+  maintainer's directive, given directly: "at the end of the SET, there should be one code base shared
+  by the two runners that contains 100% of the otherwise redundant code that currently is duplicated
+  between the two runners." So DO THE SPLIT. Routes (C) and (D) are refused: both leave this function
+  duplicated, which the directive forbids. Route (B)'s re-ordering is PERMITTED as a tactic (see below)
+  but is not itself the answer, because it defers rather than achieves.
+  THE TWO OBSTACLES THIS QUESTION RESTED ON WERE BOTH RULED ON DIRECTLY, and both dissolve:
+  (1) TESTS ARE NOT IMMOVABLE. Asked whether the source-reading pins prevent this work, the maintainer's
+  answer was that they do not, and this repository has ALREADY adapted such a guard for shared code:
+  `tests/test_nested_tty_noninteractive.py:190-203` counts the shared file's launch sites toward BOTH
+  runners, its docstring records why, and all 41 tests in that file plus `tests/test_lane_tool_identity.py`
+  pass at this HEAD. A source-reading pin is therefore something to UPDATE DELIBERATELY as part of the
+  work: re-base it on the code's new location, record what it now asserts, and prove it still catches the
+  regression it was installed for (an injected-regression test, which several of these pins already have).
+  WHAT REMAINS FORBIDDEN is WEAKENING a guard silently, i.e. lowering a threshold or deleting an assertion
+  so a failure disappears. Re-basing is not weakening. Where a pin asserts the ORDER of safety gates, the
+  ordering property must survive the move; assert it on the shared implementation, and if a behavioral
+  assertion can replace a source-text one without losing coverage, prefer it and say so.
+  (2) THE INJECTED-DEPENDENCY COUNT IS NOT A VETO, AND THE MECHANISM IS ALREADY RULED. This question
+  treated N injected parameters as a reason to stop, and cited the maintainer's 2026-09-03 `818uru`
+  OQ-02 ruling as being against it. That reads the ruling backwards. The ruling ESTABLISHED the
+  mechanism to use: `runner_shared` owns the real function taking each outside dependency as an explicit
+  PARAMETER, and each runner keeps a ONE-LINE wrapper at the ORIGINAL name and ORIGINAL signature that
+  binds its own dependency (see the executed plan's E-02 note). What that ruling rejected was threading a
+  parameter through ~86 CALL SITES, which the wrapper form specifically avoids. So a shared core with N
+  parameters plus a thin per-host wrapper IS the sanctioned form, not a violation of it.
+  (3) SIBLING COUPLING IS NOT A BLOCKER EITHER. The maintainer confirmed directly that many functions may
+  be de-duplicated together before testing, so a dependency that is still double-defined because a SIBLING
+  has not landed is to be handled by doing the work in dependency order within the Set, not by refusing.
+  Where this plan's dependency count falls materially once a sibling lands, run in that order (route (B)'s
+  tactic) and say so in the execution note; where it does not, inject and wrap per (2).
+  HOW TO SEQUENCE, since every one of these five children asked the same question: the runner already
+  sorts by dependency depth and re-checks dependencies at dispatch, so declared `Item-Dependencies` are
+  sufficient to order the work. Do not re-order plans by hand.
+  THE ORIGINAL REVIEWER'S MEASUREMENT BELOW IS PRESERVED and E-01 must reproduce it at execution HEAD;
+  only its CONCLUSION (that a route decision was owed by the maintainer) is superseded.
+  --- original analysis, superseded as to its conclusion ---
+  NOT DECIDED, deliberately. Unlike the other four split children, the
   question here is not "can this be done" (mechanically it is the EASIEST of the five) but "should it",
   which is a design call the maintainer owns.
   THE MEASUREMENT, not an opinion. `build_parser` has the LOWEST similarity of the five large functions
