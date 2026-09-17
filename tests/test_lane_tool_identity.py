@@ -872,6 +872,7 @@ class TheBeginPinSurvivedTheMove(unittest.TestCase):
             cwd=str(repo_root),
             capture_output=True,
             text=True,
+            check=False,  # a missing commit is handled by the skip below, not by an exception
             stdin=sp.DEVNULL,
         )
         if proc.returncode != 0:

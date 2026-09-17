@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """rununify 05 (`ct4w0a`): the TWO symbols where the two host runners genuinely DISAGREED.
 
 Sixteen of this Set's shared symbols were duplicates that agreed. These two did not, and that is why
@@ -622,10 +621,17 @@ class ControlFidelityTests(unittest.TestCase):
             cwd=str(repo_root),
             capture_output=True,
             text=True,
+            check=False,  # a missing commit is handled by the skip below, not by an exception
             stdin=sp.DEVNULL,
         )
         if proc.returncode != 0:
             self.skipTest(f"execution HEAD {head[:8]} not reachable in this clone")
+        # `exec` on TWO hand-picked AST nodes (one assignment, one function def) taken from a FIXED
+        # commit's `oc_runipd.py`, into a private namespace. Deliberate and narrow: the point is to run
+        # the SHIPPED pre-union body rather than a hand-copy of it, because a hand-copy is exactly what
+        # `_oc_pre_union_reader` already is and this test exists to verify THAT copy is faithful. Nothing
+        # here reads untrusted input: the source comes from this repository's own git object store at a
+        # pinned SHA. `# noqa: S102` is scoped to the two exec lines below, not to the file.
         namespace: dict[str, object] = {"json": json, "Path": Path}
         tree = ast.parse(proc.stdout)
         wanted = {"extract_session_id"}
@@ -634,9 +640,9 @@ class ControlFidelityTests(unittest.TestCase):
                 isinstance(t, ast.Name) and t.id == "_SESSION_ID_KEYS"
                 for t in node.targets
             ):
-                exec(compile(ast.Module([node], []), "<pre>", "exec"), namespace)
+                exec(compile(ast.Module([node], []), "<pre>", "exec"), namespace)  # noqa: S102
             if isinstance(node, ast.FunctionDef) and node.name in wanted:
-                exec(compile(ast.Module([node], []), "<pre>", "exec"), namespace)
+                exec(compile(ast.Module([node], []), "<pre>", "exec"), namespace)  # noqa: S102
         real_pre_union = namespace.get("extract_session_id")
         if not callable(
             real_pre_union

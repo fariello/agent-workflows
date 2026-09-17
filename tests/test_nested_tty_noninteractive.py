@@ -17,6 +17,7 @@ import ast
 import tempfile
 import unittest
 from pathlib import Path
+from typing import ClassVar
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DRIVERS = ("agent_workflows/oc_runipd.py", "agent_workflows/agy_runipd.py")
@@ -313,7 +314,7 @@ class OwnerSetCompletenessTests(unittest.TestCase):
     # Nested-`aw` launches that live OUTSIDE the owner set, each with the reason it is not covered by
     # the stdin guard above. This is an ALLOWLIST and it is deliberately tiny: every entry is a hole,
     # and the scan below fails when a new one appears so the hole is a decision rather than a drift.
-    EXEMPT_OUTSIDE_OWNER_SET = {
+    EXEMPT_OUTSIDE_OWNER_SET: ClassVar[dict[str, int]] = {
         # PRE-EXISTING AND REPORTED, not introduced by `ct4w0a` (measured at its execution HEAD
         # 1171f7b2, before any change in this plan). These two are release GATES, not runner launchers:
         # they are invoked from a human-run `aw release-review`, they pass `--agent` (which makes the
