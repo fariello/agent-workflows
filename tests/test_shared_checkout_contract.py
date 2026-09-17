@@ -86,9 +86,18 @@ class GraduationContractTests(unittest.TestCase):
 
 
 class DriverPromptParityTests(unittest.TestCase):
-    """E-03/E-04: runner turns and interactive sessions must be told the same thing, in ASCII."""
+    """E-03/E-04: runner turns and interactive sessions must be told the same thing, in ASCII.
 
-    DRIVERS = ("agent_workflows/oc_runipd.py", "agent_workflows/agy_runipd.py")
+    RE-BASED by rununify Order 04 (`tx6q0h`), deliberately and without weakening. Both runners'
+    `build_prompt`/`build_verifier_prompt` were de-duplicated into `runner_shared`, so the prompt
+    prose this class reads now lives in that ONE module instead of being spelled twice. The property
+    asserted is UNCHANGED (every Concurrent Work block still carries the verification command, still
+    in ASCII); only the file it is read from moved, which is the point of the de-duplication. Reading
+    the shared module is now STRICTLY STRONGER than reading the two runners was, because a single
+    failure here can no longer be masked by the other host's copy still being correct.
+    """
+
+    DRIVERS = ("agent_workflows/runner_shared.py",)
 
     def _concurrent_blocks(self, rel: str) -> list[str]:
         src = (REPO_ROOT / rel).read_text(encoding="utf-8")

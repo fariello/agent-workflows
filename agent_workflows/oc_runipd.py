@@ -44,7 +44,6 @@ from agent_workflows import (
 # terseout `ntf6sx` E-04: the ONE concise-reporting contract, embedded in FULL in this driver's
 # execution and verifier prompts. A fresh worker session must not depend only on ambient host
 # instructions, which is why the drivers already embed their other critical safeguards.
-from agent_workflows import reporting_contract
 
 # runprofile Order 01 (`f2mrsw`): the named-runner-profile schema, store, and RESOLVER. Imported as a
 # module (not symbol-by-symbol) so this driver cannot fork profile parsing or precedence, which
@@ -348,7 +347,9 @@ TERMINAL_STATES = {
     "integration-blocked",
     "merge-conflict",
 }
-SUCCESS_STATES = {"executed", "reviewed", "approved"}
+# rununify 04 (`tx6q0h`): relocated to `runner_shared` (byte-identical in both hosts);
+# re-exported so this module's other call sites are untouched.
+SUCCESS_STATES = runner_shared.SUCCESS_STATES
 EXECUTION_SUCCESS_STATES = {"executed", "substantially-complete"}
 # laneorphan-01 (`zwnjp3`) E-10: how long an OPTIONAL lane prompt waits before falling through to the
 # automatic content-based decision. Deliberately short: an unattended run must never block on shutdown.
@@ -888,31 +889,10 @@ def finalize_orchestrator(repo: Path, id6: str, message: str) -> bool:
         return False
 
 
+# rununify 04 (`tx6q0h`): one-line wrapper over the shared definition. Measured before the lift, the
+# shared body returns byte-identically to each host's own copy on every state that host produces.
 def driver_actor(state: dict[str, Any]) -> str:
-    """The attributed actor string bound into begin/finalize (driver + configured model).
-
-    Kept parenthesis-free: the terminal history line is `- <date> <status> (<actor>): <msg>`, so the
-    model is rendered as `model=<model>` (no nested parens). The readers no longer REQUIRE this - plan
-    fn2l1u made every actor capture lazy, so a parenthesized actor parses - but the setter now
-    REFUSES one (`attention_contract.actor_refusal`), because one actor shape across the toolkit is
-    cheaper to read and grep than two, and refusing early keeps the failure before the lifecycle
-    commit rather than after it.
-
-    runprofile-03 (`3cm15q`) E-03: the resolved VARIANT and the applied PROFILE join the model, so the
-    plan's terminal history line attributes the work to the exact launch identity that did it rather
-    than to a model name that two different variants share. Same parenthesis-free rule, same
-    `key=value` shape, and each part is omitted when absent so an existing run's actor string is
-    byte-identical. No credentials: these are identifiers only."""
-    options = state.get("options", {}) or {}
-    model = options.get("model")
-    parts = [f"model={model}"] if model else []
-    variant = options.get("variant")
-    if variant:
-        parts.append(f"variant={variant}")
-    applied_profile = (options.get("launch_profile") or {}).get("applied")
-    if applied_profile:
-        parts.append(f"profile={applied_profile}")
-    return "aw oc run " + " ".join(parts) if parts else "aw oc run"
+    return runner_shared.driver_actor(state, labels=runner_shared.OC_HOST_LABELS)
 
 
 def begin_baseline_env(isolated: bool) -> dict[str, str]:
@@ -1264,36 +1244,15 @@ def report_run_spec_edits(
     return lines
 
 
+# rununify 04 (`tx6q0h`): one-line wrapper over the shared definition, binding THIS host's labels.
+# The two copies differed ONLY by the `aw oc run` / `aw agy run` string they write into a plan's
+# PERMANENT finalize record, which is why the shared version takes no default for it.
 def _compute_scope_reconciliation(
     repo: Path, plan_path: Path
 ) -> tuple[dict[str, str], dict[str, str]]:
-    """Compute the two-way scope reconciliation (Order 05) the driver will hand to finalize.
-
-    Reuses the authoritative, read-only `ipd_lifecycle.finalize_precheck` (which validates the
-    begin receipt and computes `evidence['scope_audit']` without mutating) rather than
-    re-implementing the diff. Returns ({out-of-scope path: reason}, {declared-but-unmodified
-    path: ack}). An empty pair means a clean delta (nothing to reconcile)."""
-    from agent_workflows import ipd_lifecycle
-
-    exit_code, _msg, evidence, _findings = ipd_lifecycle.finalize_precheck(
-        repo, plan_path
+    return runner_shared.compute_scope_reconciliation(
+        repo, plan_path, labels=runner_shared.OC_HOST_LABELS
     )
-    if exit_code != 0:
-        # The precheck itself refused (bad/missing receipt, failing pre-transition lint). Return
-        # empty maps; the finalize call below will surface the same refusal authoritatively.
-        return {}, {}
-    audit = evidence.get("scope_audit", {}) or {}
-    out_of_scope = list(audit.get("out_of_scope_paths", []) or [])
-    in_scope_unmodified = list(audit.get("in_scope_unmodified", []) or [])
-    reasons = {
-        p: "changed by the plan's approved execution (auto-reconciled by aw oc run)"
-        for p in out_of_scope
-    }
-    acks = {
-        p: "declared-but-unmodified (auto-acknowledged by aw oc run)"
-        for p in in_scope_unmodified
-    }
-    return reasons, acks
 
 
 def driver_finalize(
@@ -3094,65 +3053,20 @@ def expand_selectors(
 # item, `execute` only for approved/auto-approved/reusable IPDs) need per-type dispatch this Set has
 # not built. Accepting them silently would be the worse failure: the operator would believe an action
 # was constrained when nothing constrained it.
-ACTION_CHOICES = ("review", "plan", "execute")
-ACTION_IMPLEMENTED = frozenset(("review",))
+# rununify 04 (`tx6q0h`): relocated to `runner_shared`; re-exported for existing call sites.
+ACTION_CHOICES = runner_shared.ACTION_CHOICES
+ACTION_IMPLEMENTED = runner_shared.ACTION_IMPLEMENTED
 
 
+# rununify 04 (`tx6q0h`): one-line wrapper over the shared definition. The safety content (spec
+# 25kzda 2.6's three refusals) now has ONE implementation; only the `aw oc review` hint is per-host.
 def enforce_requested_action(
     requested: str | None,
     items: list[tuple[str, str, str]],
 ) -> None:
-    """FAIL CLOSED when `--action <a>` is illegal for any selected item. Raises `DriverError`.
-
-    `items` is [(id6, status, derived_action)], derived by `action_for` exactly as the queue builder
-    derives it, so this cannot disagree with what would actually run.
-
-    THIS IS THE SAFETY CONTENT OF `--action`, NOT PLUMBING (revsweep 76gsmv F-9). `action_for`
-    returns `execute` for BOTH `approved` AND `reviewed`, the queue builder calls it unconditionally,
-    and under `--full-auto` a `reviewed` plan carrying an approving `- Readiness:` is cleared to
-    `auto-approved` and EXECUTED. So `aw oc review <approved-id6>` with the flag merely accepted and
-    ignored would EXECUTE that plan while the operator typed the word "review". Spec 25kzda 2.6
-    forbids exactly that: `--action` "cannot force a status transition, execute an unapproved item,
-    or turn a non-runnable record into a runnable one", and 2.1 permits it only when "the requested
-    action is legal from every item's current status".
-
-    REFUSED BEFORE THE QUEUE IS FROZEN, matching the fail-closed dependency preflight: the caller
-    invokes this from `initialize_run` ahead of the run directory's creation, so a refused run leaves
-    no host session, no run directory, and no durable state to reconcile.
-
-    An `orchestrate` item satisfies `--action review` NEVER: an orchestrator past review is not
-    agent-executed, so asking to review it is asking for something the driver cannot do at that
-    status, and silently including it would put a non-review turn in a review-spelled run.
-    """
-    if requested is None:
-        return
-    action = str(requested).lower().strip()
-    if action not in ACTION_CHOICES:
-        raise DriverError(
-            f"Unknown --action {action!r}; expected one of: {', '.join(ACTION_CHOICES)}"
-        )
-    if action not in ACTION_IMPLEMENTED:
-        raise DriverError(
-            f"--action {action} is not implemented yet. Only --action review is available; "
-            f"{action}'s per-type legality table (spec 25kzda 2.6) needs the per-type dispatch "
-            "this runner does not have. No run was started. To review instead, run: "
-            "aw oc review <selector>"
-        )
-    illegal = [
-        (id6, status, derived) for id6, status, derived in items if derived != action
-    ]
-    if illegal:
-        detail = ", ".join(
-            f"{id6} (status {status!r} -> action {derived!r})"
-            for id6, status, derived in illegal
-        )
-        raise DriverError(
-            f"--action review is illegal for {len(illegal)} selected item(s): {detail}. "
-            "Review is the next legal action only for a to-review or draft plan; an approved or "
-            "reviewed plan would EXECUTE, which is not what 'review' asks for. No run was started "
-            "and no session launched. To sweep only what actually awaits review, run: "
-            "aw oc review"
-        )
+    runner_shared.enforce_requested_action(
+        requested, items, labels=runner_shared.OC_HOST_LABELS
+    )
 
 
 # Dependency findings that ABORT the whole run rather than failing one component. Spec 25kzda 2.10
@@ -3897,77 +3811,16 @@ def render_launch_identity(state: dict[str, Any]) -> str:
     return "; ".join(parts) if parts else "(host defaults)"
 
 
+# rununify 04 (`tx6q0h`): one-line wrapper over the shared report renderer, binding THIS host's
+# labels and its `render_launch_identity` (the `- Launch:` line stays OpenCode-only; on a host with no
+# profile subsystem it would render `profile=(none recorded)` forever - plan `tx6q0h` OQ-01).
 def write_report(run_dir: Path, state: dict[str, Any]) -> None:
-    counts: dict[str, int] = {}
-    for item in state["queue"]:
-        counts[item["status"]] = counts.get(item["status"], 0) + 1
-    lines = [
-        f"# Execution Report: {state.get('run_id', '')}",
-        "",
-        f"- Repository: `{state.get('repo', '')}`",
-        f"- Created: {state.get('created_at', '')}",
-        f"- Updated: {state.get('updated_at', '')}",
-        f"- Selectors: `{' '.join(state.get('selectors', []))}`",
-        f"- Set sessions: `{json.dumps(state.get('set_sessions', {}), sort_keys=True)}`",
-        f"- Counts: `{json.dumps(counts, sort_keys=True)}`",
-        "- Pushed: no (required; verify independently in outcomes)",
-        # runprofile-03 (`3cm15q`) E-03: the launch identity in the report an operator actually reads,
-        # so "which model produced this run" needs no `state.json` archaeology. Appended as its own
-        # line ABOVE the table so the table's column contract is unchanged.
-        f"- Launch: {render_launch_identity(state)}",
-        "",
-        "| # | id6 | Set | Action | Status | Verify | Attempts | Last session |",
-        "|---:|---|---|---|---|---|---:|---|",
-    ]
-    for item in state["queue"]:
-        attempts = item.get("attempts", [])
-        session = attempts[-1].get("session_id", "") if attempts else ""
-        action = item.get("action", "execute")
-        verify = item.get("verification_status") or ""
-        lines.append(
-            f"| {item['position']} | `{item['id6']}` | `{item['setid']}` | `{action}` | "
-            f"{item['status']} | {verify} | {len(attempts)} | `{session}` |"
-        )
-    # revgate Order 03 (7nkcgp) E-04: name the ROOT CAUSE in the report an operator actually reads,
-    # not only in events.jsonl. Emitted as its own section so the table's column contract is unchanged.
-    blocked = [
-        item
-        for item in state["queue"]
-        if item.get("status") == "dependency-blocked"
-        and (
-            item.get("unsatisfied_dependencies")
-            or item.get("unsatisfied_dependency_reasons")
-        )
-    ]
-    if blocked:
-        lines.extend(["", "## Dependency blocks (why)", ""])
-        for item in blocked:
-            reasons = item.get("unsatisfied_dependency_reasons") or {}
-            lines.append(f"- `{item['id6']}` (position {item['position']}):")
-            for dep in item.get("unsatisfied_dependencies") or []:
-                detail = reasons.get(dep) or "dependency not satisfied"
-                lines.append(f"  - `{dep}`: {detail}")
-            hint = item.get("dependency_block_recovery")
-            if hint:
-                lines.append(f"  - Recovery: {hint}")
-    # lanectn xdr83v E-03 (spec R5.6a): NAME EVERY PRESERVED LANE AND ITS REASON IN THE SUMMARY A HUMAN
-    # READS, not only in events.jsonl. Measured basis for making this a requirement rather than polish:
-    # run `run-20260901T042331Z-118022` preserved TWO lanes and mentioned it ZERO times here, five
-    # preserved lanes were on disk, and the maintainer learned work had been stranded by ASKING. The
-    # renderer is SHARED with `agy_runipd` so the two reports cannot disagree about which lanes
-    # survived, and it returns [] when nothing was preserved, so an unaffected run's report is
-    # byte-identical to before.
-    lines.extend(lane_containment.format_preserved_lanes(state))
-    lines.extend(
-        [
-            "",
-            "## Review",
-            "",
-            "Review `decisions-and-questions.md` first, then `outcomes/` and `sessions/`.",
-            "",
-        ]
+    runner_shared.write_report(
+        run_dir,
+        state,
+        labels=runner_shared.OC_HOST_LABELS,
+        render_launch_identity=render_launch_identity,
     )
-    (run_dir / "execution-report.md").write_text("\n".join(lines), encoding="utf-8")
 
 
 # rununify 02 (`818uru`) E-06: one-line wrapper over the shared `save_state`, binding THIS driver's
@@ -5547,6 +5400,10 @@ def build_isolation_notice(lane_root: Path | None) -> str:
     return lane_containment.isolation_notice(lane_root)
 
 
+# rununify 04 (`tx6q0h`): one-line wrappers over the shared prompt builders. The INSTRUCTION TEXT is
+# now identical on both hosts by the maintainer's ruling (plan `tx6q0h` OQ-03); only the host product
+# name and, for the verifier, the host's shell-tool name vary. The two notice builders are injected
+# because they still live per host at this point in the Set.
 def build_prompt(
     item: dict[str, Any],
     state: dict[str, Any],
@@ -5556,124 +5413,18 @@ def build_prompt(
     lane_root: Path | None = None,
     routing: RecoveryDisposition | None = None,
 ) -> str:
-    setid = item["setid"]
-    # lanectn `cqx5v7` E-01 (spec R1.1, R1.3): every worker-facing path is projected through the ONE
-    # host-neutral rule. For an ISOLATED turn they come back lane-relative, so the emitted prompt
-    # names no absolute path outside the lane; for a non-isolated turn (`lane_root is None`) the
-    # projection returns exactly the absolute paths this function interpolated before, so that branch
-    # is byte-identical.
-    paths = lane_containment.project_worker_paths(
-        item=item,
-        run_id=state["run_id"],
-        run_dir=run_dir,
-        plan_path=plan_path,
-        lane_root=lane_root,
+    return runner_shared.build_prompt(
+        item,
+        state,
+        run_dir,
+        plan_path,
+        recovery,
+        lane_root,
+        routing,
+        labels=runner_shared.OC_HOST_LABELS,
+        build_isolation_notice=build_isolation_notice,
+        build_verify_and_continue_notice=build_verify_and_continue_notice,
     )
-    lane_containment.prepare_lane_submission_dir(paths)
-    decisions = paths.prompt_decisions
-    outcome = paths.prompt_outcome
-    report = paths.prompt_report
-    report_label = paths.prompt_report_label
-    run_dir_line = paths.prompt_run_dir
-    run_dir_label = paths.prompt_run_dir_label
-    plan_line = paths.prompt_plan
-    mode = "RECOVERY/CONTINUATION" if recovery else "NORMAL EXECUTION"
-    prior = item.get("attempts", [])[-1] if recovery and item.get("attempts") else None
-    # A prior-attempt record carries `prompt`, `log`, and `worktree` as ABSOLUTE driver-side paths, so
-    # dumping it whole re-introduced out-of-lane paths on every RECOVERY turn through a route the
-    # path projection does not touch. Non-isolated turns still get the full record (R1.3).
-    prior = lane_containment.prior_attempt_summary(prior, lane_root)
-    # The recovery notice legitimately describes a PREVIOUS attempt's lane, which may be a different
-    # directory (an attempt-scoped lane), hence out-of-lane for this turn. Narrow scrub, notice only.
-    lane_notice = build_recovery_lane_notice(item, state, recovery)
-    if lane_root is not None:
-        lane_notice = lane_containment.scrub_out_of_lane_paths(lane_notice, lane_root)
-    # resumedupe (`txc9l1`) E-04: when the driver has ALREADY READ the prior attempt's lane and found
-    # finished work there, ADD the verify-and-continue block. The existing recovery notice is kept
-    # rather than replaced: it carries the interrupt facts, and this adds the routing instruction. A
-    # `fresh-execution` recovery prompt and every first-attempt prompt are therefore unchanged.
-    verify_notice = (
-        build_verify_and_continue_notice(Path(state["repo"]), routing)
-        if routing is not None and recovery
-        else ""
-    )
-    isolation_notice = build_isolation_notice(lane_root)
-    return f"""# OpenCode IPD Driver Turn
-
-Mode: {mode}{lane_notice}{verify_notice}{isolation_notice}
-Run ID: {state["run_id"]}
-Queue position: {item["position"]}
-Assigned IPD: {item["id6"]}
-Assigned Set: {setid}
-Plan file at launch: {plan_line}
-{run_dir_label}: {run_dir_line}
-Decisions/questions register: {decisions}
-Required JSON outcome: {outcome}
-{report_label}: {report}
-Prior attempt: {json.dumps(prior, sort_keys=True) if prior else "none"}
-
-## Concurrent Work
-
-Other agents may modify this repository concurrently. Work only on files required for your task. Ignore unrelated changes, commits, and untracked files.
-
-Do not alter, revert, stage, or commit another agent's work. Stage only your files; never use `git add .` or `git add -A`.
-
-Before EVERY commit, verify what you are actually about to commit: run `git diff --cached --name-only` and confirm every path listed is one YOU modified for this task; `git restore --staged <path>` anything that is not yours. Path-scoping is NOT by itself sufficient, because `git commit -- <paths>` still commits whatever is ALREADY STAGED for those paths, including a co-worker's edits to the same file.
-
-Stop only if another agent changes a file you are editing or must edit and the changes cannot be safely combined. Never discard their work.
-
-Execute only IPD {item["id6"]}. Read the attached driver runbook, every applicable
-repository instruction, the assigned IPD in full, its current orchestrator, current
-repository state, and completed prerequisite artifacts before editing. Do not implement
-another IPD in this turn.
-
-All target IPDs are already human-approved. Do not ask for approval. This run is
-non-interactive: do not invoke an interactive question tool or wait for human input.
-When a material question arises, investigate the approved plans, repository decisions,
-source, tests, history, and current primary documentation. If a reasonable recommended
-approach exists, choose it, record it in the decisions/questions register with evidence,
-alternatives, rationale, confidence, scope, reversibility, and validation, then continue.
-If no reasonable approach exists, record a DEFERRED question with the work completed,
-work blocked, dependency effect, exact preserved state, and recommended human action.
-Continue every independent part of this IPD despite a deferred question.
-
-Maximize safe forward progress. A local failure or unanswered question is not permission
-to abandon independent work. Do not weaken checks, fabricate evidence, broaden approved
-scope, bypass lifecycle controls, discard unrelated work, or push. Do not use git add -A,
-git add ., git commit -a, --no-verify, destructive reset/clean, or stashing that could hide
-ownership. Use the lifecycle available at this bootstrap stage and path-scoped commits.
-
-If the IPD cannot validly finalize, preserve partial work using the repository-supported
-nonterminal checkpoint mechanism or an attributable isolated branch/worktree. Leave every
-checkout you did not own safe for subsequent turns. Never claim executed unless the real
-terminal state and acceptance criteria support it.
-
-Before exiting, write valid JSON to {outcome} with at least:
-{{
-  "schema_version": 1,
-  "run_id": "{state["run_id"]}",
-  "position": {item["position"]},
-  "id6": "{item["id6"]}",
-  "setid": "{setid}",
-  "disposition": "executed|substantially-complete|partial|blocked|failed-safely",
-  "summary": "...",
-  "starting_head": "...",
-  "ending_head": "...",
-  "commits": [],
-  "files_changed": [],
-  "tests": [],
-  "decision_ids": [],
-  "deferred_question_ids": [],
-  "incomplete_requirements": [],
-{runner_shared.defect_report_schema_literal()}
-  "partial_work_location": null,
-  "recommended_next_action": "...",
-  "pushed": false
-}}
-
-The disposition must describe the actual repository result, not merely your effort. If no
-material question arose, say so in the summary. Explicitly confirm pushed=false.
-{runner_shared.defect_report_prompt_block()}{reporting_contract.prompt_block()}"""
 
 
 def build_verifier_prompt(
@@ -5682,67 +5433,9 @@ def build_verifier_prompt(
     run_dir: Path,
     plan_path: Path,
 ) -> str:
-    outcome = run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
-    verify_outcome = (
-        run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}-verification.json"
+    return runner_shared.build_verifier_prompt(
+        item, state, run_dir, plan_path, labels=runner_shared.OC_HOST_LABELS
     )
-    return f"""# Independent Rigorous Verification of Executed IPD
-
-Plan: `{plan_path}`
-Id: `{item["id6"]}`
-Set: `{item["setid"]}`
-Run ID: `{state["run_id"]}`
-Execution Outcome JSON: `{outcome}`
-Verification Outcome JSON to write: `{verify_outcome}`
-
-## Concurrent Work
-
-Other agents may modify this repository concurrently. Work only on files required for your task. Ignore unrelated changes, commits, and untracked files.
-
-Do not alter, revert, stage, or commit another agent's work. Stage only your files; never use `git add .` or `git add -A`.
-
-Before EVERY commit, verify what you are actually about to commit: run `git diff --cached --name-only` and confirm every path listed is one YOU modified for this task; `git restore --staged <path>` anything that is not yours. Path-scoping is NOT by itself sufficient, because `git commit -- <paths>` still commits whatever is ALREADY STAGED for those paths, including a co-worker's edits to the same file.
-
-Stop only if another agent changes a file you are editing or must edit and the changes cannot be safely combined. Never discard their work.
-
-You are an independent, skeptical verifier running in a fresh OpenCode session to audit
-the execution of this IPD. Your goal is to rigorously verify whether the code, tests,
-and documentation satisfy every requirement before this plan can be considered executed.
-
-## Verification Requirements:
-
-1. **Inspect Concrete Diffs & Commits**:
-   - Inspect the git commits and working tree diffs produced for this IPD.
-   - Verify that real functional changes were made, not just cosmetic/vocabulary additions.
-   - Ensure all referenced files and symbols in the plan's Scope-Paths actually exist and are wired correctly.
-
-2. **Evidence Table (E-* and V-*)**:
-   - Check every Execution item (`E-*`) and every Validation item (`V-*`) in the IPD.
-   - Check if the recorded observed evidence matches real code and passing tests.
-
-3. **Run and Verify Test Suite**:
-   - Run the required tests and validation commands for this IPD (e.g. `python3 -m pytest <test_file> -v` or `python3 -m unittest ...`).
-   - Paste the actual runner output with exit code.
-   - Confirm that tests are genuine and testing real assertions (not trivial passes).
-
-4. **In-Scope Fixes**:
-   - If you discover safely correctable defects, regressions, or missing test cases within the approved scope, fix them, re-run validation, and commit path-scoped (`git commit -m msg -- <paths>`). Never push.
-   - If any unresolvable defect or scope gap remains, report it clearly.
-
-5. **Write Verification Outcome**:
-   Before exiting, write valid JSON to `{verify_outcome}`:
-   {{
-     "schema_version": 1,
-     "id6": "{item["id6"]}",
-     "verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED",
-     "summary": "...",
-     "evidence": [],
-     "tests_run": [],
-     "corrections_made": []
-   }}
-
-Begin independent verification now.
-{reporting_contract.prompt_block()}"""
 
 
 def write_prompt(
@@ -7692,7 +7385,9 @@ def execute_item(
     # driver-written content from unexplained content; without a receipt the sweep lane's own inventory
     # can only ever say "unknown", and a lane that always looks unaccounted-for is a lane that can never
     # be retired. So the receipt is the load-bearing output here, not the copies.
-    if work_dir and (not is_review or runner_shared.turn_runs_in_review_sweep_lane(state, work_dir)):
+    if work_dir and (
+        not is_review or runner_shared.turn_runs_in_review_sweep_lane(state, work_dir)
+    ):
         try:
             collection = lane_containment.collect_lane_submissions(
                 run_dir=run_dir,
@@ -8065,8 +7760,12 @@ def execute_item(
             attempt["review_lane_commit_refused"] = list(review_committed_paths)
         review_scope = None
         try:
-            lane_changed = build_lane_outcome(repo, wt_handle, item["id6"]).changed_files
-        except Exception as exc:  # pragma: no cover - defensive; never kill a turn over reporting
+            lane_changed = build_lane_outcome(
+                repo, wt_handle, item["id6"]
+            ).changed_files
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - defensive; never kill a turn over reporting
             lane_changed = ()
             attempt["review_scope_error"] = f"{type(exc).__name__}: {exc}"
         if lane_changed:
@@ -9229,13 +8928,10 @@ def locked_run(run_dir: Path):
                 print(report.render(), file=sys.stderr)
 
 
+# rununify 04 (`tx6q0h`): one-line wrappers over the shared definitions. The argv tokens and the
+# host product name are DATA in `runner_shared.OC_HOST_LABELS`, not a second copy of the logic.
 def _detect_driver_command() -> str:
-    """Detect the command prefix used to invoke the runner, defaulting to 'aw oc run'."""
-    argv = sys.argv
-    for i in range(len(argv) - 1):
-        if argv[i] in ("oc", "opencode") and argv[i + 1] in ("run", "runipd"):
-            return f"aw {argv[i]} {argv[i + 1]}"
-    return "aw oc run"
+    return runner_shared.detect_driver_command(labels=runner_shared.OC_HOST_LABELS)
 
 
 def render_continuation_hint(
@@ -9243,49 +8939,9 @@ def render_continuation_hint(
     run_dir: Path,
     driver_cmd: str | None = None,
 ) -> str:
-    """Print, on exit, the captured OpenCode session id(s) and the exact commands to
-    reuse them (run a NEW plan in the same session context) or resume / inspect THIS run.
-
-    Sessions are captured even when --session was not passed (extract_session_id reads
-    them from the child's streamed JSONL), so this surfaces them without a hand-read of
-    state.json. Handles 0, 1, and N captured sessions (a multi-Set run has one session
-    per Set)."""
-    pal = Palette(should_color(sys.stdout))
-    cmd = driver_cmd or _detect_driver_command()
-    repo = state.get("repo", ".")
-    run_id = state.get("run_id", "run-...")
-    sessions = state.get("set_sessions", {})
-    captured: list[tuple[str, str]] = [
-        (s, sid) for s, sid in sessions.items() if sid and isinstance(sid, str)
-    ]
-
-    lines = ["", pal("--- OpenCode Session Continuity ---", "bold")]
-    if not captured:
-        lines.append("No OpenCode session was captured for this run.")
-    elif len(captured) == 1:
-        setid, sid = captured[0]
-        lines.append(f"Captured session: {pal(sid, 'cyan')} (Set: {setid})")
-        lines.append("To run a new plan under the same session:")
-        lines.append(f"  {cmd} --session {sid} <selector>")
-    else:
-        lines.append("Captured sessions by Set:")
-        for setid, sid in captured:
-            lines.append(f"  - {pal(setid, 'bold')}: {pal(sid, 'cyan')}")
-        last_sid = captured[-1][1]
-        lines.append("To run a new plan under the most recent session:")
-        lines.append(f"  {cmd} --session {last_sid} <selector>")
-
-    queue = state.get("queue", [])
-    all_success = all(item.get("status") in SUCCESS_STATES for item in queue)
-
-    if all_success:
-        lines.append("To inspect run summary:")
-        lines.append(f"  aw runs {run_id}")
-    else:
-        lines.append("To resume this run:")
-        lines.append(f"  {cmd} resume --repo {repo} {run_id}")
-    lines.append("")
-    return "\n".join(lines)
+    return runner_shared.render_continuation_hint(
+        state, run_dir, driver_cmd, labels=runner_shared.OC_HOST_LABELS
+    )
 
 
 def _add_output_mode_flags(

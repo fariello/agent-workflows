@@ -599,10 +599,22 @@ class ParityTests(unittest.TestCase):
     """E-08/V-08: every surface derives from the ONE source; no second copy exists."""
 
     def test_drivers_import_the_module_rather_than_inlining_the_prose(self) -> None:
+        """RE-BASED by rununify Order 04 (`tx6q0h`) onto the module that now BUILDS the prompts.
+
+        The two runners' prompt builders were de-duplicated into `runner_shared`, so the file that
+        must reach the contract through the module (rather than inlining its prose) is that shared
+        module. The assertion is unchanged in substance and the anti-inlining half still applies to
+        BOTH runners below, so no host may re-inline the prose.
+        """
+        shared = (REPO_ROOT / "agent_workflows/runner_shared.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("from agent_workflows import reporting_contract", shared)
+        self.assertIn("reporting_contract.prompt_block()", shared)
+        self.assertNotIn("Report to the user concisely.", shared)
+        # Neither runner may carry a second copy of the prose.
         for rel in ("agent_workflows/oc_runipd.py", "agent_workflows/agy_runipd.py"):
             src = (REPO_ROOT / rel).read_text(encoding="utf-8")
-            self.assertIn("from agent_workflows import reporting_contract", src, rel)
-            self.assertIn("reporting_contract.prompt_block()", src, rel)
             self.assertNotIn("Report to the user concisely.", src, rel)
 
     def test_engine_renders_the_section_from_the_module(self) -> None:

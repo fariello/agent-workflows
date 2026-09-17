@@ -36,7 +36,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
-from agent_workflows import agy_runipd, lane_containment, oc_runipd
+from agent_workflows import agy_runipd, lane_containment, oc_runipd, runner_shared
 
 LC = lane_containment
 
@@ -869,10 +869,15 @@ class TwinParityTests(unittest.TestCase):
                     source,
                     f"{label} must record a refusal through the one shared emitter",
                 )
+                # RE-BASED by rununify Order 04 (`tx6q0h`): `write_report` was de-duplicated into
+                # `runner_shared`, so the ONE call that renders the preserved-lane block now lives
+                # there and each host reaches it through its wrapper. The R5.6a property is
+                # unchanged (a preserved lane is still named in the summary a human reads), and it is
+                # now impossible for one host to render the block while the other silently does not.
                 self.assertIn(
                     "lane_containment.format_preserved_lanes(",
-                    source,
-                    f"{label} must name preserved lanes in the summary (R5.6a)",
+                    inspect.getsource(runner_shared),
+                    "the shared report renderer must name preserved lanes in the summary (R5.6a)",
                 )
 
     def test_no_driver_calls_the_destructive_teardown_directly(self):
