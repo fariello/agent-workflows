@@ -2253,9 +2253,12 @@ def initialize_run(args: argparse.Namespace) -> Path:
                 or (getattr(rec, "from_backlog", None) if p_path else None),
                 "initial_status": status or "approved",
                 "action": action,
-                "status": "queued"
-                if status in ("to-review", "draft", "approved", "auto-approved")
-                else "reviewed",
+                # A TERMINAL STATUS IS PRESERVED, NOT COLLAPSED TO `reviewed`. See
+                # `runner_shared.initial_queue_status`: the inline allowlist this replaces had no
+                # `executed` arm, so an already-executed plan was relabeled `reviewed` and became a
+                # dead prerequisite that killed its dependents at queue build. Shared with the oc host
+                # (this expression was byte-identical there) so the two cannot diverge again.
+                "status": runner_shared.initial_queue_status(status),
                 "attempts": [],
             }
         )

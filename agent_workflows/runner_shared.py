@@ -6430,6 +6430,72 @@ def determine_action(status: str) -> str:
     return "execute"
 
 
+#: Statuses that mean "this plan still has work to do in this run", so its queue entry starts
+#: `queued` and the selection loop may dispatch it. Everything else is already TERMINAL on disk.
+NON_TERMINAL_QUEUE_STATUSES: frozenset[str] = frozenset(
+    ("to-review", "draft", "approved", "auto-approved", "reusable")
+)
+
+#: On-disk terminal statuses that are PRESERVED verbatim onto the queue entry.
+#:
+#: DELIBERATELY `executed` ALONE, and the omissions were verified rather than assumed. A queue status
+#: is only safe to write if BOTH vocabularies already admit it: the drivers' `TERMINAL_STATES` (or the
+#: cascade cannot act on it) and `runner_shutdown.KNOWN_ITEM_STATUSES` (or Phase 0's R3 ledger
+#: -coherence check calls the run "in an undefined state" and refuses its own resume). Measured:
+#: `executed` is in both; `superseded` and `not-executed` are in NEITHER. So preserving those two
+#: would trade a cascade bug for a resume-refusing ledger, which is strictly worse.
+#:
+#: They therefore keep falling back to `reviewed`, which is CORRECT FOR THEM BY OUTCOME even though
+#: the name is imprecise: both are non-success terminal states, `reviewed` is not in
+#: `EXECUTION_SUCCESS_STATES`, so a dependent of a superseded plan still refuses to run. Only
+#: `executed` was being given the WRONG OUTCOME, and only `executed` needs to change.
+TERMINAL_QUEUE_STATUSES: frozenset[str] = frozenset(("executed",))
+
+
+def initial_queue_status(status: str | None) -> str:
+    """The status a queue entry is BORN with, given the plan's `- Status:`. SHARED BY BOTH HOSTS.
+
+    THE DEFECT THIS FIXES, measured across 13 runs. Both hosts built this inline as an ALLOWLIST with
+    no `executed` arm::
+
+        "status": "queued" if status in ("to-review","draft","approved","auto-approved") else "reviewed"
+
+    so EVERY terminal status fell through to the `else` and an already-`executed` plan was relabeled
+    `reviewed` on its queue entry. That is not a cosmetic mislabel, because `cascade_dependency_blocked`
+    reads THIS field: `reviewed` is in `TERMINAL_STATES` but NOT in `EXECUTION_SUCCESS_STATES`, so the
+    executed plan became a DEAD PREREQUISITE and every dependent died without a session. In run
+    `run-20260917T033138Z-557584` nine mislabeled parents killed six approved children and both
+    orchestrators at queue build, before any agent turn, for zero tokens; three `20260913` runs lost
+    10, 12 and 16 items the same way.
+
+    IT ALSO VIOLATED A WRITTEN PROHIBITION. Spec `20260826-0718-01` 2.9 requires an `executed:` edge to
+    be decided "by the consuming action and by nothing else: not by queue membership ... An
+    implementation that lets the same edge be satisfied or refused depending on queue membership is the
+    evadability defect this section exists to prevent." `edge_satisfied`'s EXTERNAL branch reads the
+    terminal directory and correctly returns satisfied for these same plans, so membership in the queue
+    was the only thing flipping the verdict.
+
+    THE FIX IS DELIBERATELY NARROW: `executed` is preserved, and no other terminal status is. See
+    `TERMINAL_QUEUE_STATUSES` for the measured reason (`superseded`/`not-executed` are absent from
+    BOTH `TERMINAL_STATES` and `runner_shutdown.KNOWN_ITEM_STATUSES`, so writing them would refuse the
+    run's own resume). Those two keep falling back to `reviewed`, which already yields the RIGHT
+    OUTCOME for them: they are non-success terminal states and `reviewed` is not in
+    `EXECUTION_SUCCESS_STATES`, so a dependent still correctly refuses to run. Only `executed` was
+    getting the wrong outcome, so only `executed` changes.
+
+    `reviewed` REMAINS THE FALLBACK for anything else (notably a plan whose status is `reviewed`, and
+    the `None` case an older hand-written manifest produces), which is why the review-mode fixture at
+    `tests/test_oc_runipd.py` keeps passing: this function changes the answer ONLY for a status that is
+    terminal on disk.
+    """
+    norm = (status or "").lower().strip()
+    if norm in NON_TERMINAL_QUEUE_STATUSES:
+        return "queued"
+    if norm in TERMINAL_QUEUE_STATUSES:
+        return norm
+    return "reviewed"
+
+
 def action_for(kind: str | None, status: str) -> str:
     """Decide the driver action for a plan given its Kind + Status. SHARED BY BOTH HOSTS (spec R-10).
 

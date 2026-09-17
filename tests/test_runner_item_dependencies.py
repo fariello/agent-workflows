@@ -1002,6 +1002,131 @@ class OrderingAndCascadeTests(unittest.TestCase):
             ["failed-safely", "queued", "queued"],
         )
 
+    def test_already_executed_prerequisite_does_not_block_its_dependent(self):
+        """An ALREADY-EXECUTED Set member must satisfy its dependents' edges, not kill them.
+
+        THE MEASURED DEFECT (13 runs; `run-20260917T033138Z-557584` is the worst). Both hosts built
+        the queue entry's `status` from an allowlist with no `executed` arm, so a plan sitting in
+        `executed/` was relabeled `reviewed`. `reviewed` is in `TERMINAL_STATES` but NOT in
+        `EXECUTION_SUCCESS_STATES`, so the cascade below declared the executed parent a dead
+        prerequisite: nine mislabeled parents killed six approved children and two orchestrators at
+        queue build, before any agent turn, for zero tokens.
+
+        A partially-executed Set is a NORMAL state (a resume, a child executed alone, a Set run over
+        several sessions), so this is the common case and not an edge case.
+        """
+        status = runner_shared.initial_queue_status("executed")
+        self.assertEqual(
+            status,
+            "executed",
+            "a plan whose `- Status:` is `executed` must not be relabeled on its queue entry",
+        )
+        state = {
+            "repo": "/nonexistent",
+            "queue": [
+                self._item("prereq", position=1, status=status),
+                self._item("child1", deps=["executed:prereq"], position=2),
+                self._item("child2", deps=["executed:child1"], position=3),
+            ],
+        }
+        self.assertEqual(
+            oc_runipd.cascade_dependency_blocked(state),
+            [],
+            "an executed prerequisite is a SUCCESS; its dependents must stay runnable",
+        )
+        self.assertEqual(
+            [i["status"] for i in state["queue"][1:]], ["queued", "queued"]
+        )
+
+    def test_only_executed_is_preserved_and_the_rest_still_block(self):
+        """`executed` releases its dependents; every other terminal disposition still blocks them.
+
+        THE NARROWNESS IS THE POINT, and it is a measured constraint rather than conservatism. A status
+        is only safe to write onto a queue entry if BOTH vocabularies admit it: `TERMINAL_STATES` (or
+        the cascade cannot act on it) and `runner_shutdown.KNOWN_ITEM_STATUSES` (or the R3
+        ledger-coherence check calls the run undefined and REFUSES ITS OWN RESUME). `superseded` and
+        `not-executed` are in NEITHER, so preserving them would trade this cascade bug for a
+        resume-refusing ledger. They keep falling back to `reviewed`, which already produces the right
+        OUTCOME for them, since a non-success status blocks a dependent either way.
+        """
+        self.assertEqual(runner_shared.initial_queue_status("executed"), "executed")
+        for disk_status in ("superseded", "not-executed"):
+            with self.subTest(status=disk_status):
+                self.assertEqual(
+                    runner_shared.initial_queue_status(disk_status),
+                    "reviewed",
+                    "preserving this status would make the run's own ledger incoherent",
+                )
+        # Whatever the name, the OUTCOME must be: executed releases, the others block.
+        for disk_status, expect_blocked in (
+            ("executed", False),
+            ("superseded", True),
+            ("not-executed", True),
+        ):
+            with self.subTest(status=disk_status, check="cascade outcome"):
+                state = {
+                    "repo": "/nonexistent",
+                    "queue": [
+                        self._item(
+                            "prereq",
+                            position=1,
+                            status=runner_shared.initial_queue_status(disk_status),
+                        ),
+                        self._item("child1", deps=["executed:prereq"], position=2),
+                    ],
+                }
+                self.assertEqual(
+                    bool(oc_runipd.cascade_dependency_blocked(state)), expect_blocked
+                )
+
+    def test_every_preserved_queue_status_is_in_both_vocabularies(self):
+        """ANTI-DRIFT: widening `TERMINAL_QUEUE_STATUSES` must not break the cascade or resume.
+
+        This is the guard that makes the narrowness above enforceable rather than merely documented. If
+        someone later adds a status to `TERMINAL_QUEUE_STATUSES`, it must be admitted by both drivers'
+        `TERMINAL_STATES` and by `runner_shutdown.KNOWN_ITEM_STATUSES`, or the run it appears in cannot
+        be resumed.
+        """
+        from agent_workflows import runner_shutdown
+
+        for status in runner_shared.TERMINAL_QUEUE_STATUSES:
+            with self.subTest(status=status):
+                self.assertIn(
+                    status,
+                    runner_shutdown.KNOWN_ITEM_STATUSES,
+                    "an unknown queue status makes Phase 0 refuse the run's own resume",
+                )
+                for name, mod in _DRIVERS:
+                    self.assertIn(
+                        status,
+                        mod.TERMINAL_STATES,
+                        f"{name}'s cascade cannot act on a status it calls non-terminal",
+                    )
+
+    def test_initial_queue_status_keeps_non_terminal_plans_dispatchable(self):
+        """NO-REGRESSION on the states that carried every run before the fix.
+
+        `reviewed` must REMAIN the fallback (including for the `None` an older hand-written manifest
+        yields), which is what keeps the review-mode queue fixtures in `test_oc_runipd` passing: the
+        fix changes the answer ONLY for a status that is terminal on disk.
+        """
+        for st in ("to-review", "draft", "approved", "auto-approved", "reusable"):
+            with self.subTest(status=st):
+                self.assertEqual(runner_shared.initial_queue_status(st), "queued")
+        for st in (
+            "reviewed",
+            None,
+            "",
+            "something-unrecognized",
+            "superseded",
+            "not-executed",
+        ):
+            with self.subTest(status=st):
+                self.assertEqual(runner_shared.initial_queue_status(st), "reviewed")
+        # Case and surrounding whitespace must not decide a gate: one plan in the live corpus
+        # carries the multi-word/upper-case `EXECUTED` form.
+        self.assertEqual(runner_shared.initial_queue_status("  EXECUTED  "), "executed")
+
 
 class NoRegressionForUndeclaredEdgesTests(unittest.TestCase):
     """A Set with NO declared edges must gate exactly as it did pre-fix."""
@@ -1583,6 +1708,51 @@ class AntiDivergenceGuardTests(unittest.TestCase):
                 text = path.read_text(encoding="utf-8")
                 self.assertNotIn("_DEPS_RE = ", text)
                 self.assertNotIn("def _read_deps(", text)
+
+    def test_no_driver_inlines_the_initial_queue_status_allowlist(self):
+        """Neither host may rebuild the queue-status allowlist inline.
+
+        The defect was ONE expression, present BYTE-IDENTICALLY in both hosts, which is exactly the
+        divergence shape this class exists to prevent. It read::
+
+            "status": "queued" if status in ("to-review","draft","approved","auto-approved") else "reviewed"
+
+        and its missing `executed` arm silently converted every already-executed prerequisite into a
+        dead one. Both hosts must call the shared `runner_shared.initial_queue_status` instead, so a
+        future status addition lands in one place and cannot desync the two runners.
+        """
+        for name, path in _DRIVER_SOURCES:
+            with self.subTest(driver=name):
+                code = _code_only(path.read_text(encoding="utf-8"))
+                self.assertIn(
+                    "initial_queue_status",
+                    code,
+                    f"{name} must derive the frozen queue status from the shared helper",
+                )
+                # The literal shape of the deleted allowlist, whitespace-insensitive.
+                self.assertIsNone(
+                    re.search(
+                        r'"queued"\s*if\s*status\s*in\s*\(', re.sub(r"\s+", " ", code)
+                    ),
+                    f"{name} re-inlined the queue-status allowlist; call "
+                    "runner_shared.initial_queue_status instead",
+                )
+
+    def test_both_hosts_agree_on_every_frozen_queue_status(self):
+        """CROSS-HOST: one shared helper, so the two runners cannot answer this differently.
+
+        Spec `20260826-0718-01` 2.9 requires an `executed:` edge to be decided by the consuming action
+        "and by nothing else: not by queue membership, not by which host is running". A per-host copy
+        of this mapping is one of the two ways that promise gets broken.
+        """
+        self.assertIs(
+            oc_runipd.runner_shared.initial_queue_status,
+            runner_shared.initial_queue_status,
+        )
+        self.assertIs(
+            agy_runipd.runner_shared.initial_queue_status,
+            runner_shared.initial_queue_status,
+        )
 
     def test_no_driver_exposes_the_deleted_names(self):
         for name, mod in _DRIVERS:

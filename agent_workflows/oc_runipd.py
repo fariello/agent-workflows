@@ -3512,9 +3512,12 @@ def initialize_run(args: argparse.Namespace) -> Path:
                 "kind": kind,
                 "initial_status": status or "approved",
                 "action": action,
-                "status": "queued"
-                if status in ("to-review", "draft", "approved", "auto-approved")
-                else "reviewed",
+                # A TERMINAL STATUS IS PRESERVED, NOT COLLAPSED TO `reviewed`. The inline allowlist
+                # this replaces had no `executed` arm, so an already-executed plan's queue entry said
+                # `reviewed`, `cascade_dependency_blocked` read that field, and the executed parent
+                # became a dead prerequisite that killed every dependent at queue build. Shared with
+                # the agy host so the two cannot diverge again.
+                "status": runner_shared.initial_queue_status(status),
                 "attempts": [],
             }
         )
