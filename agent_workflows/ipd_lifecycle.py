@@ -1854,6 +1854,35 @@ def _refresh_plans_index_fail_loud(repo_root: Path) -> None:
         )
 
 
+def _pre_commit_phase_leaves_manifests_untouched() -> str:
+    """The invariant that lets :func:`_rollback_precommit` restore the manifests by NOT writing them.
+
+    Stated as one named, testable claim rather than left implicit in a comment, because the whole
+    correctness of plan `4xt6u4`'s fix rests on it and a future change could silently break it. If the
+    pre-commit phase ever starts writing the shared `INDEX.json`/`INDEX.md` again, this claim becomes
+    false and a rollback would once more have real damage to repair - at which point the journal
+    snapshot that `4xt6u4` OQ-01 considered (`index_json_before`/`index_md_before`) becomes the right
+    mechanism after all. The test that pins this is what should fail first in that future.
+
+    THE CLAIM: between `PHASE_PREPARED` and the ff-only merge, nothing writes the SHARED checkout's
+    plans manifests. It holds for two independent reasons, both structural:
+
+    * the status edit and the `git mv` happen in a coordinator-owned WORKTREE (`u23gbn`), not the
+      shared checkout; and
+    * the manifests are GITIGNORED, so a fresh worktree never receives them and any regeneration
+      inside one is discarded with the worktree (see :func:`_finalize_transaction`).
+
+    So the only shared-tree manifest write in the transaction is
+    :func:`_refresh_plans_index_fail_loud`, and it is called on the SUCCESS path only, deliberately
+    AFTER the reconciliation.
+    """
+    return (
+        "the pre-commit phase performs its mutations in a coordinator worktree and the plans "
+        "manifests are gitignored, so the SHARED INDEX.json/INDEX.md are untouched until the "
+        "post-reconciliation refresh; a rollback therefore restores them by not writing them."
+    )
+
+
 # --------------------------------------------------------------------------------------
 # Landing a lifecycle commit made in a coordinator-owned worktree (plan `u23gbn`).
 #
@@ -2251,11 +2280,49 @@ def _lifecycle_commit_exists(
 def _rollback_precommit(repo_root: Path, journal: Dict[str, Any]) -> Tuple[bool, str]:
     """Idempotent pre-commit rollback driven by the journal (E-02). Returns (ok, message).
 
-    Restores the plan to its original bytes+path, removes the moved destination, restores the exact
-    prior Git-index entries for lifecycle-owned paths (never touching disjoint staged/dirty work),
-    and regenerates the plans index from the CURRENT corpus. Byte-equality with the snapshot is
-    required only when no concurrent plan-state change occurred; an incompatible concurrent change
-    is classified `unknown-outcome` and stopped WITHOUT a destructive restore.
+    Restores the plan to its original bytes+path, removes the moved destination, and restores the
+    exact prior Git-index entries for lifecycle-owned paths (never touching disjoint staged/dirty
+    work). Byte-equality with the snapshot is required only when no concurrent plan-state change
+    occurred; an incompatible concurrent change is classified `unknown-outcome` and stopped WITHOUT
+    a destructive restore.
+
+    IT DELIBERATELY DOES NOT TOUCH THE PLANS MANIFESTS, AND THAT IS WHAT MAKES A FAILED TRANSITION
+    LEAVE NO TRACE (plan `4xt6u4`). It used to "regenerate the plans index from the CURRENT corpus"
+    as its last step, which WROTE `INDEX.json`/`INDEX.md` rather than restoring whatever state they
+    were in. MEASURED at HEAD `daa48f42` with `fault_injection="after_move"` against a tree that had
+    no manifests: the plan was correctly restored to `pending/`, the `executed/` copy was removed and
+    HEAD was unmoved, yet `git status --porcelain` went from `''` to
+    `?? .aw/records/plans/INDEX.json` + `?? .aw/records/plans/INDEX.md`. A rollback whose documented
+    job is to restore the tree it started from was itself the only thing changing it.
+
+    WHY NOT WRITING IS THE COMPLETE FIX, rather than snapshotting the manifests in the journal and
+    restoring them. Since the mutations moved into a coordinator-owned worktree (`u23gbn`) and the
+    manifests are GITIGNORED (so a fresh worktree never receives them and a regeneration there dies
+    with it), NOTHING in the pre-commit phase writes the shared manifests. MEASURED at all three
+    pre-commit fault points x both prior-state cases: at the instant this function is ENTERED the
+    shared manifests are still byte-identical to their pre-attempt state in every case (absent stays
+    absent, present stays byte-identical). So there is no damage here to repair, this step was the
+    SOLE creator of the residue, and "restore the prior state" and "do not write" have the same
+    postcondition - the second needing no journal keys, no three-state absent/present logic and no
+    delete-to-restore. `_pre_commit_phase_leaves_manifests_untouched` states that invariant for the
+    test that pins it, so a future change that makes the pre-commit phase write them FAILS here
+    instead of silently restoring this bug.
+
+    IT ALSO STOPS A MEASURED PEER-CLOBBER, which a restore would not have. Pre-fix, a peer that wrote
+    the manifests inside the transaction window had those bytes replaced by the regeneration
+    (measured: peer content gone). Not writing leaves them intact, and unlike a guarded restore it
+    does not have to REFUSE (`unknown-outcome`) over a regenerable generated view, which would wedge
+    an otherwise clean rollback on the last-resort path.
+
+    CONSEQUENCE, STATED PLAINLY (plan `4xt6u4` E-01): a rollback NO LONGER FAILS because of manifest
+    trouble. The old step 4 raised through `_refresh_plans_index_fail_loud` and became
+    `(False, "rollback index regeneration failed: ...")`; that arm is gone with its subject. This is
+    deliberate and is not a weakened gate: the SUCCESS path's fail-loud refresh is untouched (it
+    still runs after the reconciliation and still raises, see :func:`_finalize_transaction`), an
+    absent manifest is only `check.stale-index-missing` at severity `info`, and escalating a rollback
+    to `PHASE_UNKNOWN_OUTCOME` over a file `aw index plans` regenerates would block an operator for
+    no safety gain. This function's own failure arms (destination changed, origin holds a peer's
+    content, cannot remove/restore) are unaffected and still report `unknown-outcome`.
 
     IT DOES NOT UNDO THE FF-ONLY MERGE, AND MUST NOT LEARN TO (plan `u23gbn` E-08). Two cases, both
     already settled elsewhere: if the reconciliation SUCCEEDED then the lifecycle commit has landed and
@@ -2353,15 +2420,18 @@ def _rollback_precommit(repo_root: Path, journal: Dict[str, Any]) -> Tuple[bool,
         else:
             _git(repo_root, ["restore", "--staged", "--", p])
 
-    # 4. Regenerate the plans index deterministically from the CURRENT corpus + verify.
-    try:
-        _refresh_plans_index_fail_loud(repo_root)
-    except Exception as exc:
-        return (False, f"rollback index regeneration failed: {exc}")
-
+    # 4. The plans manifests are DELIBERATELY NOT TOUCHED. See this function's docstring for the
+    #    measurement: nothing in the pre-commit phase writes the shared `INDEX.json`/`INDEX.md`, so
+    #    they are already in their pre-attempt state by the time we get here, and regenerating them
+    #    (which is what this step used to do) is the ONLY thing that made a failed transition leave
+    #    `?? INDEX.json` / `?? INDEX.md` behind in a tree that had none. Do not "helpfully" restore
+    #    the refresh here: a rollback that writes a generated view cannot leave the tree as it found
+    #    it, and on the ABSENT path it cannot even tell created-and-ignored from never-existed.
+    #    The success path's fail-loud refresh is the one that matters and is untouched.
     return (
         True,
-        "pre-commit state restored (plan bytes/path + owned Git-index; index regenerated).",
+        "pre-commit state restored (plan bytes/path + owned Git-index; plans manifests left "
+        "untouched, so the tree is as it was found).",
     )
 
 
@@ -3178,9 +3248,20 @@ def _finalize_transaction(
         )
 
     # NOTE: the journal deliberately carries no `index_json_before`/`index_md_before` content
-    # snapshot. Those keys existed to restore the plans manifests on rollback, but NOTHING ever
-    # read them (rollback regenerates the manifests from the corpus instead, in step 4 of
-    # `_rollback_precommit`), so they were dead weight describing a restore that never happened.
+    # snapshot, and it STILL does not need one after plan `4xt6u4` - but the REASON changed, so read
+    # this before reinstating them. Those keys once existed to restore the plans manifests on
+    # rollback and nothing read them, because rollback regenerated the manifests from the corpus
+    # instead; they were dead weight describing a restore that never happened, and they were removed
+    # in `674f2c68`. `4xt6u4` then measured that the REGENERATION was itself the bug: it left
+    # `?? INDEX.json` / `?? INDEX.md` in a tree that had none, so a failed transition did not leave
+    # the tree as it found it. The fix removed the regeneration rather than adding a restore, because
+    # NOTHING in the pre-commit phase writes the shared manifests (they are gitignored and the
+    # mutations happen in a coordinator worktree - see
+    # `_pre_commit_phase_leaves_manifests_untouched`), so there is nothing to restore and a snapshot
+    # would be ~200 KB rewritten on every one of the journal's phase transitions.
+    # WHEN A SNAPSHOT WOULD BECOME CORRECT: only if that invariant is broken, i.e. if some future
+    # step writes the shared manifests BEFORE the commit. The test pinning the invariant is designed
+    # to fail first in that case; do not add the keys back without breaking it.
     journal: Dict[str, Any] = {
         "schema_version": FINALIZE_JOURNAL_SCHEMA_VERSION,
         "plan_id": plan_id,

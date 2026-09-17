@@ -2033,13 +2033,28 @@ class TheSharedGatesActuallyFireOnTheRollupPath(RollupTransitionCase):
         )
 
     def test_an_injected_pre_commit_FAULT_rolls_the_rollup_back(self):
-        """The journal is load-bearing, not decorative: a mid-transaction failure restores state."""
+        """The journal is load-bearing, not decorative: a mid-transaction failure restores state.
+
+        THE TREE-STATE ASSERTION IS THE POINT OF PLAN `4xt6u4`, and its absence is why a real defect
+        lived here unnoticed. This test already asserted the plan's restoration, the destination's
+        removal and HEAD, all of which PASSED while the rollback left
+        `?? .aw/records/plans/INDEX.json` and `?? .aw/records/plans/INDEX.md` behind in a tree that
+        had neither: its own step 4 regenerated the manifests instead of leaving them as it found
+        them. Four assertions about the right thing cannot substitute for one about the tree.
+
+        IT COMPARES AGAINST THE CAPTURED PRE-ATTEMPT STATUS RATHER THAN ASSERTING EMPTINESS. Emptiness
+        happens to hold in this fixture, which is exactly what makes it the wrong property: it would
+        also pass if the rollback destroyed unrelated state, and it would break the moment a fixture
+        legitimately carried dirt. Equality says the thing the rollback actually promises - the tree
+        is as it was found.
+        """
 
         from agent_workflows import ipd_lifecycle as LC
 
         orch = self.make_set("faulty", [("aaa111", 1, "executed", "executed")])
         before = orch.read_text(encoding="utf-8")
         head = _git(self.root, "rev-parse", "HEAD").strip()
+        status_before = _git(self.root, "status", "--porcelain")
         res = self.retire(orch, "faulty", apply=True, fault_injection="after_move")
         self.assertEqual(res.exit_code, LC.EXIT_CANNOT_RUN, res.message)
         self.assertIn("rolled back", res.message)
@@ -2052,20 +2067,44 @@ class TheSharedGatesActuallyFireOnTheRollupPath(RollupTransitionCase):
             ).exists()
         )
         self.assertEqual(_git(self.root, "rev-parse", "HEAD").strip(), head)
+        self.assertEqual(
+            _git(self.root, "status", "--porcelain"),
+            status_before,
+            "a FAILED retirement changed the shared checkout: the rollback must leave the tree "
+            "exactly as it found it (plan 4xt6u4 measured it leaving ?? INDEX.json / ?? INDEX.md "
+            "behind, because its step 4 regenerated the manifests instead of not touching them)",
+        )
 
     def test_a_stale_pre_commit_journal_is_ROLLED_BACK_before_a_fresh_attempt(self):
         """Early crash recovery on THIS path, using the shared helper.
 
         A previous rollup that died mid-mutation leaves a pre-commit journal. The next attempt must
         finish that rollback idempotently and then proceed, rather than building on half-mutated state.
+
+        THE TREE-STATE CHECK HERE IS AT THE MIDPOINT, DELIBERATELY, and plan `4xt6u4` F-9 is why. An
+        earlier draft of that plan wanted a `git status --porcelain` EMPTINESS assertion at the END of
+        this test. That would pin a FALSE property: this test's subject is crash RECOVERY and its last
+        act is a SUCCESSFUL retirement, which legitimately regenerates the manifests. MEASURED
+        post-fix at all three points of this sequence: `''` before anything, `''` after the failed
+        attempt, and `?? INDEX.json` + `?? INDEX.md` after the successful retry. So the comparison
+        belongs BETWEEN the two retirements, where the subject is the ROLLBACK, and it is an equality
+        against the captured pre-attempt status rather than an emptiness claim.
         """
 
         from agent_workflows import ipd_lifecycle as LC
 
         orch = self.make_set("recov", [("aaa111", 1, "executed", "executed")])
+        status_before = _git(self.root, "status", "--porcelain")
         first = self.retire(orch, "recov", apply=True, fault_injection="before_commit")
         self.assertEqual(first.exit_code, LC.EXIT_CANNOT_RUN, first.message)
         self.assertTrue(orch.is_file())
+        # MIDPOINT: the failed attempt rolled back, so the tree must be as it was found. Sampled HERE
+        # and not at the end, because the successful retry below legitimately changes the manifests.
+        self.assertEqual(
+            _git(self.root, "status", "--porcelain"),
+            status_before,
+            "the rolled-back first attempt left residue in the shared checkout",
+        )
         # Now a clean retry succeeds, which is the property that matters: the failure was recoverable.
         second = self.retire(orch, "recov", apply=True)
         self.assertEqual(second.exit_code, LC.EXIT_OK, second.message)
@@ -4460,6 +4499,285 @@ class AFailedRetirementCannotDestroyAPeersInFlightEdit(RollupTransitionCase):
             "a failed retirement destroyed a co-worker's uncommitted bytes",
         )
         self.assertEqual(_git(self.root, "rev-parse", "HEAD").strip(), head)
+
+
+class AFailedRetirementLeavesTheManifestsAsItFoundThem(RollupTransitionCase):
+    """E-01/E-02 of plan `4xt6u4`: the rollback must not WRITE the plans manifests at all.
+
+    WHY THIS CLASS EXISTS BESIDE THE PORCELAIN ASSERTION in
+    `TheSharedGatesActuallyFireOnTheRollupPath`. That assertion is the right one at the right site,
+    but it cannot see the whole property, for a reason worth stating: the manifests are GITIGNORED in
+    the real repository, so `git status --porcelain` there reports NOTHING whether they were created
+    or not. (They show as `??` in this fixture only because its `.gitignore` carries `.aw/state/`
+    alone.) An assertion that can be satisfied by a file being invisible rather than absent is not
+    the assertion this fix needs, so the EXISTENCE of the files is checked directly here.
+
+    BOTH PRIOR-STATE CASES ARE COVERED, because only one of them was ever broken and a test covering
+    only that one would not prove the fix is safe:
+
+    * ABSENT beforehand: the measured defect. Regeneration CREATED both manifests, so a tree that had
+      none had two. They must be absent again.
+    * PRESENT beforehand: regeneration was already byte-exact here (by the time step 4 ran the corpus
+      was restored and the generator is deterministic), so this case guards against the fix
+      REGRESSING what the old code got right by accident.
+    """
+
+    MANIFESTS = ("INDEX.json", "INDEX.md")
+
+    def _manifest_paths(self):
+        base = self.root / ".aw" / "records" / "plans"
+        return [base / name for name in self.MANIFESTS]
+
+    def _manifest_state(self):
+        """Existence + bytes for both manifests, so ABSENT is distinguishable from PRESENT."""
+        return {
+            p.name: (p.read_bytes() if p.exists() else None)
+            for p in self._manifest_paths()
+        }
+
+    def _index_check_rc(self) -> int:
+        import argparse
+
+        from agent_workflows import plans_index as PIDX
+
+        return PIDX.run_index(
+            argparse.Namespace(
+                dir=str(self.root),
+                check=True,
+                agent=False,
+                json=False,
+                no_color=True,
+                limit=None,
+                quiet=True,
+            )
+        )
+
+    def test_manifests_ABSENT_before_a_failed_retirement_are_ABSENT_after(self):
+        """The measured defect: `?? INDEX.json` / `?? INDEX.md` appearing out of a FAILED transition."""
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("mfabs", [("aaa111", 1, "executed", "executed")])
+        for p in self._manifest_paths():
+            self.assertFalse(p.exists(), f"fixture sanity: {p.name} must start absent")
+
+        res = self.retire(orch, "mfabs", apply=True, fault_injection="after_move")
+        self.assertEqual(res.exit_code, LC.EXIT_CANNOT_RUN, res.message)
+
+        for p in self._manifest_paths():
+            self.assertFalse(
+                p.exists(),
+                f"a FAILED retirement CREATED {p.name}: the rollback regenerated the manifests "
+                "instead of leaving the tree as it found it (plan 4xt6u4 F-1)",
+            )
+        self.assertEqual(
+            self._index_check_rc(),
+            0,
+            "restoring ABSENCE must not leave the repository in a state its own gate rejects; an "
+            "ungenerated manifest is check.stale-index-missing at severity info",
+        )
+
+    def test_manifests_PRESENT_before_a_failed_retirement_are_BYTE_IDENTICAL_after(
+        self,
+    ):
+        """The case the pre-fix code already handled, pinned so the fix cannot regress it."""
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("mfpres", [("aaa111", 1, "executed", "executed")])
+        LC._refresh_plans_index_fail_loud(self.root)
+        before = self._manifest_state()
+        for name, data in before.items():
+            self.assertIsNotNone(data, f"fixture sanity: {name} must start present")
+
+        res = self.retire(orch, "mfpres", apply=True, fault_injection="after_move")
+        self.assertEqual(res.exit_code, LC.EXIT_CANNOT_RUN, res.message)
+
+        self.assertEqual(
+            self._manifest_state(),
+            before,
+            "a FAILED retirement changed the plans manifests; they must be byte-identical",
+        )
+        self.assertEqual(self._index_check_rc(), 0)
+
+    def test_a_PEERS_manifest_write_inside_the_window_is_NOT_clobbered(self):
+        """The rollback must not overwrite a generated view a co-worker wrote mid-transaction.
+
+        MEASURED pre-fix: a peer's `INDEX.json` bytes were REPLACED by the rollback's regeneration.
+        This is why the fix removes the write rather than restoring a journal snapshot: a restore
+        would have overwritten these bytes too, or would have had to REFUSE (`unknown-outcome`) and
+        thereby wedge an otherwise clean rollback over a regenerable file.
+        """
+
+        from unittest import mock
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("mfpeer", [("aaa111", 1, "executed", "executed")])
+        LC._refresh_plans_index_fail_loud(self.root)
+        target = self.root / ".aw" / "records" / "plans" / "INDEX.json"
+        peer_bytes = '{"peer": "wrote this during the window"}\n'
+        real = LC._rollback_precommit
+
+        def spy(repo_root, journal):
+            # The peer writes AFTER the transaction's checkpoint, just before the rollback runs.
+            target.write_text(peer_bytes, encoding="utf-8")
+            return real(repo_root, journal)
+
+        with mock.patch.object(LC, "_rollback_precommit", spy):
+            res = self.retire(orch, "mfpeer", apply=True, fault_injection="after_move")
+
+        self.assertEqual(res.exit_code, LC.EXIT_CANNOT_RUN, res.message)
+        self.assertEqual(
+            target.read_text(encoding="utf-8"),
+            peer_bytes,
+            "the rollback clobbered a peer's manifest write",
+        )
+        # And it still reported a successful restore: manifest state is not the rollback's business.
+        self.assertIn("rolled back", res.message)
+
+    def test_the_rollback_does_NOT_write_the_shared_manifests_at_all(self):
+        """Pinned as an OBSERVED absence of writes, because the byte-equality tests above cannot
+        distinguish "never written" from "written with identical bytes" - and it was the WRITE, not
+        the bytes, that produced the defect."""
+
+        from unittest import mock
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("mfnow", [("aaa111", 1, "executed", "executed")])
+        LC._refresh_plans_index_fail_loud(self.root)
+        calls: list[str] = []
+        real = LC._refresh_plans_index_fail_loud
+
+        def spy(repo_root):
+            calls.append(str(repo_root))
+            return real(repo_root)
+
+        with mock.patch.object(LC, "_refresh_plans_index_fail_loud", spy):
+            res = self.retire(orch, "mfnow", apply=True, fault_injection="after_move")
+        self.assertEqual(res.exit_code, LC.EXIT_CANNOT_RUN, res.message)
+        self.assertEqual(
+            calls,
+            [],
+            "the rollback path refreshed the plans index; step 4 must not write a generated view",
+        )
+
+    def test_the_SUCCESS_path_still_regenerates_the_index(self):
+        """The success path is UNCHANGED: a successful retirement really does change the corpus."""
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("mfok", [("aaa111", 1, "executed", "executed")])
+        res = self.retire(orch, "mfok", apply=True)
+        self.assertEqual(res.exit_code, LC.EXIT_OK, f"{res.message} {res.findings}")
+        manifest = (self.root / ".aw" / "records" / "plans" / "INDEX.json").read_text(
+            encoding="utf-8"
+        )
+        name = "20260906-mfok-00-orc000-synthetic.ipd.md"
+        self.assertIn(f"executed/{name}", manifest)
+        self.assertNotIn(f"pending/{name}", manifest)
+        self.assertEqual(self._index_check_rc(), 0)
+
+    def test_the_rollback_STILL_reports_failure_honestly_for_a_REAL_cause(self):
+        """Dropping the manifest arm did not make the rollback unable to fail.
+
+        Plan `4xt6u4` E-01 requires stating the fate of the fail-loud arm that step 4 provided
+        (`rollback index regeneration failed: ...`). It is GONE with its subject, deliberately: a
+        rollback must not be escalated to unknown-outcome by a gitignored generated view. The arms
+        that protect real content are untouched, and this pins one of them firing.
+        """
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        orch = self.make_set("mfarm", [("aaa111", 1, "executed", "executed")])
+        rel = LC._repo_relative(self.root, orch)
+        dest_rel = rel.replace("/pending/", "/executed/")
+        dest = self.root / dest_rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        # A concurrent writer legitimately owns the destination: its bytes are NOT what we wrote.
+        dest.write_text("A CONCURRENT WRITER'S CONTENT\n", encoding="utf-8")
+        journal = {
+            "plan_id": "orc000",
+            "original_path": rel,
+            "original_bytes": orch.read_text(encoding="utf-8"),
+            "dest_path": dest_rel,
+            "owned_paths": [rel, dest_rel],
+            "git_index_entries": {},
+            "moved_bytes": "WHAT THIS TRANSACTION WROTE\n",
+            "phase": LC.PHASE_MUTATING,
+        }
+        ok, msg = LC._rollback_precommit(self.root, journal)
+        self.assertFalse(ok, msg)
+        self.assertIn("unknown-outcome", msg)
+        self.assertEqual(
+            dest.read_text(encoding="utf-8"),
+            "A CONCURRENT WRITER'S CONTENT\n",
+            "the refusal must be non-destructive",
+        )
+
+    def test_the_invariant_the_fix_RESTS_on_is_stated_and_holds(self):
+        """The pre-commit phase must not write the SHARED manifests; that is what makes E-01 correct.
+
+        THIS IS THE EARLY-WARNING TEST. If a future change makes the pre-commit phase write the shared
+        manifests, the rollback would once again have real damage to repair and NOT writing would stop
+        being a sufficient fix - at which point the journal snapshot `4xt6u4` OQ-01 considered becomes
+        the right mechanism. This is designed to fail first in that case, so the next reader learns it
+        from a red test rather than from a second residue bug.
+
+        Measured across every pre-commit fault point x both prior-state cases.
+        """
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        self.assertIn(
+            "gitignored",
+            LC._pre_commit_phase_leaves_manifests_untouched(),
+            "the invariant must state WHY it holds, not merely that it does",
+        )
+
+        from unittest import mock
+
+        # A DISTINCT Set per case, in the one fixture repo: `make_set` commits its own Set, so the
+        # cases do not interfere, and the manifest state is captured immediately before each retire.
+        cases = [
+            (fault, present)
+            for fault in ("before_mutation", "after_move", "before_commit")
+            for present in (False, True)
+        ]
+        for i, (fault, present) in enumerate(cases):
+            with self.subTest(fault=fault, manifests_present=present):
+                orch = self.make_set(f"inv{i}", [("aaa111", 1, "executed", "executed")])
+                if present:
+                    LC._refresh_plans_index_fail_loud(self.root)
+                else:
+                    for p in self._manifest_paths():
+                        p.unlink(missing_ok=True)
+                expected = self._manifest_state()
+                self.assertEqual(
+                    all(v is not None for v in expected.values()),
+                    present,
+                    "fixture sanity: the prior state is not the one this case intends",
+                )
+
+                seen: dict = {}
+                real = LC._rollback_precommit
+
+                def spy(repo_root, journal, _real=real, _seen=seen):
+                    _seen["at_entry"] = self._manifest_state()
+                    return _real(repo_root, journal)
+
+                with mock.patch.object(LC, "_rollback_precommit", spy):
+                    self.retire(orch, f"inv{i}", apply=True, fault_injection=fault)
+
+                self.assertEqual(
+                    seen.get("at_entry"),
+                    expected,
+                    "the pre-commit phase wrote the SHARED plans manifests before the rollback "
+                    "ran, so `_rollback_precommit` no longer restores them by leaving them "
+                    "alone. Re-read `_pre_commit_phase_leaves_manifests_untouched`: a journal "
+                    "snapshot (index_json_before/index_md_before) is now the correct mechanism.",
+                )
 
 
 if __name__ == "__main__":  # pragma: no cover
