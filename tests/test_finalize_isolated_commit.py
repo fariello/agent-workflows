@@ -405,6 +405,106 @@ class IsolatedFinalizeCommittedHalfIsLaneLocalTests(unittest.TestCase):
                 check=False,
             )
 
+    def test_a_lane_that_DECLARES_a_newly_needed_path_can_finalize(self) -> None:
+        """rcptwiden `63425h` E-04/E-07: the measured incident's exact shape, IN A LANE.
+
+        All three stranded items (`i3d6ml`, `tx6q0h`, `sy7uwh`) ran in isolated lanes and each added
+        one LITERAL TEST FILE to its `Scope-Paths` mid-execution, having found it needed one. Every
+        other frozen category was byte-identical and nothing was removed. Before this change the lane
+        finalized with "the begin receipt ... is STALE" and the work was stranded on the branch.
+
+        Driven through the WHOLE runner path deliberately, `compute_scope_reconciliation` included,
+        because a test that supplies the reason by hand would pass while the automated path (the one
+        that actually failed) still refused.
+        """
+        from agent_workflows import runner_shared as R
+
+        plan = self._plan(plan_id="lan003")
+        lane = self.root.parent / (self.root.name + "-lane-widen")
+        subprocess.run(
+            ["git", "worktree", "add", "-q", "-b", "aw/lane/lan003", str(lane), "HEAD"],
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+        )
+        try:
+            lane_plan = lane / plan.relative_to(self.root)
+            res = LC.begin(lane, lane_plan, ACTOR, timestamp="t")
+            self.assertEqual(res.exit_code, LC.EXIT_OK, res.message)
+
+            (lane / "agent_workflows").mkdir(exist_ok=True)
+            (lane / "tests").mkdir(exist_ok=True)
+            (lane / "agent_workflows/demo.py").write_text("lane\n", encoding="utf-8")
+            (lane / "tests/test_demo.py").write_text("lane\n", encoding="utf-8")
+            # The path it turned out to need, and the HONEST declaration of it.
+            (lane / "tests/test_resumedupe.py").write_text("lane\n", encoding="utf-8")
+            lane_plan.write_text(
+                lane_plan.read_text().replace(
+                    "- Scope-Paths: " + SCOPE,
+                    "- Scope-Paths: " + SCOPE + ", tests/test_resumedupe.py",
+                ),
+                encoding="utf-8",
+            )
+            self.assertIn("tests/test_resumedupe.py", lane_plan.read_text())
+            subprocess.run(
+                [
+                    "git",
+                    "add",
+                    "--",
+                    "agent_workflows/demo.py",
+                    "tests/test_demo.py",
+                    "tests/test_resumedupe.py",
+                    str(lane_plan.relative_to(lane)),
+                ],
+                cwd=lane,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-q", "-m", "lane work plus the newly declared path"],
+                cwd=lane,
+                check=True,
+                capture_output=True,
+            )
+
+            # The precheck now ACCEPTS, and reports the widening rather than a stale receipt.
+            code, msg, evidence, findings = LC.finalize_precheck(lane, lane_plan)
+            self.assertEqual(code, LC.EXIT_OK, f"{msg} / {findings}")
+            self.assertEqual(
+                evidence["scope_audit"]["widened_paths"], ["tests/test_resumedupe.py"]
+            )
+            self.assertTrue(evidence["frozen_region_widening"]["accepted"])
+
+            # THE RUNNER's own reconciliation supplies the reason, unaided.
+            reasons, acks = R.compute_scope_reconciliation(
+                lane, lane_plan, labels=R.OC_HOST_LABELS
+            )
+            self.assertIn("tests/test_resumedupe.py", reasons)
+
+            result = LC.finalize(
+                lane,
+                lane_plan,
+                ACTOR,
+                "lane work",
+                apply=True,
+                scope_reasons=reasons,
+                scope_acks=acks,
+            )
+            self.assertEqual(
+                result.exit_code,
+                LC.EXIT_OK,
+                f"{result.message} / {result.findings}",
+            )
+            moved = lane / ".aw" / "records" / "plans" / "executed" / lane_plan.name
+            self.assertTrue(moved.is_file(), "the lane's plan did not reach executed/")
+            self.assertIn("widened-scope tests/test_resumedupe.py", moved.read_text())
+        finally:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(lane)],
+                cwd=self.root,
+                check=False,
+            )
+
     def test_finalize_consumes_no_isolated_baseline_and_no_lane_branch_diff(
         self,
     ) -> None:

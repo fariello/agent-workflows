@@ -482,6 +482,177 @@ class ThePromptsTests(unittest.TestCase):
                 self.assertNotIn(other, prompt, f"{mod.__name__} leaked {other}")
 
 
+class TheRunnerCanSupplyAWideningReasonTests(unittest.TestCase):
+    """rcptwiden `63425h` E-04 / F-10: the runner must AUTO-REASON an additive scope widening.
+
+    WHY THIS LIVES IN THE RUNNER'S TEST FILE AND IS NOT OPTIONAL. All three finalize failures the
+    widening accept exists to fix (`i3d6ml`, `tx6q0h`, `sy7uwh` in run `run-20260917T023628Z-4108757`)
+    were performed by the DRIVER, not by a human at a prompt. `compute_scope_reconciliation` built its
+    reason map exclusively from `audit["out_of_scope_paths"]`, and an UNCOMMITTED widened path never
+    appears there (finalize judges out-of-scope against the receipt's OLD fence). So a lifecycle-only
+    fix would have converted a STALE refusal into a MISSING-REASON refusal and stranded the identical
+    three lanes. These tests fail if that regression is reintroduced on either host.
+    """
+
+    def _drive(self, audit: dict[str, Any]) -> dict[str, tuple[dict, dict]]:
+        from agent_workflows import ipd_lifecycle
+
+        original = ipd_lifecycle.finalize_precheck
+        out: dict[str, tuple[dict, dict]] = {}
+        try:
+            ipd_lifecycle.finalize_precheck = lambda *a, **k: (  # type: ignore[assignment]
+                0,
+                "",
+                {"scope_audit": audit},
+                [],
+            )
+            for mod, _labels in HOSTS:
+                out[mod.__name__] = mod._compute_scope_reconciliation(
+                    Path("/repo"), Path("/p.ipd.md")
+                )
+        finally:
+            ipd_lifecycle.finalize_precheck = original  # type: ignore[assignment]
+        return out
+
+    def test_an_UNCOMMITTED_widened_path_gets_a_reason_on_both_hosts(self) -> None:
+        """The measured incident's exact audit shape: widened, but NOT out-of-scope."""
+        produced = self._drive(
+            {
+                "out_of_scope_paths": [],
+                "in_scope_unmodified": [],
+                "widened_paths": ["tests/test_resumedupe.py"],
+            }
+        )
+        for host, (reasons, _acks) in produced.items():
+            self.assertIn(
+                "tests/test_resumedupe.py",
+                reasons,
+                f"{host} supplied NO reason for a widened path, so finalize would refuse it",
+            )
+            self.assertTrue(reasons["tests/test_resumedupe.py"].strip())
+
+    def test_the_widening_reason_describes_a_DECLARATION_not_an_out_of_scope_edit(
+        self,
+    ) -> None:
+        """The reason lands in a plan's PERMANENT record, so it must describe what actually happened."""
+        produced = self._drive(
+            {
+                "out_of_scope_paths": [],
+                "in_scope_unmodified": [],
+                "widened_paths": ["tests/test_resumedupe.py"],
+            }
+        )
+        for host, (reasons, _acks) in produced.items():
+            reason = reasons["tests/test_resumedupe.py"]
+            self.assertIn("Scope-Paths", reason, f"{host}: {reason}")
+            self.assertIn("widening", reason.lower(), f"{host}: {reason}")
+
+    def test_a_path_that_is_BOTH_widened_and_out_of_scope_gets_ONE_reason(self) -> None:
+        """The committed-cohesive variant: one path, one answer, no double-record."""
+        produced = self._drive(
+            {
+                "out_of_scope_paths": ["tests/test_resumedupe.py", "other.py"],
+                "in_scope_unmodified": [],
+                "widened_paths": ["tests/test_resumedupe.py"],
+            }
+        )
+        for host, (reasons, _acks) in produced.items():
+            self.assertEqual(
+                sorted(reasons),
+                ["other.py", "tests/test_resumedupe.py"],
+                f"{host} produced a duplicated or missing demand: {reasons}",
+            )
+            # The widening wording wins for the widened path; the plain out-of-scope path keeps its own.
+            self.assertIn("widening", reasons["tests/test_resumedupe.py"].lower())
+            self.assertNotIn("widening", reasons["other.py"].lower())
+
+    def test_a_widened_path_is_not_ALSO_acknowledged_as_unmodified(self) -> None:
+        """A declared-because-needed path is not "declared but unmodified"; one act, one answer."""
+        produced = self._drive(
+            {
+                "out_of_scope_paths": [],
+                "in_scope_unmodified": ["tests/test_resumedupe.py", "declared.py"],
+                "widened_paths": ["tests/test_resumedupe.py"],
+            }
+        )
+        for host, (reasons, acks) in produced.items():
+            self.assertIn("tests/test_resumedupe.py", reasons, host)
+            self.assertNotIn("tests/test_resumedupe.py", acks, host)
+            self.assertIn("declared.py", acks, host)
+
+    def test_an_absent_widened_key_changes_nothing(self) -> None:
+        """A tree whose finalize evidence predates this key must behave exactly as before."""
+        produced = self._drive(
+            {"out_of_scope_paths": ["a.py"], "in_scope_unmodified": ["b.py"]}
+        )
+        for host, (reasons, acks) in produced.items():
+            self.assertEqual(sorted(reasons), ["a.py"], host)
+            self.assertEqual(sorted(acks), ["b.py"], host)
+
+    def test_the_assembled_finalize_argv_carries_the_widening_scope_reason(
+        self,
+    ) -> None:
+        """END TO END on the DRIVER's own argv: the demand must actually reach the subprocess.
+
+        `compute_scope_reconciliation` returning a reason is necessary but not sufficient; the failure
+        F-10 describes is a missing `--scope-reason` FLAG. This drives `driver_finalize` with the
+        subprocess stubbed and inspects the command it built.
+        """
+        import subprocess as _sp
+
+        from agent_workflows import ipd_lifecycle
+
+        captured: dict[str, list[str]] = {}
+
+        class _Result:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        original_precheck = ipd_lifecycle.finalize_precheck
+        original_run = _sp.run
+        try:
+            ipd_lifecycle.finalize_precheck = lambda *a, **k: (  # type: ignore[assignment]
+                0,
+                "",
+                {
+                    "scope_audit": {
+                        "out_of_scope_paths": [],
+                        "in_scope_unmodified": [],
+                        "widened_paths": ["tests/test_resumedupe.py"],
+                    }
+                },
+                [],
+            )
+
+            def _fake_run(cmd, *a, **k):
+                captured["cmd"] = list(cmd)
+                return _Result()
+
+            _sp.run = _fake_run  # type: ignore[assignment]
+            oc_runipd.subprocess.run = _fake_run  # type: ignore[assignment]
+            rc, _out = oc_runipd.driver_finalize(
+                Path("/repo"), Path("/p.ipd.md"), "abc123", "aw oc run", "msg"
+            )
+        finally:
+            ipd_lifecycle.finalize_precheck = original_precheck  # type: ignore[assignment]
+            _sp.run = original_run  # type: ignore[assignment]
+            oc_runipd.subprocess.run = original_run  # type: ignore[assignment]
+
+        self.assertEqual(rc, 0)
+        cmd = captured["cmd"]
+        self.assertIn("--scope-reason", cmd)
+        flag_values = [
+            cmd[i + 1] for i, tok in enumerate(cmd) if tok == "--scope-reason"
+        ]
+        self.assertEqual(len(flag_values), 1, cmd)
+        self.assertTrue(
+            flag_values[0].startswith("tests/test_resumedupe.py="),
+            f"the widened path did not reach the finalize argv: {flag_values}",
+        )
+        self.assertIn("widening", flag_values[0].lower())
+
+
 class TheSharedModuleStaysCleanTests(unittest.TestCase):
     """The standing rule this lift must not break."""
 
