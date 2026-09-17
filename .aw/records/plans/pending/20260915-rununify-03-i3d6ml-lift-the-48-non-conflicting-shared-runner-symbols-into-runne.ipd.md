@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: 48 symbols exist in BOTH `oc_runipd.py` and `agy_runipd.py` with no behavioral disagreement between the two BODIES, so every fix to one is a fix the other silently misses. This is the bulk of the `rununify` duplication. CORRECTED AT REVIEW 2026-09-16: "no behavioral disagreement" is NOT the same as "liftable", and this plan originally conflated them. Measured, only 5 of the 48 are liftable with no prerequisite and no observable change; 10 are ALREADY single-implementation behind a maintainer-ruled injection wrapper and MUST NOT be touched; 1 is pinned UNMOVABLE; and 32 need at least one symbol or constant that is neither in the 48 nor yet in `runner_shared`. See F-7 through F-14 and OQ-03.
 - Scope: Move the liftable subset to `runner_shared.py`, taking the `oc_runipd` version as the source per the maintainer's 2026-09-14 ruling, and leave each host reaching the shared name. THE EXACT SUBSET IS NOT YET SETTLED and is OQ-03, which is `Blocking: yes`: the re-scope needed to make this plan sound restructures a Set with nine pending children and an approved orchestrator whose retirement gate reads the child table, so it is the maintainer's call, not the executor's. No behavior change, no host parameter needed (the 8 symbols that DO need one are child 04's).
-- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, tests/test_rununify_lift.py, tests/test_runner_refork_guard.py, tests/test_runner_backlog_close.py, tests/test_runner_shutdown.py, tests/test_orchestrator_probe_cache.py, tests/test_lane_allocation_idempotent.py
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, tests/test_rununify_lift.py, tests/test_runner_refork_guard.py, tests/test_runner_backlog_close.py, tests/test_runner_shutdown.py, tests/test_orchestrator_probe_cache.py, tests/test_lane_allocation_idempotent.py, tests/test_resumedupe.py
 - Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
@@ -17,6 +17,7 @@
 - From-Backlog: alw22r
 
 ## Workflow history
+- 2026-09-17 executed E-01..E-05 in lane `aw/lane/i3d6ml` from HEAD `e93ba3de` (opencode/its_direct-pt3-claude-opus-5-1m-us): NINE SYMBOLS LIFTED into `runner_shared` (group A's 5, group B's 4), all `is`-identical from both hosts with `__module__` reporting `runner_shared`; the 11 group-C/D exclusions preserved and now asserted in the INVERSE direction by the new `tests/test_rununify_lift.py` (16 tests). Bare suite `7431 passed, 3 skipped, 2 xfailed`, zero failures, above the 7308 baseline. THREE THINGS A READER SHOULD NOT HAVE TO FIND IN THE DIFF. FIRST, THREE SOURCE-READING GUARDS WERE RE-BASED, never weakened, under the maintainer's 2026-09-16 ruling: `test_runner_shared.py`'s `test_StallTimeout_bodies_were_not_edited` (which pinned a DOCSTRING difference as though it were behavioral, on a premise `_normalize_dump` contradicts by stripping docstrings) became a strictly stronger one-definition + object-identity assertion for BOTH exception classes; `test_resumedupe.py`'s `test_the_antigravity_twin_DELEGATES_rather_than_copying` required a runner-to-runner delegating STUB and so would have forbidden this improvement, and now asserts the PROPERTY (one implementation, by stub OR by shared lift) instead of one mechanism; and `test_orchestrator_probe_cache.py`'s oc-to-agy import baseline was re-measured 57 -> 56 with the note its own message prescribes, the FIRST decrease that baseline has ever recorded. Each re-based guard was shown non-vacuous by sabotage. SECOND, GROUPS E, F AND H WERE NOT LIFTED despite OQ-03 putting them in scope, and the reason is a measurement rather than a preference: `_lane_reclaim_prompt` (group E) closes over the SAME `_LANE_PROMPT_DISABLED` global that the permanently-unmovable `disable_lane_prompt` (group D) writes, so lifting the reader breaks prompt suppression exactly as lifting the writer would, and OQ-03's "move a constant, then lift" premise does not hold there; filed as backlog `8hx3g3`, with the honest scope assessment in the report. THIRD, TWO SYMBOLS ARE NEWLY DOUBLE-DEFINED since the inventory was taken (68 now, not 66), reported by name as E-01 requires and filed as backlog `h1q51j`. `aw ipd lint --phase pre-transition` conforms; no push. NOT SELF-FINALIZED: this ran in a managed worker lane (`AW_EXECUTION_ROLE=worker`), where `ipd_lifecycle` refuses driver-only lifecycle verbs, so the driver owns the terminal transition.
 - 2026-09-17 approved (aw set, --by-human): Maintainer directive 2026-09-16: the objective is 100% de-duplication of the redundant code between the two runners; readiness attested by the maintainer (not by an agent, not by a review), with the two supporting rulings (source-reading guards are re-based deliberately, never weakened silently; coordinated de-duplication across symbols is permitted) recorded in each plan's OQ-03 and history
 - 2026-09-16 reviewed (maintainer, --by-human attestation via askme): MAINTAINER ATTESTATION 2026-09-16: readiness set to `go-pending-approval` BY THE MAINTAINER, not by an agent and not by a review. The prior `no-go` was written by this plan's own 2026-09-16 review round while its blocking OQ-03 was genuinely open. The maintainer then answered that question directly in an interactive session on 2026-09-16 with a single Set-wide directive ('at the end of the SET, there should be one code base shared by the two runners that contains 100% of the otherwise redundant code that currently is duplicated between the two runners'), plus two supporting rulings that dissolved the premises the finding rested on: TESTS ARE NOT IMMOVABLE (a source-reading guard is re-based deliberately as part of the work, never weakened silently; the maintainer cited this repository's own precedent at `tests/test_nested_tty_noninteractive.py:190-203`, whose 41 related tests pass at this HEAD) and COORDINATED DE-DUPLICATION IS PERMITTED (many functions may be de-duplicated together before testing, so a still-double-defined dependency is an ordering matter rather than a blocker). Asked directly how the stale verdict should be cleared, the maintainer chose to attest it themselves rather than fund a further review round. THE ALTERNATIVE WAS PRICED AND REJECTED ON EVIDENCE: the 2026-09-16 round cost roughly 2.5 hours across nine items and produced 1,479 lines of review prose while clearing nothing, and the comparable 2026-09-13 round cost $106.07 and raised four NEW blocking questions, so a further round was not expected to yield a clean sheet. NO AGENT WROTE THIS VALUE ON ITS OWN AUTHORITY. HONEST LIMIT: no independent reviewer re-examined this plan's contents; that assurance lives in the 2026-09-16 round 1 record, not in this attestation. Recorded here because the auto-approve predicate reads this field FIRST (`plan_readiness.is_plan_review_approved`), so a stale `no-go` is a live refusal that would have silently skipped this plan when the Set executed.
 - 2026-09-16 reviewed (aw set): Reviewed 2026-09-16 by /plan-review: REVIEWED - OPEN QUESTIONS, NO-GO. 12 findings (PR-001..PR-012), 10 FIXED, PR-001/PR-004 OPEN and escalated as blocking OQ-03. Plan linted clean but measured the wrong property (body equality, not closure), so 43 of its 48 symbols are not liftable as written and 11 must never move. Revised in place to the 9 sound symbols; the re-scope decision is the maintainer's.
@@ -69,32 +70,32 @@ checkpoint until the maintainer answers it. The checklist below is REWRITTEN to 
 but it is deliberately NOT a complete authorization: E-02 and E-03 name the two groups whose scope
 depends on the answer.
 
-- [ ] E-01 RE-MEASURE the closure at execution HEAD before moving anything, and refuse to proceed on a stale list. The method must be the CLOSURE test, not the body-equality test the original plan used: for each candidate, parse the `oc_runipd` definition, collect every free name that resolves at module level, and report which of those are (a) already defined in `runner_shared`, (b) inside the candidate set so they move together, or (c) NEITHER, which makes the candidate unliftable until its prerequisite moves. Emit the eight groups A through H from the Goal table with their members, and state any symbol that changed group since 2026-09-16 by name.
+- [x] E-01 RE-MEASURE the closure at execution HEAD before moving anything, and refuse to proceed on a stale list. The method must be the CLOSURE test, not the body-equality test the original plan used: for each candidate, parse the `oc_runipd` definition, collect every free name that resolves at module level, and report which of those are (a) already defined in `runner_shared`, (b) inside the candidate set so they move together, or (c) NEITHER, which makes the candidate unliftable until its prerequisite moves. Emit the eight groups A through H from the Goal table with their members, and state any symbol that changed group since 2026-09-16 by name.
   - Depends on: none
   - Expected outcome: a pasted group listing at execution HEAD produced by the closure method, with per-symbol prerequisites named for every blocked candidate; any drift from the groups recorded in the Goal table and F-7 is stated explicitly with the symbol name and its new group.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Lift GROUP A ONLY, the 5 that are closure-clean today: `EmptyStatusSelection`, `StallTimeout`, `_findings_block_reason`, `build_review_prompt`, `make_integration_validation_runner`. Define each once in `runner_shared` and have both runners reach the shared object, so `oc_runipd.X is agy_runipd.X` holds. NOTE THE TWO EXCEPTION CLASSES ARE THE RISKY PAIR despite being 2 and 20 lines: each runner's `main` catches its OWN today, and `tests/test_runner_shared.py:1305` asserts `StallTimeout` is a `DriverError` subclass in both, so unifying them changes which `except` clause catches a cross-host raise. Prove the catch still works rather than assuming it.
+- [x] E-02 Lift GROUP A ONLY, the 5 that are closure-clean today: `EmptyStatusSelection`, `StallTimeout`, `_findings_block_reason`, `build_review_prompt`, `make_integration_validation_runner`. Define each once in `runner_shared` and have both runners reach the shared object, so `oc_runipd.X is agy_runipd.X` holds. NOTE THE TWO EXCEPTION CLASSES ARE THE RISKY PAIR despite being 2 and 20 lines: each runner's `main` catches its OWN today, and `tests/test_runner_shared.py:1305` asserts `StallTimeout` is a `DriverError` subclass in both, so unifying them changes which `except` clause catches a cross-host raise. Prove the catch still works rather than assuming it.
   - Depends on: E-01
   - Expected outcome: 5 single definitions in `runner_shared`, `is`-identical from both hosts, `__module__` reporting `runner_shared`; and for the two exception classes a demonstrated raise-and-catch through each runner's `except DriverError`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Lift GROUP B, the 4 that are closure-clean but whose OBSERVABLE OUTPUT differs between the hosts, and disclose each change: `attempt_log_path` and `write_prompt` (F-4/F-11, the filename shape), `resolve_prior_lane` and `sync_receipt_into_worktree`. For `write_prompt` the difference is NOT tag order but SEMANTICS: oc treats `suffix` as REPLACING the `exec`/`review` prefix while agy treats it as an ADDITIONAL tag, so the same call produces `03-abc123-verify-attempt-1.md` on oc and `03-abc123-exec-verify-attempt-1.md` on agy. For `attempt_log_path` the consequence is worse than cosmetic: `run_analytics_statistics._VERIFY_LOG_RE` (`agent_workflows/run_analytics_statistics.py:1248`) matches `-attempt-<n>-verify.jsonl`, which is oc's shape, so agy's verifier logs are ALREADY invisible to the verifier-phase analytics and adopting oc's form FIXES a live defect. Say so in the report; do not present it as a neutral rename.
+- [x] E-03 Lift GROUP B, the 4 that are closure-clean but whose OBSERVABLE OUTPUT differs between the hosts, and disclose each change: `attempt_log_path` and `write_prompt` (F-4/F-11, the filename shape), `resolve_prior_lane` and `sync_receipt_into_worktree`. For `write_prompt` the difference is NOT tag order but SEMANTICS: oc treats `suffix` as REPLACING the `exec`/`review` prefix while agy treats it as an ADDITIONAL tag, so the same call produces `03-abc123-verify-attempt-1.md` on oc and `03-abc123-exec-verify-attempt-1.md` on agy. For `attempt_log_path` the consequence is worse than cosmetic: `run_analytics_statistics._VERIFY_LOG_RE` (`agent_workflows/run_analytics_statistics.py:1248`) matches `-attempt-<n>-verify.jsonl`, which is oc's shape, so agy's verifier logs are ALREADY invisible to the verifier-phase analytics and adopting oc's form FIXES a live defect. Say so in the report; do not present it as a neutral rename.
   - Depends on: E-01
   - Expected outcome: 4 single definitions; the `write_prompt` semantic difference stated as a semantic change with both filenames shown; the `attempt_log_path` unification recorded as REPAIRING agy's analytics invisibility, with the regex it now satisfies cited.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 DO NOT TOUCH GROUP C OR GROUP D, and record why in the execution report rather than silently skipping them. Group C is the 10 INJECTED symbols (`run_checked`, `save_state`, `discover_plans`, `validate_manifest`, `print_status`, `git_head`, `git_status`, `git_common_dir`, `build_lane_outcome`, `integrate_lane_branch`): each already has exactly ONE implementation in `runner_shared` and keeps a deliberate one-line host wrapper that binds a host-specific dependency, a shape the maintainer ruled on in `818uru` OQ-02 and which `tests/test_runner_shared.py:573` asserts must persist. Group D is `disable_lane_prompt`, pinned by `tests/test_runner_shared.py:1238` because it writes `_LANE_PROMPT_DISABLED` through `global` while each host's `_lane_reclaim_prompt` reads its own copy. This item's DELIVERABLE is the disclosure, so an executor cannot mistake the omission for an oversight and "finish" it later.
+- [x] E-04 DO NOT TOUCH GROUP C OR GROUP D, and record why in the execution report rather than silently skipping them. Group C is the 10 INJECTED symbols (`run_checked`, `save_state`, `discover_plans`, `validate_manifest`, `print_status`, `git_head`, `git_status`, `git_common_dir`, `build_lane_outcome`, `integrate_lane_branch`): each already has exactly ONE implementation in `runner_shared` and keeps a deliberate one-line host wrapper that binds a host-specific dependency, a shape the maintainer ruled on in `818uru` OQ-02 and which `tests/test_runner_shared.py:573` asserts must persist. Group D is `disable_lane_prompt`, pinned by `tests/test_runner_shared.py:1238` because it writes `_LANE_PROMPT_DISABLED` through `global` while each host's `_lane_reclaim_prompt` reads its own copy. This item's DELIVERABLE is the disclosure, so an executor cannot mistake the omission for an oversight and "finish" it later.
   - Depends on: E-01
   - Expected outcome: an execution-report paragraph naming all 11 excluded symbols, the ruling or pinned test that excludes each, and the explicit statement that lifting them would reverse a decision rather than complete this plan.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: proof
 
-- [ ] E-05 Add `tests/test_rununify_lift.py` asserting the lift held FOR THE SYMBOLS THIS PLAN ACTUALLY LIFTED (groups A and B, 9 symbols), driven by a NAMED TABLE in the test file rather than by the literal 48: each name resolves to the same object from both hosts, `runner_shared` is its defining module, and no runner holds a second `def`/`class` for it (AST scan, repo-wide per the parent's F10, not a pairwise check). The table must also carry the EXCLUDED sets so the test states the boundary: group C is asserted to STILL have its host wrapper (the inverse assertion), and group D is asserted to still be defined in both runners. A test asserting only what moved would let a later agent "complete" the lift by deleting a wrapper the maintainer ruled must stay.
+- [x] E-05 Add `tests/test_rununify_lift.py` asserting the lift held FOR THE SYMBOLS THIS PLAN ACTUALLY LIFTED (groups A and B, 9 symbols), driven by a NAMED TABLE in the test file rather than by the literal 48: each name resolves to the same object from both hosts, `runner_shared` is its defining module, and no runner holds a second `def`/`class` for it (AST scan, repo-wide per the parent's F10, not a pairwise check). The table must also carry the EXCLUDED sets so the test states the boundary: group C is asserted to STILL have its host wrapper (the inverse assertion), and group D is asserted to still be defined in both runners. A test asserting only what moved would let a later agent "complete" the lift by deleting a wrapper the maintainer ruled must stay.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: a test file that FAILS if any lifted symbol is re-forked into a runner AND fails if an excluded symbol is lifted, naming which symbol broke in either direction.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -155,6 +156,7 @@ depends on the answer.
 | F-13 | MEDIUM | F-5 and OQ-01's defensive-form claim | THE DEFENSIVE-FORM EXCEPTION IS ARGUED FROM THE WRONG DIRECTION, though the conclusion is right. F-5 says keeping agy's `.get` avoids a `KeyError` "on a recovery path", which reads as speculative. It is not: `initialize_run` writes `configured_file` on every queue entry it freezes (`oc_runipd.py:3452`, `agy_runipd.py:2267`), so a live entry always has it, and the exposure is a queue entry frozen by an OLDER driver version being resumed. That is a REAL and narrow case, and oc itself already hedges 9 of its own 13 call sites with `.get`. The defensive form is correct; state the actual reason so a future reader does not "simplify" it back. |
 | F-14 | MEDIUM | E-02/E-03/E-04 right-sizing | EACH E-ITEM BUNDLES A WHOLE GROUP AS ONE PASS, and the count-based lint cannot see it. E-02 moved 14 symbols across 400 oc lines, E-03 21 symbols across 664, E-04 13 symbols across 783: nearly 1,850 lines relocated in three items, each needing its own dependency analysis, its own docstring merge decision, and its own import rewiring in two 5,700-to-9,400-line files that the parent plan itself calls the highest-contention files in the repo. A failure midway leaves the package unimportable. The re-scoped items are 5, 4 and 0 symbols, which is one focused pass each. |
 | F-15 | MEDIUM | `- Scope-Paths:` as authored | THE SCOPE FENCE OMITS FIVE TEST FILES THE CHANGE MUST EDIT. Named for the executor rather than discovered at finalize time: `tests/test_runner_refork_guard.py` (its `Owned` table enumerates shared symbols and its comment block explains the INJECTED and UNMOVABLE exclusions), `tests/test_runner_backlog_close.py:1141` (asserts `terminate_process`'s source contains the two grace constants), `tests/test_runner_shutdown.py:160` (same, via `inspect.getsource`), `tests/test_orchestrator_probe_cache.py:1203` (the import-count baseline), and `tests/test_lane_allocation_idempotent.py:816` (the prompt-suppression behavior in both hosts). Added to `Scope-Paths`. |
+| F-17 | MEDIUM | `- Scope-Paths:` (added at execution 2026-09-17); `tests/test_resumedupe.py:654` | THE SCOPE FENCE STILL OMITTED ONE TEST FILE after F-15 added five, found at EXECUTION rather than by reading: `tests/test_resumedupe.py::TestDriverSymmetry::test_the_antigravity_twin_DELEGATES_rather_than_copying` requires `agy_runipd` to hold a DELEGATING STUB for four routing symbols, one of which (`resolve_prior_lane`) is in this plan's group B. So the lift necessarily breaks it, and the file was undeclared. NOTE WHY F-15's method could not find it: F-15 searched for tests asserting on the SHARED symbols and their constants, while this test asserts on the SHAPE of agy's definition, which no search for the symbol's own guards would surface. Added to `Scope-Paths` and the guard re-based (V-05(c)). |
 | F-16 | LOW | V-05(c)'s baseline claim | THE SUITE BASELINE IS CORRECT AND ITS ZERO-FAILURE BAR IS NOT ACHIEVABLE AS STATED. Measured at HEAD: `7308 passed, 3 skipped, 2 xfailed` with ONE failure, `test_runner_backlog_close.py::ShutdownReportOnInterrupt::test_sigint_produces_the_report_and_exits_130`, which is a 30-second subprocess timeout under parallel load and PASSES in isolation (`7 passed in 1.13s`). V-05 should require no NEW failures against that named pre-existing flake rather than zero failures absolutely, or the executor will chase a defect this plan did not cause. |
 
 ## Proposed changes (ordered, validatable)
@@ -400,30 +402,410 @@ no per-runner binding fails those tests without any spec having changed.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted group listing produced at execution HEAD BY THE CLOSURE METHOD, showing all eight groups A through H with their members and, for every blocked candidate, the specific prerequisite name that blocks it. Plus an explicit statement of any symbol that changed group since 2026-09-16. A listing produced by body-equality alone does NOT satisfy this item, because that is the measurement F-7 found to be the wrong one.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: produced at execution HEAD `e93ba3de` by the CLOSURE method (parse the `oc_runipd`
+    definition, collect every free name resolving at module level, classify each as already-in-shared /
+    in-candidate-set / NEITHER). `body=SAME|DIFF` is reported ALONGSIDE the blockers deliberately, to show
+    the two measurements are independent: 6 of the 9 symbols this plan lifted have DIFFERING bodies, and 11
+    symbols with IDENTICAL bodies must never move, so neither property predicts the other.
 
-- [ ] V-02 validates E-02
+    ```text
+    Double-defined symbols at HEAD: 68  (the plan recorded 66 at 2026-09-16)
+
+    GROUP A (5) - Liftable today, closure-clean, no prerequisite
+        EmptyStatusSelection                   20L body=SAME  blockers: (none)
+        StallTimeout                            2L body=SAME  blockers: (none)
+        _findings_block_reason                 23L body=SAME  blockers: (none)
+        build_review_prompt                    39L body=DIFF  blockers: lane_containment
+        make_integration_validation_runner     16L body=SAME  blockers: (none)
+
+    GROUP B (4) - Closure-clean but OBSERVABLE output differs between hosts
+        attempt_log_path                        9L body=DIFF  blockers: (none)
+        write_prompt                           11L body=DIFF  blockers: (none)
+        resolve_prior_lane                     47L body=DIFF  blockers: (none)
+        sync_receipt_into_worktree             19L body=SAME  blockers: (none)
+
+    GROUP C (10) - ALREADY single-implementation behind a maintainer-ruled injection wrapper (EXCLUDED)
+        run_checked                            18L body=SAME  blockers: pinned_child_env, runner_shared
+        save_state                              2L body=SAME  blockers: runner_shared
+        discover_plans                          3L body=SAME  blockers: runner_shared
+        validate_manifest                       4L body=SAME  blockers: parse_dependency_token, runner_shared
+        print_status                            2L body=DIFF  blockers: runner_shared
+        git_head                                2L body=SAME  blockers: runner_shared
+        git_status                              2L body=SAME  blockers: runner_shared
+        git_common_dir                          2L body=SAME  blockers: runner_shared
+        build_lane_outcome                      7L body=SAME  blockers: runner_shared
+        integrate_lane_branch                  28L body=DIFF  blockers: runner_shared
+
+    GROUP D (1) - Pinned UNMOVABLE by a global-write whose reason still holds (EXCLUDED)
+        disable_lane_prompt                     4L body=SAME  blockers: _LANE_PROMPT_DISABLED
+
+    GROUP E (6) - Blocked on a module CONSTANT (directly or transitively)
+        terminate_process                      14L body=SAME  blockers: _SIGINT_GRACE_SECONDS, _SIGTERM_GRACE_SECONDS, runner_shutdown
+        _lane_reclaim_prompt                   44L body=DIFF  blockers: LANE_PROMPT_TIMEOUT, _LANE_PROMPT_DISABLED, select
+        reconcile_disposition                 109L body=DIFF  blockers: TERMINAL_STATES, _read_status, runner_shared, runner_stop
+        StallWatchdog                          66L body=SAME  blockers: (none)
+        locked_run                             26L body=SAME  blockers: runner_shutdown
+        reclaim_lanes_on_interrupt            146L body=DIFF  blockers: runner_shared
+
+    GROUP F (6) - Blocked on an oc-only HELPER not in the 48
+        build_verify_and_continue_notice        83L body=DIFF  blockers: RecoveryDisposition
+        classify_recovery_disposition          130L body=DIFF blockers: DISPOSITION_FRESH_EXECUTION, DISPOSITION_UNDETERMINED, DISPOSITION_VERIFY_AND_CONTINUE, RecoveryDisposition, _lane_commit_subjects
+        route_recovery_turn                     79L body=DIFF  blockers: DISPOSITION_FRESH_EXECUTION, DISPOSITION_UNDETERMINED, RecoveryDisposition
+        retry_deferred_integrations            146L body=DIFF  blockers: argparse, lane_containment, process_backlog_close, runner_shared
+        enforce_dependency_preflight            28L body=DIFF  blockers: DEPENDENCY_FATAL_RULES, preflight_dependency_findings
+        set_plan_approved                       77L body=SAME  blockers: FULL_AUTO_ACTOR, FULL_AUTO_APPROVAL_MESSAGE, pinned_module_argv, shutil
+
+    GROUP G (6) - Blocked on a symbol child 04/05/06 owns
+        _escalation_recorder                    36L body=SAME  blockers: runner_stop
+        handle_stop_command                     29L body=SAME  blockers: argparse, runner_stop
+        install_stop_triggers                   41L body=SAME  blockers: runner_stop
+        driver_finalize                         48L body=SAME  blockers: pinned_child_env, pinned_module_argv
+        reconcile_interrupted                   82L body=DIFF  blockers: runner_stop
+        expand_selectors                       157L body=DIFF  blockers: Iterable, runner_shared
+
+    GROUP H (10) - Blocked only on a plain import line runner_shared lacks
+        _add_output_mode_flags                  41L body=DIFF  blockers: argparse
+        _budget_breach_recorder                 32L body=SAME  blockers: runner_stop
+        _observe_between_turn_stop              40L body=SAME  blockers: runner_stop
+        _record_checkpoint_stop                 33L body=SAME  blockers: runner_stop
+        _record_deliberate_stop                 21L body=SAME  blockers: runner_stop
+        _record_forced_stop                     43L body=DIFF  blockers: runner_stop
+        requeue_interrupted                     43L body=SAME  blockers: runner_stop
+        build_isolation_notice                  10L body=SAME  blockers: lane_containment
+        evaluate_clean_base_for_launch          18L body=SAME  blockers: lane_containment
+        run_lock                                45L body=SAME  blockers: platform_lock, runner_shutdown
+
+    A..H total = 48 (the plan's 48)
+    ```
+
+    DRIFT SINCE 2026-09-16, stated by name because this item demands it:
+
+    1. NO SYMBOL IN THE 48 CHANGED GROUP. Every membership above reproduces the 2026-09-16 partition
+       symbol for symbol, so the plan's re-scoped E-02/E-03 targets were still correct at execution.
+    2. TWO SYMBOLS ARE NEWLY DOUBLE-DEFINED and appear in NEITHER the 48 nor the 18 deferred, so the
+       plan's 66-symbol accounting no longer covers HEAD (68 now):
+       `collect_lane_earned_paths` (12L, bodies agree, blockers: `runner_shared`) and
+       `integrate_review_lane_branch` (25L, bodies differ, blockers: `runner_shared`). Both carry the
+       GROUP-C signature (already one implementation in `runner_shared` behind a binding wrapper), so
+       neither changes this plan's liftable set. Reported, not lifted, and filed as backlog `h1q51j`.
+    3. TWO OF THE PLAN'S OWN GROUP LABELS ARE WRONG, found because this item requires the blocker to be
+       NAMED rather than the group to be restated. `build_review_prompt` is listed in group A as
+       "closure-clean" but closes over `lane_containment`, so it is materially group H; it was lifted
+       anyway, with a FUNCTION-LOCAL import, because `lane_containment` imports `runner_shared` at its own
+       module level (`agent_workflows/lane_containment.py:55`) and a module-level import there is a cycle.
+       Conversely `StallWatchdog` is listed in group E as transitively blocked via `terminate_process`, and
+       is in fact closure-CLEAN: its body reaches `terminate_process` only through `self`/injected
+       callables, so no module-level free name blocks it. It was NOT lifted, because a shared
+       `StallWatchdog` would resolve a shared `terminate_process` that group E has not moved yet.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted `oc_runipd.X is agy_runipd.X` -> `True` and `X.__module__` -> `agent_workflows.runner_shared` for all 5 group-A symbols. PLUS the exception-class proof, which is the risky half: raise each runner's `StallTimeout` and show it caught by the OTHER runner's `except DriverError`, and the same for `EmptyStatusSelection`, with `tests/test_runner_shared.py:1305`'s existing assertions still green.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: all 5 group-A symbols are the SAME object from both hosts and report
+    `agent_workflows.runner_shared` as their defining module; the exception proof is exercised in FOUR
+    directions rather than the two this item asked for (each class raised through each host, caught both
+    by the OTHER host's name and by its own `except DriverError`).
 
-- [ ] V-03 validates E-03
+    ```text
+    V-02: GROUP A identity + defining module
+      oc_runipd.EmptyStatusSelection is agy_runipd.EmptyStatusSelection -> True
+      EmptyStatusSelection.__module__ -> agent_workflows.runner_shared
+      oc_runipd.StallTimeout is agy_runipd.StallTimeout -> True
+      StallTimeout.__module__ -> agent_workflows.runner_shared
+      oc_runipd._findings_block_reason is agy_runipd._findings_block_reason -> True
+      _findings_block_reason.__module__ -> agent_workflows.runner_shared
+      oc_runipd.build_review_prompt is agy_runipd.build_review_prompt -> True
+      build_review_prompt.__module__ -> agent_workflows.runner_shared
+      oc_runipd.make_integration_validation_runner is agy_runipd.make_integration_validation_runner -> True
+      make_integration_validation_runner.__module__ -> agent_workflows.runner_shared
+
+    V-02: the EXCEPTION proof, raised through one host and caught through the OTHER
+      raise oc.StallTimeout -> caught by `except agy.StallTimeout`      : True
+      raise agy.StallTimeout -> caught by `except oc.StallTimeout`      : True
+      raise oc.StallTimeout -> caught by `except oc.DriverError`   : True
+      raise agy.StallTimeout -> caught by `except agy.DriverError`   : True
+      raise oc.EmptyStatusSelection -> caught by `except agy.EmptyStatusSelection`      : True
+      raise agy.EmptyStatusSelection -> caught by `except oc.EmptyStatusSelection`      : True
+      raise oc.EmptyStatusSelection -> caught by `except oc.DriverError`   : True
+      raise agy.EmptyStatusSelection -> caught by `except agy.DriverError`   : True
+    ```
+
+    The cross-host CLASS catch (rows 1, 2, 5, 6) is a property that did NOT hold before this change and
+    is worth stating separately from the `DriverError` catch this item asked for: previously
+    `oc.StallTimeout` and `agy.StallTimeout` were two distinct classes, so a raise through one host was
+    caught by the other only via the broader `except DriverError`. It is now caught by name.
+
+    THE EXISTING GUARD AT `tests/test_runner_shared.py` IS GREEN, but one of its tests had to be RE-BASED
+    rather than merely re-run, and that is disclosed here rather than left for a reader to discover in the
+    diff. `DriverErrorUnificationTests::test_StallTimeout_bodies_were_not_edited` asserted that the two
+    runners' `StallTimeout` DOCSTRINGS still differed, i.e. that a definition still existed in each
+    runner, on the stated premise that the class was "class (c) DIVERGED". That premise was false: this
+    file measures divergence with `_normalize_dump`, which STRIPS DOCSTRINGS, and with them stripped both
+    bodies were empty. The test was pinning a prose difference as though it were behavioral. It is now
+    `test_StallTimeout_is_now_defined_once_on_the_shared_base`, which asserts STRICTLY MORE: exactly one
+    definition in the package, in `runner_shared`, the same object from both hosts, still subclassing
+    `DriverError`, for BOTH exception classes. The maintainer's 2026-09-16 ruling authorizes exactly this
+    ("a source-reading pin is a thing to UPDATE DELIBERATELY as part of the work ... What remains
+    forbidden is WEAKENING a guard silently"), and the behavior half is untouched:
+    `test_the_real_watchdog_raise_sites_are_still_caught_by_their_handlers` still walks each runner's
+    source for every `raise StallTimeout(` and every handler form, and still passes.
+
+    ```text
+    $ python3 -m pytest tests/test_runner_shared.py tests/test_runner_refork_guard.py tests/test_review_findings_cascade.py
+    174 passed in 5.99s
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted identity results for all 4 group-B symbols. PLUS the disclosure, quoted rather than summarized: the before/after filename for `write_prompt` on BOTH hosts for `suffix="verify"` and `suffix="defect-reask"`, showing the semantic difference F-11 names; and for `attempt_log_path`, the before/after filename on both hosts together with a demonstration that `run_analytics_statistics.verifier_phase_of_log` returns `verify` for the new agy name where it returned `execute` for the old one. That last item is the repaired defect and must be shown, not asserted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: all 4 group-B symbols are the SAME object from both hosts, and the two filename
+    changes are shown with the before/after on BOTH hosts. The `attempt_log_path` repair is demonstrated by
+    asking the actual consumer (`run_analytics_statistics.verifier_phase_of_log`) what phase it reads off
+    each name, which is the "shown, not asserted" this item requires.
 
-- [ ] V-04 validates E-04
+    ```text
+    V-03: GROUP B identity + defining module
+      oc_runipd.attempt_log_path is agy_runipd.attempt_log_path -> True    __module__ -> agent_workflows.runner_shared
+      oc_runipd.write_prompt is agy_runipd.write_prompt -> True    __module__ -> agent_workflows.runner_shared
+      oc_runipd.resolve_prior_lane is agy_runipd.resolve_prior_lane -> True    __module__ -> agent_workflows.runner_shared
+      oc_runipd.sync_receipt_into_worktree is agy_runipd.sync_receipt_into_worktree -> True    __module__ -> agent_workflows.runner_shared
+
+    V-03: write_prompt, the SEMANTIC difference (oc's suffix REPLACES the prefix)
+      suffix='verify':
+        BEFORE oc  : 03-abc123-verify-attempt-1.md
+        BEFORE agy : 03-abc123-exec-verify-attempt-1.md
+        AFTER both : 03-abc123-verify-attempt-1.md
+      suffix='defect-reask':
+        BEFORE oc  : 03-abc123-defect-reask-attempt-1.md
+        BEFORE agy : 03-abc123-exec-defect-reask-attempt-1.md
+        AFTER both : 03-abc123-defect-reask-attempt-1.md
+
+    V-03: attempt_log_path, and the REPAIRED analytics defect
+      BEFORE oc  : 03-abc123-attempt-1-verify.jsonl
+      BEFORE agy : 03-abc123-verify-attempt-1.jsonl
+      AFTER both : 03-abc123-attempt-1-verify.jsonl
+      verifier_phase_of_log('03-abc123-verify-attempt-1.jsonl') -> ('execute', True)   <- agy's OLD name: MISCLASSIFIED
+      verifier_phase_of_log('03-abc123-attempt-1-verify.jsonl') -> ('verify', True)    <- the shared name: correct
+    ```
+
+    THE REPAIRED DEFECT IS SHOWN, NOT ASSERTED, as this item requires: the last two lines are
+    `run_analytics_statistics.verifier_phase_of_log` being ASKED what phase it reads off each filename.
+    It answers `execute` for the name antigravity produced before this change and `verify` for the shared
+    name, which is the whole claim. F-11's reasoning is independently confirmed at the source:
+    `_VERIFY_LOG_RE` is `re.compile(r"-attempt-\d+-verify\.jsonl$")` (`run_analytics_statistics.py:1248`),
+    anchored on oc's shape only, and its own comment states the stakes ("the verifier's phase is
+    recoverable ONLY from here ... 57 such logs hold $64.08 and ZERO attempts carry
+    `verify_cost`/`verify_tokens`, so a filename is the only signal").
+
+    HONEST LIMIT, recorded because "repairs a live defect" could be read as retroactive: this fixes logs
+    written from now on. Antigravity logs already on disk keep the old name and stay misclassified, since
+    nothing renames history.
+
+    THE `resolve_prior_lane` CASE IS NOT AN OUTPUT CHANGE and is restated so the group-B label is not
+    misread: agy's definition was a stub whose body imported `oc_runipd` at call time, so there was
+    already ONE implementation. What changed is WHERE it lives, and the observable consequence is that a
+    runner-to-runner import disappeared (see V-05(d)).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the exclusion disclosure, plus PROOF THE EXCLUSIONS STILL HOLD, since this item's deliverable is an absence and an absence is what a careless executor silently converts into a change. Paste: for each of the 10 group-C symbols, that a runner-local wrapper still exists and `tests/test_runner_shared.py::SingleDefinitionTests` is green; for `disable_lane_prompt`, that it is still defined in BOTH runners and absent from `runner_shared`, with `UnmovableSymbolTests` green; and the citation (ruling or test) that excludes each of the 11.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ELEVEN SYMBOLS WERE DELIBERATELY NOT LIFTED, and the distinction OQ-03 demands is
+    stated first, because "11 excluded" must NOT be read as "11 still duplicated". Neither group is
+    redundancy. Group C is ALREADY the de-duplicated form: the real function lives ONCE in
+    `runner_shared` and each host keeps a one-line binding wrapper, which is the shape the maintainer
+    ruled in `818uru` OQ-02 after rejecting two alternatives (threading the parameter through ~86 call
+    sites; a registration seam, declined because process-global state makes behavior depend on import
+    order). Group D is one symbol that must stay per-runner for a mechanical reason. Lifting either would
+    REVERSE A DECISION rather than complete this plan.
 
-- [ ] V-05 validates E-05
+    ```text
+    GROUP C: the 10 INJECTED symbols. Each must STILL have a runner-local wrapper.
+      run_checked                oc_runipd.py:583    agy_runipd.py:850    runner_shared.py:622
+      save_state                 oc_runipd.py:3967   agy_runipd.py:2526   runner_shared.py:708
+      discover_plans             oc_runipd.py:2845   agy_runipd.py:1712   runner_shared.py:2841
+      validate_manifest          oc_runipd.py:2852   agy_runipd.py:1719   runner_shared.py:3468
+      print_status               oc_runipd.py:9204   agy_runipd.py:5557   runner_shared.py:719
+      git_head                   oc_runipd.py:608    agy_runipd.py:871    runner_shared.py:597
+      git_status                 oc_runipd.py:612    agy_runipd.py:875    runner_shared.py:612
+      git_common_dir             oc_runipd.py:616    agy_runipd.py:879    runner_shared.py:616
+      build_lane_outcome         oc_runipd.py:2432   agy_runipd.py:1336   runner_shared.py:1635
+      integrate_lane_branch      oc_runipd.py:2461   agy_runipd.py:1378   runner_shared.py:1690
+
+    GROUP D: disable_lane_prompt must be in BOTH runners and ABSENT from runner_shared.
+      disable_lane_prompt        oc_runipd.py:2214   agy_runipd.py:1121   runner_shared: ABSENT (correct)
+    ```
+
+    Every group-C row shows THREE line numbers, which is the point: a definition in `runner_shared` AND a
+    wrapper in each runner. That is one implementation with two bindings, not three implementations.
+
+    THE CITATION THAT EXCLUDES EACH OF THE 11:
+
+    | Symbol | Group | Excluded by |
+    |---|---|---|
+    | `run_checked` | C | `818uru` OQ-02, quoted in `runner_shared.run_checked`'s docstring; binds the opencode-only `pinned_child_env` |
+    | `save_state` | C | `818uru` OQ-02; binds the host's DIVERGED `write_report` |
+    | `discover_plans` | C | `818uru` OQ-02; binds `parse_plan_file`, which constructs each host's OWN `PlanRecord` |
+    | `validate_manifest` | C | `818uru` OQ-02; binds the opencode-only `parse_dependency_token` |
+    | `print_status` | C | `818uru` OQ-02; binds the host's own `driver_label` |
+    | `git_head` | C | `818uru` OQ-02 + the intra-seam note; binds the host's `run_checked` wrapper |
+    | `git_status` | C | `818uru` OQ-02 + the intra-seam note; binds the host's `run_checked` wrapper |
+    | `git_common_dir` | C | `818uru` OQ-02 + the intra-seam note; binds the host's `run_checked` wrapper |
+    | `build_lane_outcome` | C | integpath-02 `6sb3yu`; binds the host's `run_checked` wrapper |
+    | `integrate_lane_branch` | C | integpath-02 `6sb3yu`; binds `run_checked` AND the `host_label` that lands in a merge commit subject on MAIN |
+    | `disable_lane_prompt` | D | `tests/test_runner_shared.py::UnmovableSymbolTests` + `runner_shared`'s docstring: it writes `_LANE_PROMPT_DISABLED` through `global` while each host's `_lane_reclaim_prompt` reads its own copy |
+
+    BOTH PINNED SUITES ARE GREEN, and they are the tests that would have caught the opposite of this
+    deliverable:
+
+    ```text
+    $ python3 -m pytest tests/test_runner_shared.py -o addopts="" -k "SingleDefinition or Unmovable"
+    tests/test_runner_shared.py ........                                     [100%]
+    8 passed, 115 deselected in 2.74s
+    ```
+
+    THE EXCLUSIONS ARE ALSO NOW ASSERTED IN THE INVERSE DIRECTION by `tests/test_rununify_lift.py`
+    (E-05), so an absence is no longer defended by prose alone: `ExcludedSymbolTests` fails if a group-C
+    wrapper is deleted, if a group-C wrapper grows a body, or if `disable_lane_prompt` appears in
+    `runner_shared`. V-05(b) exercises all three.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: FOUR parts, all pasted. (a) `python3 -m pytest tests/test_rununify_lift.py -o addopts=""` green. (b) The NON-VACUITY control, in BOTH directions, because a one-directional control cannot catch the failure mode that matters here: sabotage three lifted shared definitions and show a NAMED failure each, then restore; AND re-fork one group-C wrapper into a second body and show the new suite names it, then restore. A suite that only checks what moved would bless deleting a wrapper the maintainer ruled must stay. (c) Bare `python3 -m pytest` at or above 7308 passed with NO NEW failures, judged against the ONE known pre-existing flake recorded in F-16 (`ShutdownReportOnInterrupt::test_sigint_produces_the_report_and_exits_130`, a 30s subprocess timeout under parallel load that passes in isolation); if that test fails, show it passing in isolation rather than treating it as a regression. (d) The re-measured oc-to-agy import count with its note, and a statement of the ACTUAL decrease (F-6 measures the realistic figure as one, not fourteen).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: all four parts below. The bare suite is `7431 passed, 3 skipped, 2 xfailed` with
+    ZERO failures (above the 7308 baseline), the non-vacuity control runs in BOTH directions with five
+    sabotages plus a sixth on the one re-based guard, and the oc-to-agy import count decreased by exactly
+    the one symbol F-6 predicted.
+
+    (a) THE NEW SUITE, GREEN.
+
+    ```text
+    $ python3 -m pytest tests/test_rununify_lift.py -o addopts=""
+    collected 16 items
+    tests/test_rununify_lift.py ................                             [100%]
+    16 passed in 3.51s
+    ```
+
+    (b) THE NON-VACUITY CONTROL, IN BOTH DIRECTIONS. Five sabotages, each restored, each producing a
+    failure that NAMES the cause rather than merely going red.
+
+    FORWARD DIRECTION (a lifted symbol is broken or re-forked):
+
+    ```text
+    SABOTAGE 1: re-fork attempt_log_path into agy as a second body
+      AssertionError: Lists differ: ['agy_runipd.py:6108 re-defines `attempt_log_path`'] != []
+      AssertionError: <function attempt_log_path ...> is not <function attempt_log_path ...> :
+        agy_runipd.attempt_log_path is not the shared object; a fix to the shared definition
+        would not reach this host
+
+    SABOTAGE 2: change the lifted write_prompt's semantics back to agy's form
+      AssertionError: '03-abc123-exec-verify-attempt-1.md' != '03-abc123-verify-attempt-1.md'
+      FAILED ObservableChangeTests::test_write_prompt_suffix_replaces_the_action_prefix_on_both_hosts
+
+    SABOTAGE 3: re-parent the lifted StallTimeout off DriverError
+      FAILED ExceptionUnificationTests::test_each_runners_except_DriverError_still_catches_both_subclasses
+    ```
+
+    INVERSE DIRECTION (an EXCLUDED symbol is lifted, which is the likelier and more damaging mistake):
+
+    ```text
+    SABOTAGE 4: delete agy's group-C git_head wrapper, i.e. "finish the lift"
+      AssertionError: 'git_head' not found in {...} : agy_runipd no longer defines `git_head`.
+        That wrapper is NOT leftover duplication: it is the ruled mechanism for binding a
+        host-specific dependency, and the real implementation already lives once in runner_shared.
+        Citation: `818uru` OQ-02 + the intra-seam note; binds the host's `run_checked` wrapper
+      FAILED ExcludedSymbolTests::test_every_group_c_symbol_still_has_a_runner_local_wrapper
+      FAILED ExcludedSymbolTests::test_every_group_c_wrapper_is_a_single_delegating_statement
+
+    SABOTAGE 4b: LIFT the group-D unmovable disable_lane_prompt into runner_shared
+      AssertionError: 'disable_lane_prompt' unexpectedly found in {...} : `disable_lane_prompt` was
+        LIFTED into runner_shared. This produces no error and no failure naming the cause: prompt
+        suppression silently stops working, and the symptom is an unattended run pausing for a
+        question nobody is there to answer. Citation: tests/test_runner_shared.py::UnmovableSymbolTests ...
+      FAILED ExcludedSymbolTests::test_the_shared_module_does_not_define_an_excluded_symbol
+    ```
+
+    Each failure message carries the CITATION for the exclusion, so an agent who trips it is told why the
+    thing they just "finished" was deliberate. All five were restored and the suite returned to 16 passed.
+
+    A SIXTH CONTROL, on the guard this change RE-BASED rather than added, because a re-based guard that
+    became vacuous would be the quiet way to lose a property (see V-03's disclosure and the note below on
+    `test_resumedupe.py`): re-forking `resolve_prior_lane` into agy as a real second implementation fails
+    `TestDriverSymmetry::test_the_antigravity_twin_never_holds_a_second_implementation`, restored to
+    `33 passed`.
+
+    (c) THE BARE SUITE. Run bare as the contract requires (`addopts` already supplies
+    `-q -n auto --dist=worksteal -m 'not slow'`).
+
+    ```text
+    $ python3 -m pytest
+    7431 passed, 3 skipped, 2 xfailed in 99.69s (0:01:39)
+    ```
+
+    That is 7431 passed against the plan's 7308 baseline, with ZERO failures, so F-16's "no NEW failures
+    against one known flake" bar is met with nothing to except. F-16's named flake
+    (`ShutdownReportOnInterrupt::test_sigint_produces_the_report_and_exits_130`) did not fail at all.
+
+    A PRE-EXISTING ENVIRONMENT ARTIFACT IS DISCLOSED, because the first bare runs in this lane reported 31
+    failures and reporting the clean number without explaining them would look like selective quoting.
+    This turn executes inside a managed worker lane, where the runner exports
+    `AW_EXECUTION_ROLE=worker`; `ipd_lifecycle.worker_role_active` makes every driver-only lifecycle verb
+    refuse with `AW-LIFECYCLE-ROLE-001`, so 31 tests that shell out to `aw ipd begin`/`finalize` refuse by
+    design. They are NOT caused by this change, proven by measurement rather than asserted: with this
+    change stashed, HEAD `e93ba3de` produced the SAME failure set (40 failed, of which 9 were this plan's
+    own not-yet-written suite collecting as failures), and `comm` over the two sorted `FAILED` lists shows
+    exactly one difference in each direction (see below). Clearing the variable alone makes them pass,
+    with no source change:
+
+    ```text
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest tests/test_worker_role_refusal.py \
+        tests/test_ipd_lifecycle_cli.py tests/test_runner_backlog_close_in_lane.py
+    109 passed in 8.65s
+    ```
+
+    THE ONE GENUINE REGRESSION THIS CHANGE CAUSED, found by that same differential and fixed rather than
+    absorbed. `tests/test_resumedupe.py::TestDriverSymmetry::test_the_antigravity_twin_DELEGATES_rather_than_copying`
+    required agy to hold a DELEGATING STUB (`from agent_workflows.oc_runipd import X as _shared`) for four
+    routing symbols including `resolve_prior_lane`, which this plan lifted. The stub was never the goal:
+    the comment beside those stubs in `agy_runipd` says `runner_shared` "would be the tidier home" and
+    that delegation was chosen only because the shared module's fingerprint pin blocked additions at the
+    time. So the test was re-based to assert the PROPERTY (one implementation, reached EITHER by a
+    delegating stub OR by a shared lift with proven object identity) instead of one mechanism, and it now
+    forbids a re-fork in both shapes. It is `test_the_antigravity_twin_never_holds_a_second_implementation`,
+    non-vacuity shown in (b)'s sixth control. `python3 -m pytest tests/test_resumedupe.py -o addopts=""`
+    -> `33 passed in 3.09s`.
+
+    THE IMPORT-CYCLE CHECK required by "Required tests / validation" item 6, reachable because
+    `build_review_prompt` needs `lane_containment`, which imports `runner_shared` at its own module level:
+
+    ```text
+    $ python3 -c "import agent_workflows.oc_runipd, agent_workflows.agy_runipd"   -> CLEAN
+    $ python3 -c "import agent_workflows.agy_runipd, agent_workflows.oc_runipd"   -> CLEAN
+    $ python3 -c "import agent_workflows.lane_containment, agent_workflows.runner_shared" -> CLEAN
+    $ python3 -c "import agent_workflows.runner_shared, agent_workflows.lane_containment" -> CLEAN
+    build_review_prompt local import works: '/plan-review /lane/p.md'
+    ```
+
+    (d) THE RE-MEASURED oc-to-agy IMPORT COUNT, and the ACTUAL decrease.
+
+    ```text
+    count at HEAD e93ba3de: 57
+    count now             : 56
+    removed: ['resolve_prior_lane']
+    added  : []
+    ```
+
+    THE DECREASE IS ONE, exactly as F-6 predicted after correcting the plan's original claim of fourteen.
+    The baseline in `tests/test_orchestrator_probe_cache.py:1203` was updated from 57 to 56 with the note
+    that assertion's own message prescribes ("re-measure and update the baseline with the new count and a
+    note"), NOT deleted and NOT loosened to an inequality. The note records the direction explicitly,
+    because a DECREASE has never happened on this baseline before and a reader seeing a smaller number
+    needs to know it was earned: only 5 of the 57 imports were among this plan's 48 candidates, and 4 of
+    those 5 close over a name `runner_shared` cannot yet reach, so one is the honest figure. This is the
+    first reduction of the coupling backlog `cnwy8g` tracks; the remaining 56 are outstanding work, not a
+    comfortable baseline.
+  - Result: pass
 
 ## Approval and execution gate
 

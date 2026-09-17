@@ -56,6 +56,10 @@ from pathlib import Path
 
 from agent_workflows import agy_runipd as AGY
 from agent_workflows import oc_runipd as OC
+
+# rununify 03 (`i3d6ml`): `resolve_prior_lane` now lives here rather than being delegated from one
+# driver to the other, so the symmetry test below needs the shared module to assert object identity.
+from agent_workflows import runner_shared as RS
 from agent_workflows import worktree_lease as WL
 
 
@@ -651,32 +655,90 @@ class TestDriverSymmetry(ResumeRoutingBase):
                         f"{module.__name__} is missing {name}",
                     )
 
-    def test_the_antigravity_twin_DELEGATES_rather_than_copying(self):
-        """Delegation, so a fix to one cannot leave the other behind (the `rununify` lesson)."""
+    #: `resolve_prior_lane` was LIFTED into `runner_shared` by rununify 03 (`i3d6ml`), so agy no longer
+    #: carries a delegating stub for it. That is this test's own goal reached, not a violation: see
+    #: `test_the_antigravity_twin_never_holds_a_second_implementation` below.
+    _LIFTED_TO_RUNNER_SHARED = frozenset({"resolve_prior_lane"})
+
+    _ROUTING_SURFACE = (
+        "classify_recovery_disposition",
+        "resolve_prior_lane",
+        "build_verify_and_continue_notice",
+        "route_recovery_turn",
+    )
+
+    def test_the_antigravity_twin_never_holds_a_second_implementation(self):
+        """ONE implementation per routing symbol, reached EITHER by delegation OR by a shared lift.
+
+        RE-BASED BY rununify 03 (`i3d6ml`) E-03, and the widening is deliberate. This test used to
+        require that agy hold a DELEGATING STUB (`from agent_workflows.oc_runipd import X as _shared;
+        return _shared(...)`) for each of the four routing symbols, and it named its own reason: "so a
+        fix to one cannot leave the other behind (the `rununify` lesson)".
+
+        WHY REQUIRING THE STUB IS NOW WRONG. The stub was never the goal; it was the best available
+        shape at the time, and the delegation comment beside those stubs in `agy_runipd` says so
+        outright: "`runner_shared` would be the tidier home, but it holds a strict AST fingerprint pin
+        proving a PURE MOVE of the symbols it received, so adding new logic there is out of this plan's
+        scope; delegation gets the same no-drift guarantee today." `i3d6ml` moved
+        `resolve_prior_lane` into `runner_shared`, which is the TIDIER HOME that comment wanted. A test
+        demanding a runner-to-runner delegating stub would now FORBID the improvement, and worse, it
+        would forbid it in the name of preventing drift while `runner_shared` prevents drift strictly
+        better: a lifted symbol is ONE object both hosts resolve, with no import from one driver into
+        the other for `tests/test_review_findings_cascade.py::test_no_runner_to_runner_import` to be
+        satisfied about on a technicality.
+
+        WHAT IS ASSERTED NOW, which is the PROPERTY rather than one mechanism that achieved it: for each
+        routing symbol, agy must not hold a second IMPLEMENTATION. Exactly one of two shapes is
+        acceptable, and a symbol satisfying NEITHER fails:
+
+          1. LIFTED (`_LIFTED_TO_RUNNER_SHARED`): no definition in agy at all, the name resolves to the
+             SAME OBJECT in both drivers, and that object is defined in `runner_shared`. This is the
+             stronger shape, so the test asserts the identity rather than merely the absence.
+          2. DELEGATING STUB: a definition whose body is an import from `oc_runipd` plus a return, and
+             at most two statements. Unchanged from the original assertion.
+
+        The escape this does NOT permit: a definition with real logic in it, which is a re-fork and is
+        what both shapes exist to prevent.
+        """
         import ast
 
         source = module_source(AGY)
         tree = ast.parse(source)
-        for name in (
-            "classify_recovery_disposition",
-            "resolve_prior_lane",
-            "build_verify_and_continue_notice",
-            "route_recovery_turn",
-        ):
-            node = next(
-                n
-                for n in tree.body
-                if isinstance(n, ast.FunctionDef) and n.name == name
-            )
-            body = [
-                stmt
-                for stmt in node.body
-                if not (
-                    isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant)
-                )
-            ]
-            rendered = "\n".join(ast.unparse(stmt) for stmt in body)
+        defined = {
+            n.name: n
+            for n in tree.body
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        for name in self._ROUTING_SURFACE:
             with self.subTest(symbol=name):
+                if name in self._LIFTED_TO_RUNNER_SHARED:
+                    self.assertNotIn(
+                        name,
+                        defined,
+                        f"{name} is LIFTED into runner_shared, so agy must not define it; a "
+                        "definition here is a re-fork of a shared symbol",
+                    )
+                    shared = getattr(RS, name)
+                    self.assertIs(getattr(AGY, name), shared)
+                    self.assertIs(getattr(OC, name), shared)
+                    self.assertEqual(shared.__module__, "agent_workflows.runner_shared")
+                    continue
+                node = defined.get(name)
+                self.assertIsNotNone(
+                    node,
+                    f"{name} is neither defined in agy nor listed as lifted into "
+                    "runner_shared; add it to `_LIFTED_TO_RUNNER_SHARED` if it moved",
+                )
+                assert node is not None
+                body = [
+                    stmt
+                    for stmt in node.body
+                    if not (
+                        isinstance(stmt, ast.Expr)
+                        and isinstance(stmt.value, ast.Constant)
+                    )
+                ]
+                rendered = "\n".join(ast.unparse(stmt) for stmt in body)
                 self.assertIn("from agent_workflows.oc_runipd import", rendered)
                 self.assertIn("_shared(", rendered)
                 # A delegating wrapper is an import plus a return; more than that is a re-fork.
