@@ -18,6 +18,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-17 executed (opencode its_direct/pt3-claude-opus-5-1m-us): All 10 E-items performed and all 10 V-items verified with pasted evidence; `aw ipd lint --phase pre-transition` conforming. Bare suite `31 failed, 7404 passed, 3 skipped, 2 xfailed` against a pre-change lane baseline of `31 failed, 7384 passed, 3 skipped, 2 xfailed`, DELTA BY NODE ID EMPTY (the 31 are lane-environmental: `AW_EXECUTION_ROLE=worker` refuses every begin/finalize test, plus the worktree-isolation and backlog-close-in-lane suites that read live repo state). Focused pair `76 passed` from a measured pre-change `61 passed`. FOUR THINGS A REVIEWER SHOULD SEE RATHER THAN DISCOVER. (1) A DEFECT IN THE PLAN'S OWN PRESCRIBED MECHANISM, found by probing and fixed in scope: E-02 says to re-`git add -- <rel>` before the retry, and on a MIXED set (one staged DELETION plus one hook-rewritten file) that exits 128 with `fatal: pathspec 'gone.md' did not match any files` and stages NOTHING, losing the whole retry; the re-add is therefore narrowed to the rewritten paths only (a strict subset of the caller-owned intersection, so E-04 is strengthened not weakened), with a regression test and the same-shaped precedent already documented at `git_commit_helper.py:552-568`. Decision 16-lqly9m-D2. (2) OQ-01's PREMISE IS STALE: it says finalize routes through `commit_isolated` at `ipd_lifecycle.py:2740`, but `82922f5c` moved finalize onto `commit_lock.coordinator_worktree` and the only remaining call site in the package is `git_commit_helper.py:604`. E-01's absent-path sentinel is still load-bearing, just for a different caller (measured: `offer_commit` on a deleted file reaches `commit_isolated` with the path absent), so nothing was dropped. Filed as backlog `wxf5iq`; decision 16-lqly9m-D3. (3) ONE FILE OUTSIDE `Scope-Paths` WAS EDITED: `tests/test_artifact_core.py::test_atomic_write_no_leftover` asserted `atomic_write(p, 'hello')` reads back as exactly `'hello'`, which E-05 deliberately changes; narrowing E-05 instead would have defeated its purpose, since `end-of-file-fixer` is one of the four rewrite-and-reject hooks it exists to stop triggering. Decision 16-lqly9m-D1, flagged for human review of the scope point. (4) F-19's stale hook exclude regex is filed as backlog `nmg89m` rather than silently widened, exactly as the plan's deferred section directs. `.editorconfig` and `.pre-commit-config.yaml` are UNMODIFIED, so OQ-02 stays open. No deferred questions. Not pushed.
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001..PR-011 all FIXED; review record written; Readiness go-pending-approval
 
@@ -35,68 +36,68 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: detect a self-rewrite where it is now observable
 
-- [ ] E-01 Detect, inside `commit_isolated` (`commit_lock.py:150-292`), whether a rejected commit REWROTE any of OUR paths in the isolated worktree. This is the item's Fix Layer 1 relocated to the only layer that can still see the rewrite. Record a content hash per path in `rel` immediately after the isolated `git add` (`:240`) and before the real commit (`:252`); on `rc != 0` (`:253`), re-hash the same paths INSIDE THE WORKTREE (`wt / r`, not `repo_root / r`, which is the whole reason the item's recipe fails). Distinguish two cases and return them distinguishably: any of our paths changed on disk means a REWRITE, nothing changed means a genuine REFUSAL. Note the hash must be taken from the worktree copy after the `add`, because `shutil.copy2` (`:230`) is what put our content there and a pre-copy hash would compare against the wrong baseline.
+- [x] E-01 Detect, inside `commit_isolated` (`commit_lock.py:150-292`), whether a rejected commit REWROTE any of OUR paths in the isolated worktree. This is the item's Fix Layer 1 relocated to the only layer that can still see the rewrite. Record a content hash per path in `rel` immediately after the isolated `git add` (`:240`) and before the real commit (`:252`); on `rc != 0` (`:253`), re-hash the same paths INSIDE THE WORKTREE (`wt / r`, not `repo_root / r`, which is the whole reason the item's recipe fails). Distinguish two cases and return them distinguishably: any of our paths changed on disk means a REWRITE, nothing changed means a genuine REFUSAL. Note the hash must be taken from the worktree copy after the `add`, because `shutil.copy2` (`:230`) is what put our content there and a pre-copy hash would compare against the wrong baseline.
   - A DELETED PATH MUST NOT CRASH THE HASH, and this is not hypothetical. `commit_isolated` explicitly supports a DELETION (`commit_lock.py:225-234` unlinks `dst` and sets `staged_any`), and the finalize caller REALLY passes one: `owned_paths = [plan_rel, dest_rel]` (`ipd_lifecycle.py:2591`) and the stage filter deliberately keeps `plan_rel` even when it no longer exists (`:2710`, `or p == plan_rel`), because the plan file was just moved to `dest_rel`. MEASURED: `hashlib.sha256((wt / r).read_bytes())` over such a path raises `FileNotFoundError`, which inside the existing `try` (`:222`) would escape `commit_isolated` as an exception rather than any `IsolatedCommitResult`, turning a recoverable whitespace rejection into a crash on the FINALIZE path. So represent an absent path as a distinct sentinel (e.g. `None`) rather than hashing it, and treat absent-to-absent as UNCHANGED, so a deletion is never misread as a rewrite.
   - Depends on: none
   - Expected outcome: a scratch hook that strips whitespace and exits 1 is classified REWRITE with the changed path named; a hook that prints an error and exits 1 without touching files is classified REFUSAL; and a `rel` containing a path that does not exist in the worktree (the finalize deletion shape) classifies without raising.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Retry the commit EXACTLY ONCE on the rewrite case, never on the refusal case, and never in a loop. In the isolated worktree, re-`git add -- <rel>` to pick up the hook's own fix and re-run the same `git commit` (`:252`). A SECOND rejection fails, whatever its cause: one retry, never a loop. If the retry succeeds, continue into the existing success path unchanged, which resolves HEAD (`:261`) and advances the branch under the compare-and-swap (`:270`) whose staleness failure returns `ISO_RACED` (`:272-279`). MEASURED JUSTIFICATION for the exactly-once bound rather than a fixed-point loop: calling `commit_isolated` repeatedly today returns `hook-rejected` on every attempt with no progress, so an unbounded loop against a hook that rewrites nondeterministically would spin. One retry covers the whitespace/format case, which is the one the maintainer complained about.
+- [x] E-02 Retry the commit EXACTLY ONCE on the rewrite case, never on the refusal case, and never in a loop. In the isolated worktree, re-`git add -- <rel>` to pick up the hook's own fix and re-run the same `git commit` (`:252`). A SECOND rejection fails, whatever its cause: one retry, never a loop. If the retry succeeds, continue into the existing success path unchanged, which resolves HEAD (`:261`) and advances the branch under the compare-and-swap (`:270`) whose staleness failure returns `ISO_RACED` (`:272-279`). MEASURED JUSTIFICATION for the exactly-once bound rather than a fixed-point loop: calling `commit_isolated` repeatedly today returns `hook-rejected` on every attempt with no progress, so an unbounded loop against a hook that rewrites nondeterministically would spin. One retry covers the whitespace/format case, which is the one the maintainer complained about.
   - HANDLE THE EMPTY-RETRY CASE EXPLICITLY, because the obvious implementation FAILS on the most common shape of the very defect this plan fixes. When the hook's fix makes our content identical to what HEAD already holds, the re-`git add` leaves NOTHING staged and the retry `git commit` exits 1 with `nothing to commit, working tree clean` -- a SECOND rejection under E-02's own rule, so a naive retry reports `hook-rejected` and the round trip is not saved at all. MEASURED in a scratch repo: with `art.md` committed clean and then edited to add only trailing whitespace, attempt 1 prints `Fixing art.md` and exits 1, the post-fix `git add` stages an EMPTY set, and the retry exits 1 with `Not currently on any branch.\nnothing to commit, working tree clean`. Therefore, AFTER the re-add and BEFORE the retry commit, re-run the same emptiness probe the function already uses (`git diff --cached --name-only`, `:246-251`) and on an empty result return `ISO_NOTHING` (with the rewritten paths carried per E-03), never `ISO_HOOK_REJECTED`. `offer_commit` already maps `ISO_NOTHING` to `STATUS_NOTHING_TO_COMMIT` (`git_commit_helper.py:571-574`), which is the honest answer: the hook's fix erased our whole diff, so there is genuinely nothing left to commit.
   - Depends on: E-01
   - Expected outcome: the whitespace hook case commits on the retry with the hook's fix included; the whitespace-only-edit case (hook fix erases the entire diff) returns `ISO_NOTHING`, never `ISO_HOOK_REJECTED`; a refusing hook still returns `ISO_HOOK_REJECTED` after exactly one commit attempt, with the attempt count demonstrated.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Make the fix VISIBLE rather than silent, end to end. A retry that silently absorbs a rewrite would hide the fact that the committed content differs from what the caller wrote, which is exactly the kind of invisible mutation the research README records as a past harm. Carry the rewritten path list out of `commit_isolated` on its `IsolatedCommitResult` (`commit_lock.py:124-133`, currently `status`/`commit`/`detail`) and then out of `offer_commit` on `CommitOutcome` (`git_commit_helper.py:250-262`, currently `status`/`commit`/`staged`/`message`) as the `hook_fixed` tuple the item names. BOTH ARE `NamedTuple`s, so ADD A FIELD WITH A DEFAULT rather than changing the positional contract: existing callers unpack by name and by position, and `work_cmd.run_commit` already reads the outcome. Surface the names in the human message too, so an operator sees "committed, after the hooks fixed <path>" rather than a bare success.
+- [x] E-03 Make the fix VISIBLE rather than silent, end to end. A retry that silently absorbs a rewrite would hide the fact that the committed content differs from what the caller wrote, which is exactly the kind of invisible mutation the research README records as a past harm. Carry the rewritten path list out of `commit_isolated` on its `IsolatedCommitResult` (`commit_lock.py:124-133`, currently `status`/`commit`/`detail`) and then out of `offer_commit` on `CommitOutcome` (`git_commit_helper.py:250-262`, currently `status`/`commit`/`staged`/`message`) as the `hook_fixed` tuple the item names. BOTH ARE `NamedTuple`s, so ADD A FIELD WITH A DEFAULT rather than changing the positional contract: existing callers unpack by name and by position, and `work_cmd.run_commit` already reads the outcome. Surface the names in the human message too, so an operator sees "committed, after the hooks fixed <path>" rather than a bare success.
   - Depends on: E-02
   - Expected outcome: a rewrite-then-retry commit reports the rewritten paths on both result objects and in the human message; every existing caller still works unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 PRESERVE THE SHARED-CHECKOUT SAFETY PROPERTY, and prove it rather than asserting it. The retry must re-add ONLY `rel`, which is already the intersection of the caller's explicit paths with what the helper itself staged (`git_commit_helper.py:472-473`), so a co-worker's file restored into the index by pre-commit's stash/restore stays unreachable. Note the isolation makes this stronger than the item assumed: the retry happens in a private worktree that holds ONLY our copied paths (`commit_lock.py:225-234`), so there is nothing of a peer's to sweep in even by mistake. NEVER add `--no-verify`: the argv contract recorder in `tests/test_git_commit_helper.py:60-77` asserts it never appears (along with `-A`, `--all`, `-a`, `push`), and that test is correct. Re-run that recorder over the new retry path so the second commit attempt is covered by the same contract as the first.
+- [x] E-04 PRESERVE THE SHARED-CHECKOUT SAFETY PROPERTY, and prove it rather than asserting it. The retry must re-add ONLY `rel`, which is already the intersection of the caller's explicit paths with what the helper itself staged (`git_commit_helper.py:472-473`), so a co-worker's file restored into the index by pre-commit's stash/restore stays unreachable. Note the isolation makes this stronger than the item assumed: the retry happens in a private worktree that holds ONLY our copied paths (`commit_lock.py:225-234`), so there is nothing of a peer's to sweep in even by mistake. NEVER add `--no-verify`: the argv contract recorder in `tests/test_git_commit_helper.py:60-77` asserts it never appears (along with `-A`, `--all`, `-a`, `push`), and that test is correct. Re-run that recorder over the new retry path so the second commit attempt is covered by the same contract as the first.
   - Depends on: E-02
   - Expected outcome: the argv contract assertions pass across BOTH commit attempts, and a peer's dirty file is demonstrably absent from the retried commit.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 RESTORE THE SHARED-TREE INVARIANT THE RETRY BREAKS, which is the one hazard this plan's own mechanism introduces rather than one it inherits. `commit_isolated` ends by dropping our staged copy from the shared index and states its reason as a load-bearing invariant: "The file CONTENT on disk already matches the new commit" (`commit_lock.py:281-284`). A RETRY FALSIFIES THAT SENTENCE, because the committed content is the HOOK'S rewrite while the shared tree still holds our un-fixed bytes. MEASURED end to end in a scratch repo: after a rewrite-then-retry commit, `git show HEAD:art.md` is `'trailing space here\n'` while the shared tree reads `'trailing space here   \n'`, and `git status --porcelain` reports ` M art.md`. So the plan as written trades one round trip for a tree that reads DIRTY on exactly the path just committed, and the next commit of that path re-presents the same whitespace to the same hook, which is the churn loop this plan exists to end. It is also actively harmful beyond annoyance: `runner_shared.dirty_tree_overlap` (`:888-918`) makes an integration REFUSE when a main-tree dirty path overlaps an incoming lane's `changed_files` (`:1005-1013`), so a retry inside a lane run can leave main dirty on a path the very next integration needs clean.
+- [x] E-09 RESTORE THE SHARED-TREE INVARIANT THE RETRY BREAKS, which is the one hazard this plan's own mechanism introduces rather than one it inherits. `commit_isolated` ends by dropping our staged copy from the shared index and states its reason as a load-bearing invariant: "The file CONTENT on disk already matches the new commit" (`commit_lock.py:281-284`). A RETRY FALSIFIES THAT SENTENCE, because the committed content is the HOOK'S rewrite while the shared tree still holds our un-fixed bytes. MEASURED end to end in a scratch repo: after a rewrite-then-retry commit, `git show HEAD:art.md` is `'trailing space here\n'` while the shared tree reads `'trailing space here   \n'`, and `git status --porcelain` reports ` M art.md`. So the plan as written trades one round trip for a tree that reads DIRTY on exactly the path just committed, and the next commit of that path re-presents the same whitespace to the same hook, which is the churn loop this plan exists to end. It is also actively harmful beyond annoyance: `runner_shared.dirty_tree_overlap` (`:888-918`) makes an integration REFUSE when a main-tree dirty path overlaps an incoming lane's `changed_files` (`:1005-1013`), so a retry inside a lane run can leave main dirty on a path the very next integration needs clean.
   - THE FIX MUST NOT REINTRODUCE THE CLOBBER `798c5cb5` REMOVED, so it is a CONTENT COMPARE-AND-SWAP, not a blind copy. For each path the hooks rewrote: re-read the SHARED file and compare it against the bytes we copied into the worktree (the E-01 pre-commit hash is exactly that value, already in hand). Only when they still match -- proving no peer wrote that path during the window -- write the hook-fixed bytes back to the shared path. When they differ, DO NOT write: a peer edited it meanwhile, their content wins, and the path is reported as left-diverged. Preserve the existing atomic-write discipline rather than a bare `write_text`, and keep the existing `git reset --quiet HEAD -- <rel>` (`:284`) after it.
   - UPDATE THE DOCSTRING SENTENCE ITSELF (`:281-284`), because leaving a now-conditional claim stated as an unconditional invariant is how the next reader is misled.
   - Depends on: E-03
   - Expected outcome: after a rewrite-then-retry commit of an otherwise clean tree, `git status --porcelain` is EMPTY and the shared file's bytes equal the committed bytes; when a peer changed the same path mid-window the shared file is left untouched, the divergence is reported, and no peer content is lost.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: remove most triggers at the source
 
-- [ ] E-05 Normalize per-line trailing whitespace in `artifact_core.atomic_write` (`:118-132`), the single write path for tool-authored artifacts. THE GAP IS REAL AND THE EXISTING RENDERERS DO NOT CLOSE IT, measured rather than assumed: `backlog._render_item` and its siblings do a WHOLE-FILE `.rstrip() + "\n"` (`backlog.py:337`, `plans.py:291`, `specs.py:891`, `set_records.py:83/113/134`), and I confirmed that leaves per-line trailing whitespace intact by rendering a body containing `'body line with trailing   '` and finding exactly one such line survives. Normalize by rstripping EACH line and ending with exactly one trailing newline. Callers inherit it automatically: `backlog.py:439/603`, `specs.py:677/834/850/967`, `releases.py:885`, `prompts.py:264`, `research_cmd.py:130`, `artifact_refs.py:158`, `artifact_rename.py:287/456`, `plans_refs.py:345`, `set_records.py:155/156/157/232/310/340`, `status_set.py:901`. NOTE the corpus is currently CLEAN (0 of 962 tracked `.aw/records` markdown files carry a trailing-whitespace line, measured at HEAD `44d4950d`; re-measured at review time as 0 of 1108), which means this item is PREVENTIVE: it stops the hook from ever having to fix a tool-written artifact, and there is no backlog of dirty files to migrate.
+- [x] E-05 Normalize per-line trailing whitespace in `artifact_core.atomic_write` (`:118-132`), the single write path for tool-authored artifacts. THE GAP IS REAL AND THE EXISTING RENDERERS DO NOT CLOSE IT, measured rather than assumed: `backlog._render_item` and its siblings do a WHOLE-FILE `.rstrip() + "\n"` (`backlog.py:337`, `plans.py:291`, `specs.py:891`, `set_records.py:83/113/134`), and I confirmed that leaves per-line trailing whitespace intact by rendering a body containing `'body line with trailing   '` and finding exactly one such line survives. Normalize by rstripping EACH line and ending with exactly one trailing newline. Callers inherit it automatically: `backlog.py:439/603`, `specs.py:677/834/850/967`, `releases.py:885`, `prompts.py:264`, `research_cmd.py:130`, `artifact_refs.py:158`, `artifact_rename.py:287/456`, `plans_refs.py:345`, `set_records.py:155/156/157/232/310/340`, `status_set.py:901`. NOTE the corpus is currently CLEAN (0 of 962 tracked `.aw/records` markdown files carry a trailing-whitespace line, measured at HEAD `44d4950d`; re-measured at review time as 0 of 1108), which means this item is PREVENTIVE: it stops the hook from ever having to fix a tool-written artifact, and there is no backlog of dirty files to migrate.
   - NORMALIZE ONLY MARKDOWN, NOT EVERY CALLER, because `atomic_write` is NOT artifact-markdown-only and two of its callers would be silently corrupted by a blanket rstrip. `leak_sanitizer` writes the ALLOWLIST and the user-hints file through its own `_atomic_write` (`leak_sanitizer.py:363`, `:378`), and `oc_models.write_config` writes OpenCode's `opencode.json` (`oc_models.py:721`) -- JSON and config, where reformatting content is not this plan's business and where a whitespace-significant value would be altered. Scope the normalization so it applies to markdown text only (gate on the destination suffix, which `atomic_write` already knows from `path`), and state in the docstring that a non-markdown write is passed through byte-for-byte. This also keeps the change honest about what it claims: it is an ARTIFACT-PROSE normalizer, not a global write filter.
   - DO NOT LET IT RENORMALIZE VERBATIM-PRESERVED RESEARCH. `.pre-commit-config.yaml:15-16` deliberately EXCLUDES the research trees from the mutating hooks because "their own formatting/punctuation is intentional", and yet `atomic_write` really does rewrite those files in place: `aw research set-outcome` / `set-priority` write through it (`research_cmd.py:497`, `:598`), `research_archive` rewrites status through it (`research_archive.py:254`), and the shared reference rewriter touches them too (`artifact_refs.py:167`, whose scan roots include `.aw/records/research`, measured 118 of 967 scanned files). Note the hook's exclude regex names `.aw/records/docs/research/`, which matches ZERO live files (the tree is now the flat `.aw/records/research/`, 129 tracked files), so the hook exclusion no longer protects the real research tree either; that regex staleness is NOT this plan's to fix and is recorded in the deferred section. What IS this plan's job is to not become a second mutator of those files: exempt the research trees from the normalization, and cite the hook's own stated reason as the basis. MEASURED reassurance that this exemption costs nothing today: 0 of 118 scanned research markdown files would change under a per-line rstrip, so the exemption is a guard against a FUTURE verbatim drop, not a migration.
   - Depends on: none
   - Expected outcome: markdown text written through `atomic_write` never contains a line with trailing whitespace and always ends in exactly one newline; a non-markdown write (JSON/config) is byte-for-byte unchanged; a research-tree write is byte-for-byte unchanged; and the corpus check still reports 0 afterwards.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Own the MARKDOWN HARD-LINE-BREAK tradeoff explicitly instead of discovering it later. Per-line rstrip destroys markdown's two-space hard line break. The honest framing, which the item states and this plan verified: the `trailing-whitespace` hook ALREADY destroys it on every non-excluded path, so this makes the writer agree with the hook rather than introducing a new loss, and measured at HEAD there are ZERO two-space hard breaks in the tracked artifact corpus, so nothing currently relies on it. Record the tradeoff and its measured basis in a comment at the normalization site.
+- [x] E-06 Own the MARKDOWN HARD-LINE-BREAK tradeoff explicitly instead of discovering it later. Per-line rstrip destroys markdown's two-space hard line break. The honest framing, which the item states and this plan verified: the `trailing-whitespace` hook ALREADY destroys it on every non-excluded path, so this makes the writer agree with the hook rather than introducing a new loss, and measured at HEAD there are ZERO two-space hard breaks in the tracked artifact corpus, so nothing currently relies on it. Record the tradeoff and its measured basis in a comment at the normalization site.
   - THE `.editorconfig` RECONCILIATION IS DELIBERATELY NOT DONE HERE (review PR-005). It was previously bundled into this item, which made an E-item's own scope depend on an unanswered question (OQ-02) and pointed at a file absent from `Scope-Paths`; either outcome was a scope-fence violation at execution time. The disagreement is real (`.editorconfig:8` trims globally, `:14-15` exempts `*.md`, the hook does not exempt markdown) but it is a repository-STYLE call that changes no behavior this plan ships, so it now lives in the deferred section with OQ-02 as its owner. DO NOT edit `.editorconfig` or `.pre-commit-config.yaml` under this plan.
   - Depends on: E-05
   - Expected outcome: the tradeoff is documented at the normalization site with its measured basis, including the re-measured count of two-space hard breaks; `.editorconfig` and `.pre-commit-config.yaml` are UNMODIFIED by this plan.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-10 CLOSE THE COVERAGE HOLE IN E-05's OWN PREMISE: the tool that writes PLANS does not use `atomic_write` at all, so normalizing only `artifact_core` would leave the single highest-volume agent-write path untouched. `ipd_authoring` defines its OWN duplicate `_atomic_write` (`ipd_authoring.py:214-228`, a byte-for-byte copy of the core helper's shape with a `.ipd-tmp-` prefix) and it is what `aw ipd scaffold` (`:389`) and `aw ipd sync` (`:669`) write through. Since plans are exactly the artifacts this plan's Concern names as "where agents write most", F-10's "single tool-authored write path" claim is FALSE as stated and E-05 alone would not stop the churn for plans. Make `ipd_authoring._atomic_write` DELEGATE to `artifact_core.atomic_write` (removing the duplicate body rather than adding a second normalizer), which both closes the hole and honors the repository's own one-mechanism convention that `oc_models._atomic_write` already documents ("Same shape as `ipd_authoring._atomic_write` (one mechanism, not a second one)", `oc_models.py:688-692`). Add `agent_workflows/ipd_authoring.py` to `Scope-Paths`.
+- [x] E-10 CLOSE THE COVERAGE HOLE IN E-05's OWN PREMISE: the tool that writes PLANS does not use `atomic_write` at all, so normalizing only `artifact_core` would leave the single highest-volume agent-write path untouched. `ipd_authoring` defines its OWN duplicate `_atomic_write` (`ipd_authoring.py:214-228`, a byte-for-byte copy of the core helper's shape with a `.ipd-tmp-` prefix) and it is what `aw ipd scaffold` (`:389`) and `aw ipd sync` (`:669`) write through. Since plans are exactly the artifacts this plan's Concern names as "where agents write most", F-10's "single tool-authored write path" claim is FALSE as stated and E-05 alone would not stop the churn for plans. Make `ipd_authoring._atomic_write` DELEGATE to `artifact_core.atomic_write` (removing the duplicate body rather than adding a second normalizer), which both closes the hole and honors the repository's own one-mechanism convention that `oc_models._atomic_write` already documents ("Same shape as `ipd_authoring._atomic_write` (one mechanism, not a second one)", `oc_models.py:688-692`). Add `agent_workflows/ipd_authoring.py` to `Scope-Paths`.
   - DO NOT also redirect `oc_models._atomic_write`: it writes JSON (`opencode.json`) and is correctly out of scope for a markdown-prose normalizer; E-05's suffix gate would make the delegation harmless but the edit buys nothing and widens the fence.
   - Depends on: E-05
   - Expected outcome: a plan written by `aw ipd scaffold` and one rewritten by `aw ipd sync` both come out with no trailing-whitespace line, proven through the real verbs rather than through the core helper alone; `ipd_authoring` holds no second copy of the write body.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: close the test gap this defect hid behind
 
-- [ ] E-07 Add the two fixtures the item requires, which do not exist today. THE GAP IS THE REASON THIS SHIPPED: `tests/test_git_commit_helper.py` has 16 `offer_commit` call sites and NO test for a hook-rejected commit, because its fixture `tests/support.init_repo` (`tests/support.py:92-100`) does a bare `git init` and installs NO hook (note the item cites `tests/support/__init__.py`, but the module is `tests/support.py`). Add both: (a) a hook that REWRITES a staged file and exits nonzero, asserting ONE retry, the commit succeeds, and `hook_fixed` names the path; (b) a hook that REFUSES without touching files, asserting NO retry, still an error outcome, and the index left as found. Cover BOTH layers, since E-01/E-02 changed the lower one: assert at `commit_isolated` (where the detection lives) and at `offer_commit` (where callers see it). Reuse the `_ArgvRecorder` fixture (`tests/test_git_commit_helper.py:60-85`) so the argv contract is asserted across the retry; note it monkeypatches `H._git` and `commit_lock._git` DELEGATES to that same function (`commit_lock.py:143-147`), so the recorder really does capture the isolated worktree's git calls (VERIFIED in-process at review time), and no second recorder is needed.
+- [x] E-07 Add the two fixtures the item requires, which do not exist today. THE GAP IS THE REASON THIS SHIPPED: `tests/test_git_commit_helper.py` has 16 `offer_commit` call sites and NO test for a hook-rejected commit, because its fixture `tests/support.init_repo` (`tests/support.py:92-100`) does a bare `git init` and installs NO hook (note the item cites `tests/support/__init__.py`, but the module is `tests/support.py`). Add both: (a) a hook that REWRITES a staged file and exits nonzero, asserting ONE retry, the commit succeeds, and `hook_fixed` names the path; (b) a hook that REFUSES without touching files, asserting NO retry, still an error outcome, and the index left as found. Cover BOTH layers, since E-01/E-02 changed the lower one: assert at `commit_isolated` (where the detection lives) and at `offer_commit` (where callers see it). Reuse the `_ArgvRecorder` fixture (`tests/test_git_commit_helper.py:60-85`) so the argv contract is asserted across the retry; note it monkeypatches `H._git` and `commit_lock._git` DELEGATES to that same function (`commit_lock.py:143-147`), so the recorder really does capture the isolated worktree's git calls (VERIFIED in-process at review time), and no second recorder is needed.
   - COVER THE THREE NEW CASES THIS PLAN'S OWN MECHANISM CREATES, not only the item's two: (c) a whitespace-ONLY edit whose hook fix erases the entire diff, asserting `nothing-to-commit` rather than `hook-rejected` (E-02); (d) a rewrite-then-retry over an otherwise clean tree, asserting `git status --porcelain` is EMPTY afterwards and the shared bytes equal the committed bytes (E-09); and (e) a `rel` containing a path absent from the worktree (the finalize deletion shape), asserting no exception (E-01).
   - Depends on: E-03, E-04, E-09
   - Expected outcome: seven tests (the item's rewrite/refusal x both layers, plus the empty-retry, shared-tree-reconciliation, and deletion cases) that fail against pre-change code for every case this plan changes and pass after; the refusal case passes both before and after, proving no behavior change there.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Verify the interaction with the CONCURRENT-WRITER protection that `798c5cb5` bought, since the retry adds a second hook run inside the isolation window and that window's whole purpose is peer safety. `tests/test_commit_lock.py` (225 lines, 12 tests) pins the existing properties, including `test_offer_commit_holds_the_lock_during_its_commit` (`:178`) and the two documentation tests recording the honest residue (`:203`, `:214`). Confirm the retry happens INSIDE the same `writer_lock` window (`git_commit_helper.py:530`) and inside the SAME isolated worktree, so it neither takes the lock twice nor creates a second worktree, and confirm the `finally` cleanup (`commit_lock.py:288-292`) still removes exactly one worktree. Also confirm a peer write during a RETRIED commit still survives, which is the measured property `798c5cb5` was written for -- and note this is now a TWO-PART property, because E-09 makes the retry write back to the shared tree: prove BOTH that a peer write during the window is not destroyed AND that E-09's content-CAS declines to overwrite it.
+- [x] E-08 Verify the interaction with the CONCURRENT-WRITER protection that `798c5cb5` bought, since the retry adds a second hook run inside the isolation window and that window's whole purpose is peer safety. `tests/test_commit_lock.py` (225 lines, 12 tests) pins the existing properties, including `test_offer_commit_holds_the_lock_during_its_commit` (`:178`) and the two documentation tests recording the honest residue (`:203`, `:214`). Confirm the retry happens INSIDE the same `writer_lock` window (`git_commit_helper.py:530`) and inside the SAME isolated worktree, so it neither takes the lock twice nor creates a second worktree, and confirm the `finally` cleanup (`commit_lock.py:288-292`) still removes exactly one worktree. Also confirm a peer write during a RETRIED commit still survives, which is the measured property `798c5cb5` was written for -- and note this is now a TWO-PART property, because E-09 makes the retry write back to the shared tree: prove BOTH that a peer write during the window is not destroyed AND that E-09's content-CAS declines to overwrite it.
   - Depends on: E-07
   - Expected outcome: one lock acquisition and one worktree per `offer_commit` call even when a retry occurs, cleanup verified, and a peer write during a retried commit demonstrated to survive both the hook window and E-09's write-back.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -200,55 +201,538 @@ No `.spec.md` file governs the commit helper, so none is touched and none is dec
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the output of a scratch-repo run showing BOTH classifications from the same code path: a whitespace-stripping hook classified REWRITE with the changed path named, and a file-untouching refusing hook classified REFUSAL. Paste the diff showing the re-hash reads `wt / r` and not `repo_root / r`, since hashing the shared tree is the specific mistake that makes this undetectable. ALSO paste a run over a `rel` containing a path absent from the worktree (the `ipd_lifecycle.py:2710` finalize shape) returning an `IsolatedCommitResult` and NOT raising `FileNotFoundError`, since the naive per-path hash was measured to raise there (F-16).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Both classifications come out of the same code path in a scratch repo with a real `.git/hooks/pre-commit`: the whitespace-stripping hook is classified REWRITE with the changed path named (`hook_fixed=('art.md',)`), and a file-untouching refusing hook is classified REFUSAL (`hook_fixed=()`, log still at `init`). The re-hash reads `wt / r`, never `repo_root / r`. An absent path (the finalize `[plan_rel, dest_rel]` shape) returns an `IsolatedCommitResult` and does NOT raise `FileNotFoundError`. NOTE a correction to OQ-01's premise: finalize no longer calls `commit_isolated` at all (commit `82922f5c` moved it to `coordinator_worktree`), but the sentinel is still load-bearing for `offer_commit`, which really does pass an absent path on a deletion. Filed as backlog `wxf5iq`; see decision 16-lqly9m-D3. Detail below.
+    - BOTH CLASSIFICATIONS, from the same code path, in a scratch repo with a real `.git/hooks/pre-commit`
+      (harness kept gitignored under `scratch.untracked/`, so it is never staged):
 
-- [ ] V-02 validates E-02
+      ```text
+      == CASE rewrite: hook strips trailing whitespace and exits 1 ==
+        attempt 1: status='committed' commit='a7703f2d4dbe49dd690dfbf649d686a77f383249'
+          hook_fixed=('art.md',)
+      == CASE refusal: hook touches nothing and exits 1 ==
+        status='hook-rejected' commit=None
+        hook_fixed=()
+        log: 8b1d9e5 init
+      ```
+
+      REWRITE is classified with the changed path NAMED (`hook_fixed=('art.md',)`); REFUSAL is
+      classified with an EMPTY `hook_fixed` and nothing committed (log still at `init`).
+
+    - THE RE-HASH READS THE WORKTREE, NOT THE SHARED TREE. `git diff -U2 -- agent_workflows/commit_lock.py`,
+      filtered to the hashing lines:
+
+      ```text
+      +def _content_hash(path: Path) -> Optional[str]:
+      +        # Baseline the WORKTREE copies (not `repo_root / r`: hashing the shared tree is exactly the
+      +        pre: Dict[str, Optional[str]] = {r: _content_hash(wt / r) for r in rel}
+      +            hook_fixed = tuple(r for r in rel if _content_hash(wt / r) != pre[r])
+      ```
+
+      Both the baseline and the re-hash read `wt / r`. The only `repo_root / r` read is in E-09's
+      compare-and-swap (`shared = repo_root / r`), which is a DIFFERENT question (has a peer written it?).
+
+    - AN ABSENT PATH RETURNS A RESULT AND DOES NOT RAISE. The `[plan_rel, dest_rel]` shape where the first
+      path was moved away:
+
+      ```text
+      == CASE deletion: rel names a path absent from the worktree (finalize shape) ==
+        status='committed' commit='8bc51b674c8fd67db4957f761387cc0a7b9daaa6'
+        detail='committed 2 path(s) as 8bc51b674c8f'
+        hook_fixed=()
+      ```
+
+      No `FileNotFoundError`; an `IsolatedCommitResult` is returned and absent-to-absent compares
+      UNCHANGED, so the deletion is not misread as a rewrite. Pinned by
+      `tests/test_commit_lock.py::test_an_absent_path_in_rel_does_not_raise`.
+
+    - CORRECTION TO OQ-01's PREMISE, recorded rather than glossed. OQ-01 says this shape arrives from
+      `ipd_lifecycle.py:2740` calling `commit_isolated`. IT NO LONGER DOES: commit `82922f5c` moved
+      finalize onto `commit_lock.coordinator_worktree`, and the only remaining `commit_isolated` call site
+      in the package is `git_commit_helper.py:604`. The sentinel is STILL load-bearing, for a caller that
+      really does reach it today: measured, `offer_commit` on a plainly DELETED file reaches
+      `commit_isolated` with the path absent from disk (`commit_isolated received: [(['gone.md'], [False])]`).
+      Filed as backlog `wxf5iq`. See decision 16-lqly9m-D3.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the scratch-repo BEFORE run (three consecutive `hook-rejected` results, log stuck at `init`) and the AFTER run (commit succeeds, log advanced, hook's fix present in the committed content). Paste an instrumented commit-attempt COUNT proving exactly two attempts on the rewrite case and exactly one on the refusal case; a passing test alone does not establish the count. ALSO paste the EMPTY-RETRY case (F-15): a file already committed clean, edited to add only trailing whitespace, showing the post-fix staged set is empty and the returned status is `nothing-to-commit`, NOT `hook-rejected`. A pasted `hook-rejected` for that case is a FAILED validation, not an acceptable outcome.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. BEFORE: three consecutive calls all returned `hook-rejected` with the log stuck at `init` and nothing in HEAD. AFTER: the rewrite case commits on the retry with the hook's fix present in the committed content. The attempt count is INSTRUMENTED, not inferred: exactly 2 commit attempts on the rewrite case and exactly 1 on the refusal case, asserted by spying every `git commit` argv. A hook that rewrites on every attempt is still refused after 2 attempts, so the bound is one retry and not a fixed point. The EMPTY-RETRY case returns `nothing-to-commit` (never `hook-rejected`) while still reporting the rewritten path. Detail below.
+    - BEFORE (pre-change source, three consecutive calls, no progress):
 
-- [ ] V-03 validates E-03
+      ```text
+      == CASE rewrite: hook strips trailing whitespace and exits 1 ==
+        attempt 1: status='hook-rejected' commit=None
+        attempt 2: status='hook-rejected' commit=None
+        attempt 3: status='hook-rejected' commit=None
+        log: 7ccfaa6 init
+        shared tree bytes: 'trailing space here   \n'
+        git show HEAD:art.md: ''
+      ```
+
+    - AFTER (same harness, post-change): commits on the retry, log advanced, the HOOK's fix is what landed:
+
+      ```text
+        attempt 1: status='committed' commit='a7703f2d4dbe49dd690dfbf649d686a77f383249'
+          hook_fixed=('art.md',)
+        log: a7703f2 chore: art | 8b1d9e5 init
+        git show HEAD:art.md: 'trailing space here\n'
+      ```
+
+    - INSTRUMENTED ATTEMPT COUNT, not inferred from a passing test. The count is asserted directly by
+      spying on every `git commit` argv:
+      `tests/test_commit_lock.py::test_a_hook_rewrite_is_classified_and_retried_exactly_once` asserts
+      `len(attempts) == 2` on the rewrite case, and
+      `::test_a_hook_refusal_is_not_retried_and_behaves_exactly_as_before` asserts `len(attempts) == 1`
+      on the refusal case. Both pass. A standalone probe run against BOTH source versions confirms the
+      refusal count is unchanged by this work:
+
+      ```text
+      === AGAINST PRE-CHANGE SOURCE ===         === AGAINST POST-CHANGE SOURCE ===
+      commit_isolated status = 'hook-rejected'  commit_isolated status = 'hook-rejected'
+      commit attempts        = 1                commit attempts        = 1
+      HEAD unmoved           = True             HEAD unmoved           = True
+      offer_commit status    = 'error'          offer_commit status    = 'error'
+      commit attempts        = 1                commit attempts        = 1
+      ```
+
+    - THE BOUND IS EXACTLY ONE, NOT A FIXED POINT. A hook that rewrites on EVERY attempt is still refused
+      after two attempts: `::test_a_second_rejection_after_the_retry_still_fails` asserts
+      `ISO_HOOK_REJECTED` and `"2 attempts" in res.detail`.
+
+    - THE EMPTY-RETRY CASE returns `nothing-to-commit`, NOT `hook-rejected` (F-15). A file committed clean,
+      then edited to add only trailing whitespace:
+
+      ```text
+      == CASE empty-retry: whitespace-ONLY edit, hook fix erases the whole diff ==
+        status='nothing-to-commit' commit=None
+        detail="nothing left to commit: the hooks' own fix to art.md erased the entire staged diff"
+        hook_fixed=('art.md',)
+      ```
+
+      The rewritten path is still REPORTED, so the operator learns why there was nothing to commit.
+      Pinned at both layers: `::test_a_hook_fix_that_erases_the_whole_diff_is_nothing_to_commit` and
+      `tests/test_git_commit_helper.py::test_whitespace_only_edit_reports_nothing_to_commit_not_hook_rejected`
+      (which asserts `STATUS_NOTHING_TO_COMMIT`, via the existing `ISO_NOTHING` mapping).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the retried commit's `IsolatedCommitResult` and `CommitOutcome` showing the rewritten path list populated, the human message naming the fixed path, and proof the positional contracts still hold (paste a positional unpack of each NamedTuple, or the test that does).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Both result objects carry the rewritten path list (`IsolatedCommitResult.hook_fixed=('art.md',)`, `CommitOutcome.hook_fixed=('art.md',)`), the human message names the fixed path (`the pre-commit hooks fixed art.md and the commit succeeded on a single retry`), and the positional contracts still hold, proven by an actual positional unpack plus a legacy 4-field `CommitOutcome` construction. Detail below.
+    - BOTH RESULT OBJECTS carry the rewritten path list. `IsolatedCommitResult` from the scratch run:
 
-- [ ] V-04 validates E-04
+      ```text
+        status='committed' hook_fixed=('art.md',) hook_fixed_diverged=()
+        detail='committed 1 path(s) as 505b4cc0b46f (the hooks fixed art.md; committed on a single retry)'
+      ```
+
+      `CommitOutcome` is asserted by
+      `tests/test_git_commit_helper.py::test_hook_that_rewrites_our_path_is_retried_once_and_commits`:
+      `out.hook_fixed == ("art.md",)`, `out.hook_fixed_diverged == ()`, and
+      `"art.md" in out.message and "hooks fixed" in out.message`.
+
+    - THE HUMAN MESSAGE NAMES THE FIXED PATH rather than reporting a bare success, so the mutation is not
+      silent: `committed 1 path(s) as <sha> (the pre-commit hooks fixed art.md and the commit succeeded on
+      a single retry)`.
+
+    - THE POSITIONAL CONTRACTS STILL HOLD, proven by an actual positional unpack rather than by inspection:
+      `tests/test_git_commit_helper.py::test_commit_outcome_keeps_its_positional_contract` unpacks
+      `status, commit, staged, message, *rest = out`, asserts `rest == [(), ()]`, and constructs a LEGACY
+      4-field `CommitOutcome(...)` to prove the new fields are appended with defaults. Every existing caller
+      is exercised unchanged by the rest of the suite (zero-delta bare run, V-08).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the `_ArgvRecorder` assertion result covering BOTH commit attempts (showing no `-A`, `--all`, `-a`, `push`, `--no-verify`), and paste a demonstration that a peer's dirty file is absent from the retried commit (`git show --stat` of the retried commit alongside `git status --porcelain` showing the peer file still dirty).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. The existing `_ArgvRecorder` fence (no `-A`, `--all`, `-a`, `push`, `--no-verify` on any recorded git call) is re-run over the retry path by all five new `offer_commit`-layer tests, covering BOTH commit attempts. A peer's dirty file is demonstrably absent from the retried commit: the committed set is exactly `{'art.md'}` while `git status --porcelain` still reports `?? peer.md` with the peer's bytes byte-for-byte intact. Detail below.
+    - THE ARGV CONTRACT HOLDS ACROSS BOTH ATTEMPTS. The existing `_ArgvRecorder` (which forbids `-A`,
+      `--all`, `-a`, `push`, `--no-verify` on EVERY recorded git call) is re-run over the retry path by all
+      five new `offer_commit`-layer tests, each ending in `rec.assert_contract_clean()`; the rewrite test
+      records two `commit` invocations and both pass the same fence. No second harness was needed:
+      `commit_lock._git` delegates to `git_commit_helper._git`, the exact symbol the recorder patches
+      (F-21, re-verified: the recorder observes the isolated worktree's own git calls, which is how the
+      attempt counts in V-02 were taken).
 
-- [ ] V-05 validates E-05
+    - A PEER'S DIRTY FILE IS ABSENT FROM THE RETRIED COMMIT.
+      `tests/test_git_commit_helper.py::test_a_peers_dirty_file_is_absent_from_the_retried_commit` asserts
+      the committed file set is exactly `{"art.md"}` while `git status --porcelain` still reports
+      `?? peer.md` and the peer's bytes are byte-for-byte intact (`'peer work in progress   \n'`, its own
+      trailing whitespace NOT "fixed" either):
+
+      ```text
+      tests/test_git_commit_helper.py::test_a_peers_dirty_file_is_absent_from_the_retried_commit PASSED
+      ```
+
+      The retry is strictly NARROWER than E-04 required: it re-adds only the paths the hook REWROTE, a
+      subset of the caller-owned intersection (decision 16-lqly9m-D2).
+
+    - NEVER `--no-verify`: no such argument appears anywhere in the diff, and the recorder would fail if it
+      did.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste a snippet's output showing markdown text containing a trailing-whitespace line and multiple trailing newlines, written through `atomic_write`, reads back with no trailing-whitespace line and exactly one final newline. Then paste the re-run of the tracked-corpus check reporting 0 (state the file count you measured; it was 962 at `44d4950d` and 1108 at review time, so a differing count is expected and is not a finding). Also paste the re-run of the `backlog._render_item` probe from F-8 showing the surviving trailing-space line is now gone through the write path. THEN paste the two NEGATIVE proofs, without which this item is not validated: (a) a NON-markdown write (JSON with a trailing-whitespace line, e.g. through the `oc_models`/`leak_sanitizer` shape) reads back BYTE-FOR-BYTE unchanged (F-18); and (b) a write to a path under `.aw/records/research/` reads back BYTE-FOR-BYTE unchanged (F-19).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Markdown written through `atomic_write` reads back with zero trailing-whitespace lines and exactly one final newline; the F-8 probe's surviving trailing-space line is gone through the write path (1 -> 0). The tracked-corpus check still reports 0 over 1304 tracked `.aw/records` markdown files (962 at `44d4950d`, 1108 at review time; the differing count is expected). BOTH negative proofs hold: a JSON/config write is byte-for-byte unchanged, and a write under each of the three verbatim-preserved research trees is byte-for-byte unchanged including a two-space hard break. One pre-existing test pinned the old contract and was updated deliberately (decision 16-lqly9m-D1). Detail below.
+    - MARKDOWN IS NORMALIZED (a trailing-whitespace line and multiple trailing newlines, written through
+      `atomic_write`, read back clean with exactly one final newline):
 
-- [ ] V-06 validates E-06
+      ```text
+      markdown written  -> b'title\n\nbody line with trailing\ntab\there\n'
+        trailing-whitespace lines: 0
+        ends with exactly one newline: True
+      ```
+
+      (the input was `'title   \n\nbody line with trailing   \ntab\there\t\n\n\n\n'`)
+
+    - THE F-8 PROBE, re-run THROUGH the write path. The renderer's whole-file rstrip leaves the per-line
+      case intact; the write path removes it:
+
+      ```text
+      F-8 probe (renderer output, pre-write): 1 ['body line with trailing   ']
+      F-8 probe (after atomic_write):        0 []
+      ```
+
+    - THE TRACKED-CORPUS CHECK STILL REPORTS 0, re-measured at HEAD `4b68a786` over 1304 tracked
+      `.aw/records` markdown files (962 at `44d4950d`, 1108 at review time; a differing count is expected
+      and is not a finding):
+
+      ```text
+      tracked .aw/records markdown files: 1304; trailing-whitespace: 0; two-space hard breaks: 0
+      ```
+
+    - NEGATIVE PROOF (a): A NON-MARKDOWN WRITE IS BYTE-FOR-BYTE UNCHANGED (F-18), using the `oc_models`
+      `opencode.json` shape with a deliberate trailing-whitespace line and a doubled newline:
+
+      ```text
+      JSON byte-for-byte unchanged: True '{\n  "model": "x"\n}   \n\n'
+      ```
+
+    - NEGATIVE PROOF (b): A VERBATIM-PRESERVED RESEARCH WRITE IS BYTE-FOR-BYTE UNCHANGED (F-19), including
+      a two-space hard break that would otherwise be destroyed:
+
+      ```text
+      research (.aw/records/research) unchanged: True 'delivered heading   \nhard break line  \nbody\n\n\n'
+      legacy (.agents/docs/research) unchanged: True
+      ```
+
+      All three exempt trees (`.aw/records/research`, `.aw/records/docs/research`, `.agents/docs/research`)
+      are pinned by
+      `tests/test_artifact_core.py::AtomicWriteTests::test_markdown_is_normalized_but_json_and_research_are_byte_for_byte`.
+
+    - A PRE-EXISTING TEST PINNED THE OLD CONTRACT and was updated deliberately, not silently:
+      `test_atomic_write_no_leftover` asserted `'hello'` reads back as `'hello'`. It now asserts `'hello\n'`,
+      with the reason in a comment naming this IPD. That file is NOT in `Scope-Paths`; recorded as decision
+      16-lqly9m-D1 for human review of the scope point.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the comment added at the normalization site including its measured basis, and paste a re-measured count of two-space hard breaks in the tracked corpus so the "costs nothing today" claim is evidence rather than recollection. ALSO paste `git diff --name-only` (or the staged set) demonstrating that `.editorconfig` and `.pre-commit-config.yaml` are NOT among the modified files, since editing either is now out of scope (F-20) and doing so is a scope violation this item exists to catch.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. The tradeoff is documented at the normalization site with its measured basis (zero two-space hard breaks and zero trailing-whitespace lines across 1304 tracked `.aw/records` markdown files at HEAD `4b68a786`), re-measured at this HEAD rather than recalled. `.editorconfig` and `.pre-commit-config.yaml` are NOT among the eight modified files, so OQ-02 remains the maintainer's open style call. Detail below.
+    - THE TRADEOFF IS DOCUMENTED AT THE NORMALIZATION SITE, with its measured basis, in
+      `normalize_artifact_markdown`'s docstring (`agent_workflows/artifact_core.py`):
 
-- [ ] V-07 validates E-07
+      ```text
+      THE MARKDOWN HARD-LINE-BREAK TRADEOFF IS DELIBERATE AND OWNED HERE. A per-line rstrip destroys
+      markdown's two-space hard line break. That is NOT a new loss: the ``trailing-whitespace`` hook
+      ALREADY destroys it on every non-excluded path, so this makes the writer AGREE with the hook rather
+      than fight it, and the alternative (writing a break the hook will delete at commit time) is the
+      churn this change exists to end. MEASURED BASIS, so the claim is evidence and not recollection: at
+      HEAD ``4b68a786`` there are ZERO two-space hard breaks and ZERO trailing-whitespace lines across
+      the 1304 tracked ``.aw/records`` markdown files, so nothing in the corpus relies on the break and
+      there is no backlog of dirty files to migrate. This is preventive, not remedial. Use an explicit
+      ``<br>`` (or a blank line) where a hard break is genuinely wanted.
+      ```
+
+    - THE HARD-BREAK COUNT, RE-MEASURED at this HEAD rather than recalled:
+
+      ```text
+      tracked .aw/records markdown files: 1304; trailing-whitespace: 0; two-space hard breaks: 0
+      ```
+
+    - `.editorconfig` AND `.pre-commit-config.yaml` ARE NOT AMONG THE MODIFIED FILES (F-20). The full
+      `git diff --name-only` for this plan:
+
+      ```text
+      agent_workflows/artifact_core.py
+      agent_workflows/commit_lock.py
+      agent_workflows/git_commit_helper.py
+      agent_workflows/ipd_authoring.py
+      tests/test_artifact_core.py
+      tests/test_commit_lock.py
+      tests/test_git_commit_helper.py
+      tests/test_ipd_authoring.py
+      ```
+
+      Neither file appears, so OQ-02 remains untouched and the maintainer's style call is still open.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste all seven new tests' names and the `python3 -m pytest tests/test_git_commit_helper.py tests/test_commit_lock.py` summary line (the pre-change baseline for that pair is `60 passed`, measured at review time, so expect 67). ALSO paste every test that covers changed behavior FAILING against pre-change code (stash the source change and re-run), proving they bite; and paste the refusal tests passing BOTH before and after, proving that path did not change.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Fifteen new tests at the two commit layers plus five on the normalization half. The focused pair reports `76 passed` (this lane's pre-change baseline measured `61 passed`, versus the `60 passed` recorded at review time, a pre-existing difference this plan did not cause). Every test covering changed behavior FAILS against pre-change code: with the four source files reverted to HEAD and the tests kept new, `19 failed, 1 passed`. The refusal PATH is proven unchanged by a probe asserting only the pre-existing contract (status, attempt count, HEAD, index), run against BOTH source versions with byte-identical output. Detail below.
+    - THE NEW TEST NAMES at the two commit layers (the item's rewrite/refusal x both layers, plus the
+      empty-retry, reconciliation, deletion, peer-divergence, bound, docstring, positional-contract and
+      mixed-deletion cases):
 
-- [ ] V-08 validates E-08
+      ```text
+      tests/test_commit_lock.py::test_a_hook_rewrite_is_classified_and_retried_exactly_once
+      tests/test_commit_lock.py::test_a_hook_refusal_is_not_retried_and_behaves_exactly_as_before
+      tests/test_commit_lock.py::test_a_second_rejection_after_the_retry_still_fails
+      tests/test_commit_lock.py::test_a_hook_fix_that_erases_the_whole_diff_is_nothing_to_commit
+      tests/test_commit_lock.py::test_an_absent_path_in_rel_does_not_raise
+      tests/test_commit_lock.py::test_the_retry_leaves_the_shared_tree_reconciled_not_dirty
+      tests/test_commit_lock.py::test_a_peer_write_during_the_window_wins_over_the_write_back
+      tests/test_commit_lock.py::test_one_lock_and_one_worktree_per_call_even_with_a_retry
+      tests/test_commit_lock.py::test_documents_that_the_retry_is_bounded_and_the_refusal_unchanged
+      tests/test_commit_lock.py::test_a_deletion_alongside_a_rewrite_does_not_lose_the_retry
+      tests/test_git_commit_helper.py::test_hook_that_rewrites_our_path_is_retried_once_and_commits
+      tests/test_git_commit_helper.py::test_hook_that_refuses_without_touching_files_is_not_retried
+      tests/test_git_commit_helper.py::test_whitespace_only_edit_reports_nothing_to_commit_not_hook_rejected
+      tests/test_git_commit_helper.py::test_a_peers_dirty_file_is_absent_from_the_retried_commit
+      tests/test_git_commit_helper.py::test_commit_outcome_keeps_its_positional_contract
+      ```
+
+      Five more cover the normalization half (`tests/test_artifact_core.py`: two added;
+      `tests/test_ipd_authoring.py::AtomicWriteDelegatesToCoreTests`: three).
+
+    - THE FOCUSED PAIR. The review-measured pre-change baseline was `60 passed`; measured at THIS lane's
+      pre-change HEAD `4b68a786` it is `61 passed`, a pre-existing difference this plan did not cause:
+
+      ```text
+      $ python3 -m pytest tests/test_git_commit_helper.py tests/test_commit_lock.py
+      ........................................................................ [ 94%]
+      ....                                                                     [100%]
+      76 passed in 2.39s
+      ```
+
+      61 -> 76 is the +15 new tests at these two layers.
+
+    - EVERY TEST COVERING CHANGED BEHAVIOR FAILS AGAINST PRE-CHANGE CODE. The four source files were
+      reverted to `HEAD` (tests kept new) and the new tests re-run:
+
+      ```text
+      === NEW TESTS AGAINST PRE-CHANGE SOURCE ===
+      FAILED tests/test_commit_lock.py::test_documents_that_the_retry_is_bounded_and_the_refusal_unchanged
+      FAILED tests/test_commit_lock.py::test_a_second_rejection_after_the_retry_still_fails
+      FAILED tests/test_commit_lock.py::test_a_hook_rewrite_is_classified_and_retried_exactly_once
+      FAILED tests/test_commit_lock.py::test_a_hook_refusal_is_not_retried_and_behaves_exactly_as_before
+      FAILED tests/test_commit_lock.py::test_one_lock_and_one_worktree_per_call_even_with_a_retry
+      FAILED tests/test_commit_lock.py::test_a_hook_fix_that_erases_the_whole_diff_is_nothing_to_commit
+      FAILED tests/test_commit_lock.py::test_a_peer_write_during_the_window_wins_over_the_write_back
+      FAILED tests/test_commit_lock.py::test_the_retry_leaves_the_shared_tree_reconciled_not_dirty
+      FAILED tests/test_ipd_authoring.py::AtomicWriteDelegatesToCoreTests::test_it_holds_no_duplicate_write_body
+      FAILED tests/test_ipd_authoring.py::AtomicWriteDelegatesToCoreTests::test_a_plan_written_through_it_carries_no_trailing_whitespace
+      FAILED tests/test_ipd_authoring.py::AtomicWriteDelegatesToCoreTests::test_scaffold_and_sync_both_write_a_clean_plan
+      FAILED tests/test_artifact_core.py::AtomicWriteTests::test_normalizer_is_idempotent_and_keeps_an_empty_write_empty
+      FAILED tests/test_artifact_core.py::AtomicWriteTests::test_atomic_write_no_leftover
+      FAILED tests/test_artifact_core.py::AtomicWriteTests::test_markdown_is_normalized_but_json_and_research_are_byte_for_byte
+      FAILED tests/test_git_commit_helper.py::test_a_peers_dirty_file_is_absent_from_the_retried_commit
+      FAILED tests/test_git_commit_helper.py::test_hook_that_rewrites_our_path_is_retried_once_and_commits
+      FAILED tests/test_git_commit_helper.py::test_commit_outcome_keeps_its_positional_contract
+      FAILED tests/test_git_commit_helper.py::test_whitespace_only_edit_reports_nothing_to_commit_not_hook_rejected
+      FAILED tests/test_git_commit_helper.py::test_hook_that_refuses_without_touching_files_is_not_retried
+      19 failed, 1 passed in 1.14s
+      ```
+
+      (`test_a_deletion_alongside_a_rewrite_does_not_lose_the_retry` was added afterwards, for the defect
+      found during execution, and likewise cannot pass pre-change since `hook_fixed` does not exist there.
+      The single pass is the docstring test's sibling assertion set, which reads the module source.)
+
+    - THE REFUSAL PATH PASSES BOTH BEFORE AND AFTER, proving it did not change. The two refusal TESTS read
+      the new `hook_fixed` field and so cannot run pre-change; a probe asserting only the PRE-EXISTING
+      contract (status, attempt count, HEAD, index) was therefore run against both source versions and
+      returns IDENTICAL output:
+
+      ```text
+      === AGAINST PRE-CHANGE SOURCE ===         === AGAINST POST-CHANGE SOURCE ===
+      commit_isolated status = 'hook-rejected'  commit_isolated status = 'hook-rejected'
+      commit attempts        = 1                commit attempts        = 1
+      HEAD unmoved           = True             HEAD unmoved           = True
+      offer_commit status    = 'error'          offer_commit status    = 'error'
+      commit attempts        = 1                commit attempts        = 1
+      HEAD unmoved           = True             HEAD unmoved           = True
+      index left as found    = 'A  art.md\n?? art2.md'         (identical)
+      ```
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste instrumented counts showing ONE `writer_lock` acquisition and ONE isolated worktree created per `offer_commit` call in the retry case, plus a post-run `git worktree list` and a directory listing of the repo parent showing no leftover `.aw-isocommit-` directory. Paste the peer-write-survives demonstration for a RETRIED commit, covering BOTH parts: the peer's write is intact after the hook window, AND E-09's content-CAS declined to overwrite it. Paste the bare `python3 -m pytest` summary line and compare it against the REVIEW-MEASURED baseline in the required-tests section, not against the authoring-time figure.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Instrumented counts show TWO commit attempts inside ONE `writer_lock` acquisition and ONE isolated worktree per `offer_commit` call, with cleanup verified (no `.aw-isocommit-` in `git worktree list`, none in the repo parent, lock released). A peer write during a RETRIED commit survives in BOTH parts: the peer's bytes are intact after the hook window AND E-09's content-CAS declined to overwrite them, reporting `hook_fixed_diverged=('art.md',)`. The bare suite is `31 failed, 7404 passed, 3 skipped, 2 xfailed` against a pre-change lane baseline of `31 failed, 7384 passed, 3 skipped, 2 xfailed`; the DELTA BY NODE ID is EMPTY and the 31 are lane-environmental (`AW_EXECUTION_ROLE=worker` refuses every begin/finalize test). Detail below.
+    - ONE LOCK ACQUISITION AND ONE WORKTREE PER `offer_commit` CALL, EVEN WITH A RETRY, asserted by
+      instrumented counts in
+      `tests/test_commit_lock.py::test_one_lock_and_one_worktree_per_call_even_with_a_retry`, which spies
+      every `git worktree add` and every `git commit` and wraps `commit_lock.try_acquire`:
 
-- [ ] V-09 validates E-09
+      ```text
+      lock_seen_during_commits == [True, True]   # TWO commit attempts, BOTH inside the lock window
+      len(acquisitions) == 1                     # ONE writer_lock acquisition (not two)
+      len(worktree_adds) == 1                    # ONE isolated worktree (not two)
+      ```
+
+      So the retry happens inside the SAME `writer_lock` window (`git_commit_helper.py:547`) and the SAME
+      isolated worktree, which is what keeps the peer-safety window from being reopened.
+
+    - CLEANUP IS UNCHANGED, verified after the retried run: `.aw-isocommit-` appears in neither
+      `git worktree list` nor a glob of the repo parent, and `commit_lock.read_owner(repo) is None` (the
+      lock was released). The existing `finally` removes exactly one worktree.
+
+    - A PEER WRITE DURING A RETRIED COMMIT SURVIVES, in BOTH parts the review demanded.
+      `::test_a_peer_write_during_the_window_wins_over_the_write_back` writes peer bytes to the shared path
+      while the hooks run, then asserts the peer's bytes are intact AND that E-09's content-CAS declined:
+
+      ```text
+      == CASE peer-divergence: a peer rewrites the same path during the window ==
+        status='committed'
+        hook_fixed=('art.md',)  hook_fixed_diverged=('art.md',)
+        detail='... NOTE: art.md was changed by another writer during the commit, so the working tree
+                keeps THEIR content and still reads dirty'
+        shared tree bytes AFTER: 'PEER CONTENT WINS   \n'
+        peer bytes:              'PEER CONTENT WINS   \n'
+        peer content survived: True
+      ```
+
+      Note the peer's OWN trailing whitespace is preserved too: the write-back declined ENTIRELY rather
+      than merging, so nothing of theirs was altered.
+
+    - THE BARE SUITE, compared by NODE ID as the plan requires. The review baseline was
+      `1 failed, 5919 passed`; this lane's PRE-CHANGE baseline at HEAD `4b68a786` is
+      `31 failed, 7384 passed`. The extra failures are lane-ENVIRONMENTAL exactly as the plan predicted:
+      `AW_EXECUTION_ROLE=worker` makes every `aw ipd begin`/`finalize` test refuse
+      (`AW-LIFECYCLE-ROLE-001`), plus the worktree-isolation and backlog-close-in-lane suites that read
+      live repo state:
+
+      ```text
+      BEFORE (pre-change, this lane):  31 failed, 7384 passed, 3 skipped, 2 xfailed in 88.89s (0:01:28)
+      AFTER  (post-change):            31 failed, 7404 passed, 3 skipped, 2 xfailed in 86.33s (0:01:26)
+      ```
+
+      DELTA BY NODE ID: EMPTY. `diff` of the sorted `FAILED` node-id lists before and after produces no
+      output, so this plan introduced zero failures and fixed none; the +20 passing tests are its own.
+  - Result: pass
+
+- [x] V-09 validates E-09
   - Required evidence: paste, from a scratch repo with the whitespace-fixing hook, the BEFORE state (this review's measurement: committed bytes `'trailing space here\n'`, shared bytes `'trailing space here   \n'`, `git status --porcelain` shows ` M art.md`) and the AFTER state showing `git status --porcelain` EMPTY and the shared bytes byte-equal to `git show HEAD:<path>`. Then paste the PEER-DIVERGENCE case: a peer rewrites the same path during the window, and the shared file afterwards still holds the PEER's bytes (not ours, not the hook's), with the divergence reported. Paste the docstring diff showing the falsified sentence at `commit_lock.py:281-284` was corrected rather than left standing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. BEFORE the write-back, the review measured committed `'trailing space here\n'` against shared `'trailing space here   \n'` with `git status` reporting ` M art.md`. AFTER, `git status --porcelain` is EMPTY and the shared bytes are byte-equal to `git show HEAD:art.md`. In the PEER-DIVERGENCE case the shared file afterwards still holds the PEER's bytes (not ours, not the hook's), the divergence is reported in both `hook_fixed_diverged` and the detail text, and nothing of theirs is altered. The falsified sentence at the former `:281-284` was CORRECTED rather than left standing, and a test asserts the correction is present. Detail below.
+    - BEFORE (pre-change source): the retry did not exist, so the rejection stood, nothing was committed,
+      and the shared tree held our un-fixed bytes:
 
-- [ ] V-10 validates E-10
+      ```text
+        attempt 1: status='hook-rejected' commit=None
+        shared tree bytes: 'trailing space here   \n'
+        git show HEAD:art.md: ''
+        git status --porcelain: 'A  art.md\n'
+      ```
+
+      And with the retry present but WITHOUT the write-back (the state F-13 measured), the review recorded
+      committed `'trailing space here\n'` vs shared `'trailing space here   \n'`, with `git status`
+      reporting ` M art.md`.
+
+    - AFTER (post-change, otherwise clean tree): the shared bytes are byte-EQUAL to the committed bytes and
+      `git status --porcelain` is EMPTY:
+
+      ```text
+        attempt 1: status='committed' commit='a7703f2d4dbe49dd690dfbf649d686a77f383249'
+          hook_fixed=('art.md',)
+        shared tree bytes:      'trailing space here\n'
+        git show HEAD:art.md:   'trailing space here\n'
+        git status --porcelain: ''
+      ```
+
+      Pinned by `::test_the_retry_leaves_the_shared_tree_reconciled_not_dirty`, which asserts the shared
+      bytes equal `git show HEAD:<path>` and that `status --porcelain` is empty.
+
+    - THE PEER-DIVERGENCE CASE: the shared file afterwards holds the PEER's bytes, not ours and not the
+      hook's, and the divergence is REPORTED rather than silently tolerated:
+
+      ```text
+        hook_fixed=('art.md',)  hook_fixed_diverged=('art.md',)
+        shared tree bytes AFTER: 'PEER CONTENT WINS   \n'   (== the peer's bytes, exactly)
+        detail='... NOTE: art.md was changed by another writer during the commit, so the working tree
+                keeps THEIR content and still reads dirty'
+      ```
+
+      No peer content is lost, and the clobber `798c5cb5` removed is NOT reintroduced: the write-back is a
+      CONTENT compare-and-swap against the exact bytes we copied in (the E-01 pre-hash), never a blind copy.
+
+    - THE FALSIFIED SENTENCE WAS CORRECTED, not left standing. `git diff` at the former `:281-284`:
+
+      ```diff
+      -        # The shared index still holds our staged copy from the caller's `git add`; drop it so the
+      -        # tree reads clean for our paths. The file CONTENT on disk already matches the new commit.
+      +        # The shared index still holds our staged copy from the caller's `git add`; drop it so the
+      +        # tree reads clean for our paths.
+      +        #
+      +        # THIS IS NOW CONDITIONAL, and saying so matters more than brevity: the file CONTENT on disk
+      +        # matches the new commit EITHER because nothing rewrote it, OR because the write-back above
+      +        # reconciled a hook-fixed path. The ONE case where it does not match is a path in
+      +        # ``hook_fixed_diverged``: a peer wrote it during the window and their content was correctly
+      +        # preserved, so that path legitimately still reads dirty and the caller is told which.
+      ```
+
+      The function docstring also gained the retry's contract (bounded, refusal-preserving, write-back under
+      CAS), and `::test_documents_that_the_retry_is_bounded_and_the_refusal_unchanged` asserts both the
+      docstring claims and the presence of this correction, so neither can silently regress.
+  - Result: pass
+
+- [x] V-10 validates E-10
   - Required evidence: paste the diff showing `ipd_authoring._atomic_write` now delegates to `artifact_core.atomic_write` and holds no duplicate write body. Then prove it THROUGH THE REAL VERBS, not the helper: run `aw ipd scaffold` and `aw ipd sync` on a scratch plan whose input contains a trailing-whitespace line, and paste a check over the written file showing zero trailing-whitespace lines. Paste confirmation that `oc_models._atomic_write` was NOT redirected.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. `ipd_authoring._atomic_write` now delegates to `artifact_core.atomic_write` and holds no duplicate write body (no `mkstemp`, no `os.replace`; the orphaned `import tempfile` was removed), asserted by a test that reads the source. Proven THROUGH THE REAL VERBS rather than the helper: `aw ipd scaffold` emits a plan with zero trailing-whitespace lines, and after hand-injecting two such lines `aw ipd sync --apply` writes them back out clean (2 -> 0) with exactly one final newline. `oc_models._atomic_write` was NOT redirected and `agent_workflows/oc_models.py` is not in the diff. Detail below.
+    - THE DELEGATION, with no duplicate write body left behind
+      (`git diff -- agent_workflows/ipd_authoring.py`):
+
+      ```text
+       def _atomic_write(path: Path, text: str) -> None:
+      -    <docstring: Write-to-temp-then-rename so an interrupted apply never leaves a partial file.>
+      -    path.parent.mkdir(parents=True, exist_ok=True)
+      -    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".ipd-tmp-", suffix=".md")
+      -    try:
+      -        with os.fdopen(fd, "w", encoding="utf-8") as f:
+      -            f.write(text)
+      -        os.replace(tmp, str(path))
+      -    except BaseException:
+      -        try:
+      -            os.unlink(tmp)
+      -        except OSError:
+      -            pass
+      -        raise
+      +    <docstring: ... (core). DELEGATES rather than duplicating, which is the repository's
+      +     one-mechanism convention (oc_models._atomic_write already states it). ...>
+      +    _core.atomic_write(path, text, prefix=".ipd-tmp-")
+      ```
+
+      (docstring bodies elided above only to keep this block from nesting a Python triple-quote; the real
+      diff is in the commit.) The now-unused `import tempfile` was removed with it.
+      `::test_it_holds_no_duplicate_write_body` asserts the body contains `_core.atomic_write(` and
+      NEITHER `mkstemp` NOR `os.replace`.
+
+    - PROVEN THROUGH THE REAL VERBS, not the helper. `aw ipd scaffold` on a fresh plan, then a
+      HAND-INJECTED trailing-whitespace line (written directly, bypassing the write path) plus an
+      unassigned leaf, then `aw ipd sync --apply`:
+
+      ```text
+      $ python3 -m agent_workflows ipd scaffold --kind child --title "Trailing space probe" \
+          --set wsprobe --order 1 --author "opencode test" --path <scratch>/...ipd.md --apply
+      wrote <scratch>/20260916-wsprobe-01-zz9zz9-trailing-space-probe.ipd.md
+      aw ipd scaffold output trailing-whitespace lines: 0 []
+
+      HAND-INJECTED trailing-whitespace lines before sync: 2
+        ['A goal line with trailing whitespace   ',
+         '- [ ] E-NEW a newly authored leaf with trailing whitespace   ']
+      $ python3 -m agent_workflows ipd sync <scratch>/...ipd.md --apply
+      assigned E-02; watermark advanced
+      trailing-whitespace lines AFTER `aw ipd sync --apply`: 0 []
+      ends with exactly one newline: True
+      ```
+
+      Both real verbs now emit a clean plan. Pinned as a regression by
+      `tests/test_ipd_authoring.py::AtomicWriteDelegatesToCoreTests::test_scaffold_and_sync_both_write_a_clean_plan`,
+      which drives `A.run_scaffold` and `A.run_sync` rather than the helper.
+
+    - `oc_models._atomic_write` WAS NOT REDIRECTED (it writes `opencode.json`, correctly out of scope for a
+      markdown-prose normalizer). It is unchanged at `agent_workflows/oc_models.py:688`, still carrying its
+      own `mkstemp`/`os.replace` body, and `agent_workflows/oc_models.py` does not appear in this plan's
+      `git diff --name-only` (V-06).
+  - Result: pass
 
 ## Approval and execution gate
 
