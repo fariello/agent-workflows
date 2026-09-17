@@ -1182,6 +1182,22 @@ class BothHostsShareEverySymbol(unittest.TestCase):
         coupling keeps growing quietly. Note the growth is itself the defect `cnwy8g` tracks: these
         nine SHOULD reach both hosts through `runner_shared`, and `st5klo` routed them through
         `oc_runipd` instead.
+
+        RE-MEASURED 2026-09-17 from 57 DOWN to 56 by rununify 03 (`i3d6ml`) E-03, again per this
+        assertion's own instruction, and recorded as a DECREASE because that direction has never
+        happened before on this baseline and a reader seeing a smaller number needs to know it was
+        earned rather than loosened. The one name removed is `resolve_prior_lane`, computed by diffing
+        the import list at `e93ba3de` (57) against this HEAD (56) rather than assumed:
+
+            removed: ['resolve_prior_lane']    added: []
+
+        WHY IT IS THE ONLY ONE, which is the honest limit on what that plan achieved here. `i3d6ml`
+        lifted 9 symbols into `runner_shared`, but only 5 of the 57 imports were among the 48 it
+        considered (`build_verify_and_continue_notice`, `classify_recovery_disposition`,
+        `enforce_dependency_preflight`, `resolve_prior_lane`, `route_recovery_turn`) and 4 of those 5
+        close over a name `runner_shared` cannot yet reach. So this is the FIRST reduction of the
+        coupling `cnwy8g` tracks, and it is a reduction of one; the remaining 56 are the work still
+        outstanding, not a baseline anyone should be comfortable with.
         """
 
         import ast
@@ -1202,7 +1218,7 @@ class BothHostsShareEverySymbol(unittest.TestCase):
             )
         self.assertEqual(
             len(imported),
-            57,
+            56,
             "the oc->agy import count moved. This test's job is to fail when THIS "
             "child's symbols deepen the coupling; if the change is unrelated work, "
             "re-measure and update the baseline with the new count and a note.",

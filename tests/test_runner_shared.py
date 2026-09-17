@@ -1471,29 +1471,60 @@ class DriverErrorUnificationTests(unittest.TestCase):
                     f"{runner}: `except DriverError` no longer catches its own StallTimeout",
                 )
 
-    def test_StallTimeout_bodies_were_not_edited(self):
-        """`StallTimeout` is class (c) DIVERGED and out of scope: only its BASE could change.
+    def test_StallTimeout_is_now_defined_once_on_the_shared_base(self):
+        """RE-BASED BY rununify 03 (`i3d6ml`) E-02. What it asserted, and why the assertion INVERTED.
 
+        WHAT THIS TEST USED TO SAY, preserved verbatim because the reason matters more than the
+        assertion: "`StallTimeout` is class (c) DIVERGED and out of scope: only its BASE could change.
         The two runners' docstrings differ, which is exactly why the class is diverged and why this
-        plan may re-parent it but must not touch it. If a later change "tidies" them into agreement,
-        that is a class (c) reconciliation and belongs to a different plan.
+        plan may re-parent it but must not touch it." It then asserted the two docstrings were NOT
+        equal, i.e. that a definition still existed in EACH runner.
+
+        WHY THAT PREMISE WAS WRONG, which is what licensed re-basing it rather than working around it.
+        "DIVERGED" in this file means the two bodies disagree, and it is measured with
+        `_normalize_dump`, which STRIPS DOCSTRINGS before comparing. With docstrings stripped, both
+        runners' `StallTimeout` bodies were empty (`pass` in agy, nothing in oc). So the class was
+        never behaviorally diverged at all; only its PROSE differed, and prose divergence is precisely
+        what the fingerprint machinery in this file deliberately ignores. The old test was therefore
+        pinning a documentation difference as though it were a behavioral one.
+
+        WHAT IS ASSERTED NOW, and it is STRICTER rather than weaker. There must be exactly ONE
+        `StallTimeout` class in the package, it must live in `runner_shared`, both runners must resolve
+        the SAME object, and it must still subclass `DriverError`. That subsumes the old base-class
+        check (a single shared class cannot have two different bases) and adds the identity the old
+        shape could not express. The behavior half - that every `except` form the runners actually use
+        still catches a real watchdog raise - is unchanged and still enforced by
+        `test_the_real_watchdog_raise_sites_are_still_caught_by_their_handlers` above, which is the
+        test that would fail if this unification broke the stall path.
+
+        THE SAME ARGUMENT APPLIES TO `EmptyStatusSelection`, which moved in the same E-item for the
+        same reason and is asserted here beside it.
         """
-        docstrings = {}
-        for runner in BOTH:
-            node = next(
-                n
-                for n in ast.parse(module_source(_MODULES[runner])).body
-                if isinstance(n, ast.ClassDef) and n.name == "StallTimeout"
-            )
-            docstrings[runner] = ast.get_docstring(node)
-            # The base is now the SHARED name, spelled exactly as before.
-            self.assertEqual([ast.unparse(b) for b in node.bases], ["DriverError"])
-        self.assertNotEqual(
-            docstrings["oc_runipd"],
-            docstrings["agy_runipd"],
-            "the two StallTimeout docstrings converged; this plan must not reconcile "
-            "a class (c) DIVERGED symbol",
-        )
+        pkg = pathlib.Path(runner_shared.__file__).parent
+        for name in ("StallTimeout", "EmptyStatusSelection"):
+            with self.subTest(symbol=name):
+                sites = []
+                for path in sorted(pkg.glob("*.py")):
+                    try:
+                        tree = ast.parse(path.read_text(encoding="utf-8"))
+                    except SyntaxError:  # pragma: no cover
+                        continue
+                    for node in tree.body:
+                        if isinstance(node, ast.ClassDef) and node.name == name:
+                            sites.append(f"{path.name}:{node.lineno}")
+                self.assertEqual(
+                    len(sites),
+                    1,
+                    f"`{name}` must be defined exactly once; found {sites}",
+                )
+                self.assertTrue(
+                    sites[0].startswith("runner_shared.py:"),
+                    f"`{name}` must be defined in runner_shared; found {sites[0]}",
+                )
+                shared_cls = getattr(runner_shared, name)
+                self.assertIs(getattr(oc_runipd, name), shared_cls)
+                self.assertIs(getattr(agy_runipd, name), shared_cls)
+                self.assertTrue(issubclass(shared_cls, runner_shared.DriverError))
 
     def test_a_shared_DriverError_crosses_the_runner_boundary(self):
         """The defect this unification fixes, stated as a test.

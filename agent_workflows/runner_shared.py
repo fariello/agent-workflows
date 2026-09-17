@@ -167,13 +167,57 @@ _ORDER_RE = re.compile(r"(?m)^-\s*Order:\s*(\d+)\s*$")
 # ---- errors --------------------------------------------------------------------------------------
 # ONE `DriverError` for the package. It was previously defined in BOTH runners as two DISTINCT
 # classes, which is why `agy_runipd` carried a wrapper whose only job was to catch oc's class and
-# re-raise its own as a translation. `StallTimeout` subclasses it in each runner (their docstrings
-# differ, so those classes are DIVERGED and stay put); re-parenting them onto this ONE class is what
-# makes every `except DriverError` in either runner catch the other's stall.
+# re-raise its own as a translation. Its two SUBCLASSES now live here too (rununify 03, `i3d6ml`);
+# the sentence that used to say they "stay put" is superseded below, at the classes themselves.
 
 
 class DriverError(RuntimeError):
     pass
+
+
+# THE TWO SUBCLASSES, moved here by rununify 03 (`i3d6ml`) E-02, and the reason the earlier note above
+# said they would NOT move is recorded rather than deleted, because the note was RIGHT about the risk
+# and only wrong about the conclusion. It read: "their docstrings differ, so those classes are DIVERGED
+# and stay put". Docstring divergence is not behavioral divergence: `_normalize_dump` strips docstrings
+# before comparing, and with them stripped both classes' bodies are `pass` in both runners. So what the
+# note actually recorded was that nobody had yet checked whether the CATCH still works.
+#
+# IT DOES, AND THAT IS THE LOAD-BEARING FACT. Each runner's `main` catches its OWN name today, and
+# `tests/test_runner_shared.py`'s `SharedErrorTests` asserts each is a `DriverError` subclass in BOTH
+# runners. Before the move, a `StallTimeout` raised through oc's code path was a DIFFERENT class from
+# the one agy's `except StallTimeout` names, so a cross-host raise was caught only by the broader
+# `except DriverError` - exactly the translation problem `DriverError` itself was moved to end. After
+# the move there is ONE class, so `except StallTimeout` in either runner catches a raise originating in
+# either, and every `except DriverError` still catches both because the parent is unchanged. V-02 proves
+# this by raising each through one runner's name and catching it through the other's.
+
+
+class StallTimeout(DriverError):
+    """Raised when the child agent produces no JSONL events for stall_timeout seconds."""
+
+
+class EmptyStatusSelection(DriverError):
+    """A STATUS selector (`reviews`/`review`/`to-review`) matched nothing, which is a SUCCESS.
+
+    revsweep 76gsmv E-04, implementing spec `25kzda` 2.4a property 3: "an empty `reviews` result
+    is a success, not an error ... it reports that plainly and exits 0 ... the one deliberate
+    exception to the Section 2.3 rule that zero matches exit 2. A misspelled id6 still exits 2;
+    only the status selectors are exempt."
+
+    WHY A SUBCLASS RATHER THAN A RETURN VALUE. `expand_selectors` is called from deep inside
+    `initialize_run`, BEFORE the run directory is created. Returning an empty list would let
+    `initialize_run` proceed to mkdir a run directory and freeze an empty queue, so the "start no
+    run" half of the requirement would be lost. Raising through the existing `DriverError` channel
+    reaches `main` with nothing created, and subclassing keeps every OTHER `except DriverError` in
+    the package catching it exactly as before; only `main`'s own handler, which is ordered ahead of
+    the generic one, treats it as exit 0.
+
+    SHARED SINCE rununify 03 (`i3d6ml`). Both runners' definitions carried the docstring above in
+    different words and an identical (empty) body, so this is one class now and each `main` catches
+    the same object. The ORDERING requirement inside each `main` is unchanged and is what makes the
+    exit-0 treatment work: the handler for this class must precede the generic `except DriverError`,
+    or the generic one absorbs it and the run exits 2.
+    """
 
 
 # ---- run / misc ----------------------------------------------------------------------------------
@@ -1021,7 +1065,9 @@ class SweepLaneRefresh(NamedTuple):
     already_current: bool = False
 
 
-def refresh_sweep_lane(repo: Path, handle: Any, *, main_ref: str = "HEAD") -> SweepLaneRefresh:
+def refresh_sweep_lane(
+    repo: Path, handle: Any, *, main_ref: str = "HEAD"
+) -> SweepLaneRefresh:
     """Fast-forward the sweep lane to main between reviews (OQ-04 option (a), the maintainer's choice).
 
     THE DEFECT THIS CLOSES, measured at review round 2 (finding F-14): the sweep lane is cut once at
@@ -1183,9 +1229,7 @@ def review_sweep_lane_handle(state: dict[str, Any]) -> Any | None:
 REVIEW_SWEEP_SESSION_KEY = "review_sweep_session"
 
 
-def turn_runs_in_review_sweep_lane(
-    state: dict[str, Any], work_dir: str | None
-) -> bool:
+def turn_runs_in_review_sweep_lane(state: dict[str, Any], work_dir: str | None) -> bool:
     """Whether `work_dir` IS this run's sweep lane (`ajxr5d` E-04).
 
     THE DISTINCTION THIS DRAWS IS THE WHOLE OF `xd9sll`'s RULE, correctly stated. That incident is
@@ -1332,7 +1376,8 @@ def retire_review_sweep_lane(
         items=[
             entry
             for entry in state.get("queue", [])
-            if entry.get("action") == "review" or entry.get("review_integrated") is not None
+            if entry.get("action") == "review"
+            or entry.get("review_integrated") is not None
         ],
     )
     record = dict(record)
@@ -1404,7 +1449,9 @@ def commit_review_lane_output(
         if not line.strip():
             continue
         entry = line[3:] if len(line) > 3 else ""
-        if " -> " in entry:  # a rename: stage BOTH endpoints or the commit is half a move
+        if (
+            " -> " in entry
+        ):  # a rename: stage BOTH endpoints or the commit is half a move
             old, new = entry.split(" -> ", 1)
             paths.extend([old.strip().strip('"'), new.strip().strip('"')])
         elif entry.strip():
@@ -1495,7 +1542,9 @@ def classify_review_writes(
     changed = tuple(p for p in changed_files if str(p).strip())
     allowed: list[str] = []
     out_of_scope: list[str] = []
-    others = tuple(str(other) for other in queued_id6s if str(other) and str(other) != str(id6))
+    others = tuple(
+        str(other) for other in queued_id6s if str(other) and str(other) != str(id6)
+    )
     queued_siblings: list[str] = []
     for path in changed:
         if str(id6) in path:
@@ -1519,8 +1568,10 @@ def describe_review_write_scope(scope: ReviewWriteScope, *, id6: str) -> str:
             f"review {id6} wrote only its own plan and review record "
             f"({len(scope.allowed)} path(s))"
         )
-    detail = f"review {id6} also wrote {len(scope.out_of_scope)} path(s) outside its own plan and " \
+    detail = (
+        f"review {id6} also wrote {len(scope.out_of_scope)} path(s) outside its own plan and "
         f"review record: {', '.join(scope.out_of_scope)}"
+    )
     if scope.queued_siblings:
         detail += (
             "; of those, these belong to items still QUEUED in this run: "
@@ -7241,3 +7292,287 @@ def defect_report_record(
         "reask_state": (reask_verdict.state if reask_verdict is not None else None),
         "reask_verdict": (reask_verdict.verdict if reask_verdict is not None else None),
     }
+
+
+# ---- rununify 03 (`i3d6ml`): the LIFTED host-neutral helpers -------------------------------------
+#
+# NINE symbols that were defined in BOTH runners and are now defined ONCE here. They are admitted
+# under the module's admission rule with ONE DELIBERATE WIDENING, stated so the rule is not read as
+# having been bent silently: the rule as written above admits bodies "PROVEN identical by AST
+# comparison", and four of these nine had bodies that were NOT identical. They are admitted anyway
+# because the measurement that matters for a lift is CLOSURE, not body equality, and because for each
+# of the four the disagreement was resolved by the maintainer's 2026-09-14 standing ruling that
+# `oc_runipd` is the preferred version absent a significant behavioral difference.
+#
+# WHY BODY EQUALITY IS THE WRONG TEST, since this module's own docstring leads with it. A definition
+# can MOVE here only if every module-level free name its body closes over resolves here. Body equality
+# says the two hosts AGREE; it says nothing about whether the code can be relocated. Measured at
+# `i3d6ml`'s execution HEAD: of the 48 symbols that carried no behavioral disagreement, only 9 were
+# closure-clean, 11 must never move, and 28 close over a name this module cannot yet reach. So the
+# admission question for a lift is closure FIRST and agreement SECOND, and this section records both
+# for each symbol.
+#
+# THE FOUR OBSERVABLE CHANGES, disclosed rather than absorbed, each at its own definition below:
+#   * `attempt_log_path`  - agy's verifier log filename changes shape. This REPAIRS a live defect.
+#   * `write_prompt`      - agy's suffixed prompt filename changes shape (a SEMANTIC difference, not
+#                           a tag reordering).
+#   * `build_review_prompt` - agy reached the isolation notice through its own `build_isolation_notice`
+#                           wrapper; both now call `lane_containment.isolation_notice` directly, which
+#                           is the same function that wrapper called.
+#   * `resolve_prior_lane` - agy was a delegating stub importing oc, so this DELETES a runner-to-runner
+#                           import rather than changing output.
+#
+# WHAT IS DELIBERATELY NOT HERE, because an absence is what a later reader "completes" by mistake:
+# the 10 `INJECTED` symbols above keep their one-line host wrapper (that wrapper IS the de-duplicated
+# form, ruled by the maintainer in `818uru` OQ-02), and `disable_lane_prompt` stays defined in both
+# runners because it writes a module-level flag through `global`. Both exclusions are asserted, in the
+# INVERSE direction, by `tests/test_rununify_lift.py`.
+
+
+def _findings_block_reason(repo: Path, dep: str) -> str | None:
+    """Return an operator-facing reason ``dep``'s review blocks its dependents, else None.
+
+    revgate Order 03 (7nkcgp) E-01/E-02. Delegates ENTIRELY to
+    ``review_findings.subject_gating_blocks``, the ONE shared predicate, which both host runners, the
+    `aw check` evaluator, and the `/exec-set` Set compiler consume. This function re-implements no
+    severity comparison and holds no threshold of its own, so the four surfaces cannot drift.
+
+    SHARED SINCE rununify 03 (`i3d6ml`). Both runners held an AST-identical copy of this wrapper, and
+    both docstrings said the same thing about why: "this wrapper exists only because neither runner
+    imports the other (the duplication the in-flight `rununify` Set exists to fix)". That reason is
+    now discharged - the wrapper lives in the shared module both runners already import, so there is
+    one wrapper in front of one predicate. `agy_runipd` keeps the NAME bound (a re-export) because
+    `tests/test_review_findings_cascade.py::SharedPredicateTests` asserts the attribute exists on that
+    module and that its source names `subject_gating_blocks`; the import line satisfies both.
+
+    Fail-open on import/IO error: a crashing gate is a disabled gate, and this must never wedge a run.
+    """
+    try:
+        from agent_workflows import review_findings as _rf
+
+        blocks = _rf.subject_gating_blocks(repo, dep)
+    except Exception:
+        return None
+    if not blocks:
+        return None
+    return "; ".join(b.describe() for b in blocks)
+
+
+def make_integration_validation_runner(
+    state: dict[str, Any], run_dir: Path, item: dict[str, Any]
+) -> Any:
+    """Build the `full_validation_runner(combined_diff, merged_files) -> bool` the integration gate
+    calls to REVALIDATE the combined HEAD (per-lane green never implies integrated green).
+
+    For a serial run each IPD is a SINGLE lane, so the combined diff == the lane diff the driver's
+    independent verifier turn already validated (verify_disp == "verified" is the gate precondition for
+    reaching integration). The runner therefore returns True on the already-verified single-lane case.
+
+    SHARED SINCE rununify 03 (`i3d6ml`), with one consequence a caller must know. Tests PATCH THIS
+    FUNCTION to exercise a combined-red path, and there is now ONE function to patch. A test that
+    patched `oc_runipd.make_integration_validation_runner` still works, because that name is a
+    re-export bound in the runner's namespace and patching the runner's attribute is what the call site
+    resolves; but a test patching it on one runner no longer leaves the other host's copy unpatched,
+    because there is no other copy.
+    """
+
+    def _runner(_combined_diff: str, _merged_files: Any) -> bool:
+        return True
+
+    return _runner
+
+
+def build_review_prompt(
+    item: dict[str, Any],
+    state: dict[str, Any],
+    run_dir: Path,
+    plan_path: Path,
+    repo: Path,
+    lane_root: Path | None = None,
+) -> str:
+    """Return the slash command for a review turn: `/plan-review <relative path>`, plus - for an
+    ISOLATED review - the in-lane statement on its OWN LINES after it.
+
+    Deliberately prose-free ON THE COMMAND LINE (terseout `ntf6sx` E-05). This value is handed to the
+    host as ONE argv element after `--`, so anything appended to the COMMAND LINE is absorbed by the
+    slash command's `$ARGUMENTS` and parsed as additional path arguments. That constraint is about the
+    LINE, not about the string: prose goes on a separate line AFTER the command, never on the command
+    line itself, which is exactly the shape used below.
+
+    dirtygates Order 05 (`ajxr5d`) E-02: `lane_root` makes the two halves an isolated turn needs BOTH
+    true. FIRST the path: it is resolved against the LANE, so the command names the lane's own copy of
+    the plan. SECOND the statement: the shared `lane_containment.isolation_notice` is appended, and it
+    is MANDATORY rather than decorative. The guard it satisfies exists because of a measured incident
+    (run `run-20260831T153226Z-3424176`, plan `y6mfgo`) in which the prompt carried MAIN's absolute plan
+    path with no statement of isolation, and the agent read `../../../DECISIONS.md` and committed 18
+    files into MAIN while its lane stayed at zero commits. `--dir` alone does not convey isolation, so
+    the path fix WITHOUT the statement is the half-fix that was already measured insufficient.
+
+    A NON-isolated review (`lane_root is None`) returns the byte-identical single line it always did,
+    which is spec R1.3's requirement that non-isolated execution not be degraded by isolation work.
+
+    SHARED SINCE rununify 03 (`i3d6ml`), and the two hosts' bodies were NOT byte-identical: oc called
+    `lane_containment.isolation_notice` directly while agy called its own `build_isolation_notice`,
+    whose entire body is `return lane_containment.isolation_notice(lane_root)`. So the two produced the
+    same string through a different number of hops, and taking oc's form changes no output. THE IMPORT
+    IS FUNCTION-LOCAL and must stay that way: `lane_containment` imports THIS module at its own top
+    level (`agent_workflows/lane_containment.py:55`), so a module-level import here is an import cycle.
+    That is the convention this module already uses in 20-plus places.
+    """
+
+    from agent_workflows import lane_containment
+
+    root = lane_root if lane_root is not None else repo
+    try:
+        rel_path = str(plan_path.relative_to(root))
+    except ValueError:
+        rel_path = str(plan_path)
+    command = f"/plan-review {rel_path}"
+    if lane_root is None:
+        return command
+    return command + "\n" + lane_containment.isolation_notice(lane_root)
+
+
+def resolve_prior_lane(
+    item: dict[str, Any],
+) -> tuple[str | None, str | None, str | None]:
+    """The PRIOR attempt's lane identity from DURABLE state: (lane_id, base_commit, branch).
+
+    Reads the record, and NEVER reconstructs a branch name from the id6: `lane_branch_name`'s
+    docstring forbids exactly that, because allocation may have attempt-scoped the name, so a
+    reconstructed name can silently designate a different lane than the one that holds the work.
+
+    Order, most to least authoritative:
+      1. `preserved_lane_id`/`preserved_base`, written when a lane is preserved for precisely this
+         purpose (a later turn finding a preserved lane).
+      2. the newest `attempts[]` entry carrying `worktree_lane_id`, for an attempt interrupted before
+         it reached the preservation path.
+      3. the newest attempt's `worktree_displaced_from`, which names the lane a fresh allocation was
+         displaced from.
+
+    Returns (None, None, None) when nothing is recorded, which is the honest first-attempt answer and
+    routes to fresh execution.
+
+    SHARED SINCE rununify 03 (`i3d6ml`). This is the case where the lift DELETES A RUNNER-TO-RUNNER
+    IMPORT rather than changing behavior: `agy_runipd.resolve_prior_lane` was a stub whose body was
+    `from agent_workflows.oc_runipd import resolve_prior_lane as _shared; return _shared(item)`, i.e.
+    the antigravity driver reached into the opencode driver at call time. There was already only one
+    implementation; what changes is WHERE it lives, and the shared module is a place agy may import
+    without `tests/test_review_findings_cascade.py::test_no_runner_to_runner_import` having to be
+    satisfied on a technicality.
+    """
+    lane_id = item.get("preserved_lane_id")
+    if lane_id:
+        return (
+            str(lane_id),
+            item.get("preserved_base"),
+            item.get("preserved_branch"),
+        )
+    for attempt in reversed(item.get("attempts", []) or []):
+        if attempt.get("worktree_lane_id"):
+            return (
+                str(attempt["worktree_lane_id"]),
+                attempt.get("worktree_base"),
+                attempt.get("worktree_branch"),
+            )
+    for attempt in reversed(item.get("attempts", []) or []):
+        displaced = attempt.get("worktree_displaced_from")
+        if displaced:
+            # `displaced_from` records a BRANCH name, not a lane id, so it MUST be converted.
+            # Measured: passing `aw/lane/ntf6sx` to `inspect_lane` as a lane id re-sanitizes it into
+            # branch `aw/lane/aw_lane_ntf6sx`, which does not exist and classifies ABSENT - i.e. the
+            # work would be silently invisible. `lane_id_from_branch` is the exact inverse.
+            from agent_workflows import worktree_lease
+
+            lane = worktree_lease.lane_id_from_branch(str(displaced))
+            if lane:
+                return lane, attempt.get("worktree_base"), str(displaced)
+    return None, None, None
+
+
+def sync_receipt_into_worktree(repo: Path, worktree: Path, id6: str) -> None:
+    """DEPRECATED NO-OP. Retired as the correctness mechanism by the ``dh0uno`` control-root fix.
+
+    This used to COPY the main checkout's begin receipt into the lane worktree so that an in-worktree
+    ``aw ipd finalize`` could find it. Research x03wgn Section 7 lists that copy as its own hazard -
+    "Receipt copied into lane -> two authorities diverge or are consumed independently" - and the
+    prescribed guard is "One central driver-created receipt bound to attempt; delete receipt-copy
+    path."
+
+    The copy is no longer load-bearing because ``ipd_lifecycle.receipt_path_for`` now resolves to the
+    CHECKOUT's control root (every linked worktree shares one git common dir) instead of to whatever
+    tree it was handed. An in-lane finalize therefore reads the ONE receipt the driver wrote, from the
+    lane, with no copy in existence. Copying now would actively RE-CREATE the fork this fix closed,
+    and in fact src and dst are the SAME path, so the old body raised ``shutil.SameFileError``.
+
+    Kept as an explicit no-op rather than deleted so that no caller breaks: both drivers call it at
+    their lane-launch site, and the call is now correctly redundant rather than wrong.
+
+    SHARED SINCE rununify 03 (`i3d6ml`). Both runners' bodies were `return None`, so this lift is the
+    cheapest in the set; it is included because two no-ops are still two places a future author could
+    "restore" the copy into, and the hazard research says the copy must not come back.
+    """
+    return None
+
+
+def write_prompt(
+    run_dir: Path, item: dict[str, Any], prompt: str, attempt_no: int, suffix: str = ""
+) -> Path:
+    """Write ``prompt`` to the run's `prompts/` directory and return the path.
+
+    THE FILENAME IS `<NN>-<id6>-<prefix>-attempt-<n>.md`, where `prefix` is `suffix` when a suffix is
+    given and otherwise `review`/`exec` from the item's action.
+
+    SHARED SINCE rununify 03 (`i3d6ml`), AND THIS CHANGES ANTIGRAVITY'S FILENAMES. The two hosts
+    disagreed SEMANTICALLY about what `suffix` means, which is why this is disclosed rather than filed
+    as a mechanical merge:
+
+      * oc treated `suffix` as REPLACING the action prefix   -> `03-abc123-verify-attempt-1.md`
+      * agy treated `suffix` as an ADDITIONAL tag after it   -> `03-abc123-exec-verify-attempt-1.md`
+
+    oc's form is adopted, per the maintainer's 2026-09-14 standing ruling that `oc_runipd` is the
+    preferred version absent a significant behavioral difference, and a prompt filename is not one:
+    nothing in the package parses a PROMPT filename (unlike the session log next door, whose shape the
+    analytics do parse - see `attempt_log_path`). The consequence is bounded and stated: an antigravity
+    run started after this change writes a verifier prompt under the oc name, and an operator reading
+    an OLD run directory still sees the old name, because nothing renames history.
+    """
+    prefix = suffix or ("review" if item.get("action") == "review" else "exec")
+    path = (
+        run_dir
+        / "prompts"
+        / f"{item['position']:02d}-{item['id6']}-{prefix}-attempt-{attempt_no}.md"
+    )
+    path.write_text(prompt, encoding="utf-8")
+    return path
+
+
+def attempt_log_path(
+    run_dir: Path, item: dict[str, Any], attempt_no: int, suffix: str = ""
+) -> Path:
+    """The session-log path for one attempt: `<NN>-<id6>-attempt-<n>[-<suffix>].jsonl`.
+
+    SHARED SINCE rununify 03 (`i3d6ml`), AND THIS REPAIRS A LIVE DEFECT ON THE ANTIGRAVITY SIDE. It is
+    the one user-visible improvement in that plan, so it is recorded here rather than in a commit
+    message. The two hosts placed the suffix on opposite sides of the attempt number:
+
+      * oc  -> `03-abc123-attempt-1-verify.jsonl`
+      * agy -> `03-abc123-verify-attempt-1.jsonl`
+
+    `run_analytics_statistics._VERIFY_LOG_RE` is anchored `-attempt-\\d+-verify\\.jsonl$`, which ONLY
+    oc's form satisfies. A verifier session log is the sole signal of the verifier phase (measured:
+    zero attempt records carry `verify_cost`/`verify_tokens`), so every antigravity verifier log was
+    being classified `execute` by `verifier_phase_of_log` and its cost attributed to the wrong phase.
+    Adopting oc's shape makes those logs classify `verify`.
+
+    HONEST LIMIT: this fixes logs written from now on. Antigravity logs ALREADY on disk keep the old
+    name and stay misclassified, because nothing renames history. `run_viewer.py` was never broken by
+    the divergence - it looks for the oc-shaped name first and falls back to a loose glob - so it
+    degrades to correct rather than needing a change here.
+    """
+    tag = f"-{suffix}" if suffix else ""
+    return (
+        run_dir
+        / "sessions"
+        / f"{item['position']:02d}-{item['id6']}-attempt-{attempt_no}{tag}.jsonl"
+    )

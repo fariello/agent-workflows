@@ -278,6 +278,49 @@ from agent_workflows.runner_shared import (
     git_branch as git_branch,
 )
 
+# rununify 03 (`i3d6ml`) E-02: the two `DriverError` subclasses. Both runners defined these, with
+# identical (empty) bodies and differently-worded docstrings, so there were TWO `StallTimeout` classes
+# and TWO `EmptyStatusSelection` classes. Binding the shared ones here means a stall raised through
+# either driver's code path is caught by `except StallTimeout` in either driver, which is the same
+# defect class `DriverError` itself was moved to end.
+from agent_workflows.runner_shared import (
+    EmptyStatusSelection as EmptyStatusSelection,
+)
+from agent_workflows.runner_shared import (
+    StallTimeout as StallTimeout,
+)
+
+# rununify 03 (`i3d6ml`) E-02: host-neutral helpers whose two definitions carried no behavioral
+# disagreement. `_findings_block_reason` delegates entirely to `review_findings.subject_gating_blocks`
+# and `make_integration_validation_runner` returns a constant-True validator, so neither had anything
+# host-shaped to preserve.
+from agent_workflows.runner_shared import (
+    _findings_block_reason as _findings_block_reason,
+)
+from agent_workflows.runner_shared import (
+    make_integration_validation_runner as make_integration_validation_runner,
+)
+
+# rununify 03 (`i3d6ml`) E-02/E-03: `build_review_prompt` (the `/plan-review` command plus the isolation
+# statement) and the four symbols whose hosts' OBSERVABLE OUTPUT differed. See each shared definition's
+# docstring for what changed on which host; `attempt_log_path` in particular now produces oc's filename
+# shape on BOTH hosts, which is what `run_analytics_statistics._VERIFY_LOG_RE` matches.
+from agent_workflows.runner_shared import (
+    attempt_log_path as attempt_log_path,
+)
+from agent_workflows.runner_shared import (
+    build_review_prompt as build_review_prompt,
+)
+from agent_workflows.runner_shared import (
+    resolve_prior_lane as resolve_prior_lane,
+)
+from agent_workflows.runner_shared import (
+    sync_receipt_into_worktree as sync_receipt_into_worktree,
+)
+from agent_workflows.runner_shared import (
+    write_prompt as write_prompt,
+)
+
 # rununify 01 (`2r306y`): `_read_id`/`_read_status` were defined in THIS module AND in
 # `agy_runipd`, both AST-identical to `selectors`' own readers, so one owner had three copies.
 # They are now the public `selectors` readers, bound to this module's historical private names
@@ -392,30 +435,12 @@ _PLAN_FILENAME_RE = re.compile(
 OUTPUT_MODES = ("clean", "quiet", "raw")
 
 
-class StallTimeout(DriverError):
-    """Raised when the child agent produces no JSONL events for stall_timeout seconds."""
-
-
-class EmptyStatusSelection(DriverError):
-    """A STATUS selector (`reviews`/`review`/`to-review`) matched nothing, which is a SUCCESS.
-
-    revsweep 76gsmv E-04, implementing spec `25kzda` 2.4a property 3: "an empty `reviews` result
-    is a success, not an error ... it reports that plainly and exits 0 ... the one deliberate
-    exception to the Section 2.3 rule that zero matches exit 2. A misspelled id6 still exits 2;
-    only the status selectors are exempt."
-
-    WHY A SUBCLASS RATHER THAN A RETURN VALUE. `expand_selectors` is called from deep inside
-    `initialize_run`, BEFORE the run directory is created. Returning an empty list would let
-    `initialize_run` proceed to mkdir a run directory and freeze an empty queue, so the "start no
-    run" half of the requirement would be lost. Raising through the existing `DriverError` channel
-    reaches `main` with nothing created, and subclassing keeps every OTHER `except DriverError` in
-    the package (including the preflight-refusal translation in `agy_runipd`) catching it exactly
-    as before; only `main`'s own handler, which is ordered ahead of the generic one, treats it as
-    exit 0.
-
-    DEFINED PER RUNNER ON PURPOSE, matching `StallTimeout` above, which is likewise defined in both
-    drivers. Each `main` catches its own, so there is no cross-runner raise to translate, and this
-    keeps the change inside the plan's scope fence rather than editing `runner_shared`."""
+# `StallTimeout` and `EmptyStatusSelection` are IMPORTED from `runner_shared` (rununify 03 `i3d6ml`
+# E-02), not defined here. They are bound at the top of this module with the rest of the shared
+# re-exports, so every `except StallTimeout` / `except EmptyStatusSelection` below is unchanged and now
+# names the SAME class the antigravity driver names. `main`'s handler ORDER still matters and is
+# untouched: the `EmptyStatusSelection` clause must precede the generic `except DriverError`, or the
+# generic one absorbs it and an empty status selection exits 2 instead of 0.
 
 
 class ToolIdentityError(DriverError):
@@ -2388,25 +2413,7 @@ def reclaim_lanes_on_interrupt(
     return lanes
 
 
-def sync_receipt_into_worktree(repo: Path, worktree: Path, id6: str) -> None:
-    """DEPRECATED NO-OP. Retired as the correctness mechanism by the ``dh0uno`` control-root fix.
-
-    This used to COPY the main checkout's begin receipt into the lane worktree so that an in-worktree
-    ``aw ipd finalize`` could find it. Research x03wgn Section 7 lists that copy as its own hazard -
-    "Receipt copied into lane -> two authorities diverge or are consumed independently" - and the
-    prescribed guard is "One central driver-created receipt bound to attempt; delete receipt-copy
-    path."
-
-    The copy is no longer load-bearing because ``ipd_lifecycle.receipt_path_for`` now resolves to the
-    CHECKOUT's control root (every linked worktree shares one git common dir) instead of to whatever
-    tree it was handed. An in-lane finalize therefore reads the ONE receipt the driver wrote, from the
-    lane, with no copy in existence. Copying now would actively RE-CREATE the fork this fix closed,
-    and in fact src and dst are the SAME path, so the old body raised ``shutil.SameFileError``.
-
-    Kept as an explicit no-op rather than deleted so that no caller breaks: both drivers call it at
-    their lane-launch site, and the call is now correctly redundant rather than wrong.
-    """
-    return None
+# `sync_receipt_into_worktree` is now defined ONCE in `runner_shared` and imported above (rununify 03 `i3d6ml`).
 
 
 # integpath-02 (`6sb3yu`): the THREE lane-integration symbols below were defined in BOTH runners and
@@ -2658,22 +2665,7 @@ def retry_deferred_integrations(
     )
 
 
-def make_integration_validation_runner(
-    state: dict[str, Any], run_dir: Path, item: dict[str, Any]
-) -> Any:
-    """Build the `full_validation_runner(combined_diff, merged_files) -> bool` the integration gate
-    calls to REVALIDATE the combined HEAD (per-lane green never implies integrated green).
-
-    For this serial bootstrap run each IPD is a SINGLE lane, so the combined diff == the lane diff the
-    driver's independent verifier turn already validated (verify_disp == "verified" is the gate
-    precondition for reaching integration). The runner therefore returns True on the already-verified
-    single-lane case. Tests patch THIS function to exercise a combined-red path (e.g. child-03
-    multi-lane)."""
-
-    def _runner(_combined_diff: str, _merged_files: Any) -> bool:
-        return True
-
-    return _runner
+# `make_integration_validation_runner` is now defined ONCE in `runner_shared` and imported above (rununify 03 `i3d6ml`).
 
 
 @contextlib.contextmanager
@@ -4026,29 +4018,7 @@ def extract_session_id(log_path: Path) -> str | None:
     return fallback
 
 
-def _findings_block_reason(repo: Path, dep: str) -> str | None:
-    """Return an operator-facing reason ``dep``'s review blocks its dependents, else None.
-
-    revgate Order 03 (7nkcgp) E-01/E-02. Delegates ENTIRELY to
-    ``review_findings.subject_gating_blocks``, the ONE shared predicate, which both host runners, the
-    `aw check` evaluator, and the `/exec-set` Set compiler consume. This function re-implements no
-    severity comparison and holds no threshold of its own, so the four surfaces cannot drift.
-
-    Housed in ``review_findings`` (NOT in one runner imported by the other) because neither runner
-    imports the other today and the in-flight `rununify` Set exists to extract their shared logic; a
-    runner-to-runner import would collide with it.
-
-    Fail-open on import/IO error: a crashing gate is a disabled gate, and this must never wedge a run.
-    """
-    try:
-        from agent_workflows import review_findings as _rf
-
-        blocks = _rf.subject_gating_blocks(repo, dep)
-    except Exception:
-        return None
-    if not blocks:
-        return None
-    return "; ".join(b.describe() for b in blocks)
+# `_findings_block_reason` is now defined ONCE in `runner_shared` and imported above (rununify 03 `i3d6ml`).
 
 
 def _artifact_owners(repo: Path, record_type: str, id6: str) -> list[tuple[str, str]]:
@@ -5061,45 +5031,7 @@ def dependency_reasons(item: dict[str, Any], state: dict[str, Any]) -> list[str]
     return reasons
 
 
-def build_review_prompt(
-    item: dict[str, Any],
-    state: dict[str, Any],
-    run_dir: Path,
-    plan_path: Path,
-    repo: Path,
-    lane_root: Path | None = None,
-) -> str:
-    """Return the slash command for a review turn: `/plan-review <relative path>`, plus - for an
-    ISOLATED review - the in-lane statement on its OWN LINES after it.
-
-    Deliberately prose-free ON THE COMMAND LINE (terseout `ntf6sx` E-05). This value is handed to the
-    host as ONE argv element after `--`, so anything appended to the COMMAND LINE is absorbed by the
-    slash command's `$ARGUMENTS` and parsed as additional path arguments. That constraint is about the
-    LINE, not about the string: the docstring's own escape clause is that prose "goes on a separate line
-    AFTER the command, never on the command line itself", and that is exactly the shape used below.
-
-    dirtygates Order 05 (`ajxr5d`) E-02: `lane_root` makes the two halves an isolated turn needs BOTH
-    true. FIRST the path: it is resolved against the LANE, so the command names the lane's own copy of
-    the plan. SECOND the statement: the shared `lane_containment.isolation_notice` is appended, and it is
-    MANDATORY rather than decorative. The guard it satisfies exists because of a measured incident (run
-    `run-20260831T153226Z-3424176`, plan `y6mfgo`) in which the prompt carried MAIN's absolute plan path
-    with no statement of isolation, and the agent read `../../../DECISIONS.md` and committed 18 files
-    into MAIN while its lane stayed at zero commits. `--dir` alone does not convey isolation, so the
-    path fix WITHOUT the statement is the half-fix that was already measured insufficient.
-
-    A NON-isolated review (`lane_root is None`) returns the byte-identical single line it always did,
-    which is spec R1.3's requirement that non-isolated execution not be degraded by isolation work.
-    """
-
-    root = lane_root if lane_root is not None else repo
-    try:
-        rel_path = str(plan_path.relative_to(root))
-    except ValueError:
-        rel_path = str(plan_path)
-    command = f"/plan-review {rel_path}"
-    if lane_root is None:
-        return command
-    return command + "\n" + lane_containment.isolation_notice(lane_root)
+# `build_review_prompt` is now defined ONCE in `runner_shared` and imported above (rununify 03 `i3d6ml`).
 
 
 # ---- recovery routing: verify-and-continue vs fresh execution ------------------------------------
@@ -5170,53 +5102,7 @@ class RecoveryDisposition(NamedTuple):
         return self.disposition == DISPOSITION_VERIFY_AND_CONTINUE
 
 
-def resolve_prior_lane(
-    item: dict[str, Any],
-) -> tuple[str | None, str | None, str | None]:
-    """The PRIOR attempt's lane identity from DURABLE state: (lane_id, base_commit, branch).
-
-    Reads the record, and NEVER reconstructs a branch name from the id6: `lane_branch_name`'s
-    docstring forbids exactly that, because allocation may have attempt-scoped the name, so a
-    reconstructed name can silently designate a different lane than the one that holds the work.
-
-    Order, most to least authoritative:
-      1. `preserved_lane_id`/`preserved_base`, written when a lane is preserved for precisely this
-         purpose (a later turn finding a preserved lane).
-      2. the newest `attempts[]` entry carrying `worktree_lane_id`, for an attempt interrupted before
-         it reached the preservation path.
-      3. the newest attempt's `worktree_displaced_from`, which names the lane a fresh allocation was
-         displaced from.
-
-    Returns (None, None, None) when nothing is recorded, which is the honest first-attempt answer and
-    routes to fresh execution.
-    """
-    lane_id = item.get("preserved_lane_id")
-    if lane_id:
-        return (
-            str(lane_id),
-            item.get("preserved_base"),
-            item.get("preserved_branch"),
-        )
-    for attempt in reversed(item.get("attempts", []) or []):
-        if attempt.get("worktree_lane_id"):
-            return (
-                str(attempt["worktree_lane_id"]),
-                attempt.get("worktree_base"),
-                attempt.get("worktree_branch"),
-            )
-    for attempt in reversed(item.get("attempts", []) or []):
-        displaced = attempt.get("worktree_displaced_from")
-        if displaced:
-            # `displaced_from` records a BRANCH name, not a lane id, so it MUST be converted.
-            # Measured: passing `aw/lane/ntf6sx` to `inspect_lane` as a lane id re-sanitizes it into
-            # branch `aw/lane/aw_lane_ntf6sx`, which does not exist and classifies ABSENT - i.e. the
-            # work would be silently invisible. `lane_id_from_branch` is the exact inverse.
-            from agent_workflows import worktree_lease
-
-            lane = worktree_lease.lane_id_from_branch(str(displaced))
-            if lane:
-                return lane, attempt.get("worktree_base"), str(displaced)
-    return None, None, None
+# `resolve_prior_lane` is now defined ONCE in `runner_shared` and imported above (rununify 03 `i3d6ml`).
 
 
 def _lane_commit_subjects(
@@ -5745,28 +5631,10 @@ Begin independent verification now.
 {reporting_contract.prompt_block()}"""
 
 
-def write_prompt(
-    run_dir: Path, item: dict[str, Any], prompt: str, attempt_no: int, suffix: str = ""
-) -> Path:
-    prefix = suffix or ("review" if item.get("action") == "review" else "exec")
-    path = (
-        run_dir
-        / "prompts"
-        / f"{item['position']:02d}-{item['id6']}-{prefix}-attempt-{attempt_no}.md"
-    )
-    path.write_text(prompt, encoding="utf-8")
-    return path
+# `write_prompt` is now defined ONCE in `runner_shared` and imported above (rununify 03 `i3d6ml`).
 
 
-def attempt_log_path(
-    run_dir: Path, item: dict[str, Any], attempt_no: int, suffix: str = ""
-) -> Path:
-    tag = f"-{suffix}" if suffix else ""
-    return (
-        run_dir
-        / "sessions"
-        / f"{item['position']:02d}-{item['id6']}-attempt-{attempt_no}{tag}.jsonl"
-    )
+# `attempt_log_path` is now defined ONCE in `runner_shared` and imported above (rununify 03 `i3d6ml`).
 
 
 _SIGINT_GRACE_SECONDS = 5.0
@@ -7692,7 +7560,9 @@ def execute_item(
     # driver-written content from unexplained content; without a receipt the sweep lane's own inventory
     # can only ever say "unknown", and a lane that always looks unaccounted-for is a lane that can never
     # be retired. So the receipt is the load-bearing output here, not the copies.
-    if work_dir and (not is_review or runner_shared.turn_runs_in_review_sweep_lane(state, work_dir)):
+    if work_dir and (
+        not is_review or runner_shared.turn_runs_in_review_sweep_lane(state, work_dir)
+    ):
         try:
             collection = lane_containment.collect_lane_submissions(
                 run_dir=run_dir,
@@ -8065,8 +7935,12 @@ def execute_item(
             attempt["review_lane_commit_refused"] = list(review_committed_paths)
         review_scope = None
         try:
-            lane_changed = build_lane_outcome(repo, wt_handle, item["id6"]).changed_files
-        except Exception as exc:  # pragma: no cover - defensive; never kill a turn over reporting
+            lane_changed = build_lane_outcome(
+                repo, wt_handle, item["id6"]
+            ).changed_files
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - defensive; never kill a turn over reporting
             lane_changed = ()
             attempt["review_scope_error"] = f"{type(exc).__name__}: {exc}"
         if lane_changed:
