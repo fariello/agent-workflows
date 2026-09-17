@@ -50,12 +50,8 @@ HOSTS = ("oc_runipd", "agy_runipd")
 # wrapper, while `build_verifier_prompt` and `_compute_scope_reconciliation` remain forks).
 # ---------------------------------------------------------------------------------------------
 STILL_DOUBLE_DEFINED = (
-    "_compute_scope_reconciliation",
     "_record_checkpoint_stop",
     "_record_forced_stop",
-    "build_prompt",
-    "build_verifier_prompt",
-    "driver_actor",
     "driver_finalize",
     "evaluate_clean_base_for_launch",
     "reconcile_disposition",
@@ -66,8 +62,20 @@ STILL_DOUBLE_DEFINED = (
 # The sanctioned form (maintainer's 2026-09-03 `818uru` OQ-02 ruling): `runner_shared` owns the
 # real function, each host keeps a one-line wrapper at the original name and signature. These
 # are NOT duplication and must not be counted as such.
+#: RECLASSIFIED 2026-09-17 by sibling `tx6q0h`, which gave the two runners ONE `HostLabels`
+#: descriptor and lifted the eight host-label symbols into `runner_shared`. Each name moved here
+#: from STILL_DOUBLE_DEFINED because it is now the SANCTIONED WRAPPER FORM (the maintainer's
+#: 2026-09-03 `818uru` OQ-02 ruling): `runner_shared` owns the real function and each host keeps a
+#: one-line wrapper at the original name and signature, binding its own labels. Verified at
+#: integration by the assertions in this file, which report the delegation themselves. Counting
+#: them as forks would OVERSTATE the remaining work, which is exactly what this table exists to
+#: prevent.
 THIN_WRAPPERS_OVER_RUNNER_SHARED = (
+    "_compute_scope_reconciliation",
     "build_lane_outcome",
+    "build_prompt",
+    "build_verifier_prompt",
+    "driver_actor",
     "driver_begin",
     "git_head",
     "git_status",
@@ -387,16 +395,29 @@ class TheClosureCountsAreRecorded(unittest.TestCase):
     grows: the point is to catch a STRUCTURAL change, not to fail on every unrelated edit.
     """
 
-    def test_the_double_defined_census_is_eleven(self):
+    def test_the_double_defined_census_is_seven(self):
+        """RE-MEASURED 2026-09-17: 7 forks, down from the 11 this plan measured at authoring.
+
+        The reduction is FOUR names that sibling `tx6q0h` converted from forks into the sanctioned
+        wrapper form when it lifted the eight host-label symbols behind one `HostLabels` descriptor:
+        `_compute_scope_reconciliation`, `build_prompt`, `build_verifier_prompt` and `driver_actor`.
+        Each now has ONE definition in `runner_shared` reached through a one-line per-host wrapper, so
+        each moved to THIN_WRAPPERS_OVER_RUNNER_SHARED (11, up from 7).
+
+        RE-MEASURED RATHER THAN EDITED, per this test's own former instruction: the numbers below are
+        the lengths of the two tables above, and each name's reclassification was proven individually
+        by `test_each_still_double_defined_symbol_is_a_real_fork_not_a_thin_wrapper`, which reports the
+        delegation itself. The count is stated here so a SILENT drift stays visible as a red test.
+        """
         self.assertEqual(
             len(STILL_DOUBLE_DEFINED),
-            11,
+            7,
             "the measured count of genuine forks changed; re-run the E-01 closure scan and "
             "update the analysis, do not merely edit this number",
         )
 
-    def test_the_wrapper_census_is_seven(self):
-        self.assertEqual(len(THIN_WRAPPERS_OVER_RUNNER_SHARED), 7)
+    def test_the_wrapper_census_is_eleven(self):
+        self.assertEqual(len(THIN_WRAPPERS_OVER_RUNNER_SHARED), 11)
 
     def test_execute_item_is_still_the_largest_symbol_in_either_runner(self):
         """Plan F-1. If this ever stops being true, the plan's premise has changed materially."""

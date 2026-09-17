@@ -100,9 +100,11 @@ EXPECTED_CLOSURE = {
     "initialize_run": "still-defined-twice",
     "install_stop_triggers": "still-defined-twice",
     "locked_run": "still-defined-twice",
-    "render_continuation_hint": "still-defined-twice",
+    # RECLASSIFIED 2026-09-17 by sibling `tx6q0h`: lifted behind the `HostLabels` descriptor, so
+    # each host now keeps a one-line wrapper over the single `runner_shared` definition.
+    "render_continuation_hint": "shared-host-wrapper",
     "run_queue": "still-defined-twice",
-    "write_report": "still-defined-twice",
+    "write_report": "shared-host-wrapper",  # same reclassification as above (`tx6q0h`)
     # class 5: oc-only, no agy counterpart (3)
     "ProfileClauseError": "oc-only",
     "extract_profile_clause": "oc-only",
@@ -113,9 +115,12 @@ EXPECTED_CLOSURE = {
 #: failure says WHICH WAY the cost moved, not merely that something changed.
 EXPECTED_CLASS_COUNTS = {
     "shared-same-object": 9,
-    "shared-host-wrapper": 2,
+    # RE-MEASURED 2026-09-17: 4, up from 2. `render_continuation_hint` and `write_report` moved from
+    # `still-defined-twice` when sibling `tx6q0h` lifted them behind the `HostLabels` descriptor; the
+    # fork count falls by the same two, so the histogram still partitions the same population.
+    "shared-host-wrapper": 4,
     "one-object-agy-imports-oc": 5,
-    "still-defined-twice": 8,
+    "still-defined-twice": 6,
     "oc-only": 3,
 }
 
@@ -305,13 +310,18 @@ class TheClosureClassification(unittest.TestCase):
     def test_the_still_double_defined_count_is_stated_not_implied(self):
         """The number that decides the split's injection cost, asserted on its own.
 
-        Eight, down from the nine plan `3dki3o` measured, because `EmptyStatusSelection` moved to
-        `runner_shared`. A DROP here is progress and should be recorded with the sibling that caused
-        it; a RISE means something was re-forked.
+        SIX, down from the nine plan `3dki3o` measured. A DROP here is progress and is recorded with
+        the sibling that caused it; a RISE means something was re-forked.
+
+          * 9 -> 8: `EmptyStatusSelection` moved to `runner_shared` (sibling `i3d6ml`).
+          * 8 -> 6: `render_continuation_hint` and `write_report` became one-line per-host wrappers
+            over single `runner_shared` definitions when sibling `tx6q0h` lifted the eight host-label
+            symbols behind its `HostLabels` descriptor (integrated 2026-09-17). They are now classed
+            `shared-host-wrapper`, so the histogram above partitions the same population.
         """
         measured = measured_closure()
         twice = sorted(n for n, c in measured.items() if c == "still-defined-twice")
-        self.assertEqual(len(twice), 8, twice)
+        self.assertEqual(len(twice), 6, twice)
         self.assertNotIn(
             "EmptyStatusSelection",
             twice,

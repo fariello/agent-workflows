@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: 8 symbols are duplicated across both runners and their difference is DOMINATED by a host-identifying string (`aw oc run` vs `aw agy run`, a report title, an argv token). They must not be left forked, because the shared logic around each string keeps drifting independently. CORRECTED AT REVIEW 2026-09-16: the word "ONLY" was false for 3 of the 8, and the plan's F-1 asserted it of all 8. Measured with docstrings stripped, 5 of 8 differ ONLY by a host token in executable code; `driver_actor` differs by a real CAPABILITY (oc emits variant+profile, agy emits neither and has no profile machinery at all), `write_report` by three things beyond the title, and `build_prompt`'s emitted PROMPT TEXT differs by 32 lines that carry no host token. See F-7 through F-13.
 - Scope: Design ONE host-descriptor the shared library takes as a parameter, then lift the definitions that are genuinely host-string-only into `runner_shared.py` with the host string supplied by the caller rather than baked in. Logic comes from the `oc_runipd` version per the maintainer's 2026-09-14 ruling; only the string becomes a parameter. THE THREE NON-STRING SYMBOLS NEED A DIFFERENT ACT and are OQ-03, which is `Blocking: yes`: adopting oc's `build_prompt` rewrites the INSTRUCTIONS agy's agent receives, which is a behavior change the parent Set forbids a child to make unilaterally.
-- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_rununify_host_descriptor.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_reporting_contract.py, tests/test_lane_prompt_purity.py, tests/test_run_viewer.py
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_rununify_host_descriptor.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_reporting_contract.py, tests/test_lane_prompt_purity.py, tests/test_run_viewer.py, tests/test_shared_checkout_contract.py, tests/test_lane_retention.py, tests/test_defect_report.py
 - Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
@@ -65,41 +65,122 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the descriptor
 
-EXECUTOR: DO NOT START. OQ-03 is `Blocking: yes` and the lint gate refuses this plan at every
-checkpoint until the maintainer answers it. E-05 names the three symbols whose disposition that answer
-decides.
+OQ-03 IS RESOLVED (maintainer, 2026-09-16) AND THIS PLAN WAS EXECUTED 2026-09-17. The stop notice
+below is SUPERSEDED and is kept only so the sequence is legible: the question it guarded was answered
+directly by the maintainer's Set-wide directive, which selected Option 4 (adopt oc's prompt text for
+BOTH hosts and fix the verifier `Never push` omission in the same act) and refused the deferral.
 
-- [ ] E-01 Define ONE host descriptor in `runner_shared.py` carrying every host-varying string the LIFTED symbols need, measured from their actual diffs rather than guessed: the command prefix (`aw oc run` / `aw agy run`), the argv tokens `_detect_driver_command` matches (`oc`/`opencode` versus `agy`/`antigravity`, with agy additionally accepting `runagy`), the session-continuity and prompt/report titles (`OpenCode` / `Antigravity`), the report's verification column header (`Verify` / `Verification`), and the SHELL TOOL NAME the verifier prompt names (F-9: agy's prompt says `run_command`, which is an agy tool mapped at `agy_runipd.py:503` and does not exist on oc). Do NOT invent fields no symbol reads; every field must be justified by a named call site. Do NOT add a variant/profile field: that is F-7's capability difference, not a string.
+READ THIS BEFORE READING THE E-ITEMS. The maintainer's answer REDIRECTED two of them, and the
+redirection is recorded rather than silently absorbed (decisions `05-tx6q0h-D1`, `D2`, `D6`):
+
+- E-05 as authored ordered `driver_actor` and `build_prompt` EXCLUDED. That instruction was written by
+  the 2026-09-16 review round while OQ-03 was still open; OQ-03's resolution supersedes it and says so
+  ("THE REVIEWER'S ANALYSIS BELOW IS PRESERVED; only its recommendation is superseded"). BOTH were
+  lifted. All EIGHT symbols are now single-definition.
+- E-05's surviving deliverable is the ONE exclusion that OQ-01 independently resolved against
+  adopting: agy does NOT gain the `- Launch:` report line.
+
+SUPERSEDED NOTICE (2026-09-15 authoring): "EXECUTOR: DO NOT START. OQ-03 is `Blocking: yes` and the
+lint gate refuses this plan at every checkpoint until the maintainer answers it. E-05 names the three
+symbols whose disposition that answer decides."
+
+- [x] E-01 Define ONE host descriptor in `runner_shared.py` carrying every host-varying string the LIFTED symbols need, measured from their actual diffs rather than guessed: the command prefix (`aw oc run` / `aw agy run`), the argv tokens `_detect_driver_command` matches (`oc`/`opencode` versus `agy`/`antigravity`, with agy additionally accepting `runagy`), the session-continuity and prompt/report titles (`OpenCode` / `Antigravity`), the report's verification column header (`Verify` / `Verification`), and the SHELL TOOL NAME the verifier prompt names (F-9: agy's prompt says `run_command`, which is an agy tool mapped at `agy_runipd.py:503` and does not exist on oc). Do NOT invent fields no symbol reads; every field must be justified by a named call site. Do NOT add a variant/profile field: that is F-7's capability difference, not a string.
   - Depends on: none
   - Expected outcome: one descriptor type with two instances (one per host), every field traceable to a symbol and line that consumes it, no unused field, and the F-9 tool-name field present with its call site cited.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: PERFORMED 2026-09-17. `runner_shared.HostLabels` is a `NamedTuple` with EIGHT
+    fields and two module-level instances, `OC_HOST_LABELS` and `AGY_HOST_LABELS`. Each field's
+    docstring names the symbol that consumes it (see V-01 for the pasted definition). ONE FIELD WAS
+    ADDED BEYOND THE PLAN'S LIST, and it replaced a worse first attempt: I initially derived the
+    review command from `command` with `.replace(' run', ' review')`, which is precisely the implicit
+    coupling a descriptor exists to remove (it breaks silently the day a host spells its command
+    differently), so `review_command` is now an explicit field. The F-9 shell-tool field IS present
+    (`shell_tool`, `run_command` on agy citing `agy_runipd.py:503`, `None` on oc). NO variant/profile
+    STRING field was added, per F-7. One CAPABILITY flag exists, `emits_launch_identity`, which is the
+    minimum needed to keep the `- Launch:` line off a profileless host per OQ-01; it is a boolean
+    switch, not a host string, and it is named as such in the descriptor's docstring.
 
-- [ ] E-02 Lift the FIVE genuinely host-string-only symbols through the descriptor: `_compute_scope_reconciliation`, `_detect_driver_command`, `render_continuation_hint`, `build_verifier_prompt` and `enforce_requested_action`. Take the oc logic; only the string becomes a parameter. Three byte-identical constants must move with them because their bodies close over names `runner_shared` lacks: `SUCCESS_STATES` (`render_continuation_hint`), `ACTION_CHOICES` and `ACTION_IMPLEMENTED` (`enforce_requested_action`); all three are identical in both hosts, so this is a relocation and not a reconciliation. `_detect_driver_command` needs a token LIST per host, not a single token, or agy loses its `runagy` spelling (F-3). `_compute_scope_reconciliation`'s strings land in a plan's PERMANENT finalize record, so an empty host name here corrupts history (F-4).
+- [x] E-02 Lift the FIVE genuinely host-string-only symbols through the descriptor: `_compute_scope_reconciliation`, `_detect_driver_command`, `render_continuation_hint`, `build_verifier_prompt` and `enforce_requested_action`. Take the oc logic; only the string becomes a parameter. Three byte-identical constants must move with them because their bodies close over names `runner_shared` lacks: `SUCCESS_STATES` (`render_continuation_hint`), `ACTION_CHOICES` and `ACTION_IMPLEMENTED` (`enforce_requested_action`); all three are identical in both hosts, so this is a relocation and not a reconciliation. `_detect_driver_command` needs a token LIST per host, not a single token, or agy loses its `runagy` spelling (F-3). `_compute_scope_reconciliation`'s strings land in a plan's PERMANENT finalize record, so an empty host name here corrupts history (F-4).
   - Depends on: E-01
   - Expected outcome: five single definitions; three constants relocated; agy still resolves `runagy`; a finalize record still names the host that actually ran.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: PERFORMED 2026-09-17. All five lifted; each host keeps a one-line wrapper at the
+    ORIGINAL name and signature, so NO call site in either runner was rewritten (13 `write_report`
+    sites, 8 `_detect_driver_command` sites, 6 `render_continuation_hint` sites and 2 each for the
+    rest are untouched). The three constants were relocated and are now ONE object each, re-exported
+    by both runners. F-3 is preserved and EXERCISED rather than asserted (all four agy spellings
+    resolve, see V-02). F-4's strings were verified through the REAL function with `finalize_precheck`
+    stubbed, not by re-formatting the template in a test. The lifted bodies are oc's, verified
+    behaviorally: every probed input on BOTH hosts returns byte-identically to HEAD (V-02).
 
-- [ ] E-03 REPAIR the two STALE DOCSTRING CLAIMS before or as you lift, because lifting them copies a falsehood into the shared module where it becomes the single source of truth. (a) agy's `enforce_requested_action` says `--full-auto` "DEFAULTS TO TRUE on this host"; it does NOT, and has not since the 2026-09-04 maintainer ruling recorded at `agy_runipd.py:5358`. MEASURED at review: `build_parser().parse_args(['start','x']).full_auto` is `False` on BOTH hosts. (b) agy's version says the derived action comes from `determine_action`; both hosts' `initialize_run` actually call `action_for`, and BOTH functions already live in `runner_shared` as DIFFERENT functions (`action_for` wraps `determine_action` and adds orchestrator dispatch), so F-5's premise that these are two names for one job is wrong. The shared docstring must cite `action_for` and must not claim a default it does not have.
+- [x] E-03 REPAIR the two STALE DOCSTRING CLAIMS before or as you lift, because lifting them copies a falsehood into the shared module where it becomes the single source of truth. (a) agy's `enforce_requested_action` says `--full-auto` "DEFAULTS TO TRUE on this host"; it does NOT, and has not since the 2026-09-04 maintainer ruling recorded at `agy_runipd.py:5358`. MEASURED at review: `build_parser().parse_args(['start','x']).full_auto` is `False` on BOTH hosts. (b) agy's version says the derived action comes from `determine_action`; both hosts' `initialize_run` actually call `action_for`, and BOTH functions already live in `runner_shared` as DIFFERENT functions (`action_for` wraps `determine_action` and adds orchestrator dispatch), so F-5's premise that these are two names for one job is wrong. The shared docstring must cite `action_for` and must not claim a default it does not have.
   - Depends on: none
   - Expected outcome: the shared docstring states the ACTUAL `--full-auto` default (False, both hosts) and cites `action_for`; the measurement that establishes each is pasted rather than asserted.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: PERFORMED 2026-09-17. Both false claims were dropped rather than carried into the
+    shared module, and the shared docstring now states the measured truth plus WHY the note exists
+    (so a later reader does not re-introduce either claim). Measured, not read: `--full-auto` is
+    `False` on BOTH hosts, and `action_for`/`determine_action` are two DIFFERENT shared functions that
+    both hosts reach. Both measurements are asserted as tests in the new suite
+    (`test_full_auto_really_does_default_to_False_on_both_hosts`,
+    `test_action_for_and_determine_action_are_DIFFERENT_shared_functions`), so the docstring cannot
+    drift back into falsehood silently.
 
-- [ ] E-04 Lift `write_report` and DISCLOSE what it actually changes, which is more than the plan originally claimed. Adopting oc's version does four things to agy's report: it renames the header, renames the `Verification` column to `Verify`, REMOVES the backticks agy wraps the verify cell in, and changes agy's empty-verify placeholder from `N/A` to an empty cell. THE BACKTICK REMOVAL IS A BUG FIX, not cosmetics (F-12): `run_viewer.py:1008` reads that column WITHOUT stripping backticks and `run_viewer.py:1370` compares it to the bare string `verified`, so agy's `` `verified` `` never matches and every agy run renders the wrong verification badge today. Do NOT also adopt the `- Launch:` line: see E-05.
+- [x] E-04 Lift `write_report` and DISCLOSE what it actually changes, which is more than the plan originally claimed. Adopting oc's version does four things to agy's report: it renames the header, renames the `Verification` column to `Verify`, REMOVES the backticks agy wraps the verify cell in, and changes agy's empty-verify placeholder from `N/A` to an empty cell. THE BACKTICK REMOVAL IS A BUG FIX, not cosmetics (F-12): `run_viewer.py:1008` reads that column WITHOUT stripping backticks and `run_viewer.py:1370` compares it to the bare string `verified`, so agy's `` `verified` `` never matches and every agy run renders the wrong verification badge today. Do NOT also adopt the `- Launch:` line: see E-05.
   - Depends on: E-01
   - Expected outcome: one definition; the backtick removal recorded as REPAIRING the `run_viewer` badge for agy, with the before/after parse shown; the `N/A`-to-empty change stated.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: PERFORMED 2026-09-17, and the change to agy's report is FIVE things, not the four
+    the plan lists. Four as described: the header keeps each host's own title (through
+    `labels.report_title`), the column becomes `Verify`, the verify cell is no longer BACKTICKED, and
+    the empty placeholder is an empty cell rather than `N/A`. THE FIFTH, which the plan did not
+    predict and which I disclose rather than let land silently: agy's verifier prompt example command
+    changed from `pytest <file> -v` to `python3 -m pytest <file> -v`, because adopting oc's text
+    brings oc's spelling. That is a harmless improvement here (this repo's own contract says to run
+    the suite as `python3 -m pytest`) but it is an observable change to what an agent is told.
+    F-12's repair is proven END TO END in V-04: agy's row now parses to bare `verified`, so
+    `run_viewer.py:1370`'s equality test passes and the `[verified]` badge renders for the first time.
+    The `- Launch:` line was NOT added to agy.
 
-- [ ] E-05 DO NOT LIFT `driver_actor` OR `build_prompt`, and do not give agy the `- Launch:` line. Record why, as a deliverable rather than a silent skip. `driver_actor`: oc's body reads `options.variant` and `options.launch_profile`, populated by a profile subsystem that does not exist on agy (`runner_profiles`, `resolve_launch_profile`, `launch_profile` all grep to ZERO in `agy_runipd.py`), so lifting it hands agy permanently-dead branches; this is the host-CAPABILITY case child 04 was never scoped for. `- Launch:` has the same cause: `render_launch_identity` renders `profile=(none recorded)` for any agy state, MEASURED at review, so the "improvement" is a permanently misleading line. `build_prompt`: the two hosts' emitted prompts differ by 34 rendered lines of which 32 carry NO host token, including a preserve-partial-work paragraph and a "Never claim executed" clause present only on oc, so unifying them CHANGES THE INSTRUCTIONS agy's agent receives. That is a behavior change and it is OQ-03's subject.
+- [x] E-05 DO NOT LIFT `driver_actor` OR `build_prompt`, and do not give agy the `- Launch:` line. Record why, as a deliverable rather than a silent skip. `driver_actor`: oc's body reads `options.variant` and `options.launch_profile`, populated by a profile subsystem that does not exist on agy (`runner_profiles`, `resolve_launch_profile`, `launch_profile` all grep to ZERO in `agy_runipd.py`), so lifting it hands agy permanently-dead branches; this is the host-CAPABILITY case child 04 was never scoped for. `- Launch:` has the same cause: `render_launch_identity` renders `profile=(none recorded)` for any agy state, MEASURED at review, so the "improvement" is a permanently misleading line. `build_prompt`: the two hosts' emitted prompts differ by 34 rendered lines of which 32 carry NO host token, including a preserve-partial-work paragraph and a "Never claim executed" clause present only on oc, so unifying them CHANGES THE INSTRUCTIONS agy's agent receives. That is a behavior change and it is OQ-03's subject.
   - Depends on: E-01
   - Expected outcome: an execution-report paragraph naming all three exclusions with the measurement that justifies each, and the explicit statement that lifting them is a capability or behavior change rather than a completion of this plan.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: PERFORMED, BUT REDIRECTED BY OQ-03's RESOLUTION, and this item is where that
+    shows most, so it is stated plainly rather than quietly re-read (decisions `05-tx6q0h-D1`, `D2`).
+    THIS ITEM AS AUTHORED IS SUPERSEDED IN TWO OF ITS THREE PARTS. `build_prompt` WAS LIFTED: OQ-03,
+    answered by the maintainer, selected exactly that and refused the deferral this item encodes.
+    `driver_actor` WAS ALSO LIFTED, and I did not take that on the ruling alone: F-7's factual claim
+    is TRUE (`runner_profiles`/`resolve_launch_profile`/`launch_profile` are 0 occurrences in
+    `agy_runipd.py`, 29 in `oc_runipd.py`) but its CONSEQUENCE was asserted rather than measured, so I
+    measured it. Across every state shape agy can produce, oc's logic returns byte-identically to
+    agy's own copy modulo the label; the extra branches are UNREACHED, not misbehaving. The exact
+    boundary is recorded: on a state agy cannot produce (one carrying `variant` or `launch_profile`)
+    the two WOULD differ, which is why the shared docstring says so.
+  - Execution note (surviving deliverable): the ONE exclusion that stands is the `- Launch:` line,
+    excluded on OQ-01's independent grounds: `render_launch_identity({'options': {}})` renders
+    `model=(host default); profile=(none recorded)`, so on a profileless host the line would be
+    permanently misleading rather than additive. That exclusion is enforced by two tests, and the
+    measurement behind it is itself a test rather than a remembered fact.
 
 ### Task group 2: proof
 
-- [ ] E-06 Add `tests/test_rununify_host_descriptor.py`: each LIFTED symbol resolves to the SAME OBJECT from both hosts; each host's descriptor produces its OWN strings (so the parameterization is real and not a hardcoded default); an AST scan proves neither runner still defines any lifted symbol; a NEGATIVE case proves a missing descriptor field fails loudly rather than emitting an empty host name into a permanent record; and the INVERSE assertions that `driver_actor` and `build_prompt` are STILL defined per host, so a later agent cannot "finish the job" by lifting a capability difference. Drive it from a named table, not from the literal 8.
+- [x] E-06 Add `tests/test_rununify_host_descriptor.py`: each LIFTED symbol resolves to the SAME OBJECT from both hosts; each host's descriptor produces its OWN strings (so the parameterization is real and not a hardcoded default); an AST scan proves neither runner still defines any lifted symbol; a NEGATIVE case proves a missing descriptor field fails loudly rather than emitting an empty host name into a permanent record; and the INVERSE assertions that `driver_actor` and `build_prompt` are STILL defined per host, so a later agent cannot "finish the job" by lifting a capability difference. Drive it from a named table, not from the literal 8.
   - Depends on: E-02, E-03, E-04, E-05
   - Expected outcome: a suite that fails if a lifted symbol is re-forked, if a host's strings collapse to one host's, if a descriptor field goes silently empty, OR if an excluded symbol is lifted.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: PERFORMED 2026-09-17. `tests/test_rununify_host_descriptor.py`, 33 tests, driven
+    from a named `LIFTED` table. Covers: shared-object identity and `__module__` for all eight; an AST
+    scan proving NEITHER runner retains a real body (each is a single delegating statement); the
+    NEGATIVE case proving a missing field raises `TypeError` and an unknown attribute raises
+    `AttributeError` rather than reading as empty; per-host string distinctness; F-3's `runagy`
+    spelling; F-4's per-host finalize reason through the real function; F-12's badge repair through
+    `run_viewer`'s own parse; F-13's push prohibition on both hosts; and the `- Launch:` exclusion.
+    E-06's REQUESTED "INVERSE ASSERTIONS" WERE DELIBERATELY INVERTED (decision `05-tx6q0h-D3`): they
+    asked that `driver_actor` and `build_prompt` be asserted STILL PER-HOST, which after OQ-03 would
+    assert against the maintainer's ruling and could not pass. The guard's PURPOSE is preserved by
+    pointing it at the boundary that still exists, and the test file's module docstring records the
+    inversion, by which authority, and why, so it reads as a decision rather than an omission.
 
 ## Project conventions discovered (Step 0)
 
@@ -157,6 +238,7 @@ decides.
 | F-11 | BLOCKER | `build_prompt`; rendered-output diff measured at review | **UNIFYING `build_prompt` CHANGES WHAT AGY'S AGENT IS TOLD TO DO, which is a behavior change the parent Set forbids a child to make.** Rendering both hosts' non-isolated prompt from one fixture: 34 lines differ and 32 carry NO host token. The differences are instructions, not labels. Present only on oc: an entire paragraph directing the agent to preserve partial work via "the repository-supported nonterminal checkpoint mechanism or an attributable isolated branch/worktree", the clause "Leave every checkout you did not own safe for subsequent turns", "Never claim executed unless the real terminal state and acceptance criteria support it", and "If no material question arose, say so in the summary". Present only on agy: an explicit `git commit -m msg -- <paths>` spelling. Adopting oc's text is arguably an improvement, but it is a DELIBERATE change to agent instructions and belongs to a decision, not to a string-parameterization child. |
 | F-12 | HIGH | `run_viewer.py:1008`, `:1370`; agy's backticked verify cell | **AGY's BACKTICKED VERIFY CELL IS A LIVE DEFECT AND ADOPTING oc's FORM REPAIRS IT.** `run_viewer` parses the report table and strips backticks for id6, setid, action and session, but NOT for the verification column (`cols[5].strip()` at `:1008`); `:1370` then tests `verification_status == "verified"`. MEASURED at review: agy's row parses to `` '`verified`' ``, which never equals `verified`, so no agy run has ever rendered the `[verified]` badge. This is the plan's most valuable user-visible outcome and it is currently filed as an undisclosed side effect of a header rename. |
 | F-13 | HIGH | `agy_runipd.py` `build_verifier_prompt` vs `oc_runipd.py` | **AGY's VERIFIER PROMPT OMITS "Never push" ENTIRELY.** Counted at review: the string appears once in oc's verifier prompt and ZERO times in agy's, in the in-scope-fixes clause that otherwise matches. Both hosts' EXECUTION prompts carry a push prohibition, so this is a gap in the verifier path only: agy's verifier is told to fix defects and commit, with no instruction not to push. Adopting oc's text closes it, which makes the `build_verifier_prompt` lift a SAFETY improvement worth stating rather than a title swap. |
+| F-17 | MEDIUM | `- Scope-Paths:`; found AT EXECUTION 2026-09-17 | **F-14 WAS RIGHT AND STILL INCOMPLETE: THREE MORE TEST FILES WERE IN RANGE.** F-14 fenced the five files reachable from the RE-SCOPED plan that EXCLUDED `build_prompt`. Once OQ-03's resolution restored `build_prompt` to scope, three further source-reading guards came into range and failed, each asserting that prompt/report prose lives in a RUNNER file: `tests/test_shared_checkout_contract.py` (the Concurrent Work block), `tests/test_lane_retention.py` (R5.6a's preserved-lane disclosure), and `tests/test_defect_report.py` (the one-schema rule, plus a stored per-host prompt LENGTH). All three were RE-BASED onto `runner_shared` with the property preserved, and one baseline was re-measured; none was weakened. Added to `Scope-Paths` at execution and recorded as decision `05-tx6q0h-D5`. THE GENERAL LESSON for later children: a plan whose scope is re-opened by an OQ answer must have its test fence RE-DERIVED, because the fence was computed against the narrower scope. |
 | F-14 | MEDIUM | `- Scope-Paths:` as authored | **THE FENCE OMITS EVERY EXISTING TEST FILE THE CHANGE MUST EDIT.** Measured: `build_prompt` is referenced by 8 test files, `driver_actor`/`enforce_requested_action`/`_compute_scope_reconciliation` by `tests/test_oc_runipd.py` and `tests/test_agy_runipd_cli.py`, `build_verifier_prompt` by `tests/test_reporting_contract.py`, and F-12's repair changes what `tests/test_run_viewer.py` fixtures parse. The five that the re-scoped plan can actually touch are now fenced. |
 | F-15 | LOW | Required tests item 4 | **A NAMED SUITE DOES NOT TEST WHAT THE PLAN THINKS.** `tests/test_run_summary_table.py` exercises `render_run_summary_table`, which is already shared and is not any of these 8; it does not read `write_report`'s output. Keeping it in the list is harmless but it is not evidence for this change. `tests/test_reporting_contract.py` IS relevant and its `DRIVERS` loop (`:500`) asserts both hosts' prompts carry the reporting contract and required JSON keys, so it is the real guard here. |
 | F-16 | LOW | Required tests item 5 | **THE SUITE BASELINE IS UNSTATED AND ONE FAILURE IS PRE-EXISTING.** Measured at review, bare `python3 -m pytest`: `1 failed, 7308 passed, 3 skipped, 2 xfailed`. The failure is `tests/test_runner_backlog_close.py::ShutdownReportOnInterrupt::test_sigint_produces_the_report_and_exits_130`, a 30s subprocess timeout under parallel load that passes in isolation (`7 passed in 1.13s`). "No new failure against the baseline at execution time" is right in spirit but leaves the executor to rediscover this; it is now named. |
@@ -346,35 +428,314 @@ symbols registers a flag.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the descriptor definition pasted, with each field annotated by the symbol and LINE that consumes it; a statement that no field is unconsumed; and explicit confirmation that the F-9 shell-tool-name field is present (with `agy_runipd.py:503`'s mapping cited) and that NO variant/profile field was added.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      $ python3 -c "from agent_workflows import runner_shared as R; print(R.OC_HOST_LABELS); print(R.AGY_HOST_LABELS)"
+      HostLabels(command='aw oc run', review_command='aw oc review', argv_tokens=('oc', 'opencode'),
+                 argv_subcommands=('run', 'runipd'), product='OpenCode',
+                 report_title='# Execution Report:', shell_tool=None, emits_launch_identity=True)
+      HostLabels(command='aw agy run', review_command='aw agy review', argv_tokens=('agy', 'antigravity'),
+                 argv_subcommands=('run', 'runipd', 'runagy'), product='Antigravity',
+                 report_title='# Antigravity IPD Driver Execution Report:', shell_tool='run_command',
+                 emits_launch_identity=False)
 
-- [ ] V-02 validates E-02
+      EVERY FIELD AND ITS NAMED CONSUMER (each is written as a `#:` comment on the field itself in
+      `agent_workflows/runner_shared.py`, so the justification cannot drift from the definition):
+        command             -> `_compute_scope_reconciliation` (finalize reason/ack), `_detect_driver_command`
+                               (fallback return), `driver_actor` (actor prefix)
+        review_command      -> `enforce_requested_action`, both refusal messages (spec 25kzda 2.6)
+        argv_tokens         -> `_detect_driver_command`
+        argv_subcommands    -> `_detect_driver_command` (F-3: carries agy's `runagy`)
+        product             -> `render_continuation_hint`, `build_prompt`, `build_verifier_prompt`
+        report_title        -> `write_report`
+        shell_tool          -> `build_verifier_prompt` (F-9; `run_command` mapped at `agy_runipd.py:503`)
+        emits_launch_identity -> `write_report` (OQ-01's `- Launch:` exclusion)
+
+      NO FIELD IS UNCONSUMED: verified by the tests that exercise each consumer per host, and by
+      `test_every_field_is_non_empty_on_both_hosts`.
+
+      F-9's TOOL-NAME FIELD IS PRESENT, with its call site cited in the field comment:
+      $ python3 -c "... build_verifier_prompt for each host ..."
+      OpenCode    test tool clause: - Run the required tests and validation commands for this IPD (e.g. ...
+      Antigravity test tool clause: - Run the required tests and validation commands for this IPD using `run_command` (e.g. ...
+
+      NO VARIANT/PROFILE *STRING* FIELD WAS ADDED, per F-7. Asserted by
+      `test_no_variant_or_profile_field_was_added`, which fails if any field name contains "variant"
+      or "profile". DISCLOSED DEVIATION: one BOOLEAN capability field, `emits_launch_identity`,
+      exists because OQ-01 requires the `- Launch:` line to stay off a profileless host; it carries no
+      host string and is documented as a capability switch.
+
+      ONE FIELD BEYOND THE PLAN'S LIST, and why it is an improvement rather than scope creep:
+      `review_command`. My first attempt derived it as `labels.command.replace(' run', ' review')`,
+      which is the implicit coupling this descriptor exists to remove and would break silently if a
+      host's command were spelled differently. Made explicit instead.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted `oc_runipd.X is agy_runipd.X` -> `True` and `X.__module__` -> `agent_workflows.runner_shared` for all five lifted symbols. PLUS the three per-symbol proofs the findings make load-bearing: agy still resolves `runagy` (F-3, exercised not asserted); a finalize auto-reconciliation reason naming the correct host for EACH host (F-4); and a parenthesized actor still refused where `enforce_requested_action`'s neighbours touch actor output. PLUS confirmation that `SUCCESS_STATES`, `ACTION_CHOICES` and `ACTION_IMPLEMENTED` are now single definitions.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      $ python3 -c "identity + module of every lifted symbol"
+      compute_scope_reconciliation     __module__=agent_workflows.runner_shared
+      detect_driver_command            __module__=agent_workflows.runner_shared
+      render_continuation_hint         __module__=agent_workflows.runner_shared
+      build_verifier_prompt            __module__=agent_workflows.runner_shared
+      enforce_requested_action         __module__=agent_workflows.runner_shared
+      write_report                     __module__=agent_workflows.runner_shared
+      driver_actor                     __module__=agent_workflows.runner_shared
+      build_prompt                     __module__=agent_workflows.runner_shared
 
-- [ ] V-03 validates E-03
+      NOTE ON THE `oc_runipd.X is agy_runipd.X` FORM the item asks for: that identity does NOT hold
+      here and MUST NOT, because each host keeps a one-line WRAPPER binding its own labels. That is
+      the shape the maintainer's `818uru` OQ-02 ruling installed and the Set orchestrator restates
+      ("`runner_shared` owns the real function taking each outside dependency as an explicit
+      PARAMETER, and each runner keeps a ONE-LINE wrapper at the ORIGINAL name and ORIGINAL
+      signature"). The property that actually proves de-duplication is that no runner holds a real
+      BODY, asserted by AST:
+      $ python3 -m pytest tests/test_rununify_host_descriptor.py -o addopts="" -k "REAL_BODY or EXACTLY_ONCE"
+      2 passed
+      Each of the 16 (8 symbols x 2 hosts) definitions is a single delegating statement naming
+      `runner_shared`.
+
+      THE THREE CONSTANTS ARE NOW SINGLE DEFINITIONS (identity, not equality):
+      SUCCESS_STATES    : oc is agy is shared -> True
+      ACTION_CHOICES    : oc is agy is shared -> True
+      ACTION_IMPLEMENTED: oc is agy is shared -> True
+
+      F-3, EXERCISED rather than asserted (all agy spellings still resolve):
+      ['aw', 'agy', 'runagy']         -> 'aw agy runagy'
+      ['aw', 'antigravity', 'runagy'] -> 'aw antigravity runagy'
+      ['aw', 'agy', 'run']            -> 'aw agy run'
+      ['aw', 'agy', 'runipd']         -> 'aw agy runipd'
+
+      F-4, through the REAL function with `ipd_lifecycle.finalize_precheck` stubbed (NOT by
+      re-formatting the template in the test, which would pass even if both hosts collapsed):
+      oc : "changed by the plan's approved execution (auto-reconciled by aw oc run)"
+      oc : 'declared-but-unmodified (auto-acknowledged by aw oc run)'
+      agy: "changed by the plan's approved execution (auto-reconciled by aw agy run)"
+      agy: 'declared-but-unmodified (auto-acknowledged by aw agy run)'
+
+      ACTOR SHAPE still satisfies the live `attention_contract.actor_refusal` gate (no parenthesis,
+      non-empty):
+      oc : 'aw oc run model=opus'
+      agy: 'aw agy run model=opus'
+
+      THE STRONGEST EVIDENCE, and it covers this item and E-05 together: I captured every output of
+      all 8 symbols on BOTH hosts, from an isolated `git archive HEAD` tree and from the working tree,
+      over 3 run states, 7 argv spellings, 6 actor states, 5 `--action` cases, and normal + recovery
+      prompts. Result: oc is BYTE-IDENTICAL to HEAD in all 8 categories, and agy is byte-identical in
+      5 of 8, changing ONLY in `prompt`, `report` and `verifier` (the three OQ-03/E-04 changes). The
+      per-category table is pasted in V-04 and V-05.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: BOTH corrections proven by measurement, not by reading. (a) Pasted output of `build_parser().parse_args(['start','x']).full_auto` for BOTH hosts showing `False`, and the shared docstring quoted to show it no longer claims otherwise. (b) Pasted evidence that both hosts' `initialize_run` call `action_for` (an AST or grep result), and the shared docstring quoted citing `action_for` rather than `determine_action`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      (a) `--full-auto` MEASURED on both hosts, not read:
+      $ python3 -c "for m in (oc,agy): print(m.build_parser().parse_args(['start','x']).full_auto)"
+      oc : False
+      agy: False
+      The shared docstring now says: "`--full-auto` does NOT default to True on either host;
+      measured, `build_parser().parse_args(['start', 'x']).full_auto` is False on BOTH, per the
+      2026-09-04 maintainer ruling." The agy claim "DEFAULTS TO TRUE on this host" is GONE; asserted
+      by `test_the_stale_docstring_claims_were_repaired_not_promoted`
+      (`assertNotIn("DEFAULTS TO TRUE", doc)`).
 
-- [ ] V-04 validates E-04
+      (b) `action_for` vs `determine_action`, measured:
+      $ python3 -c "print(R.action_for is R.determine_action)"
+      False
+      $ python3 -c "print(oc.action_for is R.action_for, agy.action_for is R.action_for)"
+      True True
+      The shared docstring cites `action_for` and explains WHY the note exists: "the derived action
+      comes from `action_for`, NOT from `determine_action`: both already live in this module and are
+      DIFFERENT functions (`action_for` adds orchestrator dispatch and delegates the rest), and both
+      hosts' `initialize_run` call `action_for`."
+      Both facts are pinned as tests, so neither can silently regress:
+      $ python3 -m pytest tests/test_rununify_host_descriptor.py -o addopts="" -k "full_auto or DIFFERENT_shared"
+      2 passed
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: pasted identity result for `write_report`; a BEFORE/AFTER of agy's rendered report row showing ALL FOUR changes (header title, `Verify` column, backticks removed, `N/A` placeholder gone); and F-12's repair proven END TO END by feeding the new row through `run_viewer.load_run_summary` and showing `verification_status == "verified"` where the old backticked row yielded `` '`verified`' ``. Explicit confirmation that the `- Launch:` line was NOT added.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      `write_report.__module__` -> `agent_workflows.runner_shared`; both hosts hold a one-line wrapper.
 
-- [ ] V-05 validates E-05
+      BEFORE/AFTER of agy's rendered row, captured from an isolated `git archive HEAD` tree vs the
+      working tree (same fixture, same code path):
+      HEAD : | 1 | `abc123` | `demo` | `execute` | executed | `verified` | 1 | `ses_1` |
+      now  : | 1 | `abc123` | `demo` | `execute` | executed | verified | 1 | `ses_1` |
+      HEAD : | # | id6 | Set | Action | Status | Verification | Attempts | Last session |
+      now  : | # | id6 | Set | Action | Status | Verify | Attempts | Last session |
+      HEAD : | 1 | `a` | `s` | `execute` | dependency-blocked | `N/A` | 0 | `` |
+      now  : | 1 | `a` | `s` | `execute` | dependency-blocked |  | 0 | `` |
+      Header title UNCHANGED per host (agy still "# Antigravity IPD Driver Execution Report:", oc
+      still "# Execution Report:").
+      ALL FOUR CHANGES PRESENT: header retained per host, `Verify` header, backticks removed, `N/A`
+      gone. A FIFTH, undisclosed by the plan and disclosed here: agy's verifier example command became
+      `python3 -m pytest` (from `pytest`), because adopting oc's text brings oc's spelling.
+
+      F-12 PROVEN END TO END through the real consumer:
+      $ python3 -c "feed each host's row through run_viewer's own parse"
+      HEAD agy col5 -> '`verified`'  == 'verified'? False   <- the [verified] badge NEVER rendered
+      now  agy col5 -> 'verified'    == 'verified'? True    <- badge now renders
+      now  oc  col5 -> 'verified'    == 'verified'? True
+      Independently re-verified rather than trusted: `run_viewer.py:1008` really does take
+      `cols[5].strip()` with no backtick strip (asserted in
+      `test_the_viewer_badge_predicate_now_matches_for_BOTH_hosts_end_to_end`, which fails if that
+      parse moves), while id6/setid/action/session each call `.replace("`", "")`; `:1370` compares to
+      the bare string `verified`.
+
+      THE `- Launch:` LINE WAS NOT ADDED TO AGY:
+      oc report contains  "- Launch:" -> True
+      agy report contains "- Launch:" -> False
+      Enforced by `test_the_Launch_line_appears_ONLY_where_the_host_has_a_profile_subsystem`.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: the exclusion disclosure PLUS proof the exclusions still hold, since this item's deliverable is an absence. Paste: `driver_actor` and `build_prompt` each still defined in BOTH runners and absent from `runner_shared`; the grep showing `runner_profiles`/`resolve_launch_profile`/`launch_profile` at ZERO occurrences in `agy_runipd.py` (the measurement that justifies excluding them); and `render_launch_identity({'options': {}})` rendering `profile=(none recorded)`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      THIS ITEM'S PREMISE CHANGED AND THE EVIDENCE IS REPORTED AGAINST WHAT ACTUALLY HAPPENED, not
+      against the authored text, per decisions `05-tx6q0h-D1`/`D2`/`D6`. The item asks me to prove
+      `driver_actor` and `build_prompt` are STILL FORKED. They are NOT: OQ-03's maintainer resolution
+      directed both to be unified, so proving the opposite would be proving I disobeyed the ruling.
 
-- [ ] V-06 validates E-06
+      WHAT IS TRUE NOW:
+      $ python3 -c "print(R.driver_actor.__module__, R.build_prompt.__module__)"
+      agent_workflows.runner_shared agent_workflows.runner_shared
+      Neither runner retains a real body for either (AST-asserted, `test_NEITHER_RUNNER_...`).
+
+      THE MEASUREMENT THAT JUSTIFIED LIFTING `driver_actor` DESPITE F-7, which asserted a consequence
+      it never measured. oc's logic vs agy's own copy, over every state shape agy can produce (modulo
+      the label the descriptor supplies):
+        {}                                          agy 'aw agy run'                shared 'aw agy run'                same
+        {'options': {}}                             agy 'aw agy run'                shared 'aw agy run'                same
+        {'options': {'model': 'm'}}                 agy 'aw agy run model=m'        shared 'aw agy run model=m'        same
+        {'options': {'model': None}}                agy 'aw agy run'                shared 'aw agy run'                same
+        {'options': {'model': 'm', 'agent': 'y'}}   agy 'aw agy run model=m'        shared 'aw agy run model=m'        same
+      So the extra branches are UNREACHED, not misbehaving: this is a behavior-preserving lift. THE
+      EXACT BOUNDARY, recorded rather than glossed: on a state agy CANNOT produce the two WOULD differ
+      -
+        {'options': {'model': 'm', 'variant': 'v'}}              fork 'aw agy run model=m' vs shared 'aw agy run model=m variant=v'
+        {'options': {'model': 'm', 'launch_profile': {...}}}     fork 'aw agy run model=m' vs shared 'aw agy run model=m profile=p'
+      which is why the shared docstring states the condition explicitly.
+
+      F-7's UNDERLYING FACT INDEPENDENTLY CONFIRMED (the grep the item demands):
+      $ grep -c "runner_profiles\|resolve_launch_profile\|launch_profile" agent_workflows/agy_runipd.py -> 0
+      $ grep -c "runner_profiles\|resolve_launch_profile\|launch_profile" agent_workflows/oc_runipd.py  -> 29
+
+      THE SURVIVING EXCLUSION, and the measurement behind it:
+      $ python3 -c "print(oc_runipd.render_launch_identity({'options': {}}))"
+      model=(host default); profile=(none recorded)
+      So agy does NOT get the `- Launch:` line (V-04), on OQ-01's independent grounds. That
+      measurement is itself a test (`test_the_launch_line_would_be_CONTENTLESS_on_a_profileless_host`)
+      rather than a remembered fact.
+
+      THE INSTRUCTION CHANGE OQ-03 REQUIRES ME TO DISCLOSE, quoted before/after. agy's agent PREVIOUSLY
+      RECEIVED NONE of this and now does (from an isolated HEAD tree vs the working tree, 68 rendered
+      prompt lines differ):
+        + "If the IPD cannot validly finalize, preserve partial work using the repository-supported
+           nonterminal checkpoint mechanism or an attributable isolated branch/worktree. Leave every
+           checkout you did not own safe for subsequent turns. Never claim executed unless the real
+           terminal state and acceptance criteria support it."
+        + "If no material question arose, say so in the summary."
+        + "Use the lifecycle available at this bootstrap stage and path-scoped commits."
+        - "Use path-scoped commits (`git commit -m msg -- <paths>`)."   [agy's shorter form]
+        ~ "All target IPDs are approved." -> "All target IPDs are already human-approved."
+      And F-13's safety gap is CLOSED:
+      HEAD agy verifier "Never push" count -> 0   (while instructing the agent to commit)
+      now  agy verifier "Never push" count -> 1
+      now  oc  verifier "Never push" count -> 1
+      oc's OWN prompts are BYTE-IDENTICAL to HEAD in all 8 probed categories, which is the evidence
+      that the lift adopted oc's text rather than inventing a third variant.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: FOUR parts, all pasted. (a) `python3 -m pytest tests/test_rununify_host_descriptor.py -o addopts=""` green. (b) The NON-VACUITY control in BOTH directions: descriptor forced to oc's strings for both hosts produces a named failure, then restored; AND `driver_actor` lifted into the shared module produces a named failure, then restored. (c) F-13's safety test shown FAILING before the change and passing after, since a test that was always green proves nothing about a gap it claims to close. (d) Bare `python3 -m pytest` at or above 7308 passed with no new failure, judged against F-16's named flake, plus `tests/test_reporting_contract.py` and `tests/test_lane_prompt_purity.py` green by name.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      (a) THE NEW SUITE:
+      $ python3 -m pytest tests/test_rununify_host_descriptor.py -o addopts=""
+      collected 33 items
+      tests/test_rununify_host_descriptor.py .................................  [100%]
+      ============================== 33 passed in 1.15s ==============================
+
+      (b) NON-VACUITY, BOTH DIRECTIONS, each mutation applied then reverted.
+      CONTROL 1, descriptor collapsed (agy's `HostLabels` fields set to oc's values):
+      FAILED ...::ThePromptsTests::test_the_verifier_names_a_shell_tool_THAT_HOST_ACTUALLY_HAS
+      FAILED ...::TheReportShapeTests::test_the_Launch_line_appears_ONLY_where_the_host_has_a_profile_subsystem
+      FAILED ...::EachHostKeepsItsOwnStringsTests::test_the_finalize_record_reason_names_the_HOST_THAT_ACTUALLY_RAN
+      FAILED ...::EachHostKeepsItsOwnStringsTests::test_the_antigravity_host_still_resolves_runagy_specifically
+      FAILED ...::EachHostKeepsItsOwnStringsTests::test_the_continuation_hint_names_each_host_by_its_OWN_product_name
+      FAILED ...::TheDescriptorTests::test_both_hosts_have_a_descriptor_and_they_are_distinct
+      ========================= 6 failed, 27 passed =========================
+      then restored -> 33 passed.
+      THIS CONTROL FOUND A REAL WEAKNESS IN MY OWN TEST, which I fixed rather than accepted: the first
+      version of `test_the_finalize_record_reason...` re-formatted the expected string inside the test,
+      so it passed under a partial collapse. It now drives the REAL `_compute_scope_reconciliation`
+      with `finalize_precheck` stubbed and compares the two hosts' outputs for distinctness.
+      CONTROL 2, a lifted symbol RE-FORKED (agy given a real `build_verifier_prompt` body again,
+      standing in for "a later agent re-forks one"):
+      FAILED ...::ThePromptsTests::test_BOTH_hosts_verifier_prompts_carry_a_push_prohibition
+      FAILED ...::ThePromptsTests::test_the_verifier_names_a_shell_tool_THAT_HOST_ACTUALLY_HAS
+      FAILED ...::TheLiftHeldTests::test_NEITHER_RUNNER_STILL_CARRIES_A_REAL_BODY_for_a_lifted_symbol
+      ========================= 3 failed, 30 passed =========================
+      then restored -> 33 passed.
+      (The plan's requested control was "lift an EXCLUDED symbol"; after OQ-03 nothing but the
+      `- Launch:` line is excluded, and that exclusion IS controlled by CONTROL 1's
+      `test_the_Launch_line_appears_ONLY...` failure. Control 2 exercises the inverse risk that
+      actually remains: a re-fork.)
+
+      (c) F-13's TEST SHOWN FAILING BEFORE THE CHANGE, run against an isolated `git archive HEAD`
+      tree, since a test that was always green proves nothing:
+      AssertionError: 'Never push' not found in '# Independent Rigorous Verification of Executed IPD...'
+        : agent_workflows.agy_runipd verifier lacks a push prohibition
+      AssertionError: '`verified`' != 'verified' : agent_workflows.agy_runipd verify cell is '`verified`'
+      Ran 2 tests ... FAILED (failures=2)
+      Both pass after the change (see (a)).
+
+      (d) THE BARE SUITE:
+      $ python3 -m pytest
+      7448 passed, 3 skipped, 2 xfailed in 91.05s (0:01:31)
+      BASELINE CORRECTED AT EXECUTION HEAD, and the correction is stated rather than assumed
+      (decision `05-tx6q0h-D4`): the plan's bar of "7308 passed with one named flake" is stale. At
+      UNMODIFIED HEAD in this lane the bare suite is `7415 passed, 3 skipped, 2 xfailed`, 0 failed;
+      F-16's named flake did NOT reproduce. So the bar is 7415, and 7448 = 7415 + the 33 new tests,
+      with ZERO failures and no test lost.
+      ONE ENVIRONMENT CAVEAT, reported because it would otherwise look like 17 regressions: run with
+      this lane's `AW_EXECUTION_ROLE=worker` still set, 17 tests fail with
+      `AW-LIFECYCLE-ROLE-001: the runner owns begin/finalize for managed lanes; a worker-role process
+      must not run them`. That is the lifecycle gate CORRECTLY refusing a worker-role process, it
+      reproduces identically at unmodified HEAD, and it is unrelated to this change.
+
+      NAMED SUITES GREEN:
+      $ python3 -m pytest tests/test_rununify_host_descriptor.py tests/test_oc_runipd.py \
+          tests/test_agy_runipd_cli.py tests/test_reporting_contract.py \
+          tests/test_lane_prompt_purity.py tests/test_run_viewer.py tests/test_runner_shared.py \
+          tests/test_runner_refork_guard.py tests/test_run_flag_surface.py -o addopts=""
+      ======================== 653 passed in 82.43s (0:01:22) ========================
+      (`tests/test_run_flag_surface.py` included deliberately: it reads spec `25kzda` 2.1 as a FILE in
+      both directions, and it confirms NO flag surface moved.)
+
+      FOUR SOURCE-READING GUARDS WERE RE-BASED, NOT WEAKENED (decision `05-tx6q0h-D5`), each with the
+      reason in its own docstring: `tests/test_shared_checkout_contract.py`,
+      `tests/test_lane_retention.py` (R5.6a preserved-lane disclosure),
+      `tests/test_reporting_contract.py::ParityTests`, and
+      `tests/test_defect_report.py::SchemaTests`. Each now reads the module that OWNS the code, which
+      is strictly stronger: one host can no longer satisfy a guard while the other silently fails. A
+      FIFTH edit is a re-MEASUREMENT, not a re-base: `PromptSizeBudgetTests.BASELINE` stored per-host
+      prompt LENGTHS, and agy's legitimately grew 6199 -> 6606 by adopting oc's text; the 1500-char
+      CEILING (the actual guarantee) is UNTOUCHED and the measured cost is 1137 on both hosts.
+
+      NO SYMBOL WAS LOST FROM EITHER RUNNER, verified by AST against HEAD after I caught and repaired
+      a real defect of my own (my first pass dropped `oc_runipd.begin_baseline_env`, which
+      `tests/test_begin_dirty_gate_scope.py` caught):
+      $ python3 -c "AST symbol-set diff vs HEAD for both runners"
+      oc_runipd : LOST [] | ADDED []
+      agy_runipd: LOST [] | ADDED []
+
+      $ aw sanitize --agent
+      {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,
+       "verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+  - Result: pass
 
 ## Approval and execution gate
 

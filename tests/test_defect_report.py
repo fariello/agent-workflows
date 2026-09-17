@@ -116,12 +116,18 @@ class SchemaTests(unittest.TestCase):
         self.assertTrue(element["where"].strip())
 
     def test_the_schema_lives_in_ONE_module_referenced_by_both_hosts(self) -> None:
-        """One schema, both hosts: a second copy of a literal is how the two silently disagree."""
+        """One schema, both hosts: a second copy of a literal is how the two silently disagree.
 
+        RE-BASED by rununify Order 04 (`tx6q0h`). Both hosts' `build_prompt` was de-duplicated into
+        `runner_shared`, so the CALL that renders the schema now lives there once instead of twice.
+        The property is unchanged and the anti-inlining assertion below still covers BOTH runners, so
+        neither host may grow its own copy of the literal.
+        """
+        shared_src = Path(str(R.__file__)).read_text(encoding="utf-8")
+        self.assertIn("defect_report_schema_literal()", shared_src)
+        self.assertIn("defect_report_prompt_block()", shared_src)
         for mod in DRIVERS:
             src = Path(str(mod.__file__)).read_text(encoding="utf-8")
-            self.assertIn("runner_shared.defect_report_schema_literal()", src)
-            self.assertIn("runner_shared.defect_report_prompt_block()", src)
             self.assertNotIn(
                 '"defect_report": {',
                 src,
@@ -142,8 +148,22 @@ class SchemaTests(unittest.TestCase):
 class PromptSizeBudgetTests(unittest.TestCase):
     """OQ-02's condition, stated as a NUMBER rather than an adjective."""
 
-    #: The execute prompt's length BEFORE this change, measured at execution HEAD on both hosts.
-    BASELINE = {"agent_workflows.oc_runipd": 5465, "agent_workflows.agy_runipd": 5061}
+    #: The execute prompt's length WITHOUT the defect report, measured on both hosts.
+    #:
+    #: RE-BASED by rununify Order 04 (`tx6q0h`), and the reason matters more than the number. The two
+    #: hosts' `build_prompt` was de-duplicated into `runner_shared` and, by the maintainer's ruling
+    #: recorded in that plan's OQ-03, the OpenCode instruction text was adopted for BOTH hosts. So the
+    #: Antigravity prompt legitimately GREW (measured 6199 -> 6606 characters) because its agent now
+    #: receives instructions it previously lacked, including preserving partial work through a
+    #: nonterminal checkpoint and never claiming executed unless the terminal state supports it. The
+    #: OpenCode figure is UNCHANGED at this HEAD, which is the evidence that the lift took oc's text
+    #: rather than inventing a third variant.
+    #:
+    #: NOT A WEAKENING: the CEILING below is untouched, and the property this class exists to
+    #: enforce (the defect report itself must stay under budget) is now measured against a
+    #: same-HEAD baseline instead of a stale one. Measured cost after the change: 1137 characters on
+    #: BOTH hosts, comfortably under the 1500 ceiling.
+    BASELINE = {"agent_workflows.oc_runipd": 5466, "agent_workflows.agy_runipd": 5469}
 
     #: What the report may cost. The demand plus the schema literal is ~1.2KB; the ceiling leaves
     #: room for a wording fix and no room for a fifth field.
