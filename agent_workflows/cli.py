@@ -3916,6 +3916,34 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs=argparse.REMAINDER,
         help="Optional selector, then any driver flag, forwarded verbatim.",
     )
+    # integpath-04 (`rl67b0`) E-02, OQ-04 option (c): `aw oc integrate <id6>` is a THIN ALIAS of
+    # `aw oc runipd integrate <id6>`. Both spellings exist deliberately. The DRIVER subcommand is the
+    # implementation (and is what the implicit-start shim must register, or a bare `integrate` token
+    # would launch a run); this leaf is what makes the verb DISCOVERABLE to an operator recovering
+    # stranded work, who would otherwise get exit 2 - which is precisely what `aw oc stop` does today,
+    # measured, because `stop` has no leaf.
+    #
+    # THE ALIAS CARRIES NO LOGIC. Like `runipd` and `review` it captures REMAINDER verbatim and declares
+    # none of the driver's flags; the expansion is a pure argv rewrite in `_dispatch`
+    # (`expand_host_integrate_argv`). Two entry points, ONE implementation.
+    p_oc_integrate = oc_sub.add_parser(
+        "integrate",
+        help="Re-integrate an already verified lane with NO agent turn (thin alias of "
+        "'aw oc runipd integrate <id6>').",
+        add_help=False,
+        description=(
+            "Merge a lane that already finished, verified and finalized but failed to integrate. "
+            "Spelled out, this is exactly `aw oc runipd integrate <id6>`, and it adds nothing of its "
+            "own: every flag, refusal, exit code and record is the driver's. It costs NO agent turn, "
+            "and it does re-verify: the attempt runs the repository suite in the primary checkout and "
+            "routes the merge through the same merge-and-revalidate gate an in-run integration uses."
+        ),
+    )
+    p_oc_integrate.add_argument(
+        "integrate_args",
+        nargs=argparse.REMAINDER,
+        help="The id6, then any driver flag, forwarded verbatim.",
+    )
     # ocsync Order 01 (g7hljt): `aw oc update-models` refreshes each OpenAI-compatible provider's
     # models/pricing from the gateway declared in the user's OWN OpenCode config (no hardcoded host).
     # Unlike `runipd` this verb has STRUCTURED flags, so it is declared here and dispatched from the
@@ -4164,6 +4192,28 @@ def _build_parser() -> argparse.ArgumentParser:
         "review_args",
         nargs=argparse.REMAINDER,
         help="Optional selector, then any driver flag, forwarded verbatim.",
+    )
+    # integpath-04 (`rl67b0`) E-02, OQ-04 option (c): `aw agy integrate <id6>`, the same thin alias as
+    # `aw oc integrate` (which carries the full rationale). Declared at the host-subcommand seam, and
+    # expanded by the SAME pure argv rewrite in `_dispatch`, so it declares none of the driver's flags
+    # and neither host's spelling can drift from the other's.
+    p_agy_integrate = agy_sub.add_parser(
+        "integrate",
+        help="Re-integrate an already verified lane with NO agent turn (thin alias of "
+        "'aw agy runipd integrate <id6>').",
+        add_help=False,
+        description=(
+            "Merge a lane that already finished, verified and finalized but failed to integrate. "
+            "Spelled out, this is exactly `aw agy runipd integrate <id6>`, and it adds nothing of its "
+            "own: every flag, refusal, exit code and record is the driver's. It costs NO agent turn, "
+            "and it does re-verify: the attempt runs the repository suite in the primary checkout and "
+            "routes the merge through the same merge-and-revalidate gate an in-run integration uses."
+        ),
+    )
+    p_agy_integrate.add_argument(
+        "integrate_args",
+        nargs=argparse.REMAINDER,
+        help="The id6, then any driver flag, forwarded verbatim.",
     )
     # runnernorm Order 02 (puot79): graduate the remaining Antigravity source-checkout tools
     # under the same packaged-core + host-subcommand pattern. Each captures REMAINDER verbatim and
@@ -11101,6 +11151,28 @@ def expand_host_review_argv(tail: Sequence[str]) -> list[str]:
     return ["reviews", *tokens, "--action", "review"]
 
 
+def expand_host_integrate_argv(tail: Sequence[str]) -> list[str]:
+    """`aw <host> integrate <tail>` -> the driver argv `integrate <tail>`. THE WHOLE alias.
+
+    integpath-04 (`rl67b0`) E-02, OQ-04 option (c). The host-noun leaf exists for DISCOVERABILITY (a
+    driver subcommand has no `cli.py` leaf, so `aw oc integrate` would otherwise exit 2, exactly as
+    `aw oc stop` does today) and it must therefore add NOTHING: it prepends the driver's own subcommand
+    name and passes the operator's tail through VERBATIM, so every flag, refusal, exit code and record
+    is the driver's. One implementation behind two spellings.
+
+    IT PREPENDS THE SUBCOMMAND, WHICH IS THE OPPOSITE OF `expand_host_review_argv`, and the asymmetry
+    is not an inconsistency: `review` expands to a SELECTOR plus a flag and must NOT emit a subcommand,
+    because the driver's implicit-start shim would then see `start` and produce `start start`.
+    `integrate` IS a registered subcommand of that shim, so naming it is what stops the shim rewriting
+    the id6 into `start <id6>` and launching a run.
+
+    `-h`/`--help` in the tail is still prefixed with the subcommand, deliberately: an operator typing
+    `aw oc integrate --help` wants THIS verb's help, not the driver's top-level help, and the driver's
+    own subparser is what renders it.
+    """
+    return ["integrate", *[str(t) for t in tail]]
+
+
 def _dispatch(argv: Optional[Sequence[str]]) -> int:
     parser = _build_parser()
     _maybe_argcomplete(parser)
@@ -11167,6 +11239,25 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         and argv_list[1] == "review"
     ):
         forwarded = expand_host_review_argv(list(argv_list[2:]))
+        if argv_list[0] in ("oc", "opencode"):
+            from agent_workflows import oc_runipd
+
+            return oc_runipd.main(forwarded)
+        from agent_workflows import agy_runipd
+
+        return agy_runipd.main(forwarded)
+    # integpath-04 (`rl67b0`) E-02, OQ-04 option (c): `aw <host> integrate <id6> [<flags>...]` -> the
+    # driver's own `integrate` subcommand. Handled in the SAME pre-`parse_args` block as the forwarding
+    # above and for the same reason: the driver's parser must own every flag and its `--help`, so
+    # re-declaring them here would drift. The rewrite IS the whole implementation
+    # (`expand_host_integrate_argv`); there is no second parser and no alias-only code path, so
+    # `aw oc integrate X` cannot behave differently from `aw oc runipd integrate X`.
+    if (
+        len(argv_list) >= 2
+        and argv_list[0] in ("oc", "opencode", "agy", "antigravity")
+        and argv_list[1] == "integrate"
+    ):
+        forwarded = expand_host_integrate_argv(list(argv_list[2:]))
         if argv_list[0] in ("oc", "opencode"):
             from agent_workflows import oc_runipd
 
@@ -11446,6 +11537,18 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             return oc_runipd.main(
                 expand_host_review_argv(list(getattr(args, "review_args", []) or []))
             )
+        # integpath-04 (`rl67b0`) E-02: the integrate alias's parsed-namespace path, the twin of the
+        # review one above. `_dispatch` intercepts `oc integrate` before `parse_args`, so this is not
+        # the live route today; it exists so the leaf cannot silently fall through to family help if
+        # that interception is ever reordered, and it calls the SAME expansion function.
+        if oc_cmd == "integrate":
+            from agent_workflows import oc_runipd
+
+            return oc_runipd.main(
+                expand_host_integrate_argv(
+                    list(getattr(args, "integrate_args", []) or [])
+                )
+            )
         # ocsync Order 01 (g7hljt): structured verb, so rebuild argv from the parsed namespace.
         if oc_cmd in ("update-models", "sync-models"):
             from agent_workflows import oc_models
@@ -11492,6 +11595,16 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
 
             return agy_runipd.main(
                 expand_host_review_argv(list(getattr(args, "review_args", []) or []))
+            )
+        # integpath-04 (`rl67b0`) E-02: the integrate alias's parsed-namespace path, the twin of the oc
+        # one above and calling the SAME expansion function, so neither host's spelling can drift.
+        if agy_cmd == "integrate":
+            from agent_workflows import agy_runipd
+
+            return agy_runipd.main(
+                expand_host_integrate_argv(
+                    list(getattr(args, "integrate_args", []) or [])
+                )
             )
         # runnernorm Order 02 (puot79): graduated agy sessions/view tools.
         if agy_cmd == "sessions":

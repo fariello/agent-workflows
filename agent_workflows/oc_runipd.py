@@ -2623,6 +2623,39 @@ def retry_deferred_integrations(
     )
 
 
+def _integrate_stranded_lanes(
+    run_dir: Path, state: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """integpath-04 (`rl67b0`) E-03/E-04: this host's wiring for the resume-time integration pass.
+
+    A thin adapter, exactly as `retry_deferred_integrations` above is: the DECISION (which items
+    qualify, the refusals, the real validation runner, the gate call, the honest state write, the
+    hold-back) is the shared `runner_shared.integrate_stranded_lanes`. This binds only the four
+    host-specific things:
+
+      * this host's `integrate_lane_branch` wrapper, so a recovered merge subject on MAIN still reads
+        `integrate(aw oc run): ...` rather than the other driver's name;
+      * this host's `run_suite_check`, which the shared module MAY NOT IMPORT (a shipped AST test
+        forbids `runner_shared` importing either driver, at module level or lazily), so it is injected;
+      * `process_backlog_close`, injected for the same reason;
+      * where the operator-facing lines go.
+    """
+
+    repo = Path(state["repo"])
+    pal = Palette(should_color(sys.stdout))
+    return runner_shared.integrate_stranded_lanes(
+        repo=repo,
+        run_dir=run_dir,
+        state=state,
+        integrate=integrate_lane_branch,
+        suite_check=run_suite_check,
+        save_state=save_state,
+        append_jsonl=append_jsonl,
+        process_backlog_close=process_backlog_close,
+        report=lambda message: print(pal(message, "cyan"), file=sys.stderr),
+    )
+
+
 # `make_integration_validation_runner` is now defined ONCE in `runner_shared` and imported above (rununify 03 `i3d6ml`).
 
 
@@ -8326,6 +8359,14 @@ def run_queue(
                 # the ladder alone because the ladder only runs inside a live dispatch loop.
                 "integration-deferred",
             }:
+                # integpath-04 (`rl67b0`) E-03/E-04: REMEMBER the status being overwritten. This flip
+                # runs BEFORE the point where the integration pass may legally sit (the pass must
+                # follow the indeterminate refusal below, which itself follows this block), so by then
+                # `item["status"]` no longer says the item was `integration-blocked`. The integration
+                # pass therefore selects on DURABLE LANE FACTS plus this recorded prior disposition,
+                # and E-04's hold-back restores exactly this value rather than inventing one. Additive,
+                # so nothing that reads `status` is affected.
+                item["requeue_from_status"] = item["status"]
                 item["status"] = "queued"
                 item["recovery_next"] = True
         save_state(run_dir, state)
@@ -8346,6 +8387,30 @@ def run_queue(
             file=sys.stderr,
         )
         return 1
+    # integpath-04 (`rl67b0`) E-03/E-04: MERGE ALREADY-VERIFIED LANES INSTEAD OF RE-DISPATCHING THEM.
+    #
+    # PLACEMENT IS THE SUBSTANCE OF THIS CHANGE, so it is stated exactly. It sits AFTER the
+    # indeterminate refusal above, because that refusal `return 1`s before anything starts and main must
+    # NOT be mutated during a resume the driver is about to decline; and BEFORE the dispatch loop below,
+    # because once an item is dispatched the lane has already been attempt-scoped into a second branch
+    # and the finished one abandoned. The `--retry-incomplete` requeue above only rewrites
+    # `status`/`recovery_next` in memory-plus-state and dispatches nothing, so acting after it is still
+    # strictly before any turn is launched; what it DOES mean is that the pass cannot select on
+    # `status`, which is why it selects on durable lane facts and on `requeue_from_status`.
+    #
+    # NO SECOND LOCK: `run_queue` is only ever entered under `locked_run`, so the run lock is already
+    # held here. NOT BEHIND A FLAG: the alternative default is silent re-dispatch of finished work,
+    # which is the measured defect. It CANNOT ABORT THE RESUME: every failure inside is converted to a
+    # recorded refusal, and the loop below still runs.
+    #
+    # NO STATE RELOAD AND NO `register_signal_report` REFRESH HERE, deliberately. The pass MUTATES the
+    # very `state` dict this function holds and persists it through the injected `save_state`, so the
+    # in-memory view is already current and the published reporter reference is still the same object; a
+    # reload would rebind `state` to an equal dict for no gain, and would add a sixth
+    # `register_signal_report` site to a function whose five sites are pinned as a measured invariant
+    # (`tests/test_rununify_run_queue.py::TheSignalReportRefreshSitesArePinned`). The loop below reloads
+    # on its own first iteration regardless.
+    _integrate_stranded_lanes(run_dir, state)
     tracker = StreamTracker()
     invocation_start_mono = time.monotonic()
     state["_invocation_start_mono"] = invocation_start_mono
@@ -9137,7 +9202,43 @@ LAUNCH IDENTITY (model / variant / agent):
     # lives in `main()` rather than here.
     runner_stop.add_stop_parser(sub, command=_detect_driver_command())
 
+    # integpath-04 (`rl67b0`) E-02: the OUT-OF-BAND `integrate` verb, declared through the SHARED
+    # helper for exactly the reason `stop` is (orchestrator CID-3: a verb must not exist on one host
+    # only, and its help text must not drift between them). Declared on THIS parser, where `start`
+    # already lives, because `aw oc run` forwards `argparse.REMAINDER` verbatim here; `cli.py` carries
+    # a THIN host-noun alias (`aw oc integrate`) that rewrites argv into this same subcommand, and
+    # nothing else.
+    runner_shared.add_integrate_parser(sub, command=_detect_driver_command())
+
     return parser
+
+
+def handle_integrate_command(args: argparse.Namespace) -> int:
+    """Execute the `integrate` verb: re-attempt integration for one verified lane, NO agent turn.
+
+    integpath-04 (`rl67b0`) E-02. THIN, and thin is the contract rather than a style note: the WHOLE
+    decision (lane resolution from durable state, the five refusals, the live-owner refusal, the real
+    validation runner, the gate call) is `runner_shared.reintegrate_lane`, which the resume pass calls
+    too. This binds only what is host-specific - this host's `integrate_lane_branch` wrapper, so a
+    recovered merge subject still reads `integrate(aw oc run): ...`, and this host's `run_suite_check`,
+    which the shared module may not import (`tests/test_runner_shared.py::NoRunnerImportTests`).
+
+    EXIT CONTRACT: 0 integrated, 1 refused (nothing was merged, main untouched, the lane preserved),
+    2 for a usage/driver error, which is the contract every other verb here has.
+    """
+
+    repo = Path(getattr(args, "repo", ".") or ".").resolve()
+    id6 = str(getattr(args, "id6", "") or "")
+    outcome = runner_shared.reintegrate_lane(
+        repo,
+        id6,
+        integrate=integrate_lane_branch,
+        suite_check=run_suite_check,
+        run_id=getattr(args, "run_id", None),
+    )
+    message = runner_shared.render_reintegration_result(outcome, id6=id6)
+    print(message, file=sys.stdout if outcome.integrated else sys.stderr)
+    return 0 if outcome.integrated else 1
 
 
 def handle_stop_command(args: argparse.Namespace) -> int:
@@ -9310,12 +9411,19 @@ def main(argv: list[str] | None = None) -> int:
     # `unrecognized arguments`), so it protected nothing. If a real `--version` is ever added, add
     # BOTH tokens back to BOTH drivers together and give `--verbose` the long spelling only; the two
     # sets must stay IDENTICAL because the structural test regexes both source files.
+    # integpath-04 (`rl67b0`) E-02: `"integrate"` MUST be listed here for the SAME measured reason
+    # `stop` must: an unregistered first token is rewritten into `start <token>`, so
+    # `integrate <id6>` would LAUNCH A RUN with `integrate` as a selector, which is the opposite of
+    # the operator's intent and is silent. A test asserts the bare form is not rewritten, in both
+    # drivers, and a third assertion pins this set against the agy copy AND against the inline copy in
+    # `tests/test_runner_stop_triggers.py`; all three must change together.
     subcommands = {
         "start",
         "resume",
         "status",
         "report",
         "stop",
+        "integrate",
         "-h",
         "--help",
     }
@@ -9390,6 +9498,11 @@ def main(argv: list[str] | None = None) -> int:
             # runstop 71vjbn (E-03/E-04): out-of-band, and deliberately BEFORE any run-lock or state
             # mutation. It never starts a run and never creates the run directory.
             return handle_stop_command(args)
+        if args.command == "integrate":
+            # integpath-04 (`rl67b0`) E-02: out-of-band like `stop`, and likewise before any run-lock
+            # or state mutation. It creates no run directory and spends no agent turn; it refuses a
+            # lane a LIVE process owns precisely because it holds no run lock.
+            return handle_integrate_command(args)
         if args.command == "start":
             run_dir = initialize_run(args)
             print(f"Run ID: {run_dir.name}")

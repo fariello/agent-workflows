@@ -4127,5 +4127,927 @@ class StrandedLanePredicateTests(unittest.TestCase):
         )
 
 
+# ==================================================================================================
+# integpath-04 (`rl67b0`): THE RE-INTEGRATION VERB AND THE RESUME PASS
+# ==================================================================================================
+
+
+class _SuiteResult:
+    """A stand-in for `oc_runipd.SuiteCheckResult`, carrying only what the shared code reads.
+
+    Deliberately NOT the real NamedTuple: `runner_shared` may not import either driver, and a test that
+    imported one to build this would quietly assert a coupling the module forbids. The shared code reads
+    `.passing` and `.reason`, so those are what a stand-in must have.
+    """
+
+    def __init__(self, passing: bool, reason: str = "suite (fake)") -> None:
+        self.passing = passing
+        self.reason = reason
+
+
+def _passing_suite(*_a: Any, **_k: Any) -> _SuiteResult:
+    return _SuiteResult(True, "suite passed (fake)")
+
+
+def _failing_suite(*_a: Any, **_k: Any) -> _SuiteResult:
+    return _SuiteResult(False, "suite FAILED with exit 1 (fake)")
+
+
+def _write_run_state(
+    repo: pathlib.Path, state: dict, run_id: str = "run-fixture"
+) -> pathlib.Path:
+    """Persist `state` as a real run record, because the verb's INDEX is the run records on disk."""
+    import json as _json
+
+    run_dir = runner_shared.state_root(repo) / run_id
+    (run_dir / "outcomes").mkdir(parents=True, exist_ok=True)
+    state = dict(state)
+    state.setdefault("run_id", run_id)
+    (run_dir / "state.json").write_text(
+        _json.dumps(state, indent=2, sort_keys=True), encoding="utf-8"
+    )
+    return run_dir
+
+
+def _finalize_plan_on_lane(
+    repo: pathlib.Path, lane_dir: pathlib.Path, id6: str
+) -> None:
+    """Move this id6's plan from `pending/` to `executed/` ON THE LANE, and commit it there.
+
+    This is what "a finalized lane" MEANS to the verb, and the fixture must produce it truthfully: an
+    unfinalized lane is one of the five refusals, so a fixture that skipped this step would make every
+    positive case refuse for the wrong reason.
+    """
+    import subprocess
+
+    name = "20260906-demo-01-{0}-demo.ipd.md".format(id6)
+    src = lane_dir / ".aw" / "records" / "plans" / "pending" / name
+    dst = lane_dir / ".aw" / "records" / "plans" / "executed" / name
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "mv", str(src.relative_to(lane_dir)), str(dst.relative_to(lane_dir))],
+        cwd=lane_dir,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-qm", "lifecycle({0}): finalize -> executed".format(id6)],
+        cwd=lane_dir,
+        check=True,
+    )
+
+
+def _repo_with_pending_plan(root: pathlib.Path, id6: str) -> pathlib.Path:
+    """A throwaway repo holding one pending plan for `id6`. FIXTURES ONLY, never a real lane."""
+    import subprocess
+
+    repo = root / "repo"
+    repo.mkdir(parents=True)
+    for cmd in (
+        ["git", "init", "-q", "-b", "main"],
+        ["git", "config", "user.email", "test@example.invalid"],
+        ["git", "config", "user.name", "Test"],
+    ):
+        subprocess.run(cmd, cwd=repo, check=True)
+    (repo / ".gitignore").write_text(
+        ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
+    )
+    pending = repo / ".aw" / "records" / "plans" / "pending"
+    pending.mkdir(parents=True)
+    (pending / "20260906-demo-01-{0}-demo.ipd.md".format(id6)).write_text(
+        "# IPD: demo\n\n- Id: {0}\n- Status: approved\n".format(id6), encoding="utf-8"
+    )
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+    return repo
+
+
+def _verified_lane(
+    repo: pathlib.Path,
+    root: pathlib.Path,
+    id6: str,
+    *,
+    branch_suffix: str = "",
+    finalize: bool = True,
+    commit: bool = True,
+) -> dict:
+    """A lane in the shape the driver leaves behind after a verified-but-unintegrated turn.
+
+    `branch_suffix` produces the ATTEMPT-SCOPED shape (`aw/lane/<id6>_attempt2`), which is the `mm6wuz`
+    case and the one a name reconstructed from the id6 would silently miss.
+    """
+    import subprocess
+
+    lane_id = "{0}{1}".format(id6, branch_suffix)
+    branch = "aw/lane/{0}".format(lane_id)
+    lane_dir = root / "lane-{0}".format(lane_id)
+    base = _git(repo, "rev-parse", "HEAD")
+    subprocess.run(
+        ["git", "worktree", "add", "-q", "-b", branch, str(lane_dir), base],
+        cwd=repo,
+        check=True,
+    )
+    if commit:
+        (lane_dir / "src").mkdir(parents=True, exist_ok=True)
+        (lane_dir / "src" / "{0}.txt".format(id6)).write_text(
+            "lane work\n", encoding="utf-8"
+        )
+        subprocess.run(["git", "add", "-A"], cwd=lane_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "{0}: lane work".format(id6)],
+            cwd=lane_dir,
+            check=True,
+        )
+        if finalize:
+            _finalize_plan_on_lane(repo, lane_dir, id6)
+    return {
+        "id6": id6,
+        "lane_id": lane_id,
+        "branch": branch,
+        "worktree": str(lane_dir),
+        "base_commit": base,
+    }
+
+
+def _stranded_item(lane: dict, status: str = "integration-blocked") -> dict:
+    return {
+        "id6": lane["id6"],
+        "position": 1,
+        "setid": "demo",
+        "status": status,
+        "configured_file": ".aw/records/plans/pending/20260906-demo-01-{0}-demo.ipd.md".format(
+            lane["id6"]
+        ),
+        "preserved_lane_id": lane["lane_id"],
+        "preserved_branch": lane["branch"],
+        "preserved_base": lane["base_commit"],
+        "preserved_worktree": lane["worktree"],
+        "attempts": [{"number": 1, "disposition": status}],
+    }
+
+
+class ReintegrationVerbTests(unittest.TestCase):
+    """E-05: the verb's cases, on the SHARED implementation both hosts and both spellings call.
+
+    WHY THE CASES LIVE HERE rather than being written twice per host: `reintegrate_lane` IS the
+    implementation, and each host's `handle_integrate_command` binds only its own
+    `integrate_lane_branch` wrapper and its own suite check. The host-specific halves (the merge
+    subject's label, the argv routing, the shim registration) are asserted in each host's own suite;
+    duplicating the decision cases there would be the drift this Set exists to end.
+    """
+
+    def _integrate(self, repo, handle, id6, validation_runner):
+        """The oc host's wrapper, called exactly as `handle_integrate_command` calls it."""
+        return oc_runipd.integrate_lane_branch(repo, handle, id6, validation_runner)
+
+    def test_a_verified_finalized_lane_integrates_with_no_agent_turn(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _repo_with_pending_plan(root, "aa0001")
+            lane = _verified_lane(repo, root, "aa0001")
+            _write_run_state(repo, {"repo": str(repo), "queue": [_stranded_item(lane)]})
+            before = _git(repo, "rev-parse", "HEAD")
+
+            outcome = runner_shared.reintegrate_lane(
+                repo,
+                "aa0001",
+                integrate=self._integrate,
+                suite_check=_passing_suite,
+            )
+
+            self.assertTrue(outcome.integrated, outcome.reason)
+            self.assertEqual(outcome.code, runner_shared.REINTEGRATE_OK)
+            self.assertNotEqual(_git(repo, "rev-parse", "HEAD"), before)
+            # The lane's work and the finalize are BOTH on main now.
+            self.assertTrue((repo / "src" / "aa0001.txt").is_file())
+            self.assertTrue(
+                (
+                    repo
+                    / ".aw"
+                    / "records"
+                    / "plans"
+                    / "executed"
+                    / "20260906-demo-01-aa0001-demo.ipd.md"
+                ).is_file()
+            )
+            # And the suite REALLY RAN, through the injected checker, as part of the gate.
+            self.assertIsNotNone(outcome.suite)
+            self.assertTrue(outcome.suite.passing)
+
+    def test_the_gate_RAN_and_COULD_HAVE_REFUSED(self):
+        """THE safety-critical assertion: "the gate was invoked" is NOT sufficient on its own.
+
+        The shipped `make_integration_validation_runner` returns a constant True, so a single-lane gate
+        call passes UNCONDITIONALLY; an implementation that merely routed through the gate would look
+        verified while verifying nothing. So this asserts BOTH halves: the gate was called (spy), AND a
+        failing suite makes it REFUSE with main untouched.
+        """
+        from agent_workflows import orchestrate_isolation
+
+        calls = []
+        real_gate = orchestrate_isolation.execute_merge_and_revalidate_gate
+
+        def spy_gate(*a, **k):
+            calls.append(k)
+            return real_gate(*a, **k)
+
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _repo_with_pending_plan(root, "aa0002")
+            lane = _verified_lane(repo, root, "aa0002")
+            _write_run_state(repo, {"repo": str(repo), "queue": [_stranded_item(lane)]})
+            before = _git(repo, "rev-parse", "HEAD")
+
+            with mock.patch.object(
+                orchestrate_isolation, "execute_merge_and_revalidate_gate", spy_gate
+            ):
+                outcome = runner_shared.reintegrate_lane(
+                    repo,
+                    "aa0002",
+                    integrate=self._integrate,
+                    suite_check=_failing_suite,
+                )
+
+            self.assertEqual(len(calls), 1, "the attempt must route through the gate")
+            # THE BASE PASSED IS THE LANE'S OWN DECLARED BASE, never main's current head: the
+            # stale-base check is a caller-consistency assertion, and passing main's head refuses every
+            # recovered lane while rebuilding the outcome to satisfy it revalidates a diff that REVERTS
+            # main.
+            self.assertEqual(calls[0]["integration_base_commit"], lane["base_commit"])
+            self.assertFalse(outcome.integrated)
+            self.assertEqual(outcome.code, runner_shared.REINTEGRATE_GATE_REFUSED)
+            self.assertIn("combined_red", outcome.reason.replace("-", "_"))
+            self.assertIn("suite FAILED", outcome.reason)
+            # MAIN IS UNTOUCHED and the lane is preserved.
+            self.assertEqual(_git(repo, "rev-parse", "HEAD"), before)
+            self.assertFalse((repo / "src" / "aa0002.txt").exists())
+            self.assertEqual(
+                _git(repo, "rev-parse", "--verify", lane["branch"]),
+                _git(repo, "rev-parse", lane["branch"]),
+            )
+
+    def test_the_validation_runner_is_NOT_the_shipped_constant_true_one(self):
+        """The runner the verb supplies must be able to say NO; the shipped one cannot.
+
+        Measured directly: `make_integration_validation_runner(...)` returns True for any arguments, so
+        pinning that the verb does not use it is what stops a green gate result being offered as proof
+        of verification.
+        """
+        shipped = runner_shared.make_integration_validation_runner(
+            {}, pathlib.Path("."), {}
+        )
+        self.assertTrue(shipped("any diff", ("any", "files")))
+        # Asserted over the CODE, not the source text: the docstring and a comment both NAME the
+        # shipped runner in order to explain why it is not used, and a substring test over the raw
+        # source would therefore fail on the prose that documents the very property being pinned.
+        node = next(
+            n
+            for n in ast.parse(module_source(runner_shared)).body
+            if isinstance(n, ast.FunctionDef) and n.name == "reintegrate_lane"
+        )
+        called = {
+            ast.unparse(sub.func) for sub in ast.walk(node) if isinstance(sub, ast.Call)
+        }
+        self.assertNotIn("make_integration_validation_runner", called)
+        self.assertIn("suite_check", called)
+
+    def test_a_missing_branch_refuses_with_its_own_reason(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _repo_with_pending_plan(root, "aa0003")
+            lane = _verified_lane(repo, root, "aa0003")
+            _write_run_state(repo, {"repo": str(repo), "queue": [_stranded_item(lane)]})
+            import subprocess
+
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", lane["worktree"]],
+                cwd=repo,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "branch", "-qD", lane["branch"]], cwd=repo, check=True
+            )
+
+            outcome = runner_shared.reintegrate_lane(
+                repo, "aa0003", integrate=self._integrate, suite_check=_passing_suite
+            )
+            self.assertFalse(outcome.integrated)
+            self.assertEqual(outcome.code, runner_shared.REINTEGRATE_LANE_ABSENT)
+            self.assertIn("no longer exists", outcome.reason)
+
+    def test_a_lane_holding_no_commits_refuses(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _repo_with_pending_plan(root, "aa0004")
+            lane = _verified_lane(repo, root, "aa0004", commit=False)
+            _write_run_state(repo, {"repo": str(repo), "queue": [_stranded_item(lane)]})
+
+            outcome = runner_shared.reintegrate_lane(
+                repo, "aa0004", integrate=self._integrate, suite_check=_passing_suite
+            )
+            self.assertFalse(outcome.integrated)
+            self.assertEqual(outcome.code, runner_shared.REINTEGRATE_LANE_EMPTY)
+            self.assertIn("no commits beyond its base", outcome.reason)
+
+    def test_a_DIRTY_lane_with_zero_commits_still_refuses(self):
+        """`HOLDS-WORK` alone does NOT prove committed work (F-16): a merely dirty lane classifies so.
+
+        Without this case an implementation keyed on the classifier state would accept a lane whose
+        only content is uncommitted, which a merge cannot carry at all.
+        """
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _repo_with_pending_plan(root, "aa0005")
+            lane = _verified_lane(repo, root, "aa0005", commit=False)
+            (pathlib.Path(lane["worktree"]) / "dirt.txt").write_text(
+                "uncommitted\n", encoding="utf-8"
+            )
+            _write_run_state(repo, {"repo": str(repo), "queue": [_stranded_item(lane)]})
+
+            from agent_workflows import worktree_lease
+
+            state = worktree_lease.inspect_lane(
+                repo, lane["lane_id"], base_commit=lane["base_commit"]
+            )
+            self.assertEqual(state.state, worktree_lease.LANE_HOLDS_WORK)
+            self.assertEqual(state.commits_ahead, 0)
+
+            outcome = runner_shared.reintegrate_lane(
+                repo, "aa0005", integrate=self._integrate, suite_check=_passing_suite
+            )
+            self.assertFalse(outcome.integrated)
+            self.assertEqual(outcome.code, runner_shared.REINTEGRATE_LANE_EMPTY)
+            self.assertIn("dirty", outcome.reason)
+
+    def test_a_lane_whose_plan_is_not_finalized_refuses(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _repo_with_pending_plan(root, "aa0006")
+            lane = _verified_lane(repo, root, "aa0006", finalize=False)
+            _write_run_state(repo, {"repo": str(repo), "queue": [_stranded_item(lane)]})
+
+            outcome = runner_shared.reintegrate_lane(
+                repo, "aa0006", integrate=self._integrate, suite_check=_passing_suite
+            )
+            self.assertFalse(outcome.integrated)
+            self.assertEqual(outcome.code, runner_shared.REINTEGRATE_PLAN_NOT_FINALIZED)
+            self.assertIn("NOT in executed/", outcome.reason)
+
+    def test_a_FOREIGN_lane_refuses_rather_than_being_handled(self):
+        """The fifth classifier state, excluded by the plan rather than supported.
+
+        FOREIGN means the lane's own base is not an ancestor of the base recorded for it, so merging it
+        would carry history this run never based on. Built from an ORPHAN commit, because that is the
+        only way to make a lane whose base is genuinely unreachable from main's.
+        """
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _repo_with_pending_plan(root, "aa0013")
+            main_base = _git(repo, "rev-parse", "HEAD")
+            # An orphan root: unrelated history, so neither base reaches the other.
+            subprocess.run(
+                ["git", "checkout", "-q", "--orphan", "unrelated"], cwd=repo, check=True
+            )
+            subprocess.run(["git", "rm", "-rqf", "."], cwd=repo, check=True)
+            (repo / "other.txt").write_text("unrelated root\n", encoding="utf-8")
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "unrelated root"], cwd=repo, check=True
+            )
+            orphan = _git(repo, "rev-parse", "HEAD")
+            subprocess.run(["git", "checkout", "-q", "main"], cwd=repo, check=True)
+            lane_dir = root / "lane-foreign"
+            subprocess.run(
+                [
+                    "git",
+                    "worktree",
+                    "add",
+                    "-q",
+                    "-b",
+                    "aw/lane/aa0013",
+                    str(lane_dir),
+                    orphan,
+                ],
+                cwd=repo,
+                check=True,
+            )
+            # The RECORD says the lane was based on main, which the lane's own base cannot reach.
+            _write_run_state(
+                repo,
+                {
+                    "repo": str(repo),
+                    "queue": [
+                        _stranded_item(
+                            {
+                                "id6": "aa0013",
+                                "lane_id": "aa0013",
+                                "branch": "aw/lane/aa0013",
+                                "worktree": str(lane_dir),
+                                "base_commit": main_base,
+                            }
+                        )
+                    ],
+                },
+            )
+
+            from agent_workflows import worktree_lease
+
+            self.assertEqual(
+                worktree_lease.inspect_lane(
+                    repo, "aa0013", base_commit=main_base
+                ).state,
+                worktree_lease.LANE_FOREIGN,
+            )
+            outcome = runner_shared.reintegrate_lane(
+                repo, "aa0013", integrate=self._integrate, suite_check=_passing_suite
+            )
+            self.assertFalse(outcome.integrated)
+            self.assertEqual(outcome.code, runner_shared.REINTEGRATE_LANE_FOREIGN)
+            self.assertIn("FOREIGN", outcome.reason)
+
+    def test_a_lane_owned_by_a_LIVE_process_refuses(self):
+        """The verb holds NO run lock, so a lane a live driver still owns is a race, not a recovery."""
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _repo_with_pending_plan(root, "aa0007")
+            lane = _verified_lane(repo, root, "aa0007")
+            _write_run_state(repo, {"repo": str(repo), "queue": [_stranded_item(lane)]})
+            before = _git(repo, "rev-parse", "HEAD")
+
+            from agent_workflows import worktree_lease
+
+            # THIS process is alive, so an owner record naming it is a live owner. `inspect_lane`
+            # already answers this; the verb consumes that answer rather than adding a second probe.
+            worktree_lease.write_lane_owner(
+                repo,
+                lane["lane_id"],
+                branch=lane["branch"],
+                worktree=lane["worktree"],
+                base_commit=lane["base_commit"],
+                disposition="created",
+            )
+            state = worktree_lease.inspect_lane(
+                repo, lane["lane_id"], base_commit=lane["base_commit"]
+            )
+            self.assertIs(state.owner_live, True)
+
+            outcome = runner_shared.reintegrate_lane(
+                repo, "aa0007", integrate=self._integrate, suite_check=_passing_suite
+            )
+            self.assertFalse(outcome.integrated)
+            self.assertEqual(outcome.code, runner_shared.REINTEGRATE_LANE_LIVE)
+            self.assertIn("LIVE process", outcome.reason)
+            self.assertEqual(_git(repo, "rev-parse", "HEAD"), before)
+
+    def test_an_ATTEMPT_SCOPED_lane_is_integrated_without_GUESSING_its_name(self):
+        """The `mm6wuz` shape: the recorded branch is `_attempt2`, and a guessed name would miss it.
+
+        `lane_branch_name`'s docstring forbids reconstructing a branch from an id6 precisely because
+        allocation may have attempt-scoped it. Without this case an implementation that guessed
+        `aw/lane/<id6>` passes every other test here.
+        """
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _repo_with_pending_plan(root, "aa0008")
+            # The FIRST lane exists and is empty, exactly as an orphaned first attempt would be, so a
+            # guessed `aw/lane/aa0008` would resolve to something and refuse rather than error.
+            _verified_lane(repo, root, "aa0008", commit=False)
+            scoped = _verified_lane(repo, root, "aa0008", branch_suffix="_attempt2")
+            self.assertEqual(scoped["branch"], "aw/lane/aa0008_attempt2")
+            _write_run_state(
+                repo, {"repo": str(repo), "queue": [_stranded_item(scoped)]}
+            )
+
+            outcome = runner_shared.reintegrate_lane(
+                repo, "aa0008", integrate=self._integrate, suite_check=_passing_suite
+            )
+            self.assertTrue(outcome.integrated, outcome.reason)
+            self.assertEqual(outcome.candidate.branch, "aw/lane/aa0008_attempt2")
+            self.assertTrue((repo / "src" / "aa0008.txt").is_file())
+
+    def test_two_recorded_lanes_with_no_run_id_REFUSE_and_list_them(self):
+        """OQ-02: several candidates is a refusal, because integrating the wrong lane lands wrong work."""
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _repo_with_pending_plan(root, "aa0009")
+            first = _verified_lane(repo, root, "aa0009")
+            second = _verified_lane(repo, root, "aa0009", branch_suffix="_attempt2")
+            _write_run_state(
+                repo,
+                {"repo": str(repo), "queue": [_stranded_item(first)]},
+                run_id="run-one",
+            )
+            _write_run_state(
+                repo,
+                {"repo": str(repo), "queue": [_stranded_item(second)]},
+                run_id="run-two",
+            )
+
+            outcome = runner_shared.reintegrate_lane(
+                repo, "aa0009", integrate=self._integrate, suite_check=_passing_suite
+            )
+            self.assertFalse(outcome.integrated)
+            self.assertEqual(outcome.code, runner_shared.REINTEGRATE_AMBIGUOUS_LANE)
+            self.assertEqual(len(outcome.candidates), 2)
+            self.assertIn("aw/lane/aa0009_attempt2", outcome.reason)
+
+            # Naming the run resolves it, and integrates THAT lane.
+            named = runner_shared.reintegrate_lane(
+                repo,
+                "aa0009",
+                integrate=self._integrate,
+                suite_check=_passing_suite,
+                run_id="run-two",
+            )
+            self.assertTrue(named.integrated, named.reason)
+            self.assertEqual(named.candidate.branch, "aw/lane/aa0009_attempt2")
+
+    def test_no_run_record_naming_a_lane_refuses_rather_than_guessing(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _repo_with_pending_plan(root, "aa0010")
+            _verified_lane(repo, root, "aa0010")
+            # A lane BRANCH exists, but NO run record names it: the record is the authority.
+            outcome = runner_shared.reintegrate_lane(
+                repo, "aa0010", integrate=self._integrate, suite_check=_passing_suite
+            )
+            self.assertFalse(outcome.integrated)
+            self.assertEqual(outcome.code, runner_shared.REINTEGRATE_NO_LANE_RECORD)
+            self.assertIn("NOT reconstructed from the id6", outcome.reason)
+
+    def test_an_exception_from_the_attempt_is_a_refusal_not_a_raise(self):
+        """E-03 requires the resume pass to survive this, so the shared function must not raise."""
+
+        def boom(*_a, **_k):
+            raise RuntimeError("git exploded")
+
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _repo_with_pending_plan(root, "aa0011")
+            lane = _verified_lane(repo, root, "aa0011")
+            _write_run_state(repo, {"repo": str(repo), "queue": [_stranded_item(lane)]})
+
+            outcome = runner_shared.reintegrate_lane(
+                repo, "aa0011", integrate=boom, suite_check=_passing_suite
+            )
+            self.assertFalse(outcome.integrated)
+            self.assertEqual(outcome.code, runner_shared.REINTEGRATE_ERROR)
+            self.assertIn("git exploded", outcome.reason)
+
+    def test_a_merge_conflict_item_is_ALSO_re_attemptable(self):
+        """OQ-01: both statuses, because main has moved and only the gate can say if it still conflicts."""
+        self.assertEqual(
+            set(runner_shared.REINTEGRATABLE_STATUSES),
+            {"integration-blocked", "merge-conflict"},
+        )
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _repo_with_pending_plan(root, "aa0012")
+            lane = _verified_lane(repo, root, "aa0012")
+            state = {
+                "repo": str(repo),
+                "run_id": "run-fixture",
+                "queue": [_stranded_item(lane, status="merge-conflict")],
+            }
+            _write_run_state(repo, state)
+            self.assertEqual(
+                [
+                    c.id6
+                    for _item, c, _prior in runner_shared.stranded_integration_candidates(
+                        repo, state
+                    )
+                ],
+                ["aa0012"],
+            )
+
+
+class ResumeIntegrationPassTests(unittest.TestCase):
+    """E-06: the automatic pass, where the EXPENSIVE failure lives.
+
+    THE TWO ABSENCES ARE THE FIX and are asserted directly: zero agent turns and zero new lanes. A test
+    asserting only that the item ended integrated would pass identically had the resume paid $39 for a
+    turn to get there, which is the measured bug.
+    """
+
+    def _integrate(self, repo, handle, id6, validation_runner):
+        return oc_runipd.integrate_lane_branch(repo, handle, id6, validation_runner)
+
+    def _pass(self, repo, run_dir, state, *, suite=_passing_suite, integrate=None):
+        lines: list[str] = []
+        records = runner_shared.integrate_stranded_lanes(
+            repo=repo,
+            run_dir=run_dir,
+            state=state,
+            integrate=integrate or self._integrate,
+            suite_check=suite,
+            save_state=lambda rd, st: (rd / "state.json").write_text(
+                __import__("json").dumps(st, indent=2, sort_keys=True), encoding="utf-8"
+            ),
+            append_jsonl=runner_shared.append_jsonl,
+            process_backlog_close=None,
+            report=lines.append,
+        )
+        return records, lines
+
+    def test_a_stranded_lane_is_MERGED_and_the_item_reaches_executed(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _repo_with_pending_plan(root, "bb0001")
+            lane = _verified_lane(repo, root, "bb0001")
+            item = _stranded_item(lane)
+            state = {"repo": str(repo), "run_id": "run-fixture", "queue": [item]}
+            run_dir = _write_run_state(repo, state)
+
+            records, lines = self._pass(repo, run_dir, state)
+
+            self.assertEqual([r["outcome"] for r in records], ["integrated"])
+            self.assertEqual(item["status"], "executed")
+            self.assertTrue((repo / "src" / "bb0001.txt").is_file())
+            # THE SAME RECORDS THE IN-RUN SUCCESS PATH WRITES.
+            events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+            self.assertIn("ipd-finalized", events)
+            self.assertIn('"reintegrated": true', events)
+            # `last_plan_path` RE-RESOLVED: the plan now lives in executed/ on main.
+            self.assertIn("executed", item["last_plan_path"])
+            self.assertTrue(any("NO agent turn" in line for line in lines))
+
+    def test_ZERO_new_lanes_are_allocated(self):
+        """The second absence: no `_attempt2`. That branch IS the orphaning `mm6wuz` measured."""
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _repo_with_pending_plan(root, "bb0002")
+            lane = _verified_lane(repo, root, "bb0002")
+            state = {
+                "repo": str(repo),
+                "run_id": "run-fixture",
+                "queue": [_stranded_item(lane)],
+            }
+            run_dir = _write_run_state(repo, state)
+
+            self._pass(repo, run_dir, state)
+
+            branches = _git(repo, "branch", "--list", "aw/lane/bb0002*")
+            self.assertNotIn("_attempt2", branches)
+
+    def test_the_flag_ALREADY_rewrote_the_status_and_the_pass_still_selects_it(self):
+        """The ordering fact E-03 turns on, asserted as the shape the code must survive.
+
+        `--retry-incomplete` runs BEFORE the pass may legally sit, so by then `status` is `queued` and
+        `recovery_next` is True. A pass selecting on `status in {integration-blocked, merge-conflict}`
+        would see nothing here, which is exactly the case the fix exists for; selection is therefore on
+        durable lane facts plus the recorded prior disposition.
+        """
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _repo_with_pending_plan(root, "bb0003")
+            lane = _verified_lane(repo, root, "bb0003")
+            item = _stranded_item(lane)
+            # Exactly what the requeue leaves behind.
+            item["requeue_from_status"] = "integration-blocked"
+            item["status"] = "queued"
+            item["recovery_next"] = True
+            state = {"repo": str(repo), "run_id": "run-fixture", "queue": [item]}
+            run_dir = _write_run_state(repo, state)
+
+            records, _lines = self._pass(repo, run_dir, state)
+
+            self.assertEqual([r["outcome"] for r in records], ["integrated"])
+            self.assertEqual(item["status"], "executed")
+            # AND THE FLIP IS UNDONE, or the loop would pay for a turn to redo what just landed.
+            self.assertNotIn("recovery_next", item)
+
+    def test_a_REFUSED_attempt_holds_the_item_back_with_an_explicit_reason(self):
+        """E-04: refused means NOT re-dispatched, restored to its terminal status, and REPORTED."""
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _repo_with_pending_plan(root, "bb0004")
+            lane = _verified_lane(repo, root, "bb0004")
+            item = _stranded_item(lane)
+            item["requeue_from_status"] = "integration-blocked"
+            item["status"] = "queued"
+            item["recovery_next"] = True
+            state = {"repo": str(repo), "run_id": "run-fixture", "queue": [item]}
+            run_dir = _write_run_state(repo, state)
+            before = _git(repo, "rev-parse", "HEAD")
+
+            records, lines = self._pass(repo, run_dir, state, suite=_failing_suite)
+
+            self.assertEqual([r["outcome"] for r in records], ["held-back"])
+            self.assertEqual(item["status"], "integration-blocked")
+            self.assertNotIn("recovery_next", item)
+            self.assertEqual(_git(repo, "rev-parse", "HEAD"), before)
+            # The lane is STILL THERE: it is the preserved evidence, never reclaimed to clear the way.
+            self.assertTrue(
+                _git(repo, "branch", "--list", lane["branch"])
+                .strip()
+                .endswith(lane["branch"])
+            )
+            self.assertNotIn("_attempt2", _git(repo, "branch", "--list", "aw/lane/*"))
+            joined = "\n".join(lines)
+            self.assertIn("was NOT re-dispatched", joined)
+            self.assertIn("bb0004", joined)
+            events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+            self.assertIn("ipd-reintegration-refused", events)
+
+    def test_an_exception_does_not_abort_the_pass(self):
+        """A resume that died because one lane could not merge would be worse than doing nothing."""
+
+        def boom(*_a, **_k):
+            raise RuntimeError("git exploded")
+
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _repo_with_pending_plan(root, "bb0005")
+            lane = _verified_lane(repo, root, "bb0005")
+            item = _stranded_item(lane)
+            state = {"repo": str(repo), "run_id": "run-fixture", "queue": [item]}
+            run_dir = _write_run_state(repo, state)
+
+            records, _lines = self._pass(repo, run_dir, state, integrate=boom)
+
+            self.assertEqual([r["outcome"] for r in records], ["held-back"])
+            self.assertEqual(records[0]["code"], runner_shared.REINTEGRATE_ERROR)
+            self.assertEqual(item["status"], "integration-blocked")
+
+    def test_items_that_genuinely_need_a_turn_are_NOT_captured(self):
+        """E-04 narrows the flag's reach; it does not redefine it.
+
+        Two negatives in one place, because both are ways the narrowing could go too far: a `partial`
+        item is not in the re-integratable statuses at all, and a snapshot-only `interrupted` item whose
+        lane holds a commit but no finalize is the case `txc9l1` routes to a verify-and-continue turn.
+        """
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _repo_with_pending_plan(root, "bb0006")
+            snapshot = _verified_lane(repo, root, "bb0006", finalize=False)
+            partial_item = {
+                "id6": "bb0007",
+                "status": "partial",
+                "preserved_branch": snapshot["branch"],
+                "preserved_lane_id": snapshot["lane_id"],
+                "preserved_base": snapshot["base_commit"],
+            }
+            interrupted = _stranded_item(snapshot, status="interrupted")
+            state = {
+                "repo": str(repo),
+                "run_id": "run-fixture",
+                "queue": [partial_item, interrupted],
+            }
+            run_dir = _write_run_state(repo, state)
+
+            self.assertEqual(
+                runner_shared.stranded_integration_candidates(repo, state), []
+            )
+            records, _lines = self._pass(repo, run_dir, state)
+            self.assertEqual(records, [])
+            self.assertEqual(partial_item["status"], "partial")
+            self.assertEqual(interrupted["status"], "interrupted")
+
+
+class MeasuredIncidentsAreSurvivedTests(unittest.TestCase):
+    """E-07: this repository's OWN two incidents, reproduced synthetically and shown survived.
+
+    Both are HISTORICAL (their branches are deleted and their plans are in `executed/`, recovered by
+    hand), so the conditions are rebuilt in throwaway repositories rather than probed for. Each case is
+    run on BOTH hosts, because the host binding is the one thing the shared implementation cannot
+    supply, and a fix proven on one host only is how the two drivers diverged before.
+    """
+
+    HOSTS = ("oc", "agy")
+
+    def _integrate_for(self, host: str):
+        module = oc_runipd if host == "oc" else agy_runipd
+        return lambda repo, handle, id6, runner: module.integrate_lane_branch(
+            repo, handle, id6, runner
+        )
+
+    def test_the_FOUR_LANE_incident_is_recovered_by_the_verb_with_no_agent_turn(self):
+        """`run-20260905T050043Z-639569`: four items verified, finalized, refused on transient dirt.
+
+        All four merged clean against main afterwards, and recovering them took a full session of hand
+        merges. Here each is recovered by ONE verb call, and the launcher is not involved at all.
+        """
+        for host in self.HOSTS:
+            with self.subTest(host=host), tempfile.TemporaryDirectory() as d:
+                root = pathlib.Path(d)
+                repo = _repo_with_pending_plan(root, "ff0001")
+                # Four plans, four lanes, exactly the shape the run left behind.
+                pending = repo / ".aw" / "records" / "plans" / "pending"
+                ids = ["ff0001", "ff0002", "ff0003", "ff0004"]
+                for id6 in ids[1:]:
+                    (
+                        pending / "20260906-demo-01-{0}-demo.ipd.md".format(id6)
+                    ).write_text(
+                        "# IPD: demo\n\n- Id: {0}\n- Status: approved\n".format(id6),
+                        encoding="utf-8",
+                    )
+                import subprocess
+
+                subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+                subprocess.run(
+                    ["git", "commit", "-qm", "four pending plans"], cwd=repo, check=True
+                )
+                lanes = [_verified_lane(repo, root, id6) for id6 in ids]
+                _write_run_state(
+                    repo,
+                    {
+                        "repo": str(repo),
+                        "queue": [_stranded_item(lane) for lane in lanes],
+                    },
+                )
+
+                for id6 in ids:
+                    outcome = runner_shared.reintegrate_lane(
+                        repo,
+                        id6,
+                        integrate=self._integrate_for(host),
+                        suite_check=_passing_suite,
+                    )
+                    self.assertTrue(
+                        outcome.integrated, "{0}: {1}".format(id6, outcome.reason)
+                    )
+
+                for id6 in ids:
+                    self.assertTrue(
+                        (repo / "src" / "{0}.txt".format(id6)).is_file(), id6
+                    )
+                    self.assertTrue(
+                        (
+                            repo
+                            / ".aw"
+                            / "records"
+                            / "plans"
+                            / "executed"
+                            / "20260906-demo-01-{0}-demo.ipd.md".format(id6)
+                        ).is_file(),
+                        id6,
+                    )
+                # NO lane was orphaned into a second attempt by any of the four recoveries.
+                self.assertNotIn(
+                    "_attempt", _git(repo, "branch", "--list", "aw/lane/*")
+                )
+
+    def test_the_THREE_LANE_incident_stops_accumulating_lanes_on_resume(self):
+        """`mm6wuz`: a verified lane that accumulated `_attempt2` and `_attempt3` across resumes.
+
+        $39.42 of verified work was recovered by hand from the third lane. The fix is asserted as the
+        CONTRAST: before it, a resume of such an item re-dispatched it and `allocate_worktree` scoped a
+        SECOND lane; here the resume integrates the FIRST lane and allocates none.
+        """
+        import json as _json
+        import subprocess
+
+        for host in self.HOSTS:
+            with self.subTest(host=host), tempfile.TemporaryDirectory() as d:
+                root = pathlib.Path(d)
+                repo = _repo_with_pending_plan(root, "mm0001")
+                lane = _verified_lane(repo, root, "mm0001")
+                item = _stranded_item(lane)
+                # The `--retry-incomplete` shape, which is how `mm6wuz` was resumed.
+                item["requeue_from_status"] = "integration-blocked"
+                item["status"] = "queued"
+                item["recovery_next"] = True
+                state = {"repo": str(repo), "run_id": "run-fixture", "queue": [item]}
+                run_dir = _write_run_state(repo, state)
+
+                # PRE-FIX BEHAVIOR, measured here rather than asserted from memory: dispatching such an
+                # item attempt-scopes a SECOND lane and leaves the first untouched.
+                from agent_workflows import worktree_lease
+
+                handle = worktree_lease.allocate_worktree(repo, "mm0001")
+                self.assertEqual(handle.branch, "aw/lane/mm0001_attempt2")
+                self.assertEqual(handle.displaced_from, "aw/lane/mm0001")
+                subprocess.run(
+                    ["git", "worktree", "remove", "--force", str(handle.path)],
+                    cwd=repo,
+                    check=True,
+                )
+                subprocess.run(
+                    ["git", "branch", "-qD", handle.branch], cwd=repo, check=True
+                )
+
+                records = runner_shared.integrate_stranded_lanes(
+                    repo=repo,
+                    run_dir=run_dir,
+                    state=state,
+                    integrate=self._integrate_for(host),
+                    suite_check=_passing_suite,
+                    save_state=lambda rd, st: (rd / "state.json").write_text(
+                        _json.dumps(st, indent=2, sort_keys=True), encoding="utf-8"
+                    ),
+                    append_jsonl=runner_shared.append_jsonl,
+                    process_backlog_close=None,
+                )
+
+                self.assertEqual([r["outcome"] for r in records], ["integrated"])
+                self.assertEqual(item["status"], "executed")
+                # THE FIRST lane's work is on main, and NO second lane exists.
+                self.assertTrue((repo / "src" / "mm0001.txt").is_file())
+                self.assertNotIn(
+                    "_attempt", _git(repo, "branch", "--list", "aw/lane/mm0001*")
+                )
+
+
 if __name__ == "__main__":
     unittest.main()

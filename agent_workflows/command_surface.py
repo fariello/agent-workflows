@@ -1659,6 +1659,44 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         exit_contract=(0, 1, 2),
         canonical_command="agy runipd",
     ),
+    # integpath-04 (`rl67b0`) E-02, OQ-04 option (c): `aw <host> integrate <id6>` is declared as an
+    # `alias` rather than a `mutation`, following the `<host> review` rows above and NOT the
+    # `<host> runipd` row, because that is what it IS: `cli.expand_host_integrate_argv` implements it as
+    # a pure argv rewrite onto the driver's own `integrate` subcommand, with no flag surface, no message
+    # and no exit code of its own.
+    #
+    # THE CLASS IS LOAD-BEARING, NOT COSMETIC, in two measurable ways. FIRST,
+    # `empty_error_renderer="delegated"` is REQUIRED of an alias
+    # (`test_empty_error_renderer_classification_consistency`) and is also simply true here, since the
+    # driver's parser owns every message. SECOND, a `mutation` row demands the extra `success_preview`
+    # conformance scenario an `alias` row does not, so declaring a pure delegation as a mutation would
+    # assert a contract of its own for a command whose whole contract is the driver's.
+    #
+    # DELIBERATELY NOT IN `tests/test_cli_conformance_matrix.py`'s `ALIAS_SAFE` DICT: that live
+    # equivalence gate drives READ-ONLY leaves, and this verb merges to main. The thin-alias proof is
+    # the rewrite function plus the diff, not that gate.
+    CommandDeclaration(
+        command="oc integrate",
+        command_class="alias",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="delegated",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+        canonical_command="oc runipd",
+    ),
+    CommandDeclaration(
+        command="agy integrate",
+        command_class="alias",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="delegated",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+        canonical_command="agy runipd",
+    ),
     CommandDeclaration(
         command="oc update-models",
         command_class="mutation",

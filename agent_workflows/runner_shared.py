@@ -3000,6 +3000,796 @@ def ask_operator_about_integration(
     )
 
 
+# ==================================================================================================
+# integpath-04 (`rl67b0`): RE-INTEGRATING A VERIFIED LANE WITH NO AGENT TURN
+# ==================================================================================================
+#
+# THE DEFECT, MEASURED RATHER THAN REASONED. A lane that finished, verified, finalized, and then failed
+# to integrate had NO cheap recovery route. A bare `resume` did nothing (`integration-blocked` sits in
+# both runners' `TERMINAL_STATES`, so the item is never `queued` and never selected), and
+# `--retry-incomplete` RE-DISPATCHED the finished work as a full agent turn, which `allocate_worktree`
+# then attempt-scoped into a SECOND lane because the first one classifies `HOLDS-WORK`. Measured in
+# this repository: `mm6wuz` accumulated `aw/lane/mm6wuz`, `_attempt2` and `_attempt3`, and $39.42 of
+# verified work was recovered by hand from the third; run `run-20260905T050043Z-639569` stranded four
+# verified lanes that all merged clean against main afterwards. In both cases a `git merge` would have
+# finished in seconds.
+#
+# SO THIS SECTION IS ONE IMPLEMENTATION WITH TWO ENTRY POINTS: the operator-facing verb
+# (`aw <host> integrate <id6>`, plus the driver subcommand it aliases) and the automatic pass a resume
+# makes before any item can be re-dispatched. Both go through `reintegrate_lane` below, which goes
+# through `integrate_lane_branch` above, which goes through
+# `orchestrate_isolation.execute_merge_and_revalidate_gate`. There is deliberately no second merge
+# path and no fast route that takes a clean `git merge-tree` as sufficient: cleanliness proves the
+# absence of a TEXTUAL conflict and says nothing about whether the suite still passes.
+#
+# THREE CONSTRAINTS THAT ARE NOT OBVIOUS, each measured rather than reasoned:
+#
+#   1. THE LANE IDENTITY IS PERSISTED, NOT DERIVABLE. `integrate_lane_branch` reads a LIVE
+#      `WorktreeHandle` that `allocate_isolation_worktree` returned in the same process; a fresh
+#      `integrate` process has no such object. It is rebuilt from the durable
+#      `preserved_lane_id`/`preserved_base`/`preserved_branch` fields through `resolve_prior_lane`,
+#      and NEVER by reconstructing `aw/lane/<id6>` from the id6, which `lane_branch_name`'s docstring
+#      forbids because allocation may have attempt-scoped the name. `mm6wuz`'s three lanes are the
+#      live proof that a guessed name can designate the WRONG lane.
+#   2. ROUTING THROUGH THE GATE DOES NOT BY ITSELF RE-VERIFY ANYTHING. The shipped
+#      `make_integration_validation_runner` returns a constant `True`, so for a single lane the gate's
+#      revalidation step is inert and the attempt passes unconditionally. A verb built on that alone
+#      would be a way to land an UNVALIDATED lane on main while pasting a green gate result as proof
+#      of verification. So `reintegrate_lane` supplies a REAL validation runner, whose body runs the
+#      repository suite in the PRIMARY checkout, and refuses on a non-passing result.
+#   3. THE SUITE CHECK IS INJECTED, NEVER IMPORTED. `run_suite_check` is defined in `oc_runipd`, and
+#      `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks THIS module and fails on any
+#      import naming `runipd`, at module level or lazily inside a function. Copying its body would
+#      fork its fail-closed reading of exit 124/127. So it is a PARAMETER, exactly as `run_checked`
+#      and `host_label` already are on `integrate_lane_branch` (see this module's docstring).
+#
+# AND THE INTEGRATION BASE IS THE LANE'S OWN DECLARED BASE, exactly as the in-run path passes it.
+# `orchestrate_isolation.stale_base_check` compares the FIRST lane outcome's own `base_commit` to the
+# `integration_base_commit` the CALLER passed: it is a consistency assertion on the caller's two
+# arguments, not a freshness test against main, and no argument makes it into one. Measured in a
+# throwaway repository whose main was one commit ahead of the lane base: passing main's current head
+# refuses EVERY recovered lane (`integration_failed_stale_base`), and rebuilding the `LaneOutcome`
+# against main's head to satisfy the check revalidates a combined diff that contains main's own
+# intervening file as a DELETION, i.e. a diff that REVERTS main - precisely the mis-attribution
+# `worktree_lease`'s `LANE_STALE` rationale forbids by name. The freshness signal is the suite run in
+# constraint 2, and it is the only thing here that plays that role.
+
+#: WHY the attempt refused, as a closed vocabulary rather than a message a caller has to match on.
+#: Each value is a DISTINCT condition with its own operator-facing sentence; none is a silent no-op.
+REINTEGRATE_OK = "integrated"
+REINTEGRATE_NO_LANE_RECORD = "no-lane-record"
+REINTEGRATE_AMBIGUOUS_LANE = "ambiguous-lane"
+REINTEGRATE_LANE_ABSENT = "lane-absent"
+REINTEGRATE_LANE_EMPTY = "lane-holds-no-commits"
+REINTEGRATE_LANE_FOREIGN = "lane-foreign"
+REINTEGRATE_LANE_LIVE = "lane-owned-by-live-process"
+REINTEGRATE_PLAN_NOT_FINALIZED = "plan-not-finalized-on-lane"
+REINTEGRATE_GATE_REFUSED = "gate-refused"
+REINTEGRATE_ERROR = "attempt-errored"
+
+#: The item statuses a re-integration attempt is legitimate for. BOTH, per OQ-01: `merge-conflict`
+#: means the gate found a real conflict against the main OF THAT MOMENT, main has since moved, and the
+#: only way to learn whether the conflict is gone is to run the gate again. The attempt costs one gate
+#: run and no agent turn, and a refusal leaves the item exactly as it was with its lane preserved, so
+#: declining to retry the more-likely-to-need-help case would leave a paid re-dispatch that ORPHANS the
+#: lane as its only route.
+REINTEGRATABLE_STATUSES: tuple[str, ...] = (
+    INTEGRATION_BLOCKED_STATUS,
+    INTEGRATION_REFUSAL_CONFLICT,
+)
+
+
+class LaneCandidate(NamedTuple):
+    """One re-integratable lane, as read back from DURABLE run state (never from a branch guess)."""
+
+    run_id: str
+    run_dir: Path
+    id6: str
+    lane_id: str
+    branch: str
+    base_commit: str
+    worktree: str | None
+    item_status: str
+
+    def describe(self) -> str:
+        return "{0} (run {1}, branch {2}, status {3})".format(
+            self.id6, self.run_id or "?", self.branch, self.item_status or "?"
+        )
+
+
+class ReintegrationOutcome(NamedTuple):
+    """What ONE re-integration attempt did, as data, so both entry points report it identically."""
+
+    integrated: bool
+    code: str
+    reason: str
+    #: `integrate_lane_branch`'s own kind when the gate actually ran, else None. Preserved because the
+    #: caller's status write depends on it (the transient `integration-blocked` arm is deferrable and
+    #: `merge-conflict` is not), and re-deriving it from the message text would be a locale bug.
+    kind: str | None = None
+    candidate: LaneCandidate | None = None
+    #: The suite result the INJECTED checker returned, so a caller can report what was actually run.
+    suite: Any | None = None
+    #: Populated only for `REINTEGRATE_AMBIGUOUS_LANE`: the candidates the operator must choose from.
+    candidates: tuple[LaneCandidate, ...] = ()
+
+
+def iter_run_states(repo: Path) -> list[tuple[Path, dict[str, Any]]]:
+    """Every readable `(run_dir, state)` pair under this repository's runs root, newest name last.
+
+    A verb invoked OUT OF BAND has no run in hand, so the run records ARE its index. Unreadable or
+    partial records are SKIPPED rather than raised on: one corrupt state.json must not make recovery
+    impossible for every other run.
+    """
+
+    root = state_root(repo)
+    if not root.is_dir():
+        return []
+    out: list[tuple[Path, dict[str, Any]]] = []
+    for run_dir in sorted(p for p in root.iterdir() if p.is_dir()):
+        path = run_dir / "state.json"
+        if not path.is_file():
+            continue
+        try:
+            state = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(state, dict):
+            out.append((run_dir, state))
+    return out
+
+
+def find_lane_candidates(
+    repo: Path, id6: str, *, run_id: str | None = None
+) -> list[LaneCandidate]:
+    """Every recorded lane for ``id6``, most recent run last. OQ-02: the id6 alone is enough.
+
+    THE RUN ID IS OPTIONAL BY DESIGN. The item's strongest use case is a lane stranded by an OLDER
+    run, where the operator may no longer have the run id, so requiring it would make the verb useless
+    in exactly the case it exists for. It is accepted to DISAMBIGUATE attempt-scoped lanes
+    (`_attempt2`, `_attempt3`), which `mm6wuz` proves can exist; the caller REFUSES and lists the
+    candidates rather than guessing when several match and no run id was given, because integrating the
+    wrong lane would land the wrong work on main.
+
+    De-duplicated by branch, keeping the LAST (most recent run) record for a branch, because that is
+    the record whose base and status describe the lane as it now stands.
+    """
+
+    by_branch: dict[str, LaneCandidate] = {}
+    for run_dir, state in iter_run_states(repo):
+        this_run = str(state.get("run_id") or run_dir.name)
+        if run_id and this_run != run_id and run_dir.name != run_id:
+            continue
+        for item in state.get("queue") or []:
+            if not isinstance(item, dict) or str(item.get("id6") or "") != id6:
+                continue
+            lane_id, base, branch = resolve_prior_lane(item)
+            if not branch:
+                continue
+            by_branch[str(branch)] = LaneCandidate(
+                run_id=this_run,
+                run_dir=run_dir,
+                id6=id6,
+                lane_id=str(lane_id or id6),
+                branch=str(branch),
+                base_commit=str(base or ""),
+                worktree=(
+                    str(item.get("preserved_worktree"))
+                    if item.get("preserved_worktree")
+                    else None
+                ),
+                item_status=str(item.get("status") or ""),
+            )
+    return list(by_branch.values())
+
+
+def lane_holds_finalized_plan(repo: Path, branch: str, id6: str) -> tuple[bool, str]:
+    """Is ``id6``'s plan in `executed/` ON ``branch``? Returns (answer, operator-facing detail).
+
+    "The plan is not finalized on the lane" is NOT one of `worktree_lease`'s five lane states and
+    cannot be read off the classifier, so it gets its own check (F-16). It is answered against the
+    BRANCH TREE rather than the lane worktree, because a lane branch can outlive its worktree and the
+    work would then be silently unrecoverable through a worktree-only test.
+
+    A LIFECYCLE BUCKET IS A DIRECTORY (see `plan_bucket`), so this is a path question about the lane's
+    own tree, never a re-reading of the plan's `- Status:` field.
+    """
+
+    rc, out, err = _run_git(repo, ["ls-tree", "-r", "--name-only", branch])
+    if rc != 0:
+        return False, "could not read the lane branch tree: {0}".format(
+            (err or out).strip()
+        )
+    needle = "-{0}-".format(id6)
+    seen: list[str] = []
+    for line in out.splitlines():
+        name = line.strip()
+        if not name.endswith(".ipd.md") or needle not in Path(name).name:
+            continue
+        seen.append(name)
+        if plan_bucket(Path(name)) == "executed":
+            return True, "the plan is finalized on the lane at {0}".format(name)
+    if not seen:
+        return False, (
+            "no plan file for {0} exists on the lane at all, so this lane never finalized "
+            "it".format(id6)
+        )
+    return False, (
+        "the plan for {0} is on the lane but NOT in executed/ ({1}), so the lane's turn never "
+        "finalized it and there is no verified work to integrate".format(
+            id6, ", ".join(sorted(seen))
+        )
+    )
+
+
+def reintegrate_lane(
+    repo: Path,
+    id6: str,
+    *,
+    integrate: Callable[[Path, Any, str, Any], tuple[bool, str, str]],
+    suite_check: Callable[..., Any],
+    run_id: str | None = None,
+    candidate: LaneCandidate | None = None,
+) -> ReintegrationOutcome:
+    """Re-attempt integration for ONE named verified lane, with NO agent turn.
+
+    integpath-04 (`rl67b0`) E-01. THE single implementation behind BOTH the operator verb
+    (`aw <host> integrate <id6>` and `aw <host> run integrate <id6>`) and the automatic pass a resume
+    makes (:func:`integrate_stranded_lanes`), so the two spellings and the two triggers cannot drift.
+
+    WHAT IT DOES, in order, and every step is a refusal point:
+
+      1. RESOLVE the lane from DURABLE state (`find_lane_candidates` -> `resolve_prior_lane`), never
+         from a branch name reconstructed out of the id6. Several matching lanes with no run id given
+         is a REFUSAL that lists them (OQ-02), not a guess.
+      2. CLASSIFY it with `worktree_lease.inspect_lane`, the existing classifier, rather than writing a
+         second one. Its five states do NOT map one-to-one onto the refusal cases, so the mapping is
+         explicit here: `ABSENT` is its own refusal; `EMPTY`/`STALE` both mean "holds no commits";
+         `HOLDS-WORK` alone does NOT prove there is committed work, because a merely DIRTY lane with
+         zero commits also classifies that way, so `commits_ahead > 0` is required; `FOREIGN` is
+         refused rather than handled.
+      3. REFUSE a lane a LIVE process still owns. This is an OUT-OF-BAND command holding no run lock,
+         so integrating a lane a running driver is still working in would be a race that could merge a
+         half-finished tree. `inspect_lane` already reports `owner_live`; no second liveness probe.
+      4. REFUSE when the plan is not finalized ON the lane (see `lane_holds_finalized_plan`). An
+         unfinalized lane is not verified work, whatever its commits say.
+      5. RE-VERIFY AND MERGE through `integrate` (each host's `integrate_lane_branch` wrapper, so the
+         merge subject still names the right driver), passing the lane's own DECLARED base and a REAL
+         validation runner that runs the repository suite in the PRIMARY checkout. A non-passing suite
+         makes the gate refuse, main is left untouched, and the lane is preserved. This is the whole
+         safety argument: a lane verified against yesterday's main is not verified against today's.
+
+    ``suite_check`` is INJECTED (F-17) and is called as ``suite_check(repo, run_id)``, returning an
+    object with a ``passing`` bool and a ``reason`` string (each host binds its own `run_suite_check`).
+    It is called from INSIDE the gate's `full_validation_runner`, which is what makes the suite result
+    the gate's verdict rather than a separate opinion beside it. ``integrate`` is injected for the same
+    reason `integrate_lane_branch` takes `run_checked` and `host_label`.
+
+    NEVER RAISES for an expected condition: every failure is a `ReintegrationOutcome` carrying a code,
+    because the resume caller must be able to continue with the rest of its queue (E-03) and a verb
+    must exit nonzero with a sentence rather than a traceback.
+    """
+
+    from agent_workflows import worktree_lease
+
+    if candidate is None:
+        found = find_lane_candidates(repo, id6, run_id=run_id)
+        if not found:
+            return ReintegrationOutcome(
+                integrated=False,
+                code=REINTEGRATE_NO_LANE_RECORD,
+                reason=(
+                    "no run record names a preserved lane for {0}, so there is no lane identity to "
+                    "integrate. The lane branch is read from the run record's preserved_lane_id / "
+                    "preserved_base / preserved_branch fields and is deliberately NOT reconstructed "
+                    "from the id6, because allocation may have attempt-scoped the name".format(
+                        id6
+                    )
+                ),
+            )
+        if len(found) > 1:
+            return ReintegrationOutcome(
+                integrated=False,
+                code=REINTEGRATE_AMBIGUOUS_LANE,
+                reason=(
+                    "{0} has {1} recorded lanes and no run id was given; refusing rather than "
+                    "guessing, because integrating the wrong lane would land the wrong work on "
+                    "main. Re-run naming one: {2}".format(
+                        id6,
+                        len(found),
+                        "; ".join(c.describe() for c in found),
+                    )
+                ),
+                candidates=tuple(found),
+            )
+        candidate = found[0]
+
+    lane = worktree_lease.inspect_lane(
+        repo,
+        worktree_lease.lane_id_from_branch(candidate.branch) or candidate.lane_id,
+        base_commit=candidate.base_commit or "HEAD",
+    )
+
+    if lane.state == worktree_lease.LANE_ABSENT:
+        return ReintegrationOutcome(
+            integrated=False,
+            code=REINTEGRATE_LANE_ABSENT,
+            reason=(
+                "lane {0} no longer exists (no branch and no registered worktree), so there is "
+                "nothing to integrate; whatever the run recorded has been removed out of "
+                "band".format(candidate.branch)
+            ),
+            candidate=candidate,
+        )
+    # `owner_live` is Optional[bool]: None means UNKNOWN owner and must never be read as "not live".
+    if lane.owner_live is True:
+        return ReintegrationOutcome(
+            integrated=False,
+            code=REINTEGRATE_LANE_LIVE,
+            reason=(
+                "lane {0} is owned by a LIVE process, and this command holds no run lock; "
+                "integrating it now could merge a half-finished tree. Let that run finish (or stop "
+                "it) and try again".format(candidate.branch)
+            ),
+            candidate=candidate,
+        )
+    if lane.state == worktree_lease.LANE_FOREIGN:
+        return ReintegrationOutcome(
+            integrated=False,
+            code=REINTEGRATE_LANE_FOREIGN,
+            reason=(
+                "lane {0} classifies FOREIGN (its base is not an ancestor of the base recorded for "
+                "it), so it is not this run's lane to integrate; refusing rather than "
+                "guessing".format(candidate.branch)
+            ),
+            candidate=candidate,
+        )
+    if lane.commits_ahead <= 0:
+        # HOLDS-WORK alone does NOT prove committed work: a merely DIRTY lane with zero commits also
+        # classifies that way (F-16), and a dirty tree is not something a merge can carry.
+        return ReintegrationOutcome(
+            integrated=False,
+            code=REINTEGRATE_LANE_EMPTY,
+            reason=(
+                "lane {0} holds no commits beyond its base (classified {1}{2}), so there is no "
+                "verified work to integrate".format(
+                    candidate.branch,
+                    lane.state,
+                    "; its tree is dirty, and uncommitted changes are invisible to a merge"
+                    if lane.dirty
+                    else "",
+                )
+            ),
+            candidate=candidate,
+        )
+
+    finalized, detail = lane_holds_finalized_plan(repo, candidate.branch, candidate.id6)
+    if not finalized:
+        return ReintegrationOutcome(
+            integrated=False,
+            code=REINTEGRATE_PLAN_NOT_FINALIZED,
+            reason="lane {0} is not a finalized lane: {1}".format(
+                candidate.branch, detail
+            ),
+            candidate=candidate,
+        )
+
+    handle = worktree_lease.WorktreeHandle(
+        lane_id=candidate.lane_id,
+        path=Path(candidate.worktree) if candidate.worktree else Path(""),
+        branch=candidate.branch,
+        # THE LANE'S OWN DECLARED BASE, exactly as the in-run path passes it. See this section's
+        # header for why main's current head is wrong in BOTH directions.
+        base_commit=candidate.base_commit or (lane.base_sha or ""),
+    )
+
+    suite_holder: dict[str, Any] = {}
+
+    def _validation_runner(_combined_diff: str, _merged_files: Any) -> bool:
+        """THE REAL revalidation, and the only freshness signal in this path.
+
+        Runs the repository suite in the PRIMARY checkout through the INJECTED checker and returns its
+        verdict, so a red suite makes the GATE refuse (`integration_failed_combined_red`) rather than
+        being a second opinion the merge could ignore. Contrast the shipped
+        `make_integration_validation_runner`, whose whole body is `return True`: with that runner a
+        single-lane attempt passes unconditionally, which would make this verb a way to land an
+        unvalidated lane on main while reporting a green gate.
+        """
+        result = suite_check(repo, run_id or candidate.run_id)
+        suite_holder["result"] = result
+        return bool(getattr(result, "passing", False))
+
+    try:
+        integrated, reason, kind = integrate(
+            repo, handle, candidate.id6, _validation_runner
+        )
+    except Exception as exc:  # noqa: BLE001
+        # DELIBERATE blind catch: an exception from git or from the suite must be an honest REFUSAL
+        # that leaves the item and its lane exactly as they were, never an abort of the resume that
+        # called this (E-03) and never a traceback at an operator.
+        return ReintegrationOutcome(
+            integrated=False,
+            code=REINTEGRATE_ERROR,
+            reason="the re-integration attempt for {0} errored (nothing was integrated): {1}".format(
+                candidate.branch, exc
+            ),
+            candidate=candidate,
+            suite=suite_holder.get("result"),
+        )
+
+    suite = suite_holder.get("result")
+    if not integrated:
+        suffix = ""
+        if suite is not None and not bool(getattr(suite, "passing", False)):
+            suffix = "; {0}".format(
+                getattr(suite, "reason", "") or "the suite did not pass"
+            )
+        return ReintegrationOutcome(
+            integrated=False,
+            code=REINTEGRATE_GATE_REFUSED,
+            reason="{0}{1}".format(reason, suffix),
+            kind=kind,
+            candidate=candidate,
+            suite=suite,
+        )
+    return ReintegrationOutcome(
+        integrated=True,
+        code=REINTEGRATE_OK,
+        reason=reason,
+        kind=kind,
+        candidate=candidate,
+        suite=suite,
+    )
+
+
+def finish_reintegrated_item(
+    *,
+    repo: Path,
+    run_dir: Path,
+    state: MutableMapping[str, Any],
+    item: MutableMapping[str, Any],
+    outcome: ReintegrationOutcome,
+    save_state: Callable[..., Any],
+    append_jsonl: Callable[..., Any],
+    process_backlog_close: Callable[..., Any] | None = None,
+) -> None:
+    """Record a SUCCESSFUL re-integration exactly as the in-run success path records one.
+
+    integpath-04 (`rl67b0`) E-03. NO INVENTED DISPOSITION: the item reaches `executed`, the same
+    `ipd-finalized` event is appended, `last_plan_path` is RE-RESOLVED (the plan now lives in
+    `executed/` on main, which is what a later reader resolves against), and the backlog close is
+    attempted, because that is what the in-run path does AFTER integrating and a recovered lane has
+    earned exactly the same bookkeeping.
+
+    `recovery_next` IS CLEARED, and that is load-bearing rather than tidy: `--retry-incomplete` may
+    ALREADY have flipped this item to `queued` with `recovery_next=True` before the integration pass
+    could legally run (the requeue precedes the indeterminate refusal, which precedes the pass), so
+    leaving the flag set would let the dispatch loop pay for a turn to redo work that just landed.
+
+    `process_backlog_close` is INJECTED for the F-17 reason: it lives in `oc_runipd` (agy re-exports
+    it), and this module may not import either runner. Passing None simply skips the close.
+    """
+
+    item["status"] = "executed"
+    item["integrated"] = outcome.reason
+    item.pop("recovery_next", None)
+    item.pop("requeue_from_status", None)
+    attempts = item.get("attempts") or []
+    if attempts:
+        attempts[-1]["disposition"] = "executed"
+        attempts[-1]["integrated"] = outcome.reason
+    with contextlib.suppress(DriverError, OSError):
+        item["last_plan_path"] = str(
+            resolve_plan_path(
+                repo, str(item.get("configured_file") or ""), str(item["id6"])
+            )
+        )
+    save_state(run_dir, state)
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "ipd-finalized",
+            "id6": item.get("id6"),
+            "setid": item.get("setid"),
+            "integration": outcome.reason,
+            # ADDITIVE, so every existing consumer of `ipd-finalized` is untouched: this names the
+            # route, so an audit can tell a merge-only recovery from a paid turn.
+            "reintegrated": True,
+            "suite": getattr(outcome.suite, "reason", None),
+        },
+    )
+    if process_backlog_close is not None and not (item.get("backlog_close") or {}).get(
+        "closed"
+    ):
+        # Skip when the lane-side close already succeeded: re-evaluating would answer `item is
+        # already done` (close=False) and OVERWRITE the success record with a refusal, reporting a
+        # correct close as "left open".
+        with contextlib.suppress(Exception):
+            process_backlog_close(run_dir, state, item)
+        save_state(run_dir, state)
+
+
+def stranded_integration_candidates(
+    repo: Path, state: Mapping[str, Any]
+) -> list[tuple[dict[str, Any], LaneCandidate, str]]:
+    """Every queue item whose verified lane is merely UNINTEGRATED, with its lane and prior status.
+
+    integpath-04 (`rl67b0`) E-03/E-04. SELECTION IS ON DURABLE LANE FACTS, NOT ON `item["status"]`,
+    and that is not a stylistic preference: `--retry-incomplete` runs BEFORE the point where the
+    integration pass may legally sit, so by then the flag has already rewritten a stranded item's
+    status to `queued`. A status test would therefore see nothing and the cheap path would be lost in
+    exactly the case it exists for. So an item qualifies when its RECORDED disposition (live status, or
+    the `requeue_from_status` the flag wrote when it rewrote that status) is re-integratable AND its
+    recorded lane still holds committed work.
+
+    Returns `(item, candidate, prior_status)` triples, so a caller can integrate, or restore the exact
+    status the flag overwrote (E-04's hold-back), without re-deriving either fact.
+    """
+
+    from agent_workflows import worktree_lease
+
+    out: list[tuple[dict[str, Any], LaneCandidate, str]] = []
+    run_id = str(state.get("run_id") or "")
+    run_dir_value = state.get("run_dir")
+    for item in state.get("queue") or []:
+        if not isinstance(item, dict):
+            continue
+        live = str(item.get("status") or "")
+        prior = str(item.get("requeue_from_status") or "")
+        effective = (
+            live
+            if live in REINTEGRATABLE_STATUSES
+            else (prior if prior in REINTEGRATABLE_STATUSES else "")
+        )
+        if not effective:
+            continue
+        lane_id, base, branch = resolve_prior_lane(item)
+        if not branch:
+            continue
+        lane = worktree_lease.inspect_lane(
+            repo,
+            worktree_lease.lane_id_from_branch(str(branch)) or str(lane_id or ""),
+            base_commit=str(base or "HEAD"),
+        )
+        if lane.commits_ahead <= 0:
+            # Nothing a merge could carry. Left for `--retry-incomplete` to handle as it always has,
+            # which is right: an item with no committed lane work genuinely needs a turn.
+            continue
+        out.append(
+            (
+                item,
+                LaneCandidate(
+                    run_id=run_id,
+                    run_dir=Path(str(run_dir_value)) if run_dir_value else Path("."),
+                    id6=str(item.get("id6") or ""),
+                    lane_id=str(lane_id or item.get("id6") or ""),
+                    branch=str(branch),
+                    base_commit=str(base or ""),
+                    worktree=(
+                        str(item.get("preserved_worktree"))
+                        if item.get("preserved_worktree")
+                        else None
+                    ),
+                    item_status=effective,
+                ),
+                effective,
+            )
+        )
+    return out
+
+
+def integrate_stranded_lanes(
+    *,
+    repo: Path,
+    run_dir: Path,
+    state: MutableMapping[str, Any],
+    integrate: Callable[[Path, Any, str, Any], tuple[bool, str, str]],
+    suite_check: Callable[..., Any],
+    save_state: Callable[..., Any],
+    append_jsonl: Callable[..., Any],
+    process_backlog_close: Callable[..., Any] | None = None,
+    report: Callable[[str], None] | None = None,
+) -> list[dict[str, Any]]:
+    """THE RESUME PASS: merge every already-verified lane instead of re-dispatching it (E-03/E-04).
+
+    Called from `run_queue` AFTER the indeterminate refusal and BEFORE any item is dispatched, which
+    is the one placement that satisfies both of this plan's ordering constraints. The refusal `return
+    1`s before any turn, so nothing is integrated during a resume the driver is about to decline; and
+    the `--retry-incomplete` requeue only rewrites `status`/`recovery_next` in memory-plus-state
+    without dispatching anything, so acting after it is still strictly before any turn is launched.
+    `run_queue` is only ever entered under `locked_run`, so this already holds the run lock and must
+    NOT acquire a second one.
+
+    THIS IS NOT BEHIND A FLAG, deliberately. The alternative default is silent re-dispatch of finished
+    work, which is strictly worse and is the measured defect; empirically this alone would have
+    resolved all four items of run `run-20260905T050043Z-639569`.
+
+    TWO OUTCOMES PER ITEM, and both are honest:
+
+      * INTEGRATED -> `finish_reintegrated_item` writes the same state and the same records the in-run
+        success path writes, and clears `recovery_next` so the flag cannot re-dispatch work that just
+        landed.
+      * REFUSED    -> E-04's HOLD-BACK. The item is restored to the exact terminal status
+        `--retry-incomplete` overwrote and is NOT re-dispatched, because dispatching it would
+        attempt-scope a SECOND lane (`_attempt2`) and abandon the finished one, which is the measured
+        `mm6wuz` failure. The operator is TOLD which item was held back, why, and what to do; a silent
+        skip would reproduce the "a bare resume does nothing" trap one level up. NO lane is ever
+        deleted or reclaimed to achieve this: the lane is the preserved evidence.
+
+    IT CANNOT ABORT THE RESUME. A refusal, an exception from git, or a red suite records itself and the
+    loop continues to the next item; `reintegrate_lane` converts every failure into an outcome rather
+    than raising. A resume that died because one stranded lane could not be merged would be worse than
+    the do-nothing behavior this replaces.
+
+    NOTE THE COST THIS INHERITS: the attempt runs the suite in the primary checkout, so a resume with
+    stranded lanes now spends a suite run per lane before dispatching anything. That is the right trade
+    against a paid agent turn, but it is not free, which is why it is reported rather than silent.
+
+    Returns one record per attempted item, for the caller's report.
+    """
+
+    def _say(message: str) -> None:
+        if report is not None:
+            report(message)
+
+    records: list[dict[str, Any]] = []
+    for item, candidate, prior in stranded_integration_candidates(repo, state):
+        id6 = candidate.id6
+        _say(
+            "  integrating already-verified lane {0} for IPD {1} (no agent turn; runs the suite in "
+            "{2})".format(candidate.branch, id6, repo)
+        )
+        outcome = reintegrate_lane(
+            repo,
+            id6,
+            integrate=integrate,
+            suite_check=suite_check,
+            run_id=str(state.get("run_id") or ""),
+            candidate=candidate,
+        )
+        if outcome.integrated:
+            finish_reintegrated_item(
+                repo=repo,
+                run_dir=run_dir,
+                state=state,
+                item=item,
+                outcome=outcome,
+                save_state=save_state,
+                append_jsonl=append_jsonl,
+                process_backlog_close=process_backlog_close,
+            )
+            _say(
+                "  \u2713 IPD {0} integrated to main from its existing lane {1} with NO agent turn "
+                "({2})".format(id6, candidate.branch, outcome.reason)
+            )
+            records.append(
+                {
+                    "id6": id6,
+                    "branch": candidate.branch,
+                    "outcome": "integrated",
+                    "detail": outcome.reason,
+                }
+            )
+            continue
+
+        # E-04: HELD BACK, not silently skipped, and not re-dispatched.
+        item["status"] = prior
+        item.pop("recovery_next", None)
+        item["reintegration_refusal"] = {
+            "code": outcome.code,
+            "reason": outcome.reason,
+            "branch": candidate.branch,
+            "at": utc_now(),
+        }
+        save_state(run_dir, state)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "ipd-reintegration-refused",
+                "id6": id6,
+                "setid": item.get("setid"),
+                "code": outcome.code,
+                "detail": outcome.reason,
+                "branch": candidate.branch,
+                "held_back_from_status": prior,
+            },
+        )
+        _say(
+            "  ! IPD {0} was NOT re-dispatched: its verified lane {1} still holds unintegrated work, "
+            "and re-running it would allocate a SECOND lane and abandon that one. The integration "
+            "re-attempt refused ({2}): {3}\n"
+            "    -> left at status {4} with its lane intact. Fix the cause and re-run "
+            "`integrate {0}`, or resolve on the preserved lane branch.".format(
+                id6, candidate.branch, outcome.code, outcome.reason, prior
+            )
+        )
+        records.append(
+            {
+                "id6": id6,
+                "branch": candidate.branch,
+                "outcome": "held-back",
+                "code": outcome.code,
+                "detail": outcome.reason,
+            }
+        )
+    return records
+
+
+def render_reintegration_result(outcome: ReintegrationOutcome, *, id6: str) -> str:
+    """The verb's operator-facing sentence for one attempt. ONE renderer, so both hosts agree."""
+
+    if outcome.integrated:
+        branch = outcome.candidate.branch if outcome.candidate else "?"
+        suite = getattr(outcome.suite, "reason", None)
+        return "integrated {0} from lane {1} to main with no agent turn: {2}{3}".format(
+            id6, branch, outcome.reason, "\n  {0}".format(suite) if suite else ""
+        )
+    return "integrate {0} REFUSED ({1}): {2}".format(id6, outcome.code, outcome.reason)
+
+
+#: The verb's `--help` text. Shared so the driver subcommand and the `cli.py` host-noun alias cannot
+#: describe the same command differently, and because WHAT IT COSTS is the reason an operator reaches
+#: for it instead of a re-run: no agent turn, but a real gate run and a real suite run.
+INTEGRATE_VERB_HELP = (
+    "Re-attempt integration for an already verified lane, with NO agent turn "
+    "(re-runs the merge-and-revalidate gate and the repository suite)"
+)
+
+INTEGRATE_VERB_DESCRIPTION = """Merge a lane that already finished, verified and finalized, but failed to integrate.
+
+COSTS NO AGENT TURN. This is the whole point: recovering a stranded lane costs one merge instead of
+one paid re-run. What it DOES cost is a re-verification, and that is deliberate: the attempt runs the
+repository suite in the PRIMARY checkout and routes the merge through the same merge-and-revalidate
+gate an in-run integration uses, because a lane verified against yesterday's main is not verified
+against today's. A red suite, a real conflict, or a dirty overlapping base REFUSES, leaves main
+untouched, and preserves the lane.
+
+The lane is read from the run record's preserved lane fields, never reconstructed from the id6, so an
+attempt-scoped lane (`aw/lane/<id6>_attempt2`) is integrated as itself. Pass --run-id to disambiguate
+when an id6 has more than one recorded lane; without it, several candidates is a refusal that lists
+them rather than a guess.
+"""
+
+
+def add_integrate_parser(sub: Any, *, command: str = "aw oc run") -> Any:
+    """Declare the `integrate` subcommand on `sub`. ONE declaration, both drivers.
+
+    It is declared on the RUNNER's own parser (where `start` already lives) for the reason
+    `add_stop_parser` records: `aw oc run` / `aw agy run` forward `argparse.REMAINDER` verbatim to the
+    runner's `main`, so re-declaring the flags at the `aw` layer would drift AND would bypass the
+    implicit-start shim, which lives in `main()` rather than `build_parser()`.
+
+    THE VERB MUST ALSO BE REGISTERED IN THAT SHIM'S SUBCOMMAND SET, in both drivers and in the test's
+    inline third copy. Declaring the subparser alone is NOT enough: an unregistered first token is
+    rewritten into `start <token>`, so a bare `integrate <id6>` would LAUNCH A RUN with `integrate` as
+    a selector. That hazard is recorded for `stop` and is the same one here.
+    """
+
+    import argparse
+
+    integrate = sub.add_parser(
+        "integrate",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=INTEGRATE_VERB_HELP,
+        description=INTEGRATE_VERB_DESCRIPTION,
+        epilog="EXAMPLES:\n  {0} integrate mm6wuz\n  {0} integrate mm6wuz --run-id "
+        "run-20260905T050043Z-639569\n".format(command),
+    )
+    integrate.add_argument(
+        "id6", help="The 6-character IPD id whose lane should be integrated"
+    )
+    integrate.add_argument("--repo", default=".", help="Target Git repository root")
+    integrate.add_argument(
+        "--run-id",
+        dest="run_id",
+        default=None,
+        help="Disambiguate when the id6 has more than one recorded lane (e.g. an attempt-scoped one)",
+    )
+    return integrate
+
+
 def reconcile_item_on_interrupt(
     repo: Path,
     run_dir: Path,

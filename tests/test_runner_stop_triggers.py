@@ -1008,6 +1008,54 @@ class ImplicitStartShimTests(unittest.TestCase):
                 f"`stop <run-id> --now` would be rewritten to `start stop <run-id> --now`",
             )
 
+    def _integrate_is_not_rewritten(self, module) -> None:
+        """integpath-04 (`rl67b0`) E-02/E-05: the SAME hazard for the new `integrate` verb.
+
+        Mirrors `_stop_is_not_rewritten` exactly, including its discriminator: an unregistered
+        `integrate` would be rewritten to `start integrate <id6>` and would MINT A RUN with the literal
+        selector `integrate`. So the assertion is not merely "it exited nonzero" (a launched run can
+        also fail) but "no run directory was created".
+        """
+        with TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            rc = module.main(["integrate", "zzzzzz", "--repo", os.fspath(repo)])
+            self.assertNotEqual(rc, 0, "an id6 with no recorded lane must exit nonzero")
+            runs = repo / ".aw" / "records" / "runs"
+            self.assertFalse(
+                runs.exists() and any(runs.iterdir()),
+                f"`integrate` was rewritten into `start`: a run was created under {runs}",
+            )
+
+    def test_oc_does_not_rewrite_a_bare_integrate_into_start(self):
+        self._integrate_is_not_rewritten(oc)
+
+    def test_agy_does_not_rewrite_a_bare_integrate_into_start(self):
+        self._integrate_is_not_rewritten(agy)
+
+    def test_integrate_is_listed_in_both_shims_subcommand_sets(self):
+        """integpath-04 (`rl67b0`) E-02: the structural companion for `integrate`.
+
+        The behavioral pair above observes only the CONSEQUENCE, so a future edit could drop the token
+        from ONE driver and that driver's behavioral test alone would fail; this pins the membership in
+        both, using the same regex `test_the_inline_copy_matches_both_drivers` uses, which is what makes
+        hoisting the set into a module constant unmatchable (see the KEEP-THIS-INLINE comments).
+        """
+        import re
+
+        for name in ("oc_runipd.py", "agy_runipd.py"):
+            source = (REPO_ROOT / "agent_workflows" / name).read_text(encoding="utf-8")
+            block = re.search(r"subcommands = \{(.*?)\}", source, re.S)
+            self.assertIsNotNone(block, name)
+            assert block is not None
+            self.assertIn(
+                '"integrate"',
+                block.group(1),
+                f"{name}: `integrate` is missing from the implicit-start shim's subcommand set, so "
+                f"`integrate <id6>` would be rewritten to `start integrate <id6>` and LAUNCH a run",
+            )
+
     #: The shim's subcommand set, RE-DECLARED here so the control test below can evaluate the shim
     #: the way `main` does without importing a module constant that deliberately does not exist (see
     #: the KEEP-THIS-INLINE comment in both drivers).
@@ -1016,12 +1064,19 @@ class ImplicitStartShimTests(unittest.TestCase):
     #: both drivers. Keeping them here while the drivers dropped them would leave this test passing
     #: while asserting a set the code does not have, which is worse than no test:
     #: `test_the_inline_copy_matches_both_drivers` now pins the two together.
+    #:
+    #: integpath-04 (`rl67b0`) E-02: `"integrate"` was ADDED to this copy in lockstep with both drivers,
+    #: for the same reason `stop` is here at all. An unregistered first token is rewritten into
+    #: `start <token>`, so `integrate <id6>` would LAUNCH A RUN with `integrate` as a selector. Adding
+    #: the subparser alone does not cover it, because the shim lives in `main()` rather than
+    #: `build_parser()`.
     SHIM_SUBCOMMANDS = {
         "start",
         "resume",
         "status",
         "report",
         "stop",
+        "integrate",
         "-h",
         "--help",
     }

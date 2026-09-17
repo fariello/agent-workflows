@@ -61,6 +61,9 @@ VERIFICATION_FLAGS = (
 #: suppressed it on one host would be an operator-visible change this plan must catch.
 EXPECTED_OPTION_STRINGS: dict[str, dict[str, frozenset[str]]] = {
     "oc": {
+        # integpath-04 (`rl67b0`): the `integrate` verb, declared through the ONE shared
+        # `runner_shared.add_integrate_parser`, so BOTH hosts carry the identical row.
+        "integrate": frozenset({"--help", "--repo", "--run-id", "-h", "id6"}),
         "report": frozenset({"--help", "--repo", "-h", "run_id"}),
         "resume": frozenset(
             {
@@ -178,6 +181,9 @@ EXPECTED_OPTION_STRINGS: dict[str, dict[str, frozenset[str]]] = {
         ),
     },
     "agy": {
+        # integpath-04 (`rl67b0`): the `integrate` verb, declared through the ONE shared
+        # `runner_shared.add_integrate_parser`, so BOTH hosts carry the identical row.
+        "integrate": frozenset({"--help", "--repo", "--run-id", "-h", "id6"}),
         "report": frozenset({"--help", "--repo", "-h", "run_id"}),
         "resume": frozenset(
             {
@@ -346,13 +352,16 @@ class EachHostRegistersExactlyItsOwnFlagSet(unittest.TestCase):
     option strings live on these parsers against 12 policy rows).
     """
 
-    def test_the_two_hosts_register_the_same_five_subparsers(self):
+    def test_the_two_hosts_register_the_same_six_subparsers(self):
+        # SIX since 2026-09-17: integpath-04 (`rl67b0`) added `integrate`, declared on BOTH hosts through
+        # the ONE shared `runner_shared.add_integrate_parser`, exactly as `stop` is. What this test is
+        # actually about is that the two hosts register the SAME set, and they still do.
         for host in HOSTS:
             with self.subTest(host=host):
                 self.assertEqual(
                     sorted(subparsers(host)),
-                    ["report", "resume", "start", "status", "stop"],
-                    f"{host} no longer registers exactly the five expected subparsers",
+                    ["integrate", "report", "resume", "start", "status", "stop"],
+                    f"{host} no longer registers exactly the six expected subparsers",
                 )
 
     def test_every_subparser_registers_exactly_the_measured_option_strings(self):
@@ -395,7 +404,12 @@ class EachHostRegistersExactlyItsOwnFlagSet(unittest.TestCase):
         by counting option-string LITERALS in each `build_parser` source; that method cannot see a
         `--no-X` that `BooleanOptionalAction` auto-generates, nor anything a shared helper
         registers. Counted on the LIVE parsers, which is what an operator actually meets, the
-        partition is 51 shared / 8 oc-only / 8 agy-only.
+        partition is 52 shared / 8 oc-only / 8 agy-only.
+
+        RE-MEASURED 2026-09-17 (shared 51 -> 52) by integpath-04 (`rl67b0`): the `integrate` verb's
+        positional `id6` is the one new shared entry, and because the verb is declared through ONE
+        shared helper the partition moved SYMMETRICALLY. Neither host-only set changed, which is the
+        property this test exists to police.
         """
 
         oc_all: set[str] = set()
@@ -434,7 +448,7 @@ class EachHostRegistersExactlyItsOwnFlagSet(unittest.TestCase):
         )
         self.assertEqual(
             len(oc_all & agy_all),
-            51,
+            52,
             "the number of SHARED option strings changed; a flag became host-specific or stopped "
             "being so",
         )
