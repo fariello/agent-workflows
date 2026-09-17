@@ -765,3 +765,160 @@ def test_ipd_lifecycle_git_delegates_to_shared_runner():
     rc, out, _err = LC._git(Path("."), ["rev-parse", "--is-inside-work-tree"])
     assert rc == 0
     assert out.strip() == "true"
+
+
+# --------------------------------------------------------------------------------------
+# (g) A HOOK THAT REWRITES-AND-REJECTS: one bounded retry (IPD lqly9m E-07)
+# --------------------------------------------------------------------------------------
+#
+# THE GAP THESE CLOSE IS WHY THE DEFECT SHIPPED. Before them this 767-line module made 16
+# `offer_commit` calls and covered a hook-rejected commit ZERO times, because the shared fixture
+# (`tests.support.init_repo`) does a bare `git init` and installs no hook at all. So the behavior that
+# cost every agent a commit round trip for a stripped trailing space was invisible to the suite.
+#
+# WHY BOTH LAYERS. The detection and the retry live in `commit_lock.commit_isolated` (the only layer
+# that can SEE the rewrite, since it happens inside the private worktree), while callers see the result
+# through `offer_commit`. `tests/test_commit_lock.py` asserts the lower layer; these assert what a
+# CALLER observes, including the `hook_fixed` report that keeps the mutation from being silent.
+
+_HOOK_REWRITES_AND_REJECTS = """#!/bin/sh
+# The pre-commit auto-fix shape: FIX the staged file, then exit nonzero.
+changed=0
+for f in $(git diff --cached --name-only); do
+  [ -f "$f" ] || continue
+  sed -e 's/[ \t]*$//' "$f" > "$f.awtmp"
+  if cmp -s "$f" "$f.awtmp"; then
+    rm -f "$f.awtmp"
+  else
+    mv "$f.awtmp" "$f"
+    echo "Fixing $f"
+    changed=1
+  fi
+done
+[ "$changed" = 1 ] && exit 1
+exit 0
+"""
+
+_HOOK_REFUSES_WITHOUT_TOUCHING = """#!/bin/sh
+echo "refusing: policy violation" >&2
+exit 1
+"""
+
+
+def _install_hook(repo: Path, body: str) -> Path:
+    """Install a real `.git/hooks/pre-commit`, which the isolated worktree also runs."""
+
+    hook = repo / ".git" / "hooks" / "pre-commit"
+    hook.parent.mkdir(parents=True, exist_ok=True)
+    hook.write_text(body, encoding="utf-8")
+    hook.chmod(0o755)
+    return hook
+
+
+def test_hook_that_rewrites_our_path_is_retried_once_and_commits(repo: Path, rec):
+    """A mutating hook must cost ZERO round trips, and must not do so silently."""
+
+    _install_hook(repo, _HOOK_REWRITES_AND_REJECTS)
+    mine = _write(repo, "art.md", "line with trailing space   \n")
+    before = _head(repo)
+
+    out = H.offer_commit(repo, [mine], message="chore(test): art", assume_yes=True)
+
+    assert out.status == H.STATUS_COMMITTED, out.message
+    assert out.commit and out.commit != before
+    # The fix is REPORTED, not absorbed: the committed bytes are the hook's, not ours.
+    assert out.hook_fixed == ("art.md",), out
+    assert out.hook_fixed_diverged == ()
+    assert "art.md" in out.message and "hooks fixed" in out.message
+    # The hook's fix is what landed.
+    assert (
+        git(repo, "show", f"{out.commit}:art.md").stdout == "line with trailing space\n"
+    )
+    # E-09: and the shared tree agrees with the commit, so the path does not read dirty.
+    assert git(repo, "status", "--porcelain").stdout == ""
+    assert (repo / "art.md").read_text(encoding="utf-8") == "line with trailing space\n"
+    rec.assert_contract_clean()  # across BOTH commit attempts
+
+
+def test_hook_that_refuses_without_touching_files_is_not_retried(repo: Path, rec):
+    """A genuine refusal is unchanged: still an error, no retry, nothing committed.
+
+    This is the property that keeps the retry from being `--no-verify` in disguise, so it asserts the
+    ATTEMPT COUNT rather than only the outcome.
+    """
+
+    _install_hook(repo, _HOOK_REFUSES_WITHOUT_TOUCHING)
+    mine = _write(repo, "art.md", "clean content\n")
+    before = _head(repo)
+
+    out = H.offer_commit(repo, [mine], message="chore(test): art", assume_yes=True)
+
+    assert out.status == H.STATUS_ERROR, out.message
+    assert out.commit is None
+    assert out.hook_fixed == ()
+    assert _head(repo) == before
+    commit_attempts = [c for c in rec.calls if c and c[0] == "commit"]
+    assert len(commit_attempts) == 1, commit_attempts
+    rec.assert_contract_clean()
+
+
+def test_whitespace_only_edit_reports_nothing_to_commit_not_hook_rejected(
+    repo: Path, rec
+):
+    """The COMMONEST shape of the defect: the hook's fix erases our entire diff.
+
+    A naive retry stages an empty index and gets rejected a second time reading `nothing to commit`,
+    so the plain retry would NOT fix the case that motivated it. The honest answer is
+    `nothing-to-commit`.
+    """
+
+    _install_hook(repo, _HOOK_REWRITES_AND_REJECTS)
+    # Commit the file CLEAN first (bypassing the hook), then re-add only trailing whitespace.
+    _write(repo, "art.md", "already clean\n")
+    git(repo, "add", "--", "art.md")
+    git(repo, "commit", "-q", "--no-verify", "-m", "seed art")
+    before = _head(repo)
+    _write(repo, "art.md", "already clean   \n")
+
+    out = H.offer_commit(repo, ["art.md"], message="chore(test): art", assume_yes=True)
+
+    assert out.status == H.STATUS_NOTHING_TO_COMMIT, out.message
+    assert out.hook_fixed == ("art.md",), out
+    assert _head(repo) == before
+    rec.assert_contract_clean()
+
+
+def test_a_peers_dirty_file_is_absent_from_the_retried_commit(repo: Path, rec):
+    """E-04: the retry re-adds ONLY our paths, so a peer's dirty file cannot ride along."""
+
+    _install_hook(repo, _HOOK_REWRITES_AND_REJECTS)
+    mine = _write(repo, "art.md", "mine with trailing   \n")
+    _write(repo, "peer.md", "peer work in progress   \n")  # a co-worker's, NOT in paths
+
+    out = H.offer_commit(repo, [mine], message="chore(test): art", assume_yes=True)
+
+    assert out.status == H.STATUS_COMMITTED, out.message
+    assert out.hook_fixed == ("art.md",)
+    assert _committed_files(repo, out.commit) == {"art.md"}
+    # The peer's file is untouched AND still dirty (its trailing whitespace is not "fixed" either).
+    assert "?? peer.md" in git(repo, "status", "--porcelain").stdout
+    assert (repo / "peer.md").read_text(
+        encoding="utf-8"
+    ) == "peer work in progress   \n"
+    rec.assert_contract_clean()
+
+
+def test_commit_outcome_keeps_its_positional_contract(repo: Path, rec):
+    """`CommitOutcome` gained fields, so prove the POSITIONAL unpack existing callers use still holds."""
+
+    mine = _write(repo, "mine.txt", "mine\n")
+    out = H.offer_commit(repo, [mine], message="chore(test): mine", assume_yes=True)
+    status, commit, staged, message, *rest = out
+    assert status == H.STATUS_COMMITTED
+    assert commit == out.commit
+    assert staged == ("mine.txt",)
+    assert message == out.message
+    # The new fields are APPENDED with defaults, so a 4-field construction still works.
+    legacy = H.CommitOutcome(H.STATUS_SKIPPED, None, (), "legacy 4-field caller")
+    assert legacy.hook_fixed == () and legacy.hook_fixed_diverged == ()
+    assert list(rest) == [(), ()]

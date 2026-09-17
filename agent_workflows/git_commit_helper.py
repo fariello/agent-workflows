@@ -254,12 +254,21 @@ class CommitOutcome(NamedTuple):
     ``committed``, else ``None``. ``staged`` is the exact repo-relative path set that was
     staged/committed (subset of the requested ``paths`` that actually existed/were tracked).
     ``message`` is a human-readable explanation (used for warnings/errors).
+
+    ``hook_fixed`` names the paths a MUTATING pre-commit hook rewrote, which the isolated commit then
+    landed on a single retry (see :func:`commit_lock.commit_isolated`), and
+    ``hook_fixed_diverged`` the subset whose working-tree copy was left holding a PEER's content
+    instead of the committed bytes. Reporting them is deliberate: a retry commits content the caller
+    did not write, so absorbing it silently would hide a mutation. Both are APPENDED with defaults,
+    because this is a ``NamedTuple`` that callers unpack positionally as well as by name.
     """
 
     status: str
     commit: Optional[str]
     staged: Tuple[str, ...]
     message: str
+    hook_fixed: Tuple[str, ...] = ()
+    hook_fixed_diverged: Tuple[str, ...] = ()
 
 
 def _git(repo_root: Path, args: List[str]) -> Tuple[int, str, str]:
@@ -595,18 +604,40 @@ def offer_commit(
         iso = _lock.commit_isolated(repo_root, our_staged, message=full_message)
 
         if iso.status == _lock.ISO_COMMITTED:
+            # A MUTATING hook may have rewritten our own paths and had the commit retried once
+            # (`commit_isolated`). Say so rather than reporting a bare success: the committed bytes are
+            # then the HOOK's, not exactly what the caller wrote, and an operator who is not told that
+            # has no way to notice.
+            note = ""
+            if iso.hook_fixed:
+                note = (
+                    f" (the pre-commit hooks fixed {', '.join(iso.hook_fixed)} and the commit "
+                    "succeeded on a single retry)"
+                )
+            if iso.hook_fixed_diverged:
+                note += (
+                    f" NOTE: {', '.join(iso.hook_fixed_diverged)} was changed by another writer "
+                    "during the commit, so the working tree keeps THEIR content"
+                )
             return CommitOutcome(
                 STATUS_COMMITTED,
                 iso.commit,
                 tuple(our_staged),
-                f"committed {len(our_staged)} path(s) as {iso.commit}",
+                f"committed {len(our_staged)} path(s) as {iso.commit}{note}",
+                tuple(iso.hook_fixed),
+                tuple(iso.hook_fixed_diverged),
             )
 
         # Every non-success path leaves the caller's staging as it was found, then reports honestly.
         _git(repo_root, ["reset", "--quiet", "HEAD", "--", *our_staged])
         if iso.status == _lock.ISO_NOTHING:
             return CommitOutcome(
-                STATUS_NOTHING_TO_COMMIT, None, (), f"nothing to commit: {iso.detail}"
+                STATUS_NOTHING_TO_COMMIT,
+                None,
+                (),
+                f"nothing to commit: {iso.detail}",
+                tuple(iso.hook_fixed),
+                tuple(iso.hook_fixed_diverged),
             )
         detail = f"git commit failed: {iso.detail}"
         if not _held:

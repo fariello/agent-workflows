@@ -126,11 +126,23 @@ class IsolatedCommitResult(NamedTuple):
 
     ``status`` is one of ``committed``, ``nothing-to-commit``, ``hook-rejected``, ``raced``, or
     ``error``. ``commit`` is the new sha on success. ``detail`` is operator-facing.
+
+    ``hook_fixed`` names the repo-relative paths a MUTATING hook rewrote during the (single) retry,
+    and ``hook_fixed_diverged`` the subset whose SHARED-tree copy could not be reconciled with the
+    committed bytes because a peer had written it meanwhile (see the write-back in
+    :func:`commit_isolated`). Both DEFAULT EMPTY and are APPENDED, because this is a ``NamedTuple``
+    whose positional contract existing callers rely on: a field inserted in the middle would silently
+    reassign every unpack.
+
+    NEITHER FIELD IS COSMETIC. A retry commits content the CALLER DID NOT WRITE (the hook's fix), so
+    a silent absorption would hide a mutation, which is the class of harm the research README records.
     """
 
     status: str
     commit: Optional[str]
     detail: str
+    hook_fixed: tuple = ()
+    hook_fixed_diverged: tuple = ()
 
 
 ISO_COMMITTED = "committed"
@@ -145,6 +157,65 @@ def _git(repo_root: Path, args: list) -> tuple:
     from agent_workflows.git_commit_helper import _git as _shared
 
     return _shared(repo_root, args)
+
+
+def _content_hash(path: Path) -> Optional[str]:
+    """A content hash for ``path``, or ``None`` when the path does not exist.
+
+    THE ``None`` SENTINEL IS LOAD-BEARING, NOT DEFENSIVE. :func:`commit_isolated` deliberately
+    supports a DELETION, and the FINALIZE caller really passes a path that no longer exists on disk
+    (``ipd_lifecycle`` stages ``[plan_rel, dest_rel]`` and keeps ``plan_rel`` after the plan was moved
+    to ``dest_rel``). Hashing such a path raises ``FileNotFoundError``, which would escape as an
+    exception instead of an :class:`IsolatedCommitResult` and turn a recoverable whitespace rejection
+    into a crash on the lifecycle path (measured). Absent-to-absent therefore compares EQUAL, so a
+    deletion is never misread as a hook rewrite.
+    """
+    import hashlib
+
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except (FileNotFoundError, IsADirectoryError, NotADirectoryError):
+        return None
+
+
+def _in_worktree_index(wt: Path, rel_path: str) -> bool:
+    """Whether ``wt``'s index still holds an entry for ``rel_path``.
+
+    Mirrors ``git_commit_helper._in_index``: a tracked file the caller DELETED is still in the index
+    (so ``git add`` correctly stages the deletion), while a path whose deletion is ALREADY staged is
+    gone from it and naming it makes ``git add`` fail AND stage nothing else in the same invocation.
+    """
+    rc, _out, _err = _git(wt, ["ls-files", "--error-unmatch", "--", rel_path])
+    return rc == 0
+
+
+def _atomic_write_bytes(path: Path, payload: bytes) -> None:
+    """Write ``payload`` to ``path`` via temp-then-rename, preserving the existing mode.
+
+    The same discipline every other writer in this codebase uses: a crash mid-write must never leave
+    a half-written artifact where a whole one was.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    mode: Optional[int] = None
+    try:
+        mode = path.stat().st_mode
+    except OSError:
+        mode = None
+    fd, tmp = tempfile.mkstemp(
+        dir=str(path.parent), prefix=".aw-hookfix-", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(payload)
+        if mode is not None:
+            os.chmod(tmp, mode & 0o7777)
+        os.replace(tmp, str(path))
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def commit_isolated(
@@ -177,6 +248,33 @@ def commit_isolated(
     * A blind ``update-ref`` WOULD discard a peer commit that landed meanwhile, so the ref update is a
       CAS (``git update-ref <ref> <new> <expected-old>``), which fails loudly on a stale expectation
       instead of overwriting. That hazard is real: it was reproduced.
+
+    ONE BOUNDED RETRY WHEN A HOOK REWROTE OUR OWN PATHS, and NEVER when a hook merely refused.
+    Four of this repository's pre-commit hooks (``trailing-whitespace``, ``end-of-file-fixer``,
+    ``ruff --fix``, ``ruff-format``) FIX a staged file and then exit nonzero, so a single stripped
+    trailing space cost a whole commit round trip. This function therefore hashes our paths INSIDE the
+    isolated worktree right after the ``git add`` and re-hashes them on rejection:
+
+    * ANY of our paths changed on disk -> the hooks REWROTE our own content. Re-``git add`` their fix
+      and run the SAME commit EXACTLY ONCE more. A second rejection fails, whatever its cause: one
+      retry, never a loop (measured: repeated attempts against this shape make no progress, and a
+      nondeterministic hook would spin forever).
+    * NOTHING changed -> a genuine REFUSAL (the leak, lifecycle and gate hooks never rewrite).
+      Behavior is BYTE-FOR-BYTE what it was before the retry existed, which is what keeps the
+      "a deliberately failing hook rejected the commit and nothing landed" property above true.
+    * The hook's fix can erase our ENTIRE diff (the commonest shape: a whitespace-only edit). The
+      re-add then stages nothing and the retry commit would exit 1 with "nothing to commit", so the
+      staged set is re-probed first and an empty one returns ``nothing-to-commit`` -- the honest
+      answer -- rather than a spurious ``hook-rejected``.
+
+    THE RETRY MUST NOT LEAVE THE SHARED TREE DIRTY, which is the one hazard the retry itself creates.
+    A retry commits the HOOK's bytes while the shared tree still holds ours, so the tree would read
+    dirty on the path just committed, re-present the same whitespace to the same hook next time, and
+    could block a later lane integration (``runner_shared.dirty_tree_overlap`` refuses when a dirty
+    main path overlaps an incoming lane's changed files). So the hook-fixed bytes are written BACK to
+    the shared path under a CONTENT COMPARE-AND-SWAP: only when the shared file still holds exactly
+    the bytes we copied in. A peer that edited it during the window WINS, its content is never
+    overwritten, and the path is reported in ``hook_fixed_diverged`` instead.
 
     THE HONEST RESIDUE. Two writers can still clobber each other directly (that is ordinary
     concurrent editing, not this bug), and a hand-run ``git commit`` in the shared tree still stashes
@@ -248,15 +346,78 @@ def commit_isolated(
                 ISO_NOTHING, None, "requested paths have no staged changes"
             )
 
+        # Baseline the WORKTREE copies (not `repo_root / r`: hashing the shared tree is exactly the
+        # mistake that makes a hook's rewrite undetectable, since the rewrite happens in here). Taken
+        # AFTER the `add`, because `shutil.copy2` above is what put our content there.
+        pre: Dict[str, Optional[str]] = {r: _content_hash(wt / r) for r in rel}
+
         # The REAL commit, hooks included, in a worktree nothing else writes to.
+        attempts = 0
         rc, out, err = _git(wt, ["commit", "-m", message, "--", *rel])
+        attempts += 1
+        hook_fixed: tuple = ()
         if rc != 0:
-            combined = (out + "\n" + err).strip()
-            return IsolatedCommitResult(
-                ISO_HOOK_REJECTED,
-                None,
-                f"commit rejected in isolated worktree (hooks ran): {combined}",
-            )
+            hook_fixed = tuple(r for r in rel if _content_hash(wt / r) != pre[r])
+            if not hook_fixed:
+                # A genuine REFUSAL: the hook touched none of our paths. Unchanged behavior.
+                combined = (out + "\n" + err).strip()
+                return IsolatedCommitResult(
+                    ISO_HOOK_REJECTED,
+                    None,
+                    f"commit rejected in isolated worktree (hooks ran): {combined}",
+                )
+
+            # A SELF-REWRITE: pick up the hook's own fix and try EXACTLY once more.
+            #
+            # RE-ADD ONLY THE REWRITTEN PATHS, which is both the minimal correct set and a strict
+            # SUBSET of `rel`, so the shared-checkout property is preserved by construction (nothing
+            # of a peer's can enter, and the private worktree holds nothing of theirs anyway).
+            #
+            # NAMING ALL OF `rel` HERE IS A REAL BUG, NOT A STYLE CHOICE, and it was MEASURED while
+            # building this: `git add` on an ALREADY-STAGED DELETION fails "pathspec did not match any
+            # files" (the path is gone from disk AND, once the deletion is staged, gone from the index
+            # too), and `git add` stages NOTHING AT ALL on failure. A mixed set of one deleted path plus
+            # one hook-rewritten path therefore returned `error` with the whole retry lost. That is the
+            # same trap `git_commit_helper` documents at its own `add_paths` filter. A path the hook did
+            # not touch needs no re-add, so excluding it is correct as well as safe.
+            readd = [
+                r for r in hook_fixed if (wt / r).exists() or _in_worktree_index(wt, r)
+            ]
+            if readd:
+                rc, _o, add_err = _git(wt, ["add", "--", *readd])
+                if rc != 0:
+                    return IsolatedCommitResult(
+                        ISO_ERROR,
+                        None,
+                        f"git add failed re-staging hook-fixed paths: {add_err.strip()}",
+                        hook_fixed,
+                    )
+            # The hook's fix can erase our whole diff; committing an empty index would be a second
+            # rejection reading `nothing to commit`, so answer honestly instead.
+            rc, staged_out, _e = _git(wt, ["diff", "--cached", "--name-only"])
+            if rc == 0 and not staged_out.strip():
+                return IsolatedCommitResult(
+                    ISO_NOTHING,
+                    None,
+                    (
+                        "nothing left to commit: the hooks' own fix to "
+                        f"{', '.join(hook_fixed)} erased the entire staged diff"
+                    ),
+                    hook_fixed,
+                )
+            rc, out, err = _git(wt, ["commit", "-m", message, "--", *rel])
+            attempts += 1
+            if rc != 0:
+                combined = (out + "\n" + err).strip()
+                return IsolatedCommitResult(
+                    ISO_HOOK_REJECTED,
+                    None,
+                    (
+                        f"commit rejected in isolated worktree after {attempts} attempts (the hooks "
+                        f"rewrote {', '.join(hook_fixed)} and rejected it again): {combined}"
+                    ),
+                    hook_fixed,
+                )
 
         rc, new_head, err = _git(wt, ["rev-parse", "HEAD"])
         if rc != 0:
@@ -277,13 +438,52 @@ def commit_isolated(
                     f"branch was NOT moved (the work is preserved as commit {new[:12]}; cherry-pick "
                     f"or retry). git said: {err.strip()}"
                 ),
+                hook_fixed,
             )
 
+        # RECONCILE THE SHARED TREE WITH WHAT WAS ACTUALLY COMMITTED, for the hook-fixed paths only.
+        # Without this the retry leaves the shared file holding OUR bytes while the commit holds the
+        # HOOK's, so the path reads ` M` right after being committed, re-presents the same whitespace
+        # to the same hook next time, and can block a later integration.
+        #
+        # A CONTENT COMPARE-AND-SWAP, deliberately NOT a blind copy: a blind clobber is exactly what
+        # the isolated-commit design removed. We write only when the shared file still holds the bytes
+        # we copied in, which proves no peer wrote it during the window. A peer's content WINS.
+        diverged: list = []
+        for r in hook_fixed:
+            fixed = _content_hash(wt / r)
+            if fixed is None or fixed == pre[r]:
+                continue  # nothing to write back (deleted, or unchanged after all)
+            shared = repo_root / r
+            if _content_hash(shared) != pre[r]:
+                diverged.append(
+                    r
+                )  # a peer edited it meanwhile: leave THEIR bytes alone
+                continue
+            try:
+                _atomic_write_bytes(shared, (wt / r).read_bytes())
+            except OSError:
+                diverged.append(r)
+
         # The shared index still holds our staged copy from the caller's `git add`; drop it so the
-        # tree reads clean for our paths. The file CONTENT on disk already matches the new commit.
+        # tree reads clean for our paths.
+        #
+        # THIS IS NOW CONDITIONAL, and saying so matters more than brevity: the file CONTENT on disk
+        # matches the new commit EITHER because nothing rewrote it, OR because the write-back above
+        # reconciled a hook-fixed path. The ONE case where it does not match is a path in
+        # ``hook_fixed_diverged``: a peer wrote it during the window and their content was correctly
+        # preserved, so that path legitimately still reads dirty and the caller is told which.
         _git(repo_root, ["reset", "--quiet", "HEAD", "--", *rel])
+        detail = f"committed {len(rel)} path(s) as {new[:12]}"
+        if hook_fixed:
+            detail += f" (the hooks fixed {', '.join(hook_fixed)}; committed on a single retry)"
+        if diverged:
+            detail += (
+                f" NOTE: {', '.join(diverged)} was changed by another writer during the commit, so "
+                "the working tree keeps THEIR content and still reads dirty"
+            )
         return IsolatedCommitResult(
-            ISO_COMMITTED, new, f"committed {len(rel)} path(s) as {new[:12]}"
+            ISO_COMMITTED, new, detail, hook_fixed, tuple(diverged)
         )
     finally:
         _git(repo_root, ["worktree", "remove", "--force", str(wt)])

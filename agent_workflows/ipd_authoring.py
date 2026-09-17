@@ -18,7 +18,6 @@ from __future__ import annotations
 import argparse
 import os
 import re
-import tempfile
 from datetime import date
 from pathlib import Path
 from typing import List, Optional
@@ -256,19 +255,17 @@ def build_skeleton(
 
 
 def _atomic_write(path: Path, text: str) -> None:
-    """Write-to-temp-then-rename so an interrupted apply never leaves a partial file."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".ipd-tmp-", suffix=".md")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(text)
-        os.replace(tmp, str(path))
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
+    """Write-to-temp-then-rename so an interrupted apply never leaves a partial file (core).
+
+    DELEGATES rather than duplicating, which is the repository's one-mechanism convention
+    (``oc_models._atomic_write`` already states it). This body USED to be a byte-for-byte copy of the
+    core helper's, and that duplication had a real cost: PLANS are the highest-volume artifact an agent
+    writes, ``aw ipd scaffold``/``aw ipd sync`` write them through HERE, and so normalizing only
+    ``artifact_core.atomic_write`` would have left plans un-normalized -- the exact churn the
+    normalization exists to remove, on the exact tree it matters most for. Delegating means plans
+    inherit the markdown trailing-whitespace normalization automatically.
+    """
+    _core.atomic_write(path, text, prefix=".ipd-tmp-")
 
 
 _ID_LINE_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")

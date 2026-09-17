@@ -442,5 +442,78 @@ class NoDependencyTests(unittest.TestCase):
             )
 
 
+class AtomicWriteDelegatesToCoreTests(unittest.TestCase):
+    """`_atomic_write` must DELEGATE, not duplicate, so plans inherit the shared normalization.
+
+    WHY THIS IS NOT A STYLE POINT (IPD `lqly9m` E-10). This module used to keep a byte-for-byte COPY of
+    `artifact_core.atomic_write`, and `aw ipd scaffold`/`aw ipd sync` write plans through it. So
+    normalizing only the core helper would have left PLANS -- the highest-volume artifact an agent
+    writes, and the one the mutating pre-commit hooks reject most often -- entirely un-normalized.
+    """
+
+    def test_it_holds_no_duplicate_write_body(self):
+        src = (REPO_ROOT / "agent_workflows" / "ipd_authoring.py").read_text(
+            encoding="utf-8"
+        )
+        body = src.split("def _atomic_write(", 1)[1].split("\ndef ", 1)[0]
+        self.assertIn("_core.atomic_write(", body)
+        # The duplicated mechanics are GONE (they now live in exactly one place).
+        self.assertNotIn("mkstemp", body)
+        self.assertNotIn("os.replace", body)
+
+    def test_a_plan_written_through_it_carries_no_trailing_whitespace(self):
+        tmp = Path(tempfile.mkdtemp())
+        target = tmp / "p.ipd.md"
+        A._atomic_write(target, "# IPD: x\n\nbody with trailing   \nsecond\t\n\n\n")
+        text = target.read_text(encoding="utf-8")
+        self.assertEqual([ln for ln in text.split("\n") if ln != ln.rstrip()], [])
+        self.assertTrue(text.endswith("\n"))
+        self.assertFalse(text.endswith("\n\n"))
+        self.assertEqual(
+            [p for p in tmp.iterdir() if p.name.startswith(".ipd-tmp-")], []
+        )
+
+    def test_scaffold_and_sync_both_write_a_clean_plan(self):
+        """Proven THROUGH THE REAL VERBS, since the helper alone was never the risk."""
+        tmp = Path(tempfile.mkdtemp())
+        target = tmp / "20260916-wsprobe-01-zz9zz9-probe.ipd.md"
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = A.run_scaffold(
+                _ns(
+                    kind="child",
+                    title="Probe",
+                    path=str(target),
+                    set="wsprobe",
+                    order=1,
+                    author="opencode test",
+                    apply=True,
+                )
+            )
+        self.assertEqual(rc, 0, buf.getvalue())
+        scaffolded = target.read_text(encoding="utf-8")
+        self.assertEqual([ln for ln in scaffolded.split("\n") if ln != ln.rstrip()], [])
+
+        # Hand-inject dirt (NOT through the write path) plus an unassigned leaf, then sync.
+        dirty = scaffolded.replace(
+            "- [ ] E-01",
+            "- [ ] E-NEW a new leaf with trailing whitespace   \n"
+            "  - Depends on: none\n"
+            "  - Expected outcome: TODO observable result.\n"
+            "  - Execution state: pending\n\n"
+            "- [ ] E-01",
+            1,
+        )
+        target.write_text(dirty, encoding="utf-8")
+        self.assertTrue([ln for ln in dirty.split("\n") if ln != ln.rstrip()])
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = A.run_sync(argparse.Namespace(path=str(target), apply=True))
+        self.assertEqual(rc, 0, buf.getvalue())
+        synced = target.read_text(encoding="utf-8")
+        self.assertEqual([ln for ln in synced.split("\n") if ln != ln.rstrip()], [])
+
+
 if __name__ == "__main__":
     unittest.main()

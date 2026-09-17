@@ -163,8 +163,82 @@ def finalize_commit_subject(plan_id: str) -> str:
 # --------------------------------------------------------------------------------------
 
 
+# The verbatim-preserved trees, named as consecutive path segments so a relative and an absolute
+# path both match. `.pre-commit-config.yaml` deliberately excludes these from every content-MUTATING
+# hook because "their own formatting/punctuation is intentional": an externally authored research
+# artifact is cited as delivered. This writer must therefore not become the second mutator that
+# exclusion exists to prevent, even though it (unlike the hooks) really does rewrite those files
+# (`aw research set-outcome`/`set-priority`, `research_archive`, and the shared reference rewriter all
+# write through here).
+_VERBATIM_PRESERVED_SEGMENTS = (
+    (".aw", "records", "research"),
+    (".aw", "records", "docs", "research"),
+    (".agents", "docs", "research"),
+)
+
+
+def _is_verbatim_preserved(path: Path) -> bool:
+    """True iff ``path`` lies in a tree whose delivered formatting must not be rewritten."""
+
+    parts = path.parts
+    for segments in _VERBATIM_PRESERVED_SEGMENTS:
+        span = len(segments)
+        for i in range(len(parts) - span + 1):
+            if parts[i : i + span] == segments:
+                return True
+    return False
+
+
+def normalize_artifact_markdown(text: str) -> str:
+    """Strip per-line trailing whitespace and end with exactly one newline.
+
+    WHY AT THE WRITER RATHER THAN LEFT TO THE HOOK. Four of this repository's pre-commit hooks
+    (``trailing-whitespace``, ``end-of-file-fixer``, ``ruff --fix``, ``ruff-format``) FIX a staged file
+    and then REJECT the commit, and their exclude regex does not cover the ``.aw/records`` trees where
+    agents write most. So one stray trailing space cost a full commit round trip. ``commit_isolated``
+    now recovers from that in a single retry; this removes the trigger instead, which is strictly
+    better because no retry is cheaper than one.
+
+    THE RENDERERS DO NOT ALREADY DO THIS, measured rather than assumed: ``backlog._render_item`` and
+    its siblings ``rstrip()`` the WHOLE FILE, which leaves per-line trailing whitespace untouched (a
+    rendered body containing ``'body line with trailing   '`` kept that line verbatim).
+
+    THE MARKDOWN HARD-LINE-BREAK TRADEOFF IS DELIBERATE AND OWNED HERE. A per-line rstrip destroys
+    markdown's two-space hard line break. That is NOT a new loss: the ``trailing-whitespace`` hook
+    ALREADY destroys it on every non-excluded path, so this makes the writer AGREE with the hook rather
+    than fight it, and the alternative (writing a break the hook will delete at commit time) is the
+    churn this change exists to end. MEASURED BASIS, so the claim is evidence and not recollection: at
+    HEAD ``4b68a786`` there are ZERO two-space hard breaks and ZERO trailing-whitespace lines across
+    the 1304 tracked ``.aw/records`` markdown files, so nothing in the corpus relies on the break and
+    there is no backlog of dirty files to migrate. This is preventive, not remedial. Use an explicit
+    ``<br>`` (or a blank line) where a hard break is genuinely wanted.
+    """
+
+    normalized = "\n".join(line.rstrip() for line in text.split("\n")).rstrip("\n")
+    # An EMPTY result stays empty rather than becoming a lone newline: `end-of-file-fixer` treats an
+    # all-whitespace file as empty, and inventing a newline here would hand the hook something to fix.
+    return f"{normalized}\n" if normalized else ""
+
+
 def atomic_write(path: Path, text: str, *, prefix: str = ".aw-tmp-") -> None:
-    """Write-to-temp-then-rename so an interrupted apply never leaves a partial file."""
+    """Write-to-temp-then-rename so an interrupted apply never leaves a partial file.
+
+    ARTIFACT MARKDOWN IS NORMALIZED ON THE WAY OUT (per-line trailing whitespace stripped, exactly one
+    final newline) via :func:`normalize_artifact_markdown`, so a tool-authored artifact never gives the
+    mutating pre-commit hooks anything to fix. TWO EXEMPTIONS, both load-bearing:
+
+    * A NON-MARKDOWN write is passed through BYTE-FOR-BYTE. This helper is not markdown-only: the
+      leak-sanitizer allowlist/user-hints and OpenCode's ``opencode.json`` are written through this
+      shape too, and reformatting JSON or config is not this normalizer's business (a
+      whitespace-significant value would be altered). The gate is the destination suffix, which this
+      function already knows from ``path``.
+    * A write into a VERBATIM-PRESERVED research tree is passed through byte-for-byte, on the basis of
+      the pre-commit config's own stated reason for excluding those trees from every mutating hook.
+      See :data:`_VERBATIM_PRESERVED_SEGMENTS`.
+    """
+
+    if path.suffix.lower() == ".md" and not _is_verbatim_preserved(path):
+        text = normalize_artifact_markdown(text)
 
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=prefix, suffix=".md")
