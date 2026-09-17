@@ -17,6 +17,7 @@
 - From-Backlog: alw22r
 
 ## Workflow history
+- 2026-09-17 executed E-01..E-05 in lane `aw/lane/ty3cj6` from HEAD `24932638` (opencode/its_direct-pt3-claude-opus-5-1m-us): MEASURE-AND-REPAIR, NO SPLIT, per the plan's own scope gate and E-04. THREE FILES: agy gains E-03's two `register_signal_report` refreshes (3 -> 5 sites, matching oc site for site), plus `tests/test_rununify_run_queue_characterization.py` (35 tests, both hosts) and `tests/test_rununify_run_queue.py` (32 tests). Bare suite `32 failed, 7583 passed` against a pre-change baseline of `32 failed, 7516 passed` at the same HEAD, failure sets BYTE-IDENTICAL (the 32 are the `AW_EXECUTION_ROLE=worker` lifecycle-role guard; with the role unset, pre-change is `7548 passed, 0 failed`). FIVE THINGS A READER SHOULD NOT HAVE TO FIND IN THE DIFF. FIRST, A LIVE SAFETY-GATE DEFECT WAS FOUND AND IS NOT FIXED HERE: `run_queue`'s `except ToolIdentityError` clause swallows a documented RUN-FATAL error on BOTH hosts (its own comment says "Re-raise to abort the whole run"; there is no `raise`). It was authored WITH one at `b04c70ce` and lost in merge `04a613aa`, whose first parent had it and whose second lacked the clause. Because `execute_item` writes `item["status"] = "running"` BEFORE the identity check, a real mismatch dispatches EVERY remaining item under the same wrong control plane and strands each at a non-terminal status; `tests/test_lane_tool_identity.py` is green on it because its pin only checks clause ORDER in source text. Pinned as three tests whose docstrings order their own deletion when the `raise` returns, filed as backlog `mo3h5b` (high/bug), and left unfixed because restoring the `raise` changes control flow on both runners' run-fatal path, which is outside this plan's declared scope (decision `09-ty3cj6-D4`, escalated to the human). SECOND, EVERY NUMBER THE PLAN STATES REPRODUCED EXACTLY, the first child of this Set for which nothing moved: 41 closure names, 11 still double-defined, 12 differing code lines, 2 host-token. THIRD, ONE GUARD WAS VACUOUS IN ITS FIRST VERSION and the fix is the interesting part: comparing published item STATUSES cannot fail under a test stub (the stub mutates the very dict the loop holds), so the F-9 test passed on the defective host; OBJECT IDENTITY (`published() is state`) is the property that discriminates, measuring True on oc and False on agy (decision `09-ty3cj6-D2`). FOURTH, THE OBVIOUS PROPERTY-RULE WAS WRONG AND OC PROVED IT: "every `state = load_state` in the loop must refresh" reported four violations on the CORRECT host, all on paths that break out and reach the end-of-run refresh, so the rule is scoped to reloads after which the loop CONTINUES and the end-of-run refresh those paths depend on is pinned separately (decision `09-ty3cj6-D3`). FIFTH, E-04 FOUND THE ACTIONABLE PART THE PLAN MISSED: nine of the eleven forks survive the whole Set (only `tx6q0h` lifts any, and it lifts two while REFUSING `driver_actor` on measured grounds), but FOUR of the seven unclaimed forks are CLOSURE-CLEAN TODAY and liftable now without `run_queue` moving, one of them 69 code lines on both hosts differing by TWO; filed as backlog `5jsjnr`. Pin inventory re-measured at 10 sites across 9 files (plan says six), 8 breaking on a thin caller, and every pin file was already fenced. Non-vacuity shown BIDIRECTIONALLY plus a third suite-scale control (E-03 reverted with tests kept: 5 guards fire, everything else green). `aw ipd lint --phase pre-transition` conforms; no push. NOT SELF-FINALIZED: this ran in a managed worker lane (`AW_EXECUTION_ROLE=worker`), where `ipd_lifecycle` refuses driver-only lifecycle verbs, so the driver owns the terminal transition.
 - 2026-09-17 approved (aw set, --by-human): Maintainer directive 2026-09-16: the objective is 100% de-duplication of the redundant code between the two runners; readiness attested by the maintainer (not by an agent, not by a review), with the two supporting rulings (source-reading guards are re-based deliberately, never weakened silently; coordinated de-duplication across symbols is permitted) recorded in each plan's OQ-03 and history
 - 2026-09-16 reviewed (maintainer, --by-human attestation via askme): MAINTAINER ATTESTATION 2026-09-16: readiness set to `go-pending-approval` BY THE MAINTAINER, not by an agent and not by a review. The prior `no-go` was written by this plan's own 2026-09-16 review round while its blocking OQ-03 was genuinely open. The maintainer then answered that question directly in an interactive session on 2026-09-16 with a single Set-wide directive ('at the end of the SET, there should be one code base shared by the two runners that contains 100% of the otherwise redundant code that currently is duplicated between the two runners'), plus two supporting rulings that dissolved the premises the finding rested on: TESTS ARE NOT IMMOVABLE (a source-reading guard is re-based deliberately as part of the work, never weakened silently; the maintainer cited this repository's own precedent at `tests/test_nested_tty_noninteractive.py:190-203`, whose 41 related tests pass at this HEAD) and COORDINATED DE-DUPLICATION IS PERMITTED (many functions may be de-duplicated together before testing, so a still-double-defined dependency is an ordering matter rather than a blocker). Asked directly how the stale verdict should be cleared, the maintainer chose to attest it themselves rather than fund a further review round. THE ALTERNATIVE WAS PRICED AND REJECTED ON EVIDENCE: the 2026-09-16 round cost roughly 2.5 hours across nine items and produced 1,479 lines of review prose while clearing nothing, and the comparable 2026-09-13 round cost $106.07 and raised four NEW blocking questions, so a further round was not expected to yield a clean sheet. NO AGENT WROTE THIS VALUE ON ITS OWN AUTHORITY. HONEST LIMIT: no independent reviewer re-examined this plan's contents; that assurance lives in the 2026-09-16 round 1 record, not in this attestation. Recorded here because the auto-approve predicate reads this field FIRST (`plan_readiness.is_plan_review_approved`), so a stale `no-go` is a live refusal that would have silently skipped this plan when the Set executed.
 - 2026-09-16 reviewed (aw set): Reviewed 2026-09-16 by /plan-review: REVIEWED - OPEN QUESTIONS, NO-GO. 11 findings (PR-001..PR-011), 9 FIXED, PR-001/PR-002 OPEN and escalated as blocking OQ-03. The plan's 12-differing-line measurement REPRODUCES exactly, but liftability was never measured: `run_queue` closes over 27 names absent from `runner_shared`, 11 of them still double-defined, so the "relocation with a parameter" it promises is a twelve-parameter injection.
@@ -67,36 +68,36 @@ performs no relocation.
 
 ### Task group 1: measure before touching
 
-- [ ] E-01 MEASURE THE CLOSURE at execution HEAD, and refuse to proceed to E-04 on a stale list. The method is the one that reversed sibling `i3d6ml`, and it is NOT the body-difference method this plan originally used: parse `oc_runipd.run_queue`, collect every free name that resolves at MODULE level, and classify each into the six classes of the Goal table (resolves in `runner_shared`; equal constant; host-divergent constant; already-one-object-via-import; still double-defined; pinned unmovable). Emit the table with its members and name any symbol whose class changed since 2026-09-16. This E-item writes NO runner logic.
+- [x] E-01 MEASURE THE CLOSURE at execution HEAD, and refuse to proceed to E-04 on a stale list. The method is the one that reversed sibling `i3d6ml`, and it is NOT the body-difference method this plan originally used: parse `oc_runipd.run_queue`, collect every free name that resolves at MODULE level, and classify each into the six classes of the Goal table (resolves in `runner_shared`; equal constant; host-divergent constant; already-one-object-via-import; still double-defined; pinned unmovable). Emit the table with its members and name any symbol whose class changed since 2026-09-16. This E-item writes NO runner logic.
   - Depends on: none
   - Expected outcome: a reproducible closure table in the execution report with all 41 names classified; the count of still-double-defined names stated; `disable_lane_prompt`'s permanent-injection status confirmed or refuted against `UnmovableSymbolTests`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 PIN THE CURRENT BEHAVIOR OF BOTH HOSTS, per the parent's E-02 constraint that no child may reconcile a symbol the characterization baseline has not pinned. Write characterization tests for `run_queue` on BOTH hosts covering every branch the split would move, following the precedent of `tests/test_wtiso_characterization.py`. The parent's own measurement found the agy side is the less covered one, so prioritize agy branches with no existing coverage; F-9 names the two concrete agy branches that are BOTH uncovered and defective, so start there. This E-item writes TESTS ONLY and changes no runner logic.
+- [x] E-02 PIN THE CURRENT BEHAVIOR OF BOTH HOSTS, per the parent's E-02 constraint that no child may reconcile a symbol the characterization baseline has not pinned. Write characterization tests for `run_queue` on BOTH hosts covering every branch the split would move, following the precedent of `tests/test_wtiso_characterization.py`. The parent's own measurement found the agy side is the less covered one, so prioritize agy branches with no existing coverage; F-9 names the two concrete agy branches that are BOTH uncovered and defective, so start there. This E-item writes TESTS ONLY and changes no runner logic.
   - Depends on: E-01
   - Expected outcome: a committed characterization suite that passes against UNMODIFIED code and would fail if either host's observable behavior moved; the agy branches previously uncovered are named.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the one real defect the measurement exposed
 
-- [ ] E-03 REPAIR agy's TWO MISSING `register_signal_report` REFRESHES (F-9), which is a defect in its own right and does not require the split. oc calls it FIVE times inside `run_queue`, agy THREE: agy omits the refresh after the rung-1 integration reload (`agy_runipd.py:4855` area, oc's `oc_runipd.py:8169`) and after the rung-2/3 reload (oc's `oc_runipd.py:8237`). Both sites REBIND `state` via `load_state`, so on agy a signal arriving after either reload reports from a PRE-RELOAD snapshot, which is exactly the staleness the `bkclose` comment at `oc_runipd.py:8048` says the repeated call exists to prevent. Add the two calls in agy only. Note this CHANGES A COUNT the wrapper-ruling suite watches indirectly: verify `test_no_call_site_was_rewritten` still passes (it counts `save_state`, not `register_signal_report`, so it should, and saying so is the point).
+- [x] E-03 REPAIR agy's TWO MISSING `register_signal_report` REFRESHES (F-9), which is a defect in its own right and does not require the split. oc calls it FIVE times inside `run_queue`, agy THREE: agy omits the refresh after the rung-1 integration reload (`agy_runipd.py:4855` area, oc's `oc_runipd.py:8169`) and after the rung-2/3 reload (oc's `oc_runipd.py:8237`). Both sites REBIND `state` via `load_state`, so on agy a signal arriving after either reload reports from a PRE-RELOAD snapshot, which is exactly the staleness the `bkclose` comment at `oc_runipd.py:8048` says the repeated call exists to prevent. Add the two calls in agy only. Note this CHANGES A COUNT the wrapper-ruling suite watches indirectly: verify `test_no_call_site_was_rewritten` still passes (it counts `save_state`, not `register_signal_report`, so it should, and saying so is the point).
   - Depends on: E-02
   - Expected outcome: agy calls `register_signal_report` at all five sites oc does; a test proves a signal after an integration reload reports post-reload state on BOTH hosts; `test_both_drivers_emit_the_shutdown_report_on_normal_exit` still passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the split, GATED
 
-- [ ] E-04 DO NOT PERFORM THE SPLIT UNTIL OQ-03 IS ANSWERED, and record the analysis rather than silently skipping it. The deliverable is the disclosure, so an executor cannot mistake the omission for an oversight and "finish" it later. State, from E-01's table: (a) the twelve dependencies a shared core would have to take and which of them the maintainer's `818uru` OQ-02 wrapper ruling already governs; (b) that `disable_lane_prompt` can NEVER resolve in `runner_shared` while `UnmovableSymbolTests` stands, so its injection is permanent rather than transitional; (c) the SIX source-inspection pins F-10 enumerates, each with the substring or AST shape it requires and whether a thin caller can still satisfy it; and (d) whether re-ordering this plan AFTER children 07/09/10/11 would reduce the twelve injections, since `execute_item` (child 07), `render_continuation_hint`/`write_report`/`driver_actor` (child 04, already executed-pending) and the interrupt family are the bulk of them.
+- [x] E-04 DO NOT PERFORM THE SPLIT UNTIL OQ-03 IS ANSWERED, and record the analysis rather than silently skipping it. The deliverable is the disclosure, so an executor cannot mistake the omission for an oversight and "finish" it later. State, from E-01's table: (a) the twelve dependencies a shared core would have to take and which of them the maintainer's `818uru` OQ-02 wrapper ruling already governs; (b) that `disable_lane_prompt` can NEVER resolve in `runner_shared` while `UnmovableSymbolTests` stands, so its injection is permanent rather than transitional; (c) the SIX source-inspection pins F-10 enumerates, each with the substring or AST shape it requires and whether a thin caller can still satisfy it; and (d) whether re-ordering this plan AFTER children 07/09/10/11 would reduce the twelve injections, since `execute_item` (child 07), `render_continuation_hint`/`write_report`/`driver_actor` (child 04, already executed-pending) and the interrupt family are the bulk of them.
   - Depends on: E-01
   - Expected outcome: a written analysis sufficient for the maintainer to answer OQ-03 without re-deriving the measurement; no runner logic changed by this item.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: proof
 
-- [ ] E-05 Add `tests/test_rununify_run_queue.py` asserting WHAT THIS PLAN ACTUALLY DID, driven by a named table rather than by the aspiration: the closure classification E-01 measured is asserted mechanically (so a symbol silently changing class fails), agy's five `register_signal_report` sites are asserted present, and `disable_lane_prompt` is asserted STILL defined in both runners (the inverse assertion, so a later agent cannot "complete" the split by moving a symbol the maintainer pinned). If OQ-03 authorizes the split, extend this file with the shared-core object identity and the repo-wide AST anti-re-fork scan (per the parent's F10, not a pairwise check); do NOT write those assertions while the split is ungated, because a test asserting a state the code is not in is a failing test, not a guard.
+- [x] E-05 Add `tests/test_rununify_run_queue.py` asserting WHAT THIS PLAN ACTUALLY DID, driven by a named table rather than by the aspiration: the closure classification E-01 measured is asserted mechanically (so a symbol silently changing class fails), agy's five `register_signal_report` sites are asserted present, and `disable_lane_prompt` is asserted STILL defined in both runners (the inverse assertion, so a later agent cannot "complete" the split by moving a symbol the maintainer pinned). If OQ-03 authorizes the split, extend this file with the shared-core object identity and the repo-wide AST anti-re-fork scan (per the parent's F10, not a pairwise check); do NOT write those assertions while the split is ungated, because a test asserting a state the code is not in is a failing test, not a guard.
   - Depends on: E-01, E-03, E-04
   - Expected outcome: a suite that fails if the closure regresses, if agy loses a refresh site again, or if the pinned symbol is moved; and that does NOT assert an unexecuted split.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -321,30 +322,287 @@ report either way. E-01, E-02, E-04 and E-05 touch no operator-visible contract.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted closure table with all 41 names classified into the six classes, the command or script that produced it, and the HEAD. Must explicitly state the count of names still DEFINED TWICE and confirm or refute `disable_lane_prompt`'s pinned status by citing `tests/test_runner_shared.py:1238`. A table that merely repeats this plan's numbers without re-deriving them at execution HEAD does NOT satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: RE-DERIVED at execution HEAD `24932638` with `closure_scan.py` (a full-scope-tracking scanner committed as evidence and reproduced in the walkthrough's Appendix C), NOT copied from this plan. Command: `python3 closure_scan.py`. Output:
 
-- [ ] V-02 validates E-02
+    ```
+    # `run_queue` closure classification at HEAD 24932638
+
+    oc free module-level names : 41
+    agy free module-level names: 41
+    UNION                      : 41
+
+    | Class | Count | Members |
+    |---|---|---|
+    | resolves-in-runner-shared | 7 | `DriverError`, `append_jsonl`, `dispatch_orchestrator_item`, `load_state`, `print_lane_interrupt_report`, `should_color`, `utc_now` |
+    | already-one-object | 18 | `Palette`, `Path`, `StreamTracker`, `ToolIdentityError`, `cascade_dependency_blocked`, `contextlib`, `dependency_status`, `dependency_status_detailed`, `emit_shutdown_report`, `queue_sort_key`, `register_signal_report`, `render_run_summary_table`, `report_run_spec_edits`, `runner_shared`, `runner_stop`, `sys`, `time`, `update_execution_order` |
+    | thin-wrapper | 1 | `save_state` |
+    | equal-constant | 3 | `EXECUTION_SUCCESS_STATES`, `SUCCESS_STATES`, `TERMINAL_STATES` |
+    | divergent-constant | 1 | `DEPENDENCY_BLOCK_RECOVERY_HINT` |
+    | still-double-defined | 11 | `_observe_between_turn_stop`, `_record_deliberate_stop`, `disable_lane_prompt`, `driver_actor`, `execute_item`, `reclaim_lanes_on_interrupt`, `reconcile_interrupted`, `render_continuation_hint`, `requeue_interrupted`, `retry_deferred_integrations`, `write_report` |
+    ```
+
+    STILL DEFINED TWICE: **11**, stated as this item requires. 7+18+1+3+1+11 = 41.
+
+    NO SYMBOL CHANGED CLASS since 2026-09-16. This is the FIRST child of this Set whose numbers did not move (`i3d6ml` was cut 48 -> 9 at review; `yrqyxb`'s forks improved 18 -> 11 at execution). The body-difference figures also reproduced exactly: 234 oc code lines, 232 agy, **12 differing**, **2 bearing a host token**. Raw lengths grew (403/347 against the plan's 381/336) from comment growth only.
+
+    CLASSIFICATION CONVENTION NOTE, so the table is not read as disagreeing with the plan's Goal table: the plan counts 14 "resolves in `runner_shared`" and 8 "already ONE object" where this scanner reports 7 and 18. Same 41 names, same 11 forks; the scanner reserves `resolves-in-runner-shared` for names imported specifically FROM `runner_shared` and puts every third-module import (`Path`, `sys`, `time`, `contextlib`, the `render_stream` names) into `already-one-object`. The plan's own arithmetic note acknowledges the overlap. Every symbol lands in a class with the same CONSEQUENCE under both conventions. One refinement: `save_state` is reported as `thin-wrapper`, not a fork, because each host's body is a single delegating `runner_shared.save_state(...)` call, the sanctioned `818uru` OQ-02 form; counting it as duplication would overstate the work (sibling `yrqyxb`'s contribution, adopted).
+
+    `disable_lane_prompt` PINNED STATUS **CONFIRMED**, not refuted. `tests/test_runner_shared.py:1319` (`UnmovableSymbolTests`; the plan cites `:1238`, the line has since moved) pins it in BOTH runners, asserts `runner_shared` does not define it, and asserts the REASON: it writes `_LANE_PROMPT_DISABLED` through `global` while each host's diverged `_lane_reclaim_prompt` reads its own copy. `run_queue` CALLS it at `oc_runipd.py:8926`, so a shared core must take it as a parameter FOREVER. Verified green:
+
+    ```
+    $ python3 -m pytest tests/test_runner_shared.py::UnmovableSymbolTests -o addopts=""
+    3 passed
+    ```
+
+    The classification is additionally asserted MECHANICALLY in `tests/test_rununify_run_queue.py::TheClosureClassificationIsPinned` (11 tests), so it is re-derived by the suite and cannot go stale unnoticed.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted green run of the characterization suite against UNMODIFIED code, plus the list of agy branches it newly covers (naming the two F-9 sites specifically), plus a sabotage of one pinned branch showing the suite FAILS (a characterization test that cannot fail pins nothing).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_rununify_run_queue_characterization.py`, 35 tests, every one running against BOTH hosts through `subTest`. It drives each host's REAL `run_queue` over a synthetic queue with `execute_item` stubbed, following the `tests/test_orchestrator_retirement.py::DispatchRunCase` precedent.
 
-- [ ] V-03 validates E-03
+    GREEN AGAINST UNMODIFIED CODE. Taken BEFORE E-03, with 33 of the 35 passing and the two F-9 tests correctly FAILING on the unrepaired agy host (that failure is the sabotage-equivalent this item asks for, and it is the real defect rather than an injected one):
+
+    ```
+    $ python3 -m pytest tests/test_rununify_run_queue_characterization.py -o addopts="" -p no:randomly
+    FAILED tests/test_rununify_run_queue_characterization.py::TheIntegrationLadderIsReachedFromTheLoop::test_the_published_snapshot_matches_the_live_statuses_after_the_ladder
+    FAILED tests/test_rununify_run_queue_characterization.py::TheIntegrationLadderIsReachedFromTheLoop::test_the_reporter_sees_post_ladder_state_at_both_reload_points
+    2 failed, 33 passed in 3.90s
+    ```
+
+    E   AssertionError: False is not true : agy_runipd: after the integration ladder reloaded state, the object the shutdown reporter would read is NOT the object the loop is working with, so a signal arriving here reports a PRE-reload snapshot.
+
+    AND GREEN AFTER E-03, all 35:
+
+    ```
+    $ python3 -m pytest tests/test_rununify_run_queue_characterization.py -o addopts="" -p no:randomly
+    35 passed in 3.81s
+    ```
+
+    THE TWO F-9 AGY BRANCHES, named as required: the RUNG-1 ladder reload (`agy_runipd.py:5199` area, oc's counterpart `oc_runipd.py:8766`) and the RUNG-2/3 ladder reload (`agy_runipd.py:5258` area, oc's `oc_runipd.py:8834`). Neither had ANY coverage before this suite. They are covered by `TheIntegrationLadderIsReachedFromTheLoop` (4 tests) and `TheSignalReporterSeesPostReloadState` (3 tests).
+
+    OTHER AGY BRANCHES NEWLY COVERED, all previously uncovered on that host: the dependency cascade and its host-divergent recovery hint (`AnUnsatisfiableDependencyBlocksRatherThanStalls`, 3 tests); every one of the nine states `--retry-incomplete` re-queues, plus the `recovery=True` dispatch flag, its inverse, and the `runstop m0z0ti` R19 indeterminate refusal (`TheRetryIncompleteFlagRequeuesTheStatesItDeclares`, 4 tests, 18 subtests); the display-option freeze (3); the orchestrate short-circuit and its two state-set bindings (2); the driver label and continuation hint as OUTPUT (2); the tool-identity clause (2 + 3 defect-pinning); the between-item stop checkpoint (1); tracker wiring and instance reuse (2); exit codes (3).
+
+    A DELIBERATE SABOTAGE WAS ALSO RUN, on top of the natural failure above: removing E-03's rung-1 call made 2 characterization tests plus 3 E-05 guards fail, naming the site. Pasted in full under V-05(b).
+
+    ONE FINDING WORTH RECORDING, because it is why this suite is trustworthy at all. The FIRST version of the F-9 test PASSED on the defective host, i.e. it was VACUOUS. Comparing published item STATUSES cannot fail under a test stub, because the stub mutates the very dict the loop holds, so the pre-reload snapshot and the live object ARE the same object. The property that actually discriminates is OBJECT IDENTITY: `published() is state` measured True on oc and False on agy at this HEAD. Recorded as decision `09-ty3cj6-D2`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: FOUR parts, all pasted. (a) The two added call sites shown in context, with agy's `register_signal_report` count going 3 -> 5 and matching oc's five site-for-site. (b) A test proving a signal after an integration reload reports POST-reload state on BOTH hosts, green. (c) `tests/test_runner_backlog_close.py` green, including `test_both_drivers_emit_the_shutdown_report_on_normal_exit`. (d) `tests/test_runner_shared.py::WrapperTests::test_no_call_site_was_rewritten` green with its 38/36 expectation unchanged (F-11).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: all four parts below, measured and pasted.
 
-- [ ] V-04 validates E-04
+    **(a) THE COUNT AND THE SITE-FOR-SITE MATCH.** Before, measured by AST inside `run_queue`:
+
+    ```
+    oc_runipd register_signal_report sites: 5 [8647, 8744, 8766, 8834, 9021] | save_state sites: 13
+    agy_runipd register_signal_report sites: 3 [5096, 5182, 5420]            | save_state sites: 13
+    ```
+
+    After:
+
+    ```
+    oc_runipd register_signal_report sites: 5 [8647, 8744, 8766, 8834, 9021] | save_state sites: 13
+    agy_runipd register_signal_report sites: 5 [5096, 5182, 5209, 5264, 5436] | save_state sites: 13
+    ```
+
+    3 -> 5. SITE FOR SITE, by what each call FOLLOWS (this is the correspondence, not just the total):
+
+    ```
+    == oc_runipd                                      == agy_runipd
+       L8647  preceded by: state = load_state(run_dir)    L5096  preceded by: state = load_state(run_dir)
+       L8744  preceded by: state["_invocation_start_mono"] = ...   L5182  preceded by: state["_invocation_start_mono"] = ...
+       L8766  preceded by: state = load_state(run_dir)    L5209  preceded by: state = load_state(run_dir)
+       L8834  preceded by: state = load_state(run_dir)    L5264  preceded by: state = load_state(run_dir)
+       L9021  preceded by: state["_summary_table_printed"] = True  L5436  preceded by: state["_summary_table_printed"] = True
+    ```
+
+    Exact correspondence at all five. The two added sites, in context (agy only; oc untouched):
+
+    ```python
+            if runner_shared.deferred_integration_items(state):
+                retry_deferred_integrations(run_dir, state)
+                save_state(run_dir, state)
+                state = load_state(run_dir)
+                # rununify Order 08 (`ty3cj6`) E-03: REFRESH the shutdown reporter's published
+                # reference, because the line above REBOUND `state` to a fresh dict. ...
+                register_signal_report(run_dir, state)
+    ```
+
+    ```python
+                    retry_deferred_integrations(run_dir, state, poll=True, ask=True)
+                    save_state(run_dir, state)
+                    state = load_state(run_dir)
+                    # rununify Order 08 (`ty3cj6`) E-03: the SECOND of the two ladder reloads this host
+                    # was missing, matching `oc_runipd.py:8834`. ...
+                    register_signal_report(run_dir, state)
+    ```
+
+    **(b) THE BEHAVIORAL PROOF, both hosts, green.** `TheSignalReporterSeesPostReloadState` (3 tests) and `TheIntegrationLadderIsReachedFromTheLoop::test_the_reporter_sees_post_ladder_state_at_both_reload_points` / `::test_the_published_snapshot_matches_the_live_statuses_after_the_ladder`. The discriminating measurement, before and after:
+
+    ```
+    BEFORE E-03:  oc published-is-live-object at each turn: [True]
+                  agy published-is-live-object at each turn: [False]
+    AFTER  E-03:  35 passed in 3.81s   (both hosts True)
+    ```
+
+    **(c) `tests/test_runner_backlog_close.py` GREEN**, including the named test:
+
+    ```
+    $ python3 -m pytest tests/test_runner_backlog_close.py -o addopts=""
+    47 passed in 2.71s
+    ```
+
+    That file's `test_both_drivers_emit_the_shutdown_report_on_normal_exit` is one of the ten source-reading pins (it requires `"emit_shutdown_report()"` and `"register_signal_report("` in BOTH hosts' `run_queue` source); E-03 ADDS occurrences of the second substring, so the pin is satisfied more strongly than before.
+
+    **(d) THE WRAPPER CENSUS UNCHANGED**, which is the point F-11 asks to be stated rather than assumed:
+
+    ```
+    $ python3 -m pytest tests/test_runner_shared.py::WrapperTests::test_no_call_site_was_rewritten -o addopts=""
+    1 passed in 2.11s
+    ```
+
+    E-03 adds `register_signal_report` calls ONLY. `save_state` sites inside `run_queue` stayed at 13 on both hosts (measured above), so the per-runner totals the census pins are untouched and no expected literal needed editing. `tests/test_rununify_run_queue.py::TheSignalReportRefreshSitesArePinned::test_the_repair_added_no_save_state_call_site` asserts this independently.
+
+    Also green: `tests/test_runner_shared.py` in full (part of the 428-test pinned-file run under V-05(c)).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the written analysis itself, covering all four parts (a) through (d) that E-04 enumerates, with the six pins of F-10 each stated alongside the substring or AST shape it requires and a verdict on whether a thin caller can satisfy it. Plus an explicit statement that NO split was performed and that OQ-03 remains the maintainer's, so the omission cannot be read as an oversight.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the analysis is **Appendix B** of `.aw/records/walkthroughs/20260917-rqclosure-01-k2vn8p-run-queue-closure-measured-and-a-swallowed-run-fatal-error.walkthrough.md`, written as a TRACKED artifact rather than under `.aw/state/` (which is gitignored, so an analysis filed there would not survive; this follows the correction sibling `yrqyxb` had to make). All four parts:
 
-- [ ] V-05 validates E-05
+    **(a) THE DEPENDENCIES AND WHO LIFTS THEM.** Eleven, not the plan's "twelve" (the plan counted the divergent constant `DEPENDENCY_BLOCK_RECOVERY_HINT` alongside the ten callables; the constant IS a hook input but is not a callable dependency). Per-symbol table with owning sibling and verdict. Two clear through `tx6q0h` (`render_continuation_hint`, `write_report`). `driver_actor` is DELIBERATELY REFUSED by that same sibling's E-05 on measured grounds (oc reads a profile subsystem where `runner_profiles`/`resolve_launch_profile`/`launch_profile` all grep to ZERO in `agy_runipd.py`). Which of them the `818uru` OQ-02 wrapper ruling governs: the ruling supplies the MECHANISM for all of them (shared core plus thin per-host wrapper), and the analysis states plainly why the mechanism being sanctioned does not make nine injections the right act here.
+
+    **(b) `disable_lane_prompt` CAN NEVER RESOLVE in `runner_shared`**, so its injection is PERMANENT rather than transitional. Confirmed against `UnmovableSymbolTests` (see V-01) and asserted in the INVERSE direction by `tests/test_rununify_run_queue.py::ThePinnedSymbolStayedPinned` (4 tests), one of which pins that `run_queue` still CALLS it, since the permanence argument depends on that.
+
+    **(c) THE PINS: 10 SITES ACROSS 9 FILES, not six.** Measured with `pin_scan.py` (committed as evidence, reproduced in Appendix C), which finds all three ways a test reaches this function's source. Each pin is tabulated with the exact substring or AST shape it requires and a thin-caller verdict: **8 BREAK, 2 SURVIVE**. The two survivors are `tests/test_oc_runipd_shim.py:40` and `tests/test_agy_runipd_shim.py:37`, both NEGATIVE assertions that `"def run_queue"` is ABSENT from the shim, which a split satisfies more strongly rather than less. THREE assert ORDERING (`test_lane_tool_identity.py:733`, `test_runner_stop.py:607`, `test_orchestrator_retirement.py:3575`), and each has a behavioral equivalent ALREADY IMPLEMENTED AND PASSING in the E-02 net, so the re-basing route the maintainer's ruling authorizes is demonstrated rather than proposed. Unlike sibling `yrqyxb`, which found three undeclared files, every pin file here is already in `Scope-Paths` except the two shim files whose pins are negative.
+
+    **(d) WOULD RE-ORDERING AFTER 07/09/10/11 REDUCE THE INJECTIONS?** Answered with a measurement: **barely, and not enough to matter.** Only `tx6q0h` (04) lifts anything this plan closes over, and it lifts TWO. Child 07 (`yrqyxb`) is EXECUTED and did NOT split `execute_item`. Children 09/10/11 own `initialize_run`/`build_parser`/`main` and lift none of the eleven. So **nine of eleven survive the entire Set** and re-ordering is not the lever the plan hoped.
+
+    THE ANALYSIS ALSO FOUND SOMETHING THE PLAN DID NOT, and it is the actionable part: **FOUR of the seven unclaimed forks are CLOSURE-CLEAN TODAY** and liftable right now, individually, without `run_queue` moving at all (`reconcile_interrupted`, which is 69 code lines on both hosts differing by TWO; `_record_deliberate_stop`; `requeue_interrupted`; `_observe_between_turn_stop`). Each closes over nothing but stdlib, `runner_shared` names, and the sanctioned `save_state` wrapper. That is the cheapest real progress available to this Set and NO plan currently claims it. Filed as backlog `5jsjnr` with the per-symbol accounting. `reclaim_lanes_on_interrupt` is similarly near-identical (134/134, two differing lines) but is blocked by the same `_LANE_PROMPT_DISABLED` global sibling `i3d6ml` hit (its backlog `8hx3g3`).
+
+    **NO SPLIT WAS PERFORMED**, stated explicitly. `run_queue` still has two definitions and there is no shared core; `tests/test_rununify_run_queue.py::TheSplitHasNotBeenPerformed` (3 tests) asserts that MECHANICALLY. On OQ-03's status: it is `resolved` on disk, so the DESTINATION is settled ("do the split") and this turn did not re-ask it. What was OWED and is delivered is the SEQUENCING analysis, which concludes that the split is the right destination and this position in the Set is the wrong place to jump to it in one act, with a five-step route to reach it. Recorded as decision `09-ty3cj6-D1`.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: FOUR parts, all pasted. (a) `python3 -m pytest tests/test_rununify_run_queue.py -o addopts=""` green, including the inverse `disable_lane_prompt` assertion. (b) The BIDIRECTIONAL non-vacuity controls from Required tests item 4, both directions shown failing and then restored. (c) All SEVEN pinned files of F-10 green by name. (d) Bare `python3 -m pytest` with no new failure against the baseline taken at execution HEAD, summary pasted, plus both hosts' suites green by name.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: all four parts below, measured and pasted.
+
+    **(a) THE GUARD SUITE GREEN**, 32 tests:
+
+    ```
+    $ python3 -m pytest tests/test_rununify_run_queue.py -o addopts="" -p no:randomly
+    32 passed in 2.26s
+    ```
+
+    Includes `ThePinnedSymbolStayedPinned` (4 tests: `disable_lane_prompt` still defined in BOTH runners, `runner_shared` still does NOT define it, the two definitions are not the same object, and `run_queue` still CALLS it).
+
+    **(b) BIDIRECTIONAL NON-VACUITY, both directions shown failing and restored.**
+
+    DIRECTION 1, remove one of E-03's added calls (the rung-1 site):
+
+    ```
+    $ python3 -m pytest tests/test_rununify_run_queue.py tests/test_rununify_run_queue_characterization.py -o addopts="" -p no:randomly
+    FAILED tests/test_rununify_run_queue.py::TheSignalReportRefreshSitesArePinned::test_both_hosts_refresh_at_five_sites
+    FAILED tests/test_rununify_run_queue.py::TheSignalReportRefreshSitesArePinned::test_every_ladder_reload_is_followed_by_a_refresh_on_both_hosts
+    FAILED tests/test_rununify_run_queue.py::TheSignalReportRefreshSitesArePinned::test_the_two_hosts_have_the_SAME_number_of_sites
+    FAILED tests/test_rununify_run_queue_characterization.py::TheIntegrationLadderIsReachedFromTheLoop::test_the_published_snapshot_matches_the_live_statuses_after_the_ladder
+    FAILED tests/test_rununify_run_queue_characterization.py::TheIntegrationLadderIsReachedFromTheLoop::test_the_reporter_sees_post_ladder_state_at_both_reload_points
+    5 failed, 62 passed in 5.98s
+    ```
+
+    Five tests fire and NAME the site. Restored, then re-verified: `67 passed in 5.83s`.
+
+    DIRECTION 2, move the pinned symbol INTO `runner_shared` (`disable_lane_prompt` lifted with its `_LANE_PROMPT_DISABLED` global):
+
+    ```
+    $ python3 -m pytest tests/test_rununify_run_queue.py tests/test_runner_shared.py::UnmovableSymbolTests -o addopts="" -p no:randomly
+    FAILED tests/test_rununify_run_queue.py::ThePinnedSymbolStayedPinned::test_runner_shared_still_does_not_define_it
+    FAILED tests/test_runner_shared.py::UnmovableSymbolTests::test_the_shared_module_does_not_define_it
+    2 failed, 34 passed in 2.57s
+    ```
+
+    BOTH my guard AND the maintainer's own `UnmovableSymbolTests` fire, which is the point: the boundary is pinned from two independent directions. Restored with `git checkout -- agent_workflows/runner_shared.py`, then re-verified: `72 passed in 7.01s` across both new files plus `UnmovableSymbolTests` plus the wrapper census. `git diff --stat` afterwards showed ONLY the intended `agent_workflows/agy_runipd.py | 16 ++++` change, so the committed tree carries no experiment residue.
+
+    A THIRD, UNPLANNED AND STRONGER CONTROL, at SUITE scale. Reverting E-03 (`git stash push -- agent_workflows/agy_runipd.py`) while keeping the tests, then running the WHOLE suite:
+
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest        # E-03 reverted, tests kept
+    FAILED tests/test_rununify_run_queue.py::TheSignalReportRefreshSitesArePinned::test_both_hosts_refresh_at_five_sites
+    FAILED tests/test_rununify_run_queue.py::TheSignalReportRefreshSitesArePinned::test_every_ladder_reload_is_followed_by_a_refresh_on_both_hosts
+    FAILED tests/test_rununify_run_queue.py::TheSignalReportRefreshSitesArePinned::test_the_two_hosts_have_the_SAME_number_of_sites
+    FAILED tests/test_rununify_run_queue_characterization.py::TheIntegrationLadderIsReachedFromTheLoop::test_the_published_snapshot_matches_the_live_statuses_after_the_ladder
+    FAILED tests/test_rununify_run_queue_characterization.py::TheIntegrationLadderIsReachedFromTheLoop::test_the_reporter_sees_post_ladder_state_at_both_reload_points
+    FAILED tests/test_runner_backlog_close.py::ShutdownReportOnInterrupt::test_sigint_produces_the_report_and_exits_130
+    6 failed, 7609 passed, 3 skipped, 2 xfailed in 93.18s
+    ```
+
+    Five of mine fire in a full-suite run and everything else stays green. E-03 restored via `git stash pop`, count re-verified at 5 sites.
+
+    **(c) THE PINNED FILES GREEN BY NAME.** The plan lists seven; the measured inventory is nine files (the two shim files carry negative pins the plan does not name). All nine, green:
+
+    ```
+    $ python3 -m pytest tests/test_runner_backlog_close.py tests/test_runner_shared.py \
+        tests/test_lane_tool_identity.py tests/test_runner_stop.py \
+        tests/test_orchestrator_retirement.py tests/test_oc_runipd_shim.py \
+        tests/test_agy_runipd_shim.py tests/test_oc_runipd_cli.py -o addopts=""
+    428 passed in 58.78s
+    ```
+
+    The ninth, `tests/test_agy_runipd_cli.py`, green with the worker-role guard unset (see (d) for why that is the honest way to run it here):
+
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest tests/test_agy_runipd_cli.py -o addopts=""
+    66 passed in 11.24s
+    ```
+
+    AS THE PLAN ASKS: **E-03 left all of them UNTOUCHED.** No pin file was edited, so all nine are declared-but-unmodified and require `--scope-ack`. This is stated with passing output rather than by editing them speculatively.
+
+    **(d) THE BARE SUITE, against a baseline taken at THIS HEAD before changing anything.**
+
+    ```
+    $ python3 -m pytest        # PRE-change baseline, HEAD 24932638, worker role set
+    32 failed, 7516 passed, 3 skipped, 2 xfailed in 96.38s
+
+    $ python3 -m pytest        # POST-change, with all three of my files
+    32 failed, 7583 passed, 3 skipped, 2 xfailed in 90.53s
+
+    $ diff <(pre FAILED lines | sort) <(post FAILED lines | sort)
+    IDENTICAL
+    ```
+
+    **Byte-identical failure sets before and after; +67 passing and NO new failure.**
+
+    THE 32 ARE THE WORKER-ROLE ARTIFACT, not a repo defect and not mine: `AW_EXECUTION_ROLE=worker` is set in a runner-managed lane, which makes `ipd_lifecycle` refuse driver-only verbs by design (`AW-LIFECYCLE-ROLE-001`), and the affected tests call `driver_begin` and friends directly. With the role unset:
+
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest    # PRE-change
+    7548 passed, 3 skipped, 2 xfailed in 91.11s     # ZERO failures
+
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest    # POST-change
+    1 failed, 7614 passed, 3 skipped, 2 xfailed     # the sigint test
+    ```
+
+    THAT ONE FAILURE IS A PRE-EXISTING LOAD-DEPENDENT FLAKE, established rather than asserted: `test_sigint_produces_the_report_and_exits_130` spawns a real driver subprocess and signals it. It **also fails with E-03 REVERTED** (see the suite-scale control in (b): `6 failed`, of which five are my guards and the sixth is this test), and it passes in isolation and in its own file:
+
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest tests/test_runner_backlog_close.py::ShutdownReportOnInterrupt::test_sigint_produces_the_report_and_exits_130 -o addopts=""
+    1 passed in 0.64s
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest tests/test_runner_backlog_close.py -o addopts=""
+    47 passed in 2.71s
+    ```
+
+    The plan's Required-tests item 8 anticipates exactly this and requires it be reproduced against the pre-change baseline before attribution. It was.
+
+    **BOTH HOSTS' SUITES GREEN BY NAME:** `tests/test_oc_runipd_cli.py` (in the 428 above), `tests/test_agy_runipd_cli.py` (66 passed), and `tests/test_oc_runipd.py`:
+
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest tests/test_oc_runipd.py -o addopts=""
+    185 passed in 29.17s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
