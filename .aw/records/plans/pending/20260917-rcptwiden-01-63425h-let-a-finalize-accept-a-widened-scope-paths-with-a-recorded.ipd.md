@@ -7,15 +7,17 @@
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, tests/test_receipt_requirement_digest.py, tests/test_ipd_lifecycle_cli.py, tests/test_finalize_isolated_commit.py, tests/test_rununify_host_descriptor.py, .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
 - Blocks-Release: next
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: rcptwiden
 - Order: 1
 - Highest E allocated: 09
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: 63425h
+- Approval: 2026-09-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-17 approved (aw set): status set to approved
 - 2026-09-17 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-012 all FIXED; 2 non-blocking OQs (OQ-01 reason-per-added-path, OQ-02 directory/glob eligibility) both ship fail-closed. Reproduced the asymmetry end to end; withdrew false F-6; added the runner half, E-08 fence-neutering and E-09 ineligible shapes.
 
 - 2026-09-17 to-review (opencode/its_direct-pt3-claude-opus-5-1m-us): Authored from a measured, three-times-reproduced failure in run `run-20260917T023628Z-4108757`. VERIFIED NO PENDING PLAN OWNS THIS before authoring, which is why it is a new plan rather than a note on an existing one: `wmnmei` (rcptstale-01, approved) analyses what the frozen `base_head` MEANS for the `check.scope-drift` advisory and explicitly excludes `ipd_lifecycle.py` from its scope ("If E-02 or E-03 concludes the advisory cannot be fixed without a lifecycle change, that is a FINDING and a follow-up plan, not a silent scope widening"); `zzcrlo` (finalback-01, approved) hands a refused finalize BACK to the same agent but its own analysis puts "changed frozen requirements" on the never-retry boundary it promises to honor, so it would re-dispatch this failure and refuse it again rather than fix it; `tgop8e` (stalecrit-01) re-derives a plan's target population at execution time, a different staleness. So the cause is unowned. THE ASYMMETRY IS THE DEFECT, not the freeze: freezing the reviewed contract is correct and `receipt_is_current`'s own docstring records that an earlier whole-file digest "refused every self-finalizing run" and was narrowed for exactly this class of false positive. This plan finishes that narrowing for the one case it left: an ADDITIVE scope declaration.
