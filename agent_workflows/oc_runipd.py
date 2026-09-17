@@ -321,6 +321,23 @@ from agent_workflows.runner_shared import (
     write_prompt as write_prompt,
 )
 
+# rununify 05 (`ct4w0a`) E-02/E-04: the two symbols whose host definitions genuinely DISAGREED about
+# behavior. `extract_session_id` is the UNION of both readers (all four keys, flat AND nested), because
+# `conversation_id` is agy's own wire format and adopting oc's reader outright left agy unable to find
+# its own session id. `_SESSION_ID_KEYS` comes with it: it was defined TWICE with DIFFERENT contents
+# (three keys here, four in agy), so a reader finding either copy first would re-fork the disagreement.
+# `begin_baseline_env` moves as `driver_begin`'s dependency; `driver_begin` itself keeps a one-line
+# wrapper below because its pin helpers are defined HERE and cannot move (see that wrapper's note).
+from agent_workflows.runner_shared import (
+    _SESSION_ID_KEYS as _SESSION_ID_KEYS,
+)
+from agent_workflows.runner_shared import (
+    begin_baseline_env as begin_baseline_env,
+)
+from agent_workflows.runner_shared import (
+    extract_session_id as extract_session_id,
+)
+
 # rununify 01 (`2r306y`): `_read_id`/`_read_status` were defined in THIS module AND in
 # `agy_runipd`, both AST-identical to `selectors`' own readers, so one owner had three copies.
 # They are now the public `selectors` readers, bound to this module's historical private names
@@ -940,71 +957,35 @@ def driver_actor(state: dict[str, Any]) -> str:
     return "aw oc run " + " ".join(parts) if parts else "aw oc run"
 
 
-def begin_baseline_env(isolated: bool) -> dict[str, str]:
-    """The child-env overlay declaring WHICH baseline `aw ipd begin` should measure.
-
-    lanetruth Order 02 (z2isfg). `begin` gates execution authority on this plan's in-scope paths being
-    unambiguous in the baseline the turn will EXECUTE against. For an isolated turn that baseline is a
-    fresh worktree cut at the frozen base commit, which is clean by construction, so uncommitted work
-    in the MAIN tree cannot reach it. Measuring the main tree there refused unrelated lanes over a
-    co-worker's edit to a commonly-scoped file, and the message's own remedy (commit or stash it) is
-    one the shared-checkout contract forbids. Only the DRIVER knows which case applies, so it declares
-    it here; a non-isolated turn sends nothing and the existing main-tree refusal is preserved verbatim.
-
-    Env rather than a CLI flag: `--dir` must keep meaning "the repo root" (the receipt stays under the
-    MAIN repo's state root even for an isolated turn) and a new flag would have to be declared in
-    `agent_workflows/cli.py`, which this plan's scope fence excludes."""
-    return {"AW_ISOLATED_BASELINE": "1"} if isolated else {}
-
-
+# rununify 05 (`ct4w0a`) E-04: `begin_baseline_env` and the `driver_begin` LAUNCHER BODY are now
+# defined ONCE in `runner_shared` and this is the one-line wrapper that binds THIS host's pin
+# helpers. It keeps the ORIGINAL name and signature, so both call sites in this module are untouched.
+#
+# WHY A WRAPPER AND NOT A PURE MOVE, since the plan that ordered this lift expected one: the shared
+# module may never import a runner, and `pinned_child_env`/`pinned_module_argv` are DEFINED here in
+# `oc_runipd` (agy imports them FROM here, which makes them the same object in both hosts but does
+# not make them reachable from `runner_shared`). So they are INJECTED, which is the maintainer's
+# ruled mechanism for exactly this case (`818uru` OQ-02) and is already how `run_checked` -- the
+# OTHER nested-`aw` launcher, also living in `runner_shared` -- consumes this same dependency.
+#
+# WHAT AGY GAINS: agy's own `driver_begin` accepted no `isolated` and layered no baseline overlay, so
+# an ISOLATED `aw agy run` turn asked `aw ipd begin` to gate on the MAIN tree while the turn would
+# execute in a LANE. Both hosts now reach this one launcher, so that asymmetry cannot recur.
 def driver_begin(
     repo: Path, id6: str, actor: str, *, isolated: bool = False
 ) -> tuple[int, str]:
     """Run the fail-closed `aw ipd begin <id6> --actor` gate before an execute turn.
 
-    Reuses the packaged `aw ipd begin` surface (subprocess to `python -m agent_workflows`,
-    mirroring `set_plan_approved`/`finalize_orchestrator`); begin writes the gitignored
-    `.aw/state/ipd-lifecycle/<id6>.receipt.json` receipt (execution authority) itself. Returns
-    (exit_code, stderr): exit 0 = receipt written; nonzero = refusal (no execution authority).
-
-    `isolated` declares that the gated turn will execute in a fresh isolated worktree rather than in
-    `repo` itself, which selects the baseline begin measures (see `begin_baseline_env`). It does NOT
-    change where the receipt lives, nor the receipt's frozen `base_head`, which is always this repo's
-    HEAD because finalize consumes it as a git revision."""
-    # lanetruth Order 01 (af7i6p): pinned to the runner's OWN tooling. NOTE this particular site
-    # is NOT itself lane-shadowed -- it runs with `cwd=str(repo)` (the MAIN tree) and the lane is
-    # allocated only AFTER begin returns -- but it is pinned anyway so exactly one shape exists
-    # across all launch sites and no future refactor can quietly make it lane-relative.
-    cmd = pinned_module_argv(
-        [
-            "ipd",
-            "begin",
-            id6,
-            "--actor",
-            actor,
-            "--dir",
-            str(repo),
-        ]
+    Delegates ENTIRELY to `runner_shared.driver_begin`, binding this host's `pinned_child_env` and
+    `pinned_module_argv`. See that function for the contract and for what `isolated` declares."""
+    return runner_shared.driver_begin(
+        repo,
+        id6,
+        actor,
+        isolated=isolated,
+        env_builder=pinned_child_env,
+        argv_builder=pinned_module_argv,
     )
-    result = subprocess.run(
-        cmd,
-        cwd=str(repo),
-        # lanetruth Order 01 (af7i6p) + Order 02 (z2isfg): the pinned env is the BASE and the
-        # baseline declaration is layered on top, so the turn measures the tree it will really
-        # execute in WITHOUT unpinning the tooling. Written as one expression because the af7i6p
-        # guard (tests/test_lane_tool_identity.py) asserts the literal `env=pinned_child_env()`
-        # shape at this site; keeping that literal visible is what proves the pin still reaches
-        # the child.
-        env={**pinned_child_env(), **begin_baseline_env(isolated)},
-        text=True,
-        # ttywedge Order 01 (g40w37): DENY the child a terminal. Without this, stdin is INHERITED, so a
-        # nested `aw` sees the operator's TTY, believes it may prompt, and blocks on input() forever
-        # while its prompt goes into the pipe below. Verified: a finalize wedged 1h49m this way.
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    return result.returncode, (result.stderr or result.stdout or "").strip()
 
 
 # --- specvis (st5klo): declared-spec-edit VISIBILITY, at run start AND at run end -----------------
@@ -3970,7 +3951,11 @@ def save_state(run_dir: Path, state: dict[str, Any]) -> None:
     runner_shared.save_state(run_dir, state, write_report=write_report)
 
 
-_SESSION_ID_KEYS = ("sessionID", "sessionId", "session_id")
+# `_SESSION_ID_KEYS` and `extract_session_id` are now defined ONCE in `runner_shared` and imported
+# above (rununify 05 `ct4w0a`). `_event_session_id` stays HERE because it is oc-only, and it is the
+# SECOND consumer of that shared tuple: it reads the same key list LIVE during the turn. The tuple
+# widened from three keys to four when it was shared, which is INERT for this function because it
+# hard-filters on a `ses_` prefix and a `conversation_id` value never carries one.
 
 
 def _event_session_id(raw_line: str) -> str | None:
@@ -3994,28 +3979,6 @@ def _event_session_id(raw_line: str) -> str | None:
         if isinstance(value, str) and value.startswith("ses_"):
             return value
     return None
-
-
-def extract_session_id(log_path: Path) -> str | None:
-    """Return the session id from a streamed JSONL log."""
-    if not log_path.exists():
-        return None
-    fallback: str | None = None
-    with log_path.open("r", encoding="utf-8", errors="replace") as handle:
-        for line in handle:
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            for key in _SESSION_ID_KEYS:
-                value = event.get(key)
-                if not isinstance(value, str) or not value.strip():
-                    continue
-                if value.startswith("ses_"):
-                    return value
-                if fallback is None:
-                    fallback = value
-    return fallback
 
 
 # `_findings_block_reason` is now defined ONCE in `runner_shared` and imported above (rununify 03 `i3d6ml`).
