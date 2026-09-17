@@ -191,12 +191,37 @@ declared in `Scope-Paths`.
 ### OQ-03: Should `upgtest` be deleted since it has no owning plan?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: OPEN, and deliberately not guessed. `upgtest` holds 3 commits, has a
-  live worktree, is named for a purpose ("upgrade test") rather than a plan id6, and was last touched
-  2026-09-12. Nothing in the repository records who created it or whether its work is still wanted, so
-  the disposition is the maintainer's. E-05 carries it as an ESCALATE with this question.
+- Resolution or deferral rationale: RESOLVED 2026-09-17 by the maintainer: DO NOT DELETE. PRESERVE and
+  assess for recovery. The premise that "nothing in the repository records... whether its work is still
+  wanted" was tested and is FALSE: the branch carries 3,063 insertions across 14 files, and the
+  repository records what they are.
+  MEASURED at 2026-09-17 (re-derive at execution HEAD rather than trusting these figures):
+  `tools/aw_upgrade_test.py` (1370 lines, an upgrade rehearsal harness), `tests/test_aw_upgrade_test.py`
+  (763 lines), `tools/README.md` (+77), THREE plans that exist NOWHERE in `main` (`h90ij1`, `z1yefm`,
+  `i8u6hh`) each with its own `.review.md`, and two backlog items. So this is the one branch in the
+  fourteen whose content is genuinely unlanded rather than squash-merged or deliberately retired.
+  WHY IT IS WANTED, from its own review record rather than inferred: the review of `z1yefm` records a
+  HIGH finding that TWO split-brain detectors disagree, engine's being content-aware
+  (`engine.py:119-142`) while doctor's tests a bare `.is_dir()` (`doctor.py:323-326`), and that because
+  `.agents/skills` is the intended permanent skills location for BOTH layouts, doctor "misreports
+  forever". The record states the plan as originally written "would have shipped, passed its own
+  validation, and left the user still reading 'Dual layouts detected'". That is a live user-visible
+  defect with a written analysis, which is the opposite of abandoned scratch.
+  THE DISPOSITION IS THEREFORE `RECOVER`, NOT `DELETE`, and E-05 should record it as such rather than as
+  an ESCALATE. NOTE what recovery still owes, because "preserve" is not "merge": the branch was last
+  touched 2026-09-12 and `main` has moved substantially since, so E-07 must establish a baseline, merge,
+  and re-run the suite rather than fast-forwarding on the strength of this answer. The three unlanded
+  plans are `to-review`/`go-pending-approval` per their own review records and still need human
+  approval before any of them EXECUTES; recovering the branch makes them visible, it does not approve
+  them.
+  A METHOD CORRECTION THIS QUESTION EXPOSED, recorded because it affects E-04 and could authorize a
+  wrong deletion. An earlier triage in this repository classified `upgtest` as already-landed by
+  matching its tip commit SUBJECT against `git log main --grep`. That method is UNSOUND: the grep
+  matched the lane's own commit rather than a commit on `main`, and every one of the three commits
+  returns `git merge-base --is-ancestor <sha> main` -> false. E-04 must use an ANCESTRY or CONTENT test,
+  never a subject match, and E-02's disposition rule should say so explicitly.
 
 ## Validation and cross-check (verify before reporting done)
 
