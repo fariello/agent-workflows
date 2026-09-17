@@ -22,6 +22,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-17 executed (opencode its_direct/pt3-claude-opus-5-1m-us): implemented in lane `aw/lane/pr5b0t`, commit `b13a3f9e` (code + tests + spec amendment) and `19cbc780` (three backlog items for the defects found). All seven E-items performed and all seven V-items verified with pasted evidence; `aw ipd lint --phase pre-transition` CONFORMING. THE TERMINAL TRANSITION WAS NOT PERFORMED HERE and that is correct rather than incomplete: `aw ipd finalize` REFUSED with `AW-LIFECYCLE-ROLE-001` (the runner owns begin/finalize for a managed lane; a worker-role process must not run them), so the driver performs it after integrating this lane. TWO CORRECTIONS THE REVIEW DEMANDED WERE BOTH CONFIRMED BY MEASUREMENT rather than accepted on faith: `holds_work` is byte-identical before and after a `--no-ff` merge while `git merge-base --is-ancestor` flips, so the landing question is REQUIRED and is now a permanent regression test; and the absolute-home-path prohibition bound harder than expected, since the leak-sanitizer legitimately failed BOTH my test fixtures and my own first draft of the V-04 evidence block, all three now composed or elided. THE COST CLAIMS COULD NOT BE FULLY RE-MEASURED and this is stated rather than glossed: `.aw/records/runs/` is gitignored and absent from a lane worktree, and this turn's sandbox refused reads of the primary checkout, so the two dollar figures are NOT restated as verified; `xdr83v_attempt2` holding zero commits and `03ie04` holding two DID reproduce from the shared object store. THE LANE COUNT IS WORSE THAN THE PLAN'S ELEVEN: 14 of 38 `aw/lane/*` branches hold unmerged commits, filed for human triage as backlog `qliia1` and deliberately not touched. Suite failure-set delta EMPTY (31 failed before and after, same set, all environmental; 7420 -> 7441 passed).
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-09 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review at HEAD `930cfa5b`; APPROVE WITH REVISIONS APPLIED, readiness `go-pending-approval`; PR-601..PR-612 all FIXED in place, none deferred, none REPLAN. `aw ipd lint` CONFORMING at `--phase author` before review and at `--phase review-finalize` after every revision, so nothing here is structural. THE DIAGNOSIS IS CONFIRMED, RE-MEASURED IN THE PRIMARY CHECKOUT rather than in a lane: both `aw next --check` and `aw attention --check` exit 0 while 29 `aw/lane/*` branches exist; the grep counts are identical (0 lane tokens in either attention module); `integration_signal` still has exactly five occurrences, four writes plus one allowlist name; and `SCAN_ROOTS` is exactly as cited. TWO BLOCKERS WERE FOUND BY RUNNING CODE, NOT BY READING IT. FIRST, the predicate as specified cannot work: `describe_lane`'s `holds_work` compares a lane against its OWN creation base (`_lane_base_sha` reads the creation reflog), so a lane MERGED into `main` with `--no-ff` still reports `state HOLDS-WORK commits_ahead 1 holds_work True`, demonstrated on a throwaway repo built the way the runner builds a lane. A `holds_work`-based predicate would therefore report EVERY recovered lane as stranded forever, which is E-07 case (c) inverted and precisely the false-positive class the backlog item says destroys the alarm; the plan budgeted "at most one git reachability question" as optional, and it is REQUIRED. E-01, E-02, E-07 and V-01/V-02/V-07 now carry the two-question predicate, the runner-faithful fixture construction, and a demonstration that `holds_work` is unchanged across a merge. SECOND, E-04 mandated printing `preserved_worktree`, which is an ABSOLUTE HOME PATH in 71 of the 140 recorded run items, into a payload agents paste; `ys1dor`'s review had independently measured the same field and forbidden it. E-04 now prints the branch plus a repository-relative worktree, E-03 notes `Item.path` is contractually repo-relative, E-07 gains a no-absolute-path regression case, and V-04 requires a `/home/` grep over both captured surfaces alongside `aw sanitize`. THREE MORE MEASURED CORRECTIONS. `valid` and the `--check` exit code are ONE mechanism (`valid = len(drift) == 0`; every `--check` return is `core.drift_exit_code`, which exempts only `info`), so E-05's "decide how they interact" and E-06's exit change collapse into one already-answered implementation choice: emit a non-`info` `Drift`. OQ-02 was RESOLVED rather than left open by reading the spec the plan cited: it is `implemented` and enumerates `--check`'s failure conditions in F3 (plus G3, `:134`, `:201`), so the amendment is required and the spec file is now DECLARED in `Scope-Paths`. And `rl67b0` is `reviewed`/`go-pending-approval`, NOT `no-go` as the plan and OQ-03 both asserted, as is `51vw4y`, so it may land first and E-02 must adopt its resolver if so. Also fixed: every driver and `runner_shared` line number (all drifted within a day), the branch count 28 -> 29, `attention.run`'s pre-scan early return that prints "the view is valid" and exits 0, `owner_live` being three-valued, `integration_detail` living on the attempt, `render_json`'s canonical shape and self-versioning, and the suite baseline. E-count 7 to 7; no E-item added or removed; no product code touched by this review.
@@ -37,7 +38,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: decide the predicate before reporting anything
 
-- [ ] E-01 DEFINE AND RECORD THE STRANDED PREDICATE, from the RUN RECORD, and re-measure the item's cost claims in the primary checkout while you are there. The item's candidate is "a lane branch with commits not reachable from `main`, whose plan is not `executed`", and it explicitly says DECIDE, DO NOT GUESS.
+- [x] E-01 DEFINE AND RECORD THE STRANDED PREDICATE, from the RUN RECORD, and re-measure the item's cost claims in the primary checkout while you are there. The item's candidate is "a lane branch with commits not reachable from `main`, whose plan is not `executed`", and it explicitly says DECIDE, DO NOT GUESS.
   START FROM THE FACTS ALREADY WRITTEN, not from the filesystem. Every input exists on the run record: `preserved_branch`, `preserved_worktree`, `preserved_lane_id`, `preserved_disposition`, `integration_signal`, `integration_detail`. Enumerate for each what it can and cannot decide, and write the predicate as a function of those fields plus at most one git reachability question. NOTE `integration_detail` IS ON THE ATTEMPT, NOT THE ITEM (`ys1dor` F-10 measured the item's 21 keys and it is absent), so read `item["attempts"][-1]` and tolerate its absence.
   THE REACHABILITY QUESTION IS NOT OPTIONAL AND `holds_work` DOES NOT ANSWER IT. This is the single correction that most changes E-01, and review MEASURED it on a throwaway repo rather than reasoning about it. `describe_lane`'s `holds_work` is `state == LANE_HOLDS_WORK`, and `inspect_lane` computes `commits_ahead` as `rev-list --count <base_sha>..<head>` where `base_sha` is the commit the lane was CUT FROM, read from the branch creation reflog (`worktree_lease._lane_base_sha`). That compares the lane against ITS OWN BASE, never against `main`. Demonstrated: a lane cut at `main`, given one commit, then MERGED into `main` with `--no-ff` still reports `state HOLDS-WORK commits_ahead 1 holds_work True reclaimable False`, because merging `main` forward does not move the lane's base. Only `git merge-base --is-ancestor <lane-branch> <main>` distinguished the two states in the experiment. So `holds_work` means "this lane contains commits beyond where it started", which is TRUE FOR EVERY RECOVERED LANE FOREVER, and a predicate resting on it would report every successfully integrated lane as stranded permanently: the exact false-positive class E-07 case (c) exists to forbid, and the one the item warns trains operators to ignore the alarm.
   SO STATE THE PREDICATE AS TWO SEPARATE QUESTIONS, and say which fact answers each: "does this lane hold work?" (`holds_work`/`commits_ahead`/`dirty`, from `describe_lane`) and "has that work reached the integration target?" (the ONE git reachability question, which nothing existing answers). Name the target explicitly rather than assuming `main`: use the run record's own base where available and say what you fall back to. This is the "at most one git question" the plan already budgeted for; the correction is that it is REQUIRED, not optional, and that E-02 must add it rather than expecting `describe_lane` to supply it.
@@ -47,46 +48,46 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   RE-MEASURE THE COST CLAIMS. In the primary checkout (where `.aw/records/runs/` exists, 140 records at review), verify the `$16.59` plus `$32.83` double payment for `03ie04`, the eleven-lane count, and `xdr83v_attempt2` holding zero commits. Paste what you find. If a figure does not reproduce, correct it here rather than propagating it.
   - Depends on: none
   - Expected outcome: a written predicate expressed as TWO named questions (holds-work and has-it-landed) over named run-record fields plus the one required git reachability question, with the live-run exclusion (three-valued `owner_live` handled), the recovered-lane exclusion and the UNKNOWN case each stated, an explicit statement that `holds_work` alone cannot decide landing with the measurement that shows why, and the three cost claims re-measured with output pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: one reader, in the module that already owns lane facts
 
-- [ ] E-02 IMPLEMENT THE PREDICATE ONCE, IN `runner_shared.py`, BESIDE THE EXISTING LANE READERS, and do not put it in `attention.py`. The reason is the item's own hard constraint ("ONE reader, not per-surface copies") and the fact that `runner_shared` already holds the whole lane vocabulary: `_lane_records_from_state` (`:609`) reads the `preserved_*` fields, `describe_lane` (`:651`) returns `state`/`commits_ahead`/`dirty`/`head`/`base_sha`/`holds_work`/`owner_live`/`owned_by_other_live_process`, `format_lane_report` (`:682`) and `build_recovery_lane_notice` (`:759`) render them.
+- [x] E-02 IMPLEMENT THE PREDICATE ONCE, IN `runner_shared.py`, BESIDE THE EXISTING LANE READERS, and do not put it in `attention.py`. The reason is the item's own hard constraint ("ONE reader, not per-surface copies") and the fact that `runner_shared` already holds the whole lane vocabulary: `_lane_records_from_state` (`:609`) reads the `preserved_*` fields, `describe_lane` (`:651`) returns `state`/`commits_ahead`/`dirty`/`head`/`base_sha`/`holds_work`/`owner_live`/`owned_by_other_live_process`, `format_lane_report` (`:682`) and `build_recovery_lane_notice` (`:759`) render them.
   BUILD ON `describe_lane`, DO NOT REIMPLEMENT IT, BUT DO NOT EXPECT IT TO ANSWER LANDING. It already answers `commits_ahead`, `holds_work`, `dirty` and `owner_live`, which is the holds-work half of E-01's predicate and the liveness exclusion; reimplementing those is the duplication the item forbids. It does NOT answer whether the work reached the integration target, and per E-01's measurement `holds_work` stays True forever after a successful merge, so this E-item MUST add the one reachability question. Add it as a small named helper next to the predicate (or extend `describe_lane` with an explicitly-named landed field), and say in the docstring which of the two you did and why, because a future reader will otherwise assume `holds_work` was sufficient exactly as this plan first did.
   THE FUNCTION MUST BE PURE ENOUGH TO TEST: given a repo root and a run record (or an iterable of them), return structured lane records. No printing, no exit codes, no argparse. The rendering belongs to the consumer, and there will be more than one consumer.
   DO NOT DEPEND ON `rl67b0` LANDING FIRST. Its E-01 builds a re-integration entry point with an overlapping resolver. CORRECTED AT REVIEW: `rl67b0` now reads `Status: reviewed` / `Readiness: go-pending-approval`, NOT `no-go` as this plan and its OQ-03 both claim, and its `Item-Dependencies: executed:51vw4y` names a plan that is ALSO `reviewed`/`go-pending-approval` (whose own dependency `6sb3yu` is already `executed`). So the chain is awaiting human approval rather than blocked, and `rl67b0` may well land BEFORE this plan. That strengthens the convergence design rather than weakening it, but it changes the risk: write this reader so that if `rl67b0` lands, ITS resolver can be adopted by deletion of the local one rather than by a rewrite, and record the intended convergence point explicitly in the docstring so neither plan silently forks a second lane resolver. If `rl67b0` has ALREADY landed when you execute, prefer its resolver outright and say so.
   - Depends on: E-01
   - Expected outcome: one host-neutral function in `runner_shared.py` returning structured stranded-lane records, built on `describe_lane` for the holds-work half and adding the one named reachability question for the landing half, with no printing and no exit codes, and a docstring naming the convergence point with `rl67b0`'s resolver and stating why `holds_work` alone is insufficient.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 MAP A STRANDED LANE ONTO THE EXISTING CLASS VOCABULARY IN `attention_contract.py`, and do not invent a parallel one. The authority is `class_of(tree, native_status)` (`:343`) over the per-tree fragments in `CLASS_MAPS` (`:329`, which holds FIVE fragments: `specs`, `plans`, `research`, `backlog`, `releases`), with the five classes `ready/active/blocked/done/parked`.
+- [x] E-03 MAP A STRANDED LANE ONTO THE EXISTING CLASS VOCABULARY IN `attention_contract.py`, and do not invent a parallel one. The authority is `class_of(tree, native_status)` (`:343`) over the per-tree fragments in `CLASS_MAPS` (`:329`, which holds FIVE fragments: `specs`, `plans`, `research`, `backlog`, `releases`), with the five classes `ready/active/blocked/done/parked`.
   NOTE THE `Item` SHAPE CONSTRAINS WHAT A SYNTHETIC ROW CAN CARRY. `Item` (`attention.py:37`) is a `NamedTuple` whose `path` field is documented "repo-relative POSIX", and `render_json` (`:1069`) emits `path` verbatim. A lane's `preserved_worktree` is an ABSOLUTE home path (F-15), so if you choose the synthetic-tree route, `path` MUST be a repo-relative or branch-shaped value, never the recorded worktree. That is a second, independent reason the leak prohibition in E-04 binds here too.
   THE ITEM PROPOSES `blocked` AND THAT IS DEFENSIBLE: a stranded lane cannot proceed without a human act. Adopt it unless E-01's predicate produces a state that genuinely is not blocked (a lane whose work IS merged but whose plan is not yet `executed`, for instance, is arguably `active`). Record the mapping and its reasoning.
   RESPECT THE FAIL-CLOSED SHAPE ALREADY THERE. An unmapped native status raises `UnknownNativeStatus` (`:338`) and the scanner renders it as a VIOLATION rather than defaulting to a class. Whatever fragment or synthetic type you add must keep that property: a lane state nobody mapped must be loud, not silently `ready`.
   MIND THAT `scan()` IS FILE-SHAPED. `attention.scan` (`:325`) is built entirely around `artifact_core.iter_scan_files` (`artifact_core.py:293`) and per-file `_record_for` (`attention.py:781`), so there is no existing route for a non-file-backed item. Choose deliberately between a sixth `CLASS_MAPS` fragment for a synthetic `lanes` tree and a separate lane section joined at render time, and record WHY. Do NOT add `.aw/worktrees` to `SCAN_ROOTS`: the item's ask 4 is explicit that the verdict comes from the run record, and a filesystem walk would rewrite history exactly as `xtklpd`'s review measured.
   - Depends on: E-02
   - Expected outcome: a recorded mapping decision placing a stranded lane in an existing class, the unmapped-state-is-a-violation property preserved, a recorded choice between synthetic tree and render-time join with its reasoning, and `SCAN_ROOTS` unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: make it loud, machine-readable, and fail-closed
 
-- [ ] E-04 REPORT EVERY STRANDED LANE IN `aw attention`, LOUDLY, carrying the facts the item names: the lane branch, the `integration_signal`, the plan id6 it belongs to, and a SAFE rendering of the worktree. Add the REMEDY too, because an alarm with no route trains its own dismissal.
+- [x] E-04 REPORT EVERY STRANDED LANE IN `aw attention`, LOUDLY, carrying the facts the item names: the lane branch, the `integration_signal`, the plan id6 it belongs to, and a SAFE rendering of the worktree. Add the REMEDY too, because an alarm with no route trains its own dismissal.
   **DO NOT PRINT `preserved_worktree` AS RECORDED. IT IS AN ABSOLUTE HOME PATH.** This is the one way this plan can do real harm, and it is measured, not supposed: 71 items across the 140 run records carry a `/home/<user>/...` value, and `ys1dor`'s review independently measured the same field and FORBADE printing it. `aw attention --json` is consumed and pasted by agents and CI, so D92 binds here at least as hard as on a run summary. Print `preserved_branch` (a git ref such as `aw/lane/03ie04_attempt2`, safe by construction), and render the worktree repository-relative (for example `.aw/worktrees/<lane>`) or omit it. The item's ask for "the worktree path" is satisfied by the relative form; it does not license a home path. Note `integration_detail` embeds an absolute repository path too (`ys1dor` F-11), so the same rule applies to any detail text. `aw sanitize --agent` over a CAPTURED render and a captured `--json` payload is the load-bearing V-04 evidence; do not reason about it.
   REUSE `ys1dor`'s VOCABULARY, DO NOT CHOOSE A SECOND ONE. Its E-02 picks the screaming red outcome word and its OQ-02 RESOLVED it as `STRANDED`; its E-03 renders the recovery route naming `preserved_branch`. `ys1dor` is `Status: reviewed` / `Readiness: go-pending-approval`, so its word is DECIDED even though the code has not landed: use `STRANDED` and say so, rather than treating the choice as open. If you deviate, state why in the plan record.
   NAME THE REMEDY THAT EXISTS TODAY. `rl67b0` would add `aw <host> integrate <id6>`; it is `reviewed`/`go-pending-approval`, so check whether it has landed at execution time and print the verb only if it exists. Until then the honest remedy is the manual one. Do not print a verb that does not exist.
   DO NOT DELETE, MERGE, OR AUTO-RECOVER ANYTHING. The item is explicit: this is about VISIBILITY, and recovery is a human act. The attention spec independently forbids it: it describes `aw attention` as READ-ONLY nine separate times, and G3 states it explicitly.
   - Depends on: E-03
   - Expected outcome: `aw attention` reports each stranded lane with branch, a repository-relative or omitted worktree, `integration_signal` and plan id6, in the loud style using `STRANDED`, naming a remedy that exists, with NO absolute path in either the human or the JSON surface (proven by `aw sanitize --agent` over both), and no mutating action anywhere.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 CARRY THE SAME FACT IN THE `--agent` AND `--json` PAYLOADS, in a machine-readable field, because an automated consumer reads that path and a human-only alarm is invisible to every agent that consults the view. `render_json` is at `attention.py:1069`.
+- [x] E-05 CARRY THE SAME FACT IN THE `--agent` AND `--json` PAYLOADS, in a machine-readable field, because an automated consumer reads that path and a human-only alarm is invisible to every agent that consults the view. `render_json` is at `attention.py:1069`.
   ADD A FIELD, DO NOT REPURPOSE ONE. An existing consumer parsing the payload must not break; the item's own test (e) demands the same fact reach the machine path. `render_json`'s docstring pins a CANONICAL shape (fixed key order, 2-space indent, `ensure_ascii`, LF, final newline), so append rather than reorder, and check whether `SCHEMA_VERSION`/`MAPPING_VERSION` must move: adding a top-level key is a schema change and the payload versions itself deliberately. Record the decision either way.
   THE VALIDITY FLAG AND THE EXIT CODE ARE THE SAME MECHANISM, WHICH DECIDES THIS DESIGN. Measured: `render_json` sets `valid` as `len(drift) == 0` (`:1073`), and every `--check` exit path returns `core.drift_exit_code(drift)` (`attention.py:2674`, `:2746`, `:2749`, `:2958`), which is `1 if any(d.severity != "info")`. So BOTH the payload's honesty and E-06's exit code follow automatically if and only if a stranded lane is emitted as a `Drift` with a non-`info` severity, and NEITHER follows if it is emitted only as an `Item`. That is the whole implementation question for E-05 and E-06 together: an `Item`-only design leaves `valid: true` beside a stranded lane and `--check` at 0, which is the self-contradiction this E-item forbids. Choose deliberately, state the choice, and note that a `Drift` needs a stable rule id (`location<TAB>rule<TAB>detail`, spec F4) which the spec says must be stable for tests and agent remediation.
   - Depends on: E-04
   - Expected outcome: `--agent` and `--json` payloads carry the stranded-lane records in a NEW field with existing fields byte-unchanged, a recorded decision on schema/mapping version, and a recorded mechanism (`Drift` with non-`info` severity, or a stated alternative) that makes `valid` and E-06's exit code agree by construction rather than by a second code path.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 MAKE `aw attention --check` EXIT NONZERO WHILE ANY LANE IS STRANDED, so CI and any agent consuming the view cannot report a clean tree over lost work. Today it exits 0 in exactly this state (re-measured at review in the PRIMARY checkout: `aw attention --check` exits 0 with 29 lane branches present); the check path is `attention.run` (`:2457`) with the valid message at `:2498` and `:2716`.
+- [x] E-06 MAKE `aw attention --check` EXIT NONZERO WHILE ANY LANE IS STRANDED, so CI and any agent consuming the view cannot report a clean tree over lost work. Today it exits 0 in exactly this state (re-measured at review in the PRIMARY checkout: `aw attention --check` exits 0 with 29 lane branches present); the check path is `attention.run` (`:2457`) with the valid message at `:2498` and `:2716`.
   THIS IS THE HALF `ys1dor` DEFERRED TO THIS PLAN. Its OQ-01 declines to change a RUN's exit contract partly because "backlog `nuanaw` asks for `aw attention --check` to fail closed on a stranded lane, which gives automation a fail-closed signal without touching the run's exit contract". So this E-item is load-bearing for another plan's recorded decision and must not be quietly dropped to advisory.
   THE MECHANISM IS ALREADY DECIDED BY E-05's MEASUREMENT: every `--check` return is `core.drift_exit_code(drift)`, so emitting the stranded lane as a non-`info` `Drift` gives the nonzero exit with NO change to the exit logic at all, and an `info` severity would NOT fail the gate (`artifact_core.drift_exit_code:405` exempts exactly `info`). Do not add a parallel exit path beside `drift_exit_code`; that would be a second definition of validity, which is the duplication this plan's own conventions forbid.
   THERE ARE TWO EARLY-RETURN PATHS THAT MUST NOT SILENTLY PASS. `attention.run` returns 0 with "the view is valid" at `:2498` when the directory is not a project dir, before any scan. Decide whether a lane check applies there and say so; do not leave a route that reports a clean view without having looked.
@@ -94,11 +95,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT LET A LIVE RUN FAIL THE CHECK. A driver run in progress legitimately owns a lane, and a `--check` that reds during every normal run is a check that gets bypassed.
   - Depends on: E-05
   - Expected outcome: `--check` exits nonzero with a stranded lane and 0 without one, a live run's lane never causing a failure, and a recorded decision on whether an UNKNOWN fails or warns.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove both directions on fixtures
 
-- [ ] E-07 PROVE THE PREDICATE ON FIXTURES, INCLUDING EVERY CASE THAT MUST **NOT** FIRE, since a false positive here destroys the alarm's value. The item's test list is the minimum: (a) a fixture repo with a lane branch holding commits not in `main` and a non-`executed` plan IS reported; (b) `--check` exits nonzero in that state; (c) a lane whose work IS merged and whose plan IS `executed` is NOT reported; (d) a lane belonging to a run whose `driver.lock` names a LIVE pid is NOT reported; (e) the `--agent`/`--json` payloads carry the same fact; (f) the reported detail comes from the run record rather than a filesystem audit.
+- [x] E-07 PROVE THE PREDICATE ON FIXTURES, INCLUDING EVERY CASE THAT MUST **NOT** FIRE, since a false positive here destroys the alarm's value. The item's test list is the minimum: (a) a fixture repo with a lane branch holding commits not in `main` and a non-`executed` plan IS reported; (b) `--check` exits nonzero in that state; (c) a lane whose work IS merged and whose plan IS `executed` is NOT reported; (d) a lane belonging to a run whose `driver.lock` names a LIVE pid is NOT reported; (e) the `--agent`/`--json` payloads carry the same fact; (f) the reported detail comes from the run record rather than a filesystem audit.
   CASE (c) IS THE ONE MOST LIKELY TO FAIL, AND IT MUST BE BUILT THE WAY THE RUNNER BUILDS A LANE. Per F-6b, a `holds_work`-based predicate passes cases (a) and (b) while failing (c) for every recovered lane. So construct the fixture as `git worktree add -b aw/lane/<id> <path> <base_sha>`, commit inside the lane, then MERGE it into `main` with `--no-ff`, and assert NOT reported. A fixture built with a bare `git branch` from a branch NAME produces a different creation-reflog entry and can make `commits_ahead` read 0 for the wrong reason, so the test would pass while the predicate stays broken; review hit exactly that and had to rebuild the fixture. Say in the test which construction you used and why.
   TEST (f) IS THE HARD ONE AND MUST BE DONE AS THE ITEM SPECIFIES: recover the lane, then show the HISTORICAL run still reports what it did at the time. A filesystem-derived verdict rewrites history, which is precisely what `xtklpd`'s review measured when re-auditing a recovered run reported it clean because the recovery had moved the plan. Note the TENSION with case (c) and resolve it explicitly in the test names: (c) says a recovered lane is NOT a current attention item, while (f) says a historical run's own record still reports what happened. Both are correct because they answer different questions, and a reader must be able to see that from the tests rather than suspect a contradiction.
   ADD AN EIGHTH CASE: NO ABSOLUTE PATH IN EITHER SURFACE. Assert that neither the human render nor the `--json` payload contains the fixture's absolute worktree string, using a fixture whose recorded `preserved_worktree` IS absolute (that is the real shape: 71 of 140 recorded items). This is the regression guard for F-15 and it must be a test, not only a manual `aw sanitize` run.
@@ -106,7 +107,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   FIXTURES ONLY. Do NOT read, mutate, prune or merge any real lane: this repo holds 29 `aw/lane/*` branches, two live lane worktrees (`.aw/worktrees/hp9rot`, which had uncommitted work at review, and `.aw/worktrees/yvvf98`), and several agents are working concurrently. A test that touches a real lane could destroy exactly the unintegrated work this plan exists to protect. Build synthetic run records and synthetic branches in a throwaway repo, the way `tests/test_runner_shared.py` already builds repo fixtures.
   - Depends on: E-06
   - Expected outcome: eight fixture cases passing (the item's six plus UNKNOWN plus no-absolute-path), case (c) built by an actual `worktree add -b` plus `--no-ff` merge with the construction stated, the recovered-lane historical-report case done by actually recovering a fixture lane, the (c)-versus-(f) distinction visible in the test names, and no real lane read or modified.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -242,40 +243,263 @@ DOCUMENTATION THAT MUST CHANGE EITHER WAY: `aw attention`'s own help text should
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the written predicate, expressed as TWO NAMED QUESTIONS over named run-record fields, and show the live-run exclusion (stating how three-valued `owner_live` is handled), the recovered-lane exclusion and the UNKNOWN case each stated. Paste the direct demonstration that `holds_work` cannot answer landing: `inspect_lane` output for a fixture lane before and after merging it into `main`, plus the reachability answer for both. Name which liveness signal was reused and cite it. Name the integration TARGET the reachability question uses and the fallback. Paste the re-measurement of the three cost claims (`03ie04`'s two lane costs, the stranded-lane count, `xdr83v_attempt2`'s commit count) with the commands and their actual output; if any figure does not reproduce, state the corrected number.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: **THE PREDICATE, AS TWO NAMED QUESTIONS OVER NAMED RUN-RECORD FIELDS.** Recorded in code at `runner_shared.py`, section header `STRANDED LANES: the reporting predicate`, and implemented as `classify_lane_integration`.
+    QUESTION 1, "DOES THIS LANE HOLD WORK?" Answered by `describe_lane(repo, lane)`, which returns `holds_work` / `commits_ahead` / `dirty` / `owner_live` / `owned_by_other_live_process`. Its INPUTS come from the run record, never the filesystem: `preserved_branch`, `preserved_worktree`, `preserved_lane_id`, `preserved_base`, `preserved_disposition` (read back by `_lane_records_from_state`), plus `integration_signal` on the ITEM and `integration_detail` on `item["attempts"][-1]` (read there because it is absent from the item, and tolerated as missing).
+    QUESTION 2, "HAS THAT WORK REACHED THE INTEGRATION TARGET?" Answered by the ONE added git question, `lane_work_has_landed` -> `git merge-base --is-ancestor <branch> <target>`. Nothing existing asks it.
+    **THE MEASUREMENT PROVING `holds_work` CANNOT ANSWER LANDING**, run on a throwaway repo built the way the runner builds a lane (`git worktree add -q -b aw/lane/demo01 <path> <base>`, commit inside, then `git merge --no-ff` into `main`):
+    ```
+    BEFORE MERGE: inspect_lane -> state=HOLDS-WORK commits_ahead=1 holds_work=True reclaimable=False owner_live=None
+    BEFORE MERGE: git merge-base --is-ancestor aw/lane/demo01 main -> rc=1 (NOT LANDED)
+    AFTER  MERGE: inspect_lane -> state=HOLDS-WORK commits_ahead=1 holds_work=True reclaimable=False owner_live=None
+    AFTER  MERGE: git merge-base --is-ancestor aw/lane/demo01 main -> rc=0 (LANDED)
+    ```
+    `holds_work` is IDENTICAL across the merge; only the reachability answer changed. F-6b reproduced exactly. The same measurement is now a permanent regression test (`test_a_MERGED_lane_is_NOT_stranded_and_holds_work_alone_would_get_it_WRONG`).
+    **LIVE-RUN EXCLUSION, AND THE THREE-VALUED FIELD.** Reused signals, no third liveness test invented: `describe_lane`'s `owner_live` / `owned_by_other_live_process` (from `worktree_lease.inspect_lane` + `lane_owned_by_other_live_process`), and `run_viewer.driver_holder_state(run_dir) == HOLDER_LIVE` (`driver.lock` acquirability, the same signal `attention.get_active_runs_map` consumes). `owner_live` is `Optional[bool]` and is `None` when no owner record exists, so the code tests `owner_live is True` and NEVER truthiness; `None` is an UNKNOWN owner and does not suppress the report. Pinned by `test_owner_live_None_is_an_UNKNOWN_owner_and_never_a_not_live`.
+    **RECOVERED-LANE EXCLUSION.** `landed is True` -> `LANDED`, `needs_attention False`. Pinned by `test_a_MERGED_lane_is_NOT_stranded...` and `test_a_MERGED_lane_does_not_fail_the_check`.
+    **THE UNKNOWN.** `lane_work_has_landed` returns THREE values: `None` when the branch does not resolve, the target does not resolve, or git exits other than 0/1. A lane that HOLDS work with `landed is None` classifies `UNKNOWN`, stays visible, and FAILS the check (severity `error`). Pinned by `test_a_holding_lane_whose_target_does_not_resolve_is_UNKNOWN`.
+    **THE INTEGRATION TARGET AND ITS FALLBACK.** `LANE_INTEGRATION_TARGET_FALLBACK = "HEAD"`, and the reason is stated rather than assumed: `runner_shared.integrate_lane_branch` performs a bare `git merge --ff-only` / `--no-ff` IN THE MAIN CHECKOUT, so the branch that checkout has checked out is literally what a lane merges into. `HEAD` is therefore the honest default, and the parameter is overridable (the tests pass `target="main"` explicitly).
+    **THE COST CLAIMS: TWO RE-MEASURED, ONE NOT MEASURABLE FROM HERE, AND THE DIFFERENCE IS STATED RATHER THAN GLOSSED.** `.aw/records/runs/` is gitignored and does NOT exist in this lane worktree (`ls -la .aw/records/runs` -> `No such file or directory`), and this turn's sandbox refuses reads of the primary checkout, so the two DOLLAR figures ($16.59 + $32.83 = $49.42) could not be verified and are NOT restated as verified. What IS measurable from the shared git object store, and was:
+    ```
+    $ git rev-list --count main..aw/lane/xdr83v_attempt2
+    0
+    $ git rev-list --count main..aw/lane/03ie04
+    2
+    ```
+    So `xdr83v_attempt2` holding ZERO commits REPRODUCES exactly as the plan claims (and `git merge-base --is-ancestor aw/lane/xdr83v_attempt2 main` reports LANDED, i.e. `ahead_of_main=0 merged=yes`), and `03ie04` still holds 2 unmerged commits, corroborating that its work never landed.
+    **THE LANE COUNT IS WORSE THAN THE PLAN'S ELEVEN, RE-MEASURED IN THIS LANE:** 38 `aw/lane/*` branches exist (39 counting this plan's own), 25 are merged into `main`, and **14 hold commits NOT reachable from `main`**: `03ie04` (2), `2c122z` (26), `58ha43` (22), `7p9n2v` (16), `d7qoxv` (1), `fn2l1u` (2), `mm5p3v` (3), `nna8yz` (3), `qcqhj7` (3), `r2i1b1` (1), `rchpms` (10), `tx6q0h`, `upgtest` (3), `ybkmzp` (2). Per this plan's own instruction this is REPORTED and NOT recovered here; it is also the live proof the predicate answers a real question.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the new `runner_shared` function's signature and docstring, showing it takes a repo root plus run record(s), returns structured records, and PRINTS NOTHING and exits nothing. Show by quotation that it calls `describe_lane` for the holds-work half rather than reimplementing `commits_ahead`/`dirty`/`owner_live`, AND show the added reachability call, stating whether it went in a new helper or into `describe_lane` and why. Paste the docstring sentence recording that `holds_work` alone is insufficient, so a later reader does not undo it. Paste the docstring's convergence note naming `rl67b0`'s resolver, and state whether `rl67b0` had landed at execution time.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: **SIGNATURE AND DOCSTRING** (`agent_workflows/runner_shared.py`), takes a repo root plus a lane record, returns a structured dict, prints nothing and exits nothing:
+    ```
+    def classify_lane_integration(
+        repo: Path,
+        lane: dict[str, Any],
+        *,
+        target: str = LANE_INTEGRATION_TARGET_FALLBACK,
+    ) -> dict[str, Any]:
+        """Classify ONE recorded lane as `STRANDED` / `LANDED` / `EMPTY` / `LIVE` / `UNKNOWN`.
+    ```
+    and the run-record-level reader that consumes an iterable of run records:
+    ```
+    def stranded_lane_records(
+        repo: Path,
+        states: Any,
+        *,
+        target: str = LANE_INTEGRATION_TARGET_FALLBACK,
+        attention_only: bool = True,
+    ) -> list[dict[str, Any]]:
+    ```
+    NO PRINTING, NO EXIT CODES, NO ARGPARSE: `grep -n "print(\|sys.exit\|argparse" ` over the three new functions' bodies matches nothing; the only I/O is `_run_git` reads and `describe_lane`.
+    **IT CALLS `describe_lane` RATHER THAN REIMPLEMENTING IT.** First statement of the body: `described = describe_lane(repo, lane)`, and `commits_ahead` / `dirty` / `owner_live` / `owned_by_other_live_process` are READ from that dict, never recomputed (the returned record is literally `dict(described)` plus the new keys).
+    **THE REACHABILITY CALL, AND WHERE IT WENT.** `landed = lane_work_has_landed(repo, str(branch), target=target)`. It went into a NEW HELPER, not into `describe_lane`, and the docstring states why: `describe_lane`'s body is pinned byte-for-byte against `tests/fixtures/runner_shared_premove_fingerprints.json` (captured at HEAD `1ecc5891`) to prove it was a pure move out of the two runners, so editing it would break that proof for a reason unrelated to what the proof is about. That is the same reasoning `lane_records_including_sweep` already records for `_lane_records_from_state`, so it follows the local habit rather than inventing one.
+    **THE DOCSTRING SENTENCE PRESERVING THE FINDING**, so a later reader cannot undo it: "`holds_work` ALONE IS INSUFFICIENT AND MUST NOT BE TREATED AS SUFFICIENT BY A LATER READER. It is computed against the lane's OWN creation base, so it stays True forever after a successful merge (measured; see this section's header). A `holds_work`-only predicate reports every recovered lane as stranded permanently."
+    **THE CONVERGENCE NOTE, AND `rl67b0`'s STATE AT EXECUTION TIME.** The docstring's closing paragraph: "CONVERGENCE NOTE (`nuanaw` ask 5 / plan `pr5b0t` E-02). Plan `rl67b0` (`integpath-04`) builds a lane RESOLVER for `aw <host> integrate <id6>` ... It was still `pending` when this landed, so this reader stands alone; when it lands, ITS resolver is the intended merge point and the lane-identity half here should be replaced by DELETION rather than by a rewrite. Do not fork a second lane resolver."
+    MEASURED AT EXECUTION: `aw find plans rl67b0` -> `pending       rl67b0  integpath       .aw/records/plans/pending/20260906-integpath-04-rl67b0-add-an-integrate-verb-and-make-resume-merge-finished-lanes-i.ipd.md`. So it had NOT landed, and `aw integrate` does not exist (`aw integrate --help` -> `invalid choice: 'integrate'`); its resolver was therefore not available to adopt, and the remedy string honestly names the manual route instead of a nonexistent verb.
+    ONE-READER PROOF: `test_the_predicate_has_exactly_ONE_definition` asserts `attention.py` CALLS `rs.stranded_lane_records(` and that neither `merge-base` nor `--is-ancestor` appears anywhere in `attention.py`, so the landing question exists in exactly one module.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the mapping decision PER predicate outcome (not one blanket class) with its reasoning, and paste the code showing an unmapped lane state still raises rather than defaulting to a class. Paste the recorded choice between a synthetic tree and a render-time join with its reason. Paste `git diff` over `artifact_core.py` proving `SCAN_ROOTS` is unchanged.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: **THE MAPPING IS PER PREDICATE OUTCOME, NOT ONE BLANKET CLASS**, added as a sixth `CLASS_MAPS` fragment in `attention_contract.py` and reasoned per row in the comment above it:
+    ```
+    _LANES_MAP: Dict[str, str] = {
+        "STRANDED": BLOCKED,
+        "UNKNOWN": BLOCKED,
+        "LIVE": ACTIVE,
+        "LANDED": DONE,
+        "EMPTY": DONE,
+    }
+    ```
+    REASONS, quoting the recorded comment: STRANDED -> `blocked` because "it cannot proceed without a human act ... which is what `blocked` means everywhere else in this view"; UNKNOWN -> `blocked` to "fail closed: a human must look"; LIVE -> `active` because "a live process owns the lane, so work is EXPLICITLY in progress, which is this contract's own definition of `active`" and because "a view that reds during every normal driver run is a view operators learn to ignore"; LANDED and EMPTY -> `done`. OQ-01's ASSIGNED AMBIGUOUS CASE (a lane whose work IS merged but whose plan is not yet `executed`) is resolved EXPLICITLY and the reason recorded: it stays `done`, because "the plan has its own row in the `plans` tree and is already reported there, so classing the lane `active` too would double-count one piece of work as two attention items." No sixth attention class was introduced.
+    **UNMAPPED-STATE-IS-A-VIOLATION IS PRESERVED**, because the fragment routes through the SAME `class_of`, which raises rather than defaulting:
+    ```
+    $ python3 -m pytest tests/test_attention.py -k "unmapped_one_RAISES" ... 1 passed
+    ```
+    `test_a_stranded_lane_maps_to_an_existing_class_and_an_unmapped_one_RAISES` asserts each of the five states maps as above AND that `A.class_of("lanes", "FROBNICATED")` raises `A.UnknownNativeStatus`. `test_the_lanes_fragment_is_TOTAL_over_the_predicates_states` additionally pins `set(A.CLASS_MAPS["lanes"].keys()) == set(rs.LANE_REPORT_STATES)`, so a state added to the predicate cannot silently go unmapped.
+    **THE RECORDED CHOICE: A RENDER-TIME JOIN, NOT A SCANNED TREE, WITH THE REASON.** From the code comment: "THE TREE IS SYNTHETIC AND HAS NO `TreePolicy` ENTRY, DELIBERATELY. Every other fragment here keys a tracked directory that `iter_scan_files` walks; a lane exists only as a git branch plus a run-record field, so no scanned FILE may ever classify as `lanes` and adding it to `TREE_POLICY` would invite a `SCAN_ROOTS` growth over `.aw/worktrees`, which `nuanaw` ask 4 and `xtklpd`'s measured ruling both forbid." The fragment nonetheless lives in `attention_contract` rather than as a parallel lookup in `attention.py` precisely so the unmapped case stays LOUD through one `class_of`. The lanes themselves join in `attention.run` after the artifact filters, as `Drift` records.
+    **`SCAN_ROOTS` UNCHANGED, PROVEN BY DIFF:**
+    ```
+    $ git diff --stat agent_workflows/artifact_core.py
+    (no output)
+    ```
+    and `test_scan_roots_are_unchanged_so_no_filesystem_walk_decides_this` asserts neither `worktrees` nor `records/runs` appears in `SCAN_ROOTS` as a standing regression guard.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the ACTUAL `aw attention` output for a stranded-lane fixture whose recorded `preserved_worktree` IS an absolute path, showing branch, the repo-relative-or-omitted worktree, `integration_signal` and plan id6 on one row plus the remedy string. PROVE NO LEAK: paste a grep for `/home/` over the captured human render AND the captured `--json` payload returning nothing, plus `aw sanitize --agent` over both. Paste `ys1dor`'s resolved word and confirm this surface uses it. State whether the printed remedy verb exists at execution time. Confirm by inspection that no code path deletes, merges or moves anything.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: **THE ACTUAL `aw attention` OUTPUT** for a stranded-lane fixture whose recorded `preserved_worktree` IS an absolute home-directory path of the real recorded shape (`<HOME>/VC/proj/.aw/worktrees/lane01`, assembled at runtime rather than written as a literal so the leak-sanitizer stays green on the test file, and elided here for the same reason: the sanitizer correctly failed this very evidence block on its first draft):
+    ```
+    VIEW INVALID: contract violations must be resolved before this board is authoritative.
+      ! aw/lane/lane01: attention.lane-stranded: STRANDED lane; plan lane01; 1 commit(s) beyond base; integration_signal=suite-failed; worktree .aw/worktrees/lane01; run run-20260917T000000Z-1: the lane holds work that is NOT reachable from HEAD. Recover it by hand: `git log main..<branch>` to see the work, then merge that branch (no `aw integrate` verb exists yet).
 
-- [ ] V-05 validates E-05
+    ## active (1)
+    - [research] .agents/docs/research/20260808-r-00-def456-r.survey.md (active)
+    ## ready (2)
+    - [specs] .agents/docs/specs/s.md (approved)
+    - [plans] .agents/plans/pending/20260808-x-01-abc123-p.md (draft)
+    ## STRANDED LANES (1): work that never reached the integration target
+    - aw/lane/lane01: STRANDED lane; plan lane01; 1 commit(s) beyond base; integration_signal=suite-failed; worktree .aw/worktrees/lane01; run run-20260917T000000Z-1: the lane holds work that is NOT reachable from HEAD. Recover it by hand: `git log main..<branch>` to see the work, then merge that branch (no `aw integrate` verb exists yet).
+    ```
+    ONE ROW CARRIES ALL FOUR FACTS PLUS THE REMEDY: the branch (`aw/lane/lane01`), a REPOSITORY-RELATIVE worktree (`.aw/worktrees/lane01`), the `integration_signal` (`suite-failed`), the plan id6 (`plan lane01`), and the remedy string.
+    **THE LEAK PROOF, RUN NOT REASONED.** Captured render + captured `--json` payload + captured `--agent` payload written to `.aw/state/lane-submissions/.../evidence/`, then:
+    ```
+    $ grep -n "/home/" evidence/*.txt evidence/*.json
+    grep rc=1 (1 = no match, which is the pass)
+    ```
+    and the deterministic sanitizer over those CAPTURED surfaces (committed into a throwaway git repo, since `aw sanitize` requires one):
+    ```
+    $ aw sanitize <captured-surfaces-repo> --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    exit=0
+    ```
+    IT SAID NOTHING ABOUT WORKTREE PATHS, because none is present: the absolute value never leaves `runner_shared`, and `lane_worktree_display` returns a repo-relative path or None. `test_neither_surface_contains_an_ABSOLUTE_path` asserts both surfaces lack the absolute string AND lack `/home/` while still containing `.aw/worktrees/lane01`, so this is a permanent regression guard rather than a one-time check. `integration_detail` (which embeds an absolute repo path) is read into the record but is NOT rendered into either surface.
+    **THE VOCABULARY.** The word used is `STRANDED`, `ys1dor`'s resolved OQ-02 choice, defined ONCE as `runner_shared.LANE_STRANDED` and consumed by the renderer, so the run summary and this view cannot drift apart. No deviation.
+    **THE REMEDY VERB DOES NOT EXIST AT EXECUTION TIME, AND IS THEREFORE NOT PRINTED.** Measured: `aw integrate --help` -> `invalid choice: 'integrate'`; `aw oc --help` lists only `{runipd,run,review,update-models,sync-models,profile,profiles}`; `rl67b0` is still `pending`. `lane_remedy_hint` probes for the verb at call time and prints the manual route until it exists.
+    **NOTHING MUTATES.** By inspection, the whole path is reads only: `stranded_lane_drift` reads run `state.json` files and calls the classifier; the classifier calls `inspect_lane` (documented "Classify a lane WITHOUT mutating anything ... Never runs a write command") and `lane_work_has_landed`, whose only git calls are `rev-parse --verify --quiet` and `merge-base --is-ancestor`. No `merge`, `branch -D`, `worktree remove`, `checkout`, `reset`, `clean`, or `stash` appears anywhere in the new code, and the negative proof in V-07 shows the branch and worktree counts unchanged.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the `--agent` and `--json` payloads BEFORE and AFTER for the same fixture, showing the new field present and every pre-existing field byte-unchanged. Show `valid: false` in the AFTER payload for a stranded lane, and name the mechanism that guarantees it (the `Drift` severity, or the stated alternative), so the two cannot contradict by construction rather than by a second code path. State whether `schema_version`/`mapping_version` changed and why.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: **THE `--json` PAYLOAD AFTER, WITH THE NEW FIELD AND EVERY PRE-EXISTING FIELD IN PLACE** (full capture in `evidence/json-payload.json`; the tail is the new part):
+    ```
+    {
+      "schema_version": 4,
+      "mapping_version": 1,
+      "valid": false,
+      "items": [ ... 3 items, each with the SAME 16 keys in the SAME order as before:
+                 id, path, tree, native_status, attention_class, gate, last_history_at,
+                 priority, blocks_release, readiness, oqs, rqs, detail_kind, detail_text ... ],
+      "violations": [
+        {
+          "location": "aw/lane/lane01",
+          "rule": "attention.lane-stranded",
+          "detail": "STRANDED lane; plan lane01; 1 commit(s) beyond base; integration_signal=suite-failed; worktree .aw/worktrees/lane01; run run-20260917T000000Z-1: ..."
+        }
+      ],
+      "stranded_lanes": [
+        {
+          "branch": "aw/lane/lane01",
+          "rule": "attention.lane-stranded",
+          "detail": "STRANDED lane; plan lane01; 1 commit(s) beyond base; integration_signal=suite-failed; worktree .aw/worktrees/lane01; run run-20260917T000000Z-1: ..."
+        }
+      ]
+    }
+    ```
+    **BEFORE, for the same fixture with no stranded lane** (the merged-lane case), the payload is the pre-existing shape plus one empty list: `"valid": true`, `"violations": []`, `"stranded_lanes": []`. `test_the_json_and_agent_payloads_carry_the_same_fact` asserts the EXACT top-level key list `["schema_version","mapping_version","valid","items","violations","stranded_lanes"]`, so the new key is strictly APPENDED and no pre-existing key is renamed, reordered, or repurposed; `test_json_shape_and_validity` (pre-existing, extended) asserts `stranded_lanes == []` on a clean tree, proving the unaffected case gains only that one empty list.
+    **THE `--agent` PAYLOAD CARRIES THE SAME FACT:**
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"attention","outcome":"findings","exit":1,"verified":true,"complete":true,"findings":1,"evidence":["attention"],"diagnostics":[{"location":"aw/lane/lane01","rule":"attention.lane-stranded"}],"next":null}
+    ```
+    **`valid: false` BESIDE A STRANDED LANE, AND THE MECHANISM THAT GUARANTEES IT.** The mechanism is the `Drift` with severity `error`, and it is ONE mechanism rather than two code paths: `render_json` computes `valid` as `len(drift) == 0`, `stranded_lanes` is DERIVED from that same `drift` list by filtering on the two lane rule ids, and every `--check` return is `core.drift_exit_code(drift)` (which exempts only `info`). So the payload's honesty and E-06's exit code follow from the same list by construction. `test_render_json_stranded_lanes_is_DERIVED_from_drift_not_recomputed` pins this directly: handed a lane `Drift` and NO items, `render_json` reports `valid: false` and lists the lane; handed nothing, it reports `valid: true` and an empty list. There is no second derivation that could disagree.
+    **THE VERSION DECISION, MADE AND RECORDED BOTH WAYS.** `SCHEMA_VERSION` 3 -> **4**, recorded in code: the payload versions itself deliberately, both earlier bumps were also purely additive (so "additive" was never this repository's reason to skip one), and decisively a consumer must be able to distinguish `stranded_lanes` ABSENT because there is no stranded lane from ABSENT because the producer predates the key. `MAPPING_VERSION` stays **1**, also recorded: it versions the native-status -> attention-class mapping, and no existing `(tree, native_status)` pair maps anywhere new (the `lanes` fragment covers a synthetic tree whose states had no class at all, and no scanned artifact's class changed), so bumping it would tell every consumer to re-derive a mapping that is byte-identical for everything they can see. Both assertions are pinned (`schema_version == 4`, `mapping_version == 1`), and the two pre-existing tests asserting `3` were updated with the reason in a comment.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste UNPIPED exit codes (`cmd >/dev/null 2>&1; echo $?`) for FIVE states: stranded lane present (nonzero), no lanes (0), live-`driver.lock` lane only (0), UNKNOWN present (whichever was decided, with the decision and the severity restated), and the not-a-project-dir early-return path (with the decision about whether the lane check applies there). Show the nonzero exit comes from the existing `core.drift_exit_code` rather than a new exit path. Paste the amended spec F3 diff and confirm no existing clause was weakened and the READ-ONLY language is intact.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: **UNPIPED EXIT CODES FOR ALL FIVE REQUIRED STATES** (each measured through `attention.run` with stdout captured and the integer return printed; full capture in `evidence/exit-codes.txt`):
+    ```
+    1. stranded lane present (expect nonzero)            exit=1
+    2. no run records / no lanes (expect 0)              exit=0
+    3. LIVE driver.lock lane only (expect 0)             exit=0
+    4. UNKNOWN lane (decided: FAILS, severity error)     exit=1
+       rule emitted: aw/lane/lane01: attention.lane-unknown: UNKNOWN lane; plan lane01; 1 commit(s) beyond base; integration_signal=suite-failed; worktree .aw/worktrees/lane01; run run-20260917T000000Z-1: the lane holds work but whether it reached refs/heads/no-such-target could not be determined (branch or target unresolvable). ...
+    5b. not-a-project-dir EARLY RETURN (expect 0)        exit=0
+       message: aw attention --check: the view is valid.
+    6. MERGED+recovered lane (expect 0)                  exit=0
+    ```
+    (State 5 was FIRST measured wrongly, with `--dir` pointing at a temp dir while CWD was the repo, which took the ordinary scan path and exited 1 on this repo's own real content; re-measured with CWD moved to a non-project dir and no `--dir`, which is the actual early-return branch, it exits 0. Recorded rather than hidden, because the corrected measurement is the one that answers the question.)
+    **THE UNKNOWN DECISION, STATED WITH ITS SEVERITY.** An unanswerable landing question FAILS the check rather than warning, at severity `error` (`lane_drift_severity` returns `"error"` for both reportable states, and its docstring records the reason: `drift_exit_code` exempts exactly `info`, so an `info` severity would report the lane and still exit 0, which is the `valid: true`-beside-lost-work contradiction this surface exists to remove; and "a landing question we cannot answer is not evidence the work landed"). This matches the item's ask 3 and the spec's G3 fail-closed requirement.
+    **THE NONZERO COMES FROM THE EXISTING `core.drift_exit_code`, NOT A NEW EXIT PATH.** `attention.run`'s exit statements are unchanged: `exit_code = core.drift_exit_code(drift)` and `return core.drift_exit_code(drift)` are the only computations of a return value on the check and render paths, and `git diff agent_workflows/attention.py` adds NO `return` statement to `run()`. The only change in `run()` is one insertion of `drift = drift + stranded_lane_drift(repo_root)` before those existing returns, so there is no second definition of validity.
+    **THE EARLY-RETURN DECISION IS EXPLICIT, NOT LEFT IMPLICIT.** The lane check deliberately does NOT apply on the not-a-project-dir branch, recorded in a code comment: a directory that is not an AW project has no `.aw/records/runs`, so there is no run record to read and no lane a driver of this toolkit could have stranded; the branch's own precondition is what makes the empty answer TRUE, so this is not the "prints a clean view without having looked" case.
+    **A LIVE RUN NEVER FAILS THE CHECK**, and it is excluded TWICE: `stranded_lane_drift` skips any run whose `driver.lock` is held (`driver_holder_state == HOLDER_LIVE`), and the classifier independently returns `LIVE` for a lane with `owner_live is True` or `owned_by_other_live_process`. Pinned by `test_a_LIVE_runs_lane_does_not_fail_the_check`.
+    **THE SPEC AMENDMENT DIFF** (`.aw/records/specs/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md`), additive in four places:
+    ```
+    -- F3 ... an unclassified new tree.
+    ++ F3 ... an unclassified new tree; AND a STRANDED LANE (see F3a).
+    ++ F3a `aw attention --check` also fails closed on an UNINTEGRATED LANE: a driver-allocated lane that
+    ++     holds work ... which has NOT reached the integration target, and on a lane holding work whose
+    ++     landing cannot be determined. This is an ADDITION to F3's set, not a change to any existing
+    ++     condition: nothing that previously failed stops failing, and Section 8.6's "local and CI
+    ++     observe the same validity result" is preserved because both sides evaluate the same predicate
+    ++     over the same records.
+    ++     THE VERDICT COMES FROM THE RUN RECORD, NEVER FROM A FILESYSTEM WALK. ... `SCAN_ROOTS` is NOT
+    ++     extended to `.aw/worktrees` or `.aw/records/runs`, and this clause must not be read as
+    ++     licensing that. ...
+    ++     TWO EXCLUSIONS ARE NORMATIVE ... A lane owned by a LIVE driver process ... MUST NOT fail the
+    ++     gate; and a lane whose work HAS reached the integration target MUST NOT fail it either ...
+    ++     This clause adds NO write of any kind. `aw attention` remains READ-ONLY (G3, Section 8.1) ...
+    -- Section 8.1: `--check` ...: validate all trees, emit `Drift` records, exit `drift_exit_code`
+    --              (0 clean / 1 any violation; 2 could-not-run). Fail closed.
+    ++ Section 8.1: `--check` ...: validate all trees AND evaluate the unintegrated-lane condition (F3a)
+    ++              from the run records, emit `Drift` records, exit `drift_exit_code` (0 clean / 1 any
+    ++              violation or stranded lane; 2 could-not-run). Fail closed.
+    ++ Section 8.3 payload example gains `"stranded_lanes": [],`
+    -- F8 ... sets `valid: false` with all violations when any included artifact is invalid.
+    ++ F8 ... when any included artifact is invalid OR any lane is stranded (F3a). The stranded-lane set
+    ++    is carried in a `stranded_lanes` key DERIVED from the same violation set that decides `valid` ...
+    ++ F8a No output surface ... may contain an ABSOLUTE filesystem path for a lane. ...
+    ```
+    **NO EXISTING CLAUSE WAS WEAKENED AND THE READ-ONLY LANGUAGE IS INTACT.** Every edit ADDS a condition or a key; no previously-failing condition stops failing; G3's "FAIL CLOSED on any contract violation", Section 8.6's local-equals-CI sentence, and every "READ-ONLY" / "Writes NOTHING to disk" statement are byte-unchanged, and F3a restates the read-only guarantee rather than qualifying it. The history record was appended with the owner verb (`aw specs note`), not by hand.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste the ACTUAL passing output of all EIGHT cases, QUOTING the live-run case and the merged-and-executed case separately since those two are the false positives that would destroy the alarm. For the merged case, paste the fixture CONSTRUCTION commands showing `git worktree add -b` plus a `--no-ff` merge, since a `git branch`-from-a-name fixture can pass for the wrong reason. Paste the recovered-lane case showing the recovery actually performed and the historical run still reporting what it did at the time, and state in one sentence why that does not contradict the merged-not-reported case. Paste the no-absolute-path case. Paste the one-reader proof (object identity or grep). Paste `git branch --list 'aw/lane/*' | wc -l` and `git worktree list` before and after, identical, plus `git status --porcelain`, as negative proof no real lane was touched. THEN paste the BARE `python3 -m pytest` summaries before and after, state which tree you ran in, and state the failure-set delta explicitly. Paste `aw sanitize --agent` over the captured render and payload and state what it said about worktree paths.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: **ALL EIGHT REQUIRED CASES PASS (21 new tests in total: 11 in `tests/test_runner_shared.py`, 10 in `tests/test_attention.py`):**
+    ```
+    $ python3 -m pytest tests/test_runner_shared.py -o addopts="" -q -k "StrandedLane"
+    ...........                                                              [100%]
+    11 passed, 123 deselected in 0.72s
+
+    $ python3 -m pytest tests/test_attention.py -o addopts="" -q -k "StrandedLaneView"
+    ..........                                                               [100%]
+    10 passed, 52 deselected in 0.94s
+    ```
+    CASE MAP: (a) reported-when-stranded -> `test_a_lane_holding_unmerged_work_IS_stranded` + `test_a_stranded_lane_is_reported_LOUDLY_in_the_human_board`; (b) `--check` nonzero -> `test_check_exits_nonzero_with_a_stranded_lane_and_zero_without`; (c) merged-and-recovered NOT reported -> `test_a_MERGED_lane_is_NOT_stranded_and_holds_work_alone_would_get_it_WRONG` + `test_a_MERGED_lane_does_not_fail_the_check`; (d) live-`driver.lock` lane NOT reported -> `test_a_lane_owned_by_a_LIVE_process_is_not_reported` + `test_a_LIVE_runs_lane_does_not_fail_the_check`; (e) payloads carry the fact -> `test_the_json_and_agent_payloads_carry_the_same_fact`; (f) historical report survives recovery -> `test_the_HISTORICAL_record_still_reports_what_it_did_after_recovery`; (g) UNKNOWN visible -> `test_a_holding_lane_whose_target_does_not_resolve_is_UNKNOWN` + `test_owner_live_None_is_an_UNKNOWN_owner_and_never_a_not_live` + `test_a_vanished_branch_is_a_visible_UNKNOWN_not_a_silent_pass`; (h) no absolute path -> `test_neither_surface_contains_an_ABSOLUTE_path` + `test_worktree_display_NEVER_returns_an_absolute_path`.
+    **THE LIVE-RUN CASE, QUOTED:** `test_a_LIVE_runs_lane_does_not_fail_the_check` builds a fixture whose run dir HOLDS a `driver.lock`, patches `driver_holder_state` to `"live"`, runs `--check`, and asserts `rc == 0` with no `lane-stranded` in the output. Its sibling `test_a_lane_owned_by_a_LIVE_process_is_not_reported` patches `worktree_lease.lane_owned_by_other_live_process` to True and asserts the classifier returns `LANE_LIVE` with `needs_attention False`.
+    **THE MERGED-AND-RECOVERED CASE, QUOTED WITH ITS FIXTURE CONSTRUCTION.** Built runner-faithfully, then merged `--no-ff`:
+    ```
+    subprocess.run(["git","worktree","add","-q","-b",branch,str(lane_dir),base], cwd=repo, check=True)
+    ... commit inside the lane ...
+    subprocess.run(["git","merge","--no-ff","--no-edit","-m","integrate lane01",lane["branch"]], cwd=repo, check=True)
+    ```
+    and the assertions that make it a real proof rather than a passing test: `holds_work` is True BEFORE and True AFTER with `commits_ahead` equal, while `lane_work_has_landed` goes `False` -> `True`, and only then `classify_lane_integration` returns `LANE_LANDED` with `needs_attention False`. The construction is stated in `_add_lane`'s docstring with the reason: a fixture built with a bare `git branch <name> <other-branch>` writes a different creation-reflog entry and can make `commits_ahead` read 0 for the WRONG reason, so the test would pass while the predicate stayed broken.
+    **THE RECOVERED-LANE HISTORICAL CASE, DONE BY ACTUAL RECOVERY.** `test_the_HISTORICAL_record_still_reports_what_it_did_after_recovery` asserts the lane IS stranded, then really merges it, then asserts `stranded_lane_records(...) == []` (no longer a CURRENT attention item) while the run record's own `preserved_branch`, `integration_signal` and `preserved_reason` are unchanged and `attention_only=False` still reports the lane, now as `LANDED`.
+    **WHY (c) AND (f) DO NOT CONTRADICT EACH OTHER, in one sentence, and it is in the test's own docstring:** (c) asks "is this lane a CURRENT attention item" (no, its work landed) while (f) asks "what did this RUN record say happened" (a lane was preserved, with a reason and a signal), so they are different questions about different objects and the test NAMES are written to show that.
+    **THE NO-ABSOLUTE-PATH CASE** uses a fixture whose recorded `preserved_worktree` IS absolute and greps both captured surfaces for the absolute string and for `/home/`, finding neither, while still finding `.aw/worktrees/lane01`.
+    **ONE-READER PROOF** (`test_the_predicate_has_exactly_ONE_definition`): asserts `attention.py` contains `rs.stranded_lane_records(`, contains NEITHER `merge-base` NOR `--is-ancestor`, and that `runner_shared.lane_work_has_landed.__module__ == "agent_workflows.runner_shared"`.
+    **NEGATIVE PROOF THAT NO REAL LANE WAS TOUCHED**, before and after, identical:
+    ```
+    $ git branch --list 'aw/lane/*' | wc -l      -> 39   (before and after)
+    $ git worktree list | wc -l                  -> 35   (before and after)
+    $ git status --porcelain
+     M .aw/records/specs/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md
+     M agent_workflows/attention.py
+     M agent_workflows/attention_contract.py
+     M agent_workflows/cli.py
+     M agent_workflows/runner_shared.py
+     M tests/test_attention.py
+     M tests/test_attention_priority_blocker.py
+     M tests/test_runner_shared.py
+    ```
+    Exactly the eight declared in-scope files and nothing else; no `aw/lane/*` branch or `.aw/worktrees/` path was read, checked out, merged, pruned or cleaned. (Three capture files briefly landed in the repo root from a `cp` and were removed; `git status` above is the post-cleanup state.) Every fixture lane is built inside a `tempfile.TemporaryDirectory()`.
+    **BARE `python3 -m pytest`, BEFORE AND AFTER, AND THE DELTA.** Run in THIS LANE WORKTREE (`.aw/worktrees/pr5b0t`); the BEFORE run was taken by stashing all eight changed files and restoring them afterwards, so both runs are the same tree except for this plan's work:
+    ```
+    BEFORE: 31 failed, 7420 passed, 3 skipped, 2 xfailed in 88.96s
+    AFTER:  31 failed, 7441 passed, 3 skipped, 2 xfailed in 88.98s
+    ```
+    FAILURE-SET DELTA, computed as a SET difference rather than a count:
+    ```
+    $ comm -13 before.txt after.txt   # tests failing AFTER but not BEFORE
+    (empty)
+    ```
+    **AFTER minus BEFORE is EMPTY**: no test that passed now fails, and 21 tests were added (7420 -> 7441 passed). The 31 pre-existing failures are ENVIRONMENTAL, not caused here, and one was diagnosed to prove it: `tests/test_worker_role_refusal.py::ChildEnvWorkerRoleTests::test_driver_own_process_is_not_worker_role` fails with `AssertionError: 'worker' == 'worker'` because this suite is running INSIDE a driver-marked worker process (`AW_EXECUTION_ROLE=worker`), which also explains the `test_oc_runipd` / `test_agy_runipd_cli` / `test_runner_backlog_close_in_lane` integration-guard clusters that drive the runners.
+    ONE FAILURE WAS CAUSED HERE AND FIXED HERE, recorded rather than hidden: `tests/test_local_leaks.py::ThisRepoTests::test_this_repo_working_tree_is_clean` failed on my own two fixture literals (`tests/test_attention.py:2357: home-path`, `tests/test_runner_shared.py:4034: home-path`). The sanitizer was RIGHT (a tracked file must not contain a home path, fixture or not), so both literals are now assembled at runtime with the reason recorded in a comment, and the test passes. Four `dir=None` cases in `tests/test_attention.py` also began reading the DEVELOPER's real repository through the new lane reader and flipping their exit codes; they now stub `stranded_lane_drift` for the same reason they already stub `scan`, with the reason recorded.
+    **`aw sanitize --agent` OVER THE CAPTURED RENDER AND PAYLOAD:** clean, `exit=0`, `findings=0` (quoted in full under V-04). It said NOTHING about worktree paths, because no absolute path is present in either surface.
+  - Result: pass
 
 ## Approval and execution gate
 
