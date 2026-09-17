@@ -9,14 +9,16 @@
 - From-Spec: 7ckptx
 - From-Backlog: vqv9im
 - Blocks-Release: next
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Set: lanectn
 - Order: 7
-- Highest E allocated: 04
+- Highest E allocated: 09
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: 4fodkt
 
 ## Workflow history
+- 2026-09-17 reviewed (aw set): /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 all FIXED; readiness go-pending-approval. DISCLOSED SELF-REVIEW (I authored this plan in the same session, so this round is weaker evidence than an independent one). THE BLOCKER PR-001: the pre-revision plan demonstrated all 31 live acceptance criteria in ONE E-item with ONE V-item, and aw ipd lint reported clean because its thresholds are >18 leaves / >5 groups while the plan had 4 leaves in 3 groups - exactly the case the rubric says a passing size lint does NOT clear. Measured, the criteria form six independent requirement families (R1 n=4, R2 n=5, R3 n=3, R4 n=10, R5 n=8, R6 n=1), so one item bundled six evidence surfaces and a single V-item was satisfiable by pasting the easy evidence and asserting the rest, which is the greenwash this plan exists to prevent. FIXED by splitting into six family items plus a closing reconciliation (E-02..E-07), re-authoring V-02..V-07 1:1, renumbering deliverables to E-08/E-09, and recording in the cohesion rationale why the count grew. FOUR HARDENINGS from the spec's own text: A14b's anti-cheat clause is now binding (report CLEAN means record A14b FAILED, not reinterpret); A4's sibling-preservation half shown separately, since proving only the once-only half passes while losing a sibling lane's work; the five adjacent A10* criteria may not share one observation; E-07 closes the enumeration against E-01 so the family split cannot strand a criterion the way the parent's copied list stranded A14b. OQ-01 RESOLVED FROM EVIDENCE not asked: runner_shared.evaluate_set_retirement already blocks the parent (this worktree eligible False / unfinished-children / '4fodkt (to-review)'; main without this plan eligible True), so authoring the plan IS the fix and no edit to h0zljh is made. Verified: lint clean at author and review-finalize; gating findings CLEAR; sanitizer clean; three spec claims re-derived (36/5/31, A14b citing R5.4/R6.1). NOT verified: any acceptance criterion actually passing - that is the plan's job.
 
 - 2026-09-16 to-review (opencode/its_direct-pt3-claude-opus-5-1m-us): Authored to carry `h0zljh` E-02, the whole-Set verification, which is work that exists ONLY on the Order-0 orchestrator and is covered by no child. Written per the `AGENTS.md` rule that a step found on a parent and covered by no child gets a CHILD rather than deletion. TWO MEASUREMENTS TAKEN AT AUTHORING, both reproducible: (1) spec `7ckptx` Section 4 defines 36 `A*` criteria of which exactly 5 are marked WITHDRAWN in the spec text (`A7b`, `A7b-1`, `A7b-2`, `A7b-3`, `A7c`, all withdrawn by `R3.3a`), leaving 31 LIVE; (2) the enumeration in `h0zljh` E-02 covers 30 of those 31 and OMITS `A14b`, which is live and load-bearing. That omission is exactly the failure mode E-02's own text warns about ("an enumeration copied from an earlier draft is how a withdrawn criterion gets demonstrated or a live one gets skipped"), so this plan re-derives the list from the spec at execution time rather than trusting either enumeration.
 - 2026-09-16 draft (opencode/its_direct-pt3-claude-opus-5-1m-us): created.
@@ -45,20 +47,61 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: demonstrate, and be honest about what cannot be demonstrated
 
-- [ ] E-02 DEMONSTRATE EVERY LIVE CRITERION WITH PASTED COMMAND EVIDENCE, one row per criterion, in the order the spec lists them. The spec's own bar governs and is quoted here so it is not softened at execution time: "Each is falsifiable and names the requirement it proves. 'A test exists' is not evidence; the pasted result of running it is." So a criterion is satisfied by the pasted OUTPUT of a command, never by citing a test's name or asserting that a suite is green. Where a criterion demands a NEGATIVE control (`A1` requires that rewording the exception still fails the check; `A14b` requires that a test achieving the isolated behavior by making the rule report CLEAN FAILS the criterion), run the control and paste its result too, because a criterion whose negative control is skipped has not been demonstrated. Any criterion that cannot be demonstrated MUST be recorded UNVERIFIED with its specific reason; NEVER dropped, and never reported as passing.
+THE EVIDENCE BAR, STATED ONCE AND BINDING ON EVERY ITEM IN THIS GROUP, quoted from the spec so it
+cannot be softened at execution time: "Each is falsifiable and names the requirement it proves. 'A test
+exists' is not evidence; the pasted result of running it is." So a criterion is satisfied by the pasted
+OUTPUT of a command, NEVER by citing a test's name and never by asserting that a suite is green. Any
+criterion that cannot be demonstrated MUST be recorded UNVERIFIED with its specific reason; never
+dropped, and never reported as passing. Recording UNVERIFIED honestly is a SUCCESSFUL outcome; a
+criterion silently marked passed is a failure of this plan.
+
+THE SPLIT IS BY REQUIREMENT FAMILY, NOT ARBITRARY, and the counts come from E-01's derivation
+(measured at authoring: 31 live criteria clustering as R1 n=4, R2 n=5, R3 n=3, R4 n=10, R5 n=8,
+R6 n=1). Each item below is one family, so each is executable in one focused pass against one area of
+the spec and yields its own verifiable evidence set. If E-01's derivation at execution HEAD disagrees
+with these counts, E-01's result wins and the difference is reported; the ITEM BOUNDARIES stay as they
+are (a criterion that moved family is demonstrated under the family E-01 assigns it, and the move is
+noted). NO criterion may be skipped because its family item looked full.
+
+- [ ] E-02 DEMONSTRATE THE R1 FAMILY: prompt containment and lane-path discipline. At authoring these are `A1`, `A2`, `A17`, `A20`. `A1` and `A20` each REQUIRE A NEGATIVE CONTROL and it must be run, not described: `A1` demands that rewording the exception clause still makes the check FAIL, and `A20` demands ordering be demonstrated as verifiable rather than asserted with the policy denial active. `A2` is a digest comparison, so paste both digests rather than the claim that they matched.
   - Depends on: E-01
-  - Expected outcome: every live criterion carries either pasted passing evidence, a pasted FAILING result, or an explicit UNVERIFIED verdict with a reason; the counts of each are stated; no criterion is absent from the enumeration.
+  - Expected outcome: each R1 criterion carries pasted command output or an explicit UNVERIFIED verdict with a reason; the `A1` and `A20` negative controls are pasted with their failing/passing results as the criterion requires.
   - Execution state: pending
 
-- [ ] E-03 WRITE THE VERIFICATION RECORD to `.aw/records/walkthroughs/` as a `...-walkthrough.md`, carrying E-02's per-criterion result table, the E-01 list derivation with its differences, the execution HEAD, and a plainly-labeled summary of PASSED / FAILED / UNVERIFIED counts. State the honest limits in the record itself rather than only here: which criteria rest on a synthetic fixture rather than a real run, and which were demonstrated by a single observation rather than repeated. This is the deliverable `h0zljh` E-02 promised and could not produce.
-  - Depends on: E-02
-  - Expected outcome: one committed walkthrough file whose summary counts reconcile exactly with E-02's table, containing no criterion marked passed without pasted evidence.
+- [ ] E-03 DEMONSTRATE THE R2 FAMILY: outcome reconciliation and submission collection. At authoring these are `A3`, `A4`, `A5`, `A5b`, `A5c`. `A4` is an IDEMPOTENCE criterion (run the same attempt's collection twice; the register holds the lane's contribution exactly once AND a sibling's is still present), so both halves must be shown, since a test that only proves the first would pass while losing a sibling's work. `A5c` requires naming the SINGLE definition of every rule both drivers consume, so it is a source-location claim and needs the location pasted.
+  - Depends on: E-01
+  - Expected outcome: each R2 criterion carries pasted output or an UNVERIFIED verdict with a reason; `A4`'s sibling-preservation half is shown explicitly, not implied by the once-only half.
+  - Execution state: pending
+
+- [ ] E-04 DEMONSTRATE THE R3 FAMILY: the missing-input refusal path. At authoring these are `A6`, `A7`, `A19`. `A6` is AMENDED by `R3.3a` and now tests REFUSAL, not a permitted repair: the driver must refuse with a record naming the path and reason, preserve and pause the lane, copy NOTHING into it, and emit no live grant. Demonstrate the amended form. DO NOT demonstrate `A7b`, `A7b-1`, `A7b-2`, `A7b-3` or `A7c`: all five are WITHDRAWN by `R3.3a` in the spec text, and demonstrating them would assert behavior the spec now forbids. Confirm their withdrawal from the spec rather than from this list.
+  - Depends on: E-01
+  - Expected outcome: each live R3 criterion carries pasted output or an UNVERIFIED verdict; `A6` is demonstrated in its AMENDED refusal form; the five withdrawn ids are confirmed withdrawn at execution HEAD and explicitly not demonstrated.
+  - Execution state: pending
+
+- [ ] E-05 DEMONSTRATE THE R4 FAMILY: session isolation, tool identity, and permission posture. At authoring these are `A8`, `A8b`, `A8c`, `A9`, `A10`, `A10b`, `A10c`, `A10d`, `A10e`, `A11`. This is the LARGEST family (10 of 31) and the reason this item exists separately rather than inside a single sweep. Demonstrate each individually; do not collapse the `A10*` group into one observation, since they are separate criteria with separate requirement citations.
+  - Depends on: E-01
+  - Expected outcome: all ten R4 criteria carry individual pasted output or individual UNVERIFIED verdicts; no criterion is satisfied by another's evidence.
+  - Execution state: pending
+
+- [ ] E-06 DEMONSTRATE THE R5 FAMILY: clean-base classification, retention, and lane teardown. At authoring these are `A12`, `A12b`, `A13`, `A14`, `A14b`, `A15`, `A15b`, `A18`. `A14b` IS THE CRITERION `h0zljh` E-02 OMITTED and it carries an explicit anti-cheat clause that must be honored: show the rule still classifies a dirty tracked tree as NOT CLEAN and still names the paths on BOTH paths with an identical classification and identical path list, and that ONLY the isolated caller declines to refuse. A test that achieves the isolated behavior by making the rule report CLEAN FAILS this criterion; if that is what the code does, record `A14b` FAILED rather than reinterpreting the criterion. `A15b` requires the preservation be visible in the run's SUMMARY output without reading the event log, so paste the summary.
+  - Depends on: E-01
+  - Expected outcome: all eight R5 criteria carry pasted output or UNVERIFIED verdicts; `A14b` is demonstrated with its identical-classification-and-path-list evidence on both paths, and its anti-cheat clause is honored rather than reinterpreted.
+  - Execution state: pending
+
+- [ ] E-07 DEMONSTRATE THE R6 FAMILY and CLOSE THE ENUMERATION. At authoring R6 is the single criterion `A16`. Then reconcile: state the total demonstrated, and assert explicitly that every id in E-01's LIVE list appears in exactly one of E-02 through E-07 with a verdict, naming any that does not. This closing reconciliation is the item that makes a silently skipped criterion detectable, which is the failure mode that produced this plan.
+  - Depends on: E-02, E-03, E-04, E-05, E-06
+  - Expected outcome: `A16` carries pasted output or an UNVERIFIED verdict; PLUS a reconciliation showing every live id from E-01 assigned a verdict in exactly one item, with the PASSED / FAILED / UNVERIFIED totals and an explicit statement that none is missing or double-counted.
+  - Execution state: pending
+
+- [ ] E-08 WRITE THE VERIFICATION RECORD to `.aw/records/walkthroughs/` as a `...-walkthrough.md`, carrying the per-criterion result tables from E-02 through E-07, the E-01 list derivation with its differences, the execution HEAD, and a plainly-labeled summary of PASSED / FAILED / UNVERIFIED counts. State the honest limits in the record itself rather than only here: which criteria rest on a synthetic fixture rather than a real run, and which were demonstrated by a single observation rather than repeated. This is the deliverable `h0zljh` E-02 promised and could not produce.
+  - Depends on: E-07
+  - Expected outcome: one committed walkthrough file whose summary counts reconcile exactly with the E-02..E-07 tables, containing no criterion marked passed without pasted evidence.
   - Execution state: pending
 
 ### Task group 3: report the Set's true state without asserting a verdict that is not this plan's
 
-- [ ] E-04 REPORT, DO NOT SET, whether spec `7ckptx` has reached `implemented`, and state the evidence either way. An agent may NOT set a spec `implemented`; that transition needs cited evidence and is the maintainer's. Report likewise on backlog `vqv9im`: state whether the merge evidence supports closing it, and leave the transition alone. If ANY live criterion is FAILED or UNVERIFIED, say explicitly that the Set is not demonstrably complete and name the criteria responsible, so the parent's retirement is a decision taken with the facts rather than a default.
-  - Depends on: E-03
+- [ ] E-09 REPORT, DO NOT SET, whether spec `7ckptx` has reached `implemented`, and state the evidence either way. An agent may NOT set a spec `implemented`; that transition needs cited evidence and is the maintainer's. Report likewise on backlog `vqv9im`: state whether the merge evidence supports closing it, and leave the transition alone. If ANY live criterion is FAILED or UNVERIFIED, say explicitly that the Set is not demonstrably complete and name the criteria responsible, so the parent's retirement is a decision taken with the facts rather than a default.
+  - Depends on: E-08
   - Expected outcome: a written report naming the spec's and the backlog item's evidenced state, with no status transition performed on either, and an explicit demonstrably-complete or not-demonstrably-complete verdict on the Set with the responsible criteria named.
   - Execution state: pending
 
@@ -80,9 +123,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Proposed changes (ordered, validatable)
 
 1. Re-derive the live criterion list from the spec, reporting every difference from the two prior enumerations (E-01).
-2. Demonstrate each live criterion with pasted evidence, including negative controls, recording any UNVERIFIED with its reason (E-02).
-3. Write the verification record to `.aw/records/walkthroughs/` with reconciling counts and stated limits (E-03).
-4. Report the evidenced state of spec `7ckptx` and backlog `vqv9im` without transitioning either, and state whether the Set is demonstrably complete (E-04).
+2. Demonstrate the live criteria with pasted evidence, ONE ITEM PER REQUIREMENT FAMILY so each is executable and verifiable in one focused pass: R1 (E-02), R2 (E-03), R3 (E-04), R4 (E-05), R5 (E-06), R6 plus the closing reconciliation (E-07). Negative controls are run, not described, and anything undemonstrable is recorded UNVERIFIED with its reason.
+3. Write the verification record to `.aw/records/walkthroughs/` with counts reconciled against the E-02..E-07 tables and limits stated (E-08).
+4. Report the evidenced state of spec `7ckptx` and backlog `vqv9im` without transitioning either, and state whether the Set is demonstrably complete (E-09).
 
 ## Deferred / out of scope (with reason)
 
@@ -118,9 +161,32 @@ The walkthrough written by E-03 is the documentation deliverable.
 ### OQ-01: Should `h0zljh` E-02 be marked as delegated to this plan, or left as written?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: NOT blocking, because this plan is executable either way and the verification gets done either way. The question is only what the parent's text should say afterwards. Leaving it as written keeps the historical record of what was intended but means a reader of `h0zljh` alone still sees an item that its retirement will never perform. Marking it delegated is more honest but edits an `approved` plan's checklist, which is a change to an artifact this plan does not own. Recorded rather than acted on, per the convention that a plan should not edit another artifact to make its own scope look complete. The maintainer may also reasonably decide the parent should not retire until this child is `executed`, which its `Item-Dependencies` do not currently express in that direction.
+- Resolution or deferral rationale: RESOLVED AT REVIEW 2026-09-16 FROM REPOSITORY EVIDENCE, and the
+  answer is LEAVE THE PARENT'S TEXT AS WRITTEN, because the thing this question was actually worried
+  about is already prevented by the retirement gate rather than by any edit to the parent.
+  THE WORRY WAS that a reader of `h0zljh` alone sees an E-02 its retirement will never perform, and
+  that the parent might retire while this verification was still outstanding. The SECOND half is the
+  one that mattered, and it is MEASURED FALSE: `runner_shared.evaluate_set_retirement` requires EVERY
+  child's on-disk `Status:` to be exactly `executed` before an orchestrator may retire. Run against
+  this worktree, which contains this plan:
+      eligible: False   reason: unfinished-children
+      detail: Set 'lanectn' has 1 child(ren) that are not 'executed': 4fodkt (to-review)
+  and run against `main`, which does not:
+      eligible: True    reason: eligible
+      detail: Set 'lanectn' is complete on disk: all 6 child(ren) are executed ...
+  So AUTHORING THIS PLAN IS ITSELF THE FIX. The parent was retirement-eligible before it existed and
+  is correctly blocked now, and it will stay blocked until this verification is actually executed. No
+  edit to `h0zljh` is needed to achieve that, and none is made.
+  THE FIRST HALF STANDS AS A DOCUMENTATION NIT and is deliberately not fixed here: editing an
+  `approved` plan's checklist to make this plan's scope look complete is exactly the move the
+  convention forbids, and the parent's E-02 remains an accurate record of what was intended. A reader
+  who reaches `h0zljh` E-02 and wonders who performs it can see the answer in this Set's membership,
+  since this plan cites the parent's E-02 by name in its own Concern.
+  LEFT TO THE MAINTAINER, and NOT resolved here because it is a scope call rather than a fact: whether
+  to ALSO annotate `h0zljh` E-02 as delegated. That is cosmetic given the gate, so it is recorded as a
+  preference rather than a defect.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -132,16 +198,41 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: the per-criterion table with, for EVERY live criterion, either pasted command output or an explicit UNVERIFIED verdict with a reason. PLUS the two negative controls demonstrated rather than described: `A1`'s reworded exception still failing the check, and `A14b`'s rule still classifying a dirty tracked tree as NOT CLEAN with an identical path list on both paths while only the isolated caller declines to refuse. PLUS an explicit count of PASSED, FAILED and UNVERIFIED, and an explicit statement that no live criterion is missing from the table.
+  - Required evidence: pasted command output (or an explicit UNVERIFIED verdict with a reason) for every live R1 criterion, PLUS the two negative controls run rather than described: `A1`'s reworded exception still making the check FAIL, and `A20`'s ordering shown verifiable with the policy denial active. PLUS both digests pasted for `A2`, since a claim that they matched is not the comparison.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: the walkthrough's path and its summary block pasted, with the PASSED / FAILED / UNVERIFIED counts RE-COUNTED from the table rather than copied from the summary, and the two figures shown to agree. PLUS the stated-limits section quoted, naming which criteria rest on a synthetic fixture and which were single-observation. PLUS `aw sanitize --agent` output showing clean, since this file pastes real command output.
+  - Required evidence: pasted output (or an UNVERIFIED verdict with a reason) for every live R2 criterion, PLUS `A4`'s BOTH halves shown separately (the lane's contribution present exactly once AND a sibling lane's contribution still present), since evidence for the once-only half alone would pass while a sibling's work was lost. PLUS the single source location pasted for `A5c`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
+  - Required evidence: pasted output (or an UNVERIFIED verdict with a reason) for every live R3 criterion, with `A6` demonstrated in its AMENDED refusal form (refusal record naming path and reason, lane preserved and paused, nothing copied in, no live grant). PLUS the spec text pasted at execution HEAD confirming `A7b`, `A7b-1`, `A7b-2`, `A7b-3` and `A7c` are still WITHDRAWN, and an explicit statement that none of the five was demonstrated.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: ten individual results, one per live R4 criterion, each with its own pasted output or its own UNVERIFIED verdict. An observation reused across two criteria does NOT satisfy this item: state per criterion which command produced its evidence, and specifically do not let one `A10*` observation stand for the group.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: pasted output (or an UNVERIFIED verdict with a reason) for every live R5 criterion. `A14b` IS LOAD-BEARING here and needs its full shape: the rule classifying a dirty tracked tree as NOT CLEAN on BOTH paths with an IDENTICAL classification and an IDENTICAL path list, and only the isolated caller declining to refuse. If the implementation instead achieves the isolated behavior by making the rule report CLEAN, this item is satisfied ONLY by recording `A14b` FAILED; a reinterpretation that reports it passed is a false claim. PLUS the run summary pasted for `A15b`, showing the preservation without reading the event log.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: pasted output (or an UNVERIFIED verdict) for `A16`, PLUS the closing reconciliation: every id in E-01's LIVE list shown assigned a verdict in exactly ONE of E-02..E-07, with the PASSED / FAILED / UNVERIFIED totals, an explicit statement that none is missing, and an explicit statement that none is double-counted. The reconciliation MUST be produced by comparing the two lists, not asserted; paste the comparison.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-08 validates E-08
+  - Required evidence: the walkthrough's path and its summary block pasted, with the PASSED / FAILED / UNVERIFIED counts RE-COUNTED from the E-02..E-07 tables rather than copied from the summary, and the two figures shown to agree. PLUS the stated-limits section quoted, naming which criteria rest on a synthetic fixture and which were single-observation. PLUS `aw sanitize --agent` output showing clean, since this file pastes real command output.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-09 validates E-09
   - Required evidence: the report quoted, showing (a) the evidenced state of spec `7ckptx` with no transition performed, provable by pasting the spec's unchanged `- Status:` line before and after, (b) the same for backlog `vqv9im`, and (c) the explicit demonstrably-complete or not-demonstrably-complete verdict on the Set naming any responsible criteria. A report that recommends `implemented` without naming the criteria supporting it does NOT satisfy this item.
   - Observed evidence:
   - Result: pending
@@ -149,7 +240,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 ## Approval and execution gate
 
 - Size assessment: standard
-- Cohesion rationale: not required
+- Cohesion rationale: not required (9 E-items in 3 task groups, under the 18-leaf / 5-group thresholds). Recorded because the count GREW at review: an earlier draft demonstrated all 31 criteria in ONE item, which passed the count-based lint and failed the rubric's conceptual-density test (one item, six independent requirement families, six independent evidence surfaces). The split is by requirement family, which is the boundary the spec itself draws.
 
 EXECUTION CONTRACT. Resolve no open question by guessing: `OQ-01` is non-blocking and the maintainer's, so
 execute without it and do not edit `h0zljh` to close it. SCOPE FENCE: this plan declares
