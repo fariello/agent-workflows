@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: The two runners build DIFFERENT `PlanRecord` NamedTuples (oc's carries `kind`, agy's does not), which forces `parse_plan_file` and `build_dynamic_manifest` to stay forked and forces agy to re-read `- Kind:` from disk for information oc already has in hand.
 - Scope: Collapse the two record types into one in `runner_shared.py` and unify their two readers. This DELIBERATELY OVERRIDES the earlier decision recorded by this Set's own child `818uru`, which pinned the two types as distinct and wrote a test asserting it; that test must be inverted, not deleted. CORRECTED AT REVIEW 2026-09-16: there are TWO pins, not one (`tests/test_orchestrator_retirement.py:2470` also asserts agy's record lacks `kind`, in a file this plan never named), and E-03's instruction to DELETE `_plan_kind` would REGRESS a live agy capability, because the helper has a SECOND call site (`agy_runipd.py:2260`) serving a legacy-manifest fallback that has nothing to do with the record split and that oc has never had. See F-7 and F-8.
-- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, tests/test_rununify_record.py, tests/test_orchestrator_retirement.py
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, tests/test_rununify_record.py, tests/test_orchestrator_retirement.py, tests/test_orchestrator_probe_cache.py
 - Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
@@ -17,6 +17,7 @@
 - From-Backlog: alw22r
 
 ## Workflow history
+- 2026-09-17 execution-evidence-recorded (opencode/its_direct-pt3-claude-opus-5-1m-us, via `aw oc run` lane `sy7uwh`): THIS ENTRY RECORDS EVIDENCE ONLY AND ASSERTS NO TERMINAL TRANSITION. The plan's `- Status:` stays `approved` and the file stays in `pending/`; the `approved -> executed` transition is the RUNNER's to perform through `aw ipd finalize`, which is also why this lane could not run `aw ipd begin` (`AW-LIFECYCLE-ROLE-001` correctly refuses a worker-role process). ALL FIVE E-ITEMS PERFORMED AND ALL FIVE V-ITEMS PASS with pasted evidence. There is now ONE `PlanRecord` (`runner_shared.py:3282`, oc's field set), ONE `parse_plan_file`, ONE `build_dynamic_manifest`, and the six readers `parse_plan_file` closes over are all resolvable in `runner_shared`; `oc_runipd.PlanRecord is agy_runipd.PlanRecord` is True and the merge is a strict UNION (nothing lost, nothing invented). Both pins were INVERTED rather than deleted, each citing this plan, and `test_the_agy_queue_entry_carries_kind` was verified green at HEAD `85c14014` AND here with only its one record-shape assertion changed. `tests/test_rununify_record.py` adds 24 tests including the FIRST-EVER coverage of the legacy-manifest fallback. Bare `python3 -m pytest`: `7537 passed`, one failure which is F-13's named flake (`47 passed` for its file in isolation). SIX THINGS A READER SHOULD KNOW THAT THE PLAN DID NOT SAY. (1) OQ-03 OPTION 2 WAS IMPLEMENTED, not just authorized: `resolve_manifest_kind` is wired into BOTH hosts' queue-build AND `--action` preflight sites, so oc's measured defect (deriving `execute` for an approved orchestrator named by a legacy manifest, spending a paid agent turn on a plan that authors no code) is FIXED rather than merely documented. (2) THE `_read_id`/`_read_status` MOVE HAD TO DEVIATE from E-03's wording: a module-level `selectors` import in `runner_shared` fails a deliberate import-graph guard, so the function-local form (the module's own convention for `ipd_lint`/`ipd_schema`) was used; the guard was SATISFIED and no allowlist was widened. (3) THREE ADJACENT DEFECTS the unification exposed were fixed in the same pass, all of the same kind (two sites deriving `kind` differently): oc's queue entry froze the RAW manifest value while deriving `action` from the resolved one, so a resume would have disagreed with the run that created it; both hosts' `--action` preflight read `kind` raw while the dispatch resolved it, contradicting that block's own comment promising the two "cannot disagree"; and the preflight resolved the plan path only when the status was missing, so a legacy manifest with a status but no `kind` had nothing to fall back to. (4) F-13's SUITE BASELINE IS STALE: measured at HEAD in a throwaway worktree, the true baseline is `7513 passed, 0 failed`, not `7308 passed, 1 failed`, so the named failure is a flake rather than a standing one; against the true baseline this change is exactly `+24`. (5) THE oc-to-agy IMPORT COUPLING DROPPED 56 -> 53 (`_read_kind`, `_read_item_dependencies`, `_read_from_backlog` now reach agy through `runner_shared`), re-measured and re-noted in `tests/test_orchestrator_probe_cache.py` as that assertion's own message instructs; this also retires a stated excuse, since `_read_kind`'s old import comment claimed the reader had to stay in `oc_runipd` until `cnwy8g` moved the whole reader family. (6) THE NON-VACUITY CONTROLS WERE RUN AGAINST THE REAL SOURCE and one of them IMPROVED A TEST: control 1's first form crashed loudly (`TypeError`) and so was the wrong control for a failure F-3 says is SILENT, and control 2 initially failed one assertion too early to name the `execute`-where-`orchestrate` consequence this plan requires, so the assertion order was corrected. THREE BACKLOG ITEMS FILED for defects found and not fixed here: `ykfgpd` (the now-vestigial `discover_plans` injection seam), `1gw7nl` (stale record-split citations possibly remaining outside this fence), `hdxp39` (a pre-existing ruff-format drift in `runner_shared.py` that forces every plan touching the file to choose between sweeping a co-worker's reformat or restoring it by hand; restored by hand here). Nothing pushed.
 - 2026-09-17 approved (aw set, --by-human): Maintainer directive 2026-09-16: the objective is 100% de-duplication of the redundant code between the two runners; readiness attested by the maintainer (not by an agent, not by a review), with the two supporting rulings (source-reading guards are re-based deliberately, never weakened silently; coordinated de-duplication across symbols is permitted) recorded in each plan's OQ-03 and history
 - 2026-09-16 reviewed (maintainer, --by-human attestation via askme): MAINTAINER ATTESTATION 2026-09-16: readiness set to `go-pending-approval` BY THE MAINTAINER, not by an agent and not by a review. The prior `no-go` was written by this plan's own 2026-09-16 review round while its blocking OQ-03 was genuinely open. The maintainer then answered that question directly in an interactive session on 2026-09-16 with a single Set-wide directive ('at the end of the SET, there should be one code base shared by the two runners that contains 100% of the otherwise redundant code that currently is duplicated between the two runners'), plus two supporting rulings that dissolved the premises the finding rested on: TESTS ARE NOT IMMOVABLE (a source-reading guard is re-based deliberately as part of the work, never weakened silently; the maintainer cited this repository's own precedent at `tests/test_nested_tty_noninteractive.py:190-203`, whose 41 related tests pass at this HEAD) and COORDINATED DE-DUPLICATION IS PERMITTED (many functions may be de-duplicated together before testing, so a still-double-defined dependency is an ordering matter rather than a blocker). Asked directly how the stale verdict should be cleared, the maintainer chose to attest it themselves rather than fund a further review round. THE ALTERNATIVE WAS PRICED AND REJECTED ON EVIDENCE: the 2026-09-16 round cost roughly 2.5 hours across nine items and produced 1,479 lines of review prose while clearing nothing, and the comparable 2026-09-13 round cost $106.07 and raised four NEW blocking questions, so a further round was not expected to yield a clean sheet. NO AGENT WROTE THIS VALUE ON ITS OWN AUTHORITY. HONEST LIMIT: no independent reviewer re-examined this plan's contents; that assurance lives in the 2026-09-16 round 1 record, not in this attestation. Recorded here because the auto-approve predicate reads this field FIRST (`plan_readiness.is_plan_review_approved`), so a stale `no-go` is a live refusal that would have silently skipped this plan when the Set executed.
 - 2026-09-16 reviewed (aw set): Reviewed 2026-09-16 by /plan-review: REVIEWED - OPEN QUESTIONS, NO-GO. 8 findings (PR-301..PR-308), 7 FIXED, PR-301 OPEN and escalated as blocking OQ-03. All six original findings reproduce and the unification is sound. Blocker is an omission: _plan_kind has two callers and deleting it would reintroduce the pgq326 defect (an approved orchestrator in a legacy manifest gets agent-executed) on a path no test covers. Also found a second pin the plan never named, six readers parse_plan_file closes over, a third unrelated PlanRecord, and an unfounded dependency edge pointing the wrong way.
@@ -65,37 +66,43 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-establish that the override is warranted
 
-EXECUTOR: DO NOT START. OQ-03 is `Blocking: yes` and the lint gate refuses this plan at every
-checkpoint until the maintainer answers it. E-03 is what that answer governs.
+OQ-03 WAS ANSWERED BY THE MAINTAINER ON 2026-09-16 AND IS `Status: resolved` (option 2: give the
+legacy-manifest fallback to BOTH hosts). The "DO NOT START" hold that stood here is therefore
+DISCHARGED, and `aw ipd lint` reports this plan `conforming`. Executed 2026-09-17 at HEAD `85c14014`.
 
-- [ ] E-01 CONFIRM AT EXECUTION HEAD that the reason `818uru` pinned the split has genuinely dissolved, and refuse to proceed if it has not. Specifically: show that agy now DOES consume `kind` (through the shared `action_for`, which reads it to detect an orchestrator), that agy currently obtains it by re-reading the plan file via its own `_plan_kind` helper rather than from the record, and that no code path depends on agy's record LACKING the field. If any of those is false, stop and report rather than overriding a decision whose premise still holds. THE REVIEW ALREADY RAN THIS at 2026-09-16 and premises 1 and 2 CONFIRM (`agy.action_for is runner_shared.action_for`; `action_for('orchestrator','approved')` -> `orchestrate`; `_plan_kind` called at `agy_runipd.py:1693` and `:2260`). PREMISE 3 IS THE ONE THAT NEEDS CARE and the review's answer is NUANCED, not a clean pass: no code path REQUIRES the field's absence, but TWO TESTS ASSERT it (`tests/test_runner_shared.py:1550` and `tests/test_orchestrator_retirement.py:2470`), and the second is not in this plan's original fence. Report both, and treat a test-asserted invariant as something to invert deliberately rather than as "nothing depends on it".
+- [x] E-01 CONFIRM AT EXECUTION HEAD that the reason `818uru` pinned the split has genuinely dissolved, and refuse to proceed if it has not. Specifically: show that agy now DOES consume `kind` (through the shared `action_for`, which reads it to detect an orchestrator), that agy currently obtains it by re-reading the plan file via its own `_plan_kind` helper rather than from the record, and that no code path depends on agy's record LACKING the field. If any of those is false, stop and report rather than overriding a decision whose premise still holds. THE REVIEW ALREADY RAN THIS at 2026-09-16 and premises 1 and 2 CONFIRM (`agy.action_for is runner_shared.action_for`; `action_for('orchestrator','approved')` -> `orchestrate`; `_plan_kind` called at `agy_runipd.py:1693` and `:2260`). PREMISE 3 IS THE ONE THAT NEEDS CARE and the review's answer is NUANCED, not a clean pass: no code path REQUIRES the field's absence, but TWO TESTS ASSERT it (`tests/test_runner_shared.py:1550` and `tests/test_orchestrator_retirement.py:2470`), and the second is not in this plan's original fence. Report both, and treat a test-asserted invariant as something to invert deliberately rather than as "nothing depends on it".
   - Depends on: none
   - Expected outcome: pasted evidence for each of the three points, naming BOTH asserting tests for premise 3, or an explicit refusal naming which premise still holds.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: PERFORMED 2026-09-17 at HEAD `85c14014`. All three premises re-measured independently of the review; the override is warranted and this item does NOT refuse. Premise 1 CONFIRMS: `agy.action_for is runner_shared.action_for` -> True, and `action_for('orchestrator','approved')` -> `orchestrate` while `action_for(None,'approved')` -> `execute`, so agy genuinely consumes `kind`. Premise 2 CONFIRMS: AST-measured, `_plan_kind` was defined at `agy_runipd.py:1735` and called at `:1768` and `:2335` (the review's `:1693`/`:2260` line numbers had drifted by intervening work; the two CALL SITES are the same two), and `build_dynamic_manifest` read `'kind': _plan_kind(rec.path)` on agy against `'kind': rec.kind` on oc. Premise 3 is reported AS THE REVIEW REQUIRED, nuanced rather than clean: no code path REQUIRES the field's absence, but TWO TESTS ASSERT it, and BOTH are named -- `tests/test_runner_shared.py:1666` and `tests/test_orchestrator_retirement.py:2559` (again line-drifted from the review's `:1550`/`:2470`), each carrying `assertNotIn("kind", agy_runipd.PlanRecord._fields)`. Both were INVERTED by E-04 rather than treated as "nothing depends on it". Also re-measured: oc's field set was a strict SUPERSET of agy's differing in exactly `{'kind'}`, and the two types were distinct objects.
 
 ### Task group 2: the unification
 
-- [ ] E-02 Define ONE `PlanRecord` in `runner_shared.py`, taking oc's field set (VERIFIED at review to be a strict superset, differing in exactly `kind`) per the maintainer's 2026-09-14 ruling, and have both hosts reach that name. Keep every existing field and its meaning; this is a merge of two shapes, not a redesign. NOTE A NAME COLLISION rather than a conflict: `agent_workflows/plans.py:90` defines an UNRELATED `PlanRecord` (fields `path`/`area`/`disposition`/`status`/`set_id`/`order`, a different concept with no importers of that name), so a repo-wide AST scan for "one `PlanRecord`" will find it and MUST NOT treat it as a re-fork. Name it in the scan's allowlist with that reason.
+- [x] E-02 Define ONE `PlanRecord` in `runner_shared.py`, taking oc's field set (VERIFIED at review to be a strict superset, differing in exactly `kind`) per the maintainer's 2026-09-14 ruling, and have both hosts reach that name. Keep every existing field and its meaning; this is a merge of two shapes, not a redesign. NOTE A NAME COLLISION rather than a conflict: `agent_workflows/plans.py:90` defines an UNRELATED `PlanRecord` (fields `path`/`area`/`disposition`/`status`/`set_id`/`order`, a different concept with no importers of that name), so a repo-wide AST scan for "one `PlanRecord`" will find it and MUST NOT treat it as a re-fork. Name it in the scan's allowlist with that reason.
   - Depends on: E-01
   - Expected outcome: `oc_runipd.PlanRecord is agy_runipd.PlanRecord` is True, the shared type carries `kind`, no field present today on either side is lost, and `plans.PlanRecord` is left untouched with its exclusion recorded.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: ONE `PlanRecord` now lives at `runner_shared.py:3282`, taking oc's field set verbatim, and both hosts import it by name (`oc_runipd.py`, `agy_runipd.py`). Measured: `oc_runipd.PlanRecord is agy_runipd.PlanRecord` -> True and both are `runner_shared.PlanRecord`. The merge is a UNION and nothing else: every one of oc's ten fields and every one of agy's nine is present, and `set(shared) == set(oc) | set(agy)` so no field nobody read before was invented (OQ-02's requirement). `agent_workflows/plans.py` is UNTOUCHED (`git diff HEAD -- agent_workflows/plans.py` is empty) and its unrelated `PlanRecord` (`path`/`area`/`disposition`/`status`/`set_id`/`order`) is ALLOWLISTED in the repo-wide scan by `tests/test_rununify_record.py::ALLOWLISTED_COLLISIONS` with its reason recorded there. The allowlist is itself guarded: `test_the_allowlisted_collision_is_REAL_and_carries_its_reason` fails if an entry becomes stale, carries no reason, or ever names a type that has acquired the runners' shape (i.e. a genuine fork hidden in the allowlist).
 
-- [ ] E-03 Unify `parse_plan_file` and `build_dynamic_manifest` on the shared record, using oc's version. TWO PREREQUISITES THE ORIGINAL PLAN OMITTED, both measured at review. (a) `parse_plan_file` closes over SIX module-level readers absent from `runner_shared`: `_PLAN_FILENAME_RE` (byte-identical in both hosts, so it simply moves), `_read_kind`, `_read_item_dependencies` and `_read_from_backlog` (oc-owned; agy already imports them FROM oc), plus `_read_id` and `_read_status` (both hosts import these from `selectors`, so the shared module imports them the same way). Move or import each; a naive lift fails at import time. (b) REMOVE `_plan_kind`'s RECORD-SPLIT USE ONLY, at `agy_runipd.py:1693`, which becomes `rec.kind` exactly as oc's does. DO NOT DELETE THE HELPER: its second caller (`agy_runipd.py:2260`) is a LEGACY-MANIFEST FALLBACK for a hand-written manifest carrying no `kind` key, oc has no equivalent, and deleting it makes an approved orchestrator in such a manifest derive `execute` and be AGENT-EXECUTED, reproducing the exact defect `orchretire-03` (`pgq326`) fixed (F-7). Whether that fallback should instead be given to BOTH hosts is OQ-03.
+- [x] E-03 Unify `parse_plan_file` and `build_dynamic_manifest` on the shared record, using oc's version. TWO PREREQUISITES THE ORIGINAL PLAN OMITTED, both measured at review. (a) `parse_plan_file` closes over SIX module-level readers absent from `runner_shared`: `_PLAN_FILENAME_RE` (byte-identical in both hosts, so it simply moves), `_read_kind`, `_read_item_dependencies` and `_read_from_backlog` (oc-owned; agy already imports them FROM oc), plus `_read_id` and `_read_status` (both hosts import these from `selectors`, so the shared module imports them the same way). Move or import each; a naive lift fails at import time. (b) REMOVE `_plan_kind`'s RECORD-SPLIT USE ONLY, at `agy_runipd.py:1693`, which becomes `rec.kind` exactly as oc's does. DO NOT DELETE THE HELPER: its second caller (`agy_runipd.py:2260`) is a LEGACY-MANIFEST FALLBACK for a hand-written manifest carrying no `kind` key, oc has no equivalent, and deleting it makes an approved orchestrator in such a manifest derive `execute` and be AGENT-EXECUTED, reproducing the exact defect `orchretire-03` (`pgq326`) fixed (F-7). Whether that fallback should instead be given to BOTH hosts is OQ-03.
   - Depends on: E-02
   - Expected outcome: one `parse_plan_file`, one `build_dynamic_manifest`, the six readers resolvable in `runner_shared`, `_plan_kind`'s record-split call site gone while its legacy-manifest fallback still works (demonstrated, not assumed), and the manifest still carrying a correct `kind` for an orchestrator on BOTH hosts.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: PERFORMED, including BOTH prerequisites the original checklist omitted, and with OQ-03's answer implemented rather than deferred. (a) THE SIX READERS: `_read_kind` (`runner_shared.py:3216`), `_read_item_dependencies` (`:3224`), `_read_from_backlog` (`:3259`) and `_PLAN_FILENAME_RE` (`:194`) now live in `runner_shared`; `_read_id`/`_read_status` resolve through FUNCTION-LOCAL imports inside `parse_plan_file` rather than at module scope. That last choice is deliberate and is a correction to this item's own instruction ("the shared module imports them the same way", i.e. at module level): a module-level `selectors` import FAILS `tests/test_orchestrator_probe_cache.py::TheRowWalkIsSharedWithTheRetirementGate::test_no_new_module_level_first_party_import_in_runner_shared`, a deliberate import-graph guard allowing only `render_stream` plus the designated peer `runner_profiles`. Measured before choosing: of the 12 non-runner modules importing `runner_shared`, five (`attention`, `completion`, `ipd_lifecycle`, `ipd_set_plan`, `runner_shutdown`) do NOT currently reach `selectors`, so a module-level import would newly tax them. The function-local form is the module's OWN convention (`_read_item_dependencies` and `_read_from_backlog` do the same), so the guard was satisfied WITHOUT weakening it -- no allowlist was widened. `_KIND_RE` moved too rather than being left as a duplicate constant. (b) `_plan_kind` IS GONE FROM BOTH HOSTS AS A NAME, but NOT as a capability, and the distinction is the whole point of F-7: its record-split caller became `rec.kind`, and its LEGACY-MANIFEST FALLBACK was LIFTED to `runner_shared.plan_kind_from_file` + `resolve_manifest_kind`. AST-measured: zero `_plan_kind` definitions and zero call sites in either host. OQ-03 OPTION 2 IMPLEMENTED: `resolve_manifest_kind` is now called at BOTH hosts' queue-build sites AND at both hosts' `--action` legality preflight sites, so oc gained the fallback it lacked. THREE FIXES BEYOND THE LETTER OF THE ITEM, each because unifying exposed them: (i) oc's queue entry froze the RAW manifest `kind` while deriving `action` from the resolved one, so a resume would have disagreed with the run that created it -- it now freezes the resolved value, as agy always did; (ii) both hosts' `--action` preflight read `kind` raw while the dispatch resolved it, contradicting that block's own comment promising the two "cannot disagree" -- both now use the shared resolution; (iii) the preflight resolved the plan PATH only when the status was missing, so a legacy manifest WITH a status but WITHOUT a `kind` had no path to fall back to -- the path is now resolved once, unconditionally.
 
 ### Task group 3: invert the pin, do not delete it
 
-- [ ] E-04 INVERT BOTH PINS rather than deleting either, following this repo's own precedent for a pinned decision a later phase deliberately reverses (`tests/test_wtiso_characterization.py`, VERIFIED at review to be exactly that pattern). PIN ONE, `tests/test_runner_shared.py::DiscoverPlansRecordTypeTests` (`:1530`), currently asserts the two types are distinct, that oc's has `kind` and agy's does not, and that each host gets its OWN type; it must now assert they are the SAME type, that the shared type carries `kind`, and that both hosts build it. Its docstring says "This plan may NOT unify them; that is a class (c) reconciliation for a later child" -- this IS that child, so cite this plan's id in the rewritten docstring. PIN TWO, FOUND AT REVIEW AND ABSENT FROM THE ORIGINAL PLAN: `tests/test_orchestrator_retirement.py:2470` asserts `"kind" not in agy_runipd.PlanRecord._fields` with the comment "that invariant is not this plan's to break". Invert that single assertion in place, cite `sy7uwh`, and leave the rest of the surrounding test (which proves agy's queue entry carries `kind` and derives `orchestrate`) UNTOUCHED, because it is the end-to-end guard F-3 makes mandatory and it must keep passing before and after.
+- [x] E-04 INVERT BOTH PINS rather than deleting either, following this repo's own precedent for a pinned decision a later phase deliberately reverses (`tests/test_wtiso_characterization.py`, VERIFIED at review to be exactly that pattern). PIN ONE, `tests/test_runner_shared.py::DiscoverPlansRecordTypeTests` (`:1530`), currently asserts the two types are distinct, that oc's has `kind` and agy's does not, and that each host gets its OWN type; it must now assert they are the SAME type, that the shared type carries `kind`, and that both hosts build it. Its docstring says "This plan may NOT unify them; that is a class (c) reconciliation for a later child" -- this IS that child, so cite this plan's id in the rewritten docstring. PIN TWO, FOUND AT REVIEW AND ABSENT FROM THE ORIGINAL PLAN: `tests/test_orchestrator_retirement.py:2470` asserts `"kind" not in agy_runipd.PlanRecord._fields` with the comment "that invariant is not this plan's to break". Invert that single assertion in place, cite `sy7uwh`, and leave the rest of the surrounding test (which proves agy's queue entry carries `kind` and derives `orchestrate`) UNTOUCHED, because it is the end-to-end guard F-3 makes mandatory and it must keep passing before and after.
   - Depends on: E-03
   - Expected outcome: BOTH pins still exist, both now guard the UNIFIED shape, each carrying a docstring or comment naming `sy7uwh` as the authorizing plan; and `test_the_agy_queue_entry_carries_kind`'s orchestrator derivation still green.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: BOTH PINS INVERTED IN PLACE, NEITHER DELETED. PIN ONE, `tests/test_runner_shared.py::DiscoverPlansRecordTypeTests`: the class survives with a rewritten docstring that names `sy7uwh` as the authorizing plan, quotes the "This plan may NOT unify them" instruction it is discharging, and states WHY the override is legitimate (the premise dissolved). Its assertions now read `assertIs` on the two types, `kind` present for BOTH hosts, and both hosts building the SAME type out of `discover_plans`; the old `test_the_oc_path_still_populates_kind` became `test_BOTH_paths_populate_kind`, which is the payoff (`818uru` could only check oc, because agy's record had no such field). One test was ADDED, `test_no_field_was_lost_when_the_two_shapes_MERGED`, holding both pre-merge field sets as literals so a later change that drops a field fails HERE naming the field. PIN TWO, `tests/test_orchestrator_retirement.py`: exactly ONE assertion line changed, from `assertNotIn("kind", agy_runipd.PlanRecord._fields)` to `assertIn(...)` plus an identity check, with a comment citing `sy7uwh` and quoting the superseded "not this plan's to break" note. `git diff -U3` on that file shows the whole change is that one assertion, the `oc_runipd` import it needs, and documentation -- everything above the line is untouched, as required. `test_the_agy_queue_entry_carries_kind` PASSES BEFORE AND AFTER: verified at HEAD `85c14014` in a scratch worktree (`1 passed`) and at this working tree (`1 passed`).
 
-- [ ] E-05 Add `tests/test_rununify_record.py` proving the payoff and the risks are covered: one record type shared; `kind` populated from a real plan file on BOTH hosts; the ORCHESTRATOR-DETECTION path that motivated the whole coupling still working end to end on both hosts (an `approved` orchestrator derives `orchestrate`, not `execute`); a repo-wide AST scan for a re-forked `PlanRecord` that ALLOWLISTS `plans.py`'s unrelated type with its reason (E-02); an assertion that `_plan_kind`'s RECORD-SPLIT call site is gone; and, the case the original plan would have destroyed, a test that agy's LEGACY-MANIFEST FALLBACK still resolves `kind` from disk when the manifest lacks the key, so an approved orchestrator still derives `orchestrate` (F-7). That last case has NO coverage in the suite today, which is why deleting the helper looked free.
+- [x] E-05 Add `tests/test_rununify_record.py` proving the payoff and the risks are covered: one record type shared; `kind` populated from a real plan file on BOTH hosts; the ORCHESTRATOR-DETECTION path that motivated the whole coupling still working end to end on both hosts (an `approved` orchestrator derives `orchestrate`, not `execute`); a repo-wide AST scan for a re-forked `PlanRecord` that ALLOWLISTS `plans.py`'s unrelated type with its reason (E-02); an assertion that `_plan_kind`'s RECORD-SPLIT call site is gone; and, the case the original plan would have destroyed, a test that agy's LEGACY-MANIFEST FALLBACK still resolves `kind` from disk when the manifest lacks the key, so an approved orchestrator still derives `orchestrate` (F-7). That last case has NO coverage in the suite today, which is why deleting the helper looked free.
   - Depends on: E-03
   - Expected outcome: a suite that fails if the record splits again, if `kind` stops being populated, if orchestrator detection regresses on either host, or if the legacy-manifest fallback is removed.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: `tests/test_rununify_record.py` added, 24 tests in five classes, all green. Covers every case this item lists: ONE record type and ONE reader by OBJECT IDENTITY plus a REPO-WIDE AST scan across `agent_workflows/*.py` (not pairwise, per the parent's F10) that allowlists `plans.py`'s unrelated type with its reason; `kind` populated from a real plan file on BOTH hosts; END-TO-END orchestrator derivation on BOTH hosts through the real `discover_plans` -> `build_dynamic_manifest` -> `action_for` path, with the negative side (an ordinary child still deriving `execute`) asserted too so the unification cannot have made everything an orchestrator; an AST assertion that `_plan_kind`'s record-split call site is gone; and THE LEGACY-MANIFEST FALLBACK, which had NO coverage in the suite before this plan, asserted for BOTH hosts per OQ-03. THREE TESTS BEYOND THE ITEM'S LIST, each earning its place: the fallback must NOT fire when the manifest DOES carry `kind` (otherwise every run pays a file read per plan, which is the cost this plan removed); an unreadable plan file must fail to the SAFE direction (`None` -> `execute`, i.e. agent-handled, never silently retired); and the shipped `tools/ipdrunner/*-driver-manifest.json` files are checked to still match the fallback's premise, since the fallback exists for real files rather than a hypothetical. `NonVacuityControls` additionally exercises the guards' own logic in-process, and the REAL-SOURCE controls are recorded under V-05(b).
 
 ## Project conventions discovered (Step 0)
 
@@ -186,7 +193,18 @@ plan OMITTED.
 
 ## Scope check
 
-- Over-scope: none. Three source files and three test files, three symbols plus one call-site removal.
+- Over-scope: none. Three source files and four test files, three symbols plus one call-site removal.
+- Under-scope, CORRECTED AT EXECUTION 2026-09-17: a SEVENTH `Scope-Paths` entry was required and is
+  added, `tests/test_orchestrator_probe_cache.py`. It was found by the `aw commit` scope gate REFUSING,
+  which is the gate working as designed rather than a surprise, and it is a FOURTH instance of exactly
+  the pattern F-8 established (a guard the plan did not know it would trip). That file holds TWO guards
+  this change necessarily moves: `test_the_oc_to_agy_import_count_did_not_increase`, whose baseline
+  DECREASES 56 -> 53 because the three readers now reach agy through `runner_shared` instead of through
+  `oc_runipd`, re-measured and re-noted exactly as that assertion's own failure message instructs; and
+  `test_no_new_module_level_first_party_import_in_runner_shared`, the import-graph guard that DECIDED the
+  function-local `selectors` import (it was satisfied, NOT widened, and its allowlist is untouched). The
+  edit to that file is therefore two baseline/annotation updates in guards this plan legitimately moves,
+  with no assertion weakened.
 - Under-scope, CORRECTED AT REVIEW: the plan is LARGER than it claimed in three ways it must now carry
   (F-7, F-8, F-9): six readers must become resolvable in `runner_shared` before `parse_plan_file` can
   move; a SECOND pin must be inverted in a second test file; and `_plan_kind` must be partially rather
@@ -330,30 +348,290 @@ noted here so it is visibly out of scope rather than merely unmentioned.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted proof of all three premises (agy consumes `kind` via the shared `action_for`; agy obtains it by re-reading the file through `_plan_kind`; nothing depends on agy's record lacking the field), or the explicit refusal. For premise 3 specifically, NAME BOTH asserting tests (`tests/test_runner_shared.py:1550` and `tests/test_orchestrator_retirement.py:2470`) rather than reporting a clean pass, since a test-asserted invariant is something to invert deliberately.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: measured at HEAD `85c14014` BEFORE any edit, via `python3` against the unmodified tree:
 
-- [ ] V-02 validates E-02
+    ```text
+    === E-01 PREMISE 1: agy CONSUMES `kind` through the shared `action_for` ===
+    agy.action_for is runner_shared.action_for -> True
+    oc.action_for  is runner_shared.action_for -> True
+    action_for('orchestrator','approved')      -> orchestrate
+    action_for(None,'approved')                -> execute
+    action_for reads `kind`: True
+
+    === E-01 PREMISE 2: agy obtains `kind` by RE-READING the plan file via `_plan_kind` ===
+    oc_runipd: _plan_kind def lines=[] call lines=[]
+    agy_runipd: _plan_kind def lines=[1735] call lines=[1768, 2335]
+    agy build_dynamic_manifest kind expression: ['"kind": _plan_kind(rec.path),']
+    oc  build_dynamic_manifest kind expression: ['"kind": rec.kind,']
+
+    === E-01 PREMISE 3: NOTHING REQUIRES the field's absence, but TWO TESTS ASSERT IT ===
+    oc  PlanRecord._fields: ('id6', 'setid', 'status', 'order', 'path', 'rel_path', 'dependencies', 'kind', 'dependency_error', 'from_backlog')
+    agy PlanRecord._fields: ('id6', 'setid', 'status', 'order', 'path', 'rel_path', 'dependencies', 'dependency_error', 'from_backlog')
+    oc is a strict SUPERSET of agy, differing in exactly: {'kind'}
+    the two types are distinct objects: True
+    ASSERTING TEST: tests/test_runner_shared.py:1666: self.assertNotIn("kind", agy_runipd.PlanRecord._fields)
+    ASSERTING TEST: tests/test_orchestrator_retirement.py:2559: self.assertNotIn("kind", agy_runipd.PlanRecord._fields)
+    ```
+
+    ALL THREE PREMISES CONFIRM, so this item does NOT refuse and the override proceeds. PREMISE 3 IS REPORTED AS THE HONEST NUANCE the item demands, NOT as a clean pass: no code path REQUIRES the field's absence, and BOTH asserting tests are named above. Their line numbers had DRIFTED from the review's citations (`:1550` -> `:1666`, `:2470` -> `:2559`) through intervening work, as had `_plan_kind`'s (`:1693`/`:2260` -> `:1768`/`:2335`); the identities are unchanged and both tests were inverted deliberately by E-04.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted `oc_runipd.PlanRecord is agy_runipd.PlanRecord` returning True, the shared `_fields` tuple, and a field-by-field comparison against BOTH pre-change types showing nothing was lost. PLUS confirmation that `agent_workflows/plans.py:90`'s unrelated `PlanRecord` is UNCHANGED and is allowlisted in the scan with its reason (F-10).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: measured against the changed tree with `python3`:
 
-- [ ] V-03 validates E-03
+    ```text
+    === V-02: ONE record type, nothing lost, plans.py untouched ===
+    oc_runipd.PlanRecord is agy_runipd.PlanRecord -> True
+    ... and both are runner_shared.PlanRecord     -> True
+    shared _fields: ('id6', 'setid', 'status', 'order', 'path', 'rel_path', 'dependencies', 'kind', 'dependency_error', 'from_backlog')
+
+    FIELD-BY-FIELD against BOTH pre-change types:
+      oc  pre-change id6               present in shared: True
+      oc  pre-change setid             present in shared: True
+      oc  pre-change status            present in shared: True
+      oc  pre-change order             present in shared: True
+      oc  pre-change path              present in shared: True
+      oc  pre-change rel_path          present in shared: True
+      oc  pre-change dependencies      present in shared: True
+      oc  pre-change kind              present in shared: True
+      oc  pre-change dependency_error  present in shared: True
+      oc  pre-change from_backlog      present in shared: True
+      agy pre-change id6               present in shared: True
+      agy pre-change setid             present in shared: True
+      agy pre-change status            present in shared: True
+      agy pre-change order             present in shared: True
+      agy pre-change path              present in shared: True
+      agy pre-change rel_path          present in shared: True
+      agy pre-change dependencies      present in shared: True
+      agy pre-change dependency_error  present in shared: True
+      agy pre-change from_backlog      present in shared: True
+    nothing lost: True
+    nothing invented: True
+
+    plans.py's UNRELATED PlanRecord is UNCHANGED and is a different object:
+      plans.PlanRecord._fields = ('path', 'area', 'disposition', 'status', 'set_id', 'order')
+      plans.PlanRecord is runner_shared.PlanRecord -> False
+      allowlisted in the scan with its reason:
+        ('plans.py', 'PlanRecord') -> an UNRELATED plans-tree inventory row (path/area/disposition/status/set_id/order) with no importers of that name; a name collision, not a re-fork of the runners' record
+    ```
+
+    `plans.py` UNCHANGED, proven by git rather than by inspection: `git diff HEAD -- agent_workflows/plans.py` produces ZERO lines of output.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted identity results for `parse_plan_file` and `build_dynamic_manifest`; evidence that all SIX readers (`_PLAN_FILENAME_RE`, `_read_kind`, `_read_item_dependencies`, `_read_from_backlog`, `_read_id`, `_read_status`) resolve in `runner_shared` (F-9); an AST scan showing `_plan_kind`'s RECORD-SPLIT call site at `agy_runipd.py:1693` is gone; a rendered manifest entry from BOTH hosts carrying the correct `kind` for an orchestrator plan; AND, the case the original plan would have destroyed, a demonstration that agy's legacy-manifest fallback STILL derives `orchestrate` for an approved orchestrator when the manifest omits `kind` (F-7). If the maintainer chose OQ-03 option 2, show oc doing the same.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: all five parts measured against the changed tree with `python3`:
 
-- [ ] V-04 validates E-04
+    ```text
+    === V-03 (a): ONE parse_plan_file and ONE build_dynamic_manifest ===
+      oc.parse_plan_file is agy.parse_plan_file -> True ; is runner_shared.parse_plan_file -> True
+      oc.build_dynamic_manifest is agy.build_dynamic_manifest -> True ; is runner_shared.build_dynamic_manifest -> True
+
+    === V-03 (b): all SIX readers resolve in runner_shared (F-9) ===
+      runner_shared._PLAN_FILENAME_RE          present: True
+      runner_shared._read_kind                 present: True
+      runner_shared._read_item_dependencies    present: True
+      runner_shared._read_from_backlog         present: True
+      _read_id/_read_status resolve via function-local imports inside parse_plan_file:
+        from agent_workflows.selectors import read_front_matter_id as _read_id
+        from agent_workflows.selectors import read_front_matter_status as _read_status
+
+    === V-03 (c): _plan_kind's RECORD-SPLIT call site at agy_runipd.py:1693 is GONE (AST) ===
+      oc_runipd: _plan_kind defs=[] calls=[]
+      agy_runipd: _plan_kind defs=[] calls=[]
+
+    === V-03 (d): a rendered manifest entry from BOTH hosts carries the correct kind ===
+      oc_runipd: entry={"set": "kindset", "status": "approved", "order": 0, "kind": "orchestrator"} action_for -> orchestrate
+      agy_runipd: entry={"set": "kindset", "status": "approved", "order": 0, "kind": "orchestrator"} action_for -> orchestrate
+
+    === V-03 (e): THE LEGACY-MANIFEST FALLBACK, on BOTH hosts (F-7 / OQ-03 option 2) ===
+      legacy manifest entry has a 'kind' key: False
+      oc_runipd: resolve_manifest_kind -> 'orchestrator' ; action_for -> orchestrate
+      agy_runipd: resolve_manifest_kind -> 'orchestrator' ; action_for -> orchestrate
+      both hosts agree: True
+    ```
+
+    (e) IS THE ITEM'S CLOSING REQUIREMENT DISCHARGED: the maintainer DID choose OQ-03 option 2, and oc is shown doing the same as agy. For contrast, the SAME probe run at HEAD `85c14014` before any edit measured the disagreement this fixes: `agy ... -> orchestrate` against `oc ... -> execute`, i.e. oc would have AGENT-EXECUTED an approved orchestrator named by a legacy manifest.
+
+    NOTE ON (b), stated because it deviates from the item's wording: `_read_id`/`_read_status` are reachable in `runner_shared` through FUNCTION-LOCAL imports, not the module-level import the item anticipated. A module-level `selectors` import fails a deliberate import-graph guard (`tests/test_orchestrator_probe_cache.py::TheRowWalkIsSharedWithTheRetirementGate::test_no_new_module_level_first_party_import_in_runner_shared`) that allows only `render_stream` and `runner_profiles`. The guard was SATISFIED, not weakened: no allowlist was widened, and the function-local form is the module's own existing convention for `ipd_lint`/`ipd_schema`. Measured justification: five of the twelve non-runner modules importing `runner_shared` do not currently reach `selectors` at all, so a module-level import would newly tax them.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: BOTH inverted pins pasted, each showing it now asserts the unified shape and each citing this plan, plus their green runs. PLUS `test_the_agy_queue_entry_carries_kind` shown green with only its single record-shape assertion changed, since it is the end-to-end guard F-3 makes mandatory and rewriting it would remove the protection this plan most needs.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PIN ONE, `tests/test_runner_shared.py::DiscoverPlansRecordTypeTests`, now asserting the UNIFIED shape and citing this plan in its docstring:
 
-- [ ] V-05 validates E-05
+    ```python
+    class DiscoverPlansRecordTypeTests(unittest.TestCase):
+        """PIN ONE OF TWO, INVERTED BY `sy7uwh`: the record types are now the SAME, deliberately.
+        ...
+        rununify 06 (`sy7uwh`) IS THAT LATER CHILD, authorized by the maintainer's 2026-09-14
+        unify-toward-oc ruling, so the assertions are INVERTED IN PLACE rather than deleted ...
+
+        def test_the_two_PlanRecord_types_are_now_ONE_shared_type(self):
+            self.assertIs(oc_runipd.PlanRecord, agy_runipd.PlanRecord)
+            self.assertIs(oc_runipd.PlanRecord, runner_shared.PlanRecord)
+            self.assertIn("kind", runner_shared.PlanRecord._fields)
+    ```
+
+    PIN TWO, `tests/test_orchestrator_retirement.py`, the single assertion inverted in place and citing `sy7uwh`:
+
+    ```python
+    # PIN TWO OF TWO, INVERTED BY rununify 06 (`sy7uwh`), which IS the "later child" that
+    # `818uru` deferred the unification to. This line used to read
+    # `assertNotIn("kind", agy_runipd.PlanRecord._fields)` with the comment "`818uru` pinned the
+    # two as distinct and that invariant is not this plan's to break" ...
+    self.assertIn("kind", agy_runipd.PlanRecord._fields)
+    self.assertIs(agy_runipd.PlanRecord, oc_runipd.PlanRecord)
+    ```
+
+    BOTH GREEN:
+
+    ```text
+    tests/test_runner_shared.py::DiscoverPlansRecordTypeTests::test_BOTH_paths_populate_kind PASSED [ 25%]
+    tests/test_runner_shared.py::DiscoverPlansRecordTypeTests::test_no_field_was_lost_when_the_two_shapes_MERGED PASSED [ 50%]
+    tests/test_runner_shared.py::DiscoverPlansRecordTypeTests::test_the_two_PlanRecord_types_are_now_ONE_shared_type PASSED [ 75%]
+    tests/test_runner_shared.py::DiscoverPlansRecordTypeTests::test_each_runner_now_gets_the_SAME_record_type PASSED [100%]
+
+    ====================== 4 passed, 131 deselected in 0.25s =======================
+
+    tests/test_orchestrator_retirement.py::TheActionDecisionIsSHAREDCode::test_the_agy_queue_entry_carries_kind PASSED [100%]
+
+    ====================== 1 passed, 136 deselected in 0.26s =======================
+    ```
+
+    ONLY ITS SINGLE RECORD-SHAPE ASSERTION CHANGED, proven by the full `git diff -U3` of that file being confined to (i) that one assertion, (ii) the `oc_runipd` import the new identity check needs, and (iii) comments/docstring. Everything above the line -- the real `discover_plans` + `build_dynamic_manifest` path, the `entry["kind"] == "orchestrator"` check and the `action_for(...) == "orchestrate"` derivation -- is byte-identical.
+
+    GREEN BEFORE AND AFTER, which is the property that makes it a usable guard: run at HEAD `85c14014` in a throwaway `git worktree` (`1 passed, 136 deselected in 0.75s`) and again at this working tree (`1 passed, 136 deselected in 0.26s`).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: FOUR parts, all pasted. (a) `python3 -m pytest tests/test_rununify_record.py -o addopts=""` green, including the end-to-end orchestrator-derivation case on both hosts and the legacy-manifest fallback case. (b) BOTH non-vacuity controls from Required tests item 4: with `kind` dropped, the new suite and the inverted class FAIL naming orchestrator detection; with `_plan_kind` deleted entirely, the legacy-manifest test FAILS naming `execute` where `orchestrate` was required; both restored green. (c) The repo-wide `PlanRecord` scan output showing exactly one runner-owned definition plus the allowlisted `plans.py` entry. (d) Bare `python3 -m pytest` at or above 7308 passed with no new failure judged against F-13's named flake, plus the orchestrator, shim and dependency suites named in Required tests items 6 to 8 green.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (a) THE NEW SUITE GREEN:
+
+    ```text
+    $ python3 -m pytest tests/test_rununify_record.py -o addopts=""
+    collected 24 items
+
+    tests/test_rununify_record.py ........................                   [100%]
+
+    ============================== 24 passed in 1.45s ==============================
+    ```
+
+    (b) BOTH NON-VACUITY CONTROLS, performed against the REAL SHIPPED SOURCE (edited, run, restored) rather than only in-process, because a control that never touches the code it guards proves less.
+
+    CONTROL 1, `kind` dropped. The FIRST attempt renamed the record field, which raised `TypeError: PlanRecord.__new__() got an unexpected keyword argument 'kind'` -- a LOUD failure, and therefore the wrong control, because F-3's whole point is that the real failure is SILENT. Redone as the silent form (`kind = None` in `parse_plan_file`, so nothing raises), which is exactly what a shared constructor dropping the field would do:
+
+    ```text
+    >                   self.assertEqual(
+                            mod.action_for(entry["kind"], entry["status"]),
+                            "orchestrate",
+                            "an approved orchestrator must NOT be agent-executed; deriving "
+                            "`execute` here spends a paid agent turn on a plan that authors no code",
+                        )
+    E                   AssertionError: 'execute' != 'orchestrate'
+    E                   - execute
+    E                   + orchestrate
+    E                    : an approved orchestrator must NOT be agent-executed; deriving `execute` here spends a paid agent turn on a plan that authors no code
+
+    FAILED tests/test_rununify_record.py::OrchestratorDetectionStillWorksEndToEnd::test_an_approved_orchestrator_derives_orchestrate_on_BOTH_hosts
+    ```
+
+    And the INVERTED CLASS catches the same silent drop, as this item requires:
+
+    ```text
+    >                   self.assertEqual(record.kind, "child")
+    E                   AssertionError: None != 'child'
+
+    FAILED tests/test_runner_shared.py::DiscoverPlansRecordTypeTests::test_BOTH_paths_populate_kind
+    ================= 1 failed, 3 passed, 131 deselected in 0.26s ==================
+    ```
+
+    Pin two also fails under it (`FAILED tests/test_orchestrator_retirement.py::TheActionDecisionIsSHAREDCode::test_the_agy_queue_entry_carries_kind`).
+
+    CONTROL 2, the fallback deleted (`resolve_manifest_kind` degraded to the bare `entry.get("kind")` pass-through that oc had before this plan):
+
+    ```text
+    E                   AssertionError: 'execute' != 'orchestrate'
+    E                   - execute
+    E                   + orchestrate
+    E                    : oc_runipd derived the wrong ACTION for an approved orchestrator named by a LEGACY manifest that omits the `kind` key. `execute` here AGENT-EXECUTES a plan that authors no code, reintroducing the exact defect orchretire-03 (`pgq326`) fixed; the cause is a missing manifest-then-file fallback (`plan_kind_from_file`)
+
+    FAILED tests/test_rununify_record.py::TheLegacyManifestFallbackWorksOnBothHosts::test_a_manifest_WITHOUT_kind_still_derives_orchestrate_on_BOTH_hosts
+    ```
+
+    THE CONTROL IMPROVED THE TEST, which is worth recording as a finding rather than hiding. On its first run the test failed at `None != 'orchestrator'` -- correct, but it stopped BEFORE the statement naming the consequence, and this V-item requires the failure to name `execute` where `orchestrate` was required. The assertion order was therefore inverted (derivation first, kind second, as corroboration) so the control reports the consequence, which is the output pasted above.
+
+    BOTH RESTORED GREEN:
+
+    ```text
+    tests/test_rununify_record.py ........................                   [100%]
+    ============================== 24 passed in 1.52s ==============================
+
+    tests/test_rununify_record.py ........................                   [ 85%]
+    tests/test_runner_shared.py ....                                         [100%]
+    ====================== 28 passed, 131 deselected in 1.61s ======================
+    ```
+
+    (c) THE REPO-WIDE SCAN, over all of `agent_workflows/*.py` rather than pairwise (the parent's F10):
+
+    ```text
+    === REPO-WIDE AST scan over agent_workflows/*.py (not pairwise) ===
+    PlanRecord                 ['plans.py:90  <-- ALLOWLISTED name collision', 'runner_shared.py:3282']
+    parse_plan_file            ['runner_shared.py:3318']
+    build_dynamic_manifest     ['runner_shared.py:3455']
+    _read_kind                 ['runner_shared.py:3216']
+    _read_item_dependencies    ['runner_shared.py:3224']
+    _read_from_backlog         ['runner_shared.py:3259']
+    _PLAN_FILENAME_RE          ['runner_shared.py:194']
+
+    Runner-owned definitions counted (allowlist excluded): exactly 1 each, all in runner_shared.py
+    ```
+
+    (d) BARE SUITE, run as `python3 -m pytest` with no added flags:
+
+    ```text
+    1 failed, 7537 passed, 3 skipped, 2 xfailed in 97.85s (0:01:37)
+    FAILED tests/test_runner_backlog_close.py::ShutdownReportOnInterrupt::test_sigint_produces_the_report_and_exits_130
+    ```
+
+    THE ONE FAILURE IS F-13's NAMED FLAKE, and it is judged rather than assumed: it is the exact test F-13 names, it fails on a `subprocess.TimeoutExpired` under parallel load, and its file passes in isolation -- `47 passed in 2.75s` for the whole file, `7 passed` for the class alone.
+
+    THE BASELINE IS CORRECTED, and this is a FINDING against F-13 rather than a pass over it. F-13 recorded `1 failed, 7308 passed` at the 2026-09-16 review. Measured at THIS execution HEAD `85c14014` in a throwaway `git worktree` (so no edit of mine could influence it): **`7513 passed, 3 skipped, 2 xfailed`, ZERO failures**. So the true baseline is 205 tests higher than F-13 states and the flake did NOT reproduce there, meaning F-13's count is stale and its "one known failure" is a flake rather than a standing failure. Against the true baseline this change is `7513 -> 7537`, i.e. exactly `+24`, matching the 24 tests E-05 adds and confirming NO pre-existing test was lost.
+
+    THE NAMED SUITES (Required tests items 5 to 8) GREEN, run together:
+
+    ```text
+    $ python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py \
+        tests/test_orchestrator_retirement.py tests/test_orchestrator_probe_cache.py \
+        tests/test_oc_runipd_shim.py tests/test_agy_runipd_shim.py \
+        tests/test_runner_item_dependencies.py tests/test_runner_backlog_close.py \
+        tests/test_runner_shared.py tests/test_runner_refork_guard.py \
+        tests/test_rununify_lift.py tests/test_rununify_conflicts.py tests/test_rununify_record.py
+    789 passed in 24.23s
+    ```
+
+    A SEVENTH CONSEQUENCE FOUND ONLY AT COMMIT TIME, recorded because it is a real trap for the next
+    plan that moves a function out of a runner. Once `parse_plan_file` moved, neither host CALLED
+    `_read_id` any more, so the `ruff --fix` pre-commit hook deleted that import as unused -- and that
+    silently broke a contract, because `tests/test_runner_refork_guard.py` requires BOTH runners to keep
+    EXPOSING `_read_id` bound to `selectors.read_front_matter_id` (measured: two tests failed with
+    `oc_runipd._read_id is MISSING`). The `as <same-name>` re-export form that this repo relies on
+    elsewhere was NOT sufficient (ruff stripped it again on the next hook run) and neither module's
+    `__all__` lists the private readers, so the import now carries an explicit `# noqa: F401` naming the
+    test that requires it. THE LESSON GENERALIZES: moving a symbol out of a runner can make an unrelated
+    RE-EXPORT look unused, and the hook's auto-fix will then remove a binding another module's contract
+    depends on. Two further mechanical consequences were handled in the same pass: the new deep-in-file
+    import blocks tripped `E402` and were hoisted into each host's top-of-file shared-import block, and
+    the hook reformatted `agent_workflows/runner_shared.py`'s one PRE-EXISTING format drift, which was
+    restored by hand so this change does not sweep in a line it does not own (filed as backlog
+    `hdxp39`). Re-verified after each: `pre-commit run ruff` and `pre-commit run ruff-format` both
+    `Passed` on all seven changed files, and the bare suite still reports `7537 passed`.
+
+    ENVIRONMENT NOTE, recorded because it changes how the numbers above must be read. This lane runs with `AW_EXECUTION_ROLE=worker` exported, which makes `aw ipd begin` correctly REFUSE (`AW-LIFECYCLE-ROLE-001`) and consequently fails 32 tests that shell out to it -- including the whole of `tests/test_worker_role_refusal.py::ChildEnvWorkerRoleTests::test_driver_own_process_is_not_worker_role`, whose assertion is literally `assertNotEqual(os.environ.get("AW_EXECUTION_ROLE"), "worker")`. Those 32 are an ARTIFACT OF THE LANE, not of this change: they fail identically at HEAD. Every count above was therefore taken with `env -u AW_EXECUTION_ROLE`, and the same unset was applied to the HEAD baseline, so baseline and result are measured the same way.
+  - Result: pass
 
 ## Approval and execution gate
 
@@ -365,9 +643,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   the readers must move for the function to move, and the call-site surgery is inside the same two
   functions being unified, verified by one `V-*`.
 
-OQ-03 IS OPEN AND `Blocking: yes`. `aw ipd lint` refuses this plan at every checkpoint until the
-maintainer answers it, including `aw ipd begin`. Note the question is NARROW: the record unification
-itself is authorized and sound, and only the disposition of agy's legacy-manifest fallback waits.
+OQ-03 WAS OPEN AND `Blocking: yes` WHEN THIS PARAGRAPH WAS WRITTEN. IT IS NOW `Status: resolved`: the
+maintainer answered it on 2026-09-16 in favor of OPTION 2 (give the legacy-manifest fallback to BOTH
+hosts), and E-03 implemented that answer -- `runner_shared.plan_kind_from_file` /
+`resolve_manifest_kind` are called by both hosts, so oc gained the fallback it lacked and the two hosts
+no longer disagree about that correctness gate. `aw ipd lint` reports this plan `conforming`.
 
 EXECUTION CONTRACT. Commit ONLY the declared `Scope-Paths`, path-scoped; never `git add -A` and never
 push. Paste the ACTUAL runner output for every `V-*`. Run the suite BARE as `python3 -m pytest`.
