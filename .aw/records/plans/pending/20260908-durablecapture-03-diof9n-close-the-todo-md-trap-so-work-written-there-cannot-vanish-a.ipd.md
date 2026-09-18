@@ -50,7 +50,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: eliminate the scanned-and-discarded state
 
-- [ ] E-01 DECIDE `TODO.md`'s SCAN FATE AND RECORD THE DECISION BEFORE CHANGING ANYTHING. Two acceptable answers and one forbidden state. EITHER remove `"TODO.md"` from `SCAN_ROOTS` so it is honestly out of scope, OR give it a `TreePolicy` so anything written there is at least reported as unclassified drift. THE ONE OPTION TO ELIMINATE is the current both-scanned-and-silently-dropped state.
+- [x] E-01 DECIDE `TODO.md`'s SCAN FATE AND RECORD THE DECISION BEFORE CHANGING ANYTHING. Two acceptable answers and one forbidden state. EITHER remove `"TODO.md"` from `SCAN_ROOTS` so it is honestly out of scope, OR give it a `TreePolicy` so anything written there is at least reported as unclassified drift. THE ONE OPTION TO ELIMINATE is the current both-scanned-and-silently-dropped state.
   DO NOT DELETE THE FILE. Its `## Notes` section is deliberate Tier-3 durable context (`TODO.md:14`) recording the agent-comms formalization and the `crv40v` migration provenance, and the item says plainly that deleting it is probably wrong. The goal is that nobody can write WORK there and have it vanish, not that the file disappears.
   MEASURE WHAT ELSE READS `SCAN_ROOTS` BEFORE REMOVING AN ENTRY. `iter_scan_files` feeds the reference tools and the dangling detector, not only the attention view (the comment above `SCAN_ROOTS` says so). If `TODO.md` is removed, a reference FROM another artifact TO `TODO.md` may stop resolving, or a dangling-reference check may start or stop firing. Measure both directions and report; a decision that improves the attention view and breaks the reference checker is not an improvement.
   THE REMOVAL IS ALREADY MEASURED CLEAN AT HEAD `024f4256`, so this is a confirmation rather than an open risk. In an isolated worktree, deleting the `"TODO.md"` entry: `iter_scan_files` loses exactly that one file; a bare `python3 -m pytest` is `5930 passed, 3 skipped, 2 xfailed` (identical to baseline, zero failures); and `aw check --agent` shows NO rule-code change other than `check.scope-drift`, which moves only because the executor's own uncommitted edit to `artifact_core.py` is attributed to two in-flight plans holding live begin receipts (`xdr83v`, `hp9rot`). That `scope-drift` movement is an artifact of editing, not a consequence of the removal; it self-clears on commit. DO NOT try to reduce it by editing either plan, their receipts, or their Scope-Paths: they are other agents' in-flight work.
@@ -59,18 +59,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   IF YOU CHOOSE THE POLICY OPTION, note the mechanical obstacle rather than discovering it mid-edit: every existing `TreePolicy` root is a DIRECTORY under `.agents/`, and `_classify_tree` matches by path prefix after rewriting `.aw/records/<type>` to `.agents/<type>`. A repository-root FILE does not fit that shape, so a policy for `TODO.md` either needs the matcher to handle a file root or needs the drift condition widened, which is the change sibling plan `m867ox` explicitly deferred as too broad. Prefer removal unless you can show the policy path is small.
   - Depends on: none
   - Expected outcome: `TODO.md` is either absent from `SCAN_ROOTS` or covered by a policy; the both-and state is gone; the effect on the reference tools and the dangling detector measured in BOTH directions and reported; the file itself not deleted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 MAKE THE FILE ITSELF REFUSE WORK, in prose, so the structural fix is matched by what a reader sees. `TODO.md:3-8` already says work lives in the backlog tree, but it reads as a migration note rather than a prohibition, and `:14` invites content into `## Notes`.
+- [x] E-02 MAKE THE FILE ITSELF REFUSE WORK, in prose, so the structural fix is matched by what a reader sees. `TODO.md:3-8` already says work lives in the backlog tree, but it reads as a migration note rather than a prohibition, and `:14` invites content into `## Notes`.
   STATE PLAINLY THAT WORK WRITTEN HERE IS NOT TRACKED and name the correct destination (`aw backlog new`). Keep the `## Notes` section and its Tier-3 framing. This is user-facing prose you are authoring, so it must contain NO em or en dashes.
   DO NOT REWRITE THE `## Notes` CONTENT. The agent-comms paragraph and the `crv40v` migration provenance are durable records; adding a header sentence is in scope, editing those paragraphs is not.
   - Depends on: E-01
   - Expected outcome: `TODO.md` states plainly that work written there is untracked and names `aw backlog new`; `## Notes` content byte-unchanged; no em or en dashes in the added prose.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: repoint the two dangling gates
 
-- [ ] E-03 REPOINT BOTH DEFERRED SPEC GATES at carriers that can express what they wait for, and do NOT simply delete the gates. `.aw/records/specs/20260725-0957-01-external-delivery-and-skills.spec.md:5-6` and `.aw/records/specs/20260726-1239-01-clean-delta-and-tracking-modes.spec.md:5-6` each carry `Gate-Kind: artifact` / `Gate-Ref: TODO.md`.
+- [x] E-03 REPOINT BOTH DEFERRED SPEC GATES at carriers that can express what they wait for, and do NOT simply delete the gates. `.aw/records/specs/20260725-0957-01-external-delivery-and-skills.spec.md:5-6` and `.aw/records/specs/20260726-1239-01-clean-delta-and-tracking-modes.spec.md:5-6` each carry `Gate-Kind: artifact` / `Gate-Ref: TODO.md`.
   CORRECT THE PREMISE FIRST, BECAUSE THE PLAN'S STATED MECHANISM IS WRONG AND IT MAKES THE DEFECT WORSE, NOT BETTER. The Concern says these gates "VALIDATE (the file exists)". THEY DO NOT CHECK EXISTENCE AT ALL. Measured: `validate_gate_ref('artifact', ref)` is a pure REGEX match against `_ARTIFACT_REF_RE` (`^(?!/)(?!.*\.\.)[A-Za-z0-9._/-]+(#[A-Za-z0-9._-]+)?$`), so `'NOSUCHFILE.md'` and `'totally/made/up.md'` both return True. Proven end to end: I renamed `TODO.md` away entirely in an isolated worktree and `aw check specs --agent` still reported `conforms`, 0 findings. So a repointed gate will ALSO validate no matter what it names, and NOTHING will tell a future reader if the new target disappears. Do not write the "validates because the file exists" claim anywhere; it is false.
   THAT RAISES THE BAR ON THE TARGET CHOICE RATHER THAN LOWERING IT. Since no tooling will ever verify an `artifact` ref, the ONLY thing keeping these gates meaningful is that a human chose a target that genuinely expresses the awaited condition. Prefer a carrier whose own lifecycle is machine-visible (a backlog item, which `aw attention` surfaces and `aw check` validates) over another prose file, precisely because the gate ref itself is unchecked.
   A `deferred` SPEC MUST CARRY A TYPED GATE. That is the specs contract (`AGENTS.md`: "A `deferred` spec MUST carry a typed `Gate-Kind:`/`Gate-Ref:`"), so removing the gate would make the spec non-conforming. Repoint or re-status; never strip. NOTE what `aw check specs` actually enforces: the gate fields are PRESENT and the ref is well-FORMED. It is not evidence the gate is meaningful, so "check specs clean" is a necessary and badly insufficient acceptance signal.
@@ -80,20 +80,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT TOUCH ANY OTHER FIELD OF EITHER SPEC. These are `deferred` design contracts; this plan fixes a dangling gate reference, not their content.
   - Depends on: none
   - Expected outcome: both gates resolve to a carrier that can express the awaited condition, with the reasoning recorded per spec; no gate deleted; `aw check specs` clean; any status-change recommendation raised to the maintainer rather than applied.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the two remaining pointers
 
-- [ ] E-04 FIX THE `whatnext` WORKFLOW, and treat it as a WRITE-TARGET change rather than a pointer swap. `TODO.md` appears at NINE places in `.aw/system/workflows/whatnext/whatnext.md`: as a survey SOURCE (`:64`, `:119`), and as the WRITE DESTINATION for uncaptured findings (`:11`, `:120-121`, `:125`, `:145`, `:150`), plus two untrusted-content rules about what may be written there (`:27`, `:133`).
+- [x] E-04 FIX THE `whatnext` WORKFLOW, and treat it as a WRITE-TARGET change rather than a pointer swap. `TODO.md` appears at NINE places in `.aw/system/workflows/whatnext/whatnext.md`: as a survey SOURCE (`:64`, `:119`), and as the WRITE DESTINATION for uncaptured findings (`:11`, `:120-121`, `:125`, `:145`, `:150`), plus two untrusted-content rules about what may be written there (`:27`, `:133`).
   THE WRITE PATH IS THE DEFECT, NOT THE READ PATH. A workflow that appends a finding to `TODO.md` writes it where the attention view cannot see it, which is exactly the trap this plan closes. Redirect those writes to `aw backlog new`, which is the surface `AGENTS.md` already names for committed lightweight work.
   PRESERVE THE UNTRUSTED-CONTENT RULES. `:27` and `:133` forbid writing a comms payload or other untrusted content into the destination. That rule must survive the redirect, and it matters MORE once the destination is a tracked records tree, since an adopted record is permanent. Do not drop it while moving the target.
   KEEP THE EXPLICIT-CONFIRMATION GATE. `:11` and `:145` require the human's explicit confirmation before the workflow adds anything. Preserve it.
   `i6015i` DELIBERATELY LEFT THIS ALONE, so there is no collision: it recorded F-6, deferred the rewiring as "a prose workflow with its own review path", and forbade its own executor from touching this file. This plan is the follow-through.
   - Depends on: E-01
   - Expected outcome: the workflow no longer writes findings into `TODO.md`; the untrusted-content rules and the explicit-confirmation gate survive verbatim in substance; every one of the nine occurrences accounted for with its disposition stated.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 STATE THE DEPRECATION WHERE AGENTS ACTUALLY READ IT, WHICH IS THE GENERATOR AND NOT `AGENTS.md`. The sentence the item quotes lives at `agent_workflows/engine.py:1151` ("NOT keep committed backlog only in prose (e.g. `TODO.md`), where the attention view cannot ..."), inside the managed block `engine.py` installs into every repository.
+- [x] E-05 STATE THE DEPRECATION WHERE AGENTS ACTUALLY READ IT, WHICH IS THE GENERATOR AND NOT `AGENTS.md`. The sentence the item quotes lives at `agent_workflows/engine.py:1151` ("NOT keep committed backlog only in prose (e.g. `TODO.md`), where the attention view cannot ..."), inside the managed block `engine.py` installs into every repository.
   EDIT THE GENERATOR, THEN REGENERATE, AND THE REASON IS REACH. An edit to this repository's `AGENTS.md` alone would state the deprecation for THIS repo only and for no managed target repo, which fails the item's requirement that it be stated "where agents will read it". The item's framing ("AGENTS.md currently never names TODO.md as deprecated") is right about the symptom and the generator is the correct site.
   DO NOT JUSTIFY THIS WITH "A HAND EDIT WOULD BE REVERTED", WHICH IS FALSE FOR THE OBVIOUS PLACE SOMEONE WOULD PUT IT. Text OUTSIDE the `<!-- aw:block -->` markers survives a refresh (measured; see F-7), and this repository already depends on that at `AGENTS.md:186-190`. If you write the reversion claim into a comment or a commit message you will be repeating an error this plan already corrected.
   SAY IT PLAINLY, as the item asks: the current wording is an oblique instruction not to keep backlog in prose. State that `TODO.md` is deprecated as a work surface and name the destination. This is user-facing prose, so NO em or en dashes.
@@ -104,16 +104,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT RUN `aw install` AS THE VERIFICATION STEP WITHOUT READING THIS. Measured in the same run: `aw install` STAGED roughly 100 unrelated files (the whole `.agents/skills/` tree, `.aw/records/reviews/.gitkeep`, `workflow-artifacts/README.md`), MODIFIED `.aw/config/project.json`, and on the second invocation CREATED A COMMIT of its own ("agent-workflows: sync via installer", 696 insertions to `managed-sections.json`) with no further prompt. In a shared checkout that behavior can sweep another agent's work into a commit this plan never intended. If you run it, run it in an ISOLATED worktree, and never let it commit in the primary checkout.
   - Depends on: E-01
   - Expected outcome: `engine.py`'s managed-block text names `TODO.md` as deprecated as a work surface and names the destination; this repository's `AGENTS.md` carries the same sentence via a declared direct edit, with the drift-frozen reason recorded; a backlog item filed for the drift-frozen section defect; no em or en dashes added; no installer commit made in the primary checkout.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 PIN THE DECISION WITH A TEST so the both-and state cannot return. Whatever E-01 decided, assert it: if `TODO.md` was removed from `SCAN_ROOTS`, assert it is absent; if it was given a policy, assert `_classify_tree("TODO.md")` returns non-`None`.
+- [x] E-06 PIN THE DECISION WITH A TEST so the both-and state cannot return. Whatever E-01 decided, assert it: if `TODO.md` was removed from `SCAN_ROOTS`, assert it is absent; if it was given a policy, assert `_classify_tree("TODO.md")` returns non-`None`.
   ASSERT THE INVARIANT, NOT THE CHOICE. The durable property is that no `SCAN_ROOTS` entry classifies to `None` while being silently dropped. Prefer a test expressing THAT over one pinning the specific membership, because the invariant catches the next root added without a policy. Note the other three root docs (`DECISIONS.md`, `README.md`, `ARCHITECTURE.md`) are in the SAME state, so an invariant test will fail on them too. OQ-03 IS NOW RESOLVED: they are EXEMPT BY DESIGN because they are documentation scanned for CITATIONS, not work surfaces, so encode a NAMED exemption set and state that purpose in a comment beside it, so a future reader does not "fix" them by removing them and silently break the reference tools and the dangling detector.
   THE EXEMPTION MUST BE A CLOSED, NAMED SET, NOT A PREDICATE LIKE "any root-level file". A predicate would silently absorb the NEXT root-level file someone adds, which is precisely the failure mode this plan exists to close. List the three by name so a fourth fails the test and forces a decision.
   `tests/test_artifact_core.py:57-61` ALREADY PINS THREE `SCAN_ROOTS` MEMBERS (`.agents/plans`, `.agents/docs`, `DECISIONS.md`) in `ScanRootTests.test_scan_roots_include_plans_and_docs`. Verified: NONE of those three is `TODO.md`, so E-01's removal does NOT require updating any existing assertion, and no test anywhere asserts `"TODO.md" in SCAN_ROOTS`. Do not delete an existing assertion to make a new one pass, and do not "helpfully" add `TODO.md` to that membership test.
   DO NOT TOUCH THE FOUR MODULES THAT USE `TODO.md` AS A GATE-REF FIXTURE (`tests/test_attention.py`, `tests/test_attention_compact.py`, `tests/test_attention_priority_blocker.py`, `tests/test_specs_verbs.py`). All four are synthetic constructions that never read the live file, so they are unaffected by E-01 and E-03 and must not be updated to match the new gate refs.
   - Depends on: E-01
   - Expected outcome: a test pinning E-01's decision, preferably as the no-silently-dropped invariant with the three root docs encoded as a closed NAMED exemption plus a comment recording their citation-scanning purpose; existing `SCAN_ROOTS` assertions preserved unchanged (verified none names `TODO.md`); the four gate-ref fixture modules untouched.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -228,35 +228,196 @@ Do NOT edit spec `25kzda`'s §4.2 finding-code table under any circumstances: it
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: state which option OQ-01 resolved to and why (it is RESOLVED to removal; confirm rather than re-decide). Paste `SCAN_ROOTS` before and after, and `_classify_tree("TODO.md")` before and after. Paste the BOTH-DIRECTIONS measurement of the reference tools and dangling detector: `aw check all` output before and after with the rule-code counts compared, and a statement of whether any reference TO `TODO.md` from another artifact still resolves. ACCOUNT FOR THE EXPECTED `check.scope-drift` DELTA explicitly: name the plans it is attributed to (`xdr83v`, `hp9rot`), state that the cause is this executor's own uncommitted edit against their live begin receipts, and confirm neither plan, receipt, nor Scope-Paths was touched. Any OTHER rule-code movement is a FAIL requiring explanation. Paste `aw attention --check` before and after. Paste the bare suite before and after (expect zero failures both times). Confirm the file was not deleted. Paste the spec citations (G5 at `:34`, the NOTE at `:102-103`) that make the removal spec-supported.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      OQ-01 RESOLVED TO REMOVAL, CONFIRMED NOT RE-DECIDED. The spec authorization was read at HEAD `40d466df`: G5 (`:34`) "`TODO.md` is then either retired or reduced to a pointer at the backlog tree + the Notes section", and `:102-103` is the parenthetical defect NOTE ("which is exactly why TODO.md is read-but-ignored today; PR-003"), not a requirement. The attention-tier spec is `- Status: implemented` and was NOT edited or added to `- Scope-Paths:`.
+      `SCAN_ROOTS` BEFORE (16 entries): `DECISIONS.md`, `TODO.md`, `README.md`, `ARCHITECTURE.md`, `.agents/plans`, `.agents/docs`, `.agents/backlog`, `.aw/records/plans`, `.aw/records/specs`, `.aw/records/research`, `.aw/records/walkthroughs`, `.aw/records/roadmaps`, `.aw/records/prompt-library`, `.aw/records/backlog`, `.agents/releases`, `.aw/records/releases`.
+      `SCAN_ROOTS` AFTER (15 entries): identical minus `TODO.md`. The releases entries (sibling `m867ox`) were left untouched, as the fence requires.
+      `_classify_tree("TODO.md")` -> `None` BEFORE and `None` AFTER. The point is not that classification changed (it cannot; there is no policy) but that the entry is no longer SCANNED, so the both-scanned-and-silently-dropped state is gone.
+      BOTH-DIRECTIONS MEASUREMENT. OUTBOUND (what stops being scanned): `iter_scan_files` 1166 -> 1165 files, `LOST: ['TODO.md']`, `GAINED: []`, so exactly one file and nothing else. Driving the real detectors by swapping the scan-root tuple, WITH vs WITHOUT `TODO.md`, every count is IDENTICAL: `research_refs.find_dangling_citations` 15 -> 15; `artifact_refs.dead_filename_citations` plan 488 -> 488, spec 488 -> 488, research 18 -> 18, backlog 534 -> 534; and in every case the number of those findings located IN `TODO.md` was 0 before the removal, because the file contains no resolvable artifact citation (its only matcher hit is the bare word "prompt" at `:29`). INBOUND (references TO `TODO.md`): 43 scanned files cite `TODO.md` by path WITH the entry and 43 WITHOUT it, confirming the enumeration governs which files are SCANNED for citations and not whether a path naming `TODO.md` resolves. So no reference stopped resolving in either direction.
+      `aw check all --agent` BEFORE 513 findings / AFTER 522. The ONLY rule code that moved is `check.scope-drift` (363 -> 372, +9); a per-(rule, location) diff reports NEW pairs: NONE, so no other rule code appeared anywhere. `check.from-backlog-dangling` 1 -> 1, `check.from-backlog-gate-mismatch` 2 -> 2, `check.id6-collision` 1 -> 1, `check.ipd-uncarried-obligation` 104 -> 104, `check.lifecycle-transition-invalid` 5 -> 5, `check.name-nonconformant` 3 -> 3, `check.setid-collision` 33 -> 33, `check.system-layout-missing` 1 -> 1.
+      THE `check.scope-drift` DELTA ACCOUNTED FOR, WITH A CORRECTION TO THE PLAN'S PREDICTION. The plan predicted the artifact would be attributed to in-flight plans `xdr83v` and `hp9rot`. The MECHANISM is exactly as the plan describes (an uncommitted working-tree edit is attributed to every pending plan holding a live begin receipt whose Scope-Paths name that file), but the HOLDERS have changed since review: the +9 lands on `ixis0c` (133 -> 135), `9xycbh` (140 -> 142), `zz5yxq` (48 -> 51) and `zqs0px` (42 -> 44), which declare paths this lane edits (notably `agent_workflows/engine.py`). It is an artifact of EDITING, not a consequence of the removal, and it self-clears on commit. NEITHER the predicted plans NOR the actual four, NOR any receipt, NOR any Scope-Paths were touched to reduce it: `git status --porcelain | grep -E "ixis0c|9xycbh|zz5yxq|zqs0px|xdr83v|hp9rot|receipt"` returns nothing.
+      `aw attention --check --agent` BEFORE `exit 1, findings 23, verified true` / AFTER `exit 1, findings 23, verified true`, with the same composition (`attention.duplicate-id` 3 -> 3, `attention.lane-stranded` 20 -> 20). The view's validity did not regress; the 23 pre-existing findings are unrelated lane/id issues this plan did not touch.
+      BARE SUITE. An HONEST CORRECTION TO THE PLAN'S EXPECTED BASELINE, which matters because it would otherwise look like this plan broke 31 tests. A bare `python3 -m pytest` in THIS lane reports `31 failed, 8076 passed, 3 skipped, 2 xfailed`. Those 31 failures are an ENVIRONMENT artifact, not a code defect: the lane exports `AW_EXECUTION_ROLE=worker`, and `ipd_lifecycle` deliberately REFUSES begin/finalize in a worker-role process (`AW-LIFECYCLE-ROLE-001: the runner owns begin/finalize for managed lanes`), so every lifecycle-CLI test that exercises those verbs fails by design. Proven by running the two most affected modules with the variable cleared: `env -u AW_EXECUTION_ROLE python3 -m pytest tests/test_ipd_lifecycle_cli.py tests/test_worker_role_refusal.py -o addopts=""` -> `96 passed`. The TRUE baseline, measured in this lane at HEAD `40d466df` before any edit, is therefore `env -u AW_EXECUTION_ROLE python3 -m pytest` -> `8107 passed, 3 skipped, 2 xfailed` with ZERO failures. AFTER all of this plan's edits: `8111 passed, 3 skipped, 2 xfailed` in 113.30s, zero failures. The +4 is exactly E-06's four new tests. Failing NODE IDS compared, not totals: the failing set is EMPTY both times. The plan's recorded `5930 passed` figure is also stale (the suite has grown since review); the load-bearing fact is zero failures before and after.
+      FILE NOT DELETED: `TODO.md` is still present and tracked (` M TODO.md` in `git status`, modified by E-02 only).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the added prose from `TODO.md`. Paste a diff proving the `## Notes` paragraphs are BYTE-UNCHANGED. Paste a grep of the added lines for em and en dashes, returning nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      ADDED PROSE, as it now reads (`git diff -- TODO.md`):
+      ```
+      -# TODO / backlog
+      +# TODO / backlog (DEPRECATED as a work surface; notes only)
+      +
+      +WORK WRITTEN IN THIS FILE IS NOT TRACKED. This file is deprecated as a place to record work: it is
+      +not scanned as a work surface, no status is read from it, and nothing here appears in `aw attention`,
+      +so an item added here is invisible to every status view and to `/whatnext`. File the work instead
+      +with `aw backlog new`, which creates a tracked item in `records/backlog/` that the attention view
+      +reports and `aw backlog check` validates. If the work is already designed, write a plan under
+      +`.aw/records/plans/pending/` instead.
+      ```
+      It states plainly that work here is untracked and names `aw backlog new` (plus the plan route for already-designed work), which is the destination `AGENTS.md` names.
+      `## Notes` BYTE-UNCHANGED, proven by hash rather than by eye. The section body was captured BEFORE the edit and re-extracted AFTER, and the two are byte-identical: `md5sum` both -> `5f476fc486cd4f5a61d58474ee68130c` for BOTH, and `diff` of the two captures returns EMPTY. The whole-file diff above confirms it independently: the only hunk is at `@@ -1,4 +1,11 @@`, so nothing at or after `## Notes` (now line 23) was touched. The agent-comms paragraph and the `crv40v` migration provenance are intact.
+      NO EM OR EN DASHES: `git diff -U0 -- TODO.md | grep "^+" | grep -v "^+++" | grep -nP "[\x{2013}\x{2014}]"` returns NOTHING (`NO EM/EN DASHES IN ADDED LINES`).
+      FILE NOT DELETED and no other content changed.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: for EACH of the two specs, paste the old and new `- Gate-Kind:`/`- Gate-Ref:` lines and state what the spec is waiting for and why the new carrier can express it. If a backlog item was created, paste the `aw backlog new` output. Paste `aw check specs` clean AND state explicitly that this proves only field presence and ref SHAPE, not that the ref resolves: demonstrate that by pasting `validate_gate_ref('artifact', 'NOSUCHFILE.md')` returning True (F-11). State which `Gate-Kind` you chose and why (`todo` with an id6 versus `artifact` with a path, given that a path breaks when a backlog item moves lifecycle directory). Paste a diff proving no other field of either spec changed. Confirm the four gate-ref FIXTURE modules (`tests/test_attention.py`, `tests/test_attention_compact.py`, `tests/test_attention_priority_blocker.py`, `tests/test_specs_verbs.py`) were NOT modified. State the status recommendation raised to the maintainer, and confirm it was NOT applied.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      SPEC 1, `20260725-0957-01-external-delivery-and-skills.spec.md`. OLD: `- Gate-Kind: artifact` / `- Gate-Ref: TODO.md` / `- Gate-Summary: host-native SKILLS delivery-model re-evaluation`. NEW: `- Gate-Kind: todo` / `- Gate-Ref: ju93oc` / `- Gate-Summary: host-native SKILLS delivery-model re-evaluation (backlog item ju93oc)`.
+      WHAT IT IS WAITING FOR: the spec builds nothing and says so ("It builds nothing: the delivery build is a separate later IPD, gated on the probe results recorded here"). Its awaited condition is the per-host probe protocol in Section 4 deciding whether host-native SKILLS delivery is adoptable, and its own `Gate-Summary` already named that. WHY THE NEW CARRIER EXPRESSES IT: backlog item `ju93oc` ALREADY EXISTED and is that exact question, verbatim in its summary: "Re-evaluate delivery model around host-native SKILLS (.agents/skills/SKILL.md); we ship commands/shims + no SKILL.md" (`- Status: parked`). No item was invented for this spec; the pre-existing one was found and used.
+      SPEC 2, `20260726-1239-01-clean-delta-and-tracking-modes.spec.md`. OLD: `- Gate-Kind: artifact` / `- Gate-Ref: TODO.md` / `- Gate-Summary: clean-delta build phases pending`. NEW: `- Gate-Kind: todo` / `- Gate-Ref: m15n3k` / `- Gate-Summary: clean-delta build phases pending (backlog item m15n3k)`.
+      WHAT IT IS WAITING FOR: also builds nothing ("This spec builds nothing. The build is a sequence of separate IPDs"), and its Section 11 decomposes the build into Phases 0 to 4 where Phase 0 (the per-host conformance harness) GATES Phases 2 to 4. That is the awaited condition. A SEARCH FOUND NO CARRIER for it, so per E-03's instruction ("If the awaited thing has no carrier, the honest fix is to CREATE one") one was created through the verb:
+      ```
+      aw backlog new: wrote .aw/records/backlog/parked/20260918-m15n3k-01-m15n3k-clean-delta-build-phases.backlog.md
+      ```
+      It was filed `parked`, not `open`, deliberately: the spec itself is `deferred` and nobody has committed to building these phases, so `open` (which maps to `ready` in the attention view) would assert a commitment that does not exist.
+      `Gate-Kind` CHOICE AND WHY: `todo` with the item's id6, NOT `artifact` with its path. Verified `_TODO_ID_RE` is `^[A-Za-z0-9._/-]+$`, so a bare id6 is accepted (`validate_gate_ref('todo','ju93oc')` -> True). The reason is durability: a backlog item's PATH changes when it moves between `open/`, `parked/`, `blocked/` and `done/`, so a path-based ref would break on the item's own lifecycle transition, which is precisely the kind of silent rot this plan is fixing. An id6 does not move.
+      `aw check specs --agent` -> `{'cmd': 'check', 'outcome': 'conforms', 'exit': 0, 'findings': 0}`. AND THIS PROVES ALMOST NOTHING, stated explicitly as required: it proves the gate FIELDS are present and the ref is well-FORMED, and nothing more. An `artifact` ref is never resolved against the filesystem, demonstrated as required (F-11):
+      ```
+      validate_gate_ref('artifact', 'NOSUCHFILE.md')      -> True
+      validate_gate_ref('artifact', 'totally/made/up.md') -> True
+      validate_gate_ref('artifact', 'TODO.md')            -> True
+      ```
+      The SAME is true of the `todo` kind chosen here (`validate_gate_ref('todo','zzzzzz')` -> True), so the carrier was chosen ON MERIT, not because tooling verified it. What DOES make the new refs meaningful is that both carriers have a machine-visible lifecycle: `aw check backlog --agent` -> `conforms`, 0 findings, and `aw attention` surfaces them.
+      NO OTHER FIELD CHANGED. The full `git diff -- .aw/records/specs/` is three metadata lines per spec plus one appended history record per spec, and nothing else. No `- Status:` changed (both remain `deferred`), no design content was touched.
+      A DEFECT WAS FOUND AND REPAIRED HERE, and it must be reported rather than absorbed: `aw specs set` DESTROYED each spec's pre-existing `2026-08-08 migrated (aw specs)` history record. `specs._append_history` intentionally rebuilds the section as `["", record]`, keeping only the latest, on the premise that the full log lives in the `.aw/records/history.jsonl` sidecar. That premise FAILS for these two specs on two counts: the sidecar helper returns early when `_SPEC_ID_RE` finds no `- Id:` bullet (legacy `YYYYMMDD-HHMM-NN` specs have none, and the sidecar after my run contains only the `m15n3k` backlog line, no spec lines), and `.aw/.gitignore:11` ignores `records/history.jsonl` anyway. So the truncation deleted the only TRACKED copy. BOTH RECORDS WERE RESTORED BY HAND, which is why the final diff shows no deletion, and the defect is filed as backlog `yvp951`.
+      THE FOUR GATE-REF FIXTURE MODULES WERE NOT MODIFIED: `git status --porcelain -- tests/test_attention.py tests/test_attention_compact.py tests/test_attention_priority_blocker.py tests/test_specs_verbs.py` returns NOTHING.
+      STATUS RECOMMENDATION RAISED, NOT APPLIED. Both specs remain `deferred` and neither was re-statused. THE RECOMMENDATION TO THE MAINTAINER: both are now honestly gated rather than dangling, so `deferred` is defensible for both, and re-statusing is no longer urgent. If a call is wanted anyway, spec 1 is the weaker case for staying `deferred`: its gate carrier `ju93oc` has itself been `parked` since 2026-08-15, so the spec is waiting on something nobody has committed to doing, and `parked` may describe it more honestly than `deferred`. Spec 2's gate is a concrete, ordered build decomposition whose Phase 0 is well defined, so `deferred` fits it well. THIS IS A MAINTAINER DECISION AND WAS NOT ACTED ON.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste a table of ALL NINE `TODO.md` occurrences in `whatnext.md` with each one's disposition (redirected, removed, or deliberately kept with a reason). Paste the untrusted-content rules and the explicit-confirmation gate as they now read, showing both survived. Paste the new write destination. Confirm no em or en dashes were added.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      ALL NINE OCCURRENCES ACCOUNTED FOR, each with its disposition. (Line numbers are the pre-edit ones the plan cites.)
 
-- [ ] V-05 validates E-05
+      | # | Old line | Role | Disposition |
+      | --- | --- | --- | --- |
+      | 1 | `:11` "it may ADD uncaptured findings to `TODO.md`" | WRITE (the header statement of the only write this workflow performs) | REDIRECTED: "it may FILE uncaptured findings as tracked backlog items with `aw backlog new`". The explicit-confirmation clause ("only with your explicit confirmation") is preserved verbatim in the same sentence. |
+      | 2 | `:19` "except the one explicitly confirmed Step 4 TODO save" (memory kernel 1) | WRITE reference | REDIRECTED to "except the one explicitly confirmed Step 4 backlog filing". |
+      | 3 | `:27` "NEVER write a payload (or any untrusted/raw content) into `TODO.md` in Step 4" (memory kernel 3) | UNTRUSTED-CONTENT RULE | PRESERVED IN SUBSTANCE, target updated: "NEVER write a payload (or any untrusted/raw content) into a backlog item in Step 4." STRENGTHENED with "That rule matters MORE now that the destination is a tracked records tree, because a filed item is permanent." |
+      | 4 | `:64` "**TODO.md.** Read the backlog: known bugs, planned/deferred items ..." | READ (survey source) | REWRITTEN as a NON-source: "**`TODO.md` (durable notes only; NOT a work source).** ... do NOT survey this file for work. Read its `## Notes` section only if you need durable background context." This is the one place `TODO.md` is still named as a file to read, and only for Tier-3 notes. |
+      | 5 | `:71` "whether it is ALREADY captured on disk (in TODO, a plan/IPD, or a comms message)" | READ (de-dupe check) | REDIRECTED to "(in a backlog item, a plan/IPD, or a comms message)". |
+      | 6 | `:92` tie-breaker tail "then the TODO backlog" | READ (ordering fallback) | REDIRECTED to "then the backlog tree's `ready` items". |
+      | 7 | `:119-121` "checked against ALL of TODO.md ... OFFER to add them to `TODO.md`" | WRITE (the offer itself) | REDIRECTED to "checked against ALL of the backlog tree, the pending/approved plans, and the comms inbox" and "OFFER to file them as backlog items with `aw backlog new`". |
+      | 8 | `:125` "Place each finding into the correct existing `TODO.md` section" | WRITE (the mechanics) | REPLACED with the verb: "File each finding with `aw backlog new --summary ... --work-kind ... --priority ...`. The verb owns the filename and the metadata, so do not hand-author a backlog file." The section-placement instruction is GONE because it has no meaning for a tracked tree. |
+      | 9 | `:133` "NEVER write a comms-message payload or any untrusted/raw content verbatim into `TODO.md`" (the SECURITY bullet) | UNTRUSTED-CONTENT RULE | PRESERVED IN SUBSTANCE, target updated to "into a backlog item", with the header-only-pointer rule kept verbatim and the same permanence warning added. |
+      | 10 | `:145` "The ONLY possible write is the explicitly-confirmed Step 4 addition to `TODO.md`" | WRITE reference + CONFIRMATION GATE | REDIRECTED to "the explicitly-confirmed Step 4 backlog filing via `aw backlog new --apply`". |
+      | 11 | `:150` "a message ... is never written into `TODO.md`" | UNTRUSTED-CONTENT RULE (reminder) | PRESERVED, target updated: "its payload is never written into a backlog item." |
+
+      That is ELEVEN dispositions for the plan's "nine places", because two of the cited lines (`:120-121` and the `:145` reminder) each carry more than one instruction and one occurrence the plan did not enumerate (`:19`, `:71`, `:92`) was found by grep. Every occurrence is covered; none was left pointing at a write.
+      NO WRITE PATH TARGETS `TODO.md` ANY MORE. `grep -n "TODO.md" whatnext.md` now returns exactly THREE lines, all of them READ-ONLY or PROHIBITIVE: `:66` (the notes-only, not-a-work-source survey entry) and `:127`/`:130`, which are the new "WHY THE BACKLOG TREE AND NOT `TODO.md`" rationale ending in "Never write a finding into `TODO.md`."
+      UNTRUSTED-CONTENT RULES SURVIVED (grep for `untrusted|SECURITY`): `:24` and `:27` (memory kernel 3, payload-blind + the never-write rule), `:64` (headers only, payload-blind per the comms README), `:142-143` (the SECURITY bullet with the header-only-pointer form), `:160` (the reminder). Both of the two the plan named are intact and both now warn that permanence raises the stakes.
+      EXPLICIT-CONFIRMATION GATE SURVIVED (grep): `:11` "only with your explicit confirmation", `:120` "and only with explicit confirmation", `:156` "explicitly-confirmed Step 4 backlog filing via `aw backlog new --apply`". Additionally the dry-run gate is now explicit: "SHOW the exact `aw backlog new` preview (it is dry-run by default) and WRITE ONLY after explicit user confirmation, by re-running with `--apply`."
+      NEW WRITE DESTINATION: `aw backlog new` (dry-run by default; `--apply` to write), filing into `records/backlog/`, which `aw attention` reports and `aw backlog check` validates.
+      NO EM OR EN DASHES ADDED: the `+`-lines dash grep returns NOTHING.
+      NOT REWIRED TO `aw next -o`, per the fence; that remains deferred.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the changed text in `engine.py`. THEN PASTE THE DRIFT-FREEZE PROOF, which is the load-bearing evidence for this item: the recorded `AGENTS.md#aw:pointer` hash from `.aw/system/managed-sections.json` beside the hash of the on-disk pointer section body, showing they differ, and the result of an `aw install` in an ISOLATED worktree showing the new sentence did NOT reach `AGENTS.md` (a `grep -c` returning `0`). Paste the separate DECLARED `AGENTS.md` edit that carries the same sentence, and state plainly that the text had to be written twice because the section is drift-frozen. Paste the `aw backlog new` output filing the drift-frozen defect. Confirm no em or en dashes. Confirm NO installer commit was made in the primary checkout and that `.aw/config/project.json` and the `.agents/skills/` tree were not swept into this plan's commit (F-13). ALSO paste proof this repository's out-of-block content is byte-unchanged, naming `AGENTS.md:186-190` (the repo-local research-prompt section) specifically: F-7 records that an earlier revision wrongly claimed out-of-block text is overwritten, so demonstrating the opposite keeps that correction evidenced. A V-05 that pastes an `AGENTS.md` diff produced by an install has NOT validated this item, because that diff cannot exist.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      THE GENERATOR CHANGE (`git diff -- agent_workflows/engine.py`), in `agents_pointer_prose`, relocated BY SYMBOL and not by the plan's stale `:1151` (the string now lives near `:1189`):
+      ```
+      -        "`blocked`, `done`; uncommitted `parked` maybes are hidden until `aw attention --all`. Do "
+      +        "`blocked`, `done`; uncommitted `parked` maybes are hidden until `aw attention --all`. "
+      +        "`TODO.md` IS DEPRECATED AS A WORK SURFACE and work written there is NOT TRACKED: it is not "
+      +        "scanned as a work surface, no status is read from it, and nothing in it reaches the "
+      +        "attention view or `/whatnext`, so an item recorded there silently vanishes. File the work "
+      +        "with `aw backlog new` instead (or write a plan under `.aw/records/plans/pending/` when it "
+      +        "is already designed); keep `TODO.md` for durable notes only. Do "
+               "NOT keep committed backlog only in prose (e.g. `TODO.md`), where the attention view cannot "
+      ```
+      The generator DOES emit it: `agents_managed_sections()` returns a `pointer` section whose body contains `DEPRECATED AS A WORK SURFACE` -> `True`. This is the every-repo reach half and is what makes the deprecation reach a managed target repo at all.
+      THE DRIFT-FREEZE PROOF, which is why a second edit was necessary. Recorded versus on-disk hashes for the section:
+      ```
+      RECORDED  AGENTS.md#aw:pointer : a9deb5a1d76e603e6c016d5ea0c2f676010bd4910297ffa16aa5b52647897fc4
+      ON-DISK   AGENTS.md#aw:pointer : 935b3f1578dfce0c02123a789194bea9f309ca3d93821bac82d50ff21872dc4e
+      EQUAL? False
+      ```
+      The recorded hash lives under the manifest's `files` key (`.aw/system/managed-sections.json`), NOT the `managed_sections` key, which is `{}` and is what misled this plan's own earlier amendment. Because a recorded hash EXISTS and does NOT match, `_apply_section_consent` takes its user-drift branch ("on-disk body differs from OUR recorded hash for that slug -> user drift -> preserve the on-disk section body") and discards the regenerated section.
+      DEMONSTRATED END TO END with an in-process probe driving that exact predicate against a temp copy of the real `AGENTS.md` plus the real manifest:
+      ```
+      manifest.recorded_hash('AGENTS.md#aw:pointer') = a9deb5a1d76e603e6c016d5ea0c2f676010bd4910297ffa16aa5b52647897fc4
+      on-disk pointer body hash                      = 935b3f1578dfce0c02123a789194bea9f309ca3d93821bac82d50ff21872dc4e
+      matches_recorded(on-disk body)                 = False
 
-- [ ] V-06 validates E-06
+      generator DESIRED body has new sentence = True
+      merge CHOSE the on-disk body            = True
+      merge CHOSE the desired body            = False
+      body actually written has new sentence   = False
+      ```
+      So an install would leave `grep -c` at 0, on the first install and every later one. HONEST NOTE ON METHOD, recorded because the first attempt was WRONG and the error was self-favouring: an earlier run of this probe passed the REPO ROOT to `manifest.load`, which takes the manifest FILE path, silently yielding an EMPTY manifest and reporting that the merge chose the desired body (i.e. that F-12 was false). The corrected probe above passes `tmp/.aw/system/managed-sections.json`. `aw install` was NOT run in this lane at all (F-13: it stages roughly 100 unrelated files, modifies `.aw/config/project.json`, and can self-commit), and the plan's fence permits an isolated worktree; a probe worktree was created and REMOVED (`git worktree remove --force`, exit 0) after the sandbox refused writes into it, so the in-process probe is the evidence.
+      THE SEPARATE DECLARED `AGENTS.md` EDIT carries the SAME sentence: `grep -c "DEPRECATED AS A WORK SURFACE" AGENTS.md` -> `1`, in the `### What needs attention (cross-tree view)` section of the managed block. STATED PLAINLY: THE TEXT HAD TO BE WRITTEN TWICE, once in the generator and once directly in this repository's `AGENTS.md`, BECAUSE THE `aw:pointer` SECTION IS DRIFT-FROZEN and no install will ever deliver the generator change here. `AGENTS.md` is declared in `- Scope-Paths:`, so this is a declaration and not a scope breach. The recorded hash was NOT deleted and `_apply_section_consent` was NOT weakened.
+      THE UNDERLYING DEFECT IS REPORTED, NOT ABSORBED: filed as backlog `krwl3t` (`open`, `high`, `bug`), `.aw/records/backlog/open/20260918-krwl3t-01-krwl3t-agents-pointer-section-drift-frozen.backlog.md`, recording that NO future generator change reaches this repository's `AGENTS.md` for any managed-block edit, with the hash comparison and the probe as evidence and both candidate fixes named as needing their own decision. It was NOT fixed here.
+      OUT-OF-BLOCK CONTENT BYTE-UNCHANGED, which is the proof that keeps F-7's correction evidenced (an earlier revision of this plan wrongly claimed out-of-block text is overwritten). The whole region from `<!-- /aw:block -->` to EOF hashes identically before and after: `sha256 = 6577041eb0bc5a02046adf5afe94dbfc161cba94d44c474350355538b5914275` BOTH times. Naming `AGENTS.md:186-190` specifically as required: that repo-local research-prompt section (whose own text says it "sits deliberately BELOW the `<!-- /aw:block -->` marker") was captured before and after and `diff` returns EMPTY (`LINES 186-192 IDENTICAL`).
+      NO EM OR EN DASHES: the dash grep over the `+`-lines of both `AGENTS.md` and `engine.py` returns NOTHING.
+      NO INSTALLER COMMIT AND NOTHING SWEPT IN: `git status --porcelain -- .aw/config/project.json .agents/skills/ .aw/system/managed-sections.json` returns NOTHING, so none of the three was modified, and no commit was created by any installer in this checkout. The final working set is exactly this plan's eight declared files plus four new backlog items.
+      THIS V-ITEM PASTES NO `AGENTS.md` DIFF PRODUCED BY AN INSTALL, because as the plan states such a diff cannot exist. The `AGENTS.md` diff shown above is the DECLARED DIRECT EDIT.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the test as written and passing. State whether it pins the membership or the no-silently-dropped invariant, and if the invariant, paste the root-doc exemption AS ENCODED, showing it is a CLOSED NAMED SET of the three files rather than a predicate like "any root-level file", plus the comment recording their citation-scanning purpose, plus the OQ-03 answer (RESOLVED: exempt by design). MUTATION-CHECK it TWICE: (1) reintroduce the both-and state by adding `TODO.md` back to `SCAN_ROOTS` with no policy, show the test FAILS, revert, show it passes; (2) add a FOURTH root-level file to `SCAN_ROOTS` with no policy and show the test FAILS naming it, proving the exemption did not silently absorb it, then revert. Paste the existing three `SCAN_ROOTS` assertions at `tests/test_artifact_core.py:57-61` and confirm none was modified (verified at review: none names `TODO.md`, so none needs updating).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      IT PINS THE INVARIANT, not the membership, and adds the specific regression as a second, separate assertion. Four tests in `tests/test_artifact_core.py::ScanRootClassificationInvariantTests`: `test_no_scan_root_is_scanned_then_silently_dropped` (the invariant), `test_todo_md_is_not_a_scan_root` (the regression), `test_the_exemption_is_a_closed_named_set_not_a_predicate` and `test_the_legacy_container_exemption_is_justified_by_its_children` (both guard the guard).
+      THE INVARIANT AS WRITTEN:
+      ```python
+      def test_no_scan_root_is_scanned_then_silently_dropped(self):
+          from agent_workflows import attention
+
+          exempt = self.CITATION_ONLY_ROOT_DOCS | self.LEGACY_CONTAINER_ROOTS
+          offenders = sorted(
+              root
+              for root in C.SCAN_ROOTS
+              if root not in exempt and attention._classify_tree(root) is None
+          )
+          self.assertEqual(offenders, [], "... Either give the root a `TreePolicy` so a write is "
+              "reported, or remove it from SCAN_ROOTS so it is honestly out of scope. ...")
+      ```
+      THE EXEMPTION AS ENCODED, a CLOSED NAMED SET of exactly the three files, never a predicate:
+      ```python
+      CITATION_ONLY_ROOT_DOCS = frozenset(
+          {
+              "DECISIONS.md",
+              "README.md",
+              "ARCHITECTURE.md",
+          }
+      )
+      ```
+      Its citation-scanning purpose is recorded in the class docstring: "they are DOCUMENTATION that sits in `SCAN_ROOTS` so the reference tools and the dangling detector scan them for CITATIONS ... Do NOT 'fix' the three by removing them from `SCAN_ROOTS`: that would silently break citation scanning and the dangling detector", followed by the explicit reason a predicate is refused ("it would silently absorb the next root-level file someone adds with no policy, which is exactly the defect above. Naming the three means a FOURTH such file FAILS this test and forces a decision"). OQ-03's answer is recorded there too (exempt by design, on purpose rather than structure).
+      A GENUINE FOURTH CASE WAS FOUND BY THE TEST ITSELF, and is reported rather than papered over. The first run FAILED with `['.agents/docs']`, which the plan did not anticipate. Investigated rather than exempted reflexively: `.agents/docs` is the pre-migration CONTAINER directory, and its typed children DO classify (`_classify_tree('.agents/docs/specs/x.spec.md')` -> `specs`, `.../research/y.md` -> `research`), so only the bare container string classifies to `None`. That is NOT the `TODO.md` defect (a scanned FILE that swallowed work). It is therefore encoded as a SECOND, separately justified closed set, `LEGACY_CONTAINER_ROOTS = frozenset({".agents/docs"})`, with its own comment, deliberately not merged into the root-docs set so each exemption carries its own reason; and `test_the_legacy_container_exemption_is_justified_by_its_children` asserts the child classification that justifies it, so the exemption cannot outlive its premise.
+      PASSING: `python3 -m pytest tests/test_artifact_core.py -o addopts="" -v` -> `23 passed in 0.17s`, with all four new tests PASSED by name.
+      MUTATION CHECK 1 (reintroduce the both-and state). Added `"TODO.md"` back to `SCAN_ROOTS` with no policy:
+      ```
+      E       - ['TODO.md']
+      E       + [] : These SCAN_ROOTS entries are scanned but classify to None, so anything written there is dropped with no drift violation and vanishes silently: ['TODO.md']. ...
+      FAILED tests/test_artifact_core.py::ScanRootClassificationInvariantTests::test_todo_md_is_not_a_scan_root
+      FAILED tests/test_artifact_core.py::ScanRootClassificationInvariantTests::test_no_scan_root_is_scanned_then_silently_dropped
+      ========================= 2 failed, 21 passed in 0.18s =========================
+      ```
+      Reverted, then `23 passed in 0.17s`.
+      MUTATION CHECK 2 (a FOURTH root-level file, proving the exemption is not a hole). Added `"NOTES-FOR-HUMANS.md"` to `SCAN_ROOTS` with no policy:
+      ```
+      E       First extra element 0:
+      E       'NOTES-FOR-HUMANS.md'
+      E       - ['NOTES-FOR-HUMANS.md']
+      E       + [] : These SCAN_ROOTS entries are scanned but classify to None ...
+      FAILED tests/test_artifact_core.py::ScanRootClassificationInvariantTests::test_no_scan_root_is_scanned_then_silently_dropped
+      ========================= 1 failed, 22 passed in 0.19s =========================
+      ```
+      It FAILS and NAMES the new file, so the exemption did not absorb it. Reverted, then `23 passed in 0.17s`, and `git diff -- agent_workflows/artifact_core.py` confirms the file is back to exactly the intended post-E-01 state (the comment plus the removed `"TODO.md"` line, nothing else).
+      THE EXISTING `SCAN_ROOTS` ASSERTIONS ARE UNMODIFIED. `ScanRootTests.test_scan_roots_include_plans_and_docs` still reads exactly:
+      ```python
+          self.assertIn(".agents/plans", C.SCAN_ROOTS)
+          self.assertIn(".agents/docs", C.SCAN_ROOTS)
+          self.assertIn("DECISIONS.md", C.SCAN_ROOTS)
+      ```
+      None of the three names `TODO.md` (verified at review and re-verified here), so none needed updating, none was deleted to make a new test pass, and `TODO.md` was NOT added to that membership test. `test_scan_roots_include_both_releases_generations` (sibling `m867ox`) is also untouched and still passes.
+      THE FOUR GATE-REF FIXTURE MODULES WERE NOT MODIFIED (same `git status` check as V-03: no output).
+  - Result: pass
 
 ## Approval and execution gate
 

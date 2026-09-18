@@ -2,9 +2,9 @@
 
 - Date: 2026-07-25
 - Status: deferred
-- Gate-Kind: artifact
-- Gate-Ref: TODO.md
-- Gate-Summary: host-native SKILLS delivery-model re-evaluation
+- Gate-Kind: todo
+- Gate-Ref: ju93oc
+- Gate-Summary: host-native SKILLS delivery-model re-evaluation (backlog item ju93oc)
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Sources: research `.agents/docs/research/20260722-agent-coding-system-file-discovery-and-write-safety-00-x41kw0-agent-coding-system-file-discovery-and-write-safety.findings.md` and `.agents/docs/research/20260722-token-efficient-managed-sections-in-agent-instruction-files-00-0jl8pv-token-efficient-managed-sections-in-agent-instruction-files.gpt56.findings.md`
 - Related: IPD `20260723-instsafe-01-920qnm-install-manifest-and-managed-sections-model` (install manifest / ownership), IPD `20260722-instsafe-06-mv7hw7-deepen-interactive-questions-convention` (interactive-questions trigger)
@@ -103,4 +103,6 @@ This protocol is run by a human or a host-with-access operator, NOT by the IPD. 
 3. A `SKILL.md` mapping IPD for the skill-eligible set, reconciled with the T2 outcome.
 
 ## Workflow history
+
 - 2026-08-08 migrated (aw specs): normalized status to `deferred` (was: draft spec (evidence-gated); produced by IPD `20260723-instsafe-05-kemhdg-external-install-and-skills-delivery-research-spec`)
+- 2026-09-18 deferred (aw specs): IPD diof9n E-03: repointed the dangling gate off the retired TODO.md work surface onto backlog item ju93oc ('Re-evaluate delivery model around host-native SKILLS'), which is this spec's awaited condition and has a machine-visible lifecycle (aw attention surfaces it, aw backlog check validates it). Gate-Kind changed artifact->todo because an id6 survives the item moving between backlog lifecycle directories while a path does not. No other field of this spec changed.

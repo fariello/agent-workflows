@@ -275,9 +275,17 @@ def git_mv(repo_root: Path, src_rel: str, dst_rel: str) -> None:
 
 # The pinned tracked-text scan roots, relative POSIX to the repo root. This is the single
 # enumeration shared by the reference tools and the dangling detector across areas.
+# `TODO.md` is DELIBERATELY ABSENT (durablecapture-03, `diof9n`). It used to be listed, but no
+# `TreePolicy` root covers a repository-root file, so `attention._classify_tree("TODO.md")` returned
+# None and `attention.scan` dropped it with NO drift violation (the unclassified branch fires only
+# under `.agents/`). That made it read-but-ignored: work written there vanished silently. The
+# controlling spec authorizes retiring it (`.aw/records/specs/20260813-1833-01-attention-visible-
+# backlog-tier.spec.md` G5: `TODO.md` "is then either retired or reduced to a pointer at the backlog
+# tree + the Notes section"). Committed lightweight work belongs in `records/backlog/`, which IS
+# scanned and IS attention-visible. Do not re-add `TODO.md` here: see
+# `tests/test_artifact_core.py::ScanRootClassificationInvariantTests`.
 SCAN_ROOTS = (
     "DECISIONS.md",
-    "TODO.md",
     "README.md",
     "ARCHITECTURE.md",
     ".agents/plans",
