@@ -2071,9 +2071,35 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         """Main + a lane whose merge git will REFUSE TO START because main holds local changes.
 
         Built as the rename shape, which is what reaches this branch past the retained pre-merge
-        `dirty_tree_overlap` guard: the lane renames `moved.txt` -> `dest.txt` (so `changed_files` is
-        `['dest.txt']` only), and main has an uncommitted edit to `moved.txt`, which the merge must
-        delete. Returns `(repo, handle, head_before, dirty_before)`.
+        overlap guard: the lane renames `moved.txt` -> `dest.txt`, and main has an uncommitted edit to
+        `moved.txt`, which the merge must delete. Returns `(repo, handle, head_before, dirty_before)`.
+
+        THE PRE-MERGE GUARD MUST STAY SILENT HERE OR THIS FIXTURE PROVES NOTHING, and what keeps it
+        silent CHANGED with mergedirty-01 (`fujm0y`). It used to be rename detection: the guard was
+        asked about the LANE's `changed_files`, which reports only `dest.txt`, so dirt on the rename
+        ORIGIN was outside the question. `fujm0y` widened the input to the paths the MERGE would write
+        (`['dest.txt', 'moved.txt']`, measured), which is precisely that plan's purpose, so the guard
+        now DOES see `moved.txt` and refuses FIRST - retiring this fixture's original mechanism.
+
+        SO THE PREDICTION IS FORCED TO **UNKNOWN**, which is the fixture's honest replacement rather
+        than a contrivance to keep a test alive. `merge_write_set` returns None when it cannot know the
+        write set - a git older than 2.38, which lacks `--write-tree`, or a `merge-tree` that exits
+        non-zero - and `integrate_lane_branch` then falls back to the lane's `changed_files`, i.e. to
+        the pre-`fujm0y` input. That fallback is a SHIPPED code path, so this arm is exactly what
+        protects an older-git operator, and a test proving it is load-bearing rather than decorative.
+
+        AND THE ARM IS REACHABLE ON A MODERN GIT TOO, which is why `fujm0y` did not delete it: the
+        guard reads `git status` at one instant and the merge runs at a later one, and this is a SHARED
+        CHECKOUT where a co-worker may dirty a path in between. No prediction can close that window.
+        The invariant is therefore unchanged by the widening: git remains the authority on its own
+        preconditions, and our prediction is only ever an EARLIER, more accurate refusal.
+
+        WHAT WAS TRIED AND REJECTED, recorded so it is not retried. Hiding the edit from porcelain with
+        `git update-index --assume-unchanged` also silences the guard, but git then CLOBBERED the
+        un-owned edit during the merge attempt (measured: `moved.txt` came back without the local
+        line), because `--assume-unchanged` is a promise to git that the file has not changed. That
+        would have made the fixture assert "main is left exactly as found" while main was in fact
+        modified, so it was the wrong mechanism, not merely an awkward one.
         """
         repo = self._repo(tmp)
         body = self._renamable_body()
@@ -2081,19 +2107,36 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         self._git(repo, "add", "moved.txt")
         self._git(repo, "commit", "-qm", "add moved.txt")
         handle = self._renaming_lane(repo, id6, orig="moved.txt", dest="dest.txt")
-        # The guard passes precisely because rename detection hides the origin from `changed_files`.
         lane_changed = self._git(
             repo, "diff", "--name-only", f"{handle.base_commit}..{handle.branch}"
         ).split()
         self.assertEqual(lane_changed, ["dest.txt"])
         dirty_before = body + "un-owned local edit\n"
         (repo / "moved.txt").write_text(dirty_before, encoding="utf-8")
+        # The widened prediction DOES name the rename origin, which is `fujm0y` working: asserted here
+        # so this fixture records WHY it must force the unknown path rather than looking like an
+        # oversight to a later reader.
+        self.assertEqual(
+            sorted(runner_shared.merge_write_set(repo, handle.branch) or []),
+            ["dest.txt", "moved.txt"],
+        )
         self.assertEqual(
             runner_shared.dirty_tree_overlap(repo, lane_changed),
             [],
-            "the retained guard must PASS here, or this test is not reaching git's own refusal",
+            "the retained guard must PASS on the FALLBACK input, or this test is not reaching git's "
+            "own refusal",
         )
         return repo, handle, self._git(repo, "rev-parse", "HEAD"), dirty_before
+
+    def _unknown_write_set(self):
+        """Force `merge_write_set` to UNKNOWN, i.e. the older-git / non-zero-`merge-tree` fallback.
+
+        Patched at the SHARED symbol because that is where the single implementation lives, so both
+        hosts' wrappers reach the patched version and neither can drift past it.
+        """
+        return mock.patch.object(
+            runner_shared, "merge_write_set", lambda _repo, _branch: None
+        )
 
     def test_a_local_changes_refusal_is_integration_blocked_NOT_a_merge_conflict(self):
         """dirtygates-02 (`metc8b`) E-02: git refusing to START a merge is not a content conflict.
@@ -2126,9 +2169,12 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                         self._git(repo, "commit", "-qm", "main advances")
                     head_before = self._git(repo, "rev-parse", "HEAD")
 
-                    integrated, reason, kind = _MODULES[runner].integrate_lane_branch(
-                        repo, handle, "ddd444", self._passing_runner()
-                    )
+                    with self._unknown_write_set():
+                        integrated, reason, kind = _MODULES[
+                            runner
+                        ].integrate_lane_branch(
+                            repo, handle, "ddd444", self._passing_runner()
+                        )
 
                     self.assertFalse(integrated, reason)
                     self.assertEqual(
@@ -2198,22 +2244,32 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         with mock.patch.dict(os.environ, forced):
             with tempfile.TemporaryDirectory() as tmp:
                 repo, handle, _h, _d = self._refusal_repo(pathlib.Path(tmp), "fff666")
-                _integrated, _reason, kind = runner_shared.integrate_lane_branch(
-                    repo,
-                    handle,
-                    "fff666",
-                    self._passing_runner(),
-                    host_label="aw oc run",
-                    run_checked=oc_runipd.run_checked,
-                    # dirtygates-05 (`ajxr5d`) E-03: the EXECUTE kind, stated explicitly. These cases are
-                    # about the merge failure classes, which are shared by both kinds, so `execute` keeps
-                    # them asserting exactly what they asserted before (the revalidation gate still runs).
-                    action_kind=runner_shared.INTEGRATION_ACTION_EXECUTE,
-                )
+                # mergedirty-01 (`fujm0y`): the write set is forced UNKNOWN so this case still reaches
+                # GIT's refusal and therefore still exercises the STRUCTURAL discriminator. Without it
+                # the widened pre-merge guard refuses first, and the test would pass for a reason that
+                # has nothing to do with git's message language - a hollow pass, not a green one.
+                with self._unknown_write_set():
+                    _integrated, _reason, kind = runner_shared.integrate_lane_branch(
+                        repo,
+                        handle,
+                        "fff666",
+                        self._passing_runner(),
+                        host_label="aw oc run",
+                        run_checked=oc_runipd.run_checked,
+                        # dirtygates-05 (`ajxr5d`) E-03: the EXECUTE kind, stated explicitly. These cases are
+                        # about the merge failure classes, which are shared by both kinds, so `execute` keeps
+                        # them asserting exactly what they asserted before (the revalidation gate still runs).
+                        action_kind=runner_shared.INTEGRATION_ACTION_EXECUTE,
+                    )
                 self.assertEqual(
                     kind,
                     "integration-blocked",
                     "classification must not depend on git's message language",
+                )
+                self.assertIn(
+                    "Your local changes",
+                    _reason,
+                    "this case must land on GIT's refusal, not on the pre-merge prediction",
                 )
             with tempfile.TemporaryDirectory() as tmp:
                 repo = self._repo(pathlib.Path(tmp))
@@ -2251,7 +2307,10 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             repo, handle, _h, _d = self._refusal_repo(pathlib.Path(tmp), "hhh888")
             calls, patcher = self._git_trace(repo)
-            with patcher:
+            # mergedirty-01 (`fujm0y`): UNKNOWN write set, so the merge is really ATTEMPTED and there is
+            # really something whose abort could be wrongly issued. With the widened guard refusing
+            # first, no merge would run at all and "no abort was issued" would be trivially true.
+            with patcher, self._unknown_write_set():
                 _i, _r, kind = runner_shared.integrate_lane_branch(
                     repo,
                     handle,
@@ -2265,6 +2324,11 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                     action_kind=runner_shared.INTEGRATION_ACTION_EXECUTE,
                 )
             self.assertEqual(kind, "integration-blocked")
+            self.assertIn(
+                ["merge", "--no-ff", "--no-edit", "-m", mock.ANY, handle.branch],
+                calls,
+                "the merge must actually be attempted, or the abort assertion below is vacuous",
+            )
             self.assertNotIn(
                 ["merge", "--abort"],
                 calls,
