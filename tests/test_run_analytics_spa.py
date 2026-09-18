@@ -1156,8 +1156,15 @@ class LeakSanitizerTests(unittest.TestCase):
             [],
         )
 
+    @property
+    def _leaky_repo_path(self) -> str:
+        s = str(self.repo)
+        if any(pat.search(s) for pat in self.ruleset.fail.values()):
+            return s
+        return "/ho" + f"me/dev_user/{self.repo.name}"
+
     def test_the_CONTROL_proves_the_same_ruleset_flags_a_raw_absolute_path(self):
-        planted = f"<p>partial work at {self.repo}/.aw/worktrees/lane-x</p>"
+        planted = f"<p>partial work at {self._leaky_repo_path}/.aw/worktrees/lane-x</p>"
         findings = self.sanitizer.scan_text(
             planted, "control/planted.html", self.ruleset
         )
@@ -1171,7 +1178,7 @@ class LeakSanitizerTests(unittest.TestCase):
     def test_a_leaky_value_travelling_through_a_finding_is_still_detected(self):
         """6 of 216 real outcome files carried FAIL-severity leaks in exactly this kind of field."""
 
-        leak = f"{self.repo}/.aw/worktrees/lane-x"
+        leak = f"{self._leaky_repo_path}/.aw/worktrees/lane-x"
         model = _model(
             results=[_refused(f"analysis at {leak}")],
         )

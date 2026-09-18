@@ -2444,6 +2444,7 @@ def evaluate_ipd_dependencies(
         _findings_thr: Optional[str] = _config.findings_gate_threshold(repo_root)
     except Exception:
         _findings_thr = None
+    _findings_cache: Dict[str, tuple] = {}
 
     # Gather every plan's declared Id + Item-Dependencies value (whole repo, for the graph). The
     # staged overlay (if any) overrides on-disk text and contributes any newly-staged plan path.
@@ -2582,7 +2583,11 @@ def evaluate_ipd_dependencies(
                 # dependent's prose. Absent/unknown action keeps the STRICT reading, so every
                 # non-runner caller is unchanged and this can only relax a provably code-free turn.
                 if e.kind == "executed" and (actions or {}).get(ps) != "review":
-                    for blk in _findings_blocks_for(repo_root, e.id6, _findings_thr):
+                    if e.id6 not in _findings_cache:
+                        _findings_cache[e.id6] = tuple(
+                            _findings_blocks_for(repo_root, e.id6, _findings_thr)
+                        )
+                    for blk in _findings_cache[e.id6]:
                         drift.append(
                             _core.Drift(
                                 ps,

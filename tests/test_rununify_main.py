@@ -37,6 +37,7 @@ fails if the class is ever re-forked.
 from __future__ import annotations
 
 import ast
+import functools
 import inspect
 import pathlib
 import unittest
@@ -572,14 +573,9 @@ class ThePatchSeamPopulation(unittest.TestCase):
     Counting them here converts "we think 26 tests still mean what they say" into an assertion.
     """
 
-    def seams(self) -> list[tuple[str, int, str]]:
-        """Every `patch.object`/`setattr` on a host module naming a `main`-closure symbol.
-
-        Both spellings of the target are counted: the DIRECT `patch.object(oc_runipd, ...)` and the
-        INDIRECT `patch.object(module, ...)` used inside a both-hosts loop. Counting only the direct
-        form undercounts by 18 of 28, which is how a scan can report a reassuring number and be
-        wrong.
-        """
+    @classmethod
+    @functools.lru_cache(maxsize=1)
+    def _cached_seams(cls) -> list[tuple[str, int, str]]:
         closure = module_level_free_names(oc_runipd, "main") | module_level_free_names(
             agy_runipd, "main"
         )
@@ -587,12 +583,15 @@ class ThePatchSeamPopulation(unittest.TestCase):
         indirect = {"driver", "module", "mod", "runner", "host", "_MODULES"}
         found: list[tuple[str, int, str]] = []
         for path in sorted(pathlib.Path(REPO_ROOT, "tests").glob("*.py")):
-            tree = ast.parse(path.read_text(encoding="utf-8"))
+            text = path.read_text(encoding="utf-8")
+            if "patch.object" not in text and "setattr" not in text:
+                continue
+            tree = ast.parse(text)
             for node in ast.walk(tree):
                 if not isinstance(node, ast.Call) or len(node.args) < 2:
                     continue
                 func = ast.unparse(node.func)
-                if not (func.endswith("patch.object") or func.endswith("setattr")):
+                if not func.endswith(("patch.object", "setattr")):
                     continue
                 target = ast.unparse(node.args[0])
                 base = target.split(".")[-1].split("[")[0]
@@ -606,6 +605,16 @@ class ThePatchSeamPopulation(unittest.TestCase):
                     continue
                 found.append((f"tests/{path.name}", node.lineno, symbol))
         return found
+
+    def seams(self) -> list[tuple[str, int, str]]:
+        """Every `patch.object`/`setattr` on a host module naming a `main`-closure symbol.
+
+        Both spellings of the target are counted: the DIRECT `patch.object(oc_runipd, ...)` and the
+        INDIRECT `patch.object(module, ...)` used inside a both-hosts loop. Counting only the direct
+        form undercounts by 18 of 28, which is how a scan can report a reassuring number and be
+        wrong.
+        """
+        return self._cached_seams()
 
     def test_the_four_named_files_still_hold_their_measured_seam_counts(self):
         counts: dict[str, int] = {}

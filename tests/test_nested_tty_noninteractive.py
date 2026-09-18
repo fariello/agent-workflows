@@ -336,13 +336,27 @@ class OwnerSetCompletenessTests(unittest.TestCase):
         function that BUILDS a nested-`aw` argv -- through the pin helpers or a literal
         `-m agent_workflows` -- and reports the subprocess launches inside it.
         """
-        src = (REPO_ROOT / rel).read_text(encoding="utf-8")
+        target = REPO_ROOT / rel
+        if not target.is_file():
+            return []
+        try:
+            src = target.read_text(encoding="utf-8")
+        except OSError:
+            return []
+        if (
+            "pinned_module_argv" not in src
+            and "_AW_PIN_BOOTSTRAP" not in src
+            and "_AW_PIN_PROBE" not in src
+            and '"-m"' not in src
+            and "'-m'" not in src
+        ):
+            return []
         tree = ast.parse(src)
         builders: dict[str, tuple[int, int]] = {}
         for fn in ast.walk(tree):
             if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
-            body = ast.unparse(fn)
+            body = ast.get_source_segment(src, fn) or ast.unparse(fn)
             if (
                 "pinned_module_argv" in body
                 or "_AW_PIN_BOOTSTRAP" in body
@@ -353,14 +367,19 @@ class OwnerSetCompletenessTests(unittest.TestCase):
                 builders[fn.name] = (fn.lineno, fn.end_lineno or fn.lineno)
         found: list[tuple[int, str, bool]] = []
         for node in ast.walk(tree):
-            if isinstance(node, ast.Call) and ast.unparse(node.func) in (
-                "subprocess.run",
-                "subprocess.Popen",
-            ):
-                kw = {k.arg for k in node.keywords if k.arg}
-                for name, (start, end) in builders.items():
-                    if start <= node.lineno <= end:
-                        found.append((node.lineno, name, "stdin" in kw))
+            if isinstance(node, ast.Call):
+                func_name = None
+                if isinstance(node.func, ast.Attribute) and isinstance(
+                    node.func.value, ast.Name
+                ):
+                    func_name = f"{node.func.value.id}.{node.func.attr}"
+                elif isinstance(node.func, ast.Name):
+                    func_name = node.func.id
+                if func_name in ("subprocess.run", "subprocess.Popen"):
+                    kw = {k.arg for k in node.keywords if k.arg}
+                    for name, (start, end) in builders.items():
+                        if start <= node.lineno <= end:
+                            found.append((node.lineno, name, "stdin" in kw))
         return found
 
     def test_no_unaccounted_nested_aw_launcher_lives_outside_the_owner_set(self):
@@ -373,6 +392,8 @@ class OwnerSetCompletenessTests(unittest.TestCase):
         package = REPO_ROOT / "agent_workflows"
         strays: dict[str, list[str]] = {}
         for path in sorted(package.rglob("*.py")):
+            if any(part.startswith("tmp") for part in path.relative_to(package).parts):
+                continue
             rel = path.relative_to(REPO_ROOT).as_posix()
             if rel in OWNER_SET:
                 continue

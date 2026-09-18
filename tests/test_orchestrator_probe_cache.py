@@ -1124,21 +1124,24 @@ class BothHostsShareEverySymbol(unittest.TestCase):
         import ast
 
         pkg = Path(rs.__file__).parent
+        file_defs = {}
+        for path in sorted(pkg.glob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            names = set()
+            for node in tree.body:
+                if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+                    names.add(node.name)
+                elif isinstance(node, ast.Assign):
+                    for target in node.targets:
+                        if isinstance(target, ast.Name):
+                            names.add(target.id)
+            file_defs[path.name] = names
+
         for name in self.NEW_SYMBOLS:
             with self.subTest(symbol=name):
-                definers = []
-                for path in sorted(pkg.glob("*.py")):
-                    tree = ast.parse(path.read_text(encoding="utf-8"))
-                    for node in tree.body:
-                        if (
-                            isinstance(node, (ast.FunctionDef, ast.ClassDef))
-                            and node.name == name
-                        ):
-                            definers.append(path.name)
-                        elif isinstance(node, ast.Assign):
-                            for target in node.targets:
-                                if isinstance(target, ast.Name) and target.id == name:
-                                    definers.append(path.name)
+                definers = [
+                    fname for fname, names in file_defs.items() if name in names
+                ]
                 self.assertEqual(
                     definers,
                     ["runner_shared.py"],

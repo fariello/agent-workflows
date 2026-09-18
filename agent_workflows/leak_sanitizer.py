@@ -425,10 +425,28 @@ def derive_warn_tokens(repo_root: Path) -> dict[str, str]:
         pass
     # Sibling directory names of the repo (the local-checkout layout).
     try:
+        import tempfile
+
         parent = repo_root.resolve().parent
-        for sib in parent.iterdir():
-            if sib.is_dir() and sib.name != repo_root.name:
-                add(sib.name, "sibling checkout dir name")
+        temp_roots = {
+            Path(tempfile.gettempdir()).resolve(),
+            Path("/tmp").resolve(),
+            Path("/var/tmp").resolve(),
+            Path("/private/tmp").resolve(),
+        }
+        is_temp = parent in temp_roots or any(tr in parent.parents for tr in temp_roots)
+        if not is_temp and parent != parent.parent:
+            count = 0
+            for sib in parent.iterdir():
+                if (
+                    sib.is_dir()
+                    and sib.name != repo_root.name
+                    and not sib.name.startswith(".")
+                ):
+                    add(sib.name, "sibling checkout dir name")
+                    count += 1
+                    if count >= 100:
+                        break
     except Exception:
         pass
     return tokens
