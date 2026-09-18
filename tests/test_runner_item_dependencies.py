@@ -1980,5 +1980,74 @@ class LiveCorpusAgreementTests(unittest.TestCase):
                 )
 
 
+class InRunExecutedDependencyTests(unittest.TestCase):
+    """Regression test for in-run executed plan dependency satisfaction (hp9rot E-08 / BUG-04)."""
+
+    def test_in_run_executed(self):
+        """E-08: initialize_run preserves on-disk terminal status ('executed') instead of coercing
+        already-executed plans to 'reviewed', allowing downstream execution plans with 'executed:<id6>'
+        dependencies to be satisfied."""
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            for d in (".aw/records/plans/pending", ".aw/records/plans/executed"):
+                (repo / d).mkdir(parents=True, exist_ok=True)
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.invalid"],
+                cwd=repo,
+                check=True,
+            )
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+
+            p1 = (
+                repo / ".aw/records/plans/executed/20260908-demo-01-aaaaaa-first.ipd.md"
+            )
+            p1.write_text(
+                _plan_text("aaaaaa", status="executed", deps=None), encoding="utf-8"
+            )
+
+            p2 = (
+                repo / ".aw/records/plans/pending/20260908-demo-02-bbbbbb-second.ipd.md"
+            )
+            p2.write_text(
+                _plan_text(
+                    "bbbbbb", status="approved", deps="executed:aaaaaa", order=2
+                ),
+                encoding="utf-8",
+            )
+
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-qm", "fixture"], cwd=repo, check=True)
+
+            for name, mod in _DRIVERS:
+                with self.subTest(driver=name):
+                    args = _StartArgs(repo=str(repo), selectors=["demo"])
+                    args.action = None
+                    args.run_id = f"run-{name}"
+                    run_dir = mod.initialize_run(args)
+                    state = mod.load_state(run_dir)
+                    q = state["queue"]
+                    it1 = next(it for it in q if it["id6"] == "aaaaaa")
+                    self.assertEqual(
+                        it1["status"],
+                        "executed",
+                        f"{name} must retain executed status for executed plan",
+                    )
+
+                    it2 = next(it for it in q if it["id6"] == "bbbbbb")
+                    self.assertEqual(
+                        it2["status"],
+                        "queued",
+                        f"{name} dependent plan must stay queued and not be marked dependency-blocked",
+                    )
+
+                    blocked = mod.cascade_dependency_blocked(state)
+                    self.assertNotIn(
+                        "bbbbbb",
+                        [b.get("id6") if isinstance(b, dict) else b for b in blocked],
+                    )
+                    self.assertEqual(it2["status"], "queued")
+
+
 if __name__ == "__main__":
     unittest.main()

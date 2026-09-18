@@ -408,5 +408,152 @@ class FixtureHygieneTests(unittest.TestCase):
         self.assertIn(f"version={sp.OBSERVED_OPENCODE_VERSION}", text)
 
 
+class StallRecoveryAndTimeoutTerminationTests(unittest.TestCase):
+    """Regression tests for stall preservation and timeout serialization (hp9rot E-12, E-13)."""
+
+    def test_stall_preserved_worktree(self):
+        """E-12: Stall timeout in isolated worktree records preserved lane identity and dirty snapshot before return."""
+        import subprocess
+        import tempfile
+        from unittest import mock
+        from agent_workflows import agy_runipd, oc_runipd, runner_shared
+
+        for name, mod in (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd)):
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as temp:
+                repo = Path(temp) / "repo"
+                repo.mkdir(parents=True, exist_ok=True)
+                subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+                subprocess.run(
+                    ["git", "config", "user.email", "test@example.invalid"],
+                    cwd=repo,
+                    check=True,
+                )
+                subprocess.run(
+                    ["git", "config", "user.name", "Test"], cwd=repo, check=True
+                )
+                plan_dir = repo / ".aw/records/plans/pending"
+                plan_dir.mkdir(parents=True, exist_ok=True)
+                plan = plan_dir / "20260908-demo-01-stl001-demo.ipd.md"
+                plan.write_text(
+                    "# IPD: stl001\n\n- Date: 2026-09-08\n- Kind: child\n- Status: approved\n- Set: demo\n- Order: 1\n- Id: stl001\n\n## Goal\nDemo.\n",
+                    encoding="utf-8",
+                )
+                subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+                subprocess.run(
+                    ["git", "commit", "-qm", "initial"], cwd=repo, check=True
+                )
+
+                run_dir = repo / ".aw/records/runs/run-test"
+                (run_dir / "outcomes").mkdir(parents=True, exist_ok=True)
+                (run_dir / "prompts").mkdir(parents=True, exist_ok=True)
+
+                item = {
+                    "position": 1,
+                    "id6": "stl001",
+                    "setid": "demo",
+                    "status": "queued",
+                    "configured_file": str(plan.relative_to(repo)),
+                    "action": "execute",
+                }
+                state = {
+                    "run_id": "run-test",
+                    "created_at": "2026-09-08T00:00:00+00:00",
+                    "updated_at": "2026-09-08T00:00:00+00:00",
+                    "selectors": ["demo"],
+                    "repo": str(repo),
+                    "queue": [item],
+                    "set_sessions": {},
+                    "session_id": None,
+                    "options": {
+                        "model": "opus",
+                        "self_finalize": True,
+                        "isolate_worktree": True,
+                        "no_audit": False,
+                    },
+                }
+
+                def fake_turn(st, rd, it, *a, **kwargs):
+                    work_dir = kwargs.get("work_dir")
+                    wt = Path(work_dir) if work_dir else repo
+                    (wt / "src").mkdir(parents=True, exist_ok=True)
+                    (wt / "src" / "demo.txt").write_text(
+                        "uncommitted edits before stall\n", encoding="utf-8"
+                    )
+                    raise runner_shared.StallTimeout("turn stalled after inactivity")
+
+                turn_fn = "run_opencode" if name == "oc_runipd" else "run_agy_turn"
+                with (
+                    mock.patch.object(mod, "driver_begin", lambda *a, **k: (0, "ok")),
+                    mock.patch.object(mod, turn_fn, fake_turn),
+                ):
+                    mod.execute_item(run_dir, state, item, recovery=False)
+
+                self.assertEqual(item["status"], "interrupted")
+                self.assertIsNotNone(
+                    item.get("preserved_worktree"),
+                    "item must record preserved_worktree identity on stall",
+                )
+                self.assertTrue(
+                    Path(item["preserved_worktree"]).exists(),
+                    "preserved worktree must exist on disk for recovery",
+                )
+
+    def test_timeout_termination(self):
+        """E-13: Timed-out child with watchdog active has exactly one ordered termination/cleanup owner."""
+        from unittest import mock
+        from agent_workflows import runner_shutdown
+
+        close_calls = []
+        wait_calls = []
+
+        class FakeProcess:
+            def __init__(self):
+                self.pid = 9999
+                self.stdout = None
+                self.stderr = None
+                self.stdin = None
+                self._poll_count = 0
+
+            def poll(self):
+                self._poll_count += 1
+                if self._poll_count > 1:
+                    return 0
+                return None
+
+            def wait(self, timeout=None):
+                wait_calls.append(timeout)
+                return 0
+
+        proc = FakeProcess()
+
+        with mock.patch.object(runner_shutdown, "signal_process", return_value=True):
+            with mock.patch.object(
+                runner_shutdown,
+                "_close_process_streams",
+                side_effect=lambda p: close_calls.append(1),
+            ):
+                t1 = threading.Thread(
+                    target=runner_shutdown.terminate_process,
+                    args=(proc,),
+                    kwargs={"sigint_grace": 0.01, "sigterm_grace": 0.01},
+                )
+                t2 = threading.Thread(
+                    target=runner_shutdown.terminate_process,
+                    args=(proc,),
+                    kwargs={"sigint_grace": 0.01, "sigterm_grace": 0.01},
+                )
+                t1.start()
+                t2.start()
+                t1.join()
+                t2.join()
+
+        self.assertGreaterEqual(len(close_calls), 1)
+        self.assertEqual(
+            len(wait_calls),
+            1,
+            "exactly one wait should occur before poll returns 0",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
