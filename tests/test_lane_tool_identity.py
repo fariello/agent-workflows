@@ -788,8 +788,10 @@ class TheBeginPinSurvivedTheMove(unittest.TestCase):
     oc's code read `env={**pinned_child_env(), **begin_baseline_env(isolated)}`, which does NOT contain
     the substring `env=pinned_child_env()`; the only match in that function was the explanatory comment
     ABOVE it, which said the literal was kept visible deliberately for this guard. So the shipped guard
-    was already passing on oc for a reason unrelated to the pin. `test_the_old_text_search_was_vacuous_on_oc`
-    below pins that measurement, so this docstring's claim can be re-derived rather than trusted.
+    was already passing on oc for a reason unrelated to the pin. That measurement used to be pinned by a
+    test that re-read a hardcoded historical commit; it is retired, because a test asserting a fact about
+    a DELETED test's vacuity guards no present behavior. The measurement survives in this docstring and
+    in git history, which is where a historical fact belongs.
     """
 
     HOSTS = (("oc_runipd", driver), ("agy_runipd", agy_runipd))
@@ -854,48 +856,6 @@ class TheBeginPinSurvivedTheMove(unittest.TestCase):
             driver.runner_package_root(),
             env.get("PYTHONPATH", "").split(os.pathsep),
             "an unpinned env must NOT satisfy the assertion the previous test makes",
-        )
-
-    def test_the_old_text_search_was_vacuous_on_oc(self):
-        """The measurement behind the docstring's claim, so it is re-derivable and not folklore.
-
-        Reads the PRE-CHANGE oc body out of git history at the execution HEAD and shows the literal
-        the old guard searched for appeared ONLY in a comment. Skips rather than fails if that commit
-        is unreachable (a shallow clone), because the point being made is historical.
-        """
-        import subprocess as sp
-
-        head = "1171f7b22da8065390f190458070a0ad842c2376"
-        repo_root = Path(__file__).resolve().parents[1]
-        proc = sp.run(
-            ["git", "show", f"{head}:agent_workflows/oc_runipd.py"],
-            cwd=str(repo_root),
-            capture_output=True,
-            text=True,
-            check=False,  # a missing commit is handled by the skip below, not by an exception
-            stdin=sp.DEVNULL,
-        )
-        if proc.returncode != 0:
-            self.skipTest(f"execution HEAD {head[:8]} not reachable in this clone")
-        tree = ast.parse(proc.stdout)
-        bodies = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.FunctionDef) and node.name == "driver_begin"
-        ]
-        self.assertTrue(bodies, "pre-change oc_runipd must have defined driver_begin")
-        raw = ast.get_source_segment(proc.stdout, bodies[0]) or ""
-        code_only = ast.unparse(bodies[0])  # comments do not survive unparse
-        self.assertIn(
-            "env=pinned_child_env()",
-            raw,
-            "the old guard passed on oc, so the literal must be present in the RAW source",
-        )
-        self.assertNotIn(
-            "env=pinned_child_env()",
-            code_only,
-            "MEASURED: the literal the old guard searched for was in a COMMENT, not in oc's code, "
-            "so that guard was satisfied by prose. The behavioral assertions above replace it.",
         )
 
 

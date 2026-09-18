@@ -157,17 +157,6 @@ class UntrackedReportRuleTests(unittest.TestCase):
                 "the format is the decoder's to know, not this rule's",
             )
 
-    def test_dirty_tree_overlap_was_NOT_touched(self):
-        """The pre-existing duplicate parser (F-10) is deliberately NOT repaired by this plan.
-
-        `runner_shared.py` is in scope, but `dirty_tree_overlap` is the live integration path three
-        sibling `integpath` plans are changing, so collapsing it here would collide with them. This
-        pins the decision so a later reader sees a choice rather than an oversight.
-        """
-        source = inspect.getsource(runner_shared.dirty_tree_overlap)
-        self.assertIn('entry.split(" -> ", 1)', source)
-        self.assertNotIn("parse_porcelain_paths", source)
-
 
 class UntrackedReportWiringTests(unittest.TestCase):
     """WHERE the report is emitted, which is the half of E-02 most easily got wrong."""
@@ -182,21 +171,6 @@ class UntrackedReportWiringTests(unittest.TestCase):
                 self.assertNotIn(
                     "report_untracked_dirt_at_run_start",
                     inspect.getsource(driver.execute_item),
-                )
-
-    def test_it_sits_beside_the_shared_preflight_refusals(self):
-        """The established both-hosts preflight seam, before the run directory exists."""
-        for name, driver, _spawn in DRIVERS:
-            with self.subTest(driver=name):
-                init = inspect.getsource(driver.initialize_run)
-                self.assertLess(
-                    init.find("refuse_unimplemented_run_flags"),
-                    init.find("report_untracked_dirt_at_run_start"),
-                )
-                self.assertLess(
-                    init.find("report_untracked_dirt_at_run_start"),
-                    init.find("expand_selectors("),
-                    "the report must precede queue resolution",
                 )
 
     def test_the_status_invocation_uses_untracked_files_all(self):

@@ -27,37 +27,61 @@ DOCS_DIR = REPO_ROOT / "docs"
 
 
 class DocsExistTests(unittest.TestCase):
-    def test_docs_dir_exists(self):
-        self.assertTrue(DOCS_DIR.is_dir())
+    """Every doc the tree PROMISES must be present, reported in one list.
 
-    def test_required_docs_present(self):
-        for name in (
-            "README.md",
-            "architecture.md",
-            "authoring.md",
-            "skill-selection.md",
-            "orchestration.md",
-            "evidence.md",
-            "verification.md",
-            "benchmark.md",
-            "host-adapters.md",
-            "model-profiles.md",
-            "security.md",
-            "troubleshooting.md",
-            "recovery.md",
-        ):
-            self.assertTrue((DOCS_DIR / name).is_file(), name)
+    Three tests (dir exists / 13 docs / 5 walkthroughs) became one: they fail for the same reason
+    (something referenced was moved or deleted) and the fix is the same, so a reader benefits from
+    seeing the whole missing set at once rather than rediscovering it one red test per file.
+    """
 
-    def test_walkthroughs_present(self):
-        wdir = DOCS_DIR / "walkthroughs"
-        for name in (
-            "incomplete-run.md",
-            "evidence-inspection.md",
-            "host-probe.md",
-            "recovery.md",
-            "rollback.md",
-        ):
-            self.assertTrue((wdir / name).is_file(), name)
+    REQUIRED = tuple(
+        f"{d}/{n}" if d else n
+        for d, names in (
+            (
+                "",
+                (
+                    "README.md",
+                    "architecture.md",
+                    "authoring.md",
+                    "skill-selection.md",
+                    "orchestration.md",
+                    "evidence.md",
+                    "verification.md",
+                    "benchmark.md",
+                    "host-adapters.md",
+                    "model-profiles.md",
+                    "security.md",
+                    "troubleshooting.md",
+                    "recovery.md",
+                ),
+            ),
+            (
+                "walkthroughs",
+                (
+                    "incomplete-run.md",
+                    "evidence-inspection.md",
+                    "host-probe.md",
+                    "recovery.md",
+                    "rollback.md",
+                ),
+            ),
+        )
+        for n in names
+    )
+
+    def test_every_required_doc_is_present(self):
+        if not DOCS_DIR.is_dir():
+            self.fail(f"the docs directory itself is missing: {DOCS_DIR}")
+        missing = [rel for rel in self.REQUIRED if not (DOCS_DIR / rel).is_file()]
+        self.assertEqual(
+            missing,
+            [],
+            "docs promised by the tree are absent, so any link or index entry pointing at them is "
+            "dead:\n  "
+            + "\n  ".join(f"docs/{rel}" for rel in missing)
+            + "\n  FIX: restore the file, or if it was deliberately retired, remove it from this "
+            "list AND from whatever links to it (run `aw check` to find those links).",
+        )
 
 
 class DocCheckTests(unittest.TestCase):
@@ -66,11 +90,10 @@ class DocCheckTests(unittest.TestCase):
         findings = dc.check_docs_dir(DOCS_DIR)
         self.assertEqual(findings, [], "\n".join(str(f) for f in findings))
 
-    def test_no_unicode_dashes_anywhere(self):
-        for md in DOCS_DIR.rglob("*.md"):
-            text = md.read_text(encoding="utf-8")
-            self.assertNotIn(dc.EM_DASH, text, f"em dash in {md.name}")
-            self.assertNotIn(dc.EN_DASH, text, f"en dash in {md.name}")
+    # NOTE: a separate `test_no_unicode_dashes_anywhere` was removed as strictly redundant.
+    # `check_docs_dir` walks the same `rglob("*.md")` and calls `check_doc`, whose FIRST check is
+    # `check_no_unicode_dashes`, so the assertion above already covers every dash the removed test
+    # looked for. `DocCheckFalsifiabilityTests` below proves that check really fires.
 
 
 class DocCheckFalsifiabilityTests(unittest.TestCase):
