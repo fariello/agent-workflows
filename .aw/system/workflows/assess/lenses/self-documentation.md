@@ -5,6 +5,10 @@ using it*, without reading external docs or taking a course. This is the in-prod
 clarity bar (distinct from repo documentation, which is the `documentation` lens).
 Applies to libraries, CLIs, APIs, and UIs.
 
+"The product" means the software the project SHIPS, per the SUBJECT section of
+`../assess.md`: its in-product text, help output, API surface, and UI. The repository's own
+process records under `.aw/records/` are not part of the product a user learns.
+
 ## Lead personas
 
 Complete novice (primary) and UI/UX engineer, with the power user checking that

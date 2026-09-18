@@ -5,6 +5,9 @@ whether by an attacker, a compromised dependency, a misconfiguration, or acciden
 over-sharing - and on the controls that detect and limit such egress. This is a
 repo-scoped, static assessment of code/config/IaC; it does not observe a live network.
 
+The subject is the project's own code, configuration, and IaC, per the SUBJECT section of
+`../assess.md`.
+
 ## Lead personas
 
 The security-minded architect and software engineer, with the stakeholder on the
