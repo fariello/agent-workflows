@@ -4516,6 +4516,18 @@ records/research/INDEX.md
 # ANCHORED for the `/inbox/` reason, and `state/` covers `durable/` and `runtime/` both.
 /state/
 /config/local.json
+# The run-scratch home for workflow runs (wfartifacts Order 02; Order 07, spec `20260817-2124-01`,
+# gave run scratch this ONE untracked home under `.aw/`, off the repo root). NEVER committed, and
+# like the `/state/` rule above this is LEAK CONTAINMENT rather than tidiness (D92): a run record
+# carries local context, ABSOLUTE HOME PATHS and session detail, so committing one publishes machine
+# identity into permanent git history, which is unrecoverable.
+# DO NOT REMOVE THIS LINE as unexplained: without it the very first workflow run in a target repo
+# offers its scratch tree to `git add -A`, which is the failure this entry exists to prevent.
+# ANCHORED for the `/inbox/` reason (a bare `workflow-artifacts/` matches a directory of that name at
+# ANY depth, the trap that once swallowed the TRACKED `records/comms/shared/inbox/` lane), and these
+# patterns are `.aw/`-relative, so `/workflow-artifacts/` resolves to `.aw/workflow-artifacts/`
+# exactly and leaves e.g. `records/workflow-artifacts/` visible.
+/workflow-artifacts/
 """
 
 # setupmarker Order 01: the per-repo, per-machine, gitignored "run setup here" reminder that replaces
@@ -5644,6 +5656,19 @@ def _ensure_aw_gitignore(repo_root: Path) -> bool:
     for _local_pattern in ("/state/", "/config/local.json"):
         if not re.search(r"(?m)^{0}[ \t]*$".format(re.escape(_local_pattern)), text):
             additions.append(_local_pattern)
+    # wfartifacts Order 02 (vh14ku): back-fill the run-scratch home `.aw/workflow-artifacts/`, the
+    # ONE untracked home Order 07 (spec `20260817-2124-01`) gave run scratch. This is the ONLY path
+    # that reaches an ALREADY-INSTALLED repo, the same reason the layout, INDEX and state back-fills
+    # above exist: such a repo already HAS a `.aw/.gitignore` and never re-reads the template, so a
+    # template-only edit would leave every managed repo writing run scratch to an UNIGNORED path.
+    # LEAK CONTAINMENT, not tidiness (D92): a run record carries local context, absolute home paths
+    # and session detail, so committing one publishes machine identity into permanent git history.
+    # ANCHORED (`/workflow-artifacts/`), never a bare `workflow-artifacts/`, for the `/inbox/` reason
+    # recorded above; matched line-anchored so the explanatory comments that also contain the
+    # substring cannot satisfy the presence test.
+    for _scratch_pattern in ("/workflow-artifacts/",):
+        if not re.search(r"(?m)^{0}[ \t]*$".format(re.escape(_scratch_pattern)), text):
+            additions.append(_scratch_pattern)
     if additions:
         gi.write_text(
             text.rstrip("\n") + "\n" + "\n".join(additions) + "\n", encoding="utf-8"

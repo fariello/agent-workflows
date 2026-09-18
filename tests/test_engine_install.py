@@ -802,6 +802,208 @@ class MachineLocalStateGitignoreTests(unittest.TestCase):
         )
 
 
+class RunScratchGitignoreTests(unittest.TestCase):
+    """wfartifacts Order 02 (vh14ku): `.aw/workflow-artifacts/` is gitignored in every target repo.
+
+    THE DEFECT THIS FENCES, measured 2026-09-12: the framework-owned `.aw/.gitignore` had NO entry
+    for the run-scratch tree at all, so the moment a workflow run wrote there the scratch became
+    working material offered to `git add -A`. This repository's own ROOT `.gitignore` does ignore the
+    path, but that file is NOT shipped, so it proves nothing about a target repo, which is exactly
+    why every assertion below is made in a temporary repo against the GENERATED file.
+
+    WHY UNTRACKED AT ALL (D92): a run record carries local context, ABSOLUTE HOME PATHS and session
+    detail, so committing one publishes machine identity into permanent git history. Same rationale
+    as `MachineLocalStateGitignoreTests` above, and the reason "just track it" is not an option.
+
+    Mirrors the three sibling classes rather than adding a harness, for the reason
+    `ManifestIndexGitignoreTests` states: same problem shape, same proof obligation (ignored IN
+    EFFECT via real `git check-ignore`, on BOTH the fresh-template and back-fill code paths,
+    attributed to `.aw/.gitignore` and never to the user's root file).
+    """
+
+    #: The `.aw/`-relative pattern, as it must appear in the framework-owned `.aw/.gitignore`.
+    PATTERN = "/workflow-artifacts/"
+    #: A realistic run-scratch path, as a workflow run writes it: <workflow>/<RUN_ID>/<file>.
+    SCRATCH_FILE = ".aw/workflow-artifacts/release-review/20260918T045900Z/report.md"
+    #: The anchoring guard: a same-named directory NESTED under records/ must stay visible.
+    NESTED_KEEP = ".aw/records/workflow-artifacts/keep.md"
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _ignore_source(self, repo: Path, rel: str) -> str:
+        """The gitignore FILE git attributes the rule to, per `git check-ignore -v`."""
+
+        res = git(repo, "check-ignore", "-v", rel)
+        self.assertEqual(
+            res.returncode, 0, f"{rel} is not gitignored at all (stderr: {res.stderr})"
+        )
+        return res.stdout.split(":", 1)[0]
+
+    def _materialize(self, repo: Path) -> None:
+        """Create run scratch and the nested same-named directory the anchoring guard uses."""
+
+        for rel in (self.SCRATCH_FILE, self.NESTED_KEEP):
+            p = repo / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text("scratch\n", encoding="utf-8")
+
+    def test_template_carries_the_pattern(self) -> None:
+        # A FRESH install writes the template verbatim, so the pattern must be in the template
+        # itself, not only in the back-fill list.
+        self.assertIn(f"\n{self.PATTERN}\n", INS._AW_GITIGNORE_TEMPLATE)
+
+    def test_the_pattern_is_anchored_not_a_bare_directory_name(self) -> None:
+        # The `/inbox/` trap the template documents at length: a bare `workflow-artifacts/` is
+        # unanchored and matches a directory of that name at ANY depth.
+        lines = [
+            ln.strip()
+            for ln in INS._AW_GITIGNORE_TEMPLATE.splitlines()
+            if ln.strip() and not ln.strip().startswith("#")
+        ]
+        self.assertIn(self.PATTERN, lines)
+        self.assertNotIn(
+            "workflow-artifacts/",
+            lines,
+            "a BARE workflow-artifacts/ pattern matches at any depth; write the anchored form",
+        )
+
+    def test_fresh_install_ignores_run_scratch(self) -> None:
+        repo = _seed_committed_repo(self.base, "scratch-fresh")
+        _install(repo)
+        self._materialize(repo)
+
+        self.assertIn(
+            f"\n{self.PATTERN}\n", (repo / ".aw/.gitignore").read_text(encoding="utf-8")
+        )
+        porcelain = git(repo, "status", "--porcelain").stdout
+        self.assertNotIn(
+            ".aw/workflow-artifacts",
+            porcelain,
+            f"run scratch is visible to git:\n{porcelain}",
+        )
+        self.assertEqual(
+            self._ignore_source(repo, self.SCRATCH_FILE),
+            ".aw/.gitignore",
+            "run scratch must be ignored by the framework-owned .aw/.gitignore, which is the only "
+            "file a target repo receives (this repo's ROOT .gitignore is not shipped)",
+        )
+
+    def test_root_gitignore_carries_no_run_scratch_entry(self) -> None:
+        # Same precision as the three sibling classes: `.aw/` is framework-owned and is the correct
+        # home; the user's ROOT `.gitignore` must never gain this rule (`engine` module docstring:
+        # "Does NOT silently edit user gitignores").
+        repo = _seed_committed_repo(self.base, "scratch-rootfile")
+        _install(repo)
+        root_text = (repo / ".gitignore").read_text(encoding="utf-8")
+        self.assertNotIn(
+            "workflow-artifacts",
+            root_text,
+            "a run-scratch entry leaked into the ROOT .gitignore",
+        )
+        self.assertIn(
+            "*.user-tmp",
+            root_text,
+            "the installer clobbered the user's own .gitignore line",
+        )
+
+    def test_backfill_reaches_an_already_installed_repo(self) -> None:
+        # The ONLY path that reaches an ALREADY-INSTALLED repo, and the one a template-only edit
+        # silently fails: every repo installed before today already HAS a `.aw/.gitignore`, so only
+        # the append branch runs.
+        repo = _seed_committed_repo(self.base, "scratch-backfill")
+        _install(repo)
+        gi = repo / ".aw/.gitignore"
+        stripped = "\n".join(
+            line
+            for line in gi.read_text(encoding="utf-8").splitlines()
+            if line.strip() != self.PATTERN
+        )
+        gi.write_text(stripped + "\n", encoding="utf-8")
+        self._materialize(repo)
+        self.assertNotEqual(
+            git(repo, "check-ignore", "-q", self.SCRATCH_FILE).returncode,
+            0,
+            "precondition: the pre-fix state should NOT ignore run scratch",
+        )
+        # The pre-existing content must survive the back-fill (no clobber).
+        self.assertIn("records/*/untracked/", gi.read_text(encoding="utf-8"))
+
+        INS._ensure_aw_gitignore(repo)
+
+        text = gi.read_text(encoding="utf-8")
+        self.assertIn(
+            "records/*/untracked/", text, "back-fill clobbered pre-existing content"
+        )
+        lines = [ln for ln in text.splitlines() if ln.strip() == self.PATTERN]
+        self.assertEqual(
+            len(lines),
+            1,
+            f"back-fill wrote {len(lines)} copies of {self.PATTERN}, want 1",
+        )
+        self.assertEqual(self._ignore_source(repo, self.SCRATCH_FILE), ".aw/.gitignore")
+
+    def test_backfill_is_idempotent(self) -> None:
+        # `_ensure_aw_gitignore` is called several times per install, so a non-idempotent addition
+        # would accrue duplicate lines on every run.
+        repo = _seed_committed_repo(self.base, "scratch-idem")
+        _install(repo)
+        for _ in range(3):
+            INS._ensure_aw_gitignore(repo)
+        text = (repo / ".aw/.gitignore").read_text(encoding="utf-8")
+        self.assertEqual(
+            len([ln for ln in text.splitlines() if ln.strip() == self.PATTERN]),
+            1,
+            f"duplicate {self.PATTERN} after repeated _ensure_aw_gitignore calls",
+        )
+
+    def test_reinstall_does_not_duplicate_the_pattern(self) -> None:
+        repo = _seed_committed_repo(self.base, "scratch-reinstall-idem")
+        _install(repo)
+        _install(repo)
+        text = (repo / ".aw/.gitignore").read_text(encoding="utf-8")
+        self.assertEqual(
+            len([ln for ln in text.splitlines() if ln.strip() == self.PATTERN]), 1
+        )
+
+    def test_a_nested_same_named_directory_is_not_swallowed(self) -> None:
+        """The anchoring guard, proven IN EFFECT rather than by reading the pattern.
+
+        A bare `workflow-artifacts/` would match at ANY depth, so a tracked
+        `.aw/records/workflow-artifacts/` would silently vanish - the same failure the unanchored
+        `inbox/` form caused for the TRACKED `records/comms/shared/inbox/` lane.
+        """
+
+        repo = _seed_committed_repo(self.base, "scratch-anchor")
+        _install(repo)
+        self._materialize(repo)
+        self.assertNotEqual(
+            git(repo, "check-ignore", "-q", self.NESTED_KEEP).returncode,
+            0,
+            "an unanchored workflow-artifacts/ pattern swallowed a nested directory it must not match",
+        )
+
+    def test_tracked_comms_inbox_lane_is_still_not_ignored(self) -> None:
+        # Regression fence on the neighbouring rule, as the layout class does: adding a pattern must
+        # not disturb the anchored `/inbox/` rule that keeps the TRACKED comms lane visible.
+        repo = _seed_committed_repo(self.base, "scratch-inbox")
+        _install(repo)
+        lane = repo / ".aw/records/comms/shared/inbox/.gitkeep"
+        lane.parent.mkdir(parents=True, exist_ok=True)
+        lane.write_text("", encoding="utf-8")
+        self.assertNotEqual(
+            git(
+                repo, "check-ignore", "-q", ".aw/records/comms/shared/inbox/.gitkeep"
+            ).returncode,
+            0,
+            "the TRACKED comms inbox lane must NOT be gitignored",
+        )
+
+
 class InstallerCommitSetTests(unittest.TestCase):
     """The installer's path-scoped commit must not be handed paths git sees no change in.
 
