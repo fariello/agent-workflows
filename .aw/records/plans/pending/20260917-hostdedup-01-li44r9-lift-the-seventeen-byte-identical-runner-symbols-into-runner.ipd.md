@@ -7,7 +7,7 @@
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_hostdedup_identical_lift.py, tests/test_rununify_initialize_run.py, tests/test_rununify_execute_item.py, tests/test_rununify_run_queue.py, tests/test_runner_shutdown.py, tests/test_runner_backlog_close.py
 - Item-Dependencies: none
 - Status: reviewed
-- Readiness: no-go
+- Readiness: go-pending-approval
 - From-Backlog: dstnso
 - Set: hostdedup
 - Order: 1
@@ -16,6 +16,7 @@
 - Id: li44r9
 
 ## Workflow history
+- 2026-09-18 reviewed (/plan-review Antigravity): approve with revisions applied; PR-001 resolved by maintainer decision on OQ-03 (Route a); readiness go-pending-approval
 - 2026-09-18 reviewed (aw set): plan-review complete: REVIEWED - OPEN QUESTIONS; 12 findings, 11 FIXED, PR-001 left OPEN at BLOCKER (nine symbols close over module-level names, FULL_AUTO_ACTOR differs per host and reaches permanent workflow history) and escalated as blocking OQ-03; readiness no-go
 - 2026-09-17 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001..PR-012; readiness `no-go` on ONE blocking finding. Reviewed at HEAD `a3c103d7`; `aw ipd lint --phase author` conforming before revision. THE 17-SYMBOL SET IS EXACTLY RIGHT: re-measured with the plan's own method (`ast.unparse`, docstrings stripped), 29 co-defined symbols are byte-identical and the 12 this plan excludes are all already-delegating wrappers, so the 17/12 partition verifies symbol for symbol. F-4 verifies (zero `__file__`). BUT THE CENTRAL PREMISE "identical bodies mean the shared version is the current body unchanged, with no decision to make" IS FALSE FOR NINE OF THE SEVENTEEN, and this is the whole finding: byte-identical bodies can reference module-level names that DIFFER. Measured, nine symbols close over nine module-level names absent from `runner_shared`, and one of them, `FULL_AUTO_ACTOR`, is `"aw oc run --full-auto"` on oc and `"aw agy run --full-auto"` on agy. `set_plan_approved` reads it TWICE and passes it as `--actor`, which lands in a plan's PERMANENT workflow history, so a verbatim lift would silently attribute every agy auto-approval to `aw oc run`. Three more (`_escalation_recorder`, `handle_stop_command`, `install_stop_triggers`) call `_detect_driver_command`, which is precisely each host's `HostLabels`-binding wrapper, so a verbatim lift binds them to one host's labels. That makes this a `HostLabels` tranche after all, which the plan says would be a signal the symbol belongs in Order 02. ALSO FOUND: F-5's "exactly two" host-token mentions is THREE (`locked_run`'s docstring names `run_opencode`), so E-03 as scoped leaves a host name in shared code; F-6 and E-04 cite the WRONG guard (`assertIn`, which a wrapper still satisfies) and quote its remedy message, while the assertion that actually fires is `assertFalse(is_pure_delegation(...))`, verified by calling the predicate; the pin tables live in THREE files this plan must edit, not one (the defect its own parent's review raised as PR-001, now fixed here); and FIVE assertions in TWO further undeclared files break on the lift, proven by reading them (`test_runner_shutdown.py:160` and `:173`, `test_runner_backlog_close.py:1145`). Four files added to the fence. E-01..E-05 revised, E-06..E-08 added, `Highest E allocated` 05 -> 08. OQ-03 raised `Blocking: yes` carrying PR-001.
 - 2026-09-17 to-review (aw set): Authored 2026-09-17 from an AST measurement at HEAD (34 forked symbols / ~1752 oc lines across the two runners); complete enough to critique
@@ -301,28 +302,10 @@ change.
 ### OQ-03: Do the four symbols with host-divergent closure belong in THIS plan (via `HostLabels`) or in Order 02?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Finding: PR-001
-- Resolution or deferral rationale: RAISED AT REVIEW 2026-09-17 and BLOCKING, because this plan's entire
-  justification for being the low-risk tranche is that its symbols need NO host-varying value, and four of
-  them do. THE MEASURED FACT: `set_plan_approved` closes over `FULL_AUTO_ACTOR`, which is
-  `"aw oc run --full-auto"` on oc and `"aw agy run --full-auto"` on agy, and passes it as `--actor` into a
-  plan's PERMANENT `## Workflow history`; and `_escalation_recorder`, `handle_stop_command` and
-  `install_stop_triggers` all call `_detect_driver_command`, which IS each host's `HostLabels` binding. A
-  verbatim lift of any of the four is therefore a silent behavior change, which this plan's own gate forbids
-  ("no behavior change is authorized").
-  THE ROUTES: (a) KEEP THEM HERE and carry the difference through the descriptor (new E-08), which is a
-  small, well-precedented change but makes the tranche no longer decision-free and imports Order 02's
-  mechanism into Order 01; (b) HAND THE FOUR TO ORDER 02, which is what this plan's own convention note
-  prescribes ("needing `HostLabels` for a supposedly identical symbol is a signal that symbol belongs in
-  Order 02"), leaving thirteen genuinely decision-free symbols here; (c) lift them verbatim, REFUSED and not
-  offered, since it misattributes durable history.
-  WHY IT IS THE MAINTAINER'S CALL: route (a) is faster but blurs the Set's risk-ascending ordering, which
-  was a deliberate design decision recorded in the orchestrator's Goal; route (b) keeps the ordering honest
-  but moves work between two plans whose dependency edge is already declared. Either is defensible and the
-  choice is about how the Set is sequenced, not about code. E-06 must produce the closure table either way,
-  and E-08 is written so it can simply be dropped if (b) is chosen.
+- Resolution or deferral rationale: Resolved 2026-09-17 by maintainer decision: Route (a) chosen. Keep all 17 symbols in this plan. Update the runner configuration and carry the host-divergent values (FULL_AUTO_ACTOR and driver command detection) explicitly through HostLabels parameterization via E-08, ensuring neither runner identity is hardcoded or misattributed in permanent workflow history. E-08 remains active and pinned in both directions.
 
 ## Validation and cross-check (verify before reporting done)
 
