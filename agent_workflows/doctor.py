@@ -531,6 +531,27 @@ def probe_artifacts(
         # Global setid collisions across types, PLUS the proclint 79li67 COMMIT-SCOPED untooled-status
         # detector (a fast no-op unless a plan `- Status:` change is staged). Both are cross-tree /
         # commit-wide rules keyed off git state rather than a single record file.
+        #
+        # `include_retired=True` IS DELIBERATE AND ASYMMETRIC WITH `aw check`, which passes a flag
+        # defaulting to False (`check_engine.check_types`). Stating the asymmetry rather than
+        # silently aligning it is the fix setidfix 216rgg E-04 chose, on three grounds. (1) The two
+        # surfaces answer DIFFERENT questions by design: `aw check` gates ACTIVE work and must not
+        # fail a commit over a finished record, while `aw doctor` is the full-picture audit and
+        # already carries the machinery for historical findings, demoting anything under `executed/`
+        # into `res.executed_warnings` just below. That demotion is a SECOND, INDEPENDENT population
+        # axis, so reconciling this flag alone could not make the raw populations identical anyway.
+        # (2) Widening or narrowing either default is a product decision about whether a retired
+        # record is in scope for ANY rule, which reaches far past the collision scan (it would also
+        # move `check.id6-collision` and `check.id6-identity-slot`); spec `2lcqno` declares that
+        # choice a non-goal and requires only that the surfaces AGREE and that the choice be stated.
+        # (3) For `check.setid-collision` specifically the two surfaces now DO agree: after the
+        # cross-type emission was removed per D153 / `2lcqno` N1, both report ZERO on the real tree,
+        # because the six executed plans that carried a within-type descriptive conflict were renamed
+        # in `4f1ca199`. That branch is therefore LATENT BY DESIGN, pinned by a fixture in
+        # `tests/test_check_engine.py`, and a zero count here is the CORRECT result, not a lost rule.
+        # The residual raw-population divergence (which still affects the two id6 rules) is carried
+        # as backlog `lmjc8h`, whose own scope sentence offers exactly this "make the parameter
+        # explicit at both call sites so the divergence cannot be accidental" resolution.
         collisions = list(
             check_engine.check_collisions(
                 repo_root,
@@ -912,13 +933,24 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
         )
 
     if "setid-collision" in rule:
-        title = "Set ID collision across artifact records"
+        # WORDING CORRECTED by setidfix 216rgg E-06. This used to read "Set ID collision ACROSS
+        # artifact records" and "assign a UNIQUE Set ID", which was written when the rule also
+        # reported a cross-type setid. It no longer does, and cross-type UNIQUENESS is the very
+        # invariant D153 / spec `2lcqno` N1 reversed (a setid is a shared cross-type TOPIC label), so
+        # that advice now describes a reason the rule cannot report. The surviving finding is one
+        # setid carrying two different DESCRIPTIVES inside ONE type, for which the `aw group` command
+        # is still the right recovery.
+        title = "One Set ID used with two different descriptives in one record type"
         target_type = art_type or "plans"
         cmd = f"aw group {target_type} {loc} --set <new-set-id>"
         return Remediation(
             title=title,
             summary_fix=cmd,
-            detailed_fix=f"run '{cmd}' to assign a unique Set ID.",
+            detailed_fix=(
+                f"another record of the SAME type uses this Set ID with a different descriptive; "
+                f"run '{cmd}' to regroup this record, or align the two descriptives. Sharing a Set "
+                f"ID with a different record type is correct and is not reported."
+            ),
             command=cmd,
             file_path=loc,
         )

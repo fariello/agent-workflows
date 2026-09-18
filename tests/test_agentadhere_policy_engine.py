@@ -188,20 +188,30 @@ class TestFixtureCorpus(unittest.TestCase):
         self.assertEqual(rules, {"check.name-nonconformant"}, rules)
 
     def test_adversarial_setid_collision(self):
-        # a spec declaring a setid that a plan already uses (cross-type reuse) -> I-09 family
-        plans = self._plans()
-        (plans / "20260101-shared-01-aaa111-p.ipd.md").write_text(
-            "# IPD: p\n\n- Id: aaa111\n- Status: approved\n- Set: shared\n\n## Goal\n\nx\n",
+        # Two SPECS sharing one setid with CONFLICTING descriptives -> I-16 (setid semantics).
+        #
+        # REPOINTED by setidfix 216rgg E-05 from a cross-type fixture (a plan and a spec sharing a
+        # setid), which this test used to call "adversarial". Under D153 / spec `2lcqno` N1 that is
+        # the endorsed NORMAL state - a setid is a shared cross-type TOPIC label - so the old
+        # fixture's INTENT was wrong, not merely its data, and the cross-type case is now pinned as
+        # SILENT in `tests/test_check_engine.py`. What remains adversarial, and what this rule keeps,
+        # is one setid carrying two different descriptives INSIDE one type: that is a real
+        # inconsistency in that Set's own name.
+        specs = self._specs()
+        (specs / "20260101-shared-01-aaa111-a.spec.md").write_text(
+            "# Spec: a\n\n- Date: 2026-01-01\n- Status: reviewed\n- Id: aaa111\n- Set: shared (Alpha)\n\n"
+            "## Workflow history\n\n- 2026-01-01 created (aw specs): a\n",
             encoding="utf-8",
         )
-        specs = self._specs()
-        (specs / "20260101-bbb222-01-bbb222-s.spec.md").write_text(
-            "# Spec: s\n\n- Date: 2026-01-01\n- Status: reviewed\n- Id: bbb222\n- Set: shared\n\n"
-            "## Workflow history\n\n- 2026-01-01 created (aw specs): s\n",
+        (specs / "20260101-shared-02-bbb222-b.spec.md").write_text(
+            "# Spec: b\n\n- Date: 2026-01-01\n- Status: reviewed\n- Id: bbb222\n- Set: shared (Beta)\n\n"
+            "## Workflow history\n\n- 2026-01-01 created (aw specs): b\n",
             encoding="utf-8",
         )
         rules = {d.rule for d in ce.check_collisions(self.root)}
         self.assertIn("check.setid-collision", rules)
+        # and the rule traces to the catalog invariant that actually describes it
+        self.assertEqual(ce.rule_spec("check.setid-collision").invariant, "I-16")
 
     def test_adversarial_release_gate_blocking_close(self):
         # a release-blocking backlog item closed done with no preserved gate (I-07). This rule is
