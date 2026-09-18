@@ -24,6 +24,7 @@ bars) so the documented prose can never claim more than the recorded evidence. S
 - [Security](security.md): the hardened boundaries and their runbooks.
 - [Troubleshooting](troubleshooting.md): diagnosing an incomplete or failed run.
 - [Recovery and rollback](recovery.md): resuming, recovering, and rolling back safely.
+- [Run analytics](run-analytics.md): the local cache, the offline report, the query surface, and the privacy boundary with its named detector blind spots.
 - [CLI Output Mode Contract](cli-output-contract.md): dual-audience output modes, stream boundaries, and exit codes.
 - [Concise reporting contract](reporting-contract.md): the portable default for model-authored user-facing prose, its overrides, and per-host delivery.
 - [Human TTY guide](cli-human-guide.md): reading the styled interactive `aw` output at a terminal.

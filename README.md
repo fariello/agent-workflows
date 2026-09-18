@@ -203,6 +203,28 @@ field, so overriding one field keeps the rest of the profile. A run freezes its 
 identity at start, so editing or deleting a profile never changes a run already in flight. See
 [Runner profiles](docs/runner-profiles.md).
 
+### Run analytics (local, offline, and never shared without you asking)
+
+The driver already writes a directory per run; `aw runs analyze` turns those into a normalized fact
+table, caches it incrementally, and publishes a self-contained offline report you can open from
+`file://`. `aw runs query <view>` returns the same numbers as structured records so an agent never
+parses HTML.
+
+```bash
+aw runs analyze          # update the cache and publish the report
+aw runs analyze --path   # print the report path; writes nothing
+aw runs query overview   # the same numbers as records
+```
+
+Everything lands in one reserved, gitignored, disposable directory
+(`.aw/records/runs/analytics/`), nothing is committed, and nothing is transmitted: `aw runs export`
+previews by default and writes only under `--apply`, and submission refuses today because no
+endpoint is approved. NO EXPORT TIER IS ANONYMOUS and none claims to be; minimization is not
+anonymity. Values carry their provenance, the three kinds of absence are distinguished from zero,
+and an under-powered analysis REFUSES with its observed sample size instead of estimating. See
+[Run analytics](docs/run-analytics.md), whose privacy section names the shared detector's measured
+blind spots rather than implying it covers everything.
+
 ### Concise agent reporting
 
 Installing agent-workflows also makes concise, essential-information-only reporting the
