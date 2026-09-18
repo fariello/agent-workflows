@@ -4013,6 +4013,316 @@ class HostReviewAliasExpansionTests(unittest.TestCase):
             self.assertEqual(alias, canon)
 
 
+class HostIntegrateVerbTests(unittest.TestCase):
+    """integpath-04 (`rl67b0`) E-02/E-05: this host's `integrate` verb, at BOTH spellings.
+
+    The DECISION cases live in `tests/test_runner_shared.py::ReintegrationVerbTests`, because
+    `runner_shared.reintegrate_lane` is the one implementation both spellings and the resume pass call.
+    What is host-specific and therefore asserted here: that the driver subcommand and the `cli.py`
+    host-noun alias both exist and both reach that implementation, that the alias adds nothing, and that
+    this host's merge subject names THIS driver.
+    """
+
+    def test_the_driver_subcommand_help_states_the_no_turn_and_suite_costs(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), self.assertRaises(SystemExit) as ctx:
+            driver.main(["integrate", "--help"])
+        self.assertEqual(ctx.exception.code, 0)
+        # Asserted on the WHITESPACE-COLLAPSED text, because argparse's RawDescription formatter still
+        # hard-wraps the source string and a phrase test would then fail on a line break rather than on
+        # a missing statement.
+        text = " ".join(buf.getvalue().split())
+        self.assertIn("COSTS NO AGENT TURN", text)
+        self.assertIn("repository suite in the PRIMARY checkout", text)
+        self.assertIn("merge-and-revalidate gate", text)
+
+    def test_the_alias_expansion_prepends_the_subcommand_and_nothing_else(self):
+        """THE PROOF THE ALIAS IS THIN: the whole implementation is this rewrite."""
+        from agent_workflows.cli import expand_host_integrate_argv
+
+        self.assertEqual(
+            expand_host_integrate_argv(["mm6wuz"]), ["integrate", "mm6wuz"]
+        )
+        self.assertEqual(
+            expand_host_integrate_argv(
+                ["mm6wuz", "--repo", "/tmp/x", "--run-id", "r1"]
+            ),
+            ["integrate", "mm6wuz", "--repo", "/tmp/x", "--run-id", "r1"],
+        )
+        # `--help` still reaches THIS verb's subparser rather than the driver's top-level help.
+        self.assertEqual(
+            expand_host_integrate_argv(["--help"]), ["integrate", "--help"]
+        )
+
+    def test_the_alias_names_the_subcommand_so_the_shim_cannot_rewrite_it(self):
+        """Composition with the implicit-start shim, derived from the driver's OWN set.
+
+        `integrate` IS in that set, so the shim leaves the rewritten argv alone; had the alias emitted
+        a bare id6 instead, the shim would have prefixed `start` and LAUNCHED a run.
+        """
+        import re
+
+        from agent_workflows.cli import expand_host_integrate_argv
+
+        source = (REPO_ROOT / "agent_workflows" / "oc_runipd.py").read_text(
+            encoding="utf-8"
+        )
+        block = re.search(r"subcommands = \{(.*?)\}", source, re.S)
+        assert block is not None
+        self.assertIn('"integrate"', block.group(1))
+        argv = expand_host_integrate_argv(["mm6wuz"])
+        self.assertEqual(argv[0], "integrate")
+
+    def test_integrate_is_a_parser_choice_on_both_host_groups(self):
+        """The reachability half. Without the leaf, `aw oc integrate` dies at `invalid choice`."""
+        import argparse as _ap
+
+        from agent_workflows.cli import _build_parser
+
+        def _choices(p):
+            for action in p._actions:
+                if isinstance(action, _ap._SubParsersAction):
+                    return action.choices
+            return {}
+
+        top = _choices(_build_parser())
+        for host in ("oc", "opencode", "agy", "antigravity"):
+            with self.subTest(host=host):
+                self.assertIn("integrate", _choices(top[host]))
+
+    def test_the_new_cli_leaves_are_DECLARED_as_thin_aliases(self):
+        """F-18: an `alias` row with `delegated`, not a `mutation` row asserting its own contract."""
+        from agent_workflows.command_surface import get_declaration
+
+        for leaf, canonical in (
+            ("oc integrate", "oc runipd"),
+            ("agy integrate", "agy runipd"),
+        ):
+            with self.subTest(leaf=leaf):
+                decl = get_declaration(leaf)
+                self.assertIsNotNone(decl, f"{leaf} must carry a CommandDeclaration")
+                assert decl is not None
+                self.assertEqual(decl.command_class, "alias")
+                self.assertEqual(decl.empty_error_renderer, "delegated")
+                self.assertEqual(decl.canonical_command, canonical)
+
+    def test_both_spellings_reach_the_same_implementation(self):
+        """Two entry points, ONE implementation: both must call `reintegrate_lane` once.
+
+        Asserted by spying on the shared function, which is the only way to distinguish "the alias
+        works" from "the alias re-implemented it and happens to agree today".
+        """
+        from agent_workflows import cli, runner_shared
+
+        for argv, expect_host in (
+            (["integrate", "zzzzzz"], "driver-subcommand"),
+            (["oc", "integrate", "zzzzzz"], "cli-alias"),
+        ):
+            calls: list = []
+
+            def spy(repo, id6, **kwargs):
+                calls.append((str(repo), id6, sorted(kwargs)))
+                return runner_shared.ReintegrationOutcome(
+                    integrated=False, code="no-lane-record", reason="fake"
+                )
+
+            with tempfile.TemporaryDirectory() as td:
+                repo = Path(td) / "repo"
+                repo.mkdir()
+                subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+                with mock.patch.object(runner_shared, "reintegrate_lane", spy):
+                    if expect_host == "driver-subcommand":
+                        rc = driver.main([*argv, "--repo", os.fspath(repo)])
+                    else:
+                        rc = cli._dispatch([*argv, "--repo", os.fspath(repo)])
+                self.assertEqual(rc, 1, f"{argv}: a refusal must exit 1")
+                self.assertEqual(len(calls), 1, f"{argv}: exactly one shared call")
+                self.assertEqual(calls[0][1], "zzzzzz")
+                self.assertIn("integrate", calls[0][2])
+                self.assertIn("suite_check", calls[0][2])
+
+    def test_this_hosts_merge_subject_says_aw_oc_run(self):
+        """The one thing the shared function cannot bind: WHICH driver integrated the lane.
+
+        Proven through a REAL merge on a real repository, because the label lands in a commit subject on
+        main and a mis-binding is invisible until someone audits the log.
+        """
+        from tests.test_runner_shared import (
+            _passing_suite,
+            _repo_with_pending_plan,
+            _stranded_item,
+            _verified_lane,
+            _write_run_state,
+        )
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            repo = _repo_with_pending_plan(root, "oci001")
+            lane = _verified_lane(repo, root, "oci001")
+            _write_run_state(repo, {"repo": str(repo), "queue": [_stranded_item(lane)]})
+            # Advance main so `--ff-only` fails and the LABELLED `--no-ff` merge is taken.
+            (repo / "other.txt").write_text("moved on\n", encoding="utf-8")
+            subprocess.run(["git", "add", "other.txt"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "main advances"], cwd=repo, check=True
+            )
+
+            with mock.patch.object(driver, "run_suite_check", _passing_suite):
+                rc = driver.main(["integrate", "oci001", "--repo", os.fspath(repo)])
+
+            self.assertEqual(rc, 0)
+            subject = subprocess.run(
+                ["git", "log", "-1", "--pretty=%s"],
+                cwd=repo,
+                text=True,
+                capture_output=True,
+            ).stdout.strip()
+            self.assertEqual(
+                subject, "integrate(aw oc run): merge verified lane oci001 to main"
+            )
+            self.assertNotIn("aw agy run", subject)
+
+
+class HostResumeIntegratesInsteadOfDispatchingTests(unittest.TestCase):
+    """integpath-04 (`rl67b0`) E-03/E-06: THE TWO ABSENCES, on this host's real `run_queue`.
+
+    A test asserting only that the item ended integrated would pass identically had the resume paid for
+    a full turn to get there, which IS the measured bug ($39.42 on `mm6wuz`). So the no-turn absence is
+    proven POSITIVELY, by a launcher that FAILS THE TEST if called, and the no-second-lane absence by
+    inspecting the branches afterwards.
+    """
+
+    def _launcher_that_must_not_be_called(self):
+        def fail(*_a, **_k):
+            raise AssertionError(
+                "an agent turn was DISPATCHED: the resume paid for a turn where a merge would do, "
+                "which is the entire defect this plan fixes"
+            )
+
+        return fail
+
+    def _run(self, repo: Path, state: dict, *, retry_incomplete: bool):
+        from tests.test_runner_shared import _passing_suite, _write_run_state
+
+        run_dir = _write_run_state(repo, state, run_id="run-resume")
+        with (
+            mock.patch.object(
+                driver, "run_opencode", self._launcher_that_must_not_be_called()
+            ),
+            mock.patch.object(driver, "run_suite_check", _passing_suite),
+        ):
+            rc = driver.run_queue(run_dir, retry_incomplete=retry_incomplete)
+        return rc, json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+
+    def test_a_bare_resume_merges_the_verified_lane_with_no_turn_and_no_new_lane(self):
+        from tests.test_runner_shared import (
+            _repo_with_pending_plan,
+            _stranded_item,
+            _verified_lane,
+        )
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            repo = _repo_with_pending_plan(root, "res001")
+            lane = _verified_lane(repo, root, "res001")
+            state = {"repo": str(repo), "queue": [_stranded_item(lane)]}
+
+            _rc, final = self._run(repo, state, retry_incomplete=False)
+
+            item = final["queue"][0]
+            self.assertEqual(item["status"], "executed")
+            self.assertTrue((repo / "src" / "res001.txt").is_file())
+            branches = subprocess.run(
+                ["git", "branch", "--list", "aw/lane/res001*"],
+                cwd=repo,
+                text=True,
+                capture_output=True,
+            ).stdout
+            self.assertNotIn("_attempt2", branches)
+
+    def test_with_the_FLAG_PASSED_the_item_is_integrated_rather_than_requeued(self):
+        """The ORDERING assertion, and it needs the flag: without it a bare resume never requeues a
+        terminal item at all, so the test could not tell the fix from unchanged code."""
+        from tests.test_runner_shared import (
+            _repo_with_pending_plan,
+            _stranded_item,
+            _verified_lane,
+        )
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            repo = _repo_with_pending_plan(root, "res002")
+            lane = _verified_lane(repo, root, "res002")
+            state = {"repo": str(repo), "queue": [_stranded_item(lane)]}
+
+            _rc, final = self._run(repo, state, retry_incomplete=True)
+
+            item = final["queue"][0]
+            self.assertEqual(item["status"], "executed")
+            # The flag's flip is UNDONE, or the loop would re-dispatch work that just landed.
+            self.assertNotIn("recovery_next", item)
+            self.assertNotIn(
+                "_attempt2",
+                subprocess.run(
+                    ["git", "branch", "--list", "aw/lane/res002*"],
+                    cwd=repo,
+                    text=True,
+                    capture_output=True,
+                ).stdout,
+            )
+
+    def test_an_INDETERMINATE_item_suppresses_integration_entirely(self):
+        """Main must NOT be mutated during a resume the driver is about to refuse."""
+        from tests.test_runner_shared import (
+            _repo_with_pending_plan,
+            _stranded_item,
+            _verified_lane,
+        )
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            repo = _repo_with_pending_plan(root, "res003")
+            lane = _verified_lane(repo, root, "res003")
+            # THE FLAG THE GATE ACTUALLY READS is the `stopped.certainty` record, not the status:
+            # `runner_stop.is_indeterminate` says so explicitly, and a bare `unknown_outcome` status
+            # would leave the item inert and make this test pass for the wrong reason.
+            indeterminate = {
+                "id6": "res004",
+                "position": 2,
+                "setid": "demo",
+                "status": "interrupted",
+                "configured_file": ".aw/records/plans/pending/20260906-demo-01-res004-demo.ipd.md",
+                "requires_reconciliation": True,
+                "stopped": {
+                    "certainty": runner_stop.CERTAINTY_INDETERMINATE,
+                    "level": 4,
+                    "at": "2026-09-06T00:00:00+00:00",
+                },
+            }
+            state = {
+                "repo": str(repo),
+                "queue": [_stranded_item(lane), indeterminate],
+            }
+            head_before = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=repo, text=True, capture_output=True
+            ).stdout.strip()
+
+            rc, final = self._run(repo, state, retry_incomplete=True)
+
+            self.assertEqual(rc, 1, "the resume must be REFUSED")
+            self.assertEqual(
+                subprocess.run(
+                    ["git", "rev-parse", "HEAD"],
+                    cwd=repo,
+                    text=True,
+                    capture_output=True,
+                ).stdout.strip(),
+                head_before,
+                "nothing may be integrated during a refused resume",
+            )
+            self.assertNotEqual(final["queue"][0]["status"], "executed")
+
+
 class ActionLegalityTests(unittest.TestCase):
     """revsweep 76gsmv E-03/V-03: `--action review` must REFUSE a non-reviewable item.
 
