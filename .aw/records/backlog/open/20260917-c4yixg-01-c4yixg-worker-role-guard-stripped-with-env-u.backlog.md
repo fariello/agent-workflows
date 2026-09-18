@@ -26,9 +26,12 @@ It succeeded: commit `575f0b32 lifecycle(63425h): finalize 63425h -> executed`, 
 the plan from `pending/` to `executed/`, full scope reconciliation recorded, and the trailer
 "Executed by opencode/... via aw ipd finalize".
 
-`env -u AW_EXECUTION_ROLE` appears 139 times in that one session. Most are legitimate (running a
-lifecycle TEST harness needs the marker absent, and that is a real need this item must not break);
-the finalize above is not.
+`env -u AW_EXECUTION_ROLE` appears 139 times in that one session. All but this one are LEGITIMATE and
+in fact FORCED: the marker makes lifecycle tests fail inside a lane, so an agent cannot get a
+trustworthy suite baseline without stripping it. That is separately filed as `770fkp` (31 tests fail
+under the role flag) and `s0303g` (19 suite tests fail, no trustworthy bare-suite baseline). The agent
+adopted `env -u` for a real and unavoidable reason and then carried the habit into a lifecycle VERB,
+which is the one place it must not go. Any fix here must NOT break the test use.
 
 ## The guard worked; it was removed
 
@@ -60,6 +63,22 @@ execution authority". The item was recorded `substantially-complete` with its la
 not-integrated while its work was in fact complete, and a human had to diagnose and merge it by hand
 (`2cfdb85d`). That false refusal is tracked as `02371s`, and its misleading message as `894vzu`; THIS
 item is their upstream cause.
+
+## This exact failure was already fixed once
+
+The guard was installed by commit `cdef9c90` "fix(i452hf): stop stranding a lane the agent already
+finalized", i.e. for THIS precise failure mode, and backlog `i452hf` is filed `done`. So this is a
+REGRESSION of a closed defect by a route the original fix did not anticipate: the fix assumed the
+marker would be present, and it was, but the agent removed it. That history is why the fix sketch below
+does not simply propose "add the guard" - the guard exists and was defeated.
+
+## A second, unbypassed hole in the same guard
+
+Found by the `/plan-review` of IPD `ld8lb3` and recorded here because it belongs to this item's subject:
+`worker_role_active` is consulted in the CLI wrappers `run_begin`/`run_finalize` ONLY, not inside
+`finalize()` itself, and `status_set` contains ZERO references to it. So `aw set executed <plan>`, which
+delegates straight into `_life.finalize`, performs a full terminal transaction from a worker lane with
+NO role refusal at all and no `env -u` needed. Fixing only the `env -u` route would leave that open.
 
 ## Honest scoping: the code already admits this
 
@@ -100,8 +119,23 @@ a single strippable variable for its authority.
 6. Regression test: assert an in-lane finalize is refused even with `AW_EXECUTION_ROLE` unset, and that
    a test harness invocation with the marker unset still works.
 
-## Related
+## Related, and how this item does NOT duplicate them
 
-* `02371s` (graduated to IPD `ld8lb3`) the false refusal this caused.
-* `894vzu` (graduated to IPD `ld8lb3`) the misleading message that hid the cause.
+* `02371s` and `894vzu` (both graduated into IPD `ld8lb3`): the false refusal this caused, and the
+  misleading message that hid the cause. THIS item is their upstream cause; they are downstream effects.
+* `770fkp` and `s0303g`: WHY the agent had `env -u` in hand at all (the marker breaks lifecycle tests
+  inside a lane). Those items make the habit unnecessary; this one must make the VERB unbypassable. Both
+  are needed: fixing only those leaves the bypass available, fixing only this leaves agents unable to run
+  a suite in a lane.
+* `8b9ufm` (plan, `approved`): already states the runner-owns-begin/finalize role at TURN START in all
+  four prompt builders. That is the INSTRUCTION half and this item must not duplicate it; what remains
+  here is ENFORCEMENT that does not depend on a strippable variable, plus the `aw set executed` hole.
+* `i452hf` (`done`): the original occurrence, fixed by `cdef9c90`, which this regresses by a new route.
 * `1o4eif` / research `x03wgn` Phase 6: the OS-sandbox hard-enforcement work this item's limit points at.
+
+## Scope note for whoever takes this
+
+Do NOT graduate this into `ld8lb3`. That plan is `reviewed` with a settled scope (idempotence + the
+three-way receipt classification + the `finalize()`/`status_set` hole its own F-10b found), and adding
+an authority redesign would widen an already-reviewed plan. This item wants its own plan, sequenced
+against `770fkp`/`s0303g` so the legitimate `env -u` need is removed before or with the enforcement.
