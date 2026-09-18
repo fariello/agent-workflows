@@ -1,6 +1,7 @@
-"""Handlers for the two analytics leaves: ``aw runs analyze`` and ``aw runs query``.
+"""Handlers for the four analytics leaves under ``aw runs``: ``analyze``, ``query``, ``export``,
+``submit``.
 
-runanalytics Order 08 (`mm5p3v`) E-03 / E-04 / E-06. Stdlib only.
+runanalytics Order 08 (`mm5p3v`) E-03 / E-04 / E-06, then Order 09 (`ixis0c`) E-01. Stdlib only.
 
 WHAT LIVES HERE AND WHAT DOES NOT. This module owns flag PRECEDENCE, exit codes, the browser-launch
 seam, and turning a result into an `aw.agent/v1` record. It owns no analysis: ingestion is Order 05,
@@ -9,12 +10,28 @@ run-root resolver plus the reserved `analytics/` namespace are Order 01. Every p
 THROUGH Order 01 (`runner_shared.state_root` / `analytics_root`, reached via the owning module's own
 helper); the `.aw/records/runs` literal is never composed here.
 
-`analyze` MUTATES, ON A NOUN DOCUMENTED READ-ONLY, AND THAT IS DECLARED RATHER THAN SLIPPED IN.
-`aw runs` is "the READING half of the run surface", read-only except the opt-in `repair` verb.
-`analyze` updates the analytics cache and publishes a report bundle, so it is the SECOND exception:
-its `CommandDeclaration` carries `command_class="mutation"` and `cli._RUNS_DESCRIPTION` names both
-exceptions. What keeps that honest is the containment: every write lands inside the reserved,
+IT OWNS NO PRIVACY POLICY EITHER, WHICH MATTERS MORE THAN THE REST OF THAT LIST. The export tiers,
+the field allowlist, the archive defenses, the restricted https opener, the bundle validation, the
+receipt shape and the consent predicate all live in `run_analytics_export` and
+`run_analytics_submit`. This module translates an `argparse.Namespace` into a call and a result into
+a record. A second copy of a privacy decision here would be a second thing to keep in sync, and the
+one this Set exists to avoid getting wrong.
+
+FOUR MUTATING VERBS NOW LIVE ON A NOUN DOCUMENTED READ-ONLY, AND EACH IS DECLARED RATHER THAN
+SLIPPED IN. `aw runs` is "the READING half of the run surface"; the exceptions are the opt-in
+`repair` verb, `analyze` (updates the analytics cache and publishes the report), `export` (writes a
+bundle, and only under `--apply`) and `submit` (would transmit one; writes a local receipt). Each
+carries `command_class="mutation"` in `command_surface.COMMAND_INVENTORY`, and
+`cli._RUNS_DESCRIPTION` NAMES all four rather than counting them, because that count has already
+been wrong twice. What keeps the claim honest is containment: every write lands inside the reserved,
 gitignored `analytics/` tree, and Order 07's `publish_bundle` REFUSES a target outside it.
+
+CONSENT IS AN ATTESTATION, NOT A PROMPT, AND NO CODE PATH HERE READS A TTY. Implemented spec
+`20260815-0151-01-honest-human-approval-attestation` replaced a `sys.stdin.isatty()` requirement plus
+a typed confirmation with `--by-human`, reasoning that "an executing agent has no TTY, so it can
+NEVER record an approval, even one the human explicitly gave in chat". `--yes` is NOT consent here
+and is not even accepted by these two leaves: it preauthorizes expected mutations, and treating it as
+consent would make a `raw` export or a transmission collateral damage of an unrelated invocation.
 
 EXIT CODES ARE RECONCILED WITH THE AGENT SCHEMA, DELIBERATELY. Eight declarations in
 `command_surface.COMMAND_INVENTORY` use a code above 2, so a higher code would not be unprecedented.
@@ -33,9 +50,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 from agent_workflows import run_analytics_query as query_mod
 from agent_workflows.renderers import get_renderer
@@ -57,6 +75,8 @@ __all__ = [
     "reset_launcher",
     "run_analyze",
     "run_query_leaf",
+    "run_export_leaf",
+    "run_submit_leaf",
 ]
 
 EXIT_OK = 0
@@ -876,3 +896,402 @@ def run_query_leaf(args: argparse.Namespace) -> int:
         target=result.view,
     )
     return _emit(payload, args)
+
+
+# --------------------------------------------------------------------------------------------------
+# runanalytics Order 09 (`ixis0c`) E-01: export
+# --------------------------------------------------------------------------------------------------
+#
+# FLAG PRECEDENCE, AND THE DEFAULT IS THE SAFE ONE. Without `--apply` this verb PREVIEWS: it reports
+# exactly what would be written and writes nothing at all. That is the `dry_run_default` gate its
+# `CommandDeclaration` carries, and it is the honest posture for a command whose output a human may
+# hand to someone else.
+#
+#   1. resolve the tier (default `metrics`); an unknown tier is REFUSED, never narrowed.
+#   2. for `raw`, require BOTH an explicit `--include` selection and the `--by-human` attestation.
+#      Either alone is insufficient: a selection without consent is an unreviewed disclosure, and
+#      consent without a selection has nothing to disclose (`select_raw_files` returns [] by design).
+#   3. build the payload and the preview.
+#   4. write ONLY under `--apply`, and only inside the reserved analytics namespace.
+
+
+def _export_destination(repo: Path, args: argparse.Namespace, tier: str) -> Path:
+    """Where a bundle lands. Inside the reserved namespace unless the caller names a path.
+
+    Resolved through Order 01's `analytics_exports_dir` rather than by composing the runs literal.
+    An explicit `--out` is honored as given, because an operator exporting to a scratch directory
+    they will inspect and delete is the expected workflow and forcing it under `.aw/` would make the
+    bundle harder to find, not safer.
+    """
+
+    from agent_workflows.runner_shared import analytics_exports_dir
+
+    explicit = getattr(args, "out", None)
+    if explicit:
+        return Path(str(explicit))
+    from datetime import datetime, timezone
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return analytics_exports_dir(repo) / f"{stamp}-{tier}"
+
+
+def _common_base(run_dirs: Sequence[Path]) -> Path | None:
+    """The common parent of the selected run directories, used to keep raw paths distinct.
+
+    Returns None when there is nothing to base (no runs), which is safe because there are then no
+    files either. With one or more runs this is their shared parent, so a copied file keeps its
+    `<run-id>/<relative path>` shape instead of collapsing onto a same-named sibling.
+    """
+
+    resolved = [Path(d).resolve() for d in run_dirs]
+    if not resolved:
+        return None
+    try:
+        return Path(os.path.commonpath([str(p) for p in resolved]))
+    except ValueError:  # pragma: no cover - only on mixed drives/relative mixes
+        return resolved[0].parent
+
+
+def run_export_leaf(args: argparse.Namespace) -> int:
+    """`aw runs export`: build an inspectable, sensitivity-tiered bundle. Previews by default."""
+
+    from agent_workflows import run_analytics_export as export_mod
+    from agent_workflows import run_analytics_submit as submit_mod
+
+    repo = _repo_root(args)
+    tier = str(getattr(args, "tier", None) or export_mod.DEFAULT_TIER)
+    apply_it = bool(getattr(args, "apply", False))
+    include = list(getattr(args, "include", None) or [])
+    by_human = bool(getattr(args, "by_human", False))
+    actor = str(getattr(args, "actor", None) or "")
+
+    try:
+        # An unknown tier is refused here rather than defaulted, so a typo cannot silently produce a
+        # bundle at a sensitivity the caller did not ask for.
+        export_mod.tier_claims_safety(tier)
+    except export_mod.ExportRefusal as exc:
+        return _emit(
+            _cannot_run("runs export", str(exc), next_cmd="aw runs export --help"), args
+        )
+
+    destination = _export_destination(repo, args, tier)
+
+    # THE RAW TIER'S TWO PRECONDITIONS. Reported as a REFUSAL (exit 1) rather than a usage error,
+    # because the invocation is well-formed and the answer is "not without consent".
+    #
+    # THE DECISION USES THE SHARED PREDICATE; THE MESSAGE DOES NOT. `attestation_refusal` is the one
+    # consent predicate for this Set and is deliberately reused here rather than reimplemented, but
+    # its refusal TEXT runs the destination through `_redact_url`, which is right for a submission
+    # endpoint and useless for a local directory: measured, it rendered a filesystem path as the
+    # literal `<url>`. So the reason is authored here, naming the tier and the real destination.
+    attestation: submit_mod.Attestation | None = None
+    if tier == export_mod.RAW_TIER:
+        if by_human:
+            attestation = submit_mod.Attestation(
+                tier=tier,
+                destination=str(destination),
+                by_human=True,
+                actor=actor or "unnamed actor",
+            )
+        if (
+            submit_mod.attestation_refusal(
+                attestation, tier=tier, destination=str(destination)
+            )
+            is not None
+        ):
+            return _emit(
+                CommandResult(
+                    command="runs export",
+                    status="fail",
+                    exit_code=EXIT_FINDINGS,
+                    summary=(
+                        f"refusing a {tier} export to {destination}: it copies ORIGINAL run "
+                        "artifacts (prompts, conversations, code, commands, paths, possibly "
+                        "secrets) and requires an explicit --by-human attestation; --yes alone "
+                        "does NOT authorize it"
+                    ),
+                    verified=False,
+                    complete=False,
+                    applied=False,
+                    data={
+                        "tier": tier,
+                        "destination": str(destination),
+                        "code": "not-attested",
+                        "remedy": (
+                            "re-run with --by-human --actor '<who attested>'; --yes does not "
+                            "authorize a raw export"
+                        ),
+                        "wrote_anything": False,
+                    },
+                    next_actions=[
+                        NextAction(
+                            "aw runs export --tier raw --include prompt --by-human "
+                            "--actor '<who>' --apply",
+                            "attest",
+                        )
+                    ],
+                ),
+                args,
+            )
+        if not include:
+            return _emit(
+                CommandResult(
+                    command="runs export",
+                    status="fail",
+                    exit_code=EXIT_FINDINGS,
+                    summary=(
+                        "refusing a raw export with no --include selection: the raw tier selects "
+                        "NOTHING by default, so this would produce an empty bundle"
+                    ),
+                    verified=False,
+                    complete=False,
+                    applied=False,
+                    data={
+                        "tier": tier,
+                        "code": "no-selection",
+                        "remedy": "name what to include, e.g. --include prompt --include session",
+                        "wrote_anything": False,
+                    },
+                ),
+                args,
+            )
+
+    # THE ENVELOPES COME FROM ORDER 02'S CACHE, ALREADY PROJECTED. This module reads them through
+    # Order 02's own loader and applies no filter of its own.
+    from agent_workflows import run_analytics_cache as cache_mod
+
+    envelopes: list[Any] = []
+    unreadable = 0
+    cache_root = cache_mod.cache_root(repo)
+    if cache_root.is_dir():
+        for entry_path in sorted(cache_root.rglob(cache_mod.ENTRY_FILENAME)):
+            try:
+                envelopes.append(cache_mod.load_entry(entry_path))
+            except (cache_mod.CacheError, OSError, ValueError):
+                unreadable += 1
+
+    payload: dict[str, Any]
+    sanitizer_report: dict[str, Any] | None = None
+    raw_files: list[Path] = []
+    raw_base: Path | None = None
+    if tier == export_mod.DEFAULT_TIER:
+        payload = export_mod.build_metrics_payload(envelopes)
+    elif tier == "events-redacted":
+        payload = export_mod.build_redacted_events(envelopes)
+        # THE DETECTOR RUNS AS CORROBORATION AND SHIPS ITS OWN BLIND SPOTS. It is not the boundary;
+        # the field allowlist above is. See the export module's docstring for the measurement.
+        sanitizer_report = export_mod.sanitizer_blind_spot_report(
+            [json.dumps(payload, sort_keys=True)], repo_root=repo
+        )
+    else:
+        run_dirs, _unresolved = _resolve_run_dirs(args, repo)
+        raw_files = export_mod.select_raw_files(run_dirs, include=include)
+        # A BASE IS REQUIRED, NOT OPTIONAL, AND OMITTING IT SILENTLY LOSES FILES. `write_bundle`
+        # falls back to `src.name` when `raw_base` is None, and EVERY run directory contains a
+        # `prompt.md`, so a two-run raw export produced ONE `raw/prompt.md` and dropped the other
+        # (measured while wiring this leaf). The base is the common parent of the selected runs, so
+        # each file keeps its `<run-id>/...` path and collisions are impossible by construction.
+        raw_base = _common_base(run_dirs)
+        payload = {
+            "tier": export_mod.RAW_TIER,
+            "schema_version": export_mod.EXPORT_SCHEMA_VERSION,
+            "selected_file_count": len(raw_files),
+            "claims_anonymity": False,
+            "residual_risk": list(export_mod.residual_risk_notes(export_mod.RAW_TIER)),
+        }
+
+    preview = export_mod.preview_raw_selection(raw_files, tier=tier, base=raw_base)
+
+    evidence = [
+        Evidence("tier", tier, "measured"),
+        Evidence("cached_runs", len(envelopes), "measured"),
+        Evidence(
+            "selected_files",
+            preview.file_count,
+            "measured" if raw_files else "verified",
+        ),
+    ]
+    if unreadable:
+        evidence.append(Evidence("unreadable_cache_entries", unreadable, "measured"))
+
+    data: dict[str, Any] = {
+        "tier": tier,
+        "destination": str(destination),
+        "preview": preview.to_dict(),
+        "claims_anonymity": False,
+        "residual_risk": list(export_mod.residual_risk_notes(tier)),
+        "unreadable_cache_entries": unreadable,
+    }
+    if sanitizer_report is not None:
+        # The blind-spot enumeration travels with the answer, so a caller reading the record cannot
+        # see "0 findings" without also seeing what was never looked for.
+        data["sanitizer_report"] = sanitizer_report
+
+    if not apply_it:
+        data["wrote_anything"] = False
+        return _emit(
+            CommandResult(
+                command="runs export",
+                status="preview",
+                exit_code=EXIT_OK,
+                summary=(
+                    f"preview only: a {tier} bundle of {preview.file_count} selected file(s) "
+                    f"would be written to {destination}; nothing was written"
+                ),
+                applied=False,
+                evidence=evidence,
+                data=data,
+                next_actions=[NextAction("aw runs export --apply", "write")],
+                target=tier,
+            ),
+            args,
+        )
+
+    try:
+        bundle = export_mod.write_bundle(
+            destination,
+            tier=tier,
+            payload=payload,
+            raw_files=raw_files,
+            raw_base=raw_base,
+            sanitizer_report=sanitizer_report,
+        )
+    except (export_mod.ExportRefusal, OSError) as exc:
+        return _emit(
+            _cannot_run(
+                "runs export",
+                f"the bundle could not be written: {exc}",
+                next_cmd="aw runs export",
+            ),
+            args,
+        )
+
+    data["wrote_anything"] = True
+    data["manifest_path"] = str(bundle.manifest_path)
+    data["file_count"] = len(bundle.entries)
+    if attestation is not None:
+        # E-08 requires the attestation be "recorded with provenance", so the record says WHO
+        # authorized this disclosure rather than only that someone did.
+        data["attestation"] = attestation.to_dict()
+    return _emit(
+        CommandResult(
+            command="runs export",
+            status="clean",
+            exit_code=EXIT_OK,
+            summary=(
+                f"wrote a {tier} bundle of {len(bundle.entries)} file(s) to {bundle.root} "
+                f"(MINIMIZED, not anonymous)"
+            ),
+            applied=True,
+            evidence=evidence,
+            data=data,
+            next_actions=[NextAction(f"aw runs submit {bundle.root}", "submit")],
+            target=tier,
+        ),
+        args,
+    )
+
+
+# --------------------------------------------------------------------------------------------------
+# runanalytics Order 09 (`ixis0c`) E-01: submit
+# --------------------------------------------------------------------------------------------------
+#
+# THE EXPECTED OUTCOME IS `unavailable`, AND THAT IS THE DELIVERABLE RATHER THAN A STUB. No endpoint,
+# operator, TLS posture, retention policy, access policy, deletion method or contact for analytics
+# submission is approved anywhere in this repository, so `submit_bundle` returns an actionable
+# `unavailable` and transmits nothing. Every validation, transport and consent decision belongs to
+# `run_analytics_submit`; this function reads the configuration, calls it, and renders the result.
+
+
+def run_submit_leaf(args: argparse.Namespace) -> int:
+    """`aw runs submit <bundle>`: submit a validated bundle, or refuse with a reason."""
+
+    from agent_workflows import run_analytics_submit as submit_mod
+    from agent_workflows import run_analytics_wizard as wizard_mod
+
+    repo = _repo_root(args)
+    bundle = getattr(args, "bundle", None)
+    if not bundle:
+        return _emit(
+            _cannot_run(
+                "runs submit",
+                "name the exported bundle DIRECTORY to submit (the one holding manifest.json)",
+                next_cmd="aw runs export --apply",
+            ),
+            args,
+        )
+    root = Path(str(bundle))
+    if not root.is_dir():
+        return _emit(
+            _cannot_run(
+                "runs submit",
+                f"no bundle directory at {root}",
+                next_cmd="aw runs export --apply",
+            ),
+            args,
+        )
+
+    # THE ENDPOINT IS READ FROM THE GITIGNORED MACHINE-LOCAL BINDING, never from the XDG user config,
+    # which measurably DROPS an unregistered key on save (E-09). The credential itself is never
+    # stored: what is configured is the NAME of an environment variable.
+    settings = wizard_mod.read_settings(repo)
+    endpoint = settings.endpoint()
+    destination = str(endpoint.get("url") or "")
+
+    tier = getattr(args, "tier", None)
+    attestation = (
+        submit_mod.Attestation(
+            tier=str(tier or ""),
+            destination=destination,
+            by_human=True,
+            actor=str(getattr(args, "actor", None) or "") or "unnamed actor",
+        )
+        if bool(getattr(args, "by_human", False))
+        else None
+    )
+
+    result = submit_mod.submit_bundle(
+        root,
+        endpoint=endpoint,
+        tier=str(tier) if tier else None,
+        attestation=attestation,
+    )
+
+    status_map = {
+        submit_mod.STATUS_SUBMITTED: "clean",
+        submit_mod.STATUS_UNAVAILABLE: "fail",
+        submit_mod.STATUS_REFUSED: "fail",
+    }
+    transmitted = bool(result.get("transmitted"))
+    exit_code = int(result.get("exit_code", EXIT_FINDINGS))
+    return _emit(
+        CommandResult(
+            command="runs submit",
+            status=status_map.get(str(result.get("status")), "fail"),
+            exit_code=exit_code,
+            summary=str(result.get("summary") or ""),
+            verified=transmitted,
+            complete=transmitted,
+            applied=transmitted,
+            evidence=[
+                Evidence("transmitted", transmitted, "verified"),
+                Evidence("status", str(result.get("status")), "measured"),
+            ],
+            data={
+                "status": result.get("status"),
+                "code": result.get("code"),
+                "remedy": result.get("remedy"),
+                # The receipt carries no credential by construction (`auth_value_recorded` is False
+                # and the destination is reduced to scheme+host), so it is safe to surface.
+                "receipt": result.get("receipt"),
+                "transmitted": transmitted,
+            },
+            next_actions=(
+                []
+                if transmitted
+                else [NextAction("aw runs export --apply", "export locally")]
+            ),
+            target=str(root),
+        ),
+        args,
+    )
