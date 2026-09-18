@@ -4,6 +4,24 @@ Covers the spec Section 16 acceptance cases: parser exclusions, both heading ord
 invariants, watermark + dependency grammar, state combinations, checkpoints (incl. pre/post-
 transition), OQ + size boundaries, legacy + quarantine dispositions, repository aggregation,
 process-exit vs disposition semantics, --agent output, and dash-only-in-prose. Stdlib unittest.
+
+Most of this file is TABLE-DRIVEN, because most of it was one shape repeated: take the minimal
+conforming IPD, break exactly one thing, assert one `IPD-*` code. The tables group by SUBJECT rather
+than by which function in `ipd_lint.py` implements the check, so the closed sets this linter is built
+on (the rule codes, the lifecycle phases, the dispositions) are browsable as sets and a renumbering
+that moves several at once reports as ONE failure naming all of them rather than as N red lines.
+
+Where a distinction is a MODE it is a COLUMN, not a second table: the lint PHASE, the plan's
+DIRECTORY, the `--legacy` flag, and the `Scope-Paths` cutoff marker all appear as columns, because in
+every case the property worth asserting is that the SAME document gets different answers in different
+modes, which no single-mode test can state. Where an outcome is three-valued (blocking / advisory /
+silent) the rows say which, rather than collapsing it to a bool.
+
+Tests that are NOT rows carry a one-line docstring saying why they stay separate. The recurring
+reasons: the subject is a real file or the whole tracked tree rather than a fixture; the claim is
+structural (a module attribute's absence, an import allowlist, which layer a check lives in); the
+setup is materially different (a throwaway repository on disk, a patched collaborator); or the
+assertion is over CLI output rather than a `LintResult`.
 """
 
 from __future__ import annotations
@@ -136,34 +154,375 @@ def _executed_child(include_executed_history: bool = True) -> str:
 
 
 class ParserExclusionTests(unittest.TestCase):
-    def test_fenced_example_not_parsed_as_structure(self):
-        # The spec file contains fenced ## Goal / ## Detailed... examples; they must NOT be counted.
-        doc = L.parse(SPEC.read_text(encoding="utf-8"))
-        titles = [h.title for h in doc.h2]
-        # The spec's OWN H2 are numbered ("1. Purpose ...") so the fenced "## Goal" example must
-        # not appear as a real H2 heading.
-        self.assertNotIn("Goal", titles)
-        self.assertNotIn("Detailed Implementation Checklist (TODO)", titles)
+    """What the parser must NOT see as document structure.
 
-    def test_yaml_front_matter_ignored(self):
-        text = (
-            "---\ntitle: x\n## Goal\n---\n# IPD: x\n\n- Kind: child\n\n## Goal\n\ny\n"
-        )
-        doc = L.parse(text)
-        self.assertEqual([h.title for h in doc.h2], ["Goal"])
+    ONE table replaces two tests. Both asked `parse` for `doc.h2` titles over text containing an H2
+    that is NOT structure, and differed only in WHY it is not structure (inside a fenced code block
+    versus inside YAML front matter) and in how they asserted it (absence of two titles versus the
+    exact title list). The CHECK MODE is therefore a column rather than a reason for two tests: the
+    real spec file has dozens of legitimate headings so only ABSENCE is assertable about it, while
+    the synthetic fixture has exactly one so its whole list is pinnable.
 
+    Why the table beats the two: both exclusions are implemented by the same skip-state machine
+    inside one parse loop, so a regression in the state tracking breaks both at once while each old
+    test reported it as an unrelated failure in a different class of input. Keeping them adjacent is
+    also what documents that the rule is general (any H2 inside an excluded region is not structure)
+    rather than two special cases.
+    """
 
-class ConformingTests(unittest.TestCase):
-    def test_minimal_child_conforms_at_author(self):
-        res = L.lint_text(_conforming_child(), checkpoint="author", directory="pending")
+    #: (case, text to parse, the EXACT expected title list or None to skip that check, titles that
+    #: must be ABSENT, why this row exists)
+    EXCLUSIONS = (
+        (
+            "the real spec file's own FENCED examples",
+            None,  # read from SPEC below; the file is large, so only absence is assertable
+            None,
+            ("Goal", "Detailed Implementation Checklist (TODO)"),
+            "the spec document EXPLAINS the IPD format, so it quotes `## Goal` and `## Detailed "
+            "Implementation Checklist (TODO)` inside code fences. Its own H2 are numbered "
+            "(`1. Purpose ...`), so either title appearing here means fenced content is being read "
+            "as structure and every document that documents the format lints as one",
+        ),
+        (
+            "an H2 inside YAML front matter",
+            "---\ntitle: x\n## Goal\n---\n# IPD: x\n\n- Kind: child\n\n## Goal\n\ny\n",
+            ["Goal"],
+            (),
+            "front matter is metadata, not body. The fixture contains the SAME heading twice, once "
+            "in the front matter and once for real, so the exact-list check is what proves the "
+            "parser counted one and not two; a duplicate would trip the duplicate-heading rule on a "
+            "conforming document",
+        ),
+    )
+
+    def test_no_excluded_region_contributes_a_heading(self):
+        wrong = []
+        for case, text, exact, forbidden, why in self.EXCLUSIONS:
+            body = SPEC.read_text(encoding="utf-8") if text is None else text
+            titles = [h.title for h in L.parse(body).h2]
+            problems = []
+            if exact is not None and titles != exact:
+                problems.append(f"expected titles {exact!r}, got {titles!r}")
+            leaked = [t for t in forbidden if t in titles]
+            if leaked:
+                problems.append(
+                    f"these titles were counted as real H2 and must not be: {leaked!r}"
+                )
+            if problems:
+                wrong.append(
+                    f"  {case}:\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
         self.assertEqual(
-            res.disposition,
-            S.DISPOSITION_CONFORMING,
-            [d.message for d in res.diagnostics],
+            wrong,
+            [],
+            f"the parser read structure out of {len(wrong)} of {len(self.EXCLUSIONS)} excluded "
+            "regions. One skip-state machine inside a single parse loop implements both, so BOTH "
+            "rows failing together means that state tracking broke rather than either exclusion "
+            "being wrong on its own. FIX: a leaked heading does not merely add a title; it makes "
+            "documents that DOCUMENT the IPD format lint as malformed IPDs, and it can synthesize a "
+            f"duplicate-heading error on a document whose real headings are unique.\n"
+            + "\n".join(wrong),
         )
-        self.assertTrue(res.passing)
 
-    def test_conforming_orchestrator_fixture_conforms(self):
+
+class StructuralRuleTests(unittest.TestCase):
+    """Each named structural rule fires on its own malformed plan, at the AUTHOR phase.
+
+    ONE table replaces thirteen tests spread over five classes (`ConformingTests`, `HeadingTests`,
+    `MetadataLintTests`, `IdBijectionTests`, `StateMachineTests`, `OpenQuestionAndSizeTests`). Every
+    one of them had the identical shape: take the minimal conforming child IPD, break exactly one
+    thing, assert one `IPD-*` code appears. The class boundaries tracked which SECTION of the linter
+    implemented the rule, which is an implementation detail, not a property of the subject.
+
+    Why the table beats the thirteen: these codes are a CLOSED SET that `aw ipd lint` prints to
+    users and that `aw ipd begin` gates on, and the realistic failure is a renumbering or a refactor
+    that makes one check return a DIFFERENT code than it used to. Thirteen tests report that as
+    thirteen unrelated red lines, each saying only `False is not true`; the table reports one failure
+    listing every code that moved, which is the shape of the actual problem. It also makes the set
+    browsable as a set, so the next person adding a rule can see what already exists.
+
+    THE POSITIVE ROWS ARE IN THE SAME TABLE deliberately, and they carry real weight here: a linter
+    that flagged everything would satisfy every negative row on its own. The clean child is one, and
+    the em/en dash plan is the other (dashes are a USER-FACING prose rule only, so an IPD containing
+    them must still lint clean). Their failure message says the negatives are vacuous while they are
+    broken.
+
+    Two rows pin MORE than the tests they replace, which is what tabulating bought. The
+    execution-placement row now names `IPD-H204` where the old test accepted any of three codes, and
+    the auto-approved row now forbids `IPD-M104`/`IPD-M101` outright where the old test forbade them
+    only in combination with an `Approval` substring. Both were verified against real output.
+    """
+
+    #: (case, the plan text, codes that MUST all be reported, message substrings that must appear on
+    #: those codes' diagnostics, codes that must NOT be reported, why this row exists)
+    #:
+    #: THE CODES ARE LITERAL STRINGS, NOT `L.C_*` CONSTANTS, AND THAT IS DELIBERATE. Referencing the
+    #: constants would make a RENUMBERING invisible, because the constant and the reported code move
+    #: together: measured, renaming `C_HEADING_MISSING` to `IPD-H299` and `C_WATERMARK` to `IPD-I394`
+    #: left a constant-referencing version of this table GREEN. Since these codes are a published
+    #: interface (users read them in `aw ipd lint` output, the spec names them, and workflows cite
+    #: them), a renumbering is a breaking change and must fail here. Do not "tidy" these into
+    #: constants.
+    RULES = (
+        (
+            "the minimal conforming child, unmodified",
+            _conforming_child(),
+            (),
+            (),
+            (),
+            "THE POSITIVE ROW: it must lint CONFORMING and passing. Every negative row below is "
+            "vacuous while this one is broken, because a linter that rejects everything satisfies "
+            "all of them",
+        ),
+        (
+            "an IPD containing an em dash and an en dash",
+            _conforming_child().replace(
+                "Sample goal.",
+                "Sample goal \u2014 with an em dash \u2013 and an en dash.",
+            ),
+            (),
+            (),
+            (),
+            "THE SECOND POSITIVE ROW, and a retired rule: the no-em/en-dash convention is a "
+            "USER-FACING prose rule only (GUIDING_PRINCIPLES P13), and IPDs are internal/AI-facing "
+            "artifacts. IPD-D701 was retired, so a dash must not affect linting at all",
+        ),
+        (
+            "a required H2 deleted",
+            _conforming_child().replace("## Scope check\n\n- x\n\n", ""),
+            ("IPD-H202",),
+            (),
+            (),
+            "the canonical section list is mandatory: a plan missing `## Scope check` has no place "
+            "to record what it decided NOT to touch",
+        ),
+        (
+            "the execution checklist moved out from under Goal",
+            _conforming_child().replace(
+                "## Goal\n\nSample goal.\n\n## Detailed Implementation Checklist (TODO)",
+                "## Goal\n\nSample goal.\n\n## Findings\n\n- x\n\n## Detailed Implementation Checklist (TODO)",
+            ),
+            ("IPD-H204",),
+            (),
+            (),
+            "PLACEMENT is its own rule, separate from ordering: the checklist must be the H2 "
+            "IMMEDIATELY after Goal so an executing agent reads the work directly after the intent. "
+            "The old test accepted any of H204/H201/H203, which passed even if placement stopped "
+            "being checked and only the generic ordering rule fired; naming H204 fixes that",
+        ),
+        (
+            "a duplicated H2",
+            _conforming_child() + "\n## Goal\n\ndup\n",
+            ("IPD-H203",),
+            (),
+            (),
+            "two sections with one name make every later cross-reference ambiguous, and the linter's "
+            "own section lookups would silently read whichever came first",
+        ),
+        (
+            "an unrecognized metadata field",
+            _conforming_child().replace(
+                "- Author: tester", "- Author: tester\n- Bogus: y"
+            ),
+            ("IPD-M103",),
+            (),
+            (),
+            "the metadata block is a CLOSED vocabulary. An unknown field is usually a typo in a real "
+            "one, and a typo'd `- Status:` that lints clean is a plan whose state nothing can read",
+        ),
+        (
+            "an orchestrator declaring a nonzero Order",
+            _conforming_child().replace("- Kind: child", "- Kind: orchestrator"),
+            ("IPD-M104",),
+            ("Order",),
+            (),
+            "`00` is RESERVED for the orchestrator of a Set, so an orchestrator at Order 1 collides "
+            "with a child. The message needle is asserted because this code covers every field "
+            "constraint, so the code alone would not show that ORDER is what was rejected",
+        ),
+        (
+            "Status: auto-approved",
+            _conforming_child().replace(
+                "- Status: to-review", "- Status: auto-approved"
+            ),
+            (),
+            (),
+            ("IPD-M104", "IPD-M101"),
+            "auto-approved is a LEGAL status and does not require the human `- Approval:` field, "
+            "which is the whole point of it existing. A forbidden-code row rather than a clean one "
+            "because this fixture legitimately trips the ready-to-execute Scope-Paths rule",
+        ),
+        (
+            "a watermark below the highest present E id",
+            _conforming_child().replace(
+                "- Highest E allocated: 01", "- Highest E allocated: 00"
+            ),
+            ("IPD-I304",),
+            (),
+            (),
+            "the watermark is how a later session allocates a fresh id without re-reading the whole "
+            "checklist; one that lags behind hands out an id that is already in use",
+        ),
+        (
+            "a validation targeting an execution id that does not exist",
+            _conforming_child().replace(
+                "- [ ] V-01 validates E-01",
+                "- [ ] V-01 validates E-01\n  - Required evidence: r\n  - Observed evidence:\n  - Result: pending\n- [ ] V-02 validates E-02",
+            ),
+            ("IPD-I303",),
+            (),
+            (),
+            "the E/V bijection is what makes every step verifiable and every verification real. An "
+            "orphan V claims to validate work no step performs",
+        ),
+        (
+            "two execution items depending on each other",
+            _conforming_child()
+            .replace(
+                "- [ ] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: pending\n",
+                "- [ ] E-01 a.\n  - Depends on: E-02\n  - Expected outcome: o.\n  - Execution state: pending\n"
+                "- [ ] E-02 b.\n  - Depends on: E-01\n  - Expected outcome: o.\n  - Execution state: pending\n",
+            )
+            .replace(
+                "- [ ] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence:\n  - Result: pending",
+                "- [ ] V-01 validates E-01\n  - Required evidence: r.\n  - Observed evidence:\n  - Result: pending\n"
+                "- [ ] V-02 validates E-02\n  - Required evidence: r.\n  - Observed evidence:\n  - Result: pending",
+            ),
+            ("IPD-I305",),
+            ("cycle",),
+            (),
+            "a cycle makes the checklist unexecutable in ANY order, and it is the one dependency "
+            "defect no amount of careful reading catches reliably. The needle distinguishes it from "
+            "this code's other cause, a dependency on an id that does not exist",
+        ),
+        (
+            "an item CHECKED while its state says pending",
+            _conforming_child().replace(
+                "- [ ] E-01 do a thing.", "- [x] E-01 do a thing."
+            ),
+            ("IPD-S401",),
+            (),
+            (),
+            "the checkbox and the `Execution state:` line are TWO records of one fact, and they must "
+            "agree. Disagreement is how a plan comes to claim work that was never performed",
+        ),
+        (
+            "a validation marked pass with EMPTY observed evidence",
+            _conforming_child().replace(
+                "  - Observed evidence:\n  - Result: pending",
+                "  - Observed evidence:\n  - Result: pass",
+            ),
+            ("IPD-S402", "IPD-S403"),
+            (),
+            (),
+            "TWO codes fire and both are asserted: the checkbox disagrees with the result (S402) AND "
+            "a pass requires its E item to be performed (S403). This is the single most important "
+            "row in the table, because `pass` with no evidence is precisely the shape of a plan that "
+            "claims success nobody demonstrated",
+        ),
+        (
+            "a BLOCKING open question marked deferred",
+            _conforming_child().replace(
+                "- Blocking: no\n- Status: open",
+                "- Blocking: yes\n- Status: deferred",
+            ),
+            ("IPD-Q501",),
+            (),
+            (),
+            "`deferred` means we chose to proceed without the answer, which is a contradiction when "
+            "the question BLOCKS. Resolve it or drop the blocking claim; do not do both",
+        ),
+        (
+            "an out-of-vocabulary size assessment",
+            _conforming_child().replace(
+                "- Size assessment: standard", "- Size assessment: bogus"
+            ),
+            ("IPD-Z601",),
+            (),
+            (),
+            "the size vocabulary is two values (`standard`, `exception`), and `exception` is what "
+            "demands a cohesion rationale. A third value silently escapes that obligation",
+        ),
+    )
+
+    def test_every_structural_rule_fires_on_its_own_violation(self):
+        wrong = []
+        positive_rows_broken = 0
+        for case, text, codes, needles, forbidden, why in self.RULES:
+            res = L.lint_text(text, checkpoint="author", directory="pending")
+            reported = [d.code for d in res.diagnostics]
+            problems = []
+            if not codes and not forbidden:
+                # A positive row: it must lint CONFORMING and passing.
+                if res.disposition != S.DISPOSITION_CONFORMING or not res.passing:
+                    positive_rows_broken += 1
+                    problems.append(
+                        f"must lint CONFORMING and passing; got disposition "
+                        f"{res.disposition!r}, passing={res.passing}, diagnostics "
+                        f"{[d.render('t') for d in res.diagnostics]!r}"
+                    )
+            missing = [c for c in codes if c not in reported]
+            if missing:
+                problems.append(
+                    f"expected code(s) {missing!r}; the linter reported "
+                    f"{reported or 'NOTHING AT ALL (it linted clean)'}"
+                )
+            for needle in needles:
+                if not any(
+                    needle in d.message for d in res.diagnostics if d.code in codes
+                ):
+                    problems.append(
+                        f"no {codes!r} diagnostic mentions {needle!r}; messages were "
+                        f"{[d.message for d in res.diagnostics if d.code in codes]!r}"
+                    )
+            leaked = [c for c in forbidden if c in reported]
+            if leaked:
+                problems.append(
+                    f"reported {leaked!r}, which this row requires it NOT to; all diagnostics: "
+                    f"{[d.render('t') for d in res.diagnostics]!r}"
+                )
+            if codes and res.disposition != S.DISPOSITION_ERROR:
+                problems.append(
+                    f"a flagged plan must have disposition {S.DISPOSITION_ERROR!r}; got "
+                    f"{res.disposition!r}"
+                )
+            if problems:
+                wrong.append(
+                    f"  {case}:\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        vacuity = ""
+        if positive_rows_broken:
+            vacuity = (
+                f" {positive_rows_broken} POSITIVE row(s) are among the failures, and while any of "
+                "those is broken every negative row here is VACUOUS: a linter that rejects "
+                "everything satisfies all of them."
+            )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the linter mishandled {len(wrong)} of {len(self.RULES)} structural rules.{vacuity} "
+            "The `IPD-*` codes are a CLOSED SET that `aw ipd lint` prints to users and that "
+            "`aw ipd begin` gates on, so SEVERAL ROWS MOVING TOGETHER usually means a renumbering "
+            "or a refactor of one check family rather than several independent breakages: look at "
+            "the code PREFIXES in the failures (`H2xx` headings, `M1xx` metadata, `I3xx` ids, "
+            "`S4xx` states) and fix the family, not the rows. FIX: a row reporting NOTHING AT ALL is "
+            "worse than one reporting the wrong code, because a rule that stopped firing lets the "
+            f"malformed plan through every gate that consumes this linter.\n"
+            + "\n".join(wrong),
+        )
+
+    def test_the_conforming_orchestrator_fixture_conforms(self):
+        """Kept separate: lints a real FILE from the fixture tree, not a mutated string.
+
+        Every table row is built by editing `_conforming_child()` in memory, so none of them
+        exercises `lint_file` or the ORCHESTRATOR kind, whose canonical heading list differs from a
+        child's. This is the only guard that the shipped fixture other tests build on is itself
+        clean.
+        """
         p = CONFORMING_ORCHESTRATOR
         res = L.lint_file(p, checkpoint="author")
         self.assertEqual(
@@ -172,65 +531,13 @@ class ConformingTests(unittest.TestCase):
             [d.render(str(p)) for d in res.diagnostics],
         )
 
+    def test_the_dash_rule_code_is_gone_rather_than_merely_silent(self):
+        """Kept separate: asserts the ABSENCE OF A MODULE ATTRIBUTE, not a lint result.
 
-class HeadingTests(unittest.TestCase):
-    def test_missing_heading_flagged(self):
-        text = _conforming_child().replace("## Scope check\n\n- x\n\n", "")
-        res = L.lint_text(text, directory="pending")
-        self.assertTrue(any(d.code == L.C_HEADING_MISSING for d in res.diagnostics))
-
-    def test_execution_not_after_goal_flagged(self):
-        # Move the execution checklist section far down by swapping Goal/Findings-region text.
-        text = _conforming_child().replace(
-            "## Goal\n\nSample goal.\n\n## Detailed Implementation Checklist (TODO)",
-            "## Goal\n\nSample goal.\n\n## Findings\n\n- x\n\n## Detailed Implementation Checklist (TODO)",
-        )
-        res = L.lint_text(text, directory="pending")
-        self.assertTrue(
-            any(
-                d.code in (L.C_EXEC_PLACEMENT, L.C_HEADING_ORDER, L.C_HEADING_DUP)
-                for d in res.diagnostics
-            )
-        )
-
-    def test_duplicate_heading_flagged(self):
-        text = _conforming_child() + "\n## Goal\n\ndup\n"
-        res = L.lint_text(text, directory="pending")
-        self.assertTrue(any(d.code == L.C_HEADING_DUP for d in res.diagnostics))
-
-
-class MetadataLintTests(unittest.TestCase):
-    def test_unknown_field_flagged(self):
-        text = _conforming_child().replace(
-            "- Author: tester", "- Author: tester\n- Bogus: y"
-        )
-        res = L.lint_text(text, directory="pending")
-        self.assertTrue(any(d.code == L.C_META_UNKNOWN for d in res.diagnostics))
-
-    def test_orchestrator_order_nonzero_flagged(self):
-        text = _conforming_child().replace("- Kind: child", "- Kind: orchestrator")
-        # orchestrator with Order 1 is illegal; also headings won't match, but metadata error must appear.
-        res = L.lint_text(text, directory="pending")
-        self.assertTrue(any(d.message.startswith("Order") for d in res.diagnostics))
-
-    def test_auto_approved_accepted_in_metadata(self):
-        text = _conforming_child().replace(
-            "- Status: to-review", "- Status: auto-approved"
-        )
-        res = L.lint_text(text, checkpoint="author", directory="pending")
-        self.assertFalse(
-            any(
-                d.code in (L.C_META_FIELD, L.C_META_MISSING) and "Approval" in d.message
-                for d in res.diagnostics
-            )
-        )
-
-    def test_watermark_below_present_id_flagged(self):
-        text = _conforming_child().replace(
-            "- Highest E allocated: 01", "- Highest E allocated: 00"
-        )
-        res = L.lint_text(text, directory="pending")
-        self.assertTrue(any(d.code == L.C_WATERMARK for d in res.diagnostics))
+        The table's dash row proves the rule does not FIRE; this proves its code no longer EXISTS
+        (IPD-D701 was retired), so the rule cannot be reinstated by flipping a condition back.
+        """
+        self.assertFalse(hasattr(L, "C_DASH"))
 
 
 class ReadinessAttestationTests(unittest.TestCase):
@@ -245,85 +552,176 @@ class ReadinessAttestationTests(unittest.TestCase):
     unreviewed to executing. The vocabulary was already policed (IPD-M104); the PROVENANCE was not.
     """
 
-    def test_readiness_without_review_evidence_is_flagged(self):
-        text = _conforming_child().replace(
-            "- Status: to-review",
-            "- Status: to-review\n- Readiness: go-pending-approval",
-        )
-        res = L.lint_text(text, checkpoint="author", directory="pending")
-        self.assertTrue(
-            any(d.code == L.C_READINESS_UNATTESTED for d in res.diagnostics),
-            [d.render("t") for d in res.diagnostics],
-        )
+    ATTESTING_APPROVE = (
+        "- 2026-09-06 reviewed (tester): /plan-review round 1: "
+        "APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL."
+    )
+    ATTESTING_NO_GO = (
+        "- 2026-09-06 reviewed (tester): /plan-review round 1: "
+        "NO-GO, a blocking open question remains."
+    )
 
-    def test_absent_readiness_is_silent(self):
-        """Absence is the CORRECT authoring state, so it must not be nudged or flagged."""
-        res = L.lint_text(_conforming_child(), checkpoint="author", directory="pending")
-        self.assertFalse(
-            any(d.code == L.C_READINESS_UNATTESTED for d in res.diagnostics)
+    def _plan(self, readiness=None, review=None, approved=False) -> str:
+        """The conforming child with an optional `- Readiness:` and an optional review record."""
+        text = _conforming_child()
+        meta = (
+            "- Status: approved\n- Approval: 2026-09-06, probe"
+            if approved
+            else "- Status: to-review"
         )
-        self.assertFalse(
-            any(d.code == L.C_READINESS_UNATTESTED for d in res.advisories)
-        )
-
-    def test_readiness_accepted_when_a_review_verdict_is_in_history(self):
-        """A real review writes the field in the same pass; that must stay conforming."""
-        text = (
-            _conforming_child()
-            .replace(
-                "- Status: to-review",
-                "- Status: to-review\n- Readiness: go-pending-approval",
+        if readiness is not None:
+            meta += f"\n- Readiness: {readiness}"
+        text = text.replace("- Status: to-review", meta, 1)
+        if review is not None:
+            text = text.replace(
+                "## Workflow history", f"## Workflow history\n\n{review}", 1
             )
-            .replace(
-                "## Workflow history",
-                "## Workflow history\n\n- 2026-09-06 reviewed (tester): /plan-review round 1: "
-                "APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL.",
-                1,
-            )
-        )
-        res = L.lint_text(text, checkpoint="author", directory="pending")
-        self.assertFalse(
-            any(d.code == L.C_READINESS_UNATTESTED for d in res.diagnostics),
-            [d.render("t") for d in res.diagnostics],
-        )
+        return text
 
-    def test_no_go_readiness_accepted_from_a_review(self):
-        """A NO-GO verdict is review evidence too; the rule must not require an APPROVE."""
-        text = (
-            _conforming_child()
-            .replace("- Status: to-review", "- Status: to-review\n- Readiness: no-go")
-            .replace(
-                "## Workflow history",
-                "## Workflow history\n\n- 2026-09-06 reviewed (tester): /plan-review round 1: "
-                "NO-GO, a blocking open question remains.",
-                1,
-            )
-        )
-        res = L.lint_text(text, checkpoint="author", directory="pending")
-        self.assertFalse(
-            any(d.code == L.C_READINESS_UNATTESTED for d in res.diagnostics),
-            [d.render("t") for d in res.diagnostics],
-        )
+    #: (case, the `- Readiness:` value or None to omit it, a review history record or None, whether
+    #: the plan is made ready-to-execute, the lint PHASE, whether IPD-M107 must be reported as a
+    #: BLOCKING diagnostic, why this row exists)
+    ATTESTATIONS = (
+        (
+            "a hand-written Readiness with NO review in the history",
+            "go-pending-approval",
+            None,
+            False,
+            "author",
+            True,
+            "THE MEASURED REGRESSION, 2026-09-06: an agent authoring a four-plan Set wrote exactly "
+            "this into all four having run no review, and `is_plan_review_approved` returned True for "
+            "every one because it reads the FIELD FIRST. Under `--full-auto` that predicate promotes "
+            "a plan to approved and its queue action to `execute`, so this row is the whole rule",
+        ),
+        (
+            "no Readiness field at all",
+            None,
+            None,
+            False,
+            "author",
+            False,
+            "ABSENCE IS THE CORRECT AUTHORING STATE, so it must be SILENT: not flagged, and not "
+            "nudged as an advisory either. A nudge here would teach agents to write the field, which "
+            "is precisely the behavior the rule exists to stop",
+        ),
+        (
+            "a Readiness attested by an APPROVING review",
+            "go-pending-approval",
+            ATTESTING_APPROVE,
+            False,
+            "author",
+            False,
+            "a real review writes the field in the SAME pass, and that must stay conforming. Without "
+            "this row the rule could be `never allow the field`, which would make every genuine "
+            "review output nonconforming",
+        ),
+        (
+            "a NO-GO Readiness attested by a NO-GO review",
+            "no-go",
+            ATTESTING_NO_GO,
+            False,
+            "author",
+            False,
+            "A NO-GO VERDICT IS REVIEW EVIDENCE TOO. The rule polices PROVENANCE, not polarity, so it "
+            "must not quietly require an APPROVE; a rule that did would refuse the field exactly when "
+            "review had refused the plan, which is the one time it most needs recording",
+        ),
+        (
+            "the same unattested field on a ready-to-execute plan",
+            "go",
+            None,
+            True,
+            "pre-execution",
+            True,
+            "THE RULE MUST BE BLOCKING, NOT ADVISORY, and the PHASE column is what shows it: "
+            "`ipd_lifecycle.begin` refuses unless the `pre-execution` lint is CONFORMING, so an "
+            "unattested Readiness has to make that lint error or the rule is cosmetic and the "
+            "--full-auto route stays open",
+        ),
+    )
 
-    def test_rule_blocks_the_pre_execution_gate(self):
-        """The rule must be BLOCKING, not advisory: this is what stops the --full-auto route.
+    def test_the_rule_fires_only_on_an_unattested_readiness_at_every_phase(self):
+        """One table over the attestation rule, replacing five tests.
 
-        `ipd_lifecycle.begin` refuses unless the `pre-execution` lint is conforming, so an
-        unattested Readiness must make that lint non-conforming or the rule is only cosmetic.
+        THE PHASE IS A COLUMN, and that is the reason this is one table rather than an author-phase
+        table plus a pre-execution test. The rule's whole value depends on being BLOCKING at the gate
+        `ipd_lifecycle.begin` consults, so `author` and `pre-execution` rows must sit together: the
+        author rows establish WHEN it fires, and the pre-execution row establishes that firing
+        actually stops something. Split apart, a change that demoted the rule to an advisory would
+        leave the author tests green and read as a cosmetic difference.
+
+        Why the table beats the five: one predicate (`check_readiness_attestation`) decides every
+        row by looking for a review verdict in the history, so a regression moves rows in a legible
+        pattern. Both ATTESTED rows failing together means the review-detection half broke and the
+        rule now refuses genuine review output; both UNATTESTED rows failing together means it stopped
+        firing at all and the 2026-09-06 route from unreviewed to executing is open again.
+
+        The SILENT row is in the same table deliberately and checks the ADVISORY channel too: a rule
+        that flagged every plan would satisfy both firing rows, and a rule that merely nudged instead
+        of blocking would satisfy them while gating nothing.
         """
-        text = _conforming_child().replace(
-            "- Status: to-review",
-            "- Status: approved\n- Approval: 2026-09-06, probe\n- Readiness: go",
-        )
-        res = L.lint_text(text, checkpoint="pre-execution", directory="pending")
-        self.assertEqual(res.disposition, S.DISPOSITION_ERROR)
-        self.assertTrue(
-            any(d.code == L.C_READINESS_UNATTESTED for d in res.diagnostics),
-            [d.render("t") for d in res.diagnostics],
+        wrong = []
+        for case, readiness, review, approved, phase, fires, why in self.ATTESTATIONS:
+            res = L.lint_text(
+                self._plan(readiness=readiness, review=review, approved=approved),
+                checkpoint=phase,
+                directory="pending",
+            )
+            blocking = [
+                d for d in res.diagnostics if d.code == L.C_READINESS_UNATTESTED
+            ]
+            advisory = [d for d in res.advisories if d.code == L.C_READINESS_UNATTESTED]
+            problems = []
+            if fires and not blocking:
+                problems.append(
+                    "expected a BLOCKING IPD-M107 diagnostic; the linter reported "
+                    + repr([d.render("t") for d in res.diagnostics] or "nothing at all")
+                    + (
+                        f" (it was reported as an ADVISORY instead, so the rule gates nothing: "
+                        f"{[d.render('t') for d in advisory]!r})"
+                        if advisory
+                        else ""
+                    )
+                )
+            if fires and blocking and res.disposition != S.DISPOSITION_ERROR:
+                problems.append(
+                    f"IPD-M107 fired but the disposition is {res.disposition!r}, not "
+                    f"{S.DISPOSITION_ERROR!r}, so `aw ipd begin` would still let this plan through"
+                )
+            if not fires and blocking:
+                problems.append(
+                    f"IPD-M107 must NOT fire here; it did: {[d.render('t') for d in blocking]!r}"
+                )
+            if not fires and advisory:
+                problems.append(
+                    f"IPD-M107 must not appear as an ADVISORY either; it did: "
+                    f"{[d.render('t') for d in advisory]!r}"
+                )
+            if problems:
+                wrong.append(
+                    f"  {case} (phase={phase}):\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the Readiness attestation rule was wrong for {len(wrong)} of {len(self.ATTESTATIONS)} "
+            "plans. ONE predicate decides every row by looking for a review verdict in the history, "
+            "so read the grouping: both ATTESTED rows failing together means review detection broke "
+            "and the rule now refuses genuine review output, while both UNATTESTED rows failing "
+            "together means it stopped firing and a hand-typed field once again asserts that review "
+            "cleared a plan nobody reviewed. FIX: a row that should fire and now reports an ADVISORY "
+            "rather than a diagnostic is the most dangerous outcome, because it LOOKS enforced in "
+            "`aw ipd lint` output while `aw ipd begin` sees a conforming plan and proceeds.\n"
+            + "\n".join(wrong),
         )
 
     def test_every_readiness_carrying_plan_in_the_tree_is_attested(self):
-        """Corpus guard: no tracked plan may carry a Readiness with no review behind it.
+        """Kept separate: sweeps the REAL tracked plan tree, so it has no fixture and no rows.
+
+        Corpus guard: no tracked plan may carry a Readiness with no review behind it.
 
         This is the check that would have caught the original mistake at commit time, and it keeps
         catching it for any plan a future session authors.
@@ -338,69 +736,49 @@ class ReadinessAttestationTests(unittest.TestCase):
 
 
 class IdBijectionTests(unittest.TestCase):
-    def test_orphan_validation_flagged(self):
-        text = _conforming_child().replace(
-            "- [ ] V-01 validates E-01",
-            "- [ ] V-01 validates E-01\n  - Required evidence: r\n  - Observed evidence:\n  - Result: pending\n- [ ] V-02 validates E-02",
-        )
-        res = L.lint_text(text, directory="pending")
-        self.assertTrue(any(d.code == L.C_BIJECTION for d in res.diagnostics))
+    """What remains after the bijection RULES moved into `StructuralRuleTests`: the id GRAMMAR itself."""
 
     def test_more_than_99_ids_ok(self):
+        """Kept separate: asserts over the ID GRAMMAR primitives, not over a lint result.
+
+        The orphan-validation and dependency-cycle rows moved to `StructuralRuleTests`, which lints a
+        whole document. This one calls `S.suffix_of` and `S.E_ID_STRICT` directly, because the claim
+        is that the grammar admits three digits at all; no malformed-plan row can state that, since a
+        plan with 100 items would be the fixture rather than the assertion.
+        """
         self.assertEqual(S.suffix_of("E-100"), 100)
         self.assertTrue(S.E_ID_STRICT.match("E-100"))
 
-    def test_dependency_cycle_flagged(self):
-        block = (
-            "- [ ] E-01 a.\n  - Depends on: E-02\n  - Expected outcome: o.\n  - Execution state: pending\n"
-            "- [ ] E-02 b.\n  - Depends on: E-01\n  - Expected outcome: o.\n  - Execution state: pending\n"
-        )
-        text = (
-            _conforming_child()
-            .replace(
-                "- [ ] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: pending\n",
-                block,
-            )
-            .replace(
-                "- [ ] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence:\n  - Result: pending",
-                "- [ ] V-01 validates E-01\n  - Required evidence: r.\n  - Observed evidence:\n  - Result: pending\n"
-                "- [ ] V-02 validates E-02\n  - Required evidence: r.\n  - Observed evidence:\n  - Result: pending",
-            )
-        )
-        res = L.lint_text(text, directory="pending")
-        self.assertTrue(
-            any(d.code == L.C_DEPENDS and "cycle" in d.message for d in res.diagnostics)
-        )
 
+class CheckpointPhaseTests(unittest.TestCase):
+    """What each lifecycle PHASE additionally demands of a plan that is otherwise conforming.
 
-class StateMachineTests(unittest.TestCase):
-    def test_checked_but_pending_execution_flagged(self):
-        text = _conforming_child().replace(
-            "- [ ] E-01 do a thing.", "- [x] E-01 do a thing."
-        )
-        res = L.lint_text(text, directory="pending")
-        self.assertTrue(any(d.code == L.C_EXEC_STATE for d in res.diagnostics))
+    ONE table replaces three tests from two classes (`StateMachineTests`'s pre-transition case and
+    both of `CheckpointTests`). All three linted a plan at a non-author phase and asserted that
+    `IPD-S404` appeared, differing only in the phase and in what made the plan unready.
 
-    def test_pass_without_evidence_flagged(self):
-        text = _conforming_child().replace(
-            "  - Observed evidence:\n  - Result: pending",
-            "  - Observed evidence:\n  - Result: pass",
-        )
-        res = L.lint_text(text, directory="pending")
-        self.assertTrue(
-            any(d.code in (L.C_VALID_STATE, L.C_CROSS_STATE) for d in res.diagnostics)
-        )
+    THE PHASE IS A COLUMN and this is the clearest case for it in the file, because the checkpoint
+    layer's entire purpose is that the SAME document is conforming at one phase and refused at
+    another. The `author` row and the `pre-transition` row below are the SAME unmodified conforming
+    child, and only having both in one table states the relationship: `author` is the permissive
+    phase where a plan is still being written, while `pre-transition` demands every E performed and
+    every V passed. Three separate tests can each assert one phase's answer and none can assert that
+    the answers differ by phase alone.
 
-    def test_pre_transition_rejects_non_pass(self):
-        # A pending plan at pre-transition: every E must be performed and V pass; here all pending.
-        text = _conforming_child()
-        res = L.lint_text(text, checkpoint="pre-transition", directory="pending")
-        self.assertTrue(any(d.code == L.C_CHECKPOINT for d in res.diagnostics))
+    Why the table beats the three: one dispatch on `checkpoint` produces every row, and the realistic
+    failure is a phase name being renamed or dropped from a gating set, in which case the demands
+    silently vanish and the plan lints CLEAN. That failure looks identical in all three old tests
+    (`False is not true`) and is legible here: every non-author row going clean at once means the
+    phase dispatch broke, not that three rules regressed.
 
+    The `author` row is the POSITIVE one and it is load-bearing rather than decorative: a checkpoint
+    layer that demanded performed-and-passed at EVERY phase would satisfy all the refusing rows while
+    making it impossible to lint a plan you are still authoring, which is the phase agents run most.
+    """
 
-class CheckpointTests(unittest.TestCase):
-    def test_pre_execution_blocking_question_rejected(self):
-        text = (
+    @staticmethod
+    def _approved_with_blocking_question() -> str:
+        return (
             _conforming_child()
             .replace(
                 "- Blocking: no\n- Status: open\n- Owner: none\n- Resolution or deferral rationale: n/a",
@@ -412,60 +790,210 @@ class CheckpointTests(unittest.TestCase):
                 "- Approval: approved by x 2026-08-03\n- Author: tester",
             )
         )
-        res = L.lint_text(text, checkpoint="pre-execution", directory="pending")
-        self.assertTrue(
-            any(
-                d.code == L.C_CHECKPOINT and "blocking" in d.message.lower()
-                for d in res.diagnostics
-            )
-        )
 
-    def test_pre_execution_status_incompatible(self):
-        # to-review is not ready-to-execute -> checkpoint incompatible.
-        res = L.lint_text(
-            _conforming_child(), checkpoint="pre-execution", directory="pending"
+    #: (case, plan text, phase, whether IPD-S404 must fire, message substrings required on the S404
+    #: diagnostics (lower-cased comparison), why this row exists)
+    PHASES = (
+        (
+            "the unmodified conforming child at the AUTHORING phase",
+            _conforming_child(),
+            "author",
+            False,
+            (),
+            "THE POSITIVE ROW, and the same document as the pre-transition row below. A plan being "
+            "written has every item pending BY DEFINITION, so `author` must impose none of the gate "
+            "demands; a layer that imposed them everywhere would make the phase agents run most "
+            "unusable while satisfying every refusing row here",
+        ),
+        (
+            "the SAME all-pending plan at PRE-TRANSITION",
+            _conforming_child(),
+            "pre-transition",
+            True,
+            ("not 'performed'", "not 'pass'", "empty observed evidence"),
+            "the terminal gate demands every E PERFORMED and every V PASSED WITH EVIDENCE, which is "
+            "what stops a plan from reaching `executed` while claiming success nobody demonstrated. "
+            "All three needles are asserted because a gate that checked only the checkbox would fire "
+            "S404 and still let an evidence-free pass through",
+        ),
+        (
+            "a to-review plan at PRE-EXECUTION",
+            _conforming_child(),
+            "pre-execution",
+            True,
+            ("status 'to-review' is incompatible",),
+            "STATUS COMPATIBILITY: `pre-execution` is reached only by an approved plan, so a plan "
+            "still awaiting review must be refused BY ITS STATUS before any of its contents matter",
+        ),
+        (
+            "an APPROVED plan with an unresolved BLOCKING question at PRE-EXECUTION",
+            _approved_with_blocking_question.__func__(),
+            "pre-execution",
+            True,
+            ("unresolved blocking question",),
+            "the status is now compatible, so this row isolates the OTHER pre-execution demand: a "
+            "blocking question still open means the plan is about to be executed over a decision "
+            "nobody made. Keeping it beside the status row is what shows the two demands are "
+            "independent rather than one check with two messages",
+        ),
+    )
+
+    def test_every_phase_imposes_exactly_its_own_demands(self):
+        wrong = []
+        author_row_broken = False
+        for case, text, phase, fires, needles, why in self.PHASES:
+            res = L.lint_text(text, checkpoint=phase, directory="pending")
+            found = [d for d in res.diagnostics if d.code == L.C_CHECKPOINT]
+            messages = " | ".join(d.message.lower() for d in found)
+            problems = []
+            if fires and not found:
+                problems.append(
+                    "expected an IPD-S404 checkpoint diagnostic; the linter reported "
+                    + repr([d.render("t") for d in res.diagnostics] or "nothing at all")
+                )
+            if not fires and found:
+                author_row_broken = True
+                problems.append(
+                    f"IPD-S404 must NOT fire at this phase; it did: "
+                    f"{[d.render('t') for d in found]!r}"
+                )
+            missing = [n for n in needles if n not in messages]
+            if missing:
+                problems.append(
+                    f"the S404 diagnostics never mention {missing!r}; they said "
+                    f"{[d.message for d in found]!r}"
+                )
+            if problems:
+                wrong.append(
+                    f"  {case} (phase={phase}):\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        note = ""
+        if author_row_broken:
+            note = (
+                " NOTE: the AUTHOR row is among the failures, so the checkpoint layer is now "
+                "imposing gate demands at every phase. That satisfies every refusing row here while "
+                "making a plan impossible to lint while it is being written."
+            )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the checkpoint layer was wrong for {len(wrong)} of {len(self.PHASES)} phase/plan "
+            f"combinations.{note} One dispatch on `checkpoint` produces every row, and the phase "
+            "names are a CLOSED SET, so read the grouping: if EVERY non-author row went clean, a "
+            "phase name was renamed or dropped from a gating set and the demands vanished silently "
+            "rather than erroring. FIX: a row that should fire and now lints clean is the dangerous "
+            "direction, because `aw ipd begin` and the finalize transaction both refuse only on a "
+            "non-conforming lint, so a demand that stopped being imposed is a gate that stopped "
+            f"existing.\n" + "\n".join(wrong),
         )
-        self.assertTrue(any(d.code == L.C_CHECKPOINT for d in res.diagnostics))
 
 
 class PostTransitionExecutedHistoryTests(unittest.TestCase):
-    def test_post_transition_executed_with_history_passes(self):
-        text = _executed_child(include_executed_history=True)
-        res = L.lint_text(text, checkpoint="post-transition", directory="executed")
-        self.assertEqual(res.disposition, S.DISPOSITION_CONFORMING)
-        self.assertEqual(res.diagnostics, [])
-        self.assertTrue(res.passing)
+    """The POST-TRANSITION checks, which are the only ones that run on a terminal-directory plan.
 
-    def test_post_transition_executed_without_history_fails_s405(self):
-        text = _executed_child(include_executed_history=False)
-        res = L.lint_text(text, checkpoint="post-transition", directory="executed")
-        self.assertEqual(res.disposition, S.DISPOSITION_ERROR)
-        self.assertFalse(res.passing)
-        codes = [d.code for d in res.diagnostics]
-        self.assertIn(L.C_EXEC_HISTORY, codes)
-        s405_diags = [d for d in res.diagnostics if d.code == L.C_EXEC_HISTORY]
-        self.assertEqual(len(s405_diags), 1)
-        self.assertIn(
-            "must carry an 'executed' ## Workflow history entry", s405_diags[0].message
-        )
-
-    def test_legacy_grandfathered_terminal_plan_unaffected_under_default_evaluation(
-        self,
-    ):
-        # Even without executed history, default evaluation on terminal dir returns legacy, not error
-        text = _executed_child(include_executed_history=False)
-        res = L.lint_text(text, checkpoint="author", directory="executed")
-        self.assertEqual(res.disposition, S.DISPOSITION_LEGACY)
-        self.assertEqual(res.diagnostics, [])
+    IPD-S405 (a plan claiming `executed` must carry the history entry proving it) is asserted in
+    `DispositionTests`, where it sits beside the grandfathering rows that decide whether it runs at
+    all. What lives here is IPD-S406, the ATTRIBUTION lint, plus the one real-file check.
+    """
 
     # --- ipdgates Order wezhxg: post-transition attribution lint (IPD-S406) ---
-    def _executed_with(self, actor: str, msg: str, scope_paths: str) -> str:
-        """An executed child whose newest history entry is `executed (<actor>): <msg>` and which
-        declares a real (post-cutoff) or `grandfathered` (pre-cutoff) Scope-Paths."""
+    #: (case, the executed record's actor, its summary message, the Scope-Paths value or None to
+    #: omit the field entirely, whether IPD-S406 must fire, why this row exists)
+    ATTRIBUTIONS = (
+        (
+            "the `aw set` machine default on a post-cutoff plan",
+            "aw set",
+            "status set to executed",
+            "agent_workflows/x.py",
+            True,
+            "THE RULE: a terminal move must say WHO executed the plan, and `aw set` is the setter's "
+            "own default, so it names the tool rather than the agent. A tree of plans all "
+            "`executed (aw set)` records that something transitioned them and nothing about who did "
+            "the work",
+        ),
+        (
+            "a real actor with an EMPTY summary, post-cutoff",
+            "opencode/model",
+            "",
+            "agent_workflows/x.py",
+            True,
+            "the SECOND half of the rule, and independent of the first: naming the agent is not "
+            "enough if the record says nothing about what was done. Without this row the check could "
+            "be an actor allowlist and nothing more",
+        ),
+        (
+            "a real actor with a real summary, post-cutoff",
+            "opencode/its_direct/pt3",
+            "did the work",
+            "agent_workflows/x.py",
+            False,
+            "THE POSITIVE ROW: the shape a genuine `aw ipd finalize` writes. Every refusing row here "
+            "is vacuous while this is broken, because a rule that rejected every terminal record "
+            "satisfies them all and makes finalize impossible",
+        ),
+        (
+            "a bare tool name",
+            "Antigravity",
+            "did it",
+            "agent_workflows/x.py",
+            False,
+            "THE SCOPE IS PINNED NARROWLY: only the `aw set` machine default is generic. A rule that "
+            "ballooned into judging whether a name looks specific enough would refuse the real actors "
+            "agents and humans actually write",
+        ),
+        (
+            "a bare human role name",
+            "maintainer",
+            "did it",
+            "agent_workflows/x.py",
+            False,
+            "a HUMAN executing a plan is a legitimate actor, and `maintainer` is what they write. The "
+            "rule must not require a model identifier",
+        ),
+        (
+            "another agent's slash-form actor",
+            "codex/gpt-5",
+            "did it",
+            "agent_workflows/x.py",
+            False,
+            "and the rule is not opencode-specific; a different agent's spelling is equally valid",
+        ),
+        (
+            "the `aw set` default on a plan marked `grandfathered`",
+            "aw set",
+            "status set to executed",
+            "grandfathered",
+            False,
+            "FORWARD-ONLY, keyed on the Order 02 cutoff marker: the historical tree was written "
+            "before the rule existed and may not be retroactively failed. Same actor as the first "
+            "row, opposite expectation, which is what makes the cutoff column the operative "
+            "difference rather than a coincidence",
+        ),
+        (
+            "the `aw set` default on a plan with NO Scope-Paths field at all",
+            "aw set",
+            "status set to executed",
+            None,
+            False,
+            "the field's TOTAL ABSENCE is also pre-cutoff, which is the case the whole existing "
+            "executed tree is in. A cutoff that keyed only on the literal `grandfathered` marker "
+            "would fail hundreds of real plans that never carried the field",
+        ),
+    )
+
+    def _executed_with(self, actor: str, msg: str, scope_paths) -> str:
+        """An executed child whose newest history entry is `executed (<actor>): <msg>`.
+
+        ``scope_paths`` declares a real (post-cutoff) or ``grandfathered`` (pre-cutoff) allowlist, or
+        is None to omit the field entirely, which is also pre-cutoff.
+        """
         text = _executed_child(include_executed_history=False)
-        text = text.replace(
-            "- Scope: sample.", f"- Scope: sample.\n- Scope-Paths: {scope_paths}", 1
-        )
+        if scope_paths is not None:
+            text = text.replace(
+                "- Scope: sample.", f"- Scope: sample.\n- Scope-Paths: {scope_paths}", 1
+            )
         # Insert the newest executed entry right after the Workflow history heading.
         text = text.replace(
             "## Workflow history\n\n- 2026-08-03 to-review (tester): created.",
@@ -475,54 +1003,84 @@ class PostTransitionExecutedHistoryTests(unittest.TestCase):
         )
         return text
 
-    def test_attribution_rejects_generic_actor_post_cutoff(self):
-        text = self._executed_with(
-            "aw set", "status set to executed", "agent_workflows/x.py"
-        )
-        res = L.lint_text(text, checkpoint="post-transition", directory="executed")
-        self.assertIn(L.C_EXEC_ATTRIBUTION, [d.code for d in res.diagnostics])
+    def test_attribution_fires_only_on_a_generic_terminal_record_past_the_cutoff(self):
+        """One table over IPD-S406, replacing six tests (ipdgates Order wezhxg).
 
-    def test_attribution_rejects_empty_summary_post_cutoff(self):
-        text = self._executed_with("opencode/model", "", "agent_workflows/x.py")
-        res = L.lint_text(text, checkpoint="post-transition", directory="executed")
-        self.assertIn(L.C_EXEC_ATTRIBUTION, [d.code for d in res.diagnostics])
+        THE CUTOFF IS A COLUMN, and it is the reason this is one table. The rule is FORWARD-ONLY: the
+        `Scope-Paths` field doubles as the cutoff marker, so the identical `executed (aw set)` record
+        must be REFUSED on a plan declaring a real allowlist and ACCEPTED on one marked
+        `grandfathered` or carrying no field at all. That is a relationship between rows sharing an
+        actor and differing only in the marker, which no single test can state; split up, the three
+        old tests each looked like an independent policy.
 
-    def test_attribution_accepts_real_actor_and_summary_post_cutoff(self):
-        text = self._executed_with(
-            "opencode/its_direct/pt3", "did the work", "agent_workflows/x.py"
-        )
-        res = L.lint_text(text, checkpoint="post-transition", directory="executed")
-        self.assertNotIn(L.C_EXEC_ATTRIBUTION, [d.code for d in res.diagnostics])
+        Why the table beats the six: one predicate decides every row from two inputs (is the actor
+        generic or the summary empty, and is this plan past the cutoff), so a regression moves a whole
+        class of rows. Every ACCEPTED row failing at once means the generic-actor set ballooned and
+        the rule now refuses the real actors agents write; every REFUSED row going clean means either
+        the check stopped firing or the cutoff swallowed everything.
 
-    def test_attribution_does_not_reject_bare_tool_or_human_names(self):
-        # Only the `aw set` machine default is generic; do NOT balloon to bare names.
-        for actor in ("Antigravity", "maintainer", "codex/gpt-5"):
-            text = self._executed_with(actor, "did it", "agent_workflows/x.py")
-            res = L.lint_text(text, checkpoint="post-transition", directory="executed")
-            self.assertNotIn(
-                L.C_EXEC_ATTRIBUTION, [d.code for d in res.diagnostics], actor
+        Note this rule is POST-transition, so it fires AFTER the lifecycle commit. A false positive
+        therefore lands on a plan already moved to `executed/`, which is why the accepted rows
+        outnumber the refused ones and are stated so specifically.
+        """
+        wrong = []
+        accepted_rows_broken = 0
+        for case, actor, msg, scope_paths, fires, why in self.ATTRIBUTIONS:
+            res = L.lint_text(
+                self._executed_with(actor, msg, scope_paths),
+                checkpoint="post-transition",
+                directory="executed",
             )
-
-    def test_attribution_grandfathers_precutoff_generic_actor(self):
-        # A grandfathered plan (Scope-Paths: grandfathered) with the legacy `aw set` actor is NOT
-        # failed - forward-only, keyed on Order 02's cutoff marker.
-        text = self._executed_with("aw set", "status set to executed", "grandfathered")
-        res = L.lint_text(text, checkpoint="post-transition", directory="executed")
-        self.assertNotIn(L.C_EXEC_ATTRIBUTION, [d.code for d in res.diagnostics])
-
-    def test_attribution_grandfathers_when_no_scope_paths(self):
-        # No Scope-Paths field at all (the existing executed tree) is also pre-cutoff.
-        text = _executed_child(include_executed_history=False).replace(
-            "## Workflow history\n\n- 2026-08-03 to-review (tester): created.",
-            "## Workflow history\n\n- 2026-08-05 executed (aw set): status set to executed\n"
-            "- 2026-08-03 to-review (tester): created.",
-            1,
+            found = [d for d in res.diagnostics if d.code == L.C_EXEC_ATTRIBUTION]
+            problems = []
+            if fires and not found:
+                problems.append(
+                    "expected IPD-S406; the linter reported "
+                    + repr([d.render("t") for d in res.diagnostics] or "nothing at all")
+                )
+            if not fires and found:
+                accepted_rows_broken += 1
+                problems.append(
+                    f"IPD-S406 must NOT fire here; it did: "
+                    f"{[d.render('t') for d in found]!r}"
+                )
+            if problems:
+                marker = (
+                    "no Scope-Paths field" if scope_paths is None else repr(scope_paths)
+                )
+                wrong.append(
+                    f"  {case} (actor={actor!r}, summary={msg!r}, cutoff marker={marker}):\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        note = ""
+        if accepted_rows_broken:
+            note = (
+                f" {accepted_rows_broken} ACCEPTED row(s) are among the failures, so the rule is now "
+                "refusing records it must permit, and every refusing row here is vacuous while that "
+                "is true. Since IPD-S406 is POST-transition, each such refusal lands on a plan "
+                "already committed to `executed/`, where nothing can be fixed by re-running."
+            )
+        self.assertEqual(
+            wrong,
+            [],
+            f"IPD-S406 was wrong for {len(wrong)} of {len(self.ATTRIBUTIONS)} terminal records."
+            f"{note} One predicate over two inputs decides every row (generic actor or empty summary, "
+            "and past the cutoff or not), so read the grouping: if the three rows sharing the actor "
+            "`aw set` no longer disagree, the CUTOFF column stopped being read and the rule is "
+            "either retroactive or disabled. FIX: check `_GENERIC_ACTORS`, which is pinned "
+            "deliberately NARROW to the two `aw set` spellings; widening it to judge whether a name "
+            f"looks specific enough is how the accepted rows start failing.\n"
+            + "\n".join(wrong),
         )
-        res = L.lint_text(text, checkpoint="post-transition", directory="executed")
-        self.assertNotIn(L.C_EXEC_ATTRIBUTION, [d.code for d in res.diagnostics])
 
     def test_real_executed_plan_at_post_transition(self):
-        # Verify against real executed plans in repo
+        """Kept separate: lints a REAL FILE from the executed tree via `lint_file`.
+
+        The tables above all mutate `_executed_child()` in memory. This is the only check that the
+        rules the fixtures encode actually hold for a plan the repository really contains, which a
+        fixture-only suite can never establish.
+        """
         real_executed = sorted((SOURCE_PLANS / "executed").glob("*.md"))
         self.assertTrue(len(real_executed) > 0)
         # Select the latest conforming executed plan
@@ -531,66 +1089,206 @@ class PostTransitionExecutedHistoryTests(unittest.TestCase):
         self.assertNotIn(L.C_EXEC_HISTORY, [d.code for d in res.diagnostics])
 
 
-class OpenQuestionAndSizeTests(unittest.TestCase):
-    def test_blocking_deferred_flagged(self):
-        text = _conforming_child().replace(
-            "- Blocking: no\n- Status: open",
-            "- Blocking: yes\n- Status: deferred",
-        )
-        res = L.lint_text(text, directory="pending")
-        self.assertTrue(any(d.code == L.C_OQ for d in res.diagnostics))
-
-    def test_bad_size_assessment_flagged(self):
-        text = _conforming_child().replace(
-            "- Size assessment: standard", "- Size assessment: bogus"
-        )
-        res = L.lint_text(text, directory="pending")
-        self.assertTrue(any(d.code == L.C_SIZE for d in res.diagnostics))
-
-
 class DispositionTests(unittest.TestCase):
-    def test_grandfathered_terminal_is_legacy(self):
-        res = L.lint_text(_conforming_child(), directory="executed")
-        self.assertEqual(res.disposition, S.DISPOSITION_LEGACY)
-        self.assertFalse(res.passing)
+    """Which DISPOSITION a plan lands in, given its directory and the phase it is linted at.
 
-    def test_quarantined_reported_not_passing(self):
-        text = _conforming_child().replace(
-            "- Author: tester",
-            "- Quarantine: re-author later\n- Quarantine owner: maintainer\n- Quarantine follow-up: after the Set\n- Author: tester",
+    ONE table replaces five tests from two classes (three from
+    `PostTransitionExecutedHistoryTests` plus two of this class's own). All five called `lint_text`
+    and asserted a disposition, a `passing` flag, and sometimes a code, differing only in the
+    document, the directory, and the phase.
+
+    BOTH THE DIRECTORY AND THE PHASE ARE COLUMNS, and that is the reason for one table rather than
+    three. The disposition layer's whole job is to SHORT-CIRCUIT before the structural checks run,
+    and which short-circuit applies depends on the combination: a terminal-directory plan is
+    grandfathered to `legacy` at every phase EXCEPT `post-transition`, where it is evaluated for real
+    because it has just been moved there. The two rows carrying the identical evidence-free executed
+    child at `author` and at `post-transition` are the same document with opposite answers, which is
+    precisely the invariant, and no single-row test can state it.
+
+    Why the table beats the five: three short-circuits (terminal-dir grandfathering, quarantine, and
+    the post-transition exception to the first) decide every row before any rule fires, so a
+    regression there changes many answers at once and changes them SILENTLY: `legacy` is not a
+    failure, it is `not evaluated`, so a short-circuit that widened makes plans stop being checked
+    rather than start failing. That is the failure mode this accumulated report is written for.
+
+    The CONFORMING row is the positive one: every other row asserts that something was NOT fully
+    evaluated or NOT passing, and a layer that short-circuited everything would satisfy all of them.
+    """
+
+    #: (case, plan text, directory, phase, expected disposition, expected `passing`, a mapping of
+    #: code -> (exact number of diagnostics with that code, a required message substring) that must
+    #: be reported, whether the diagnostics list must be EMPTY, why this row exists)
+    DISPOSITIONS = (
+        (
+            "an executed plan carrying its `executed` history entry, at post-transition",
+            _executed_child(include_executed_history=True),
+            "executed",
+            "post-transition",
+            S.DISPOSITION_CONFORMING,
+            True,
+            {},
+            True,
+            "THE POSITIVE ROW: the shape a completed lifecycle transaction leaves behind. It is fully "
+            "evaluated (post-transition is the one phase that does not grandfather a terminal plan) "
+            "and comes out clean, so every other row's claim that something was skipped or refused "
+            "means something",
+        ),
+        (
+            "the SAME plan with its `executed` history entry REMOVED, at post-transition",
+            _executed_child(include_executed_history=False),
+            "executed",
+            "post-transition",
+            S.DISPOSITION_ERROR,
+            False,
+            {
+                L.C_EXEC_HISTORY: (
+                    1,
+                    "must carry an 'executed' ## Workflow history entry",
+                )
+            },
+            False,
+            "IPD-S405: a plan claiming `Status: executed` must carry the history entry recording that "
+            "transition. Status and history are two records of one event, and a plan whose status says "
+            "executed while its history never mentions it is a hand-edited status",
+        ),
+        (
+            "that same evidence-free plan at the AUTHOR phase",
+            _executed_child(include_executed_history=False),
+            "executed",
+            "author",
+            S.DISPOSITION_LEGACY,
+            False,
+            {},
+            True,
+            "GRANDFATHERING, and the pair of the row above it: the identical document is ERROR at "
+            "post-transition and NOT EVALUATED at every other phase. The whole existing terminal tree "
+            "predates these rules, so linting it at author must not retroactively fail hundreds of "
+            "plans; only the plan being moved RIGHT NOW is judged",
+        ),
+        (
+            "a perfectly conforming CHILD plan sitting in a terminal directory",
+            _conforming_child(),
+            "executed",
+            "author",
+            S.DISPOSITION_LEGACY,
+            False,
+            {},
+            True,
+            "grandfathering keys on the DIRECTORY, not on the document: even a plan that would lint "
+            "clean reports `legacy`. And `legacy` is NOT passing, which is the important half: it "
+            "means `not evaluated`, so nothing may treat it as a clean bill of health",
+        ),
+        (
+            "a plan whose metadata declares QUARANTINE",
+            _conforming_child().replace(
+                "- Author: tester",
+                "- Quarantine: re-author later\n- Quarantine owner: maintainer\n"
+                "- Quarantine follow-up: after the Set\n- Author: tester",
+            ),
+            "pending",
+            "author",
+            S.DISPOSITION_QUARANTINED,
+            False,
+            {},
+            True,
+            "a SECOND, independent short-circuit, and one that applies in a NON-terminal directory: a "
+            "plan explicitly parked for re-authoring is reported rather than rule-checked, and it is "
+            "not passing either. Keeping it beside the terminal rows is what shows the two "
+            "short-circuits are separate mechanisms rather than one directory test",
+        ),
+    )
+
+    def test_every_directory_and_phase_combination_lands_in_its_disposition(self):
+        wrong = []
+        conforming_row_broken = False
+        for (
+            case,
+            text,
+            directory,
+            phase,
+            disposition,
+            passing,
+            codes,
+            empty,
+            why,
+        ) in self.DISPOSITIONS:
+            res = L.lint_text(text, checkpoint=phase, directory=directory)
+            reported = [d.code for d in res.diagnostics]
+            problems = []
+            if res.disposition != disposition:
+                if disposition == S.DISPOSITION_CONFORMING:
+                    conforming_row_broken = True
+                problems.append(
+                    f"expected disposition {disposition!r}, got {res.disposition!r}"
+                )
+            if res.passing is not passing:
+                problems.append(f"expected passing={passing}, got {res.passing}")
+            for code, (count, needle) in codes.items():
+                found = [d for d in res.diagnostics if d.code == code]
+                if len(found) != count:
+                    problems.append(
+                        f"expected exactly {count} {code} diagnostic(s), got {len(found)}; all "
+                        f"codes reported were {reported!r}"
+                    )
+                if not any(needle in d.message for d in found):
+                    problems.append(
+                        f"no {code} diagnostic mentions {needle!r}; messages were "
+                        f"{[d.message for d in found]!r}"
+                    )
+            if empty and res.diagnostics:
+                problems.append(
+                    f"the diagnostics list must be EMPTY (nothing was evaluated), and it holds "
+                    f"{[d.render('t') for d in res.diagnostics]!r}"
+                )
+            if problems:
+                wrong.append(
+                    f"  {case} (directory={directory!r}, phase={phase!r}):\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        note = ""
+        if conforming_row_broken:
+            note = (
+                " NOTE: the CONFORMING row is among the failures, so every other row here is "
+                "vacuous: a layer that short-circuited or refused everything satisfies all of them."
+            )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the disposition layer was wrong for {len(wrong)} of {len(self.DISPOSITIONS)} "
+            f"directory/phase combinations.{note} Three short-circuits decide every row BEFORE any "
+            "rule runs (terminal-directory grandfathering, quarantine, and the post-transition "
+            "exception to the first), so read the grouping: if the two rows carrying the SAME "
+            "evidence-free executed child stopped disagreeing, the post-transition exception broke "
+            "and either the historical tree is being retroactively failed or a just-moved plan is no "
+            "longer checked at all. FIX: a row that wrongly reports `legacy` is the quiet failure, "
+            "because `legacy` means NOT EVALUATED rather than failed, so the plan stops being linted "
+            f"without anything going red.\n" + "\n".join(wrong),
         )
-        res = L.lint_text(text, directory="pending")
-        self.assertEqual(res.disposition, S.DISPOSITION_QUARANTINED)
-        self.assertFalse(res.passing)
 
     def test_conforming_is_the_only_pass(self):
+        """Kept separate: asserts over the `LintResult` CONSTRUCTOR, not over a linted document.
+
+        The table above reaches `passing` through real documents and can therefore only exercise the
+        dispositions those documents produce. This enumerates the whole disposition set directly,
+        which is what pins that CONFORMING is the ONLY passing one; a fourth disposition added as
+        passing would slip past every row above.
+        """
         self.assertTrue(L.LintResult(S.DISPOSITION_CONFORMING, []).passing)
         self.assertFalse(L.LintResult(S.DISPOSITION_LEGACY, []).passing)
         self.assertFalse(L.LintResult(S.DISPOSITION_QUARANTINED, []).passing)
         self.assertFalse(L.LintResult(S.DISPOSITION_ERROR, []).passing)
 
 
-class DashTests(unittest.TestCase):
-    def test_dashes_no_longer_flagged_in_ipds(self):
-        # The no-em/en-dash convention is a USER-FACING prose rule only
-        # (GUIDING_PRINCIPLES P13). IPDs are internal/AI-facing artifacts, so the
-        # linter must NOT flag em/en dashes and an IPD containing them still lints
-        # conforming. The rule code IPD-D701 was retired.
-        self.assertFalse(hasattr(L, "C_DASH"))
-        prose = _conforming_child().replace(
-            "Sample goal.", "Sample goal \u2014 with an em dash \u2013 and an en dash."
-        )
-        res = L.lint_text(prose, directory="pending")
-        self.assertEqual(
-            res.disposition,
-            S.DISPOSITION_CONFORMING,
-            f"dashes should not affect linting; got {res.diagnostics}",
-        )
-        self.assertFalse(any("dash" in d.message.lower() for d in res.diagnostics))
-
-
 class DiagnosticShapeTests(unittest.TestCase):
+    """The rendered diagnostic LINE FORMAT, which editors and CI parse. Not tabulated: one claim."""
+
     def test_diagnostic_renders_with_code_and_location(self):
+        """Kept separate: constructs a `Diagnostic` directly and asserts its RENDERED form.
+
+        Not a lint result at all: the subject is the `path:line:col CODE message` layout editors and
+        CI parse, so no table row over a linted document expresses it.
+        """
         d = L.Diagnostic(84, 1, L.C_ID_GRAMMAR, "duplicate execution id E-04")
         self.assertEqual(
             d.render("p.md"), "p.md:84:1 IPD-I301 duplicate execution id E-04"
@@ -598,6 +1296,12 @@ class DiagnosticShapeTests(unittest.TestCase):
 
 
 class ExitCodeTests(unittest.TestCase):
+    """The PROCESS EXIT CODE, which is the whole of what a caller outside this process observes.
+
+    The single-file invocations are one table (the codes are a closed set whose meanings are easy to
+    collapse); the two `--all` invocations stay separate because each builds a throwaway repository.
+    """
+
     def _run(self, **kw) -> int:
         ns = argparse.Namespace(
             phase="author", all=False, legacy=False, agent=False, path=None
@@ -609,18 +1313,85 @@ class ExitCodeTests(unittest.TestCase):
             rc = L.run_lint(ns)
         return rc
 
-    def test_exit0_conforming(self):
-        p = CONFORMING_ORCHESTRATOR
-        self.assertEqual(self._run(path=str(p)), 0)
+    #: (case, the kwargs to override on the namespace, the expected PROCESS EXIT CODE, why this row
+    #: exists)
+    EXITS = (
+        (
+            "a conforming plan file",
+            {"path": str(CONFORMING_ORCHESTRATOR)},
+            0,
+            "THE POSITIVE ROW: a clean lint must exit 0, or every CI step and pre-commit hook that "
+            "runs `aw ipd lint` fails on a correct tree. Every nonzero row is vacuous while this is "
+            "broken",
+        ),
+        (
+            "a path that does not exist",
+            {"path": str(REPO_ROOT / "does-not-exist.md")},
+            2,
+            "USAGE errors exit 2, NOT 1: the distinction is the whole point of this table. 1 means "
+            "`the plan is nonconforming`, 2 means `I could not evaluate anything`, and collapsing "
+            "them makes a typo'd path indistinguishable from a real lint failure",
+        ),
+        (
+            "an unknown --phase value",
+            {"path": "x.md", "phase": "bogus"},
+            2,
+            "the second usage error, and it is checked BEFORE the path is read (this row's path does "
+            "not exist either, yet the phase is what decides). A phase silently falling back to a "
+            "default would lint at the wrong gate and report success for the wrong question",
+        ),
+    )
 
-    def test_exit2_missing_file(self):
-        self.assertEqual(self._run(path=str(REPO_ROOT / "does-not-exist.md")), 2)
+    def test_every_invocation_exits_with_its_documented_code(self):
+        """One table over the process exit codes, replacing three tests.
 
-    def test_exit2_unknown_phase(self):
-        self.assertEqual(self._run(path="x.md", phase="bogus"), 2)
+        Each of the three built a namespace, called `run_lint`, and compared one integer.
+
+        Why the table beats the three: the exit codes are a tiny CLOSED SET with a documented meaning
+        (0 clean, 1 nonconforming, 2 could-not-evaluate), every caller outside this process sees ONLY
+        this integer, and the realistic failure is 2 collapsing into 1 so that a usage mistake starts
+        reading as a lint failure. That collapse moves both usage rows at once, which is exactly what
+        the accumulated report shows and what three separate integer comparisons do not.
+
+        The two `--all` cases stay separate below: they build a throwaway repository on disk rather
+        than pointing at one file.
+        """
+        wrong = []
+        clean_row_broken = False
+        for case, kwargs, expected, why in self.EXITS:
+            got = self._run(**kwargs)
+            if got != expected:
+                if expected == 0:
+                    clean_row_broken = True
+                wrong.append(
+                    f"  {case}: expected exit {expected}, got {got}\n"
+                    f"    this row exists because: {why}"
+                )
+        note = ""
+        if clean_row_broken:
+            note = (
+                " NOTE: the CLEAN row is among the failures, so every nonzero row here is vacuous: a "
+                "command that never exits 0 satisfies them while failing every CI step on a correct "
+                "tree."
+            )
+        self.assertEqual(
+            wrong,
+            [],
+            f"`aw ipd lint` returned the wrong exit code for {len(wrong)} of {len(self.EXITS)} "
+            f"invocations.{note} The codes are a CLOSED SET with documented meanings (0 clean, 1 "
+            "nonconforming, 2 could-not-evaluate) and they are the ONLY thing a caller outside this "
+            "process sees, so read the grouping: BOTH usage rows moving to 1 means 2 was collapsed "
+            "into 1 and a typo'd path or phase now reports as a lint failure, which sends a human "
+            f"looking for a defect in a plan that was never read.\n" + "\n".join(wrong),
+        )
 
     def test_all_exits_1_when_errors_present(self):
-        # Build a throwaway repo with one structurally-erroneous IPD; --all must exit 1.
+        """Kept separate: needs materially different setup, a whole throwaway REPOSITORY on disk.
+
+        The table's rows point at one existing file. This builds a `.agents/plans/pending/` tree
+        containing a structurally-erroneous IPD to exercise the AGGREGATING `--all` path, whose exit
+        code is derived from many results rather than one.
+        """
         import tempfile
 
         root = Path(tempfile.mkdtemp())
@@ -632,7 +1403,12 @@ class ExitCodeTests(unittest.TestCase):
         self.assertEqual(self._run(all=True, path=str(root)), 1)
 
     def test_all_exits_0_when_no_errors(self):
-        # A repo whose only plan conforms -> --all exits 0.
+        """Kept separate: the positive half of `--all`, and it also builds a repository.
+
+        A repo whose only plan conforms must exit 0, which is what keeps the aggregation from
+        reporting failure for a clean tree. It additionally depends on `ipd_authoring.build_skeleton`
+        to produce that plan, so it pins the scaffolder and the linter agreeing.
+        """
         import tempfile
 
         from agent_workflows import ipd_authoring as A
@@ -655,7 +1431,16 @@ class ExitCodeTests(unittest.TestCase):
 
 
 class AgentOutputTests(unittest.TestCase):
+    """The `--agent` JSON envelope for a clean run. Not tabulated: its advisory-bearing counterpart
+    lives in `DensityAdvisoryLintTests`, beside the fixture that produces an advisory."""
+
     def test_agent_output_is_agent_v1_jsonl_no_prose(self):
+        """Kept separate: asserts the `aw.agent/v1` JSON envelope for a CLEAN run.
+
+        Its subject is the machine-readable record `--agent` prints, not any lint outcome. Its
+        advisory-bearing counterpart lives in `DensityAdvisoryLintTests` beside the fixture that
+        produces an advisory.
+        """
         import json
 
         p = CONFORMING_ORCHESTRATOR
@@ -674,7 +1459,14 @@ class AgentOutputTests(unittest.TestCase):
 
 
 class NoDependencyTests(unittest.TestCase):
+    """A STRUCTURAL scan of the linter's own imports. Nothing is linted, so there is nothing to tabulate."""
+
     def test_lint_module_is_stdlib_only(self):
+        """Kept separate: a STRUCTURAL scan of the module's own source imports.
+
+        Nothing is linted here. It reads `ipd_lint.py` and checks every import against an allowlist,
+        which is what keeps the linter usable in an environment with no third-party packages.
+        """
         src = (REPO_ROOT / "agent_workflows" / "ipd_lint.py").read_text(
             encoding="utf-8"
         )
@@ -698,57 +1490,171 @@ class NoDependencyTests(unittest.TestCase):
 
 
 class NameConformityTests(unittest.TestCase):
-    """awcheck Order 03: aw ipd lint flags a nonconformant plan FILENAME (IPD-N001), respecting
-    --legacy and the terminal-dir short-circuit."""
+    """awcheck Order 03: `aw ipd lint` flags a nonconformant plan FILENAME (IPD-N001).
 
-    def _res(self, disposition):
-        # a minimal conforming result stand-in (no structural diagnostics)
-        return L.LintResult(disposition=disposition, diagnostics=[])
+    ONE table replaces five tests. All five called `L._with_name_check` with a stand-in result, a
+    path, and a `legacy` flag, then asserted whether IPD-N001 appeared and what disposition came back.
+    Only those three inputs differed.
 
-    def test_bad_name_flagged(self):
-        diags, disp = L._with_name_check(
-            self._res(S.DISPOSITION_CONFORMING),
-            Path(".aw/records/plans/pending/not-a-grammar.md"),
-            legacy=False,
+    `legacy` IS A COLUMN and the INCOMING DISPOSITION IS ANOTHER, which is why this is one table. The
+    rule has two independent escape hatches (the `--legacy` flag, which recognizes the old
+    hyphenated-date names, and the terminal-directory short-circuit, which never name-checks a plan
+    whose result already came back `legacy`), plus one exemption (a path with no `plans/` segment).
+    Those interact: the same bad name must be flagged in `pending/` and not in `executed/`, and a
+    legacy-STYLE name must be flagged with the flag off and not with it on. Each of those is a
+    relationship between two rows, and the two rows that state it are adjacent below. Two of them did
+    not exist as tests at all before tabulating, because writing the table made the missing halves
+    obvious: `legacy=True` over a name that is not even legacy-recognized, and a legacy-style name
+    with the flag OFF.
+
+    EACH ROW ALSO PINS THE RETURNED DISPOSITION, not just the code, because the old tests were
+    inconsistent about it and the disposition is what callers act on: flagging a name has to ESCALATE
+    a conforming result to error, and every non-flagging path has to leave the incoming disposition
+    untouched.
+
+    Why the table beats the five: one guard chain produces every row (terminal short-circuit, then the
+    non-plan-path exemption, then the legacy allowance, then the grammar match), and a regression in
+    any link changes several answers together. The dangerous direction is the quiet one: a widened
+    escape hatch stops names being checked at all, which shows up as rows going clean rather than red.
+    """
+
+    #: (case, path to name-check, the `legacy` flag, the incoming disposition, whether IPD-N001 must
+    #: fire, the expected returned disposition, why this row exists)
+    NAMES = (
+        (
+            "a nonconformant name in pending/",
+            ".aw/records/plans/pending/not-a-grammar.md",
+            False,
+            S.DISPOSITION_CONFORMING,
+            True,
+            S.DISPOSITION_ERROR,
+            "THE RULE: the filename carries the Set, the Order, and the id6, so a name off-grammar is "
+            "a plan the tooling cannot group, order, or resolve by id. Note it ESCALATES an otherwise "
+            "conforming result to error rather than merely adding a diagnostic",
+        ),
+        (
+            "a fully grammar-conformant name",
+            ".aw/records/plans/pending/20260101-demo-01-aaa111-ok.ipd.md",
+            False,
+            S.DISPOSITION_CONFORMING,
+            False,
+            S.DISPOSITION_CONFORMING,
+            "THE POSITIVE ROW: `YYYYMMDD-<setid>-NN-<id6>-<slug>.ipd.md` passes untouched. Every "
+            "refusing row is vacuous while this is broken, since a check that rejected every name "
+            "satisfies them all and would fail the whole tracked tree",
+        ),
+        (
+            "a recognized LEGACY name with --legacy",
+            ".aw/records/plans/pending/2026-01-01-old-hyphenated.md",
+            True,
+            S.DISPOSITION_CONFORMING,
+            False,
+            S.DISPOSITION_CONFORMING,
+            "pre-cutover names are GRANDFATHERED on request: the flag exists so the historical tree "
+            "can be linted for its CONTENT without every file failing on its name",
+        ),
+        (
+            "the SAME legacy name WITHOUT --legacy",
+            ".aw/records/plans/pending/2026-01-01-old-hyphenated.md",
+            False,
+            S.DISPOSITION_CONFORMING,
+            True,
+            S.DISPOSITION_ERROR,
+            "the other half of the row above, and the row that makes the flag mean something: by "
+            "DEFAULT even a recognized legacy name is flagged, so the allowance is opt-in rather than "
+            "automatic. Without this pairing the flag could be ignored entirely and both rows pass",
+        ),
+        (
+            "--legacy over a name that is not even legacy-recognized",
+            ".aw/records/plans/pending/not-a-grammar.md",
+            True,
+            S.DISPOSITION_CONFORMING,
+            True,
+            S.DISPOSITION_ERROR,
+            "the flag suppresses RECOGNIZED legacy names, not all names. It is an allowance for a "
+            "known historical shape, not a blanket off switch, which is the difference between "
+            "linting the old tree and not linting names at all",
+        ),
+        (
+            "a path with no `plans/` segment",
+            "tests/fixtures/not-a-grammar.md",
+            False,
+            S.DISPOSITION_CONFORMING,
+            False,
+            S.DISPOSITION_CONFORMING,
+            "the grammar governs PLANS. A fixture or arbitrary document is exempt, or this test file's "
+            "own fixtures would fail the linter that reads them",
+        ),
+        (
+            "a bad name in a TERMINAL directory whose result is already `legacy`",
+            ".aw/records/plans/executed/bad-name.md",
+            False,
+            S.DISPOSITION_LEGACY,
+            False,
+            S.DISPOSITION_LEGACY,
+            "THE SHORT-CIRCUIT: a result that came back `legacy` is not name-checked and its "
+            "disposition is preserved. Renaming an executed plan would break every citation pointing "
+            "at it, so the historical tree is left alone. Same bad name as the first row, opposite "
+            "answer, which is what makes the DISPOSITION column the operative difference",
+        ),
+    )
+
+    def test_every_path_and_flag_combination_gets_its_name_verdict(self):
+        wrong = []
+        positive_row_broken = False
+        for case, path, legacy, incoming, fires, expected_disp, why in self.NAMES:
+            diags, disp = L._with_name_check(
+                L.LintResult(disposition=incoming, diagnostics=[]),
+                Path(path),
+                legacy=legacy,
+            )
+            found = [d for d in diags if d.code == L.C_NAME]
+            problems = []
+            if fires and not found:
+                problems.append(
+                    f"expected {L.C_NAME}; got diagnostics {[d.render(path) for d in diags]!r}"
+                )
+            if not fires and found:
+                if (
+                    expected_disp == S.DISPOSITION_CONFORMING
+                    and incoming == expected_disp
+                ):
+                    positive_row_broken = True
+                problems.append(
+                    f"{L.C_NAME} must NOT fire here; it did: "
+                    f"{[d.render(path) for d in found]!r}"
+                )
+            if disp != expected_disp:
+                problems.append(
+                    f"expected the returned disposition {expected_disp!r} (incoming was "
+                    f"{incoming!r}), got {disp!r}"
+                )
+            if problems:
+                wrong.append(
+                    f"  {case} (legacy={legacy}, incoming={incoming!r}):\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        note = ""
+        if positive_row_broken:
+            note = (
+                " NOTE: a conformant name is among the flagged, so the grammar match itself is "
+                "broken and every refusing row here is vacuous; in that state `aw ipd lint` fails "
+                "every correctly-named plan in the tree."
+            )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the filename check was wrong for {len(wrong)} of {len(self.NAMES)} path/flag "
+            f"combinations.{note} One guard chain produces every row (terminal short-circuit, then "
+            "the non-plan-path exemption, then the legacy allowance, then the grammar match), so read "
+            "the grouping: if the two rows sharing the legacy-STYLE name stopped disagreeing, the "
+            "`--legacy` flag is being ignored in one direction or the other, and if the two rows "
+            "sharing `not-a-grammar.md` stopped disagreeing, the terminal short-circuit did. FIX: "
+            "rows going CLEAN is the quiet failure, because a widened escape hatch means names stop "
+            f"being checked at all and nothing goes red to say so.\n"
+            + "\n".join(wrong),
         )
-        self.assertTrue(any(d.code == "IPD-N001" for d in diags))
-        self.assertEqual(disp, S.DISPOSITION_ERROR)
-
-    def test_good_name_unaffected(self):
-        diags, disp = L._with_name_check(
-            self._res(S.DISPOSITION_CONFORMING),
-            Path(".aw/records/plans/pending/20260101-demo-01-aaa111-ok.ipd.md"),
-            legacy=False,
-        )
-        self.assertFalse(any(d.code == "IPD-N001" for d in diags))
-        self.assertEqual(disp, S.DISPOSITION_CONFORMING)
-
-    def test_legacy_suppresses_recognized_legacy_name(self):
-        diags, disp = L._with_name_check(
-            self._res(S.DISPOSITION_CONFORMING),
-            Path(".aw/records/plans/pending/2026-01-01-old-hyphenated.md"),
-            legacy=True,
-        )
-        self.assertFalse(any(d.code == "IPD-N001" for d in diags))
-
-    def test_non_plan_path_exempt(self):
-        # a fixture / arbitrary path (no plans/ segment) is not name-checked.
-        diags, disp = L._with_name_check(
-            self._res(S.DISPOSITION_CONFORMING),
-            Path("tests/fixtures/not-a-grammar.md"),
-            legacy=False,
-        )
-        self.assertFalse(any(d.code == "IPD-N001" for d in diags))
-        self.assertEqual(disp, S.DISPOSITION_CONFORMING)
-
-    def test_terminal_shortcircuit_not_flagged(self):
-        diags, disp = L._with_name_check(
-            self._res(S.DISPOSITION_LEGACY),
-            Path(".aw/records/plans/executed/bad-name.md"),
-            legacy=False,
-        )
-        self.assertFalse(any(d.code == "IPD-N001" for d in diags))
-        self.assertEqual(disp, S.DISPOSITION_LEGACY)
 
 
 class DensityAdvisoryLintTests(unittest.TestCase):
@@ -763,54 +1669,143 @@ class DensityAdvisoryLintTests(unittest.TestCase):
             "- [ ] E-01 add an append-only tamper-evident ledger AND crash recovery AND a 12-class evidence validator",
         )
 
-    def test_multi_concern_item_emits_advisory_without_error(self):
-        text = self._dense_child()
-        res = L.lint_text(text, checkpoint="author", directory="pending")
-        # Conformance is NOT failed
-        self.assertEqual(res.disposition, S.DISPOSITION_CONFORMING)
-        self.assertTrue(res.passing)
-        self.assertEqual(len(res.diagnostics), 0)
-        # Advisory channel captures the finding
-        self.assertEqual(len(res.advisories), 1)
-        adv = res.advisories[0]
-        self.assertEqual(adv.code, "IPD-Z602")
-        self.assertEqual(adv.code, L.C_SIZE_DENSITY)
-        self.assertIn("E-01", adv.message)
-        self.assertIn("multi-concern", adv.message)
-        self.assertGreater(adv.line, 0)
-
-    def test_single_concern_plan_has_no_advisories(self):
-        text = _conforming_child()
-        res = L.lint_text(text, checkpoint="author", directory="pending")
-        self.assertEqual(res.disposition, S.DISPOSITION_CONFORMING)
-        self.assertTrue(res.passing)
-        self.assertEqual(len(res.diagnostics), 0)
-        self.assertEqual(len(res.advisories), 0)
-
-    def test_advisory_does_not_gate_checkpoints(self):
-        # A plan with an advisory passes pre-execution checkpoint if states/fields are valid
-        text = self._dense_child().replace("Status: to-review", "Status: approved")
+    def _ready_to_execute(self, text: str) -> str:
+        """Make a fixture pass the ready-to-execute gate, so only the DENSITY advisory remains."""
+        text = text.replace("Status: to-review", "Status: approved")
         text = text.replace(
             "- 2026-08-03 to-review (tester): created.",
             "- 2026-08-03 approved (tester): approved.",
         )
-        # add approval field
         text = text.replace(
             "- Author: tester", "- Author: tester\n- Approval: tester 2026-08-03"
         )
-        # Order oorry1: a ready-to-execute plan now needs a Scope-Paths value; declare a real
-        # allowlist so this test isolates the DENSITY advisory (Z602) it is actually about.
-        text = text.replace(
+        # Order oorry1: a ready-to-execute plan needs a Scope-Paths value; declare a real allowlist so
+        # these rows isolate the DENSITY advisory (Z602) they are actually about.
+        return text.replace(
             "- Scope: sample.",
             "- Scope: sample.\n- Scope-Paths: agent_workflows/foo.py",
         )
-        res = L.lint_text(text, checkpoint="pre-execution", directory="pending")
-        self.assertEqual(res.disposition, S.DISPOSITION_CONFORMING)
-        self.assertTrue(res.passing)
-        self.assertEqual(len(res.diagnostics), 0)
-        self.assertEqual(len(res.advisories), 1)
+
+    #: (case, whether the E-item bundles multiple concerns, the lint PHASE, how many Z602 advisories
+    #: are expected, why this row exists)
+    DENSITY = (
+        (
+            "an E-item bundling three concerns with AND",
+            True,
+            "author",
+            1,
+            "THE HEURISTIC: `add a ledger AND crash recovery AND a validator` is three steps wearing "
+            "one id, which defeats the E/V bijection because one V cannot verify three things "
+            "independently. Surfaced as an ADVISORY because density is a judgement, not a defect",
+        ),
+        (
+            "a single-concern E-item",
+            False,
+            "author",
+            0,
+            "THE POSITIVE ROW: an ordinary item must produce NO advisory. A heuristic that fired on "
+            "everything would satisfy the row above while making the advisory channel pure noise, "
+            "which is how advisories get ignored",
+        ),
+        (
+            "the SAME dense item on a ready-to-execute plan at PRE-EXECUTION",
+            True,
+            "pre-execution",
+            1,
+            "AN ADVISORY MUST NOT GATE, and the PHASE is what shows it: the same finding that is "
+            "informational at author must still be informational at the gate `aw ipd begin` consults, "
+            "or a heuristic guess would block execution. Every row here therefore also asserts the "
+            "disposition is CONFORMING with zero blocking diagnostics",
+        ),
+    )
+
+    def test_the_density_heuristic_advises_without_ever_gating(self):
+        """One table over the density advisory, replacing three tests.
+
+        THE PHASE IS A COLUMN because the claim that matters is not that the heuristic fires but that
+        firing NEVER changes the outcome. That is a statement about the same finding at two phases, so
+        the author rows and the pre-execution row have to share a table; apart, the third test read as
+        a separate fact rather than as the reason the first two are safe.
+
+        Why the table beats the three: one detector plus one channel assignment produces every row.
+        All rows losing their advisory means the detector stopped firing; any row gaining a blocking
+        DIAGNOSTIC means the channel assignment broke and a heuristic guess now refuses plans. Each row
+        asserts both channels for exactly that reason.
+        """
+        wrong = []
+        positive_row_broken = False
+        for case, dense, phase, count, why in self.DENSITY:
+            text = self._dense_child() if dense else _conforming_child()
+            if phase != "author":
+                text = self._ready_to_execute(text)
+            res = L.lint_text(text, checkpoint=phase, directory="pending")
+            found = [a for a in res.advisories if a.code == L.C_SIZE_DENSITY]
+            problems = []
+            if len(found) != count:
+                if count == 0:
+                    positive_row_broken = True
+                problems.append(
+                    f"expected {count} IPD-Z602 advisory/advisories, got {len(found)}: "
+                    f"{[a.render('t') for a in found]!r}"
+                )
+            if res.diagnostics:
+                problems.append(
+                    "an advisory must NEVER produce a blocking diagnostic, and this row has "
+                    f"{[d.render('t') for d in res.diagnostics]!r}"
+                )
+            if res.disposition != S.DISPOSITION_CONFORMING or not res.passing:
+                problems.append(
+                    f"expected a CONFORMING, passing result; got {res.disposition!r}, "
+                    f"passing={res.passing}"
+                )
+            for advisory in found:
+                if "E-01" not in advisory.message:
+                    problems.append(
+                        f"the advisory must NAME the item it is about; it said "
+                        f"{advisory.message!r}"
+                    )
+                if "multi-concern" not in advisory.message:
+                    problems.append(
+                        f"the advisory must say WHY (multi-concern); it said "
+                        f"{advisory.message!r}"
+                    )
+                if advisory.line <= 0:
+                    problems.append(
+                        f"the advisory must carry a real line number so an editor can jump to it; "
+                        f"got line {advisory.line}"
+                    )
+            if problems:
+                wrong.append(
+                    f"  {case} (phase={phase}):\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        note = ""
+        if positive_row_broken:
+            note = (
+                " NOTE: the single-concern row is among the failures, so the heuristic is firing on "
+                "ordinary items and the advisory channel has become noise, which is how advisories "
+                "come to be ignored entirely."
+            )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the density heuristic was wrong for {len(wrong)} of {len(self.DENSITY)} plans."
+            f"{note} One detector plus one channel assignment produces every row, so read the "
+            "grouping: ALL rows losing their advisory means the detector stopped firing, while ANY "
+            "row gaining a blocking diagnostic means the channel assignment broke. FIX: the second is "
+            "far worse than the first. Density is a JUDGEMENT about how work is split, and a judgement "
+            "that blocks would refuse plans over a heuristic guess at the very gate `aw ipd begin` "
+            f"consults.\n" + "\n".join(wrong),
+        )
 
     def test_cli_agent_output_emits_advisory_record_with_clean_outcome(self):
+        """Kept separate: asserts over the CLI's JSON RECORD, not over a LintResult.
+
+        The subject is the `aw.agent/v1` envelope `run_lint` prints (its schema, cmd, outcome, exit,
+        and finding count), which reaches an advisory only after the whole CLI layer has decided how to
+        represent one. A table row over `lint_text` cannot see any of that.
+        """
         import json
         import tempfile
 
@@ -837,6 +1832,12 @@ class DensityAdvisoryLintTests(unittest.TestCase):
             )
 
     def test_cli_human_output_emits_advisory_line(self):
+        """Kept separate: asserts over HUMAN TERMINAL OUTPUT under two --detail settings.
+
+        Same reason as the agent-output test, plus its own mode pair: by default the item row says
+        `advisory` WITHOUT the rule id, and `--detail` adds the indented `IPD-Z602` line. That is a
+        claim about rendering verbosity, not about whether the finding exists.
+        """
         import tempfile
 
         with tempfile.TemporaryDirectory() as td:
@@ -915,85 +1916,193 @@ def _approved(text: str) -> str:
 
 
 class ScopePathsCheckpointTests(unittest.TestCase):
-    """Order oorry1: conditional Scope-Paths enforcement in the checkpoint layer.
+    """Order oorry1: conditional Scope-Paths enforcement (IPD-M106) in the CHECKPOINT layer.
 
-    A fieldless plan is BLOCKED at the ready-to-execute gate; a `grandfathered`-marked plan is
-    advisory-only (non-blocking); a real allowlist is grammar-validated; the `author` phase and
-    terminal (grandfathered) records are unaffected.
+    ONE table replaces six tests. All six built a plan with some `Scope-Paths` value (or none), linted
+    it at some phase in some directory, and asserted whether IPD-M106 appeared as a BLOCKING
+    diagnostic, as an ADVISORY, or not at all.
+
+    THE OUTCOME IS THREE-VALUED, NOT A BOOL, and that is why every row states the blocking and the
+    advisory channel separately rather than being weakened to one assertion. A fieldless
+    ready-to-execute plan BLOCKS; the `grandfathered` marker is deliberately ADVISORY, meaning visible
+    but non-blocking; and the author phase is SILENT. Collapsing advisory into either neighbour would
+    erase the whole design: silent would let the historical tree pass unnoticed, blocking would stop
+    it being executed at all.
+
+    THE PHASE AND THE DIRECTORY ARE COLUMNS. The requirement fires at the ready-to-execute gate AND by
+    STATUS, so an approved plan is blocked at `review-finalize` too, which is a separate trigger from
+    the phase and needs its own row beside the `pre-execution` one. And a terminal-directory plan
+    short-circuits to `legacy` before this rule is reached, which is the non-retroactivity guarantee.
+
+    Why the table beats the six: one predicate over (phase, status, value) produces every row, and the
+    realistic failures are a trigger being dropped (rows go silent, so unscoped plans execute) or the
+    grandfathered marker losing its exemption (the historical tree becomes unexecutable). Either moves
+    several rows at once, and reading which rows moved is the diagnosis.
     """
 
-    def _scope_diags(self, res):
-        return [d for d in res.diagnostics if d.code == L.C_SCOPE_PATHS]
-
-    def _scope_advisories(self, res):
-        return [d for d in res.advisories if d.code == L.C_SCOPE_PATHS]
-
-    def test_author_phase_does_not_require_scope_paths(self):
-        text = _with_scope_paths(_conforming_child(), None)  # no field at all
-        res = L.lint_text(text, checkpoint="author", directory="pending")
-        self.assertEqual(self._scope_diags(res), [])
-        self.assertEqual(
-            res.disposition,
+    #: (case, the Scope-Paths value or None to omit the field, whether to make the plan
+    #: ready-to-execute, the phase, the directory, the expected outcome (`blocking` / `advisory` /
+    #: `silent`), the expected disposition, why this row exists)
+    SCOPES = (
+        (
+            "no field at all, at the AUTHOR phase",
+            None,
+            False,
+            "author",
+            "pending",
+            "silent",
             S.DISPOSITION_CONFORMING,
-            [d.message for d in res.diagnostics],
-        )
-
-    def test_pre_execution_fieldless_is_blocked(self):
-        text = _approved(_with_scope_paths(_conforming_child(), None))
-        res = L.lint_text(text, checkpoint="pre-execution", directory="pending")
-        self.assertTrue(
-            self._scope_diags(res), "fieldless plan must be blocked at pre-execution"
-        )
-        self.assertEqual(res.disposition, S.DISPOSITION_ERROR)
-
-    def test_approved_status_fieldless_is_blocked_even_off_gate(self):
-        # The requirement also fires by STATUS, so an approved plan cannot slip past a
-        # non-pre-execution checkpoint without the field.
-        text = _approved(_with_scope_paths(_conforming_child(), None))
-        res = L.lint_text(text, checkpoint="review-finalize", directory="pending")
-        self.assertTrue(self._scope_diags(res))
-
-    def test_grandfathered_marker_is_advisory_not_blocking(self):
-        text = _approved(_with_scope_paths(_conforming_child(), "grandfathered"))
-        res = L.lint_text(text, checkpoint="pre-execution", directory="pending")
-        self.assertEqual(self._scope_diags(res), [], "grandfathered must not block")
-        self.assertTrue(
-            self._scope_advisories(res), "grandfathered should emit an advisory"
-        )
-        self.assertEqual(
-            res.disposition,
+            "SILENT WHILE AUTHORING: the allowlist is what a plan will be permitted to touch when it "
+            "runs, and it cannot be known until the plan is written. Demanding it at author would make "
+            "every fresh scaffold nonconforming",
+        ),
+        (
+            "no field at all, on an APPROVED plan at PRE-EXECUTION",
+            None,
+            True,
+            "pre-execution",
+            "pending",
+            "blocking",
+            S.DISPOSITION_ERROR,
+            "THE RULE: a plan about to execute must declare what it may touch, because that allowlist "
+            "is what the runner's scope gate reconciles the actual diff against. No field means no "
+            "gate, so it BLOCKS rather than warns",
+        ),
+        (
+            "no field at all, on an APPROVED plan at REVIEW-FINALIZE",
+            None,
+            True,
+            "review-finalize",
+            "pending",
+            "blocking",
+            S.DISPOSITION_ERROR,
+            "THE SECOND TRIGGER, independent of the phase: the requirement fires by STATUS too, so an "
+            "approved plan cannot slip past by being linted at some OTHER checkpoint. Without this row "
+            "the rule would be a single-phase check and any other phase would be a bypass",
+        ),
+        (
+            "the `grandfathered` marker on an APPROVED plan at PRE-EXECUTION",
+            "grandfathered",
+            True,
+            "pre-execution",
+            "pending",
+            "advisory",
             S.DISPOSITION_CONFORMING,
-            [d.message for d in res.diagnostics],
-        )
+            "THE THREE-VALUED MIDDLE, and the row the outcome column exists for: the marker is "
+            "VISIBLE but NON-BLOCKING, so pre-cutover plans remain executable while still being "
+            "reported. Silent here would hide the whole historical backlog; blocking would freeze it",
+        ),
+        (
+            "a real, grammar-valid allowlist on an APPROVED plan at PRE-EXECUTION",
+            "agent_workflows/foo.py, tests/test_foo.py",
+            True,
+            "pre-execution",
+            "pending",
+            "silent",
+            S.DISPOSITION_CONFORMING,
+            "THE POSITIVE ROW: a comma-separated list of repo-relative paths satisfies the gate "
+            "outright. Every blocking row is vacuous while this is broken, since a rule that refused "
+            "every value satisfies them all and no plan could ever execute",
+        ),
+        (
+            "an ABSOLUTE path as the allowlist, on an APPROVED plan at PRE-EXECUTION",
+            "/etc/passwd",
+            True,
+            "pre-execution",
+            "pending",
+            "blocking",
+            S.DISPOSITION_ERROR,
+            "the value is GRAMMAR-VALIDATED, not merely present: paths must be repo-relative. An "
+            "absolute path is exactly the value whose acceptance would make the scope gate meaningless "
+            "while looking declared",
+        ),
+        (
+            "no field at all on a plan in the EXECUTED directory",
+            None,
+            False,
+            "pre-execution",
+            "executed",
+            "silent",
+            S.DISPOSITION_LEGACY,
+            "NON-RETROACTIVITY: a terminal-directory record short-circuits to `legacy` before this "
+            "rule is reached, so the entire pre-cutover executed tree is never blocked. Same missing "
+            "field as the blocking rows, opposite answer, which is what makes the DIRECTORY column the "
+            "operative difference",
+        ),
+    )
 
-    def test_real_allowlist_is_grammar_validated(self):
-        good = _approved(
-            _with_scope_paths(
-                _conforming_child(), "agent_workflows/foo.py, tests/test_foo.py"
+    def test_every_phase_and_value_reaches_its_three_valued_outcome(self):
+        wrong = []
+        positive_row_broken = False
+        for (
+            case,
+            value,
+            approved,
+            phase,
+            directory,
+            outcome,
+            disposition,
+            why,
+        ) in self.SCOPES:
+            base = _executed_child() if directory == "executed" else _conforming_child()
+            text = _with_scope_paths(base, value)
+            if approved:
+                text = _approved(text)
+            res = L.lint_text(text, checkpoint=phase, directory=directory)
+            blocking = [d for d in res.diagnostics if d.code == L.C_SCOPE_PATHS]
+            advisory = [d for d in res.advisories if d.code == L.C_SCOPE_PATHS]
+            got = "blocking" if blocking else ("advisory" if advisory else "silent")
+            problems = []
+            if got != outcome:
+                if outcome == "silent" and value and value != "grandfathered":
+                    positive_row_broken = True
+                problems.append(
+                    f"expected the outcome {outcome!r}, got {got!r} (blocking="
+                    f"{[d.render('t') for d in blocking]!r}, advisory="
+                    f"{[d.render('t') for d in advisory]!r})"
+                )
+            if res.disposition != disposition:
+                problems.append(
+                    f"expected disposition {disposition!r}, got {res.disposition!r}; all "
+                    f"diagnostics: {[d.render('t') for d in res.diagnostics]!r}"
+                )
+            if problems:
+                shown = "no field" if value is None else repr(value)
+                wrong.append(
+                    f"  {case}\n    (value={shown}, approved={approved}, phase={phase!r}, "
+                    f"directory={directory!r}):\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        note = ""
+        if positive_row_broken:
+            note = (
+                " NOTE: a VALID allowlist is among the failures, so the grammar check itself is "
+                "broken and every blocking row here is vacuous; in that state no plan can pass the "
+                "gate at all."
             )
-        )
-        res = L.lint_text(good, checkpoint="pre-execution", directory="pending")
         self.assertEqual(
-            self._scope_diags(res), [], [d.message for d in res.diagnostics]
+            wrong,
+            [],
+            f"IPD-M106 reached the wrong outcome for {len(wrong)} of {len(self.SCOPES)} "
+            f"phase/value/directory combinations.{note} The outcome is THREE-VALUED (blocking / "
+            "advisory / silent) and one predicate over (phase, status, value) produces every row, so "
+            "read the grouping. If the BLOCKING rows went silent, a trigger was dropped and plans can "
+            "now execute with no declared scope for the runner's gate to reconcile against. If the "
+            "`grandfathered` row went blocking, the pre-cutover tree just became unexecutable. If it "
+            "went silent, the historical backlog is now invisible. FIX: the advisory row is the one "
+            f"most easily 'simplified' into either neighbour, and both directions are wrong.\n"
+            + "\n".join(wrong),
         )
-        self.assertEqual(res.disposition, S.DISPOSITION_CONFORMING)
 
-        bad = _approved(_with_scope_paths(_conforming_child(), "/etc/passwd"))
-        res_bad = L.lint_text(bad, checkpoint="pre-execution", directory="pending")
-        self.assertTrue(self._scope_diags(res_bad), "malformed allowlist must block")
-        self.assertEqual(res_bad.disposition, S.DISPOSITION_ERROR)
+    def test_enforcement_lives_in_the_checkpoint_layer_not_in_metadata(self):
+        """Kept separate: calls TWO internal checks directly to locate WHERE the rule lives.
 
-    def test_terminal_grandfathered_record_is_unaffected(self):
-        # A terminal-dir plan with NO Scope-Paths short-circuits to legacy (never blocked),
-        # proving the non-retroactivity guarantee for grandfathered terminal records.
-        text = _with_scope_paths(_executed_child(), None)
-        res = L.lint_text(text, checkpoint="pre-execution", directory="executed")
-        self.assertEqual(res.disposition, S.DISPOSITION_LEGACY)
-        self.assertEqual(self._scope_diags(res), [])
-
-    def test_enforcement_lives_in_checkpoint_layer_not_metadata(self):
-        # A fieldless plan produces NO metadata error (check_metadata), only a checkpoint-layer
-        # diagnostic at the gate (check_scope_paths).
+        The table asserts what the composed `lint_text` reports; this asserts that `check_metadata`
+        reports NOTHING about Scope-Paths while `check_scope_paths` does, which is a claim about the
+        layering rather than about any document's outcome. It matters because a metadata-layer
+        enforcement would fire at every phase, destroying the three-valued behavior the table pins.
+        """
         fieldless = _with_scope_paths(_conforming_child(), None)
         doc = L.parse(fieldless)
         meta_diags = L.check_metadata(doc, "pending")
@@ -1022,43 +2131,124 @@ class ParenthesizedActorParsesInTheAttributionRegex(unittest.TestCase):
     HAZARD = "- 2026-09-08 executed (opencode/model): fixed foo(bar): baz"
     BOTH = "- 2026-09-08 executed (opencode (model)): fixed foo(bar): baz"
 
-    def test_a_parenthesized_actor_parses_with_the_full_actor_and_message(self):
-        m = L._HISTORY_ATTRIB_RE.match(self.PAREN)
-        self.assertIsNotNone(m, "a parenthesized actor must parse")
-        assert m is not None
-        self.assertEqual(m.group("actor"), "opencode (its_direct/some-model)")
-        self.assertEqual(m.group("msg"), "did the work")
-        self.assertEqual(m.group("status"), "executed")
+    #: (case, the history line, expected (status, actor, msg) captures, why this row exists)
+    CAPTURES = (
+        (
+            "an actor containing parentheses",
+            PAREN,
+            ("executed", "opencode (its_direct/some-model)", "did the work"),
+            "THE BUG: the old bound `[^)]*` stopped at the FIRST `)`, so this line did not match at "
+            "all, `_newest_executed_history` fell through to its bare-line branch, and IPD-S406 "
+            "reported an EMPTY actor and EMPTY summary for a line where both are plainly present. "
+            "Because S406 is POST-transition, that fired AFTER the lifecycle commit",
+        ),
+        (
+            "the slash-form actor",
+            SLASH,
+            ("executed", "opencode/its_direct/some-model", "did the work"),
+            "the widening must be strictly ADDITIVE: a line that parsed before must parse IDENTICALLY "
+            "now, or the fix is a regression wearing a fix's clothes",
+        ),
+        (
+            "a MESSAGE containing `):`",
+            HAZARD,
+            ("executed", "opencode/model", "fixed foo(bar): baz"),
+            "THE REASON THE CAPTURE IS LAZY AND NOT GREEDY. A greedy `(?P<actor>.*)` anchors on the "
+            "LAST `):` and captures actor `opencode/model): fixed foo(bar`, corrupting a line that "
+            "parses correctly today. This row fails under that alternative, which is what makes the "
+            "choice evidenced rather than asserted",
+        ),
+        (
+            "BOTH hazards at once",
+            BOTH,
+            ("executed", "opencode (model)", "fixed foo(bar): baz"),
+            "the two hazards pull in OPPOSITE directions (a parenthesized actor needs the match to "
+            "continue past a `)`, a `):` in the message needs it to stop at the first one), so a line "
+            "carrying both is where a fix for either one alone falls over",
+        ),
+        (
+            "the `aw set` generic actor",
+            "- 2026-08-30 executed (aw set): summary here",
+            ("executed", "aw set", "summary here"),
+            "fn2l1u E-04: the generic-actor set is pinned NARROWLY, and the rule can only classify an "
+            "actor it first PARSED. This row is the parse half of that; the membership half is "
+            "asserted below",
+        ),
+        (
+            "the `aw set, --by-human` generic actor",
+            "- 2026-08-30 executed (aw set, --by-human): summary here",
+            ("executed", "aw set, --by-human", "summary here"),
+            "the second generic spelling, which contains a COMMA and a DOUBLE DASH: it parses whole "
+            "rather than being split, which is what lets it be matched against the generic set",
+        ),
+    )
 
-    def test_the_slash_form_parses_exactly_as_before(self):
-        m = L._HISTORY_ATTRIB_RE.match(self.SLASH)
-        self.assertIsNotNone(m)
-        assert m is not None
-        self.assertEqual(m.group("actor"), "opencode/its_direct/some-model")
-        self.assertEqual(m.group("msg"), "did the work")
+    def test_every_actor_and_message_shape_parses_into_its_three_captures(self):
+        """One table over `_HISTORY_ATTRIB_RE`, replacing four tests and a fifth's parse half.
 
-    def test_a_message_containing_a_close_paren_colon_is_NOT_truncated(self):
-        """THE REASON THE CAPTURE IS LAZY AND NOT GREEDY.
+        THE HAZARD IS A COLUMN, which is the reason this is one table: the parenthesized-actor rows and
+        the `):`-in-message rows pull the match in OPPOSITE directions, and the BOTH row exists only
+        because they can co-occur. Asserted in four separate tests, each looked like an independent
+        edge case; adjacent, they are visibly one tradeoff with a forced resolution.
 
-        A greedy `(?P<actor>.*)` anchors on the LAST `):` and captures actor
-        `opencode/model): fixed foo(bar`, corrupting a line that parses correctly today. This test
-        fails under that alternative, which is what makes the choice evidenced rather than asserted.
+        Why the table beats the four: one regex with lazy captures produces every row, and any
+        re-bounding breaks a predictable SET of rows. A bound like `[^)]*` breaks both parenthesized
+        rows; going greedy breaks both `):`-in-message rows. Seeing which set moved names the edit
+        immediately, where four red lines would each be read as a separate puzzle.
         """
-        m = L._HISTORY_ATTRIB_RE.match(self.HAZARD)
-        self.assertIsNotNone(m)
-        assert m is not None
-        self.assertEqual(m.group("actor"), "opencode/model")
-        self.assertEqual(m.group("msg"), "fixed foo(bar): baz")
+        wrong = []
+        for case, line, expected, why in self.CAPTURES:
+            match = L._HISTORY_ATTRIB_RE.match(line)
+            if match is None:
+                wrong.append(
+                    f"  {case}: DID NOT MATCH AT ALL, so IPD-S406 would report an empty actor and "
+                    f"empty summary for it\n    line: {line!r}\n    this row exists because: {why}"
+                )
+                continue
+            got = (match.group("status"), match.group("actor"), match.group("msg"))
+            if got != expected:
+                labels = ("status", "actor", "msg")
+                diffs = [
+                    f"      {label}: expected {e!r}, got {g!r}"
+                    for label, e, g in zip(labels, expected, got)
+                    if e != g
+                ]
+                wrong.append(
+                    f"  {case}:\n"
+                    + "\n".join(diffs)
+                    + f"\n    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"_HISTORY_ATTRIB_RE mis-split {len(wrong)} of {len(self.CAPTURES)} history lines. One "
+            "regex with lazy captures produces every row and the rows trade off against each other, so "
+            "read WHICH set moved. Both PARENTHESIZED rows failing means someone re-bounded the actor "
+            "to `[^)]*`; both `):`-in-message rows failing means someone made a capture GREEDY. FIX: "
+            "do not fix one row at a time, because each naive fix breaks the other set. A row that DID "
+            "NOT MATCH AT ALL is the worst outcome: IPD-S406 then reports an empty actor for a line "
+            f"that plainly has one, and it reports it AFTER the lifecycle commit.\n"
+            + "\n".join(wrong),
+        )
 
-    def test_both_hazards_at_once(self):
-        m = L._HISTORY_ATTRIB_RE.match(self.BOTH)
-        self.assertIsNotNone(m)
-        assert m is not None
-        self.assertEqual(m.group("actor"), "opencode (model)")
-        self.assertEqual(m.group("msg"), "fixed foo(bar): baz")
+    def test_the_generic_actors_set_stays_narrow(self):
+        """Kept separate: asserts SET MEMBERSHIP in `_GENERIC_ACTORS`, not a parse result.
+
+        The table proves both generic spellings PARSE; this proves they are the ones the rule treats as
+        generic. Pinned because the danger with this rule is ballooning it into judging whether a name
+        looks specific enough, which would refuse the real actors agents and humans write.
+        """
+        for actor in ("aw set", "aw set, --by-human"):
+            with self.subTest(actor=actor):
+                self.assertIn(actor, L._GENERIC_ACTORS)
 
     def test_the_greedy_alternative_is_exhibited_as_WRONG(self):
-        """Pin the rejected alternative's failure, so a later editor does not 'simplify' to greedy."""
+        """Kept separate: asserts over a LOCALLY DEFINED greedy regex, not the shipped one.
+
+        It pins the REJECTED alternative's failure so a later editor does not 'simplify' to greedy. The
+        subject is a pattern compiled in this test body, which no row of a table over
+        `_HISTORY_ATTRIB_RE` can be.
+        """
         greedy = re.compile(
             r"^-\s+(?:\d{4}-\d{2}-\d{2})\s+(?P<status>\S+)\s+\((?P<actor>.*)\)\s*:\s*(?P<msg>.*)$"
         )
@@ -1071,20 +2261,13 @@ class ParenthesizedActorParsesInTheAttributionRegex(unittest.TestCase):
             "if this ever stops corrupting the line, the lazy/greedy tradeoff changed",
         )
 
-    def test_the_generic_actor_rejection_still_works_under_the_new_pattern(self):
-        """fn2l1u E-04: `_GENERIC_ACTORS` is pinned NARROWLY and must not be disturbed."""
-        for actor in ("aw set", "aw set, --by-human"):
-            with self.subTest(actor=actor):
-                m = L._HISTORY_ATTRIB_RE.match(
-                    f"- 2026-08-30 executed ({actor}): summary here"
-                )
-                self.assertIsNotNone(m)
-                assert m is not None
-                self.assertEqual(m.group("actor"), actor)
-                self.assertIn(m.group("actor"), L._GENERIC_ACTORS)
-
     def test_the_attribution_lint_no_longer_reports_an_empty_actor(self):
-        """END TO END through the real rule: a parenthesized terminal line is attributed, not empty."""
+        """Kept separate: goes END TO END through `_newest_executed_history`, not the regex.
+
+        The capture table asserts what the pattern matches; this asserts what the CONSUMER does with a
+        whole parsed document, which is where the original bug actually surfaced: the fall-through to
+        the bare-line branch reported an empty actor for a line that plainly had one.
+        """
         plan = _approved(_conforming_child())
         plan = plan.replace("- Status: approved", "- Status: executed")
         plan += (
@@ -1106,66 +2289,157 @@ class ParenthesizedActorParsesInTheAttributionRegex(unittest.TestCase):
         )
 
 
+# The gate-section clause bodies IPD-G801 keys on. Module scope so the class-level table below can
+# name them directly.
+PRODUCTION_CLAUSE_13 = (
+    "13. On completion, run `aw ipd lint --phase pre-transition`, confirm it reports conforming and\n"
+    "    every `V-*` carries observed evidence, then `git mv` this file to\n"
+    "    `.aw/records/plans/executed/`, set `- Status: executed`, and append a\n"
+    "    `## Workflow history` line."
+)
+
+CORRECTED_CLAUSE = (
+    "11. On completion, run `aw ipd lint --phase pre-transition` and confirm it reports conforming.\n"
+    "    The plan then reaches `executed` ONLY through the gated finalize transaction:\n"
+    "        aw ipd finalize --actor '<agent/model>' --message '<summary>' --apply\n"
+    "    In no case may you `git mv` this file or hand-edit `- Status:`; a hand-built transition\n"
+    "    satisfies neither IPD-S406 nor IPD-M104."
+)
+
+RETIREMENT_CLAUSE = "13. On completion, `git mv` this file to `.aw/records/plans/superseded/` and set `- Status: superseded`."
+
+
 class GateContractLintTests(unittest.TestCase):
     """dcri4s E-05 / E-06: deterministic lint refusing hand-rolled terminal lifecycle moves."""
 
-    PRODUCTION_CLAUSE_13 = (
-        "13. On completion, run `aw ipd lint --phase pre-transition`, confirm it reports conforming and\n"
-        "    every `V-*` carries observed evidence, then `git mv` this file to\n"
-        "    `.aw/records/plans/executed/`, set `- Status: executed`, and append a\n"
-        "    `## Workflow history` line."
+    #: (case, the plan text, whether the rule must fire, message substrings required on the
+    #: diagnostic, the expected disposition, why this row exists)
+    GATES = (
+        (
+            "a gate carrying the PRODUCTION clause 13 text",
+            _conforming_child().replace("Gate prose.", PRODUCTION_CLAUSE_13),
+            True,
+            ("aw ipd finalize", "git mv"),
+            S.DISPOSITION_ERROR,
+            "THE RULE, against the exact text the shipped template used to carry: a gate that "
+            "PRESCRIBES `git mv` plus a hand-edited `- Status:` teaches every agent reading it to "
+            "build the terminal transition by hand, which satisfies neither IPD-S406 nor IPD-M104. "
+            "The needles are asserted because a refusal must name the replacement, not just the sin",
+        ),
+        (
+            "a gate naming `aw ipd finalize`",
+            _conforming_child().replace("Gate prose.", CORRECTED_CLAUSE),
+            False,
+            (),
+            S.DISPOSITION_CONFORMING,
+            "THE POSITIVE ROW: the corrected wording must lint clean, or the rule would flag the very "
+            "text it demands and no plan could satisfy it. Every firing row is vacuous while this is "
+            "broken",
+        ),
+        (
+            "a RETIREMENT gate that `git mv`s to superseded/",
+            _conforming_child().replace("Gate prose.", RETIREMENT_CLAUSE),
+            False,
+            (),
+            S.DISPOSITION_CONFORMING,
+            "SCOPE: the rule governs the path to `executed/`, which is the one that claims work was "
+            "done. Retiring a plan to `superseded/` IS a hand move by design (there is no finalize "
+            "transaction for it), so a rule keying on `git mv` alone would forbid the correct "
+            "retirement procedure",
+        ),
+        (
+            "the SAME defective clause quoted OUTSIDE the gate section",
+            _conforming_child().replace(
+                "Sample goal.",
+                f"Sample goal.\n\nHere is a quote of defective text:\n{PRODUCTION_CLAUSE_13}\n",
+            ),
+            False,
+            (),
+            S.DISPOSITION_CONFORMING,
+            "SECTION-BOUNDED, and the pair of the first row: the identical text is flagged in the gate "
+            "and permitted in Goal. A plan must be able to DISCUSS the defective pattern (this repo's "
+            "own plans do) without being accused of prescribing it, which is only checkable by having "
+            "both rows",
+        ),
     )
 
-    CORRECTED_CLAUSE = (
-        "11. On completion, run `aw ipd lint --phase pre-transition` and confirm it reports conforming.\n"
-        "    The plan then reaches `executed` ONLY through the gated finalize transaction:\n"
-        "        aw ipd finalize --actor '<agent/model>' --message '<summary>' --apply\n"
-        "    In no case may you `git mv` this file or hand-edit `- Status:`; a hand-built transition\n"
-        "    satisfies neither IPD-S406 nor IPD-M104."
-    )
+    def test_the_rule_fires_only_on_a_gate_prescribing_a_hand_rolled_terminal_move(
+        self,
+    ):
+        """One table over IPD-G801, replacing four tests (dcri4s E-05/E-06).
 
-    RETIREMENT_CLAUSE = "13. On completion, `git mv` this file to `.aw/records/plans/superseded/` and set `- Status: superseded`."
+        THE SECTION IS THE COLUMN, and it is the reason this is one table: the first and last rows
+        carry the IDENTICAL defective text and must disagree, because the rule is about what a gate
+        PRESCRIBES rather than what a document mentions. That is a relationship between two rows, and
+        the old fourth test asserting it in isolation read as an unrelated edge case rather than as the
+        other half of the first.
 
-    def _plan_with_gate_body(self, gate_body: str) -> str:
-        return _conforming_child().replace("Gate prose.", gate_body)
-
-    def test_gate_prescribing_hand_rolled_move_fails_lint(self):
-        """Assertion 1: the new rule FIRES on a gate carrying the production clause 13 text."""
-        plan = self._plan_with_gate_body(self.PRODUCTION_CLAUSE_13)
-        res = L.lint_text(plan, checkpoint="author")
-        self.assertEqual(res.disposition, S.DISPOSITION_ERROR)
-        codes = [d.code for d in res.diagnostics]
-        self.assertIn(L.C_GATE_HAND_ROLLED_MOVE, codes)
-        diag = next(d for d in res.diagnostics if d.code == L.C_GATE_HAND_ROLLED_MOVE)
-        self.assertIn("aw ipd finalize", diag.message)
-        self.assertIn("git mv", diag.message)
-
-    def test_gate_naming_finalize_passes(self):
-        """Assertion 2: does NOT fire on a gate naming aw ipd finalize."""
-        plan = self._plan_with_gate_body(self.CORRECTED_CLAUSE)
-        res = L.lint_text(plan, checkpoint="author")
-        codes = [d.code for d in res.diagnostics]
-        self.assertNotIn(L.C_GATE_HAND_ROLLED_MOVE, codes)
-
-    def test_retirement_gate_passes(self):
-        """Assertion 3: does NOT fire on retirement wording."""
-        plan = self._plan_with_gate_body(self.RETIREMENT_CLAUSE)
-        res = L.lint_text(plan, checkpoint="author")
-        codes = [d.code for d in res.diagnostics]
-        self.assertNotIn(L.C_GATE_HAND_ROLLED_MOVE, codes)
-
-    def test_hand_rolled_move_outside_gate_passes(self):
-        """Assertion 4: does NOT fire when the defective clause appears OUTSIDE the gate section."""
-        plan = _conforming_child().replace(
-            "Sample goal.",
-            f"Sample goal.\n\nHere is a quote of defective text:\n{self.PRODUCTION_CLAUSE_13}\n",
+        Why the table beats the four: one section-scoped text match produces every row, and its two
+        failure modes are opposite and equally bad. If it stops being section-scoped, the
+        outside-the-gate row fails and plans can no longer discuss the pattern they are fixing. If its
+        match widens past the finalize path, the retirement row fails and the correct retirement
+        procedure becomes unlintable. Reading which row moved distinguishes them at a glance.
+        """
+        wrong = []
+        positive_rows_broken = 0
+        for case, text, fires, needles, disposition, why in self.GATES:
+            res = L.lint_text(text, checkpoint="author")
+            found = [d for d in res.diagnostics if d.code == L.C_GATE_HAND_ROLLED_MOVE]
+            problems = []
+            if fires and not found:
+                problems.append(
+                    "expected the hand-rolled-move diagnostic; the linter reported "
+                    + repr([d.render("t") for d in res.diagnostics] or "nothing at all")
+                )
+            if not fires and found:
+                positive_rows_broken += 1
+                problems.append(
+                    f"the rule must NOT fire here; it did: "
+                    f"{[d.render('t') for d in found]!r}"
+                )
+            for needle in needles:
+                if not any(needle in d.message for d in found):
+                    problems.append(
+                        f"the diagnostic never mentions {needle!r}; messages were "
+                        f"{[d.message for d in found]!r}"
+                    )
+            if res.disposition != disposition:
+                problems.append(
+                    f"expected disposition {disposition!r}, got {res.disposition!r}"
+                )
+            if problems:
+                wrong.append(
+                    f"  {case}:\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        note = ""
+        if positive_rows_broken:
+            note = (
+                f" {positive_rows_broken} row(s) that must NOT fire did fire, so the rule is "
+                "over-matching and every firing row here is vacuous while that is true."
+            )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the hand-rolled-move gate rule was wrong for {len(wrong)} of {len(self.GATES)} gate "
+            f"bodies.{note} One section-scoped text match produces every row, so read WHICH row moved: "
+            "the OUTSIDE-THE-GATE row failing means the match stopped being section-scoped and plans "
+            "can no longer quote the pattern they are fixing, while the RETIREMENT row failing means "
+            "the match widened past the finalize path and the correct retirement procedure is now "
+            "unlintable. FIX: the first and last rows carry IDENTICAL text and must disagree, so if "
+            f"they ever agree the section scoping is the thing to look at, not the wording.\n"
+            + "\n".join(wrong),
         )
-        res = L.lint_text(plan, checkpoint="author")
-        codes = [d.code for d in res.diagnostics]
-        self.assertNotIn(L.C_GATE_HAND_ROLLED_MOVE, codes)
 
     def test_template_execution_contract_prescribes_finalize_not_hand_rolled_move(self):
-        """Assertion 5: the templated contract text itself carries the E-02 obligation-plus-conditional-owner wording while instructing git mv to executed/ for no case."""
+        """Kept separate: asserts over a SHIPPED TEMPLATE FILE, not over a linted plan.
+
+        The table checks that the RULE fires correctly; this checks that the template the rule exists
+        to protect does not itself carry the defective wording. Its subject is a file on disk and its
+        checks are substring presence/absence over that file, so it is structurally different from any
+        lint row.
+        """
         template_path = (
             REPO_ROOT / ".aw" / "system" / "workflows" / "templates" / "plans-README.md"
         )

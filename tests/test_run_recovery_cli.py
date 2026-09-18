@@ -616,6 +616,100 @@ class TestTransitionsAndDependencies(unittest.TestCase):
 # ==================================================================================================
 
 
+#: The check vocabulary shared by the two CLI-surface tables below. A row's expectations are a
+#: tuple of these, so one loop can express "exits 4 AND names EV-FAILED-EXIT" and "exits 7 AND the
+#: JSON says not_a_ledger AND denies corruption" without either table weakening to a single claim.
+#:
+#:   ("text-in", needle)         a substring a user or an agent greps for MUST be present
+#:   ("text-not-in", needle)     a substring that MUST NOT be present (a wrong VERDICT, e.g. the
+#:                               word "corrupt" on a file that is merely the wrong format)
+#:   ("itext-in" / "itext-not-in", needle)
+#:                               the same two, CASE-INSENSITIVELY, for prose whose capitalization
+#:                               is not itself a contract
+#:   ("json-eq", key, value)     machine output parses and that key equals that value EXACTLY
+#:   ("json-in", key, member)    machine output parses and that key's collection contains it
+#:
+#: Case folding is deliberately confined to the TEXT modes: JSON keys and values are consumed by
+#: machines, so they are always compared exactly.
+_CHECK_MODES = (
+    "text-in",
+    "text-not-in",
+    "itext-in",
+    "itext-not-in",
+    "json-eq",
+    "json-in",
+)
+
+
+def _parse_machine(out: str) -> Any:
+    """Parse machine output, tolerating both the pretty `--json` block and one-line `--agent`.
+
+    `--agent` emits a single compact line (sometimes preceded by human prose), while `--json`
+    pretty-prints a multi-line object, so neither "parse the whole thing" nor "parse the last line"
+    works alone.
+    """
+    text = out.strip()
+    try:
+        return json.loads(text)
+    except ValueError:
+        lines = [line for line in text.splitlines() if line.strip()]
+        if not lines:
+            raise
+        return json.loads(lines[-1])
+
+
+def _stdout_problems(out: str, checks: "tuple[tuple[Any, ...], ...]") -> List[str]:
+    """Return one human-readable problem string per failed check (never raises, never short-circuits).
+
+    Accumulating rather than asserting is what lets a row report BOTH a wrong exit code and a wrong
+    payload in the same run, which is the difference between "the verdict moved" and "the wording
+    moved".
+    """
+    problems: List[str] = []
+    parsed: Any = None
+    parse_error: Any = None
+    if any(mode.startswith("json") for mode, *_ in checks):
+        try:
+            parsed = _parse_machine(out)
+        except ValueError as exc:
+            parse_error = exc
+    for check in checks:
+        mode = check[0]
+        assert mode in _CHECK_MODES, f"unknown check mode {mode!r}"
+        if mode in ("text-in", "itext-in"):
+            haystack = out.lower() if mode == "itext-in" else out
+            if check[1] not in haystack:
+                problems.append(f"stdout is missing {check[1]!r}; got {out[:300]!r}")
+        elif mode in ("text-not-in", "itext-not-in"):
+            haystack = out.lower() if mode == "itext-not-in" else out
+            if check[1] in haystack:
+                problems.append(
+                    f"stdout must NOT contain {check[1]!r} (that is the WRONG VERDICT for this "
+                    f"input); got {out[:300]!r}"
+                )
+        elif parse_error is not None:
+            problems.append(
+                f"machine output did not parse as JSON ({parse_error}); got {out[:300]!r}"
+            )
+        elif not isinstance(parsed, dict):
+            problems.append(f"machine output is not a JSON object; got {parsed!r}")
+        elif check[1] not in parsed:
+            problems.append(
+                f"machine output has no key {check[1]!r}; keys are {sorted(parsed)}"
+            )
+        elif mode == "json-eq":
+            if parsed[check[1]] != check[2]:
+                problems.append(
+                    f"machine key {check[1]!r} expected {check[2]!r}, got {parsed[check[1]]!r}"
+                )
+        elif check[2] not in parsed[check[1]]:
+            problems.append(
+                f"machine key {check[1]!r} does not contain {check[2]!r}; it is "
+                f"{parsed[check[1]]!r}"
+            )
+    return problems
+
+
 def _complete_run_records() -> List[Dict[str, Any]]:
     """Records for a clean, complete, finalizable run (requirements covered by verifier passes)."""
     return [
@@ -644,6 +738,354 @@ def _complete_run_records() -> List[Dict[str, Any]]:
 
 
 class TestRunCliSubcommands(unittest.TestCase):
+    """Every `aw run`/`aw runs` invocation exits in its own class and says why (E-03).
+
+    ONE table replaces seventeen tests of identical shape: seed a ledger, run one argv, assert the
+    exit code and (sometimes) one substring or JSON key. Only the SEED, the ARGV and the EXPECTED
+    VERDICT differed.
+
+    Why the table beats the seventeen. THE EXIT CODES ARE A CLOSED SET THAT MACHINES CONSUME
+    (`run_cli.EXIT_*`: 0 ok, 1 incomplete, 2 invalid invocation, 3 blocked, 4 invalid evidence, 5
+    corrupted ledger, 6 operational, 7 not a ledger), and the realistic failure is not one command
+    breaking in isolation but a renumbering, or a shared helper (`_build_engine`, the runnability
+    check, the terminal-refusal gate) changing the class it maps a condition onto. Seventeen tests
+    report that as seventeen unrelated red lines with no way to see that they all moved the SAME
+    direction; the table reports one failure listing every invocation whose class moved, which is
+    the shape of the real problem.
+
+    MODES ARE COLUMNS, NOT SEPARATE TABLES. `--json` (pretty multi-line), `--agent` (one compact
+    line) and plain human output are all in the `argv` column, and the `checks` column carries a
+    check MODE per expectation so a row can make two DIFFERENT KINDS of claim about one invocation
+    (exit 4 AND `EV-FAILED-EXIT` present; exit 7 AND `not_a_ledger` true AND the word "corrupt"
+    absent) rather than being weakened to whichever single claim fits a uniform table.
+
+    POSITIVE ROWS ARE IN THE SAME TABLE deliberately, and their failure message says so: every
+    nonzero row is VACUOUS against a CLI that refuses everything, so `next` exiting 0 with S-01
+    runnable, `record performed` exiting 0, `cancel` exiting 0 and `finalize` on a complete run
+    exiting 0 are the rows that keep the refusal rows meaningful.
+
+    HUMAN PROSE IS PINNED ONLY AS THE ONE IDENTIFYING PHRASE a user greps for (`Run:`,
+    `incomplete`, `EV-FAILED-EXIT`). Whole sentences of error text are NOT asserted: they are not
+    load-bearing, and pinning them would make a reworded message a test failure.
+    """
+
+    #: (case, seed, argv template, expected exit code, checks, why this row exists)
+    #:
+    #: `seed` is one of "none" (no ledger file at all), "incomplete", "complete", "root-performed",
+    #: "bad-evidence", "corrupt". In the argv template `LEDGER` is replaced by the ledger path and
+    #: `WORKFLOW` by the workflow JSON path, so a row stays readable as an invocation.
+    INVOCATIONS = (
+        # ---- exit 2: invalid invocation. An OPERATOR error, distinct from a run-state refusal. ----
+        (
+            "status on a ledger path that does not exist",
+            "none",
+            ("runs", "status", "LEDGER"),
+            run_cli.EXIT_INVALID_INVOCATION,
+            (),
+            "a missing file is the operator's mistake, so it is exit 2 and NOT exit 5 "
+            "(corrupted) or 7 (wrong format): nothing was read, so nothing can be judged",
+        ),
+        (
+            "start with no --step",
+            "incomplete",
+            ("run", "start", "LEDGER"),
+            run_cli.EXIT_INVALID_INVOCATION,
+            (),
+            "a required flag is missing, which is an invocation error and must not be reported as "
+            "the run being blocked",
+        ),
+        (
+            "record with a --state outside the enum",
+            "incomplete",
+            ("run", "record", "LEDGER", "--step", "S-01", "--state", "bogus"),
+            run_cli.EXIT_INVALID_INVOCATION,
+            (),
+            "an unparseable state is rejected at the boundary; accepting it would append a "
+            "meaningless attempt to an append-only ledger that can never be deleted",
+        ),
+        (
+            "record naming a step the workflow does not define",
+            "incomplete",
+            (
+                "run",
+                "record",
+                "LEDGER",
+                "--workflow",
+                "WORKFLOW",
+                "--step",
+                "S-99",
+                "--state",
+                "performed",
+            ),
+            run_cli.EXIT_INVALID_INVOCATION,
+            (),
+            "an UNKNOWN step is exit 2 while a known-but-not-runnable step is exit 3 (the row "
+            "below). Collapsing the two would hide a typo'd step id as a dependency problem",
+        ),
+        # ---- exit 1: incomplete. The run was read fine; its predicates are unsatisfied. ----------
+        (
+            "status on an incomplete run (human output)",
+            "incomplete",
+            ("runs", "status", "LEDGER"),
+            run_cli.EXIT_INCOMPLETE,
+            (("text-in", "Run:"),),
+            "`Run:` is the ONE identifying phrase a human greps for in the status block; the rest "
+            "of the prose is deliberately not pinned",
+        ),
+        (
+            "status --agent on an incomplete run",
+            "incomplete",
+            ("runs", "status", "LEDGER", "--agent"),
+            run_cli.EXIT_INCOMPLETE,
+            (("json-eq", "run_id", RUN_ID),),
+            "MODE COLUMN: the machine mode must carry the same verdict as the human mode and "
+            "surface the run id as a KEY, since an agent keys off the field rather than the prose",
+        ),
+        (
+            "finalize refuses an incomplete run",
+            "incomplete",
+            ("run", "finalize", "LEDGER", "--json"),
+            run_cli.EXIT_INCOMPLETE,
+            (("text-in", "incomplete"),),
+            "TERMINAL REFUSAL: finalizing is the act that declares a run done, so an unsatisfied "
+            "predicate must refuse rather than exit 0, and must NAME incompleteness as the reason",
+        ),
+        # ---- exit 3: blocked. Legal invocation, correct ledger, the run cannot proceed. ----------
+        (
+            "next when the only root step is already performed and S-02 is gated",
+            "root-performed",
+            ("runs", "next", "LEDGER", "--workflow", "WORKFLOW", "--agent"),
+            run_cli.EXIT_BLOCKED,
+            (("json-eq", "runnable_steps", []),),
+            "nothing runnable is BLOCKED (3), not OK (0) with an empty list: an unattended driver "
+            "polling `next` must be able to tell 'wait for a human' from 'there is work'",
+        ),
+        (
+            "record a failed outcome",
+            "incomplete",
+            (
+                "run",
+                "record",
+                "LEDGER",
+                "--workflow",
+                "WORKFLOW",
+                "--step",
+                "S-01",
+                "--state",
+                "failed",
+            ),
+            run_cli.EXIT_BLOCKED,
+            (),
+            "RECORDING A FAILURE SUCCEEDS AS AN APPEND BUT IS NOT SUCCESS: the command exits 3, so "
+            "a script cannot read 'the step failed and I wrote that down' as a green step",
+        ),
+        (
+            "record a step whose dependencies and gate are unmet",
+            "incomplete",
+            (
+                "run",
+                "record",
+                "LEDGER",
+                "--workflow",
+                "WORKFLOW",
+                "--step",
+                "S-02",
+                "--state",
+                "performed",
+            ),
+            run_cli.EXIT_BLOCKED,
+            (),
+            "S-02 depends on an unperformed S-01 and needs deploy_gate, so claiming it performed is "
+            "refused: the ledger must never record work the DAG says could not have happened",
+        ),
+        # ---- exit 6: operational. Authorization, not invocation shape and not run state. ---------
+        (
+            "cancel authored by the executor",
+            "incomplete",
+            ("run", "cancel", "LEDGER", "--actor", "executor"),
+            run_cli.EXIT_OPERATIONAL,
+            (),
+            "only a coordinator or a human may cancel; an UNAUTHORIZED actor is its own class (6) "
+            "so it is not confused with a malformed command (2) or a blocked run (3)",
+        ),
+        (
+            "finalize authored by the executor",
+            "complete",
+            ("run", "finalize", "LEDGER", "--actor", "executor"),
+            run_cli.EXIT_OPERATIONAL,
+            (),
+            "the executor cannot author its own completion. Note the seed is COMPLETE, so this row "
+            "proves authority is checked even when every predicate would otherwise pass",
+        ),
+        # ---- exit 4 and 5: the two ways captured evidence can refuse a finalize. -----------------
+        (
+            "finalize with a tool_event that exited nonzero",
+            "bad-evidence",
+            ("run", "finalize", "LEDGER", "--json"),
+            run_cli.EXIT_INVALID_EVIDENCE,
+            (("text-in", "EV-FAILED-EXIT"),),
+            "a failing command inside a 'complete' run is INVALID EVIDENCE (4), separate from "
+            "corruption (5). The finding code is asserted because it is what tells an agent WHICH "
+            "evidence rule fired",
+        ),
+        (
+            "finalize on a ledger whose hash chain was broken by hand",
+            "corrupt",
+            ("run", "finalize", "LEDGER", "--json"),
+            run_cli.EXIT_CORRUPTED_LEDGER,
+            (),
+            "TAMPERING IS ITS OWN CLASS (5): it must never be excused as merely incomplete (1) or "
+            "invalid evidence (4), because the file itself can no longer be trusted",
+        ),
+        # ---- exit 0: the positive rows. Without these every row above is vacuous. ----------------
+        (
+            "next on a fresh run lists the runnable root step",
+            "incomplete",
+            ("runs", "next", "LEDGER", "--workflow", "WORKFLOW", "--json"),
+            run_cli.EXIT_OK,
+            (("json-in", "runnable_steps", "S-01"),),
+            "POSITIVE: work available is exit 0 and NAMES the step. A CLI that returned 3 for "
+            "everything would satisfy every blocked row above while being useless",
+        ),
+        (
+            "record a performed outcome for a runnable root step",
+            "incomplete",
+            (
+                "run",
+                "record",
+                "LEDGER",
+                "--workflow",
+                "WORKFLOW",
+                "--step",
+                "S-01",
+                "--state",
+                "performed",
+            ),
+            run_cli.EXIT_OK,
+            (),
+            "POSITIVE: the legal append succeeds, which is what makes the three refusal rows above "
+            "evidence of a check rather than of a broken command. Durability is asserted "
+            "separately by `test_a_recorded_attempt_is_durable_in_the_ledger`",
+        ),
+        (
+            "resume a non-terminal run",
+            "incomplete",
+            ("runs", "resume", "LEDGER", "--json"),
+            run_cli.EXIT_OK,
+            (("json-eq", "terminal", False),),
+            "POSITIVE: a healthy resume exits 0 and reports the run as NOT terminal, so a driver "
+            "knows it may continue rather than that the run is over",
+        ),
+        (
+            "cancel with a reason",
+            "incomplete",
+            ("run", "cancel", "LEDGER", "--reason", "abort", "--json"),
+            run_cli.EXIT_OK,
+            (
+                ("json-eq", "cancelled", True),
+                ("json-eq", "run_state", run_state.STATE_CANCELLED),
+            ),
+            "POSITIVE, and TWO KINDS OF CLAIM about one invocation: the command reports it acted "
+            "(`cancelled`) AND that the reconstructed run state is terminal-cancelled, which is "
+            "the durable effect rather than the report of it",
+        ),
+        (
+            "finalize a complete run",
+            "complete",
+            ("run", "finalize", "LEDGER", "--json"),
+            run_cli.EXIT_OK,
+            (("json-eq", "finalized", True),),
+            "POSITIVE, and the most important one here: four rows above assert finalize REFUSES. "
+            "Without this row a finalize that refused unconditionally would pass all of them",
+        ),
+    )
+
+    def test_every_invocation_exits_in_its_class_and_says_why(self) -> None:
+        wrong = []
+        by_code: Dict[int, int] = {}
+        for case, seed, template, expected_rc, checks, why in self.INVOCATIONS:
+            with tempfile.TemporaryDirectory() as seed_dir:
+                argv = self._materialize(template, Path(seed_dir), seed)
+                rc, out = self._cli(*argv)
+            problems = []
+            if rc != expected_rc:
+                by_code[expected_rc] = by_code.get(expected_rc, 0) + 1
+                problems.append(
+                    f"exit code expected {expected_rc} "
+                    f"({self._exit_name(expected_rc)}), got {rc} ({self._exit_name(rc)})"
+                )
+            problems.extend(_stdout_problems(out, checks))
+            if "\x1b" in out:
+                problems.append(
+                    "ANSI escape leaked into the output of a machine-consumed command"
+                )
+            if problems:
+                printable = " ".join(
+                    arg if "/" not in arg else f"<{Path(arg).name}>" for arg in argv
+                )
+                wrong.append(
+                    f"  {case}\n    argv: aw {printable}\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        code_summary = ", ".join(
+            f"{self._exit_name(code)} ({count} row(s))"
+            for code, count in sorted(by_code.items())
+        )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the run CLI gave the wrong verdict for {len(wrong)} of {len(self.INVOCATIONS)} "
+            f"invocations. Wrong exit codes were expected in: {code_summary or 'none'}. THE EXIT "
+            "CODES ARE CONSUMED BY MACHINES, so read the grouping before editing a row. Several "
+            "rows expecting the SAME code failing together means that code was renumbered or its "
+            "meaning moved; several DIFFERENT codes failing on commands that share a helper "
+            "(`_build_engine`, the runnability check, the terminal-refusal gate) means the helper "
+            "changed which class it maps a condition onto. FIX: if a row expecting EXIT_OK is "
+            "failing, fix that FIRST, because every refusal row is vacuous against a CLI that "
+            "refuses everything, and a refusal row passing beside a broken positive row proves "
+            "nothing. A substring failure alone (right code, missing phrase) is the milder case: "
+            "the verdict is intact and only the one identifying phrase a user or an agent greps "
+            f"for moved.\n" + "\n".join(wrong),
+        )
+
+    @staticmethod
+    def _exit_name(code: int) -> str:
+        """Name an exit code, so a failure reads `EXIT_BLOCKED` rather than a bare `3`."""
+        names = {
+            value: name
+            for name, value in vars(run_cli).items()
+            if name.startswith("EXIT_") and isinstance(value, int)
+        }
+        return names.get(code, f"UNNAMED({code})")
+
+    def _materialize(
+        self, template: "tuple[str, ...]", seed_dir: Path, seed: str
+    ) -> "list[str]":
+        """Seed a ledger of the requested shape and substitute the LEDGER/WORKFLOW placeholders."""
+        self.ledger = seed_dir / "run.jsonl"
+        if seed == "incomplete":
+            self._seed_incomplete()
+        elif seed == "complete":
+            self._seed_complete()
+        elif seed == "root-performed":
+            self._seed_root_performed()
+        elif seed == "bad-evidence":
+            self._seed_invalid_evidence()
+        elif seed == "corrupt":
+            self._seed_complete()
+            self._corrupt_chain()
+        else:
+            assert seed == "none", f"unknown seed {seed!r}"
+        workflow = str(seed_dir / "wf.json")
+        (seed_dir / "wf.json").write_text(json.dumps(_WORKFLOW), encoding="utf-8")
+        return [
+            str(self.ledger)
+            if arg == "LEDGER"
+            else (workflow if arg == "WORKFLOW" else arg)
+            for arg in template
+        ]
+
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp = Path(self._tmp.name)
@@ -671,66 +1113,10 @@ class TestRunCliSubcommands(unittest.TestCase):
         store.append(_run_record())
         store.append(_requirement_set(["R-01"]))
 
-    def _cli(self, *argv: str) -> "tuple[int, str]":
-        with patch("sys.stdout", new_callable=io.StringIO) as out:
-            rc = cli.main(list(argv))
-        return rc, out.getvalue()
-
-    # ---- exit-class: invalid invocation / missing ledger -----------------------------------------
-
-    def test_missing_ledger_invalid_invocation(self) -> None:
-        rc, out = self._cli("runs", "status", str(self.tmp / "nope.jsonl"))
-        self.assertEqual(rc, run_cli.EXIT_INVALID_INVOCATION)
-
-    def test_start_without_step_invalid_invocation(self) -> None:
+    def _seed_root_performed(self) -> None:
+        """Seed a run whose only root step is performed, leaving S-02 gated on deploy_gate."""
         self._seed_incomplete()
-        rc, _ = self._cli("run", "start", str(self.ledger))
-        self.assertEqual(rc, run_cli.EXIT_INVALID_INVOCATION)
-
-    def test_record_invalid_state_invalid_invocation(self) -> None:
-        self._seed_incomplete()
-        rc, _ = self._cli(
-            "run", "record", str(self.ledger), "--step", "S-01", "--state", "bogus"
-        )
-        self.assertEqual(rc, run_cli.EXIT_INVALID_INVOCATION)
-
-    # ---- status ----------------------------------------------------------------------------------
-
-    def test_status_incomplete_exit_one(self) -> None:
-        self._seed_incomplete()
-        rc, out = self._cli("runs", "status", str(self.ledger))
-        self.assertEqual(rc, run_cli.EXIT_INCOMPLETE)
-        self.assertIn("Run:", out)
-
-    def test_status_agent_machine_is_ansi_free(self) -> None:
-        self._seed_incomplete()
-        rc, out = self._cli("runs", "status", str(self.ledger), "--agent")
-        self.assertNotIn("\x1b", out)
-        data = json.loads(out.strip())
-        self.assertEqual(data["run_id"], RUN_ID)
-
-    # ---- next ------------------------------------------------------------------------------------
-
-    def test_next_lists_runnable(self) -> None:
-        self._seed_incomplete()
-        rc, out = self._cli(
-            "runs",
-            "next",
-            str(self.ledger),
-            "--workflow",
-            self._workflow_file(),
-            "--json",
-        )
-        self.assertEqual(rc, run_cli.EXIT_OK)
-        data = json.loads(out)
-        self.assertIn("S-01", data["runnable_steps"])
-
-    def test_next_blocked_when_none_runnable(self) -> None:
-        # A run whose only root step is already performed leaves S-02 gated (deploy_gate).
-        store = self._store()
-        store.append(_run_record())
-        store.append(_requirement_set(["R-01"]))
-        store.append(
+        self._store().append(
             {
                 "schema_version": schema.LEDGER_SCHEMA_VERSION,
                 "kind": "step_attempt",
@@ -742,23 +1128,75 @@ class TestRunCliSubcommands(unittest.TestCase):
                 "parent": "",
             }
         )
-        # S-02 requires the deploy_gate; without approval nothing is runnable.
-        rc, _ = self._cli(
-            "runs",
-            "next",
-            str(self.ledger),
-            "--workflow",
-            self._workflow_file(),
-            "--agent",
+
+    def _seed_invalid_evidence(self) -> None:
+        """Seed an otherwise-complete run carrying a tool_event that exited nonzero."""
+        self._seed_root_performed()
+        store = self._store()
+        store.append(
+            {
+                "schema_version": schema.LEDGER_SCHEMA_VERSION,
+                "kind": "tool_event",
+                "run_id": RUN_ID,
+                "actor": "executor",
+                "argv": ["pytest"],
+                "cwd": "/repo",
+                "exit_code": 1,  # failed exit -> EV-FAILED-EXIT
+                "stdout_sha256": "e" * 64,
+                "parent": "",
+            }
         )
-        self.assertEqual(rc, run_cli.EXIT_BLOCKED)
+        store.append(
+            {
+                "schema_version": schema.LEDGER_SCHEMA_VERSION,
+                "kind": "verifier_decision",
+                "run_id": RUN_ID,
+                "actor": "verifier",
+                "requirement": "R-01",
+                "result": "satisfied",
+                "parent": "",
+            }
+        )
 
-    # ---- record ----------------------------------------------------------------------------------
+    def _corrupt_chain(self) -> None:
+        """Break the hash chain by hand-appending a line with a wrong prev_hash."""
+        with open(self.ledger, "a", encoding="utf-8") as fh:
+            fh.write(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "kind": "step_attempt",
+                        "seq": 99,
+                        "run_id": RUN_ID,
+                        "actor": "executor",
+                        "timestamp": "2026-08-22T10:00:09Z",
+                        "parent": "",
+                        "prev_hash": "0" * 64,
+                        "step": "S-02",
+                        "state": "performed",
+                        "attempt": 1,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n"
+            )
 
-    def test_record_performed_exit_ok_and_persists(self) -> None:
-        """Recording a performed outcome for a runnable root step succeeds and is durable."""
+    def _cli(self, *argv: str) -> "tuple[int, str]":
+        with patch("sys.stdout", new_callable=io.StringIO) as out:
+            rc = cli.main(list(argv))
+        return rc, out.getvalue()
+
+    def test_a_recorded_attempt_is_durable_in_the_ledger(self) -> None:
+        """Kept separate: asserts a DURABLE EFFECT read back through a fresh engine, not an exit code.
+
+        The table's `record performed` row proves the command exits 0. This proves the append
+        actually happened, by reconstructing the step's state from the ledger with an engine that
+        shares no memory with the CLI process. That is a different claim over a different object,
+        and a table row cannot make it without carrying an unused engine for every other row.
+        """
         self._seed_incomplete()
-        rc, out = self._cli(
+        rc, _ = self._cli(
             "run",
             "record",
             str(self.ledger),
@@ -770,66 +1208,13 @@ class TestRunCliSubcommands(unittest.TestCase):
             "performed",
         )
         self.assertEqual(rc, run_cli.EXIT_OK)
-        # The step_attempt is persisted: a fresh engine reconstructs S-01 as performed.
         eng = run_engine.RunEngine(_WORKFLOW, self._store(), run_id=RUN_ID)
-        self.assertEqual(eng.step_state("S-01"), "performed")
-
-    def test_record_failed_returns_blocked_class(self) -> None:
-        """Recording a failed outcome returns the blocked exit class (a failure is not success)."""
-        self._seed_incomplete()
-        rc, _ = self._cli(
-            "run",
-            "record",
-            str(self.ledger),
-            "--workflow",
-            self._workflow_file(),
-            "--step",
-            "S-01",
-            "--state",
-            "failed",
-        )
-        self.assertEqual(rc, run_cli.EXIT_BLOCKED)
-
-    def test_record_non_runnable_step_blocked(self) -> None:
-        """Recording an outcome for a step whose dependencies/gates are unmet is refused (blocked)."""
-        self._seed_incomplete()
-        # S-02 depends on S-01 (unperformed) and needs the deploy_gate: not runnable.
-        rc, _ = self._cli(
-            "run",
-            "record",
-            str(self.ledger),
-            "--workflow",
-            self._workflow_file(),
-            "--step",
-            "S-02",
-            "--state",
+        self.assertEqual(
+            eng.step_state("S-01"),
             "performed",
+            "the CLI exited 0 but a fresh engine over the same ledger does not see the attempt, so "
+            "the append was not durable",
         )
-        self.assertEqual(rc, run_cli.EXIT_BLOCKED)
-
-    def test_record_unknown_step_invalid(self) -> None:
-        self._seed_incomplete()
-        rc, _ = self._cli(
-            "run",
-            "record",
-            str(self.ledger),
-            "--workflow",
-            self._workflow_file(),
-            "--step",
-            "S-99",
-            "--state",
-            "performed",
-        )
-        self.assertEqual(rc, run_cli.EXIT_INVALID_INVOCATION)
-
-    # ---- resume ----------------------------------------------------------------------------------
-
-    def test_resume_ok(self) -> None:
-        self._seed_incomplete()
-        rc, out = self._cli("runs", "resume", str(self.ledger), "--json")
-        self.assertEqual(rc, run_cli.EXIT_OK)
-        data = json.loads(out)
-        self.assertFalse(data["terminal"])
 
     def test_resume_cli_reports_unknown_outcome_condition(self) -> None:
         """The resume CLI surfaces the UNKNOWN_OUTCOME sentinel when a side effect is interrupted."""
@@ -843,9 +1228,10 @@ class TestRunCliSubcommands(unittest.TestCase):
         def _fake_resume(_engine: Any) -> Any:
             raise run_recovery.UnknownOutcomeError("S-01")
 
-        with patch.object(
-            run_recovery, "detect_unknown_outcomes", _fake_detect
-        ), patch.object(run_recovery, "resume", _fake_resume):
+        with (
+            patch.object(run_recovery, "detect_unknown_outcomes", _fake_detect),
+            patch.object(run_recovery, "resume", _fake_resume),
+        ):
             rc, out = self._cli(
                 "runs",
                 "resume",
@@ -874,116 +1260,6 @@ class TestRunCliSubcommands(unittest.TestCase):
         self.assertEqual(run_recovery.detect_unknown_outcomes(eng), ("S-01",))
         with self.assertRaises(run_recovery.UnknownOutcomeError):
             run_recovery.resume(eng)
-
-    # ---- cancel ----------------------------------------------------------------------------------
-
-    def test_cancel_ok(self) -> None:
-        self._seed_incomplete()
-        rc, out = self._cli(
-            "run", "cancel", str(self.ledger), "--reason", "abort", "--json"
-        )
-        self.assertEqual(rc, run_cli.EXIT_OK)
-        data = json.loads(out)
-        self.assertTrue(data["cancelled"])
-        self.assertEqual(data["run_state"], run_state.STATE_CANCELLED)
-
-    def test_cancel_unauthorized_actor_operational(self) -> None:
-        self._seed_incomplete()
-        rc, _ = self._cli("run", "cancel", str(self.ledger), "--actor", "executor")
-        self.assertEqual(rc, run_cli.EXIT_OPERATIONAL)
-
-    # ---- finalize: terminal refusal --------------------------------------------------------------
-
-    def test_finalize_complete_exit_ok(self) -> None:
-        self._seed_complete()
-        rc, out = self._cli("run", "finalize", str(self.ledger), "--json")
-        self.assertEqual(rc, run_cli.EXIT_OK)
-        data = json.loads(out)
-        self.assertTrue(data["finalized"])
-
-    def test_finalize_refuses_incomplete(self) -> None:
-        self._seed_incomplete()
-        rc, out = self._cli("run", "finalize", str(self.ledger), "--json")
-        self.assertEqual(rc, run_cli.EXIT_INCOMPLETE)
-        self.assertIn("incomplete", out.lower())
-
-    def test_finalize_refuses_unauthorized(self) -> None:
-        self._seed_complete()
-        rc, _ = self._cli("run", "finalize", str(self.ledger), "--actor", "executor")
-        self.assertEqual(rc, run_cli.EXIT_OPERATIONAL)
-
-    def test_finalize_refuses_invalid_evidence(self) -> None:
-        """A ledger with an invalid tool_event (failed exit) is refused with the invalid-evidence code."""
-        store = self._store()
-        store.append(_run_record())
-        store.append(_requirement_set(["R-01"]))
-        store.append(
-            {
-                "schema_version": schema.LEDGER_SCHEMA_VERSION,
-                "kind": "step_attempt",
-                "run_id": RUN_ID,
-                "actor": "executor",
-                "step": "S-01",
-                "state": "performed",
-                "attempt": 1,
-                "parent": "",
-            }
-        )
-        store.append(
-            {
-                "schema_version": schema.LEDGER_SCHEMA_VERSION,
-                "kind": "tool_event",
-                "run_id": RUN_ID,
-                "actor": "executor",
-                "argv": ["pytest"],
-                "cwd": "/repo",
-                "exit_code": 1,  # failed exit -> EV-FAILED-EXIT
-                "stdout_sha256": "e" * 64,
-                "parent": "",
-            }
-        )
-        store.append(
-            {
-                "schema_version": schema.LEDGER_SCHEMA_VERSION,
-                "kind": "verifier_decision",
-                "run_id": RUN_ID,
-                "actor": "verifier",
-                "requirement": "R-01",
-                "result": "satisfied",
-                "parent": "",
-            }
-        )
-        rc, out = self._cli("run", "finalize", str(self.ledger), "--json")
-        self.assertEqual(rc, run_cli.EXIT_INVALID_EVIDENCE)
-        self.assertIn("EV-FAILED-EXIT", out)
-
-    def test_finalize_corrupted_ledger(self) -> None:
-        """A corrupted (broken hash chain) ledger is refused with the corrupted-ledger code."""
-        self._seed_complete()
-        # Corrupt the chain: append a hand-written line with a wrong prev_hash.
-        with open(self.ledger, "a", encoding="utf-8") as fh:
-            fh.write(
-                json.dumps(
-                    {
-                        "schema_version": 1,
-                        "kind": "step_attempt",
-                        "seq": 99,
-                        "run_id": RUN_ID,
-                        "actor": "executor",
-                        "timestamp": "2026-08-22T10:00:09Z",
-                        "parent": "",
-                        "prev_hash": "0" * 64,
-                        "step": "S-02",
-                        "state": "performed",
-                        "attempt": 1,
-                    },
-                    sort_keys=True,
-                    separators=(",", ":"),
-                )
-                + "\n"
-            )
-        rc, _ = self._cli("run", "finalize", str(self.ledger), "--json")
-        self.assertEqual(rc, run_cli.EXIT_CORRUPTED_LEDGER)
 
     # ---- machine output is ANSI-free across all mutating subcommands ------------------------------
 
@@ -1068,87 +1344,323 @@ class TestLedgerResolutionAndWrongFormatVerdict(unittest.TestCase):
 
     # ---- resolution ---------------------------------------------------------------------------
 
-    def test_run_id_does_not_resolve_to_the_drivers_event_log(self) -> None:
-        resolved = run_cli.resolve_ledger_path(self.run_id, self.tmp)
-        self.assertIsNone(
-            resolved,
-            "a bare run id must not resolve to events.jsonl, which the ledger does not own",
+    #: (case, the target to resolve, what to seed first, expected resolution, why this row exists)
+    #:
+    #: `expect` is a CHECK-MODE column rather than one value, because the three old tests made
+    #: DIFFERENT KINDS of claim about the resolver: one that it returns NOTHING, two that it returns
+    #: a SPECIFIC path. Collapsing those into one comparison would have meant weakening the
+    #: must-not-resolve row to something like "not the event log", which a resolver returning any
+    #: other wrong path would satisfy.
+    #:   ("none",)             resolution must be None
+    #:   ("path", attribute)   resolution must equal that seeded path, RESOLVED
+    RESOLUTIONS = (
+        (
+            "a bare run id when the directory holds only the driver's event log",
+            "run-id",
+            "nothing",
+            ("none",),
+            "e6b9kt, THE ORIGINAL BUG: a bare run id resolved to `events.jsonl`, a file the ledger "
+            "does not own, and the caller then reported eight findings of corruption about a "
+            "perfectly healthy log. Resolving to NOTHING is the correct answer, because there is "
+            "no ledger here",
+        ),
+        (
+            "a bare run id when a real ledger exists beside the event log",
+            "run-id",
+            "ledger",
+            ("path", "ledger"),
+            "POSITIVE, and what keeps the row above honest: a resolver that returned None "
+            "unconditionally would satisfy it while making `aw runs show <id>` useless. The event "
+            "log is STILL PRESENT in this row, so the resolver must pick the ledger over it rather "
+            "than merely finding the only file in the directory",
+        ),
+        (
+            "an explicit path to a file that is not a ledger at all",
+            "explicit",
+            "odd-file",
+            ("path", "odd"),
+            "an operator naming a file VERBATIM keeps working; the resolver's job is to find a "
+            "path, not to judge it. The shape check downstream is what returns the wrong-format "
+            "verdict, which is why this row expects the odd file back rather than None",
+        ),
+    )
+
+    def test_every_target_resolves_to_the_path_it_should(self) -> None:
+        """One table over ledger-path resolution, replacing three tests.
+
+        Each of the three seeded a run directory, called `resolve_ledger_path` once, and asserted
+        one thing about the result. The table beats the three because resolution is ONE lookup with
+        a precedence order (an explicit path wins; otherwise a run id finds `ledger.jsonl` and
+        nothing else), and the bug it exists to prevent (e6b9kt) was that order picking up a file it
+        does not own. Seeing all three answers together is what shows whether the precedence moved
+        or a single case broke.
+        """
+        wrong = []
+        for case, target_kind, seed, expect, why in self.RESOLUTIONS:
+            paths = {}
+            if seed == "ledger":
+                ledger = self.run_dir / ledger_store.LEDGER_FILENAME
+                ledger_store.RunLedgerStore(ledger).append(_run_record())
+                paths["ledger"] = ledger
+            elif seed == "odd-file":
+                odd = self.tmp / "somewhere-else.jsonl"
+                odd.write_text("{}\n", encoding="utf-8")
+                paths["odd"] = odd
+            target = (
+                self.run_id
+                if target_kind == "run-id"
+                else str(paths[next(iter(paths))])
+            )
+            resolved = run_cli.resolve_ledger_path(target, self.tmp)
+            if expect[0] == "none":
+                if resolved is not None:
+                    wrong.append(
+                        f"  {case}: expected NO resolution, got {str(resolved)!r}\n"
+                        f"    this row exists because: {why}"
+                    )
+            else:
+                expected = paths[expect[1]].resolve()
+                if resolved != expected:
+                    wrong.append(
+                        f"  {case}:\n    expected {str(expected)!r}\n"
+                        f"    got      {str(resolved)!r}\n"
+                        f"    this row exists because: {why}"
+                    )
+            # Each row gets a clean directory so a seeded ledger cannot leak into the next row.
+            for made in paths.values():
+                made.unlink()
+        self.assertEqual(
+            wrong,
+            [],
+            f"run_cli.resolve_ledger_path resolved {len(wrong)} of {len(self.RESOLUTIONS)} targets "
+            "wrongly. One lookup with one precedence order produces all three answers, so several "
+            "rows failing together means that order changed rather than three independent bugs. "
+            "FIX: if the FIRST row now resolves to something, check WHAT it resolved to. Resolving "
+            "to `events.jsonl` is e6b9kt returning, and the caller will then report a healthy "
+            "driver log as a corrupted ledger, which is the exact user-visible symptom this whole "
+            "class was written for. If the POSITIVE row is the one failing, `aw runs show <run-id>` "
+            f"can no longer find a real ledger at all.\n" + "\n".join(wrong),
         )
-
-    def test_run_id_resolves_to_a_real_ledger_when_one_exists(self) -> None:
-        ledger = self.run_dir / ledger_store.LEDGER_FILENAME
-        store = ledger_store.RunLedgerStore(ledger)
-        store.append(_run_record())
-        resolved = run_cli.resolve_ledger_path(self.run_id, self.tmp)
-        self.assertEqual(resolved, ledger.resolve())
-
-    def test_explicit_path_is_still_honoured_verbatim(self) -> None:
-        """An operator pointing at an explicit file keeps working; the shape check judges it."""
-        odd = self.tmp / "somewhere-else.jsonl"
-        odd.write_text("{}\n", encoding="utf-8")
-        self.assertEqual(run_cli.resolve_ledger_path(str(odd), self.tmp), odd.resolve())
 
     # ---- the verdict --------------------------------------------------------------------------
 
-    def test_show_on_a_real_run_id_reports_missing_not_corrupt(self) -> None:
-        rc, out = self._cli("runs", "show", self.run_id, "--dir", str(self.tmp))
-        self.assertEqual(rc, run_cli.EXIT_INVALID_INVOCATION)
-        self.assertNotIn("corruption", out.lower())
-
-    def test_show_on_the_event_log_path_is_wrong_format_not_corruption(self) -> None:
-        rc, out = self._cli("runs", "show", str(self.run_dir / "events.jsonl"))
-        self.assertEqual(rc, run_cli.EXIT_NOT_A_LEDGER)
-        self.assertIn("not a run ledger", out.lower())
-        self.assertNotIn("corrupt", out.lower())
-
-    def test_verify_ledger_on_the_event_log_is_wrong_format(self) -> None:
-        rc, out = self._cli("runs", "verify-ledger", str(self.run_dir / "events.jsonl"))
-        self.assertEqual(rc, run_cli.EXIT_NOT_A_LEDGER)
-        self.assertNotIn("corrupt", out.lower())
-
-    def test_evidence_on_the_event_log_is_wrong_format(self) -> None:
-        rc, out = self._cli("runs", "evidence", str(self.run_dir / "events.jsonl"))
-        self.assertEqual(rc, run_cli.EXIT_NOT_A_LEDGER)
-        self.assertNotIn("corrupt", out.lower())
-
-    def test_status_on_the_event_log_is_wrong_format(self) -> None:
-        """The mutating family shares the verdict through `_build_engine`."""
-        rc, out = self._cli("runs", "status", str(self.run_dir / "events.jsonl"))
-        self.assertEqual(rc, run_cli.EXIT_NOT_A_LEDGER)
-        self.assertNotIn("corrupt", out.lower())
-
-    def test_machine_output_flags_not_a_ledger_and_denies_corruption(self) -> None:
-        rc, out = self._cli(
-            "runs", "show", str(self.run_dir / "events.jsonl"), "--agent"
-        )
-        self.assertEqual(rc, run_cli.EXIT_NOT_A_LEDGER)
-        payload = json.loads(out.strip().splitlines()[-1])
-        self.assertTrue(payload["not_a_ledger"])
-        self.assertFalse(payload["corrupted"])
-        self.assertEqual(payload["exit_code"], run_cli.EXIT_NOT_A_LEDGER)
-        self.assertNotIn("\x1b[", out)
-
-    # ---- ADVERSARIAL: real corruption must still be reported as corruption ---------------------
-
-    def test_tampered_ledger_still_reported_as_corruption_via_cli(self) -> None:
-        """The new wrong-format path must not swallow real tamper evidence at the CLI boundary."""
-        ledger = self.run_dir / ledger_store.LEDGER_FILENAME
-        store = ledger_store.RunLedgerStore(ledger)
-        store.append(_run_record())
-        store.append(_requirement_set(["R-01"]))
-        lines = ledger.read_text(encoding="utf-8").splitlines(keepends=True)
-        tampered = json.loads(lines[1])
-        tampered["prev_hash"] = "f" * 64
-        lines[1] = json.dumps(tampered, sort_keys=True) + "\n"
-        ledger.write_text("".join(lines), encoding="utf-8")
-
-        rc, out = self._cli("runs", "show", str(ledger))
-        self.assertNotEqual(
-            rc,
+    #: (case, target, extra argv, expected exit code, checks, why this row exists)
+    #:
+    #: `target` is the ledger argument: "event-log" (a healthy driver log), "run-id" (a bare id
+    #: resolving to nothing), "tampered" (a real ledger with a broken hash chain) or "healthy" (a
+    #: real, complete ledger). The SUBCOMMAND and the OUTPUT MODE are columns of `verb`/`extra`, not
+    #: reasons for separate tables: the whole claim is that one shape check produces one verdict
+    #: everywhere, so rows must sit side by side to express it.
+    VERDICTS = (
+        # ---- the wrong-format verdict, across the four verbs that read a ledger ----------------
+        (
+            "show on the driver's event log",
+            "show",
+            "event-log",
+            (),
             run_cli.EXIT_NOT_A_LEDGER,
-            "a tampered ledger must never be excused as a wrong-format file",
+            (
+                ("itext-in", "not a run ledger"),
+                ("itext-not-in", "corrupt"),
+            ),
+            "e6b9kt: a healthy `events.jsonl` is the WRONG FORMAT (7), not corruption (5). It must "
+            "say `not a run ledger` and must NOT use the word corrupt at all, because telling a "
+            "user their log is corrupted sends them hunting for tampering that never happened",
+        ),
+        (
+            "verify-ledger on the driver's event log",
+            "verify-ledger",
+            "event-log",
+            (),
+            run_cli.EXIT_NOT_A_LEDGER,
+            (("itext-not-in", "corrupt"),),
+            "the verb whose ENTIRE JOB is judging integrity is the one most likely to call a "
+            "wrong-format file corrupt, so it needs its own row",
+        ),
+        (
+            "evidence on the driver's event log",
+            "evidence",
+            "event-log",
+            (),
+            run_cli.EXIT_NOT_A_LEDGER,
+            (("itext-not-in", "corrupt"),),
+            "the evidence reader shares the shape check rather than carrying its own copy",
+        ),
+        (
+            "status on the driver's event log",
+            "status",
+            "event-log",
+            (),
+            run_cli.EXIT_NOT_A_LEDGER,
+            (("itext-not-in", "corrupt"),),
+            "the MUTATING family reaches the same verdict through `_build_engine`, which is a "
+            "different code path from the read verbs above; without this row the check could be "
+            "installed on only half the CLI",
+        ),
+        (
+            "show --agent on the driver's event log",
+            "show",
+            "event-log",
+            ("--agent",),
+            run_cli.EXIT_NOT_A_LEDGER,
+            (
+                ("json-eq", "not_a_ledger", True),
+                ("json-eq", "corrupted", False),
+                ("json-eq", "exit_code", run_cli.EXIT_NOT_A_LEDGER),
+            ),
+            "MODE COLUMN, and the load-bearing half: an agent reads the KEYS, so the payload must "
+            "both assert the wrong format AND explicitly DENY corruption. `corrupted: false` is a "
+            "positive claim, not an omission, so a consumer cannot default it to true",
+        ),
+        (
+            "show on a bare run id with no ledger anywhere",
+            "show",
+            "run-id",
+            (),
+            run_cli.EXIT_INVALID_INVOCATION,
+            (("itext-not-in", "corruption"),),
+            "A THIRD DISTINCT VERDICT: nothing was found, so this is an invocation error (2), not "
+            "wrong-format (7) and not corruption (5). Reporting corruption for a file that was "
+            "never even opened is the original e6b9kt symptom",
+        ),
+        # ---- ADVERSARIAL: real corruption must still be reported as corruption -----------------
+        (
+            "show on a ledger whose hash chain was tampered with",
+            "show",
+            "tampered",
+            (),
+            run_cli.EXIT_INVALID_INVOCATION,
+            (("itext-in", "corruption"),),
+            "THE ADVERSARIAL ROW: the wrong-format path must not become a blanket excuse. A "
+            "tampered ledger must still be NAMED as corruption, or the fix for a cosmetic "
+            "misdiagnosis would have silenced the one verdict that matters. MEASURED, NOT ASSUMED: "
+            "`runs show` reports corruption with exit 2 (`run_cli.py:295-308` hard-codes it) while "
+            "`run finalize` uses EXIT_CORRUPTED_LEDGER (5) for the same condition. That asymmetry "
+            "is pinned here rather than wished away; if it is ever unified, THIS row is the one to "
+            "update, and the prose claim below it is what must not weaken",
+        ),
+        (
+            "show --agent on a tampered ledger",
+            "show",
+            "tampered",
+            ("--agent",),
+            run_cli.EXIT_INVALID_INVOCATION,
+            (
+                ("json-eq", "corrupted", True),
+                ("json-eq", "ok", False),
+            ),
+            "THE MACHINE HALF OF THE ADVERSARIAL ROW, and the load-bearing one given the exit-code "
+            "asymmetry noted above: whatever the code, the payload must say `corrupted: true`. This "
+            "is the exact mirror of the event-log row's `corrupted: false`, so the two rows "
+            "together prove the flag is a real signal rather than a constant in either direction",
+        ),
+        # ---- POSITIVE: a real, healthy ledger must pass all the same verbs ----------------------
+        (
+            "show on a real, complete ledger",
+            "show",
+            "healthy",
+            (),
+            run_cli.EXIT_OK,
+            (("text-in", "Run:"),),
+            "POSITIVE: every row above is vacuous against a CLI that refuses every file. This is "
+            "the row that proves the shape check ACCEPTS a genuine ledger rather than rejecting "
+            "everything and coincidentally satisfying the negative rows",
+        ),
+        (
+            "verify-ledger --agent on a real, healthy ledger",
+            "verify-ledger",
+            "healthy",
+            ("--agent",),
+            run_cli.EXIT_OK,
+            (
+                ("json-eq", "chain_clean", True),
+                ("json-eq", "ok", True),
+            ),
+            "POSITIVE in the machine mode: a clean chain is reported as clean. Paired with the "
+            "tampered row, this is what makes `chain_clean` a real signal rather than a constant",
+        ),
+    )
+
+    def test_every_verb_reaches_the_same_verdict_for_each_file_shape(self) -> None:
+        """One table over the wrong-format verdict, replacing six tests and folding in two positives.
+
+        Each of the six ran one subcommand against `events.jsonl` and asserted an exit code plus the
+        absence of the word "corrupt". The SUBCOMMAND and the OUTPUT MODE were the only differences,
+        so they are columns here.
+
+        Why the table beats the six. The claim is not about any one verb: it is that ONE shape check
+        produces ONE verdict across every verb that reads a ledger, including the mutating family
+        that reaches it by a different path (`_build_engine`). Six tests can only assert that
+        separately; the table asserts it as the pattern it is, and a failure that hits every verb at
+        once reads as "the check moved" rather than as six coincidences.
+
+        THREE DISTINCT VERDICTS ARE IN THE SAME TABLE ON PURPOSE (wrong format 7; a target that
+        resolves to no file 2; real corruption, which `show` also reports as 2 but with
+        `corrupted: true` and the word corruption in its prose) because the bug being guarded is
+        precisely a CONFLATION of them. Asserting them apart is what lets the fix for the cosmetic
+        misdiagnosis be checked against the adversarial rows that must keep firing.
+
+        THE POSITIVE ROWS ARE NOT DECORATION: a shape check that rejected every file would satisfy
+        all six original tests. Their failure message says so.
+        """
+        wrong = []
+        for case, verb, target, extra, expected_rc, checks, why in self.VERDICTS:
+            argv = ["runs", verb, *self._target_argv(target), *extra]
+            rc, out = self._cli(*argv)
+            problems = []
+            if rc != expected_rc:
+                problems.append(
+                    f"exit code expected {expected_rc} "
+                    f"({TestRunCliSubcommands._exit_name(expected_rc)}), got {rc} "
+                    f"({TestRunCliSubcommands._exit_name(rc)})"
+                )
+            problems.extend(_stdout_problems(out, checks))
+            if "\x1b[" in out:
+                problems.append("ANSI escape leaked into machine-consumed output")
+            if problems:
+                wrong.append(
+                    f"  {case}\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the ledger-shape verdict is wrong for {len(wrong)} of {len(self.VERDICTS)} "
+            "invocations. One shape check serves every verb here, so read the grouping. EVERY "
+            "event-log row failing together means the check itself changed; ONE verb failing while "
+            "its siblings pass means that verb stopped routing through the shared check (most "
+            "likely `status`, which reaches it through `_build_engine` rather than directly). FIX: "
+            "if the TAMPERED row is failing, stop and fix that first, whatever else is red: the "
+            "wrong-format path has become a blanket excuse and real tamper evidence is now being "
+            "swallowed at the CLI boundary, which is strictly worse than the cosmetic misdiagnosis "
+            "this class was written to fix. If a POSITIVE row is failing, the check now rejects "
+            "genuine ledgers and every negative row above is passing vacuously. A row that has the "
+            "right exit code but leaks the word `corrupt` is the mild case: the machine verdict is "
+            f"correct and only the human prose is misleading.\n" + "\n".join(wrong),
         )
-        self.assertIn("corruption", out.lower())
+
+    def _target_argv(self, target: str) -> "list[str]":
+        """Build the ledger argument (and `--dir` where needed) for one `VERDICTS` target."""
+        if target == "event-log":
+            return [str(self.run_dir / "events.jsonl")]
+        if target == "run-id":
+            return [self.run_id, "--dir", str(self.tmp)]
+        ledger = self.run_dir / f"{target}-ledger.jsonl"
+        store = ledger_store.RunLedgerStore(ledger)
+        if target == "tampered":
+            store.append(_run_record())
+            store.append(_requirement_set(["R-01"]))
+            lines = ledger.read_text(encoding="utf-8").splitlines(keepends=True)
+            tampered = json.loads(lines[1])
+            tampered["prev_hash"] = "f" * 64
+            lines[1] = json.dumps(tampered, sort_keys=True) + "\n"
+            ledger.write_text("".join(lines), encoding="utf-8")
+        else:
+            assert target == "healthy", f"unknown target {target!r}"
+            for rec in _complete_run_records():
+                store.append(rec)
+        return [str(ledger)]
 
 
 if __name__ == "__main__":

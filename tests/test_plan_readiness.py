@@ -14,6 +14,27 @@ Covers, in the order the plan requires:
    prose) and the real-plan rows.
 
 Stdlib unittest, no third-party dependencies (house convention).
+
+Most of this file is TABLE-DRIVEN. The subject is a handful of pure predicates over plan text, so
+nearly every test was one row of a truth table written out as its own method, asserting a single bool
+or polarity. Tabulating them buys two things a per-row test cannot. First, these predicates implement
+DECISION ORDERS (field before prose; newest review record before older ones; a valid field before a
+corrupt one) and an order is a relationship between rows, so the rows that establish it are adjacent
+and share a fixture. Second, the two gates here deliberately DISAGREE about some inputs, and the
+disagreement is a designed asymmetry rather than a bug; a column carrying the other gate's answer
+makes that visible as a pattern instead of a footnote.
+
+Where two old tests made DIFFERENT KINDS of claim about one input, the row carries a check-mode
+column rather than being weakened to one assertion: `newest_verdict` rows state a polarity, a
+substring the source record must contain, AND what the stricter auto-approve rule says;
+`approval_refusals` rows state an exact refusal count, required and forbidden substrings, AND what
+`is_plan_review_approved` answers about identical text.
+
+Tests that are NOT rows carry a one-line docstring saying why. The recurring reasons: the input is
+not plan text (a nonexistent path, a line the record grammar cannot match); the subject is the real
+plan tree rather than a fixture; the claim is structural (set membership, enum exhaustiveness, a dead
+attribute's absence); or the setup is materially different (a locally reimplemented algorithm, a
+patched collaborator).
 """
 
 from __future__ import annotations
@@ -150,26 +171,154 @@ UNPARSEABLE_OQ = textwrap.dedent(
 )
 
 
-class ExtractorTests(unittest.TestCase):
-    """E-06 / V-06: the extractor is the PRIMARY bug the plan fixes."""
+BOUNDED_PLAN = textwrap.dedent(
+    """\
+    # IPD: Bounded
 
-    def test_returns_newest_bounded_history_record_not_a_later_section_bullet(self):
-        entry = PR.extract_newest_history_entry(REAL_SHAPED_PLAN)
-        self.assertIsNotNone(entry)
-        assert entry is not None  # for type checkers
-        # It must be a genuine history RECORD, not the final section's trailing bullet.
-        self.assertRegex(entry, r"^- \d{4}-\d{2}-\d{2} ")
-        self.assertIsNotNone(HISTORY_RECORD_RE.match(entry))
-        self.assertNotIn("Cohesion rationale", entry)
-        # And it must be the NEWEST record (history is newest-first), not the oldest.
-        self.assertIn("approved (aw set)", entry)
-        self.assertNotIn("draft", entry)
+    ## Workflow history
+    - 2026-08-29 reviewed (aw set): status set to reviewed
+
+    ## Later section
+    - a bullet that is NOT history
+    - 2099-12-31 a bullet that even LOOKS like a record
+    """
+)
+ORDERED_PLAN = textwrap.dedent(
+    """\
+    # IPD: Ordering
+
+    ## Workflow history
+    - 2026-08-30 approved (aw set): status set to approved
+    - 2026-08-28 draft (opencode/test): created.
+
+    ## Goal
+    """
+)
+NOISY_PLAN = textwrap.dedent(
+    """\
+    # IPD: Noise
+
+    ## Workflow history
+    - a stray undated bullet
+    - 2026-08-30 approved (aw set): status set to approved
+
+    ## Goal
+    """
+)
+
+
+class ExtractorTests(unittest.TestCase):
+    """E-06 / V-06: the extractor is the PRIMARY bug the plan fixes.
+
+    ONE table replaces six tests that were the same shape: hand a plan body to
+    ``extract_newest_history_entry`` and compare the one string it returns. The table is better than
+    the six for a reason specific to this function, namely that its THREE rules interact and no
+    single row can show that. The rules are: bound the section at the next ``## `` heading, take the
+    FIRST record because the section is newest-first, and require the ``- YYYY-MM-DD`` record
+    grammar so a stray bullet is skipped. Each of the six old tests exercised one rule and was
+    satisfied by an implementation that got the other two wrong; the historical bug got TWO of the
+    three wrong at once (unbounded slice plus last-instead-of-first), which is precisely the failure
+    a single accumulated report makes legible. Rows failing TOGETHER says a shared rule moved: all
+    the multi-record rows returning the OLDEST entry is the newest-first rule regressing, while only
+    the bounded row failing is the section boundary regressing.
+
+    Every row with a non-None expectation is ALSO checked against ``HISTORY_RECORD_RE``, which is
+    the claim the old REAL_SHAPED_PLAN test made separately: whatever comes back must be a genuine
+    history record, not a trailing bullet from a later section that merely starts with ``- ``.
+
+    The two None rows (no section, empty section) live in the same table deliberately: an extractor
+    that returned the whole text, or the heading itself, on an empty section would satisfy every
+    positive row while feeding the gate a string no verdict can be read from.
+    """
+
+    #: (case, plan text, the exact record expected or None for "no record at all", why this row
+    #: exists)
+    EXTRACTIONS = (
+        (
+            "a plan shaped like the real ones",
+            REAL_SHAPED_PLAN,
+            "- 2026-08-30 approved (aw set): status set to approved",
+            "THE MEASURED BUG, verbatim: the shipped reader sliced rfind(heading) to END OF FILE and "
+            "took the LAST bullet, so for 35 of 35 pending plans it returned this fixture's final "
+            "`- Cohesion rationale:` trailer instead of a history record. This row fails if either "
+            "half of that bug returns",
+        ),
+        (
+            "a later section whose bullets LOOK like records",
+            BOUNDED_PLAN,
+            "- 2026-08-29 reviewed (aw set): status set to reviewed",
+            "BOUNDING: the later section's `- 2099-12-31 ...` bullet matches the record grammar and "
+            "is NEWER, so only the section boundary keeps it out. An unbounded reader returns it",
+        ),
+        (
+            "several records under one heading",
+            ORDERED_PLAN,
+            "- 2026-08-30 approved (aw set): status set to approved",
+            "NEWEST-FIRST: `aw set` PREPENDS each record, so the current state is the FIRST one. A "
+            "reader taking the last returns the 2026-08-28 draft, i.e. the plan's oldest state",
+        ),
+        (
+            "a stray undated bullet above a real record",
+            NOISY_PLAN,
+            "- 2026-08-30 approved (aw set): status set to approved",
+            "GRAMMAR: the first BULLET is not the first RECORD. A reader taking the first bullet "
+            "returns prose no verdict can be read from, which fails closed and looks like a plan "
+            "that was never reviewed",
+        ),
+        (
+            "no history section at all",
+            "# IPD: No history\n\n## Goal\n",
+            None,
+            "absence must be reported as None rather than as the whole document, which would let "
+            "any verdict word anywhere in the plan be read as its newest review",
+        ),
+        (
+            "a history heading with nothing under it",
+            "# IPD: Empty history\n\n## Workflow history\n\n## Goal\n",
+            None,
+            "an EMPTY section is also None, not the heading text; distinguishing it from the row "
+            "above is what proves the boundary logic does not depend on there being a record",
+        ),
+    )
+
+    def test_every_history_shape_yields_its_newest_bounded_record(self):
+        wrong = []
+        for case, text, expected, why in self.EXTRACTIONS:
+            got = PR.extract_newest_history_entry(text)
+            problem = None
+            if got != expected:
+                problem = f"expected {expected!r}\n      got      {got!r}"
+            elif expected is not None and not HISTORY_RECORD_RE.match(got or ""):
+                problem = (
+                    f"returned {got!r}, which does not match HISTORY_RECORD_RE, so it is not a "
+                    "genuine history record even though the string compared equal"
+                )
+            if problem:
+                wrong.append(
+                    f"  {case}:\n      {problem}\n    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"extract_newest_history_entry misread {len(wrong)} of {len(self.EXTRACTIONS)} history "
+            "shapes. Three rules produce every row (bound the section at the next `## `, take the "
+            "FIRST record because `aw set` prepends, require the `- YYYY-MM-DD` grammar), so read "
+            "the grouping rather than the rows. If the MULTI-RECORD rows all returned the oldest "
+            "entry, the newest-first rule regressed and every gate now reads a stale state. If only "
+            "the bounded row failed, the section boundary regressed. FIX: the historical bug got "
+            "two rules wrong at once (unbounded slice plus last-instead-of-first) and made the "
+            "auto-approve gate return False for all 35 pending plans regardless of what any review "
+            f"had written, so several rows failing together is the shape to expect:\n"
+            + "\n".join(wrong),
+        )
 
     def test_characterizes_the_old_broken_behavior(self):
-        """The shipped rfind-to-EOF + last-bullet algorithm returned a NON-history bullet.
+        """Kept out of the table: it asserts over a LOCALLY REIMPLEMENTED algorithm, not the shipped one.
 
-        This pins the OLD behavior so the fix is provably a change, not a no-op. It reproduces the
-        old algorithm locally (the driver-local copies are deleted by E-03).
+        The shipped rfind-to-EOF + last-bullet algorithm returned a NON-history bullet. This pins the
+        OLD behavior so the fix is provably a change, not a no-op. It reproduces the old algorithm
+        locally (the driver-local copies are deleted by E-03), so its subject is a function defined
+        in this test body, which no row of a table over `extract_newest_history_entry` can express.
         """
 
         def old_algorithm(text: str) -> str:
@@ -189,70 +338,13 @@ class ExtractorTests(unittest.TestCase):
         # The fixed reader disagrees with it, which is the point.
         self.assertNotEqual(PR.extract_newest_history_entry(REAL_SHAPED_PLAN), old)
 
-    def test_section_is_bounded_at_the_next_h2(self):
-        text = textwrap.dedent(
-            """\
-            # IPD: Bounded
-
-            ## Workflow history
-            - 2026-08-29 reviewed (aw set): status set to reviewed
-
-            ## Later section
-            - a bullet that is NOT history
-            - 2099-12-31 a bullet that even LOOKS like a record
-            """
-        )
-        entry = PR.extract_newest_history_entry(text)
-        self.assertEqual(
-            entry, "- 2026-08-29 reviewed (aw set): status set to reviewed"
-        )
-
-    def test_newest_first_selection(self):
-        text = textwrap.dedent(
-            """\
-            # IPD: Ordering
-
-            ## Workflow history
-            - 2026-08-30 approved (aw set): status set to approved
-            - 2026-08-28 draft (opencode/test): created.
-
-            ## Goal
-            """
-        )
-        entry = PR.extract_newest_history_entry(text)
-        self.assertIsNotNone(entry)
-        assert entry is not None
-        self.assertIn("approved", entry)
-        self.assertNotIn("draft", entry)
-
-    def test_non_record_bullets_inside_history_are_skipped(self):
-        text = textwrap.dedent(
-            """\
-            # IPD: Noise
-
-            ## Workflow history
-            - a stray undated bullet
-            - 2026-08-30 approved (aw set): status set to approved
-
-            ## Goal
-            """
-        )
-        self.assertEqual(
-            PR.extract_newest_history_entry(text),
-            "- 2026-08-30 approved (aw set): status set to approved",
-        )
-
-    def test_absent_history_section_returns_none(self):
-        self.assertIsNone(
-            PR.extract_newest_history_entry("# IPD: No history\n\n## Goal\n")
-        )
-
-    def test_empty_history_section_returns_none(self):
-        text = "# IPD: Empty history\n\n## Workflow history\n\n## Goal\n"
-        self.assertIsNone(PR.extract_newest_history_entry(text))
-
     def test_every_pending_plan_yields_a_real_history_record(self):
-        """The REAL-PLAN sweep. Baseline measured pre-fix: 0 of 35 matched."""
+        """Kept separate: sweeps every REAL pending plan, so it has no fixture and no rows.
+
+        THE REAL-PLAN SWEEP, and the check that would have caught the original bug: baseline measured
+        pre-fix, 0 of 35 plans yielded a history record. A fixture table can be made to pass by a
+        reader that happens to handle the shapes someone thought to write down; this cannot.
+        """
         plans = sorted(PENDING_DIR.glob("*.ipd.md"))
         self.assertGreater(len(plans), 0, "no pending plans found to sweep")
         offenders = []
@@ -264,7 +356,25 @@ class ExtractorTests(unittest.TestCase):
 
 
 class SchemaFieldTests(unittest.TestCase):
-    """E-01 / V-01: `Readiness` is recognized but OPTIONAL."""
+    """E-01 / V-01: `Readiness` is recognized but OPTIONAL, and its reader folds case.
+
+    TWO tables replace four tests here, split along the line that actually matters: one over the
+    METADATA BLOCK (does declaring the field keep a plan conforming?) and one over the READER (what
+    does a given spelling resolve to?). They are not merged into one because their subjects differ in
+    kind, not in data: the first calls `parse_metadata_block` plus `validate_metadata` over a field
+    dict, the second calls `read_readiness` over whole plan text.
+
+    Why each table beats the tests it replaced: both old metadata tests made the SAME three claims
+    (no parse error, the field is present-or-absent as expected, no validation error) and differed
+    only in whether the line was there, so the presence of the field is a column. Both old reader
+    tests were already runs of sequential `assertEqual`s that stopped at the first wrong value.
+
+    The reader table's rows are ADJACENT ON PURPOSE. `read_readiness` collapses ABSENT and
+    OUT-OF-VOCAB to the same None, and the callers then distinguish them by a separate
+    field-presence probe (absent falls back to prose, corrupt refuses outright). Those two rows
+    sitting together is what documents that the collapse is deliberate, so nobody "fixes" the
+    out-of-vocab row to return its raw value and silently turns a corrupt signal into a usable one.
+    """
 
     BASE = {
         "Date": "2026-08-29",
@@ -276,48 +386,175 @@ class SchemaFieldTests(unittest.TestCase):
         "Id": "tst001",
     }
 
+    #: (case, the `- Readiness:` value to declare or None to omit the line, why this row exists)
+    META_BLOCKS = (
+        (
+            "the field declared with a valid value",
+            "go-pending-approval",
+            "E-01: the field is RECOGNIZED, so declaring it must not raise the unknown-field error "
+            "that would make every reviewed plan nonconforming the day reviews start writing it",
+        ),
+        (
+            "the field omitted entirely",
+            None,
+            "and it is OPTIONAL, so absence is equally conforming. This row is what stops the field "
+            "from becoming required, which would invalidate every plan authored before it existed",
+        ),
+    )
+
+    def test_declaring_or_omitting_readiness_is_equally_conforming(self):
+        wrong = []
+        for case, value, why in self.META_BLOCKS:
+            lines = [f"- {k}: {v}" for k, v in self.BASE.items()]
+            if value is not None:
+                lines.append(f"- Readiness: {value}")
+            fields, errors = S.parse_metadata_block(lines)
+            problems = []
+            if errors:
+                problems.append(f"parse_metadata_block reported errors {errors!r}")
+            if value is None and "Readiness" in fields:
+                problems.append(
+                    f"no line was written yet the parse produced Readiness={fields['Readiness']!r}"
+                )
+            if value is not None and fields.get("Readiness") != value:
+                problems.append(
+                    f"expected the parse to carry Readiness={value!r}, got "
+                    f"{fields.get('Readiness')!r}"
+                )
+            meta_errors = S.validate_metadata(fields, directory="pending")
+            if meta_errors:
+                problems.append(f"validate_metadata refused it with {meta_errors!r}")
+            if problems:
+                wrong.append(
+                    f"  {case}:\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the Readiness metadata contract is wrong for {len(wrong)} of {len(self.META_BLOCKS)} "
+            "blocks. Two membership decisions produce both rows (the field is in META_RECOGNIZED, "
+            "and it is NOT in META_REQUIRED), so read which row broke. FIX: the DECLARED row failing "
+            "on an unknown-field error means the field left META_RECOGNIZED and every plan a review "
+            "touches is now nonconforming; the OMITTED row failing on a validation error means it "
+            "became REQUIRED and every plan authored before the field existed is now nonconforming. "
+            f"Both are tree-wide breakages, which is why both rows are here:\n"
+            + "\n".join(wrong),
+        )
+
+    #: (case, plan text handed to `read_readiness`, expected value or None, why this row exists)
+    READER_VALUES = (
+        (
+            "no Readiness line at all",
+            "# IPD: x\n\n- Status: reviewed\n",
+            None,
+            "absence reads as None. The CALLER distinguishes this from the corrupt row below with a "
+            "separate field-presence probe, and falls back to the history prose only here",
+        ),
+        (
+            "a value outside the enum",
+            "# IPD: x\n\n- Readiness: bogus\n",
+            None,
+            "an out-of-vocab value ALSO reads as None rather than passing the raw string through. "
+            "Deliberately indistinguishable here: the reader's job is to answer with a vocabulary "
+            "member or nothing, and returning `bogus` would let a caller compare it against the "
+            "approvable set and get a quiet False that looks like a considered refusal",
+        ),
+        (
+            "the canonical lowercase spelling",
+            "# IPD: x\n\n- Readiness: go-pending-approval\n",
+            "go-pending-approval",
+            "the spelling reviews actually write passes through unchanged",
+        ),
+        (
+            "an UPPERCASE go",
+            "- Readiness: GO\n",
+            "go",
+            "CASE IS FOLDED ON THE VALUE: the enum is lowercase, and a review typing the workflow's "
+            "own uppercase `GO` must not be read as a corrupt value and refused outright",
+        ),
+        (
+            "an UPPERCASE no-go",
+            "- Readiness: NO-GO\n",
+            "no-go",
+            "the same folding for the REFUSING value, which is the direction that matters: a "
+            "`NO-GO` mis-read as corrupt still refuses, but a fold that dropped the hyphen would "
+            "make it absent and fall through to prose that may say APPROVE",
+        ),
+    )
+
+    def test_the_reader_resolves_every_spelling_to_its_enum_member(self):
+        wrong = []
+        for case, text, expected, why in self.READER_VALUES:
+            got = S.read_readiness(text)
+            if got != expected:
+                wrong.append(
+                    f"  {case}:\n    expected {expected!r}\n    got      {got!r}\n"
+                    f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"ipd_schema.read_readiness resolved {len(wrong)} of {len(self.READER_VALUES)} spellings "
+            "wrongly. One read-then-normalize-then-validate path produces all of them, so read the "
+            "grouping: both UPPERCASE rows failing together is the case fold, while the two None "
+            "rows diverging means the reader started distinguishing absent from corrupt, which is a "
+            "decision that belongs to the CALLER and not here. FIX: this reader feeds the "
+            "auto-approve gate's first branch, so a spelling that reads as None when it should read "
+            f"`no-go` sends the gate to the prose fallback instead of refusing:\n"
+            + "\n".join(wrong),
+        )
+
     def test_readiness_is_recognized_but_not_required(self):
+        """Kept separate: asserts SET MEMBERSHIP over module constants, not a per-input mapping.
+
+        The table above proves the CONSEQUENCE (declaring or omitting the field both lint clean);
+        this proves the CAUSE directly, so a refactor that made both tables pass by removing the
+        field from the schema entirely is still caught.
+        """
         self.assertIn(S.META_READINESS, S.META_RECOGNIZED)
         self.assertNotIn(S.META_READINESS, S.META_REQUIRED)
 
     def test_readiness_values_are_the_closed_lowercase_enum(self):
+        """Kept separate: pins the whole enum as a SET, an exhaustiveness claim no row can make.
+
+        A table row can only show that one value is handled; this shows that no FOURTH value exists.
+        """
         self.assertEqual(
             S.READINESS_VALUES, frozenset(("go", "go-pending-approval", "no-go"))
         )
 
-    def test_recognized_field_does_not_trigger_unknown_field(self):
-        lines = [f"- {k}: {v}" for k, v in self.BASE.items()]
-        lines.append("- Readiness: go-pending-approval")
-        fields, errors = S.parse_metadata_block(lines)
-        self.assertEqual(errors, [])
-        self.assertEqual(fields["Readiness"], "go-pending-approval")
-        self.assertEqual(S.validate_metadata(fields, directory="pending"), [])
-
-    def test_absent_readiness_is_conforming(self):
-        lines = [f"- {k}: {v}" for k, v in self.BASE.items()]
-        fields, errors = S.parse_metadata_block(lines)
-        self.assertEqual(errors, [])
-        self.assertNotIn("Readiness", fields)
-        self.assertEqual(S.validate_metadata(fields, directory="pending"), [])
-
-    def test_reader_returns_none_for_absent_and_for_unparseable(self):
-        self.assertIsNone(S.read_readiness("# IPD: x\n\n- Status: reviewed\n"))
-        self.assertIsNone(S.read_readiness("# IPD: x\n\n- Readiness: bogus\n"))
-        self.assertEqual(
-            S.read_readiness("# IPD: x\n\n- Readiness: go-pending-approval\n"),
-            "go-pending-approval",
-        )
-
-    def test_reader_is_case_insensitive_on_the_value_only(self):
-        self.assertEqual(S.read_readiness("- Readiness: GO\n"), "go")
-        self.assertEqual(
-            S.read_readiness("- Readiness: NO-GO\n"),
-            "no-go",
-        )
-
 
 class PredicateTruthTableTests(unittest.TestCase):
-    """E-02 / V-02: the core truth table, field-first with a bounded prose fallback."""
+    """E-02 / V-02: the core truth table, field-first with a bounded prose fallback.
+
+    ONE table replaces fifteen tests, and this is the merge the file most wanted: every one of the
+    fifteen wrote a plan fixture to a temp file and asserted a single bool out of
+    `is_plan_review_approved`. What they were collectively describing is a THREE-WAY DECISION ORDER
+    (a valid `- Readiness:` field is authoritative; an ABSENT field falls back to the newest history
+    record; an OUT-OF-VOCAB field refuses outright with no fallback), and no single test can show an
+    order. Adjacent rows can, which is why the field rows and the fallback rows are deliberately
+    interleaved by the SAME history prose: `Readiness: no-go` over an approving record and an absent
+    field over that identical record must disagree, and that disagreement IS the contract.
+
+    Why the table beats the fifteen: one decision order plus one fallback predicate produces all
+    sixteen answers, so a regression moves a whole class of rows at once. All the FIELD rows moving
+    together means the field branch broke; all the ABSENT rows moving means the prose fallback did;
+    a single row moving means one vocabulary token changed. Fifteen tests report any of those as
+    scattered red lines that each say only `False is not true`.
+
+    THE APPROVABLE ROWS ARE IN THE SAME TABLE deliberately, and they are not decoration. This
+    predicate FAILS CLOSED by design, so an implementation that returned False unconditionally would
+    satisfy every refusing row here; only the approvable rows make the refusals meaningful. The
+    failure message says so.
+
+    `status` IS A COLUMN, not a separate test. The predicate answers ONLY "has review cleared this
+    plan", and deliberately does NOT read `- Status:`; gating on `Status: reviewed` stays with the
+    caller so this module cannot widen what `--full-auto` may approve. That claim used to be its own
+    class (NoWideningTests) asserting the same bool over the same fixture with one field changed,
+    which is a column by any reading. Its row is the `draft` one below.
+    """
 
     def _write(self, text: str) -> Path:
         import tempfile
@@ -328,92 +565,204 @@ class PredicateTruthTableTests(unittest.TestCase):
         self.addCleanup(lambda: (p.unlink(missing_ok=True), d.rmdir()))
         return p
 
-    def test_go_pending_approval_is_approvable(self):
-        p = self._write(
-            _plan(readiness="go-pending-approval", history=OPEN_QUESTIONS_VERDICT)
+    #: (case, whole plan text, expected `is_plan_review_approved` answer, why this row exists)
+    TRUTH_TABLE = (
+        # --- The FIELD branch: a valid value is authoritative and prose is never consulted. ---
+        (
+            "field `go-pending-approval`, prose says OPEN QUESTIONS",
+            _plan(readiness="go-pending-approval", history=OPEN_QUESTIONS_VERDICT),
+            True,
+            "the normal approvable value, over prose that the FALLBACK would refuse. That "
+            "disagreement is the point: it proves the field short-circuits rather than being ANDed "
+            "with the prose",
+        ),
+        (
+            "field `go`, prose says OPEN QUESTIONS",
+            _plan(readiness="go", history=OPEN_QUESTIONS_VERDICT),
+            True,
+            "`go` is the SECOND approvable member of a three-value enum, so it needs its own row; a "
+            "membership test written against one literal would pass the row above and fail this one",
+        ),
+        (
+            "field `no-go`, prose APPROVES",
+            _plan(readiness="no-go", history=APPROVE_REVISIONS),
+            False,
+            "the mirror image: the field refuses over prose the fallback would ACCEPT. Together with "
+            "the two rows above this pins the direction of authority in both directions, which "
+            "either row alone leaves ambiguous",
+        ),
+        (
+            "field `no-go`, prose carries the old GO phrase",
+            _plan(readiness="no-go", history=OLD_PROSE),
+            False,
+            "THE ADVERSARIAL ROW the plan was written for: the record literally says `Readiness: GO "
+            "- PENDING HUMAN APPROVAL` in prose while the structured field says no-go. A reader that "
+            "scanned text rather than branching on the field approves a plan review refused",
+        ),
+        (
+            "field `go-pending-approval`, prose states NO-GO",
+            _plan(
+                readiness="go-pending-approval",
+                history="- 2026-08-29 /plan-review (opencode/test): REVIEWED - OPEN QUESTIONS; NO-GO.",
+            ),
+            True,
+            "the adversarial row inverted, so the field's authority is not quietly one-sided "
+            "(refusals honored, clearances second-guessed)",
+        ),
+        (
+            "field present but OUT OF VOCAB, prose APPROVES",
+            _plan(readiness="bogus", history=APPROVE_REVISIONS),
+            False,
+            "A CORRUPT SIGNAL IS NOT AN ABSENT ONE. Absence means nothing was recorded and may fall "
+            "back to prose; a bad value means the review TRIED to record a readiness and we cannot "
+            "tell what it meant, so falling back could approve a plan whose author meant `no-go`. "
+            "The approving prose here is what makes the distinction observable",
+        ),
+        # --- The ABSENT-field branch: the bounded prose fallback over the newest history record. ---
+        (
+            "no field, newest record says APPROVE WITH REVISIONS APPLIED",
+            _plan(history=APPROVE_REVISIONS),
+            True,
+            "the back-compat path for a plan reviewed before the field existed. Without this row the "
+            "whole fallback could be deleted and every refusing row below would still pass",
+        ),
+        (
+            "no field, newest record says plain APPROVE",
+            _plan(history=APPROVE_PLAIN),
+            True,
+            "both POSITIVE verdicts clear the plan. `APPROVE` is a strict prefix of the longer "
+            "verdict, so a first-match-wins scan in the wrong order recognizes one and not the other",
+        ),
+        (
+            "no field, newest record says REVIEWED - OPEN QUESTIONS",
+            _plan(history=OPEN_QUESTIONS_VERDICT),
+            False,
+            "the NEUTRAL verdict is not a clearance. Collapsing the vocabulary to a bool would have "
+            "to choose, and choosing `positive` here auto-approves plans whose review explicitly "
+            "left questions open",
+        ),
+        (
+            "no field, APPROVE but the record also says NO-GO",
+            _plan(
+                history=(
+                    "- 2026-08-29 /plan-review (opencode/test): APPROVE; readiness NO-GO until "
+                    "OQ-01 is decided."
+                )
+            ),
+            False,
+            "THE ANY-MENTION RULE, which is specific to this predicate: a negative readiness token "
+            "ANYWHERE in the record disqualifies it, even beside an approving verdict. Deliberately "
+            "stricter than the approval gate's first-token rule, because a false negative here just "
+            "defers to a human",
+        ),
+        (
+            "no field, APPROVE but the record says CONDITIONAL-GO",
+            _plan(
+                history=(
+                    "- 2026-08-29 /plan-review (opencode/test): APPROVE; readiness CONDITIONAL-GO "
+                    "pending a decision."
+                )
+            ),
+            False,
+            "`CONDITIONAL-GO` is in NEITHER documented vocabulary (F-4) yet the shipped gate has "
+            "always treated it as not-ready. Kept negative for back-compat, and pinned here so the "
+            "compat behavior is a recorded decision rather than an accident of one regex",
+        ),
+        (
+            "no field, APPROVE, an unresolved BLOCKING question",
+            _plan(history=APPROVE_REVISIONS, open_questions=BLOCKING_OPEN_OQ),
+            False,
+            "the fallback is a CONJUNCTION: an approving verdict is necessary and not sufficient. "
+            "Read mechanically (`Blocking: yes` and `Status` not resolved), never as prose judgement",
+        ),
+        (
+            "no field, APPROVE, a RESOLVED blocking question",
+            _plan(history=APPROVE_REVISIONS, open_questions=BLOCKING_RESOLVED_OQ),
+            True,
+            "the other half of that conjunction, and the row that keeps it from degenerating into "
+            "`any Blocking: yes block refuses forever`, which would make resolving a question "
+            "pointless",
+        ),
+        (
+            "no field, APPROVE, an UNPARSEABLE question block",
+            _plan(history=APPROVE_REVISIONS, open_questions=UNPARSEABLE_OQ),
+            False,
+            "FAIL CLOSED on an unreadable block: a question we cannot parse is not a question we may "
+            "assume was answered. The block here declares neither Blocking nor Status",
+        ),
+        # --- Neither signal present, and the deliberate non-reading of `Status`. ---
+        (
+            "neither a field nor any history",
+            "# IPD: bare\n\n- Status: reviewed\n\n## Goal\n",
+            False,
+            "absence of evidence is never evidence of approval. This is the row an empty or "
+            "unparseable plan lands on, and it must refuse rather than crash",
+        ),
+        (
+            "field `go-pending-approval` on a DRAFT plan",
+            _plan(
+                readiness="go-pending-approval", history=APPROVE_PLAIN, status="draft"
+            ),
+            True,
+            "STATUS IS NOT THIS PREDICATE'S BUSINESS. It answers only `has review cleared this`, and "
+            "the drivers refuse a draft by gating on `Status: reviewed` BEFORE calling in. If this "
+            "row ever flips to False the predicate has started reading Status, which silently moves "
+            "a safety decision out of the callers that are supposed to own it",
+        ),
+    )
+
+    def test_the_whole_decision_order_answers_every_plan_shape(self):
+        wrong = []
+        approvable_broken = 0
+        for case, text, expected, why in self.TRUTH_TABLE:
+            got = PR.is_plan_review_approved(self._write(text))
+            if got is not expected:
+                if expected:
+                    approvable_broken += 1
+                wrong.append(
+                    f"  {case}:\n    expected {expected}, got {got}\n"
+                    f"    this row exists because: {why}"
+                )
+        vacuity = ""
+        if approvable_broken:
+            vacuity = (
+                f" NOTE: {approvable_broken} of the failing rows are APPROVABLE rows, and while any "
+                "of those is broken every refusing row in this table is VACUOUS: this predicate "
+                "fails closed, so an implementation that returned False unconditionally satisfies "
+                "all of them."
+            )
+        self.assertEqual(
+            wrong,
+            [],
+            f"is_plan_review_approved answered {len(wrong)} of {len(self.TRUTH_TABLE)} plan shapes "
+            f"wrongly.{vacuity} One three-way decision order produces every row (valid field is "
+            "authoritative / absent field falls back to the newest history record / out-of-vocab "
+            "field refuses outright), so read the grouping. FIELD rows failing together means the "
+            "field branch broke; ABSENT rows failing together means the prose fallback did; a "
+            "SINGLE row means one vocabulary token moved. FIX: the direction of the error decides "
+            "how bad it is. A row that should refuse and now approves is a route from unreviewed to "
+            "executing, because this predicate is what `--full-auto` consults before promoting a "
+            "plan to approved. A row that should approve and now refuses only defers that plan to a "
+            "human.\n" + "\n".join(wrong),
         )
-        self.assertTrue(PR.is_plan_review_approved(p))
-
-    def test_go_is_approvable(self):
-        p = self._write(_plan(readiness="go", history=OPEN_QUESTIONS_VERDICT))
-        self.assertTrue(PR.is_plan_review_approved(p))
-
-    def test_no_go_is_refused(self):
-        p = self._write(_plan(readiness="no-go", history=APPROVE_REVISIONS))
-        self.assertFalse(PR.is_plan_review_approved(p))
-
-    def test_unrecognized_readiness_value_fails_closed(self):
-        p = self._write(_plan(readiness="bogus", history=APPROVE_REVISIONS))
-        self.assertFalse(PR.is_plan_review_approved(p))
-
-    def test_absent_field_with_approve_with_revisions_applied_is_approvable(self):
-        p = self._write(_plan(history=APPROVE_REVISIONS))
-        self.assertTrue(PR.is_plan_review_approved(p))
-
-    def test_absent_field_with_plain_approve_is_approvable(self):
-        p = self._write(_plan(history=APPROVE_PLAIN))
-        self.assertTrue(PR.is_plan_review_approved(p))
-
-    def test_absent_field_with_open_questions_verdict_is_refused(self):
-        p = self._write(_plan(history=OPEN_QUESTIONS_VERDICT))
-        self.assertFalse(PR.is_plan_review_approved(p))
-
-    def test_absent_field_with_approving_verdict_but_blocking_open_question_is_refused(
-        self,
-    ):
-        p = self._write(
-            _plan(history=APPROVE_REVISIONS, open_questions=BLOCKING_OPEN_OQ)
-        )
-        self.assertFalse(PR.is_plan_review_approved(p))
-
-    def test_absent_field_with_approving_verdict_and_resolved_blocking_oq_is_approvable(
-        self,
-    ):
-        p = self._write(
-            _plan(history=APPROVE_REVISIONS, open_questions=BLOCKING_RESOLVED_OQ)
-        )
-        self.assertTrue(PR.is_plan_review_approved(p))
-
-    def test_absent_field_with_unparseable_open_question_fails_closed(self):
-        p = self._write(_plan(history=APPROVE_REVISIONS, open_questions=UNPARSEABLE_OQ))
-        self.assertFalse(PR.is_plan_review_approved(p))
-
-    def test_history_record_naming_no_go_is_refused_even_with_a_verdict_word(self):
-        hist = (
-            "- 2026-08-29 /plan-review (opencode/test): APPROVE; readiness NO-GO until "
-            "OQ-01 is decided."
-        )
-        p = self._write(_plan(history=hist))
-        self.assertFalse(PR.is_plan_review_approved(p))
-
-    def test_history_record_naming_conditional_go_is_refused(self):
-        hist = (
-            "- 2026-08-29 /plan-review (opencode/test): APPROVE; readiness CONDITIONAL-GO "
-            "pending a decision."
-        )
-        p = self._write(_plan(history=hist))
-        self.assertFalse(PR.is_plan_review_approved(p))
-
-    def test_adversarial_structured_field_beats_old_prose(self):
-        """The point of the plan: `Readiness: no-go` wins over the old GO prose phrase."""
-        p = self._write(_plan(readiness="no-go", history=OLD_PROSE))
-        self.assertFalse(PR.is_plan_review_approved(p))
-
-    def test_structured_go_wins_over_a_negative_prose_record(self):
-        hist = "- 2026-08-29 /plan-review (opencode/test): REVIEWED - OPEN QUESTIONS; NO-GO."
-        p = self._write(_plan(readiness="go-pending-approval", history=hist))
-        self.assertTrue(PR.is_plan_review_approved(p))
-
-    def test_missing_history_and_missing_field_fails_closed(self):
-        p = self._write("# IPD: bare\n\n- Status: reviewed\n\n## Goal\n")
-        self.assertFalse(PR.is_plan_review_approved(p))
 
     def test_unreadable_path_fails_closed(self):
+        """Kept separate: the input is a PATH THAT DOES NOT EXIST, not plan text.
+
+        Every row of the table writes its fixture to a real temp file, so none of them can express
+        "the read itself raises". The claim is that the OSError is swallowed into a refusal rather
+        than propagating, since a crashing gate is a disabled gate.
+        """
         self.assertFalse(PR.is_plan_review_approved(Path("/nonexistent/plan.ipd.md")))
 
 
 class RealPlanIntegrationTests(unittest.TestCase):
-    """V-02's REAL-PLAN rows: a fixture-only suite can pass while the gate stays broken."""
+    """V-02's REAL-PLAN rows: a fixture-only suite can pass while the gate stays broken.
+
+    NOT TABULATED, and deliberately so: neither test has a fixture to vary. One resolves a specific
+    plan by id6 and asserts against that plan's actual bytes; the other sweeps every pending plan and
+    accumulates offenders, which is already the accumulate-then-assert shape the tables use.
+    """
 
     def _find(self, directory: Path, id6: str) -> Path:
         matches = [p for p in directory.glob("*.ipd.md") if f"-{id6}-" in p.name]
@@ -480,9 +829,188 @@ APPROVE_NARRATING_NO_GO = (
 
 
 class VerdictVocabularyTests(unittest.TestCase):
-    """E-02 / V-02: ONE encoding of the two closed vocabularies, with longest-match ordering."""
+    """E-02 / V-02: ONE encoding of the two closed vocabularies, with longest-match ordering.
+
+    TWO tables replace five tests, split by subject: one over the two vocabulary DICTS (which token
+    carries which polarity) and one over `classify_verdict` (what a record's message resolves to).
+    They stay apart because a dict lookup and a regex scan fail for unrelated reasons, and merging
+    them would hide which of the two moved.
+
+    THE MAPPING IS A COLUMN in the first table, which is the whole reason it is one table rather than
+    two. `VERDICTS` and `READINESS_TOKENS` are deliberately SEPARATE vocabularies over a SHARED
+    polarity set, and the invariant that matters spans both: every token in either must resolve to
+    one of the same three labels. A per-dict test cannot state that, and the polarity labels are
+    three rather than a bool precisely because `REVIEWED - OPEN QUESTIONS` is neither a clearance nor
+    a rejection.
+
+    Why the tables beat the five: both vocabularies are CLOSED SETS consumed by two different gates,
+    and the realistic failure is a token's polarity being flipped or the scan order being changed, in
+    which case several rows move together in a legible pattern. Three of the five old tests were
+    already runs of sequential `assertEqual`s that stopped at their first wrong value, so a flipped
+    polarity hid every later one.
+    """
+
+    #: (mapping name on the module, token, expected polarity constant, why this row exists)
+    POLARITIES = (
+        (
+            "VERDICTS",
+            "APPROVE",
+            PR.POSITIVE,
+            "the plainest clearance, and the token the longest-match ordering below must not let "
+            "shadow its own superstring",
+        ),
+        (
+            "VERDICTS",
+            "APPROVE WITH REVISIONS APPLIED",
+            PR.POSITIVE,
+            "a review that fixed what it found still CLEARS the plan; treating revisions as a "
+            "reservation would refuse the most common real approval shape",
+        ),
+        (
+            "VERDICTS",
+            "REVIEWED - OPEN QUESTIONS",
+            PR.NEUTRAL,
+            "NEITHER a clearance nor a rejection, which is why the polarity set is three labels and "
+            "not a bool. Collapsing it to positive auto-approves plans with open questions; "
+            "collapsing it to negative refuses a human's own approval with no override",
+        ),
+        (
+            "VERDICTS",
+            "REJECT - NEEDS REPLAN",
+            PR.NEGATIVE,
+            "the one verdict that must make `approved` UNREACHABLE. On 2026-08-30 a blanket approval "
+            "swept five plans carrying this verdict into the state that licenses execution",
+        ),
+        (
+            "READINESS_TOKENS",
+            "GO",
+            PR.POSITIVE,
+            "the readiness vocabulary is SEPARATE from the verdict one, and this is its bare "
+            "clearance token",
+        ),
+        (
+            "READINESS_TOKENS",
+            "GO - PENDING HUMAN APPROVAL",
+            PR.POSITIVE,
+            "the spelling reviews actually write. Note it CONTAINS no negative token, which matters "
+            "because the any-mention rule scans for those across a whole record",
+        ),
+        (
+            "READINESS_TOKENS",
+            "NO-GO",
+            PR.NEGATIVE,
+            "the refusing token both gates scan for. A flip here is the single most dangerous edit "
+            "in this module: it turns every refusal in the corpus into a clearance",
+        ),
+        (
+            "READINESS_TOKENS",
+            "CONDITIONAL-GO",
+            PR.NEGATIVE,
+            "UNDOCUMENTED (F-4): it appears in NEITHER workflow vocabulary, but the shipped gate has "
+            "always treated it as not-ready, so it is kept negative for back-compat. Pinned as a "
+            "recorded decision rather than an accident of one regex nobody re-derived",
+        ),
+    )
+
+    def test_every_vocabulary_token_carries_its_documented_polarity(self):
+        wrong = []
+        by_mapping = {}
+        for mapping, token, expected, why in self.POLARITIES:
+            got = getattr(PR, mapping).get(token, "<TOKEN ABSENT FROM THE MAPPING>")
+            if got != expected:
+                by_mapping[mapping] = by_mapping.get(mapping, 0) + 1
+                wrong.append(
+                    f"  {mapping}[{token!r}]\n    expected {expected!r}\n    got      {got!r}\n"
+                    f"    this row exists because: {why}"
+                )
+        summary = ", ".join(f"{name} ({n})" for name, n in sorted(by_mapping.items()))
+        self.assertEqual(
+            wrong,
+            [],
+            f"{len(wrong)} of {len(self.POLARITIES)} vocabulary tokens carry the wrong polarity, "
+            f"across {len(by_mapping)} mapping(s): {summary}. These are two CLOSED SETS over one "
+            "shared polarity set, both read by the auto-approve gate and the approval gate, so read "
+            "the grouping: failures confined to one mapping are that vocabulary's own edit, while "
+            "failures across both mean the POLARITY CONSTANTS themselves were renamed or collapsed. "
+            "FIX: a token reported as ABSENT FROM THE MAPPING was deleted or respelled, and every "
+            "record in the corpus stating it now classifies as no verdict at all, which reads as "
+            "`never reviewed` and fails closed. A token whose polarity FLIPPED from negative to "
+            f"positive is the opposite and far worse: refusals in the corpus become clearances.\n"
+            + "\n".join(wrong),
+        )
+
+    #: (case, the record MESSAGE to classify, expected (token, polarity), why this row exists)
+    CLASSIFICATIONS = (
+        (
+            "the long verdict, stated head-first",
+            "APPROVE WITH REVISIONS APPLIED; PR-001.",
+            ("APPROVE WITH REVISIONS APPLIED", PR.POSITIVE),
+            "THE ORDERING BUG the scan regex is DERIVED rather than hand-written to prevent: "
+            "Python's `|` is first-match-wins, so with `APPROVE` listed ahead of its own superstring "
+            "this message classifies as plain `APPROVE` and the longer verdict can never be "
+            "recognized as itself",
+        ),
+        (
+            "the neutral verdict with mangled spacing",
+            "REVIEWED  -  OPEN   QUESTIONS; PR-1.",
+            ("REVIEWED - OPEN QUESTIONS", PR.NEUTRAL),
+            "SPACING IS NORMALIZED, both the double spaces and the padding around the hyphen. A "
+            "reviewer's whitespace must not change a classification, because the alternative is a "
+            "gate whose answer depends on a typo no linter flags",
+        ),
+        (
+            "a message stating no verdict token at all",
+            "plan-review round 1 complete.",
+            (None, None),
+            "the NEGATIVE row: `plan-review` appears in the text yet no VERDICT does, so the answer "
+            "is (None, None) and not a guess. Without this row a scan that matched the workflow's "
+            "own name would pass every positive row above",
+        ),
+        (
+            "a plain APPROVE",
+            "APPROVE; no defects.",
+            ("APPROVE", PR.POSITIVE),
+            "the short verdict must still be recognized as ITSELF once the long one is ordered "
+            "ahead of it, which is the other half of the longest-match claim",
+        ),
+        (
+            "a rejection",
+            "REJECT - NEEDS REPLAN; unsound.",
+            ("REJECT - NEEDS REPLAN", PR.NEGATIVE),
+            "the refusing verdict classifies from prose, since this scan is what the approval gate "
+            "consults when no structured field is present",
+        ),
+    )
+
+    def test_classify_verdict_reads_the_leading_token_of_every_message(self):
+        wrong = []
+        for case, message, expected, why in self.CLASSIFICATIONS:
+            got = PR.classify_verdict(message)
+            if got != expected:
+                wrong.append(
+                    f"  {case} ({message!r})\n    expected {expected!r}\n    got      {got!r}\n"
+                    f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"classify_verdict misread {len(wrong)} of {len(self.CLASSIFICATIONS)} messages. One "
+            "derived scan regex produces all of them (longest alternative first, internal whitespace "
+            "relaxed), so read the grouping. If BOTH `APPROVE` rows now report the short token, the "
+            "longest-first ordering was lost and the two verdicts have collapsed into one. If only "
+            "the mangled-spacing row failed, the whitespace relaxation did. FIX: the (None, None) "
+            "row turning into a real token means the scan started matching something that is not a "
+            "verdict, and every history record mentioning review would then carry a verdict it never "
+            f"stated.\n" + "\n".join(wrong),
+        )
 
     def test_verdict_keys_are_exactly_the_documented_four(self):
+        """Kept separate: an EXHAUSTIVENESS claim over the whole key set, which no row can make.
+
+        A table row shows that one token is handled; this shows that no FIFTH token exists. The
+        vocabulary is copied verbatim from the plan-review workflow's verdict list, so an addition
+        here means the workflow and this module have drifted.
+        """
         self.assertEqual(
             sorted(PR.VERDICTS),
             [
@@ -493,40 +1021,13 @@ class VerdictVocabularyTests(unittest.TestCase):
             ],
         )
 
-    def test_polarities_match_the_workflow_vocabulary(self):
-        self.assertEqual(PR.VERDICTS["APPROVE"], PR.POSITIVE)
-        self.assertEqual(PR.VERDICTS["APPROVE WITH REVISIONS APPLIED"], PR.POSITIVE)
-        self.assertEqual(PR.VERDICTS["REVIEWED - OPEN QUESTIONS"], PR.NEUTRAL)
-        self.assertEqual(PR.VERDICTS["REJECT - NEEDS REPLAN"], PR.NEGATIVE)
-
-    def test_longest_match_wins_so_the_approve_prefix_cannot_shadow(self):
-        """THE ordering bug this vocabulary is derived (not hand-written) to prevent."""
-        token, polarity = PR.classify_verdict("APPROVE WITH REVISIONS APPLIED; PR-001.")
-        self.assertEqual(token, "APPROVE WITH REVISIONS APPLIED")
-        self.assertEqual(polarity, PR.POSITIVE)
-
-    def test_readiness_vocabulary_including_the_undocumented_token(self):
-        self.assertEqual(PR.READINESS_TOKENS["NO-GO"], PR.NEGATIVE)
-        # `CONDITIONAL-GO` is in NEITHER documented vocabulary (F-4) but the shipped gate has always
-        # treated it as not-ready; kept negative for backward compatibility.
-        self.assertEqual(PR.READINESS_TOKENS["CONDITIONAL-GO"], PR.NEGATIVE)
-        self.assertEqual(
-            PR.READINESS_TOKENS["GO - PENDING HUMAN APPROVAL"], PR.POSITIVE
-        )
-
-    def test_spacing_variation_does_not_change_classification(self):
-        self.assertEqual(
-            PR.classify_verdict("REVIEWED  -  OPEN   QUESTIONS; PR-1.")[0],
-            "REVIEWED - OPEN QUESTIONS",
-        )
-
-    def test_no_verdict_token_yields_no_classification(self):
-        self.assertEqual(
-            PR.classify_verdict("plan-review round 1 complete."), (None, None)
-        )
-
     def test_there_is_only_one_encoding_of_the_vocabulary(self):
-        """V-02's anti-fork requirement: the replaced private regexes must be GONE, not shadowed."""
+        """Kept separate: asserts the ABSENCE OF MODULE ATTRIBUTES, not any value mapping.
+
+        V-02's anti-fork requirement: the three private regexes this vocabulary replaced must be GONE,
+        not shadowed. Two independent encodings of one vocabulary is how two gates end up giving two
+        answers about the same plan, and only a `hasattr` check can state that.
+        """
         for dead in (
             "_VERDICT_APPROVE_RE",
             "_VERDICT_NEGATIVE_RE",
@@ -539,135 +1040,319 @@ class VerdictVocabularyTests(unittest.TestCase):
 
 
 class ReviewEntryDiscriminatorTests(unittest.TestCase):
-    """E-03 / V-03: a verdict may be read ONLY from a record that is itself a review record."""
+    """E-03 / V-03: a verdict may be read ONLY from a record that is itself a review record.
 
-    def test_review_records_are_recognized_across_the_real_middles(self):
-        for mid in (
+    TWO tables replace eleven tests. The first is over the DISCRIMINATOR
+    (`is_review_history_entry`: is this record a review record at all?), the second over the reader
+    built on it (`newest_verdict`: which record is consulted, and what does it say?). They stay
+    apart because the first answers a bool about ONE LINE and the second walks a whole plan's
+    history; a shared table would carry an unused column for every row.
+
+    THE MIDDLE IS A COLUMN in the first table, not a reason for two tables. The old pair split the
+    same claim into "these middles ARE review records" and "these middles are NOT", each a loop that
+    reported only its first wrong middle. Keeping the accepted and rejected middles ADJACENT is the
+    point: the rule is a prefix test on `/plan-review` plus a small word set, and the pair that
+    decides whether it is right is `to-review` versus `reviewed`, which differ by three characters
+    and must classify OPPOSITELY. Split across two tests, a rule that accepted both looked correct
+    in one file and wrong in another.
+
+    THE SECOND TABLE CARRIES A CHECK-MODE COLUMN instead of weakening to one assertion. Two old
+    tests made DIFFERENT KINDS of claim about one history: that the polarity is such-and-such, and
+    that the record it was read FROM is the expected one (the successor case is only meaningful if
+    the reader skipped BACKWARDS past the narration, which the polarity alone does not show). A
+    third made a claim about a DIFFERENT function on the same input, namely that the strict
+    auto-approve rule disagrees. So each row states the expected polarity, a substring the source
+    record must contain, and what `history_verdict_approves` says about the newest record. That last
+    column is the documented ASYMMETRY between the two gates, and having it in the table is what
+    makes the asymmetry visible as a pattern rather than a footnote on one test: the approval gate
+    reads the FIRST verdict token, while the auto-approve gate disqualifies a record on ANY mention
+    of a negative readiness token.
+
+    Why the tables beat the eleven: the discriminator is one prefix-plus-word-set rule and the
+    reader is one backwards walk over it, so a regression in either moves a whole class of rows. The
+    historical failure was total: a parenthesized actor made the record unparseable, so the
+    discriminator said False, so the reader returned None, so the approval gate emitted ZERO
+    refusals for a plan whose own review said REJECT. That is many rows failing at once for one
+    cause, which is exactly what an accumulated report names and eleven red lines do not.
+    """
+
+    #: (the record's MIDDLE, whether it is a review record, why this row exists)
+    MIDDLES = (
+        (
             "reviewed",
+            True,
+            "the status `aw set` writes when a review finishes, and the most common review-bearing "
+            "middle in the corpus",
+        ),
+        (
             "/plan-review",
+            True,
+            "the workflow's own name, written by the workflow itself",
+        ),
+        (
             "/plan-review pass 2",
+            True,
+            "a SUFFIXED form. Reviewers keep inventing suffixes, so the rule is a PREFIX test rather "
+            "than an enumeration; this row is what forces that",
+        ),
+        (
             "/plan-review RE-REVIEW",
+            True,
+            "another real suffix, upper-cased, so the match must fold case",
+        ),
+        (
             "reviewed /plan-review",
+            True,
+            "TWO tokens in one middle, which is why the middle is split on whitespace rather than "
+            "compared whole",
+        ),
+        (
             "re-reviewed /plan-review",
+            True,
+            "a hyphenated word form beside the workflow name",
+        ),
+        (
             "/plan-review-long",
-        ):
-            entry = f"- 2026-09-04 {mid} (opencode/test): APPROVE."
-            self.assertTrue(PR.is_review_history_entry(entry), mid)
+            True,
+            "the prefix test accepts a longer word too. Deliberate: this is the cost of not "
+            "enumerating suffixes, and it is recorded rather than discovered later",
+        ),
+        (
+            "to-review",
+            False,
+            "THE PAIR THAT DECIDES THE RULE, against `reviewed` above. A plan AWAITING review has "
+            "recorded no verdict, and a rule loose enough to accept it reads a successor plan's "
+            "narration of its predecessor's rejection as that successor's own verdict (F-5)",
+        ),
+        ("draft", False, "an authoring transition states no verdict"),
+        (
+            "approved",
+            False,
+            "and neither does an APPROVAL: the approval is the CONSEQUENCE of a review, so treating "
+            "it as review evidence would let a plan's own approval attest to itself",
+        ),
+        ("executed", False, "a terminal transition is not a review"),
+        ("superseded", False, "nor is a retirement"),
+    )
 
-    def test_non_review_records_are_not_review_records(self):
-        for mid in ("to-review", "draft", "approved", "executed", "superseded"):
-            entry = f"- 2026-09-04 {mid} (aw set): status set to {mid}."
-            self.assertFalse(PR.is_review_history_entry(entry), mid)
+    def test_only_a_review_bearing_middle_marks_a_record_as_a_review_record(self):
+        wrong = []
+        for mid, expected, why in self.MIDDLES:
+            # A review-shaped message for the accepted middles and a status-set message for the
+            # rejected ones, so no row can pass on its MESSAGE rather than its middle.
+            entry = (
+                f"- 2026-09-04 {mid} (opencode/test): APPROVE."
+                if expected
+                else f"- 2026-09-04 {mid} (aw set): status set to {mid}."
+            )
+            got = PR.is_review_history_entry(entry)
+            if got is not expected:
+                wrong.append(
+                    f"  middle {mid!r}: expected is_review_history_entry to be {expected}, got "
+                    f"{got}\n    record: {entry!r}\n    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"is_review_history_entry misclassified {len(wrong)} of {len(self.MIDDLES)} middles. One "
+            "rule decides all of them (split the middle on whitespace, then accept a word in "
+            "`_REVIEW_WORDS` or anything prefixed `/plan-review`), so read the grouping. ALL rows "
+            "failing means the record regex stopped matching at all, which is how a formatting "
+            "accident once disabled the approval gate entirely. FIX: the two DIRECTIONS are not "
+            "equally bad. A review middle read as NOT-review makes the gate blind, so a plan its own "
+            "review rejected becomes approvable. A non-review middle read AS review makes the gate "
+            "read a narrating record's quoted verdict as that record's own, which refuses exactly "
+            f"the successor plans that correctly replaced the rejected ones (F-5).\n"
+            + "\n".join(wrong),
+        )
+
+    #: (case, the history body, expected polarity, a substring the SOURCE record must contain (or
+    #: None to skip that check), what the STRICTER auto-approve rule says about the newest record,
+    #: why this row exists)
+    VERDICT_READS = (
+        (
+            "a successor whose newest record NARRATES its predecessor's rejection",
+            SUCCESSOR_NARRATING_REJECT + "\n" + APPROVE_PLAIN,
+            PR.POSITIVE,
+            "/plan-review",
+            False,
+            "THE CENTRAL CASE (F-5), in the exact shape of the real `6lu3rq`. The newest record is a "
+            "`to-review` entry quoting a REJECT, so a naive 'newest entry contains REJECT' gate "
+            "refuses precisely the plan that correctly replaced the rejected one. The SOURCE column "
+            "is what proves the reader skipped BACKWARDS to the real review record rather than "
+            "merely failing to find the word",
+        ),
+        (
+            "a review record stating its OWN rejection",
+            REJECT_VERDICT,
+            PR.NEGATIVE,
+            "REJECT",
+            False,
+            "the genuine article, and the row that keeps the F-5 fix from degenerating into 'never "
+            "refuse anything'. The source column pins that the refusal quotes the record it read",
+        ),
+        (
+            "an older REJECT superseded by a newer APPROVE",
+            APPROVE_REVISIONS + "\n" + REJECT_VERDICT,
+            PR.POSITIVE,
+            "APPROVE",
+            True,
+            "ONLY THE NEWEST review record is consulted. A re-review that cleared a previously "
+            "rejected plan must not be outvoted by its own history, or a plan could never recover "
+            "from one rejection. Note this is the one row where BOTH gates agree",
+        ),
+        (
+            "a positive verdict NARRATING a readiness transition through NO-GO",
+            APPROVE_NARRATING_NO_GO,
+            PR.POSITIVE,
+            "APPROVE",
+            False,
+            "THE MEASURED ASYMMETRY (D2): 6 real records say APPROVE and also contain `NO-GO` while "
+            "narrating `NO-GO -> GO`. The approval gate reads the FIRST verdict token and clears "
+            "them, because ITS false positive is an unoverridable lockout; the auto-approve rule "
+            "disqualifies on ANY mention and declines them, because ITS false negative costs one "
+            "deferral to a human. Both columns of this row are deliberate, and a change that made "
+            "them agree would be a change to which risk we accept",
+        ),
+        (
+            "a review record with a readiness token and NO verdict token",
+            "- 2026-09-04 reviewed (opencode/test): readiness NO-GO; spec is unapproved.",
+            PR.NEGATIVE,
+            "NO-GO",
+            False,
+            "a negative READINESS decides only when no verdict competes with it, which is exactly "
+            "why it is unambiguous here and ignored in the row above",
+        ),
+        (
+            "the NEUTRAL verdict",
+            OPEN_QUESTIONS_VERDICT,
+            PR.NEUTRAL,
+            "OPEN QUESTIONS",
+            False,
+            "neutral is NOT negative: the approval gate must not refuse a human approving over "
+            "questions it named, which is what the overridable open-question half is for",
+        ),
+        (
+            "a history with only a non-review record",
+            "- 2026-09-04 draft (aw set): created.",
+            None,
+            "",
+            False,
+            "no review record at all yields no verdict AND an EMPTY source string, so a caller "
+            "quoting the evidence in its refusal has nothing to quote and emits no refusal. The "
+            "empty-string expectation is the claim here",
+        ),
+        (
+            "a review record whose ACTOR contains a verdict word",
+            "- 2026-09-04 reviewed (bot-approve-9000): REJECT - NEEDS REPLAN; unsound.",
+            PR.NEGATIVE,
+            "REJECT",
+            False,
+            "the verdict is read from the MESSAGE only. An actor named `bot-approve-9000` must not "
+            "contribute the word APPROVE, or the gate's answer depends on who ran the review",
+        ),
+    )
+
+    def test_the_newest_review_records_verdict_is_read_from_every_history_shape(self):
+        wrong = []
+        disagreements = 0
+        for case, history, polarity, source_needle, strict, why in self.VERDICT_READS:
+            text = _plan(history=history)
+            got_polarity, got_entry = PR.newest_verdict(text)
+            got_strict = PR.history_verdict_approves(
+                PR.extract_newest_history_entry(text)
+            )
+            problems = []
+            if got_polarity != polarity:
+                problems.append(f"polarity expected {polarity!r}, got {got_polarity!r}")
+            if source_needle is not None and source_needle not in got_entry:
+                problems.append(
+                    f"the record it read from should contain {source_needle!r}; it read "
+                    f"{got_entry!r}"
+                )
+            if got_strict is not strict:
+                disagreements += 1
+                problems.append(
+                    f"the STRICTER auto-approve rule (history_verdict_approves) should say "
+                    f"{strict}, and said {got_strict}"
+                )
+            if problems:
+                wrong.append(
+                    f"  {case}:\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        note = ""
+        if disagreements:
+            note = (
+                f" {disagreements} of the failures are in the STRICT column, which is the "
+                "deliberate disagreement between the two gates rather than either one's own "
+                "answer: changing it changes WHICH risk we accept (an unoverridable lockout versus "
+                "one deferral to a human), so it is a policy edit and not a bug fix."
+            )
+        self.assertEqual(
+            wrong,
+            [],
+            f"newest_verdict misread {len(wrong)} of {len(self.VERDICT_READS)} history shapes."
+            f"{note} One backwards walk produces every row (skip records that are not review "
+            "records, then classify the FIRST verdict token of the first one that is, falling back "
+            "to a negative readiness token only when no verdict is stated), so read the grouping. "
+            "ALL rows losing their polarity means the discriminator or the record regex broke and "
+            "the gate is now blind. FIX: a row that should be POSITIVE reading NEGATIVE is an "
+            "unoverridable lockout on a legitimately reviewed plan, which is the failure the F-5 "
+            "row exists to prevent; a row that should be NEGATIVE reading anything else licenses "
+            f"execution of a plan its own review rejected.\n" + "\n".join(wrong),
+        )
 
     def test_unparseable_record_is_not_a_review_record(self):
+        """Kept separate: the input is not a RECORD, so it has no middle for the table's column.
+
+        Every row above supplies a well-formed `- <date> <middle> (<actor>): <msg>` line and varies
+        the middle. This asserts the safe answer for a line the record regex cannot match at all,
+        which is False: an unreadable record states no verdict, so no refusal is derived from it.
+        """
         self.assertFalse(PR.is_review_history_entry("- not a record at all"))
 
-    def test_successor_narrating_a_predecessors_reject_is_not_refused(self):
-        """THE central case (F-5). The newest record is `to-review` and merely QUOTES a REJECT."""
-        text = _plan(history=SUCCESSOR_NARRATING_REJECT + "\n" + APPROVE_PLAIN)
-        polarity, entry = PR.newest_verdict(text)
-        self.assertNotEqual(polarity, PR.NEGATIVE)
-        # It skipped BACKWARDS past the narration to the real review record.
-        self.assertIn("/plan-review", entry)
+    def test_a_plan_with_no_history_section_yields_no_verdict(self):
+        """Kept separate: the input is a plan with NO `## Workflow history` section at all.
 
-    def test_newest_review_record_stating_reject_is_negative(self):
-        polarity, entry = PR.newest_verdict(_plan(history=REJECT_VERDICT))
-        self.assertEqual(polarity, PR.NEGATIVE)
-        self.assertIn("REJECT", entry)
-
-    def test_older_reject_superseded_by_a_newer_approve_is_not_refused(self):
-        text = _plan(history=APPROVE_REVISIONS + "\n" + REJECT_VERDICT)
-        polarity, _ = PR.newest_verdict(text)
-        self.assertEqual(polarity, PR.POSITIVE)
-
-    def test_positive_verdict_narrating_a_no_go_readiness_is_not_refused(self):
-        """The measured false-refusal risk (D2): 6 real records say APPROVE and also say NO-GO."""
-        polarity, _ = PR.newest_verdict(_plan(history=APPROVE_NARRATING_NO_GO))
-        self.assertEqual(polarity, PR.POSITIVE)
-        # And the STRICTER auto-approve predicate deliberately still declines it, which is the
-        # documented asymmetry between the two gates rather than an inconsistency.
-        self.assertFalse(PR.history_verdict_approves(APPROVE_NARRATING_NO_GO))
-
-    def test_no_go_alone_with_no_verdict_token_is_negative(self):
-        hist = "- 2026-09-04 reviewed (opencode/test): readiness NO-GO; spec is unapproved."
-        polarity, _ = PR.newest_verdict(_plan(history=hist))
-        self.assertEqual(polarity, PR.NEGATIVE)
-
-    def test_open_questions_verdict_is_neutral_not_negative(self):
-        polarity, _ = PR.newest_verdict(_plan(history=OPEN_QUESTIONS_VERDICT))
-        self.assertEqual(polarity, PR.NEUTRAL)
-
-    def test_no_history_and_no_review_record_yield_no_verdict(self):
+        The table's rows are all built by `_plan(history=...)`, which always emits the section, so
+        none of them can exercise the walk finding nothing to walk. The empty SOURCE string matters
+        as much as the None polarity: a caller quotes it into its refusal message.
+        """
         self.assertEqual(PR.newest_verdict("# IPD: bare\n\n## Goal\n"), (None, ""))
-        polarity, entry = PR.newest_verdict(
-            _plan(history="- 2026-09-04 draft (aw set): created.")
-        )
-        self.assertIsNone(polarity)
-        self.assertEqual(entry, "")
-
-    def test_verdict_is_read_from_the_message_not_the_actor_or_middle(self):
-        """An actor string containing a verdict word must not be mistaken for the verdict."""
-        hist = (
-            "- 2026-09-04 reviewed (bot-approve-9000): REJECT - NEEDS REPLAN; unsound."
-        )
-        polarity, _ = PR.newest_verdict(_plan(history=hist))
-        self.assertEqual(polarity, PR.NEGATIVE)
-
-
-class FieldVersusProseOrderingTests(unittest.TestCase):
-    """E-03 / V-03: the three-way order must MATCH `is_plan_review_approved` on the same inputs."""
-
-    def _refusals(self, text: str) -> list:
-        import tempfile
-
-        d = Path(tempfile.mkdtemp())
-        p = d / "plan.ipd.md"
-        p.write_text(text, encoding="utf-8")
-        self.addCleanup(lambda: (p.unlink(missing_ok=True), d.rmdir()))
-        return PR.approval_refusals(d, p, text)
-
-    def test_valid_field_is_authoritative_and_beats_prose(self):
-        """`Readiness: no-go` refuses even though the prose verdict says APPROVE."""
-        text = _plan(readiness="no-go", history=APPROVE_REVISIONS)
-        refusals = self._refusals(text)
-        self.assertTrue(refusals)
-        self.assertIn("no-go", refusals[0])
-        self.assertFalse(PR.is_plan_review_approved(self._write(text)))
-
-    def test_valid_positive_field_beats_a_negative_prose_verdict(self):
-        text = _plan(readiness="go-pending-approval", history=REJECT_VERDICT)
-        self.assertEqual(self._refusals(text), [])
-        self.assertTrue(PR.is_plan_review_approved(self._write(text)))
-
-    def test_absent_field_falls_back_to_prose(self):
-        text = _plan(history=REJECT_VERDICT)
-        refusals = self._refusals(text)
-        self.assertTrue(refusals)
-        self.assertIn("newest review record", refusals[0])
-        self.assertFalse(PR.is_plan_review_approved(self._write(text)))
-
-    def test_out_of_vocab_field_refuses_outright_with_no_prose_fallback(self):
-        """Absence means 'no signal'; a bad value means 'the signal is corrupt'. Not the same."""
-        text = _plan(readiness="bogus", history=APPROVE_REVISIONS)
-        refusals = self._refusals(text)
-        self.assertTrue(refusals)
-        self.assertIn("not one of", refusals[0])
-        # It did NOT fall back to the approving prose, which would have cleared it.
-        self.assertNotIn("newest review record", " ".join(refusals))
-        self.assertFalse(PR.is_plan_review_approved(self._write(text)))
-
-    def _write(self, text: str) -> Path:
-        import tempfile
-
-        d = Path(tempfile.mkdtemp())
-        p = d / "plan.ipd.md"
-        p.write_text(text, encoding="utf-8")
-        self.addCleanup(lambda: (p.unlink(missing_ok=True), d.rmdir()))
-        return p
 
 
 class ApprovalRefusalsTests(unittest.TestCase):
-    """E-04 / V-04: the composed predicate and its deliberate override ASYMMETRY."""
+    """E-03/E-04 / V-03/V-04: the composed approval gate, its decision order, and its override ASYMMETRY.
+
+    ONE table replaces ten tests spread over two classes (`FieldVersusProseOrderingTests` and the
+    rest of this one). Every one of them wrote a plan fixture, called `approval_refusals` on it, and
+    asserted one thing about the returned list. Splitting them by class was arbitrary: both halves
+    were describing the SAME function, and the split actively hid the property that matters most,
+    namely that the field-versus-prose order here MATCHES the one `is_plan_review_approved`
+    implements. Two gates disagreeing about the same plan is worse than either rule alone.
+
+    `allow_open_questions` IS A COLUMN, not a second table, and this is the clearest case for that in
+    the file. THE OVERRIDE ASYMMETRY IS THE DESIGN'S CORE: the flag clears open-question refusals and
+    NEVER a verdict, because no flag should be able to turn "do not build this" into "executable". An
+    asymmetry is a RELATIONSHIP between two runs over the same input, so it cannot be stated by
+    either run alone. The table puts those runs on ADJACENT ROWS: the REJECT fixture appears with the
+    flag off and on and must refuse BOTH times, while the blocking-question fixture appears with the
+    flag off and on and must refuse only once.
+
+    EACH ROW CARRIES THREE KINDS OF CLAIM rather than being weakened to one assertion, because the
+    old tests made three kinds and dropping any of them would lose substance: the exact NUMBER of
+    refusals (the both-halves row is only meaningful as a count), SUBSTRINGS the message must and must
+    not contain (a refusal that does not name its cause is the failure this area exists to remove,
+    and the out-of-vocab row's whole point is the ABSENCE of the prose-fallback wording), and what
+    `is_plan_review_approved` says about the identical text (the cross-gate agreement).
+
+    Why the table beats the ten: one three-way decision order plus one override rule produces every
+    row. A regression in the order moves the field rows together; a regression in the override moves
+    the flag-on rows together; a change to a message moves one row's needles while its count stays
+    right. Ten tests report any of these as scattered `[] is not true` lines.
+    """
 
     def _write(self, text: str) -> Path:
         import tempfile
@@ -678,47 +1363,230 @@ class ApprovalRefusalsTests(unittest.TestCase):
         self.addCleanup(lambda: (p.unlink(missing_ok=True), d.rmdir()))
         return p
 
-    def test_verdict_refusal_survives_allow_open_questions(self):
-        """THE asymmetry: the override clears questions, NEVER a verdict."""
-        text = _plan(history=REJECT_VERDICT)
-        p = self._write(text)
-        refusals = PR.approval_refusals(p.parent, p, text, allow_open_questions=True)
-        self.assertTrue(refusals)
-        self.assertIn("NO override", refusals[0])
+    #: (case, plan text, allow_open_questions, expected refusal COUNT, substrings that must appear
+    #: somewhere in the refusals, substrings that must NOT appear, what `is_plan_review_approved`
+    #: must say about the same text (None to not cross-check), why this row exists)
+    REFUSALS = (
+        # --- The field-versus-prose decision order, which must match the auto-approve predicate. ---
+        (
+            "field `no-go` over APPROVING prose",
+            _plan(readiness="no-go", history=APPROVE_REVISIONS),
+            False,
+            1,
+            ("no-go", "NO override"),
+            ("newest review record",),
+            False,
+            "A VALID FIELD IS AUTHORITATIVE and the prose is never consulted, which the FORBIDDEN "
+            "substring is what proves: if the prose-fallback wording appears, the gate read both and "
+            "happened to agree, so the next plan where they disagree decides by accident",
+        ),
+        (
+            "field `go-pending-approval` over a REJECT verdict",
+            _plan(readiness="go-pending-approval", history=REJECT_VERDICT),
+            False,
+            0,
+            (),
+            (),
+            True,
+            "the field's authority runs in BOTH directions, so a plan a re-review cleared is not "
+            "held back by the rejection still recorded in its history",
+        ),
+        (
+            "NO field, a REJECT verdict in the newest review record",
+            _plan(history=REJECT_VERDICT),
+            False,
+            1,
+            ("newest review record", "NO override"),
+            (),
+            False,
+            "an ABSENT field falls back to prose. THE INCIDENT THIS GATE EXISTS FOR: on 2026-08-30 a "
+            "blanket approval swept five plans whose own newest review said REJECT into `approved`, "
+            "the state that licenses execution, because the setter read STATUS ALONE",
+        ),
+        (
+            "the SAME REJECT verdict, with --allow-open-questions",
+            _plan(history=REJECT_VERDICT),
+            True,
+            1,
+            ("NO override",),
+            (),
+            None,
+            "THE ASYMMETRY, stated as the pair of this row and the one above it: the override does "
+            "NOT clear a verdict, and the message says so in the same breath. A flag that could "
+            "would make the whole gate advisory",
+        ),
+        (
+            "field PRESENT but out of vocab, over approving prose",
+            _plan(readiness="bogus", history=APPROVE_REVISIONS),
+            False,
+            1,
+            ("not one of",),
+            ("newest review record",),
+            False,
+            "A CORRUPT SIGNAL IS NOT AN ABSENT ONE, and the forbidden substring is the entire claim: "
+            "it must NOT fall back to the approving prose, which would have cleared the plan. "
+            "Absence means no signal was recorded; a bad value means the review tried to record one "
+            "and we cannot tell what it meant",
+        ),
+        # --- The open-question half, the ONLY overridable one. ---
+        (
+            "an unresolved BLOCKING question under an approving verdict",
+            _plan(history=APPROVE_REVISIONS, open_questions=BLOCKING_OPEN_OQ),
+            False,
+            1,
+            ("OQ-01", "--allow-open-questions"),
+            (),
+            False,
+            "the refusal NAMES THE QUESTION ID and names its own override. A refusal that says only "
+            "`a blocking question` sends a human hunting through the plan, which is the failure mode "
+            "this whole area exists to remove",
+        ),
+        (
+            "the SAME blocking question, with --allow-open-questions",
+            _plan(history=APPROVE_REVISIONS, open_questions=BLOCKING_OPEN_OQ),
+            True,
+            0,
+            (),
+            (),
+            None,
+            "the other half of the asymmetry: THIS refusal IS cleared by the flag. Without this row "
+            "the override could be a no-op and every flag-on row would still pass",
+        ),
+        (
+            "a RESOLVED blocking question under an approving verdict",
+            _plan(history=APPROVE_REVISIONS, open_questions=BLOCKING_RESOLVED_OQ),
+            False,
+            0,
+            (),
+            (),
+            True,
+            "resolving a question needs NO override, or resolving one would be pointless and every "
+            "plan that ever had a blocking question would need the flag forever",
+        ),
+        (
+            "an UNPARSEABLE question block under an approving verdict",
+            _plan(history=APPROVE_REVISIONS, open_questions=UNPARSEABLE_OQ),
+            False,
+            1,
+            ("OQ-01",),
+            (),
+            False,
+            "FAIL CLOSED on a block whose Blocking/Status cannot be read: a question we cannot parse "
+            "is not one we may assume was answered. Safe precisely BECAUSE this half is overridable, "
+            "so the override is where an unreadable question gets a human's attention",
+        ),
+        # --- Composition: absence is silent, and both halves report together. ---
+        (
+            "a plan with NO review record at all",
+            _plan(history="- 2026-09-04 draft (aw set): created."),
+            False,
+            0,
+            (),
+            (),
+            False,
+            "ABSENT REVIEW IS SILENT, NOT BLOCKING, or the author-then-approve flow every small plan "
+            "uses would be impossible. Note the predicate column DISAGREES on this row, which is the "
+            "documented difference between the two gates rather than an inconsistency: automation "
+            "must refuse on no evidence, while a HUMAN approving a plan nobody reviewed is allowed",
+        ),
+        (
+            "BOTH a REJECT verdict and a blocking question",
+            _plan(history=REJECT_VERDICT, open_questions=BLOCKING_OPEN_OQ),
+            False,
+            2,
+            ("newest review record", "OQ-01"),
+            (),
+            False,
+            "EVERY reason is reported, not just the first. A gate that stops at one refusal makes a "
+            "human fix it, re-run, and discover the next, which is how a two-problem plan takes "
+            "three rounds instead of one",
+        ),
+    )
 
-    def test_blocking_question_refusal_names_the_question_id(self):
-        text = _plan(history=APPROVE_REVISIONS, open_questions=BLOCKING_OPEN_OQ)
-        p = self._write(text)
-        refusals = PR.approval_refusals(p.parent, p, text)
-        self.assertTrue(refusals)
-        self.assertIn("OQ-01", refusals[0])
-
-    def test_blocking_question_refusal_is_cleared_by_the_override(self):
-        text = _plan(history=APPROVE_REVISIONS, open_questions=BLOCKING_OPEN_OQ)
-        p = self._write(text)
+    def test_every_plan_shape_yields_exactly_its_refusals(self):
+        wrong = []
+        override_rows_broken = 0
+        predicate_disagreements = 0
+        for (
+            case,
+            text,
+            allow,
+            count,
+            needles,
+            forbidden,
+            predicate,
+            why,
+        ) in self.REFUSALS:
+            path = self._write(text)
+            refusals = PR.approval_refusals(
+                path.parent, path, text, allow_open_questions=allow
+            )
+            joined = " ".join(refusals)
+            problems = []
+            if len(refusals) != count:
+                problems.append(
+                    f"expected {count} refusal(s), got {len(refusals)}: {refusals!r}"
+                )
+            missing = [n for n in needles if n not in joined]
+            if missing:
+                problems.append(f"the refusals never mention {missing!r}: {refusals!r}")
+            leaked = [f for f in forbidden if f in joined]
+            if leaked:
+                problems.append(
+                    f"the refusals mention {leaked!r}, which this row requires them NOT to: "
+                    f"{refusals!r}"
+                )
+            if predicate is not None:
+                got = PR.is_plan_review_approved(path)
+                if got is not predicate:
+                    predicate_disagreements += 1
+                    problems.append(
+                        f"is_plan_review_approved should say {predicate} about the same text, and "
+                        f"said {got}, so the two gates now disagree about this plan"
+                    )
+            if problems:
+                if allow:
+                    override_rows_broken += 1
+                wrong.append(
+                    f"  {case} (allow_open_questions={allow}):\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        notes = []
+        if override_rows_broken:
+            notes.append(
+                f"{override_rows_broken} of the failing rows have the OVERRIDE ON, so suspect the "
+                "asymmetry rather than the individual checks: the flag must clear open-question "
+                "refusals and never a verdict"
+            )
+        if predicate_disagreements:
+            notes.append(
+                f"{predicate_disagreements} row(s) failed on the CROSS-GATE column, meaning this "
+                "gate and `is_plan_review_approved` now answer differently about identical text, "
+                "which is worse than either rule being wrong on its own"
+            )
+        note = (" " + "; ".join(notes) + ".") if notes else ""
         self.assertEqual(
-            PR.approval_refusals(p.parent, p, text, allow_open_questions=True), []
+            wrong,
+            [],
+            f"approval_refusals was wrong for {len(wrong)} of {len(self.REFUSALS)} plan shapes."
+            f"{note} One three-way decision order plus one override rule produces every row, so read "
+            "the grouping: FIELD rows failing together means the order changed, flag-on rows failing "
+            "together means the override did, and a row whose COUNT is right while its needles are "
+            "wrong is only a message edit. FIX: the direction matters. A row that should refuse and "
+            "now returns [] makes `approved` reachable for a plan its own review rejected, which is "
+            "the exact 2026-08-30 incident this gate was built after. A row that should return [] "
+            "and now refuses is a LOCKOUT no flag can clear, since the verdict half has no override "
+            f"by design.\n" + "\n".join(wrong),
         )
 
-    def test_resolved_blocking_question_needs_no_override(self):
-        text = _plan(history=APPROVE_REVISIONS, open_questions=BLOCKING_RESOLVED_OQ)
-        p = self._write(text)
-        self.assertEqual(PR.approval_refusals(p.parent, p, text), [])
-
-    def test_clean_plan_with_no_review_is_permitted(self):
-        """Absent review is SILENT, not blocking: gating on absence would block author-then-approve."""
-        text = _plan(history="- 2026-09-04 draft (aw set): created.")
-        p = self._write(text)
-        self.assertEqual(PR.approval_refusals(p.parent, p, text), [])
-
-    def test_both_halves_are_reported_together_not_just_the_first(self):
-        text = _plan(history=REJECT_VERDICT, open_questions=BLOCKING_OPEN_OQ)
-        p = self._write(text)
-        refusals = PR.approval_refusals(p.parent, p, text)
-        self.assertEqual(len(refusals), 2)
-
     def test_unreadable_path_yields_no_refusals(self):
-        """A crashing gate is a disabled gate; one that refuses everything is worse than none."""
+        """Kept separate: the input is a PATH THAT DOES NOT EXIST, not plan text.
+
+        Every table row writes its fixture to a real temp file and passes the text in, so no row can
+        exercise the read itself raising. A crashing gate is a disabled gate; one that refuses
+        everything is worse than none.
+        """
         self.assertEqual(
             PR.approval_refusals(Path("/nonexistent"), Path("/nonexistent/p.ipd.md")),
             [],
@@ -727,7 +1595,12 @@ class ApprovalRefusalsTests(unittest.TestCase):
     def test_it_calls_the_shipped_typed_gate_rather_than_forking_the_severity_rule(
         self,
     ):
-        """V-04's anti-fork requirement, asserted mechanically rather than by eyeball."""
+        """Kept separate: PATCHES a collaborator and asserts on the CALL, not on the return value.
+
+        V-04's anti-fork requirement, asserted mechanically rather than by eyeball: the one severity
+        comparison must be reused, not reimplemented. The subject is `mock` call bookkeeping (called
+        once, with this plan's id6), which is a different kind of claim from any row's refusal list.
+        """
         import unittest.mock as mock
 
         text = _plan(history=APPROVE_REVISIONS)
@@ -740,6 +1613,12 @@ class ApprovalRefusalsTests(unittest.TestCase):
         self.assertEqual(spy.call_args[0][1], "tst001")
 
     def test_a_typed_gating_finding_refuses_and_has_no_override(self):
+        """Kept separate: needs materially different setup, a PATCHED review tree.
+
+        The third refusal source is a typed `.review.md` artifact, which no plan fixture carries: the
+        block has to be injected by patching `subject_gating_blocks`. A row would need a whole extra
+        column of mock machinery that every other row leaves unused.
+        """
         import unittest.mock as mock
 
         from agent_workflows.review_findings import GatingBlock
@@ -767,7 +1646,13 @@ class ApprovalRefusalsTests(unittest.TestCase):
 
 
 class ApprovalGateRealCorpusTests(unittest.TestCase):
-    """V-03/V-04's REAL-PLAN rows: a fixture-only suite can pass while the gate misjudges reality."""
+    """V-03/V-04's REAL-PLAN rows: a fixture-only suite can pass while the gate misjudges reality.
+
+    NOT TABULATED: every test here resolves real plans by id6 and each carries its own SKIP condition
+    for a different precondition (a plan having moved disposition, or the five incident plans having
+    been deleted). Merging them would make one row's skip silence the others, which is exactly the
+    vacuous pass these tests are written to avoid.
+    """
 
     def _find(self, id6: str) -> Path:
         for name in ("pending", "executed", "superseded", "not-executed", "reusable"):
@@ -818,26 +1703,6 @@ class ApprovalGateRealCorpusTests(unittest.TestCase):
         self.assertGreaterEqual(checked, 1)
 
 
-class NoWideningTests(unittest.TestCase):
-    """The predicate answers ONLY 'is this review-clear'; status gating stays with the caller."""
-
-    def test_predicate_does_not_read_status(self):
-        import tempfile
-
-        d = Path(tempfile.mkdtemp())
-        p = d / "plan.ipd.md"
-        self.addCleanup(lambda: (p.unlink(missing_ok=True), d.rmdir()))
-        # A DRAFT plan with a clean readiness value: the predicate may say True, but the drivers
-        # must still refuse it because they gate on `Status: reviewed` BEFORE calling in.
-        p.write_text(
-            _plan(
-                readiness="go-pending-approval", history=APPROVE_PLAIN, status="draft"
-            ),
-            encoding="utf-8",
-        )
-        self.assertTrue(PR.is_plan_review_approved(p))
-
-
 class AParenthesizedActorDoesNotDisableTheApprovalGate(unittest.TestCase):
     """Plan fn2l1u E-08a / V-08: THE GATE USED TO FAIL OPEN ON A FORMATTING ACCIDENT.
 
@@ -862,6 +1727,19 @@ class AParenthesizedActorDoesNotDisableTheApprovalGate(unittest.TestCase):
         "- 2026-09-08 reviewed (opencode/its_direct/some-model): "
         "/plan-review: REJECT - NEEDS REPLAN; unsound."
     )
+    # A real corpus middle (`/plan-review pass 2`) beside a parenthesized actor: the `mid` capture
+    # widened in the same edit, so both lazy captures can fight over the same `(`.
+    MULTI_WORD_MIDDLE = (
+        "- 2026-08-30 /plan-review pass 2 (opencode (some-model)): "
+        "REJECT - NEEDS REPLAN reaffirmed."
+    )
+    # THE HAZARD that decides lazy-versus-greedy: a `):` inside the MESSAGE.
+    PAREN_IN_MESSAGE = "- 2026-09-08 reviewed (opencode/model): fixed foo(bar): APPROVE"
+    # A narration, not a verdict: it parses fully and must still not be a review record (F-5).
+    NARRATING_PAREN = (
+        "- 2026-09-08 to-review (opencode (some-model)): supersedes a plan whose "
+        "review said REJECT - NEEDS REPLAN."
+    )
 
     def _refusals(self, text: str) -> list:
         import tempfile
@@ -872,65 +1750,226 @@ class AParenthesizedActorDoesNotDisableTheApprovalGate(unittest.TestCase):
         self.addCleanup(lambda: (p.unlink(missing_ok=True), d.rmdir()))
         return PR.approval_refusals(d, p, text)
 
-    def test_a_parenthesized_review_record_IS_recognized_as_a_review_record(self):
-        self.assertTrue(PR.is_review_history_entry(self.PAREN_REJECT))
+    #: (case, the history RECORD, expected (mid, actor, msg) captures, why this row exists)
+    CAPTURES = (
+        (
+            "an actor containing parentheses",
+            PAREN_REJECT,
+            (
+                "reviewed",
+                "opencode (its_direct/some-model)",
+                "/plan-review: REJECT - NEEDS REPLAN; unsound.",
+            ),
+            "THE BUG: the old `(?P<actor>[^)]*)` stopped at the FIRST `)`, so this record did not "
+            "match AT ALL. The actor must come back WHOLE, inner parentheses included",
+        ),
+        (
+            "the slash-form actor, unchanged",
+            SLASH_REJECT,
+            (
+                "reviewed",
+                "opencode/its_direct/some-model",
+                "/plan-review: REJECT - NEEDS REPLAN; unsound.",
+            ),
+            "the widening is strictly ADDITIVE: measured over all 3073 tracked records, ZERO "
+            "previously-parsing records had any capture change. This row is that claim, and without "
+            "it the fix could be a regression dressed as a widening",
+        ),
+        (
+            "a MULTI-WORD middle beside a parenthesized actor",
+            MULTI_WORD_MIDDLE,
+            (
+                "/plan-review pass 2",
+                "opencode (some-model)",
+                "REJECT - NEEDS REPLAN reaffirmed.",
+            ),
+            "the `mid` capture widened from `[^(]*?` to `.*?` in the same edit, so BOTH captures are "
+            "lazy now and can fight over the same `(`. This row is where that fight would show",
+        ),
+        (
+            "a MESSAGE containing `):`",
+            PAREN_IN_MESSAGE,
+            ("reviewed", "opencode/model", "fixed foo(bar): APPROVE"),
+            "WHY THE CAPTURE IS LAZY AND NOT GREEDY. A greedy `(?P<actor>.*)` anchors on the LAST "
+            "`):` and captures actor `opencode/model): fixed foo(bar`, corrupting a record that "
+            "parses correctly today. This row fails under that alternative, which is what makes the "
+            "choice evidenced rather than asserted",
+        ),
+        (
+            "a NARRATING record with a parenthesized actor",
+            NARRATING_PAREN,
+            (
+                "to-review",
+                "opencode (some-model)",
+                "supersedes a plan whose review said REJECT - NEEDS REPLAN.",
+            ),
+            "the record PARSES (all three captures are right) and is still NOT a review record, "
+            "which is the pair of claims that keeps the widening from turning a narration into a "
+            "verdict-bearing record (d7bnhc F-5). The gate table below asserts the second half",
+        ),
+    )
 
-    def test_the_parenthesized_and_slash_forms_read_the_SAME_verdict(self):
-        paren, _ = PR.newest_verdict(_plan(history=self.PAREN_REJECT))
-        slash, _ = PR.newest_verdict(_plan(history=self.SLASH_REJECT))
-        self.assertEqual(paren, PR.NEGATIVE)
+    def test_every_actor_spelling_parses_into_its_three_captures(self):
+        """One table over `_HISTORY_RECORD_PARTS_RE`, replacing two tests and a third's precondition.
+
+        THE ACTOR SPELLING IS A COLUMN, which is the reason this is one table: the parenthesized and
+        slash forms must produce IDENTICAL `mid` and `msg` captures, and "identical" is a relationship
+        between two rows that neither row alone can state. The old tests asserted the two forms in
+        two places, so a change that shifted the boundary for one and not the other read as one
+        unrelated failure.
+
+        Why the table beats the tests it replaces: one regex with two LAZY captures produces every
+        row, and the lazy-versus-greedy choice trades the rows off against each other. Greedy fixes
+        nothing and breaks the `):`-in-message row; a bound like `[^)]*` fixes that row and breaks
+        both parenthesized rows. Seeing which rows move together is therefore the whole diagnosis.
+        """
+        wrong = []
+        for case, record, expected, why in self.CAPTURES:
+            match = PR._HISTORY_RECORD_PARTS_RE.match(record)
+            if match is None:
+                wrong.append(
+                    f"  {case}: DID NOT MATCH AT ALL, so every capture is unavailable\n"
+                    f"    record: {record!r}\n    this row exists because: {why}"
+                )
+                continue
+            got = (match.group("mid"), match.group("actor"), match.group("msg"))
+            if got != expected:
+                labels = ("mid", "actor", "msg")
+                diffs = [
+                    f"      {label}: expected {e!r}, got {g!r}"
+                    for label, e, g in zip(labels, expected, got)
+                    if e != g
+                ]
+                wrong.append(
+                    f"  {case}:\n"
+                    + "\n".join(diffs)
+                    + f"\n    this row exists because: {why}"
+                )
         self.assertEqual(
-            paren, slash, "the actor's SPELLING must not change the verdict read"
+            wrong,
+            [],
+            f"_HISTORY_RECORD_PARTS_RE mis-split {len(wrong)} of {len(self.CAPTURES)} records. One "
+            "regex with two LAZY captures produces every row, and the rows trade off against each "
+            "other, so read WHICH moved. If the PARENTHESIZED rows stopped matching, someone "
+            "re-bounded the actor to `[^)]*` and the gate has failed OPEN again (a record it cannot "
+            "parse states no verdict, so it yields no refusal). If the `):`-in-message row is "
+            "corrupted into actor `opencode/model): fixed foo(bar`, someone made a capture GREEDY. "
+            "FIX: do not chase one row at a time; both failures above are one character of regex, "
+            f"and fixing either the wrong way breaks the other.\n" + "\n".join(wrong),
         )
 
-    def test_the_approval_gate_REFUSES_over_a_parenthesized_rejection(self):
-        """The regression that matters: a refusal must exist, and it must be the no-override one."""
-        refusals = self._refusals(_plan(history=self.PAREN_REJECT))
-        self.assertTrue(
-            refusals, "a plan whose newest review REJECTS it must not be approvable"
-        )
-        self.assertTrue(
-            any("NO override" in r for r in refusals),
-            f"expected the un-overridable verdict refusal, got {refusals}",
-        )
+    #: (case, the history RECORD, whether it is a review record, expected verdict polarity, expected
+    #: refusal count, why this row exists)
+    GATE_READS = (
+        (
+            "a parenthesized REJECT",
+            PAREN_REJECT,
+            True,
+            PR.NEGATIVE,
+            1,
+            "THE REGRESSION THAT MATTERS, end to end: reproduced through the real CLI before the fix, "
+            "`aw set approved <id6> --by-human` EXITED 0 and wrote `- Status: approved` for a plan "
+            "whose own newest review said REJECT, purely because the actor had parentheses",
+        ),
+        (
+            "the SAME rejection with a slash-form actor",
+            SLASH_REJECT,
+            True,
+            PR.NEGATIVE,
+            1,
+            "the identical command with this actor EXITED 1 and refused. The actor's SPELLING must "
+            "not change the verdict read, and asserting both forms in one table is what makes "
+            "`must not change` checkable rather than a hope",
+        ),
+        (
+            "a parenthesized actor with a multi-word middle",
+            MULTI_WORD_MIDDLE,
+            True,
+            PR.NEGATIVE,
+            1,
+            "the review-word family must survive the `mid` widening: `/plan-review pass 2` is a real "
+            "middle from the corpus, not a constructed one",
+        ),
+        (
+            "a NARRATING record with a parenthesized actor",
+            NARRATING_PAREN,
+            False,
+            None,
+            0,
+            "THE NEGATIVE ROW, and the one that makes the three above non-vacuous: the widening must "
+            "NOT turn a `to-review` record quoting a predecessor's rejection into a verdict-bearing "
+            "one. A rule that refused this would lock out exactly the successor plans that correctly "
+            "replaced the rejected ones (F-5)",
+        ),
+    )
 
-    def test_the_parenthesized_actor_is_captured_whole(self):
-        m = PR._HISTORY_RECORD_PARTS_RE.match(self.PAREN_REJECT)
-        self.assertIsNotNone(m)
-        assert m is not None
-        self.assertEqual(m.group("actor"), "opencode (its_direct/some-model)")
-        self.assertEqual(m.group("mid"), "reviewed")
+    def test_the_gate_reads_the_same_verdict_whatever_the_actor_spelling(self):
+        """One table over the whole chain the parse feeds, replacing three tests.
+
+        The chain is `is_review_history_entry` -> `newest_verdict` -> `approval_refusals`, and the
+        bug's signature was that ALL THREE went quiet together: the record did not parse, so it was
+        not a review record, so there was no verdict, so there were no refusals. Each old test
+        checked one link. Checking all three per row is what makes the failure legible as one cause
+        rather than three, and it is why each row states three expectations instead of being weakened
+        to one.
+
+        THE NEGATIVE ROW IS IN THE SAME TABLE deliberately. Every positive row here asserts a
+        REFUSAL, and a gate that refused everything would satisfy all of them; the narrating row is
+        the only thing standing between "the parenthesized actor is read" and "the widening broke the
+        F-5 discriminator". The failure message says as much when it is the row that broke.
+        """
+        wrong = []
+        negative_row_broken = False
+        for case, record, is_review, polarity, count, why in self.GATE_READS:
+            text = _plan(history=record)
+            problems = []
+            got_is_review = PR.is_review_history_entry(record)
+            if got_is_review is not is_review:
+                problems.append(
+                    f"is_review_history_entry expected {is_review}, got {got_is_review}"
+                )
+            got_polarity, _ = PR.newest_verdict(text)
+            if got_polarity != polarity:
+                problems.append(
+                    f"newest_verdict polarity expected {polarity!r}, got {got_polarity!r}"
+                )
+            refusals = self._refusals(text)
+            if len(refusals) != count:
+                problems.append(
+                    f"approval_refusals expected {count} refusal(s), got {len(refusals)}: "
+                    f"{refusals!r}"
+                )
+            elif count and not any("NO override" in r for r in refusals):
+                problems.append(
+                    f"the refusal must be the UN-OVERRIDABLE verdict one; got {refusals!r}"
+                )
+            if problems:
+                if not is_review:
+                    negative_row_broken = True
+                wrong.append(
+                    f"  {case}:\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        note = ""
+        if negative_row_broken:
+            note = (
+                " NOTE: the NARRATING row is among the failures, so the widening has gone too far "
+                "and every refusing row above is now suspect rather than reassuring: a gate that "
+                "refuses narrating records satisfies them while locking out the successor plans that "
+                "correctly replaced the rejected ones."
+            )
         self.assertEqual(
-            m.group("msg"), "/plan-review: REJECT - NEEDS REPLAN; unsound."
+            wrong,
+            [],
+            f"the approval gate misread {len(wrong)} of {len(self.GATE_READS)} records.{note} One "
+            "chain produces every row (parse the record, decide whether it is a review record, "
+            "classify its verdict, emit the refusal), and the historical bug made ALL of it go quiet "
+            "at once, so rows failing together at the SAME LINK is the signal. FIX: refusals "
+            "dropping to zero on the parenthesized rows is fn2l1u returning, which means a "
+            "formatting accident in an actor name has again disabled the one refusal that has no "
+            f"override.\n" + "\n".join(wrong),
         )
-
-    def test_a_multi_word_middle_still_parses(self):
-        """The `mid` capture widened from `[^(]*?` to `.*?`; the review-word family must still work."""
-        rec = (
-            "- 2026-08-30 /plan-review pass 2 (opencode (some-model)): "
-            "REJECT - NEEDS REPLAN reaffirmed."
-        )
-        self.assertTrue(PR.is_review_history_entry(rec))
-        polarity, _ = PR.newest_verdict(_plan(history=rec))
-        self.assertEqual(polarity, PR.NEGATIVE)
-
-    def test_a_message_containing_close_paren_colon_is_not_mis_split(self):
-        """Lazy, not greedy: a `):` inside the MESSAGE must not shift the actor boundary."""
-        rec = "- 2026-09-08 reviewed (opencode/model): fixed foo(bar): APPROVE"
-        m = PR._HISTORY_RECORD_PARTS_RE.match(rec)
-        self.assertIsNotNone(m)
-        assert m is not None
-        self.assertEqual(m.group("actor"), "opencode/model")
-        self.assertEqual(m.group("msg"), "fixed foo(bar): APPROVE")
-
-    def test_a_non_review_record_is_still_not_a_review_record(self):
-        """The widening must not turn a NARRATING record into a verdict-bearing one (d7bnhc F-5)."""
-        rec = (
-            "- 2026-09-08 to-review (opencode (some-model)): supersedes a plan whose "
-            "review said REJECT - NEEDS REPLAN."
-        )
-        self.assertFalse(PR.is_review_history_entry(rec))
-        self.assertEqual(self._refusals(_plan(history=rec)), [])
 
 
 if __name__ == "__main__":
