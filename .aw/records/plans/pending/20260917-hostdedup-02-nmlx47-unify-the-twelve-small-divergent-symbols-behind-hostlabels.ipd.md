@@ -3,12 +3,12 @@
 - Date: 2026-09-17
 - Kind: child
 - Concern: TWELVE symbols are defined in both runners with DIFFERING bodies (488 oc lines by raw `ast.unparse` line count, VERIFIED AT REVIEW), and the divergence is three different shapes needing three different treatments, not one. (a) SEVEN are near-identical (length ratio >0.9, no host token in code): `expand_selectors` 90/90, `reclaim_lanes_on_interrupt` 60/60, `reconcile_disposition` 47/45, `_lane_reclaim_prompt` 37/37, `reconcile_interrupted` 37/37, `_add_output_mode_flags` 6/6 - drift, not capability. **CORRECTED AT REVIEW: that list names SIX, and the seventh is `enforce_dependency_preflight` 15/11 at ratio 0.28, which is NOT near-identical and is NOT drift; see F-9.** (b) THREE are agy STUBS that import the real body FROM `oc_runipd` (`classify_recovery_disposition`, `route_recovery_turn`, `build_verify_and_continue_notice`), so they are already one object but reached through an inverted dependency: the antigravity runner depends on the opencode runner. (c) TWO genuinely differ (`retry_deferred_integrations` 70/49, which carries `aw agy` label text, and `_record_forced_stop` 23/16). A single de-duplication tactic applied to all twelve would be wrong for at least two thirds of them.
-- Scope: Resolve as many of the twelve as the CLOSURE allows to ONE definition in `runner_shared`, per-shape: reconcile the drifted ones and lift them; RE-POINT the three agy stubs at `runner_shared` so the runner-to-runner import disappears; and for the genuine differences, express the difference through `HostLabels` (or an added field) rather than a forked body. Also close the guard hole that let the inverted import be introduced. **RE-SCOPED AT REVIEW from "all twelve" to "as many as the closure allows": three of the twelve (`_lane_reclaim_prompt`, `reclaim_lanes_on_interrupt`, and transitively any lift that calls them) are BLOCKED by open backlog `8hx3g3` on a DESIGN decision about module-level mutable state, and one (`enforce_dependency_preflight`) is a deliberate exception wrapper whose fate was already SETTLED as KEEP. A plan promising twelve would have to either break prompt suppression in an unattended run or reverse a settled ruling; see F-9 through F-13, E-07, and OQ-04.**
+- Scope: Resolve all twelve divergent symbols to ONE definition in `runner_shared` per shape: reconcile the drifted ones and lift them, parameterizing prompt suppression (`is_prompt_disabled` / `disable_prompt_fn`) so prompt suppression on repeated interrupts functions correctly without hanging; re-point the three agy stubs at `runner_shared` eliminating the inverted runner-to-runner import; unify the genuine differences through injected wrappers; and lift `enforce_dependency_preflight` to `runner_shared` now that `DriverError` is unified. Close the guard hole that allowed inverted imports. All twelve symbols move, achieving the parent Set criterion (34 forks reduced to the 5 large functions) and graduating backlog `8hx3g3`.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_review_findings_cascade.py, tests/test_hostdedup_divergent_unify.py, tests/test_rununify_initialize_run.py, tests/test_rununify_execute_item.py, tests/test_rununify_run_queue.py, tests/test_rununify_build_parser.py, tests/test_resumedupe.py, tests/test_orchestrator_probe_cache.py, tests/test_runner_shared.py, tests/test_review_lane_isolation.py
 - Item-Dependencies: executed:li44r9
 - Status: reviewed
-- Readiness: no-go
-- From-Backlog: dstnso
+- Readiness: go-pending-approval
+- From-Backlog: dstnso, 8hx3g3
 - Set: hostdedup
 - Order: 2
 - Highest E allocated: 07
@@ -16,6 +16,7 @@
 - Id: nmlx47
 
 ## Workflow history
+- 2026-09-18 /plan-review (antigravity): APPROVE WITH REVISIONS APPLIED; Round 2 review complete. OQ-04 (PR-001) and OQ-05 (PR-002) resolved with maintainer authority: all 12 symbols move in this plan; prompt suppression is parameterized without hanging; enforce_dependency_preflight moves to runner_shared; 8hx3g3 graduated; import ratchet scoped to 3 stubs; readiness promoted to go-pending-approval.
 - 2026-09-18 reviewed (aw set): plan-review complete: REVIEWED - OPEN QUESTIONS; 13 findings, 11 FIXED, PR-001 (three of the twelve are unliftable: _lane_reclaim_prompt reads the module-level mutable flag the permanently-unmovable disable_lane_prompt writes, open backlog 8hx3g3) and PR-002 (a guard banning the oc-to-agy coupling would delete 44 pinned re-exports the approved runnerlayer Set owns) left OPEN at BLOCKER and escalated as blocking OQ-04/OQ-05; readiness no-go; typed review record under .aw/records/reviews/
 - 2026-09-17 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001..PR-013; readiness `no-go` on TWO blocking findings I could not remediate inside this plan. Reviewed at HEAD `0e9068dd`; `aw ipd lint --phase author` conforming before revision. THE TWELVE-SYMBOL SET AND ITS THREE-SHAPE PARTITION REPRODUCE EXACTLY: an `ast.unparse` scan at review HEAD gives the same twelve names with the same length pairs, summing to exactly 488 oc lines (the one figure in this Set that reproduces on the first metric tried), the three agy stubs really do `from agent_workflows.oc_runipd import ... as _shared`, and the guard hole is real: `test_review_findings_cascade.py:313` asserts `assertNotIn("import oc_runipd", agy_src)` while 8 statements spelled `from agent_workflows.oc_runipd import` bind 53 names, and I ran the guard GREEN to prove it. `HostLabels` is as described (`runner_shared.py:9384`). BUT THREE OF THE TWELVE CANNOT BE LIFTED AT ALL, and that is what makes "resolve all twelve" unachievable rather than merely hard. `_lane_reclaim_prompt` READS the module-level mutable `_LANE_PROMPT_DISABLED` that the PERMANENTLY-UNMOVABLE `disable_lane_prompt` WRITES through `global`; open backlog `8hx3g3` records this exact deadlock, names `reclaim_lanes_on_interrupt` as transitively blocked by it, and states the remedy is a DESIGN act (stop the flag being module-level mutable state) which `runner_shared`'s own docstring independently forbids the naive form of. Measured: `runner_shared` defines neither the flag nor the reader. `enforce_dependency_preflight` is the fourth: this plan's OWN conventions section quotes `rununify` 02 settling its fate as "KEEP, narrowed", so it is not drift, and its 0.28 similarity ratio contradicts the plan's own placement of it among "seven near-identical". THE SECOND BLOCKER IS E-02's DIRECTION: it asks for a guard that bans the runner-to-runner COUPLING, but 44 of the 53 imported names are DELIBERATE re-exports installed by three executed plans and pinned BY OBJECT IDENTITY in `tests/test_runner_item_dependencies.py::CrossDriverSymmetryTests`, whose whole purpose is that agy must BIND rather than copy them; a guard banning the coupling would demand this plan delete work `runnerlayer` 01/02 (both `approved`, unexecuted) exist to do properly. ALSO FOUND: the fence omitted SEVEN files the change must edit, including `test_resumedupe.py`, which REQUIRES the delegating-stub shape for exactly the three symbols E-03 lifts (proven by reading the assertion), and `test_orchestrator_probe_cache.py`, whose exact `53` import baseline E-03 necessarily moves; two `getsource` pins break on a lift; the suite baseline `7825 passed` matches neither measurement (7936 passed + 32 failed as a worker, 7968 passed with the role unset); `_record_forced_stop`'s only difference is a QUOTED type annotation, not a behavior difference; and `retry_deferred_integrations`'s `aw agy` token is in a DOCSTRING, so `HostLabels.command` is not what carries it. E-07 added, `Highest E allocated` 06 -> 07. OQ-04 and OQ-05 raised `Blocking: yes` carrying PR-001 and PR-002.
 - 2026-09-17 to-review (aw set): Authored 2026-09-17 from an AST measurement at HEAD (34 forked symbols / ~1752 oc lines across the two runners); complete enough to critique
@@ -97,10 +98,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: Reconcile the drift and express the real differences
 
-- [ ] E-04 Reconcile the drifted symbols E-01's CLOSURE SCAN cleared, and lift each to one definition. **NOT "the seven": the authored count is wrong in both directions and the correction is measured.** The Concern's near-identical list names SIX, not seven; the seventh slot was `enforce_dependency_preflight`, which is a settled exception at similarity 0.28 and belongs in E-07, not here. Of the remaining six, TWO are closure-blocked (`_lane_reclaim_prompt`, `reclaim_lanes_on_interrupt`; see E-07), so the realistic set is FOUR: `expand_selectors`, `reconcile_disposition`, `reconcile_interrupted`, `_add_output_mode_flags`. E-01's table decides membership, not this sentence. For every symbol lifted, DIFF the two bodies and state per difference whether it is drift (reconcile to the `oc` version per the maintainer's 2026-09-14 oc-preferred ruling) or a real behavior difference that must be preserved. A reconciliation that silently drops one host's behavior is the failure mode to avoid here.
-  **THREE DIFFERENCES ARE ALREADY KNOWN NOT TO BE DRIFT, and adopting the oc form for them REINTRODUCES A `KeyError` an executed plan deliberately avoided.** `reconcile_disposition` and `reconcile_interrupted` use agy's DEFENSIVE `item.get("configured_file", "")` where oc indexes `item["configured_file"]`, and `retry_deferred_integrations` passes `dict(item)` where oc passes `item`. `i3d6ml`'s F-5 and F-13 record the reason (a queue entry frozen by an OLDER driver version and then resumed lacks the key, and oc itself hedges 9 of its own 13 call sites with `.get`), so the oc-preferred ruling must NOT be applied blindly to these three: keep the defensive form and say why. NOTE `expand_selectors`'s only difference is `setid` vs `_setid` as an unused loop variable, and `_add_output_mode_flags`'s is help TEXT for `--raw`/`--verbose`, which is a user-visible string change on one host and must be disclosed as such, not absorbed.
+- [ ] E-04 Reconcile the drifted and previously split symbols (`expand_selectors`, `reconcile_disposition`, `reconcile_interrupted`, `_add_output_mode_flags`, `lane_reclaim_prompt`, `reclaim_lanes_on_interrupt`, `enforce_dependency_preflight`). Parameterize prompt suppression so prompt suppression functions correctly on interrupts without hanging. Lift each to one definition in `runner_shared`. In `runner_shared`, `lane_reclaim_prompt` and `reclaim_lanes_on_interrupt` accept `is_prompt_disabled` / `disable_prompt_fn` callbacks, while each runner's thin wrapper passes its own `is_prompt_disabled=lambda: _LANE_PROMPT_DISABLED` and `disable_prompt_fn=disable_lane_prompt`, leaving `disable_lane_prompt` and `_LANE_PROMPT_DISABLED` defined in both runners per `UnmovableSymbolTests` and `ThePinnedSymbolStayedPinned`. `enforce_dependency_preflight` moves to `runner_shared`, with both runners delegating to it. Keep the three defensive forms (`item.get('configured_file', '')` and `dict(item)`) per `i3d6ml`, and disclose the help-text changes.
   - Depends on: E-01
-  - Expected outcome: each cleared symbol with one definition, `oc.X is agy.X is runner_shared.X` (or the sanctioned wrapper form with the delegation asserted), and a per-symbol statement of what was reconciled away. State the COUNT and NAME every symbol E-01 held back. The three defensive-form differences preserved with the `i3d6ml` citation. Any `--raw`/`--verbose` help-text change disclosed as an operator-visible change.
+  - Expected outcome: each symbol with one definition in `runner_shared`, thin delegations in both runners where required, and a per-symbol statement of what was reconciled away. The three defensive-form differences preserved with the `i3d6ml` citation. Any `--raw`/`--verbose` help-text change disclosed as an operator-visible change.
   - Execution state: pending
 
 - [ ] E-05 Unify the two genuinely different symbols (`retry_deferred_integrations`, `_record_forced_stop`) through the EXISTING `HostLabels` descriptor where a label is what actually differs, adding a field only where an existing one cannot carry it. **BOTH AUTHORED PREMISES ARE FALSE AND THE WORK IS SMALLER THAN DESCRIBED; verified by normalizing both bodies with docstrings stripped.** `retry_deferred_integrations` differs in EXACTLY ONE executable line (`dict(item)` vs `item`); its `aw agy` token is in a DOCSTRING, not in code, so `HostLabels.command` is NOT what carries it and no descriptor field is needed - the host-varying merge-subject label already arrives through each host's own `integrate_lane_branch` wrapper, which the body receives by name. `_record_forced_stop` differs in EXACTLY ONE line too, and it is a QUOTED type annotation (`stop: runner_stop.StopNowForce` vs `stop: "runner_stop.StopNowForce"`), which is not a behavior difference at all. So the honest statement is that these two are near-identical bodies with per-host CALLEES (`integrate_lane_branch`, `git_status`, `save_state`), i.e. the `INJECTED` wrapper shape the maintainer already ruled on (`818uru` OQ-02), NOT a `HostLabels` case. Prefer that established shape; justify any new `HostLabels` field by naming its consumer, per the descriptor's own rule that a field without a named consumer is a parameter nobody reads, and do NOT invent a field to satisfy this plan's original wording.
@@ -116,14 +116,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - `tests/test_rununify_execute_item.py:52` -> `_record_forced_stop`, `reconcile_disposition`, `route_recovery_turn`
   - `tests/test_rununify_run_queue.py:58` -> `reclaim_lanes_on_interrupt`, `reconcile_interrupted`, `retry_deferred_integrations`
   - `tests/test_rununify_build_parser.py:95` -> `_add_output_mode_flags`
-  Move each LIFTED name to `THIN_WRAPPERS_OVER_RUNNER_SHARED` (or delete the row when the host holds no definition at all) with the reason recorded in the SAME change, per the maintainer's 2026-09-16 re-base-deliberately rule; leave every EXCLUDED name where it is. TWO FURTHER ASSERTIONS MUST MOVE WITH THIS ITEM: `tests/test_rununify_build_parser.py:373` asserts the two `_add_output_mode_flags` bodies still DIFFER (a lift makes that false by design), and `tests/test_orchestrator_probe_cache.py:1238` pins the oc-to-agy import count at EXACTLY `53`, which E-03 necessarily reduces; re-measure it and record the delta with the note that assertion's own message prescribes.
+  Move each LIFTED name to `THIN_WRAPPERS_OVER_RUNNER_SHARED` (or delete the row when the host holds no definition at all) with the reason recorded in the SAME change, per the maintainer's 2026-09-16 re-base-deliberately rule; with all 12 symbols lifted, `STILL_DOUBLE_DEFINED` tables in all four files are cleared of this plan's symbols. TWO FURTHER ASSERTIONS MUST MOVE WITH THIS ITEM: `tests/test_rununify_build_parser.py:373` asserts the two `_add_output_mode_flags` bodies still DIFFER (a lift makes that false by design), and `tests/test_orchestrator_probe_cache.py:1238` pins the oc-to-agy import count at EXACTLY `53`, which E-03 necessarily reduces; re-measure it and record the delta with the note that assertion's own message prescribes.
   - Depends on: E-03, E-05, E-07
   - Expected outcome: the new guard shown green AND shown to FAIL against an introduced re-fork; the four pin-table diffs with a per-entry reason; the `_add_output_mode_flags` differ-assertion re-based; the import baseline re-measured from 53 with the delta named symbol by symbol; and the excluded set asserted as still-forked so it cannot be silently finished.
   - Execution state: pending
 
-- [ ] E-07 NAME THE RESIDUE AS A DELIVERABLE RATHER THAN SILENTLY MISSING IT, and do not lift a closure-blocked symbol to hit a count. This item exists because the plan promised "all twelve" while three of them cannot be lifted without either breaking prompt suppression in an unattended run or reversing a settled ruling. For EACH symbol not resolved to one definition, record: the symbol, the blocker, the citation, and what would have to change first. The known three at review are `_lane_reclaim_prompt` and `reclaim_lanes_on_interrupt` (open backlog `8hx3g3`: `_LANE_PROMPT_DISABLED` is module-level MUTABLE state that the permanently-unmovable `disable_lane_prompt` writes; the remedy is a DESIGN change `runner_shared`'s own docstring forbids the naive form of) and `enforce_dependency_preflight` (`rununify` 02 SETTLED it as "KEEP, narrowed"; agy's body is a deliberate exception-translation guard, similarity 0.28). DO NOT attempt the `8hx3g3` design change here: it is an open backlog item about a live interrupt path, it has no approved design, and it is out of this fence. If E-01's closure scan clears one of them after all, say so with the measurement rather than assuming this list is complete.
-  - Depends on: E-01
-  - Expected outcome: a written residue table (symbol, blocker, citation, prerequisite) covering every one of the twelve not resolved to one definition, PLUS the explicit statement that the Set's "only the five large functions remain forked" criterion is NOT met by this plan and by how much, so the parent's E-01 cannot record a false result. Any newly discovered blocker filed as a backlog item rather than left in this plan's prose.
+- [ ] E-07 Verify prompt suppression without hanging and graduate backlog item `8hx3g3`. Verify that `runner_shared.lane_reclaim_prompt` and `runner_shared.reclaim_lanes_on_interrupt` properly suppress the prompt on repeated interrupts in both runners, without hanging on unattended runs. Verify that all 12 symbols resolve to single definitions in `runner_shared` with thin delegations where pinned, leaving zero unshared residue and meeting the parent Set's headline criterion (reducing the 34 forks down to the 5 large functions). Record the graduation of backlog item `8hx3g3` (`graduated`, not `done`).
+  - Depends on: E-04, E-05
+  - Expected outcome: prompt suppression verified on repeated interrupts in both runners with zero hanging; all 12 symbols verified unified into `runner_shared`; backlog item `8hx3g3` graduated with `- Status: graduated`.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -336,57 +336,18 @@ above stands unchanged for anything `25kzda` does address.
 ### OQ-04: Three of the twelve cannot be lifted. Exclude and record, or graduate `8hx3g3` first?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Finding: PR-001
-- Resolution or deferral rationale: RAISED AT REVIEW 2026-09-17 and BLOCKING, because the plan's stated
-  Scope ("Resolve all twelve to ONE definition") is not achievable and the two ways of proceeding differ in
-  what they cost. THE FACTS, measured: `_lane_reclaim_prompt` READS the module-level MUTABLE
-  `_LANE_PROMPT_DISABLED` that `disable_lane_prompt` WRITES through `global`; `disable_lane_prompt` is
-  PERMANENTLY unmovable, pinned by `tests/test_runner_shared.py::UnmovableSymbolTests` and documented twice
-  in `runner_shared` (`:106-107`, `:759-760`); `runner_shared` defines neither the flag nor the reader
-  (verified by `hasattr`); and `reclaim_lanes_on_interrupt` calls both, so it is transitively blocked. Open
-  backlog `8hx3g3` describes this EXACT deadlock, names both symbols as its scope, and states the remedy is
-  a DESIGN act (stop the flag being module-level mutable state), which `runner_shared`'s own "no
-  module-level mutable state" rule independently forbids the naive form of and for which the maintainer has
-  already DECLINED a registration seam. Separately, `enforce_dependency_preflight` is settled as "KEEP,
-  narrowed" at similarity 0.28.
-  THE TWO ROUTES. (a) EXCLUDE AND RECORD: execute this plan on the symbols the closure clears (realistically
-  4 drifted + 3 stubs + 2 one-line-different = 9 of 12), and make the residue a named deliverable (E-07).
-  Cost: the parent Set's criterion "the forked count has fallen from 34 to the five large functions alone"
-  is NOT met, and `a5wdne` E-01 must record that honestly rather than as a pass. (b) GRADUATE `8hx3g3`
-  FIRST as its own plan (it is an open, unassigned backlog item), then re-run this plan's E-04 over the two
-  freed symbols. Cost: one more plan and a design decision on a live interrupt path before any of this
-  Set's Order 02 work lands.
-  WHY I DID NOT DECIDE IT: choosing (b) reorders an approved Set and creates a plan; choosing (a) knowingly
-  leaves the parent's headline criterion unmet. Both are scope calls that belong to the maintainer. What I
-  DID do is make (a) safe to execute if chosen: E-07 turns the residue into a stated deliverable, E-06
-  asserts the exclusions in the inverse direction so nobody "finishes" them by counting definitions, and
-  the Goal names each blocker with its citation.
+- Resolution or deferral rationale: Resolved 2026-09-17 by maintainer decision. All 12 symbols move in this plan without leaving an unshared residue. `lane_reclaim_prompt` and `reclaim_lanes_on_interrupt` move to `runner_shared`, accepting an injected prompt suppression check (`is_prompt_disabled` / `disable_prompt_fn`). Both runners keep thin delegations passing `is_prompt_disabled=lambda: _LANE_PROMPT_DISABLED` and `disable_prompt_fn=disable_lane_prompt`. `_LANE_PROMPT_DISABLED` and `disable_lane_prompt` remain in each runner, fully satisfying `UnmovableSymbolTests` and `ThePinnedSymbolStayedPinned`. When `disable_lane_prompt()` is called on a repeated interrupt, the prompt immediately returns `None` without waiting; unattended and headless runs never prompt. `enforce_dependency_preflight` moves to `runner_shared` with thin delegations on both runners, now that `DriverError` is unified in `runner_shared`. All 12 symbols are unified, the parent Set headline criterion (34 forks down to 5) is achieved, and backlog item `8hx3g3` is graduated into this plan.
 
 ### OQ-05: Does this plan run before or after `runnerlayer` (`9kmbr0` + `1f7xno`), which owns the 53-name coupling?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Finding: PR-002
-- Resolution or deferral rationale: RAISED AT REVIEW 2026-09-17 and BLOCKING, because the two Sets edit the
-  same import block for the same reason under different authority and the plan declares no edge either way.
-  THE FACTS: backlog `cnwy8g` (`graduated`) is the record for "agy_runipd imports N names from oc_runipd, so
-  the hosts are not peers"; it graduated into `runnerlayer` Order 01 `9kmbr0` (classify all 47/48 against a
-  stated criterion and FREEZE the set so accretion fails a test) and Order 02 `1f7xno` (re-home the
-  host-neutral names in reviewable batches, preserving the `as <same-name>` form). BOTH are `Status:
-  approved`, `Readiness: go-pending-approval`, and unexecuted. This plan's E-02/E-03 as authored would
-  re-point "the remaining runner-to-runner imports", i.e. do `1f7xno`'s job with none of its guards, and its
-  fence declares neither `tests/test_runner_layering.py` nor `tests/test_runner_refork_guard.py` which
-  `1f7xno` uses to register a re-homed name.
-  THE ROUTES. (a) THIS PLAN FIRST, narrowed to its own 3 symbols (what the review has now written), and
-  `9kmbr0` re-measures the count afterwards: its own Concern already says "DERIVE THE COUNT BY AST AT
-  EXECUTION TIME and treat every number in this plan as prose", so a 53 -> 50 change costs it nothing.
-  (b) `runnerlayer` FIRST, after which this plan's three stubs may already be re-homed and E-03 shrinks or
-  vanishes. (c) DECLARE AN EXPLICIT `- Item-Dependencies:` edge in one direction so the runner enforces it.
-  I have written the plan for (a) and made the collision visible, but declaring a cross-Set dependency edge
-  changes another approved Set's queue position, which is not mine to do.
+- Resolution or deferral rationale: Resolved 2026-09-17 by maintainer decision: Route (a) chosen. This plan executes first, removing its own 3 symbol-level stub imports (`classify_recovery_disposition`, `build_verify_and_continue_notice`, `route_recovery_turn`) and tightening the import ratchet. `runnerlayer` (`9kmbr0`) re-derives its baseline count dynamically by AST at execution time as its own plan specifies (53 -> 50), avoiding cross-Set dependency blocks.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -465,14 +426,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-07 validates E-07
-  - Required evidence: the residue table pasted, with a row for EVERY one of the twelve not resolved to one
-    definition, each carrying its blocker, its in-tree citation, and the prerequisite that would unblock it.
-    The rows for `_lane_reclaim_prompt` / `reclaim_lanes_on_interrupt` must cite backlog `8hx3g3` and the
-    `UnmovableSymbolTests` pin; the row for `enforce_dependency_preflight` must cite the "SETTLED / KEEP,
-    narrowed" ruling. PLUS the explicit sentence stating that the parent Set's criterion "the forked-symbol
-    count has fallen from 34 to the five large functions alone" is NOT met by this plan, and the residual
-    count. An empty residue table is acceptable ONLY if E-01's closure scan measured every blocker cleared,
-    with that measurement pasted; it is NOT acceptable as an assumption.
+  - Required evidence: verification that prompt suppression works on repeated interrupts without hanging in both runners; `test_lane_allocation_idempotent.py` green on both hosts; `UnmovableSymbolTests` green; evidence that all 12 symbols resolve to single definitions in `runner_shared` with thin delegations where pinned, leaving zero unshared residue and satisfying the parent Set's headline criterion (34 forks down to the 5 large functions); and backlog item `8hx3g3` updated to `graduated`.
   - Observed evidence:
   - Result: pending
 
@@ -485,23 +439,13 @@ This plan requires explicit human approval before execution. Unlike Order 01 it 
 and E-05 reconcile real differences, so the executor must state per symbol what was reconciled and must
 stop rather than choose a winner where a difference looks like shipped behavior.
 
-**DO NOT EXECUTE UNTIL OQ-04 AND OQ-05 ARE ANSWERED.** OQ-04 is the scope call the plan cannot make for
-itself: three of its twelve symbols are unliftable (two on open backlog `8hx3g3`, one on a settled ruling),
-so either the plan lands with a named residue and the parent Set's headline criterion goes unmet, or
-`8hx3g3` is graduated first. OQ-05 is the cross-Set collision: `runnerlayer` `9kmbr0` and `1f7xno` are
-`approved` and own the 53-name oc-to-agy coupling that E-02/E-03 touch, and no dependency edge is declared
-in either direction. Both are `Blocking: yes` and neither is an executor's judgement.
-
-EXECUTION CONTRACT. OQ-01, OQ-02 and OQ-03 are RESOLVED; execute their recorded answers and do not
+EXECUTION CONTRACT. All open questions (OQ-01 through OQ-05) are RESOLVED; execute their recorded answers and do not
 re-litigate them. Specifically: E-02 is a NAMED RATCHET over this plan's own symbols, NOT a blanket ban, and
-a guard that fires on the 44 pinned `as <same-name>` re-exports is mis-scoped, not strict. THE ONE THING
-THIS PLAN MUST NOT DO, stated because it is the shortest path to a count of twelve: do NOT lift
-`_lane_reclaim_prompt` or `reclaim_lanes_on_interrupt`. Doing so silently breaks prompt suppression on a
-repeated interrupt, whose only symptom is an unattended run pausing for a question nobody is there to
-answer, and it reverses a decision pinned in three places. A named exclusion is correct; a lift that hits
-the count is not. Equally, do NOT delete a `STILL_DOUBLE_DEFINED` row or a `getsource` pin to make a suite
-green: re-base it deliberately in the same change with the reason recorded, per the maintainer's 2026-09-16
-ruling.
+a guard that fires on the 44 pinned `as <same-name>` re-exports is mis-scoped, not strict. All 12 symbols
+move to `runner_shared`, parameterizing prompt suppression so prompt suppression on repeated interrupts
+functions correctly without hanging while preserving `disable_lane_prompt` and `_LANE_PROMPT_DISABLED` in
+each runner per `UnmovableSymbolTests`. Backlog `8hx3g3` is graduated. Re-base `STILL_DOUBLE_DEFINED` pin
+tables deliberately in the same change with the reasons recorded, per the maintainer's 2026-09-16 ruling.
 
 SCOPE FENCE: this plan declares thirteen paths; an out-of-scope edit must be MADE if genuinely required and
 then JUSTIFIED to `aw ipd finalize` with a `--scope-reason` per path, and a declared-but-unmodified path
