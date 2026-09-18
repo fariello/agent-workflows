@@ -70,6 +70,9 @@ C_EXEC_ATTRIBUTION = (
 C_READINESS_UNATTESTED = (
     "IPD-M107"  # `- Readiness:` present with no review verdict behind it (rdattest)
 )
+C_GATE_HAND_ROLLED_MOVE = (
+    "IPD-M108"  # gate prescribes hand-rolled terminal lifecycle move (dcri4s)
+)
 C_OQ = "IPD-Q501"
 C_SIZE = "IPD-Z601"
 C_SIZE_DENSITY = "IPD-Z602"
@@ -165,6 +168,7 @@ class ParsedDoc(NamedTuple):
     open_questions: List[Dict[str, str]]
     size_assessment: Optional[str]
     history_lines: List[Tuple[int, str]]
+    gate_lines: List[Tuple[int, str]] = []
 
 
 _FENCE_RE = re.compile(r"^(\s*)(```|~~~)")
@@ -276,6 +280,7 @@ def parse(text: str) -> ParsedDoc:
     open_questions: List[Dict[str, str]] = []
     size_assessment: Optional[str] = None
     history_lines: List[Tuple[int, str]] = []
+    gate_lines: List[Tuple[int, str]] = []
 
     current_h2 = ""
     current_leaf: Optional[Leaf] = None
@@ -382,6 +387,17 @@ def parse(text: str) -> ParsedDoc:
     _flush_leaf()
     _flush_oq()
 
+    lines = text.splitlines()
+    gate_h2_idx = next(
+        (i for i, h in enumerate(h2) if h.title == S.H_APPROVAL_GATE), None
+    )
+    if gate_h2_idx is not None:
+        start_line = h2[gate_h2_idx].line
+        end_line = (
+            h2[gate_h2_idx + 1].line - 1 if gate_h2_idx + 1 < len(h2) else len(lines)
+        )
+        gate_lines = [(lno, lines[lno - 1]) for lno in range(start_line, end_line + 1)]
+
     return ParsedDoc(
         title=title,
         meta_fields=meta_fields,
@@ -393,6 +409,7 @@ def parse(text: str) -> ParsedDoc:
         open_questions=open_questions,
         size_assessment=size_assessment,
         history_lines=history_lines,
+        gate_lines=gate_lines,
     )
 
 
@@ -610,6 +627,42 @@ def check_states(doc: ParsedDoc) -> List[Diagnostic]:
                     Diagnostic(lf.line, 1, C_CROSS_STATE, f"{lf.ident}: {cerr}")
                 )
     return diags
+
+
+def check_gate_contract(doc: ParsedDoc) -> List[Diagnostic]:
+    """Refuse a plan whose gate prescribes a hand-rolled terminal move (Order dcri4s E-05)."""
+    if not doc.gate_lines:
+        return []
+    gate_text = "\n".join(raw for _, raw in doc.gate_lines)
+    if "aw ipd finalize" in gate_text:
+        return []
+    pattern = r"\bgit\s+mv\b.*?(?:executed/|terminal\s+directory|status:\s*executed)"
+    m = re.search(pattern, gate_text, re.IGNORECASE | re.DOTALL)
+    if m:
+        start_pos = m.start()
+        prefix = gate_text[max(0, start_pos - 40) : start_pos].strip()
+        if re.search(
+            r"\b(?:never(?:\s+with(?:\s+a(?:\s+raw)?)?)?|not|in no case may you)\s*`?$",
+            prefix,
+            re.IGNORECASE,
+        ):
+            return []
+        line_num = doc.gate_lines[0][0]
+        for lno, raw in doc.gate_lines:
+            if re.search(r"\bgit\s+mv\b", raw):
+                line_num = lno
+                break
+        return [
+            Diagnostic(
+                line_num,
+                1,
+                C_GATE_HAND_ROLLED_MOVE,
+                "approval gate must not prescribe a hand-rolled terminal move "
+                "(`git mv` to `executed/`); run the transition via `aw ipd finalize` "
+                "(or report results and let the runner finalize in a managed lane)",
+            )
+        ]
+    return []
 
 
 def check_open_questions(doc: ParsedDoc) -> List[Diagnostic]:
@@ -1076,6 +1129,7 @@ def lint_text(
     diags += check_headings(doc)
     diags += check_ids_and_bijection(doc)
     diags += check_states(doc)
+    diags += check_gate_contract(doc)
     diags += check_open_questions(doc)
     diags += check_size(doc)
     diags += check_checkpoint(doc, checkpoint, directory)

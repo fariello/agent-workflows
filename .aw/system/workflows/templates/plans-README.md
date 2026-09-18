@@ -74,8 +74,20 @@ safe to hand to any agent from its path alone:
    runner output; never claim success you did not run.
 4. Commit ONLY the plan's own changed files, path-scoped; never `git add -A`/bare/`-a`;
    never push.
-5. The lifecycle move on completion (`git mv` to the terminal directory, set `Status:`,
-   append a `## Workflow history` line).
+5. The lifecycle transition on completion: the plan reaches `executed` ONLY through the gated
+   finalize transaction, which performs the attributed history entry, the terminal `Status:`,
+   the move, and the path-scoped lifecycle commit as one transaction; a hand-built `git mv`
+   plus a `Status:` edit is NEVER a valid terminal transition, because it satisfies neither
+   `IPD-S406` (non-generic actor plus nonempty summary) nor `IPD-M104` (`Approval:` cleared).
+   Who runs it depends on how the plan is executed:
+   - In a managed lane (`AW_EXECUTION_ROLE=worker`): the transition is the runner's; the executor
+     must not run `aw ipd finalize`, but reports its result and stops.
+   - Otherwise (executing by hand, or under `--no-self-finalize`): the executor runs
+     `aw ipd finalize --actor '<agent/model>' --message '<summary>' --apply` itself.
+   - If unsure which case applies, attempt finalize: an `AW-LIFECYCLE-ROLE-001` refusal is the
+     expected, successful handoff, not a failure.
+   Note that `git mv` remains correct ONLY for retirement to `superseded/` or `not-executed/`,
+   which finalize deliberately does not perform.
 
 This restates, at the plan level, the standing `AGENT-WORKFLOWS` execution contract (see the
 managed block in `AGENTS.md` and `CONTRIBUTING.md`); `/plan-review` and `/plan-review-long`

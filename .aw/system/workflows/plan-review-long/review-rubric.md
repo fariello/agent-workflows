@@ -16,7 +16,8 @@ Verify:
 - rollout, rollback, recovery, and follow-up ownership;
 - an execution contract in the gate: resolved open questions, a scope fence, the hard-MUST
   honesty rule (paste the actual runner output), path-scoped commit and never-push, and the
-  lifecycle move.
+  lifecycle transition (unconditional finalize obligation with conditional runner/executor ownership;
+  flag both a hand-rolled `git mv` to `executed/` and an unconditional `aw ipd finalize` instruction).
 
 SCOPE-FENCE WORDING (2026-09-01 maintainer ruling; kept in deliberate parity with the single-file
 variant). A fence is a DECLARATION so the runner can tell afterwards whether an out-of-scope file was
