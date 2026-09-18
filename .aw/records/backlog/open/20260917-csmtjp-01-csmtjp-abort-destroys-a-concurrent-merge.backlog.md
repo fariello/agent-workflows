@@ -1,11 +1,12 @@
 - Id: csmtjp
 - Status: open
+- Priority: medium
 - Set: csmtjp
-- Priority: high
 - Work-Kind: bug
 - Summary: A driver's merge-conflict path runs git merge --abort on the shared checkout, which destroys an unrelated in-progress merge it did not start
 
 ## Workflow history
+- 2026-09-18 open (aw set): Priority medium per maintainer 2026-09-17: the frequency claim in the original filing was wrong (the driver never stages a merge, so the measured trigger required a human's hand-staged git merge --no-commit). The latent correctness bug stands: merge_in_progress answers 'is ANY merge in progress' while used as 'did MY merge start', and run_lock is per-run so two drivers are not serialized against each other.
 - 2026-09-17 created (aw backlog): A driver's merge-conflict path runs git merge --abort on the shared checkout, which destroys an unrelated in-progress merge it did not start
 
 ## Observed
@@ -61,10 +62,10 @@ WHAT SURVIVES, and why the item is still worth keeping open:
   agents in one checkout; a tool that responds to a foreign merge by destroying it is the wrong default
   whoever created it.
 
-SO THE PRIORITY IS ARGUABLY MEDIUM, NOT HIGH, and the summary should say "can destroy" rather than
-implying a routine driver-vs-driver collision. Left at high pending a maintainer read, because the
-destructive-action-on-unowned-state property is what makes it unpleasant rather than the frequency. The
-verification below stands as measured; only the FREQUENCY claim was wrong.
+PRIORITY SET TO MEDIUM by the maintainer 2026-09-17, on this correction. The
+destructive-action-on-unowned-state property is what makes it unpleasant, but the frequency is low: the
+realistic trigger is a human's hand-staged merge, not routine driver traffic. The verification below
+stands as measured; only the FREQUENCY claim was wrong.
 
 ## Root cause
 
@@ -90,7 +91,7 @@ the pre-existing merge is a THIRD PARTY's, and the code reaches for the structur
 avoid parsing git's localizable English, so the one signal that would have disambiguated was
 deliberately not read.
 
-## Why high
+## Why it is worth fixing despite the low frequency
 
 1. It is a DESTRUCTIVE action on state the caller does not own, which the repository's own contract
    forbids agents from doing by hand ("never revert, stage, commit, discard, or clean up another
