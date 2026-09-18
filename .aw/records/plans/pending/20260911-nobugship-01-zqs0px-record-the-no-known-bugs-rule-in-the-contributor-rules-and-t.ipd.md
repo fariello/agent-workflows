@@ -35,7 +35,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish where the rule belongs
 
-- [ ] E-01 RE-CONFIRM THE OWNING DOCUMENT AND THE MANAGED-BLOCK BOUNDARY, then write in `AGENTS.md` directly. The answer is settled and must be re-proved rather than trusted: the `## Release gates (Blocks-Release)` section is HAND-MAINTAINED and sits OUTSIDE the managed block. Re-prove it with these three commands and paste them, because acting on the wrong answer is the single most damaging mistake available in this plan:
+- [x] E-01 RE-CONFIRM THE OWNING DOCUMENT AND THE MANAGED-BLOCK BOUNDARY, then write in `AGENTS.md` directly. The answer is settled and must be re-proved rather than trusted: the `## Release gates (Blocks-Release)` section is HAND-MAINTAINED and sits OUTSIDE the managed block. Re-prove it with these three commands and paste them, because acting on the wrong answer is the single most damaging mistake available in this plan:
   (a) `grep -n "aw:block\|^## Release gates" AGENTS.md` must show the section BELOW the `<!-- /aw:block -->` line (measured at review: block closes at 108, section opens at 125).
   (b) `grep -c "Release gates\|first-class record under" agent_workflows/engine.py` must return `0`, proving no generator carries this prose.
   (c) drive the installer's own merge and confirm the section SURVIVES: `python3 -c "from agent_workflows import engine; cur=open('AGENTS.md',encoding='utf-8').read(); new,act=engine.merge_aw_block(cur, engine.agents_managed_sections(target_layout='aw')); print(act, '## Release gates (Blocks-Release)' in new)"` printed `refreshed True` at review.
@@ -44,9 +44,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ALSO VERIFY NO SPEC ALREADY OWNS RELEASE-GATE POLICY. Review found spec `20260818-1525-03-release-record-and-blocker-gate` (`Status: implemented`), which owns the MECHANISM (the record shape, the field grammar, the setter, the dangling check) and whose R6 explicitly delegates the DOCUMENTATION of the model to `AGENTS.md`. It says nothing about WHICH items must carry the field, so it does not own this policy and the contributor rules are the right home. Re-run the search, cite what you find, and if a spec HAS since taken the policy, point at it instead of duplicating.
   - Depends on: none
   - Expected outcome: all three boundary commands pasted and agreeing that the section is hand-maintained, plus the spec-ownership search with its verdict; the edit target confirmed as `AGENTS.md` itself.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 WRITE THE RULE INTO THE EXISTING `## Release gates (Blocks-Release)` SECTION OF `AGENTS.md`, and keep it to the smallest wording that carries the policy and its two limits. It must say: a backlog item, spec or plan whose `- Work-Kind:` is `bug` MUST carry `- Blocks-Release:` while it is live (`open`, `blocked` or `graduated`), because known bugs do not ship; and the gate travels to whatever plan or spec the item graduates into, which is an obligation the existing graduation paragraph already states for a gate that exists and must now apply to one that is implied.
+- [x] E-02 WRITE THE RULE INTO THE EXISTING `## Release gates (Blocks-Release)` SECTION OF `AGENTS.md`, and keep it to the smallest wording that carries the policy and its two limits. It must say: a backlog item, spec or plan whose `- Work-Kind:` is `bug` MUST carry `- Blocks-Release:` while it is live (`open`, `blocked` or `graduated`), because known bugs do not ship; and the gate travels to whatever plan or spec the item graduates into, which is an obligation the existing graduation paragraph already states for a gate that exists and must now apply to one that is implied.
   DO NOT EDIT `agent_workflows/engine.py`, AND DO NOT REGENERATE `AGENTS.md`. E-01 proves the target section is hand-maintained and outside the managed block, so a direct edit is correct and survives every install. The generator is deliberately absent from `- Scope-Paths:`; adding the rule there would install this repository's own policy into every adopter's contract, which is exactly the wrong blast radius for a repo-local decision.
   PLACE IT WHERE IT WILL BE READ, not merely where it fits: append it as a short paragraph inside the existing section, near the `Blocks-Release` versus `Blocked-By` contrast, and do NOT disturb that contrast (the orchestrator's spec-sync section names preserving it as a constraint). Cross-reference `- Work-Kind:` as the backlog README already defines it rather than restating the enum.
   THE GRADUATION HALF IS A POINTER, NOT A SECOND COPY. The managed block already says a graduating plan "inherits the item's `- Blocks-Release:` if it has one" (`engine.py:1187`, rendered at `AGENTS.md:38`). Say that this policy makes the gate exist so that clause has something to inherit, and reference the clause rather than restating it (P8: one canonical place per rule).
@@ -58,28 +58,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT WRITE THE RULE AS AN ABSOLUTE. The maintainer's standing instruction is recorded verbatim in plan `u06zo2` OQ-04 (2026-09-10, via `/askme`): "I would like you to stop speaking in absolutes. We enforce these things until such a time as we receive evidence that the rules need relaxing or changing." Its operative constraint there was to state the requirement WITHOUT the words "never", "no override possible", "permanent", or "in perpetuity", and without a clause forbidding a future maintainer from revisiting it. Apply the same test here. NOTE the scope is the RULE TEXT you author, not the surrounding file: `AGENTS.md` already contains 16 legitimate uses of "never" in other rules, so a repository-wide grep for the word is the WRONG check and would fail on prose you did not write. Grep the paragraph you added.
   - Depends on: E-01
   - Expected outcome: the rule stated inside the existing `AGENTS.md` release-gates section with both limits and the perceptibility test, no `engine.py` edit, and the `Blocks-Release` versus `Blocked-By` contrast left intact.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: record it as a decision and prove the file agrees with its generator
 
-- [ ] E-03 ADD A NUMBERED `DECISIONS.md` ENTRY, since this shapes the repository beyond one artifact and constrains every future bug filing. Record WHAT was decided, WHO decided it (the maintainer, 2026-09-11), the reasoning in their own framing ("We don't ship known bugs"), and the MEASUREMENT that motivated writing it down: 28 of 60 live bug items were ungated, two of them filed by an agent hours after being told the rule in the same session.
+- [x] E-03 ADD A NUMBERED `DECISIONS.md` ENTRY, since this shapes the repository beyond one artifact and constrains every future bug filing. Record WHAT was decided, WHO decided it (the maintainer, 2026-09-11), the reasoning in their own framing ("We don't ship known bugs"), and the MEASUREMENT that motivated writing it down: 28 of 60 live bug items were ungated, two of them filed by an agent hours after being told the rule in the same session.
   CHECK THE HIGHEST D-NUMBER AT WRITE TIME, do not reuse this plan's. Measured D153 at authoring and STILL D153 at review (HEAD `839c1ff8`), but other agents append concurrently, so re-derive it immediately before writing and paste the command.
   MATCH THE SECTION SHAPE THE FILE ALREADY USES rather than inventing one: the existing entries carry a `### D<n>. <title>` heading followed by bolded `- **Context:**`, `- **Decision:**`, `- **Rejected:**` (where something was), `- **Status:**` and `- **Applied:**` bullets. Read D153 as the immediate model. Also RECORD WHAT WAS REJECTED, because this decision has a real alternative: leaving `bug` to mean only a wrong ANSWER, which the maintainer explicitly declined on 2026-09-12 when they reclassified `59t9x5`.
   RECORD THE SECOND RULING, NOT ONLY THE FIRST. The entry covers two maintainer acts: 2026-09-11 ("We don't ship known bugs"), and 2026-09-12 (inefficiency is a defect when a user can notice it, not when they cannot). Both are load-bearing, and the second is what decides whether a performance item is a release blocker at all.
   - Depends on: E-02
   - Expected outcome: a `DECISIONS.md` entry at the next free number, in the file's existing bullet shape, carrying both rulings, the rejected reading, the author and date of each, and the motivating measurement; with the freshly derived highest-D command pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 PROVE THE MANAGED BLOCK STILL MATCHES ITS GENERATOR, which is what catches an edit that strayed into managed territory. The assertion already ships: `tests/test_shared_checkout_contract.py::NoDriftTests::test_repo_agents_block_equals_generated` (`:132`) compares this repo's `<!-- aw:block -->` region against `engine.agents_managed_block`. RUN IT rather than writing a new one, and run its sibling `test_contract_is_not_duplicated_inside_and_outside_the_block` (`:139`) too, which is the P8 guard against restating managed prose below the block.
+- [x] E-04 PROVE THE MANAGED BLOCK STILL MATCHES ITS GENERATOR, which is what catches an edit that strayed into managed territory. The assertion already ships: `tests/test_shared_checkout_contract.py::NoDriftTests::test_repo_agents_block_equals_generated` (`:132`) compares this repo's `<!-- aw:block -->` region against `engine.agents_managed_block`. RUN IT rather than writing a new one, and run its sibling `test_contract_is_not_duplicated_inside_and_outside_the_block` (`:139`) too, which is the P8 guard against restating managed prose below the block.
   BOTH MUST PASS UNCHANGED, and that is the POINT rather than a weak result: your edit is outside the managed block, so parity is expected to hold both before and after. This is the inverse of the original instruction, which asked for a nonempty regeneration diff; that expectation followed from the false generation premise E-01 corrects, and a nonempty managed-block diff here would now mean the edit landed in the WRONG place.
   - Depends on: E-03
   - Expected outcome: both named assertions run and passing after the edit, with the actual pytest output pasted, proving the managed block was not disturbed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE THE RULE SURVIVES AN INSTALL, which is the durability claim this plan actually makes and which no other item tests. Drive the installer's own merge over the edited `AGENTS.md` and show your new paragraph is still present afterwards, using the same one-liner as E-01(c) but asserting on the RULE TEXT rather than on the section heading. A rule that a regeneration would erase is not recorded, which is the exact failure this Set exists to end.
+- [x] E-05 PROVE THE RULE SURVIVES AN INSTALL, which is the durability claim this plan actually makes and which no other item tests. Drive the installer's own merge over the edited `AGENTS.md` and show your new paragraph is still present afterwards, using the same one-liner as E-01(c) but asserting on the RULE TEXT rather than on the section heading. A rule that a regeneration would erase is not recorded, which is the exact failure this Set exists to end.
   - Depends on: E-04
   - Expected outcome: the merge driven post-edit, printing the action and `True` for the new rule paragraph's presence.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -157,30 +157,143 @@ No `.spec.md` file is in `- Scope-Paths:`, which is deliberate: nothing here cha
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste ALL THREE boundary commands from E-01 with their output: the `grep -n "aw:block\|^## Release gates" AGENTS.md` showing the section BELOW the closing marker; the `grep -c` over `engine.py` returning `0`; and the driven `merge_aw_block` printing its action plus `True`. State the verdict in one line: the section is hand-maintained and the edit target is `AGENTS.md`. If any command disagrees with review's finding, paste it and report the STOP rather than proceeding. Then paste the search over `.aw/records/specs/` for release-gate normative text with its verdict against OQ-01's recorded resolution.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERDICT: the section is HAND-MAINTAINED and the edit target is `AGENTS.md` itself; all three boundary commands AGREE with review, so no STOP condition arose.
+    (a) `grep -n "aw:block\|^## Release gates" AGENTS.md` (run BEFORE any edit):
+    ```
+    3:<!-- aw:block -->
+    108:<!-- /aw:block -->
+    125:## Release gates (Blocks-Release)
+    188:deliberately BELOW the `<!-- /aw:block -->` marker, outside every managed block, because it names
+    ```
+    The section opens at 125, the managed block closes at 108, so the section is BELOW the closing marker exactly as review measured.
+    (b) `grep -c "Release gates\|first-class record under" agent_workflows/engine.py` -> `0` (exit 1, grep's no-match exit). No generator carries this prose.
+    (c) driven merge, pre-edit: `python3 -c "from agent_workflows import engine; cur=open('AGENTS.md',encoding='utf-8').read(); new,act=engine.merge_aw_block(cur, engine.agents_managed_sections(target_layout='aw')); print(act, '## Release gates (Blocks-Release)' in new)"` printed:
+    ```
+    refreshed True
+    ```
+    SPEC-OWNERSHIP SEARCH, re-run as instructed. `grep -rln "Blocks-Release" .aw/records/specs/` returns 10 specs; only `20260818-1525-03-release-record-and-blocker-gate.spec.md` carries release-gate NORMATIVE text (`- Status: implemented`), and its R6 reads "Document the concept (BLOCKS-RELEASE vs BLOCKED-BY) in AGENTS.md so agents capture blockers consistently and in ONE place (on the item)" with AC5 "AGENTS.md documents the model". So the spec DELEGATES this documentation to `AGENTS.md`. `grep -rn "Work-Kind" .aw/records/specs/` returns 3 hits, all of them a spec's own `- Work-Kind: feature` bullet and none normative, so NO spec states which items must carry the gate. VERDICT MATCHES OQ-01's recorded resolution: no spec has since taken the policy; the contributor rules are the right home.
+    Also confirmed the rule was genuinely unwritten before this edit: `grep -rn "don't ship known bugs\|no known bugs\|every bug blocks\|known bugs do not ship" AGENTS.md DECISIONS.md GUIDING_PRINCIPLES.md .aw/records/backlog/README.md CONTRIBUTING.md RELEASING.md` returned NOTHING (exit 1), reproducing F-1 at HEAD `70a2059f`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the `AGENTS.md` diff, showing the rule, BOTH stated limits (author-classification leak, live-items-only), AND the inefficiency ruling of 2026-09-12 with its USER-PERCEPTIBILITY test and `59t9x5` as the worked example. Quote the sentence establishing that redundancy is EVIDENCE rather than the test itself, and the sentence saying an unmeasured hunch is not a bug. Confirm the wording does NOT contain a numeric threshold, per OQ-02; if a reader could apply the rule without measuring anything, the wording has failed. Paste a grep over THE ADDED PARAGRAPH ONLY proving it contains none of `never`, `no exception`, `permanent`, `in perpetuity` (a whole-file grep is the wrong check: `AGENTS.md` legitimately uses `never` 16 times in prose you did not write). Paste `git diff --stat -- AGENTS.md`. Finally paste `git status --porcelain -- agent_workflows/engine.py` proving it is UNMODIFIED.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff -- AGENTS.md` (41 insertions, 0 deletions; the `Blocks-Release` vs `Blocked-By` contrast at lines 136-140 is UNTOUCHED, the diff is a pure insertion between that contrast's closing paragraph and the `### Acting on a backlog item` heading):
+    ```diff
+    --- a/AGENTS.md
+    +++ b/AGENTS.md
+    @@ -142,6 +142,47 @@ Capture a release blocker in ONE place: the `Blocks-Release` field on the item (n
+     flags a `Blocks-Release` value that resolves to no release record, and `aw attention` surfaces the
+     outstanding release-blocker set for the active release.
 
-- [ ] V-03 validates E-03
+    +### Every live bug gates the next release
+    +
+    +We do not ship known bugs. So a backlog item, spec, or plan whose `- Work-Kind:` is `bug` (the enum is
+    +defined once, in `.aw/records/backlog/README.md`) MUST carry `- Blocks-Release:` while it is LIVE, meaning
+    +`open`, `blocked`, or `graduated`. This is a policy about WHICH artifacts must carry the field, not a change
+    +to what the field means, so the BLOCKS-RELEASE versus BLOCKED-BY distinction above is untouched: a bug that
+    +is merely `open` is still a release blocker. Maintainer ruling, 2026-09-11. `bug` is the only gating
+    +work-kind today; making that set configurable per repository, defaulting to `bug` alone, is designed but NOT
+    +yet built (backlog `0htqmm`), so do not look for a config key to widen it.
+    +
+    +The gate TRAVELS with the work rather than being re-decided at each handoff. The managed block above
+    +already obliges a graduating plan or spec to inherit the item's `- Blocks-Release:` "if it has one"; this
+    +rule is what makes the gate EXIST so there is something to inherit, and that clause remains the single
+    +statement of the inheritance obligation.
+    +
+    +INEFFICIENCY A USER CAN NOTICE IS A DEFECT, and the test is USER-PERCEPTIBLE IMPACT (maintainer ruling,
+    +2026-09-12). `bug` is therefore not limited to a wrong answer: a correct-but-slow path a human waits on
+    +qualifies. It is equally not extended to every wasteful code path, because inefficiency users cannot notice
+    +is not a defect. Provable redundancy is EVIDENCE of inefficiency and is not itself the test: doubling a 2ms
+    +internal call is redundant and imperceptible, so it is a `chore`, while a path with no redundancy at all can
+    +be a bug if a user waits on it. Measure the END-TO-END command a user actually runs, warm and cold, rather
+    +than timing an internal function in isolation, where a single call can read many times its real cost because
+    +nothing else has warmed the page cache.
+    +
+    +The worked example qualifies on its MEASUREMENT, not on its redundancy. Backlog `59t9x5`: `aw find` opens
+    +every record twice (1240 opens where the resolver needs 620). What earns it `bug` is that the redundant read
+    +costs about 128ms of a roughly 530ms command an operator waits on, leaving about 402ms once removed, which is
+    +a difference a human notices. It was filed `chore` on the reasoning that the output was correct, and the
+    +maintainer reclassified it. Had the same double read cost 3ms, `chore` would have been right. No numeric
+    +cutoff is set here: "noticeable" is a judgement the filer makes and RECORDS with the number supporting it, so
+    +a reviewer can dispute the number rather than a vibe. An unmeasured hunch that something feels slow is not a
+    +bug and should not be filed as one.
+    +
+    +Two limits, stated plainly so the rule is not trusted further than it holds. FIRST, the gate keys on an
+    +AUTHOR'S CLASSIFICATION, so a genuine defect filed as `chore` or `followup` escapes it; the rule is a strict
+    +improvement over nothing and it is not a completeness claim. The perceptibility test makes this limit bite in
+    +BOTH directions: a user-visible performance defect is easy to under-file as `chore` (which `59t9x5`
+    +measurably was), and an invisible one is now easy to over-file as `bug`. Both are misfilings. SECOND, the
+    +rule governs LIVE items only. A bug already `done` is not retroactively gated, because writing a gate onto it
+    +now would assert a history that did not happen.
+    +
+     ### Acting on a backlog item (graduate / implement / execute)
+    ```
+    BOTH LIMITS PRESENT: the author-classification leak ("the gate keys on an AUTHOR'S CLASSIFICATION, so a genuine defect filed as `chore` or `followup` escapes it") and live-items-only ("the rule governs LIVE items only. A bug already `done` is not retroactively gated").
+    THE 2026-09-12 INEFFICIENCY RULING PRESENT with its perceptibility test ("INEFFICIENCY A USER CAN NOTICE IS A DEFECT, and the test is USER-PERCEPTIBLE IMPACT (maintainer ruling, 2026-09-12)") and `59t9x5` as the worked example.
+    REDUNDANCY-IS-EVIDENCE SENTENCE, quoted as required: "Provable redundancy is EVIDENCE of inefficiency and is not itself the test: doubling a 2ms internal call is redundant and imperceptible, so it is a `chore`, while a path with no redundancy at all can be a bug if a user waits on it."
+    UNMEASURED-HUNCH SENTENCE, quoted as required: "An unmeasured hunch that something feels slow is not a bug and should not be filed as one."
+    NO NUMERIC THRESHOLD (OQ-02): the text states "No numeric cutoff is set here". The two numbers that appear (2ms, and `59t9x5`'s 128ms/530ms/402ms) are an ILLUSTRATIVE contrast and a cited historical measurement, not a rule a reader could apply without measuring. A reader CANNOT apply this rule without measuring: it demands "Measure the END-TO-END command a user actually runs, warm and cold".
+    ABSOLUTES GREP OVER THE ADDED PARAGRAPH ONLY (a whole-file grep is the wrong check; `AGENTS.md` legitimately uses `never` elsewhere in prose not authored here). Slicing the file between the new heading and the next one and counting:
+    ```
+    === added block length: 3377 chars
+    'never': 0
+    'no exception': 0
+    'permanent': 0
+    'in perpetuity': 0
+    'no override': 0
+    ```
+    `git diff --stat -- AGENTS.md`:
+    ```
+     AGENTS.md | 41 +++++++++++++++++++++++++++++++++++++++++
+     1 file changed, 41 insertions(+)
+    ```
+    `git status --porcelain -- agent_workflows/engine.py` printed NOTHING (exit 0), proving the generator is UNMODIFIED.
+    ALSO (declared path, P8 pointer not a copy): `.aw/records/backlog/README.md` gained a 5-line pointer beside the `- Work-Kind:` definition, where a filer chooses the kind, directing the reader to the `AGENTS.md` rule rather than restating it. So no `--scope-ack` is needed for that path.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the new `DECISIONS.md` entry verbatim, and paste the command showing the highest D-number IMMEDIATELY BEFORE the write, proving no collision with a concurrently-appended entry. Confirm by inspection that the entry carries BOTH rulings (2026-09-11 and 2026-09-12), the rejected reading, and the file's existing bullet shape.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: HIGHEST D-NUMBER RE-DERIVED IMMEDIATELY BEFORE THE WRITE (not taken from the plan): `grep -o "^### D[0-9]*" DECISIONS.md | sed 's/### D//' | sort -n | tail -1` -> `153`. So the new entry is **D154** and collides with no concurrently-appended entry; re-checked after the write, `grep -n "^### D154" DECISIONS.md` -> `2570:### D154. ...` and it is the only D154.
+    SHAPE CONFIRMED BY INSPECTION against D153 as the model: `### D<n>. <title>` heading followed by bolded `- **Context:**`, `- **Decision:**`, `- **Rejected:**`, `- **Status:**`, `- **Applied:**` bullets, in that order. `git diff --stat -- DECISIONS.md` -> `DECISIONS.md | 8 ++++++++`, a pure append.
+    BOTH RULINGS CARRIED, confirmed by inspection: the `- **Decision:**` bullet is explicitly numbered "(1) 2026-09-11: ... because we do not ship known bugs" and "(2) 2026-09-12: INEFFICIENCY IS A DEFECT WHEN A USER CAN PERCEIVE IT", and `- **Status:**` attributes each to the maintainer by date.
+    THE REJECTED READING CARRIED: `- **Rejected:**` leads with "LEAVING `bug` TO MEAN ONLY A WRONG ANSWER, which is the reading that produced `59t9x5`'s misfiling and which the maintainer explicitly declined by reclassifying it on 2026-09-12", and also records the opposite over-correction, the millisecond threshold, gating `security`, putting the rule in `engine.py`, and writing it as an absolute.
+    THE MOTIVATING MEASUREMENT CARRIED: `- **Context:**` records 187/103/60 with "28 of the 60 carried no `- Blocks-Release:`", names the two items an agent filed hours after being told the rule (`kyb0v5`, `mqmlug`), and records the graduation leak (11 of 11 with a plan, 0 of 11 with a gate).
+    The entry is a 5-bullet append and is reproduced verbatim in `.aw/state/lane-submissions/run-20260918T205349Z-3540382/02-zqs0px/attempt-1/execution-report.md` rather than pasted a second time here, because inlining ~9KB of prose into this plan would bury the other validations; `git show HEAD -- DECISIONS.md` after the lifecycle commit is the authoritative copy.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m pytest tests/test_shared_checkout_contract.py -o addopts=""` with per-test names, showing `test_repo_agents_block_equals_generated` and `test_contract_is_not_duplicated_inside_and_outside_the_block` PASSING after the edit. Both passing unchanged is the CORRECT result and must be reported as such, not apologized for. Then paste the bare `python3 -m pytest` summary against the pre-edit baseline and name any failure as pre-existing or new by comparing failure SETS, not counts.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_shared_checkout_contract.py -o addopts="" -v` run AFTER the edit, both named assertions PASSING:
+    ```
+    tests/test_shared_checkout_contract.py::NoDriftTests::test_antigravity_host_reads_agents_md PASSED [ 57%]
+    tests/test_shared_checkout_contract.py::NoDriftTests::test_contract_is_not_duplicated_inside_and_outside_the_block PASSED [ 63%]
+    tests/test_shared_checkout_contract.py::NoDriftTests::test_repo_agents_block_equals_generated PASSED [ 68%]
+    ...
+    ============================== 19 passed in 0.17s ==============================
+    ```
+    BOTH PASSING UNCHANGED IS THE CORRECT RESULT AND IS REPORTED AS SUCH, not apologized for: the edit is OUTSIDE the managed block (inserted at line 142, the block closes at 108), so managed-block parity is expected to hold on both sides of the change. Under F-8's correction a NONEMPTY managed-block diff here would have meant the edit landed in the WRONG place; `test_repo_agents_block_equals_generated` passing is the proof it did not.
+    BARE SUITE, baseline captured BEFORE the first edit at HEAD `70a2059f`:
+    ```
+    8114 passed, 3 skipped, 2 xfailed in 144.16s (0:02:24)
+    ```
+    BARE SUITE after the edit:
+    ```
+    8114 passed, 3 skipped, 2 xfailed in 140.45s (0:02:20)
+    ```
+    FAILURE-SET DELTA: the empty set both before and after. No failure is new, and none is pre-existing, because there are none; the pass/skip/xfail counts are identical. (Note the review-era reference figure of 5971 is long stale, which is why the plan required a fresh baseline.)
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the post-edit `merge_aw_block` run asserting on the NEW RULE TEXT, showing the action and `True`. State plainly what this proves: the rule is durable against an install, which is the claim the whole Set rests on.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: post-edit driven merge, asserting on the NEW RULE TEXT rather than on the section heading:
+    ```
+    $ python3 -c "from agent_workflows import engine; cur=open('AGENTS.md',encoding='utf-8').read(); new,act=engine.merge_aw_block(cur, engine.agents_managed_sections(target_layout='aw')); print(act, '### Every live bug gates the next release' in new, 'We do not ship known bugs.' in new, 'USER-PERCEPTIBLE IMPACT' in new)"
+    refreshed True True True
+    ```
+    WHAT THIS PROVES: the installer's own merge ran over the edited file, reported action `refreshed` (it did rewrite the managed region), and the new rule's heading, its opening sentence, and the perceptibility test all SURVIVED. So the rule is durable against an install, which is the claim the whole Set rests on: a rule a regeneration would erase is not recorded at all, and that is the exact failure mode `nobugship` exists to end.
+  - Result: pass
 
 ## Approval and execution gate
 

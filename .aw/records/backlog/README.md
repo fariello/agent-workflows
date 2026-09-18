@@ -58,6 +58,11 @@ and the `- Gate-Kind:` bullet right above). The old spelling is still READ, so a
 long-lived branch keeps parsing, but only `- Work-Kind:` is written. Unlike plans and specs, where the
 field is optional, backlog REQUIRES it: an item with no value is a `backlog.kind-invalid` error.
 
+Choosing `bug` also sets a RELEASE GATE: a live `bug` item must carry `- Blocks-Release:`, because we do not
+ship known bugs. The rule, what counts as a bug (including when a slow-but-correct path does), and its two
+limits are stated in `AGENTS.md` under "Every live bug gates the next release"; read it there rather than
+here, so the policy has one home.
+
 ## Verbs
 
 - `aw backlog new --summary ... [--status --priority --work-kind --set --slug --gate-kind --gate-ref --body] [--apply]`
