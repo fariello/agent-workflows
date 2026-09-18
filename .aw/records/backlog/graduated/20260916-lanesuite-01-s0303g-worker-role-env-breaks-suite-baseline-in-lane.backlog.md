@@ -1,11 +1,12 @@
 - Id: s0303g
-- Status: open
+- Status: graduated
 - Set: lanesuite
 - Priority: medium
 - Work-Kind: bug
 - Summary: AW_EXECUTION_ROLE=worker in a lane makes 19 suite tests fail, so a worker cannot get a trustworthy bare-suite baseline
 
 ## Workflow history
+- 2026-09-18 graduated (aw set): Graduated into IPD e4lkv5 (lanesuite Order 01); design handed off, code not yet written
 - 2026-09-16 created (aw backlog): Found while executing dirtygates Order 01 (d7qoxv) in an isolated lane.
 
 MEASURED 2026-09-16 in lane `aw/lane/d7qoxv_attempt2` at commit 4350ebc, BEFORE any edit.

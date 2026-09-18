@@ -6,7 +6,7 @@
 - Scope: Make the 31 tests control `AW_EXECUTION_ROLE` explicitly rather than inherit it, so the suite is green in a lane AND in the main tree, and each test exercises the role it intends. Does NOT relax `AW-LIFECYCLE-ROLE-001` in any way: a test that needs the coordinator role must SET that role, not remove the guard. Also does not touch the prompt-side role statement, which approved plan `8b9ufm` owns.
 - Scope-Paths: tests/test_runner_backlog_close_in_lane.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_ipd_lifecycle_cli.py, tests/test_worker_role_refusal.py, tests/test_novalnomerge_integration.py, tests/support
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - From-Backlog: 770fkp
 - Set: lanesuite
 - Order: 1
@@ -15,6 +15,7 @@
 - Id: e4lkv5
 
 ## Workflow history
+- 2026-09-18 to-review (aw set): Authored 2026-09-18 from a re-measurement at edb9ba85 (31 failures across six files under the lane condition); graduates 770fkp and s0303g; complete enough to critique
 
 - 2026-09-17 draft (opencode/its_direct-pt3-claude-opus-5-1m-us): created.
 

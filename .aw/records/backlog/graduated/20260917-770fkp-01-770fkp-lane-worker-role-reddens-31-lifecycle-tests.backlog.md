@@ -1,11 +1,12 @@
 - Id: 770fkp
-- Status: open
+- Status: graduated
 - Set: 770fkp
 - Priority: high
 - Work-Kind: bug
 - Summary: 31 tests fail inside any runner lane because AW_EXECUTION_ROLE=worker refuses aw ipd begin/finalize
 
 ## Workflow history
+- 2026-09-18 graduated (aw set): Graduated into IPD e4lkv5 (lanesuite Order 01); design handed off, code not yet written
 - 2026-09-17 created (aw backlog): 31 tests fail inside any runner lane because AW_EXECUTION_ROLE=worker refuses aw ipd begin/finalize
 
 Measured at 4a1bb873 by plan s16omw (rununify Order 10), while taking the pre-change baseline the plan's V-05 requires.
