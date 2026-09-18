@@ -6,15 +6,17 @@
 - Scope: agent_workflows/attention.py, agent_workflows/runner_shared.py, agent_workflows/worktree_lease.py
 - Scope-Paths: agent_workflows/attention.py,agent_workflows/runner_shared.py,agent_workflows/worktree_lease.py,tests/test_attention.py,tests/test_worktree_lease.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: attperf (attention-performance)
 - Order: 1
 - Highest E allocated: 05
 - Author: Antigravity
 - Id: 2hj0el
+- Approval: 2026-09-18, human ("approved"): maintainer approval: Approved. Go!
 
 ## Workflow history
+- 2026-09-18 approved (aw set, --by-human): maintainer approval: Approved. Go!
 - 2026-09-18 reviewed (aw set): /plan-review: approve with revisions applied; PR-001, PR-002, PR-003, PR-004, PR-005
 
 - 2026-09-17 to-review (Antigravity): /assess performance: assessed; proposed 5 changes.
