@@ -245,11 +245,23 @@ class BacklogVerbTests(unittest.TestCase):
         self.assertIn("created (aw backlog): custom creation note", text)
         self.assertEqual(releases.check_blocks_release(self.repo), [])
         items_att, drift = ATT.scan(self.repo)
-        self.assertEqual(len(items_att), 1)
-        self.assertEqual(items_att[0].blocks_release, "next")
+        # durablecapture-02 (`m867ox`): the `releases` tree is TRACKED and now actually SCANNED, so
+        # the record `create_release` wrote above is a legitimate second attention item. Assert the
+        # RELATIONSHIP (which trees contributed which items) rather than a total count, so this test
+        # fails again if the release record silently disappears from the view for any other reason.
+        by_tree = {}
+        for it in items_att:
+            by_tree.setdefault(it.tree, []).append(it)
+        self.assertEqual(sorted(by_tree), ["backlog", "releases"])
+        self.assertEqual(len(by_tree["releases"]), 1)
+        self.assertEqual(by_tree["releases"][0].native_status, "planned")
+        self.assertEqual(by_tree["releases"][0].attention_class, A.READY)
+        backlog_items = by_tree["backlog"]
+        self.assertEqual(len(backlog_items), 1)
+        self.assertEqual(backlog_items[0].blocks_release, "next")
         blockers = ATT.release_blockers(items_att, self.repo)
         self.assertEqual(len(blockers), 1)
-        self.assertEqual(blockers[0].path, items_att[0].path)
+        self.assertEqual(blockers[0].path, backlog_items[0].path)
 
     def test_new_blocks_release_unresolvable_fails_closed(self):
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):

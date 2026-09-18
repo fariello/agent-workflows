@@ -291,6 +291,16 @@ SCAN_ROOTS = (
     ".aw/records/roadmaps",
     ".aw/records/prompt-library",
     ".aw/records/backlog",
+    # Releases (ship-gate anchors). `releases` is a TRACKED tree in `attention_contract.TREE_POLICY`
+    # and carries a full status map, but it matched NO scan root until durablecapture-02 (`m867ox`),
+    # so every release record was invisible to `aw attention` while the view still reported
+    # `valid: true` (an unclassified file is only flagged as drift under `.agents/`). BOTH path
+    # generations are listed, as for plans/backlog, but they are NOT interchangeable:
+    # `.aw/records/releases` is the LOAD-BEARING entry, because `releases._releases_dir` writes and
+    # reads there; `.agents/releases` (the `TreePolicy` root spelling) is carried for symmetry and
+    # for pre-migration repositories, and on its own it fixes NOTHING here.
+    ".agents/releases",
+    ".aw/records/releases",
 )
 
 _TEXT_SUFFIXES = (".md", ".txt")

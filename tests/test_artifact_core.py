@@ -60,6 +60,37 @@ class ScanRootTests(unittest.TestCase):
         self.assertIn(".agents/docs", C.SCAN_ROOTS)
         self.assertIn("DECISIONS.md", C.SCAN_ROOTS)
 
+    def test_scan_roots_include_both_releases_generations(self):
+        """durablecapture-02 (`m867ox`) E-01: the tracked `releases` tree must be SCANNED.
+
+        `.aw/records/releases` is the LOAD-BEARING entry, because `releases._releases_dir` writes and
+        reads there; `.agents/releases` is the `TreePolicy` root spelling, carried for symmetry with
+        the plans/backlog pairs and for pre-migration repositories. Membership, not length, following
+        this module's existing pattern: the cross-list guard that makes a future tracked tree fail
+        closed lives in `tests/test_attention_contract.py::TrackedTreeScanCoverageTests`.
+        """
+
+        self.assertIn(".aw/records/releases", C.SCAN_ROOTS)
+        self.assertIn(".agents/releases", C.SCAN_ROOTS)
+
+    def test_iter_scan_files_reaches_a_release_record_and_drops_the_readme(self):
+        """The root must actually YIELD the record: a root that `iter_scan_files` skips for an
+        unrelated reason (an ignore rule, a suffix filter) would look like a fix and change nothing.
+        """
+
+        root = Path(tempfile.mkdtemp())
+        rel_dir = root / ".aw/records/releases"
+        rel_dir.mkdir(parents=True)
+        (rel_dir / "20260101-rel-01-rel001-r.release.md").write_text(
+            "- Status: planned\n", encoding="utf-8"
+        )
+        (rel_dir / "README.md").write_text("x\n", encoding="utf-8")
+        got = {f.name for f in C.iter_scan_files(root)}
+        self.assertIn("20260101-rel-01-rel001-r.release.md", got)
+        # The README is scanned here but is filtered out of the VIEW by
+        # `attention_contract.is_nonartifact_name`, not by the scan root.
+        self.assertIn("README.md", got)
+
     def test_iter_scan_files_bounded(self):
         root = Path(tempfile.mkdtemp())
         (root / "DECISIONS.md").write_text("x", encoding="utf-8")

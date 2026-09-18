@@ -1324,9 +1324,20 @@ class NonColoredBoardOrderingTests(unittest.TestCase):
             self.assertEqual(p_exp.returncode, 0)
             lines_exp = [line for line in p_exp.stdout.splitlines() if line.strip()]
             self.assertNotIn("## release-blockers", p_exp.stdout)
-            self.assertEqual(len(lines_exp), 2)
-            self.assertIn("eee555", lines_exp[0])
-            self.assertIn("aaa111", lines_exp[1])
+            # durablecapture-02 (`m867ox`): the `releases` tree is TRACKED and now actually SCANNED,
+            # so the release record written above is itself a legitimate board row. Assert the
+            # RELATIONSHIP the test exists to prove (the blocking backlog item sorts ahead of the
+            # non-blocking one in one flat list) plus the release record's PRESENCE with its tree tag,
+            # rather than a total line count, so the record vanishing again would fail this test.
+            backlog_lines = [line for line in lines_exp if "[backlog]" in line]
+            release_lines = [line for line in lines_exp if "[releases]" in line]
+            self.assertEqual(len(backlog_lines), 2)
+            self.assertIn("eee555", backlog_lines[0])
+            self.assertIn("aaa111", backlog_lines[1])
+            self.assertEqual(len(release_lines), 1)
+            self.assertIn("rel001", release_lines[0])
+            self.assertIn("(planned)", release_lines[0])
+            self.assertEqual(len(lines_exp), len(backlog_lines) + len(release_lines))
 
             # Default order (no -o): trailing ## release-blockers section must appear
             p_def = subprocess.run(
