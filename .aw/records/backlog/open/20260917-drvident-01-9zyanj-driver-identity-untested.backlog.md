@@ -1,11 +1,13 @@
 - Id: 9zyanj
 - Status: open
+- Blocks-Release: next
 - Set: drvident
 - Priority: high
 - Work-Kind: bug
 - Summary: No test covers the runners' driver-identity contract, so run analytics can silently lose host attribution
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): No test covers the runners' driver-identity contract, so run analytics can silently lose host attribution
 
 ## What is wrong

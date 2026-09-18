@@ -12,6 +12,7 @@
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/ipd_lint.py, tests/test_check_engine_lint_reach.py, tests/test_ipd_lint.py
 - Item-Dependencies: none
 - Status: approved
+- Blocks-Release: next
 - Readiness: go-pending-approval
 - Set: lintreach
 - Order: 1
@@ -22,6 +23,7 @@
 - From-Backlog: q0h9ls
 
 ## Workflow history
+- 2026-09-18 approved (aw set): status set to approved
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-901 (BLOCKER: premise broke, author-phase corpus no longer clean) through PR-905 all FIXED. Severity inverted to advisory. Readiness go-pending-approval.
 

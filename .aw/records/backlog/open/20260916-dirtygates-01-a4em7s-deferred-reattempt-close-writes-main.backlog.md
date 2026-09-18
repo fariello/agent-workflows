@@ -1,11 +1,13 @@
 - Id: a4em7s
 - Status: open
+- Blocks-Release: next
 - Set: dirtygates
 - Priority: medium
 - Work-Kind: bug
 - Summary: A deferred integration re-attempt still closes its backlog item in the shared checkout
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-16 created (aw backlog): found while executing dirtygates-03 (9iq461)
 
 dirtygates-03 moved the backlog close INTO the lane for the first-attempt success path, so a successful item no longer writes to the shared checkout mid-run. ONE PATH REMAINS, and it is recorded here rather than hidden in a comment.

@@ -1,11 +1,13 @@
 - Id: xdgorn
 - Status: open
+- Blocks-Release: next
 - Set: xdgorn
 - Priority: medium
 - Work-Kind: bug
 - Summary: Spec 25kzda does not document that --no-verify means different things on the two run hosts
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): Spec 25kzda does not document that --no-verify means different things on the two run hosts
 
 Measured live at 4a1bb873 by plan s16omw (rununify Order 10, E-01/E-04).

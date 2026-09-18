@@ -1,11 +1,13 @@
 - Id: wlyg3g
 - Status: open
+- Blocks-Release: next
 - Set: wlyg3g
 - Priority: medium
 - Work-Kind: bug
 - Summary: Merging a stale lane can resurrect a plan in pending/ at an earlier status while main holds it terminal, and no gate refuses the lifecycle regression
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): Merging a stale lane can resurrect a plan in pending/ at an earlier status while main holds it terminal, and no gate refuses the lifecycle regression
 
 ## Observed

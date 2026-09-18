@@ -14,6 +14,7 @@
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_run_cli_ledger_message.py
 - Item-Dependencies: none
 - Status: approved
+- Blocks-Release: next
 - Readiness: go-pending-approval
 - Set: ledgerhonest
 - Order: 1
@@ -24,6 +25,7 @@
 - From-Backlog: zrzfkw
 
 ## Workflow history
+- 2026-09-18 approved (aw set): status set to approved
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-09 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-801..PR-806 all FIXED; readiness `go-pending-approval`. SELF-REVIEW disclosure: the same agent/model authored this plan, so its value rests on EXECUTING its claims rather than re-reading them. Eight things were RUN: the `ledger.jsonl` search (0 files) and both driver store greps (0 and 0); the unpiped exit code on a real run (2); `aw runs verify-ledger/show/evidence/status` against a real run id, all four printing the byte-identical message and exiting 2; the `--agent` record; the `--help` text; every leaf that resolves a target, enumerated and classified; the spec line at `25kzda:29`; and the full bare suite. EVERY PREMISE OF THE PLAN HELD, which is unusual and worth stating: the ledger really is unwired three ways, the exit really is 2 unpiped, defect 2 really is fictional, the help disambiguation really is already shipped, and `oc_runipd.py` really says "ledger" exactly 13 times. THE ONE FINDING THAT MATTERS is PR-801 (HIGH): the misleading sentence is emitted by TEN operator-facing leaves, not one, and the three the plan did not know about are exactly the ones an operator tries NEXT after the vague message (`show`, `evidence`, `status`, each reproduced live). PR-802 (HIGH) is its remedy and makes the fix smaller rather than larger: the shared helper `_resolve_or_error` ALREADY EXISTS with seven callers, so E-03's "extract a helper only if two callers need it" was answered before execution and answered the opposite way, and one edit there covers all ten. Also corrected: the plan's F-8 pointed at the five `RunLedgerStore` constructions, which are not absent-file branches at all; `7wei1o` is EXECUTED rather than approved-and-queued, which strengthens the exit-code constraint; the suite baseline and its named expected failure were both wrong again; and shared wording must not say "cannot verify" when six of the ten callers are action verbs.

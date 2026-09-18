@@ -1,11 +1,13 @@
 - Id: 37pfmb
 - Status: open
+- Blocks-Release: next
 - Set: 37pfmb
 - Priority: low
 - Work-Kind: bug
 - Summary: SIGINT shutdown-report test times out under parallel suite load
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): SIGINT shutdown-report test times out under parallel suite load
 
 Measured 2026-09-17 while executing plan 63425h (rcptwiden-01).

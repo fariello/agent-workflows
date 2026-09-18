@@ -1,11 +1,13 @@
 - Id: nmg89m
 - Status: open
+- Blocks-Release: next
 - Set: nmg89m
 - Priority: medium
 - Work-Kind: bug
 - Summary: The mutating pre-commit hooks' exclude regex names a research path that matches zero live files, so the verbatim-preservation intent is unenforced
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): The mutating pre-commit hooks' exclude regex names a research path that matches zero live files, so the verbatim-preservation intent is unenforced
 
 DISCOVERED while executing IPD `lqly9m` (E-05), and recorded there in F-19 and in that plan's deferred

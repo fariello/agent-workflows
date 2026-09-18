@@ -1,11 +1,13 @@
 - Id: ygtykn
 - Status: graduated
+- Blocks-Release: next
 - Set: ygtykn
 - Priority: medium
 - Work-Kind: bug
 - Summary: An upgrade stamps the SOURCE tree's baked VERSION file, so every install from a dev checkout writes a stale version and the manifest agrees
 
 ## Workflow history
+- 2026-09-18 graduated (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-12 graduated (aw set): Design handed off to a review-ready IPD authored from repo-verified root cause
 - 2026-09-12 created (aw backlog): Found by an upgrade rehearsal against real 1.2.1 legacy repos (tools/aw_upgrade_test.py)
 

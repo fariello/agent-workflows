@@ -1,11 +1,13 @@
 - Id: xw4rb7
 - Status: open
+- Blocks-Release: next
 - Set: bporphan
 - Priority: medium
 - Work-Kind: bug
 - Summary: _add_output_mode_flags is owned by no pending rununify plan after child 03's re-scope dropped group H
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): _add_output_mode_flags is owned by no pending rununify plan after child 03's re-scope dropped group H
 
 Measured at 4a1bb873 by plan s16omw (rununify Order 10, E-01/E-04).

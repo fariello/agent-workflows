@@ -1,11 +1,13 @@
 - Id: ng4ptg
 - Status: open
+- Blocks-Release: next
 - Set: ng4ptg
 - Priority: medium
 - Work-Kind: bug
 - Summary: _rollback_precommit's step-4 index regeneration can turn a successful rollback into a reported failure, and its step-2 refusal now returns before it
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-16 created (aw backlog): _rollback_precommit's step-4 index regeneration can turn a successful rollback into a reported failure, and its step-2 refusal now returns before it
 
 FOUND while executing plan u23gbn (dirtygates Order 04).

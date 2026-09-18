@@ -1,11 +1,13 @@
 - Id: jsomff
 - Status: open
+- Blocks-Release: next
 - Set: jsomff
 - Priority: medium
 - Work-Kind: bug
 - Summary: tests/test_orchestrator_retirement.py's lanectn assertion is hardcoded to a Set that has since completed, so it fails on every run
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): Found while executing rl67b0
 
 MEASURED 2026-09-17 while executing plan `rl67b0`. `tests/test_orchestrator_retirement.py::RealRepositorySets::test_lanectn_refuses_naming_its_one_unfinished_verification_child` asserts `evaluate_set_retirement(REPO_ROOT, 'lanectn').eligible is False`, on the premise that the real `lanectn` Set still has an unfinished verification child. That Set has since COMPLETED: the evaluator now reports "all 7 child(ren) are executed (cqx5v7, nna8yz, lhmrhx, y5od1h, xdr83v, 604wra, 4fodkt), and every row of the orchestrator's child table resolves to a plan", so the assertion is false and the bare suite is red for everyone.

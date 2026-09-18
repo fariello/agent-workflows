@@ -1,11 +1,13 @@
 - Id: csmtjp
 - Status: open
+- Blocks-Release: next
 - Priority: medium
 - Set: csmtjp
 - Work-Kind: bug
 - Summary: A driver's merge-conflict path runs git merge --abort on the shared checkout, which destroys an unrelated in-progress merge it did not start
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 open (aw set): Priority medium per maintainer 2026-09-17: the frequency claim in the original filing was wrong (the driver never stages a merge, so the measured trigger required a human's hand-staged git merge --no-commit). The latent correctness bug stands: merge_in_progress answers 'is ANY merge in progress' while used as 'did MY merge start', and run_lock is per-run so two drivers are not serialized against each other.
 - 2026-09-17 created (aw backlog): A driver's merge-conflict path runs git merge --abort on the shared checkout, which destroys an unrelated in-progress merge it did not start
 

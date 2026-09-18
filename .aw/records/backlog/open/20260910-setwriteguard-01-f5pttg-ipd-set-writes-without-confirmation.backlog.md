@@ -1,11 +1,13 @@
 - Id: f5pttg
 - Status: open
+- Blocks-Release: next
 - Set: setwriteguard
 - Priority: high
 - Work-Kind: bug
 - Summary: aw ipd set writes by default with no confirmation, so a bare setid selector silently reverted 7 EXECUTED plans to approved/pending in one command
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-10 created (aw backlog): aw ipd set writes by default with no confirmation, so a bare setid selector silently reverted 7 EXECUTED plans to approved/pending in one command
 
 ## What happened (measured, on this repository, 2026-09-10)

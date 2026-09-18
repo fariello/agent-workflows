@@ -1,11 +1,13 @@
 - Id: 4vfkl1
 - Status: open
+- Blocks-Release: next
 - Set: 4vfkl1
 - Priority: medium
 - Work-Kind: bug
 - Summary: Two slow-marked test_installer deep-cleanup tests fail at HEAD: .aw/ remains after records removal
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 created (aw backlog): Two slow-marked test_installer deep-cleanup tests fail at HEAD: .aw/ remains after records removal
 
 MEASURED 2026-09-18 at HEAD 6399c9f7 while executing wfartifacts Order 04 (l1c1iz).

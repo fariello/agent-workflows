@@ -1,11 +1,13 @@
 - Id: fci7yn
 - Status: graduated
+- Blocks-Release: next
 - Set: fci7yn
 - Priority: medium
 - Work-Kind: bug
 - Summary: Stranded-lane remedy says 'no aw integrate verb exists yet' though it shipped: lane_remedy_hint probes cmd_integrate, a symbol that does not exist
 
 ## Workflow history
+- 2026-09-18 graduated (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 graduated (aw set): Design handed off to plan 0ta5vg (stranrep-01), which fixes all four stranded-report defects as one cohesive change; that plan carries From-Backlog: kvf5xo and inherits Blocks-Release: next
 - 2026-09-17 created (aw backlog): lane_remedy_hint probes hasattr(oc_runipd,'cmd_integrate'), which never existed (real symbol handle_integrate_command), so it prints the stale manual remedy though aw oc integrate shipped in executed plan rl67b0
 

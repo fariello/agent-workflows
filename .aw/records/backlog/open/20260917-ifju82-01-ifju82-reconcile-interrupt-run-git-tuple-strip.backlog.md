@@ -1,11 +1,13 @@
 - Id: ifju82
 - Status: open
+- Blocks-Release: next
 - Set: ifju82
 - Priority: medium
 - Work-Kind: bug
 - Summary: reconcile_item_on_interrupt calls .strip() on _run_git's tuple, raising AttributeError on the no-lane interrupt path
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): reconcile_item_on_interrupt calls .strip() on _run_git's tuple, raising AttributeError on the no-lane interrupt path
 
 Found while executing plan fujm0y (mergedirty-01), outside its scope.

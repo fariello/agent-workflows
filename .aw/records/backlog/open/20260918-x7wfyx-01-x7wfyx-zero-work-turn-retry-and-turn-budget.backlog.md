@@ -1,11 +1,13 @@
 - Id: x7wfyx
 - Status: open
+- Blocks-Release: next
 - Set: x7wfyx
 - Priority: medium
 - Work-Kind: bug
 - Summary: Tell the agent its remaining turn budget, and retry a turn that provably attempted nothing instead of letting one partial block a whole Set
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 created (aw backlog): Split from q1z9gn: the agent-side prompt fix landed, but the driver still does not tell the agent its remaining budget and still treats a zero-work turn as a terminal partial that blocked three siblings
 
 SPLIT OFF from `q1z9gn`, which is now `done`. That item's agent-side cause is fixed (the shared execute

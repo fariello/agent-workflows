@@ -1,11 +1,13 @@
 - Id: xtrwdb
 - Status: open
+- Blocks-Release: next
 - Set: xtrwdb
 - Priority: low
 - Work-Kind: bug
 - Summary: tools/untrack-workflow-artifacts.py still untracks the RETIRED repo-root path in place and writes a root ignore rule for it
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 created (aw backlog): tools/untrack-workflow-artifacts.py still untracks the RETIRED repo-root path in place and writes a root ignore rule for it
 
 Found while executing wfartifacts Order 05 (y4pptx).

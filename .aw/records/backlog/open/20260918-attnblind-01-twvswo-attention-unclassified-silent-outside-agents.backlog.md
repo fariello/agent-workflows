@@ -1,11 +1,13 @@
 - Id: twvswo
 - Status: open
+- Blocks-Release: next
 - Set: attnblind
 - Priority: medium
 - Work-Kind: bug
 - Summary: aw attention drops an unclassified file silently outside .agents/, so a records-tree blind spot reports valid: true
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 created (aw backlog): Found while executing plan m867ox (releases scan-root fix): the mechanism that let the releases gap report valid: true is still live for every other .aw/records/ tree.
 
 MEASURED at HEAD cdace6a5 while executing plan m867ox.
