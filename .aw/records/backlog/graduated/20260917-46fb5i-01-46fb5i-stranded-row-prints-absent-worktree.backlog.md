@@ -1,11 +1,12 @@
 - Id: 46fb5i
-- Status: open
+- Status: graduated
 - Set: 46fb5i
 - Priority: medium
 - Work-Kind: bug
 - Summary: Every stranded-lane row prints a .aw/worktrees path that does not exist: lane_worktree_display reconstructs the string and never existence-checks it
 
 ## Workflow history
+- 2026-09-18 graduated (aw set): Design handed off to plan 0ta5vg (stranrep-01), which fixes all four stranded-report defects as one cohesive change; that plan carries From-Backlog: kvf5xo and inherits Blocks-Release: next
 - 2026-09-17 created (aw backlog): All 19 stranded rows print a .aw/worktrees/<id> path; zero of the 12 exist. lane_worktree_display reconstructs the string in its except branch without existence-checking it
 
 MEASURED 2026-09-18 at HEAD `d188eaad`, in the maintainer's primary (non-lane) checkout:

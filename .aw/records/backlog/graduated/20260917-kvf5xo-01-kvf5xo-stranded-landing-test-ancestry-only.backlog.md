@@ -1,5 +1,5 @@
 - Id: kvf5xo
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: kvf5xo
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: aw attention --check fails closed against spec F3a's own normative exclusion: the landing test is ancestry-only, so six re-executed lanes whose work IS on main report STRANDED forever
 
 ## Workflow history
+- 2026-09-18 graduated (aw set): Design handed off to plan 0ta5vg (stranrep-01), which fixes all four stranded-report defects as one cohesive change; that plan carries From-Backlog: kvf5xo and inherits Blocks-Release: next
 - 2026-09-17 created (aw backlog): lane_work_has_landed tests only git merge-base --is-ancestor, so a lane whose work reached main by re-execution reports STRANDED forever; six of twelve reported lanes are such cases, violating spec F3a's normative landing exclusion
 
 Spec `attention-registry-and-cross-tree-status` F3a makes an exclusion NORMATIVE (spec line 233):
