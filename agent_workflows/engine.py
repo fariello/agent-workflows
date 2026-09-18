@@ -36,15 +36,18 @@ Design (see the repo's DECISIONS.md D12, D15, D16, D17):
 - Clean sync by default: framework files in the target that are no longer in the
   source are pruned. Pruning is strictly scoped to the framework namespace
   (`.agents/workflows/`, the generated shim files, and the AGENTS.md pointer block);
-  it never touches `workflow-artifacts/` run records, user code, or anything else.
+  it never touches `.aw/workflow-artifacts/` run records, user code, or anything else.
 - Git-aware but never commits: tracked changes are staged (`git add`/`git rm`),
   untracked changes are written/removed on disk; the user reviews and commits.
-- Does NOT silently edit user gitignores. Run artifacts in `workflow-artifacts/` are
-  local-only working material (D117); the installer notes if the target does not ignore them.
+- Does NOT silently edit the user's ROOT gitignore. Run scratch lives at
+  `.aw/workflow-artifacts/` (Order 07, spec `20260817-2124-01`) and MUST stay untracked,
+  because a run record carries local context, absolute home paths and session detail (D92).
+  That rule ships in the framework-owned `.aw/.gitignore`, which the installer DOES own; the
+  summary reports the path's real `git check-ignore` state rather than guessing.
 
 - Migrates a pre-restructure repo on install (staged, never committed): removes the
   old root `release-review/` framework dir and `git mv`s old `repository-review/` run
-  records into `workflow-artifacts/release-review/` (see D17/D19).
+  records into `.aw/workflow-artifacts/release-review/` (see D17/D19).
 
 This script lives at the agent-workflows repo root; it installs the framework from its
 `.agents/workflows/` subdirectory.
@@ -234,7 +237,17 @@ AW_POINTER_SLUG = "pointer"
 # `AGENTS.md#aw:reporting` (tombstone) or hand-edit its body without affecting `aw:pointer`.
 AW_REPORTING_SLUG = reporting_contract.REPORTING_SLUG
 
-ARTIFACTS_DIR = "workflow-artifacts/"
+# The run-scratch home. Order 07 (spec `20260817-2124-01`, `u7xtni`, `implemented`) relocated it OFF
+# the repo root to `.aw/workflow-artifacts/`, a sibling of the durable tracked `.aw/records/` tree.
+# The reason is LEAK CONTAINMENT, not tidiness (D92): a run record carries local context, absolute
+# home paths and session detail, so committing one publishes machine identity into permanent git
+# history. It is therefore ignored unconditionally by the framework-owned `.aw/.gitignore`
+# (`/workflow-artifacts/`), which is what a reader can verify with `git check-ignore -v`.
+# wfartifacts Order 01 (gzhd7t): this constant was `"workflow-artifacts/"` (a REPO-ROOT path) until
+# 2026-09-18, and the installer materialized that directory on every fresh install. Do NOT point it
+# back at the repo root; the repo-root path is retired, and `tools/untrack-workflow-artifacts.py`
+# remains available for a user who wants only to untrack an existing one.
+ARTIFACTS_DIR = ".aw/workflow-artifacts/"
 LEGACY_ARTIFACTS_DIR = "repository-review/"  # pre-D19 name; migrated on install
 
 # The installer's own local backup scratch dir in the target. Auto-ignored in the
@@ -2610,7 +2623,11 @@ def migrate_legacy_layout(plan: InstallPlan, use_git: bool) -> list[str]:
         else create_backup_path(repo, Path("legacy-migration"), timestamp)
     )
 
-    # 1) Pre-D19: migrate run records repository-review/ -> workflow-artifacts/release-review/
+    # 1) Pre-D19: migrate run records repository-review/ -> .aw/workflow-artifacts/release-review/
+    # wfartifacts Order 01 (gzhd7t): the DESTINATION is retargeted (it follows ARTIFACTS_DIR, now the
+    # `.aw/` path) but the migration itself is deliberately KEPT: it is a different, older migration
+    # that moves a user's COMMITTED run records rather than creating anything, and deleting it would
+    # strand them at the pre-D19 name.
     legacy_artifacts = repo / LEGACY_ARTIFACTS_DIR
     if legacy_artifacts.is_dir():
         for run_dir in sorted(p for p in legacy_artifacts.iterdir() if p.is_dir()):
@@ -2624,7 +2641,13 @@ def migrate_legacy_layout(plan: InstallPlan, use_git: bool) -> list[str]:
                 continue
             _git_mv(repo, rel_src, rel_dst)
             if use_git:
-                git_run(repo, ["add", "--", rel_dst])
+                # Skip-when-ignored: the retargeted destination `.aw/workflow-artifacts/` IS ignored
+                # by the framework-owned `.aw/.gitignore`, so a RAW `git add` aborts the whole install
+                # ("The following paths are ignored... Use -f"). Measured 2026-09-18 in a scratch repo:
+                # `git mv` succeeds and stages the rename, then `git add -- <dest>` exits 1. This is the
+                # exact failure awretrofit Order 10 hit on the README ensurer, so it takes the same
+                # tolerant helper. The move itself is already staged by `git mv`, so nothing is lost.
+                git_add_optional(repo, rel_dst)
             actions.append(f"{rel_src} -> {rel_dst} [migrated]")
         # remove the now-empty legacy dir if anything remains (e.g. stray files)
         remaining = (
@@ -2664,21 +2687,68 @@ def migrate_legacy_layout(plan: InstallPlan, use_git: bool) -> list[str]:
 
 
 def check_gitignore(plan: InstallPlan) -> str:
-    gitignore_path = plan.repo_root / ".gitignore"
-    if not gitignore_path.exists():
-        return "no .gitignore present; workflow-artifacts/ will be tracked (working material)"
-    lines = [
-        line.strip() for line in gitignore_path.read_text(encoding="utf-8").splitlines()
-    ]
-    ignored = []
-    for d in (ARTIFACTS_DIR, LEGACY_ARTIFACTS_DIR):
-        if any(
-            line in (d, d.rstrip("/"), f"/{d}", f"/{d.rstrip('/')}") for line in lines
-        ):
-            ignored.append(d)
-    if ignored:
-        return "workflow-artifacts/ is ignored (correct, recommended for local working material)"
-    return "workflow-artifacts/ is not ignored (advisory: working material will be tracked in git)"
+    """Report whether the run-scratch tree (`ARTIFACTS_DIR`) is actually ignored in this repo.
+
+    wfartifacts Order 01 (gzhd7t), resolving OQ-01: RETARGETED rather than removed, and rewritten to
+    ASK GIT instead of hand-parsing the root `.gitignore`. Both are deliberate, and the reason is that
+    the old implementation could not be made true by retargeting alone:
+
+    - IT INSPECTED THE WRONG FILE. It line-scanned the repo-ROOT `.gitignore`, but after Order 02 the
+      rule that protects run scratch lives in the FRAMEWORK-OWNED `.aw/.gitignore`, which a root-file
+      scan structurally cannot see. It would have printed "not ignored" about a path that IS ignored.
+    - IT DESCRIBED A RETIRED PATH, in both branches ("workflow-artifacts/ is ignored (correct,
+      recommended for local working material)" / "...is not ignored (advisory: working material will be
+      tracked in git)"), teaching the user the repo-root layout Order 07 retired.
+    - ITS ADVICE WAS BACKWARDS. Run scratch carries local context, absolute home paths and session
+      detail (D92), so "working material will be tracked in git" is a LEAK, not a tidiness note.
+
+    KEPT rather than deleted (the other half of OQ-01) because, asked this way, the line is a real
+    post-install verification of the D92 containment and can legitimately report a GAP: a `legacy`
+    layout target has no `.aw/` tree at all, and a repo whose `.aw/.gitignore` predates Order 02
+    reaches the back-fill only on an install that runs it. Deleting the line would also be a small API
+    change (`gitignore_status` flows through `install_into_repo`'s returned dict to `print_summary`,
+    with callers in `cli.py` and a test double in `tests/test_cli.py`), for no gain.
+
+    `git check-ignore -v` is the predicate, which is the same authority the sibling
+    `_already_tracked_untracked_matches` and `git_commit_helper` use, and it ATTRIBUTES the rule to a
+    source file so the summary names WHICH file is protecting the path. Non-git or unavailable git
+    degrades to a plain statement rather than a false claim.
+    """
+
+    rel = ARTIFACTS_DIR.rstrip("/")
+    if resolve_target_layout(plan.repo_root) != "aw":
+        return f"{rel}/ n/a (legacy .agents/workflows layout; no .aw/ tree here)"
+    probe = f"{rel}/probe"
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(plan.repo_root),
+                "check-ignore",
+                "-v",
+                "--no-index",
+                "--",
+                probe,
+            ],
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return f"{rel}/ could not be checked (git unavailable)"
+    # check-ignore: exit 0 = ignored (stdout names source:line:pattern), 1 = not ignored, >1 = error
+    # (including "not a git repository").
+    if result.returncode == 0:
+        source = (result.stdout.split(":", 1)[0] or "").strip() or "a .gitignore"
+        return (
+            f"{rel}/ is ignored by {source} (correct; run scratch stays untracked, D92)"
+        )
+    if result.returncode == 1:
+        return (
+            f"{rel}/ is NOT ignored (run scratch carries local paths and session detail (D92); "
+            "re-run `aw install` to add the framework-owned .aw/.gitignore rule)"
+        )
+    return f"{rel}/ could not be checked (not a git repository)"
 
 
 def ensure_backups_gitignored(plan: InstallPlan, use_git: bool) -> str:
@@ -3294,7 +3364,11 @@ def show_install_diffs(
     for rel, content in shim_members.items():
         proposed[rel] = content.encode("utf-8")
 
-    artifacts_readme = "workflow-artifacts/README.md"
+    # wfartifacts Order 01 (gzhd7t): DERIVED from ARTIFACTS_DIR rather than re-spelled, so the diff
+    # preview can never advertise a path the install path no longer writes. The README's CONTENT
+    # (including the fallback literal below, which still carries the retired "DO NOT gitignore"
+    # prose) is Order 04's scope and is deliberately left byte-unchanged here.
+    artifacts_readme = f"{ARTIFACTS_DIR}README.md"
     artifacts_dest = plan.repo_root / artifacts_readme
     if not artifacts_dest.is_file():
         template_path = plan.source_root / "templates" / "workflow-artifacts-README.md"
@@ -3731,7 +3805,10 @@ def print_summary(
     print()
     for path, status in agents_status.items():
         print(f"{path}: {status}")
-    print(f"Gitignore (workflow-artifacts): {gitignore_status}")
+    # wfartifacts Order 01 (gzhd7t): the LABEL is neutral ("run scratch") because the STATUS string
+    # from check_gitignore already names the exact path; the old label hard-coded the retired
+    # repo-root spelling, so the summary named it even when the status did not.
+    print(f"Gitignore (run scratch): {gitignore_status}")
     print(f"Gitignore (installer backups): {backups_ignore_status}")
 
     if (
@@ -3919,6 +3996,16 @@ _DEEP_CLEANUP_ROOTS = (
     # would silently ORPHAN the tree while claiming to remove every records root. No `.agents/reviews`
     # counterpart below: reviews are net-new, so no legacy tree can exist to clean up.
     ".aw/records/reviews",
+    # wfartifacts Order 01 (gzhd7t): the run-scratch tree. Order 07 moved it INSIDE `.aw/`, so
+    # `aw uninstall --deep` must reach it or it ORPHANS a `.aw/` subtree while promising to leave no
+    # `.aw/` behind (caught by test_deep_cleanup_records_remove_leaves_no_aw_directory). Deliberately
+    # NOT classified as records: it is untracked local scratch, not a durable typed artifact, so it is
+    # removed even under `--keep-records`, which is correct - keeping records must not resurrect a
+    # tree whose contents carry absolute home paths and session detail (D92). The retired REPO-ROOT
+    # `workflow-artifacts/` is still absent from this list by design: deep cleanup is scoped to the
+    # framework's own scaffolding, and a user's pre-Order-07 run records at the old path are theirs to
+    # keep (Order 05 relocates them; nothing here deletes them).
+    ".aw/workflow-artifacts",
     # Legacy `.agents/*` roots (a not-yet-migrated repo). A repo has one layout or the other; the
     # per-root is_dir() check below skips whichever set is absent, so listing both is safe.
     ".agents/plans",
@@ -5141,11 +5228,40 @@ def ensure_workflow_artifacts_readme(
     installed: list[str],
     skipped: list[str],
 ) -> None:
-    """Create a default README.md in workflow-artifacts/ if it doesn't already exist."""
+    """Create a default README.md in the run-scratch tree if it doesn't already exist.
 
-    artifacts_dir = plan.repo_root / "workflow-artifacts"
+    wfartifacts Order 01 (gzhd7t): this is THE function that materialized the retired REPO-ROOT
+    `workflow-artifacts/` directory on every fresh install (the 2026-09-12 maintainer report), because
+    its `mkdir` ran unconditionally at the repo root. It now writes under `ARTIFACTS_DIR`
+    (`.aw/workflow-artifacts/`), so no repo-root directory is created by any install path. The README's
+    CONTENT is Order 04's scope and is not touched here.
+
+    LEGACY-LAYOUT TARGETS ARE SKIPPED, on the same rule `emit_layout_artifacts` already states: a
+    `legacy` (`.agents/workflows`) repo has no `.aw/` tree and no framework-owned `.aw/.gitignore`, so
+    writing there would both half-migrate a repo the installer deliberately left on the legacy layout
+    AND land an UNIGNORED file that `git_add_optional` would then really track. A legacy repo that
+    still has run scratch at the old repo-root path keeps it; Order 05 owns relocating existing
+    content, and nothing here deletes it.
+
+    `use_git` IS ACCEPTED AND UNUSED, deliberately. This ensurer no longer stages anything (see the
+    comment at the write site), but the parameter is part of a signature shared with the sibling
+    README ensurers and passed positionally by `install_into_repo` and by existing tests, so dropping
+    it would be a gratuitous API break for a function whose contract is otherwise unchanged.
+    """
+
+    del (
+        use_git
+    )  # never staged: this README documents an UNTRACKED tree (see write site)
+
+    if resolve_target_layout(plan.repo_root) != "aw":
+        skipped.append(
+            f"{ARTIFACTS_DIR}README.md [skip: legacy layout has no .aw/ tree]"
+        )
+        return
+
+    artifacts_dir = plan.repo_root / ARTIFACTS_DIR
     readme_path = artifacts_dir / "README.md"
-    rel_path = "workflow-artifacts/README.md"
+    rel_path = f"{ARTIFACTS_DIR}README.md"
 
     if readme_path.is_file():
         skipped.append(f"{rel_path} [already current]")
@@ -5172,13 +5288,17 @@ def ensure_workflow_artifacts_readme(
 
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     readme_path.write_text(readme_content, encoding="utf-8")
-    if use_git:
-        # Skip-when-ignored (IPD awretrofit Order 10): a repo may legitimately gitignore
-        # `workflow-artifacts/` (Order 07 gitignores run scratch), so use the tolerant helper
-        # (matches the sibling README ensurers) instead of a raw `git add` that aborts the whole
-        # install on an ignored path. The README is still written to disk; it is just not staged.
-        git_add_optional(plan.repo_root, rel_path)
-    installed.append(f"{rel_path} [install]")
+    # DELIBERATELY NOT STAGED (wfartifacts Order 01 / gzhd7t, decision D-01). This README is the front
+    # door of an UNTRACKED tree, so staging it would commit a file into the one tree Order 07 and D92
+    # say must never be committed, and `git`'s ignore rules do NOT untrack an already-tracked path:
+    # a repo that installed before Order 02's ignore rule landed would keep the file tracked forever.
+    # The predecessor's `git_add_optional` call relied on the path ALREADY being ignored to no-op, which
+    # is a guarantee this plan cannot assume (Order 02 carries it, and this plan declares no dependency
+    # on it). Not staging is correct on BOTH sides of that ordering, so it removes the window rather
+    # than narrowing it. The README is still WRITTEN, so the directory is self-explaining on disk.
+    installed.append(
+        f"{rel_path} [install, local-only: run scratch is never committed]"
+    )
 
 
 # Category-1 (user-owned) directory READMEs generated no-clobber from templates. The

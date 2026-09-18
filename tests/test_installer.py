@@ -11,6 +11,7 @@ import pytest
 
 import io
 import os
+import re
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -387,11 +388,16 @@ class InstallerEndToEndTests(unittest.TestCase):
         proc = run_installer(self.repo)
         self.assertEqual(proc.returncode, 0, proc.stderr)
 
+        # wfartifacts Order 01 (gzhd7t): RE-POINTED, not deleted. The run-scratch README moved from
+        # the retired repo-root `workflow-artifacts/` to `.aw/workflow-artifacts/` (Order 07), so the
+        # "a fresh install creates it" and "a re-run preserves a customized copy" guarantees below are
+        # both still real guarantees; only the path changed. See
+        # `test_fresh_install_creates_no_repo_root_workflow_artifacts_dir` for the inverse assertion.
         readmes = [
             self.repo / ".aw/system/workflows/README.md",
             self.repo / ".opencode/commands/README.md",
             self.repo / ".claude/commands/README.md",
-            self.repo / "workflow-artifacts/README.md",
+            self.repo / ".aw/workflow-artifacts/README.md",
         ]
         for path in readmes:
             self.assertTrue(path.is_file(), f"README not created: {path}")
@@ -401,13 +407,17 @@ class InstallerEndToEndTests(unittest.TestCase):
             "auto-generated",
             (self.repo / ".opencode/commands/README.md").read_text(encoding="utf-8"),
         )
+        # The README's CONTENT is Order 04's scope (it still carries the retired "DO NOT gitignore"
+        # prose today), so this asserts only that the template landed, at the new path.
         self.assertIn(
             "Git Guidelines",
-            (self.repo / "workflow-artifacts/README.md").read_text(encoding="utf-8"),
+            (self.repo / ".aw/workflow-artifacts/README.md").read_text(
+                encoding="utf-8"
+            ),
         )
 
-        # 2) Re-run preserves customized workflow-artifacts/README.md
-        custom_path = self.repo / "workflow-artifacts/README.md"
+        # 2) Re-run preserves a customized .aw/workflow-artifacts/README.md
+        custom_path = self.repo / ".aw/workflow-artifacts/README.md"
         custom_content = "Custom user guidelines for this repo's execution trails."
         custom_path.write_text(custom_content, encoding="utf-8")
 
@@ -419,6 +429,67 @@ class InstallerEndToEndTests(unittest.TestCase):
             custom_content,
             "Custom README content was overwritten!",
         )
+
+    def test_fresh_install_creates_no_repo_root_workflow_artifacts_dir(self):
+        """wfartifacts Order 01 (gzhd7t): the 2026-09-12 maintainer report, turned into a test.
+
+        The reported defect is that a repo-root `workflow-artifacts/` directory APPEARS on every
+        fresh install, carrying a README that says "DO NOT gitignore this folder" - the opposite of
+        Order 07's ruling. An EMPTY repo-root directory is still a FAILURE here: the report is about
+        the directory existing at all, so asserting only on the README would let a bare `mkdir`
+        regress silently.
+        """
+        proc = run_installer(self.repo)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+
+        self.assertFalse(
+            (self.repo / "workflow-artifacts").exists(),
+            "a fresh install must not create a repo-root workflow-artifacts/ directory "
+            "(Order 07 relocated run scratch to .aw/workflow-artifacts/)",
+        )
+        # The relocation half: the README landed at the new path instead.
+        self.assertTrue(
+            (self.repo / ".aw/workflow-artifacts/README.md").is_file(),
+            "the run-scratch README should land under .aw/workflow-artifacts/",
+        )
+        # And it is NOT staged: this README documents a tree that must never be committed (D92).
+        # git's ignore rules do not untrack an already-tracked path, so staging it even once would
+        # be permanent for that repo.
+        ls = git(self.repo, "ls-files", "--", ".aw/workflow-artifacts")
+        self.assertEqual(
+            ls.stdout.strip(),
+            "",
+            "the run-scratch README must not be staged (run scratch is never committed, D92)",
+        )
+
+    def test_installer_summary_names_no_repo_root_run_scratch_path(self):
+        """wfartifacts Order 01 (gzhd7t) E-02: no installer output describes the retired path.
+
+        `check_gitignore` used to print "workflow-artifacts/ is ignored (correct...)" or "...is not
+        ignored (advisory: working material will be tracked in git)". Both sentences described the
+        repo-root path, and the advisory's "will be tracked in git" was backwards for a tree that
+        carries absolute home paths and session detail (D92).
+        """
+        proc = run_installer(self.repo)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = proc.stdout + proc.stderr
+
+        # A repo-root mention is a bare `workflow-artifacts/` NOT preceded by `.aw/` (and not part of
+        # the shipped template filename `workflow-artifacts-README.md`).
+        offenders = [
+            line
+            for line in out.splitlines()
+            if re.search(r"(?<![\w./-])workflow-artifacts/", line)
+        ]
+        self.assertEqual(
+            offenders,
+            [],
+            f"installer output still names the retired repo-root path: {offenders}",
+        )
+        # The line is KEPT (OQ-01 resolved as "retarget, not remove"), so it must still be present
+        # and must name the new path.
+        self.assertIn("Gitignore (run scratch):", out)
+        self.assertIn(".aw/workflow-artifacts/", out)
 
     def test_shim_readme_is_not_pruned(self):
         # Run installer to write shims
