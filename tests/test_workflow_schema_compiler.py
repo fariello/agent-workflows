@@ -57,46 +57,98 @@ def _valid_workflow():
 
 
 class SchemaTests(unittest.TestCase):
-    def test_conforming_workflow_validates(self):
-        r = SCHEMA.validate_workflow(_valid_workflow())
-        self.assertTrue(r.ok, r.findings)
+    """Each named schema invariant rejects its own violation, with its own finding code.
 
-    def test_bad_id_rejected(self):
-        wf = _valid_workflow()
-        wf["id"] = "Bad_ID"
-        self.assertFalse(SCHEMA.validate_workflow(wf).ok)
+    ONE table replaces twelve tests of identical shape (take a valid workflow, break exactly one
+    thing, assert one WF-E* code). The table is better than the twelve for a specific reason: these
+    codes are a CLOSED SET that the loader and the CLI both surface to users, and the common failure
+    mode is a renumbering or a refactor that makes the validator return a DIFFERENT code than it
+    used to. Twelve separate tests report that as twelve unrelated red lines; the table reports it as
+    one failure listing every code that moved, which is the shape of the actual problem.
 
-    def test_unknown_intent_rejected(self):
-        wf = _valid_workflow()
-        wf["intent"] = "bogus"
-        codes = {f.code for f in SCHEMA.validate_workflow(wf).findings}
-        self.assertIn("WF-E021", codes)
+    The positive row (an unmodified valid workflow must PASS) is deliberately in the same test. A
+    validator that rejects everything would satisfy every negative row on its own.
+    """
 
-    def test_unknown_field_rejected(self):
-        wf = _valid_workflow()
-        wf["surprise"] = 1
-        codes = {f.code for f in SCHEMA.validate_workflow(wf).findings}
-        self.assertIn("WF-E013", codes)
+    #: (case, mutate(wf) -> None, expected WF-E code; None means "must validate CLEAN")
+    CASES = (
+        ("an unmodified conforming workflow", lambda wf: None, None),
+        ("a non-kebab id", lambda wf: wf.update(id="Bad_ID"), "WF-E020"),
+        ("an unknown intent", lambda wf: wf.update(intent="bogus"), "WF-E021"),
+        ("an unknown top-level field", lambda wf: wf.update(surprise=1), "WF-E013"),
+        (
+            "a duplicate requirement id",
+            lambda wf: wf["requirements"].append(
+                {"id": "R-01", "text": "dup", "evidence": ["diff"]}
+            ),
+            "WF-E042",
+        ),
+        (
+            "a step satisfying a requirement that does not exist",
+            lambda wf: wf["steps"][0].update(satisfies=["R-99"]),
+            "WF-E055",
+        ),
+        (
+            "a step depending on itself",
+            lambda wf: wf["steps"][0].update(depends_on=["S-01"]),
+            "WF-E057",
+        ),
+        (
+            "a forbidden terminal action (push)",
+            lambda wf: wf["steps"][0].update(terminal_action="push"),
+            "WF-E05B",
+        ),
+        (
+            "a read-only workflow that also declares writable paths",
+            lambda wf: wf.update(
+                risk="read-only",
+                mutation_boundary="none",
+                permissions={"allowed_paths": ["src/**"]},
+            ),
+            "WF-E033",
+        ),
+        (
+            "a requirement with no validation verifying it",
+            lambda wf: wf.update(validations=[]),
+            "WF-E064",
+        ),
+        (
+            "an unknown evidence kind",
+            lambda wf: wf["requirements"][0].update(evidence=["telepathy"]),
+            "WF-E045",
+        ),
+    )
 
-    def test_duplicate_requirement_id_rejected(self):
-        wf = _valid_workflow()
-        wf["requirements"].append({"id": "R-01", "text": "dup", "evidence": ["diff"]})
-        codes = {f.code for f in SCHEMA.validate_workflow(wf).findings}
-        self.assertIn("WF-E042", codes)
+    def test_every_named_invariant_rejects_its_own_violation(self):
+        wrong = []
+        for case, mutate, expected in self.CASES:
+            wf = _valid_workflow()
+            mutate(wf)
+            result = SCHEMA.validate_workflow(wf)
+            codes = {f.code for f in result.findings}
+            if expected is None:
+                if not result.ok:
+                    wrong.append(
+                        f"  {case}: must VALIDATE CLEAN but was rejected with {sorted(codes)}. "
+                        "Every negative row is vacuous while this row is broken, because a "
+                        "validator that rejects everything satisfies all of them"
+                    )
+            elif expected not in codes:
+                wrong.append(
+                    f"  {case}: expected code {expected!r}, got "
+                    f"{sorted(codes) or 'no findings at all (it validated clean)'}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"workflow_schema.validate_workflow mishandled {len(wrong)} of {len(self.CASES)} "
+            "invariants. The WF-E* codes are a closed set surfaced to users by the loader and the "
+            "CLI, so several rows moving together usually means a renumbering rather than several "
+            f"independent breakages:\n" + "\n".join(wrong),
+        )
 
-    def test_step_unknown_requirement_ref_rejected(self):
-        wf = _valid_workflow()
-        wf["steps"][0]["satisfies"] = ["R-99"]
-        codes = {f.code for f in SCHEMA.validate_workflow(wf).findings}
-        self.assertIn("WF-E055", codes)
-
-    def test_self_dependency_rejected(self):
-        wf = _valid_workflow()
-        wf["steps"][0]["depends_on"] = ["S-01"]
-        codes = {f.code for f in SCHEMA.validate_workflow(wf).findings}
-        self.assertIn("WF-E057", codes)
-
-    def test_dependency_cycle_rejected(self):
+    def test_a_dependency_cycle_between_two_steps_is_rejected(self):
+        """Kept out of the table: it needs a whole replacement step list, not a one-field edit."""
         wf = _valid_workflow()
         wf["steps"] = [
             {
@@ -115,33 +167,11 @@ class SchemaTests(unittest.TestCase):
             },
         ]
         codes = {f.code for f in SCHEMA.validate_workflow(wf).findings}
-        self.assertIn("WF-E05C", codes)
-
-    def test_forbidden_terminal_action_rejected(self):
-        wf = _valid_workflow()
-        wf["steps"][0]["terminal_action"] = "push"
-        codes = {f.code for f in SCHEMA.validate_workflow(wf).findings}
-        self.assertIn("WF-E05B", codes)
-
-    def test_readonly_with_allowed_paths_contradiction(self):
-        wf = _valid_workflow()
-        wf["risk"] = "read-only"
-        wf["mutation_boundary"] = "none"
-        wf["permissions"] = {"allowed_paths": ["src/**"]}
-        codes = {f.code for f in SCHEMA.validate_workflow(wf).findings}
-        self.assertIn("WF-E033", codes)
-
-    def test_missing_validation_for_requirement_rejected(self):
-        wf = _valid_workflow()
-        wf["validations"] = []
-        codes = {f.code for f in SCHEMA.validate_workflow(wf).findings}
-        self.assertIn("WF-E064", codes)
-
-    def test_unknown_evidence_kind_rejected(self):
-        wf = _valid_workflow()
-        wf["requirements"][0]["evidence"] = ["telepathy"]
-        codes = {f.code for f in SCHEMA.validate_workflow(wf).findings}
-        self.assertIn("WF-E045", codes)
+        self.assertIn(
+            "WF-E05C",
+            codes,
+            f"a two-step dependency cycle must be rejected with WF-E05C; got {sorted(codes)}",
+        )
 
 
 class SourceLayoutTests(unittest.TestCase):
