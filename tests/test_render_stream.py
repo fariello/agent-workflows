@@ -28,57 +28,180 @@ from agent_workflows import render_stream
 
 
 class RenderEventUnitTests(unittest.TestCase):
-    """render_event maps sample events to expected concise lines."""
+    """Each event shape renders to ONE exact line, or to nothing, with color as a MODE column.
+
+    Five tests became one table. Every one of them built a JSON event line, called `render_event`,
+    and compared the result to one expected string (or to `None`). Only the event differed, which is
+    a data row.
+
+    Why the table beats the five, specifically for a TERMINAL RENDERER: the output of every row is
+    assembled by the same two pieces, a prefix looked up in `EVENT_PREFIXES` and padded to the
+    derived column, then a payload formatted per tool. So the realistic regression is in the shared
+    assembly (a pad change, a prefix rename, a padding call that pads the COLORED string), and it
+    shifts EVERY line by the same amount at once. Five tests report that as five red lines that
+    each show one shifted string; the table reports one failure listing every row with expected
+    versus actual, and seeing the same shift repeated is what identifies the cause as the pad rather
+    than the payloads.
+
+    COLOR IS A COLUMN, NOT A SECOND TABLE. Each row is rendered TWICE, once with `Palette(False)`
+    and once with `Palette(True)`, and the colored render must satisfy two properties the plain one
+    cannot express: it must actually CONTAIN an ANSI escape (otherwise the palette silently stopped
+    working and every plain assertion still passes), and stripping ANSI must recover the plain line
+    EXACTLY. That second property is the one that matters here, because padding is computed on
+    UNCOLORED text: if a colored prefix were padded to the pad width including its escape bytes, the
+    visible column would be wrong while every plain-mode test stayed green. The old
+    `test_text_event_renders_narration` gestured at this with a single `assertNotIn("\\033[")` on the
+    plain line; asserting the strip-to-plain identity on every row is strictly stronger.
+
+    SUPPRESSED rows (expected `None`) live in the same table as rendered rows deliberately. A
+    renderer that returned `None` for everything would satisfy every suppression row on its own, so
+    keeping the positive rows beside them is what stops that from passing.
+    """
+
+    #: (case, raw event line, verbosity, expected plain line or None for suppressed, why)
+    EVENTS = (
+        (
+            "a text part",
+            '{"type":"text","part":{"type":"text","text":"Reading the plan."}}',
+            0,
+            "\u25c8 think: Reading the plan.",
+            "narration renders behind the `think` prefix, padded to the derived column",
+        ),
+        (
+            "a tool_use with an explicit title",
+            '{"type":"tool_use","part":{"tool":"bash",'
+            '"state":{"status":"completed","title":"git status --short"}}}',
+            0,
+            "\u276f bash:  git status --short",
+            "the title is the payload when the event supplies one; `bash` is one codepoint shorter "
+            "than `think`, so this row is also where an off-by-one in the padding shows up",
+        ),
+        (
+            "a tool_use with NO title",
+            '{"type":"tool_use","part":{"tool":"read",'
+            '"state":{"status":"running","input":{"path":"a.py"}}}}',
+            1,
+            '\u25c0 read:  {"path": "a.py"}',
+            "the title FALLS BACK to the serialized input. Asserted at the verbose tier because "
+            "`read` is suppressed at the default tier (E-04), so at verbosity 0 there would be no "
+            "line to check the fallback on",
+        ),
+        (
+            "an unmapped tool",
+            '{"type":"tool_use","part":{"tool":"ask_question",'
+            '"state":{"status":"completed","title":"Pick branch"}}}',
+            0,
+            "\u2022 tool:  ask_question: Pick branch",
+            "a tool with no prefix entry still renders: it takes the generic `tool` prefix and NAMES "
+            "the tool in the payload, so an unknown tool is identifiable rather than anonymous",
+        ),
+        (
+            "the task tool",
+            '{"type":"tool_use","part":{"tool":"task",'
+            '"state":{"status":"completed","title":"explore the codebase"}}}',
+            0,
+            "\u21b3 child: explore the codebase",
+            "a subagent spawn gets the `child` prefix, which is how nested work is visually "
+            "distinguishable from the parent's own tool calls",
+        ),
+        (
+            "a non-JSON line",
+            "a stray log line",
+            0,
+            "a stray log line",
+            "an unparseable line passes through VERBATIM with no prefix and no padding (it is "
+            "dimmed when color is on), because dropping it would hide real stderr from the user",
+        ),
+        (
+            "a step_start event",
+            '{"type":"step_start"}',
+            0,
+            None,
+            "pure protocol noise: it carries nothing a human wants to read",
+        ),
+        (
+            "a whitespace-only line",
+            "   ",
+            0,
+            None,
+            "blank input must not emit a blank line, which would shred the transcript's density",
+        ),
+        (
+            "an unknown event type",
+            '{"type":"unknown_event"}',
+            0,
+            None,
+            "an unrecognized type is suppressed rather than dumped raw, so a protocol addition "
+            "cannot spam the transcript",
+        ),
+    )
 
     def setUp(self) -> None:
         self.plain = render_stream.Palette(False)
+        self.colored = render_stream.Palette(True)
 
-    def test_text_event_renders_narration(self):
-        line = render_stream.render_event(
-            '{"type":"text","part":{"type":"text","text":"Reading the plan."}}',
-            self.plain,
-        )
-        assert line is not None
-        pad = render_stream.event_prefix_pad(True)
-        self.assertEqual(line, "\u25c8 think:".ljust(pad) + "Reading the plan.")
-        self.assertNotIn("\033[", line)
-
-    def test_tool_use_renders_tool_and_title(self):
-        line = render_stream.render_event(
-            '{"type":"tool_use","part":{"tool":"bash",'
-            '"state":{"status":"completed","title":"git status --short"}}}',
-            self.plain,
-        )
-        assert line is not None
-        pad = render_stream.event_prefix_pad(True)
+    def test_every_event_shape_renders_its_exact_line_in_both_color_modes(self):
+        wrong = []
+        for case, raw, verbosity, expected, why in self.EVENTS:
+            got = render_stream.render_event(raw, self.plain, verbosity=verbosity)
+            colored = render_stream.render_event(raw, self.colored, verbosity=verbosity)
+            problems = []
+            if got != expected:
+                problems.append(
+                    f"plain render expected {expected!r}, got {got!r}"
+                    + (
+                        f" (a {len(got) - len(expected):+d} character shift)"
+                        if isinstance(got, str) and isinstance(expected, str)
+                        else ""
+                    )
+                )
+            if expected is None:
+                if colored is not None:
+                    problems.append(
+                        f"must be suppressed with color on too, got {colored!r}"
+                    )
+            elif colored is None:
+                problems.append("rendered a line with color OFF but None with color ON")
+            else:
+                if "\033[" not in colored:
+                    problems.append(
+                        f"the colored render carries NO ANSI escape ({colored!r}), so the palette "
+                        "is silently inert and no plain-mode assertion can detect it"
+                    )
+                stripped = render_stream._strip_ansi(colored)
+                if stripped != got:
+                    problems.append(
+                        f"stripping ANSI gave {stripped!r} but the plain render is {got!r}; "
+                        "padding must be computed on UNCOLORED text, so color is additive"
+                    )
+            if problems:
+                wrong.append(
+                    f"  {case}:\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
         self.assertEqual(
-            line,
-            "\u276f bash:".ljust(pad) + "git status --short",
+            wrong,
+            [],
+            f"render_stream.render_event rendered {len(wrong)} of {len(self.EVENTS)} event shapes "
+            "wrongly. Every line is assembled from a prefix padded to the derived column plus a "
+            "per-tool payload, so read the failures together. If several rows are shifted by the "
+            "SAME number of characters, the pad or a prefix length changed and the payloads are "
+            "fine (see EventPrefixAlignmentTests, whose table asserts the derivation). If the "
+            "strip-to-plain check fails, padding is being computed on the COLORED string, which "
+            "misaligns the real terminal while plain-mode tests stay green. If the SUPPRESSED rows "
+            "are the ones rendering, noise is reaching the transcript; if only the rendered rows "
+            "fail while suppression holds, note that a renderer returning None for everything "
+            f"would satisfy the suppressed rows on its own.\n" + "\n".join(wrong),
         )
-
-    def test_tool_use_derives_title_from_input_when_missing(self):
-        # `read` is suppressed at the default tier (E-04), so this asserts the title fallback at the
-        # verbose tier where the event is visible at all.
-        line = render_stream.render_event(
-            '{"type":"tool_use","part":{"tool":"read",'
-            '"state":{"status":"running","input":{"path":"a.py"}}}}',
-            self.plain,
-            verbosity=1,
-        )
-        assert line is not None
-        pad = render_stream.event_prefix_pad(True)
-        self.assertEqual(
-            line,
-            "\u25c0 read:".ljust(pad) + '{"path": "a.py"}',
-        )
-
-    def test_step_start_and_blank_are_suppressed(self):
-        self.assertIsNone(
-            render_stream.render_event('{"type":"step_start"}', self.plain)
-        )
-        self.assertIsNone(render_stream.render_event("   ", self.plain))
 
     def test_step_finish_updates_tracker_and_is_suppressed(self):
+        """Kept separate: asserts ACCUMULATED tracker state across two events, not one line.
+
+        The claim is that a second `step_finish` ADDS to the first (cache and cost accumulate while
+        `input` is replaced by the running total), which needs two calls sharing one tracker and
+        assertions over four numeric fields. A row holds one input and one expected line.
+        """
         tracker = render_stream.StreamTracker()
         evt1 = (
             '{"type":"step_finish","part":{"tokens":{"total":30476,"input":30371,'
@@ -102,27 +225,29 @@ class RenderEventUnitTests(unittest.TestCase):
         self.assertEqual(tracker.cache_tokens, 60000)
         self.assertAlmostEqual(tracker.cost, 0.16328)
 
-    def test_format_tokens_units(self):
-        self.assertEqual(render_stream.format_tokens(0), "0")
-        self.assertEqual(render_stream.format_tokens(500), "500")
-        self.assertEqual(render_stream.format_tokens(1000), "1.00K")
-        self.assertEqual(render_stream.format_tokens(37480), "37.48K")
-        self.assertEqual(render_stream.format_tokens(1_500_000), "1.50M")
-        self.assertEqual(render_stream.format_tokens(2_500_000_000), "2.50G")
-
-    def test_non_json_line_passed_through_dimmed(self):
-        line = render_stream.render_event("a stray log line", self.plain)
-        assert line is not None
-        self.assertIn("a stray log line", line)
-
     def test_long_text_is_clipped_to_single_line(self):
+        """Kept separate: asserts a BOUND and an absence, not an exact line.
+
+        The input is 1000 characters of filler, so there is no expected string to pin; the claims
+        are that no newline survives (one event must never become two transcript lines) and that the
+        result fits a length budget. Both are inequalities, which no exact-match row expresses.
+        """
         long = "word " * 200
         line = render_stream.render_event(
             json.dumps({"type": "text", "part": {"text": long}}), self.plain
         )
         assert line is not None
-        self.assertNotIn("\n", line)
-        self.assertLessEqual(len(line), 420)
+        self.assertNotIn(
+            "\n",
+            line,
+            "a long text event must be CLIPPED to one line; a newline here means one event "
+            "becomes two transcript lines and the statusline redraw math breaks",
+        )
+        self.assertLessEqual(
+            len(line),
+            420,
+            f"clipped line is {len(line)} characters, over the 420 budget",
+        )
 
 
 _OBSERVED_SYSTEM_PROTOCOL_VARIANTS = [
@@ -149,111 +274,345 @@ _OBSERVED_SYSTEM_PROTOCOL_VARIANTS = [
 ]
 
 
+_CANONICAL_PLACEHOLDER = "[System: Empty message content sanitised to satisfy protocol]"
+
+
 class SystemProtocolSuppressionTests(unittest.TestCase):
-    """Tests for synthetic platform protocol placeholder suppression (plan eqzd0h)."""
+    """Synthetic platform placeholders are suppressed; real text that MENTIONS one is not (eqzd0h).
+
+    Eight tests became two, and the split between them is the closed-set boundary. The three tests
+    that each looped the SAME twenty observed variants are now one test that checks all three
+    surfaces per variant; the five that each probed one distinctive TEXT SHAPE are one table.
+
+    Why tables suit this subject: the twenty variants are a CLOSED SET of strings actually observed
+    in run logs, all matched by one pattern in `strip_system_protocol_prefix`. The realistic failure
+    is that pattern being tightened or loosened, which moves MANY variants at once, and in the
+    loosened direction it starts eating real narration. Three `subTest` loops reported that as three
+    red blocks listing overlapping variants; one accumulating test reports each variant once with
+    every surface that mishandled it.
+
+    THREE SURFACES ARE THREE COLUMNS, NOT THREE TABLES, and this is the important structural point.
+    The same string reaches the renderer by two different routes, as the `text` field of a JSON
+    event and as a bare unparseable line, and the two routes DO NOT agree, deliberately. A
+    placeholder followed by real narration inside a JSON `text` part renders just the narration,
+    while the identical bytes arriving as a bare line are passed through VERBATIM, placeholder
+    included. That asymmetry is correct (an unparseable line is raw output we must not silently
+    edit) and it is invisible unless both routes sit in one row, which is why `expected_event` and
+    `expected_bare` are separate columns rather than separate tests.
+
+    The PRESERVED rows (a placeholder quoted mid-sentence, a truncated one, ordinary log text) are in
+    the same table as the suppressed ones because they are what stops the fix from being a
+    catastrophe: a matcher that suppressed everything would satisfy every suppression row while
+    deleting the narration a human is reading the transcript for.
+    """
 
     def setUp(self) -> None:
         self.pal = render_stream.Palette(False)
         self.pad = render_stream.event_prefix_pad(True)
         self.think_prefix = render_stream.EVENT_PREFIXES["think"].ljust(self.pad)
 
-    def test_all_20_observed_variants_reduce_to_empty(self):
-        self.assertEqual(len(_OBSERVED_SYSTEM_PROTOCOL_VARIANTS), 20)
-        for variant in _OBSERVED_SYSTEM_PROTOCOL_VARIANTS:
-            with self.subTest(variant=variant):
-                stripped = render_stream.strip_system_protocol_prefix(variant)
-                self.assertEqual(stripped, "")
-
-    def test_chained_placeholder_reduces_to_empty(self):
-        chained = (
-            "[System: Empty message content sanitised to satisfy protocol]"
-            "[System: Empty message content sanitised to satisfy protocol]"
+    def test_every_observed_variant_is_suppressed_on_every_surface(self):
+        """The twenty variants OBSERVED in real run logs, checked on all three surfaces at once."""
+        self.assertEqual(
+            len(_OBSERVED_SYSTEM_PROTOCOL_VARIANTS),
+            20,
+            "this test's name and the eqzd0h findings both claim TWENTY observed variants; "
+            f"the list now holds {len(_OBSERVED_SYSTEM_PROTOCOL_VARIANTS)}",
         )
-        self.assertEqual(render_stream.strip_system_protocol_prefix(chained), "")
-
-    def test_placeholder_only_text_events_render_none(self):
-        for variant in _OBSERVED_SYSTEM_PROTOCOL_VARIANTS:
-            with self.subTest(variant=variant):
-                evt = json.dumps(
-                    {"type": "text", "part": {"type": "text", "text": variant}}
+        variants = list(_OBSERVED_SYSTEM_PROTOCOL_VARIANTS) + [
+            _CANONICAL_PLACEHOLDER
+            * 2  # the CHAINED form, which the model emits back to back
+        ]
+        wrong = []
+        for variant in variants:
+            problems = []
+            stripped = render_stream.strip_system_protocol_prefix(variant)
+            if stripped != "":
+                problems.append(
+                    f"strip_system_protocol_prefix left {stripped!r} instead of an empty string"
                 )
-                self.assertIsNone(render_stream.render_event(evt, self.pal))
-
-    def test_leading_placeholder_with_real_text_renders_text_behind_think_prefix(self):
-        raw_text = (
-            "[System: Empty message content sanitised to satisfy protocol]\n\n"
-            "Now let me look at the key structural question."
-        )
-        evt = json.dumps({"type": "text", "part": {"type": "text", "text": raw_text}})
-        rendered = render_stream.render_event(evt, self.pal)
+            evt = json.dumps(
+                {"type": "text", "part": {"type": "text", "text": variant}}
+            )
+            as_event = render_stream.render_event(evt, self.pal)
+            if as_event is not None:
+                problems.append(
+                    f"as a JSON text event it rendered {as_event!r} instead of being suppressed"
+                )
+            as_bare = render_stream.render_event(variant, self.pal)
+            if as_bare is not None:
+                problems.append(
+                    f"as a bare non-JSON line it rendered {as_bare!r} instead of being suppressed"
+                )
+            if problems:
+                wrong.append(
+                    f"  {variant!r}\n"
+                    + "".join(f"    - {p}\n" for p in problems).rstrip()
+                )
         self.assertEqual(
-            rendered,
-            f"{self.think_prefix}Now let me look at the key structural question.",
+            wrong,
+            [],
+            f"{len(wrong)} of {len(variants)} observed placeholder variants were not fully "
+            "suppressed. All of them are matched by ONE pattern in "
+            "`strip_system_protocol_prefix`, so many variants failing together means that pattern "
+            "was TIGHTENED (it no longer covers the wording drift these twenty variants are a "
+            "record of) rather than twenty separate bugs. FIX: note WHICH surface leaked. If "
+            "`strip_system_protocol_prefix` is correct but the SURFACES still render, the renderer "
+            "stopped calling it on that route; if the strip itself leaks, the pattern is the "
+            "suspect. Every variant here was seen in a real run log, so a leak puts this noise back "
+            f"in front of a human watching a run.\n" + "\n".join(wrong),
         )
 
-    def test_placeholder_quoted_mid_sentence_is_preserved_verbatim(self):
-        raw_text = "We observed [System: Empty message content sanitised to satisfy protocol] in logs."
-        evt = json.dumps({"type": "text", "part": {"type": "text", "text": raw_text}})
-        rendered = render_stream.render_event(evt, self.pal)
+    #: (case, raw text, expected `strip_system_protocol_prefix` result,
+    #:  expected render as a JSON text event, expected render as a bare non-JSON line, why)
+    #: `None` in a render column means the line must be SUPPRESSED. `"<THINK>"` is replaced with the
+    #: padded think prefix, and `"<SELF>"` with the raw text itself.
+    TEXT_SHAPES = (
+        (
+            "a placeholder alone",
+            _CANONICAL_PLACEHOLDER,
+            "",
+            None,
+            None,
+            "the base case both other columns are measured against",
+        ),
+        (
+            "two placeholders chained",
+            _CANONICAL_PLACEHOLDER * 2,
+            "",
+            None,
+            None,
+            "the model emits them back to back, so stripping must be REPEATED rather than applied "
+            "once; stripping once would leave a whole second placeholder on screen",
+        ),
+        (
+            "a placeholder then real narration",
+            _CANONICAL_PLACEHOLDER
+            + "\n\nNow let me look at the key structural question.",
+            "Now let me look at the key structural question.",
+            "<THINK>Now let me look at the key structural question.",
+            _CANONICAL_PLACEHOLDER + " Now let me look at the key structural question.",
+            "THE CENTRAL CASE, and the one where the two surfaces diverge on purpose: as a JSON "
+            "text part the placeholder is removed and the narration survives behind the think "
+            "prefix, but the same bytes as a BARE line KEEP the placeholder, because an "
+            "unparseable line is raw output we must not silently edit. Note the bare column is not "
+            "byte-identical to the input either: the blank line collapses to a single space, "
+            "because every rendered line is clipped to ONE line (see "
+            "`test_long_text_is_clipped_to_single_line`). Preserving the placeholder and collapsing "
+            "the newline are separate behaviors and this row pins both",
+        ),
+        (
+            "a placeholder quoted mid-sentence",
+            f"We observed {_CANONICAL_PLACEHOLDER} in logs.",
+            "<SELF>",
+            "<THINK><SELF>",
+            "<SELF>",
+            "the matcher is anchored at the START, so a human (or this very test file) DISCUSSING a "
+            "placeholder keeps their sentence intact. A matcher that suppressed this would delete "
+            "real narration, which is far worse than leaking noise",
+        ),
+        (
+            "a truncated placeholder with no closing bracket",
+            "[System: Empty message content sanitised",
+            "<SELF>",
+            "<THINK><SELF>",
+            "<SELF>",
+            "an incomplete placeholder is NOT one: matching it would mean matching any line that "
+            "merely begins like one, so the closing bracket is required",
+        ),
+        (
+            "ordinary unparseable log text",
+            "regular unparseable log line",
+            "<SELF>",
+            "<THINK><SELF>",
+            "<SELF>",
+            "the control row: text with no placeholder at all must pass through untouched on both "
+            "surfaces, which is what proves the suppression rows are not vacuous",
+        ),
+    )
+
+    def test_every_text_shape_is_stripped_and_rendered_correctly_on_both_surfaces(self):
+        wrong = []
+        for case, raw, exp_strip, exp_event, exp_bare, why in self.TEXT_SHAPES:
+
+            def resolve(value):
+                if value is None:
+                    return None
+                return value.replace("<THINK>", self.think_prefix).replace(
+                    "<SELF>", raw
+                )
+
+            expected_strip = resolve(exp_strip)
+            expected_event = resolve(exp_event)
+            expected_bare = resolve(exp_bare)
+            problems = []
+            got_strip = render_stream.strip_system_protocol_prefix(raw)
+            if got_strip != expected_strip:
+                problems.append(
+                    f"strip_system_protocol_prefix expected {expected_strip!r}, got {got_strip!r}"
+                )
+            evt = json.dumps({"type": "text", "part": {"type": "text", "text": raw}})
+            got_event = render_stream.render_event(evt, self.pal)
+            if got_event != expected_event:
+                problems.append(
+                    f"as a JSON text event expected {expected_event!r}, got {got_event!r}"
+                )
+            got_bare = render_stream.render_event(raw, self.pal)
+            if got_bare != expected_bare:
+                problems.append(
+                    f"as a bare non-JSON line expected {expected_bare!r}, got {got_bare!r}"
+                )
+            if problems:
+                wrong.append(
+                    f"  {case} (input {raw!r}):\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
         self.assertEqual(
-            rendered,
-            f"{self.think_prefix}{raw_text}",
+            wrong,
+            [],
+            f"placeholder handling is wrong for {len(wrong)} of {len(self.TEXT_SHAPES)} text "
+            "shapes. One anchored matcher decides all of them, so the DIRECTION of the failures is "
+            "the diagnosis and the two directions are not equally bad. If the PRESERVED rows "
+            "(quoted mid-sentence, truncated, ordinary log text) are failing, the matcher has been "
+            "LOOSENED and is now deleting real narration a human needs, which is the severe case. "
+            "If only the suppression rows fail, noise is leaking through, which is merely untidy. "
+            "FIX: remember the two surfaces are ALLOWED to differ. The bare-line column preserving "
+            "a placeholder that the JSON-event column strips is the intended asymmetry, not a bug "
+            f"to unify.\n" + "\n".join(wrong),
         )
-
-    def test_truncated_placeholder_without_closing_bracket_is_preserved(self):
-        raw_text = "[System: Empty message content sanitised"
-        evt = json.dumps({"type": "text", "part": {"type": "text", "text": raw_text}})
-        rendered = render_stream.render_event(evt, self.pal)
-        self.assertEqual(
-            rendered,
-            f"{self.think_prefix}{raw_text}",
-        )
-
-    def test_placeholder_only_non_json_line_returns_none(self):
-        for variant in _OBSERVED_SYSTEM_PROTOCOL_VARIANTS:
-            with self.subTest(variant=variant):
-                self.assertIsNone(render_stream.render_event(variant, self.pal))
-
-    def test_non_placeholder_non_json_line_renders_dimmed(self):
-        line = "regular unparseable log line"
-        rendered = render_stream.render_event(line, self.pal)
-        self.assertIsNotNone(rendered)
-        self.assertIn(line, rendered)
 
 
 class PaletteUnitTests(unittest.TestCase):
-    """Palette applies/omits color per the enabled flag."""
+    """`Palette` wraps text in exactly the SGR sequence its arguments name, or in nothing.
 
-    def test_palette_noop_when_disabled(self):
-        pal = render_stream.Palette(False)
-        self.assertEqual(pal("x", "green"), "x")
+    Five tests became one table with the ENABLED FLAG as a MODE COLUMN, which is the right shape
+    because the flag is the whole subject: `Palette(False)` must be a perfect no-op and
+    `Palette(True)` must emit the right codes, and those are two modes of one function rather than
+    two functions. Splitting them into separate tables would lose the pairing that matters, namely
+    that the same call with the flag flipped differs ONLY by escape bytes.
 
-    def test_palette_active_when_enabled(self):
-        colored = render_stream.Palette(True)("x", "green")
-        self.assertTrue(colored.startswith("\033["))
-        self.assertIn("x", colored)
-        self.assertTrue(colored.endswith(render_stream._ANSI_RESET))
+    Why the table beats the five: the expected strings are pinned as EXACT byte sequences, and they
+    all come from one lookup table (`_ANSI_CODES`) joined by one wrapper. A renumbered or reordered
+    code changes several rows at once, and the old tests could not see that because they asserted
+    weakly and differently from each other: one checked only `startswith("\\033[")`, another only
+    `assertIn("32", out)`, which would also pass on a stray `32` anywhere in the payload. Pinning
+    the exact sequence per row is stronger AND makes the failure legible, since a wrong code is
+    visible as a number rather than as a missing substring.
 
-    def test_palette_status_maps_known_status_to_color(self):
-        pal = render_stream.Palette(True)
-        out = pal.status("executed")
-        # "executed" -> green (code 32)
-        self.assertIn("32", out)
-        self.assertIn("executed", out)
+    The DISABLED rows are in the same table as the enabled ones for the usual reason: a `Palette`
+    that returned its input unchanged in BOTH modes would satisfy every disabled row on its own,
+    and that regression is exactly what "color silently stopped working" looks like.
+    """
 
-    def test_palette_status_passthrough_for_unknown(self):
-        pal = render_stream.Palette(True)
-        self.assertEqual(pal.status("no-such-status"), "no-such-status")
+    #: (case, enabled, call as ("text", *styles) or ("status", value), expected exact output, why)
+    PALETTE_CALLS = (
+        (
+            "plain text, color off",
+            False,
+            ("text", "x", ("green",)),
+            "x",
+            "with color off the wrapper is a perfect NO-OP: not an empty escape, not a reset, the "
+            "input byte for byte, because this output is what lands in logs and CI",
+        ),
+        (
+            "plain text, color on",
+            True,
+            ("text", "x", ("green",)),
+            "\033[32mx\033[0m",
+            "green is code 32, and the wrap is open-sequence, text, RESET; without the reset the "
+            "color bleeds into every following line",
+        ),
+        (
+            "two styles combined",
+            True,
+            ("text", "hello", ("red", "bold")),
+            "\033[31;1mhello\033[0m",
+            "multiple styles are SEMICOLON-JOINED inside ONE escape (31;1), not emitted as two "
+            "nested escapes, and the order follows the arguments",
+        ),
+        (
+            "a known status, color on",
+            True,
+            ("status", "executed"),
+            "\033[32mexecuted\033[0m",
+            "`executed` maps to green via _STATUS_COLOR; the terminal status word IS the text",
+        ),
+        (
+            "a failure status, color on",
+            True,
+            ("status", "failed-safely"),
+            "\033[31mfailed-safely\033[0m",
+            "a FAILURE maps to red (31), not to the same green a success gets. This row exists "
+            "because a status-color table that collapsed to one color would still satisfy the "
+            "`executed` row",
+        ),
+        (
+            "an unknown status, color on",
+            True,
+            ("status", "no-such-status"),
+            "no-such-status",
+            "an unmapped status passes through UNCOLORED rather than raising or picking a default, "
+            "so a new status word degrades to plain text instead of crashing a run",
+        ),
+        (
+            "a known status, color off",
+            False,
+            ("status", "executed"),
+            "executed",
+            "the status helper honors the flag too, rather than colorizing unconditionally",
+        ),
+    )
 
-    def test_strip_ansi_removes_sgr(self):
-        colored = render_stream.Palette(True)("hello", "red", "bold")
-        self.assertEqual(render_stream._strip_ansi(colored), "hello")
+    def test_every_palette_call_emits_its_exact_escape_sequence(self):
+        wrong = []
+        for case, enabled, call, expected, why in self.PALETTE_CALLS:
+            pal = render_stream.Palette(enabled)
+            if call[0] == "text":
+                _, text, styles = call
+                got = pal(text, *styles)
+                shown = f"Palette({enabled})({text!r}, {', '.join(map(repr, styles))})"
+            else:
+                got = pal.status(call[1])
+                shown = f"Palette({enabled}).status({call[1]!r})"
+            problems = []
+            if got != expected:
+                problems.append(f"expected {expected!r}, got {got!r}")
+            # Whatever the codes, stripping must always recover the bare text.
+            bare = call[1] if call[0] == "status" else call[1]
+            if render_stream._strip_ansi(got) != bare:
+                problems.append(
+                    f"_strip_ansi gave {render_stream._strip_ansi(got)!r}, expected the bare text "
+                    f"{bare!r}; every width calculation in this module strips first, so a "
+                    "sequence _strip_ansi cannot remove corrupts the layout"
+                )
+            if problems:
+                wrong.append(
+                    f"  {case}: {shown}\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"render_stream.Palette emitted the wrong sequence for {len(wrong)} of "
+            f"{len(self.PALETTE_CALLS)} calls. Every row resolves through ONE lookup "
+            "(`_ANSI_CODES`, or `_STATUS_COLOR` then `_ANSI_CODES`) and one wrapper, so several "
+            "rows moving together usually means a code was renumbered or the wrapper's shape "
+            "changed rather than several independent bugs. FIX: a DISABLED row emitting escapes is "
+            "the serious direction, because that output goes into log files and CI transcripts; an "
+            "ENABLED row emitting none means color silently died, which no plain-mode test in this "
+            "module can detect. A failing _strip_ansi check means the emitted sequence is not one "
+            f"the stripper recognizes, which breaks every padded column in the renderer.\n"
+            + "\n".join(wrong),
+        )
 
 
 class HeartbeatLifecycleTests(unittest.TestCase):
     """Heartbeat enter/exit/interval lifecycle."""
 
     def test_disabled_heartbeat_writes_nothing(self):
+        """Kept separate: needs a live thread and a real sleep; a timing lifecycle, not a mapping."""
         buf = io.StringIO()
         pal = render_stream.Palette(False)
         hb = render_stream.Heartbeat(pal, "test-ipd", buf, interval=0)
@@ -262,6 +621,7 @@ class HeartbeatLifecycleTests(unittest.TestCase):
         self.assertEqual(buf.getvalue(), "")
 
     def test_enabled_heartbeat_emits_while_idle(self):
+        """Kept separate: needs a live thread and a real sleep to observe an emission."""
         buf = io.StringIO()
         pal = render_stream.Palette(False)
         hb = render_stream.Heartbeat(pal, "test-ipd", buf, interval=0.05)
@@ -274,6 +634,7 @@ class HeartbeatLifecycleTests(unittest.TestCase):
         self.assertIn("no progress", out)
 
     def test_touch_resets_idle_and_format_message(self):
+        """Kept separate: mutates a live Heartbeat then reads three derived strings back."""
         buf = io.StringIO()
         pal = render_stream.Palette(False)
         hb = render_stream.Heartbeat(pal, "lbl", buf, interval=1.0)
@@ -322,6 +683,8 @@ class GoldenByteIdenticalTests(unittest.TestCase):
     """
 
     def test_plain_transcript_is_byte_identical(self):
+        """Kept separate: a GOLDEN whole-transcript pin over a fixed event stream, deliberately
+        redundant with the per-event table so a regression shows up as both a line and a stream."""
         pal = render_stream.Palette(False)
         transcript = _render_stream_transcript(_GOLDEN_EVENTS, pal)
         # streamfmt (mm6wuz) E-07: RE-PINNED for the aligned format. The expected lines are built
@@ -341,6 +704,7 @@ class GoldenByteIdenticalTests(unittest.TestCase):
         self.assertEqual(transcript, expected)
 
     def test_driver_reexport_produces_identical_transcript(self):
+        """Kept separate: compares two transcripts to EACH OTHER, so it has no literal expectation."""
         # Driving the SAME stream through the oc_runipd re-exported names yields the
         # identical transcript (the re-export is not a divergent copy).
         pal_via_driver = driver.Palette(False)
@@ -354,6 +718,7 @@ class GoldenByteIdenticalTests(unittest.TestCase):
         self.assertEqual(via_driver, via_module)
 
     def test_colored_transcript_strips_back_to_plain(self):
+        """Kept separate: a whole-transcript strip identity, asserted across the stream not per line."""
         # With color on, stripping ANSI recovers the plain transcript (color is additive).
         colored = render_stream.Palette(True)
         plain = render_stream.Palette(False)
@@ -457,6 +822,7 @@ class EventPrefixAlignmentTests(unittest.TestCase):
                         )
 
     def test_an_unmapped_tool_still_pads_to_the_derived_column(self):
+        """Kept separate: asserts a padded WIDTH via `format_event_prefix`, not a rendered line."""
         rendered = render_stream.format_event_prefix(
             "newtool", render_stream.Palette(False)
         )
@@ -467,6 +833,8 @@ class EventPrefixAlignmentTests(unittest.TestCase):
         self.assertEqual(rendered, "\u2022 tool:  ")
 
     def test_unmapped_tool_renders_with_tool_prefix_and_names_tool(self):
+        """Kept separate: the RenderEventUnitTests table pins this exact line; here it asserts the
+        alignment class's own concern, that an unmapped tool still reaches the derived column."""
         line = render_stream.render_event(
             '{"type":"tool_use","part":{"tool":"ask_question",'
             '"state":{"status":"completed","title":"Pick branch"}}}',
@@ -480,6 +848,8 @@ class EventPrefixAlignmentTests(unittest.TestCase):
         )
 
     def test_task_renders_with_child_prefix(self):
+        """Kept separate for the same reason as the unmapped-tool test above: this class owns the
+        alignment claim, while the exact line is a row in the RenderEventUnitTests table."""
         line = render_stream.render_event(
             '{"type":"tool_use","part":{"tool":"task",'
             '"state":{"status":"completed","title":"explore the codebase"}}}',
@@ -549,27 +919,117 @@ class EventPrefixAlignmentTests(unittest.TestCase):
             render_stream.event_prefix_pad(False), render_stream.event_prefix_pad(True)
         )
 
-    def test_child_and_tool_prefixes_present_and_aligned(self):
-        self.assertIn("child", render_stream.EVENT_PREFIXES)
-        self.assertIn("child", render_stream.EVENT_PREFIXES_ASCII)
-        self.assertEqual(render_stream.EVENT_PREFIXES["child"], "\u21b3 child:")
-        self.assertEqual(render_stream.EVENT_PREFIXES_ASCII["child"], "\u21b3 child:")
-        self.assertIn("tool", render_stream.EVENT_PREFIXES)
-        self.assertIn("tool", render_stream.EVENT_PREFIXES_ASCII)
-        self.assertEqual(render_stream.EVENT_PREFIXES["tool"], "\u2022 tool:")
-        self.assertEqual(render_stream.EVENT_PREFIXES_ASCII["tool"], "- tool:")
-        self.assertNotIn("reason", render_stream.EVENT_PREFIXES)
-        self.assertNotIn("subagent", render_stream.EVENT_PREFIXES)
-        pad = render_stream.event_prefix_pad(True)
-        self.assertEqual(pad, 9)
+    #: (prefix key, its EVENT_PREFIXES label or None if the key must be ABSENT, its
+    #: EVENT_PREFIXES_ASCII label, why this row exists)
+    PREFIX_TABLE = (
+        (
+            "think",
+            "\u25c8 think:",
+            "~ think:",
+            "the canonical thought prefix after streamfx (xs19dk) E-01 retired `reason` into it. "
+            "Its glyph is East-Asian-AMBIGUOUS, so the narrow table substitutes a plain `~`",
+        ),
+        (
+            "child",
+            "\u21b3 child:",
+            "\u21b3 child:",
+            "a subagent spawn. Its arrow is NARROW already, so the two tables carry the SAME glyph; "
+            "that identity is the point, and a test asserting only the unicode table would not see "
+            "a substitution wrongly applied here",
+        ),
+        (
+            "tool",
+            "\u2022 tool:",
+            "- tool:",
+            "the fallback prefix for an unmapped tool; the bullet IS ambiguous-width, so unlike "
+            "`child` it must be substituted in the narrow table",
+        ),
+        (
+            "reason",
+            None,
+            None,
+            "RETIRED into `think` (streamfx xs19dk E-01). It must be ABSENT from both tables: "
+            "leaving it would give thoughts two different prefixes depending on which branch ran",
+        ),
+        (
+            "subagent",
+            None,
+            None,
+            "never existed under this name; `child` is the spelling. Asserted absent so the two "
+            "never coexist",
+        ),
+    )
 
-    def test_think_prefix_present_and_aligned(self):
-        self.assertIn("think", render_stream.EVENT_PREFIXES)
-        self.assertIn("think", render_stream.EVENT_PREFIXES_ASCII)
-        self.assertEqual(render_stream.EVENT_PREFIXES["think"], "\u25c8 think:")
-        self.assertEqual(render_stream.EVENT_PREFIXES_ASCII["think"], "~ think:")
-        pad = render_stream.event_prefix_pad(True)
-        self.assertEqual(len("\u25c8 think:".ljust(pad)), pad)
+    def test_every_named_prefix_has_its_exact_label_in_both_width_tables(self):
+        """One table over the prefix-table membership claims, replacing two tests.
+
+        The two old tests were the same shape (assert a key is in both tables, assert its label in
+        each, assert some keys are absent) applied to different keys, with sixteen sequential
+        assertions between them that stopped at the first failure.
+
+        Why the table beats the two: `EVENT_PREFIXES` and `EVENT_PREFIXES_ASCII` are a CLOSED SET
+        that must stay in one-to-one correspondence, and the realistic failure is a rename or a
+        retirement touching several keys at once. Each row asserts BOTH tables side by side, which is
+        what makes the correspondence checkable per key; a per-table test cannot see that `child`
+        legitimately carries the same glyph in both while `tool` legitimately does not.
+
+        Each row also re-asserts the per-key LENGTH IDENTITY between the two tables, because equal
+        lengths are what let both tables derive the same pad. A narrow substitution that changed a
+        label's length would silently misalign the narrow terminal while every unicode-mode
+        assertion stayed green.
+        """
+        wrong = []
+        for key, unicode_label, ascii_label, why in self.PREFIX_TABLE:
+            problems = []
+            if unicode_label is None:
+                if key in render_stream.EVENT_PREFIXES:
+                    problems.append(
+                        f"must be ABSENT from EVENT_PREFIXES but holds "
+                        f"{render_stream.EVENT_PREFIXES[key]!r}"
+                    )
+                if key in render_stream.EVENT_PREFIXES_ASCII:
+                    problems.append(
+                        f"must be ABSENT from EVENT_PREFIXES_ASCII but holds "
+                        f"{render_stream.EVENT_PREFIXES_ASCII[key]!r}"
+                    )
+            else:
+                got_unicode = render_stream.EVENT_PREFIXES.get(key)
+                got_ascii = render_stream.EVENT_PREFIXES_ASCII.get(key)
+                if got_unicode != unicode_label:
+                    problems.append(
+                        f"EVENT_PREFIXES expected {unicode_label!r}, got {got_unicode!r}"
+                    )
+                if got_ascii != ascii_label:
+                    problems.append(
+                        f"EVENT_PREFIXES_ASCII expected {ascii_label!r}, got {got_ascii!r}"
+                    )
+                if (
+                    got_unicode is not None
+                    and got_ascii is not None
+                    and len(got_unicode) != len(got_ascii)
+                ):
+                    problems.append(
+                        f"the two labels differ in LENGTH ({len(got_unicode)} vs "
+                        f"{len(got_ascii)}), so the two tables can no longer derive the same pad "
+                        "and the narrow terminal will misalign"
+                    )
+            if problems:
+                wrong.append(
+                    f"  {key!r}:\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the prefix tables are wrong for {len(wrong)} of {len(self.PREFIX_TABLE)} keys. These "
+            "two tables are a closed set in one-to-one correspondence, so several keys moving "
+            "together usually means a rename or retirement swept through rather than several "
+            "independent edits. FIX: a key expected ABSENT that is now present means a retired "
+            "prefix came back, which gives one concept two spellings; a LENGTH mismatch between the "
+            "two tables breaks the shared pad derivation and is the failure the narrow-width policy "
+            f"exists to prevent.\n" + "\n".join(wrong),
+        )
 
     def test_the_width_policy_limitation_is_documented_in_code(self):
         """The plan's FIRST warning: the false 'all glyphs are single-width' claim must not return."""
@@ -617,7 +1077,197 @@ class TodoTransitionTests(unittest.TestCase):
         self.assertTrue(line.startswith(head), line)
         return line[len(head) :]
 
-    def test_source_is_metadata_todos_not_the_title(self):
+    #: (case, the PRIOR todo list already seen by the tracker (None for a first event), the todo
+    #: list in this event, which field carries it, expected payload, why this row exists)
+    TRANSITIONS = (
+        (
+            "a first event initializes",
+            None,
+            [
+                {"content": "A", "status": "in_progress", "priority": "high"},
+                {"content": "B", "status": "pending", "priority": "low"},
+                {"content": "C", "status": "pending", "priority": "low"},
+            ],
+            "metadata",
+            "initialized 3 tasks (1 active, 2 pending)",
+            "with no prior list there is nothing to diff against, so the payload SUMMARIZES rather "
+            "than reporting a transition",
+        ),
+        (
+            "a first event carried in `input` instead",
+            None,
+            [{"content": "A", "status": "pending", "priority": "high"}],
+            "input",
+            "initialized 1 tasks (0 active, 1 pending)",
+            "`input.todos` is the FALLBACK when `metadata` is absent; both routes must produce the "
+            "identical payload, which is why the source is a column rather than a second table",
+        ),
+        (
+            "one task completes and the next starts",
+            [
+                {"content": "A", "status": "in_progress"},
+                {"content": "B", "status": "pending"},
+            ],
+            [
+                {"content": "A", "status": "completed"},
+                {"content": "B", "status": "in_progress"},
+            ],
+            "metadata",
+            '[1/2 done]: completed "A" -> active "B"',
+            "the common case: a DIFF against the prior list names what finished and what started, "
+            "which is the whole reason the tracker holds the previous todos at all",
+        ),
+        (
+            "a task completes with nothing taking over",
+            [
+                {"content": "A", "status": "in_progress"},
+                {"content": "B", "status": "pending"},
+            ],
+            [
+                {"content": "A", "status": "completed"},
+                {"content": "B", "status": "pending"},
+            ],
+            "metadata",
+            '[1/2 done]: completed "A" -> no active task',
+            "measured: 169 of 984 real events carry ZERO in_progress items, so this is a normal "
+            "state that must read as idle rather than rendering an empty quoted name",
+        ),
+        (
+            "two tasks active at once",
+            [
+                {"content": "A", "status": "pending"},
+                {"content": "B", "status": "pending"},
+                {"content": "C", "status": "pending"},
+            ],
+            [
+                {"content": "A", "status": "in_progress"},
+                {"content": "B", "status": "in_progress"},
+                {"content": "C", "status": "pending"},
+            ],
+            "metadata",
+            '[0/3 done]: active "A", "B"',
+            "measured: 16 of 984 events carry TWO OR MORE in_progress items, so ALL of them are "
+            "named; showing only the first would misreport what the agent is doing",
+        ),
+        (
+            "a task is cancelled, not completed",
+            [
+                {"content": "A", "status": "pending"},
+                {"content": "B", "status": "pending"},
+            ],
+            [
+                {"content": "A", "status": "cancelled"},
+                {"content": "B", "status": "in_progress"},
+            ],
+            "metadata",
+            '[0/2 done]: active "B"',
+            "measured: `cancelled` occurs 4 times and is NOT an accomplishment, so the done count "
+            "stays 0 of 2 and the payload must not claim all tasks completed",
+        ),
+        (
+            "every task completes",
+            [
+                {"content": "A", "status": "in_progress"},
+                {"content": "B", "status": "pending"},
+            ],
+            [
+                {"content": "A", "status": "completed"},
+                {"content": "B", "status": "completed"},
+            ],
+            "metadata",
+            "all 2 tasks completed",
+            "the terminal state gets its OWN wording rather than a [2/2 done] diff",
+        ),
+        (
+            "a cancelled item in the very first list",
+            None,
+            [
+                {"content": "A", "status": "cancelled"},
+                {"content": "B", "status": "pending"},
+            ],
+            "metadata",
+            "initialized 2 tasks (0 active, 1 pending, 1 cancelled)",
+            "the initialization summary gains a `cancelled` clause only when there is one, so the "
+            "common case stays short",
+        ),
+    )
+
+    def test_every_todo_transition_renders_its_exact_payload(self):
+        """One table over the todowrite payloads, replacing eight near-identical tests.
+
+        Each of the eight fed a todo list (sometimes after a priming list), then compared the
+        rendered payload to one string. The only differences were the lists, which is a data row.
+
+        Why the table beats the eight: every payload is produced by ONE differ that compares this
+        event's todos against the tracker's previous todos and then picks a wording (initialize,
+        diff, or all-done). A change to the counting (does `cancelled` count as done?) or to the
+        wording moves several rows at once, and the accumulated report shows which, where eight
+        tests showed eight unrelated red lines.
+
+        The PRIOR column is what makes this one table rather than two. An `initialized` payload and
+        a `[N/M done]` payload are not two behaviors to test separately; they are the SAME differ
+        answering with an empty prior versus a populated one, and keeping both here is what proves
+        the initialize wording is chosen because there was nothing to diff rather than by accident.
+        """
+        wrong = []
+        head = "\u2611 todo:".ljust(self.pad)
+        for case, prior, todos, source, expected, why in self.TRANSITIONS:
+            tracker = render_stream.StreamTracker()
+            if prior is not None:
+                self._render(prior, tracker, source=source)
+            line = render_stream.render_event(
+                _tool_event(
+                    "todowrite",
+                    **(
+                        {"metadata": {"todos": todos}}
+                        if source == "metadata"
+                        else {"input": {"todos": todos}}
+                    ),
+                ),
+                self.plain,
+                tracker=tracker,
+            )
+            if line is None:
+                wrong.append(
+                    f"  {case}: rendered NOTHING; a todowrite event must always produce a line\n"
+                    f"    this row exists because: {why}"
+                )
+                continue
+            if not line.startswith(head):
+                wrong.append(
+                    f"  {case}: expected the `todo` prefix {head!r}, got line {line!r}\n"
+                    f"    this row exists because: {why}"
+                )
+                continue
+            got = line[len(head) :]
+            if got != expected:
+                wrong.append(
+                    f"  {case} (via {source}):\n    expected {expected!r}\n    got      {got!r}\n"
+                    f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the todowrite payload is wrong for {len(wrong)} of {len(self.TRANSITIONS)} "
+            "transitions. ONE differ produces all of them, so read the grouping. Every "
+            "`initialized` row failing while the diff rows pass means the empty-prior branch "
+            "changed; every `[N/M done]` row failing means the diff or the counting changed. FIX: "
+            "if the cancelled row now reports a HIGHER done count, `cancelled` is being counted as "
+            "an accomplishment, which overstates progress to a watching human; if the multi-active "
+            "row names only one task, the renderer is hiding concurrent work that measurement says "
+            "happens in 16 of 984 real events. A `metadata` row and its `input` twin disagreeing "
+            "means the two carriers diverged and half of real events will render differently from "
+            "the other half.\n" + "\n".join(wrong),
+        )
+
+    def test_the_title_field_is_never_the_payload(self):
+        """Kept separate: a NEGATIVE claim about a field the table's rows do not even set.
+
+        The measured `title` on a todowrite event is only ever the useless string "<N> todos", so
+        this event sets BOTH `title` and `metadata.todos` and asserts the title does not appear. No
+        transition row carries a title, and adding the column to all eight to serve this one case
+        would be machinery every other row ignores.
+        """
         tracker = render_stream.StreamTracker()
         line = render_stream.render_event(
             _tool_event(
@@ -633,146 +1283,16 @@ class TodoTransitionTests(unittest.TestCase):
             tracker=tracker,
         )
         assert line is not None
-        # The measured `title` value is only ever "<N> todos" and must NOT be what renders.
-        self.assertNotIn("4 todos", line)
-        self.assertIn("initialized 1 tasks", line)
-
-    def test_input_todos_is_the_fallback_when_metadata_is_absent(self):
-        tracker = render_stream.StreamTracker()
-        line = self._render(
-            [{"content": "A", "status": "pending", "priority": "high"}],
-            tracker,
-            source="input",
+        self.assertNotIn(
+            "4 todos",
+            line,
+            "the measured `title` value is only ever '<N> todos' and must NOT be what renders; "
+            f"got {line!r}",
         )
-        self.assertEqual(
-            self._payload(line), "initialized 1 tasks (0 active, 1 pending)"
-        )
-
-    def test_initialization(self):
-        tracker = render_stream.StreamTracker()
-        line = self._render(
-            [
-                {"content": "A", "status": "in_progress", "priority": "high"},
-                {"content": "B", "status": "pending", "priority": "low"},
-                {"content": "C", "status": "pending", "priority": "low"},
-            ],
-            tracker,
-        )
-        self.assertEqual(
-            self._payload(line), "initialized 3 tasks (1 active, 2 pending)"
-        )
-
-    def test_exactly_one_active(self):
-        tracker = render_stream.StreamTracker()
-        self._render(
-            [
-                {"content": "A", "status": "in_progress"},
-                {"content": "B", "status": "pending"},
-            ],
-            tracker,
-        )
-        line = self._render(
-            [
-                {"content": "A", "status": "completed"},
-                {"content": "B", "status": "in_progress"},
-            ],
-            tracker,
-        )
-        self.assertEqual(self._payload(line), '[1/2 done]: completed "A" -> active "B"')
-
-    def test_zero_active_renders_no_active_task(self):
-        """Measured: 169 of 984 events carry ZERO in_progress items."""
-        tracker = render_stream.StreamTracker()
-        self._render(
-            [
-                {"content": "A", "status": "in_progress"},
-                {"content": "B", "status": "pending"},
-            ],
-            tracker,
-        )
-        line = self._render(
-            [
-                {"content": "A", "status": "completed"},
-                {"content": "B", "status": "pending"},
-            ],
-            tracker,
-        )
-        self.assertEqual(
-            self._payload(line), '[1/2 done]: completed "A" -> no active task'
-        )
-
-    def test_multiple_active_are_all_named(self):
-        """Measured: 16 of 984 events carry TWO OR MORE in_progress items."""
-        tracker = render_stream.StreamTracker()
-        self._render(
-            [
-                {"content": "A", "status": "pending"},
-                {"content": "B", "status": "pending"},
-                {"content": "C", "status": "pending"},
-            ],
-            tracker,
-        )
-        line = self._render(
-            [
-                {"content": "A", "status": "in_progress"},
-                {"content": "B", "status": "in_progress"},
-                {"content": "C", "status": "pending"},
-            ],
-            tracker,
-        )
-        self.assertEqual(self._payload(line), '[0/3 done]: active "A", "B"')
-
-    def test_cancelled_is_not_counted_as_done(self):
-        """Measured: `cancelled` occurs 4 times and is NOT an accomplishment."""
-        tracker = render_stream.StreamTracker()
-        self._render(
-            [
-                {"content": "A", "status": "pending"},
-                {"content": "B", "status": "pending"},
-            ],
-            tracker,
-        )
-        line = self._render(
-            [
-                {"content": "A", "status": "cancelled"},
-                {"content": "B", "status": "in_progress"},
-            ],
-            tracker,
-        )
-        payload = self._payload(line)
-        self.assertEqual(payload, '[0/2 done]: active "B"')
-        self.assertNotIn("all 2 tasks completed", payload)
-
-    def test_all_done(self):
-        tracker = render_stream.StreamTracker()
-        self._render(
-            [
-                {"content": "A", "status": "in_progress"},
-                {"content": "B", "status": "pending"},
-            ],
-            tracker,
-        )
-        line = self._render(
-            [
-                {"content": "A", "status": "completed"},
-                {"content": "B", "status": "completed"},
-            ],
-            tracker,
-        )
-        self.assertEqual(self._payload(line), "all 2 tasks completed")
-
-    def test_a_cancelled_item_in_an_initial_list_is_reported(self):
-        tracker = render_stream.StreamTracker()
-        line = self._render(
-            [
-                {"content": "A", "status": "cancelled"},
-                {"content": "B", "status": "pending"},
-            ],
-            tracker,
-        )
-        self.assertEqual(
-            self._payload(line),
-            "initialized 2 tasks (0 active, 1 pending, 1 cancelled)",
+        self.assertIn(
+            "initialized 1 tasks",
+            line,
+            f"the payload must come from `metadata.todos`; got {line!r}",
         )
 
     def test_todo_state_does_not_leak_across_queue_items(self):
@@ -799,6 +1319,7 @@ class TodoTransitionTests(unittest.TestCase):
         )
 
     def test_begin_turn_resets_only_per_turn_state(self):
+        """Kept separate: asserts which tracker fields survive a reset, not a rendered payload."""
         tracker = render_stream.StreamTracker()
         tracker.update(inp=10, out=5, cache=2, cost=1.5)
         tracker.note_modified_file("a.py")
@@ -809,6 +1330,8 @@ class TodoTransitionTests(unittest.TestCase):
         self.assertEqual(tracker.modified_files, {"a.py"})
 
     def test_a_snapshot_is_rendered_when_no_tracker_is_supplied(self):
+        """Kept separate: the distinguishing input is the ABSENCE of a tracker, and every transition
+        row requires one; the payload is a snapshot rather than a transition."""
         line = render_stream.render_event(
             _tool_event(
                 "todowrite",
@@ -844,10 +1367,13 @@ class EditWritePayloadTests(unittest.TestCase):
         self.assertTrue(line.startswith(head), line)
         return line[len(head) :]
 
-    def test_edit_renders_int_additions_and_deletions(self):
-        line = render_stream.render_event(
-            _tool_event(
-                "edit",
+    #: (case, prefix kind, the tool_event kwargs, expected payload, why this row exists)
+    PAYLOADS = (
+        (
+            "an edit with real diff stats",
+            "edit",
+            dict(
+                tool="edit",
                 metadata={
                     "filediff": {
                         "file": "/repo/agent_workflows/x.py",
@@ -857,52 +1383,127 @@ class EditWritePayloadTests(unittest.TestCase):
                     }
                 },
             ),
-            self.plain,
-            repo_root="/repo",
-        )
-        assert line is not None
-        self.assertEqual(self._payload(line, "edit"), "agent_workflows/x.py (+12, -3)")
-
-    def test_write_derives_the_line_count_from_input_content(self):
-        line = render_stream.render_event(
-            _tool_event(
-                "write",
+            "agent_workflows/x.py (+12, -3)",
+            "an edit reports its path RELATIVE to the repo root plus the integer add/delete counts "
+            "the event already carries, rather than re-deriving them from the patch text",
+        ),
+        (
+            "an edit to a path OUTSIDE the repo",
+            "edit",
+            dict(
+                tool="edit",
+                metadata={
+                    "filediff": {
+                        "file": "/elsewhere/z.py",
+                        "patch": "",
+                        "additions": 1,
+                        "deletions": 0,
+                    }
+                },
+            ),
+            "/elsewhere/z.py (+1, -0)",
+            "TRUNCATION BOUNDARY: a path that is not under the repo root is left ABSOLUTE rather "
+            "than being relativized into a misleading `../..` or silently trimmed. This is the row "
+            "that proves the shortening is a repo-relative rewrite and not blind prefix stripping",
+        ),
+        (
+            "a write of a new file",
+            "write",
+            dict(
+                tool="write",
                 metadata={"filepath": "/repo/new.py", "exists": False},
                 input={"content": "a\nb\nc\n"},
             ),
-            self.plain,
-            repo_root="/repo",
-        )
-        assert line is not None
-        self.assertEqual(self._payload(line, "write"), "new.py (new file, 3 lines)")
-
-    def test_write_with_exists_true_says_overwrote(self):
-        line = render_stream.render_event(
-            _tool_event(
-                "write",
+            "new.py (new file, 3 lines)",
+            "a write has NO diff stats, so the line count is DERIVED from the content it wrote",
+        ),
+        (
+            "a write over an existing file",
+            "write",
+            dict(
+                tool="write",
                 metadata={"filepath": "/repo/old.py", "exists": True},
                 input={"content": "x\ny\n"},
             ),
-            self.plain,
-            repo_root="/repo",
-        )
-        assert line is not None
-        self.assertEqual(self._payload(line, "write"), "old.py (overwrote, 2 lines)")
+            "old.py (overwrote, 2 lines)",
+            "`exists: true` changes the wording to `overwrote`, which is the difference between "
+            "creating a file and destroying one a human may care about",
+        ),
+        (
+            "a write with no content at all",
+            "write",
+            dict(tool="write", metadata={"filepath": "/repo/x.py", "exists": False}),
+            "x.py (new file)",
+            "with nothing to count it DEGRADES to no count rather than raising or printing a "
+            "confidently wrong number like `0 lines`",
+        ),
+    )
 
-    def test_write_without_content_degrades_to_no_count(self):
-        """Rather than raising or printing a confidently wrong number."""
-        line = render_stream.render_event(
-            _tool_event("write", metadata={"filepath": "/repo/x.py", "exists": False}),
-            self.plain,
-            repo_root="/repo",
+    def test_every_edit_and_write_event_renders_its_exact_payload(self):
+        """One table over the edit/write payloads, replacing five near-identical tests.
+
+        Each of the five built one `edit` or `write` event, rendered it with `repo_root="/repo"`, and
+        compared the payload to one string. The tool is a column, not a reason for two tables: both
+        answer the same question (which file, and what happened to it), and they are deliberately
+        asymmetric in HOW they answer, which only a shared table makes visible. `edit` reads the
+        integer `additions`/`deletions` the event supplies, while `write` has no `filediff` at all
+        (measured: absent in 480 of 480 real write events) and must count lines from the content it
+        wrote.
+
+        Why the table beats the five: both payloads share the path-shortening step, so a regression
+        there moves every row at once while the per-tool wording stays correct. Five tests report
+        that as five red lines showing five different paths; the table reports one failure where the
+        SAME wrong shortening is visible across rows, which is what names the cause.
+
+        WIDTH AND TRUNCATION ARE THE SUBJECT of the outside-the-repo row, which is why it is here
+        rather than in its own test: the shortening exists to keep this cell narrow, and the one case
+        that must NOT be shortened is the only guard against the shortening being blind prefix
+        removal.
+        """
+        wrong = []
+        for case, kind, kwargs, expected, why in self.PAYLOADS:
+            head = render_stream.EVENT_PREFIXES[kind].ljust(self.pad)
+            line = render_stream.render_event(
+                _tool_event(**kwargs), self.plain, repo_root="/repo"
+            )
+            if line is None:
+                wrong.append(
+                    f"  {case}: rendered NOTHING\n    this row exists because: {why}"
+                )
+                continue
+            if not line.startswith(head):
+                wrong.append(
+                    f"  {case}: expected the {kind!r} prefix {head!r}, got line {line!r}\n"
+                    f"    this row exists because: {why}"
+                )
+                continue
+            got = line[len(head) :]
+            if got != expected:
+                wrong.append(
+                    f"  {case}:\n    expected {expected!r}\n    got      {got!r}\n"
+                    f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the edit/write payload is wrong for {len(wrong)} of {len(self.PAYLOADS)} events. The "
+            "two tools share the path-shortening step and differ in how they describe the change, "
+            "so read the grouping. If the PATHS are wrong across both tools, the shortening broke; "
+            "if only the parenthetical differs, the per-tool formatter did. FIX: the "
+            "outside-the-repo row turning into a relative or trimmed path means the shortening is "
+            "blind prefix removal and is now lying about where a file lives. A `write` row that "
+            "grew diff stats means the formatter started reading `filediff`, which real write "
+            f"events never carry.\n" + "\n".join(wrong),
         )
-        assert line is not None
-        payload = self._payload(line, "write")
-        self.assertEqual(payload, "x.py (new file)")
-        self.assertNotIn("lines", payload)
 
     def test_a_write_whose_metadata_omits_filediff_entirely_still_renders(self):
-        """F-8: `write` has NO `filediff` in 480 of 480 measured events."""
+        """Kept separate: ASSERTS THE FIXTURE ITSELF lacks `filediff` before rendering it.
+
+        F-8: `write` has NO `filediff` in 480 of 480 measured events. The point of this test is the
+        `assertNotIn("filediff", ...)` precondition on a hand-built state dict, which pins the shape
+        the measurement found. A table row cannot assert something about its own input, and the
+        structural guard below covers the other half (no code path reads the field).
+        """
         state = {
             "status": "completed",
             "metadata": {
@@ -930,26 +1531,13 @@ class EditWritePayloadTests(unittest.TestCase):
         """
         self.assertNotIn("filediff", _code_text(render_stream.format_write_payload))
 
-    def test_a_path_outside_the_repo_is_left_absolute_rather_than_truncated(self):
-        line = render_stream.render_event(
-            _tool_event(
-                "edit",
-                metadata={
-                    "filediff": {
-                        "file": "/elsewhere/z.py",
-                        "patch": "",
-                        "additions": 1,
-                        "deletions": 0,
-                    }
-                },
-            ),
-            self.plain,
-            repo_root="/repo",
-        )
-        assert line is not None
-        self.assertIn("/elsewhere/z.py", line)
-
     def test_modified_files_accumulates_edits_and_writes(self):
+        """Kept separate: asserts TRACKER SIDE EFFECTS across two events, not either one's line.
+
+        The claim is that an `edit` and a `write` both register their file in `tracker.modified_files`
+        and that the set ACCUMULATES. That is a property of two calls sharing one tracker, and the
+        rendered lines (which the payload table already pins) are irrelevant to it.
+        """
         tracker = render_stream.StreamTracker()
         render_stream.render_event(
             _tool_event(
@@ -997,33 +1585,85 @@ class ModifiedFilesConsumerTests(unittest.TestCase):
         ],
     }
 
-    def test_the_summary_table_reports_the_files_touched_count(self):
-        tracker = render_stream.StreamTracker()
-        tracker.note_modified_file("agent_workflows/render_stream.py")
-        tracker.note_modified_file("tests/test_render_stream.py")
-        out = render_stream.render_run_summary_table(
-            self._STATE, tracker=tracker, pal=render_stream.Palette(False)
-        )
-        self.assertIn("Files touched: 2 files", out)
+    #: (case, the files to note on the tracker, the expected `Files touched` substring or None if
+    #: the row must not appear at all, why this row exists)
+    FILE_COUNTS = (
+        (
+            "two files touched",
+            ("agent_workflows/render_stream.py", "tests/test_render_stream.py"),
+            "Files touched: 2 files",
+            "E-08: `modified_files` must have a NAMED READER or it should not exist, and the run "
+            "summary table is that reader",
+        ),
+        (
+            "exactly one file touched",
+            ("only.py",),
+            "Files touched: 1 file",
+            "SINGULAR: `1 file`, not `1 files`. A count cell that reads wrong at n=1 is the most "
+            "visible sloppiness in a summary a human reads at the end of every run",
+        ),
+        (
+            "no files touched",
+            (),
+            None,
+            "a run with no edits must omit the row ENTIRELY, staying byte-identical to the "
+            "pre-change table rather than printing `0 files`",
+        ),
+    )
 
-    def test_one_file_is_singular(self):
-        tracker = render_stream.StreamTracker()
-        tracker.note_modified_file("only.py")
-        out = render_stream.render_run_summary_table(
-            self._STATE, tracker=tracker, pal=render_stream.Palette(False)
-        )
-        self.assertIn("Files touched: 1 file", out)
+    def test_the_summary_table_reports_its_files_touched_count(self):
+        """One table over the files-touched cell, replacing three tests.
 
-    def test_no_touched_files_renders_nothing(self):
-        """A run with no edits stays byte-identical to the pre-change table."""
-        out = render_stream.render_run_summary_table(
-            self._STATE,
-            tracker=render_stream.StreamTracker(),
-            pal=render_stream.Palette(False),
+        Each of the three noted some files on a tracker, rendered the run summary, and asserted one
+        substring was present or absent. Only the file count differed.
+
+        Why the table beats the three: one pluralization-and-omission decision produces all three
+        answers, and its failure modes are adjacent (0 rendering as `0 files` instead of nothing, 1
+        rendering as `1 files`). Seeing the whole ladder in one failure is what shows whether the
+        boundary moved or the wording did. The ABSENT row is in the same table deliberately: a cell
+        that never rendered would satisfy nothing else here, and a cell that always rendered would
+        satisfy both count rows while breaking the no-edit run.
+        """
+        wrong = []
+        for case, files, expected, why in self.FILE_COUNTS:
+            tracker = render_stream.StreamTracker()
+            for name in files:
+                tracker.note_modified_file(name)
+            out = render_stream.render_run_summary_table(
+                self._STATE, tracker=tracker, pal=render_stream.Palette(False)
+            )
+            if expected is None:
+                if "Files touched" in out:
+                    line = next(
+                        (row for row in out.splitlines() if "Files touched" in row), ""
+                    )
+                    wrong.append(
+                        f"  {case}: the row must be OMITTED entirely, but the table contains "
+                        f"{line.strip()!r}\n    this row exists because: {why}"
+                    )
+            elif expected not in out:
+                line = next(
+                    (row for row in out.splitlines() if "Files touched" in row), None
+                )
+                wrong.append(
+                    f"  {case}: expected {expected!r}; the table's own line is "
+                    f"{(line.strip() if line else 'ABSENT ENTIRELY')!r}\n"
+                    f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the run summary's files-touched cell is wrong for {len(wrong)} of "
+            f"{len(self.FILE_COUNTS)} counts. One decision (omit at zero, else pluralize) produces "
+            "all of them. FIX: if the ZERO row now renders, a run that changed nothing will report "
+            "a `0 files` line the old table never had; if the ONE row reads `1 files`, the "
+            "pluralization boundary is off by one. If ALL rows are missing the row entirely, "
+            "`modified_files` has lost its only named reader and E-08's premise (that the field is "
+            f"read by something) no longer holds.\n" + "\n".join(wrong),
         )
-        self.assertNotIn("Files touched", out)
 
     def test_the_accumulation_scope_is_documented_as_run_scoped(self):
+        """Kept separate: asserts over a DOCSTRING, not over rendered output."""
         doc = render_stream.StreamTracker.__doc__ or ""
         self.assertIn("RUN-SCOPED", doc)
         self.assertIn("modified_files", doc)
@@ -1114,68 +1754,138 @@ class VerbosityTierTests(unittest.TestCase):
                         f"level {level}, {name}: rendered={rendered!r}",
                     )
 
-    def test_error_renders_at_every_tier_including_zero(self):
-        """F-13: this branch did not exist, so a real error event rendered as None."""
-        for level in (0, 1, 2):
-            with self.subTest(level=level):
-                line = render_stream.render_event(
-                    self._events()["error"], self.plain, verbosity=level
-                )
-                assert line is not None
-                self.assertIn("UnknownError", line)
-                self.assertIn("The operation timed out.", line)
+    #: (case, event key from `_events()` or a literal event, verbosity, expected payload
+    #: substrings, substrings that must be ABSENT, why this row exists)
+    TIER_PAYLOADS = (
+        (
+            "an error at the DEFAULT tier",
+            "error",
+            0,
+            ("UnknownError", "The operation timed out."),
+            (),
+            "F-13: this branch did not exist, so a real error event rendered as None and a failing "
+            "run looked silent. An error must surface at the QUIETEST tier, naming both the error "
+            "class and its message",
+        ),
+        (
+            "an error at the verbose tier",
+            "error",
+            1,
+            ("UnknownError", "The operation timed out."),
+            (),
+            "raising the tier must not change an error's rendering; it is already the minimum",
+        ),
+        (
+            "an error at the debug tier",
+            "error",
+            2,
+            ("UnknownError", "The operation timed out."),
+            (),
+            "and the highest tier does not decorate it differently either",
+        ),
+        (
+            "a verbose read with display metadata",
+            "read",
+            1,
+            ("c.py (lines 1-40 of 400)",),
+            ("bytes", "byteSize", "KB", " B)"),
+            "F-10: there is NO byte size in a read payload, so the cell reports the LINE RANGE and "
+            "the total. The forbidden substrings pin that: a formatter inventing a byte size would "
+            "be printing a number the event never carried",
+        ),
+        (
+            "a verbose read with only input offsets",
+            None,
+            1,
+            ("d.py (lines 10-30)",),
+            (),
+            "with no `display` metadata the range is DERIVED from `offset` and `limit` (10 + 20 = "
+            "30), so the fallback reports a real range rather than nothing",
+        ),
+        (
+            "a verbose grep",
+            "grep",
+            1,
+            ("grep foo (7 hits)",),
+            (),
+            "F-10: grep's count lives in `metadata.matches`",
+        ),
+        (
+            "a verbose glob",
+            "glob",
+            1,
+            ("glob *.py (3 hits)",),
+            (),
+            "F-10: glob's count lives in `metadata.count`, a DIFFERENT field name from grep's. One "
+            "lookup would silently miss one of the two, which is why both rows are here",
+        ),
+        (
+            "a debug-tier edit shows the diff hunks",
+            "edit",
+            2,
+            ("@@ -1 +1 @@", "+b"),
+            (),
+            "the debug tier appends the patch text itself, which is the only tier where the actual "
+            "change is visible rather than just its shape",
+        ),
+        (
+            "the SAME edit at the default tier hides the hunks",
+            "edit",
+            0,
+            ("a.py (+1, -1)",),
+            ("@@",),
+            "the negative half of the row above: hunks at the default tier would bury the "
+            "transcript in diff noise",
+        ),
+        (
+            "the SAME edit at the verbose tier also hides the hunks",
+            "edit",
+            1,
+            ("a.py (+1, -1)",),
+            ("@@",),
+            "hunks are a DEBUG-only escalation, so the middle tier must not leak them either",
+        ),
+        (
+            "a debug-tier edit shows linter diagnostics",
+            None,
+            2,
+            ("unused import",),
+            (),
+            "`metadata.diagnostics` is a SECOND debug-only escalation, independent of the patch "
+            "hunks: an edit can carry diagnostics with an empty patch, so it needs its own rows",
+        ),
+        (
+            "the SAME edit at the default tier hides the diagnostics",
+            None,
+            0,
+            ("a.py (+1, -0)",),
+            ("unused import",),
+            "the negative half: linter chatter at the default tier would drown the transcript, and "
+            "without this row the debug row above would pass against a renderer that always shows "
+            "diagnostics",
+        ),
+    )
 
-    def test_verbose_read_carries_a_line_range_and_no_byte_size(self):
-        """F-10: there is NO byte size in a read payload, so the tier shows lines."""
-        line = render_stream.render_event(
-            self._events()["read"], self.plain, verbosity=1, repo_root="/repo"
-        )
-        assert line is not None
-        self.assertIn("c.py (lines 1-40 of 400)", line)
-        for forbidden in ("bytes", "byteSize", "KB", " B)"):
-            self.assertNotIn(forbidden, line)
+    def test_every_tier_renders_its_payload_and_suppresses_what_it_should(self):
+        """One table over the per-tier payloads, replacing six near-identical tests.
 
-    def test_verbose_read_falls_back_to_input_offset_and_limit(self):
-        line = render_stream.render_event(
-            _tool_event(
-                "read", input={"filePath": "/repo/d.py", "offset": 10, "limit": 20}
-            ),
-            self.plain,
-            verbosity=1,
-            repo_root="/repo",
-        )
-        assert line is not None
-        self.assertIn("d.py (lines 10-30)", line)
+        Each of the six rendered one event at one verbosity and asserted substrings were present
+        (and sometimes that others were absent). VERBOSITY IS A COLUMN, which is the whole reason
+        this is one table: the same `edit` event appears at all three tiers, and the claim that
+        matters is not any single rendering but that raising the tier ADDS detail and never changes
+        what was already there. Three separate tests cannot express a relationship between tiers;
+        adjacent rows over the same event can.
 
-    def test_grep_reads_matches_and_glob_reads_count(self):
-        """F-10: the two tools use DIFFERENT field names; one lookup would miss one."""
-        grep = render_stream.render_event(
-            self._events()["grep"], self.plain, verbosity=1
-        )
-        glob = render_stream.render_event(
-            self._events()["glob"], self.plain, verbosity=1
-        )
-        assert grep is not None and glob is not None
-        self.assertIn("grep foo (7 hits)", grep)
-        self.assertIn("glob *.py (3 hits)", glob)
-
-    def test_debug_tier_surfaces_diff_hunks(self):
-        line = render_stream.render_event(
-            self._events()["edit"], self.plain, verbosity=2, repo_root="/repo"
-        )
-        assert line is not None
-        self.assertIn("@@ -1 +1 @@", line)
-        self.assertIn("+b", line)
-        # And NOT at the lower tiers.
-        for level in (0, 1):
-            lower = render_stream.render_event(
-                self._events()["edit"], self.plain, verbosity=level, repo_root="/repo"
-            )
-            assert lower is not None
-            self.assertNotIn("@@", lower)
-
-    def test_debug_tier_surfaces_diagnostics(self):
-        event = _tool_event(
+        Why the table beats the six: one tier gate plus one per-tool formatter produces all of
+        these, so a gate regression moves several rows together while the payload text stays
+        correct, and a formatter regression does the opposite. Six tests report either as scattered
+        red lines. The accumulated report shows which, and it reports the FORBIDDEN-substring
+        failures in the same place, which is where the tier discipline actually lives: `@@` leaking
+        into tier 0, or an invented byte size appearing in a read, are both "the wrong tier's detail
+        escaped" rather than a wrong value.
+        """
+        wrong = []
+        diagnostics_edit = _tool_event(
             "edit",
             metadata={
                 "filediff": {
@@ -1187,16 +1897,51 @@ class VerbosityTierTests(unittest.TestCase):
                 "diagnostics": {"/repo/a.py": [{"message": "unused import"}]},
             },
         )
-        line = render_stream.render_event(
-            event, self.plain, verbosity=2, repo_root="/repo"
+        literal_events = {
+            "a verbose read with only input offsets": _tool_event(
+                "read", input={"filePath": "/repo/d.py", "offset": 10, "limit": 20}
+            ),
+            "a debug-tier edit shows linter diagnostics": diagnostics_edit,
+            "the SAME edit at the default tier hides the diagnostics": diagnostics_edit,
+        }
+        for case, key, level, needles, forbidden, why in self.TIER_PAYLOADS:
+            event = self._events()[key] if key is not None else literal_events[case]
+            line = render_stream.render_event(
+                event, self.plain, verbosity=level, repo_root="/repo"
+            )
+            problems = []
+            if line is None:
+                problems.append(
+                    "rendered NOTHING, so none of its content can be checked"
+                )
+            else:
+                missing = [n for n in needles if n not in line]
+                if missing:
+                    problems.append(f"missing {missing!r} from {line!r}")
+                leaked = [f for f in forbidden if f in line]
+                if leaked:
+                    problems.append(
+                        f"leaked {leaked!r}, which this tier must NOT show; got {line!r}"
+                    )
+            if problems:
+                wrong.append(
+                    f"  {case} (verbosity={level}):\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the per-tier payload is wrong for {len(wrong)} of {len(self.TIER_PAYLOADS)} rows. One "
+            "tier gate plus one per-tool formatter produces all of them, so read the grouping. "
+            "Rows for the SAME event at different tiers failing together means the gate changed; a "
+            "single tool's rows failing at every tier means that formatter did. FIX: a LEAKED "
+            "substring is the more interesting failure. `@@` appearing at tier 0 or 1 means debug "
+            "detail escaped into the default transcript, and a byte-size token appearing in a read "
+            "means the formatter is printing a number the event never carried (F-10). An ERROR row "
+            f"rendering None is F-13 returning: a failing run would look silent.\n"
+            + "\n".join(wrong),
         )
-        assert line is not None
-        self.assertIn("unused import", line)
-        default_tier = render_stream.render_event(
-            event, self.plain, verbosity=0, repo_root="/repo"
-        )
-        assert default_tier is not None
-        self.assertNotIn("unused import", default_tier)
 
     def test_quiet_is_owned_by_the_call_site_not_by_a_renderer_level(self):
         """The renderer must not grow a second suppression path for `quiet`.
@@ -1220,96 +1965,321 @@ class VerbosityTierTests(unittest.TestCase):
 
 
 class StatuslineUnitTests(unittest.TestCase):
-    """Statusline formatters and component unit tests."""
+    """The statusline's SCALAR formatters: pure functions from a value to a fixed-width cell.
 
-    def test_format_compact_tokens(self):
-        self.assertEqual(render_stream.format_compact_tokens(0), "0")
-        self.assertEqual(render_stream.format_compact_tokens(500), "500")
-        self.assertEqual(render_stream.format_compact_tokens(1000), "1k")
-        self.assertEqual(render_stream.format_compact_tokens(4100), "4.1k")
-        self.assertEqual(render_stream.format_compact_tokens(24500), "24.5k")
-        self.assertEqual(render_stream.format_compact_tokens(88200), "88.2k")
-        self.assertEqual(render_stream.format_compact_tokens(1_500_000), "1.5m")
-        self.assertEqual(render_stream.format_compact_tokens(2_000_000_000), "2g")
+    Five tests became ONE table, and the merge is the clearest-cut in this module: each of the five
+    was already a LOOP or a run of `assertEqual`s over a single pure function, so each was a
+    hand-inlined table that reported only its FIRST wrong value and then stopped. Forty-nine rows
+    across five formatters now report together.
 
-    def test_format_progress_bar(self):
-        self.assertEqual(
-            render_stream.format_progress_bar(0, 0), "0/0  [          ]   0%"
-        )
-        self.assertEqual(
-            render_stream.format_progress_bar(0, 5), "0/5  [          ]   0%"
-        )
-        self.assertEqual(
-            render_stream.format_progress_bar(4, 5), "4/5  [████████  ]  80%"
-        )
-        self.assertEqual(
-            render_stream.format_progress_bar(5, 5), "5/5  [██████████] 100%"
-        )
-        self.assertEqual(
-            render_stream.format_progress_bar(0, 80), " 0/80  [          ]   0%"
-        )
-        self.assertEqual(
-            render_stream.format_progress_bar(1, 80), " 1/80  [▏         ]   1%"
-        )
-        self.assertEqual(
-            render_stream.format_progress_bar(40, 80), "40/80  [█████     ]  50%"
-        )
-        self.assertEqual(
-            render_stream.format_progress_bar(80, 80), "80/80  [██████████] 100%"
-        )
+    Why one table rather than five, given these are five different functions: they are five columns
+    of the SAME statusline row, and the property that makes the statusline work is not any single
+    value but that all five produce a cell of the width the box drawing assumes. The merged failure
+    message is therefore able to say something no single-formatter test can, namely that N of 49
+    cells moved across M formatters, which distinguishes a shared width-policy change from one
+    formatter's rounding bug. The `formatter` column carries the function name, and `args` is a
+    tuple so `format_progress_bar`'s two arguments sit in the same table as the one-argument
+    formatters.
 
-    def test_format_compact_duration(self):
-        self.assertEqual(render_stream.format_compact_duration(0), "0m00s")
-        self.assertEqual(render_stream.format_compact_duration(45), "0m45s")
-        self.assertEqual(render_stream.format_compact_duration(248), "4m08s")
-        self.assertEqual(
-            render_stream.format_compact_duration(64 * 60 + 21), "1h04m21s"
-        )
-        self.assertEqual(
-            render_stream.format_compact_duration(187 * 60 + 56), "3h07m56s"
-        )
-        self.assertEqual(
-            render_stream.format_compact_duration(86400 + 3 * 3600 + 7 * 60 + 56),
+    WIDTH AND TRUNCATION ARE THE SUBJECT, not incidental to it, which is why the expected values are
+    pinned as exact strings including their padding:
+      * `format_progress_bar` right-aligns the counter to the width of `total`, which is why `0/5`
+        has no leading space but ` 0/80` does. That is what keeps the bar from jittering horizontally
+        as the run advances from item 9 to item 10. The 5-total and 80-total rows are both present
+        for exactly that reason, and a regression that dropped the alignment would pass a table
+        containing only one of them.
+      * The percentage is right-aligned in three columns (`  0%`, ` 80%`, `100%`) for the same
+        reason.
+      * `format_compact_duration` zero-pads the seconds and minutes (`4m08s`, not `4m8s`) so the
+        cell width is stable as time passes.
+      * `format_action_label` and `format_artifact_kind_label` TRUNCATE to seven characters, which is
+        why `Graduate` becomes `Graduat` and `Walkthrough` becomes `Walkthr`. Those rows look like
+        typos and are not; they are the truncation contract, and they are labelled as such below so
+        nobody "fixes" them.
+    """
+
+    #: (formatter name, args tuple, expected cell, why this row exists)
+    SCALAR_CELLS = (
+        # format_tokens: the long-form units used in the run summary.
+        ("format_tokens", (0,), "0", "zero is bare, not '0.00'"),
+        ("format_tokens", (500,), "500", "under 1000 stays an exact integer"),
+        ("format_tokens", (1000,), "1.00K", "the K threshold, with two decimals"),
+        ("format_tokens", (37480,), "37.48K", "a measured real token count"),
+        ("format_tokens", (1_500_000,), "1.50M", "the M unit"),
+        ("format_tokens", (2_500_000_000,), "2.50G", "the G unit, the largest handled"),
+        # format_compact_tokens: the SHORTER spelling the statusline cell uses.
+        (
+            "format_compact_tokens",
+            (0,),
+            "0",
+            "the compact spelling is a DIFFERENT function from format_tokens (lowercase unit, at "
+            "most one decimal) because the statusline cell is narrower than the summary column",
+        ),
+        ("format_compact_tokens", (500,), "500", "under 1k stays exact"),
+        (
+            "format_compact_tokens",
+            (1000,),
+            "1k",
+            "a whole thousand drops the decimal entirely rather than showing '1.0k'",
+        ),
+        (
+            "format_compact_tokens",
+            (4100,),
+            "4.1k",
+            "one decimal when it is significant",
+        ),
+        (
+            "format_compact_tokens",
+            (24500,),
+            "24.5k",
+            "two integer digits plus a decimal",
+        ),
+        ("format_compact_tokens", (88200,), "88.2k", "the widest k-range cell"),
+        ("format_compact_tokens", (1_500_000,), "1.5m", "lowercase m, one decimal"),
+        (
+            "format_compact_tokens",
+            (2_000_000_000,),
+            "2g",
+            "a whole billion drops the decimal, keeping the cell at two characters",
+        ),
+        # format_progress_bar: counter, bar, percentage. Width alignment is the point.
+        (
+            "format_progress_bar",
+            (0, 0),
+            "0/0  [          ]   0%",
+            "a ZERO total must not divide by zero; it renders an empty bar at 0%",
+        ),
+        ("format_progress_bar", (0, 5), "0/5  [          ]   0%", "nothing done yet"),
+        (
+            "format_progress_bar",
+            (4, 5),
+            "4/5  [████████  ]  80%",
+            "a partial bar fills whole blocks and pads the rest with spaces",
+        ),
+        (
+            "format_progress_bar",
+            (5, 5),
+            "5/5  [██████████] 100%",
+            "complete fills all ten cells and reads 100%",
+        ),
+        (
+            "format_progress_bar",
+            (0, 80),
+            " 0/80  [          ]   0%",
+            "WIDTH: the counter is right-aligned to the width of `total`, hence the LEADING SPACE "
+            "before `0/80`. Without it the bar shifts sideways as the count gains a digit",
+        ),
+        (
+            "format_progress_bar",
+            (1, 80),
+            " 1/80  [▏         ]   1%",
+            "a fraction of one cell renders a PARTIAL block glyph, so 1 of 80 is visibly not zero",
+        ),
+        (
+            "format_progress_bar",
+            (40, 80),
+            "40/80  [█████     ]  50%",
+            "a two-digit counter needs NO leading space, which is the other half of the alignment "
+            "claim the 0/80 row makes",
+        ),
+        (
+            "format_progress_bar",
+            (80, 80),
+            "80/80  [██████████] 100%",
+            "complete at the wider total",
+        ),
+        # format_compact_duration: zero-padded so the cell width never changes.
+        (
+            "format_compact_duration",
+            (0,),
+            "0m00s",
+            "zero seconds still shows both fields",
+        ),
+        ("format_compact_duration", (45,), "0m45s", "under a minute keeps the 0m"),
+        (
+            "format_compact_duration",
+            (248,),
+            "4m08s",
+            "WIDTH: the seconds are ZERO-PADDED (4m08s, not 4m8s) so the cell does not change "
+            "width as the clock ticks past nine seconds",
+        ),
+        (
+            "format_compact_duration",
+            (64 * 60 + 21,),
+            "1h04m21s",
+            "over an hour the minutes are zero-padded too, for the same reason",
+        ),
+        ("format_compact_duration", (187 * 60 + 56,), "3h07m56s", "multiple hours"),
+        (
+            "format_compact_duration",
+            (86400 + 3 * 3600 + 7 * 60 + 56,),
             "1d 3h07m56s",
+            "over a day gains a `Nd ` segment; the hours are NOT zero-padded there",
+        ),
+        # format_action_label: case-normalized and TRUNCATED to seven characters.
+        (
+            "format_action_label",
+            ("Review",),
+            "Review",
+            "already correct, passes through",
+        ),
+        ("format_action_label", ("review",), "Review", "lowercase is title-cased"),
+        (
+            "format_action_label",
+            ("Execute",),
+            "Execute",
+            "the seven-character maximum, intact",
+        ),
+        (
+            "format_action_label",
+            ("exec",),
+            "Execute",
+            "an ABBREVIATION expands to the full label, so the queue's short form and the "
+            "statusline agree",
+        ),
+        ("format_action_label", ("execute",), "Execute", "the full lowercase form"),
+        (
+            "format_action_label",
+            ("Graduate",),
+            "Graduat",
+            "TRUNCATION, not a typo: eight characters are cut to seven so the column is fixed. Do "
+            "not 'fix' this row to 'Graduate'",
+        ),
+        (
+            "format_action_label",
+            ("graduat",),
+            "Graduat",
+            "the already-truncated form is stable",
+        ),
+        (
+            "format_action_label",
+            ("Validate",),
+            "Validat",
+            "truncated, same rule as Graduate",
+        ),
+        ("format_action_label", ("validat",), "Validat", "stable under re-application"),
+        (
+            "format_action_label",
+            ("orchestrate",),
+            "Orchest",
+            "the longest action, cut to seven",
+        ),
+        (
+            "format_action_label",
+            ("Orchestrate",),
+            "Orchest",
+            "case does not change the truncation",
+        ),
+        ("format_action_label", ("orchest",), "Orchest", "stable under re-application"),
+        (
+            "format_action_label",
+            (None,),
+            "Review",
+            "NO action defaults to Review, the SAFE reading; defaulting to Execute would tell a "
+            "watching human that a plan is being mutated when it may only be reviewed",
+        ),
+        # format_artifact_kind_label: same case-normalize-and-truncate policy, different vocabulary.
+        (
+            "format_artifact_kind_label",
+            ("IPD",),
+            "IPD",
+            "an acronym stays UPPERCASE, not 'Ipd'",
+        ),
+        (
+            "format_artifact_kind_label",
+            ("ipd",),
+            "IPD",
+            "lowercase becomes the acronym",
+        ),
+        (
+            "format_artifact_kind_label",
+            ("plan",),
+            "IPD",
+            "`plan` is an ALIAS of IPD, so both spellings render one label",
+        ),
+        ("format_artifact_kind_label", ("Spec",), "Spec", "already correct"),
+        ("format_artifact_kind_label", ("spec",), "Spec", "title-cased"),
+        ("format_artifact_kind_label", ("Prompt",), "Prompt", "already correct"),
+        ("format_artifact_kind_label", ("prompt",), "Prompt", "title-cased"),
+        (
+            "format_artifact_kind_label",
+            ("Roadmap",),
+            "Roadmap",
+            "exactly seven characters",
+        ),
+        (
+            "format_artifact_kind_label",
+            ("roadmap",),
+            "Roadmap",
+            "title-cased at full width",
+        ),
+        (
+            "format_artifact_kind_label",
+            ("Walkthrough",),
+            "Walkthr",
+            "TRUNCATION again: eleven characters cut to seven. Not a typo",
+        ),
+        (
+            "format_artifact_kind_label",
+            ("walkthr",),
+            "Walkthr",
+            "stable under re-application",
+        ),
+        (
+            "format_artifact_kind_label",
+            ("Backlog",),
+            "Backlog",
+            "exactly seven characters",
+        ),
+        ("format_artifact_kind_label", ("backlog",), "Backlog", "title-cased"),
+        (
+            "format_artifact_kind_label",
+            (None,),
+            "IPD",
+            "NO kind defaults to IPD, the overwhelmingly common artifact a run operates on",
+        ),
+    )
+
+    def test_every_scalar_formatter_produces_its_exact_cell(self):
+        wrong = []
+        by_formatter = {}
+        for name, args, expected, why in self.SCALAR_CELLS:
+            got = getattr(render_stream, name)(*args)
+            if got != expected:
+                by_formatter[name] = by_formatter.get(name, 0) + 1
+                width_note = ""
+                if isinstance(got, str) and len(got) != len(expected):
+                    width_note = (
+                        f" [WIDTH CHANGED: {len(expected)} -> {len(got)} characters, so the "
+                        "statusline box will not line up]"
+                    )
+                wrong.append(
+                    f"  {name}{args!r}\n    expected {expected!r}\n    got      {got!r}"
+                    f"{width_note}\n    this row exists because: {why}"
+                )
+        summary = ", ".join(
+            f"{name} ({count})" for name, count in sorted(by_formatter.items())
         )
-
-    def test_format_action_and_artifact_labels(self):
-        for raw, exp in [
-            ("Review", "Review"),
-            ("review", "Review"),
-            ("Execute", "Execute"),
-            ("exec", "Execute"),
-            ("execute", "Execute"),
-            ("Graduate", "Graduat"),
-            ("graduat", "Graduat"),
-            ("Validate", "Validat"),
-            ("validat", "Validat"),
-            ("orchestrate", "Orchest"),
-            ("Orchestrate", "Orchest"),
-            ("orchest", "Orchest"),
-            (None, "Review"),
-        ]:
-            self.assertEqual(render_stream.format_action_label(raw), exp)
-
-        for raw, exp in [
-            ("IPD", "IPD"),
-            ("ipd", "IPD"),
-            ("plan", "IPD"),
-            ("Spec", "Spec"),
-            ("spec", "Spec"),
-            ("Prompt", "Prompt"),
-            ("prompt", "Prompt"),
-            ("Roadmap", "Roadmap"),
-            ("roadmap", "Roadmap"),
-            ("Walkthrough", "Walkthr"),
-            ("walkthr", "Walkthr"),
-            ("Backlog", "Backlog"),
-            ("backlog", "Backlog"),
-            (None, "IPD"),
-        ]:
-            self.assertEqual(render_stream.format_artifact_kind_label(raw), exp)
+        self.assertEqual(
+            wrong,
+            [],
+            f"the statusline scalar formatters produced the wrong cell for {len(wrong)} of "
+            f"{len(self.SCALAR_CELLS)} values, across {len(by_formatter)} formatter(s): {summary}. "
+            "These five functions are five COLUMNS of one statusline row, so read the grouping. "
+            "Failures confined to ONE formatter are that formatter's own rounding or threshold "
+            "bug. Failures spread across several, especially any marked WIDTH CHANGED, mean a "
+            "shared width or padding policy moved, and the box-drawing row lengths asserted in "
+            "`test_format_statusline_user_example_box_layout` will be failing too. FIX: before "
+            "editing an expectation, check whether the row is a documented TRUNCATION (Graduat, "
+            "Validat, Orchest, Walkthr) or a documented ZERO-PAD (4m08s) or the counter's "
+            "right-ALIGNMENT (' 0/80'). Those rows look wrong and are the contract; changing them "
+            f"to match new output silently narrows or widens the real terminal cell.\n"
+            + "\n".join(wrong),
+        )
 
     def test_format_statusline_exact_layout(self):
+        """Kept separate: asserts the SEGMENTED structure of a rendered box (ten cells per line,
+        border glyphs, equal widths), which is a structural decomposition rather than a data row."""
         tracker = render_stream.StreamTracker()
         tracker.update(inp=214100, out=195700, cache=15800000, cost=15.27)
 
@@ -1371,6 +2341,8 @@ class StatuslineUnitTests(unittest.TestCase):
         self.assertEqual(seg2[9], "15.8m")
 
     def test_format_statusline_user_example_box_layout(self):
+        """Kept separate: pins four WHOLE box lines byte-for-byte against a real user example."""
+
         class MockTracker:
             cost = 6.16
             input_tokens = 119000
@@ -1407,6 +2379,8 @@ class StatuslineUnitTests(unittest.TestCase):
         self.assertEqual(len(l2), len(bot))
 
     def test_format_statusline_colorized(self):
+        """Kept separate: asserts a specific SGR sequence is present and that stripping preserves the
+        four lines' equal widths, a cross-line invariant no scalar row expresses."""
         tracker = render_stream.StreamTracker()
         tracker.update(inp=214100, out=195700, cache=15800000, cost=15.27)
         pal = render_stream.Palette(True)
@@ -1452,6 +2426,7 @@ class StatuslineUnitTests(unittest.TestCase):
         self.assertIn("$15.27", s2)
 
     def test_statusline_write_event_non_tty(self):
+        """Kept separate: exercises the Statusline object's stream writing, not a formatter mapping."""
         buf = io.StringIO()
         pal = render_stream.Palette(False)
         st = render_stream.Statusline(pal, buf, interval=0)
@@ -1460,6 +2435,7 @@ class StatuslineUnitTests(unittest.TestCase):
         self.assertEqual(buf.getvalue(), "  \u2022 Reading the plan.\n")
 
     def test_statusline_update_item_and_touch(self):
+        """Kept separate: mutates a live Statusline then reads it back, a stateful sequence."""
         buf = io.StringIO()
         pal = render_stream.Palette(False)
         st = render_stream.Statusline(pal, buf, interval=0)
@@ -1475,6 +2451,7 @@ class SingleDefinitionTests(unittest.TestCase):
     """The render layer has a SINGLE definition in render_stream; oc_runipd only re-exports."""
 
     def test_names_are_the_same_objects(self):
+        """Kept separate: identity (`assertIs`) checks over re-exported names, not value rows."""
         # Identity: the driver's names ARE the render_stream objects (no inline copy).
         self.assertIs(driver.Palette, render_stream.Palette)
         self.assertIs(driver.StreamTracker, render_stream.StreamTracker)
@@ -1511,6 +2488,7 @@ class SingleDefinitionTests(unittest.TestCase):
         )
 
     def test_definitions_live_in_render_stream_module(self):
+        """Kept separate: reflects over `inspect.getmodule`, a structural claim about ownership."""
         for obj in (
             render_stream.Palette,
             render_stream.StreamTracker,
@@ -1540,10 +2518,12 @@ class SingleDefinitionTests(unittest.TestCase):
     # Do NOT re-add a one-sided source-substring guard here; add a row to that table instead.
 
     def test_heartbeat_is_the_same_object_in_both_drivers(self):
+        """Kept separate: identity checks across two driver modules."""
         self.assertIs(agy_driver.Heartbeat, render_stream.Heartbeat)
         self.assertIs(driver.Heartbeat, render_stream.Heartbeat)
 
     def test_exactly_one_heartbeat_definition_in_the_package(self):
+        """Kept separate: globs the package source; a whole-tree structural scan."""
         # Source-level: only render_stream may DEFINE it, anywhere in the package.
         import pathlib
 
@@ -1559,55 +2539,99 @@ class SingleDefinitionTests(unittest.TestCase):
 class StatuslineActionDerivationTests(unittest.TestCase):
     """vaboqp: Statusline action column must derive from item['action'], not item['status']."""
 
-    def test_statusline_action_for_item_resolves_explicit_actions(self):
-        self.assertEqual(
-            render_stream.statusline_action_for_item(
-                {"action": "execute", "status": "running"}
-            ),
+    #: (the queue item dict, expected action, why this row exists)
+    ITEMS = (
+        (
+            {"action": "execute", "status": "running"},
             "execute",
-        )
-        self.assertEqual(
-            render_stream.statusline_action_for_item(
-                {"action": "review", "status": "running"}
-            ),
+            "an EXPLICIT `action` wins outright. vaboqp: the column must derive from `action`, not "
+            "from `status`, and this item carries a `status` that would resolve differently",
+        ),
+        (
+            {"action": "review", "status": "running"},
             "review",
-        )
-        self.assertEqual(
-            render_stream.statusline_action_for_item(
-                {"action": "orchestrate", "status": "queued"}
-            ),
+            "the same precedence for the other common action, against the same misleading status",
+        ),
+        (
+            {"action": "orchestrate", "status": "queued"},
             "orchestrate",
-        )
+            "an orchestrator's action survives too, so a parent is not displayed as executing work "
+            "it does not perform",
+        ),
+        (
+            {"initial_status": "to-review"},
+            "review",
+            "with no explicit action, `initial_status` decides: a plan awaiting review is REVIEWED",
+        ),
+        (
+            {"initial_status": "draft"},
+            "review",
+            "a draft is also reviewed, not executed; executing a draft is the mistake this row "
+            "guards against being displayed as normal",
+        ),
+        (
+            {"initial_status": "approved"},
+            "execute",
+            "approved is the ONE status that implies execution, which is what makes the two rows "
+            "above meaningful rather than a blanket default",
+        ),
+        (
+            {"status": "to-review"},
+            "review",
+            "`status` is consulted only when `initial_status` is absent too, so the fallback chain "
+            "has three levels rather than two",
+        ),
+        (
+            {},
+            "execute",
+            "an EMPTY item defaults to execute. Asserted so the default is a deliberate recorded "
+            "choice rather than whatever the last branch happened to return",
+        ),
+        (
+            {"action": None, "initial_status": "approved"},
+            "execute",
+            "an action explicitly set to None must FALL THROUGH to the status rather than being "
+            "treated as a present-but-empty action, which would render a blank column",
+        ),
+    )
 
-    def test_statusline_action_for_item_fallbacks(self):
+    def test_every_queue_item_shape_resolves_to_its_action(self):
+        """One table over the action-derivation fallback chain, replacing two tests.
+
+        The two old tests split these nine items into "explicit" and "fallback" groups, each a run
+        of sequential `assertEqual`s that stopped at its first failure. The split was arbitrary:
+        both were asking the same pure function the same question, and the explicit rows exist
+        precisely to show they OUTRANK the fallback rows, a relationship neither test could state.
+
+        Why the table beats the two: this is one precedence chain (`action`, else `initial_status`,
+        else `status`, else the default), and the realistic failure is that chain being reordered or
+        a level being skipped, which moves several rows at once in a legible pattern. The
+        accumulated report shows that pattern; two tests showed two red lines whose relationship
+        had to be guessed.
+        """
+        wrong = []
+        for item, expected, why in self.ITEMS:
+            got = render_stream.statusline_action_for_item(item)
+            if got != expected:
+                wrong.append(
+                    f"  {item!r}\n    expected {expected!r}\n    got      {got!r}\n"
+                    f"    this row exists because: {why}"
+                )
         self.assertEqual(
-            render_stream.statusline_action_for_item({"initial_status": "to-review"}),
-            "review",
-        )
-        self.assertEqual(
-            render_stream.statusline_action_for_item({"initial_status": "draft"}),
-            "review",
-        )
-        self.assertEqual(
-            render_stream.statusline_action_for_item({"initial_status": "approved"}),
-            "execute",
-        )
-        self.assertEqual(
-            render_stream.statusline_action_for_item({"status": "to-review"}),
-            "review",
-        )
-        self.assertEqual(
-            render_stream.statusline_action_for_item({}),
-            "execute",
-        )
-        self.assertEqual(
-            render_stream.statusline_action_for_item(
-                {"action": None, "initial_status": "approved"}
-            ),
-            "execute",
+            wrong,
+            [],
+            f"statusline_action_for_item resolved {len(wrong)} of {len(self.ITEMS)} queue items "
+            "wrongly. One precedence chain (`action`, else `initial_status`, else `status`, else "
+            "the default) decides all of them, so several rows moving together means that chain was "
+            "reordered. FIX: if the EXPLICIT rows now follow their `status` instead of their "
+            "`action`, this is vaboqp regressing and the statusline is describing the wrong "
+            "activity to a watching human. If a review row now reads `execute`, the display claims "
+            "a plan is being MUTATED when it is only being read, which is the more alarming "
+            f"direction of error.\n" + "\n".join(wrong),
         )
 
     def test_queue_item_renders_execute_action_in_statusline(self):
+        """Kept separate: renders a real Statusline end to end, not the pure derivation the table covers."""
         item = {
             "position": 1,
             "id6": "prpipy",
@@ -1635,6 +2659,7 @@ class StatuslineActionDerivationTests(unittest.TestCase):
 
 class StatuslinePauseResumeTests(unittest.TestCase):
     def test_pause_and_resume_do_not_deadlock_when_drawn(self):
+        """Kept separate: a stateful pause/resume sequence over a faked-tty stream."""
         stream = io.StringIO()
         stream.isatty = lambda: True  # type: ignore[attr-defined]
         pal = render_stream.Palette(False)
@@ -1657,6 +2682,7 @@ class StatuslinePauseResumeTests(unittest.TestCase):
         self.assertTrue(st._has_drawn)
 
     def test_global_pause_resume_active_statusline(self):
+        """Kept separate: exercises the MODULE-level pause/resume registry, not a value mapping."""
         stream = io.StringIO()
         stream.isatty = lambda: True  # type: ignore[attr-defined]
         pal = render_stream.Palette(False)
