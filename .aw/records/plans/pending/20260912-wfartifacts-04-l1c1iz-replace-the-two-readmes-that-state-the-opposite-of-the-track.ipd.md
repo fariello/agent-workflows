@@ -40,29 +40,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: rewrite both READMEs and remove the duplicate prose
 
-- [ ] E-01 REWRITE THE RUN-SCRATCH README TEMPLATE TO STATE THE UNTRACKED RULE AND SAY WHY.
+- [x] E-01 REWRITE THE RUN-SCRATCH README TEMPLATE TO STATE THE UNTRACKED RULE AND SAY WHY.
   IT MUST NAME THE MECHANISM, not just the policy: the framework-owned `.aw/.gitignore` ignores this tree (after Order 02), so a reader can verify with `git check-ignore -v` rather than trusting prose. A README that says "do not commit" without saying what enforces it invites someone to "fix" the gitignore.
   IT MUST SAY WHAT THE TRACKED ALTERNATIVE IS, because the old text's one true instinct was that review history matters. Durable review records go to `.aw/records/reviews/` as typed `.review.md` artifacts; run scratch here is the working material that produced them. Without that sentence a reader who wants durable history has nowhere to go and will re-track this tree.
   STATE THE D92 REASON IN ONE LINE: these files carry local context, absolute home paths and session detail, so committing them publishes machine identity into permanent history.
   - Depends on: none
   - Expected outcome: a template stating the untracked rule, the enforcing file, the D92 reason, and the tracked alternative.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 REMOVE THE DUPLICATED BAD PROSE FROM THE `engine.py` FALLBACK LITERAL, so the template is the single source.
+- [x] E-02 REMOVE THE DUPLICATED BAD PROSE FROM THE `engine.py` FALLBACK LITERAL, so the template is the single source.
   THE FALLBACK EXISTS FOR AN OSError PATH and currently re-states "DO NOT gitignore this folder" inline. Either replace it with the corrected text or make the failure explicit; do NOT leave two copies that can disagree, which is the same duplication class the reporting-contract parity test exists to catch elsewhere in this codebase.
   IF YOU KEEP A FALLBACK, keep it SHORT and pointer-shaped rather than a second full README, so drift is structurally impossible.
   - Depends on: E-01
   - Expected outcome: no copy of the old "DO NOT gitignore" prose remains in `engine.py`, verified by grep.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 REPAIR THIS REPOSITORY'S `.aw/records/README.md`, WHICH IS LOCAL DRIFT AND NOT A SHIPPED DEFECT (F-6).
+- [x] E-03 REPAIR THIS REPOSITORY'S `.aw/records/README.md`, WHICH IS LOCAL DRIFT AND NOT A SHIPPED DEFECT (F-6).
   START FROM THE SHIPPED TEMPLATE, DO NOT REWRITE IT. `templates/agents-README.md` is already correct and `engine.py:5205` emits it, so a fresh install is fine; this checkout simply received the wrong file during the Order 11 migration. Editing the template would replace correct prose with a variant and is explicitly out of scope.
   IT MUST SAY what `.aw/records/` holds (the durable, TRACKED, typed artifact trees: plans, specs, research, reviews, backlog, walkthroughs, comms, releases), that those ARE committed, and that the `untracked/` lanes inside some trees are the deliberate exception. Consider whether the template's own text, which names only `plans/` and `workflows/`, should be EXTENDED here rather than replaced; if you extend it, say why the template does not need the same extension.
   IT MUST DISTINGUISH ITSELF FROM RUN SCRATCH IN ONE EXPLICIT SENTENCE, naming `.aw/workflow-artifacts/` as the place run records go and stating that `records/reviews/` is NOT that place. This is the sentence that prevents the mistake already observed: an agent moved run records into `.aw/records/reviews/untracked/`, which is a tracked typed tree, not a scratch lane.
   NO TEST PINS THE CONTENT, verified at review (F-5): the four assertions across `test_dir_readmes.py` and `test_record_producers.py` check existence and path suffix only. So expect NO test change, and if you find yourself editing one, stop and say why.
   - Depends on: E-01
   - Expected outcome: this repo's `.aw/records/README.md` describes the tracked records tree and explicitly distinguishes it from `.aw/workflow-artifacts/`; the shipped template is UNCHANGED; no test assertion changed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -131,20 +131,319 @@ THE PROSE IS THE DELIVERABLE HERE, so it must name mechanisms rather than assert
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the new template IN FULL. Confirm by quotation that it contains the untracked rule, the name of the enforcing file, the D92 reason, and the pointer to `.aw/records/reviews/` for durable records. Paste a grep proving the string "DO NOT gitignore" no longer appears in it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL FOUR REQUIRED ELEMENTS PRESENT, and the template now states the untracked rule with the mechanism that enforces it. A fresh scratch install was verified to receive it, ignored and unstaged.
 
-- [ ] V-02 validates E-02
+    THE NEW TEMPLATE IN FULL (`.aw/system/workflows/templates/workflow-artifacts-README.md`, 38 lines):
+
+    ```markdown
+    # Workflow run scratch
+
+    This directory holds the working material of agent-workflow runs: the run records,
+    verification evidence, and session logs a workflow writes as it goes, under
+    `<workflow>/<RUN_ID>/`.
+
+    ## Git Guidelines
+
+    **Run scratch is local to this machine and is never committed.** The framework-owned
+    `.aw/.gitignore` ignores this tree with the anchored pattern `/workflow-artifacts/`
+    (patterns in that file are `.aw/`-relative, so it resolves to `.aw/workflow-artifacts/`
+    exactly). Verify that yourself rather than trusting this sentence:
+
+    ```sh
+    git check-ignore -v .aw/workflow-artifacts/
+    ```
+
+    **Why, because this is a containment rule and not tidiness:** a run record carries local
+    context, including absolute home paths, usernames, and session detail. Git history is
+    permanent, so committing one publishes machine identity into it unrecoverably. That is why
+    the ignore rule should be left alone: do not remove it, and do not force-add a path under
+    here.
+
+    Because this tree is untracked, treat its contents as disposable working material. Nothing
+    here survives a fresh clone.
+
+    ## Where durable review history goes instead
+
+    Run scratch is the material that PRODUCED a review, not the review itself. Durable history
+    is a typed, committed artifact under `.aw/records/`:
+
+    - `.aw/records/reviews/` holds typed `<...>.review.md` findings records: what a review
+      actually found, with severities that tooling can read.
+    - `.aw/records/plans/` holds the Implementation Plan Documents a review approves, through
+      their lifecycle.
+
+    So if you want a run's conclusion to outlive this machine, write it as a record under
+    `.aw/records/`. Do not start tracking this directory.
+    ```
+
+    THE FOUR REQUIRED ELEMENTS, BY QUOTATION:
+    1. THE UNTRACKED RULE: "**Run scratch is local to this machine and is never committed.**"
+    2. THE ENFORCING FILE, NAMED, plus the command that proves it rather than asserting it: "The
+       framework-owned `.aw/.gitignore` ignores this tree with the anchored pattern
+       `/workflow-artifacts/` (patterns in that file are `.aw/`-relative, so it resolves to
+       `.aw/workflow-artifacts/` exactly)", followed by the runnable
+       `git check-ignore -v .aw/workflow-artifacts/`.
+    3. THE D92 REASON: "a run record carries local context, including absolute home paths, usernames,
+       and session detail. Git history is permanent, so committing one publishes machine identity into
+       it unrecoverably."
+    4. THE TRACKED ALTERNATIVE, pointing at `.aw/records/reviews/`: "`.aw/records/reviews/` holds typed
+       `<...>.review.md` findings records", under the heading "Where durable review history goes
+       instead", closing "So if you want a run's conclusion to outlive this machine, write it as a
+       record under `.aw/records/`. Do not start tracking this directory."
+
+    GREP PROVING THE RETIRED STRING IS GONE FROM IT (exit 1 = no match, which is the required result):
+
+    ```console
+    $ grep -rn 'DO NOT gitignore' .aw/system/workflows/templates/; echo "exit=$?"
+    exit=1
+    ```
+
+    THE `## Git Guidelines` HEADING WAS DELIBERATELY KEPT. `tests/test_installer.py:413` asserts
+    `assertIn("Git Guidelines", ...)` on the INSTALLED file. That test is OUTSIDE this plan's declared
+    Scope-Paths, so keeping the heading corrects the prose without editing an out-of-scope test or
+    weakening a shipped assertion.
+
+    END-TO-END, ON A FRESH SCRATCH INSTALL (not this repo): the corrected template lands at the new
+    path, is really ignored, and is NOT staged.
+
+    ```console
+    install rc: 0
+    === installed .aw/workflow-artifacts/README.md (first 8 lines) ===
+    # Workflow run scratch
+
+    This directory holds the working material of agent-workflow runs: the run records,
+    verification evidence, and session logs a workflow writes as it goes, under
+    `<workflow>/<RUN_ID>/`.
+
+    ## Git Guidelines
+
+    === 'DO NOT gitignore' present in it: False
+    === check-ignore: .aw/.gitignore:73:/workflow-artifacts/	.aw/workflow-artifacts/README.md rc 0
+    === staged/tracked under run scratch: ''
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `grep -rn 'DO NOT gitignore' agent_workflows/` returning NOTHING, and paste the diff of the fallback literal. If a fallback was retained, quote it and show it is short and pointer-shaped rather than a second full README.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE GREP RETURNS NOTHING, and TWO inline copies were found and removed, not the one the plan cited. Both now share one short pointer-shaped constant, and the OSError branch was really exercised rather than only read.
 
-- [ ] V-03 validates E-03
+    THE REQUIRED GREP, RETURNING NOTHING (exit 1 = no match):
+
+    ```console
+    $ grep -rn 'DO NOT gitignore' agent_workflows/; echo "exit=$?"
+    exit=1
+    ```
+
+    That is a REPO-WIDE-under-`agent_workflows/` grep with no `--include`, so it also covers the
+    compiled `__pycache__` (which matched a stale byte-copy until the source change invalidated it).
+    The wider grep this plan's "Required tests" section specifies is also clean:
+
+    ```console
+    $ grep -rn 'DO NOT gitignore' agent_workflows/ .aw/records/README.md .aw/system/workflows/templates/; echo "exit=$?"
+    exit=1
+    ```
+
+    THERE WERE TWO INLINE COPIES, NOT ONE. The plan's concern cited only
+    `_ensure_artifacts_readme`'s literal, but `show_install_diffs` carried a SECOND full copy for its
+    diff PREVIEW (both located by name, since the cited line numbers had moved). Fixing one would have
+    left the other shippable, so both now share ONE constant.
+
+    THE FALLBACK WAS RETAINED AND IS POINTER-SHAPED, not a second README. `_ARTIFACTS_README_FALLBACK`
+    is defined once beside `ARTIFACTS_DIR` and DERIVES the path from that constant, so it cannot drift
+    from either the template or the install path. Rendered (15 lines):
+
+    ```markdown
+    # Workflow run scratch
+
+    Local-only working material from agent-workflow runs.
+
+    ## Git Guidelines
+
+    **Never committed.** The framework-owned `.aw/.gitignore` ignores this tree with the
+    anchored pattern `/workflow-artifacts/`; confirm with `git check-ignore -v .aw/workflow-artifacts/`.
+    A run record carries local context (absolute home paths, session detail) and git history is
+    permanent, so committing one publishes machine identity irrecoverably (D92). Durable review
+    history belongs in the tracked `.aw/records/` trees instead.
+
+    This is a fallback stub: the full text ships as
+    `.aw/system/workflows/templates/workflow-artifacts-README.md`, which could not be read when
+    this file was written.
+    ```
+
+    It is 15 lines against the template's 38, states the RULE and NAMES the enforcing file (a bare
+    "do not commit" invites deleting the ignore line), and says plainly that it is a stub and where the
+    full text lives.
+
+    THE DIFF OF BOTH FALLBACK SITES:
+
+    ```diff
+    -    # (including the fallback literal below, which still carries the retired "DO NOT gitignore"
+    -    # prose) is Order 04's scope and is deliberately left byte-unchanged here.
+    +    # wfartifacts Order 04 (l1c1iz) E-02: the OSError fallback is the SHARED
+    +    # `_ARTIFACTS_README_FALLBACK`, not a second inline copy of the README. [...]
+             except OSError:
+    -            proposed[artifacts_readme] = (
+    -                "# Workflow Run Artifacts\n\n"
+    -                ... 8 lines of duplicated README prose ...
+    -            ).encode("utf-8")
+    +            proposed[artifacts_readme] = _ARTIFACTS_README_FALLBACK.encode("utf-8")
+
+         except OSError:
+    -        readme_content = (
+    -            "# Workflow Run Artifacts\n\n"
+    -            ... 8 lines of duplicated README prose ...
+    -        )
+    +        readme_content = _ARTIFACTS_README_FALLBACK
+    ```
+
+    THE OSError PATH WAS EXERCISED, not merely read: calling
+    `ensure_workflow_artifacts_readme` with a `source_root` that has no `templates/` really takes the
+    fallback branch and writes the stub above.
+
+    ```console
+    installed: ['.aw/workflow-artifacts/README.md [install, local-only: run scratch is never committed]']
+    === contains retired prose: False | lines: 15
+    ```
+
+    NOTE ON THE THREE SURVIVING COMMENT MENTIONS: two `engine.py` comments explain what was removed,
+    and they are written WITHOUT the retired sentence verbatim (as
+    "do-not-ignore-this-folder"), because this V-item is a literal grep and a comment quoting the
+    string would read as a surviving copy.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the new `.aw/records/README.md` IN FULL. Quote the sentence that distinguishes it from `.aw/workflow-artifacts/` and the sentence naming `records/reviews/` as tracked typed records. Paste a grep proving "DO NOT gitignore" is gone from it. Paste `git diff --stat -- .aw/system/workflows/templates/agents-README.md` showing the shipped template is UNCHANGED (F-6); a modified template is a FAILED validation, since it was already correct. Paste the passing output of `tests/test_dir_readmes.py` and `tests/test_record_producers.py`, and state that no assertion needed changing (or, if one did, show the diff and why F-5's finding was wrong).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE RECORDS README NOW DESCRIBES THE TRACKED TREE AND EXPLICITLY DISTINGUISHES IT FROM `.aw/workflow-artifacts/`. The shipped template is byte-UNCHANGED (F-6 re-measured on a fresh install first), and NO test assertion needed changing, so F-5 holds.
+
+    THE NEW `.aw/records/README.md` IN FULL (54 lines):
+
+    ```markdown
+    # .aw/records/
+
+    The durable, TRACKED records for this repository: the typed artifacts that carry decisions,
+    plans, and findings forward. These ARE committed, alongside the code they describe.
+
+    This is NOT run scratch. Run records, verification evidence, and session logs from a
+    workflow run go to `.aw/workflow-artifacts/<workflow>/<RUN_ID>/`, which is gitignored and
+    local to one machine; `records/reviews/` is NOT that place, and neither is any other tree
+    here. If you are looking for somewhere to put a run's working material, it is
+    `.aw/workflow-artifacts/`, and its own README explains why that tree stays untracked (D92:
+    run records carry absolute home paths and session detail, and git history is permanent).
+
+    ## The typed trees
+
+    Each tree owns one artifact type, named by the uniform grammar
+    `YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md`, and each has its own README with the details.
+
+    - **`plans/`** holds Implementation Plan Documents (`.ipd.md`) through their lifecycle
+      buckets (`pending/`, `executed/`, `superseded/`, `not-executed/`, `reusable/`).
+    - **`specs/`** holds specifications (`.spec.md`): the contracts plans are reviewed against.
+    - **`backlog/`** holds lightweight backlog items (`.backlog.md`) by status.
+    - **`reviews/`** holds typed review findings (`.review.md`), so an unfixed High or Blocker
+      finding is a fact tooling can read rather than prose in a transcript.
+    - **`research/`** holds immortalized research and reference material, with a manifest.
+    - **`walkthroughs/`** holds narrative `...-walkthrough.md` accounts of how something was done.
+    - **`releases/`** holds release records (`.release.md`) that `Blocks-Release` gates resolve to.
+    - **`roadmaps/`** holds longer-horizon direction documents.
+    - **`prompts/`** holds prompt artifacts through a lifecycle; **`prompt-library/`** holds the
+      standalone reusable prompt library.
+    - **`comms/`** holds inter-agent messages.
+
+    Use the `aw` verbs to create and move these (`aw ipd`, `aw specs`, `aw backlog`, `aw research`,
+    `aw index`, `aw archive`); do not hand-name artifacts or hand-maintain an index.
+
+    ## The exceptions, which are deliberate
+
+    A few paths under this tree are NOT committed, and every one of them is named in the
+    framework-owned `.aw/.gitignore` rather than left to convention. Verify any of them with
+    `git check-ignore -v <path>`:
+
+    - `records/*/untracked/` lanes (for example `comms/untracked/`, `prompts/untracked/`) are
+      box-local quarantine: a human promotes a reviewed copy into a tracked bucket with `git mv`.
+    - `records/history.jsonl` is a local activity log appended on every `aw` status write.
+    - `records/runs/` is the IPD driver's per-run durable state.
+    - `records/plans/INDEX.*` and `records/research/INDEX.*` are GENERATED views; regenerate with
+      `aw index plans` / `aw index research`.
+
+    Everything else here is meant to be committed. If a tree looks like scratch to you, check
+    its README before moving anything: the mistake this front door exists to prevent is treating
+    a tracked typed tree as a place to dump run output.
+    ```
+
+    THE SENTENCE DISTINGUISHING IT FROM RUN SCRATCH (the sentence F-4 says was missing, and whose
+    absence plausibly caused an agent to move run records into `records/reviews/untracked/`):
+
+    > This is NOT run scratch. Run records, verification evidence, and session logs from a workflow run
+    > go to `.aw/workflow-artifacts/<workflow>/<RUN_ID>/`, which is gitignored and local to one
+    > machine; `records/reviews/` is NOT that place, and neither is any other tree here.
+
+    THE SENTENCE NAMING `records/reviews/` AS TRACKED TYPED RECORDS:
+
+    > **`reviews/`** holds typed review findings (`.review.md`), so an unfixed High or Blocker finding
+    > is a fact tooling can read rather than prose in a transcript.
+
+    under the opening statement that the whole tree is "The durable, TRACKED records for this
+    repository ... These ARE committed, alongside the code they describe."
+
+    GREP PROVING THE RETIRED STRING IS GONE FROM IT (exit 1 = no match):
+
+    ```console
+    $ grep -rn 'DO NOT gitignore' .aw/records/README.md; echo "exit=$?"
+    exit=1
+    ```
+
+    THE SHIPPED TEMPLATE IS UNCHANGED (F-6). Empty output is the pass condition:
+
+    ```console
+    $ git diff --stat -- .aw/system/workflows/templates/agents-README.md
+    $ echo "exit=$?"
+    exit=0
+    ```
+
+    F-6 WAS ALSO RE-MEASURED RATHER THAN TRUSTED, before writing anything: a fresh install into a
+    scratch repo received the CORRECT text, confirming the wrong file is local drift in this checkout
+    only and that no target repo is affected.
+
+    ```console
+    === .aw/records/README.md (fresh install, BEFORE any change here) ===
+    # .aw/records/
+
+    Agent tooling for this repository.
+    ...
+    ```
+
+    THE TESTS, PASSING, WITH NO ASSERTION CHANGED:
+
+    ```console
+    $ python3 -m pytest tests/test_dir_readmes.py tests/test_record_producers.py
+    bringing up nodes...
+    ......................................................                   [100%]
+    54 passed in 7.15s
+    ```
+
+    NO ASSERTION NEEDED CHANGING, so F-5 holds exactly as the review found it: the four sites
+    (`test_dir_readmes.py:47`, `:68`, `:72`, `test_record_producers.py:364`) pin EXISTENCE and a path
+    suffix, never content. `git diff --stat -- tests/` is empty; `tests/test_dir_readmes.py` appears in
+    Scope-Paths but needed no edit.
+
+    THE TREES NAMED IN THE NEW TEXT WERE VERIFIED TO EXIST AND BE POPULATED, so the front door does not
+    itself become stale prose: 671 `.ipd.md`, 281 `.backlog.md`, 231 `.review.md`, 58 research, 34
+    `.spec.md`, 25 walkthroughs. EVERY untracked exception it lists was verified with real
+    `git check-ignore -v` (`records/*/untracked/` -> `.aw/.gitignore:6`, `records/history.jsonl` -> `:11`,
+    `records/runs/` -> `:14`, `records/plans/INDEX.json` -> `:45`, `records/research/INDEX.md` -> `:48`),
+    rather than asserted.
+
+    ON EXTENDING RATHER THAN COPYING THE TEMPLATE, which E-03 asked to be decided explicitly: the
+    template names only `plans/` and `workflows/`, which is far less than this repository's eleven
+    populated trees, so the local file EXTENDS it. The template does NOT need the same extension,
+    because a freshly installed repo has empty trees and the two-item orientation is right for it; and
+    editing the template is out of scope by F-6. NOTE, HOWEVER, a separate defect found while verifying
+    F-6 and filed as backlog `2oq6s8`: the template's `workflows/` bullet and its `workflows/index.md`
+    link name a directory NO install creates (the framework installs to `.aw/system/workflows/`). It is
+    reported, not fixed, precisely because V-03 makes a modified template a failed validation.
+  - Result: pass
 
 ## Approval and execution gate
 
