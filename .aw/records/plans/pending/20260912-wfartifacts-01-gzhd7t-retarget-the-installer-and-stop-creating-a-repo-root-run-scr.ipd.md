@@ -38,30 +38,33 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: retarget the code, then prove a fresh install is clean
 
-- [ ] E-01 RETARGET `ARTIFACTS_DIR` AND EVERY WRITE SITE TO `.aw/workflow-artifacts/`, and REMOVE the repo-root `mkdir`.
+- [x] E-01 RETARGET `ARTIFACTS_DIR` AND EVERY WRITE SITE TO `.aw/workflow-artifacts/`, and REMOVE the repo-root `mkdir`.
   THE THREE SITES, located by name rather than by the line numbers cited here: the `ARTIFACTS_DIR` constant (`engine.py:237`), the proposed-file entry (`:3292`), and `_ensure_artifacts_readme` (`:5139`), which is the one that actually creates the directory.
   DO NOT LEAVE A REPO-ROOT `mkdir` BEHIND. The maintainer's report is specifically that the directory APPEARS; a run that merely stops writing the README but still creates an empty directory has not fixed the reported defect.
   KEEP `LEGACY_ARTIFACTS_DIR` AND THE PRE-D19 MIGRATION INTACT (`:238`, `:2608-2613`). That code moves `repository-review/` into the artifacts tree and is a DIFFERENT, older migration; retargeting its destination is correct, deleting it is not.
   - Depends on: none
   - Expected outcome: `ARTIFACTS_DIR` is the `.aw/` path, no repo-root directory is created by any install path, and the pre-D19 migration still runs with its destination retargeted.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: `ARTIFACTS_DIR = ".aw/workflow-artifacts/"`. All three named sites retargeted: the constant; the proposed-file entry in `show_install_diffs`, now DERIVED as `f"{ARTIFACTS_DIR}README.md"` so the diff preview cannot drift from the write path; and `ensure_workflow_artifacts_readme`, whose repo-root `mkdir` is GONE (it now builds `plan.repo_root / ARTIFACTS_DIR`). The pre-D19 migration and `LEGACY_ARTIFACTS_DIR` are INTACT with the destination retargeted via `ARTIFACTS_DIR`; its follow-up `git add` had to move to the tolerant `git_add_optional` because the retargeted destination is ignored and a raw add aborted the install (measured; decision D-03). Two additions beyond the literal three sites, both consequences of the move: the ensurer now SKIPS a `legacy` layout target (which has no `.aw/` tree, so writing there would half-migrate it and land an unignored file), and `.aw/workflow-artifacts` was added to `_DEEP_CLEANUP_ROOTS` classified as OTHER, since relocating the tree inside `.aw/` brought it into `aw uninstall --deep`'s "no `.aw/` remains" promise (decision D-04).
 
-- [ ] E-02 FIX `check_gitignore` TO REPORT THE PATH THAT MATTERS, or remove the advisory if it no longer says anything true.
+- [x] E-02 FIX `check_gitignore` TO REPORT THE PATH THAT MATTERS, or remove the advisory if it no longer says anything true.
   WHAT IT SAYS TODAY IS MISLEADING IN BOTH BRANCHES: "workflow-artifacts/ is ignored (correct, recommended...)" and "...is not ignored (advisory: working material will be tracked in git)". After Order 02 the framework-owned `.aw/.gitignore` ignores the real path unconditionally, so an advisory about the user's ROOT gitignore and a retired path is noise that contradicts the installer's own behavior.
   DECIDE EXPLICITLY AND SAY WHY IN THE CODE: either report on `.aw/workflow-artifacts/` (and then it should essentially always read "ignored"), or drop the line and its `gitignore_status` plumbing. Do NOT leave a branch that can print advice about a directory the installer no longer creates.
   NOTE THE PLUMBING REACHES THE SUMMARY at `:3729` (`print(f"Gitignore (workflow-artifacts): {gitignore_status}")`) and through `install_into_repo`'s returned dict, so removing it is a small API change to check for callers, not a one-line delete.
   - Depends on: E-01
   - Expected outcome: no installer output describes the retired repo-root path, and whatever remains is true of a repo installed after Order 02.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: OQ-01 RESOLVED AS "RETARGET, NOT REMOVE", with the reason recorded in the function docstring as E-02 required (decision D-01). The decision is not merely a path swap: retargeting the old LINE-SCAN alone could not have made the line true, because it inspected the repo-ROOT `.gitignore` while the rule that protects run scratch ships in the framework-owned `.aw/.gitignore`, so it would have reported "not ignored" about a path that IS ignored. The predicate is now `git check-ignore -v --no-index`, the same authority the sibling `_already_tracked_untracked_matches` and `git_commit_helper` use, and it ATTRIBUTES the rule to the source file providing it. No branch can now describe the retired directory: a `legacy` target returns an explicit `n/a`, and non-git degrades to "could not be checked" rather than a false claim. The `gitignore_status` key and the function signature are UNCHANGED, so no caller was touched. `print_summary`'s label was also changed, because it hard-coded `Gitignore (workflow-artifacts)` and so named the retired path even when the status string did not; it now reads `Gitignore (run scratch)`.
 
-- [ ] E-03 PROVE A FRESH INSTALL PRODUCES NO REPO-ROOT DIRECTORY AND UPDATE THE TESTS THAT PIN THE OLD BEHAVIOR.
+- [x] E-03 PROVE A FRESH INSTALL PRODUCES NO REPO-ROOT DIRECTORY AND UPDATE THE TESTS THAT PIN THE OLD BEHAVIOR.
   EXPECT EXISTING TESTS TO FAIL, and treat that as the signal rather than a nuisance: 42 references to `workflow-artifacts`/`ARTIFACTS_DIR` exist across 10 test files (`test_installer.py`, `test_awretrofit_install_selfheal.py`, `test_acceptance_matrix.py`, `test_packaging.py` and others). Each must be re-pointed or deliberately re-scoped, and any that asserts the repo-root README is INSTALLED is asserting the defect and must be inverted.
   THE DEFECT-ASSERTING SITES ARE NAMED IN F-7 so you do not have to hunt: `test_installer.py:394` (`is_file()` on the repo-root README), `:406` (its "Git Guidelines" content), `:409-410` (a re-run preserves a customized copy), and `test_awretrofit_install_selfheal.py:69`/`:78` (`git_add_optional` on the same path). The `test_installer.py:409` case is the subtle one: PRESERVING a user's customized README is correct behavior that should survive at the NEW path, so re-point it rather than delete it.
   THE NEW ASSERTION THAT MATTERS: after `install_into_repo` on a fresh repo, `(repo / "workflow-artifacts").exists()` is FALSE. That single line is the maintainer's report turned into a test.
   RUN THE SUITE BARE and compare the FAILURE SET, not counts.
   - Depends on: E-02
   - Expected outcome: a test asserting no repo-root directory after a fresh install, every pre-existing reference re-pointed or re-scoped with a stated reason, and an empty bare-suite failure-set delta.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: Two NEW tests in `tests/test_installer.py`: `test_fresh_install_creates_no_repo_root_workflow_artifacts_dir` (the maintainer's report as a test: `(repo / "workflow-artifacts").exists()` is False, the README landed at the new path, and it is NOT in the index) and `test_installer_summary_names_no_repo_root_run_scratch_path` (E-02's guard, a regex sweep of real installer output). All five F-7 defect-asserting sites were RE-POINTED, none deleted: `test_installer.py`'s README-creation list, its "Git Guidelines" content check, and its customized-copy-preserved re-run case (that one is CORRECT behavior that should survive at the new path, exactly as F-7 warned); and both `test_awretrofit_install_selfheal.py` cases, whose module docstring now records that the "not staged" guarantee is henceforth by CONSTRUCTION rather than by the ignore rule matching. The F-5 count was re-measured rather than trusted: of the 42 references across 10 files, only those 5 asserted the defect; the rest are legacy-migration and inventory/scan fixtures that legitimately still name the OLD path (they test pre-Order-07 repos), so they were left alone deliberately - 131 passed across those 8 suites unchanged. NOTE the E-01 deep-cleanup addition was DISCOVERED by a failing test rather than by inspection, which is what F-5's "treat failures as the signal" instruction is for.
 
 ## Project conventions discovered (Step 0)
 
@@ -123,28 +126,200 @@ No spec change: Order 07's spec already specifies the target layout and is `impl
 ### OQ-01: Should `check_gitignore` be retargeted or removed outright?
 
 - Blocking: no
-- Status: open
-- Owner: none
+- Status: resolved
+- Owner: opencode its_direct/pt3-claude-opus-5-1m-us (executor, 2026-09-18)
+- Resolution: RETARGETED, NOT REMOVED, and additionally rewritten to ASK GIT rather than line-scan a file. Recorded in the `check_gitignore` docstring as E-02 required, and in decision `02-gzhd7t-D1`. The deciding evidence is that retargeting the old line-scan ALONE could not have made the advisory true: it inspected the repo-ROOT `.gitignore`, but after Order 02 the rule that protects run scratch lives in the framework-owned `.aw/.gitignore`, which a root-file scan structurally cannot see, so it would have printed "not ignored" about a path that IS ignored. The predicate is now `git check-ignore -v --no-index` (the same authority the sibling `_already_tracked_untracked_matches` and `git_commit_helper` already use), which also attributes the rule to its source file. Kept rather than dropped because, asked this way, the line is a genuine post-install check of the D92 containment that can report a real gap (a `legacy` target has no `.aw/` tree; a repo whose `.aw/.gitignore` predates Order 02 gains the rule only on an install that runs the back-fill), and removal would have cost an API change across two callers plus a test double for no gain. No branch can now describe the retired repo-root directory, which is the constraint E-02 said actually matters.
 - Resolution or deferral rationale: EXECUTOR'S CHOICE, WITH THE REASON RECORDED IN CODE, and E-02 requires the decision be explicit either way. Resolved rather than asked because both options are defensible and neither is risky: after Order 02 the framework-owned gitignore ignores the real path unconditionally, so a retargeted advisory would essentially always print "ignored" and carries little information, while removing it is a small API change (`gitignore_status` appears in `install_into_repo`'s returned dict and the summary at `:3729`) that needs a caller check. What is NOT acceptable is leaving a branch that can advise about a directory the installer no longer creates. NOT BLOCKING: E-02 states the constraint that actually matters, and V-02 demands evidence for whichever path is taken.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `engine.py` diff for all three sites and quote the new `ARTIFACTS_DIR` value. Then paste, from a REAL fresh install into a scratch repo, the output of `ls -d <repo>/workflow-artifacts` showing it does NOT exist, and `ls -d <repo>/.aw/workflow-artifacts` if the README now lands there. An existing repo-root directory, even an empty one, is a FAILED validation: the reported defect is that the directory appears.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `ARTIFACTS_DIR = ".aw/workflow-artifacts/"`; all three sites retargeted and the repo-root `mkdir` removed; on a REAL fresh install `ls -d <repo>/workflow-artifacts` reports "No such file or directory" (the directory does not exist AT ALL, not merely empty) while `ls -d <repo>/.aw/workflow-artifacts` lists `README.md`, and `git ls-files -- .aw/workflow-artifacts` is EMPTY. The pre-D19 migration survived with its destination retargeted. Full pasted evidence below and in the run submission's execution-report.md (V-01).
 
-- [ ] V-02 validates E-02
+    THE NEW CONSTANT VALUE, quoted exactly:
+
+    ```python
+    ARTIFACTS_DIR = ".aw/workflow-artifacts/"
+    ```
+
+    SITE 1, the constant (`engine.py:237` at authoring time):
+
+    ```diff
+    -ARTIFACTS_DIR = "workflow-artifacts/"
+    +ARTIFACTS_DIR = ".aw/workflow-artifacts/"
+    ```
+
+    SITE 2, the proposed-file entry in `show_install_diffs` (`:3292`), now DERIVED so it cannot drift:
+
+    ```diff
+    -    artifacts_readme = "workflow-artifacts/README.md"
+    +    artifacts_readme = f"{ARTIFACTS_DIR}README.md"
+    ```
+
+    SITE 3, `ensure_workflow_artifacts_readme` (`:5139`), the one that actually created the directory. The repo-root `mkdir` is gone, because the path it builds is now the `.aw/` one:
+
+    ```diff
+    -    artifacts_dir = plan.repo_root / "workflow-artifacts"
+    +    artifacts_dir = plan.repo_root / ARTIFACTS_DIR
+         readme_path = artifacts_dir / "README.md"
+    -    rel_path = "workflow-artifacts/README.md"
+    +    rel_path = f"{ARTIFACTS_DIR}README.md"
+    ```
+
+    THE PRE-D19 MIGRATION SURVIVED (F-6), destination retargeted through the constant, with its `git add` made tolerant because the new destination is ignored:
+
+    ```diff
+    -                git_run(repo, ["add", "--", rel_dst])
+    +                git_add_optional(repo, rel_dst)
+    ```
+
+    REAL FRESH INSTALL into a scratch git repo (`install_into_repo`, backup off, prune on):
+
+    ```text
+    === ls -d <repo>/workflow-artifacts (MUST NOT EXIST) ===
+    ls: cannot access '<repo>/workflow-artifacts': No such file or directory
+    === ls -d <repo>/.aw/workflow-artifacts ===
+    <repo>/.aw/workflow-artifacts
+    README.md
+    ```
+
+    The repo-root directory does not exist AT ALL (not merely empty), which is the criterion this item sets. The README landed at the new path.
+
+    NOT STAGED, which decision D-02 makes deliberate (`git ls-files -- .aw/workflow-artifacts` on that install):
+
+    ```text
+    (empty output)
+    ```
+
+    AND the ignore state of the new path on this pre-Order-02 tree, which is exactly why the README is no longer staged:
+
+    ```text
+    $ git -C <repo> check-ignore -v --no-index -- .aw/workflow-artifacts/probe
+    check-ignore-rc=1 (1 = not ignored; Order 02 has not landed)
+    ```
+
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the full installer summary block from a fresh install and show that NO line mentions a repo-root `workflow-artifacts/`. If the advisory was kept, quote the exact new sentence and show it is true for that repo by pasting `git check-ignore -v` on the path it names; if it was removed, paste the diff showing the `gitignore_status` plumbing removed from both the summary and `install_into_repo`'s returned dict, plus a grep proving no caller still reads that key.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the advisory was KEPT and retargeted (OQ-01). The real fresh-install summary line reads `Gitignore (run scratch): .aw/workflow-artifacts/ is NOT ignored (run scratch carries local paths and session detail (D92); ...)`; a regex sweep of the WHOLE 351-line summary for a repo-root `workflow-artifacts/` returns NO match (rc=1), and `git check-ignore -v --no-index -- .aw/workflow-artifacts/probe` exits 1 on that repo, confirming the sentence is TRUE for it (Order 02 has not landed). Full pasted evidence below, summary saved as installer-summary.txt (V-02).
 
-- [ ] V-03 validates E-03
+    THE ADVISORY WAS KEPT (OQ-01 resolved as retarget-not-remove; decision D-01), so this item's "if kept" branch applies. The full summary from a real fresh install is saved at the run submission as `installer-summary.txt` (351 lines); its status block reads:
+
+    ```text
+    AGENTS.md: created AGENTS.md with pointer
+    CLAUDE.md: not present (skipped)
+    GEMINI.md: not present (skipped)
+    Gitignore (run scratch): .aw/workflow-artifacts/ is NOT ignored (run scratch carries local paths and session detail (D92); re-run `aw install` to add the framework-owned .aw/.gitignore rule)
+    Gitignore (installer backups): added .agent-workflows-installer-backups/ to .gitignore
+    ```
+
+    NO LINE MENTIONS A REPO-ROOT `workflow-artifacts/`. Swept the WHOLE summary with a regex that matches the bare path but not the `.aw/`-prefixed one and not the shipped template filename:
+
+    ```text
+    $ grep -nE "(^|[^./[:alnum:]-])workflow-artifacts/" installer-summary.txt
+    grep-rc=1 (1 = no match, correct)
+    ```
+
+    The only two remaining occurrences of the string anywhere in the summary are both legitimate and neither is the repo-root path:
+
+    ```text
+    164:[added    ] .aw/system/workflows/templates/workflow-artifacts-README.md
+    320:[added    ] .aw/workflow-artifacts/README.md
+    ```
+
+    THE NEW SENTENCE IS TRUE FOR THAT REPO, shown with `git check-ignore` on the exact path it names. The summary says NOT ignored, and git agrees, because Order 02 (which carries the ignore rule) has not landed:
+
+    ```text
+    $ git -C <repo> check-ignore -v --no-index -- .aw/workflow-artifacts/probe
+    check-ignore-rc=1 (1 = not ignored)
+    ```
+
+    This is the reporting behavior the item asks for: the line now reports the REAL state of the REAL path rather than asserting a fixed sentence, so it correctly shows a GAP today and will report the rule and its source file once Order 02 lands. Verifying the ignored branch names its source is covered by the `check-ignore -v` attribution in the code path (`source = result.stdout.split(":", 1)[0]`).
+
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the new assertion and its passing output, then paste the BARE `python3 -m pytest` summary lines BEFORE and AFTER and state the failure-SET delta explicitly (criterion: empty). For every pre-existing test you changed, name it and say in one line whether it was re-pointed or re-scoped and why; a test deleted rather than re-pointed must be justified, since deleting a test that asserted the old path is how the guarantee silently disappears.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: new `test_fresh_install_creates_no_repo_root_workflow_artifacts_dir` + `test_installer_summary_names_no_repo_root_run_scratch_path` pass (`3 passed, 153 deselected`). BARE suite BEFORE `31 failed, 7962 passed, 3 skipped, 2 xfailed`, AFTER `31 failed, 7962 passed, 3 skipped, 2 xfailed`; FAILURE-SET DELTA IS EMPTY compared as SETS of test ids (`diff` of the sorted lists is identical), all 31 pre-existing runner/lifecycle failures this plan does not touch. Slow suites run explicitly too: `194 passed` + `131 passed` with one failure PROVEN pre-existing by re-running it at HEAD with my files stashed (`2 failed in 8.01s`), filed as backlog `57dwkc`. All five F-7 defect-asserting sites RE-POINTED, none deleted. Full pasted evidence and the per-test table below (V-03).
+
+    THE NEW ASSERTION, the maintainer's report turned into a test:
+
+    ```python
+    self.assertFalse(
+        (self.repo / "workflow-artifacts").exists(),
+        "a fresh install must not create a repo-root workflow-artifacts/ directory "
+        "(Order 07 relocated run scratch to .aw/workflow-artifacts/)",
+    )
+    ```
+
+    ITS PASSING OUTPUT, together with the E-02 summary guard and the re-pointed README test:
+
+    ```text
+    $ python3 -m pytest tests/test_installer.py -o addopts="" -q -k "repo_root_workflow_artifacts or summary_names_no_repo_root or readme_creation"
+    ...                                                                      [100%]
+    3 passed, 153 deselected in 6.64s
+    ```
+
+    BARE SUITE BEFORE (at HEAD 6ff7a7ba, before any edit):
+
+    ```text
+    31 failed, 7962 passed, 3 skipped, 2 xfailed in 118.31s (0:01:58)
+    ```
+
+    BARE SUITE AFTER:
+
+    ```text
+    31 failed, 7962 passed, 3 skipped, 2 xfailed in 105.44s (0:01:45)
+    ```
+
+    FAILURE-SET DELTA IS EMPTY. Compared as SETS of test ids, not counts, per the execution contract:
+
+    ```text
+    baseline count: 31  after count: 31
+    === DELTA ===
+    FAILURE-SET DELTA IS EMPTY (identical sets)
+    ```
+
+    All 31 are pre-existing failures in runner/lifecycle suites (`test_oc_runipd.py`, `test_agy_runipd_cli.py`, `test_runner_backlog_close_in_lane.py`, `test_ipd_lifecycle_cli.py`, `test_novalnomerge_integration.py`, `test_worker_role_refusal.py`), none of which this plan touches. The two sorted lists are saved at the run submission as `base.clean` and `after.clean`.
+
+    THE SLOW SUITES TOO, since `addopts` excludes `-m slow` from a bare run and `test_installer.py` IS slow-marked. Ran the installer + every path-referencing suite explicitly:
+
+    ```text
+    $ python3 -m pytest tests/test_installer.py tests/test_awretrofit_install_selfheal.py tests/test_engine_install.py -o addopts="" -q
+    1 failed, 194 passed in 210.48s (0:03:30)
+    FAILED tests/test_installer.py::UninstallCompletenessTests::test_deep_cleanup_records_remove_leaves_no_aw_directory
+
+    $ python3 -m pytest tests/test_acceptance_matrix.py tests/test_packaging.py tests/test_record_producers.py tests/test_layout_inventory_gitignore.py tests/test_scan_secrets.py tests/test_untrack_workflow_artifacts.py tests/test_untracked_lane_migration.py tests/test_awphysical_migration.py -o addopts="" -q
+    131 passed in 11.44s
+    ```
+
+    THAT ONE FAILURE IS PRE-EXISTING AND NOT MINE, and I verified it rather than asserting it: with all three of my files stashed, at HEAD, it and its `test_cli.py` twin BOTH still fail:
+
+    ```text
+    $ git stash push -- agent_workflows/engine.py tests/test_installer.py tests/test_awretrofit_install_selfheal.py
+    $ python3 -m pytest <the two tests> -o addopts="" -q
+    2 failed in 8.01s
+    ```
+
+    The cause is unrelated: deep cleanup orphans `.aw/system/layout.json` + `layout.schema.json` (enumerated the remaining tree to confirm). Filed as backlog `57dwkc`. My `.aw/workflow-artifacts` deep-cleanup root works correctly on its own terms, verified directly: enumerated by `plan_deep_cleanup` = True, classified as OTHER not records = True, tree gone after `run_deep_cleanup` = True.
+
+    EVERY PRE-EXISTING TEST I CHANGED, each RE-POINTED (none deleted, none re-scoped away):
+
+    | Test | Action | Why |
+    |---|---|---|
+    | `test_installer.py::test_readme_creation_and_preservation` README list (`:394`) | re-pointed to `.aw/workflow-artifacts/README.md` | the "a fresh install creates it" guarantee is still real; only the path moved |
+    | same test, "Git Guidelines" content check (`:406`) | re-pointed | asserts the template landed; its CONTENT is Order 04's scope, so the assertion is unchanged apart from the path |
+    | same test, customized-copy-preserved re-run (`:409-410`) | re-pointed | F-7 flagged this as the subtle one: preserving a user's customized README is CORRECT behavior that must survive at the new path, so deleting it would drop a real guarantee |
+    | `test_awretrofit_install_selfheal.py::test_ensure_workflow_artifacts_readme_survives_gitignored_dir` (`:69`) | re-pointed, plus a new assertion that no repo-root dir is created | the Order-10 no-abort guarantee is still live; the module docstring now records that "not staged" is henceforth guaranteed by CONSTRUCTION rather than by the ignore rule matching |
+    | `test_awretrofit_install_selfheal.py::test_git_add_optional_returns_false_on_ignored` (`:78`) | re-pointed | `git_add_optional` is still used by the sibling README ensurers, so the helper's skip-on-ignored contract still needs direct coverage even though the run-scratch ensurer no longer calls it |
+
+    NO TEST WAS DELETED. The other 37 of the 42 F-5 references were re-measured and deliberately LEFT naming the old path: they are legacy-migration and inventory/scan fixtures that model PRE-Order-07 repos (`test_acceptance_matrix.py`'s legacy artifact, `test_awphysical_migration.py`, `test_untrack_workflow_artifacts.py`, `test_record_producers.py`'s legacy-write rejection, `test_packaging.py`'s forbidden-top list), so re-pointing them would destroy what they test. All 131 pass unchanged.
+
+  - Result: pass
 
 ## Approval and execution gate
 
