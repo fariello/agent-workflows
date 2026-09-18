@@ -56,6 +56,17 @@ DRIVERS = (
 )
 
 
+def _effective_execute_item_source(driver, spawn: str | None = None) -> str:
+    fn = driver.execute_item if hasattr(driver, "execute_item") else driver
+    src = inspect.getsource(fn)
+    if "execute_item_core" in src:
+        core_src = inspect.getsource(runner_shared.execute_item_core)
+        if spawn:
+            core_src = core_src.replace("spawn_executor(", f"{spawn}(")
+        return core_src
+    return src
+
+
 def _git(repo: Path, *args: str) -> str:
     proc = subprocess.run(
         ["git", *args], cwd=repo, text=True, capture_output=True, check=True
@@ -369,6 +380,10 @@ class SharedTreeGuardRuleTests(unittest.TestCase):
         for name, driver, _spawn in DRIVERS:
             with self.subTest(driver=name):
                 source = inspect.getsource(driver.evaluate_clean_base_for_launch)
+                if "runner_shared.evaluate_clean_base_for_launch" in source:
+                    source = inspect.getsource(
+                        runner_shared.evaluate_clean_base_for_launch
+                    )
                 self.assertEqual(source.count("_run_git("), 1)
                 self.assertIn("lane_containment.evaluate_clean_base(", source)
                 self.assertIn("--untracked-files=no", source)
@@ -380,7 +395,7 @@ class SharedTreeGuardWiringTests(unittest.TestCase):
     def test_the_guard_call_is_no_longer_gated_on_isolate(self):
         for name, driver, _spawn in DRIVERS:
             with self.subTest(driver=name):
-                body = inspect.getsource(driver.execute_item)
+                body = _effective_execute_item_source(driver)
                 self.assertNotIn(
                     "if isolate and self_finalize and not is_review:",
                     body,
@@ -534,7 +549,7 @@ class ConsentIsNotConsultedWhereNothingRefusesTests(unittest.TestCase):
         # And neither driver re-decides it with its own `isolate` test in the branch.
         for name, driver, _spawn in DRIVERS:
             with self.subTest(driver=name):
-                body = inspect.getsource(driver.execute_item)
+                body = _effective_execute_item_source(driver)
                 self.assertIn("decision.warned", body)
 
     def _dirty_shared(self) -> Any:
@@ -831,7 +846,7 @@ class NoSpawnAndNothingTouchedTests(unittest.TestCase):
                 # reason, so without this assertion the test could not tell the two apart.
                 self.assertNotIn("clean_base_consented", item["attempts"][-1])
                 self.assertIn(
-                    "shared_tree=not isolate", inspect.getsource(driver.execute_item)
+                    "shared_tree=not isolate", _effective_execute_item_source(driver)
                 )
 
     def test_the_ISOLATED_path_REPORTS_and_LAUNCHES_and_still_touches_nothing(self):
@@ -880,7 +895,7 @@ class NoSpawnAndNothingTouchedTests(unittest.TestCase):
         """
         for name, driver, spawn in DRIVERS:
             with self.subTest(driver=name):
-                body = inspect.getsource(driver.execute_item)
+                body = _effective_execute_item_source(driver, spawn=spawn)
                 guard_at = body.find("evaluate_clean_base_for_launch(")
                 spawn_at = body.find(f"{spawn}(")
                 alloc_at = body.find("allocate_isolation_worktree(")
@@ -894,7 +909,7 @@ class NoSpawnAndNothingTouchedTests(unittest.TestCase):
         """CID-3: one decision reached from both hosts, never two that merely agree today."""
         for name, driver, _spawn in DRIVERS:
             with self.subTest(driver=name):
-                body = inspect.getsource(driver.execute_item)
+                body = _effective_execute_item_source(driver)
                 self.assertIn("clean_base_launch_decision(", body)
                 self.assertNotIn("CLEAN_BASE_REFUSE", body)
                 self.assertNotIn("CLEAN_BASE_CONSENTED", body)

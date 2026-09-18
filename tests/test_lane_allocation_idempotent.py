@@ -47,6 +47,7 @@ import pytest
 
 from agent_workflows import agy_runipd as AGY
 from agent_workflows import oc_runipd as OC
+from agent_workflows import runner_shared as RS
 from agent_workflows import worktree_lease as WL
 
 
@@ -383,6 +384,8 @@ class TestDriverSymmetry(unittest.TestCase):
         # each driver must REACH the shared recorder, and the recorder must WRITE the field.
         for module in (OC, AGY):
             source = Path(module.__file__).read_text(encoding="utf-8")
+            if "execute_item_core" in source:
+                source += "\n" + Path(RS.__file__).read_text(encoding="utf-8")
             self.assertIn('attempt["worktree_lane_id"]', source, module.__name__)
             self.assertIn('attempt["worktree_base"]', source, module.__name__)
             self.assertIn('attempt["worktree_disposition"]', source, module.__name__)

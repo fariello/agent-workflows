@@ -760,6 +760,8 @@ class ToolIdentityAssertionTests(unittest.TestCase):
         """Placement: in the per-item path, ahead of `driver_begin` (the first nested `aw`)."""
         for name, module in (("oc_runipd", driver), ("agy_runipd", agy_runipd)):
             src = inspect.getsource(module.execute_item)
+            if "execute_item_core" in src:
+                src = inspect.getsource(runner_shared.execute_item_core)
             self.assertIn(
                 "assert_child_tool_identity",
                 src,

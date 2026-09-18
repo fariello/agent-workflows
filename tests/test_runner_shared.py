@@ -1241,6 +1241,10 @@ class WrapperTests(unittest.TestCase):
             "discover_plans": 1,
             "validate_manifest": 1,
         }
+        # execute_item unification relocated its save_state call sites to runner_shared.execute_item_core.
+        relocated_execute_callers = {
+            "save_state": 22,
+        }
         moved_callers_of_run_checked = sum(RELOCATED_RUN_CHECKED_CALLERS.values())
         for (runner, name), premove in sorted(self.PREMOVE_CALL_SITES.items()):
             with self.subTest(runner=runner, symbol=name):
@@ -1249,6 +1253,8 @@ class WrapperTests(unittest.TestCase):
                     expected -= moved_callers_of_run_checked
                 if name in relocated_init_callers:
                     expected -= relocated_init_callers[name]
+                if name in relocated_execute_callers:
+                    expected -= relocated_execute_callers[name]
                 expected += self.ADDED_CALL_SITES.get((runner, name), 0)
                 expected += self.CLEAN_BASE_GUARD_CALL_SITES.get((runner, name), 0)
                 expected += self.INTEGRATION_LADDER_CALL_SITES.get((runner, name), 0)
@@ -1439,6 +1445,8 @@ class DriverErrorUnificationTests(unittest.TestCase):
         for runner in BOTH:
             module = _MODULES[runner]
             src = module_source(module)
+            if "execute_item_core" in src:
+                src += "\n" + module_source(runner_shared)
             with self.subTest(runner=runner):
                 # The raise sites exist and raise THIS module's StallTimeout.
                 self.assertGreaterEqual(

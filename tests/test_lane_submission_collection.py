@@ -239,6 +239,17 @@ def test_collection_is_called_before_reconcile_disposition(driver):
         for n in tree.body
         if isinstance(n, ast.FunctionDef) and n.name == "execute_item"
     )
+    if "execute_item_core" in ast.unparse(func):
+        from agent_workflows import runner_shared
+
+        shared_tree = ast.parse(
+            Path(str(runner_shared.__file__)).read_text(encoding="utf-8")
+        )
+        func = next(
+            n
+            for n in shared_tree.body
+            if isinstance(n, ast.FunctionDef) and n.name == "execute_item_core"
+        )
     collect_lines = [
         n.lineno
         for n in ast.walk(func)

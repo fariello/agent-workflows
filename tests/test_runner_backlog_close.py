@@ -44,7 +44,13 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from agent_workflows import agy_runipd, check_engine, ipd_schema, oc_runipd
+from agent_workflows import (
+    agy_runipd,
+    check_engine,
+    ipd_schema,
+    oc_runipd,
+    runner_shared,
+)
 from tests.support import REPO_ROOT
 
 _DRIVERS = (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd))
@@ -1216,6 +1222,8 @@ class SharedNotCopied(unittest.TestCase):
         for name, mod in _DRIVERS:
             with self.subTest(driver=name):
                 src = inspect.getsource(mod.execute_item)
+                if "execute_item_core" in src:
+                    src = inspect.getsource(runner_shared.execute_item_core)
                 self.assertIn(
                     "process_backlog_close(run_dir, state, item)",
                     src,

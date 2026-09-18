@@ -888,6 +888,8 @@ class FullAutoDefaultNormalizationTests(unittest.TestCase):
 
         for runner in BOTH:
             source = inspect.getsource(_MODULES[runner].execute_item)
+            if "execute_item_core" in source:
+                source = inspect.getsource(runner_shared.execute_item_core)
             found = _re.findall(r'get\(\s*"full_auto",\s*(\w+)\s*\)', source)
             with self.subTest(runner=runner):
                 self.assertEqual(
