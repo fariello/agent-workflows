@@ -41,7 +41,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the explicit verb (Part A)
 
-- [ ] E-01 Add the shared re-integration entry point to `runner_shared.py`: given a repo and an id6, locate that lane, verify it is a genuine verified-and-finalized lane, and re-attempt integration through the shared integration function child 02 extracted. Place it beside that function so the verb and the in-run path are ONE implementation.
+- [x] E-01 Add the shared re-integration entry point to `runner_shared.py`: given a repo and an id6, locate that lane, verify it is a genuine verified-and-finalized lane, and re-attempt integration through the shared integration function child 02 extracted. Place it beside that function so the verb and the in-run path are ONE implementation.
   RECONSTRUCT THE LANE IDENTITY FROM DURABLE STATE; THE VERB HAS NO `WorktreeHandle` (F-14). `integrate_lane_branch(repo, handle, id6, validation_runner)` reads `handle.base_commit`, `handle.branch`, and `handle.path`, and in the run those come from the LIVE object `allocate_isolation_worktree` returned. A fresh `integrate` process has no such object, so this function must build the equivalent from what was PERSISTED: `resolve_prior_lane(item)` (`oc_runipd.py:4408-4455`) returns `(lane_id, base_commit, branch)` from `preserved_lane_id`/`preserved_base`/`preserved_branch`, written at `oc_runipd.py:6890-6900`, and `worktree_lease.inspect_lane` supplies branch/worktree/head/base facts. DO NOT RECONSTRUCT THE BRANCH NAME FROM THE id6: `lane_branch_name`'s docstring (`worktree_lease.py:100-107`) forbids exactly that because allocation may have ATTEMPT-SCOPED it, and `mm6wuz` proves `_attempt2`/`_attempt3` exist, so a guessed `aw/lane/<id6>` can designate the WRONG lane. Note this makes the run-state record, not the branch, the authority for what to integrate; say which fields you consumed.
   RE-VERIFICATION IS MANDATORY AND IS THE WHOLE SAFETY ARGUMENT, AND THE EXISTING GATE DOES NOT SUPPLY IT ON ITS OWN (F-15). A lane verified against yesterday's main is not verified against today's. Route every attempt through `orchestrate_isolation.execute_merge_and_revalidate_gate`, and ALSO supply a validation runner that actually runs the suite: `make_integration_validation_runner` returns a constant `True` today (`oc_runipd.py:1988-2003`, `agy_runipd.py:1285-1296`), so the gate's revalidation step is a no-op and a single-lane attempt returns `passed: True` unconditionally (measured at review: `passed: True, status: integrated_passed, revalidation_passed: True` with a fabricated diff). In the run the real signal is `run_suite_check` in the PRIMARY checkout before finalize (`oc_runipd.py:3631-3653`, called at `:6669`), which the verb does not otherwise reach. So this function MUST run the suite in the primary checkout itself and refuse on a non-passing result, or the verb becomes a way to land an unvalidated lane on main with a gate that verified nothing. Do NOT shortcut to a bare `git merge` because `git merge-tree` came back clean: that proves absence of TEXTUAL conflict and says nothing about whether the suite still passes. The backlog item is explicit that its own `merge-tree` evidence was offered as proof the work is RECOVERABLE, never that it is SAFE to merge unverified.
   INJECT THE SUITE RUNNER; `runner_shared` MAY NOT REACH `run_suite_check`, AND A SHIPPED TEST ENFORCES THAT (F-17). `run_suite_check` is defined in `oc_runipd.py:3631` (agy re-exports it at `agy_runipd.py:320`), and `tests/test_runner_shared.py::NoRunnerImportTests::test_runner_shared_imports_neither_runner` (`:930-952`) walks the shared module's AST and FAILS on any `import`/`from ... import` naming `runipd`, at module level OR lazily inside a function; a sibling test re-imports the module in a fresh interpreter to prove it stands alone (`:955`). So E-01 must NOT `from agent_workflows.oc_runipd import run_suite_check`, must NOT copy the body (that forks the fail-closed reading of exit 124/127), and must NOT move `run_suite_check` here (out of fence, and sibling `daexj1` E-03 is already changing what revalidation runs). USE THE PATTERN THIS EXACT FUNCTION ALREADY USES: `integrate_lane_branch` takes `run_checked` and `host_label` as INJECTED parameters for precisely this reason, stated in `build_lane_outcome`'s docstring and in `runner_shared`'s own "no import of a caller" convention (`:107`). Take the suite check as a parameter and let each host's thin wrapper bind its own, exactly as it binds `run_checked` today. Say in the evidence which parameter you added and paste the two wrappers binding it.
@@ -50,9 +50,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   REFUSE WHEN THE LANE IS OWNED BY A LIVE PROCESS. `inspect_lane` already reports `owner_live` (`worktree_lease.py:182`, `:287`, `_owner_is_live` at `:433`), and the verb is an OUT-OF-BAND command with no run lock: integrating a lane a running driver is still working in is a race that could merge a half-finished tree. Consume that field and refuse; do not add a second liveness probe.
   - Depends on: none
   - Expected outcome: one shared function re-attempts integration for a named lane, reconstructing the lane identity from durable state (never from a guessed branch name), running the suite in the primary checkout through an INJECTED runner (never an import of either driver), always through the revalidate gate with a real validation runner and the lane's own declared base, refusing with a specific reason for each not-a-verified-lane case including a live-owned lane; no second integration implementation exists; `tests/test_runner_shared.py::NoRunnerImportTests` still passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Expose the verb on BOTH hosts at BOTH SPELLINGS (OQ-04 resolved 2026-09-07, option (c)): the driver subcommand `aw <host> run integrate <id6>` as the implementation, plus a THIN `cli.py` host-noun alias `aw <host> integrate <id6>` that delegates to it. Register it in the implicit-start subcommand set. THE SECOND HALF IS NOT OPTIONAL: both drivers rewrite a first token that is not a known subcommand into `start <token>` (`oc_runipd.py:8181-8189`, `agy_runipd.py:4964-4972`), so an unregistered `integrate` would be swallowed as a SELECTOR and silently launch a run. `runstop` recorded exactly this hazard for `stop`: "`stop <run-id> --now` would be rewritten to `start stop <run-id> --now`, i.e. it would LAUNCH a run", and a test asserts the bare form is not rewritten in both drivers. Add `integrate` to the set in both, and add the same guard test.
+- [x] E-02 Expose the verb on BOTH hosts at BOTH SPELLINGS (OQ-04 resolved 2026-09-07, option (c)): the driver subcommand `aw <host> run integrate <id6>` as the implementation, plus a THIN `cli.py` host-noun alias `aw <host> integrate <id6>` that delegates to it. Register it in the implicit-start subcommand set. THE SECOND HALF IS NOT OPTIONAL: both drivers rewrite a first token that is not a known subcommand into `start <token>` (`oc_runipd.py:8181-8189`, `agy_runipd.py:4964-4972`), so an unregistered `integrate` would be swallowed as a SELECTOR and silently launch a run. `runstop` recorded exactly this hazard for `stop`: "`stop <run-id> --now` would be rewritten to `start stop <run-id> --now`, i.e. it would LAUNCH a run", and a test asserts the bare form is not rewritten in both drivers. Add `integrate` to the set in both, and add the same guard test.
   THERE ARE THREE COPIES OF THAT SET, NOT TWO, AND EDITING ONLY THE DRIVERS FAILS A SHIPPED TEST (F-11). `tests/test_runner_stop_triggers.py:1019-1027` re-declares `SHIM_SUBCOMMANDS` INLINE and `test_the_inline_copy_matches_both_drivers` (`:1041-1067`) asserts `oc == agy == that copy`, parsed by regexing `subcommands = \{(.*?)\}` out of both driver sources. So all THREE must change in lockstep; the test file itself records that `-v`/`--version` "were REMOVED from this copy in lockstep with both drivers". That file is now in Scope-Paths. Do NOT hoist the set into a module constant to avoid the duplication: both drivers carry a KEEP-THIS-INLINE comment recording that hoisting makes the structural guard silently unmatchable.
   THE `cli.py` LEAF IS IN, SO DECLARE IT IN `command_surface.py` (F-12). This is now unconditional: OQ-04 chose option (c), which includes the host-noun alias. `find_undeclared_leaves` (`command_surface.py:1810-1814`) diffs parser leaves against `COMMAND_INVENTORY`, and an undeclared leaf fails `tests/test_command_surface_declarations.py:45-53` and `tests/test_cli_conformance_matrix.py:52-58`.
   DECLARE IT AS AN `alias`, NOT AS A `mutation`, AND FOLLOW THE `oc review` ROW RATHER THAN THE `oc runipd` ROW (PR-411, corrected at review round 3; this REVERSES an earlier round's prescription). The shipped precedent for a thin host-noun alias forwarding to the driver is `oc review`/`agy review` at `command_surface.py:1545-1566`: `command_class="alias"`, `empty_error_renderer="delegated"`, and `canonical_command="oc runipd"` / `"agy runipd"`. That pairing is ENFORCED, not stylistic: `tests/test_command_surface_declarations.py::test_empty_error_renderer_classification_consistency` (`:117-123`) requires every `alias` to declare `delegated`, and the row's own comment records that the class is "load-bearing rather than cosmetic". `mutation` is the WRONG class for a delegation and it is not free either: measured at review with the shipped `required_scenarios`, a `mutation` row demands the extra `success_preview` conformance scenario (7 scenarios) that an `alias` row does not (6), so the earlier prescription would have asserted a contract of its own for a command whose whole contract is the driver's. It would also contradict E-02's own "keep the alias thin" instruction two paragraphs down and spec `25kzda` 2.1's alias rule (`:156`: "an operator-visible difference ... is a defect in the alias, not a feature of it"). Use `command_class="alias"`, `empty_error_renderer="delegated"`, `exit_contract=(0, 1, 2)`, `canonical_command="<host> runipd"`, one row per host.
@@ -61,11 +61,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   NO AGENT TURN, and say so in the help text. The verb's entire value is that it costs a merge rather than a paid turn; an operator who cannot tell that from `--help` will reach for a re-run instead. State the suite run too, since E-01 makes it part of the cost.
   - Depends on: E-01
   - Expected outcome: the verb works on BOTH hosts at BOTH spellings (four working invocations), both appear in `--help`, it is registered in ALL THREE copies of the implicit-start subcommand set (both drivers plus the test's inline copy), each new `cli.py` leaf carries an `alias`-class `CommandDeclaration` with `empty_error_renderer="delegated"` and `canonical_command`, the alias body is a visible delegation rather than a second implementation, and it is pinned by a not-rewritten test on both hosts.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: resume merges instead of re-dispatching (Part B)
 
-- [ ] E-03 On resume, attempt INTEGRATION ONLY for an item in `integration-blocked` or `merge-conflict` whose lane still exists and is verified, BEFORE that item is ever eligible for re-dispatch. This must run ahead of the `--retry-incomplete` requeue (`oc_runipd.py:7225-7247`, `agy_runipd.py:4251-4272`), because once an item is flipped to `queued` with `recovery_next=True` the cheap path is already lost.
+- [x] E-03 On resume, attempt INTEGRATION ONLY for an item in `integration-blocked` or `merge-conflict` whose lane still exists and is verified, BEFORE that item is ever eligible for re-dispatch. This must run ahead of the `--retry-incomplete` requeue (`oc_runipd.py:7225-7247`, `agy_runipd.py:4251-4272`), because once an item is flipped to `queued` with `recovery_next=True` the cheap path is already lost.
   PLACE IT AFTER THE INDETERMINATE REFUSAL, NOT BEFORE THE REQUEUE, AND ACCEPT THAT THE TWO CONSTRAINTS CONFLICT (PR-412, corrected at review round 3). An earlier round asked for BOTH "after `requeue_interrupted`, before `if retry_incomplete:`" AND "after the indeterminate refusal". THOSE ARE MUTUALLY EXCLUSIVE AS WRITTEN, because the refusal is emitted AFTER the requeue block, not before it: measured at HEAD, `requeue_interrupted` is called at `oc_runipd.py:7223`, the `if retry_incomplete:` block is `:7225-7247`, and `unresolved = runner_stop.indeterminate_items(...)` with its `return 1` is `:7254-7266` (agy: `:4249`, `:4251-4272`, `:4278-4290`). An executor obeying the placement literally would integrate BEFORE the refusal, which is the exact hazard the same paragraph forbids. THE CORRECT PLACEMENT IS AFTER THE REFUSAL, and the ordering the plan actually needs is preserved anyway: the refusal `return 1`s before any dispatch, and the requeue only sets `status`/`recovery_next` in memory-plus-state without dispatching anything, so integrating after it is still strictly before any turn is launched. Two consequences the executor must handle rather than discover. FIRST, by that point `--retry-incomplete` has ALREADY flipped a stranded item to `queued` with `recovery_next=True`, so the integration pass must select on the DURABLE LANE FACTS (a recorded `preserved_lane_id`/`preserved_branch` whose `inspect_lane` reports `commits_ahead > 0`) plus the item's recorded pre-requeue disposition, NOT on `item["status"] in {"integration-blocked","merge-conflict"}`, which the flag has already erased. SECOND, on a successful integration it must UNDO that flip for the item it integrated (clear `recovery_next` and set the executed state E-03 already mandates below) so the requeue cannot re-dispatch work that just landed. Alternatively narrow the requeue itself first (which is E-04's subject) and integrate before it; if you take that route, say so and keep E-04's narrowing and this ordering consistent in ONE place rather than two. SKIP any item `runner_stop.is_indeterminate` reports, exactly as both existing requeue routes do, and note that after the refusal no indeterminate item can remain, so that skip is belt-and-braces rather than the real guard.
   PLACE IT INSIDE THE RUN LOCK, which is satisfied automatically: `run_queue` is only ever entered under `locked_run` (`oc_runipd.py:8274`, `:8363`; `agy_runipd.py:5004`, `:5063`), so any placement inside `run_queue` holds the lock. Do NOT add a second lock acquisition.
   THE INTEGRATION ATTEMPT MUST NOT BE ABLE TO ABORT THE RESUME. A refusal, an exception from git, or a failing suite has ONE correct outcome here: record it, leave the item exactly as it was, and continue to the rest of the queue. A resume that dies because one stranded lane could not be merged is worse than today's do-nothing behavior.
@@ -74,9 +74,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   A SUCCESSFUL INTEGRATION MUST UPDATE THE ITEM'S STATE HONESTLY, and a failed one must leave it exactly as it was, with its lane preserved. Do not invent a disposition: on success the item reaches the same state an in-run integration produces (`executed`, with the same `save_state` + `events.jsonl` `ipd-finalized` record the in-run success path writes at `oc_runipd.py:6826-6862`, agy twin near `:3875`), and it must also do what that path does AFTER integrating, namely re-resolve `last_plan_path` (`oc_runipd.py:6834-6840`) and attempt the backlog close (`process_backlog_close`, called at `:6863`); on failure it stays terminal and the operator still has the verb.
   - Depends on: E-02
   - Expected outcome: a bare resume merges an already-verified lane with no agent turn; the attempt sits after the indeterminate refusal and before any dispatch, selects on durable lane facts rather than a status `--retry-incomplete` may already have rewritten, and cannot abort the resume; a lane that cannot be integrated is left untouched with its branch preserved; a success reaches the same state and writes the same records as an in-run integration and cannot then be re-dispatched; no flag is required to get the safe behavior.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Make the re-dispatch path REACHABLE ONLY when integration genuinely cannot help, so the orphaning stops. After E-03, an item that still holds an unintegrated verified lane must NOT be attempt-scoped into a second lane by `--retry-incomplete`.
+- [x] E-04 Make the re-dispatch path REACHABLE ONLY when integration genuinely cannot help, so the orphaning stops. After E-03, an item that still holds an unintegrated verified lane must NOT be attempt-scoped into a second lane by `--retry-incomplete`.
   BE PRECISE ABOUT WHAT IS LEFT TO DO, because E-03 already covers the SUCCESS case and this item is only about the FAILURE case. A successful E-03 integration leaves the item `executed`, which is not in the `--retry-incomplete` status set at all, so no narrowing is needed for it. The case this item owns is the one where integration was ATTEMPTED AND REFUSED and the item is therefore still `integration-blocked`/`merge-conflict` with its lane intact: today the requeue flips exactly that item to `queued` and the next dispatch attempt-scopes a second lane. So the narrowing is "do not requeue an item whose lane still holds unintegrated committed work", judged from `inspect_lane` (`commits_ahead > 0`), not from the status alone.
   NOTE THE ORDER INTERACTION E-03 RECORDS: the requeue runs BEFORE the point where E-03's integration pass can legally sit, so "still `integration-blocked` after a refused attempt" is only observable if this narrowing reads the same durable lane facts E-03 does, or if you land the narrowing FIRST and then integrate before the requeue. Pick ONE arrangement, implement it in one place, and state which; the two E-items must not each assume a different order.
   SAY WHAT HAPPENS TO THAT ITEM INSTEAD OF A SILENT SKIP. Refusing to requeue it means `--retry-incomplete` now declines something it used to act on, so the operator must be told WHICH item was held back and WHY, and what their options are (fix the cause and re-run the verb, or resolve on the preserved lane). A skip with no message reproduces the "bare resume does nothing" trap this plan exists to remove, one level up.
@@ -85,29 +85,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   PRESERVE `--retry-incomplete` FOR WHAT IT IS FOR: an item that genuinely needs another agent turn (a real failure, an unfinished turn) must still be retryable. This item narrows the flag's reach to those cases rather than removing it. Note the flag's status set also covers `interrupted`, `substantially-complete`, `partial`, `failed-safely`, `blocked`, and `dependency-blocked`; the narrowing must touch NONE of those except where the same lane test genuinely applies, and an `interrupted` item whose lane holds only a snapshot commit is exactly the case `txc9l1` already routes and must NOT be captured here.
   - Depends on: E-03
   - Expected outcome: an item whose verified lane is merely unintegrated is integrated rather than re-dispatched; an item whose integration was attempted and REFUSED is held back from requeue with an explicit operator-facing reason rather than silently skipped; no second lane is allocated for either; `--retry-incomplete` still retries items that genuinely need a turn, including the snapshot-only `interrupted` case `txc9l1` owns.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it
 
-- [ ] E-05 Test the VERB deterministically on both hosts: a verified finalized lane integrates; a missing branch refuses with a named reason; a lane holding no commits refuses; a lane whose plan is not finalized refuses; a lane owned by a LIVE process refuses; and every successful attempt provably ran the revalidate gate AND the suite rather than a bare merge.
+- [x] E-05 Test the VERB deterministically on both hosts: a verified finalized lane integrates; a missing branch refuses with a named reason; a lane holding no commits refuses; a lane whose plan is not finalized refuses; a lane owned by a LIVE process refuses; and every successful attempt provably ran the revalidate gate AND the suite rather than a bare merge.
   ASSERT THE GATE RAN **AND THAT IT COULD HAVE FAILED**. This is the safety-critical assertion of the whole plan, and "the gate was invoked" is NOT sufficient on its own: measured at review, the gate returns `passed: True` for a single lane with the shipped constant-`True` runner and the lane's own base, so an assertion that it ran would hold for a gate that verified nothing (F-15). So ALSO pin a NEGATIVE: make the validation runner report failure and assert the verb REFUSES and main is untouched. THE PATCH POINT IS ALREADY IN BOTH SUITES: `tests/test_agy_runipd_cli.py:466-482` patches `make_integration_validation_runner` with a `lambda _diff, _files: False` factory and asserts `item["status"] == "merge-conflict"` plus that the plan did NOT reach `executed/`; `tests/test_oc_runipd.py:2878-2882` patches `orchestrate_isolation.execute_merge_and_revalidate_gate` with a spy to prove the reused gate was called rather than a forked merge. Copy those two shapes rather than inventing a third. Measured directly at review: a failing runner yields `passed: False, status: integration_failed_combined_red`, so the negative is known reachable. A test suite in which no arrangement makes the gate refuse has not tested the gate.
   ALSO ASSERT THE SUITE RUN IS INJECTED, NOT IMPORTED (F-17). Include `tests/test_runner_shared.py::NoRunnerImportTests` in the targeted run and paste it passing, because that is the test an otherwise-working implementation breaks.
   ASSERT THE BRANCH NAME WAS NOT GUESSED. Give the item a recorded `preserved_branch` that is attempt-scoped (`aw/lane/<id6>_attempt2`) and assert the verb integrates THAT lane, not a reconstructed `aw/lane/<id6>`. This is the `mm6wuz` shape and the failure `lane_branch_name`'s docstring forbids; without this assertion an implementation that guesses passes every other case.
   ASSERT THE IMPLICIT-START GUARD on both hosts: a bare `integrate` token must NOT be rewritten into `start integrate`, mirroring the existing `stop` test (`tests/test_runner_stop_triggers.py:1029-1037`). Extend the EXISTING `test_the_inline_copy_matches_both_drivers` rather than adding a parallel copy of the set (F-11).
   - Depends on: E-04
   - Expected outcome: six verb cases pinned per host; the revalidate gate is proven both to RUN and to be able to REFUSE; an attempt-scoped lane is integrated without guessing its name; the not-rewritten guard and the three-way set-equality guard pass on both drivers.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Test RESUME's automatic path, which is where the expensive failure lives. Build a run whose item is `integration-blocked` with a verified lane present, then resume it and assert: the lane INTEGRATES, NO agent turn is dispatched, and NO second lane is allocated.
+- [x] E-06 Test RESUME's automatic path, which is where the expensive failure lives. Build a run whose item is `integration-blocked` with a verified lane present, then resume it and assert: the lane INTEGRATES, NO agent turn is dispatched, and NO second lane is allocated.
   ASSERT THE ABSENCE OF A TURN AND OF A SECOND LANE EXPLICITLY. Those two absences ARE the fix; a test that only checks the item ended up integrated would pass even if resume had paid for a full turn to get there. Assert no `_attempt2` branch exists afterwards, and assert the no-turn absence POSITIVELY by patching the host launcher to fail the test if called, not merely by observing that the run finished quickly.
   ASSERT THE ORDERING DIRECTLY, not just the outcome: with `--retry-incomplete` PASSED, the item must be integrated rather than requeued. Ordering is the substance of E-03, and a test that resumes WITHOUT the flag cannot distinguish "integrated first" from "the requeue never applied to this item anyway" (a bare resume does not requeue a terminal item today, so such a test would pass against unchanged code).
   ASSERT THE INDETERMINATE INTERACTION: a queue holding one integrable stranded lane AND one indeterminate item must NOT integrate anything, because the resume is about to be refused. This pins the E-03 ordering constraint that main is not mutated during a resume the driver declines.
   ALSO ASSERT THE NEGATIVE CASE: an item that genuinely needs a turn (not an unintegrated lane) is still re-dispatched under `--retry-incomplete`, so E-04 narrowed the flag rather than breaking it. Include the snapshot-only `interrupted` item as a second negative, since E-04 must not capture the case `txc9l1` routes.
   - Depends on: E-05
   - Expected outcome: resume integrates with zero turns and zero new lanes, proven by a launcher that fails if invoked; the integrate-before-requeue ordering is asserted with the flag PASSED; an indeterminate item suppresses integration entirely; a genuinely incomplete item and a snapshot-only interrupted item are both still retryable.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Reproduce the MEASURED INCIDENTS synthetically and show they are now survived, on both hosts, then run the suite bare. Two shapes, both from this repository's own history:
+- [x] E-07 Reproduce the MEASURED INCIDENTS synthetically and show they are now survived, on both hosts, then run the suite bare. Two shapes, both from this repository's own history:
   (a) THE FOUR-LANE CASE (`run-20260905T050043Z-639569`): four items verified and finalized on their lanes, refused integration on transient dirt, all merging clean afterwards. Show each recovered by the verb with no agent turn.
   (b) THE THREE-LANE CASE (`mm6wuz`, tonight): an item whose lane holds verified work and which accumulated `_attempt2` and `_attempt3` across resumes. Show that after this plan a resume integrates the FIRST lane instead of allocating a second.
   Run the suite BARE (`python3 -m pytest`) and state before/after counts. MEASURE YOUR OWN BEFORE-BASELINE: the suite is NOT green at HEAD, so the criterion is that the AFTER failure set minus the BEFORE set is EMPTY. VALIDATE IN THE REAL CHECKOUT: `tests/test_run_viewer.py` reads the gitignored `.aw/records/runs/` and fails in a bare worktree (measured at review in the real checkout: `46 passed`).
@@ -115,7 +115,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   KNOWN PRE-EXISTING SLOW FAILURE, do not report it as yours: `tests/test_command_surface_declarations.py::CommandSurfaceDeclarationsTests::test_zero_undeclared_parser_leaves` ALREADY FAILS at review HEAD with `5 != 0 : Found undeclared parser leaves: {'oc profile default', 'oc profile add', 'oc profile remove', 'oc profile list', 'oc profile show'}`. If you add a cli leaf without declaring it, THAT set grows to 6 or 7, which is your regression; the existing five are not.
   - Depends on: E-06
   - Expected outcome: both historical shapes are survived on both hosts with no paid turns and no orphaned lanes; bare suite delta empty with counts stated; the two slow declaration suites run under `-m ''` and pasted separately, with the undeclared-leaf set no larger than the five that already fail.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -194,6 +194,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - EVERY DECLARED PATH IS NOW MODIFIED, so no `--scope-ack` is expected on this plan. OQ-04 chose option (c), which needs BOTH the driver subcommand and the `cli.py` alias, so `cli.py`, `command_surface.py`, and `tests/test_cli_conformance_matrix.py` are all edited. An executor reaching for `--scope-ack` on any of the three has almost certainly skipped the alias or its declaration; that is a finding to report, not a scope note to file.
 - BOTH DRIVER MODULES ARE THE HIGHEST-CONTENTION FILES IN THE REPOSITORY, and three siblings in this Set also declare them. Children are SEQUENTIAL by the Set's own constraint; expect drift, re-locate by symbol, and expect to rebase and re-run the full suite after any merge. NOTE A CROSS-SET OVERLAP TOO (F-21): `daexj1` (`integearn-03`) declares `runner_shared.py`, `orchestrate_isolation.py` and both drivers, and its E-03 changes the same validation-runner surface E-01 needs. That is not a reason to stop (the runner isolates worktrees and the merge gate revalidates), but it IS a reason to check which landed first and consume rather than fork.
 - Under-scope, stated rather than left as `none`: this child does not add the ladder, the startup gate, or the hook fix; does not clean up existing orphaned lanes; does not handle foreign lanes; does not redefine `--retry-incomplete`; and does NOT fix the constant-`True` validation runner for the IN-RUN path (F-15), which it only works around for its own verb. Each is excluded with a reason above.
+- AS EXECUTED (2026-09-17), the reconciliation for the terminal transition, stated here so it is not rediscovered at the gate.
+  DECLARED AND MODIFIED, eight of ten: `agent_workflows/runner_shared.py`, `agent_workflows/oc_runipd.py`, `agent_workflows/agy_runipd.py`, `agent_workflows/cli.py`, `agent_workflows/command_surface.py`, `tests/test_runner_shared.py`, `tests/test_oc_runipd.py`, `tests/test_agy_runipd_cli.py`, `tests/test_runner_stop_triggers.py`. That is NINE; see the next bullet for the tenth.
+  DECLARED AND **NOT** MODIFIED, one: `tests/test_cli_conformance_matrix.py` needs `--scope-ack`. THE PLAN PREDICTED THIS WOULD BE WRONG, so the reason is stated rather than asserted: that file's generated matrix reads `COMMAND_INVENTORY` and the live parser as DATA, so declaring the two new leaves in `command_surface.py` is what makes them conformant there, with no edit to the matrix file. Its `ALIAS_SAFE` dict is deliberately NOT extended, because that live equivalence gate drives READ-ONLY leaves and this verb merges to main; the plan's own fence forbids adding it. Measured: with the declarations in place the undeclared-leaf set under `-m ''` is still exactly the five pre-existing `oc profile *` entries, so the surface IS pinned by that file unmodified. This is the "skipped the alias or its declaration" case the plan warns about ONLY if the declarations are absent, and they are present (V-02 pastes both rows).
+  MODIFIED BUT NOT DECLARED, four, each needing `--scope-reason`. `CHANGELOG.md`: the plan's own spec-sync section REQUIRES a CHANGELOG entry ("A CHANGELOG entry is warranted: this adds an operator-facing verb and changes what a bare `resume` does"), so the edit is mandated by the plan and merely absent from `Scope-Paths`. `tests/test_rununify_main.py`, `tests/test_rununify_build_parser.py`, `tests/test_rununify_build_parser_characterization.py`: three CHARACTERIZATION suites that pin measured properties of the two drivers as NUMBERS (the closure of `main` and its class histogram, `main`'s line counts and cross-host similarity, the live flag partition, and the exact set of subparsers each host registers). Adding a verb legitimately moves every one of those numbers, and each was re-measured and updated IN PLACE with the reason recorded beside it, never weakened, deleted, skipped or xfailed: the closure gains `handle_integrate_command` classed `still-defined-twice` with a note stating this is a NEW per-host verb rather than a re-fork of something shared; the subparser table gains an `integrate` row identical on both hosts; and the flag partition rose by exactly one SHARED entry (`id6`) with both host-only sets unchanged, which is the property those tests exist to police. No spec file was touched.
 
 ## Required tests / validation
 
@@ -215,6 +219,8 @@ MEASURED AT REVIEW, so the executor need not rediscover it: §2.1's grammar bloc
 The verb's `--help` text must state plainly that it costs NO agent turn, that it re-runs the revalidate gate, and that it runs the suite in the primary checkout (E-01), since those facts are what make an operator choose it over a re-run and what set its real cost.
 
 A CHANGELOG entry is warranted: this adds an operator-facing verb and changes what a bare `resume` does. Write no em or en dashes in user-facing prose.
+
+AS EXECUTED (2026-09-17): SPEC `25kzda` WAS NOT EDITED, and the reading was verified rather than assumed. §2.1's grammar block was read at this HEAD and enumerates `aw <host> run <selector>` with its flags, `aw <host> review [<selector>]`, `aw <host> run resume <run-id>`, three `aw runs` verbs and `aw <host> prompt`; it does NOT list `integrate`, and it does NOT list `stop`, which ships. So the table is already known-incomplete by the spec's own admission and an unlisted verb is not a contract violation. Nothing was added to `RUN_POLICY_FLAGS` (this registers a SUBCOMMAND, not a policy flag), and `tests/test_run_flag_surface.py` passes 89/89 untouched. The §4.2 finding-code table was not read into or edited. Two CHANGELOG entries were written, one Added for the verb and one Changed for what a resume now does, both stating the honest cost (no agent turn, but one suite run per stranded lane) and both free of em and en dashes.
 
 ## Open questions
 
@@ -261,50 +267,371 @@ A CHANGELOG entry is warranted: this adds an operator-facing verb and changes wh
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the shared function's signature and body. Paste FIVE refusals with their distinct messages: absent branch, empty/stale lane, plan not finalized on the lane, foreign lane, live-owned lane. Paste a successful attempt AND name the gate function, showing it was invoked.
     THE LOAD-BEARING PASTE IS THAT THE GATE COULD HAVE REFUSED (F-15). Show the validation runner you supplied is NOT the shipped constant-`True` one, and paste the NEGATIVE case: a failing runner makes the attempt refuse and leaves main untouched (measured at review, a `lambda: False` runner yields `passed: False, status: integration_failed_combined_red`, so this arrangement is known reachable). Pasting only "the gate ran" is a FAILED validation, because the gate returns `passed: True` for a single lane under the shipped defaults.
     PASTE THE SUITE RUN AND HOW YOU REACHED IT WITHOUT IMPORTING A DRIVER (F-17). Name the parameter you added to the shared function, paste both hosts' thin wrappers binding their own suite check, and paste `tests/test_runner_shared.py::NoRunnerImportTests` PASSING. An implementation that does `from agent_workflows.oc_runipd import run_suite_check` inside the function FAILS that test, and one that copies the body forks the fail-closed exit-124/127 reading; either is a FAILED validation even if the verb works.
     PASTE THE INTEGRATION BASE AND STATE THAT IT IS THE LANE'S DECLARED BASE (F-19). Do NOT paste main's current head as the base: measured at review, that refuses every recovered lane with `integration_failed_stale_base`, and the rebuild that satisfies it revalidates a diff which DELETES main's intervening files. State in one sentence why the stale-base check is a caller-consistency assertion rather than the freshness gate, and that the freshness signal is the suite run above.
     ALSO PASTE the lane-identity proof: which durable fields you read, and an attempt against an attempt-scoped lane (`_attempt2`) showing the branch was NOT reconstructed from the id6. State in one sentence why `git merge-tree` cleanliness is not an acceptable substitute. Confirm `worktree_lease`'s existing classification is consumed rather than a second classifier written, and say how you distinguished the three cases it does not separate.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. One shared `reintegrate_lane` in `runner_shared.py` beside `integrate_lane_branch`; SIX distinct refusals measured (plus FOREIGN pinned separately); the revalidate gate proven both to RUN (spy, one call) and to REFUSE (failing suite -> `integration_failed_combined_red`, main HEAD unchanged); the suite reached through an INJECTED `suite_check` parameter, never an import, with `NoRunnerImportTests` passing; the lane's OWN declared base passed as the integration base; and an attempt-scoped `_attempt2` lane integrated without guessing its name. Full pasted output below.
 
-- [ ] V-02 validates E-02
+    SIGNATURE, in `agent_workflows/runner_shared.py` beside `integrate_lane_branch` (the function child 02 extracted), so the verb and the in-run path are ONE implementation:
+    ```
+    def reintegrate_lane(
+        repo: Path,
+        id6: str,
+        *,
+        integrate: Callable[[Path, Any, str, Any], tuple[bool, str, str]],
+        suite_check: Callable[..., Any],
+        run_id: str | None = None,
+        candidate: LaneCandidate | None = None,
+    ) -> ReintegrationOutcome:
+    ```
+    SIX REFUSALS, each with its own message, measured by calling the function directly (`REINTEGRATE_*` codes are a closed vocabulary, so a caller never matches on prose):
+    ```
+    [no-lane-record] code=no-lane-record
+        no run record names a preserved lane for zz0001, so there is no lane identity to integrate. The lane branch is read from the run record's preserved_lane_id / preserved_base / preserved_branch fields and is deliberately NOT reconstructed from the id6, because allocation may have attempt-scoped the name
+    [absent branch] code=lane-absent
+        lane aw/lane/zz0002 no longer exists (no branch and no registered worktree), so there is nothing to integrate; whatever the run recorded has been removed out of band
+    [empty lane] code=lane-holds-no-commits
+        lane aw/lane/zz0003 holds no commits beyond its base (classified EMPTY), so there is no verified work to integrate
+    [dirty-but-zero-commits] code=lane-holds-no-commits
+        lane aw/lane/zz0003 holds no commits beyond its base (classified HOLDS-WORK; its tree is dirty, and uncommitted changes are invisible to a merge), so there is no verified work to integrate
+    [plan not finalized] code=plan-not-finalized-on-lane
+        lane aw/lane/zz0004 is not a finalized lane: the plan for zz0004 is on the lane but NOT in executed/ (.aw/records/plans/pending/20260906-demo-01-zz0004-demo.ipd.md), so the lane's turn never finalized it and there is no verified work to integrate
+    [live owner] code=lane-owned-by-live-process
+        lane aw/lane/zz0005 is owned by a LIVE process, and this command holds no run lock; integrating it now could merge a half-finished tree. Let that run finish (or stop it) and try again
+    ```
+    The FOREIGN case is pinned separately (an orphan-root lane, the only construction that makes a genuinely unreachable base) by `ReintegrationVerbTests::test_a_FOREIGN_lane_refuses_rather_than_being_handled`, which asserts `inspect_lane` really classifies it `LANE_FOREIGN` before asserting the refusal, and passes.
+    THE GATE RAN AND COULD HAVE REFUSED, which is the load-bearing pair. `orchestrate_isolation.execute_merge_and_revalidate_gate` is the gate function, reached through each host's `integrate_lane_branch` wrapper; `ReintegrationVerbTests::test_the_gate_RAN_and_COULD_HAVE_REFUSED` spies on it, asserts it was called exactly once, and asserts the NEGATIVE. Measured refusal and success on the same lane:
+    ```
+    [gate refused (failing suite)] code=gate-refused
+        integration gate did not pass (integration_failed_combined_red): full_revalidation_check[integration]: Full test suite / revalidation failed after merging isolated lanes (per-lane-green + combined-red).; suite FAILED with exit 1 (fake)
+        main HEAD unchanged: True
+    [success] code=integrated
+        fast-forward integrated to main
+        suite reason: suite passed (fake) | kind: integrated
+    ```
+    THE VALIDATION RUNNER IS NOT THE SHIPPED CONSTANT-`True` ONE. `reintegrate_lane` builds its own `_validation_runner`, whose body calls the injected `suite_check` and returns its verdict, so a red suite makes the GATE return `integration_failed_combined_red` rather than being a second opinion beside the merge. `test_the_validation_runner_is_NOT_the_shipped_constant_true_one` measures the shipped runner returning True for any arguments, then AST-walks `reintegrate_lane` and asserts it CALLS `suite_check` and does NOT call `make_integration_validation_runner`. That assertion is deliberately on the AST rather than on source text, because the docstring names the shipped runner in order to explain why it is not used.
+    THE SUITE CHECK IS INJECTED, NEVER IMPORTED. The parameter added is `suite_check`, following the pattern this exact function already uses for `run_checked`/`host_label`. Each host binds its own in a thin wrapper: `oc_runipd.handle_integrate_command` and `oc_runipd._integrate_stranded_lanes` pass `suite_check=run_suite_check`, and `agy_runipd.handle_integrate_command` / `agy_runipd._integrate_stranded_lanes` pass their own bound `run_suite_check`. `tests/test_runner_shared.py::NoRunnerImportTests` PASSES (both cases), so the shared module still imports neither driver at module level nor lazily:
+    ```
+    $ python3 -m pytest tests/test_runner_shared.py -k "Reintegration or ResumeIntegration or MeasuredIncidents or NoRunnerImport" -o addopts="-p no:randomly"
+    collected 156 items / 133 deselected / 23 selected
+    tests/test_runner_shared.py .......................                      [100%]
+    ====================== 23 passed, 133 deselected in 3.15s ======================
+    ```
+    THE INTEGRATION BASE IS THE LANE'S OWN DECLARED BASE, exactly as the in-run path passes it: the `WorktreeHandle` is built with `base_commit=candidate.base_commit` (the recorded `preserved_base`), and `test_the_gate_RAN_and_COULD_HAVE_REFUSED` asserts the gate received `integration_base_commit == lane["base_commit"]`. Main's current head is NOT passed. `stale_base_check` compares the FIRST lane outcome's own `base_commit` against whatever the caller passed, so it is a consistency assertion on the caller's two arguments and cannot become a freshness test against main; the freshness signal here is the suite run in the primary checkout described above.
+    LANE IDENTITY FROM DURABLE STATE. `find_lane_candidates` reads each run record's queue and calls the existing `resolve_prior_lane`, consuming `preserved_lane_id` / `preserved_base` / `preserved_branch` (with `preserved_worktree` for the handle path), and converts a recorded branch back with `worktree_lease.lane_id_from_branch`; no branch name is ever built from an id6. Measured against an attempt-scoped lane with a decoy first lane present:
+    ```
+    [attempt-scoped lane] code=integrated
+        fast-forward integrated to main
+        integrated branch: aw/lane/zz0007_attempt2
+    ```
+    `git merge-tree` cleanliness is not an acceptable substitute because it proves only the absence of a TEXTUAL conflict and says nothing about whether the suite still passes against today's main, which is the only question that makes a recovered lane safe to land.
+    THE EXISTING CLASSIFIER IS CONSUMED, not re-written: the function calls `worktree_lease.inspect_lane` and branches on its `state`, `commits_ahead`, `dirty` and `owner_live` fields. The three cases its five states do not separate are distinguished explicitly: "holds no commits" is `commits_ahead <= 0` rather than a state test (so `EMPTY`, `STALE`, and a merely DIRTY `HOLDS-WORK` lane all reach one refusal, measured above); "the plan is not finalized on the lane" is not a lane state at all and is answered by `lane_holds_finalized_plan`, which reads the lane BRANCH's tree with `git ls-tree` (so a lane whose worktree is gone is still answerable) and asks `plan_bucket` which lifecycle directory the plan sits in; and the live-owner case reads `inspect_lane`'s own `owner_live`, treating only an explicit `True` as live because `None` means UNKNOWN.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste FOUR help outputs, since OQ-04 chose option (c) (both spellings, both hosts): `aw oc integrate --help`, `aw oc run integrate --help`, `aw agy integrate --help`, `aw agy run integrate --help`. Each must show the no-agent-turn statement and the suite run. All four are REQUIRED; one spelling is not representative of the other, which is exactly what `aw oc stop` exiting 2 while `aw oc run stop` exits 0 demonstrates today. Paste a WORKING invocation at each of the four, not only help text.
     PASTE THE PROOF THE ALIAS IS THIN. Show the alias body delegating to the same implementation the subcommand runs (the function it calls, by name), and state that lane resolution, the revalidate gate call, and the backlog close appear EXACTLY ONCE in the diff. Two implementations behind two spellings is a FAILED validation even if all four invocations work, because it re-creates the drift child 02 exists to end.
     Paste the subcommand-set diff for ALL THREE copies (both drivers plus `tests/test_runner_stop_triggers.py`'s inline `SHIM_SUBCOMMANDS`) and paste `test_the_inline_copy_matches_both_drivers` PASSING, which is the proof the three agree (F-11). Paste the not-rewritten guard test passing on both hosts, and paste what a bare `integrate` token does (it must NOT launch a run), measured UNPIPED.
     THE `cli.py` LEAF IS IN, so this is unconditional: paste the `CommandDeclaration` for EACH host and paste `test_zero_undeclared_parser_leaves` run under `-m ''`, showing the undeclared set did NOT grow beyond the five pre-existing `oc profile *` entries (F-12, F-13). THE PASTED DECLARATION MUST READ `command_class="alias"` WITH `empty_error_renderer="delegated"` AND A `canonical_command` (F-18); a `mutation` row for a thin alias is a FAILED validation even if the suite is green, because it asserts a contract of its own for a pure delegation and pulls in the extra `success_preview` scenario. Paste `test_empty_error_renderer_classification_consistency` passing. A `--scope-ack` on `command_surface.py` or `tests/test_cli_conformance_matrix.py` is now WRONG: option (c) modifies both, so acknowledging them unmodified would mean the leaf was never declared.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All FOUR spellings exist and work (four help outputs at exit 0 measured unpiped, four live invocations each producing a real merge commit naming the right driver). The alias is a pure argv rewrite (`expand_host_integrate_argv`), so lane resolution, the gate call and the backlog close appear exactly once. All THREE copies of the implicit-start subcommand set changed in lockstep and the three-way equality guard plus both not-rewritten guards pass. Both new `cli.py` leaves carry an `alias`/`delegated`/`canonical_command` declaration, and the undeclared-leaf set under `-m ''` is still exactly the five pre-existing `oc profile *` entries. Full pasted output below.
 
-- [ ] V-03 validates E-03
+    FOUR HELP OUTPUTS, all four exit 0 measured UNPIPED:
+    ```
+    $ aw oc integrate --help >/dev/null 2>&1; echo $?
+    0
+    $ aw agy integrate --help >/dev/null 2>&1; echo $?
+    0
+    $ aw oc run integrate --help >/dev/null 2>&1; echo $?
+    0
+    $ aw agy run integrate --help >/dev/null 2>&1; echo $?
+    0
+    ```
+    Each states the no-agent-turn cost AND the suite run (the description is shared, so the two hosts cannot describe the verb differently; only the usage line and the examples differ):
+    ```
+    $ aw oc integrate --help
+    usage: runipd integrate [-h] [--repo REPO] [--run-id RUN_ID] id6
+
+    Merge a lane that already finished, verified and finalized, but failed to integrate.
+
+    COSTS NO AGENT TURN. This is the whole point: recovering a stranded lane costs one merge instead of
+    one paid re-run. What it DOES cost is a re-verification, and that is deliberate: the attempt runs the
+    repository suite in the PRIMARY checkout and routes the merge through the same merge-and-revalidate
+    gate an in-run integration uses, because a lane verified against yesterday's main is not verified
+    against today's. A red suite, a real conflict, or a dirty overlapping base REFUSES, leaves main
+    untouched, and preserves the lane.
+    ...
+    EXAMPLES:
+      aw oc run integrate mm6wuz
+      aw oc run integrate mm6wuz --run-id run-20260905T050043Z-639569
+
+    $ aw agy integrate --help
+    usage: runagy integrate [-h] [--repo REPO] [--run-id RUN_ID] id6
+    ... (same description) ...
+      aw agy run integrate mm6wuz
+    ```
+    FOUR WORKING INVOCATIONS, each on its own throwaway repository holding one verified-and-finalized lane plus a real (tiny) test suite, so the verb's suite run is a real subprocess and not a stub:
+    ```
+    $ python3 -m agent_workflows.oc_runipd integrate de0001 --repo <tmp>/oc/repo ; echo exit=$?
+    integrated de0001 from lane aw/lane/de0001 to main with no agent turn: controlled non-ff merge integrated to main
+      suite passed in <tmp>/oc/repo (no summary line parsed)
+    exit=0
+    $ git -C <tmp>/oc/repo log --oneline -3
+    e22c912 integrate(aw oc run): merge verified lane de0001 to main
+    d150ee0 add a real (tiny) suite so the verb's suite run is meaningful
+    1261bbe lifecycle(de0001): finalize -> executed
+
+    $ python3 -m agent_workflows.agy_runipd integrate de0001 --repo <tmp>/agy/repo ; echo exit=$?
+    integrated de0001 from lane aw/lane/de0001 to main with no agent turn: controlled non-ff merge integrated to main
+      suite passed in <tmp>/agy/repo (no summary line parsed)
+    exit=0
+    $ git -C <tmp>/agy/repo log --oneline -1
+    a14024b integrate(aw agy run): merge verified lane de0001 to main
+
+    $ python3 -m agent_workflows oc integrate de0001 --repo <tmp>/ocalias/repo ; echo exit=$?
+    integrated de0001 from lane aw/lane/de0001 to main with no agent turn: controlled non-ff merge integrated to main
+    exit=0
+    $ git -C <tmp>/ocalias/repo log --oneline -1
+    9eb18f7 integrate(aw oc run): merge verified lane de0001 to main
+
+    $ python3 -m agent_workflows agy integrate de0001 --repo <tmp>/agyalias/repo ; echo exit=$?
+    integrated de0001 from lane aw/lane/de0001 to main with no agent turn: controlled non-ff merge integrated to main
+    exit=0
+    $ git -C <tmp>/agyalias/repo log --oneline -1
+    1a2af71 integrate(aw agy run): merge verified lane de0001 to main
+    ```
+    THE ALIAS IS THIN. Its ENTIRE implementation is `cli.expand_host_integrate_argv`, whose body is `return ["integrate", *[str(t) for t in tail]]`, dispatched from the same pre-`parse_args` block that forwards `runipd` and `review`; both hosts route through that one function, and the parsed-namespace fallback paths call it too. So lane resolution, the revalidate gate call and the backlog close appear EXACTLY ONCE in the diff, in `runner_shared` (`reintegrate_lane` resolves the lane and calls the gate through `integrate_lane_branch`; `finish_reintegrated_item` is the only site attempting the close). `tests/test_oc_runipd.py::HostIntegrateVerbTests::test_both_spellings_reach_the_same_implementation` and its agy twin prove it by SPYING on `runner_shared.reintegrate_lane` and asserting exactly one call per spelling, which is the only assertion that distinguishes "the alias works" from "the alias forked and happens to agree today".
+    ALL THREE COPIES OF THE SHIM SUBCOMMAND SET CHANGED IN LOCKSTEP:
+    ```
+    $ git diff -U2 agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py tests/test_runner_stop_triggers.py | grep -B2 -A2 '"integrate",'
+             "report",
+             "stop",
+    +        "integrate",
+             "-h",
+             "--help",
+    (x3: oc_runipd.py main(), agy_runipd.py main(), tests/test_runner_stop_triggers.py SHIM_SUBCOMMANDS)
+    ```
+    The three-way equality guard and both not-rewritten guards PASS:
+    ```
+    $ python3 -m pytest tests/test_runner_stop_triggers.py -k "inline_copy or not_rewrite_a_bare_integrate or integrate_is_listed" -o addopts="-p no:randomly"
+    collected 58 items / 54 deselected / 4 selected
+    tests/test_runner_stop_triggers.py ....                                  [100%]
+    ======================= 4 passed, 54 deselected in 0.20s =======================
+    ```
+    A bare `integrate` token does NOT launch a run, measured by the guard's own discriminator (an id6 with no recorded lane exits nonzero AND no run directory is created); the pair covers both drivers.
+    THE `cli.py` LEAVES ARE DECLARED, one row per host, as `alias` with `delegated` and a `canonical_command` (NOT `mutation`):
+    ```
+    CommandDeclaration(
+        command="oc integrate",
+        command_class="alias",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="delegated",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+        canonical_command="oc runipd",
+    ),
+    CommandDeclaration(
+        command="agy integrate",
+        command_class="alias",
+        ... empty_error_renderer="delegated", canonical_command="agy runipd",
+    ),
+    ```
+    `HostIntegrateVerbTests::test_the_new_cli_leaves_are_DECLARED_as_thin_aliases` asserts that class/renderer/canonical triple for both rows. `integrate` was deliberately NOT added to `tests/test_cli_conformance_matrix.py`'s `ALIAS_SAFE` dict, which drives read-only leaves; this verb mutates main.
+    THE UNDECLARED SET DID NOT GROW, under `-m ''` (a bare run deselects both files):
+    ```
+    $ python3 -m pytest -m '' tests/test_command_surface_declarations.py tests/test_cli_conformance_matrix.py
+    FAILED tests/test_cli_conformance_matrix.py::UndeclaredLeafGuardTests::test_every_declared_leaf_gets_a_full_scenario_row_set
+    FAILED tests/test_cli_conformance_matrix.py::UndeclaredLeafGuardTests::test_no_undeclared_parser_leaves
+    FAILED tests/test_command_surface_declarations.py::CommandSurfaceDeclarationsTests::test_zero_undeclared_parser_leaves
+    3 failed, 22 passed in 184.38s (0:03:04)
+    ...
+    E       AssertionError: 5 != 0 : Found undeclared parser leaves: {'oc profile add', 'oc profile remove', 'oc profile default', 'oc profile list', 'oc profile show'}
+    ```
+    STILL EXACTLY THE FIVE PRE-EXISTING `oc profile *` leaves, so the new leaves are declared; had they not been, the set would read 7. And the pairing gate passes:
+    ```
+    $ python3 -m pytest -m '' "tests/test_command_surface_declarations.py::CommandSurfaceDeclarationsTests::test_empty_error_renderer_classification_consistency" -o addopts="-p no:randomly"
+    tests/test_command_surface_declarations.py .                             [100%]
+    ============================== 1 passed in 0.12s ===============================
+    ```
+    No `--scope-ack` was taken on `command_surface.py` or `tests/test_cli_conformance_matrix.py`; the first is modified. `tests/test_cli_conformance_matrix.py` is UNMODIFIED and is acknowledged in the scope note below with its reason.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste a resume of an `integration-blocked` item with a verified lane showing the merge happened with NO flag passed. Paste the run record showing NO agent turn was dispatched. Paste the ORDERING proof as the code you actually wrote plus the reason (F-20): quote the placement showing the attempt sits AFTER the indeterminate refusal and BEFORE any dispatch, and state which of the two arrangements E-03 permits you took (integrate after the refusal and select on durable lane facts, or narrow the requeue first and integrate before it). Do NOT paste a claim that it sits "after `requeue_interrupted` and before `if retry_incomplete:` and after the indeterminate refusal": measured at review, the refusal follows the requeue, so that combination does not exist and asserting it is a FAILED validation. If you took the after-the-refusal route, ALSO paste that a successful integration clears `recovery_next` so the flag cannot re-dispatch work that just landed. Paste the indeterminate case showing NOTHING was integrated because the resume was about to be refused.
     Paste the failure case showing the item unchanged and its lane still present, AND paste a case where the integration attempt RAISES (patch git or the suite to fail hard) showing the resume CONTINUES rather than dying. Paste the success path's records showing it wrote the same state and `events.jsonl` entries the in-run path writes, including the `last_plan_path` re-resolve and the backlog-close attempt.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. A resume merges the already-verified lane with NO agent turn (proven positively by a launcher that fails the test if called) and reaches `executed` with the same `ipd-finalized` record, the `last_plan_path` re-resolve and the backlog-close attempt the in-run path writes. The attempt sits AFTER the indeterminate refusal and BEFORE any dispatch; I took the first of E-03's two permitted arrangements and did NOT claim the impossible combination. Selection is on durable lane facts plus the recorded `requeue_from_status`, success clears `recovery_next`, an indeterminate item suppresses integration entirely, and a refusal or an exception leaves the item and its lane untouched without aborting the resume. Full pasted output below.
 
-- [ ] V-04 validates E-04
+    A LIVE RESUME with NO flag passed, on a throwaway repository holding one `integration-blocked` item with a verified finalized lane and a real (tiny) suite:
+    ```
+    $ python3 -m agent_workflows.oc_runipd resume run-resume-demo2 --repo <tmp>/resume-demo2/repo --retry-incomplete ; echo exit=$?
+      integrating already-verified lane aw/lane/rz0002 for IPD rz0002 (no agent turn; runs the suite in <tmp>/resume-demo2/repo)
+      ✓ IPD rz0002 integrated to main from its existing lane aw/lane/rz0002 with NO agent turn (fast-forward integrated to main)
+    exit=0
+    $ git -C <tmp>/resume-demo2/repo branch --list 'aw/lane/rz0002*'
+    + aw/lane/rz0002
+    $ (item)  status: executed | recovery_next present: False | attempts: 1
+    $ grep -o '"event": "[a-z-]*"' events.jsonl | sort | uniq -c
+          1 "event": "ipd-finalized"
+    ```
+    The run record shows NO agent turn was dispatched: `attempts` is still 1 (the original turn) and the only event this resume appended is `ipd-finalized`, with no `ipd-started`/session record. The no-turn absence is ALSO proven POSITIVELY rather than inferred, by a patched launcher that FAILS the test if called: `tests/test_oc_runipd.py::HostResumeIntegratesInsteadOfDispatchingTests` patches `run_opencode` with a function that raises "an agent turn was DISPATCHED", and the agy twin patches `run_agy_turn`; both classes pass, so the launcher was never reached.
+    THE ORDERING, as the code actually written. The attempt sits AFTER the indeterminate refusal and BEFORE the dispatch loop, in `run_queue`:
+    ```
+            return 1
+        # integpath-04 (`rl67b0`) E-03/E-04: MERGE ALREADY-VERIFIED LANES INSTEAD OF RE-DISPATCHING THEM.
+        ...
+        _integrate_stranded_lanes(run_dir, state)
+        tracker = StreamTracker()
+    ```
+    ARRANGEMENT TAKEN: the FIRST of the two E-03 permits, i.e. integrate AFTER the refusal and select on durable lane facts. I did NOT claim the impossible combination: measured at this HEAD, `requeue_interrupted` and the `if retry_incomplete:` block precede the `runner_stop.indeterminate_items(...)` refusal, so an attempt placed "before `if retry_incomplete:`" would necessarily precede the refusal, which the same paragraph forbids. Placing it after the refusal is still strictly before any turn, because the refusal `return 1`s before anything starts and the requeue only rewrites `status`/`recovery_next` in memory-plus-state.
+    THE TWO CONSEQUENCES ARE HANDLED. FIRST, selection is on durable lane facts: `stranded_integration_candidates` reads `resolve_prior_lane` plus `inspect_lane(...).commits_ahead > 0`, and accepts either the live `status` or the `requeue_from_status` the flag wrote when it overwrote it (an additive field added at the requeue site in BOTH drivers). `ResumeIntegrationPassTests::test_the_flag_ALREADY_rewrote_the_status_and_the_pass_still_selects_it` builds exactly the post-requeue shape (`status: queued`, `recovery_next: True`) and asserts the item is still integrated. SECOND, a successful integration CLEARS `recovery_next` (`finish_reintegrated_item` pops it), asserted by that same test and by the live run above (`recovery_next present: False`).
+    THE INDETERMINATE CASE INTEGRATES NOTHING. `HostResumeIntegratesInsteadOfDispatchingTests::test_an_INDETERMINATE_item_suppresses_integration_entirely` builds a queue holding one integrable stranded lane AND one item carrying the `stopped.certainty == indeterminate` record the gate actually reads, resumes with `--retry-incomplete`, and asserts rc == 1, main's HEAD UNCHANGED, and the stranded item not `executed`. Passes.
+    THE FAILURE CASE LEAVES THE ITEM AND ITS LANE ALONE, measured live with a repository whose suite genuinely fails (no test files, pytest exit 5):
+    ```
+    $ python3 -m agent_workflows.oc_runipd resume run-resume-demo --repo <tmp>/resume-demo/repo --retry-incomplete ; echo exit=$?
+      integrating already-verified lane aw/lane/rz0001 for IPD rz0001 (no agent turn; runs the suite in <tmp>/resume-demo/repo)
+      ! IPD rz0001 was NOT re-dispatched: its verified lane aw/lane/rz0001 still holds unintegrated work, and re-running it would allocate a SECOND lane and abandon that one. The integration re-attempt refused (gate-refused): integration gate did not pass (integration_failed_combined_red): full_revalidation_check[integration]: ... ; suite FAILED with exit 5 in <tmp>/resume-demo/repo
+        -> left at status integration-blocked with its lane intact. Fix the cause and re-run `integrate rz0001`, or resolve on the preserved lane branch.
+    exit=1
+    $ git -C <tmp>/resume-demo/repo branch --list 'aw/lane/rz0001*'
+    + aw/lane/rz0001
+    $ (item)  integration-blocked | recovery_next present: False
+    $ grep -o '"event": "[a-z-]*"' events.jsonl | sort | uniq -c
+          1 "event": "ipd-reintegration-refused"
+    ```
+    A RAISING ATTEMPT DOES NOT ABORT THE RESUME: `ResumeIntegrationPassTests::test_an_exception_does_not_abort_the_pass` patches the integrate callable to raise `RuntimeError("git exploded")` and asserts the pass returns a `held-back` record with code `attempt-errored` and the item unchanged; `ReintegrationVerbTests::test_an_exception_from_the_attempt_is_a_refusal_not_a_raise` pins the same at the shared-function level. Both pass.
+    THE SUCCESS PATH WRITES WHAT THE IN-RUN PATH WRITES: `finish_reintegrated_item` sets `executed`, sets the attempt's disposition, RE-RESOLVES `last_plan_path` (asserted by `test_a_stranded_lane_is_MERGED_and_the_item_reaches_executed`, which checks the resolved path now names `executed`), appends the same `ipd-finalized` event (with an additive `reintegrated: true` marker so an audit can tell a merge-only recovery from a paid turn), and attempts `process_backlog_close` through the injected callable, guarded on the record so an already-successful close is not overwritten with a refusal.
+    ```
+    $ python3 -m pytest tests/test_runner_shared.py -k ResumeIntegrationPassTests -o addopts="-p no:randomly"
+    collected 157 items / 151 deselected / 6 selected
+    tests/test_runner_shared.py ......                                       [100%]
+    ====================== 6 passed, 151 deselected in 0.83s =======================
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `git branch --list 'aw/lane/<id6>*'` after a resume of an unintegrated verified lane, showing NO `_attempt2` was created. Paste the REFUSED-integration case too: the item stayed terminal, was NOT requeued, and the operator saw an explicit message naming it and the reason. Paste the contrast: an item that genuinely needs a turn IS still re-dispatched under `--retry-incomplete`, AND a snapshot-only `interrupted` item is still routed as `txc9l1` routes it. Confirm no lane was deleted or reclaimed to achieve this, quoting the code path.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. No `_attempt2` after a resume of an unintegrated verified lane, measured live and pinned per host. A REFUSED integration holds the item back at the exact terminal status the flag overwrote, with an explicit operator-facing message naming the item, the reason and both options, plus an `ipd-reintegration-refused` event; no lane is deleted or reclaimed to achieve it. A `partial` item and a snapshot-only `interrupted` item (the `txc9l1` shape) are both still retryable. Full pasted output below.
 
-- [ ] V-05 validates E-05
+    NO `_attempt2` AFTER A RESUME of an unintegrated verified lane, measured live (the same run as V-03's success case) and pinned by test:
+    ```
+    $ git -C <tmp>/resume-demo2/repo branch --list 'aw/lane/rz0002*'
+    + aw/lane/rz0002
+    ```
+    `ResumeIntegrationPassTests::test_ZERO_new_lanes_are_allocated` and both hosts' resume classes assert the same absence after a real `run_queue` call.
+    THE REFUSED-INTEGRATION CASE IS HELD BACK, NOT REQUEUED, and the operator is told which item and why. Measured live (V-03's failure case) and pinned by `ResumeIntegrationPassTests::test_a_REFUSED_attempt_holds_the_item_back_with_an_explicit_reason`, which builds the post-requeue shape (`status: queued`, `recovery_next: True`), makes the suite fail, and asserts: the record reads `held-back`, the item is restored to `integration-blocked` (the exact status the flag overwrote, read from `requeue_from_status` rather than invented), `recovery_next` is cleared, main's HEAD is unchanged, the lane branch is STILL PRESENT, no `_attempt2` exists, the operator line contains "was NOT re-dispatched" and names the item, and an `ipd-reintegration-refused` event was appended. The live message states the operator's two options explicitly:
+    ```
+        -> left at status integration-blocked with its lane intact. Fix the cause and re-run `integrate rz0001`, or resolve on the preserved lane branch.
+    ```
+    THE CONTRAST: an item that genuinely needs a turn is untouched. `ResumeIntegrationPassTests::test_items_that_genuinely_need_a_turn_are_NOT_captured` puts a `partial` item and a snapshot-only `interrupted` item (lane holds a commit but the plan is NOT finalized on it, which is the `txc9l1` shape) in one queue and asserts `stranded_integration_candidates` returns `[]`, the pass returns no records, and both statuses are unchanged, so `--retry-incomplete` still reaches them exactly as before. The narrowing is by CONSTRUCTION rather than by editing the flag's status set: the requeue's set is untouched, and the only thing that changes for a stranded item is that the integration pass has already promoted it to `executed` (success) or restored its terminal status and cleared `recovery_next` (refusal) before the dispatch loop selects anything.
+    NO LANE IS DELETED OR RECLAIMED to achieve any of this. The refusal path in `integrate_stranded_lanes` writes `item["status"] = prior`, pops `recovery_next`, records `reintegration_refusal`, appends the event and continues; it calls no teardown, no `git branch -D`, and no `worktree remove`. The success path likewise leaves the lane alone (teardown remains the in-run path's business), which is why the lane branch is still listed above after a refusal.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the ACTUAL output of the six verb cases per host. For the success case, paste proof the revalidate gate ran (not a bare merge) AND the negative proving it can refuse, and state how you proved each; a gate that no arrangement makes fail is not tested (F-15). Paste the attempt-scoped-lane case proving the branch name was not guessed. Paste the implicit-start guard results for both drivers plus the three-way set-equality test.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Six verb cases per host (plus the ambiguous-lane refusal and its run-id resolution), with the gate proven to RUN by a delegating spy AND to REFUSE under a failing suite, and the shipped constant-`True` runner proven unused by AST. The attempt-scoped case uses a DECOY first lane so a guessed name would resolve rather than error. Both drivers' not-rewritten guards and the three-way set-equality guard pass. Full pasted output below.
 
-- [ ] V-06 validates E-06
+    THE SIX VERB CASES, per host. The DECISION cases are pinned once in `tests/test_runner_shared.py::ReintegrationVerbTests` against the single shared `reintegrate_lane` both hosts call, with the oc wrapper bound; each host's own suite then pins what only that host can get wrong (reachability at both spellings, and the merge subject's label). Their actual output, plus the shared-function measurements pasted verbatim in V-01 above:
+    ```
+    $ python3 -m pytest tests/test_runner_shared.py -k "Reintegration or ResumeIntegration or MeasuredIncidents or NoRunnerImport" -o addopts="-p no:randomly"
+    collected 156 items / 133 deselected / 23 selected
+    tests/test_runner_shared.py .......................                      [100%]
+    ====================== 23 passed, 133 deselected in 3.15s ======================
+
+    $ python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py -k "HostResumeIntegrates or AgyResumeIntegrates or HostIntegrateVerb or AgyIntegrateVerb" -o addopts="-p no:randomly"
+    collected 268 items / 251 deselected / 17 selected
+    tests/test_oc_runipd.py ..........                                       [ 58%]
+    tests/test_agy_runipd_cli.py .......                                     [100%]
+    ====================== 17 passed, 251 deselected in 1.67s ======================
+    ```
+    Case by case: a verified finalized lane integrates (`test_a_verified_finalized_lane_integrates_with_no_agent_turn`, which also asserts the plan reached main's `executed/`); a missing branch refuses `lane-absent`; a lane holding no commits refuses `lane-holds-no-commits`, and so does a merely DIRTY lane with zero commits, asserted separately because `HOLDS-WORK` alone does not prove committed work (`test_a_DIRTY_lane_with_zero_commits_still_refuses` first asserts `inspect_lane` really classifies it `HOLDS-WORK` with `commits_ahead == 0`, so the test cannot pass for the wrong reason); a lane whose plan is not finalized refuses `plan-not-finalized-on-lane`; a lane owned by a LIVE process refuses `lane-owned-by-live-process` (the test first asserts `inspect_lane(...).owner_live is True`, so it pins the real condition and not a stub); and a FOREIGN lane refuses `lane-foreign`. Two more that the plan's fence needed: several recorded lanes with no run id REFUSE and LIST them (OQ-02), and naming the run resolves it and integrates THAT lane.
+    HOW THE GATE WAS PROVEN TO RUN AND TO BE ABLE TO REFUSE, which are different assertions. IT RAN: `test_the_gate_RAN_and_COULD_HAVE_REFUSED` patches `orchestrate_isolation.execute_merge_and_revalidate_gate` with a spy that delegates to the real gate, and asserts exactly one call, copying the shape `tests/test_oc_runipd.py` already uses for the in-run path. IT CAN REFUSE: the same test drives the attempt with a FAILING suite and asserts the outcome is `gate-refused` carrying `integration_failed_combined_red`, that main's HEAD is unchanged, and that the lane branch still exists; a second test (`test_the_validation_runner_is_NOT_the_shipped_constant_true_one`) measures the shipped `make_integration_validation_runner` returning True unconditionally and then asserts by AST that `reintegrate_lane` does not call it and does call the injected `suite_check`. So no arrangement here leaves the gate unable to say no. NOT A BARE MERGE: the spy proves the gate was the route, and the refusal proves the merge did not happen when the gate said no.
+    THE ATTEMPT-SCOPED CASE PROVES THE BRANCH WAS NOT GUESSED: `test_an_ATTEMPT_SCOPED_lane_is_integrated_without_GUESSING_its_name` creates a DECOY first lane (`aw/lane/aa0008`, empty) so that a guessed name would resolve to something and refuse rather than error, records only the `_attempt2` branch, and asserts the integrated candidate is `aw/lane/aa0008_attempt2`.
+    THE IMPLICIT-START GUARDS on both drivers plus the three-way set-equality test:
+    ```
+    $ python3 -m pytest tests/test_runner_stop_triggers.py -k "inline_copy or not_rewrite_a_bare_integrate or integrate_is_listed" -o addopts="-p no:randomly"
+    collected 58 items / 54 deselected / 4 selected
+    tests/test_runner_stop_triggers.py ....                                  [100%]
+    ======================= 4 passed, 54 deselected in 0.20s =======================
+    ```
+    That is `test_oc_does_not_rewrite_a_bare_integrate_into_start`, `test_agy_does_not_rewrite_a_bare_integrate_into_start`, `test_integrate_is_listed_in_both_shims_subcommand_sets`, and the pre-existing `test_the_inline_copy_matches_both_drivers`, which now pins the three copies equal INCLUDING `integrate`.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: THE TWO ABSENCES ARE THE FIX, so paste both explicitly: zero agent turns dispatched, and zero new lane branches. Prove the no-turn absence POSITIVELY (a patched launcher that fails the test if called), not by inferring it from elapsed time. A paste showing only that the item ended integrated is a FAILED validation, since a paid re-dispatch could also produce that.
     Paste the ordering case with `--retry-incomplete` PASSED, since a resume without the flag cannot distinguish the fix from unchanged code. Paste the indeterminate-suppression case. Paste both negatives: a genuinely incomplete item still retried, and a snapshot-only interrupted item still routed to verify-and-continue.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. THE TWO ABSENCES asserted directly: zero agent turns, proven positively by a patched launcher that raises if called, and zero new lane branches. The ordering case is run with `--retry-incomplete` PASSED, so the item has already been flipped to `queued` with `recovery_next=True` before the pass runs. Indeterminate suppression and both negatives are pinned. Full pasted output below.
 
-- [ ] V-07 validates E-07
+    THE TWO ABSENCES, both asserted directly rather than inferred.
+    ZERO AGENT TURNS, proven POSITIVELY by a patched launcher that fails the test if called. `tests/test_oc_runipd.py::HostResumeIntegratesInsteadOfDispatchingTests` patches `driver.run_opencode` with `fail()`, which raises `AssertionError("an agent turn was DISPATCHED: the resume paid for a turn where a merge would do, which is the entire defect this plan fixes")`, and drives the REAL `driver.run_queue`; the agy twin patches `run_agy_turn` identically. All of those tests pass, so the launcher was never reached. Elapsed time is not used as evidence anywhere.
+    ZERO NEW LANES: `test_a_bare_resume_merges_the_verified_lane_with_no_turn_and_no_new_lane` and `test_with_the_FLAG_PASSED_the_item_is_integrated_rather_than_requeued` both assert `git branch --list 'aw/lane/<id6>*'` contains no `_attempt2` afterwards, and the agy twin does the same. Measured live as well:
+    ```
+    $ git -C <tmp>/resume-demo2/repo branch --list 'aw/lane/rz0002*'
+    + aw/lane/rz0002
+    ```
+    THE ORDERING CASE IS RUN WITH `--retry-incomplete` PASSED, which is what makes it discriminating: `test_with_the_FLAG_PASSED_the_item_is_integrated_rather_than_requeued` (and the live run above) passes the flag, so the item HAS been flipped to `queued` with `recovery_next=True` before the pass runs, and the assertions are that it still reaches `executed` and that `recovery_next` is gone. A resume without the flag could not tell the fix from unchanged code, which is why the flagged case exists.
+    THE INDETERMINATE SUPPRESSION CASE: `test_an_INDETERMINATE_item_suppresses_integration_entirely` asserts rc == 1 and main's HEAD byte-identical before and after, with the stranded item NOT `executed`.
+    BOTH NEGATIVES: `test_items_that_genuinely_need_a_turn_are_NOT_captured` covers a `partial` item (not in the re-integratable statuses at all) and a snapshot-only `interrupted` item whose lane holds a commit but no finalize, which is exactly the case `txc9l1` routes to a verify-and-continue turn; neither is captured, both keep their statuses, and the pass produces no records for them.
+    ```
+    $ python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py -k "HostResumeIntegrates or AgyResumeIntegrates" -o addopts="-p no:randomly"
+    17 passed (with the verb classes in the same selection; see V-05's paste)
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste both historical shapes reproduced and survived on BOTH hosts: (a) four verified lanes each recovered by the verb with no agent turn; (b) an item with a verified lane resumed WITHOUT allocating a second lane, contrasted against the pre-fix behavior which allocates `_attempt2`. Paste the BARE `python3 -m pytest` summary with before/after counts and show the AFTER-minus-BEFORE failure set is EMPTY.
     PASTE THE `-m ''` RESULT SEPARATELY for `tests/test_cli_conformance_matrix.py` and `tests/test_command_surface_declarations.py`, because the bare run deselects both (F-13) and a bare `N passed` is therefore NOT evidence about the declaration surface. Show the undeclared-leaf set is no larger than the five pre-existing `oc profile *` entries. STATE YOUR OWN BEFORE-BASELINE RATHER THAN QUOTING THIS PLAN'S: the bare-run failure has already changed identity twice (round 2 it was `test_orchestrator_retirement`, which now PASSES; round 3 it is an environmental `test_reporting_contract` failure driven by a gitignored local directory that may not exist in your checkout). Judge on YOUR delta. If the agy host could not be demonstrated, SAY SO PLAINLY rather than inferring from the oc result.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Both measured incidents reproduced synthetically and survived on BOTH hosts, with the `mm6wuz` case first MEASURING the pre-fix `_attempt2` allocation in the same repository before showing the resume integrates the first lane instead. Bare suite delta empty (1 failed both before and after, the one red test pre-existing and confirmed red in a clean worktree at HEAD; passing 7824 -> 7865), `test_run_viewer.py` 76 passed in the real checkout, and the two slow declaration suites run separately under `-m ''` with the undeclared set still exactly the five pre-existing entries. Full pasted output below.
+
+    BOTH HISTORICAL SHAPES ARE REPRODUCED AND SURVIVED, ON BOTH HOSTS, by `tests/test_runner_shared.py::MeasuredIncidentsAreSurvivedTests`, which loops over `("oc", "agy")` and binds each host's own `integrate_lane_branch` wrapper. Reproduced synthetically because both are historical: the four cited branches are deleted and their plans are in `executed/`, recovered by hand.
+    (a) THE FOUR-LANE CASE (`run-20260905T050043Z-639569`): four plans, four verified finalized lanes, all four recovered by FOUR verb calls with no agent turn, then asserted that each lane's file AND its `executed/` plan are on main and that NO lane was orphaned into an `_attempt` branch.
+    (b) THE THREE-LANE CASE (`mm6wuz`): the test first MEASURES the pre-fix behavior in the same repository rather than asserting it from memory, by calling `worktree_lease.allocate_worktree(repo, "mm0001")` for an item in the post-requeue shape and asserting it returns `aw/lane/mm0001_attempt2` with `displaced_from == "aw/lane/mm0001"`, which is the orphaning mechanism itself; it removes that probe branch, then runs the resume pass and asserts the FIRST lane integrated, the item reached `executed`, and no `_attempt` branch exists.
+    ```
+    $ python3 -m pytest tests/test_runner_shared.py -k MeasuredIncidents -o addopts="-q -p no:randomly"
+    ..                                                                       [100%]
+    2 passed, 154 deselected in 1.28s
+    ```
+    BARE SUITE, before and after, in the REAL checkout. MY OWN BASELINE, measured rather than quoted from this plan (whose recorded baseline was measured in a different environment):
+    ```
+    BEFORE (at lane base 511530a5):
+    32 failed, 7793 passed, 3 skipped, 2 xfailed in 115.14s (0:01:55)
+    ```
+    THIRTY-ONE OF THOSE 32 WERE AN ENVIRONMENT ARTIFACT, NOT A REPOSITORY STATE, and finding that is why the baseline was re-measured rather than trusted: this turn's shell exports `AW_EXECUTION_ROLE=worker`, which the worker-role refusal correctly rejects `aw ipd begin`/`finalize` under, so every lifecycle-driving test failed. With that variable unset the honest baseline is:
+    ```
+    BEFORE (bare, env -u AW_EXECUTION_ROLE):
+    1 failed, 7824 passed, 3 skipped, 2 xfailed in 107.05s (0:01:47)
+    FAILED tests/test_orchestrator_retirement.py::RealRepositorySets::test_lanectn_refuses_naming_its_one_unfinished_verification_child
+
+    AFTER (bare, env -u AW_EXECUTION_ROLE):
+    1 failed, 7865 passed, 3 skipped, 2 xfailed in 118.97s (0:01:58)
+    FAILED tests/test_orchestrator_retirement.py::RealRepositorySets::test_lanectn_refuses_naming_its_one_unfinished_verification_child
+    ```
+    AFTER-MINUS-BEFORE FAILURE SET IS EMPTY (`comm -13` over the sorted FAILED lists prints nothing), and passing count rose 7824 -> 7865. The one red test is PRE-EXISTING and not mine: it asserts the real `lanectn` Set still has an unfinished child, and that Set completed on disk when `4fodkt` was finalized at this lane's own base commit. Confirmed by running that file in a clean worktree checked out at HEAD, with none of my changes present:
+    ```
+    $ (worktree at HEAD, no changes) python3 -m pytest tests/test_orchestrator_retirement.py -o addopts="-q -p no:randomly"
+    FAILED tests/test_orchestrator_retirement.py::RealRepositorySets::test_lanectn_refuses_naming_its_one_unfinished_verification_child
+    1 failed, 136 passed in 7.93s
+    ```
+    `tests/test_run_viewer.py` validated in the REAL checkout, as required (it reads the gitignored `.aw/records/runs/`):
+    ```
+    $ python3 -m pytest tests/test_run_viewer.py -o addopts="-q -p no:randomly"
+    76 passed in 3.87s
+    ```
+    THE TWO SLOW DECLARATION SUITES, RUN SEPARATELY UNDER `-m ''` because a bare run DESELECTS both and therefore says nothing about the declaration surface:
+    ```
+    $ python3 -m pytest -m '' tests/test_command_surface_declarations.py tests/test_cli_conformance_matrix.py
+    FAILED tests/test_cli_conformance_matrix.py::UndeclaredLeafGuardTests::test_every_declared_leaf_gets_a_full_scenario_row_set
+    FAILED tests/test_cli_conformance_matrix.py::UndeclaredLeafGuardTests::test_no_undeclared_parser_leaves
+    FAILED tests/test_command_surface_declarations.py::CommandSurfaceDeclarationsTests::test_zero_undeclared_parser_leaves
+    3 failed, 22 passed in 184.38s (0:03:04)
+    E       AssertionError: 5 != 0 : Found undeclared parser leaves: {'oc profile add', 'oc profile remove', 'oc profile default', 'oc profile list', 'oc profile show'}
+    ```
+    THE UNDECLARED SET IS STILL EXACTLY THE FIVE PRE-EXISTING `oc profile *` LEAVES, so it did not grow: had the two new `cli.py` leaves gone undeclared it would read 7. Those three failures are the pre-existing ones this plan names and must not fix.
+    BOTH HOSTS WERE DEMONSTRATED; nothing here is inferred from the oc result alone. The live verb ran on agy (`integrate(aw agy run): merge verified lane de0001 to main`), the live agy alias ran, and both incident shapes and the resume pass are asserted per host.
+  - Result: pass
 
 ## Approval and execution gate
 
