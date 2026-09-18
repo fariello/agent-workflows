@@ -2,27 +2,48 @@
 
 - Date: 2026-09-17
 - Kind: child
-- Concern: TWELVE symbols are defined in both runners with DIFFERING bodies (488 oc lines), and the divergence is three different shapes needing three different treatments, not one. (a) SEVEN are near-identical (length ratio >0.9, no host token in code): `expand_selectors` 90/90, `reclaim_lanes_on_interrupt` 60/60, `reconcile_disposition` 47/45, `_lane_reclaim_prompt` 37/37, `reconcile_interrupted` 37/37, `_add_output_mode_flags` 6/6 - drift, not capability. (b) THREE are agy STUBS that import the real body FROM `oc_runipd` (`classify_recovery_disposition`, `route_recovery_turn`, `build_verify_and_continue_notice`), so they are already one object but reached through an inverted dependency: the antigravity runner depends on the opencode runner. (c) TWO genuinely differ (`retry_deferred_integrations` 70/49, which carries `aw agy` label text, and `_record_forced_stop` 23/16). A single de-duplication tactic applied to all twelve would be wrong for at least two thirds of them.
-- Scope: Resolve all twelve to ONE definition in `runner_shared`, per-shape: reconcile the near-identical seven and lift them; RE-POINT the three agy stubs at `runner_shared` so the runner-to-runner import disappears; and for the two genuine differences, express the difference through `HostLabels` (or an added field) rather than a forked body. Also close the guard hole that let the inverted import be introduced.
-- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_review_findings_cascade.py, tests/test_hostdedup_divergent_unify.py, tests/test_rununify_initialize_run.py
+- Concern: TWELVE symbols are defined in both runners with DIFFERING bodies (488 oc lines by raw `ast.unparse` line count, VERIFIED AT REVIEW), and the divergence is three different shapes needing three different treatments, not one. (a) SEVEN are near-identical (length ratio >0.9, no host token in code): `expand_selectors` 90/90, `reclaim_lanes_on_interrupt` 60/60, `reconcile_disposition` 47/45, `_lane_reclaim_prompt` 37/37, `reconcile_interrupted` 37/37, `_add_output_mode_flags` 6/6 - drift, not capability. **CORRECTED AT REVIEW: that list names SIX, and the seventh is `enforce_dependency_preflight` 15/11 at ratio 0.28, which is NOT near-identical and is NOT drift; see F-9.** (b) THREE are agy STUBS that import the real body FROM `oc_runipd` (`classify_recovery_disposition`, `route_recovery_turn`, `build_verify_and_continue_notice`), so they are already one object but reached through an inverted dependency: the antigravity runner depends on the opencode runner. (c) TWO genuinely differ (`retry_deferred_integrations` 70/49, which carries `aw agy` label text, and `_record_forced_stop` 23/16). A single de-duplication tactic applied to all twelve would be wrong for at least two thirds of them.
+- Scope: Resolve as many of the twelve as the CLOSURE allows to ONE definition in `runner_shared`, per-shape: reconcile the drifted ones and lift them; RE-POINT the three agy stubs at `runner_shared` so the runner-to-runner import disappears; and for the genuine differences, express the difference through `HostLabels` (or an added field) rather than a forked body. Also close the guard hole that let the inverted import be introduced. **RE-SCOPED AT REVIEW from "all twelve" to "as many as the closure allows": three of the twelve (`_lane_reclaim_prompt`, `reclaim_lanes_on_interrupt`, and transitively any lift that calls them) are BLOCKED by open backlog `8hx3g3` on a DESIGN decision about module-level mutable state, and one (`enforce_dependency_preflight`) is a deliberate exception wrapper whose fate was already SETTLED as KEEP. A plan promising twelve would have to either break prompt suppression in an unattended run or reverse a settled ruling; see F-9 through F-13, E-07, and OQ-04.**
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_review_findings_cascade.py, tests/test_hostdedup_divergent_unify.py, tests/test_rununify_initialize_run.py, tests/test_rununify_execute_item.py, tests/test_rununify_run_queue.py, tests/test_rununify_build_parser.py, tests/test_resumedupe.py, tests/test_orchestrator_probe_cache.py, tests/test_runner_shared.py, tests/test_review_lane_isolation.py
 - Item-Dependencies: executed:li44r9
-- Status: to-review
+- Status: reviewed
+- Readiness: no-go
+- From-Backlog: dstnso
 - Set: hostdedup
 - Order: 2
-- Highest E allocated: 06
+- Highest E allocated: 07
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: nmlx47
 
 ## Workflow history
+- 2026-09-18 reviewed (aw set): plan-review complete: REVIEWED - OPEN QUESTIONS; 13 findings, 11 FIXED, PR-001 (three of the twelve are unliftable: _lane_reclaim_prompt reads the module-level mutable flag the permanently-unmovable disable_lane_prompt writes, open backlog 8hx3g3) and PR-002 (a guard banning the oc-to-agy coupling would delete 44 pinned re-exports the approved runnerlayer Set owns) left OPEN at BLOCKER and escalated as blocking OQ-04/OQ-05; readiness no-go; typed review record under .aw/records/reviews/
+- 2026-09-17 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001..PR-013; readiness `no-go` on TWO blocking findings I could not remediate inside this plan. Reviewed at HEAD `0e9068dd`; `aw ipd lint --phase author` conforming before revision. THE TWELVE-SYMBOL SET AND ITS THREE-SHAPE PARTITION REPRODUCE EXACTLY: an `ast.unparse` scan at review HEAD gives the same twelve names with the same length pairs, summing to exactly 488 oc lines (the one figure in this Set that reproduces on the first metric tried), the three agy stubs really do `from agent_workflows.oc_runipd import ... as _shared`, and the guard hole is real: `test_review_findings_cascade.py:313` asserts `assertNotIn("import oc_runipd", agy_src)` while 8 statements spelled `from agent_workflows.oc_runipd import` bind 53 names, and I ran the guard GREEN to prove it. `HostLabels` is as described (`runner_shared.py:9384`). BUT THREE OF THE TWELVE CANNOT BE LIFTED AT ALL, and that is what makes "resolve all twelve" unachievable rather than merely hard. `_lane_reclaim_prompt` READS the module-level mutable `_LANE_PROMPT_DISABLED` that the PERMANENTLY-UNMOVABLE `disable_lane_prompt` WRITES through `global`; open backlog `8hx3g3` records this exact deadlock, names `reclaim_lanes_on_interrupt` as transitively blocked by it, and states the remedy is a DESIGN act (stop the flag being module-level mutable state) which `runner_shared`'s own docstring independently forbids the naive form of. Measured: `runner_shared` defines neither the flag nor the reader. `enforce_dependency_preflight` is the fourth: this plan's OWN conventions section quotes `rununify` 02 settling its fate as "KEEP, narrowed", so it is not drift, and its 0.28 similarity ratio contradicts the plan's own placement of it among "seven near-identical". THE SECOND BLOCKER IS E-02's DIRECTION: it asks for a guard that bans the runner-to-runner COUPLING, but 44 of the 53 imported names are DELIBERATE re-exports installed by three executed plans and pinned BY OBJECT IDENTITY in `tests/test_runner_item_dependencies.py::CrossDriverSymmetryTests`, whose whole purpose is that agy must BIND rather than copy them; a guard banning the coupling would demand this plan delete work `runnerlayer` 01/02 (both `approved`, unexecuted) exist to do properly. ALSO FOUND: the fence omitted SEVEN files the change must edit, including `test_resumedupe.py`, which REQUIRES the delegating-stub shape for exactly the three symbols E-03 lifts (proven by reading the assertion), and `test_orchestrator_probe_cache.py`, whose exact `53` import baseline E-03 necessarily moves; two `getsource` pins break on a lift; the suite baseline `7825 passed` matches neither measurement (7936 passed + 32 failed as a worker, 7968 passed with the role unset); `_record_forced_stop`'s only difference is a QUOTED type annotation, not a behavior difference; and `retry_deferred_integrations`'s `aw agy` token is in a DOCSTRING, so `HostLabels.command` is not what carries it. E-07 added, `Highest E allocated` 06 -> 07. OQ-04 and OQ-05 raised `Blocking: yes` carrying PR-001 and PR-002.
 - 2026-09-17 to-review (aw set): Authored 2026-09-17 from an AST measurement at HEAD (34 forked symbols / ~1752 oc lines across the two runners); complete enough to critique
 
 - 2026-09-17 draft (opencode/its_direct-pt3-claude-opus-5-1m-us): created.
 
 ## Goal
 
-Collapse the twelve divergent symbols to one definition each, so that after this plan the only remaining
-runner fork is the five large functions, and adding a host means writing a `HostLabels` instance rather
-than a body.
+Collapse the divergent symbols the closure permits to one definition each, so that after this plan the
+remaining runner fork is the five large functions plus a NAMED, JUSTIFIED residue, and adding a host means
+writing a `HostLabels` instance rather than a body.
+
+**THE ORIGINAL GOAL SAID "the twelve" AND "the only remaining fork is the five large functions". CORRECTED
+AT REVIEW: that is not reachable, and pursuing it as written forces one of two harms.** Measured at review
+HEAD `0e9068dd`:
+
+| symbol | why it cannot be lifted by THIS plan | evidence |
+|---|---|---|
+| `_lane_reclaim_prompt` | READS the module-level MUTABLE `_LANE_PROMPT_DISABLED` that `disable_lane_prompt` WRITES through `global`. `disable_lane_prompt` is PERMANENTLY unmovable. A shared reader would consult `runner_shared._LANE_PROMPT_DISABLED`, which no host ever sets, so prompt suppression on a repeated interrupt silently stops working: an unattended run pauses for a question nobody is there to answer. | open backlog `8hx3g3`; `tests/test_runner_shared.py::UnmovableSymbolTests`; `runner_shared.py:106-107` and `:759-760` document the mirror direction; measured `hasattr(runner_shared, "_LANE_PROMPT_DISABLED")` -> `False` |
+| `reclaim_lanes_on_interrupt` | CALLS both `_lane_reclaim_prompt` and `disable_lane_prompt`, so it is transitively blocked on the same decision. `8hx3g3` names it explicitly as in ITS scope. | closure scan at review: its free names include `_lane_reclaim_prompt` and `disable_lane_prompt`, neither resolvable in `runner_shared` |
+| `enforce_dependency_preflight` | NOT drift. agy's body is a deliberate cross-runner wrapper carrying a documented `except DriverError: raise` guard and a 12-line note; `rununify` 02 SETTLED its fate as "KEEP, narrowed". Similarity 0.28, the second-lowest of the twelve. | `agy_runipd.py:1629-1668`; this plan's own OQ-03 already quotes the "SETTLED / KEEP, narrowed" ruling |
+
+**THE REMEDY IS NOT A WEAKER PROMISE, IT IS AN HONEST ONE.** `8hx3g3` is an OPEN backlog item describing a
+design decision about a live interrupt path; making it a silent sub-task of a de-duplication plan is how a
+guarded exclusion gets "finished" by someone reading a count instead of a constraint, which is the specific
+failure `runner_shared`'s docstring says `UnmovableSymbolTests` exists to prevent. So E-07 makes the
+residue a DELIVERABLE (named, with the blocker cited per symbol) and OQ-04 puts the choice between
+"exclude and record" and "graduate `8hx3g3` first" where it belongs, with the maintainer.
 
 THE MOST IMPORTANT FINDING IS NOT THE LINE COUNT. Three of the twelve are agy stubs whose real body lives
 in `oc_runipd`, which means the ANTIGRAVITY runner currently depends on the OPENCODE runner. That is the
@@ -31,10 +52,25 @@ wrong layering for an N-host future: under it, host number three either imports 
 body. The repository already has a guard against exactly this coupling
 (`test_review_findings_cascade.py::test_no_runner_to_runner_import`), and the code evades it by SPELLING:
 the guard rejects the substring `import oc_runipd`, so the module-alias form is caught while the
-symbol-level `from agent_workflows.oc_runipd import <name>` form is not. `agy_runipd.py:1609` documents
-the evasion in a comment that concedes "The coupling is identical either way". There are NINE such imports
-in that file today, and the guard passes. Closing that hole is in scope, because otherwise this plan's own
-result can be undone by the same spelling.
+symbol-level `from agent_workflows.oc_runipd import <name>` form is not. `agy_runipd.py:1638-1643`
+documents the evasion in a comment that concedes "The coupling is identical either way", and I verified
+the guard runs GREEN with the imports present. Closing that hole is in scope, because otherwise this plan's
+own result can be undone by the same spelling.
+
+**BUT "NINE SUCH IMPORTS" IS THE WRONG UNIT AND THE WRONG TARGET, AND THIS DECIDES E-02's SHAPE.**
+Corrected at review with an AST walk: there are EIGHT `ImportFrom` statements (`agy_runipd.py:351`, `:413`,
+`:437`, `:479`, `:1644`, `:2473`, `:2483`, `:2495`) binding FIFTY-THREE names. The plan's "9" counts
+grep-visible LINES containing the spelling, one of which (`:1638`) is the explanatory COMMENT, not an
+import. More importantly, 44 of the 53 names are NOT accidents to be swept away: they are DELIBERATE
+re-exports of `oc_runipd`-owned definitions, installed by three EXECUTED plans (`8guhs0`, `zhr6mc`,
+`st5klo`), carrying the load-bearing `as <same-name>` spelling that stops `ruff --fix` deleting them, and
+pinned BY OBJECT IDENTITY in `tests/test_runner_item_dependencies.py::CrossDriverSymmetryTests`
+(`_SHARED_NAMES`, 12 names) whose entire stated purpose is that agy must BIND rather than COPY them. A
+guard that "bans the COUPLING rather than one spelling" therefore fails on 44 names this plan must not
+touch, and the correct owner of that work is the `runnerlayer` Set: `9kmbr0` (classify all 47/48) and
+`1f7xno` (re-home the host-neutral ones), BOTH `approved` and unexecuted, both carrying
+`- From-Backlog: cnwy8g`, which is the backlog item for exactly this coupling. E-02 is re-scoped
+accordingly and OQ-05 carries the sequencing question.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -42,47 +78,59 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-measure and classify
 
-- [ ] E-01 Re-measure the divergent set at execution HEAD and classify each symbol into one of the three shapes: NEAR-IDENTICAL (drift), AGY-STUB (already one object via an inverted import), or GENUINELY DIFFERENT. For each, record the length pair and whether a host token appears in CODE as opposed to prose. Refuse to proceed on a stale list.
+- [ ] E-01 Re-measure the divergent set at execution HEAD and classify each symbol into one of the three shapes: NEAR-IDENTICAL (drift), AGY-STUB (already one object via an inverted import), or GENUINELY DIFFERENT. For each, record the length pair and whether a host token appears in CODE as opposed to prose. **AND SCAN THE CLOSURE, WHICH THE AUTHORED ITEM DID NOT.** Body similarity says the two hosts AGREE; it says nothing about whether the definition can MOVE. A definition can be lifted only if every module-level name it closes over resolves in `runner_shared`, and this is the measurement that stopped sibling `li44r9` shipping a silent misattribution and stopped `i3d6ml` shipping a `NameError`. Classify each free name as (a) RESOLVES IN `runner_shared`, (b) EQUAL-VALUED in both hosts so it can move mechanically, (c) HOST-DIVERGENT so it needs `HostLabels`, or (d) MODULE-LEVEL MUTABLE STATE, which is a STOP (see E-07). Refuse to proceed on a stale list. USE THE COMMITTED SCANNER sibling `li44r9` E-01 produces rather than an ad hoc script, and state the metric.
   - Depends on: none
-  - Expected outcome: a per-symbol classification against the 2026-09-17 baseline (7 near-identical, 3 agy-stub, 2 genuine; 488 oc lines). A symbol that changed shape is named rather than silently re-bucketed.
+  - Expected outcome: a per-symbol classification against the review-verified baseline (12 symbols; the SHAPE split is 6 near-identical + 3 agy-stub + 2 genuine + 1 settled-exception, NOT the authored 7/3/2, see F-9; 488 oc lines by raw `ast.unparse` count, which reproduced exactly at review). PLUS a per-symbol closure table with every free name in class (a)-(d). A symbol that changed shape is named rather than silently re-bucketed, and a symbol whose closure lands in (d) is handed to E-07, never lifted.
   - Execution state: pending
 
 ### Task group 2: Fix the layering first
 
-- [ ] E-02 Close the guard hole: make `test_no_runner_to_runner_import` reject the symbol-level `from agent_workflows.oc_runipd import ...` spelling as well as the module-alias form, so the ban is on the COUPLING rather than on one way of writing it. Expect this to make the guard RED against current code (9 such imports), which is the correct starting state and must be recorded, not worked around.
+- [ ] E-02 Close the guard hole for THIS PLAN's THREE SYMBOLS, in the RATCHET form, not the blanket form. **RE-SCOPED AT REVIEW, and the reason is the whole finding: a guard that bans the COUPLING outright fails on 44 names this plan must not touch.** Those 44 are deliberate `as <same-name>` re-exports installed by three executed plans and pinned by OBJECT IDENTITY in `tests/test_runner_item_dependencies.py::CrossDriverSymmetryTests`, whose stated purpose is that agy must BIND rather than COPY them; the `runnerlayer` Set (`9kmbr0` + `1f7xno`, both `approved`, both `- From-Backlog: cnwy8g`) owns re-homing them properly. So write the guard as a NAMED DENY-LIST that (a) keeps the existing module-alias ban, (b) additionally FORBIDS the symbol-level spelling for the three names E-03 lifts plus `resolve_prior_lane` (already lifted by `i3d6ml`, so it must never come back), and (c) states in the assertion message that the blanket ban is `cnwy8g`'s job and names the two plans that own it, so a later reader does not "finish" it here and delete a pinned re-export. THE GUARD MUST BE SHOWN NON-VACUOUS: it must FAIL at HEAD naming the three symbol-level imports at `agy_runipd.py:2473`, `:2483`, `:2495`, and it must NOT fail on the 44 legitimate re-exports. A guard green before E-03 has not been strengthened; a guard red on all 53 has been mis-scoped.
   - Depends on: E-01
-  - Expected outcome: a guard that fails at HEAD for a named list of 9 imports, with that failure pasted as the baseline E-03 must clear.
+  - Expected outcome: the strengthened guard's FAILURE output pasted at HEAD, naming exactly the three (four with `resolve_prior_lane` if it regressed) symbol-level imports E-03 clears, AND evidence it stays green for the 44 pinned re-exports (run `CrossDriverSymmetryTests` in the same pass and paste it). The count `53 names across 8 statements` recorded as the measured coupling, with the note that reducing it is `cnwy8g`'s scope and not this plan's.
   - Execution state: pending
 
-- [ ] E-03 Re-point the three agy stubs (`classify_recovery_disposition`, `route_recovery_turn`, `build_verify_and_continue_notice`) at `runner_shared` by moving the real body there, so both hosts delegate to a host-neutral module and the inverted dependency is gone. Then re-point the remaining runner-to-runner imports the E-02 guard names, or record per import why it must stay.
+- [ ] E-03 Re-point the three agy stubs (`classify_recovery_disposition`, `route_recovery_turn`, `build_verify_and_continue_notice`) at `runner_shared` by moving the real body there, so both hosts delegate to a host-neutral module and the inverted dependency is gone. **THE CLOSURE IS THE WORK, NOT THE MOVE, and it was unmeasured at authoring.** Measured at review, `classify_recovery_disposition` closes over FIVE `oc_runipd`-only module-level names absent from `runner_shared` (`RecoveryDisposition`, `DISPOSITION_FRESH_EXECUTION`, `DISPOSITION_UNDETERMINED`, `DISPOSITION_VERIFY_AND_CONTINUE`, `_lane_commit_subjects`) and `route_recovery_turn` closes over two of the same constants plus `save_state`; agy does NOT import any of the five, so they move WITH the bodies or the lift raises `NameError` at import. Two consequences the executor must handle rather than discover: `tests/test_resumedupe.py` reads `OC.DISPOSITION_*` in 15 assertions and AST-parses `_lane_commit_subjects` out of `module_source(OC)` at `:314-318`, so oc must keep re-exporting the constants and that source pin must be re-based onto `runner_shared`; and the SAME file's `test_the_antigravity_twin_never_holds_a_second_implementation` accepts a symbol ONLY as a delegating stub OR as a `_LIFTED_TO_RUNNER_SHARED` entry with `oc.X is agy.X is runner_shared.X`, so all three names must be ADDED to `_LIFTED_TO_RUNNER_SHARED` in the SAME change (`tests/test_resumedupe.py:661`). DO NOT touch the other runner-to-runner imports: see E-02.
   - Depends on: E-02
-  - Expected outcome: the E-02 guard GREEN, with zero runner-to-runner imports remaining, or an explicit justified exception list.
+  - Expected outcome: the three symbols with ONE definition in `runner_shared`, `oc.X is agy.X is runner_shared.X` for each, `agy_runipd` holding no definition of them, and the E-02 guard GREEN. PLUS the five closure names' disposition stated (moved, or re-exported from `oc_runipd` with the reason), `_LIFTED_TO_RUNNER_SHARED` extended, the `_lane_commit_subjects` source pin re-based, and `tests/test_resumedupe.py` green with the run pasted.
   - Execution state: pending
 
 ### Task group 3: Reconcile the drift and express the real differences
 
-- [ ] E-04 Reconcile the seven near-identical symbols and lift each to one definition. For every symbol, DIFF the two bodies and state per difference whether it is drift (reconcile to the `oc` version per the maintainer's 2026-09-14 oc-preferred ruling) or a real behavior difference that must be preserved. A reconciliation that silently drops one host's behavior is the failure mode to avoid here.
+- [ ] E-04 Reconcile the drifted symbols E-01's CLOSURE SCAN cleared, and lift each to one definition. **NOT "the seven": the authored count is wrong in both directions and the correction is measured.** The Concern's near-identical list names SIX, not seven; the seventh slot was `enforce_dependency_preflight`, which is a settled exception at similarity 0.28 and belongs in E-07, not here. Of the remaining six, TWO are closure-blocked (`_lane_reclaim_prompt`, `reclaim_lanes_on_interrupt`; see E-07), so the realistic set is FOUR: `expand_selectors`, `reconcile_disposition`, `reconcile_interrupted`, `_add_output_mode_flags`. E-01's table decides membership, not this sentence. For every symbol lifted, DIFF the two bodies and state per difference whether it is drift (reconcile to the `oc` version per the maintainer's 2026-09-14 oc-preferred ruling) or a real behavior difference that must be preserved. A reconciliation that silently drops one host's behavior is the failure mode to avoid here.
+  **THREE DIFFERENCES ARE ALREADY KNOWN NOT TO BE DRIFT, and adopting the oc form for them REINTRODUCES A `KeyError` an executed plan deliberately avoided.** `reconcile_disposition` and `reconcile_interrupted` use agy's DEFENSIVE `item.get("configured_file", "")` where oc indexes `item["configured_file"]`, and `retry_deferred_integrations` passes `dict(item)` where oc passes `item`. `i3d6ml`'s F-5 and F-13 record the reason (a queue entry frozen by an OLDER driver version and then resumed lacks the key, and oc itself hedges 9 of its own 13 call sites with `.get`), so the oc-preferred ruling must NOT be applied blindly to these three: keep the defensive form and say why. NOTE `expand_selectors`'s only difference is `setid` vs `_setid` as an unused loop variable, and `_add_output_mode_flags`'s is help TEXT for `--raw`/`--verbose`, which is a user-visible string change on one host and must be disclosed as such, not absorbed.
   - Depends on: E-01
-  - Expected outcome: seven symbols with one definition each, and a per-symbol statement of what was reconciled away. Where a real behavior difference is found, it is either expressed via `HostLabels` or the symbol is re-bucketed to E-05 and named.
+  - Expected outcome: each cleared symbol with one definition, `oc.X is agy.X is runner_shared.X` (or the sanctioned wrapper form with the delegation asserted), and a per-symbol statement of what was reconciled away. State the COUNT and NAME every symbol E-01 held back. The three defensive-form differences preserved with the `i3d6ml` citation. Any `--raw`/`--verbose` help-text change disclosed as an operator-visible change.
   - Execution state: pending
 
-- [ ] E-05 Unify the two genuinely different symbols (`retry_deferred_integrations`, `_record_forced_stop`) by expressing the difference through the EXISTING `HostLabels` descriptor, adding a field only where an existing one cannot carry it. `retry_deferred_integrations` differs partly by label text (`aw agy`), which `HostLabels.command` already exists to supply. Justify any new field by naming its consumer, per the descriptor's own stated rule that a field without a named consumer is a parameter nobody reads.
+- [ ] E-05 Unify the two genuinely different symbols (`retry_deferred_integrations`, `_record_forced_stop`) through the EXISTING `HostLabels` descriptor where a label is what actually differs, adding a field only where an existing one cannot carry it. **BOTH AUTHORED PREMISES ARE FALSE AND THE WORK IS SMALLER THAN DESCRIBED; verified by normalizing both bodies with docstrings stripped.** `retry_deferred_integrations` differs in EXACTLY ONE executable line (`dict(item)` vs `item`); its `aw agy` token is in a DOCSTRING, not in code, so `HostLabels.command` is NOT what carries it and no descriptor field is needed - the host-varying merge-subject label already arrives through each host's own `integrate_lane_branch` wrapper, which the body receives by name. `_record_forced_stop` differs in EXACTLY ONE line too, and it is a QUOTED type annotation (`stop: runner_stop.StopNowForce` vs `stop: "runner_stop.StopNowForce"`), which is not a behavior difference at all. So the honest statement is that these two are near-identical bodies with per-host CALLEES (`integrate_lane_branch`, `git_status`, `save_state`), i.e. the `INJECTED` wrapper shape the maintainer already ruled on (`818uru` OQ-02), NOT a `HostLabels` case. Prefer that established shape; justify any new `HostLabels` field by naming its consumer, per the descriptor's own rule that a field without a named consumer is a parameter nobody reads, and do NOT invent a field to satisfy this plan's original wording.
+  BEWARE TWO SOURCE PINS THAT BREAK ON THIS LIFT, found at review by reading them: `tests/test_runner_shared.py:3527` and `:3531` assert `"is_interactive_run" in inspect.getsource(<host>.retry_deferred_integrations)`, and `:3783` asserts `"retry_deferred_integrations" in inspect.getsource(module.run_queue)`. Re-base them deliberately onto the shared definition, never delete them.
   - Depends on: E-04
-  - Expected outcome: both symbols with one shared definition; any new `HostLabels` field justified by a named call site.
+  - Expected outcome: both symbols with ONE shared definition reached by both hosts; a written statement that the difference was one line each and WHAT that line was; the mechanism named (`INJECTED` wrapper vs a new `HostLabels` field) with the reason; any new field justified by a named call site; and the two `getsource` pins re-based with the diff shown.
   - Execution state: pending
 
 ### Task group 4: Guard the result
 
-- [ ] E-06 Add `tests/test_hostdedup_divergent_unify.py` pinning that each of the twelve resolves to ONE definition, and re-base `STILL_DOUBLE_DEFINED` / `THIN_WRAPPERS_OVER_RUNNER_SHARED` for every symbol moved (`expand_selectors` and `enforce_dependency_preflight` are in that pin table today). Assert the anti-re-fork property over the whole set rather than pairwise.
-  - Depends on: E-03, E-05
-  - Expected outcome: a guard that fails if any of the twelve is re-forked or re-coupled, and updated pin tables with a per-entry reason.
+- [ ] E-06 Add `tests/test_hostdedup_divergent_unify.py` pinning that each symbol this plan MOVED resolves to ONE definition, and that each symbol it DELIBERATELY EXCLUDED is still forked with its blocker cited (assert BOTH directions, exactly as `tests/test_rununify_lift.py` does, so an exclusion cannot be "finished" by a later reader counting definitions). **THEN RE-BASE THE PIN TABLES IN ALL FOUR FILES THAT CARRY THEM, NOT ONE.** The authored item named one file and one symbol pair; measured at review, `STILL_DOUBLE_DEFINED` tables live in FOUR files and each asserts `assertFalse(is_pure_delegation(...))` for every name it pins, so the FIRST lift turns a green suite red in a file the executor was never told to touch. This plan's symbols, per file:
+  - `tests/test_rununify_initialize_run.py:159` -> `enforce_dependency_preflight`, `expand_selectors`
+  - `tests/test_rununify_execute_item.py:52` -> `_record_forced_stop`, `reconcile_disposition`, `route_recovery_turn`
+  - `tests/test_rununify_run_queue.py:58` -> `reclaim_lanes_on_interrupt`, `reconcile_interrupted`, `retry_deferred_integrations`
+  - `tests/test_rununify_build_parser.py:95` -> `_add_output_mode_flags`
+  Move each LIFTED name to `THIN_WRAPPERS_OVER_RUNNER_SHARED` (or delete the row when the host holds no definition at all) with the reason recorded in the SAME change, per the maintainer's 2026-09-16 re-base-deliberately rule; leave every EXCLUDED name where it is. TWO FURTHER ASSERTIONS MUST MOVE WITH THIS ITEM: `tests/test_rununify_build_parser.py:373` asserts the two `_add_output_mode_flags` bodies still DIFFER (a lift makes that false by design), and `tests/test_orchestrator_probe_cache.py:1238` pins the oc-to-agy import count at EXACTLY `53`, which E-03 necessarily reduces; re-measure it and record the delta with the note that assertion's own message prescribes.
+  - Depends on: E-03, E-05, E-07
+  - Expected outcome: the new guard shown green AND shown to FAIL against an introduced re-fork; the four pin-table diffs with a per-entry reason; the `_add_output_mode_flags` differ-assertion re-based; the import baseline re-measured from 53 with the delta named symbol by symbol; and the excluded set asserted as still-forked so it cannot be silently finished.
+  - Execution state: pending
+
+- [ ] E-07 NAME THE RESIDUE AS A DELIVERABLE RATHER THAN SILENTLY MISSING IT, and do not lift a closure-blocked symbol to hit a count. This item exists because the plan promised "all twelve" while three of them cannot be lifted without either breaking prompt suppression in an unattended run or reversing a settled ruling. For EACH symbol not resolved to one definition, record: the symbol, the blocker, the citation, and what would have to change first. The known three at review are `_lane_reclaim_prompt` and `reclaim_lanes_on_interrupt` (open backlog `8hx3g3`: `_LANE_PROMPT_DISABLED` is module-level MUTABLE state that the permanently-unmovable `disable_lane_prompt` writes; the remedy is a DESIGN change `runner_shared`'s own docstring forbids the naive form of) and `enforce_dependency_preflight` (`rununify` 02 SETTLED it as "KEEP, narrowed"; agy's body is a deliberate exception-translation guard, similarity 0.28). DO NOT attempt the `8hx3g3` design change here: it is an open backlog item about a live interrupt path, it has no approved design, and it is out of this fence. If E-01's closure scan clears one of them after all, say so with the measurement rather than assuming this list is complete.
+  - Depends on: E-01
+  - Expected outcome: a written residue table (symbol, blocker, citation, prerequisite) covering every one of the twelve not resolved to one definition, PLUS the explicit statement that the Set's "only the five large functions remain forked" criterion is NOT met by this plan and by how much, so the parent's E-01 cannot record a false result. Any newly discovered blocker filed as a backlog item rather than left in this plan's prose.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
 ## Project conventions discovered (Step 0)
 
-- `runner_shared.HostLabels` (`runner_shared.py:8530`) is the ESTABLISHED seam for host-varying values: a
+- `runner_shared.HostLabels` (`runner_shared.py:9384`, CORRECTED AT REVIEW from `:8530`) is the ESTABLISHED seam for host-varying values: a
   `NamedTuple` with NO DEFAULTS, carrying `command`, `review_command`, `argv_tokens`, `argv_subcommands`,
   `product`, `report_title`, `shell_tool`, and the capability flag `emits_launch_identity`. Its docstring
   states the rule this plan must honor: every field is justified by a named call site, and a mapping with
@@ -96,7 +144,25 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
   deliberately as part of the work, never weakened silently. E-02 and E-06 are such re-bases, and E-02 is
   a STRENGTHENING.
 - `test_no_runner_to_runner_import` is currently VACUOUS for the symbol-level import form; the evasion is
-  documented in a comment at `agy_runipd.py:1609` that concedes the coupling is identical either way.
+  documented in a comment at `agy_runipd.py:1638-1643` (CORRECTED AT REVIEW from `:1609`) that concedes the
+  coupling is identical either way. I ran the guard GREEN with all 53 imports present.
+- THE `INJECTED` WRAPPER IS A MAINTAINER RULING, NOT LEFTOVER DUPLICATION (`818uru` OQ-02, quoted in
+  `runner_shared.run_checked`'s docstring, asserted by `SingleDefinitionTests`): `runner_shared` owns the
+  real function and each host keeps a ONE-LINE wrapper binding a host-specific dependency. Two alternatives
+  were considered and REJECTED (threading a parameter through ~86 call sites; a registration seam whose
+  global state makes behavior depend on import order). E-05's two symbols fit this shape, not `HostLabels`.
+- `runner_shared` MAY HOLD NO MODULE-LEVEL MUTABLE STATE (its own docstring), which is why the
+  `_LANE_PROMPT_DISABLED` flag cannot simply be moved there and why `8hx3g3` calls its remedy a design act.
+- A SYMBOL EXCLUDED FROM A LIFT MUST BE ASSERTED AS EXCLUDED, both directions. `tests/test_rununify_lift.py`
+  is the established precedent and states the reason in its own module docstring: a one-directional suite
+  lets a later agent delete a deliberate wrapper, watch every test pass, and reverse a ruling. E-06 follows
+  it, and E-07 supplies the reasons it cites.
+- THE SUITE BASELINE DEPENDS ON `AW_EXECUTION_ROLE`, and neither measurement matches this plan's authored
+  `7825 passed, 3 skipped, 2 xfailed`. Measured at review HEAD `0e9068dd`: `32 failed, 7936 passed, 3
+  skipped, 2 xfailed` in a managed worker lane (`AW_EXECUTION_ROLE=worker`, which `ipd_lifecycle` and the
+  driver-integration tests deliberately refuse under), and `7968 passed, 3 skipped, 2 xfailed` with
+  `env -u AW_EXECUTION_ROLE`. Gate on NO NEW failures against a like-for-like baseline taken the same way,
+  state which form you ran, and do NOT "fix" the 32 role-refusal tests.
 - The execution contract forbids `git add -A` and pushing; commit only declared `Scope-Paths`.
 
 ## Findings
@@ -105,22 +171,41 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 |---|---|---|
 | F-1 | 12 symbols are defined in both runners with differing bodies, 488 oc lines | AST scan at HEAD 2026-09-17 |
 | F-2 | 7 of the 12 are near-identical (ratio >0.9, no host token in code), i.e. drift not capability | `expand_selectors` 90/90, `reclaim_lanes_on_interrupt` 60/60, `reconcile_disposition` 47/45, `_lane_reclaim_prompt` 37/37, `reconcile_interrupted` 37/37, `_add_output_mode_flags` 6/6 |
-| F-3 | 3 are agy STUBS importing the real body from `oc_runipd`, so the antigravity runner depends on the opencode runner | `agy_runipd.py:2444`, `:2454`, `:2466`, each `from agent_workflows.oc_runipd import <name> as _shared` |
-| F-4 | The runner-to-runner guard is VACUOUS for that import form | `test_review_findings_cascade.py:312-313` asserts only `assertNotIn("import oc_runipd", agy_src)`; the symbol-level spelling does not contain it. 9 such imports exist and the guard passes |
-| F-5 | The evasion is deliberate and self-documented, conceding the coupling is unchanged | `agy_runipd.py:1609-1614`: "the import FORM is deliberate ... The coupling is identical either way" |
-| F-6 | Only 2 of the 12 genuinely differ, and one differs partly by LABEL text the descriptor already carries | `retry_deferred_integrations` 70/49 contains `aw agy`; `HostLabels.command` exists to supply exactly that |
-| F-7 | 2 of the 12 are pinned as forked by an existing guard and must be re-based in the same change | `STILL_DOUBLE_DEFINED` contains `expand_selectors` and `enforce_dependency_preflight` (`tests/test_rununify_initialize_run.py:159`) |
-| F-8 | After this plan the only remaining fork is the five large functions | 34 forks today: 17 (Order 01) + 12 (this plan) + 5 large |
+| F-3 | 3 are agy STUBS importing the real body from `oc_runipd`, so the antigravity runner depends on the opencode runner | **LINES CORRECTED AT REVIEW:** `agy_runipd.py:2473`, `:2483`, `:2495` (authored as `:2444`/`:2454`/`:2466`), each `from agent_workflows.oc_runipd import <name> as _shared` |
+| F-4 | The runner-to-runner guard is VACUOUS for that import form | `test_review_findings_cascade.py:312-313` asserts only `assertNotIn("import oc_runipd", agy_src)`; the symbol-level spelling does not contain it. **CORRECTED: 8 `ImportFrom` statements binding 53 NAMES, not "9 imports"** (the 9th grep hit at `:1638` is the explanatory comment). Guard run GREEN at review with all 53 present |
+| F-5 | The evasion is deliberate and self-documented, conceding the coupling is unchanged | `agy_runipd.py:1638-1643` (authored as `:1609-1614`): "the import FORM is deliberate ... The coupling is identical either way" |
+| F-6 | ~~one of the two genuine differences is LABEL text the descriptor already carries~~ **FALSE, CORRECTED AT REVIEW** | `retry_deferred_integrations`'s `aw agy` token is in its DOCSTRING, not in code. Normalized with docstrings stripped, the two bodies differ in ONE executable line: `dict(item)` vs `item`. `HostLabels.command` is not what carries this; the host-varying merge label already arrives via each host's `integrate_lane_branch` wrapper |
+| F-7 | ~~2 of the 12 are pinned as forked in ONE guard file~~ **UNDERCOUNTS BY THREE FILES, CORRECTED AT REVIEW** | `STILL_DOUBLE_DEFINED` tables live in FOUR files and hold NINE of this plan's twelve: `test_rununify_initialize_run.py:159` (2), `test_rununify_execute_item.py:52` (3), `test_rununify_run_queue.py:58` (3), `test_rununify_build_parser.py:95` (1). Each asserts `assertFalse(is_pure_delegation(...))`, so the first lift fails a guard in an undeclared file |
+| F-8 | ~~After this plan the only remaining fork is the five large functions~~ **NOT ACHIEVABLE, CORRECTED AT REVIEW** | Three of the twelve cannot be lifted: `_lane_reclaim_prompt` and `reclaim_lanes_on_interrupt` are blocked by open backlog `8hx3g3` (module-level mutable `_LANE_PROMPT_DISABLED` written by the permanently-unmovable `disable_lane_prompt`), and `enforce_dependency_preflight` is settled as "KEEP, narrowed". So the residue after this plan is 5 large + at least 3, which E-07 must state so the parent's E-01 cannot record a false result |
+
+### Findings added by the 2026-09-17 plan review
+
+| id | sev | where | finding |
+|---|---|---|---|
+| F-9 | HIGH | the Concern's shape partition | **THE "SEVEN NEAR-IDENTICAL" LIST NAMES SIX, AND THE MISSING SEVENTH IS NOT DRIFT.** The enumerated six are `expand_selectors` 90/90, `reclaim_lanes_on_interrupt` 60/60, `reconcile_disposition` 47/45, `_lane_reclaim_prompt` 37/37, `reconcile_interrupted` 37/37, `_add_output_mode_flags` 6/6. Subtracting the 3 stubs and the 2 genuine from 12 leaves `enforce_dependency_preflight`, whose similarity is 0.28 (the second-lowest of the twelve) and whose fate this plan's own OQ-03 quotes as "SETTLED ... KEEP, narrowed". The partition claim "ratio >0.9, no host token in code" is true of the six and false of the seventh. |
+| F-10 | BLOCKER | E-04's set; `8hx3g3`; `tests/test_runner_shared.py::UnmovableSymbolTests` | **TWO OF THE SIX DRIFTED SYMBOLS CANNOT BE LIFTED, AND LIFTING ONE SILENTLY BREAKS AN UNATTENDED RUN.** `_lane_reclaim_prompt` reads the module-level MUTABLE `_LANE_PROMPT_DISABLED` that the permanently-unmovable `disable_lane_prompt` writes through `global`; a shared reader consults `runner_shared._LANE_PROMPT_DISABLED`, which no host sets, so prompt suppression on a repeated interrupt stops working with no error naming the cause. `reclaim_lanes_on_interrupt` calls both and is transitively blocked. Open backlog `8hx3g3` documents exactly this deadlock, names both symbols, and states the remedy is a DESIGN act; `runner_shared`'s own docstring independently forbids the naive fix (no module-level mutable state) and records that a registration seam was already DECLINED by the maintainer. |
+| F-11 | BLOCKER | E-02's direction; `tests/test_runner_item_dependencies.py::CrossDriverSymmetryTests` | **A GUARD BANNING THE COUPLING WOULD DEMAND THIS PLAN DELETE ANOTHER SET'S WORK.** 44 of the 53 imported names are deliberate `as <same-name>` re-exports installed by executed plans `8guhs0`, `zhr6mc` and `st5klo`; 12 are pinned by OBJECT IDENTITY in `_SHARED_NAMES` whose whole purpose is that agy must BIND rather than COPY them, and `cnwy8g` records that `ruff --fix` already deleted 6 of them once. E-03 as authored says "re-point the remaining runner-to-runner imports the E-02 guard names, or record per import why it must stay", i.e. 44 justifications or 44 relocations, inside a fence that declares neither `test_runner_item_dependencies.py` nor the `runnerlayer` plans that own the work (`9kmbr0`, `1f7xno`, both `approved`, both `- From-Backlog: cnwy8g`). |
+| F-12 | HIGH | `- Scope-Paths:` as authored | **THE FENCE OMITTED SEVEN FILES THE CHANGE MUST EDIT.** Named here rather than discovered at finalize: `test_rununify_execute_item.py`, `test_rununify_run_queue.py`, `test_rununify_build_parser.py` (pin tables, F-7); `test_resumedupe.py` (its `test_the_antigravity_twin_never_holds_a_second_implementation` accepts E-03's three symbols ONLY as a delegating stub or as a `_LIFTED_TO_RUNNER_SHARED` entry, and it AST-parses `_lane_commit_subjects` out of oc's source at `:314-318`); `test_orchestrator_probe_cache.py:1238` (pins the import count at EXACTLY 53, which E-03 reduces); `test_runner_shared.py:3527`/`:3531`/`:3783` (three `getsource` pins on `retry_deferred_integrations`); `test_review_lane_isolation.py:1155` (a `getsource` pin on `reclaim_lanes_on_interrupt`). All added. |
+| F-13 | HIGH | E-03's closure | **THE THREE STUBS' REAL BODIES CLOSE OVER FIVE `oc_runipd`-ONLY NAMES, WHICH AGY DOES NOT IMPORT.** `classify_recovery_disposition` reaches `RecoveryDisposition`, `DISPOSITION_FRESH_EXECUTION`, `DISPOSITION_UNDETERMINED`, `DISPOSITION_VERIFY_AND_CONTINUE` and `_lane_commit_subjects`; `route_recovery_turn` reaches two of those plus the wrapper-form `save_state`. None resolves in `runner_shared` today (measured), so a naive move raises `NameError` at import, and 15 assertions in `test_resumedupe.py` read `OC.DISPOSITION_*` so oc must keep re-exporting them. |
+| F-14 | MEDIUM | E-04's oc-preferred instruction | **THREE DIFFERENCES ARE DELIBERATE DEFENSIVE FORMS, AND "RECONCILE TO OC" REINTRODUCES A `KeyError` AN EXECUTED PLAN AVOIDED.** agy uses `item.get("configured_file", "")` in `reconcile_disposition` and `reconcile_interrupted`, and `dict(item)` in `retry_deferred_integrations`, where oc indexes directly. `i3d6ml` F-5/F-13 record the measured reason (a queue entry frozen by an older driver and then resumed lacks the key; oc itself hedges 9 of its own 13 call sites). Applying the oc-preferred ruling blindly here is a regression, not a reconciliation. |
+| F-15 | MEDIUM | E-05's premises | **NEITHER "GENUINE DIFFERENCE" IS WHAT THE PLAN SAYS.** Normalized with docstrings stripped, `retry_deferred_integrations` differs in ONE executable line (`dict(item)` vs `item`, i.e. F-14's defensive form) and `_record_forced_stop` differs in ONE line that is a QUOTED TYPE ANNOTATION (`stop: runner_stop.StopNowForce` vs `stop: "runner_stop.StopNowForce"`), which is not a behavior difference at all. Their real host-varying content is CALLEES (`integrate_lane_branch`, `git_status`, `save_state`), i.e. the `INJECTED` wrapper shape, not a `HostLabels` case. |
+| F-16 | MEDIUM | `## Required tests / validation` | **THE PINNED SUITE BASELINE MATCHES NEITHER MEASUREMENT.** Authored as `7825 passed, 3 skipped, 2 xfailed`; measured at review `32 failed, 7936 passed` in a managed worker lane and `7968 passed` with `env -u AW_EXECUTION_ROLE`. An executor in a worker lane would either record a false failure or "fix" 32 tests that refuse by design. |
+| F-17 | LOW | `_add_output_mode_flags` | **ITS DIFFERENCE IS OPERATOR-VISIBLE HELP TEXT, so a lift changes one host's `--help`.** oc says `--raw ... (legacy behavior)` and `-v ... with line ranges and hit counts / -vv ... diff hunks and diagnostics`; agy says `-v ... -vv also shows raw tool parameters`. Whichever body wins, the other host's documented CLI text changes, and `tests/test_rununify_build_parser.py:373` currently ASSERTS the two bodies differ. |
 
 ## Proposed changes (ordered, validatable)
 
-1. Re-measure and classify the twelve into the three shapes (E-01).
-2. Strengthen the runner-to-runner guard to ban the coupling rather than one spelling (E-02), accepting a
-   red baseline of 9 imports.
-3. Move the three stub bodies to `runner_shared` and clear the remaining runner-to-runner imports (E-03).
-4. Reconcile the seven drifted symbols to one definition, stating per difference what was reconciled (E-04).
-5. Express the two genuine differences through `HostLabels` (E-05).
-6. Guard the whole set against re-forking and re-base the existing pin tables (E-06).
+1. Re-measure and classify the twelve into the three shapes AND scan the closure of each (E-01).
+2. Strengthen the runner-to-runner guard as a NAMED RATCHET over this plan's three symbols, not a blanket
+   ban (E-02), shown failing on exactly those three and green on the 44 pinned re-exports.
+3. Move the three stub bodies plus their five closure names to `runner_shared`, extend
+   `_LIFTED_TO_RUNNER_SHARED`, and re-base the `_lane_commit_subjects` source pin (E-03). Do NOT touch the
+   other runner-to-runner imports; `cnwy8g` / `runnerlayer` owns those.
+4. Reconcile the drifted symbols the closure cleared (realistically four, not seven), preserving the three
+   defensive forms and disclosing the help-text change (E-04).
+5. Unify the two one-line-different symbols through the established `INJECTED` wrapper shape, or a
+   `HostLabels` field only with a named consumer (E-05).
+6. Name the residue as a deliverable, with the blocker cited per symbol (E-07).
+7. Guard both directions and re-base the pin tables in all FOUR files plus the import baseline (E-06).
 
 ## Deferred / out of scope (with reason)
 
@@ -132,20 +217,50 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 - Widening `HostLabels` into a general host-options bag is out of scope: the descriptor's own docstring
   rejects that shape, and `orziju` measured why (a 13-of-23 host-specific `options` dict is not worth
   sharing as a unit).
+- **THE `8hx3g3` DESIGN CHANGE (added at review).** Making `_lane_reclaim_prompt` and
+  `disable_lane_prompt` share requires the suppression flag to stop being module-level mutable state
+  (a parameter, a run-scoped object, or a small class). That is a design decision about a live interrupt
+  path, it is an OPEN backlog item with no approved design, and `runner_shared`'s docstring records that the
+  obvious alternative (a registration seam) was already DECLINED by the maintainer. Attempting it inside a
+  de-duplication plan is how a guarded exclusion gets silently reversed. So `_lane_reclaim_prompt` and
+  `reclaim_lanes_on_interrupt` are EXCLUDED and named by E-07; OQ-04 asks the maintainer whether to
+  graduate `8hx3g3` first instead.
+- **`enforce_dependency_preflight` (added at review).** Its fate is already SETTLED as "KEEP, narrowed"
+  (`rununify` 02), its agy body is a deliberate exception-translation guard with a 12-line rationale, and
+  its similarity is 0.28. Reopening a settled ruling to hit a count of twelve is not in scope.
+- **REDUCING THE 53-NAME oc-to-agy IMPORT COUPLING (added at review).** Owned by backlog `cnwy8g` and its
+  graduated Set `runnerlayer` (`9kmbr0` classify, `1f7xno` re-home), both `approved` and unexecuted. This
+  plan removes only the 3 (of 53) that are its OWN symbols and must not delete a pinned re-export.
 
 ## Scope check
 
-- Over-scope: arguably E-02, which strengthens a guard rather than de-duplicating. Included deliberately:
-  without it, E-03's result is reversible by the same spelling that produced the defect, so the fix would
-  not hold.
-- Under-scope: the five large functions remain forked after this plan, by design.
+- Over-scope: arguably E-02, which strengthens a guard rather than de-duplicating. Included deliberately
+  but NARROWED AT REVIEW to a named ratchet over this plan's three symbols: without it, E-03's result is
+  reversible by the same spelling that produced the defect, so the fix would not hold; with the blanket
+  form it would collide with `cnwy8g`'s Set and demand deletion of 44 pinned re-exports.
+- Under-scope: the five large functions remain forked after this plan, by design. **CORRECTED AT REVIEW: so
+  do at least THREE of this plan's own twelve** (`_lane_reclaim_prompt`, `reclaim_lanes_on_interrupt`,
+  `enforce_dependency_preflight`), for the reasons in the Goal table. E-07 exists so that residue is a
+  stated deliverable rather than a silent shortfall, since the parent Set's completion criterion reads
+  "the forked-symbol count has fallen from 34 to the five large functions alone" and this plan alone cannot
+  deliver it.
 
 ## Required tests / validation
 
-- `python3 -m pytest` bare and green with the summary line pasted (authoring baseline `7825 passed, 3
-  skipped, 2 xfailed`).
-- The E-02 guard shown RED at HEAD (with the 9 imports named) and GREEN after E-03.
-- Per-symbol evidence that each of the twelve resolves to one definition.
+- `python3 -m pytest` bare, with the invocation FORM stated and a like-for-like PRE-work baseline pasted
+  beside the post-work run. **THE AUTHORED BASELINE `7825 passed, 3 skipped, 2 xfailed` IS WRONG and is
+  superseded by two review measurements at HEAD `0e9068dd`: `32 failed, 7936 passed, 3 skipped, 2 xfailed`
+  in a managed worker lane (`AW_EXECUTION_ROLE=worker`) and `7968 passed, 3 skipped, 2 xfailed` with
+  `env -u AW_EXECUTION_ROLE`.** Gate on NO NEW failures against the baseline taken the same way. Do NOT
+  "fix" the 32 role-refusal tests; they refuse by design.
+- The E-02 guard shown RED at HEAD naming exactly the three symbol-level stub imports (`agy_runipd.py:2473`,
+  `:2483`, `:2495`) and GREEN after E-03, AND shown NOT to fire on the 44 pinned re-exports, with
+  `tests/test_runner_item_dependencies.py::CrossDriverSymmetryTests` run green in the same pass.
+- Per-symbol evidence that each symbol this plan MOVED resolves to one definition, AND per-symbol evidence
+  (with citation) for each one it deliberately did NOT, so the two sets together account for all twelve.
+- The four `STILL_DOUBLE_DEFINED` pin files run TOGETHER and green after the re-base, plus
+  `tests/test_resumedupe.py`, `tests/test_orchestrator_probe_cache.py`, `tests/test_runner_shared.py` and
+  `tests/test_review_lane_isolation.py`, each of which carries an assertion this plan moves.
 - A real driver execution on BOTH hosts if reachable; at minimum on `oc`, since E-04/E-05 touch recovery,
   stop and integration-retry paths that unit tests exercise only partially.
 
@@ -156,6 +271,14 @@ intended to preserve behavior exactly while unifying implementations. If E-04 or
 hosts genuinely BEHAVE differently in a way the spec addresses, that is a spec question: stop and record it
 as a blocking open question rather than choosing a winner, since resolving a host behavior difference by
 fiat would change a shipped contract.
+
+VERIFIED AT REVIEW 2026-09-17, so the executor does not re-derive it: spec `25kzda` is `Status: approved`
+and I searched its recovery, forced-stop and deferred-integration sections; it asserts nothing about either
+host's `--help` strings or about `.get` hedging on `configured_file`, so the two behavior-visible items this
+review surfaced are NOT spec rows and need no amendment. They must still be DISCLOSED in the execution
+report rather than absorbed: `_add_output_mode_flags`'s `--raw`/`--verbose` help text changes on one host
+(F-17), and E-04's defensive-form decision affects a resume path (F-14). The stop-and-record instruction
+above stands unchanged for anything `25kzda` does address.
 
 ## Open questions
 
@@ -168,6 +291,13 @@ fiat would change a shipped contract.
   the inverted imports; the guard as written would permit them straight back, since it bans a SPELLING and
   not the coupling. Leaving that open would make the de-duplication cosmetic. Scoped narrowly: E-02 changes
   the guard's predicate, not the runners.
+  **NARROWED AT REVIEW 2026-09-17, and the narrowing is the load-bearing part.** "Ban the coupling rather
+  than one spelling" is the right instinct and the wrong scope: 44 of the 53 imported names are deliberate
+  `as <same-name>` re-exports pinned by object identity in `CrossDriverSymmetryTests`, so a blanket ban
+  fires on work three EXECUTED plans installed on purpose and that `cnwy8g`'s Set is `approved` to re-home
+  properly. The in-scope answer is a NAMED RATCHET over the symbols this plan lifts (plus already-lifted
+  `resolve_prior_lane`), with the assertion message naming `cnwy8g`/`9kmbr0`/`1f7xno` as the owner of the
+  general case so the next reader does not "finish" it by deleting a pinned re-export. See F-11 and OQ-05.
 
 ### OQ-02: What if reconciling a drifted symbol reveals the two hosts genuinely behave differently?
 
@@ -181,17 +311,82 @@ fiat would change a shipped contract.
   `25kzda` governs, E-04 stops and records a blocking question instead, because collapsing a shipped
   behavior difference by fiat would silently change a contract.
 
-### OQ-03: Are the 9 runner-to-runner imports all removable, or will some need an exception?
+### OQ-03: Are the runner-to-runner imports all removable, or will some need an exception?
 
 - Blocking: no
-- Status: open
-- Owner: Order 02 E-03
+- Status: resolved
+- Owner: none
 - Resolution or deferral rationale: UNKNOWN at authoring, and deliberately not assumed. Three are the
   stubs this plan moves. The other six were not individually analyzed, and at least one
-  (`enforce_dependency_preflight`, `agy_runipd.py:1615`) is documented as having had its fate "SETTLED" by
+  (`enforce_dependency_preflight`, `agy_runipd.py:1629`) is documented as having had its fate "SETTLED" by
   `rununify` 02 with the answer "KEEP, narrowed", so it may have a reason to remain. E-03 therefore
   permits a justified exception list rather than requiring zero; what it does not permit is an
   unexamined import.
+  **RESOLVED AT REVIEW 2026-09-17 BY MEASUREMENT, and the premise was wrong twice.** FIRST, the unit is not
+  "9 imports": an AST walk finds 8 `ImportFrom` statements binding 53 NAMES (the 9th grep hit at
+  `agy_runipd.py:1638` is the explanatory comment, not an import). SECOND, the answer is NOT "removable
+  or exception" per import: 44 of the 53 are DELIBERATE re-exports installed by executed plans `8guhs0`,
+  `zhr6mc` and `st5klo`, 12 of them pinned by OBJECT IDENTITY in `_SHARED_NAMES` precisely so agy BINDS
+  rather than COPIES them, and `cnwy8g` records that `ruff --fix` deleted 6 of them once already. Their
+  removal is a RE-HOMING into `runner_shared`, which is `cnwy8g`'s scope and is already `approved` as
+  `runnerlayer` `9kmbr0` + `1f7xno`. So this plan removes exactly the 3 that are its own symbols, declares
+  the other 50 out of scope with the owner named, and E-02 becomes a named ratchet rather than a blanket ban.
+  The sequencing question that remains (run this plan before or after `runnerlayer`) is OQ-05.
+
+### OQ-04: Three of the twelve cannot be lifted. Exclude and record, or graduate `8hx3g3` first?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-001
+- Resolution or deferral rationale: RAISED AT REVIEW 2026-09-17 and BLOCKING, because the plan's stated
+  Scope ("Resolve all twelve to ONE definition") is not achievable and the two ways of proceeding differ in
+  what they cost. THE FACTS, measured: `_lane_reclaim_prompt` READS the module-level MUTABLE
+  `_LANE_PROMPT_DISABLED` that `disable_lane_prompt` WRITES through `global`; `disable_lane_prompt` is
+  PERMANENTLY unmovable, pinned by `tests/test_runner_shared.py::UnmovableSymbolTests` and documented twice
+  in `runner_shared` (`:106-107`, `:759-760`); `runner_shared` defines neither the flag nor the reader
+  (verified by `hasattr`); and `reclaim_lanes_on_interrupt` calls both, so it is transitively blocked. Open
+  backlog `8hx3g3` describes this EXACT deadlock, names both symbols as its scope, and states the remedy is
+  a DESIGN act (stop the flag being module-level mutable state), which `runner_shared`'s own "no
+  module-level mutable state" rule independently forbids the naive form of and for which the maintainer has
+  already DECLINED a registration seam. Separately, `enforce_dependency_preflight` is settled as "KEEP,
+  narrowed" at similarity 0.28.
+  THE TWO ROUTES. (a) EXCLUDE AND RECORD: execute this plan on the symbols the closure clears (realistically
+  4 drifted + 3 stubs + 2 one-line-different = 9 of 12), and make the residue a named deliverable (E-07).
+  Cost: the parent Set's criterion "the forked count has fallen from 34 to the five large functions alone"
+  is NOT met, and `a5wdne` E-01 must record that honestly rather than as a pass. (b) GRADUATE `8hx3g3`
+  FIRST as its own plan (it is an open, unassigned backlog item), then re-run this plan's E-04 over the two
+  freed symbols. Cost: one more plan and a design decision on a live interrupt path before any of this
+  Set's Order 02 work lands.
+  WHY I DID NOT DECIDE IT: choosing (b) reorders an approved Set and creates a plan; choosing (a) knowingly
+  leaves the parent's headline criterion unmet. Both are scope calls that belong to the maintainer. What I
+  DID do is make (a) safe to execute if chosen: E-07 turns the residue into a stated deliverable, E-06
+  asserts the exclusions in the inverse direction so nobody "finishes" them by counting definitions, and
+  the Goal names each blocker with its citation.
+
+### OQ-05: Does this plan run before or after `runnerlayer` (`9kmbr0` + `1f7xno`), which owns the 53-name coupling?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-002
+- Resolution or deferral rationale: RAISED AT REVIEW 2026-09-17 and BLOCKING, because the two Sets edit the
+  same import block for the same reason under different authority and the plan declares no edge either way.
+  THE FACTS: backlog `cnwy8g` (`graduated`) is the record for "agy_runipd imports N names from oc_runipd, so
+  the hosts are not peers"; it graduated into `runnerlayer` Order 01 `9kmbr0` (classify all 47/48 against a
+  stated criterion and FREEZE the set so accretion fails a test) and Order 02 `1f7xno` (re-home the
+  host-neutral names in reviewable batches, preserving the `as <same-name>` form). BOTH are `Status:
+  approved`, `Readiness: go-pending-approval`, and unexecuted. This plan's E-02/E-03 as authored would
+  re-point "the remaining runner-to-runner imports", i.e. do `1f7xno`'s job with none of its guards, and its
+  fence declares neither `tests/test_runner_layering.py` nor `tests/test_runner_refork_guard.py` which
+  `1f7xno` uses to register a re-homed name.
+  THE ROUTES. (a) THIS PLAN FIRST, narrowed to its own 3 symbols (what the review has now written), and
+  `9kmbr0` re-measures the count afterwards: its own Concern already says "DERIVE THE COUNT BY AST AT
+  EXECUTION TIME and treat every number in this plan as prose", so a 53 -> 50 change costs it nothing.
+  (b) `runnerlayer` FIRST, after which this plan's three stubs may already be re-homed and E-03 shrinks or
+  vanishes. (c) DECLARE AN EXPLICIT `- Item-Dependencies:` edge in one direction so the runner enforces it.
+  I have written the plan for (a) and made the collision visible, but declaring a cross-Set dependency edge
+  changes another approved Set's queue position, which is not mine to do.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -199,56 +394,131 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-01 validates E-01
   - Required evidence: the per-symbol classification pasted, with length pairs and code-vs-prose host-token
-    findings, compared against the 2026-09-17 baseline (7 / 3 / 2, 488 oc lines).
+    findings, compared against the review-verified baseline (12 symbols; shape split 6 near-identical + 3
+    agy-stub + 2 genuine + 1 settled-exception, NOT the authored 7/3/2; 488 oc lines by raw `ast.unparse`
+    count). PLUS the CLOSURE TABLE for all twelve, every free name classified (a) resolves in
+    `runner_shared`, (b) equal-valued, (c) host-divergent, (d) module-level MUTABLE state. A classification
+    with no closure table does NOT satisfy this item: body similarity is not liftability, and that is the
+    error that cost siblings `i44r9` and `i3d6ml` a review round each. The scanner used must be the
+    committed one with its metric stated.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: the strengthened guard's FAILURE output at HEAD, naming the 9 runner-to-runner
-    imports. A guard that is green before E-03 has not been strengthened.
+  - Required evidence: the strengthened guard's FAILURE output at HEAD naming EXACTLY the three symbol-level
+    stub imports (`agy_runipd.py:2473`, `:2483`, `:2495`), plus `resolve_prior_lane` if it has regressed. A
+    guard that is green before E-03 has not been strengthened; a guard RED on all 53 names has been
+    mis-scoped and fails this item, because 44 of them are pinned re-exports another Set owns. ALSO required:
+    `python3 -m pytest tests/test_runner_item_dependencies.py -k CrossDriverSymmetry` green in the same pass,
+    pasted, proving the ratchet does not fire on the pinned re-exports.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: the guard GREEN, plus `grep` evidence of zero remaining
-    `from agent_workflows.oc_runipd import` occurrences in `agy_runipd.py`, or the justified exception list
-    with a per-import reason.
+  - Required evidence: the guard GREEN; `oc.X is agy.X is runner_shared.X` shown for all three symbols;
+    `agy_runipd` shown to hold no top-level definition of them. PLUS the disposition of the five closure
+    names (`RecoveryDisposition`, the three `DISPOSITION_*` constants, `_lane_commit_subjects`) stated per
+    name; `_LIFTED_TO_RUNNER_SHARED` shown extended; the `_lane_commit_subjects` source pin shown re-based;
+    and `python3 -m pytest tests/test_resumedupe.py` green, pasted. Do NOT paste `grep` evidence of "zero
+    remaining `from agent_workflows.oc_runipd import`" as the pass criterion: 50 such bindings legitimately
+    REMAIN and are `cnwy8g`'s scope, so zero would mean this plan deleted another Set's work.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: for each of the seven, the two-body diff and a written verdict (drift reconciled to
-    oc, or real difference preserved via the descriptor). Plus one-definition evidence per symbol. A
-    symbol reconciled with no stated verdict fails this item.
+  - Required evidence: for each symbol lifted, the two-body diff and a written verdict (drift reconciled to
+    oc, or real difference preserved). Plus one-definition evidence per symbol, the COUNT stated, and every
+    symbol E-01 held back NAMED. A symbol reconciled with no stated verdict fails this item. SPECIFICALLY
+    required: the three defensive forms (`item.get("configured_file", "")` in `reconcile_disposition` and
+    `reconcile_interrupted`, `dict(item)` in `retry_deferred_integrations`) shown PRESERVED with the
+    `i3d6ml` F-5/F-13 citation, since blindly applying the oc-preferred ruling here reintroduces a
+    `KeyError` on a resume path; and the `--raw`/`--verbose` help-text change disclosed with BOTH hosts'
+    strings before and after.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: one-definition evidence for both symbols, the `HostLabels` values each host supplies,
-    and for any NEW field the named consumer that justifies it. Show `retry_deferred_integrations` producing
-    the correct per-host command text (`aw oc run` vs `aw agy run`) rather than a hardcoded one.
+  - Required evidence: one-definition evidence for both symbols; the single differing line named for each
+    (`dict(item)` vs `item`; the quoted vs unquoted `runner_stop.StopNowForce` annotation); the mechanism
+    stated (`INJECTED` wrapper vs a new `HostLabels` field) with its reason. If a NEW `HostLabels` field was
+    added, the named consumer that justifies it and BOTH hosts' bindings; if none was added, the explicit
+    statement that none was needed and why. Do NOT satisfy this item by showing
+    `retry_deferred_integrations` "producing the correct per-host command text": its `aw agy` token is in a
+    DOCSTRING, so there is no such code path, and the authored wording asked for evidence of something that
+    does not exist. Also required: the two `getsource` pins at `tests/test_runner_shared.py:3527`/`:3531`
+    shown re-based, with `python3 -m pytest tests/test_runner_shared.py` green and pasted.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-06 validates E-06
   - Required evidence: `python3 -m pytest tests/test_hostdedup_divergent_unify.py` green AND shown to fail
-    against an introduced re-fork; the pin-table diff with a per-entry reason; `python3 -m pytest` bare and
-    green with the summary line pasted; plus a real driver execution, since E-04/E-05 touch recovery, stop
-    and integration-retry paths.
+    against an introduced re-fork (paste the sabotage run too, since a guard never seen red is untested);
+    the pin-table diffs for ALL FOUR files with a per-entry reason; the `_add_output_mode_flags`
+    differ-assertion (`tests/test_rununify_build_parser.py:373`) re-based; the
+    `tests/test_orchestrator_probe_cache.py:1238` import baseline re-measured from 53 with the removed names
+    listed. The four pin files run TOGETHER and green. Then `python3 -m pytest` bare with the invocation FORM
+    stated and a like-for-like PRE-work baseline beside it (see Required tests: the authored `7825` figure is
+    wrong; use `32 failed, 7936 passed` for a worker lane or `7968 passed` with `env -u AW_EXECUTION_ROLE`),
+    gating on NO NEW failures. Plus a real driver execution, since E-04/E-05 touch recovery, stop and
+    integration-retry paths.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: the residue table pasted, with a row for EVERY one of the twelve not resolved to one
+    definition, each carrying its blocker, its in-tree citation, and the prerequisite that would unblock it.
+    The rows for `_lane_reclaim_prompt` / `reclaim_lanes_on_interrupt` must cite backlog `8hx3g3` and the
+    `UnmovableSymbolTests` pin; the row for `enforce_dependency_preflight` must cite the "SETTLED / KEEP,
+    narrowed" ruling. PLUS the explicit sentence stating that the parent Set's criterion "the forked-symbol
+    count has fallen from 34 to the five large functions alone" is NOT met by this plan, and the residual
+    count. An empty residue table is acceptable ONLY if E-01's closure scan measured every blocker cleared,
+    with that measurement pasted; it is NOT acceptable as an assumption.
   - Observed evidence:
   - Result: pending
 
 ## Approval and execution gate
 
 - Size assessment: standard
-- Cohesion rationale: not required
+- Cohesion rationale: not required (7 E-items in 4 task groups, under the 18-leaf / 5-group thresholds).
 
 This plan requires explicit human approval before execution. Unlike Order 01 it is NOT a pure move: E-04
 and E-05 reconcile real differences, so the executor must state per symbol what was reconciled and must
 stop rather than choose a winner where a difference looks like shipped behavior.
 
-Execution contract: work in an isolated worktree, commit only the declared `Scope-Paths`, path-scoped,
-never `git add -A`, never push. Paste ACTUAL runner output for every V-item.
+**DO NOT EXECUTE UNTIL OQ-04 AND OQ-05 ARE ANSWERED.** OQ-04 is the scope call the plan cannot make for
+itself: three of its twelve symbols are unliftable (two on open backlog `8hx3g3`, one on a settled ruling),
+so either the plan lands with a named residue and the parent Set's headline criterion goes unmet, or
+`8hx3g3` is graduated first. OQ-05 is the cross-Set collision: `runnerlayer` `9kmbr0` and `1f7xno` are
+`approved` and own the 53-name oc-to-agy coupling that E-02/E-03 touch, and no dependency edge is declared
+in either direction. Both are `Blocking: yes` and neither is an executor's judgement.
 
-Post-gate lifecycle: `aw ipd finalize` moves this plan to `.aw/records/plans/executed/` only after
-`aw ipd lint --phase pre-transition` conforms and every `V-*` carries observed evidence.
+EXECUTION CONTRACT. OQ-01, OQ-02 and OQ-03 are RESOLVED; execute their recorded answers and do not
+re-litigate them. Specifically: E-02 is a NAMED RATCHET over this plan's own symbols, NOT a blanket ban, and
+a guard that fires on the 44 pinned `as <same-name>` re-exports is mis-scoped, not strict. THE ONE THING
+THIS PLAN MUST NOT DO, stated because it is the shortest path to a count of twelve: do NOT lift
+`_lane_reclaim_prompt` or `reclaim_lanes_on_interrupt`. Doing so silently breaks prompt suppression on a
+repeated interrupt, whose only symptom is an unattended run pausing for a question nobody is there to
+answer, and it reverses a decision pinned in three places. A named exclusion is correct; a lift that hits
+the count is not. Equally, do NOT delete a `STILL_DOUBLE_DEFINED` row or a `getsource` pin to make a suite
+green: re-base it deliberately in the same change with the reason recorded, per the maintainer's 2026-09-16
+ruling.
+
+SCOPE FENCE: this plan declares thirteen paths; an out-of-scope edit must be MADE if genuinely required and
+then JUSTIFIED to `aw ipd finalize` with a `--scope-reason` per path, and a declared-but-unmodified path
+needs a `--scope-ack`. Do not stop over a scope question. A genuinely unsafe condition (an unresolvable
+concurrent-edit conflict, or `li44r9`'s symbols absent because Order 01 has not executed) IS a stop.
+
+HARD-MUST HONESTY RULE: paste the ACTUAL runner output for every `V-*`; never claim a test passed that you
+did not run. State the suite invocation FORM and paste a like-for-like PRE-work baseline beside the post-work
+run, since the authored `7825 passed` figure matches neither measurement.
+
+Work in an isolated worktree. Commit path-scoped (`git commit -m msg -- <paths>`), never `git add -A`, never
+push. This is a SHARED CHECKOUT and roughly 33 other pending plans declare these same runner files: before
+every commit run `git diff --cached --name-only` and unstage anything that is not yours with
+`git restore --staged <path>`, and re-verify after any failed hook.
+
+Post-gate lifecycle: the finalize obligation is unconditional, but its OWNER is conditional. Under
+`aw oc run` / `aw agy run` the RUNNER owns `aw ipd begin` and `aw ipd finalize`; a hand-executed run means
+the executor runs `aw ipd finalize` itself. Either way the plan reaches `.aw/records/plans/executed/` only
+after `aw ipd lint --phase pre-transition` conforms and every `V-*` carries real observed evidence. Never
+hand-roll a `git mv` to `executed/`.
