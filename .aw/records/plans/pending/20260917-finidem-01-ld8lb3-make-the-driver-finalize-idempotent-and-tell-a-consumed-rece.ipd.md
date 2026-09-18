@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_finidem_double_finalize.py, tests/test_ipd_lifecycle_cli.py
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - From-Backlog: 02371s
 - Set: finidem
 - Order: 1
