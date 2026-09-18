@@ -219,7 +219,7 @@ class AgySelfFinalizeTests(unittest.TestCase):
                 encoding="utf-8",
             )
             (run_dir / "outcomes" / "01-agy001-verification.json").write_text(
-                json.dumps({"verdict": "CONFORMING"}), encoding="utf-8"
+                json.dumps({"verdict": "VERIFIED"}), encoding="utf-8"
             )
 
             fin = []
@@ -272,7 +272,7 @@ class AgySelfFinalizeTests(unittest.TestCase):
                 encoding="utf-8",
             )
             (run_dir / "outcomes" / "01-agy001-verification.json").write_text(
-                json.dumps({"verdict": "CONFORMING"}), encoding="utf-8"
+                json.dumps({"verdict": "VERIFIED"}), encoding="utf-8"
             )
 
             with (
@@ -343,7 +343,7 @@ class AgyWorktreeIsolationTests(unittest.TestCase):
                     run_dir
                     / "outcomes"
                     / f"{item['position']:02d}-{item['id6']}-verification.json"
-                ).write_text(json.dumps({"verdict": "CONFORMING"}), encoding="utf-8")
+                ).write_text(json.dumps({"verdict": "VERIFIED"}), encoding="utf-8")
                 return 0, "vses", str(run_dir / "vlog"), ["agy"]
             wt = Path(work_dir)
             (wt / "src").mkdir(parents=True, exist_ok=True)
@@ -389,9 +389,7 @@ class AgyWorktreeIsolationTests(unittest.TestCase):
                         run_dir
                         / "outcomes"
                         / f"{item['position']:02d}-{item['id6']}-verification.json"
-                    ).write_text(
-                        json.dumps({"verdict": "CONFORMING"}), encoding="utf-8"
-                    )
+                    ).write_text(json.dumps({"verdict": "VERIFIED"}), encoding="utf-8")
                     return 0, "vses", str(run_dir / "vlog"), ["agy"]
                 observed["main_status"] = subprocess.run(
                     ["git", "status", "--short"],
@@ -577,7 +575,7 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
                     run_dir
                     / "outcomes"
                     / f"{item['position']:02d}-{item['id6']}-verification.json"
-                ).write_text(json.dumps({"verdict": "CONFORMING"}), encoding="utf-8")
+                ).write_text(json.dumps({"verdict": "VERIFIED"}), encoding="utf-8")
                 return 0, "vses", str(run_dir / "vlog"), ["agy"]
             wt = Path(work_dir)
             (wt / "src").mkdir(parents=True, exist_ok=True)
@@ -612,7 +610,7 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
                     run_dir
                     / "outcomes"
                     / f"{item['position']:02d}-{item['id6']}-verification.json"
-                ).write_text(json.dumps({"verdict": "CONFORMING"}), encoding="utf-8")
+                ).write_text(json.dumps({"verdict": "VERIFIED"}), encoding="utf-8")
                 return 0, "vses", str(run_dir / "vlog"), ["agy"]
             wt = Path(work_dir)
             (wt / "src").mkdir(parents=True, exist_ok=True)
@@ -657,7 +655,7 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
                     run_dir
                     / "outcomes"
                     / f"{item['position']:02d}-{item['id6']}-verification.json"
-                ).write_text(json.dumps({"verdict": "CONFORMING"}), encoding="utf-8")
+                ).write_text(json.dumps({"verdict": "VERIFIED"}), encoding="utf-8")
                 return 0, "vses", str(run_dir / "vlog"), ["agy"]
             wt = Path(work_dir)
             subprocess.run(["git", "mv", orig, dest], cwd=wt, check=True)
@@ -2114,6 +2112,69 @@ class AgyTelemetryWiringTests(unittest.TestCase):
                 self.assertEqual(event["position"], 5)
                 self.assertEqual(event["ipd_id6"], "agy001")
                 self.assertEqual(event["set_id"], "agyset")
+
+
+class ToolIdentityAbortsTests(unittest.TestCase):
+    """Regression test for tool identity abort (hp9rot E-04 / BUG-02)."""
+
+    def test_tool_identity_aborts(self):
+        """E-04: Mismatched child tool identity raises ToolIdentityError and terminates run immediately."""
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "agy001")
+            run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+            (run_dir / "outcomes").mkdir(parents=True)
+            (run_dir / "prompts").mkdir(parents=True)
+
+            state = {
+                "run_id": "run-test",
+                "created_at": "2026-08-28T00:00:00+00:00",
+                "updated_at": "2026-08-28T00:00:00+00:00",
+                "selectors": ["demo"],
+                "repo": str(repo),
+                "queue": [
+                    {
+                        "position": 1,
+                        "id6": "agy001",
+                        "setid": "demo",
+                        "status": "queued",
+                        "configured_file": str(plan.relative_to(repo)),
+                        "action": "execute",
+                    },
+                    {
+                        "position": 2,
+                        "id6": "agy002",
+                        "setid": "demo",
+                        "status": "queued",
+                        "configured_file": str(plan.relative_to(repo)),
+                        "action": "execute",
+                    },
+                ],
+                "options": {
+                    "model": "opus",
+                    "self_finalize": True,
+                    "isolate_worktree": False,
+                },
+            }
+            agy_runipd.save_state(run_dir, state)
+
+            dispatched = []
+
+            def fake_execute(rd, st, it, *a, **kw):
+                dispatched.append(it["id6"])
+                raise agy_runipd.ToolIdentityError("tool-identity mismatch (synthetic)")
+
+            with mock.patch.object(
+                agy_runipd, "execute_item", side_effect=fake_execute
+            ):
+                with self.assertRaises(agy_runipd.ToolIdentityError):
+                    agy_runipd.run_queue(run_dir, retry_incomplete=False)
+
+            self.assertEqual(
+                dispatched,
+                ["agy001"],
+                "ToolIdentityError must abort immediately without dispatching subsequent items",
+            )
 
 
 if __name__ == "__main__":

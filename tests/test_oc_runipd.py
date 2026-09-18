@@ -2572,7 +2572,7 @@ class SelfFinalizeWiringTests(unittest.TestCase):
             )
             # verifier outcome -> verified
             (run_dir / "outcomes" / "01-wir001-verification.json").write_text(
-                json.dumps({"verdict": "CONFORMING"}), encoding="utf-8"
+                json.dumps({"verdict": "VERIFIED"}), encoding="utf-8"
             )
 
             finalize_calls = []
@@ -2674,7 +2674,7 @@ class SelfFinalizeWiringTests(unittest.TestCase):
                 encoding="utf-8",
             )
             (run_dir / "outcomes" / "01-wir001-verification.json").write_text(
-                json.dumps({"verdict": "CONFORMING"}), encoding="utf-8"
+                json.dumps({"verdict": "VERIFIED"}), encoding="utf-8"
             )
 
             with (
@@ -2804,7 +2804,7 @@ class WorktreeIsolationTests(unittest.TestCase):
                     run_dir
                     / "outcomes"
                     / f"{item['position']:02d}-{item['id6']}-verification.json"
-                ).write_text(json.dumps({"verdict": "CONFORMING"}), encoding="utf-8")
+                ).write_text(json.dumps({"verdict": "VERIFIED"}), encoding="utf-8")
                 return 0, "vses", str(run_dir / "vlog"), ["oc"]
             # execute turn -> commit an in-scope change in the WORKTREE.
             wt = Path(work_dir)
@@ -2906,7 +2906,7 @@ class WorktreeIsolationTests(unittest.TestCase):
                     run_dir
                     / "outcomes"
                     / f"{item['position']:02d}-{item['id6']}-verification.json"
-                ).write_text(json.dumps({"verdict": "CONFORMING"}), encoding="utf-8")
+                ).write_text(json.dumps({"verdict": "VERIFIED"}), encoding="utf-8")
                 return 0, "vses", str(run_dir / "vlog"), ["oc"]
 
             with mock.patch.object(driver, "run_opencode", fake_run):
@@ -3091,7 +3091,7 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
                     run_dir
                     / "outcomes"
                     / f"{item['position']:02d}-{item['id6']}-verification.json"
-                ).write_text(json.dumps({"verdict": "CONFORMING"}), encoding="utf-8")
+                ).write_text(json.dumps({"verdict": "VERIFIED"}), encoding="utf-8")
                 return 0, "vses", str(run_dir / "vlog"), ["oc"]
             wt = Path(work_dir)
             (wt / "src").mkdir(parents=True, exist_ok=True)
@@ -3135,7 +3135,7 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
                     run_dir
                     / "outcomes"
                     / f"{item['position']:02d}-{item['id6']}-verification.json"
-                ).write_text(json.dumps({"verdict": "CONFORMING"}), encoding="utf-8")
+                ).write_text(json.dumps({"verdict": "VERIFIED"}), encoding="utf-8")
                 return 0, "vses", str(run_dir / "vlog"), ["oc"]
             wt = Path(work_dir)
             (wt / "src").mkdir(parents=True, exist_ok=True)
@@ -3264,7 +3264,7 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
                     run_dir
                     / "outcomes"
                     / f"{item['position']:02d}-{item['id6']}-verification.json"
-                ).write_text(json.dumps({"verdict": "CONFORMING"}), encoding="utf-8")
+                ).write_text(json.dumps({"verdict": "VERIFIED"}), encoding="utf-8")
                 return 0, "vses", str(run_dir / "vlog"), ["oc"]
             wt = Path(work_dir)
             subprocess.run(["git", "mv", orig, dest], cwd=wt, check=True)
@@ -6200,6 +6200,206 @@ class OcTelemetryWiringTests(unittest.TestCase):
                 self.assertEqual(event["set_id"], "telset")
                 self.assertEqual(event["model"], "provider/model")
             self.assertIn(streams[0].stem, events[0]["execution_id"])
+
+
+class VerifierGateAndRunnerBugTests(unittest.TestCase):
+    """Regression tests for runner correctness bug fixes (hp9rot E-01, E-09, E-11)."""
+
+    def test_verifier_gate(self):
+        """E-01: Verifier output with CORRECTION_REQUIRED results in unverified, partial disposition, and no finalize."""
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+            (run_dir / "outcomes").mkdir(parents=True)
+            (run_dir / "prompts").mkdir(parents=True)
+
+            item = {
+                "position": 1,
+                "id6": "wir001",
+                "setid": "demo",
+                "status": "queued",
+                "configured_file": str(plan.relative_to(repo)),
+                "action": "execute",
+            }
+            state = {
+                "run_id": "run-test",
+                "created_at": "2026-08-28T00:00:00+00:00",
+                "updated_at": "2026-08-28T00:00:00+00:00",
+                "selectors": ["demo"],
+                "repo": str(repo),
+                "queue": [item],
+                "set_sessions": {},
+                "session_id": None,
+                "options": {
+                    "opencode": "/bin/true",
+                    "model": "opus",
+                    "self_finalize": True,
+                    "isolate_worktree": True,
+                    "no_audit": False,
+                },
+            }
+
+            (run_dir / "outcomes" / "01-wir001.json").write_text(
+                json.dumps(
+                    {
+                        "disposition": "executed",
+                        "pushed": False,
+                        "defect_report": {"state": "none-found", "findings": []},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (run_dir / "outcomes" / "01-wir001-verification.json").write_text(
+                json.dumps({"verdict": "CORRECTION_REQUIRED"}), encoding="utf-8"
+            )
+
+            finalize_calls = []
+
+            def fake_finalize(r, p, i, a, m):
+                finalize_calls.append((i, a, m))
+                return 0, "finalized"
+
+            def fake_run(state, rd, item, plan_path, prompt_path, attempt_no, **kwargs):
+                work_dir = kwargs.get("work_dir")
+                if kwargs.get("fresh_session"):
+                    return 0, "vses", str(run_dir / "vlog"), ["oc"]
+                wt = Path(work_dir) if work_dir else repo
+                (wt / "src").mkdir(parents=True, exist_ok=True)
+                (wt / "src" / "demo.txt").write_text("demo\n", encoding="utf-8")
+                subprocess.run(["git", "add", "src/demo.txt"], cwd=wt, check=True)
+                subprocess.run(["git", "commit", "-qm", "demo"], cwd=wt, check=True)
+                return 0, "ses1", str(run_dir / "log"), ["oc"]
+
+            with (
+                mock.patch.object(driver, "driver_begin", lambda *a, **k: (0, "ok")),
+                mock.patch.object(driver, "run_opencode", fake_run),
+                mock.patch.object(driver, "driver_finalize", fake_finalize),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(
+                finalize_calls, [], "finalize must NOT be called on CORRECTION_REQUIRED"
+            )
+            self.assertEqual(
+                item["status"], "partial", "item disposition must be partial"
+            )
+
+    def test_review_action_full_auto(self):
+        """E-09: --action review --full-auto reviews and auto-approves plans without mutating item action to execute."""
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+            (run_dir / "outcomes").mkdir(parents=True)
+            (run_dir / "prompts").mkdir(parents=True)
+
+            item = {
+                "position": 1,
+                "id6": "wir001",
+                "setid": "demo",
+                "status": "queued",
+                "configured_file": str(plan.relative_to(repo)),
+                "action": "review",
+            }
+            state = {
+                "run_id": "run-test",
+                "created_at": "2026-08-28T00:00:00+00:00",
+                "updated_at": "2026-08-28T00:00:00+00:00",
+                "selectors": ["demo"],
+                "repo": str(repo),
+                "queue": [item],
+                "set_sessions": {},
+                "session_id": None,
+                "options": {
+                    "action": "review",
+                    "full_auto": True,
+                    "opencode": "/bin/true",
+                    "model": "opus",
+                    "isolate_worktree": False,
+                },
+            }
+
+            (run_dir / "outcomes" / "01-wir001.json").write_text(
+                json.dumps(
+                    {
+                        "disposition": "reviewed",
+                        "verdict": "APPROVE WITH REVISIONS APPLIED",
+                        "pushed": False,
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with (
+                mock.patch.object(driver, "driver_begin", lambda *a, **k: (0, "ok")),
+                mock.patch.object(
+                    driver,
+                    "run_opencode",
+                    lambda *a, **k: (0, "ses", str(run_dir / "log"), ["oc"]),
+                ),
+                mock.patch.object(driver, "is_plan_review_approved", lambda p: True),
+                mock.patch.object(driver, "set_plan_approved", lambda r, i: None),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(
+                item["action"],
+                "review",
+                "action must not be mutated to execute when run was invoked with --action review",
+            )
+            self.assertEqual(item["status"], "approved")
+            self.assertTrue(item.get("auto_approved"))
+
+    def test_discard_lane_reclaim(self):
+        """E-11: Operator chooses discard on interrupted lane -> teardown_worktree is called and worktree directory is removed."""
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            _init_repo_with_conforming_plan(repo, "wir001")
+            run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+            run_dir.mkdir(parents=True)
+            from agent_workflows import worktree_lease
+
+            handle = worktree_lease.allocate_worktree(repo, "wir001")
+            (handle.path / "src").mkdir(parents=True, exist_ok=True)
+            (handle.path / "src" / "demo.txt").write_text("demo\n", encoding="utf-8")
+            subprocess.run(["git", "add", "src/demo.txt"], cwd=handle.path, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "demo"], cwd=handle.path, check=True
+            )
+
+            state = {
+                "run_id": "run-test",
+                "repo": str(repo),
+                "queue": [
+                    {
+                        "id6": "wir001",
+                        "position": 1,
+                        "status": "running",
+                        "attempts": [
+                            {
+                                "worktree": str(handle.path),
+                                "worktree_branch": handle.branch,
+                                "worktree_lane_id": "wir001",
+                                "worktree_base": handle.base_commit,
+                            }
+                        ],
+                    }
+                ],
+            }
+
+            with mock.patch.object(
+                driver, "_lane_reclaim_prompt", return_value="discard"
+            ):
+                lanes = driver.reclaim_lanes_on_interrupt(
+                    repo, run_dir, state, interactive=True
+                )
+
+            self.assertEqual(len(lanes), 1)
+            self.assertEqual(lanes[0]["action"], "reclaimed")
+            self.assertFalse(
+                handle.path.exists(), "worktree directory must be removed on discard"
+            )
 
 
 if __name__ == "__main__":

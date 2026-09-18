@@ -5113,5 +5113,33 @@ class MeasuredIncidentsAreSurvivedTests(unittest.TestCase):
                 )
 
 
+class PathSelectorKindTests(unittest.TestCase):
+    """Regression test for preserving kind in expand_selectors (hp9rot E-10 / BUG-15)."""
+
+    def test_path_selector_kind(self):
+        """E-10: Path selector to orchestrator IPD retains kind: orchestrator in manifest."""
+        with tempfile.TemporaryDirectory() as temp:
+            repo = pathlib.Path(temp)
+            plan_dir = repo / ".aw/records/plans/pending"
+            plan_dir.mkdir(parents=True, exist_ok=True)
+            plan_file = plan_dir / "20260908-orch-01-abc123-orchestrator.ipd.md"
+            plan_file.write_text(
+                "# IPD: orchestrator\n\n- Date: 2026-09-08\n- Kind: orchestrator\n- Status: approved\n- Set: orch\n- Order: 1\n- Id: abc123\n\n## Goal\nOrchestrate.\n",
+                encoding="utf-8",
+            )
+            for name, mod in (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd)):
+                with self.subTest(driver=name):
+                    manifest: dict[str, Any] = {"plans": {}, "sets": {}}
+                    queue_ids = mod.expand_selectors(
+                        manifest, [str(plan_file)], repo=repo
+                    )
+                    self.assertEqual(queue_ids, ["abc123"])
+                    self.assertEqual(
+                        manifest["plans"]["abc123"].get("kind"),
+                        "orchestrator",
+                        f"{name} must retain kind: orchestrator",
+                    )
+
+
 if __name__ == "__main__":
     unittest.main()

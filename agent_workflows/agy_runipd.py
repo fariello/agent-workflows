@@ -1273,6 +1273,34 @@ def reclaim_lanes_on_interrupt(
                     ),
                     file=sys.stderr,
                 )
+                try:
+                    worktree_lease.teardown_worktree(repo, handle, force=True)
+                    lane["action"] = "reclaimed"
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "lane-reclaimed-on-interrupt",
+                            "id6": lane["id6"],
+                            "branch": lane["branch"],
+                            "worktree": lane["worktree"],
+                            "snapshot_commit": snapshot,
+                            "reason": reason,
+                        },
+                    )
+                except Exception as exc:
+                    lane["action"] = "preserved"
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "lane-teardown-failed",
+                            "id6": lane["id6"],
+                            "branch": lane["branch"],
+                            "detail": str(exc),
+                        },
+                    )
+                continue
             lane["action"] = "preserved"
             append_jsonl(
                 run_dir / "events.jsonl",
@@ -1836,6 +1864,7 @@ def expand_selectors(
                                 "status": rec.status,
                                 "order": rec.order,
                                 "dependencies": rec.dependencies,
+                                "kind": rec.kind,
                             }
                         break
             except OSError:
@@ -2637,6 +2666,8 @@ def _record_checkpoint_stop(
     state: dict[str, Any],
     item: dict[str, Any],
     checkpoint_observer: runner_stop.CheckpointObserver,
+    *,
+    work_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """Record a level-3 stop on the item with KNOWN certainty (spec R18), returning the record.
 
@@ -2644,7 +2675,16 @@ def _record_checkpoint_stop(
     builder in `runner_stop` so the two drivers cannot describe the same stop differently.
     """
 
-    repo = Path(state["repo"])
+    effective_dir = (
+        work_dir
+        or item.get("worktree")
+        or (
+            item.get("attempts", [{}])[-1].get("worktree")
+            if item.get("attempts")
+            else None
+        )
+    )
+    repo = Path(effective_dir) if effective_dir else Path(state["repo"])
     try:
         observed_git = git_status(repo)
     except Exception as exc:  # noqa: BLE001 - an honest note beats failing the stop
@@ -2671,6 +2711,8 @@ def _record_forced_stop(
     state: dict[str, Any],
     item: dict[str, Any],
     stop: "runner_stop.StopNowForce",
+    *,
+    work_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """Record a level-4 stop on the item as INDETERMINATE (spec R18/R21/R22), returning the record.
 
@@ -2679,7 +2721,16 @@ def _record_forced_stop(
     (orchestrator CID-3). No last-completed-operation is invented: the cut point was not observed.
     """
 
-    repo = Path(state["repo"])
+    effective_dir = (
+        work_dir
+        or item.get("worktree")
+        or (
+            item.get("attempts", [{}])[-1].get("worktree")
+            if item.get("attempts")
+            else None
+        )
+    )
+    repo = Path(effective_dir) if effective_dir else Path(state["repo"])
     try:
         observed_git = git_status(repo)
     except Exception as exc:  # noqa: BLE001 - an honest note beats failing the stop
@@ -3102,7 +3153,6 @@ def run_agy_turn(
                 breach_watch.__exit__(None, None, None)
 
         if watchdog.stalled:
-            terminate_process(process)
             log.flush()
             with contextlib.suppress(OSError):
                 os.fsync(log.fileno())
@@ -3702,7 +3752,7 @@ def execute_item(
         attempt["interrupted_at"] = now
         attempt["ended_at"] = now
         attempt["interrupt_reason"] = "deliberate-stop-now-force"
-        record = _record_forced_stop(run_dir, state, item, stop)
+        record = _record_forced_stop(run_dir, state, item, stop, work_dir=work_dir)
         attempt["stopped"] = record
         attempt["disposition"] = runner_stop.FORCED_DISPOSITION
         item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
@@ -3727,7 +3777,9 @@ def execute_item(
         attempt["interrupted_at"] = now
         attempt["ended_at"] = now
         attempt["interrupt_reason"] = "deliberate-stop-at-checkpoint"
-        record = _record_checkpoint_stop(run_dir, state, item, stop.observer)
+        record = _record_checkpoint_stop(
+            run_dir, state, item, stop.observer, work_dir=work_dir
+        )
         attempt["stopped"] = record
         attempt["disposition"] = runner_stop.STOPPED_DISPOSITION
         # Decided in ONE place (`reconcile_disposition`'s deliberate-stop branch) so the two drivers
@@ -3764,6 +3816,8 @@ def execute_item(
         )
         raise
     except StallTimeout:
+        from agent_workflows import worktree_lease
+
         now = utc_now()
         attempt["interrupted_at"] = now
         attempt["ended_at"] = now
@@ -3771,6 +3825,20 @@ def execute_item(
         stall_sec = state.get("options", {}).get("stall_timeout", DEFAULT_STALL_TIMEOUT)
         attempt["stall_timeout"] = stall_sec
         item["status"] = "interrupted"
+        if wt_handle is not None:
+            try:
+                worktree_lease.snapshot_lane_dirty_work(
+                    repo, wt_handle, note="Reason: stall_timeout."
+                )
+            except Exception:
+                pass
+            lane_containment.record_lane_preserved(
+                run_dir=run_dir,
+                item=item,
+                handle=wt_handle,
+                reason="turn stalled; lane preserved for recovery",
+                reason_codes=("stall-timeout",),
+            )
         save_state(run_dir, state)
         append_jsonl(
             run_dir / "events.jsonl",
@@ -3959,21 +4027,49 @@ def execute_item(
             if v_outcome_file.is_file():
                 try:
                     v_data = json.loads(v_outcome_file.read_text(encoding="utf-8"))
-                    verify_verdict = str(v_data.get("verdict", "")).upper()
+                    verify_verdict = str(v_data.get("verdict", "")).strip().upper()
                     if (
                         "BLOCKED" in verify_verdict
                         or "NOT CONFORMING" in verify_verdict
                     ):
                         verify_disp = "blocked"
                         disposition = "partial"
-                    else:
+                    elif verify_verdict == "VERIFIED":
                         verify_disp = "verified"
+                    else:
+                        verify_disp = "unverified"
+                        disposition = "partial"
                 except Exception:
-                    verify_disp = "verified" if v_rc == 0 else "unverified"
+                    verify_disp = "unverified"
+                    disposition = "partial"
             else:
-                verify_disp = "verified" if v_rc == 0 else "unverified"
-        except (KeyboardInterrupt, StallTimeout):
+                verify_disp = "unverified"
+                disposition = "partial"
+        except runner_stop.StopNowForce as stop:
+            now = utc_now()
+            attempt["interrupted_at"] = now
+            attempt["ended_at"] = now
+            attempt["interrupt_reason"] = "deliberate-stop-now-force"
+            record = _record_forced_stop(run_dir, state, item, stop, work_dir=work_dir)
+            attempt["stopped"] = record
+            attempt["disposition"] = runner_stop.FORCED_DISPOSITION
+            item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
+            raise
+        except runner_stop.StopAtCheckpoint as stop:
+            now = utc_now()
+            attempt["interrupted_at"] = now
+            attempt["ended_at"] = now
+            attempt["interrupt_reason"] = "deliberate-stop-at-checkpoint"
+            record = _record_checkpoint_stop(
+                run_dir, state, item, stop.observer, work_dir=work_dir
+            )
+            attempt["stopped"] = record
+            attempt["disposition"] = runner_stop.STOPPED_DISPOSITION
+            item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
+            raise
+        except StallTimeout:
             verify_disp = "unverified"
+            disposition = "partial"
 
     attempt["disposition"] = disposition
     attempt["verification"] = verify_disp
@@ -4389,6 +4485,8 @@ def execute_item(
                 if decision.deferred:
                     print(pal(f"    -> {decision.reason}", "cyan"), file=sys.stderr)
             else:
+                attempt["ending_head"] = git_head(repo)
+                attempt["ending_status"] = git_status(repo)
                 # lanectn y5od1h E-06 (spec R3.2): the exact counterpart of the `oc_runipd` site, so
                 # PRESERVE AND PAUSE is enforced on BOTH hosts (CID-3 makes a rule present in one
                 # driver only a DEFECT). Same host-neutral predicate, same durable state.
@@ -4592,8 +4690,10 @@ def execute_item(
         if is_plan_review_approved(plan_curr):
             try:
                 set_plan_approved(repo, item["id6"])
-                item["action"] = "execute"
-                item["status"] = "queued"
+                run_action = state.get("options", {}).get("action")
+                if run_action != "review":
+                    item["action"] = "execute"
+                    item["status"] = "queued"
                 item["auto_approved"] = True
                 auto_approved = True
                 save_state(run_dir, state)
@@ -5097,6 +5197,7 @@ def run_queue(
             # downgraded to one item marked `failed-safely` while later items ran under the same
             # wrong tooling. Mirrors oc_runipd.
             save_state(run_dir, state)
+            raise
         except KeyboardInterrupt:
             # laneorphan-01 (`zwnjp3`) E-05: PRESERVE-AND-RECORD before the interrupt propagates,
             # so the run does not leak lanes (which wedged the next run at allocation) and does not

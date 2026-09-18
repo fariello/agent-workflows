@@ -38,6 +38,7 @@ import json
 import os
 import signal
 import subprocess
+import threading
 import weakref
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -160,6 +161,9 @@ def resume_live_children(processes: Sequence[subprocess.Popen]) -> None:
         signal_process(p, signal.SIGCONT)
 
 
+_TERMINATE_LOCK = threading.Lock()
+
+
 def terminate_process(
     process: subprocess.Popen,
     *,
@@ -176,34 +180,39 @@ def terminate_process(
     constants and delegate here rather than keeping a copy (spec R5, orchestrator CID-1).
     """
 
-    sigint_wait = (
-        DEFAULT_SIGINT_GRACE_SECONDS if sigint_grace is None else float(sigint_grace)
-    )
-    sigterm_wait = (
-        DEFAULT_SIGTERM_GRACE_SECONDS if sigterm_grace is None else float(sigterm_grace)
-    )
+    with _TERMINATE_LOCK:
+        sigint_wait = (
+            DEFAULT_SIGINT_GRACE_SECONDS
+            if sigint_grace is None
+            else float(sigint_grace)
+        )
+        sigterm_wait = (
+            DEFAULT_SIGTERM_GRACE_SECONDS
+            if sigterm_grace is None
+            else float(sigterm_grace)
+        )
 
-    if process.poll() is not None:
-        _close_process_streams(process)
-        return
-
-    for sig, grace in (
-        (signal.SIGINT, sigint_wait),
-        (signal.SIGTERM, sigterm_wait),
-    ):
-        if not signal_process(process, sig):
-            break
-        try:
-            process.wait(timeout=grace)
+        if process.poll() is not None:
             _close_process_streams(process)
             return
-        except subprocess.TimeoutExpired:
-            continue
 
-    signal_process(process, getattr(signal, "SIGKILL", signal.SIGTERM))
-    with contextlib.suppress(Exception):
-        process.wait(timeout=sigterm_wait)
-    _close_process_streams(process)
+        for sig, grace in (
+            (signal.SIGINT, sigint_wait),
+            (signal.SIGTERM, sigterm_wait),
+        ):
+            if not signal_process(process, sig):
+                break
+            try:
+                process.wait(timeout=grace)
+                _close_process_streams(process)
+                return
+            except subprocess.TimeoutExpired:
+                continue
+
+        signal_process(process, getattr(signal, "SIGKILL", signal.SIGTERM))
+        with contextlib.suppress(Exception):
+            process.wait(timeout=sigterm_wait)
+        _close_process_streams(process)
 
 
 # --------------------------------------------------------------------------------------

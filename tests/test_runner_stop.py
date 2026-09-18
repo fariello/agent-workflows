@@ -916,5 +916,176 @@ class LockContentionTests(unittest.TestCase):
             self.assertEqual(runner_stop.read_stop_request(run_dir).level, 4)
 
 
+class VerifierStopAndIsolatedGitStatusTests(unittest.TestCase):
+    """Regression tests for stop handling during verification and isolated git status (hp9rot E-06, E-07)."""
+
+    def test_verifier_stop(self):
+        """E-06: Level 3/4 stop during verification turn records stop metadata, does not leave item in running status."""
+        from agent_workflows import agy_runipd, oc_runipd
+
+        for name, mod in (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd)):
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as temp:
+                repo = Path(temp) / "repo"
+                repo.mkdir(parents=True, exist_ok=True)
+                subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+                subprocess.run(
+                    ["git", "config", "user.email", "test@example.invalid"],
+                    cwd=repo,
+                    check=True,
+                )
+                subprocess.run(
+                    ["git", "config", "user.name", "Test"], cwd=repo, check=True
+                )
+                plan_dir = repo / ".aw/records/plans/pending"
+                plan_dir.mkdir(parents=True, exist_ok=True)
+                plan = plan_dir / "20260908-demo-01-stp001-demo.ipd.md"
+                plan.write_text(
+                    "# IPD: stp001\n\n- Date: 2026-09-08\n- Kind: child\n- Status: approved\n- Set: demo\n- Order: 1\n- Id: stp001\n\n## Goal\nDemo.\n",
+                    encoding="utf-8",
+                )
+                subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+                subprocess.run(
+                    ["git", "commit", "-qm", "initial"], cwd=repo, check=True
+                )
+
+                run_dir = repo / ".aw/records/runs/run-test"
+                (run_dir / "outcomes").mkdir(parents=True, exist_ok=True)
+                (run_dir / "prompts").mkdir(parents=True, exist_ok=True)
+
+                item = {
+                    "position": 1,
+                    "id6": "stp001",
+                    "setid": "demo",
+                    "status": "queued",
+                    "configured_file": str(plan.relative_to(repo)),
+                    "action": "execute",
+                }
+                state = {
+                    "run_id": "run-test",
+                    "created_at": "2026-09-08T00:00:00+00:00",
+                    "updated_at": "2026-09-08T00:00:00+00:00",
+                    "selectors": ["demo"],
+                    "repo": str(repo),
+                    "queue": [item],
+                    "set_sessions": {},
+                    "session_id": None,
+                    "options": {
+                        "model": "opus",
+                        "self_finalize": True,
+                        "isolate_worktree": True,
+                        "no_audit": False,
+                    },
+                }
+
+                (run_dir / "outcomes" / "01-stp001.json").write_text(
+                    json.dumps(
+                        {
+                            "disposition": "executed",
+                            "pushed": False,
+                            "defect_report": {"state": "none-found", "findings": []},
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+                def fake_turn(st, rd, it, *a, **kwargs):
+                    work_dir = kwargs.get("work_dir")
+                    if (
+                        kwargs.get("fresh_session")
+                        or kwargs.get("log_suffix") == "verify"
+                    ):
+                        raise runner_stop.StopNowForce(requester="test")
+                    wt = Path(work_dir) if work_dir else repo
+                    (wt / "src").mkdir(parents=True, exist_ok=True)
+                    (wt / "src" / "demo.txt").write_text("demo\n", encoding="utf-8")
+                    subprocess.run(["git", "add", "src/demo.txt"], cwd=wt, check=True)
+                    subprocess.run(["git", "commit", "-qm", "demo"], cwd=wt, check=True)
+                    return 0, "ses1", str(run_dir / "log"), ["driver"]
+
+                turn_fn = "run_opencode" if name == "oc_runipd" else "run_agy_turn"
+                with (
+                    mock.patch.object(mod, "driver_begin", lambda *a, **k: (0, "ok")),
+                    mock.patch.object(mod, turn_fn, fake_turn),
+                ):
+                    with self.assertRaises(runner_stop.StopNowForce):
+                        mod.execute_item(run_dir, state, item, recovery=False)
+
+                self.assertIsNotNone(
+                    item.get("stopped"), "stopped metadata must be recorded on item"
+                )
+                self.assertNotEqual(
+                    item["status"], "running", "item must not be left in running status"
+                )
+
+    def test_stop_isolated_git_status(self):
+        """E-07: Stop with dirty work in isolated worktree records git state listing modified files."""
+        from agent_workflows import agy_runipd, oc_runipd
+
+        for name, mod in (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd)):
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as temp:
+                repo = Path(temp) / "repo"
+                repo.mkdir(parents=True, exist_ok=True)
+                subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+                subprocess.run(
+                    ["git", "config", "user.email", "test@example.invalid"],
+                    cwd=repo,
+                    check=True,
+                )
+                subprocess.run(
+                    ["git", "config", "user.name", "Test"], cwd=repo, check=True
+                )
+                (repo / "tracked.txt").write_text("initial\n", encoding="utf-8")
+                subprocess.run(["git", "add", "tracked.txt"], cwd=repo, check=True)
+                subprocess.run(
+                    ["git", "commit", "-qm", "initial"], cwd=repo, check=True
+                )
+
+                work_dir = Path(temp) / "isolated_lane"
+                work_dir.mkdir(parents=True, exist_ok=True)
+                subprocess.run(["git", "init", "-q"], cwd=work_dir, check=True)
+                subprocess.run(
+                    ["git", "config", "user.email", "test@example.invalid"],
+                    cwd=work_dir,
+                    check=True,
+                )
+                subprocess.run(
+                    ["git", "config", "user.name", "Test"], cwd=work_dir, check=True
+                )
+                (work_dir / "tracked.txt").write_text("initial\n", encoding="utf-8")
+                subprocess.run(["git", "add", "tracked.txt"], cwd=work_dir, check=True)
+                subprocess.run(
+                    ["git", "commit", "-qm", "initial"], cwd=work_dir, check=True
+                )
+                # Make isolated worktree dirty
+                (work_dir / "dirty_file.txt").write_text(
+                    "uncommitted dirt\n", encoding="utf-8"
+                )
+
+                run_dir = repo / ".aw/records/runs/run-test"
+                run_dir.mkdir(parents=True, exist_ok=True)
+
+                item = {"id6": "stp001", "position": 1}
+                state = {"repo": str(repo), "run_id": "run-test"}
+
+                # Check _record_forced_stop
+                stop = runner_stop.StopNowForce(requester="test")
+                record = mod._record_forced_stop(
+                    run_dir, state, item, stop, work_dir=work_dir
+                )
+                self.assertIn("dirty_file.txt", record["git_state"])
+                self.assertNotIn(
+                    record["git_state"],
+                    ("", "clean"),
+                    "git_state must reflect dirty isolated worktree",
+                )
+
+                # Check _record_checkpoint_stop
+                obs = runner_stop.CheckpointObserver(run_dir)
+                rec2 = mod._record_checkpoint_stop(
+                    run_dir, state, item, obs, work_dir=work_dir
+                )
+                self.assertIn("dirty_file.txt", rec2["git_state"])
+
+
 if __name__ == "__main__":
     unittest.main()
