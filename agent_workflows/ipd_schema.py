@@ -322,6 +322,8 @@ def read_readiness(text: str) -> Optional[str]:
     `check_engine`'s `_ITEM_PRIORITY_RE` scan shape). ENUM validation for lint/`aw check` reporting
     is a separate concern: this reader is the READ path and never raises.
     """
+    if "readiness:" not in text.lower():
+        return None
     m = _READINESS_LINE_RE.search(text)
     if not m:
         return None

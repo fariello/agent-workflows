@@ -334,11 +334,14 @@ def _plan_is_executed(path: Path, repo_root: Path) -> bool:
     names cannot false-trigger.
     """
 
-    parts = path.relative_to(repo_root).parts if _under(path, repo_root) else path.parts
-    if "plans" not in parts:
+    parts = path.parts
+    if "executed" not in parts or "plans" not in parts:
         return False
-    idx = parts.index("plans")
-    return idx + 1 < len(parts) and parts[idx + 1] == "executed"
+    rel_parts = path.relative_to(repo_root).parts if _under(path, repo_root) else parts
+    if "plans" not in rel_parts:
+        return False
+    idx = rel_parts.index("plans")
+    return idx + 1 < len(rel_parts) and rel_parts[idx + 1] == "executed"
 
 
 def _spec_is_implemented(text: str) -> bool:
@@ -392,13 +395,15 @@ def cited_by_executed_ids(repo_root: Path, research_root: Path) -> set:
         is_backlog = "backlog" in parts and f.name.endswith(".md")
         if not (is_plan or is_spec or is_backlog):
             continue
+        if is_plan and not _plan_is_executed(f, repo_root):
+            continue
         try:
             text = f.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
         executed = False
         if is_plan:
-            executed = _plan_is_executed(f, repo_root)
+            executed = True
         elif is_spec:
             executed = _spec_is_implemented(text)
         elif is_backlog:
