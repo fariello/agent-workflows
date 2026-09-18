@@ -61,7 +61,7 @@ import datetime
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from agent_workflows import artifact_core as core
 from agent_workflows import attention_contract as A
@@ -79,6 +79,21 @@ STATUS_DIRS = ("open", "graduated", "blocked", "parked", "done")
 STATUSES = frozenset(STATUS_DIRS)
 PRIORITIES = frozenset(("high", "medium", "low"))
 KINDS = frozenset(("bug", "feature", "chore", "security", "followup"))
+
+# nobugship di08i9 E-01: the work-kinds whose items AUTOMATICALLY carry a release gate. `bug` ALONE,
+# which is the maintainer's standing rule ("we don't ship known bugs") and the deliberate default
+# chosen in the parent Set's OQ-01: making the set configurable per repository (defaulting to `bug`)
+# is designed and carried by its own backlog item, NOT shipped here. `security` is deliberately NOT
+# included: the maintainer measured agent security classifications in THIS repository to be
+# overstated, so a default that the reference repo must immediately override is a bad default.
+GATE_DEFAULT_KINDS = frozenset(("bug",))
+
+# The statuses a NEW item may be born with that must NOT receive the defaulted gate. `done` because a
+# gated closed item with no handoff/evidence/de-gate is a SHIPPED exit-blocking error
+# (`check.blocking-item-closed-without-gate`), so defaulting there would manufacture the very
+# violation this Set exists to eliminate; `parked` because a parked maybe is not live work (the
+# attention view hides it), so gating a release on one asserts an obligation nobody has taken on.
+_GATE_DEFAULT_SKIP_STATUSES = frozenset(("done", "parked"))
 
 # Bullet-metadata field regexes (mirroring attention_contract's SPEC_STATUS_RE / GATE_*_RE style).
 _ID_RE = re.compile(r"^- Id:[ \t]*(?P<value>\S+)[ \t]*$")
@@ -316,6 +331,98 @@ def existing_backlog_ids(repo_root: Path) -> set:
 # --------------------------------------------------------------------------------------
 
 
+def blocks_release_of_item(repo_root: Path, item_id6: Optional[str]) -> Optional[str]:
+    """Return the `- Blocks-Release:` value of the backlog item with id6 `item_id6`, or None when the
+    item does not exist or carries no gate.
+
+    nobugship di08i9 E-03: the lookup the graduation inheritance needs, so a setter can carry an
+    item's gate onto the plan or spec that graduated from it. Kept HERE, beside `existing_backlog_ids`
+    and `_iter_items`, because the backlog module already owns reading a backlog item's metadata; a
+    setter reaching into the backlog tree with its own regex would be a second reader of the same
+    field."""
+
+    if not item_id6 or item_id6 == "-":
+        return None
+    for f in _iter_items(Path(repo_root)):
+        try:
+            text = f.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        item = parse_item(text)
+        if item.id == item_id6:
+            return item.blocks_release
+    return None
+
+
+def decide_gate_default(
+    repo_root: Path,
+    *,
+    kind: Optional[str],
+    status: Optional[str],
+    explicit_blocks_release: Optional[str],
+    existing_blocks_release: Optional[str] = None,
+) -> Tuple[Optional[str], Optional[str]]:
+    """Decide whether an item should have `- Blocks-Release:` DEFAULTED, and say why either way.
+
+    nobugship di08i9 E-01/E-02. Returns `(value_to_apply, notice)`: `value_to_apply` is the gate to
+    write (today always `next`) or None to write nothing, and `notice` is the human/agent-facing
+    explanation, or None when no defaulting decision arose at all (so a non-bug item stays silent).
+
+    THIS IS THE SINGLE AUTHORITY FOR THE DECISION, deliberately, because it is consumed from THREE
+    call sites that must not drift: `run_new` (creation), `run_set` (the `--status` spelling of
+    `aw backlog set`), and `status_set.apply_status_change` (the positional spelling). A default wired
+    into one spelling of the setter and not the other would fire inconsistently, which is worse than
+    not shipping it because it teaches a false expectation.
+
+    FOUR CONDITIONS SHAPE IT AND EACH WAS MEASURED, NOT ASSUMED:
+
+    1. ONLY `GATE_DEFAULT_KINDS` (today `bug` alone) is defaulted. The rule is "we don't ship known
+       bugs"; `security` is deliberately excluded (parent OQ-01).
+    2. FALL BACK TO UNGATED WHEN `next` DOES NOT RESOLVE; DO NOT REFUSE. A fresh `aw install` creates
+       NO `.aw/records/releases/` directory, so "no planned release" is the NORMAL state of an adopter
+       repo. Refusing made `aw backlog new --work-kind bug` fail outright there and broke 10 existing
+       tests whose fixtures create no release record. This follows the maintainer's 2026-09-10 ruling
+       on `y4adch` OQ-01: a bad/absent REPOSITORY state falls back and warns (blast radius is every
+       caller), while a bad PER-INVOCATION value refuses (blast radius is the one caller who typed
+       it). So the resolution check is a PREDICATE here, and the explicit-value refusal in `run_new`
+       is untouched.
+    3. SKIP `done` AND `parked`. `--status done --work-kind bug` is legal, and defaulting a gate onto
+       it manufactures an item the SHIPPED exit-blocking checker rejects immediately
+       (`check.blocking-item-closed-without-gate`, ERROR: a done item carrying a gate with no handoff,
+       evidence, or de-gate; driven and reproduced). `parked` is skipped for the same reason the
+       attention view hides a parked maybe: it is not live work, so gating a release on it asserts an
+       obligation nobody has taken on.
+    4. AN EXPLICIT VALUE ALWAYS WINS, INCLUDING `-`. A default is not a prohibition; an author may
+       legitimately file an ungated bug, and an existing gate is never overwritten.
+    """
+
+    if explicit_blocks_release is not None:
+        return None, None
+    if (kind or "") not in GATE_DEFAULT_KINDS:
+        return None, None
+    if existing_blocks_release:
+        return None, None
+    if (status or "") in _GATE_DEFAULT_SKIP_STATUSES:
+        return None, (
+            f"not defaulting - Blocks-Release: on this bug because its status is {status!r}: "
+            "a gated done item is rejected by check.blocking-item-closed-without-gate, and a "
+            "parked maybe is not live work"
+        )
+
+    from agent_workflows import releases as _releases
+
+    if _releases.resolve_release(Path(repo_root), "next") is None:
+        return None, (
+            "not defaulting - Blocks-Release: on this bug because 'next' does not resolve to a "
+            "single planned release record; file it ungated and set the gate with "
+            "`aw backlog set --blocks-release next` once a planned release exists"
+        )
+    return "next", (
+        "defaulted - Blocks-Release: next on this bug (no --blocks-release given): every live bug "
+        "gates the next release; pass '--blocks-release -' to file an ungated bug"
+    )
+
+
 def _resolve_backlog_root(repo_root: Path) -> Path:
     """Prefer an existing `.aw/records/backlog`, else the pre-migration `.agents/backlog` default."""
 
@@ -407,6 +514,16 @@ def run_new(args) -> int:
             return 2
         item.blocks_release = br
 
+    # nobugship di08i9 E-01: DEFAULT THE RELEASE GATE ON A BUG, through the ONE shared predicate so
+    # creation and reclassification (E-02) cannot diverge. See `decide_gate_default` for the three
+    # measured conditions (fall back rather than refuse, skip `done`/`parked`, keep the `-` escape).
+    gate_default, gate_default_notice = decide_gate_default(
+        repo_root, kind=item.kind, status=status, explicit_blocks_release=br
+    )
+    if gate_default is not None:
+        br = gate_default
+        item.blocks_release = gate_default
+
     message = getattr(args, "message", None)
 
     today = datetime.date.today().strftime("%Y%m%d")
@@ -426,8 +543,43 @@ def run_new(args) -> int:
     from agent_workflows.result_types import (
         Change,
         CommandResult,
+        Evidence,
         select_output,
     )
+
+    # nobugship di08i9 E-01 / OQ-01: ANNOUNCE THE DEFAULT ON BOTH OUTPUT SURFACES. A field the tool
+    # wrote but the author did not type is exactly the hidden behavior that makes a later reader
+    # distrust the record, and the maintainer's 2026-09-10 ruling on `y4adch` OQ-01 requires a VISIBLE
+    # notice naming the field, the value applied, and why. The human `sys.stdout.write` alone does not
+    # satisfy that here: the `--agent`/`--json` branches below RETURN before it, and a runner is the
+    # most likely caller of this verb.
+    #
+    # THE CARRIER IS `data` PLUS AN `Evidence` RECEIPT, NOT AN `info` DIAGNOSTIC, and the choice is
+    # deliberate. `CommandResult.to_agent_record` derives `findings` from `len(self.diagnostics)` and
+    # `has_findings` returns True for any diagnostic regardless of severity, so an `info` diagnostic
+    # would emit `findings: 1` on a successful create and teach every consumer that a normal filing
+    # had something wrong with it. `data` carries the machine-readable fact into the full `--json`
+    # representation, and `Evidence` is what survives into the COMPACT `--agent` JSONL record (where
+    # `data` is not emitted), so between them the fact reaches both structured surfaces without
+    # inflating a findings count.
+    def _gate_notice_fields() -> tuple:
+        if gate_default_notice is None:
+            return {}, []
+        gate_data = {
+            "blocks_release": item.blocks_release,
+            "blocks_release_defaulted": item.blocks_release is not None,
+            "blocks_release_default_notice": gate_default_notice,
+        }
+        return gate_data, [
+            Evidence(
+                key="blocks-release-default",
+                value=item.blocks_release or "none",
+                status="verified",
+                detail=gate_default_notice,
+            )
+        ]
+
+    gate_data, gate_evidence = _gate_notice_fields()
 
     ctx = select_output(args)
     if not getattr(args, "apply", False):
@@ -438,11 +590,14 @@ def run_new(args) -> int:
                 exit_code=0,
                 summary=f"would write {dest}",
                 changes=[Change(path=str(dest), kind="create", applied=False)],
-                data={"path": str(dest), "id": item.id},
+                data={"path": str(dest), "id": item.id, **gate_data},
+                evidence=gate_evidence,
                 verified=True,
                 complete=True,
             )
             return get_renderer(ctx).emit(res, ctx)
+        if gate_default_notice:
+            sys.stdout.write(f"aw backlog new: {gate_default_notice}\n")
         sys.stdout.write(f"--- would write {dest} ---\n{rendered}")
         return 0
 
@@ -471,12 +626,15 @@ def run_new(args) -> int:
             exit_code=0,
             summary=f"wrote {dest}",
             changes=[Change(path=str(dest), kind="create", applied=True)],
-            data={"path": str(dest), "id": item.id},
+            data={"path": str(dest), "id": item.id, **gate_data},
+            evidence=gate_evidence,
             verified=True,
             complete=True,
         )
         return get_renderer(ctx).emit(res, ctx)
 
+    if gate_default_notice:
+        sys.stdout.write(f"aw backlog new: {gate_default_notice}\n")
     sys.stdout.write(f"aw backlog new: wrote {dest}\n")
     return 0
 
@@ -623,6 +781,32 @@ def run_set(args) -> int:
             rendered = _releases.set_priority_line(rendered, set_priority)
         if set_work_kind is not None:
             rendered = _releases.set_work_kind_line(rendered, set_work_kind)
+
+    # nobugship di08i9 E-02: DEFAULT THE GATE ON A RECLASSIFICATION TOO, so the gate FOLLOWS a work
+    # kind becoming `bug` instead of depending on the author remembering a second flag. This is the
+    # `--status` spelling of `aw backlog set`; the POSITIONAL spelling routes through
+    # `status_set.apply_status_change`, which carries the SAME call to the SAME shared predicate. Both
+    # were required: `aw backlog set` forks on whether `--status` was passed, so a default wired into
+    # one path would fire for one spelling and not the other.
+    #
+    # DO NOT REMOVE A GATE WHEN A WORK KIND CHANGES AWAY FROM `bug`: a gate may have been set
+    # deliberately for another reason, and silently clearing it would lose a decision. Hence the
+    # predicate is consulted only for the kind the item is BECOMING, it never clears, and it declines
+    # when the item already carries a gate (`existing_blocks_release`).
+    if set_work_kind is not None and br is None:
+        gate_default, gate_default_notice = decide_gate_default(
+            repo_root,
+            kind=set_work_kind,
+            status=new_status,
+            explicit_blocks_release=None,
+            existing_blocks_release=item.blocks_release,
+        )
+        if gate_default is not None:
+            from agent_workflows import releases as _releases
+
+            rendered = _releases.set_blocks_release_line(rendered, gate_default)
+        if gate_default_notice:
+            sys.stdout.write(f"aw backlog set: {gate_default_notice}\n")
 
     # bklggrad orb9zb E-04: release-gate close-legitimacy gate. `rendered` now reflects the
     # POST-mutation item (including any same-call `--blocks-release -` de-gate), so a

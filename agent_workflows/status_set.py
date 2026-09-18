@@ -795,6 +795,43 @@ def apply_status_change(
         tmp_text = _releases.set_from_backlog_line(tmp_text, fb)
         new_lines = tmp_text.splitlines()
 
+        # nobugship di08i9 E-03: INHERIT THE ITEM'S RELEASE GATE AT GRADUATION, so the handoff
+        # obligation stops depending on prose. `AGENTS.md` already instructs an agent graduating an
+        # item to inherit its `- Blocks-Release:`, and that instruction was measurably not followed:
+        # every graduated gateless bug had a `From-Backlog` carrier and NONE of the carriers carried a
+        # gate. Writing it here makes the one route a setter OWNS carry it by construction.
+        #
+        # WHAT THIS DOES NOT CLOSE, stated as the deliverable rather than buried as a caveat: this
+        # covers `aw ipd set --from-backlog` ONLY. The dominant historical route is HAND AUTHORING
+        # (12 of 13 existing carriers carry the field in the file's FIRST commit), `aw ipd scaffold`
+        # has no `--from-backlog` flag at all, and `aw specs set` does not either, so a spec-first
+        # graduation has no setter route. This strictly reduces FUTURE mismatch on one route; the
+        # historical population and the uncovered routes belong to child 03's checker + backfill.
+        #
+        # IT IS A WRITE, NEVER A REFUSAL. Refusing `--from-backlog` when the gate cannot be applied
+        # would break a link the author is legitimately recording, and `check.from-backlog-gate-
+        # mismatch` already ships at ERROR to catch a mismatch afterwards. An EXPLICIT
+        # `--blocks-release` in the same call wins, and an existing gate on the artifact is never
+        # overwritten (that would silently discard a decision a plan made for its own reasons; a plan
+        # may legitimately gate a release its originating item never knew about).
+        if fb != "-" and getattr(args, "blocks_release", None) is None:
+            from agent_workflows import backlog as _backlog
+
+            _carrier_m = re.search(
+                r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$", "\n".join(new_lines)
+            )
+            if _carrier_m is None:
+                _item_gate = _backlog.blocks_release_of_item(repo_root, fb)
+                if _item_gate:
+                    tmp_text = _releases.set_blocks_release_line(
+                        "\n".join(new_lines), _item_gate
+                    )
+                    new_lines = tmp_text.splitlines()
+                    sys.stdout.write(
+                        f"aw set: inherited - Blocks-Release: {_item_gate} from backlog item "
+                        f"{fb} (graduation handoff: the gate travels with the work)\n"
+                    )
+
     # Item-Dependencies write (ipddeps g69y23): the SAME hoisted, status-branch-independent shape as
     # the Blocks-Release / From-Backlog writes above, so `aw ipd dependencies set` persists even on a
     # no-op (same-status) transition. Funnels through the single shared
@@ -834,6 +871,50 @@ def apply_status_change(
         tmp_text = "\n".join(new_lines)
         tmp_text = _releases.set_work_kind_line(tmp_text, work_kind)
         new_lines = tmp_text.splitlines()
+
+    # nobugship di08i9 E-02: THE POSITIONAL SPELLING'S HALF OF THE RECLASSIFICATION DEFAULT. When an
+    # item's Work-Kind BECOMES `bug` and it carries no gate, the release gate is defaulted here too,
+    # through the SAME shared `backlog.decide_gate_default` predicate `backlog.run_new` and
+    # `backlog.run_set` call, and written through the SAME shared `releases.set_blocks_release_line`
+    # primitive as every other gate write on this path.
+    #
+    # BOTH DISPATCH PATHS ARE REQUIRED AND THAT IS WHY THIS EXISTS. `aw backlog set` forks on whether
+    # `--status` was PASSED (cli.py): the positional spelling routes HERE, and the `--status` spelling
+    # routes to `backlog.run_set`. A default wired into one only would fire for one spelling of one
+    # verb and not the other, which is worse than not shipping it because it teaches a false
+    # expectation. The shared predicate is what keeps the two from drifting.
+    #
+    # SCOPED TO BACKLOG RECORDS DELIBERATELY. This function is shared by plans and specs, whose
+    # `- Work-Kind:` is a recognized-but-optional descriptive field rather than the REQUIRED
+    # classification a backlog item carries, and whose gate arrives by graduation (E-03's
+    # `--from-backlog` inheritance), not by reclassification. Defaulting a gate onto a plan because
+    # someone labelled it `bug` would invent a release obligation from a descriptive edit.
+    if (
+        work_kind is not None
+        and rec.record_type == "backlog"
+        and getattr(args, "blocks_release", None) is None
+    ):
+        from agent_workflows import backlog as _backlog
+        from agent_workflows import releases as _releases
+
+        _existing_m = re.search(
+            r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$", "\n".join(new_lines)
+        )
+        _existing_br = _existing_m.group(1) if _existing_m else None
+        _gate_default, _gate_notice = _backlog.decide_gate_default(
+            repo_root,
+            kind=work_kind,
+            status=norm_status,
+            explicit_blocks_release=None,
+            existing_blocks_release=_existing_br,
+        )
+        if _gate_default is not None:
+            tmp_text = _releases.set_blocks_release_line(
+                "\n".join(new_lines), _gate_default
+            )
+            new_lines = tmp_text.splitlines()
+        if _gate_notice:
+            sys.stdout.write(f"aw backlog set: {_gate_notice}\n")
 
     if rec.record_type == "plans" and norm_status != "approved":
         new_lines = [
