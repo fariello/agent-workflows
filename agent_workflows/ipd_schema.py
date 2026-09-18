@@ -1328,13 +1328,119 @@ OQ_STATUS_VALUES: FrozenSet[str] = frozenset(("open", "resolved", "deferred"))
 #: Because the tuple has no consumer, adding `Finding` here changes NO behavior; it is recorded so an
 #: author reading the schema finds the convention. If a future change makes `OQ_FIELDS` a CLOSED
 #: allowlist, `Finding` must stay in it or every escalation becomes a structural error.
+#:
+#: durablecapture `rnkqrc` E-01 adds `Carrier` on the same terms and for the same reason. A question or
+#: a deferred row that names an UNFIXED DEFECT must hand it to something that is revisited, and the
+#: reference is matched STRUCTURALLY (`- Carrier: <id6>`), never by prose. See `CARRIER_FIELD` below for
+#: the full vocabulary (`Carrier`, `Carrier-Evidence`, `Carrier-Declined`) and why prose is refused.
 OQ_FIELDS: Tuple[str, ...] = (
     "Blocking",
     "Status",
     "Owner",
     "Resolution or deferral rationale",
     "Finding",
+    "Carrier",
+    "Carrier-Evidence",
+    "Carrier-Declined",
 )
+
+
+# --------------------------------------------------------------------------------------
+# Durable-carrier vocabulary (durablecapture `rnkqrc` E-01)
+#
+# WHAT THIS EXISTS TO STOP, in the maintainer's words (2026-09-05): "A note in an executed IPD is 100%
+# guaranteed to be the same as not writing it anywhere." That is literally true. `attention_contract`
+# maps a plan's `executed` status to the `done` class, so an unfixed defect named only in a terminal
+# plan's prose leaves every "what needs attention" view, permanently and silently, with no record that
+# anything was dropped. `## Deferred / out of scope (with reason)` is MANDATORY in both H2 orders
+# (`H_DEFERRED` above) and, before this change, its CONTENTS were read by nothing.
+#
+# THE MAINTAINER'S RULING (2026-09-10, recorded as this plan's OQ-05) is narrow and strong: "All
+# defects require one or more backlogs or plans to address. The report is not needed. A backlog item or
+# IPD is. This is a MUST, not a should." So a durable CARRIER is the requirement; the accepted carrier
+# set is a backlog item or a NON-TERMINAL plan, and a spec is NEVER sufficient (OQ-01, same ruling: a
+# spec is supporting material).
+#
+# TYPED FIELDS ONLY, WHICH IS THE `Finding` PRECEDENT APPLIED AGAIN. A substring search over prose
+# would be spoofable by any incidental mention and brittle against rewording (`ipd_schema` comment on
+# `Finding`, above). The corpus proves the point rather than merely illustrating it: measured 2026-09-18
+# at HEAD 94345381, 2225 `## Deferred / out of scope` rows exist across 539 plans and EVERY ONE is
+# prose, several literally saying "tracked as `<id6>`". A prose matcher would accept all of them and
+# verify nothing, so a row saying "tracked in the backlog" with no typed field is REFUSED by design.
+#
+# THIS IS A DECLARATION GATE, NOT A DETECTOR, and saying so is required honesty (OQ-04). Nothing here
+# can tell that an author mentioned a defect and wrote no field; the predicate only ever decides
+# mechanical facts (does a typed field exist, does its id6 resolve, is the target non-terminal).
+# --------------------------------------------------------------------------------------
+
+#: The HANDOFF field: `- Carrier: <id6>` names the backlog item or non-terminal plan that carries the
+#: defect onward. Comma-separate several. Resolution (does the id6 exist, is the target non-terminal)
+#: is repo-aware and therefore lives in `check_engine`, never in this pure module.
+CARRIER_FIELD = "Carrier"
+
+#: The SATISFIED field: `- Carrier-Evidence: <repo-relative path>` cites an in-tree artifact showing the
+#: defect is already addressed. Same shape `aw backlog set done --evidence` accepts, resolved by the
+#: same shared `check_engine.resolve_evidence_artifact`.
+CARRIER_EVIDENCE_FIELD = "Carrier-Evidence"
+
+#: The DECLINED field: `- Carrier-Declined: <reason>` is the explicit recorded decision not to carry it,
+#: the analogue of `aw backlog set done --blocks-release -`. A reason is REQUIRED (an empty value does
+#: not decline anything); the reason's MERIT is the reviewer's job, exactly as `open_question_error`
+#: says of an OQ rationale.
+CARRIER_DECLINED_FIELD = "Carrier-Declined"
+
+#: The three fields in one tuple, so a consumer enumerates the vocabulary from the schema rather than
+#: restating it. Order is the verdict-path order (HANDOFF, SATISFIED, DECLINED).
+CARRIER_FIELDS: Tuple[str, ...] = (
+    CARRIER_FIELD,
+    CARRIER_EVIDENCE_FIELD,
+    CARRIER_DECLINED_FIELD,
+)
+
+#: A `## Deferred / out of scope` row's carrier subfields are written INDENTED under the bullet, e.g.
+#:
+#:     - MAKING WALKTHROUGHS READABLE: they are `tracked=False` by design.
+#:       - Carrier: 8kttqq
+#:
+#: which is the same indented `- Key: value` shape an `E-*`/`V-*` leaf already uses, so no new grammar
+#: is introduced. This pattern captures ONE such subfield line; the section walker owns the pairing of a
+#: subfield with its parent row.
+DEFERRED_SUBFIELD_RE = re.compile(
+    r"^\s+- (?P<field>Carrier|Carrier-Evidence|Carrier-Declined):\s?(?P<value>.*)$"
+)
+
+#: An id6 reference, as it appears in a `- Carrier:` value. Bare id6 only: a path or a title is NOT a
+#: carrier reference, because only an id6 can be resolved against the trees deterministically.
+CARRIER_ID6_RE = re.compile(r"\A[0-9a-z]{6}\Z")
+
+
+def parse_carrier_ids(
+    value: Optional[str],
+) -> Tuple[Tuple[str, ...], Tuple[str, ...]]:
+    """Split a `- Carrier:` value into (well-formed id6 tokens, malformed tokens). PURE.
+
+    Comma-separated, whitespace-tolerant. A malformed token is RETURNED rather than raised, following
+    the parse-then-diagnose split the sibling evaluators use: a bad token becomes a finding while the
+    good tokens beside it still parse. Resolving a well-formed id6 against the backlog/plans trees is
+    repo-aware and belongs to `check_engine`, not here.
+    """
+    good: List[str] = []
+    bad: List[str] = []
+    for raw in (value or "").split(","):
+        tok = raw.strip()
+        if not tok:
+            continue
+        (good if CARRIER_ID6_RE.match(tok) else bad).append(tok)
+    return tuple(good), tuple(bad)
+
+
+def carrier_fields_present(fields: Dict[str, str]) -> bool:
+    """True when a parsed field dict carries ANY non-empty carrier field. PURE.
+
+    Presence only. Whether the reference RESOLVES, and whether it points somewhere non-terminal, is the
+    repo-aware half and is decided by `check_engine.evaluate_durable_carrier`.
+    """
+    return any((fields.get(f) or "").strip() for f in CARRIER_FIELDS)
 
 
 def open_question_error(

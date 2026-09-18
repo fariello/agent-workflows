@@ -1227,6 +1227,7 @@ def lint_file(
             # Resolution is best-effort; a repo-scan failure never masks the pure lint result.
             pass
     result = _merge_review_escalation(path, result, text, checkpoint, doc)
+    result = _merge_durable_carrier(path, result, text, checkpoint, doc)
     return result
 
 
@@ -1290,6 +1291,91 @@ def _merge_review_escalation(
         # result. NOTE this is NOT the fail-open path for a malformed artifact - that case is an
         # explicit reported branch inside the evaluator (E-07(b)), so a bad review file produces a
         # finding here rather than being swallowed.
+        pass
+    return result
+
+
+# durablecapture Order 01 (`rnkqrc`) E-03: the durable-carrier rule at the ONE checkpoint that matters.
+#
+# `pre-transition` ONLY, and the asymmetry with `_REVIEW_ESCALATION_CHECKPOINTS` directly above is
+# DELIBERATE rather than an inconsistency to be "fixed" later. That set EXCLUDES `pre-transition`
+# because "blocking there would only strand a completed plan": a gating review finding needed to stop
+# work BEFORE it started. This rule does the exact opposite for the opposite reason: the transition to
+# `executed` is the precise moment an uncarried obligation VANISHES (`attention_contract._PLANS_MAP`
+# maps `executed` -> `done`), so the claim of doneness is the only place the question can be asked. One
+# set excludes the phase the other requires, and both are right about their own concern.
+#
+# DO NOT WIDEN THIS TO THE EARLIER PHASES. Firing at `author`/`review-finalize`/`pre-execution` would
+# demand a carrier for a row a plan is still drafting, which is the mass-failure E-05 exists to avoid;
+# 664 such rows exist across all 106 pending plans today (measured 2026-09-18).
+#
+# THE EXISTING `pre-execution` BLOCKING-OQ CHECK IS UNTOUCHED. Its exclusion from `pre-transition` is
+# deliberate and documented (`check_checkpoint`), and this item ADDS a different question at a different
+# phase rather than relocating an existing one. Two gates, two questions.
+_CARRIER_CHECKPOINTS = frozenset(("pre-transition",))
+
+
+def _merge_durable_carrier(
+    path: Path, result: LintResult, text: str, checkpoint: str, doc: ParsedDoc
+) -> LintResult:
+    """Merge `check.ipd-uncarried-obligation` diagnostics into a LintResult (durablecapture `rnkqrc`).
+
+    THIS LIVES IN ``lint_file``, NOT ``check_checkpoint``/``lint_text``, and that placement is a
+    CORRECTNESS CONSTRAINT rather than a preference. ``lint_text`` is PURE by documented contract
+    ("Pure: no I/O", :func:`lint_text`), and this rule RESOLVES a carrier id6 against the backlog and
+    plans trees, which is I/O. The repository has already made this exact move twice with the reason
+    recorded: the Item-Dependencies RESOLUTION checks and :func:`_merge_review_escalation` both sit
+    here. This function follows the latter's shape exactly: gate on a checkpoint frozenset, skip
+    legacy/quarantined dispositions, reuse the ALREADY-PARSED ``doc`` rather than re-parsing, and
+    delegate to the ONE shared evaluator.
+
+    THE CONSEQUENCE IS INTENDED AND IS ASSERTED BY THE TESTS: a text-only ``lint_text`` call CANNOT
+    report this rule, exactly as it cannot report the review-escalation rule today. A test that got
+    this rule out of ``lint_text`` would prove the predicate had been wired into the pure path.
+
+    Only a FAILING (non-advisory) verdict blocks. A grandfathered pre-cutover plan yields an
+    `info`-severity Drift from the evaluator, which is surfaced as an ADVISORY here and never flips the
+    disposition, so the 106 pending plans that predate this rule still lint conforming.
+    """
+    if checkpoint not in _CARRIER_CHECKPOINTS:
+        return result
+    if result.disposition not in (S.DISPOSITION_CONFORMING, S.DISPOSITION_ERROR):
+        return result  # legacy / quarantined: leave the grandfathered disposition alone
+    try:
+        from agent_workflows import check_engine as _ce
+
+        repo_root = path.resolve().parent
+        for anc in path.resolve().parents:
+            if (anc / ".aw").is_dir() or (anc / ".agents").is_dir():
+                repo_root = anc
+                break
+        blocking: List[Diagnostic] = []
+        advisory: List[Diagnostic] = []
+        for d in _ce.evaluate_durable_carrier(
+            repo_root,
+            plan_path=path,
+            plan_text=text,
+            open_questions=doc.open_questions,
+        ):
+            diag = Diagnostic(0, 1, d.rule, d.detail)
+            (advisory if d.severity == "info" else blocking).append(diag)
+        if blocking:
+            return LintResult(
+                S.DISPOSITION_ERROR,
+                list(result.diagnostics) + blocking,
+                list(result.advisories) + advisory,
+            )
+        if advisory:
+            return LintResult(
+                result.disposition,
+                list(result.diagnostics),
+                list(result.advisories) + advisory,
+            )
+    except Exception:
+        # Consistent with both sibling merge blocks: a repo-scan failure never masks the pure lint
+        # result. NOTE this is NOT a fail-open path for a malformed CARRIER reference - that case is an
+        # explicit reported branch inside `evaluate_carrier_obligation`, so a bad id6 produces a finding
+        # here rather than being swallowed.
         pass
     return result
 
