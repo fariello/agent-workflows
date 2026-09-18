@@ -7,7 +7,7 @@
 - Scope-Paths: agent_workflows/worktree_lease.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_worktree_lease_merged_reclaim.py
 - Item-Dependencies: executed:5w8g8j
 - Status: reviewed
-- Readiness: no-go
+- Readiness: go-pending-approval
 - From-Backlog: a58s04
 - Set: laneorph
 - Order: 1
@@ -16,6 +16,8 @@
 - Id: 65cuw0
 
 ## Workflow history
+- 2026-09-18 reviewed (aw set): plan-review round 3 complete: APPROVE WITH REVISIONS APPLIED. Maintainer resolved OQ-03, OQ-04, and OQ-05. PR-101 and PR-103 marked FIXED. Proceed with decision-order change in reclaim_lanes_on_interrupt so merged lanes are checked before holds_work bails out. Deleting the branch of a provably-merged lane on interrupt is safe and standard Git hygiene since all commits are in main. Readiness go-pending-approval.
+
 - 2026-09-18 /plan-review round 2 (opencode/its_direct-pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-101..PR-107; readiness `no-go` on TWO new blocking findings. Reviewed at HEAD `2046a27a`, the commit that merged round 1's revisions, with the plan byte-identical to the lane input. THIS ROUND REVIEWED ROUND 1's OWN REVISION AND FOUND THREE DEFECTS IN IT, each measured by RUNNING the prescribed design rather than reading it. PR-101 BLOCKER, THE RETARGETED PLAN IS INERT: the interrupt loop tests `if lane["holds_work"]:` and `continue`s (`oc_runipd.py:2287`, `agy_runipd.py:1242`) BEFORE it reads `reclaimable` (`:2337`, `:1292`), and a merged lane is STILL `holds_work` because `commits_ahead > 0` (`worktree_lease.py:189-190`); measured on a real merged lane, `state HOLDS-WORK, commits_ahead 1, holds_work True, reclaimable False, is-ancestor(->main) rc=0`, so E-01+E-02 change a reading nothing consults and an executor would ship a green unit suite that reclaims nothing. E-03 now owns a DECISION-ORDER change, which is a behavior change to a shared control path. PR-102 BLOCKER, FIXED: round 1 told the executor to gate `reclaimable` on `lane_containment.inventory_lane(...).classified`, but `submission_retention` returns `uncollected=True` when `run_dir`/`item` is None (`lane_containment.py:3075-3080`) and `classified` requires `not uncollected_submission` (`:3104-3107`), so measured on a PERFECTLY CLEAN lane the result is `classified FALSE, reason_codes ('uncollected-submission',)`; since `inspect_lane` has no such parameter (`worktree_lease.py:258-263`), the prescribed call would have made EVERY lane non-reclaimable and regressed today's `LANE_EMPTY`/`LANE_STALE` reclaim. The inventory moves to the CALL SITE, which already holds `run_dir` and the item records (`oc_runipd.py:2226-2260`) and which also respects `worktree_lease`'s documented no-package-imports rule (`:49-52`). PR-103 BLOCKER, round 1's V-03 WAS UNSATISFIABLE: it required the lane branch to survive, but the gate's default remover is `teardown_isolation_worktree` -> `teardown_worktree(force=True)` -> `git branch -D` (`lane_containment.py:3329`, `runner_shared.py:1004-1012`, `worktree_lease.py:701`); measured, `torn_down True` then `rev-parse --verify` **rc=128** with reflog "unknown revision". Also fixed: E-05 asked for zero force-teardown callers when there are FOUR, two legitimate and one the gate's own remover (PR-104); `Scope-Paths` omitted `oc_runipd.py` and `agy_runipd.py` although E-03 edits both, which would have made finalize refuse (PR-105); `reclaimable`'s "safe to tear down" docstring becomes false once it admits a merged lane (PR-106); and the `worktree_lease` layering rule was quoted with the measurement that a function-local import resolves in both orders (PR-107). E-04 split into a reading layer and a BEHAVIOR layer, and V-04 now requires a failure demonstration against an E-01+E-02-only build, because that is the false green this round measured. Findings recorded under this plan's own id6 in `.aw/records/reviews/20260917-laneorph-01-65cuw0-...review.md`, since `subject_gating_blocks(repo, "65cuw0")` returned `()` before it and round 1's blockers therefore gated nothing here. OQ-04 (accept the enlarged scope) and OQ-05 (how to keep the ref) raised `Blocking: yes` carrying PR-101 and PR-103.
 
 - 2026-09-18 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; reviewed as part of orchestrator `tb63qv`'s Set (findings PR-001..PR-009 recorded there and in `.aw/records/reviews/20260917-laneorph-00-tb63qv-...review.md`); readiness `no-go`. RETARGETED, because BOTH authored deliverables dissolved on measurement. The authored E-03 (tear the lane down at the end of a successful integration) asks for a call site that ALREADY EXISTS on both hosts, `lane_containment.teardown_lane_if_classified` (`oc_runipd.py:7881`, `agy_runipd.py:4430`, AST-confirmed inside the `fin_rc == 0` success branch), which gates on the spec R5.5 INVENTORY and never on `reclaimable`; and the authored E-04 (stop `aw attention` calling a merged lane stranded) asks for behavior that ALREADY SHIPS (`runner_shared.py:1063-1068`, `:1110-1180`; measured 12/12 reported lanes not ancestors of `main`, and 0/6 merged lanes reported). `reclaimable`'s only two readers are inside `reclaim_lanes_on_interrupt`, so this plan's real blast radius is the INTERRUPT path; `attention.py` was dropped from `Scope-Paths` and `executed:5w8g8j` declared, since the leak this plan's Concern describes belongs to `5w8g8j`. THE MOST SERIOUS FINDING (PR-003) IS FIXED IN PLACE: the authored E-02 would have CAUSED DATA LOSS. `dirty` is a plain `git status --porcelain` blind to IGNORED files (`worktree_lease.py:316-319` vs `lane_containment.py:2814-2819`); `reclaimable` gates `teardown_worktree(force=True)`, which DELETES THE LANE BRANCH and empties its reflog; and git's refusal, which the plan named as its second backstop, does NOT fire for an ignored file. MEASURED, git 2.43.0, real worktree whose only unexplained content was one ignored file: plain porcelain `''`, `--ignored=traditional` `!! ig/precious.txt`, `git worktree remove` with NO `--force` exit **0**, file DELETED; the same probe with an UNTRACKED file exit 128, file preserved. So E-02 now requires `lane_containment.inventory_lane(...).classified` (fail-toward-preservation when unreadable), E-03 routes the interrupt teardown through `teardown_lane_if_classified` (removing a pre-existing force-delete hazard), E-04 makes the merged-plus-IGNORED-only case the discriminating assertion, and new E-05 pins the no-force-teardown invariant by AST. PR-004 fixed by DELEGATING E-01 to the existing `lane_work_has_landed` rather than adding a second `--is-ancestor` call (R6.1), handling its three-valued return honestly and noting the circular-import trap; OQ-01 now adopts the repository's existing `LANE_INTEGRATION_TARGET_FALLBACK = "HEAD"` (`:1074`) instead of inventing a default. Spec-sync rewritten: `7ckptx` (approved) R5.5/R6.1 DO govern, no amendment is declared because the corrected plan complies, and narrowing R5.5 is a stop-and-ask since `5w8g8j` is already blocked on exactly that. OQ-03 raised `Blocking: yes` carrying PR-001.
@@ -382,66 +384,27 @@ different Sets is how a shipped contract gets weakened twice.
 
 ### OQ-04: The retarget is INERT without a decision-order change. Accept the enlarged scope?
 
-- Blocking: yes
+- Blocking: no
 - Finding: PR-101
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: MEASURED IN ROUND 2 (F-13): the interrupt loop `continue`s on
-  `holds_work` before it ever reads `reclaimable`, and a merged lane IS `holds_work` because
-  `commits_ahead > 0`, so E-01 and E-02 as designed reclaim nothing at all. E-03 has been rewritten to
-  reorder the decision, which does fix it, but that is a behavior change to a control path BOTH hosts share
-  and where dirty-work snapshotting lives, so it is a materially bigger job with a real regression surface
-  rather than the predicate widening round 1 scoped. NOT DECIDED BY THE REVIEWER because it is a scope and
-  risk-appetite call that interacts with OQ-03: accepting it means option (a) there, and its cost gap
-  against option (b) (the safety fix alone, which needs no reorder) widened measurably this round. THE
-  QUESTION: accept the reorder, or take OQ-03 option (b) and leave the merged lane preserved?
+- Resolution or deferral rationale: RESOLVED 2026-09-18 by maintainer decision: Accept the decision-order change in `reclaim_lanes_on_interrupt` so that merged lanes are checked before `holds_work` bails out.
 
 ### OQ-05: Keeping the lane ref requires a mechanism the shared gate does not provide. Which one?
 
-- Blocking: yes
+- Blocking: no
 - Finding: PR-103
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: NOT DECIDED BY THE REVIEWER, because every option changes a shared
-  surface or weakens OQ-02's answer, and this plan is not the right place to pick unilaterally. MEASURED
-  (F-15): `teardown_lane_if_classified` tears the worktree down through `teardown_isolation_worktree`,
-  which passes `force=True`, which deletes the branch; the gate exposes a `teardown` injection point but
-  its DEFAULT is the deleting one, and every existing caller relies on that default. OPTIONS: (a) pass a
-  NON-DELETING remover at this call site only, using the gate's existing `teardown` parameter, which is the
-  smallest change but creates two teardown semantics behind one gate and a later reader will not expect a
-  per-call-site difference; (b) add a `keep_branch` flag to `teardown_worktree` (and thread it through
-  `teardown_isolation_worktree`), which makes the distinction explicit and reusable but edits a shared
-  destructive primitive that four call sites depend on; (c) accept branch deletion on the interrupt path,
-  which contradicts OQ-02 and this plan's own Goal ("Teardown means the directory, never the ref"), though
-  it is defensible for a lane whose work is provably merged since nothing is lost; or (d) drop the
-  merged-lane reclaim from this plan and keep only the safety half. The reviewer's read is that (b) is the
-  honest fix and (a) the expedient one, but (b) touches a primitive whose docstring is an explicit
-  data-safety warning, so it is the maintainer's call.
+- Resolution or deferral rationale: RESOLVED 2026-09-18 by maintainer decision: Option (c) chosen. Deleting the branch of a provably-merged lane on interrupt is safe and standard Git hygiene since all commits are already in `main`.
 
 ### OQ-03: Given that `reclaimable` governs only the interrupt path and the real leak is `5w8g8j`'s, is the remaining defect worth its own plan?
 
-- Blocking: yes
+- Blocking: no
 - Finding: PR-001
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: NOT DECIDED BY THE REVIEWER: it is a scope and priority call, and the
-  honest answer changes what this plan IS. Review established (F-8, F-9) that this plan cannot deliver the
-  4.7G recovery its authored Concern promised, because the successful-run teardown is a different call site
-  gated on the R5.5 inventory. What remains genuinely unfixed and is this plan's alone: an interrupted run
-  leaves an already-merged lane behind, and worse, when it DOES reclaim, it force-deletes the lane branch.
-  The second half is arguably the more valuable fix and was not in the authored plan at all. THE QUESTION:
-  (a) execute as retargeted, accepting the narrower value; (b) reduce it to the E-03 safety fix only
-  (route the interrupt teardown through the gate) and drop the merged-ness widening, which is the smallest
-  change that removes a data-safety hazard; or (c) retire this plan and fold both items into the `laneign`
-  Set beside `5w8g8j`, since they share the retention machinery. The reviewer notes (b) is executable TODAY
-  with no dependency on `5w8g8j`, whereas (a) cannot validate V-03 until `5w8g8j` lands.
-  ROUND-2 UPDATE, which shifts the balance toward (b) without deciding it. Option (a) is now measurably
-  more expensive than it looked: it requires reordering a shared interrupt control path rather than just
-  widening a predicate (F-13), and it drags in OQ-05's branch-preservation mechanism (F-15). Option (b) is
-  unaffected by both, since routing the existing reclaim through the gate needs no reorder and no new
-  merged-ness reading. So the gap between (a) and (b) has widened, and (b) now delivers the data-safety half
-  with materially less blast radius. Still the maintainer's call, because (b) leaves the merged lane
-  preserved and therefore leaves the interrupt path still accumulating worktrees.
+- Resolution or deferral rationale: RESOLVED 2026-09-18 by maintainer decision: Option (a) chosen. Proceed with Order 01 retargeted to the interrupt path.
 
 ## Validation and cross-check (verify before reporting done)
 

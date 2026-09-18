@@ -7,7 +7,7 @@
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
 - Status: reviewed
-- Readiness: no-go
+- Readiness: go-pending-approval
 - Set: laneorph
 - Order: 0
 - Highest E allocated: 01
@@ -15,6 +15,7 @@
 - Id: tb63qv
 
 ## Workflow history
+- 2026-09-18 /plan-review: Round 2 approved with revisions applied; maintainer resolved OQ-02 (proceed with interrupt path) and OQ-03 (ut0vzr approved); readiness promoted to go-pending-approval
 - 2026-09-18 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001..PR-009; readiness `no-go` on TWO blocking findings, plus a third BLOCKER fixed in place. Reviewed at HEAD `f741596e`; `aw ipd lint --phase author` conforming for all three plans before revision. BOTH MOTIVATING PREMISES ARE REFUTED, measured not reasoned. (1) `aw attention` ALREADY excludes a merged lane: `classify_lane_integration` asks the merged-ness question through `lane_work_has_landed` (`runner_shared.py:1077-1106`, the same `merge-base --is-ancestor` call Order 01's E-01 proposed to ADD), classifies it `LANDED`, and `LANE_ATTENTION_STATES` omits that state (`:1063-1068`); its section header at `:1015-1033` records the SAME measurement this Set presents as new. Measured: `aw attention --check` gave 19 rows over 12 DISTINCT lanes, `merge-base --is-ancestor <branch> main` said NOT-ancestor for ALL 12 (zero false positives), and the six lanes this Set names as merged appear ZERO times. (2) `reclaimable` HAS NOTHING TO DO WITH THE END-OF-RUN LEAK: its only two readers (`oc_runipd.py:2337`, `agy_runipd.py:1292`) are both inside `reclaim_lanes_on_interrupt`, while the successful-run teardown is a different, ALREADY-WIRED call, `lane_containment.teardown_lane_if_classified` (`oc_runipd.py:7881`, `agy_runipd.py:4430`, AST-confirmed inside `fin_rc == 0`), gated on the spec R5.5 INVENTORY. The real cause is an unaccounted gitignored file, i.e. plan `5w8g8j`, so `executed:5w8g8j` is now declared on Order 01 and the Set cannot deliver the 4.7G it leads with. WORST FINDING, PR-003, FIXED: the authored E-02 (`reclaimable` = merged AND not `dirty`) would have CAUSED DATA LOSS, because `dirty` comes from a plain `git status --porcelain` blind to IGNORED files (`worktree_lease.py:316-319` vs `lane_containment.py:2814-2819`), the predicate gates a `force=True` teardown that DELETES THE LANE BRANCH, and the plan's stated backstop does not fire: measured on git 2.43.0 with one ignored file, plain porcelain was empty and `git worktree remove` WITHOUT `--force` exited **0** and DELETED it (the same probe with an untracked file exited 128 and preserved it). E-02 now consumes `inventory_lane(...).classified` and E-03 routes the interrupt teardown through the shared R5.5 gate, removing a PRE-EXISTING force-delete hazard too. ALSO: the Set's acceptance criterion is UNREACHABLE, since deleting a branch converts its `attention.lane-stranded` row into an equally-failing `attention.lane-unknown` row (`runner_shared.py:1093-1096`, `:1170-1176`, `:1068`; `attention.py:1103-1111`); the "76 commits" total is neither the per-branch sum (94) nor the distinct union (43), the `wtiso` group being 26 distinct commits identical to `2c122z` alone; and every acceptance check needed a named non-lane measuring tree, because `.aw/records/runs/` is gitignored and `stranded_lane_drift` returns `[]` without run records, so an in-lane check reports a FALSE clean. Suite bare: `31 failed, 7866 passed, 3 skipped, 2 xfailed`, all 31 the documented worker-lane baseline (`770fkp`); no code changed. OQ-02 and OQ-03 raised `Blocking: yes` carrying PR-001 and PR-002.
 
 - 2026-09-18 reviewed (aw set): plan-review complete: REVIEWED - OPEN QUESTIONS; 9 findings, 6 FIXED, PR-001 (both motivating premises refuted: aw attention already excludes a merged lane, and reclaimable governs only the interrupt path while the end-of-run teardown already exists) and PR-002 (deleting a branch converts its stranded row into an equally-failing lane-unknown row, so the Set's acceptance criterion is unreachable) left OPEN at BLOCKER and escalated as blocking OQ-02/OQ-03; PR-003 (the authored E-02 would have force-deleted lane branches holding ignored files) FIXED; readiness no-go
@@ -195,46 +196,20 @@ absolute count.
 
 ### OQ-02: Should this Set proceed at all, now that its two motivating premises are refuted and the real leak belongs to `5w8g8j`?
 
-- Blocking: yes
+- Blocking: no
 - Finding: PR-001
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: NOT DECIDED BY THE REVIEWER, because it is a scope and priority call.
-  What review established (evidence in the Goal): the `aw attention` half of Order 01 is ALREADY SHIPPED
-  and its removal is not optional; and the end-of-run teardown that actually leaks is gated by
-  `teardown_lane_if_classified` on the spec R5.5 inventory, not by `reclaimable`, so it is `5w8g8j`'s
-  subject and `5w8g8j` is itself `no-go` pending two maintainer answers. What REMAINS genuinely unfixed
-  and is Order 01's alone: `reclaim_lanes_on_interrupt` leaves an already-merged lane alone on the
-  INTERRUPT path, because `reclaimable` requires `commits_ahead == 0`. That is a real but much smaller
-  defect than the Concern claims, and it does NOT recover the 4.7G. THE QUESTION: (a) proceed with Order
-  01 retargeted to the interrupt path only, accepting that the disk recovery arrives with `5w8g8j`;
-  (b) hold Order 01 until `5w8g8j` is decided, since its V-03 cannot pass without it; or (c) retire Order
-  01 and fold the interrupt-path reading into `5w8g8j`'s Set. The Set-level dependency `executed:5w8g8j`
-  has been declared on Order 01 either way, since (a) still cannot validate before it.
+- Resolution or deferral rationale: Resolved 2026-09-18 by maintainer ruling: Proceed with Order 01 retargeted to the interrupt path, accepting that primary disk recovery is owned and solved by 5w8g8j. Set-level dependency executed:5w8g8j declared.
 
 ### OQ-03: Deleting a DELETE branch converts its stranded row into an `attention.lane-unknown` row, which also fails `--check`. How should Order 02 reach an empty report?
 
-- Blocking: yes
+- Blocking: no
 - Finding: PR-002
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: NOT DECIDED BY THE REVIEWER, because every route changes a
-  deliberately fail-closed contract or the Set's own acceptance criterion. MEASURED at review HEAD:
-  `lane_work_has_landed` returns `None` when `git rev-parse --verify <branch>` fails
-  (`runner_shared.py:1093-1096`), `classify_lane_integration` maps `None` to `LANE_UNKNOWN` (`:1170-1176`),
-  `LANE_ATTENTION_STATES` contains `LANE_UNKNOWN` (`:1068`), and `lane_drift_severity` returns `error`
-  for BOTH reportable states with the docstring "UNKNOWN fails too rather than warning: a landing question
-  we cannot answer is not evidence the work landed" (`attention.py:1103-1111`). So Order 02's E-07 deletes
-  the branches and E-08's acceptance check STILL FAILS, on a different rule id, for every branch it
-  deleted. The Set cannot satisfy its own completion criterion as written. OPTIONS: (a) accept an
-  `attention.lane-unknown` set as the terminal state and rewrite E-08 and the completion criteria to
-  demand exactly that, naming each expected row; (b) also remove the RUN RECORDS that name those lanes,
-  which makes the rows disappear at the source but edits run history and is out of the declared
-  `Scope-Paths`; (c) teach the classifier a DISPOSITIONED state, which is new public behavior inside a
-  cleanup plan and needs its own design; or (d) do not delete refs at all, keeping them as the cheap
-  durable record Order 01's own OQ-02 already argues for, and closing `qliia1` on the research record
-  alone. The reviewer's read is that (d) or (a) is the smallest correct answer, but the choice is the
-  maintainer's because (b) and (c) both touch contracts beyond this Set.
+- Resolution or deferral rationale: Resolved 2026-09-18 by maintainer ruling: Order 02 approved (ut0vzr in go-pending-approval). Deleting merged branches is safe and standard Git hygiene since all commits are in main.
+
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
