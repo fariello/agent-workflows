@@ -4180,7 +4180,7 @@ def _read_order(text: str) -> int | None:
 # DERIVATION end to end on both hosts rather than merely that a field exists.
 #
 # BOTH PINS WERE INVERTED, NOT DELETED, following this repo's precedent for a pinned decision a later
-# phase deliberately reverses (`tests/test_wtiso_characterization.py`):
+# phase deliberately reverses:
 # `tests/test_runner_shared.py::DiscoverPlansRecordTypeTests` and the single assertion at
 # `tests/test_orchestrator_retirement.py`'s `test_the_agy_queue_entry_carries_kind`. Each now guards
 # the UNIFIED shape and cites `sy7uwh` as the authorizing plan.

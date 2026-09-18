@@ -1,16 +1,14 @@
 """Single-source + round-trip proof for the filename-grammar authority (IPD o6b8l3, E-05/V-05).
 
 Asserts:
-  (a) the golden characterization suite (E-01) still passes unchanged after re-routing every builder
-      and validator through the authority (run the golden module and require it green);
-  (b) STRUCTURAL single-source: the clustered-grammar regex signature, the facet-enum table, and the
+  (a) STRUCTURAL single-source: the clustered-grammar regex signature, the facet-enum table, and the
       facet POLICY (the closed-enum ``_FACET_ALT`` alternation, OQ-03) each appear in exactly ONE
       module of the ``agent_workflows`` package - ``artifact_naming`` - and every other package module
       that needs them imports from it. ``normalize_plan_names`` (the shipped standalone stdlib-only
       bootstrap tool) is the single DOCUMENTED exception to "exactly one copy" (OQ-04 resolved on the
       safe path (a): keep it standalone so setup-repo can run it before the package is installed) and
       is covered by an explicit BYTE-IDENTICAL drift-guard test here instead of a runtime import;
-  (c) ROUND-TRIP property: for the clustered grammar and the research grammar,
+  (b) ROUND-TRIP property: for the clustered grammar and the research grammar,
       ``parse(build(components)) == components`` and ``build(parse(name)) == name`` for conformant
       inputs.
 """
@@ -51,23 +49,6 @@ def _load_normalizer():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
-
-class GoldenStillGreenTests(unittest.TestCase):
-    def test_golden_suite_still_passes(self) -> None:
-        # Load and run the golden module in-process; require every test green (E-05 (a)).
-        import unittest as _ut
-
-        loader = _ut.TestLoader()
-        suite = loader.loadTestsFromName("tests.test_naming_authority_golden")
-        result = _ut.TestResult()
-        suite.run(result)
-        self.assertEqual(
-            result.failures + result.errors,
-            [],
-            msg=f"golden suite regressed: {result.failures + result.errors}",
-        )
-        self.assertGreater(result.testsRun, 0)
 
 
 class SingleSourceStructuralTests(unittest.TestCase):

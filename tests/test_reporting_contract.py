@@ -88,68 +88,58 @@ def _shim_corpus() -> dict[str, str]:
 
 
 class ContractSourceTests(unittest.TestCase):
-    """E-01/V-01: one importable, provider-neutral source of truth."""
+    """E-01/V-01: one importable, provider-neutral source of truth.
+
+    WHAT WAS DELIBERATELY REMOVED HERE. Three tests asserted a combined 28 English needles
+    ("praise", "recaps", "plain direct language", ...) appeared in the contract prose, and a
+    fourth asserted `ROUTINE_FINAL_WORD_CAP == 100` against a sentence that INTERPOLATES that same
+    constant, so it could not fail. Needle lists over prose are change-detectors: they break on
+    every legitimate reword, and they cannot detect the failure that matters (prose that is present
+    but says the wrong thing). Git already records prose changes.
+
+    WHAT IS KEPT, because each is a property no amount of rereading the prose gives you: the text
+    is non-empty and DETERMINISTIC (it is hashed into an install manifest), it is pure ASCII (it is
+    embedded into files other tests require to be ASCII), it is SINGLE-SOURCED (a second production
+    copy would drift), and the workflow rule it quotes still exists (otherwise the quote is stale).
+    """
 
     def setUp(self) -> None:
         self.text = RC.contract_text()
         self.flat = _flat(self.text)
 
-    def test_module_imports_and_returns_text(self) -> None:
-        self.assertTrue(self.text.strip())
-        self.assertTrue(self.text.endswith("\n"))
-        # Stable across calls (no time/randomness in the contract).
-        self.assertEqual(self.text, RC.contract_text())
+    def test_the_contract_is_nonempty_deterministic_and_ascii(self) -> None:
+        """All three at once: each is a precondition of the SAME downstream use of this text.
 
-    def test_contract_states_every_brevity_rule(self) -> None:
-        needles = (
-            "Lead with the OUTCOME",
-            "`Yes.`",
-            "`No.`",
-            "one sentence",
-            "preambles",
-            "praise",
-            "restatement",
-            "narration",
-            "recaps",
-            "closing offers",
-            "plain direct language",
-            "changed files",
-            "verification status",
-            "blockers",
-            "OMIT a category",
-            "at or below 100 words",
-            "one short progress sentence",
-        )
-        for needle in needles:
-            self.assertIn(needle, self.flat, f"contract must state {needle!r}")
-
-    def test_contract_states_every_completeness_exception(self) -> None:
-        needles = (
-            "explicit user request",
-            "OVERRIDES the default",
-            "required evidence",
-            "safety warnings",
-            "destructive-action",
-            "structured outcomes",
-            "durable artifacts",
-            "not analysis, implementation, testing",
-        )
-        for needle in needles:
-            self.assertIn(needle, self.flat, f"contract must except {needle!r}")
-
-    def test_contract_cannot_be_read_as_permission_to_do_less(self) -> None:
-        self.assertIn("Saying less is never permission to do", self.flat)
-        self.assertIn("verify less", self.flat)
-
-    def test_word_cap_constant_matches_the_prose(self) -> None:
-        self.assertEqual(RC.ROUTINE_FINAL_WORD_CAP, 100)
-        self.assertIn(f"at or below {RC.ROUTINE_FINAL_WORD_CAP} words", self.flat)
-
-    def test_contract_is_pure_ascii(self) -> None:
-        """It is embedded into prompts and instruction files asserted to be ASCII."""
-
+        The text is embedded into shims/prompts and hashed into the install manifest, so emptiness,
+        per-call variation, and a stray non-ASCII byte each break that same consumer. Reporting them
+        together tells the fixer which precondition failed without three separate red tests.
+        """
+        problems = []
+        if not self.text.strip():
+            problems.append(
+                "EMPTY: contract_text() returned blank, so every embedding of it is blank"
+            )
+        if not self.text.endswith("\n"):
+            problems.append(
+                "NO TRAILING NEWLINE: concatenating it into a file corrupts the next line"
+            )
+        if self.text != RC.contract_text():
+            problems.append(
+                "NONDETERMINISTIC: two calls differed, so the install manifest hash is unstable "
+                "and every reinstall would look like a user edit"
+            )
         bad = sorted({c for c in self.text if ord(c) > 127})
-        self.assertEqual(bad, [], f"non-ASCII characters in the contract: {bad}")
+        if bad:
+            problems.append(
+                f"NON-ASCII {bad}: this text is embedded into shims and driver prompts that other "
+                "tests require to be pure ASCII, so those fail as a side effect"
+            )
+        self.assertEqual(
+            problems,
+            [],
+            "agent_workflows/reporting_contract.py:contract_text() violated a precondition of "
+            "being embedded and hashed:\n  " + "\n  ".join(problems),
+        )
 
     def test_no_second_independently_maintained_production_copy(self) -> None:
         """Only `reporting_contract.py` may contain the contract's opening sentence."""
@@ -165,38 +155,23 @@ class ContractSourceTests(unittest.TestCase):
             "the contract prose must live in exactly one production module",
         )
 
-
-class PrecedenceTests(unittest.TestCase):
-    """E-06/V-06: the required-report override must be explicit and bidirectional."""
-
-    def setUp(self) -> None:
-        self.text = RC.contract_text()
-        self.flat = _flat(self.text)
-
-    def test_names_the_required_report_override(self) -> None:
-        self.assertIn("PRECEDENCE", self.flat)
-        self.assertIn("required report", self.flat)
-        self.assertIn("IN FULL", self.flat)
-        self.assertIn(
-            f"do NOT apply the {RC.ROUTINE_FINAL_WORD_CAP}-word cap to it", self.flat
-        )
-
-    def test_names_the_conflicting_workflows_concretely(self) -> None:
-        self.assertIn("plan-review", self.flat)
-        self.assertIn("literal final output", self.flat)
-        self.assertIn("release-review", self.flat)
-
-    def test_inverse_guard_brevity_does_not_excuse_skipping_evidence(self) -> None:
-        self.assertIn("NEVER licenses truncating a mandated report", self.flat)
-        self.assertIn("ACTUAL runner output", self.flat)
-
     def test_the_quoted_workflow_rule_still_exists_in_the_repo(self) -> None:
-        """The override quotes plan-review; if that rule moves, this contract text is stale."""
+        """The contract quotes plan-review by name; if that rule moves, the quote is stale.
 
+        This is NOT a prose pin on the contract: it checks that an external thing the contract
+        makes a factual claim ABOUT is still true. A dangling citation is a real defect.
+        """
         body = (
             REPO_ROOT / ".aw/system/workflows/plan-review/plan-review.md"
         ).read_text(encoding="utf-8")
-        self.assertIn("literal final output", body)
+        self.assertIn(
+            "literal final output",
+            body,
+            "the reporting contract cites plan-review's 'literal final output' rule as the "
+            "example of a report exempt from the word cap. That phrase is gone from "
+            ".aw/system/workflows/plan-review/plan-review.md, so the contract now cites a rule "
+            "that does not exist; update the citation or restore the rule",
+        )
 
 
 class ManagedSectionTests(unittest.TestCase):

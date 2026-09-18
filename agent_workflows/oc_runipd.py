@@ -8514,8 +8514,10 @@ def run_queue(
     # very `state` dict this function holds and persists it through the injected `save_state`, so the
     # in-memory view is already current and the published reporter reference is still the same object; a
     # reload would rebind `state` to an equal dict for no gain, and would add a sixth
-    # `register_signal_report` site to a function whose five sites are pinned as a measured invariant
-    # (`tests/test_rununify_run_queue.py::TheSignalReportRefreshSitesArePinned`). The loop below reloads
+    # `register_signal_report` site to a function whose five sites were a measured invariant. The
+    # behavior that matters (every ladder reload is followed by a refresh, so a signal report is
+    # never served from a stale state) is asserted in
+    # `tests/test_rununify_run_queue_characterization.py`. The loop below reloads
     # on its own first iteration regardless.
     _integrate_stranded_lanes(run_dir, state)
     tracker = StreamTracker()

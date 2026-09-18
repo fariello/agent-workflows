@@ -1650,8 +1650,8 @@ class DiscoverPlansRecordTypeTests(unittest.TestCase):
 
     rununify 06 (`sy7uwh`) IS THAT LATER CHILD, authorized by the maintainer's 2026-09-14
     unify-toward-oc ruling, so the assertions are INVERTED IN PLACE rather than deleted - the repo's
-    own precedent for a pinned decision a later phase deliberately reverses
-    (`tests/test_wtiso_characterization.py`). Deleting the guard would leave the override unrecorded
+    own precedent for a pinned decision a later phase deliberately reverses.
+    Deleting the guard would leave the override unrecorded
     and the property unprotected; inverting it keeps a test that fails if the record ever re-forks.
 
     WHY THE OVERRIDE IS LEGITIMATE RATHER THAN A REVERSAL FOR ITS OWN SAKE: the premise dissolved.

@@ -5,17 +5,18 @@ WHY THIS FILE EXISTS, and why every assertion here is on an OBSERVABLE result.
 
 The parent Set forbids a child reconciling a symbol the characterization baseline has not pinned,
 and `main` is the process entry point both runners are reached through. It is also, measured, the
-most heavily SOURCE-pinned of the five large functions this Set splits: four existing pins read
-`inspect.getsource(<host>.main)` and assert substrings or AST shapes of its body (inventoried in
-`tests/test_rununify_main.py`). A source pin has two failure modes this file is the answer to. It
-dies when the body MOVES even though behavior is unchanged, and it can be satisfied by a COMMENT
-even when behavior is broken. So nothing below reads source text; each test drives the host's real
-`main` and asserts the return code, the streams, and the on-disk state.
+most heavily SOURCE-pinned of the five large functions this Set splits: four pins USED to read
+`inspect.getsource(<host>.main)` and assert substrings or AST shapes of its body. A source pin has
+two failure modes this file is the answer to. It dies when the body MOVES even though behavior is
+unchanged, and it can be satisfied by a COMMENT even when behavior is broken. So nothing below reads
+source text; each test drives the host's real `main` and asserts the return code, the streams, and
+the on-disk state. THIS FILE IS NOW THE WHOLE GUARD: the source pins it was written to replace (and
+the sibling that counted them) were deleted once this behavioral net was in place, which is the
+outcome the plan wanted rather than a loss of coverage.
 
-E-02 IS DELIBERATELY NOT ALLOWED TO ADD A FIFTH SOURCE PIN. Plan `3dki3o` E-02 states it directly:
-"adding a fifth source pin would hand the next refactor a problem this plan is documenting."
-`tests/test_rununify_main.py::TheSourcePinsAreStillPresent` asserts the count did not grow, so this
-file cannot quietly acquire one.
+DO NOT ADD A SOURCE PIN HERE. Plan `3dki3o` E-02 states why directly: "adding a fifth source pin
+would hand the next refactor a problem this plan is documenting." Assert on the observable result of
+running `main`, never on the text of its body.
 
 AGY IS PRIORITIZED DELIBERATELY, per the plan's E-02. The parent Set measured the two hosts' suites
 as asymmetric, so an agy-side regression can hide behind a green run. Every test here runs against
@@ -597,8 +598,7 @@ class TheEmptySweepExitCodeContract(unittest.TestCase):
     WHAT CHANGED SINCE THE PLAN WAS WRITTEN, and it is the good news: sibling `i3d6ml` (commit
     `d26c1061`) lifted `EmptyStatusSelection` into `runner_shared`, so at this HEAD both hosts
     resolve the SAME class and the hazard is structurally gone. The plan's own Goal table lists the
-    symbol as "STILL DEFINED TWICE"; that is now stale, which
-    `tests/test_rununify_main.py` records as a class change.
+    symbol as "STILL DEFINED TWICE"; that is now stale.
 
     So this class pins BOTH halves: the behavior (0, the plain sentence, no run directory) and the
     structural precondition (one class, shared, a `DriverError` subclass). A future re-fork into two

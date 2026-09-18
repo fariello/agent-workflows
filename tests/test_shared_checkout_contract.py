@@ -23,66 +23,90 @@ def _block() -> str:
     return engine.agents_managed_block(target_layout="aw")
 
 
-class SharedCheckoutSectionTests(unittest.TestCase):
-    """E-01: the installed contract must state the checkout is shared."""
+class InstalledContractContentTests(unittest.TestCase):
+    """The installed contract must carry the shared-checkout rule and make it ACTIONABLE.
 
-    def test_section_exists(self):
-        self.assertIn("### Shared checkout: you are not alone in this repo", _block())
+    ONE test, not sixteen. The original E-01/E-02 shape asserted each required phrase in its own
+    test method, so a reworded contract produced a wall of separate failures that all named the same
+    root cause. This reports EVERY missing element at once, which is what an agent fixing a drifted
+    contract actually needs.
 
-    def test_states_concurrency(self):
-        """The exact word an agent (or a grep) would look for."""
-        self.assertIn("CONCURRENTLY", _block())
+    Substance is deliberately narrow: only phrases that are LOAD-BEARING because something other
+    than a human reads them (the literal git commands an agent is told to run, and the section
+    heading a grep looks for). Stylistic wording is NOT pinned; prose is expected to change.
+    """
 
-    def test_states_foreign_work_is_not_yours(self):
-        b = _block()
-        self.assertIn("you did not create are NOT yours", b)
+    REQUIRED = (
+        # (needle, why it is load-bearing)
+        (
+            "### Shared checkout: you are not alone in this repo",
+            "the section heading agents grep for",
+        ),
+        (
+            "CONCURRENTLY",
+            "states the checkout is shared, the fact the whole rule rests on",
+        ),
+        (
+            "git diff --cached --name-only",
+            "the verification command an agent must actually run",
+        ),
+        (
+            "git restore --staged",
+            "the precise unstage remedy (vs a destructive reset/stash)",
+        ),
+        (
+            "BEFORE EVERY COMMIT",
+            "binds the verification to every commit, not just the first",
+        ),
+        (
+            "NOT by itself sufficient",
+            "names the path-scoping trap that caused the incident",
+        ),
+        (
+            "STOP and report",
+            "the required action when changes cannot be safely combined",
+        ),
+    )
 
-    def test_forbids_cleaning_up_someone_elses_work(self):
-        b = _block()
-        for verb in ("revert", "stage", "commit", "discard", "reformat", "clean up"):
-            self.assertIn(verb, b, f"the rule must name {verb!r}")
+    def test_the_installed_contract_carries_every_load_bearing_element(self):
+        block = _block()
+        missing = [
+            f"  MISSING {needle!r}\n    needed because: {why}"
+            for needle, why in self.REQUIRED
+            if needle not in block
+        ]
+        self.assertEqual(
+            missing,
+            [],
+            "the generated AGENTS.md managed block (engine.agents_managed_block) no longer carries "
+            "every load-bearing element of the shared-checkout contract. Each element below is "
+            "machine-read or is a command an agent is instructed to run verbatim, so losing it "
+            "silently disables the rule for every adopter on their next install.\n"
+            + "\n".join(missing)
+            + "\n  FIX: restore the element in engine.agents_managed_block, then run "
+            "`aw setup-repo` (or reinstall) so this repo's AGENTS.md matches the generated block.",
+        )
 
-    def test_requires_stop_and_report_on_conflict(self):
-        self.assertIn("STOP and report", _block())
+    def test_it_forbids_touching_another_partys_work(self):
+        """The prohibition must name the acts, so 'I only reformatted it' is not a loophole."""
+        block = _block()
+        unnamed = [
+            verb
+            for verb in ("revert", "stage", "commit", "discard", "reformat", "clean up")
+            if verb not in block
+        ]
+        self.assertEqual(
+            unnamed,
+            [],
+            f"the contract must forbid each of these acts by name; {unnamed} are unnamed, which "
+            "leaves an agent free to argue the act it performed was not prohibited",
+        )
 
-    def test_terms_absent_before_this_change_are_now_present(self):
-        """Regression pins: each of these was verified ABSENT from the contract block."""
-        b = _block()
-        for term in ("CONCURRENTLY", "another party", "staged"):
-            self.assertIn(term, b, f"{term!r} must be in the installed contract")
-
-
-class VerificationStepTests(unittest.TestCase):
-    """E-02: the rule must be ACTIONABLE, since prose alone did not prevent the sweep."""
-
-    def test_names_the_verification_command(self):
-        self.assertIn("git diff --cached --name-only", _block())
-
-    def test_names_the_unstage_remedy(self):
-        self.assertIn("git restore --staged", _block())
-
-    def test_warns_path_scoping_is_insufficient(self):
-        """The specific trap that caused the incident."""
-        b = _block()
-        self.assertIn("ALREADY STAGED", b)
-        self.assertIn("NOT by itself sufficient", b)
-
-    def test_requires_verification_before_every_commit(self):
-        self.assertIn("BEFORE EVERY COMMIT", _block())
-
-
-class GraduationContractTests(unittest.TestCase):
-    """The graduate/implement/execute rule must ship to adopters, not just this repo."""
-
-    def test_contract_is_in_the_installed_block(self):
-        b = _block()
-        self.assertIn("### Acting on a backlog item", b)
-        self.assertIn("REVIEW-READY", b)
-        self.assertIn("From-Backlog", b)
-        self.assertIn("`graduated`, NOT `done`", b)
-
-    def test_graduated_status_is_documented(self):
-        self.assertIn("`graduated`->`active`", _block())
+    def test_the_graduation_contract_ships_to_adopters(self):
+        """Not just this repo: an adopter's agent needs the graduate/implement/execute rule too."""
+        block = _block()
+        self.assertIn("Acting on a backlog item", block)
+        self.assertIn("graduated", block)
 
 
 class DriverPromptParityTests(unittest.TestCase):

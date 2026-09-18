@@ -25,7 +25,9 @@ filename is SHAPED. It owns, exactly once:
 Every builder and validator in the package imports from HERE instead of re-encoding the grammar, so
 it is structurally impossible for a builder to emit a name a validator rejects (they share one
 definition). The grammar itself is unchanged: every name produced or accepted before this module
-existed is produced or accepted identically (pinned by ``tests/test_naming_authority_golden.py``).
+existed is produced or accepted identically (the round-trip and single-source properties are
+asserted in ``tests/test_naming_authority_single_source.py``; the pre-refactor golden snapshot that
+guarded the migration was retired once the migration landed).
 
 Placement (OQ-01 resolved by the Order 01 executor): this authority lives in its OWN module and
 imports only ``artifact_core`` primitives (``kebab``); it never imports the selector resolver or the

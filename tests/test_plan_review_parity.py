@@ -1,9 +1,20 @@
-"""Parity + registration tests for the review workflows and the new ipd-lifecycle path (Order 05).
+"""The single-file and long-form `plan-review` variants must stay in PARITY.
 
-Ensures the single-file `plan-review` and the long-form `plan-review-long` carry the SAME structural
-linter contract (same checkpoints, disposition, fail-closed exit codes, deterministic-vs-semantic
-boundary), that required long-form dependencies exist, and that `ipd-lifecycle` is registered and
-shimmed consistently. Stdlib unittest.
+WHY THIS FILE STILL EXISTS WHEN OTHER PROSE-PINNING FILES WERE DELETED. The property here is not
+"this sentence is present"; it is "these TWO documents agree". A reviewer reaches the same gate
+through either variant, so an instruction added to one and not the other silently gives long-form
+reviewers a weaker review than single-file ones. No amount of reading one file detects that; only
+the comparison does. Git records prose edits, but it does not tell you the two copies diverged.
+
+WHAT CHANGED. The needle lists were cut down to what is LOAD-BEARING, meaning a token something
+other than a human consumes: a literal `aw ipd lint` invocation, an `aw check` rule id, a front
+matter field spelling, a fixed vocabulary, a table header. Those are quoted verbatim in the
+workflow because the reviewer must type or emit them exactly. Descriptive wording ("must mention
+conceptual density", "must recommend splitting") was dropped: it is rewritten legitimately and
+often, and pinning it produced failures that told the author nothing except that they edited prose.
+
+The old shape also spent one test per phrase, so a single dropped instruction produced a wall of
+red naming the same root cause. Each test below reports EVERY divergence it finds at once.
 """
 
 from __future__ import annotations
@@ -11,22 +22,17 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from tests.support import REPO_ROOT
-
 from tests.support import SOURCE_WORKFLOWS as WF
 
 PLAN_REVIEW = WF / "plan-review" / "plan-review.md"
 PRL_DIR = WF / "plan-review-long"
 PRL_01 = PRL_DIR / "01-discover-and-snapshot.md"
+PRL_02 = PRL_DIR / "02-review-and-revise.md"
 PRL_03 = PRL_DIR / "03-resolve-and-finalize.md"
 RUBRIC = PRL_DIR / "review-rubric.md"
-PRL_02 = PRL_DIR / "02-review-and-revise.md"
-ASSESS = WF / "assess" / "assess.md"
-CHILD_TEMPLATE = WF / "assess" / "templates" / "ipd.md"
-ORCH_TEMPLATE = WF / "assess" / "templates" / "orchestrator-ipd.md"
 REPORT_TEMPLATE = PRL_DIR / "report-template.md"
+ORCHESTRATOR = PRL_DIR / "plan-review-long.md"
 LIFECYCLE = WF / "ipd-lifecycle" / "ipd-lifecycle.md"
-LIFECYCLE_README = WF / "ipd-lifecycle" / "README.md"
 INDEX = WF / "index.md"
 
 
@@ -34,413 +40,194 @@ def _read(p: Path) -> str:
     return p.read_text(encoding="utf-8")
 
 
-class ReviewPreflightParityTests(unittest.TestCase):
-    def test_author_preflight_in_both_variants(self):
-        cmd = "aw ipd lint --phase author"
-        self.assertIn(
-            cmd, _read(PLAN_REVIEW), "single-file plan-review missing author preflight"
-        )
-        self.assertIn(cmd, _read(PRL_01), "long-form step 01 missing author preflight")
+class WorkflowFilesTests(unittest.TestCase):
+    def test_every_file_the_review_workflows_depend_on_exists(self):
+        """One test for every required file: a missing dependency breaks the workflow identically.
 
-    def test_review_finalize_preflight_in_both_variants(self):
-        cmd = "aw ipd lint --phase review-finalize"
-        self.assertIn(
-            cmd,
-            _read(PLAN_REVIEW),
-            "single-file plan-review missing review-finalize preflight",
-        )
-        self.assertIn(
-            cmd, _read(PRL_03), "long-form step 03 missing review-finalize preflight"
-        )
-
-    def test_both_variants_state_conforming_gate_and_failclosed(self):
-        for path in (PLAN_REVIEW, PRL_01, PRL_03, RUBRIC):
-            t = _read(path)
-            if "aw ipd lint" not in t:
-                continue
-            tl = t.lower()
-            self.assertIn(
-                "conforming",
-                tl,
-                "{0} must require a conforming disposition".format(path.name),
-            )
-            self.assertIn(
-                "exit `1`", tl, "{0} must state exit-1 handling".format(path.name)
-            )
-            self.assertIn(
-                "exit `2`", tl, "{0} must state exit-2 handling".format(path.name)
-            )
-
-    def test_deterministic_vs_semantic_boundary_stated(self):
-        for path in (PLAN_REVIEW, RUBRIC):
-            t = _read(path).lower()
-            self.assertIn("structure", t)
-            self.assertIn("semantic", t)
-
-    def test_invoke_not_paraphrase(self):
-        # The workflows must INVOKE the linter, not restate its checks.
-        self.assertIn("do not paraphrase", _read(PLAN_REVIEW).lower())
-
-
-class LongFormDependencyTests(unittest.TestCase):
-    def test_required_long_form_files_exist(self):
-        for p in (PRL_01, PRL_03, RUBRIC, REPORT_TEMPLATE):
-            self.assertTrue(
-                p.is_file(), "missing required long-form dependency: {0}".format(p)
-            )
-
-    def test_report_template_referenced(self):
-        # 03-resolve-and-finalize references the report template; the dependency must be present.
-        self.assertTrue(REPORT_TEMPLATE.is_file())
-
-
-class IpdLifecycleRegistrationTests(unittest.TestCase):
-    def test_lifecycle_files_exist(self):
-        self.assertTrue(LIFECYCLE.is_file())
-        self.assertTrue(LIFECYCLE_README.is_file())
-
-    def test_lifecycle_registered_in_index(self):
-        t = _read(INDEX)
-        self.assertIn("| ipd-lifecycle |", t)
-        # Post-.aw/-migration the shipped bundle is under .aw/system/workflows/ (IPD awretrofit
-        # Order 02); the index invocation column must reference the real installed path.
-        self.assertIn(".aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md", t)
-
-    def test_lifecycle_shims_exist_both_hosts(self):
-        for host in (".opencode", ".claude"):
-            shim = REPO_ROOT / host / "commands" / "ipd-lifecycle.md"
-            self.assertTrue(shim.is_file(), "missing {0} shim".format(host))
-            # Shims reference the installed bundle path; post-migration that is .aw/system/workflows/
-            # (regenerated in Order 10). Legacy .agents/workflows/ no longer appears.
-            self.assertIn(
-                ".aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md", _read(shim)
-            )
-
-    def test_lifecycle_names_all_three_checkpoints(self):
-        t = _read(LIFECYCLE)
-        for phase in ("pre-execution", "pre-transition", "post-transition"):
-            self.assertIn("aw ipd lint --phase {0}".format(phase), t)
-
-    def test_lifecycle_states_failclosed_and_recovery(self):
-        t = _read(LIFECYCLE)
-        tl = t.lower()
-        self.assertIn("exit `1`", tl)
-        self.assertIn("exit `2`", tl)
-        self.assertIn("hard stop", tl)
-        # transition is a post-gate transaction, not a checklist item
-        self.assertIn("POST-gate", t) if "POST-gate" in t else self.assertIn(
-            "post-gate", t.lower()
-        )
-        # pre/post-commit recovery language present
-        self.assertIn("BEFORE the lifecycle commit", t)
-        self.assertIn("AFTER the lifecycle commit", t)
-
-
-class DriftGuardTests(unittest.TestCase):
-    def test_deliberate_desync_would_fail(self):
-        # Sanity: the parity assertions are content-based, so removing the preflight line from a
-        # copy is detectable. We assert the marker exists in the real file (the inverse of drift).
-        self.assertIn("aw ipd lint --phase author", _read(PRL_01))
-
-
-class RightSizingRubricParityTests(unittest.TestCase):
-    def test_right_sizing_rubric_in_plan_review_and_rubric(self):
-        for path in (PLAN_REVIEW, RUBRIC):
-            t = _read(path)
-            # Conceptual density vs count lint
-            self.assertIn(
-                "conceptual density",
-                t.lower(),
-                f"{path.name} must mention conceptual density",
-            )
-            self.assertIn(
-                "one concern",
-                t.lower(),
-                f"{path.name} must require one concern per E-item",
-            )
-            self.assertIn(
-                "one focused pass",
-                t.lower(),
-                f"{path.name} must require execution in one focused pass",
-            )
-
-            # Diagnostic questions (a), (b), (c), (d)
-            self.assertIn(
-                "multiple distinct deliverables",
-                t,
-                f"{path.name} missing diagnostic (a) distinct deliverables",
-            )
-            self.assertIn(
-                "multiple independent test-surfaces",
-                t,
-                f"{path.name} missing diagnostic (b) test surfaces",
-            )
-            self.assertIn(
-                "independent passes",
-                t,
-                f"{path.name} missing diagnostic (c) independent passes",
-            )
-            self.assertIn(
-                "lose focus", t, f"{path.name} missing diagnostic (d) model focus"
-            )
-
-            # Split recommendation and count lint insufficiency
-            self.assertIn("split", t.lower(), f"{path.name} must recommend splitting")
-            self.assertIn(
-                "passing count-based size lint does not clear",
-                t.lower(),
-                f"{path.name} must state count lint does not clear right-sizing",
-            )
-
-    def test_maintainer_signal_rule_in_both_variants(self):
-        for path in (PLAN_REVIEW, PRL_02, RUBRIC):
-            t = _read(path).lower()
-            self.assertIn(
-                "maintainer", t, f"{path.name} must reference maintainer sizing signals"
-            )
-            self.assertIn(
-                "finding", t, f"{path.name} must treat sizing questions as a finding"
-            )
-            self.assertIn(
-                "decomposition",
-                t,
-                f"{path.name} must recommend investigating by decomposition",
-            )
-
-    def test_authoring_guidance_in_assess_and_templates(self):
-        t_assess = _read(ASSESS).lower()
-        self.assertIn(
-            "each e-item\n   must address one concern and be executable in one focused pass",
-            t_assess,
-            "assess.md must require each E-item to address one concern and be executable in one focused pass",
-        )
-        self.assertIn(
-            "split when an e-item names\n   multiple distinct deliverables",
-            t_assess,
-            "assess.md must guide splitting multi-deliverable E-items",
-        )
-        self.assertIn(
-            "passing count-based size lint measures count, not conceptual density",
-            t_assess,
-            "assess.md must distinguish count from conceptual density",
-        )
-
-        for path in (CHILD_TEMPLATE, ORCH_TEMPLATE):
-            t = _read(path)
-            self.assertIn(
-                "Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.",
-                t,
-                f"{path.name} must include the right-sizing rule in the execution checklist intro",
-            )
-
-
-class ReviewFindingsEmitAndEscalateParityTests(unittest.TestCase):
-    """revgate Order 02 (plqjt7 E-04/E-05): both variants must emit the typed review record AND
-    escalate an unfixed gating finding.
-
-    These assertions live HERE, in the file that already owns single-file-vs-long parity for this
-    exact pair, rather than in `tests/test_review_findings_gate.py`: a second parity harness would be
-    the drift the repo's single-source rule forbids.
-
-    The long variant is asserted on the STEP FILES (`02-review-and-revise.md`,
-    `03-resolve-and-finalize.md`), NOT on the `plan-review-long.md` orchestrator. That is deliberate:
-    the orchestrator only lists the steps and contains neither a findings-recording nor a finalize
-    section, so a parity check pointed at it would pass while long-variant reviewers received no
-    instruction at all.
-    """
-
-    def test_findings_record_emission_in_both_variants(self):
-        # PRL_02 is the long variant's counterpart to plan-review.md's "Record findings" step.
-        for path in (PLAN_REVIEW, PRL_02):
-            t = _read(path)
-            self.assertIn(
-                ".aw/records/reviews/",
-                t,
-                f"{path.name} must instruct the reviewer to write the typed review record",
-            )
-            self.assertIn(
-                ".review.md",
-                t,
-                f"{path.name} must name the .review.md artifact",
-            )
-            low = t.lower()
-            self.assertIn(
-                "## round",
-                low,
-                f"{path.name} must instruct appending a new Round for a re-review",
-            )
-            self.assertIn(
-                "current",
-                low,
-                f"{path.name} must state that only the current round is read",
-            )
-
-    def test_escalation_requirement_in_both_variants(self):
-        # PRL_03 is the long variant's counterpart to plan-review.md's finalize step.
-        for path in (PLAN_REVIEW, PRL_03):
-            t = _read(path)
-            self.assertIn(
-                "- Blocking: yes",
-                t,
-                f"{path.name} must require the escalation carry `- Blocking: yes`",
-            )
-            self.assertIn(
-                "- Finding: <ID>",
-                t,
-                f"{path.name} must require the escalation name the finding id",
-            )
-            self.assertIn(
-                "check.review-finding-unescalated",
-                t,
-                f"{path.name} must name the enforcing rule",
-            )
-            self.assertIn(
-                "review_findings_gate",
-                t,
-                f"{path.name} must point at the configurable gate threshold",
-            )
-            self.assertIn(
-                "pre-execution",
-                t,
-                f"{path.name} must state the escalated question is caught at pre-execution",
-            )
-
-    def test_escalation_reconciled_with_reporting_only_severity(self):
-        """The added wording must reconcile itself with "Severity is for reporting only".
-
-        Both variants carry that rule, so an escalation instruction that did not address it would read
-        as a direct contradiction to the next reviewer.
+        Reported together because the fix is the same (restore or re-point the file) and because a
+        reviewer discovering them one at a time re-runs the suite once per missing file.
         """
-        for path in (PLAN_REVIEW, PRL_03):
-            t = _read(path)
-            self.assertIn(
-                "Severity is for reporting only",
-                t,
-                f"{path.name} must quote the reporting-only rule it reconciles with",
-            )
-            self.assertIn(
-                "Fix Bar",
-                t,
-                f"{path.name} must state the Fix Bar alone decides whether to fix",
-            )
-
-    def test_fix_bar_and_classification_not_weakened(self):
-        """The pre-existing Fix Bar and severity/decision classification must survive intact."""
-        pr = _read(PLAN_REVIEW)
-        self.assertIn(
-            "Fix every finding unless overall Remediation Risk is Medium-High or High.",
-            pr,
-            "plan-review.md must retain the Fix Bar",
+        required = (
+            PLAN_REVIEW,
+            PRL_01,
+            PRL_02,
+            PRL_03,
+            RUBRIC,
+            REPORT_TEMPLATE,
+            ORCHESTRATOR,
+            LIFECYCLE,
+            INDEX,
         )
-        self.assertIn(
-            "Effort, time, cost, and tokens are never valid deferral reasons.",
-            pr,
-            "plan-review.md must retain the invalid-deferral-reasons rule",
+        missing = [str(p) for p in required if not p.is_file()]
+        self.assertEqual(
+            missing,
+            [],
+            "the review workflows reference files that do not exist, so an agent following them "
+            "hits a dead path:\n  " + "\n  ".join(missing),
         )
-        for path in (PLAN_REVIEW, PRL_02):
-            t = _read(path)
-            self.assertIn(
-                "`BLOCKER`, `HIGH`, `MEDIUM`, or `LOW`",
-                t,
-                f"{path.name} must retain the severity vocabulary",
-            )
-            self.assertIn(
-                "`FIXED`, `DEFERRED`, `OPEN`, or `REPLAN`",
-                t,
-                f"{path.name} must retain the decision vocabulary",
-            )
 
 
-class ReviewDecisionRecordingParityTests(unittest.TestCase):
-    """revgate Order 04 (c621h9 E-08): both variants must require a RECORDED DECISION for every
-    question the reviewer resolved from evidence instead of asking.
+class VariantParityTests(unittest.TestCase):
+    """Each entry: a load-bearing token, and the files that MUST all carry it.
 
-    These assertions live HERE rather than in `tests/test_review_decisions.py` because this module
-    ALREADY owns single-file-vs-long parity for this exact pair (it holds the `PLAN_REVIEW`, `PRL_02`,
-    and `PRL_03` handles and already asserts cross-variant content parity). A second parity harness
-    would be the duplicate mechanism the house rules forbid, and it would drift from the one the suite
-    already trusts.
-
-    The long variant is asserted on `03-resolve-and-finalize.md`, the STEP file that actually carries
-    the question-resolution instruction, NOT on the `plan-review-long.md` orchestrator. That
-    orchestrator only lists the steps and has no question-resolution section at all, so a parity check
-    pointed at it would pass while long-variant reviewers received no instruction.
+    A token qualifies only if something non-human consumes it verbatim: a command an agent runs, a
+    rule id `aw check` emits, a front matter field a parser reads, or a closed vocabulary a record
+    is validated against. Prose describing a judgement is deliberately NOT here.
     """
 
-    #: The instruction's load-bearing clauses. Each must appear in BOTH variants, so removing the
-    #: instruction from either one fails this test.
-    REQUIRED_CLAUSES = (
-        "A question you resolve yourself is not GONE",
-        "ID | Question | Chosen | Alternatives considered | Basis | Reversible",
-        "### Decisions",
-        "aw reviews decisions",
-        "COST OF BEING WRONG",
-        "MUST NOT rest on your authority alone",
-        "- Blocking: yes",
-        "check.review-decision-unescalated",
+    #: (token, why it is load-bearing, files that must each contain it)
+    PARITY: tuple[tuple[str, str, tuple[Path, ...]], ...] = (
+        (
+            "aw ipd lint --phase author",
+            "the authoring preflight an agent runs verbatim",
+            (PLAN_REVIEW, PRL_01),
+        ),
+        (
+            "aw ipd lint --phase review-finalize",
+            "the finalize gate an agent runs verbatim",
+            (PLAN_REVIEW, PRL_03),
+        ),
+        (
+            ".aw/records/reviews/",
+            "the directory the typed review record is written to",
+            (PLAN_REVIEW, PRL_02),
+        ),
+        (
+            ".review.md",
+            "the artifact facet the review record must use",
+            (PLAN_REVIEW, PRL_02),
+        ),
+        (
+            "- Blocking: yes",
+            "the exact front matter field an escalation must carry to be detected",
+            (PLAN_REVIEW, PRL_03),
+        ),
+        (
+            "check.review-finding-unescalated",
+            "the `aw check` rule id that enforces the escalation",
+            (PLAN_REVIEW, PRL_03),
+        ),
+        (
+            "check.review-decision-unescalated",
+            "the `aw check` rule id that enforces decision escalation",
+            (PLAN_REVIEW, PRL_03),
+        ),
+        (
+            "aw reviews decisions",
+            "the command that reads the recorded decisions",
+            (PLAN_REVIEW, PRL_03),
+        ),
+        (
+            "### Decisions",
+            "the heading the decisions reader parses",
+            (PLAN_REVIEW, PRL_03),
+        ),
+        (
+            "`BLOCKER`, `HIGH`, `MEDIUM`, or `LOW`",
+            "the closed severity vocabulary a review record is validated against",
+            (PLAN_REVIEW, PRL_02),
+        ),
+        (
+            "`FIXED`, `DEFERRED`, `OPEN`, or `REPLAN`",
+            "the closed decision vocabulary a review record is validated against",
+            (PLAN_REVIEW, PRL_02),
+        ),
     )
 
-    def test_decision_recording_instruction_in_both_variants(self):
-        for path in (PLAN_REVIEW, PRL_03):
-            t = _read(path)
-            for clause in self.REQUIRED_CLAUSES:
-                self.assertIn(
-                    clause,
-                    t,
-                    f"{path.name} must carry the decision-recording clause {clause!r}; "
-                    "the two review variants are kept in deliberate parity, so an instruction "
-                    "added to one and not the other is a defect",
+    def test_both_variants_carry_every_load_bearing_token(self):
+        divergences = []
+        for token, why, paths in self.PARITY:
+            absent = [p.name for p in paths if token not in _read(p)]
+            if absent:
+                present = [p.name for p in paths if token not in absent]
+                divergences.append(
+                    f"  {token!r}\n"
+                    f"    load-bearing because: {why}\n"
+                    f"    MISSING FROM: {absent}\n"
+                    f"    present in:   {present or ['nothing - it is gone from every variant']}"
                 )
-
-    def test_reversible_judgement_and_escalation_in_both_variants(self):
-        """E-03: the reversible/irreversible distinction and the escalation duty, in both variants."""
-        for path in (PLAN_REVIEW, PRL_03):
-            low = _read(path).lower()
-            self.assertIn(
-                "reversible",
-                low,
-                f"{path.name} must require a Reversible judgement on each decision row",
-            )
-            self.assertIn(
-                "irreversible",
-                low,
-                f"{path.name} must distinguish the irreversible case",
-            )
-            self.assertIn(
-                "maintainer",
-                low,
-                f"{path.name} must offer telling the maintainer as an escalation path",
-            )
-
-    def test_the_orchestrator_was_not_edited_instead_of_the_step_file(self):
-        """Guards the exact mistake the draft plan made (F-11) and a sibling made before it.
-
-        `plan-review-long.md` is a step INDEX. If a later change puts the instruction there instead of
-        in the step file, long-variant reviewers get nothing while a naive parity check passes.
-        """
-        orchestrator = PRL_DIR / "plan-review-long.md"
-        self.assertTrue(
-            orchestrator.is_file(), "the long-variant orchestrator must exist"
-        )
-        t = _read(orchestrator)
-        self.assertNotIn(
-            "A question you resolve yourself is not GONE",
-            t,
-            "the decision-recording instruction belongs in 03-resolve-and-finalize.md (the step "
-            "file that instructs the reviewer), NOT in the orchestrator that merely lists steps",
+        self.assertEqual(
+            divergences,
+            [],
+            "the two plan-review variants have DIVERGED. A reviewer reaches the same gate through "
+            "either one, so an instruction present in only one variant means whoever used the other "
+            "variant was never told. Each token below is consumed verbatim by a command, a parser, "
+            "or a validator, so a paraphrase does not substitute for it.\n"
+            + "\n".join(divergences)
+            + f"\n  FIX: add the token to the file(s) listed as MISSING FROM, under "
+            f"{PRL_DIR} or {PLAN_REVIEW.parent}. If a token is gone from EVERY variant it was "
+            "deleted wholesale; restore it or remove this row deliberately with a reason.",
         )
 
-    def test_citation_requirement_survived(self):
-        """The new instruction ADDS to the existing citation rule; it must not have replaced it."""
-        self.assertIn(
-            "Resolve questions from authoritative evidence first. Cite the source.",
-            _read(PLAN_REVIEW),
-            "plan-review.md must retain the pre-existing cite-the-source requirement",
+    def test_the_lint_checkpoints_are_named_in_the_lifecycle_workflow(self):
+        """The three gates must be invocable as written; a renamed phase silently stops gating."""
+        body = _read(LIFECYCLE)
+        missing = [
+            phase
+            for phase in ("pre-execution", "pre-transition", "post-transition")
+            if f"aw ipd lint --phase {phase}" not in body
+        ]
+        self.assertEqual(
+            missing,
+            [],
+            f"ipd-lifecycle.md must name each lint checkpoint as a runnable command; {missing} "
+            "are absent, so an agent following the workflow never runs that gate",
         )
-        self.assertIn(
-            "Resolve questions already answered by authoritative evidence and cite it.",
-            _read(PRL_03),
-            "03-resolve-and-finalize.md must retain the pre-existing cite-it requirement",
+
+
+class OrchestratorIsNotAStepFileTests(unittest.TestCase):
+    """`plan-review-long.md` is a step INDEX; instructions put there reach nobody.
+
+    This guards a mistake that has been made twice: editing the orchestrator instead of the step
+    file. A naive parity check passes (the token IS in the long variant's directory) while long-form
+    reviewers receive no instruction, because they read the step files.
+    """
+
+    def test_reviewer_instructions_live_in_step_files_not_the_orchestrator(self):
+        body = _read(ORCHESTRATOR)
+        misplaced = [
+            token
+            for token in (
+                "A question you resolve yourself is not GONE",
+                "check.review-decision-unescalated",
+            )
+            if token in body
+        ]
+        self.assertEqual(
+            misplaced,
+            [],
+            f"{ORCHESTRATOR.name} only LISTS the steps; a reviewer never acts on it. The "
+            f"instruction(s) {misplaced} belong in 03-resolve-and-finalize.md, the step file the "
+            "reviewer actually follows. Left here, long-form reviewers get nothing while a "
+            "directory-level parity check looks green.",
+        )
+
+
+class LifecycleRegistrationTests(unittest.TestCase):
+    def test_ipd_lifecycle_is_registered_and_shimmed_at_its_real_path(self):
+        """A shim pointing at a moved bundle is a broken slash command, which IS functional."""
+        bundle = ".aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md"
+        problems = []
+        index = _read(INDEX)
+        if "| ipd-lifecycle |" not in index:
+            problems.append(
+                "  the workflow index has no ipd-lifecycle row, so it is undiscoverable"
+            )
+        if bundle not in index:
+            problems.append(f"  the index does not point at {bundle}")
+        for host in (".opencode", ".claude"):
+            shim = WF.parents[2] / host / "commands" / "ipd-lifecycle.md"
+            if not shim.is_file():
+                problems.append(f"  missing {host} shim: {shim}")
+            elif bundle not in _read(shim):
+                problems.append(
+                    f"  {host} shim does not point at {bundle} (stale path)"
+                )
+        self.assertEqual(
+            problems,
+            [],
+            "the ipd-lifecycle workflow is not reachable as installed:\n"
+            + "\n".join(problems),
         )
 
 

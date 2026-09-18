@@ -5,7 +5,7 @@ WHY THIS FILE EXISTS, and why it asserts behavior rather than source text.
 
 The parent Set forbids a child reconciling a symbol the characterization baseline has not pinned,
 and `run_queue` is the dispatch loop both runners are built around. The ten existing pins that
-reach it (see `tests/test_rununify_run_queue.py` for the inventory) all read its SOURCE TEXT
+reach it (the retired source-pin sibling held the inventory) all read its SOURCE TEXT
 through `inspect.getsource`, an AST lookup by name, or a `split("def run_queue(")`. A source pin
 has two problems this file is the answer to: a relocation destroys it even when behavior is
 unchanged, and a COMMENT can satisfy it even when behavior is broken. So each test below drives

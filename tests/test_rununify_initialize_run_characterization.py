@@ -31,7 +31,7 @@ guard that has never been shown failing pins nothing.
 
 The parent Set forbids a child reconciling a symbol whose behavior no baseline has pinned, and every
 existing pin on this function reads its SOURCE TEXT (14 sites across 6 files; see
-`tests/test_rununify_initialize_run.py` for the inventory). A source pin dies on relocation even when
+the retired source-pin sibling held the inventory). A source pin dies on relocation even when
 behavior is unchanged, and can be satisfied by a comment even when behavior is broken. So each test
 here drives the real function and asserts the OBSERVABLE result: what it refuses and in what order,
 what it freezes, and what it records.
