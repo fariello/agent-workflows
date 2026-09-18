@@ -6,17 +6,17 @@
 - Scope: Make the correct gate the DEFAULT rather than an act of memory, at both points where it is currently lost: creating a bug item, and graduating one into a plan or spec. Does NOT enforce anything retroactively (child 03 owns the backfill and the checker), does NOT gate other work kinds, and does NOT change what `next` resolves to.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/cli.py, tests/test_bug_gate_default.py
 - Item-Dependencies: executed:zqs0px
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: nobugship
 - Order: 2
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: di08i9
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-18 executed (aw oc run): aw oc run self-finalize: di08i9 verified (set nobugship, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/status_set.py: changed by the plan's approved execution (auto-reconciled by aw oc run); in-scope-unmodified agent_workflows/cli.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-18 executed-work-performed (opencode its_direct/pt3-claude-opus-5-1m-us): all four `E-*` items PERFORMED and all four `V-*` items `pass` with pasted evidence; `aw ipd lint --phase pre-transition` CONFORMING. The TERMINAL TRANSITION IS DELIBERATELY NOT TAKEN HERE: this ran as a managed lane worker, and `aw ipd finalize` refused with `AW-LIFECYCLE-ROLE-001` ("the runner owns begin/finalize for managed lanes; a worker-role process must not run them"), so the plan stays in `pending/` with `- Status: approved` for the driver to transition. Suite: `8096 passed, 3 skipped, 2 xfailed` against a pre-edit baseline of `8076 passed, 3 skipped, 2 xfailed` (+20 = exactly the tests added; empty failure-set delta). Blast radius `97 passed`, identical to baseline, no fixture modified. `check_release_gate_consistency` unchanged at its 2 pre-existing findings.
   TWO DEPARTURES FROM THE PLAN AS WRITTEN, both recorded with evidence rather than taken silently. FIRST, E-02 was IMPLEMENTED, not deferred: `b5sfwm` has executed since review and `aw backlog set` now carries `--work-kind`, so the deferral's sole stated premise is false and the E-item's own conditional prescribes the implementation branch; the default now fires on BOTH dispatch paths (decision D1). SECOND, V-03's provenance measurement INVERTED review's conclusion: 180 `From-Backlog` carriers now exist, 103 of them acquired the field after the first commit, so the setter route E-03 covers is the MAJORITY rather than 1 of 13 (decision D5). The uncovered hand-authoring population (77) and the `aw specs set` gap are unchanged and carried.
   SCOPE DELTA REQUIRING FINALIZE ARGUMENTS: `agent_workflows/status_set.py` was changed but is NOT declared (it is the write site E-02/E-03 explicitly cite), and the declared `agent_workflows/cli.py` was NOT modified (both flags were already registered there). The Scope check section carries the exact `--scope-reason` / `--scope-ack` pair to pass. THREE DEFECTS FILED, none of them this plan's own work: `4le6yz` (bug), `mod4ml` (chore), `4fe3al` (bug).
