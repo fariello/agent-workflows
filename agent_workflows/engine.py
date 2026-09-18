@@ -2715,6 +2715,438 @@ def migrate_legacy_layout(plan: InstallPlan, use_git: bool) -> list[str]:
     return actions
 
 
+# wfartifacts Order 05 (y4pptx): the RETIRED repo-root run-scratch directory. Order 07 (spec
+# `20260817-2124-01`) moved run scratch to `.aw/workflow-artifacts/` (`ARTIFACTS_DIR`); Order 01
+# stopped the installer CREATING this one; this constant names what an ALREADY-INSTALLED repo is
+# still carrying, so the migration below can find it. Measured 2026-09-12: 29 repos on one machine
+# have it, and two of them TRACK real run records under it (11 files and 3 files respectively).
+# It is deliberately a separate constant from LEGACY_ARTIFACTS_DIR (the pre-D19 `repository-review/`
+# name): that is an older migration with its own destination rule, and merging the two would make
+# each one's behavior unreadable.
+RETIRED_ROOT_ARTIFACTS_DIR = "workflow-artifacts/"
+
+
+def _run_record_relpaths(root: Path) -> list[str]:
+    """Every FILE under `root`, as `/`-joined paths relative to `root`, sorted.
+
+    The unit the migration works in. Used both to enumerate what to move and (in the tests) to
+    prove the before/after path sets are equal modulo the prefix.
+    """
+
+    if not root.is_dir():
+        return []
+    out: list[str] = []
+    for path in root.rglob("*"):
+        if path.is_file() or path.is_symlink():
+            out.append(path.relative_to(root).as_posix())
+    return sorted(out)
+
+
+def _is_readme_only(rel_paths: list[str]) -> bool:
+    """Whether the retired directory holds NOTHING but the installer's own stray README.
+
+    This is case (c), and it is the COMMON case: measured 2026-09-12, most of the 29 affected repos
+    track only the README the old `ensure_workflow_artifacts_readme` wrote at the repo root. Its
+    content was the exact OPPOSITE of Order 07's ruling ("DO NOT gitignore this folder... intended
+    to be committed"), so a relocated COPY of it is precisely what must not survive.
+    """
+
+    return rel_paths == ["README.md"]
+
+
+def migrate_root_workflow_artifacts(
+    repo_root: Path,
+    *,
+    use_git: bool,
+    dry_run: bool = False,
+) -> list[str]:
+    """Relocate an EXISTING install's run records from the retired repo-root
+    `workflow-artifacts/` into `.aw/workflow-artifacts/` (`ARTIFACTS_DIR`).
+
+    wfartifacts Order 05 (y4pptx). Orders 01-04 fix what a FRESH install produces and change
+    nothing for the 29 repos already carrying the retired layout, two of which TRACK real run
+    records there. This is the ONLY child that touches a user's committed history, which is why its
+    invariants are stated here rather than left to the call site.
+
+    THE INVARIANT, and it is absolute: THIS FUNCTION NEVER DELETES USER CONTENT. The single
+    exception is case (c) below, the installer's OWN stray README, which is framework-written
+    content and not the user's. Deleting a committed run record is unrecoverable and is the one
+    outcome worse than leaving the retired directory in place, so every ambiguous situation REFUSES
+    and reports instead of guessing.
+
+    THREE CASES, distinguished because git can only preserve history in the first:
+
+    (a) TRACKED content -> `git mv`, so the rename is recorded and `git log --follow` still reaches
+        the pre-migration commits, THEN `git rm --cached` the destination so the relocated bytes end
+        up genuinely UNTRACKED and the `.aw/.gitignore` rule governs them. Both steps are required
+        and neither is sufficient: measured 2026-09-18, `git mv` into an ignored destination
+        succeeds but leaves the path in the INDEX, where ignore rules do not apply, so
+        `git check-ignore` reports it as not ignored and the run scratch stays committed at a new
+        path - defeating the whole Set. Untracking does NOT lose the history: `--follow` traverses
+        the rename in the commit graph after the untrack commit (measured in the same probe). This
+        is the same rule `ensure_workflow_artifacts_readme` adopted in Order 01 (decision D-01) for
+        the same tree, and for the reason it records: git's ignore rules never untrack an
+        already-tracked path.
+    (b) UNTRACKED content (already ignored, or never committed) -> a plain filesystem move. Git has
+        nothing to preserve, and invoking it would only risk an error on an ignored path.
+    (c) The stray README ALONE and nothing else -> REMOVED rather than relocated, because Order 04
+        replaced its content and a copy of the retired "do not gitignore this folder" prose is
+        exactly what should not survive the migration. This is the only removal in the function.
+
+    THE DESTINATION IS OFTEN ALREADY POPULATED, SO THIS MERGES AND DOES NOT MOVE (F-7). Measured in
+    the framework repository at authoring time, both trees held content and three workflow names
+    (`assess-bugs`, `assess-documentation`, `release-review`) existed in BOTH. An implementation
+    that assumes an absent destination either fails on the existing directory or replaces it, so
+    the merge is per FILE: each source file is placed at its own relative path under the
+    destination, creating parent directories as needed, which preserves the `<workflow>/<RUN_ID>/`
+    shape Order 07 specified (`workflow-artifacts/assess-bugs/20260726-115243/report.md` ->
+    `.aw/workflow-artifacts/assess-bugs/20260726-115243/report.md`).
+
+    REFUSAL, not a guess, on a conflict: when the destination already holds a file at the same
+    relative path with DIFFERENT bytes, both files are left exactly where they are and the conflict
+    is reported. A silent overwrite of a run record is unrecoverable for the user. Identical bytes
+    are not a conflict; the source copy is redundant and is left in place too (still never deleted),
+    so nothing is lost and a re-run remains safe.
+
+    THE RETIRED DIRECTORY IS REMOVED ONLY WHEN GENUINELY EMPTY of files (orchestrator OQ-01):
+    keeping an empty shell would preserve the double-home confusion Order 07 exists to end, but a
+    directory still holding content the migration REFUSED to move must stay, because the
+    alternative is data loss.
+
+    Silent when there is nothing to do (OQ-01): a repo without the retired path returns `[]`, on the
+    same convention every other back-fill in this module follows, because an installer that narrates
+    work it did not do trains users to ignore its output.
+
+    Args:
+        repo_root: the target repo.
+        use_git: whether git is usable here (`git_available`). False forces case (b) throughout.
+        dry_run: report what WOULD happen and touch nothing.
+
+    Returns:
+        Human-readable action lines (empty when there was nothing to do), suitable for the
+        installer summary. A conflict or a mis-placed lane appears here as a reported line.
+    """
+
+    repo = Path(repo_root)
+    retired = repo / RETIRED_ROOT_ARTIFACTS_DIR
+    actions: list[str] = []
+
+    # Report a lane an agent already mis-relocated, and NEVER move it (E-04, decision D-02). This
+    # runs even when the retired directory is absent, because the two situations are independent.
+    actions.extend(_report_misplaced_run_records(repo))
+
+    if not retired.is_dir():
+        return actions
+
+    rel_paths = _run_record_relpaths(retired)
+
+    # Case (c): the installer's own stray README and nothing else - the COMMON case across the 29
+    # affected repos. Remove it (framework-written, superseded by Order 04) rather than carrying a
+    # copy of the retired prose to the new home.
+    if _is_readme_only(rel_paths):
+        rel = f"{RETIRED_ROOT_ARTIFACTS_DIR}README.md"
+        if dry_run:
+            actions.append(
+                f"{rel} [would remove: superseded stray README, no run records here, dry-run]"
+            )
+            return actions
+        if use_git and git_is_tracked(repo, rel):
+            git_run(repo, ["rm", "-q", "--", rel])
+        else:
+            (retired / "README.md").unlink()
+        _remove_retired_dir_if_empty(retired, actions)
+        actions.append(
+            f"{rel} [removed: superseded stray README (Order 04 replaced its content); "
+            "no run records were present]"
+        )
+        return actions
+
+    if not rel_paths:
+        # An empty shell: nothing to move, and removing it ends the double home (OQ-01).
+        if dry_run:
+            actions.append(
+                f"{RETIRED_ROOT_ARTIFACTS_DIR} [would remove: empty retired run-scratch dir, dry-run]"
+            )
+            return actions
+        _remove_retired_dir_if_empty(retired, actions)
+        return actions
+
+    moved: list[str] = []
+    conflicts: list[str] = []
+    redundant: list[str] = []
+    # (source, destination) for each TRACKED file whose rename is staged and awaits the batch commit.
+    relocated_tracked: list[tuple[str, str]] = []
+
+    for rel in rel_paths:
+        rel_src = f"{RETIRED_ROOT_ARTIFACTS_DIR}{rel}"
+        rel_dst = f"{ARTIFACTS_DIR}{rel}"
+        src = repo / rel_src
+        dst = repo / rel_dst
+
+        if dst.exists():
+            # MERGE, and refuse rather than guess. Same path, same bytes: the source is redundant,
+            # so there is nothing to move and nothing to lose; different bytes: REFUSE, leaving
+            # BOTH in place, because overwriting a run record cannot be undone.
+            same = False
+            try:
+                same = dst.is_file() and src.is_file() and _same_bytes(src, dst)
+            except OSError:
+                same = False
+            if same:
+                redundant.append(rel_src)
+                if not dry_run:
+                    actions.append(
+                        f"{rel_src} [left in place: destination already holds identical bytes]"
+                    )
+                else:
+                    actions.append(
+                        f"{rel_src} [would leave in place: destination identical, dry-run]"
+                    )
+            else:
+                conflicts.append(rel_src)
+                actions.append(
+                    f"{rel_src} -> {rel_dst} [REFUSED: destination exists with different "
+                    "content; BOTH files left in place, nothing overwritten. Compare them and "
+                    "move the one you want by hand.]"
+                )
+            continue
+
+        if dry_run:
+            how = (
+                "git mv + untrack"
+                if (use_git and git_is_tracked(repo, rel_src))
+                else "move"
+            )
+            actions.append(f"{rel_src} -> {rel_dst} [would {how}, dry-run]")
+            moved.append(rel_src)
+            continue
+
+        tracked = use_git and git_is_tracked(repo, rel_src)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if tracked:
+            # Case (a): `git mv` records the rename. The COMMITS happen once for the whole batch
+            # below, not per file, so a repo with 11 committed run records gets two commits rather
+            # than 22.
+            _git_mv(repo, rel_src, rel_dst)
+            relocated_tracked.append((rel_src, rel_dst))
+            actions.append(
+                f"{rel_src} -> {rel_dst} [migrated with git mv (history preserved, committed), "
+                "then untracked so the .aw/.gitignore rule governs it; file kept on disk]"
+            )
+        else:
+            # Case (b): git has nothing to preserve.
+            shutil.move(str(src), str(dst))
+            actions.append(f"{rel_src} -> {rel_dst} [migrated (was untracked)]")
+        moved.append(rel_src)
+
+    if relocated_tracked:
+        _commit_relocation(repo, relocated_tracked, actions)
+
+    if not dry_run:
+        # Only when genuinely empty: a refused conflict or a redundant copy legitimately keeps the
+        # directory alive, and nothing is deleted to make it empty (orchestrator OQ-01).
+        _remove_retired_dir_if_empty(retired, actions)
+
+    if conflicts or redundant:
+        actions.append(
+            f"{RETIRED_ROOT_ARTIFACTS_DIR} [kept: {len(conflicts)} refused conflict(s), "
+            f"{len(redundant)} redundant file(s) still here; nothing was deleted]"
+        )
+
+    return actions
+
+
+def _commit_paths(repo_root: Path, rel_paths: list[str], message: str) -> bool:
+    """Commit ONLY `rel_paths`, tolerating "nothing to commit". Returns True if a commit was made.
+
+    wfartifacts Order 05 (y4pptx). The migration needs its own commits because a staged-only
+    relocation never records the rename, and `git log --follow` can then not reach the pre-migration
+    history (measured 2026-09-18) - which is the single property this plan exists to preserve. The
+    plan's Scope check authorizes exactly this: "it does not rewrite git history (no filter-branch);
+    it relocates files in a new commit".
+
+    ALWAYS PATH-SCOPED, never `git add -A` and never a bare `git commit`, so a co-worker's or the
+    user's unrelated STAGED work in this shared checkout is not swept in (the repository's execution
+    contract, verified by measurement).
+
+    A "nothing to commit" result is NOT an error: it means the caller's step had nothing to record.
+    Any other git failure is raised, matching `git_run`'s contract.
+    """
+
+    result = subprocess.run(
+        ["git", "-C", str(repo_root), "commit", "-q", "-m", message, "--", *rel_paths],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return True
+    blob = (result.stdout or "") + (result.stderr or "")
+    if "nothing to commit" in blob or "nothing added to commit" in blob:
+        return False
+    raise SystemExit(
+        f"git commit -- {' '.join(rel_paths)} failed:\n"
+        f"{(result.stderr or result.stdout or '').strip()}"
+    )
+
+
+def _commit_relocation(
+    repo_root: Path, pairs: list[tuple[str, str]], actions: list[str]
+) -> None:
+    """Commit a batch of staged run-scratch renames, then untrack the destinations.
+
+    wfartifacts Order 05 (y4pptx). TWO COMMITS, and the split is load-bearing rather than fussy.
+    Measured 2026-09-18: a `git mv` and a `git rm --cached` applied to the same index state leave the
+    rename recorded in NO commit, so `git log --follow -- <dest>` returns NOTHING and the committed
+    history this plan exists to preserve is unreachable. So:
+
+    1. COMMIT THE RENAME. This records it in the commit graph, which is what `--follow` traverses.
+    2. COMMIT THE UNTRACK. This takes the destination out of the index so the `.aw/.gitignore` rule
+       finally governs it (D92: run scratch carries absolute home paths and session detail). Verified
+       measurement: after this commit `--follow` STILL reaches the pre-migration commits, so
+       untracking costs no history.
+
+    THE UNTRACK NEEDS A WORKTREE DODGE, and the reason is worth stating because the obvious code is
+    wrong. `git commit -- <paths>` is path-scoped by re-reading those paths from the WORKING TREE, so
+    with the file still present it sees "no change" and refuses ("nothing added to commit"), leaving
+    the destination TRACKED - the exact defect this function exists to avoid, and the failure this
+    branch was first written with. A bare `git commit` would record the index-only removal, but it
+    would also sweep in a co-worker's staged work, which this shared checkout forbids. So each
+    destination is moved aside to a temporary sibling for the duration of the commit and restored
+    immediately after, in a `finally`, so the bytes are never at risk even if git fails.
+
+    Batched: one pair of commits for the whole migration, not per file, so a repo with 11 committed
+    run records gets two commits rather than 22.
+    """
+
+    repo = Path(repo_root)
+    sources = [src for src, _ in pairs]
+    destinations = [dst for _, dst in pairs]
+    scope = sorted(set(sources) | set(destinations))
+    count = len(pairs)
+    noun = "record" if count == 1 else "records"
+
+    _commit_paths(
+        repo,
+        scope,
+        f"agent-workflows: relocate {count} run-scratch {noun} to {ARTIFACTS_DIR}\n\n"
+        "Moved with `git mv` off the retired repo-root `workflow-artifacts/` so the committed\n"
+        "history follows the rename (`git log --follow` still reaches the original commits).\n"
+        "The next commit untracks these paths; the files stay on disk.",
+    )
+
+    # Step 2, with the worktree dodge described above.
+    stashed: list[tuple[Path, Path]] = []
+    try:
+        for dst in destinations:
+            target = repo / dst
+            if not target.is_file():
+                continue
+            aside = target.with_name(target.name + ".aw-untrack-tmp")
+            try:
+                target.rename(aside)
+            except OSError:
+                continue
+            stashed.append((aside, target))
+        _commit_paths(
+            repo,
+            destinations,
+            f"agent-workflows: untrack {count} relocated run-scratch {noun} (D92)\n\n"
+            f"Run scratch is never committed: it carries local context, absolute home paths and\n"
+            f"session detail, and git history is permanent. The framework-owned `.aw/.gitignore`\n"
+            f"ignores `{ARTIFACTS_DIR}`, but git's ignore rules do not untrack an already-tracked\n"
+            "path, so these are removed from the index here. THE FILES REMAIN ON DISK.",
+        )
+    finally:
+        for aside, target in stashed:
+            try:
+                aside.rename(target)
+            except OSError:
+                actions.append(
+                    f"{target.relative_to(repo).as_posix()} [WARNING: left at "
+                    f"{aside.name}; restore it by hand. No content was deleted.]"
+                )
+
+
+def _same_bytes(a: Path, b: Path) -> bool:
+    """Whether two files have identical content. Used only to tell a redundant copy from a
+    genuine conflict, so a re-run of the migration is safe and a real difference always refuses."""
+
+    return a.read_bytes() == b.read_bytes()
+
+
+def _remove_retired_dir_if_empty(retired: Path, actions: list[str]) -> None:
+    """Remove the retired repo-root run-scratch directory IFF it holds no files at all.
+
+    Orchestrator OQ-01: an ignored empty shell would preserve exactly the double-home confusion
+    Order 07 exists to end (the maintainer's report is that the directory APPEARS), but a directory
+    still holding content the migration refused to move MUST stay. Nothing is ever deleted to make
+    it empty. Empty leftover SUBDIRECTORIES are pruned, since they hold no user bytes.
+    """
+
+    if not retired.is_dir():
+        return
+    if _run_record_relpaths(retired):
+        return
+    try:
+        shutil.rmtree(retired)
+    except OSError:
+        return
+    actions.append(
+        f"{RETIRED_ROOT_ARTIFACTS_DIR} [removed: now empty; run scratch lives at {ARTIFACTS_DIR}]"
+    )
+
+
+def _report_misplaced_run_records(repo_root: Path) -> list[str]:
+    """REPORT (never move) run records an agent previously mis-relocated under a records lane.
+
+    wfartifacts Order 05 (y4pptx) E-04, decision D-02. THE OBSERVED CASE: told about the retired
+    repo-root directory, a repo agent moved run records into `.aw/records/reviews/untracked/`. That
+    is a TRACKED typed tree's path with an `untracked/` lane bolted on, not the run-scratch home,
+    and `records/reviews/` holds typed `.review.md` artifacts written by `/plan-review`.
+
+    WHY THIS REPORTS RATHER THAN MIGRATING, which is the substantive judgement: `records/*/untracked/`
+    is a legitimate, documented, box-local quarantine lane for MANY record types (prompts WIP, comms
+    routing, review drafts) and is ignored by `.aw/.gitignore` by design. The installer cannot tell a
+    mis-placed run record there from a human's in-progress typed record, so a migration would move
+    someone's WIP records into a tree documented as disposable, on a guess. Reporting costs one line
+    and loses nothing; guessing wrong is unrecoverable. The same invariants would apply if this were
+    ever automated (preserve structure, never delete, refuse on conflict).
+
+    Verified 2026-09-18 in this repository: no such path exists (`ls -d .aw/records/*/untracked` ->
+    exit 2; `git log --all -- .aw/records/reviews/untracked` -> empty), so this is a guard for OTHER
+    repos rather than a fix for this one.
+
+    Detection is deliberately NARROW: a lane is only reported when it holds a directory whose name
+    looks like a workflow-run id (`<RUN_ID>`, a timestamp such as `20260726-115243` or
+    `20260918T045900Z`), which is the shape run scratch actually writes. A lane holding ordinary WIP
+    files is silent, so the common legitimate case never nags the user.
+    """
+
+    repo = Path(repo_root)
+    records = repo / ".aw" / "records"
+    if not records.is_dir():
+        return []
+    run_id = re.compile(r"^\d{8}([-T]\d{6}Z?)?$")
+    found: list[str] = []
+    for lane in sorted(records.glob("*/untracked")):
+        if not lane.is_dir():
+            continue
+        for candidate in sorted(lane.rglob("*")):
+            if candidate.is_dir() and run_id.match(candidate.name):
+                found.append(candidate.relative_to(repo).as_posix())
+    if not found:
+        return []
+    shown = ", ".join(found[:3]) + (" ..." if len(found) > 3 else "")
+    report = (
+        f".aw/records/*/untracked/ [REPORT ONLY, nothing moved: {len(found)} run-record-shaped "
+        f"directory(ies) found in a records quarantine lane ({shown}). Run scratch belongs at "
+        f"{ARTIFACTS_DIR}<workflow>/<RUN_ID>/. The installer will NOT move these: it cannot tell a "
+        "mis-placed run record from your in-progress typed records there. Move any you recognize by "
+        "hand.]"
+    )
+    return [report]
+
+
 def check_gitignore(plan: InstallPlan) -> str:
     """Report whether the run-scratch tree (`ARTIFACTS_DIR`) is actually ignored in this repo.
 
@@ -5997,6 +6429,23 @@ def install_into_repo(
     generated_members = {**shim_members, **skill_members}
 
     migrated = migrate_legacy_layout(plan, use_git)
+    # wfartifacts Order 05 (y4pptx): relocate an EXISTING install's run records off the retired
+    # repo-root `workflow-artifacts/` into `.aw/workflow-artifacts/`. Wired HERE, in the shared
+    # chokepoint, and NOT in `run()`: `install_into_repo` is what `aw install` (via `engine.run()`),
+    # `aw setup` (via `cli._run_setup` -> `cli._install_one`) and library callers all reach, so
+    # wiring into `run()` would leave `aw setup` silently doing nothing - the measured reason
+    # `emit_layout_artifacts` records for the same placement.
+    # Runs AFTER `migrate_legacy_layout` (which has its own, older pre-D19 source) and BEFORE the
+    # README ensurer, so a repo whose only run-scratch content was the retired stray README ends the
+    # install with the new tree's correct README rather than a relocated copy of the retired prose.
+    # It reports ONLY when it actually did something (OQ-01) and is a silent no-op otherwise.
+    # NOTE the ordering dependency this plan declares on Order 02: the relocated files must land in
+    # a tree that is already ignored, which `_ensure_aw_gitignore` guarantees. Both Orders 01 and 02
+    # are `executed`, and the migration additionally untracks what it moves, so the destination is
+    # ignored IN EFFECT rather than by assumption (asserted with `git check-ignore` in the tests).
+    migrated.extend(
+        migrate_root_workflow_artifacts(repo_root, use_git=use_git, dry_run=dry_run)
+    )
     installed, skipped, _ = install_all(plan, body_members, generated_members, use_git)
     pruned = prune_stale(
         plan, body_members, generated_members, use_git, target_layout=target_layout

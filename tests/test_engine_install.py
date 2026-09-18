@@ -1101,5 +1101,422 @@ class InstallerCommitSetTests(unittest.TestCase):
         )
 
 
+class RootRunScratchMigrationTests(unittest.TestCase):
+    """wfartifacts Order 05 (y4pptx): an EXISTING install's run records move to `.aw/workflow-artifacts/`.
+
+    WHAT THIS FILE'S SIBLING CLASSES CANNOT COVER, and why this class exists: Orders 01-04 fixed what
+    a FRESH install produces, so every one of their tests starts from a repo with no run scratch at
+    all. Measured 2026-09-12, 29 repos on one machine already carry the RETIRED repo-root
+    `workflow-artifacts/`, and two of them TRACK real run records in it (11 files and 3 files). This
+    is the only child that touches a user's committed history.
+
+    THE PROOF OBLIGATION IS UNUSUALLY HIGH, so each assertion below is chosen against a specific way
+    a naive implementation passes while the feature is broken:
+
+    1. HISTORY, not merely location. Asserting the file exists at the new path passes for a
+       copy-and-delete that lost the history. So the tracked case asserts the ACTUAL
+       `git log --follow` output reaches the pre-migration commit.
+    2. NOTHING LOST, not one file checked. A test that checks a single file cannot catch a partial
+       move, so the before/after run-record path SETS are compared for equality modulo the prefix.
+    3. MERGE, not move (F-7). The destination is usually already populated, which is the common case
+       rather than an edge, so a pre-existing destination run must SURVIVE alongside the relocated
+       one.
+    4. REFUSAL, not overwrite. A same-path/different-bytes conflict must leave BOTH files in place.
+    5. IGNORED IN EFFECT, via real `git check-ignore` attributed to `.aw/.gitignore` - the same
+       standard the four sibling gitignore classes hold themselves to.
+    """
+
+    RETIRED = "workflow-artifacts"
+    NEW = ".aw/workflow-artifacts"
+    RUN = "assess-bugs/20260726-115243"
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _write(self, repo: Path, rel: str, text: str = "record\n") -> Path:
+        p = repo / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text, encoding="utf-8")
+        return p
+
+    def _run_record_paths(self, root: Path) -> list[str]:
+        """Every file under `root`, relative and sorted (the unit the path-set equality uses)."""
+
+        if not root.is_dir():
+            return []
+        return sorted(
+            p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()
+        )
+
+    def _commit(self, repo: Path, *paths: str, message: str = "seed") -> None:
+        git(repo, "add", "--", *paths)
+        git(repo, "commit", "-qm", message)
+
+    def test_tracked_run_records_are_relocated_with_history_preserved(self) -> None:
+        """THE CASE THAT MATTERS MOST: committed content moves and `git log --follow` still works."""
+
+        repo = _seed_committed_repo(self.base, "mig-tracked")
+        src_rel = f"{self.RETIRED}/{self.RUN}/report.md"
+        self._write(repo, src_rel, "the report\n")
+        self._commit(repo, self.RETIRED, message="seed a committed run record")
+        pre_commit = git(repo, "rev-parse", "HEAD").stdout.strip()
+        before = self._run_record_paths(repo / self.RETIRED)
+        self.assertEqual(before, [f"{self.RUN}/report.md"], "precondition")
+
+        _install(repo)
+
+        dst_rel = f"{self.NEW}/{self.RUN}/report.md"
+        self.assertTrue((repo / dst_rel).is_file(), f"{dst_rel} was not created")
+        self.assertFalse(
+            (repo / src_rel).exists(), f"{src_rel} was left behind at the retired path"
+        )
+        self.assertEqual(
+            (repo / dst_rel).read_text(encoding="utf-8"),
+            "the report\n",
+            "content changed during the migration",
+        )
+
+        # (1) HISTORY: the ACTUAL --follow output must reach the pre-migration commit.
+        follow = git(repo, "log", "--follow", "--format=%H", "--", dst_rel)
+        self.assertEqual(follow.returncode, 0, follow.stderr)
+        self.assertIn(
+            pre_commit,
+            follow.stdout.split(),
+            "git log --follow on the relocated file does not reach the pre-migration commit, so "
+            f"the committed history was lost:\n{follow.stdout}",
+        )
+
+        # (5) IGNORED IN EFFECT, attributed to the framework-owned file.
+        ci = git(repo, "check-ignore", "-v", dst_rel)
+        self.assertEqual(
+            ci.returncode,
+            0,
+            f"the relocated run record is NOT ignored, so the migration re-tracked it: {ci.stderr}",
+        )
+        self.assertEqual(
+            ci.stdout.split(":", 1)[0],
+            ".aw/.gitignore",
+            "the relocated file must be ignored by the framework-owned .aw/.gitignore",
+        )
+        self.assertFalse(
+            INS.git_is_tracked(repo, dst_rel),
+            "the relocated run record is still TRACKED, so run scratch is still committed (D92)",
+        )
+
+    def test_nothing_is_lost_the_path_sets_are_equal_modulo_the_prefix(self) -> None:
+        """(2) A single-file assertion cannot catch a partial move; compare the whole SET."""
+
+        repo = _seed_committed_repo(self.base, "mig-pathsets")
+        rels = [
+            f"{self.RETIRED}/assess-bugs/20260726-115243/{name}"
+            for name in ("decisions.md", "evidence.md", "findings.csv", "report.md")
+        ] + [
+            f"{self.RETIRED}/assess-testing/20260726-131500/{name}"
+            for name in ("ipd-link.md", "report.md")
+        ]
+        for rel in rels:
+            self._write(repo, rel, f"{rel}\n")
+        self._commit(repo, self.RETIRED, message="seed two committed assess runs")
+        before = self._run_record_paths(repo / self.RETIRED)
+        self.assertEqual(len(before), 6, "precondition: six seeded run-record files")
+
+        _install(repo)
+
+        after = self._run_record_paths(repo / self.NEW)
+        after_records = [p for p in after if p != "README.md"]
+        self.assertEqual(
+            before,
+            after_records,
+            "the before/after run-record path sets differ, so the migration lost or renamed "
+            f"content:\nbefore={before}\nafter={after_records}",
+        )
+        for rel in before:
+            self.assertEqual(
+                (repo / self.NEW / rel).read_text(encoding="utf-8"),
+                f"{self.RETIRED}/{rel}\n",
+                f"content of {rel} changed during the migration",
+            )
+
+    def test_an_already_populated_destination_is_MERGED_not_replaced(self) -> None:
+        """(3) F-7: the destination usually already holds other runs of the SAME workflow."""
+
+        repo = _seed_committed_repo(self.base, "mig-merge")
+        _install(repo)  # gives the repo a real .aw/ tree and the ignore rule
+        # A run already at the NEW home, under the same workflow name, with a different RUN_ID.
+        kept_rel = f"{self.NEW}/assess-bugs/20260901-101010/report.md"
+        self._write(repo, kept_rel, "already here\n")
+        # And a legacy run at the retired path under that same workflow name.
+        moved_src = f"{self.RETIRED}/assess-bugs/20260726-115243/report.md"
+        self._write(repo, moved_src, "the legacy one\n")
+        self._commit(
+            repo, self.RETIRED, message="seed a legacy run beside an existing new one"
+        )
+
+        INS.migrate_root_workflow_artifacts(repo, use_git=True)
+
+        self.assertTrue(
+            (repo / kept_rel).is_file(),
+            "the pre-existing destination run was destroyed by the migration (this is a MERGE)",
+        )
+        self.assertEqual(
+            (repo / kept_rel).read_text(encoding="utf-8"),
+            "already here\n",
+            "the pre-existing destination run was overwritten",
+        )
+        moved_dst = f"{self.NEW}/assess-bugs/20260726-115243/report.md"
+        self.assertTrue(
+            (repo / moved_dst).is_file(), "the legacy run was not relocated"
+        )
+        self.assertEqual(
+            (repo / moved_dst).read_text(encoding="utf-8"), "the legacy one\n"
+        )
+        # Both RUN_IDs now live under the one workflow directory: the union survived.
+        self.assertEqual(
+            sorted(p.name for p in (repo / self.NEW / "assess-bugs").iterdir()),
+            ["20260726-115243", "20260901-101010"],
+        )
+
+    def test_a_conflicting_destination_is_REFUSED_and_both_files_survive(self) -> None:
+        """(4) Same relative path, DIFFERENT bytes: refuse, report, overwrite nothing."""
+
+        repo = _seed_committed_repo(self.base, "mig-refuse")
+        _install(repo)
+        rel = f"{self.RUN}/report.md"
+        self._write(repo, f"{self.NEW}/{rel}", "destination version\n")
+        self._write(repo, f"{self.RETIRED}/{rel}", "source version\n")
+        self._commit(repo, self.RETIRED, message="seed a conflicting legacy run")
+
+        actions = INS.migrate_root_workflow_artifacts(repo, use_git=True)
+
+        self.assertEqual(
+            (repo / self.NEW / rel).read_text(encoding="utf-8"),
+            "destination version\n",
+            "the migration OVERWROTE an existing run record, which is unrecoverable",
+        )
+        self.assertEqual(
+            (repo / self.RETIRED / rel).read_text(encoding="utf-8"),
+            "source version\n",
+            "the source was removed even though the move was refused",
+        )
+        self.assertTrue(
+            any("REFUSED" in a for a in actions),
+            f"the conflict was not reported to the user: {actions}",
+        )
+        self.assertTrue(
+            (repo / self.RETIRED).is_dir(),
+            "the retired directory still holds refused content and must not be removed",
+        )
+
+    def test_identical_bytes_are_not_a_conflict_and_nothing_is_deleted(self) -> None:
+        """A re-run must be safe: same path, SAME bytes is redundancy, not a conflict."""
+
+        repo = _seed_committed_repo(self.base, "mig-identical")
+        _install(repo)
+        rel = f"{self.RUN}/report.md"
+        self._write(repo, f"{self.NEW}/{rel}", "same\n")
+        self._write(repo, f"{self.RETIRED}/{rel}", "same\n")
+
+        actions = INS.migrate_root_workflow_artifacts(repo, use_git=True)
+
+        self.assertEqual((repo / self.NEW / rel).read_text(encoding="utf-8"), "same\n")
+        self.assertTrue(
+            (repo / self.RETIRED / rel).is_file(),
+            "a redundant source copy was DELETED; the invariant is that user content is never "
+            "deleted outside the README-only case",
+        )
+        self.assertFalse(any("REFUSED" in a for a in actions), actions)
+
+    def test_untracked_content_is_moved_without_git(self) -> None:
+        """Case (b): git has nothing to preserve, so a plain filesystem move is correct."""
+
+        repo = _seed_committed_repo(self.base, "mig-untracked")
+        _install(repo)
+        src_rel = f"{self.RETIRED}/{self.RUN}/report.md"
+        self._write(repo, src_rel, "never committed\n")
+        self.assertFalse(INS.git_is_tracked(repo, src_rel), "precondition: untracked")
+
+        INS.migrate_root_workflow_artifacts(repo, use_git=True)
+
+        dst_rel = f"{self.NEW}/{self.RUN}/report.md"
+        self.assertTrue((repo / dst_rel).is_file())
+        self.assertEqual(
+            (repo / dst_rel).read_text(encoding="utf-8"), "never committed\n"
+        )
+        self.assertFalse((repo / src_rel).exists())
+        self.assertFalse(
+            INS.git_is_tracked(repo, dst_rel),
+            "an untracked run record must not become tracked by being relocated",
+        )
+
+    def test_the_readme_only_case_is_removed_not_relocated(self) -> None:
+        """Case (c), the COMMON case: the stray README's content was the opposite of the rule."""
+
+        repo = _seed_committed_repo(self.base, "mig-readme")
+        retired_readme = f"{self.RETIRED}/README.md"
+        self._write(
+            repo,
+            retired_readme,
+            "# Workflow Run Artifacts\n\n* **DO NOT gitignore this folder.**\n",
+        )
+        self._commit(repo, self.RETIRED, message="seed the stray README")
+
+        _install(repo)
+
+        self.assertFalse(
+            (repo / retired_readme).exists(),
+            "the superseded stray README was left at the retired path",
+        )
+        self.assertFalse(
+            (repo / self.RETIRED).exists(),
+            "the retired directory should be gone once its only file was the stray README",
+        )
+        new_readme = repo / self.NEW / "README.md"
+        self.assertTrue(
+            new_readme.is_file(),
+            "the new tree did not get its own README from the install",
+        )
+        self.assertNotIn(
+            "DO NOT gitignore",
+            new_readme.read_text(encoding="utf-8"),
+            "the retired do-not-ignore prose was carried to the new home",
+        )
+
+    def test_a_repo_with_no_retired_directory_is_a_silent_no_op(self) -> None:
+        """OQ-01: report only when there is something to report."""
+
+        repo = _seed_committed_repo(self.base, "mig-noop")
+        _install(repo)
+        self.assertEqual(INS.migrate_root_workflow_artifacts(repo, use_git=True), [])
+
+    def test_dry_run_reports_and_touches_nothing(self) -> None:
+        repo = _seed_committed_repo(self.base, "mig-dryrun")
+        _install(repo)
+        src_rel = f"{self.RETIRED}/{self.RUN}/report.md"
+        self._write(repo, src_rel, "untouched\n")
+        self._commit(repo, self.RETIRED, message="seed for dry-run")
+        before_status = git(repo, "status", "--porcelain").stdout
+        before_head = git(repo, "rev-parse", "HEAD").stdout.strip()
+
+        actions = INS.migrate_root_workflow_artifacts(repo, use_git=True, dry_run=True)
+
+        self.assertTrue(any("dry-run" in a for a in actions), actions)
+        self.assertTrue((repo / src_rel).is_file(), "dry-run MOVED a file")
+        self.assertFalse(
+            (repo / self.NEW / self.RUN / "report.md").exists(),
+            "dry-run created the destination",
+        )
+        self.assertEqual(
+            git(repo, "status", "--porcelain").stdout,
+            before_status,
+            "dry-run changed the git status",
+        )
+        self.assertEqual(
+            git(repo, "rev-parse", "HEAD").stdout.strip(),
+            before_head,
+            "dry-run created a commit",
+        )
+
+    def test_the_migration_commit_does_not_sweep_in_unrelated_staged_work(self) -> None:
+        """This is a SHARED CHECKOUT: the relocation's commits are path-scoped, so a co-worker's
+        staged file must not be swept into them (repository execution contract)."""
+
+        repo = _seed_committed_repo(self.base, "mig-scoped")
+        _install(repo)
+        src_rel = f"{self.RETIRED}/{self.RUN}/report.md"
+        self._write(repo, src_rel, "mine\n")
+        self._commit(repo, self.RETIRED, message="seed for scoping")
+        coworker = repo / "coworker.txt"
+        coworker.write_text("someone else's staged work\n", encoding="utf-8")
+        git(repo, "add", "--", "coworker.txt")
+
+        INS.migrate_root_workflow_artifacts(repo, use_git=True)
+
+        staged = git(repo, "diff", "--cached", "--name-only").stdout.split()
+        self.assertIn(
+            "coworker.txt",
+            staged,
+            "the migration committed (or unstaged) a co-worker's staged file",
+        )
+        log = git(repo, "log", "--name-only", "--format=%H").stdout
+        self.assertNotIn(
+            "coworker.txt", log, "a co-worker's file was swept into a migration commit"
+        )
+
+    def test_run_records_in_a_records_quarantine_lane_are_REPORTED_not_moved(
+        self,
+    ) -> None:
+        """E-04 / decision D-02: the observed mis-relocation is reported, never swept up.
+
+        `records/*/untracked/` is a legitimate box-local quarantine lane for MANY record types, so
+        the installer cannot tell a mis-placed run record there from a human's in-progress typed
+        record. It therefore reports and moves nothing.
+        """
+
+        repo = _seed_committed_repo(self.base, "mig-misplaced")
+        _install(repo)
+        stray = ".aw/records/reviews/untracked/20260726-115243/report.md"
+        self._write(repo, stray, "mis-relocated run record\n")
+
+        actions = INS.migrate_root_workflow_artifacts(repo, use_git=True)
+
+        self.assertTrue(
+            any("REPORT ONLY" in a for a in actions),
+            f"the mis-placed run records were not reported: {actions}",
+        )
+        self.assertTrue(
+            (repo / stray).is_file(),
+            "the installer MOVED content out of a records quarantine lane; it must only report",
+        )
+        self.assertFalse(
+            (repo / self.NEW / "20260726-115243").exists(),
+            "content was swept from a records lane into the run-scratch tree",
+        )
+
+    def test_an_ordinary_wip_file_in_a_quarantine_lane_is_silent(self) -> None:
+        """The detection is narrow on purpose: only `<RUN_ID>`-shaped directories are reported, so
+        the legitimate use of these lanes never nags the user."""
+
+        repo = _seed_committed_repo(self.base, "mig-lane-quiet")
+        _install(repo)
+        self._write(repo, ".aw/records/prompts/untracked/draft.md", "wip\n")
+
+        self.assertEqual(INS.migrate_root_workflow_artifacts(repo, use_git=True), [])
+
+    def test_the_migration_runs_from_the_shared_install_chokepoint(self) -> None:
+        """E-02: wired into `install_into_repo`, so `aw install`, `aw setup` and library callers all
+        get it. A `run()`-only wiring would leave `aw setup` silently doing nothing."""
+
+        repo = _seed_committed_repo(self.base, "mig-chokepoint")
+        src_rel = f"{self.RETIRED}/{self.RUN}/report.md"
+        self._write(repo, src_rel, "via the chokepoint\n")
+        self._commit(repo, self.RETIRED, message="seed for chokepoint")
+
+        result = _install(repo)
+
+        self.assertTrue(
+            any("workflow-artifacts" in line for line in result["migrated"]),
+            f"the migration did not report through install_into_repo: {result['migrated']}",
+        )
+        self.assertTrue((repo / self.NEW / self.RUN / "report.md").is_file())
+
+    def test_reinstall_is_idempotent(self) -> None:
+        repo = _seed_committed_repo(self.base, "mig-idempotent")
+        src_rel = f"{self.RETIRED}/{self.RUN}/report.md"
+        self._write(repo, src_rel, "once\n")
+        self._commit(repo, self.RETIRED, message="seed for idempotence")
+
+        _install(repo)
+        first = self._run_record_paths(repo / self.NEW)
+        _install(repo)
+        second = self._run_record_paths(repo / self.NEW)
+
+        self.assertEqual(first, second, "a second install changed the relocated tree")
+        self.assertFalse((repo / self.RETIRED).exists())
+
+
 if __name__ == "__main__":
     unittest.main()
