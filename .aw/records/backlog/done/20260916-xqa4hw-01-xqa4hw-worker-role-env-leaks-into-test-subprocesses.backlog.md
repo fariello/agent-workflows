@@ -1,11 +1,12 @@
 - Id: xqa4hw
-- Status: open
+- Status: done
 - Set: xqa4hw
 - Priority: high
 - Work-Kind: bug
 - Summary: AW_EXECUTION_ROLE=worker leaks into pytest subprocesses, so 20 tests fail inside a lane turn and any baseline captured there is wrong
 
 ## Workflow history
+- 2026-09-18 done (aw set): Same defect as 1uq1cu (found earlier: 20 failures at the then-smaller suite, 31 at HEAD 6ff7a7ba) and fixed by the same change: conftest.py scrubs AW_EXECUTION_ROLE at import time so the test session always runs in the coordinator role, which also cleans the environment every test subprocess inherits. Measured: the marked invocation went from 31 failed / 8080 passed to 8111 passed, 3 skipped, 2 xfailed, identical to an unmarked run. The guard was not relaxed
 - 2026-09-16 created (aw backlog): AW_EXECUTION_ROLE=worker leaks into pytest subprocesses, so 20 tests fail inside a lane turn and any baseline captured there is wrong
 
 FOUND while executing IPD metc8b (dirtygates-02). It is not a defect in that plan's code; it is a defect in how a lane turn's environment reaches the test suite, and it directly attacks the execution contract's 'paste the ACTUAL runner output' rule.

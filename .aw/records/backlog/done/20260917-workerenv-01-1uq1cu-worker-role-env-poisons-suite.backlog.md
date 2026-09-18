@@ -1,11 +1,12 @@
 - Id: 1uq1cu
-- Status: open
+- Status: done
 - Set: workerenv
 - Priority: high
 - Work-Kind: bug
 - Summary: runner exports AW_EXECUTION_ROLE=worker into execution turns, making 31 suite tests fail for reasons unrelated to the plan under execution
 
 ## Workflow history
+- 2026-09-18 done (aw set): Fixed in conftest.py: the test session scrubs AW_EXECUTION_ROLE at import time so the suite always runs in the coordinator role. Measured at HEAD 6ff7a7ba: with the marking present the suite was 31 failed / 8080 passed; after the fix the SAME marked invocation is 8111 passed, 3 skipped, 2 xfailed, identical to an unmarked run. The guard was NOT relaxed: tests/test_worker_role_refusal.py still passes 7/7 and worker_role_active still returns True for a marked env
 - 2026-09-17 created (aw backlog): runner exports AW_EXECUTION_ROLE=worker into execution turns, making 31 suite tests fail for reasons unrelated to the plan under execution
 
 MEASURED 2026-09-18 during execution of integpath child 05 (3v7wo6), run run-20260918T015435Z-84931, at HEAD 36129255.
