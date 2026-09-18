@@ -4,9 +4,10 @@
 - Kind: child
 - Concern: performance
 - Scope: agent_workflows/attention.py, agent_workflows/runner_shared.py, agent_workflows/worktree_lease.py
-- Scope-Paths: agent_workflows/attention.py,agent_workflows/runner_shared.py,agent_workflows/worktree_lease.py,tests/test_attention.py
+- Scope-Paths: agent_workflows/attention.py,agent_workflows/runner_shared.py,agent_workflows/worktree_lease.py,tests/test_attention.py,tests/test_worktree_lease.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Set: attperf (attention-performance)
 - Order: 1
 - Highest E allocated: 05
@@ -14,6 +15,7 @@
 - Id: 2hj0el
 
 ## Workflow history
+- 2026-09-18 reviewed (aw set): /plan-review: approve with revisions applied; PR-001, PR-002, PR-003, PR-004, PR-005
 
 - 2026-09-17 to-review (Antigravity): /assess performance: assessed; proposed 5 changes.
 
@@ -102,32 +104,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### OQ-01: Cache lifetime for worktree registration
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: Antigravity
-- Resolution or deferral rationale: A local cache dictionary scoped to a single `stranded_lane_drift()` invocation guarantees zero stale-cache drift across multiple CLI commands.
+- Resolution or deferral rationale: Scoped locally to a single `stranded_lane_drift()` invocation, guaranteeing zero stale-cache drift across distinct CLI invocations.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Test confirms `git worktree list` is called at most once during `stranded_lane_drift`.
+  - Required evidence: Run `python3 -m pytest tests/test_worktree_lease.py -k test_registered_worktrees_memoized` and paste actual runner output showing `_git` worktree query is executed at most once per pass.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: Test confirms completed runs without preserved worktrees do not invoke git status.
+  - Required evidence: Run `python3 -m pytest tests/test_attention.py -k test_stranded_lane_terminal_pruning` and paste actual runner output proving cleanly terminal runs bypass live `inspect_lane` git invocations.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: Profile shows reduction in `str.lower` call count during artifact scan.
+  - Required evidence: Run profile verification `python3 -c "import cProfile..."` and paste stats proving whole-document lowercasing is eliminated.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: Test confirms `count_question_stats` returns identical unresolved and resolved counts.
+  - Required evidence: Run `python3 -m pytest tests/test_attention.py -k test_count_question_stats` and paste actual runner output verifying section boundary slicing returns identical counts.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: Benchmark confirms unfiltered `aw att` runtime drops below 3.0 seconds.
+  - Required evidence: Run timing benchmark `% time python3 -m agent_workflows.cli att` and paste actual terminal output proving unfiltered runtime drops below 3.0 seconds.
   - Observed evidence:
   - Result: pending
 
@@ -136,4 +138,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan must be human-approved before execution and is not auto-run.
+Execution contract:
+- Human approval required: This plan must be human-approved (`Status: approved`) before execution and is not auto-run.
+- Open questions: All open questions must be resolved before execution begins.
+- Scope fence: The executor must touch only the paths declared in `Scope-Paths`. If a change outside the fence is genuinely required, make it and justify it with `--scope-reason`, and acknowledge any declared-but-unmodified path with `--scope-ack`. Do NOT stop and report for out-of-scope edits.
+- Honesty rule: When reporting tests passed, paste the ACTUAL runner output; never claim success without running.
+- Clean commits: Commit ONLY files modified for this task, path-scoped (`git commit -m msg -- <paths>`), and NEVER push.
+- Post-gate move: Move to `.aw/records/plans/executed/` via `aw ipd finalize` once lint passes and all validation items are verified with concrete pasted evidence.
