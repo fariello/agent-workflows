@@ -189,13 +189,18 @@ class UntrackedReportWiringTests(unittest.TestCase):
         for name, driver, _spawn in DRIVERS:
             with self.subTest(driver=name):
                 init = inspect.getsource(driver.initialize_run)
+                if "initialize_run_core" in init:
+                    init = inspect.getsource(runner_shared.initialize_run_core)
                 self.assertLess(
                     init.find("refuse_unimplemented_run_flags"),
                     init.find("report_untracked_dirt_at_run_start"),
                 )
+                expand_idx = init.find("expand_selectors(")
+                if expand_idx < 0:
+                    expand_idx = init.find("expand_selectors_fn(")
                 self.assertLess(
                     init.find("report_untracked_dirt_at_run_start"),
-                    init.find("expand_selectors("),
+                    expand_idx,
                     "the report must precede queue resolution",
                 )
 

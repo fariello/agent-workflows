@@ -2069,358 +2069,44 @@ def resolve_verification_decision(
 
 
 def initialize_run(args: argparse.Namespace) -> Path:
-    repo = Path(args.repo).expanduser().resolve()
-    if not (repo / ".git").exists():
-        try:
-            common_dir_exists = git_common_dir(repo).exists()
-        except DriverError:
-            common_dir_exists = False
-        if not common_dir_exists:
-            raise DriverError(f"Not a Git repository: {repo}")
+    """Initialize a run, freezing queue items (including "from_backlog") and options via runner_shared.initialize_run_core.
 
-    if getattr(args, "manifest", None):
-        manifest_path = Path(args.manifest).expanduser().resolve()
-        manifest = load_json(manifest_path)
-        validate_manifest(manifest)
-    else:
-        discovered = discover_plans(repo)
-        manifest = build_dynamic_manifest(repo, discovered)
-        manifest_path = None
-
-    if getattr(args, "runbook", None):
-        runbook_path = Path(args.runbook).expanduser().resolve()
-    else:
-        default_rb = (
-            repo
-            / "tools"
-            / "ipdrunner"
-            / "20260823-pending-ipds-overnight-execution-runbook.md"
-        )
-        if default_rb.is_file():
-            runbook_path = default_rb.resolve()
-        else:
-            runbook_path = None
-
-    # runflags-01 (`uyeko5`) E-03/E-04/E-05, symmetric with `oc_runipd`: refuse an unhonorable flag
-    # BEFORE resolution, delegating every decision (the shared table's unimplemented list, `zub5f1`'s
-    # admission precondition, `sq61qd`'s 0..10 bound). No runner-local flag policy.
-    runner_shared.refuse_unimplemented_run_flags(args)
-    runner_shared.evaluate_unverifiable_admission(args)
-    runner_shared.resolve_retry_budget(getattr(args, "retry_budget", None))
-    # integpath-03 (`51vw4y`) E-02/E-05: the counterpart of the `oc_runipd` refusal, at the same seam
-    # (before any durable state), so a malformed ladder flag fails identically on both hosts.
-    runner_shared.resolve_integration_retry_limit(
-        getattr(args, "integration_retry_limit", None)
-    )
-    runner_shared.resolve_on_integration_blocked(
-        getattr(args, "on_integration_blocked", None)
-    )
-
-    # dirtybase Order 01 (`3i0aaz`) E-02, the MIRROR of the oc twin (which carries the full note):
-    # report the checkout's UNTRACKED content ONCE per run, at this same pre-durable seam, without
-    # refusing. Wired on both hosts deliberately - a visibility rule present on one runner only is
-    # how `--full-auto` came to mean opt-in on one host and opt-out on the other.
-    runner_shared.report_untracked_dirt_at_run_start(repo)
-
+    Freezes queue items with "from_backlog" and runs report_untracked_dirt_at_run_start.
+    Evaluates __file__ in the runner module so driver identity attributes to this host.
+    """
     # hostdefault-02 (`ybkmzp`) E-04: resolve THIS run's verification decision here, at the same
-    # pre-durable seam as the refusals above and BEFORE the run directory is created below, so a
-    # malformed runner-profile store (or a contradictory flag pair) refuses leaving NO run id,
-    # directory, events, or state. Placing it after the `mkdir` would strand an orphan run directory
-    # on a bad store, which is the failure `3cm15q` closed on the other host.
+    # pre-durable seam as the refusals and BEFORE the run directory is created below.
     verification = resolve_verification_decision(args)
-
-    queue_ids = expand_selectors(manifest, args.selectors, repo=repo)
-
-    # revsweep-02 (`6ypimw`) E-04: spec 25kzda 2.5a's draft admission gate, the SAME shared call the
-    # opencode host makes, at the same seam (after resolution, before any run directory, lease, or
-    # session). Not optional symmetry: a gate wired into one runner only is how `--full-auto` came to
-    # mean opt-in on one host and opt-out on the other. The oc twin carries the full note, including
-    # why this rebinds `queue_ids` instead of raising.
-    if runner_shared.is_status_selector(args.selectors):
-        queue_ids, draft_verdict = runner_shared.enforce_draft_admission_gate(
-            manifest,
-            queue_ids,
-            repo=repo,
-            allow_drafts=bool(getattr(args, "allow_drafts", False)),
-            interactive=runner_shared.is_interactive_run(args),
-            host="agy",
-            selector=" ".join(str(s) for s in args.selectors),
-        )
-        if not queue_ids:
-            # Same composition as the oc twin (which carries the full note): 2.5a excludes without
-            # failing the run, and each selector keeps ITS OWN empty semantics - `reviews` exits 0 per
-            # spec 2.4a property 3, `all` keeps the exit-2 error it has always raised. No empty run
-            # directory is frozen either way.
-            raise (
-                EmptyStatusSelection(
-                    "No items in 'to-review' state found in repository"
-                )
-                if runner_shared.is_review_selector(args.selectors)
-                else DriverError("No actionable pending IPDs found in repository")
-            )
-    else:
-        draft_verdict = None
-
-    # 8guhs0 E-02 (symmetric with oc_runipd): FAIL CLOSED on an invalid dependency graph BEFORE any
-    # host session starts, and before the run directory exists. The rules and their severities are
-    # the SHARED evaluator's; there is no runner-local dependency policy.
-    selected_plan_paths: list[Path] = []
-    for id6 in queue_ids:
-        try:
-            selected_plan_paths.append(
-                resolve_plan_path(repo, manifest["plans"][id6].get("file", ""), id6)
-            )
-        except (DriverError, KeyError):
-            continue
-    enforce_dependency_preflight(repo, selected_plan_paths)
-
-    # revsweep 76gsmv E-03 (parity with oc): `--action` legality, checked before the run directory
-    # exists and before any session, and BEFORE the `--full-auto` auto-approval below, which would
-    # otherwise clear a `reviewed` plan to `auto-approved` on the way to executing it inside a command
-    # the operator spelled "review" (F-9). That ordering matters more on this host than on oc, because
-    # `--full-auto` DEFAULTS TO TRUE here.
-    requested_action = getattr(args, "action", None)
-    if requested_action is not None:
-        preflight_items: list[tuple[str, str, str]] = []
-        for id6 in queue_ids:
-            plan_info = manifest["plans"].get(id6, {})
-            st = plan_info.get("status")
-            # rununify 06 (`sy7uwh`) E-03: resolve the path ONCE (the oc twin carries the full note); the
-            # kind fallback below needs it even when the manifest supplies a status.
-            probe_path = None
-            try:
-                probe_path = resolve_plan_path(repo, plan_info.get("file", ""), id6)
-            except Exception:
-                probe_path = None
-            if not st and probe_path is not None:
-                try:
-                    rec_probe = parse_plan_file(probe_path, repo)
-                    st = rec_probe.status if rec_probe else None
-                except Exception:
-                    st = None
-            st = st or "approved"
-            # orchretire-03 (`pgq326`) E-04: the SAME `action_for` the queue builder uses, read from the
-            # same manifest, so the `--action` legality preflight and the dispatch cannot disagree about
-            # an orchestrator's action. `determine_action` here (the pre-`pgq326` code) told the operator
-            # an orchestrator's next action was `execute`.
-            # rununify 06 (`sy7uwh`) E-03: and now through the SAME `resolve_manifest_kind` as the queue
-            # build, so the "cannot disagree" claim above also covers a legacy manifest with no `kind`
-            # key, where this site read the raw `None` while the dispatch fell back to the plan file.
-            preflight_items.append(
-                (id6, st, action_for(resolve_manifest_kind(plan_info, probe_path), st))
-            )
-        enforce_requested_action(requested_action, preflight_items)
-
-    # runflags-01 (`uyeko5`) E-02: the SAME call site the opencode driver has, from the SAME shared
-    # function, so `6lu3rq`'s mixed-type gate is reachable on BOTH hosts. Not optional symmetry: a gate
-    # wired into one runner only is how `--full-auto` came to mean opt-in on one host and opt-out on
-    # the other. The oc twin carries the full note, including the honest limit that no real invocation
-    # can produce a mixed selection until `--type` exists.
-    mixed_verdict = runner_shared.enforce_mixed_type_gate(
-        repo,
-        selected_plan_paths,
-        allow_mixed=bool(getattr(args, "allow_mixed", False)),
-        interactive=runner_shared.is_interactive_run(args),
-        host="agy",
-        selector=" ".join(str(s) for s in args.selectors),
-    )
-
-    run_id = getattr(args, "run_id", None) or new_run_id()
-    run_dir = state_root(repo) / run_id
-    if run_dir.exists():
-        raise DriverError(f"Run already exists: {run_id}")
-    for name in ("sessions", "outcomes", "prompts"):
-        (run_dir / name).mkdir(parents=True, exist_ok=True)
-    (run_dir / "decisions-and-questions.md").write_text(
-        f"# Decisions and Questions for {run_id}\n\n", encoding="utf-8"
-    )
-
-    if manifest_path is None:
-        manifest_path = run_dir / "manifest.json"
-        atomic_write_json(manifest_path, manifest)
-
-    if runbook_path is None:
-        runbook_path = run_dir / "runbook.md"
-        runbook_path.write_text(DEFAULT_RUNBOOK_TEXT, encoding="utf-8")
-
-    initial_session = getattr(args, "session", None)
-    set_sessions: dict[str, str] = {}
-    queue: list[dict[str, Any]] = []
-    # runflags-01 (`uyeko5`) E-07: `False`, matching the opencode host. This was `True`, and it is the
-    # SECOND of three sites: changing only the parser default would have left the old opt-OUT behavior
-    # live for any caller that builds a Namespace without the attribute, while `--help` claimed
-    # otherwise.
-    full_auto = getattr(args, "full_auto", False)
-    for position, id6 in enumerate(queue_ids, start=1):
-        plan = manifest["plans"][id6]
-        setid = plan["set"]
-        if initial_session:
-            set_sessions[setid] = initial_session
-
-        status = plan.get("status")
-        p_path = None
-        rec = None
-        try:
-            p_path = resolve_plan_path(repo, plan.get("file", ""), id6)
-            rec = parse_plan_file(p_path, repo)
-            if rec and not status:
-                status = rec.status
-        except Exception:
-            if not status:
-                status = "approved"
-
-        # `Status: reviewed` remains a hard PRECONDITION and the cleared status is `auto-approved`,
-        # never human `approved` (fullauto 97df1z; the oc twin carries the full note).
-        if status == "reviewed" and full_auto and p_path:
-            try:
-                if is_plan_review_approved(p_path):
-                    set_plan_approved(repo, id6)
-                    status = "auto-approved"
-            except Exception:
-                pass
-
-        # orchretire-03 (`pgq326`) E-04: Kind + Status decide the action, through the SHARED `action_for`.
-        # A draft/to-review orchestrator still takes `review` (its artifact must be review-complete
-        # whichever way the Set is driven); only a past-review orchestrator becomes `orchestrate`, which
-        # this driver's dispatch loop now ACTS on (E-07) instead of spending an agent turn.
-        # rununify 06 (`sy7uwh`) E-03: the manifest-then-file resolution is now the SHARED
-        # `resolve_manifest_kind`, which oc's queue build also calls. This host had the fallback inline
-        # (through a private `_plan_kind`) and oc had NONE, so a hand-written manifest omitting the
-        # `kind` key made this host correctly RETIRE an approved orchestrator while oc spent an agent
-        # turn executing it. One shared resolution ends that disagreement in the safe direction.
-        kind = resolve_manifest_kind(plan, p_path)
-        action = action_for(kind, status or "approved")
-        queue.append(
-            {
-                "position": position,
-                "id6": id6,
-                "setid": setid,
-                "configured_file": plan["file"],
-                "dependencies": plan.get("dependencies", []),
-                # orchretire-03 (`pgq326`) E-04: the plan's `- Kind:`, frozen on the queue entry so a
-                # RESUME re-derives the same action, and so the durable record shows which items the
-                # runner treated as orchestrators.
-                "kind": kind,
-                # 8guhs0 E-04: the plan's numeric Order, frozen as a TIEBREAKER only (see
-                # `queue_sort_key`). Additive; an older run directory lacking the key still sorts.
-                "order": plan.get("order"),
-                # bkclose (zhr6mc) E-01: the linked backlog item, frozen on the queue entry, with the
-                # same manifest-then-plan-file fallback `oc_runipd` uses so an older hand-written
-                # manifest still gets the link.
-                "from_backlog": plan.get("from_backlog")
-                or (getattr(rec, "from_backlog", None) if p_path else None),
-                "initial_status": status or "approved",
-                "action": action,
-                # A TERMINAL STATUS IS PRESERVED, NOT COLLAPSED TO `reviewed`. See
-                # `runner_shared.initial_queue_status`: the inline allowlist this replaces had no
-                # `executed` arm, so an already-executed plan was relabeled `reviewed` and became a
-                # dead prerequisite that killed its dependents at queue build. Shared with the oc host
-                # (this expression was byte-identical there) so the two cannot diverge again.
-                "status": runner_shared.initial_queue_status(status),
-                "attempts": [],
-            }
-        )
-
-    state = {
-        "schema_version": SCHEMA_VERSION,
-        "run_id": run_id,
-        "created_at": utc_now(),
-        "updated_at": utc_now(),
-        "repo": str(repo),
-        "manifest": str(manifest_path),
-        "manifest_sha256": sha256_file(manifest_path),
-        "runbook": str(runbook_path),
-        "runbook_sha256": sha256_file(runbook_path),
-        "selectors": list(args.selectors),
-        "queue": queue,
-        # runorder (prpipy) E-07, symmetric with `oc_runipd`: the REQUESTED-vs-EXECUTED order
-        # comparison frozen beside the queue it describes, computed by the SHARED function.
-        "run_order": run_order_rationale(queue, list(args.selectors)),
-        "session_id": initial_session,
-        "set_sessions": set_sessions,
-        "session_turn_counts": {},
-        "options": {
-            "agy_executable": getattr(args, "agy_executable", None)
-            or getattr(args, "agy", None),
-            "model": getattr(args, "model", DEFAULT_MODEL),
-            "effort": getattr(args, "effort", None),
-            "timeout": getattr(args, "timeout", DEFAULT_TIMEOUT),
-            "session": initial_session,
-            "new_session": getattr(args, "new_session", False),
-            "dangerously_skip_permissions": getattr(
-                args, "dangerously_skip_permissions", True
-            ),
-            # hostdefault-02 (`ybkmzp`) E-04: the RESOLVED decision, NEGATED here at the boundary.
-            # This host's frozen key is `no_verify` and its verifier gate reads `not no_verify`,
-            # which is the OPPOSITE POLARITY from oc's `validate` key. Writing the resolved positive
-            # value in un-negated would make "verify" mean "do not verify", so verification would be
-            # requested and silently skipped with no error anywhere. This ONE `not` is the entire
-            # translation, it lives at the ONE place this host freezes the key, and both directions
-            # are asserted at the frozen-state level rather than trusted.
-            "no_verify": not verification.validate,
-            "output_mode": getattr(args, "output_mode", "clean"),
-            # streamfmt (mm6wuz) E-06: the live-stream detail tier, frozen beside `output_mode`,
-            # mirroring the oc twin so a resume can honor it.
-            "verbosity": getattr(args, "verbosity", 0) or 0,
-            "stall_timeout": getattr(args, "stall_timeout", DEFAULT_STALL_TIMEOUT),
-            "full_auto": full_auto,
-            "self_finalize": getattr(args, "self_finalize", True),
-            "isolate_worktree": getattr(args, "isolate_worktree", True),
-            "max_items_per_session": getattr(args, "max_items_per_session", 4),
-            # revsweep 76gsmv E-03: frozen with the rest of the policy so `aw runs show` and a
-            # resume can both see the run was constrained to one action.
-            "action": requested_action,
-            # runflags-01 (`uyeko5`) E-06: spec 2.1's policy flags frozen at queue build, from the
-            # SAME shared function the opencode driver uses, so the frozen option SET is identical on
-            # both hosts by construction rather than by two lists that agree today.
-            **runner_shared.freeze_run_policy_flags(args),
-        },
-        "driver": {
-            "path": str(Path(__file__).resolve()),
-            "sha256": sha256_file(Path(__file__)),
-        },
+    host_options = {
+        "agy_executable": getattr(args, "agy_executable", None)
+        or getattr(args, "agy", None),
+        "model": getattr(args, "model", DEFAULT_MODEL),
+        "effort": getattr(args, "effort", None),
+        "timeout": getattr(args, "timeout", DEFAULT_TIMEOUT),
+        "new_session": getattr(args, "new_session", False),
+        "dangerously_skip_permissions": getattr(
+            args, "dangerously_skip_permissions", True
+        ),
+        "no_verify": not verification.validate,
     }
-    atomic_write_json(run_dir / "state.json", state)
-    append_jsonl(
-        run_dir / "events.jsonl",
-        {"at": utc_now(), "event": "run-created", "run_id": run_id, "queue": queue_ids},
+
+    return runner_shared.initialize_run_core(
+        args,
+        host="agy",
+        driver_path=Path(__file__),
+        host_options=host_options,
+        expand_selectors_fn=expand_selectors,
+        enforce_dependency_preflight_fn=enforce_dependency_preflight,
+        set_plan_approved_fn=set_plan_approved,
+        announce_run_order_fn=announce_run_order,
+        is_plan_review_approved_fn=is_plan_review_approved,
+        run_order_rationale_fn=run_order_rationale,
+        write_report_fn=write_report,
+        git_common_dir_fn=git_common_dir,
+        parse_dependency_token_fn=parse_dependency_token,
+        default_runbook_text=DEFAULT_RUNBOOK_TEXT,
+        default_stall_timeout=DEFAULT_STALL_TIMEOUT,
     )
-    # runflags-01 (`uyeko5`) E-02: spec 2.5 bullet 4's four facts in the run ledger, from the record
-    # `run_selection_policy` returned. Same shape as the opencode driver's.
-    append_jsonl(
-        run_dir / "events.jsonl",
-        {
-            "at": utc_now(),
-            "event": "mixed-type-gate",
-            "gate_applied": mixed_verdict.gate_applied,
-            "proceed": mixed_verdict.proceed,
-            "reason": mixed_verdict.reason,
-            **mixed_verdict.record.as_dict(),
-        },
-    )
-    # revsweep-02 (`6ypimw`) E-04: spec 2.5a's ledger record, identical to the oc host's. The oc twin
-    # carries the full note (return-not-write convention, and why the admitted set is the load-bearing
-    # field).
-    if draft_verdict is not None:
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": utc_now(),
-                "event": "draft-admission-gate",
-                "gate_applied": draft_verdict.gate_applied,
-                "reason": draft_verdict.reason,
-                "excluded_complete": list(draft_verdict.excluded_complete),
-                "skipped_incomplete": list(draft_verdict.skipped_incomplete),
-                **draft_verdict.record.as_dict(),
-            },
-        )
-    write_report(run_dir, state)
-    # runorder (prpipy) E-07: the SAME announcement the OpenCode driver emits, from the SAME shared
-    # function, before the first child session. Not optional polish: `queue_sort_key` is shared, so
-    # without this `aw agy run` would silently receive the reordering and neither the warning nor the
-    # corrected preview.
-    announce_run_order(run_dir, state)
-    return run_dir
 
 
 # rununify 04 (`tx6q0h`): one-line wrapper over the shared report renderer. THREE OBSERVABLE CHANGES

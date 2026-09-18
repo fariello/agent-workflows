@@ -136,6 +136,7 @@ fingerprint as its guard is `tests/test_run_flag_surface.py`, which drives every
 
 from __future__ import annotations
 
+import argparse
 import contextlib
 import datetime as dt
 import hashlib
@@ -10184,3 +10185,285 @@ Before exiting, write valid JSON to {outcome} with at least:
 The disposition must describe the actual repository result, not merely your effort. If no
 material question arose, say so in the summary. Explicitly confirm pushed=false.
 {defect_report_prompt_block()}{reporting_contract.prompt_block()}"""
+
+
+def initialize_run_core(
+    args: argparse.Namespace,
+    *,
+    host: str,
+    driver_path: Path,
+    host_options: dict[str, Any],
+    expand_selectors_fn: Any = None,
+    enforce_dependency_preflight_fn: Any = None,
+    set_plan_approved_fn: Any = None,
+    announce_run_order_fn: Any = None,
+    is_plan_review_approved_fn: Any = None,
+    run_order_rationale_fn: Any = None,
+    write_report_fn: Any = None,
+    git_common_dir_fn: Any = None,
+    parse_dependency_token_fn: Any = None,
+    default_runbook_text: str | None = None,
+    default_stall_timeout: float | None = None,
+) -> Path:
+    """Shared core initialization for all runner hosts.
+
+    Unifies the common runner initialization: repo validation, early flag refusals,
+    manifest/runbook discovery, selector expansion, draft admission gate, dependency
+    preflight, action legality checks, mixed-type gate, run directory creation, queue
+    building, state/events persistence, and execution report emission.
+    """
+    repo = Path(args.repo).expanduser().resolve()
+    if not (repo / ".git").exists():
+        try:
+            common_dir_exists = (
+                git_common_dir_fn(repo).exists() if git_common_dir_fn else False
+            )
+        except DriverError:
+            common_dir_exists = False
+        if not common_dir_exists:
+            raise DriverError(f"Not a Git repository: {repo}")
+
+    if getattr(args, "manifest", None):
+        manifest_path = Path(args.manifest).expanduser().resolve()
+        manifest = load_json(manifest_path)
+        validate_manifest(manifest, parse_dependency_token=parse_dependency_token_fn)
+    else:
+        discovered = discover_plans(repo, parse_plan_file=parse_plan_file)
+        manifest = build_dynamic_manifest(repo, discovered)
+        manifest_path = None
+
+    if getattr(args, "runbook", None):
+        runbook_path = Path(args.runbook).expanduser().resolve()
+    else:
+        default_rb = (
+            repo
+            / "tools"
+            / "ipdrunner"
+            / "20260823-pending-ipds-overnight-execution-runbook.md"
+        )
+        if default_rb.is_file():
+            runbook_path = default_rb.resolve()
+        else:
+            runbook_path = None
+
+    refuse_unimplemented_run_flags(args)
+    evaluate_unverifiable_admission(args)
+    resolve_retry_budget(getattr(args, "retry_budget", None))
+    resolve_integration_retry_limit(getattr(args, "integration_retry_limit", None))
+    resolve_on_integration_blocked(getattr(args, "on_integration_blocked", None))
+    report_untracked_dirt_at_run_start(repo)
+
+    queue_ids = expand_selectors_fn(manifest, args.selectors, repo=repo)
+
+    if is_status_selector(args.selectors):
+        queue_ids, draft_verdict = enforce_draft_admission_gate(
+            manifest,
+            queue_ids,
+            repo=repo,
+            allow_drafts=bool(getattr(args, "allow_drafts", False)),
+            interactive=is_interactive_run(args),
+            host=host,
+            selector=" ".join(str(s) for s in args.selectors),
+        )
+        if not queue_ids:
+            raise (
+                EmptyStatusSelection(
+                    "No items in 'to-review' state found in repository"
+                )
+                if is_review_selector(args.selectors)
+                else DriverError("No actionable pending IPDs found in repository")
+            )
+    else:
+        draft_verdict = None
+
+    selected_plan_paths: list[Path] = []
+    for id6 in queue_ids:
+        try:
+            selected_plan_paths.append(
+                resolve_plan_path(repo, manifest["plans"][id6].get("file", ""), id6)
+            )
+        except (DriverError, KeyError):
+            continue
+    enforce_dependency_preflight_fn(repo, selected_plan_paths)
+
+    requested_action = getattr(args, "action", None)
+    if requested_action is not None:
+        preflight_items: list[tuple[str, str, str]] = []
+        for id6 in queue_ids:
+            plan_info = manifest["plans"].get(id6, {})
+            st = plan_info.get("status")
+            probe_path = None
+            try:
+                probe_path = resolve_plan_path(repo, plan_info.get("file", ""), id6)
+            except Exception:
+                probe_path = None
+            if not st and probe_path is not None:
+                try:
+                    rec_probe = parse_plan_file(probe_path, repo)
+                    st = rec_probe.status if rec_probe else None
+                except Exception:
+                    st = None
+            st = st or "approved"
+            preflight_items.append(
+                (id6, st, action_for(resolve_manifest_kind(plan_info, probe_path), st))
+            )
+        labels = AGY_HOST_LABELS if host == "agy" else OC_HOST_LABELS
+        enforce_requested_action(requested_action, preflight_items, labels=labels)
+
+    mixed_verdict = enforce_mixed_type_gate(
+        repo,
+        selected_plan_paths,
+        allow_mixed=bool(getattr(args, "allow_mixed", False)),
+        interactive=is_interactive_run(args),
+        host=host,
+        selector=" ".join(str(s) for s in args.selectors),
+    )
+
+    run_id = getattr(args, "run_id", None) or new_run_id()
+    run_dir = state_root(repo) / run_id
+    if run_dir.exists():
+        raise DriverError(f"Run already exists: {run_id}")
+    for name in ("sessions", "outcomes", "prompts"):
+        (run_dir / name).mkdir(parents=True, exist_ok=True)
+    (run_dir / "decisions-and-questions.md").write_text(
+        f"# Decisions and Questions for {run_id}\n\n", encoding="utf-8"
+    )
+
+    if manifest_path is None:
+        manifest_path = run_dir / "manifest.json"
+        atomic_write_json(manifest_path, manifest)
+
+    if runbook_path is None:
+        runbook_path = run_dir / "runbook.md"
+        runbook_text = (
+            default_runbook_text
+            if default_runbook_text is not None
+            else (
+                "# IPD Autonomous Execution Runbook\n\n"
+                "This runbook guides automated execution.\n"
+            )
+        )
+        runbook_path.write_text(runbook_text, encoding="utf-8")
+
+    initial_session = getattr(args, "session", None)
+    set_sessions: dict[str, str] = {}
+    queue: list[dict[str, Any]] = []
+    full_auto = getattr(args, "full_auto", False)
+    for position, id6 in enumerate(queue_ids, start=1):
+        plan = manifest["plans"][id6]
+        setid = plan["set"]
+        if initial_session:
+            set_sessions[setid] = initial_session
+
+        status = plan.get("status")
+        p_path = None
+        rec = None
+        try:
+            p_path = resolve_plan_path(repo, plan.get("file", ""), id6)
+            rec = parse_plan_file(p_path, repo)
+            if rec and not status:
+                status = rec.status
+        except Exception:
+            if not status:
+                status = "approved"
+
+        if status == "reviewed" and full_auto and p_path:
+            try:
+                if is_plan_review_approved_fn(p_path):
+                    set_plan_approved_fn(repo, id6)
+                    status = "auto-approved"
+            except Exception:
+                pass
+
+        kind = resolve_manifest_kind(plan, p_path)
+        action = action_for(kind, status or "approved")
+        queue.append(
+            {
+                "position": position,
+                "id6": id6,
+                "setid": setid,
+                "configured_file": plan["file"],
+                "dependencies": plan.get("dependencies", []),
+                "kind": kind,
+                "order": plan.get("order"),
+                "from_backlog": plan.get("from_backlog")
+                or (getattr(rec, "from_backlog", None) if p_path else None),
+                "initial_status": status or "approved",
+                "action": action,
+                "status": initial_queue_status(status),
+                "attempts": [],
+            }
+        )
+
+    stall_timeout = (
+        getattr(args, "stall_timeout", default_stall_timeout)
+        if default_stall_timeout is not None
+        else getattr(args, "stall_timeout", 600.0)
+    )
+
+    state = {
+        "schema_version": SCHEMA_VERSION,
+        "run_id": run_id,
+        "created_at": utc_now(),
+        "updated_at": utc_now(),
+        "repo": str(repo),
+        "manifest": str(manifest_path),
+        "manifest_sha256": sha256_file(manifest_path),
+        "runbook": str(runbook_path),
+        "runbook_sha256": sha256_file(runbook_path),
+        "selectors": list(args.selectors),
+        "queue": queue,
+        "run_order": run_order_rationale_fn(queue, list(args.selectors)),
+        "session_id": initial_session,
+        "set_sessions": set_sessions,
+        "session_turn_counts": {},
+        "options": {
+            "session": initial_session,
+            "output_mode": getattr(args, "output_mode", "clean"),
+            "verbosity": getattr(args, "verbosity", 0) or 0,
+            "stall_timeout": stall_timeout,
+            "full_auto": full_auto,
+            "self_finalize": getattr(args, "self_finalize", True),
+            "isolate_worktree": getattr(args, "isolate_worktree", True),
+            "max_items_per_session": getattr(args, "max_items_per_session", 4),
+            "action": requested_action,
+            **freeze_run_policy_flags(args),
+            **host_options,
+        },
+        "driver": {
+            "path": str(driver_path.resolve()),
+            "sha256": sha256_file(driver_path),
+        },
+    }
+    atomic_write_json(run_dir / "state.json", state)
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {"at": utc_now(), "event": "run-created", "run_id": run_id, "queue": queue_ids},
+    )
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "mixed-type-gate",
+            "gate_applied": mixed_verdict.gate_applied,
+            "proceed": mixed_verdict.proceed,
+            "reason": mixed_verdict.reason,
+            **mixed_verdict.record.as_dict(),
+        },
+    )
+    if draft_verdict is not None:
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "draft-admission-gate",
+                "gate_applied": draft_verdict.gate_applied,
+                "reason": draft_verdict.reason,
+                "excluded_complete": list(draft_verdict.excluded_complete),
+                "skipped_incomplete": list(draft_verdict.skipped_incomplete),
+                **draft_verdict.record.as_dict(),
+            },
+        )
+    write_report_fn(run_dir, state)
+    announce_run_order_fn(run_dir, state)
+    return run_dir

@@ -1724,6 +1724,10 @@ class AntiDivergenceGuardTests(unittest.TestCase):
         for name, path in _DRIVER_SOURCES:
             with self.subTest(driver=name):
                 code = _code_only(path.read_text(encoding="utf-8"))
+                if "initialize_run_core" in code:
+                    code += _code_only(
+                        (path.parent / "runner_shared.py").read_text(encoding="utf-8")
+                    )
                 self.assertIn(
                     "initial_queue_status",
                     code,

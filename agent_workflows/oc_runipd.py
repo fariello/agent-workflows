@@ -3273,451 +3273,55 @@ def launch_profile_record(
 
 
 def initialize_run(args: argparse.Namespace) -> Path:
+    """Initialize a run, freezing queue items (including "from_backlog") and options via runner_shared.initialize_run_core.
+
+    Freezes queue items with "from_backlog" and runs report_untracked_dirt_at_run_start.
+    Evaluates __file__ in the runner module so driver identity attributes to this host.
+    """
     # runprofile-03 (`3cm15q`) E-02: FIRST statement in the function, deliberately. The launch
     # identity is decided before the repository is even validated, so no ordering change can later
-    # slip a durable write (run dir at `run_dir.mkdir`, events, state.json) ahead of a refusal. A
-    # malformed or unknown profile therefore exits nonzero having created nothing.
-    #
-    # runprofile-06 (`kgpptv`) E-02: BOTH launches are resolved here, in this same position, so a
-    # dangling `verify_with` refuses just as early as an unknown `--profile` does. `resolved_verify`
-    # is None when no level named a verifier profile, which means "the verifier reuses the executor's
-    # launch" and is the behavior of every run created before this field existed.
+    # slip a durable write ahead of a refusal.
+    # runprofile-06 (`kgpptv`) E-02: BOTH launches are resolved here in this same position.
     resolved_launch, resolved_verify = resolve_launch_pair(args)
 
-    repo = Path(args.repo).expanduser().resolve()
-    if not (repo / ".git").exists():
-        try:
-            common_dir_exists = git_common_dir(repo).exists()
-        except DriverError:
-            common_dir_exists = False
-        if not common_dir_exists:
-            raise DriverError(f"Not a Git repository: {repo}")
-
-    if getattr(args, "manifest", None):
-        manifest_path = Path(args.manifest).expanduser().resolve()
-        manifest = load_json(manifest_path)
-        validate_manifest(manifest)
-    else:
-        discovered = discover_plans(repo)
-        manifest = build_dynamic_manifest(repo, discovered)
-        manifest_path = None
-
-    if getattr(args, "runbook", None):
-        runbook_path = Path(args.runbook).expanduser().resolve()
-    else:
-        default_rb = (
-            repo
-            / "tools"
-            / "ipdrunner"
-            / "20260823-pending-ipds-overnight-execution-runbook.md"
-        )
-        if default_rb.is_file():
-            runbook_path = default_rb.resolve()
-        else:
-            runbook_path = None
-
-    # runflags-01 (`uyeko5`) E-03/E-04/E-05: refuse an unhonorable flag BEFORE resolution, so a
-    # malformed invocation costs the operator nothing and leaves no durable state. All three refusals
-    # DELEGATE: the unimplemented-flag list is the shared table's, `--unverifiable-ok`'s precondition
-    # is `run_evidence.aggregate_run_exit`'s (executed `zub5f1`), and `--retry-budget`'s 0..10 bound is
-    # `run_recovery.validate_retry_budget`'s (executed `sq61qd`). Nothing is re-decided here.
-    runner_shared.refuse_unimplemented_run_flags(args)
-    runner_shared.evaluate_unverifiable_admission(args)
-    runner_shared.resolve_retry_budget(getattr(args, "retry_budget", None))
-    # integpath-03 (`51vw4y`) E-02/E-05: refused HERE too, for the same reason and at the same seam -
-    # before the run directory exists, so a malformed value costs the operator nothing. A negative
-    # re-attempt count and an unrecognized ladder rung are operator errors, and an overnight run must
-    # learn of them now rather than at the first refused integration hours later.
-    runner_shared.resolve_integration_retry_limit(
-        getattr(args, "integration_retry_limit", None)
-    )
-    runner_shared.resolve_on_integration_blocked(
-        getattr(args, "on_integration_blocked", None)
-    )
-
-    # dirtybase Order 01 (`3i0aaz`) E-02: REPORT the target checkout's UNTRACKED content ONCE, here,
-    # and do not refuse on it. This is the `aw install` case - 130+ uncommitted, largely untracked
-    # files - which the per-item clean-base guard excludes BY DESIGN (see `evaluate_clean_base`).
-    #
-    # THIS SEAM IS "RUN START" AND `execute_item` IS NOT. The clean-base guard runs per queue entry,
-    # so a report placed beside it would say the same thing once per item. Placed here, beside the
-    # shared flag refusals, it fires exactly once and before the run directory exists.
-    #
-    # IT CANNOT FAIL THE RUN: the helper swallows an unreadable tree and returns an empty report.
-    # A report that could refuse would be the tracked-dirt guard wearing a report's clothes.
-    runner_shared.report_untracked_dirt_at_run_start(repo)
-
-    queue_ids = expand_selectors(manifest, args.selectors, repo=repo)
-
-    # revsweep-02 (`6ypimw`) E-04: SPEC 25kzda 2.5a's DRAFT ADMISSION GATE, here and not later. Spec
-    # 2.5a places it "after resolution, BEFORE any lease or session, so a batch cannot stop to ask
-    # halfway through", and this is that seam: the run directory does not exist yet, no lease is held,
-    # no session is open, so an exclusion leaves nothing durable to reconcile.
-    #
-    # IT EXCLUDES, IT NEVER REFUSES. Unlike the mixed-type gate below, an ungated complete draft is
-    # withheld and the REST of the queue proceeds (spec 2.5a bullet 4): a mixed selection means the
-    # operator's intent is unclear, whereas the remaining items' intent is not in doubt. So this
-    # REBINDS `queue_ids` rather than raising.
-    #
-    # ONLY STATUS SELECTORS CAN REACH IT IN PRACTICE, and that is spec 2.5a bullet 2's rule ("a draft
-    # named EXPLICITLY by path or id6 is admitted without gating; the operator named it, asking is
-    # noise"), implemented by `_selection_is_status_sweep` rather than by trusting the token spelling.
-    if runner_shared.is_status_selector(args.selectors):
-        queue_ids, draft_verdict = runner_shared.enforce_draft_admission_gate(
-            manifest,
-            queue_ids,
-            repo=repo,
-            allow_drafts=bool(getattr(args, "allow_drafts", False)),
-            interactive=runner_shared.is_interactive_run(args),
-            host="oc",
-            selector=" ".join(str(s) for s in args.selectors),
-        )
-        if not queue_ids:
-            # EVERY selected item was an ungated draft, so nothing remains to run. This composes the
-            # existing rules rather than inventing a third: 2.5a excludes the drafts WITHOUT failing
-            # the run, and the selector's OWN empty branch already decides what an empty result means.
-            # Freezing an empty queue instead would create a run directory, a report, and a ledger for
-            # zero work, which is durable state an operator then has to reconcile. The exclusion notice
-            # has already been printed, so the operator knows WHY it is empty.
-            #
-            # EACH SELECTOR KEEPS ITS OWN EMPTY SEMANTICS, deliberately: `reviews` raises
-            # `EmptyStatusSelection` (spec 2.4a property 3 makes it a success that exits 0), while
-            # `all` raises the plain `DriverError` it has always raised (exit 2). Collapsing the two
-            # into one would silently change `all`'s established exit code, which no spec amendment
-            # authorizes and which a caller may well depend on.
-            raise (
-                EmptyStatusSelection(
-                    "No items in 'to-review' state found in repository"
-                )
-                if runner_shared.is_review_selector(args.selectors)
-                else DriverError("No actionable pending IPDs found in repository")
-            )
-    else:
-        draft_verdict = None
-
-    # 8guhs0 E-02: FAIL CLOSED on an invalid dependency graph BEFORE any host session starts (and
-    # before the run directory exists, so a refused run leaves no durable state to reconcile). The
-    # rules and their severities are the SHARED evaluator's; see `enforce_dependency_preflight`.
-    selected_plan_paths: list[Path] = []
-    for id6 in queue_ids:
-        try:
-            selected_plan_paths.append(
-                resolve_plan_path(repo, manifest["plans"][id6].get("file", ""), id6)
-            )
-        except (DriverError, KeyError):
-            continue
-    enforce_dependency_preflight(repo, selected_plan_paths)
-
-    # revsweep 76gsmv E-03: `--action` legality, checked HERE for the same reason the dependency
-    # preflight above is: before the run directory exists and before any session, so a refusal
-    # leaves nothing to reconcile. It must also precede the `--full-auto` auto-approval below, which
-    # would otherwise CLEAR a `reviewed` plan to `auto-approved` on the way to executing it inside a
-    # command the operator spelled "review" (F-9). The derived action uses the same `action_for` the
-    # queue builder uses, read from the same manifest+plan-file status, so the two cannot disagree.
-    requested_action = getattr(args, "action", None)
-    if requested_action is not None:
-        preflight_items: list[tuple[str, str, str]] = []
-        for id6 in queue_ids:
-            plan_info = manifest["plans"].get(id6, {})
-            st = plan_info.get("status")
-            # rununify 06 (`sy7uwh`) E-03: resolve the path ONCE, because the kind fallback below needs
-            # it too. Previously it was resolved only when the status was missing, so a legacy manifest
-            # WITH a status but WITHOUT a `kind` key had no path to fall back to.
-            probe_path = None
-            try:
-                probe_path = resolve_plan_path(repo, plan_info.get("file", ""), id6)
-            except Exception:
-                probe_path = None
-            if not st and probe_path is not None:
-                try:
-                    rec_probe = parse_plan_file(probe_path, repo)
-                    st = rec_probe.status if rec_probe else None
-                except Exception:
-                    st = None
-            st = st or "approved"
-            # rununify 06 (`sy7uwh`) E-03: the SAME `resolve_manifest_kind` the queue build calls, which
-            # is what this block's own comment above already PROMISES ("read from the same
-            # manifest+plan-file status, so the two cannot disagree"). Before this, the promise held for
-            # STATUS but not for KIND: this line read the manifest's `kind` raw while the queue build
-            # (on the agy host) fell back to the plan file, so a legacy manifest could make the
-            # `--action` legality check tell the operator an orchestrator's next action was `execute`
-            # while the dispatch correctly treated it as `orchestrate`. One shared resolution at both
-            # sites on both hosts is what makes the promise true.
-            preflight_items.append(
-                (id6, st, action_for(resolve_manifest_kind(plan_info, probe_path), st))
-            )
-        enforce_requested_action(requested_action, preflight_items)
-
-    # runflags-01 (`uyeko5`) E-02: THE CALL SITE THAT MAKES `6lu3rq`'s MIXED-TYPE GATE REACHABLE.
-    # Executed plan `6lu3rq` built the entire gate and NOTHING called it: `run_selection_policy` was
-    # imported by no module in the package and `decide` had ZERO call sites, so a fully tested gate was
-    # dead code and a mixed selection was silently accepted. Here, after resolution and BEFORE any
-    # lease, session, or run directory, which is exactly where spec 2.5 places it.
-    #
-    # HONEST LIMIT: no real invocation can produce a mixed selection yet. Discovery walks only the two
-    # plans trees, the manifest is compiled from those alone, and NEITHER host registers `--type`
-    # (spec 2.2/2.3, out of this plan's scope). So the gate is now REACHED on every run and correctly
-    # does not APPLY, because the classification is single-type. Wiring proven; a live mixed selection
-    # being gated is NOT proven and must not be reported as such.
-    mixed_verdict = runner_shared.enforce_mixed_type_gate(
-        repo,
-        selected_plan_paths,
-        allow_mixed=bool(getattr(args, "allow_mixed", False)),
-        interactive=runner_shared.is_interactive_run(args),
-        host="oc",
-        selector=" ".join(str(s) for s in args.selectors),
-    )
-
-    run_id = getattr(args, "run_id", None) or new_run_id()
-    run_dir = state_root(repo) / run_id
-    if run_dir.exists():
-        raise DriverError(f"Run already exists: {run_id}")
-    for name in ("sessions", "outcomes", "prompts"):
-        (run_dir / name).mkdir(parents=True, exist_ok=True)
-    (run_dir / "decisions-and-questions.md").write_text(
-        f"# Decisions and Questions for {run_id}\n\n", encoding="utf-8"
-    )
-
-    if manifest_path is None:
-        manifest_path = run_dir / "manifest.json"
-        atomic_write_json(manifest_path, manifest)
-
-    if runbook_path is None:
-        runbook_path = run_dir / "runbook.md"
-        runbook_path.write_text(DEFAULT_RUNBOOK_TEXT, encoding="utf-8")
-
-    initial_session = getattr(args, "session", None)
-    set_sessions: dict[str, str] = {}
-    queue: list[dict[str, Any]] = []
-    full_auto = getattr(args, "full_auto", False)
-    for position, id6 in enumerate(queue_ids, start=1):
-        plan = manifest["plans"][id6]
-        setid = plan["set"]
-        if initial_session:
-            set_sessions[setid] = initial_session
-
-        status = plan.get("status")
-        p_path = None
-        rec = None
-        try:
-            p_path = resolve_plan_path(repo, plan.get("file", ""), id6)
-            rec = parse_plan_file(p_path, repo)
-            if rec and not status:
-                status = rec.status
-        except Exception:
-            if not status:
-                status = "approved"
-
-        # `Status: reviewed` remains a hard PRECONDITION: the shared predicate answers only "has
-        # review cleared this plan", never "may it be approved", so a draft/to-review plan can never
-        # be auto-approved here (fullauto 97df1z, no-widening rule). The resulting status is
-        # `auto-approved`, the shipped automated-clear tier, NOT human `approved` (OQ-02).
-        if status == "reviewed" and full_auto and p_path:
-            try:
-                if is_plan_review_approved(p_path):
-                    set_plan_approved(repo, id6)
-                    status = "auto-approved"
-            except Exception:
-                pass
-
-        # Orchestrators are NOT agent-executed by the runner: an orchestrator IPD
-        # (Kind: orchestrator) authors no code and only coordinates/verifies its set.
-        # In runner mode the runner IS the coordinator and each child is already
-        # verified twice (its own V-items + the fresh-session validation turn), so
-        # running the orchestrator as an agent turn is redundant and produces spurious
-        # blocked/partial. Instead the runner administratively finalizes it iff every
-        # child in its set reached `executed` (see run_queue). Detected by the reliable
-        # `- Kind:` field, not the Order number.
-        # Kind + Status decide the action (see action_for): a draft/to-review
-        # orchestrator still needs its /plan-review; only a past-review orchestrator is
-        # 'orchestrate' (not agent-executed; finalized when all children executed).
-        #
-        # rununify 06 (`sy7uwh`) E-03 / OQ-03: THE LEGACY-MANIFEST FALLBACK ARRIVES ON THIS HOST. This
-        # line used to read `plan.get("kind")` STRAIGHT THROUGH while the antigravity host re-read the
-        # plan file when the manifest omitted the key. That made the two hosts disagree about a
-        # correctness gate in THIS host's disfavor: measured, given a hand-written manifest naming an
-        # approved orchestrator with no `kind` key, `aw agy run` derived `orchestrate` and retired it
-        # while `aw oc run` derived `execute` and spent a paid agent turn on a plan that authors no
-        # code - the exact defect orchretire-03 (`pgq326`) fixed. `resolve_manifest_kind` is the ONE
-        # shared manifest-then-file resolution both hosts now call. The behavior change to this host is
-        # authorized by the maintainer's 2026-09-16 ruling and is a FIX; a GENERATED manifest always
-        # carries the key, so no ordinary run reads a second file.
-        kind = resolve_manifest_kind(plan, p_path)
-        action = action_for(kind, status or "approved")
-        queue.append(
+    host_options = {
+        "opencode": getattr(args, "opencode", "opencode"),
+        "model": resolved_launch.model,
+        "variant": resolved_launch.variant,
+        "agent": resolved_launch.agent,
+        "launch_profile": launch_profile_record(resolved_launch),
+        **(
             {
-                "position": position,
-                "id6": id6,
-                "setid": setid,
-                "configured_file": plan["file"],
-                "dependencies": plan.get("dependencies", []),
-                # 8guhs0 E-04: the plan's numeric Order, frozen for use as a TIEBREAKER only (see
-                # `queue_sort_key`). Additive: an older run directory lacking the key still sorts
-                # (the comparator defaults it), so existing runs resume unchanged.
-                "order": plan.get("order"),
-                # bkclose (zhr6mc) E-01: the linked backlog item, frozen on the queue entry. Falls
-                # back to a direct read of the plan file when the manifest predates the key (a
-                # hand-written `tools/ipdrunner/*-driver-manifest.json` does), so an older manifest
-                # still gets the link rather than silently losing it.
-                "from_backlog": plan.get("from_backlog")
-                or (getattr(rec, "from_backlog", None) if p_path else None),
-                # orchretire-03 (`pgq326`) E-04: the plan's `- Kind:`, frozen on the queue entry so a
-                # RESUME re-derives the same action and the durable record shows which items the runner
-                # treated as orchestrators. Additive and symmetric with the agy queue entry; `action`
-                # above is still what the dispatch reads.
-                #
-                # rununify 06 (`sy7uwh`) E-03: the RESOLVED kind, not the raw manifest value, which is
-                # what the agy entry has always frozen. Freezing the raw `None` from a legacy manifest
-                # while `action` was derived from the resolved value would make a RESUME disagree with
-                # the run that created it, and would make the durable record deny that the runner
-                # treated the item as an orchestrator when it did.
-                "kind": kind,
-                "initial_status": status or "approved",
-                "action": action,
-                # A TERMINAL STATUS IS PRESERVED, NOT COLLAPSED TO `reviewed`. The inline allowlist
-                # this replaces had no `executed` arm, so an already-executed plan's queue entry said
-                # `reviewed`, `cascade_dependency_blocked` read that field, and the executed parent
-                # became a dead prerequisite that killed every dependent at queue build. Shared with
-                # the agy host so the two cannot diverge again.
-                "status": runner_shared.initial_queue_status(status),
-                "attempts": [],
+                "verify_model": resolved_verify.model,
+                "verify_variant": resolved_verify.variant,
+                "verify_agent": resolved_verify.agent,
+                "verify_launch_profile": launch_profile_record(resolved_verify),
             }
-        )
-
-    state = {
-        "schema_version": SCHEMA_VERSION,
-        "run_id": run_id,
-        "created_at": utc_now(),
-        "updated_at": utc_now(),
-        "repo": str(repo),
-        "manifest": str(manifest_path),
-        "manifest_sha256": sha256_file(manifest_path),
-        "runbook": str(runbook_path),
-        "runbook_sha256": sha256_file(runbook_path),
-        "selectors": list(args.selectors),
-        "queue": queue,
-        # runorder (prpipy) E-04: the REQUESTED-vs-EXECUTED order comparison, frozen here beside the
-        # queue it describes. Durable on purpose: before this, the only way to discover that the run
-        # had reordered the operator's request was to diff `events.jsonl` timestamps against these
-        # positions after the fact. The queue itself keeps request order; `position` stays identity.
-        "run_order": run_order_rationale(queue, list(args.selectors)),
-        "session_id": initial_session,
-        "set_sessions": set_sessions,
-        "session_turn_counts": {},
-        "options": {
-            "opencode": getattr(args, "opencode", "opencode"),
-            # runprofile-03 (`3cm15q`) E-03: the RESOLVED launch, not the raw flags. These three keys
-            # keep their existing names and meaning (`run_opencode` and every other reader are
-            # untouched), but their VALUE now comes from the single Order-01 resolution above, so a
-            # named or default profile reaches every turn through the path the bare flags always used.
-            # With no profile configured `resolved_launch` returns the flags verbatim, so an existing
-            # invocation freezes byte-identical state.
-            "model": resolved_launch.model,
-            "variant": resolved_launch.variant,
-            "agent": resolved_launch.agent,
-            # The provenance snapshot. Authoritative for "which configuration created this run";
-            # frozen here ONCE and never re-resolved, which is what makes a later edit to
-            # `runner-profiles.json` unable to change an existing run (E-04).
-            "launch_profile": launch_profile_record(resolved_launch),
-            # runprofile-06 (`kgpptv`) E-02: the VERIFIER's launch, frozen BESIDE the executor's
-            # rather than nested inside it (DECISION 06-kgpptv-D4), and built by the SAME
-            # `launch_profile_record` so there is one record shape rather than two. These four keys
-            # are ABSENT ENTIRELY when no verifier profile was configured, which is what keeps an
-            # existing invocation's frozen state byte-identical to what it was before this field.
-            # `run_opencode` reads `verify_model`/`verify_variant`/`verify_agent` only at the
-            # VERIFIER call site, and only when they are present.
-            **(
-                {
-                    "verify_model": resolved_verify.model,
-                    "verify_variant": resolved_verify.variant,
-                    "verify_agent": resolved_verify.agent,
-                    "verify_launch_profile": launch_profile_record(resolved_verify),
-                }
-                if resolved_verify is not None
-                else {}
-            ),
-            "auto": getattr(args, "auto", True),
-            "session": initial_session,
-            "output_mode": getattr(args, "output_mode", "clean"),
-            # streamfmt (mm6wuz) E-05: the live-stream detail tier, frozen beside `output_mode`
-            # because it is the same kind of setting and a resume must be able to honor it.
-            "verbosity": getattr(args, "verbosity", 0) or 0,
-            "stall_timeout": getattr(args, "stall_timeout", DEFAULT_STALL_TIMEOUT),
-            "full_auto": full_auto,
-            # hostdefault-02 (`ybkmzp`) E-03: the RESOLVED decision, not the raw flag. `--validate`
-            # is a tri-state whose absent value falls through to the profile store, so reading
-            # `args` here would discard the operator's stored per-model choice; `resolved_launch`
-            # already carries the resolution from the ONE store read at the top of this function, so
-            # no second `runner_profiles.load()` is needed (a second read would reopen the window
-            # `kgpptv` deliberately closed). `no_audit` is DERIVED from the same resolved value so
-            # the two frozen keys can never disagree.
-            "validate": resolved_launch.validate,
-            "no_audit": not resolved_launch.validate,
-            "self_finalize": getattr(args, "self_finalize", True),
-            "isolate_worktree": getattr(args, "isolate_worktree", True),
-            "max_items_per_session": getattr(args, "max_items_per_session", 4),
-            # revsweep 76gsmv E-03: frozen with the rest of the policy so `aw runs show` and a
-            # resume can both see the run was constrained to one action.
-            "action": requested_action,
-            # runflags-01 (`uyeko5`) E-06: spec 2.1's policy flags FROZEN at queue build, because
-            # spec 2.1 makes resume use "the original host, queue, and options". A policy re-read
-            # from `args` on every resume would silently change meaning between the first turn and
-            # the last. `**` and not eight literals so the frozen set cannot drift from the table.
-            # This also normalizes `--full-auto` implying `--unattended` and resolves
-            # `--retry-budget` to its effective integer; see `freeze_run_policy_flags`.
-            **runner_shared.freeze_run_policy_flags(args),
-        },
-        "driver": {
-            "path": str(Path(__file__).resolve()),
-            "sha256": sha256_file(Path(__file__)),
-        },
+            if resolved_verify is not None
+            else {}
+        ),
+        "auto": getattr(args, "auto", True),
+        "validate": resolved_launch.validate,
+        "no_audit": not resolved_launch.validate,
     }
-    atomic_write_json(run_dir / "state.json", state)
-    append_jsonl(
-        run_dir / "events.jsonl",
-        {"at": utc_now(), "event": "run-created", "run_id": run_id, "queue": queue_ids},
+
+    return runner_shared.initialize_run_core(
+        args,
+        host="oc",
+        driver_path=Path(__file__),
+        host_options=host_options,
+        expand_selectors_fn=expand_selectors,
+        enforce_dependency_preflight_fn=enforce_dependency_preflight,
+        set_plan_approved_fn=set_plan_approved,
+        announce_run_order_fn=announce_run_order,
+        is_plan_review_approved_fn=is_plan_review_approved,
+        run_order_rationale_fn=run_order_rationale,
+        write_report_fn=write_report,
+        git_common_dir_fn=git_common_dir,
+        parse_dependency_token_fn=parse_dependency_token,
+        default_runbook_text=DEFAULT_RUNBOOK_TEXT,
+        default_stall_timeout=DEFAULT_STALL_TIMEOUT,
     )
-    # runflags-01 (`uyeko5`) E-02: spec 2.5 bullet 4's four facts (confirmed type counts, action
-    # preview, response-or-flag, queue digest) recorded in the run ledger. The record is the one
-    # `run_selection_policy` RETURNED - `6lu3rq` deliberately returns these so a caller with a live run
-    # can persist them without re-deriving anything, and re-deriving them here would be a second
-    # implementation of the counts.
-    append_jsonl(
-        run_dir / "events.jsonl",
-        {
-            "at": utc_now(),
-            "event": "mixed-type-gate",
-            "gate_applied": mixed_verdict.gate_applied,
-            "proceed": mixed_verdict.proceed,
-            "reason": mixed_verdict.reason,
-            **mixed_verdict.record.as_dict(),
-        },
-    )
-    # revsweep-02 (`6ypimw`) E-04: spec 2.5a's last bullet - the draft counts, the preview, the
-    # response-or-flag, and the resulting ADMITTED SET recorded in the run ledger. The record is the
-    # one `run_selection_policy` RETURNED, on the same return-not-write convention `MixedTypeRecord`
-    # established, and re-deriving the counts here would be a second implementation of them. Without
-    # this there is no durable evidence of which drafts an `--allow-drafts` run waved through.
-    if draft_verdict is not None:
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": utc_now(),
-                "event": "draft-admission-gate",
-                "gate_applied": draft_verdict.gate_applied,
-                "reason": draft_verdict.reason,
-                "excluded_complete": list(draft_verdict.excluded_complete),
-                "skipped_incomplete": list(draft_verdict.skipped_incomplete),
-                **draft_verdict.record.as_dict(),
-            },
-        )
-    write_report(run_dir, state)
-    # runorder (prpipy) E-04: announce the order the run will EXECUTE in, ALWAYS, and warn loudly
-    # when it diverges from what was requested. Here and not in `run_queue`, because this is where
-    # the queue is frozen, and because the announcement must precede the first child session so the
-    # operator sees it before any work happens rather than inferring it from timestamps afterwards.
-    announce_run_order(run_dir, state)
-    return run_dir
 
 
 def render_launch_identity(state: dict[str, Any]) -> str:

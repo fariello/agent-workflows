@@ -91,6 +91,15 @@ def _parse(runner: str, argv: list) -> argparse.Namespace:
     return _MODULES[runner].build_parser().parse_args(argv)
 
 
+def _effective_init_source(runner: str) -> str:
+    import inspect
+
+    source = inspect.getsource(_MODULES[runner].initialize_run)
+    if "initialize_run_core" in source:
+        return inspect.getsource(runner_shared.initialize_run_core)
+    return source
+
+
 class SpecFlagListTests(unittest.TestCase):
     """The drift guard: the SPEC FILE is the input, not a transcription of it."""
 
@@ -367,7 +376,7 @@ class MixedTypeGateWiringTests(unittest.TestCase):
         self.assertIn("run_selection_policy.decide", called)
         for runner in BOTH:
             with self.subTest(runner=runner):
-                body = inspect.getsource(_MODULES[runner].initialize_run)
+                body = _effective_init_source(runner)
                 self.assertIn("enforce_mixed_type_gate", body)
 
     def test_the_gate_APPLIES_and_REFUSES_a_multi_type_selection_unattended(self):
@@ -669,11 +678,10 @@ class RetryBudgetTests(unittest.TestCase):
 
     def test_an_out_of_range_value_refuses_the_whole_run(self):
         """Refused at initialize_run, before a run directory exists."""
-        import inspect
 
         for runner in BOTH:
             with self.subTest(runner=runner):
-                source = inspect.getsource(_MODULES[runner].initialize_run)
+                source = _effective_init_source(runner)
                 self.assertIn("resolve_retry_budget", source)
 
     def test_the_frozen_value_is_the_effective_integer(self):
@@ -739,10 +747,8 @@ class UnimplementedFlagRefusalTests(unittest.TestCase):
         runner_shared.refuse_unimplemented_run_flags(args)
 
     def test_both_runners_refuse_before_any_durable_state(self):
-        import inspect
-
         for runner in BOTH:
-            source = inspect.getsource(_MODULES[runner].initialize_run)
+            source = _effective_init_source(runner)
             before_run_dir = source.split("run_dir = state_root")[0]
             with self.subTest(runner=runner):
                 self.assertIn("refuse_unimplemented_run_flags", before_run_dir)
@@ -766,13 +772,11 @@ class FreezeAndResumeTests(unittest.TestCase):
                     self.assertIn(row.dest, frozen)
 
     def test_both_runners_freeze_through_the_shared_function(self):
-        import inspect
-
         for runner in BOTH:
             with self.subTest(runner=runner):
                 self.assertIn(
                     "freeze_run_policy_flags",
-                    inspect.getsource(_MODULES[runner].initialize_run),
+                    _effective_init_source(runner),
                 )
 
     def test_retry_budget_with_resume_is_refused(self):
@@ -867,11 +871,10 @@ class FullAutoDefaultNormalizationTests(unittest.TestCase):
 
     def test_site_2_the_args_fallback_is_False_on_both_hosts(self):
         """The `getattr(args, "full_auto", <default>)` in `initialize_run`."""
-        import inspect
         import re as _re
 
         for runner in BOTH:
-            source = inspect.getsource(_MODULES[runner].initialize_run)
+            source = _effective_init_source(runner)
             found = _re.findall(
                 r'getattr\(\s*args,\s*"full_auto",\s*(\w+)\s*\)', source
             )
@@ -1316,15 +1319,18 @@ Real gate prose.
         # `assertIn` would pass on prose alone.
         for runner in BOTH:
             with self.subTest(runner=runner):
-                source = inspect.getsource(_MODULES[runner].initialize_run)
+                source = _effective_init_source(runner)
                 called = {
                     ast.unparse(node.func)
                     for node in ast.walk(ast.parse(source.strip()))
                     if isinstance(node, ast.Call)
                 }
-                self.assertIn(
-                    "runner_shared.enforce_draft_admission_gate",
-                    called,
+                self.assertTrue(
+                    {
+                        "enforce_draft_admission_gate",
+                        "runner_shared.enforce_draft_admission_gate",
+                    }
+                    & called,
                     "the draft gate has no call site on this host",
                 )
         shared = inspect.getsource(runner_shared.enforce_draft_admission_gate)
@@ -1333,11 +1339,10 @@ Real gate prose.
     def test_the_gate_runs_before_any_run_directory_lease_or_session_exists(self):
         """Spec 2.5a: after resolution, BEFORE any lease or session. So an exclusion leaves nothing
         durable to reconcile, exactly like the dependency preflight beside it."""
-        import inspect
 
         for runner in BOTH:
             with self.subTest(runner=runner):
-                source = inspect.getsource(_MODULES[runner].initialize_run)
+                source = _effective_init_source(runner)
                 before_run_dir = source.split("run_dir = state_root")[0]
                 self.assertIn("enforce_draft_admission_gate", before_run_dir)
                 # ... and after resolution, since it needs the resolved queue.
@@ -1561,7 +1566,7 @@ Real gate prose.
                     "the mixed-type gate must have exactly ONE call site, in shared code",
                 )
         for runner in BOTH:
-            body = inspect.getsource(_MODULES[runner].initialize_run)
+            body = _effective_init_source(runner)
             with self.subTest(runner=runner):
                 self.assertEqual(body.count("enforce_mixed_type_gate"), 1)
                 self.assertEqual(body.count("enforce_draft_admission_gate"), 1)

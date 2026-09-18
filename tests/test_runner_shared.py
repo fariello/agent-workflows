@@ -1235,12 +1235,20 @@ class WrapperTests(unittest.TestCase):
         either runner was touched, and the wrapper each keeps passes `run_checked` as a NAME (an
         injection, not a call), which is why it adds nothing back.
         """
+        # initialize_run unification relocated its discover_plans and validate_manifest call sites
+        # to runner_shared.initialize_run_core.
+        relocated_init_callers = {
+            "discover_plans": 1,
+            "validate_manifest": 1,
+        }
         moved_callers_of_run_checked = sum(RELOCATED_RUN_CHECKED_CALLERS.values())
         for (runner, name), premove in sorted(self.PREMOVE_CALL_SITES.items()):
             with self.subTest(runner=runner, symbol=name):
                 expected = premove
                 if name == "run_checked":
                     expected -= moved_callers_of_run_checked
+                if name in relocated_init_callers:
+                    expected -= relocated_init_callers[name]
                 expected += self.ADDED_CALL_SITES.get((runner, name), 0)
                 expected += self.CLEAN_BASE_GUARD_CALL_SITES.get((runner, name), 0)
                 expected += self.INTEGRATION_LADDER_CALL_SITES.get((runner, name), 0)
