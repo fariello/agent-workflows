@@ -1,11 +1,13 @@
 - Id: 5ev6lh
 - Status: graduated
+- Blocks-Release: next
 - Set: rollupev
 - Priority: medium
 - Work-Kind: bug
 - Summary: Runner rollup omits the E/V checkpoint for orchestrators, silently discharging real verification work unperformed
 
 ## Workflow history
+- 2026-09-18 graduated (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-08 graduated (aw set): STATUS WAS STALE; already graduated. No new plan authored and none should be: the orchprobe Set already carries this item and orchestrator yeh7gc declares From-Backlog: 5ev6lh (verified). Four plans: yeh7gc (Order 0), r2i1b1 (01), 8tgg6g (02), m7gvuz (03). The Set took exactly the (c)+(d) pair this item called the pragmatic one: yeh7gc/r2i1b1 surface the discharged-unperformed items and the per-item refusal reason, m7gvuz probes every queued orchestrator pre-run, 8tgg6g caches the verdict against a content digest to bound the cost. Directions (a) and (b) were deliberately not taken. Core measurement re-verified at HEAD: 84j8d7 still sits in executed/ with 'Execution state: pending' on E-01 and 'Result: pending' on V-01, so the false completion claim is still in the record. NOT closed by this transition: whether 84j8d7 needs a corrective IPD for its unperformed E-01/V-01 remains a maintainer call, preserved in the item body and also recorded by 3v7wo6 E-02.
 - 2026-09-07 created (aw backlog): Runner rollup omits the E/V checkpoint for orchestrators, silently discharging real verification work unperformed
 

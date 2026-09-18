@@ -1,11 +1,13 @@
 - Id: vnzm27
 - Status: open
+- Blocks-Release: next
 - Set: gatequote
 - Priority: medium
 - Work-Kind: bug
 - Summary: executed_transition_gate reads a QUOTED status-executed line inside a fenced evidence block as the plan's own terminal status
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): executed_transition_gate reads a QUOTED status-executed line inside a fenced evidence block as the plan's own terminal status
 
 MEASURED 2026-09-18 at HEAD 36129255 while executing integpath child 05 (3v7wo6).

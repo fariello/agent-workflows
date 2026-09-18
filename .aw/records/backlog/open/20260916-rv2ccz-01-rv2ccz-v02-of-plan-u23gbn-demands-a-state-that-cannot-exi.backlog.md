@@ -1,11 +1,13 @@
 - Id: rv2ccz
 - Status: open
+- Blocks-Release: next
 - Set: rv2ccz
 - Priority: medium
 - Work-Kind: bug
 - Summary: plan u23gbn's V-02 demands a landed-commit-plus-refused-reconciliation state that its own E-06 correction makes impossible, so the V-item text is internally contradictory
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-16 created (aw backlog): plan u23gbn's V-02 demands a landed-commit-plus-refused-reconciliation state that its own E-06 correction makes impossible, so the V-item text is internally contradictory
 
 FOUND while executing plan u23gbn (dirtygates Order 04). A DOCUMENT defect, not a code defect, filed so the contradiction is not rediscovered by whoever reviews the executed plan.

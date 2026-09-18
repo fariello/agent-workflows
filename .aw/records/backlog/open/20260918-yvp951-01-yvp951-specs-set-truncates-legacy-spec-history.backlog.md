@@ -1,5 +1,6 @@
 - Id: yvp951
 - Status: open
+- Blocks-Release: next
 - Set: yvp951
 - Priority: high
 - Work-Kind: bug
@@ -34,4 +35,5 @@ the sidecar being gitignored makes "the full log lives in the sidecar" a weak pr
 id6-bearing artifacts.
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 created (aw backlog): Found by IPD diof9n (E-03): repointing two legacy deferred specs' gates via aw specs set silently dropped each spec's 2026-08-08 'migrated' record; diof9n restored both by hand. Evidence: specs.py _append_history rebuilds the section as [blank, record]; the sidecar helper returns early when _SPEC_ID_RE finds no - Id:; .aw/.gitignore line 11 ignores records/history.jsonl. Affects every legacy spec that any aw specs set touches.

@@ -1,11 +1,13 @@
 - Id: 02371s
 - Status: graduated
+- Blocks-Release: next
 - Set: 02371s
 - Priority: high
 - Work-Kind: bug
 - Summary: With self_finalize=True both the agent and the driver run finalize, so the second one hits a receipt the first consumed and reports 'no begin receipt = no execution authority' for work that actually succeeded
 
 ## Workflow history
+- 2026-09-18 graduated (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 graduated (aw set): Graduated into IPD ld8lb3 (.aw/records/plans/pending/20260917-finidem-01-ld8lb3-...ipd.md), which carries From-Backlog: 02371s; design handed off, code not yet written
 - 2026-09-17 created (aw backlog): With self_finalize=True both the agent and the driver run finalize, so the second one hits a receipt the first consumed and reports 'no begin receipt = no execution authority' for work that actually succeeded
 

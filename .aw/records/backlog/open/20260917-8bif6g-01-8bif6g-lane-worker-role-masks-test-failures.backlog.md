@@ -1,11 +1,13 @@
 - Id: 8bif6g
 - Status: open
+- Blocks-Release: next
 - Set: 8bif6g
 - Priority: high
 - Work-Kind: bug
 - Summary: a lane running with a worker AW_EXECUTION_ROLE silently masks test failures, so a bare suite run cannot validate a plan
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): a lane running with a worker AW_EXECUTION_ROLE silently masks test failures, so a bare suite run cannot validate a plan
 
 Found while executing plan fujm0y (mergedirty-01) inside an isolated lane worktree.

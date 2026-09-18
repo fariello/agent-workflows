@@ -1,11 +1,13 @@
 - Id: pe7g6r
 - Status: open
+- Blocks-Release: next
 - Set: pe7g6r
 - Priority: high
 - Work-Kind: bug
 - Summary: test_the_terminal_rung_still_records_the_item_interrupted fails deterministically in isolation: after 3x SIGINT the in-flight item is left 'running', not 'interrupted', so main's exit-130 item bookkeeping is not preserved at the terminal rung
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): test_the_terminal_rung_still_records_the_item_interrupted fails deterministically in isolation: after 3x SIGINT the in-flight item is left 'running', not 'interrupted', so main's exit-130 item bookkeeping is not preserved at the terminal rung
 
 FOUND BY: rununify Order 11 (`3dki3o`) E-02 while taking its execution baseline.

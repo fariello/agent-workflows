@@ -1,11 +1,13 @@
 - Id: s0303g
 - Status: graduated
+- Blocks-Release: next
 - Set: lanesuite
 - Priority: medium
 - Work-Kind: bug
 - Summary: AW_EXECUTION_ROLE=worker in a lane makes 19 suite tests fail, so a worker cannot get a trustworthy bare-suite baseline
 
 ## Workflow history
+- 2026-09-18 graduated (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 graduated (aw set): Graduated into IPD e4lkv5 (lanesuite Order 01); design handed off, code not yet written
 - 2026-09-16 created (aw backlog): Found while executing dirtygates Order 01 (d7qoxv) in an isolated lane.
 

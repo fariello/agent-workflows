@@ -1,11 +1,13 @@
 - Id: ipfgl1
 - Status: open
+- Blocks-Release: next
 - Set: ipfgl1
 - Priority: high
 - Work-Kind: bug
 - Summary: 31 tests fail at HEAD in the runner-harness modules (KeyError 'main_status_during_turn' and empty-dict assertions)
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-16 created (aw backlog): 31 tests fail at HEAD in the runner-harness modules (KeyError 'main_status_during_turn' and empty-dict assertions)
 
 Measured 2026-09-16 at HEAD `daa48f42` while executing plan `4xt6u4`, on a BARE `python3 -m pytest` with this plan's two files reverted to HEAD, so the failures are PRE-EXISTING and unrelated to that plan:

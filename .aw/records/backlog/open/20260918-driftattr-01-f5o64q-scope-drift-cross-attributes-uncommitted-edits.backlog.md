@@ -1,11 +1,13 @@
 - Id: f5o64q
 - Status: open
+- Blocks-Release: next
 - Set: driftattr
 - Priority: low
 - Work-Kind: bug
 - Summary: check.scope-drift attributes an executor's own edit to every other plan holding a live receipt, inflating findings by files x plans
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 created (aw backlog): Found while executing plan m867ox: a 6-file change added 18 scope-drift findings across 4 unrelated in-flight plans.
 
 MEASURED at HEAD cdace6a5 while executing plan m867ox.

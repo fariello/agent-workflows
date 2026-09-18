@@ -1,11 +1,13 @@
 - Id: xzdudk
 - Status: open
+- Blocks-Release: next
 - Set: xzdudk
 - Priority: medium
 - Work-Kind: bug
 - Summary: release_readiness gate launches a nested aw with no stdin= and no tooling pin, invisible to both TTY guards
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): release_readiness gate launches a nested aw with no stdin= and no tooling pin, invisible to both TTY guards
 
 MEASURED 2026-09-17 during rununify 05 (ct4w0a) E-03, at HEAD 1171f7b2, BEFORE any change in that plan, so this is PRE-EXISTING and not introduced by it.

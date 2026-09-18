@@ -1,11 +1,13 @@
 - Id: sovauj
 - Status: open
+- Blocks-Release: next
 - Set: setidxtype
 - Priority: low
 - Work-Kind: bug
 - Summary: check.setid-collision reports a false cross-type collision when a walkthrough declares the Set of a plan still in pending/
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): check.setid-collision reports a false cross-type collision when a walkthrough declares the Set of a plan still in pending/
 
 MEASURED 2026-09-18 at HEAD 36129255 while executing integpath child 05 (3v7wo6).

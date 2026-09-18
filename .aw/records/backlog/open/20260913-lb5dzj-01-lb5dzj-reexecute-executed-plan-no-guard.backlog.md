@@ -1,9 +1,13 @@
 - Id: lb5dzj
 - Status: open
+- Blocks-Release: next
 - Set: lb5dzj
 - Priority: high
 - Work-Kind: bug
 - Summary: aw oc run will re-execute an already-executed plan named by id6: determine_action maps executed to execute and no gate refuses it, so an agent turn is spent before finalize rejects the backwards transition
+
+## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 
 ## The defect
 

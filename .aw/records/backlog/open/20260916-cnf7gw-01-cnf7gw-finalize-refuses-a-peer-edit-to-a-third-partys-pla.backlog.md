@@ -1,11 +1,13 @@
 - Id: cnf7gw
 - Status: open
+- Blocks-Release: next
 - Set: cnf7gw
 - Priority: high
 - Work-Kind: bug
 - Summary: finalize's ff-only reconciliation refuses when a PEER holds an uncommitted edit to the plan being finalized, and the refusal is correct but has no tooled remedy
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-16 created (aw backlog): finalize's ff-only reconciliation refuses when a PEER holds an uncommitted edit to the plan being finalized, and the refusal is correct but has no tooled remedy
 
 FOUND while executing plan u23gbn (dirtygates Order 04), which relocated the terminal transition's mutations into a coordinator-owned worktree and lands the commit with `git merge --ff-only`.
