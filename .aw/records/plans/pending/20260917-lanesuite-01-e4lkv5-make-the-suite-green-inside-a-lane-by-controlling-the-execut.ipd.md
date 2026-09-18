@@ -7,6 +7,7 @@
 - Scope-Paths: tests/test_runner_backlog_close_in_lane.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_ipd_lifecycle_cli.py, tests/test_novalnomerge_integration.py, tests/support.py
 - Item-Dependencies: none
 - Status: reviewed
+- Blocks-Release: next
 - Readiness: go-pending-approval
 - From-Backlog: 770fkp
 - Set: lanesuite
@@ -16,6 +17,7 @@
 - Id: e4lkv5
 
 ## Workflow history
+- 2026-09-18 reviewed (aw set): status set to reviewed
 - 2026-09-18 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-101..PR-109, all FIXED, none deferred, none open. EVERY MEASUREMENT IN THE PLAN REPRODUCED EXACTLY, from a review running inside the worker-role condition itself: 31 failed / 7962 passed in a lane versus 7993 passed clean, the same 10/9/8/2/1/1 six-file split, F-3's `'worker' == 'worker'` verbatim, and both cited commits. No false claim found. The findings are gaps: PR-101 (BLOCKER) is a collision with APPROVED plan `8b9ufm`, which declares `tests/test_worker_role_refusal.py` and says "Do not 'fix' it" about the very test this plan's E-02 called the sharpest case, resolved by division of labor (that file leaves this plan's scope and its 1 failure is declared expected-red); PR-102 proves E-03's prescribed `monkeypatch` fixture CANNOT work because all 85 affected classes are `unittest.TestCase`; PR-103 records the measured one-line alternative (a single conftest-level pop makes all 7993 pass) and refutes it, because it also silently makes the guard's own test vacuous; PR-106 measured that E-05's class (b) target set is EMPTY within the 31. Scope narrowed 31 -> 30 tests, `Scope-Paths` corrected (`tests/support` does not exist; `tests/support.py` does).
 - 2026-09-18 to-review (aw set): Authored 2026-09-18 from a re-measurement at edb9ba85 (31 failures across six files under the lane condition); graduates 770fkp and s0303g; complete enough to critique
 

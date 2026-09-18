@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_finidem_double_finalize.py, tests/test_ipd_lifecycle_cli.py
 - Item-Dependencies: none
 - Status: reviewed
+- Blocks-Release: next
 - Readiness: go-pending-approval
 - From-Backlog: 02371s
 - Set: finidem
@@ -16,6 +17,7 @@
 - Id: ld8lb3
 
 ## Workflow history
+- 2026-09-18 reviewed (aw set): status set to reviewed
 - 2026-09-18 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 all FIXED; OQ-01 resolved from evidence; corrected a fail-open predicate, a false finding, and an E-06 that duplicated approved plan 8b9ufm
 - 2026-09-17 to-review (aw set): Authored 2026-09-17 from run-20260917T210518Z-1714328 (IPD 63425h false refusal); graduates backlog 02371s and 894vzu; complete enough to critique
 

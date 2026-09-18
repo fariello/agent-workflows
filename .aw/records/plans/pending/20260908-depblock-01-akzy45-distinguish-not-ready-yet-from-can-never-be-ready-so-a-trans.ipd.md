@@ -16,6 +16,7 @@
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_runner_item_dependencies.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py
 - Item-Dependencies: executed:51vw4y
 - Status: approved
+- Blocks-Release: next
 - Readiness: go-pending-approval
 - Set: depblock
 - Order: 1
@@ -26,6 +27,7 @@
 - From-Backlog: nueip1
 
 ## Workflow history
+- 2026-09-18 approved (aw set): status set to approved
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-901..PR-909 all FIXED; readiness go-pending-approval
 
