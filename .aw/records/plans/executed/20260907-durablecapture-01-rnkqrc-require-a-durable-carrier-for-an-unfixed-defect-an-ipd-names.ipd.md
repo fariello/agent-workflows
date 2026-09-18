@@ -8,18 +8,18 @@
 - Scope: Add ONE shared predicate that refuses an IPD's transition to `executed` while it names an unfixed defect with no durable carrier, with the same three escapes `evaluate_blocking_close` already uses (handoff, satisfied, declined-with-reason). Wire it into `aw ipd lint --phase pre-transition` and `aw check` from that single predicate. Read TYPED fields only, never prose. Ship warning-for-existing / error-for-new so a 530-plan corpus is not mass-failed on day one.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/ipd_lint.py, agent_workflows/ipd_schema.py, tests/test_durable_capture.py
 - Item-Dependencies: executed:b7xarm
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: durablecapture
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: rnkqrc
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: jys5dp
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-18 executed (aw oc run): aw oc run self-finalize: rnkqrc verified (set durablecapture, attempt 1).
 - 2026-09-18 executed-pending-transition (opencode its_direct/pt3-claude-opus-5-1m-us): ALL SIX E-ITEMS PERFORMED AND ALL SIX V-ITEMS VERIFIED with pasted evidence, at HEAD `94345381` in lane `aw/lane/rnkqrc` under run `run-20260918T045900Z-2565492`. `aw ipd lint --phase pre-transition` reports CONFORMING. THE TERMINAL MOVE IS NOT MINE TO MAKE: this process is worker-role (`AW_EXECUTION_ROLE=worker`), and `ipd_lifecycle` refuses begin/finalize for a worker with `AW-LIFECYCLE-ROLE-001` because the runner owns the transition for a managed lane, so the plan is deliberately left in `pending/` with `- Status: approved` for the runner to finalize. Nothing was hand-moved and no terminal state was hand-written.
   WHAT SHIPPED: three typed carrier fields (`Carrier`/`Carrier-Evidence`/`Carrier-Declined`) declared beside the `Finding` precedent in `ipd_schema.OQ_FIELDS`; ONE shared predicate (`check_engine.evaluate_carrier_obligation` + `evaluate_durable_carrier`) returning `CloseVerdict` ITSELF with the three proven escapes, resolving carriers against the real trees and refusing a dangling, terminal, or spec-only reference; wired to `pre-transition` from `lint_file` (NOT the pure `lint_text`) and to `aw check` under the registered rule id `check.ipd-uncarried-obligation` (`error`/repository/deterministic/I-07), both calling that ONE predicate; and 62 tests in `tests/test_durable_capture.py`, all on tmp_path fixtures.
   THREE DECISIONS WERE TAKEN AUTONOMOUSLY and are recorded with evidence in the run's `decisions-and-questions.md`. (D1) The typed signal is that EVERY obligation-bearing row must carry one of the three fields, which is the only reading that satisfies both E-01's ban on prose matching and E-06's mandatory prose-only REFUSAL, and it matches E-05's own per-ROW arithmetic. (D2) The grandfathered tier is `info`, NOT the `warning` E-05 words, because `artifact_core.drift_exit_code` exempts only `info`, so `warning` would have failed CI with 106 findings on a clean tree, which E-05 itself forbids; the BEHAVIOR specified is delivered exactly and the registered severity remains `error`. (D3) Boundary option (c): a new module constant `CARRIER_CUTOVER_DATE = 20260919` compared against the plan's own `- Date:`, following the `SPEC_ID6_CUTOVER_DATE` precedent, because F-11's measurement that `config.dependency_cutover_date` is `None` here still holds and reuse would have left the error tier unreachable.
