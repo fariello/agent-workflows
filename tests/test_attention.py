@@ -2629,6 +2629,74 @@ class StrandedLaneViewTests(unittest.TestCase):
         self.assertNotIn("worktrees", joined)
         self.assertNotIn("records/runs", joined)
 
+    def test_stranded_lane_terminal_pruning(self):
+        """Cleanly terminal runs with no preserved worktrees bypass live inspect_lane git calls."""
+        from agent_workflows import runner_shared as rs
+        from agent_workflows import worktree_lease
+
+        state = {
+            "run_id": "run-clean-terminal-test",
+            "queue": [
+                {
+                    "id6": "cln001",
+                    "status": "executed",
+                    "preserved_worktree": None,
+                    "attempts": [
+                        {
+                            "worktree": "/tmp/nonexistent/lane",
+                            "worktree_branch": "aw/lane/cln001",
+                        }
+                    ],
+                }
+            ],
+        }
+
+        with (
+            tempfile.TemporaryDirectory() as td,
+            mock.patch.object(worktree_lease, "inspect_lane") as mock_inspect,
+        ):
+            repo = Path(td)
+            # With memoized empty caches, cleanly terminal runs are pruned
+            with worktree_lease.memoize_worktrees(repo):
+                records = rs.stranded_lane_records(repo, [state], attention_only=True)
+                self.assertEqual(records, [])
+                self.assertEqual(mock_inspect.call_count, 0)
+
+    def test_count_question_stats(self):
+        """Test count_question_stats boundary slicing and count accuracy."""
+        doc = """# Test IPD
+
+- Status: approved
+
+## 1. Context
+Some content
+
+## Open questions
+
+### OQ-01 First question
+- Status: open
+- Blocking: yes
+
+### RQ-02 Resolved question
+- Status: resolved
+
+### OQ-03 Closed by rationale
+- Status: closed
+
+## Next Section
+### OQ-99 Not in open questions
+- Status: open
+"""
+        unresolved, resolved = att.count_question_stats(doc)
+        self.assertEqual(unresolved, 1)
+        self.assertEqual(resolved, 2)
+
+        # Empty or questionless document
+        self.assertEqual(att.count_question_stats(""), (0, 0))
+        self.assertEqual(
+            att.count_question_stats("# Just a doc\nNo questions here"), (0, 0)
+        )
+
 
 def core_Drift(*args, **kw):
     from agent_workflows import artifact_core

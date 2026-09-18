@@ -15,6 +15,7 @@ no timestamps/mtime/locale; `last_history_at` parsed from history, never mtime.
 
 from __future__ import annotations
 
+import functools
 import json
 import re
 import sys
@@ -88,6 +89,9 @@ class Item(NamedTuple):
 _OQ_SECTION_RE = re.compile(
     r"^##\s+(?:[0-9]+\.\s*)?(?:Open|Resolved)\s+questions\b", re.IGNORECASE
 )
+_OQ_SECTION_SEARCH_RE = re.compile(
+    r"(?m)^##\s+(?:[0-9]+\.\s*)?(?:Open|Resolved)\s+questions\b", re.IGNORECASE
+)
 _OQ_HEADING_RE = re.compile(
     r"^###\s+((?:OQ|RQ)-[0-9]+|(?:OQ|RQ)-[A-Za-z0-9_-]+):?\s*(.*)$", re.IGNORECASE
 )
@@ -96,11 +100,21 @@ _OQ_STATUS_RE = re.compile(r"^-[ \t]*Status:[ \t]*(\S+)", re.IGNORECASE)
 
 def count_question_stats(text: str) -> Tuple[int, int]:
     """Count (unresolved_oqs, resolved_rqs) in an artifact's '## Open questions' section."""
-    if not text or "questions" not in text.lower():
+    if not text:
         return 0, 0
-    tl = text.lower()
-    if "oq-" not in tl and "rq-" not in tl:
+    m = _OQ_SECTION_SEARCH_RE.search(text)
+    if not m:
         return 0, 0
+    next_h2 = re.search(r"(?m)^##\s+", text[m.end() :])
+    if next_h2:
+        section_text = text[m.start() : m.end() + next_h2.start()]
+    else:
+        section_text = text[m.start() :]
+
+    sec_lower = section_text.lower()
+    if "oq-" not in sec_lower and "rq-" not in sec_lower:
+        return 0, 0
+
     in_section = False
     unresolved_count = 0
     resolved_count = 0
@@ -124,7 +138,7 @@ def count_question_stats(text: str) -> Tuple[int, int]:
         is_resolved = False
         explicit_status = False
 
-    for line in text.splitlines():
+    for line in section_text.splitlines():
         if line.startswith("## "):
             _flush_question()
             in_section = bool(_OQ_SECTION_RE.match(line.strip()))
@@ -150,8 +164,11 @@ def count_question_stats(text: str) -> Tuple[int, int]:
             m_s = _OQ_STATUS_RE.match(line.strip())
             if m_s and not explicit_status:
                 status_val = m_s.group(1).lower().strip("[]().,")
+                if status_val in ("resolved", "closed", "done", "answered"):
+                    is_resolved = True
+                elif status_val in ("open", "deferred", "pending", "unresolved"):
+                    is_resolved = False
                 explicit_status = True
-                is_resolved = status_val == "resolved"
             elif not explicit_status:
                 if re.search(r"^-[ \t]*Blocking:.*\(resolved\)", line, re.IGNORECASE):
                     is_resolved = True
@@ -243,9 +260,11 @@ def _extract_detail(text: str) -> Tuple[Optional[str], Optional[str]]:
     """Extract (detail_kind, detail_text) using the fallback cascade:
     Summary -> Scope -> Concern -> Question -> Title -> H1 header.
     """
-    tl = text.lower()
     for tag, rx in _FIELD_PATTERNS:
-        if (tag + ":") in tl:
+        cap = tag.capitalize() + ":"
+        low = tag + ":"
+        up = tag.upper() + ":"
+        if cap in text or low in text or up in text:
             m = rx.search(text)
             if m:
                 val = m.group(1).strip()
@@ -1234,7 +1253,10 @@ def stranded_lane_drift(repo_root: Path) -> List[core.Drift]:
         return []
 
     try:
-        records = rs.stranded_lane_records(target_root, states)
+        from agent_workflows import worktree_lease
+
+        with worktree_lease.memoize_worktrees(target_root):
+            records = rs.stranded_lane_records(target_root, states)
     except Exception:
         return []
 
@@ -1567,6 +1589,21 @@ def matches_priority(it: Item, priority_filters: set[str]) -> bool:
     return p in priority_filters
 
 
+@functools.lru_cache(maxsize=32)
+def _get_planned_release_info(repo_root: Optional[Path]) -> Tuple[str, str]:
+    if not repo_root:
+        return "", ""
+    try:
+        from agent_workflows import releases as _releases
+
+        desc = _releases.describe_planned_release(repo_root)
+        if desc:
+            return (desc[0] or "").lower(), (desc[1] or "").lower()
+    except (AttributeError, OSError, ValueError):
+        pass
+    return "", ""
+
+
 def matches_blocking(
     it: Item, blocking_filters: set[str], repo_root: Path | None = None
 ) -> bool:
@@ -1578,18 +1615,7 @@ def matches_blocking(
     resolved_ver = (
         _resolve_release_version(repo_root, it.blocks_release).lower() if is_blk else ""
     )
-    planned_ver = ""
-    planned_id = ""
-    if repo_root:
-        try:
-            from agent_workflows import releases as _releases
-
-            desc = _releases.describe_planned_release(repo_root)
-            if desc:
-                planned_id = (desc[0] or "").lower()
-                planned_ver = (desc[1] or "").lower()
-        except (AttributeError, OSError, ValueError):
-            pass
+    planned_id, planned_ver = _get_planned_release_info(repo_root)
 
     for tok in blocking_filters:
         if tok in ("true", "yes", "1", "any", "blocking"):
@@ -1885,6 +1911,7 @@ def _render_item_row(
     return line
 
 
+@functools.lru_cache(maxsize=256)
 def _resolve_release_version(repo_root: Optional[Path], val: Optional[str]) -> str:
     """Resolve a Blocks-Release value to a concrete release version string (e.g. '2.0.0'),
     or '-' if absent/None."""
