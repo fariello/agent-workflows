@@ -1975,14 +1975,58 @@ class ContinuationHintTests(unittest.TestCase):
         self.assertNotIn("aw runs", hint)
 
     def test_single_session_success(self):
+        """The FIXTURE changed from `reviewed` to `executed` (`runnoop` Order 01, `zz5yxq` E-07).
+
+        The pre-`zz5yxq` contract had `reviewed` as an unconditional success, so this fixture used it
+        to mean "a finished run". It no longer does for the default (execute) action: a
+        `reviewed`-but-unapproved plan is one the queue builder NEVER DISPATCHES, so the hint must now
+        offer `resume`, not `aw runs`. That is the whole defect this plan fixes (backlog `em0z50`: 8
+        such plans printed a clean run and exited 0).
+
+        SO THE FIXTURE IS WRONG, NOT THE ASSERTION, and the assertion is deliberately left intact. The
+        subject under test here is the hint's SUCCESS rendering, so it needs a genuinely successful
+        status; relaxing the `assertNotIn("resume")` instead would have quietly deleted the only
+        coverage of the inspect-vs-resume branch. The `reviewed` case is now covered explicitly, in
+        both directions, by
+        `tests/test_rununify_run_queue_characterization.py::AnApprovalBlockedQueueIsNotASilentSuccess`.
+        """
         hint = driver.render_continuation_hint(
-            self._state({"demo": "ses_abc123"}, queue=[{"status": "reviewed"}]),
+            self._state({"demo": "ses_abc123"}, queue=[{"status": "executed"}]),
             Path("/x"),
         )
         self.assertIn("ses_abc123", hint)
         self.assertIn("aw oc run --session ses_abc123 <selector>", hint)
         self.assertIn("aw runs run-xyz", hint)
         self.assertNotIn("resume", hint)
+
+    def test_a_reviewed_but_unapproved_execute_item_offers_RESUME_not_inspect(self):
+        """The other half of the fixture change above, asserted rather than left implied (zz5yxq E-07).
+
+        `render_continuation_hint`'s `all_success` is question (4) of the call-site classification at
+        `runner_shared.SUCCESS_STATES`. A `reviewed` EXECUTE item did no work, so there IS something
+        left to resume and the operator must be told so. A `reviewed` REVIEW item is a completed
+        review and must still get the inspect hint; both are asserted here so the distinction cannot
+        be lost by editing one.
+        """
+        blocked = driver.render_continuation_hint(
+            self._state(
+                {"demo": "ses_abc123"},
+                queue=[{"status": "reviewed", "action": "execute"}],
+            ),
+            Path("/x"),
+        )
+        self.assertIn("aw oc run resume --repo /repo run-xyz", blocked)
+        self.assertNotIn("aw runs", blocked)
+
+        reviewed_ok = driver.render_continuation_hint(
+            self._state(
+                {"demo": "ses_abc123"},
+                queue=[{"status": "reviewed", "action": "review"}],
+            ),
+            Path("/x"),
+        )
+        self.assertIn("aw runs run-xyz", reviewed_ok)
+        self.assertNotIn("resume", reviewed_ok)
 
     def test_single_session_incomplete(self):
         hint = driver.render_continuation_hint(

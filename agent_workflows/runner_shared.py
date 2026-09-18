@@ -9609,12 +9609,214 @@ AGY_HOST_LABELS = HostLabels(
 
 #: Item statuses that mean the queue finished that item successfully. Read by
 #: `render_continuation_hint` to choose between the "inspect" and "resume" hint.
+#:
+#: THIS IS THE REVIEW-ACTION BAR, and `reviewed` BELONGS IN IT (zz5yxq E-01). Do NOT "fix" this
+#: constant by removing `reviewed`: that is the tempting one-line change and it is WRONG, with
+#: measured evidence in-tree. `cascade_dependency_blocked`'s docstring (in `oc_runipd`) records run
+#: `run-20260904T042705Z-1025943`, a 6-item all-`review` run of the `wslayout` Set that reviewed
+#: Orders 00 and 01 and then killed Orders 02-05 the instant Order 01 reached `reviewed`, because
+#: that site hardcoded `EXECUTION_SUCCESS_STATES`. A review pass legitimately SUCCEEDS at `reviewed`.
+#: The defect zz5yxq fixes is that the EXECUTE-action sites read this bar too, so a `reviewed`-but-
+#: unapproved plan that the queue builder never dispatches was counted as a success (see
+#: `success_states_for_action` below and the `needs_input` carrier).
+#:
+#: THE CALL-SITE CLASSIFICATION (zz5yxq E-01). Five DIFFERENT questions are asked of these two
+#: constants, and only three of them are `SUCCESS_STATES` reads that this Set changed. Locate each by
+#: grep on the symbol, never by a line number:
+#:
+#:   (1) IS A PREREQUISITE SATISFIED IN THIS RUN?  `edge_satisfied` and
+#:       `cascade_dependency_blocked`. ONE IMPLEMENTATION, not a per-host pair: both are DEFINED in
+#:       `oc_runipd` and RE-EXPORTED into `agy_runipd` with the `as <same-name>` form, pinned by
+#:       `assertIs` in `tests/test_runner_item_dependencies.py::_SHARED_NAMES` (measured:
+#:       `agy.edge_satisfied is oc.edge_satisfied` -> True). They ALREADY select the action-aware bar
+#:       (`EXECUTION_SUCCESS_STATES if is_exec else SUCCESS_STATES`) and were correct before zz5yxq.
+#:   (2) DID THE RUN SUCCEED OVERALL?  the exit code, handed to
+#:       `runner_stop.deliberate_stop_exit_code(success_states=...)`. ONE SITE PER HOST
+#:       (`oc_runipd.run_queue`, `agy_runipd.run_queue`). CHANGED by zz5yxq: now per-item and
+#:       action-aware via `item_reached_success`.
+#:   (3) SHOULD THIS ROW SHOW A CHECKMARK?  the finish glyph and its color, in `execute_item_core`
+#:       below. Shared code, so ONE site serving BOTH hosts. CHANGED by zz5yxq.
+#:   (4) IS THERE ANYTHING LEFT TO RESUME?  `all_success` in `render_continuation_hint` below.
+#:       Shared code, so ONE site serving BOTH hosts. CHANGED by zz5yxq.
+#:   (5) THE ORCHESTRATOR DISPATCH BAR.  `decide_orchestrator_dispatch(success_states=...)` is
+#:       already passed `EXECUTION_SUCCESS_STATES` explicitly by each host and is NOT a
+#:       `SUCCESS_STATES` read at all. Listed ONLY so a later reader does not "fix" it.
+#:
+#: `EXECUTION_SUCCESS_STATES` stays per-host (`oc_runipd`/`agy_runipd`), equal but not identical;
+#: `tests/test_runner_shared.py::CrossHostSuccessBarEqualityTests` pins the equality so a one-sided
+#: edit cannot be silent. Unifying the objects is `rununify`/`cnwy8g`'s work, not this constant's.
 SUCCESS_STATES = {"executed", "reviewed", "approved"}
+
+#: The durable, explicit fact that an item was NOT dispatched because its plan still needs human
+#: approval (zz5yxq E-03). Frozen onto the queue entry as a boolean under this KEY, and reported as
+#: this TOKEN, which is deliberately the one the rest of the package already ships for exactly this
+#: meaning rather than a new coinage: `run_gates.GATE_STATUS_NEEDS_INPUT` and
+#: `run_evidence.AGGREGATE_NEEDS_INPUT` are both the literal `"needs_input"`, the latter commented
+#: "Human input or explicit acknowledgement is required (spec 5.6 exit 3)".
+#:
+#: WHY A QUEUE-ENTRY FLAG AND NOT A NEW MEMBER OF `TERMINAL_STATES`. The needs-approval fact is
+#: carried BESIDE the status, not as one, because `TERMINAL_STATES` is read by
+#: `cascade_dependency_blocked` and `decide_orchestrator_dispatch`, so a new member would change
+#: dependency and retirement behavior for a change that is about REPORTING and the SUCCESS BAR.
+#: `interrupted` is already precedent for a status the runner uses that is absent from that set
+#: (measured: `'interrupted' in TERMINAL_STATES` -> False). The queue status stays `reviewed`, which
+#: `runner_shutdown.KNOWN_ITEM_STATUSES` already admits, so an R3 ledger-coherence check and a
+#: resume are both unaffected.
+#:
+#: NOT WIRED TO `run_evidence.aggregate_run_exit`. That aggregator already maps `needs_input` to
+#: spec `25kzda` 5.6's exit 3 and already outranks a plain item failure, but neither driver calls it
+#: (measured: zero call sites), so reaching 3 means wiring the drivers to it - a change to EVERY
+#: run's exit classification and deliberately outside zz5yxq's fence (its OQ-02). The bar fixed here
+#: therefore emits 1, which is what corrects the measured silent 0.
+NEEDS_INPUT_TOKEN = "needs_input"
+
+#: The queue-entry key carrying :data:`NEEDS_INPUT_TOKEN`'s fact. Named separately from the token so
+#: a reader can see that the KEY and the reported TOKEN are deliberately the same string.
+NEEDS_INPUT_KEY = NEEDS_INPUT_TOKEN
 
 #: The `--action` values the CLI accepts, and the subset actually implemented. Read by
 #: `enforce_requested_action`, which is spec `25kzda` 2.6's enforcement point.
 ACTION_CHOICES = ("review", "plan", "execute")
 ACTION_IMPLEMENTED = frozenset(("review",))
+
+
+#: The REPORTING success bar for an item whose action WRITES CODE (zz5yxq E-02): `SUCCESS_STATES`
+#: with `reviewed` removed, and NOTHING ELSE changed.
+#:
+#: WHY THIS IS A THIRD SET AND NOT `EXECUTION_SUCCESS_STATES`, which is what the plan's E-02 proposed
+#: and what the dependency sites use. The two answer DIFFERENT QUESTIONS and are not interchangeable
+#: here. `EXECUTION_SUCCESS_STATES` = {`executed`, `substantially-complete`} is the DEPENDENCY bar:
+#: "may a dependent of this item now run?", for which `substantially-complete` legitimately counts.
+#: This is the REPORTING bar: "did the run succeed?", for which `substantially-complete` deliberately
+#: does NOT, and that is a pinned contract rather than an accident. MEASURED: substituting
+#: `EXECUTION_SUCCESS_STATES` at the exit-code site makes
+#: `tests/test_rununify_run_queue_characterization.py::TheExitCodeReflectsTheRealOutcome::
+#: test_the_exit_code_reads_SUCCESS_STATES_not_EXECUTION_SUCCESS_STATES` FAIL with `0 == 0`, because
+#: that test exists precisely to pin that a `substantially-complete` item still exits NONZERO. So the
+#: dependency bar would have SILENTLY WIDENED the reporting bar while narrowing it for `reviewed` -
+#: fixing one silent success by introducing another.
+#:
+#: DERIVED BY SUBTRACTION, not written as a literal, so it cannot drift from `SUCCESS_STATES`: adding
+#: a member there propagates here, and the ONE documented difference stays visible as the one
+#: documented difference.
+EXECUTE_REPORTING_SUCCESS_STATES: frozenset[str] = frozenset(
+    SUCCESS_STATES - {"reviewed"}
+)
+
+
+def success_states_for_action(action: str | None) -> Container[str]:
+    """The REPORTING success bar for ONE item, given the ACTION it was queued for (zz5yxq E-02).
+
+    THE DEFECT THIS EXISTS TO FIX, measured at HEAD `44d4950d` and again at `70a2059f`. `reviewed`
+    is simultaneously a ROUTING decision meaning "execute this" (`action_for('child','reviewed')` ->
+    `'execute'`) and a COMPLETION decision meaning "this already succeeded"
+    (`'reviewed' in SUCCESS_STATES` -> True), and the two cannot both be right. The queue builder
+    freezes such an item as queue status `reviewed` rather than `queued` (see `initial_queue_status`),
+    so it is NEVER DISPATCHED - and was then counted a success. Observed (backlog `em0z50`,
+    2026-08-29): `aw oc run wtiso` with all 8 `wtiso` plans at `- Status: reviewed` printed
+    "No OpenCode session was captured for this run." and EXITED 0, with `Attempts: 0` on every row
+    and an empty `outcomes/`. The operator believed 8 plans were queued.
+
+    THE SELECTION SHAPE IS THE ONE ALREADY IN USE (`edge_satisfied` and `cascade_dependency_blocked`
+    both branch on `item.get("action") != "review"`), because a second idiom for one decision is how
+    two functions came to give opposite answers to the same question once before. THE SET SELECTED IS
+    NOT: those two hand the EXECUTE branch `EXECUTION_SUCCESS_STATES`, which is correct for the
+    DEPENDENCY question they answer and WRONG for the reporting question this one answers. See
+    :data:`EXECUTE_REPORTING_SUCCESS_STATES` for the measured proof (substituting it fails a test that
+    exists to pin `substantially-complete` as a nonzero exit).
+
+    A REVIEW ACTION KEEPS `SUCCESS_STATES` UNCHANGED, and that half is load-bearing rather than
+    incidental: reviewing a plan legitimately ends at `reviewed`, and the in-tree docstring on
+    `cascade_dependency_blocked` records a real run (`run-20260904T042705Z-1025943`) in which
+    hardcoding the execution bar for a review pass made a review-mode Set run impossible to
+    complete. So this function widens NOTHING and narrows exactly one status for exactly one action.
+    """
+
+    return SUCCESS_STATES if action == "review" else EXECUTE_REPORTING_SUCCESS_STATES
+
+
+def item_reached_success(item: Mapping[str, Any]) -> bool:
+    """Did ONE queue item finish successfully, judged against the bar its ACTION earns (zz5yxq E-02).
+
+    The per-item form of :func:`success_states_for_action`, so the three execute-action call sites
+    (the run exit code, the finish glyph, and `render_continuation_hint`'s `all_success`) cannot
+    drift from one another.
+
+    Reads `action` and `status` off the entry and NOTHING ELSE, so it is safe to call on a
+    hand-written manifest's entry or on a state file written by an older driver: a missing `action`
+    is treated as the execute case, which is the conservative direction (it can only refuse to call
+    something a success, never manufacture one).
+    """
+
+    status = item.get("status")
+    return isinstance(status, str) and status in success_states_for_action(
+        item.get("action")
+    )
+
+
+def item_needs_approval(status: str | None, action: str | None) -> bool:
+    """Is this item's plan `reviewed`-but-unapproved, for an action that needs approval (zz5yxq E-03)?
+
+    Reads the plan's ON-DISK `- Status:` (the value frozen as `initial_status`), not the queue
+    status, because `reviewed` is the ONLY status that produces this situation: `initial_queue_status`
+    also maps `superseded`, `not-executed` and a missing status onto the queue status `reviewed`, and
+    none of those is waiting for approval - they are retired or unknown. Keying off the plan status
+    keeps the flag's MEANING exact rather than merely correlated.
+
+    `--full-auto` is already handled UPSTREAM of every caller: the queue builder clears an approving
+    `- Readiness:` to `auto-approved` before this is asked, so such an item is `queued` and this
+    correctly returns False. This function does not know about, and must not re-implement, that
+    bridge (executed plan `97df1z`).
+
+    A REVIEW ACTION IS NEVER BLOCKED BY THIS. Reviewing a `reviewed` plan is not the case at issue
+    (and `action_for` routes a `reviewed` plan to `execute` anyway); only an action that would WRITE
+    CODE needs the human approval this reports as missing.
+    """
+
+    return (action != "review") and (status or "").lower().strip() == "reviewed"
+
+
+#: The token :func:`exit_code_statuses` projects an item that MET its action's success bar onto, and
+#: the sole member of the bar handed to `runner_stop.deliberate_stop_exit_code` beside it (zz5yxq
+#: E-02). Deliberately not a real status, and deliberately not spellable as one, so it can never be
+#: confused with something a driver persists.
+EXIT_SUCCESS_TOKEN = "aw-item-met-its-action-success-bar"
+
+
+def exit_code_statuses(queue: Sequence[Mapping[str, Any]]) -> list[str]:
+    """Project each queue entry onto the token the run's exit-code predicate should judge (zz5yxq E-02).
+
+    WHY A PROJECTION AND NOT A SECOND EXIT-CODE FUNCTION. `runner_stop.deliberate_stop_exit_code`
+    takes ONE `success_states` container for the WHOLE queue, so it structurally cannot apply a bar
+    that depends on each item's `action`. Both drivers must keep calling it (it owns the
+    deliberate-stop contract that spec `c4gd2h` A1/A4 require, and
+    `tests/test_runner_stop_levels12.py` pins that both call it), so the per-item decision is made
+    HERE and handed to it already reduced.
+
+    THIS REWRITES NOTHING. It returns a fresh list of argument tokens and never touches
+    `item["status"]`; the queue on disk is untouched. Manufacturing a success by rewriting a status is
+    exactly what spec `c4gd2h` R22 forbids, and this deliberately moves in the opposite direction: an
+    item can only LOSE a success it never earned.
+
+    `queued` IS PRESERVED VERBATIM because `deliberate_stop_exit_code` keys its whole deliberate-stop
+    concession off that literal: under a stop it ignores `queued` items BECAUSE THEY NEVER RAN.
+    Projecting them onto anything else would either break a correct wind-down's exit 0 or silently
+    excuse an item that did run.
+
+    Every other non-success status is passed through unchanged, so it still reads as a failure and a
+    reader of a debugger frame still sees the real disposition.
+    """
+
+    projected: list[str] = []
+    for item in queue:
+        status = item.get("status")
+        if status == "queued":
+            projected.append("queued")
+        elif item_reached_success(item):
+            projected.append(EXIT_SUCCESS_TOKEN)
+        else:
+            projected.append(str(status))
+    return projected
 
 
 def compute_scope_reconciliation(
@@ -9751,7 +9953,13 @@ def render_continuation_hint(
         lines.append(f"  {cmd} --session {last_sid} <selector>")
 
     queue = state.get("queue", [])
-    all_success = all(item.get("status") in SUCCESS_STATES for item in queue)
+    # zz5yxq E-02, question (4) of the classification at `SUCCESS_STATES`: "is there anything left to
+    # resume?". This used to read `SUCCESS_STATES` unconditionally, so a `reviewed`-but-unapproved
+    # EXECUTE item - which the queue builder never dispatches - printed the "inspect the summary"
+    # hint as though the run had finished its work. It is action-aware now, so such an item correctly
+    # yields the "resume" hint. A REVIEW item that reached `reviewed` still counts as a success and
+    # still gets the inspect hint, unchanged (see the docstring's review-mode warning).
+    all_success = all(item_reached_success(item) for item in queue)
 
     if all_success:
         lines.append("To inspect run summary:")
@@ -10486,6 +10694,14 @@ def initialize_run_core(
                 "action": action,
                 "status": initial_queue_status(status),
                 "attempts": [],
+                # zz5yxq E-03: the needs-approval fact, made EXPLICIT and DURABLE at queue-build time
+                # rather than left implicit in the queue status. It was already implicit here (an item
+                # whose plan status is outside `NON_TERMINAL_QUEUE_STATUSES` is frozen `reviewed` and
+                # never dispatched), but a fact a reporting surface has to INFER is a fact that gets
+                # reported differently by each surface. Children 02/03 of this Set print and count it,
+                # so it is named once, here, under the token the package already ships for this
+                # meaning (`run_gates.GATE_STATUS_NEEDS_INPUT`).
+                NEEDS_INPUT_KEY: item_needs_approval(status, action),
             }
         )
 
@@ -12461,11 +12677,19 @@ def execute_item_core(
                     file=sys.stderr,
                 )
 
-    glyph = "\u2713" if disposition in SUCCESS_STATES else "\u25cf"
+    # zz5yxq E-02, question (3) of the classification at `SUCCESS_STATES`: "should this row show a
+    # checkmark?". Both reads used to be unconditional `SUCCESS_STATES` membership, so an EXECUTE item
+    # that ended `reviewed` got a green check for work that never ran. Judged against the item's own
+    # action now: `item["action"]` is read through the entry rather than the local `action`, because
+    # the `--full-auto` bridge above may have just rewritten it from `review` to `execute`, and the
+    # glyph must describe what the item ACTUALLY did. A review pass that reached `reviewed` still
+    # checks green, unchanged.
+    reached_success = item_reached_success(
+        {"action": item.get("action", action), "status": disposition}
+    )
+    glyph = "\u2713" if reached_success else "\u25cf"
     glyph_color = (
-        "green"
-        if disposition in SUCCESS_STATES
-        else (_STATUS_COLOR.get(disposition, "yellow"))
+        "green" if reached_success else (_STATUS_COLOR.get(disposition, "yellow"))
     )
     finish = (
         pal(f"{glyph} ", glyph_color)

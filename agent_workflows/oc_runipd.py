@@ -173,6 +173,33 @@ from agent_workflows.runner_shared import (
     conflicted_paths as conflicted_paths,
 )
 
+# runnoop zz5yxq (E-02/E-04): the ACTION-AWARE SUCCESS BAR. ONE definition in `runner_shared`, bound
+# here with the `as <same-name>` form and pinned by object identity in
+# `tests/test_runner_refork_guard.py`'s `REFORK_TABLE`, so a second copy in either host fails a test.
+# The form is load-bearing, not cosmetic: `ruff` stripped 6 such re-exports on one commit attempt in
+# this package and only a cross-driver symmetry test caught it.
+from agent_workflows.runner_shared import (
+    success_states_for_action as success_states_for_action,
+)
+from agent_workflows.runner_shared import (
+    item_reached_success as item_reached_success,
+)
+from agent_workflows.runner_shared import (
+    item_needs_approval as item_needs_approval,
+)
+from agent_workflows.runner_shared import (
+    exit_code_statuses as exit_code_statuses,
+)
+from agent_workflows.runner_shared import (
+    EXIT_SUCCESS_TOKEN as EXIT_SUCCESS_TOKEN,
+)
+from agent_workflows.runner_shared import (
+    NEEDS_INPUT_TOKEN as NEEDS_INPUT_TOKEN,
+)
+from agent_workflows.runner_shared import (
+    NEEDS_INPUT_KEY as NEEDS_INPUT_KEY,
+)
+
 # integpath-02 (`6sb3yu`): a PURE move, so it is bound by re-export rather than wrapped (unlike its
 # two neighbours, which need this host's `run_checked`/`host_label`). The `as <same-name>` FORM is
 # load-bearing and not cosmetic: `ruff` removed 6 such re-exports on a first commit attempt in this
@@ -6775,9 +6802,20 @@ def run_queue(
     # item is `interrupted`, which is NOT a success state, so the run still exits nonzero for it -
     # deliberately. Level 3 admits the turn did not finish; only the items it never STARTED are
     # excused, exactly as for levels 1-2.
+    #
+    # runnoop zz5yxq (E-02), question (2) of the classification at `runner_shared.SUCCESS_STATES`:
+    # "did the run succeed overall?". THE BAR IS NOW PER-ITEM AND ACTION-AWARE. It used to hand the
+    # raw statuses against `SUCCESS_STATES`, which contains `reviewed` - correctly, for a REVIEW pass.
+    # But `action_for` routes a `reviewed` plan to `execute` while the queue builder freezes it as
+    # queue status `reviewed` rather than `queued`, so such an item is NEVER DISPATCHED and was then
+    # counted a success: measured, `aw oc run wtiso` with 8 `reviewed` plans captured no session, ran
+    # 0 attempts, and exited 0 (backlog `em0z50`). `exit_code_statuses` projects each entry onto the
+    # bar its OWN action earns before the shared predicate judges it, so a `reviewed` EXECUTE item
+    # exits 1 while a `reviewed` REVIEW item still exits 0. NO STATUS IS REWRITTEN (spec R22) and
+    # `queued` is passed through verbatim so the deliberate-stop concession above still applies.
     return runner_stop.deliberate_stop_exit_code(
-        (item["status"] for item in state["queue"]),
-        success_states=SUCCESS_STATES,
+        runner_shared.exit_code_statuses(state["queue"]),
+        success_states={runner_shared.EXIT_SUCCESS_TOKEN},
         stopped=wind_down is not None or stopped_at_checkpoint,
     )
 

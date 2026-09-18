@@ -58,6 +58,16 @@ MODULES = {"oc_runipd": oc_runipd, "agy_runipd": agy_runipd}
 STILL_DOUBLE_DEFINED = (
     "_observe_between_turn_stop",
     "_record_deliberate_stop",
+    # ADDED 2026-09-18 by `runnoop` Order 01 (`zz5yxq`), and it is a TABLE REPAIR, not this plan's
+    # doing. `run_queue` on BOTH hosts calls `_integrate_stranded_lanes` and each host defines its own
+    # (measured: `oc._integrate_stranded_lanes is agy._integrate_stranded_lanes` -> False,
+    # `__module__` `agent_workflows.oc_runipd` vs `agent_workflows.agy_runipd`), so it has always
+    # belonged in this class. It was simply never classified: measured at the PRE-CHANGE baseline, it
+    # was already `reached but not in table`, which the membership test below cannot see because that
+    # test only fails in the other direction (a LISTED name that stopped being reached). It is added
+    # here because this plan's removal of `SUCCESS_STATES` moved the census total, and paying for that
+    # by lowering `CLOSURE_TOTAL` would have hidden a real fork instead of recording it.
+    "_integrate_stranded_lanes",
     "disable_lane_prompt",
     "execute_item",
     "reclaim_lanes_on_interrupt",
@@ -128,7 +138,26 @@ THIN_WRAPPERS_OVER_RUNNER_SHARED = (
 )
 
 # Module constants defined twice with EQUAL values: they can be lifted with the loop.
-EQUAL_CONSTANTS = ("EXECUTION_SUCCESS_STATES", "SUCCESS_STATES", "TERMINAL_STATES")
+#
+# RE-MEASURED 2026-09-18 by `runnoop` Order 01 (`zz5yxq`): `SUCCESS_STATES` was REMOVED from this
+# tuple because `run_queue` NO LONGER REACHES IT. This table's stated contract is that it "describes
+# what the FUNCTION reaches", and the load-bearing test below fails when a listed name stops being
+# reached, so leaving it here would make the table assert something false.
+#
+# WHY IT STOPPED BEING REACHED, so a reader can tell a real regression from this: the exit-code site
+# used to pass the bare `SUCCESS_STATES` to `runner_stop.deliberate_stop_exit_code`, which applies ONE
+# container to the WHOLE queue and therefore could not judge an item against the bar its own `action`
+# earns. A `reviewed`-but-unapproved EXECUTE item is never dispatched, and that bar counted it as a
+# success, so an approval-blocked queue exited 0 having done nothing (backlog `em0z50`). The site now
+# calls `runner_shared.exit_code_statuses(...)`, which makes the per-item decision in SHARED code, so
+# the name the function closes over is `runner_shared` (already classified in ALREADY_ONE_OBJECT) and
+# no longer the constant.
+#
+# NOT A WEAKENING, AND THE COUNTS CONFIRM IT: `EXECUTION_SUCCESS_STATES` and `TERMINAL_STATES` are
+# still reached and still pinned, `CLOSURE_TOTAL` is unchanged at 41 (measured), and the split
+# analysis this table feeds is unaffected, because a name that moved INTO `runner_shared` is one
+# fewer symbol a shared core would have to be injected with, not one more.
+EQUAL_CONSTANTS = ("EXECUTION_SUCCESS_STATES", "TERMINAL_STATES")
 
 # Defined twice with values that DIFFER BY HOST, by design: a hook input. Lifting it unchanged
 # would print the wrong recovery command on one host.
@@ -422,7 +451,15 @@ class TheClosureClassificationIsPinned(unittest.TestCase):
         # so they moved to THIN_WRAPPERS_OVER_RUNNER_SHARED. Re-measured from the tables above rather
         # than edited to fit, and each reclassification is proven individually by the fork-vs-wrapper
         # test in this class, which reports the delegation itself.
-        self.assertEqual(len(STILL_DOUBLE_DEFINED), 8)
+        #
+        # 8 -> 9, RE-MEASURED 2026-09-18 by `runnoop` Order 01 (`zz5yxq`): `_integrate_stranded_lanes`
+        # was added to `STILL_DOUBLE_DEFINED`. It is a REAL, PRE-EXISTING fork that the table never
+        # classified (both hosts define their own; measured NOT the same object), not new work by that
+        # plan. This number is DERIVED from the tuple above, so it is re-measured here rather than the
+        # tuple being trimmed to preserve the old figure, which would have hidden the fork. The
+        # fork-vs-wrapper test in this class proves the classification for every name listed,
+        # including this one.
+        self.assertEqual(len(STILL_DOUBLE_DEFINED), 9)
         self.assertEqual(
             len(STILL_DOUBLE_DEFINED)
             + len(RESOLVES_IN_RUNNER_SHARED)
