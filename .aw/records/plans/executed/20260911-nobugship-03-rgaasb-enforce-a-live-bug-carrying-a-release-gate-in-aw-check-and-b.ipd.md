@@ -6,17 +6,17 @@
 - Scope: Add one `aw check` rule refusing a live bug-kind item with no release gate, registered in the rule registry so CI fails on it, then backfill the existing violations or record an explicit exemption for each. Does NOT change the creation default (child 02 owns it), does NOT gate other work kinds, and does NOT retroactively gate a bug already `done`.
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_bug_gate_check.py, .aw/records/backlog, .aw/records/plans/pending
 - Item-Dependencies: executed:di08i9
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: nobugship
 - Order: 3
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: rgaasb
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-18 executed (aw oc run): aw oc run self-finalize: rgaasb verified (set nobugship, attempt 1).
 - 2026-09-18 executed-pending-transition (opencode its_direct/pt3-claude-opus-5-1m-us): ALL WORK PERFORMED AND VALIDATED IN LANE `rgaasb` (run `run-20260918T205349Z-3540382`, queue position 4). E-01..E-05 performed, V-01..V-05 verified with pasted evidence. THE TERMINAL TRANSITION IS NOT MINE TO MAKE: this process runs with `AW_EXECUTION_ROLE=worker`, and `aw ipd finalize` refused with `AW-LIFECYCLE-ROLE-001` ("the runner owns begin/finalize for managed lanes"), so this plan correctly stays in `pending/` at `- Status: approved` and the driver performs the transition after integrating the lane. Nothing was hand-edited to simulate it.
   DELIVERED IN FOUR PATH-SCOPED COMMITS, no push: `5ceff69a` the checker (new `check.live-bug-ungated` at `error` under I-07, plus the OQ-03 terminal-carrier narrowing, plus 36 tests of which 24 fail against pre-change code); `9e1a8d8b` the backfill (64 of 65 population items gated through the shipped setter, 0 failures, 1 deliberate exemption); `c2638561` the co-update (12 live `From-Backlog` carriers, 0 failures, the 3 terminal carriers untouched); `0aa7c67c` six backlog items for the defects this execution found.
   FOUR MEASUREMENTS THAT CORRECT THIS PLAN'S OWN TEXT, each stated in the V-evidence rather than quietly satisfied. (1) THE POPULATION IS 65 (47 `open`, 18 `graduated`, 0 `blocked`), not the authored 28 or review's 22: it roughly TRIPLED in six days, concentrated in items filed AFTER child 02's creation default shipped, because the default covers CREATION and nothing covers RECLASSIFICATION into `bug` (filed `98zlut`). The `blocked` item review had to special-case is no longer in the population at all, so E-04's `--gate-kind`/`--gate-ref` row has no subject. (2) `check.from-backlog-gate-mismatch`'s BASELINE IS 2, NOT ZERO: two pre-existing false positives where a carrier spells the gate `f33nrj` and its item spells it `next`, which resolve to the SAME release record (filed `0cqf33`). This plan's net effect on that rule is +0 (2 -> 14 after the backfill -> 2 after the co-update), which is the Set's criterion 6; it is NOT literal zero and I am not claiming it is. (3) E-01'S PRESCRIBED PER-ITEM `find_from_backlog_artifacts` CALL WOULD HAVE BEEN A DEFECT: measured 11.13 s against 207 ms for one shared walk (54x) on `aw check all`, so E-01's own fallback clause was taken and the walk was factored into a shared `_from_backlog_carrier_index` consumed by both rules (filed `8cpbia` as a `chore`, correctly, since no shipped caller loops). (4) NO CI STEP FAILS ON THIS RULE: no workflow runs `aw check`/`aw check all` and the backlog step is advisory per DECISION 18-r2ks4k-D1, so the Scope sentence "so CI fails on it" is NOT TRUE and is filed as `wu8qjy` instead of being left standing.
