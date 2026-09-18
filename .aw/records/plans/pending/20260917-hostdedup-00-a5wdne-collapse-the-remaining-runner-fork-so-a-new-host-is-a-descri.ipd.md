@@ -6,7 +6,7 @@
 - Scope: Finish the job for everything except the five large functions, and PROVE the result by adding a third host that has no runner module. Order 01 lifts the 17 byte-identical symbols; Order 02 unifies the 12 divergent ones behind the existing `HostLabels` descriptor and fixes the inverted agy->oc dependency; Order 03 demonstrates a runner-less host end to end. The five large functions are deliberately NOT re-planned here (see OQ-01).
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: no-go
 - From-Backlog: dstnso
 - Set: hostdedup
@@ -16,6 +16,7 @@
 - Id: a5wdne
 
 ## Workflow history
+- 2026-09-18 reviewed (aw set): plan-review complete: REVIEWED - OPEN QUESTIONS; 11 findings, 10 FIXED, PR-001 left OPEN at BLOCKER and escalated as blocking OQ-03; readiness no-go; typed review record under .aw/records/reviews/
 - 2026-09-17 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001..PR-011; readiness `no-go` on ONE blocking finding I could not remediate inside this plan. Reviewed at HEAD `84f140da`; `aw ipd lint --phase author` conforming before and after. THE STRUCTURAL PREMISE IS SOUND AND REPRODUCES EXACTLY: an AST scan finds 55 symbols co-defined in both runners, 21 of them the sanctioned thin-wrapper form and 34 real forks, of which 5 are the large functions and 29 are this Set's targets, splitting 17 byte-identical + 12 divergent exactly as authored. `HostLabels` is as described (`runner_shared.py:8530`, no-defaults `NamedTuple`, both host instances bound). The three agy stubs really do `from agent_workflows.oc_runipd import ...` (inverted dependency, verified by reading all three bodies). The vacuous guard is real: `test_review_findings_cascade.py:313` asserts `assertNotIn("import oc_runipd", agy_src)` while 9 imports spelled `from agent_workflows.oc_runipd import` exist, and I ran the guard green to prove it. All five `rununify` plans are `executed` and each says `NO SPLIT WAS PERFORMED`; the maintainer's 2026-09-16 "DO THE SPLIT" directive is quoted accurately. The `cjefq5` motivating defect is real (`ee99c41d`). THE BLOCKER: the Set's own cross-IPD rule says "ONE PIN TABLE, EDITED TWICE" and names one file, but `STILL_DOUBLE_DEFINED` pin tables live in FOUR test files, and Orders 01 and 02 each must edit THREE of them while each declares only ONE. Proven with the guards' own predicate: `_is_pure_delegation` returns True for a lifted body and the guard asserts False for every pinned name, so lifting `set_plan_approved` fails `tests/test_rununify_execute_item.py` (undeclared by Order 01). Also: Order 03's E-02 mandates editing two analytics consumers its fence excludes; the pinned suite baseline is unreachable in a worker lane (measured 31 failed / 7824 passed with `AW_EXECUTION_ROLE=worker`, 7855 passed with it unset); the Set silently graduates open backlog `dstnso` with no `From-Backlog` link (added); the "same AST scan" the criteria rely on is not committed anywhere; and three of the four line figures are unreproducible under any metric. OQ-03 raised `Blocking: yes` carrying PR-001.
 - 2026-09-17 to-review (aw set): Authored 2026-09-17 from an AST measurement at HEAD (34 forked symbols / ~1752 oc lines across the two runners); complete enough to critique
 
