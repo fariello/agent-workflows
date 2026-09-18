@@ -2,11 +2,12 @@
 
 - Date: 2026-09-17
 - Kind: child
-- Concern: `tests/test_run_analytics_spa.py::LeakSanitizerTests` derives BOTH its planted leak and its detector from the same value, so the pair silently agrees whenever the checkout is not under the maintainer's home directory. `setUp` computes `self.repo = Path(__file__).resolve().parent.parent` and builds the ruleset from it; the tests then plant `f"{self.repo}/.aw/worktrees/lane-x"` and assert the sanitizer flags it. Measured 2026-09-17: `build_ruleset(<the repo root, under $HOME>)` scanning that planted string yields 2 `fail` findings, while `build_ruleset(<a temp-directory root>)` scanning the equivalent string yields 0. So in a checkout outside `$HOME` two tests FAIL, including the one named `test_the_CONTROL_proves_the_same_ruleset_flags_a_raw_absolute_path` whose entire purpose is to prove the detector was looking.
+- Concern: `tests/test_run_analytics_spa.py::LeakSanitizerTests` plants its leak by interpolating the LIVE CHECKOUT PATH (`setUp` computes `self.repo = Path(__file__).resolve().parent.parent`; the tests plant `f"{self.repo}/.aw/worktrees/lane-x"` and assert the sanitizer flags it). Outside the maintainer's home directory that planted string contains no home-style path, so there is nothing for the rules to match and the assertion fails. Measured 2026-09-17 and RE-MEASURED at review: with a repo root under `$HOME` the planted string yields 2 `fail` findings (`home-path`, `handle`); with a temp-directory root the equivalent string yields 0. Exactly two of the three tests in the class then FAIL, including `test_the_CONTROL_proves_the_same_ruleset_flags_a_raw_absolute_path` whose entire purpose is to prove the detector was looking. CORRECTED AT REVIEW: the coupling is NOT that "both the planted leak and the detector are derived from `self.repo`". The RULESET IS EFFECTIVELY IDENTICAL for both roots (measured: same eight fail-rule names, empty difference), because `build_ruleset(repo_root)` uses `repo_root` only to load an optional repo allowlist/config and the leak patterns themselves are HARDCODED regexes (`leak_sanitizer.py:65-84`, e.g. `home-path` = `/home/(?!u/|alice/|user/|USER/|<)[A-Za-z0-9._-]+`). Only the PLANTED VALUE varies with location. That distinction decides the fix, so it is stated here rather than left to be rediscovered.
 - Scope: Make these tests assert the sanitizer's behavior independently of where the repository happens to sit, so they neither fail in a legitimate checkout location nor pass vacuously. Does NOT change `leak_sanitizer`'s rules, the SPA renderer, or any other test module.
 - Scope-Paths: tests/test_run_analytics_spa.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Set: spahermetic
 - Order: 1
 - Highest E allocated: 04
@@ -14,6 +15,9 @@
 - Id: zx9dkq
 
 ## Workflow history
+- 2026-09-18 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006, all FIXED; no open questions; readiness `go-pending-approval`. Reviewed at HEAD `481465ac`; `aw ipd lint --phase author` conforming before and after; plan byte-identical to the lane input. THE DEFECT REPRODUCES EXACTLY AND I RAN THE PLAN'S OWN MEASUREMENT RATHER THAN TRUSTING IT: a home-tree root yields 2 `fail` findings (`home-path`, `handle`) on the planted string while a temp-directory root yields 0, and with a synthetic outside-home root the per-test outcome is `test_the_produced_bundle_is_clean` PASS, `test_the_CONTROL_proves_...` FAIL, `test_a_leaky_value_travelling_...` FAIL, matching the plan's "two tests FAIL" claim precisely. The code description, the docstring quote, F4's warning against tolerating zero findings, and both deferrals all verify. BUT THE STATED ROOT CAUSE IS WRONG (PR-001, HIGH) AND WOULD MISDIRECT THE FIX: the Concern and F1 say the planted leak and the DETECTOR are both derived from `self.repo`, yet the RULESET IS LOCATION-INDEPENDENT. Measured: `build_ruleset` for a repo root and for a temp root give the SAME eight fail-rule names with an EMPTY difference, and the temp-root ruleset flags a home-style string (1 finding) while the repo-root ruleset finds 0 in a temp-style string; `repo_root` only selects an optional allowlist/config (`leak_sanitizer.py:441-478`) and the patterns are hardcoded regexes (`:65-84`, `home-path` = `/home/(?!u/|alice/|user/|USER/|<)[A-Za-z0-9._-]+`). Only the PLANTED VALUE varies, so E-01 gained a mandatory part (b) proving that localization. THE REMEDY IS CORRECT AND I FOUND ITS TRAP (PR-002, HIGH): a home-style and a macOS-style placeholder path each yield 1 `fail` under BOTH rulesets, but a `Path.home()`-derived plant yields 2 under both only because this machine's home is `/home/<name>`; on a macOS home or with `HOME=/root` it would stop matching and the test would fail again, differently coupled, so E-03 now requires a FIXED LITERAL and V-03 refuses a home-derived one. ALSO: `test_the_produced_bundle_is_clean` references no `self.repo`, already passes outside the home tree, and carries the shipped sanitizer-clean guarantee, so it must NOT be touched (PR-003) though the plan asked E-02 to assign all three tests a remedy; and the non-vacuity pairing was ALREADY split across two test methods, breakable by `-k` or `pytest-randomly` even inside the home tree, so E-04 now requires both halves in ONE method plus an assertion on the rule name (`home-path`) and severity rather than a bare nonzero count (PR-004). Added a deliberate mutation check (PR-005) and the bare-run rule with the `770fkp` 31-failure lane baseline (PR-006). OQ-01 narrowed: no skip applies to any of these three tests, since neither affected test asserts anything about this repository's own root; only the general future case remains the maintainer's.
+
+- 2026-09-18 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; 6 findings, all 6 FIXED, no open questions. The defect reproduces exactly (measured: 2 fail findings under a home-tree root vs 0 under a temp root; per-test PASS/FAIL/FAIL outside home, matching the plan's claim). But PR-001 HIGH: the stated root cause is wrong and would misdirect the fix. The ruleset is location-INDEPENDENT (measured: identical eight fail-rule names for both roots, empty difference; the temp-root ruleset flags a home-style string), because build_ruleset uses repo_root only for an optional allowlist and the leak patterns are hardcoded regexes; only the PLANTED VALUE varies. PR-002 HIGH: 'synthetic home-style root' did not exclude a Path.home()-derived plant, which passes here only because this machine's home is /home/<name> and would fail on macOS or with HOME=/root; E-03 now requires a fixed literal. PR-003: one of the three tests is unaffected and carries the shipped clean-bundle guarantee, so it must not be touched. PR-004: the non-vacuity pairing was already split across two methods and breakable by -k or random ordering; E-04 now requires one method plus a rule-name assertion. Also added a mutation check and the 770fkp bare-run baseline; readiness go-pending-approval
 
 - 2026-09-17 to-review (opencode/its_direct-pt3-claude-opus-5-1m-us): Authored from a false alarm this defect caused mid-merge. While resolving the `tx6q0h` lane I created a worktree under a temporary directory, ran the suite to establish a baseline, and got 2 failures that do NOT occur on `main`. I initially had to rule out my own merge as the cause, which is exactly the cost a non-hermetic test imposes: it fires at the moment you are least able to tell a real regression from an environment artifact. ROOT CAUSE MEASURED, not guessed: the planted leak and the ruleset are both derived from `self.repo`, so outside `$HOME` the planted string contains no home-path substring for the rules to match and the assertion `assertTrue(findings)` fails. Verified by calling `leak_sanitizer.build_ruleset` directly for two repo roots: 2 findings under the home tree, 0 under `/tmp`. WORKED AROUND at the time by moving the worktree under `.aw/worktrees/` (which is what the runner itself does), so this was never a blocker; it is a trap for the next person who does the obvious thing.
 
@@ -32,24 +36,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: prove the coupling, then break it
 
-- [ ] E-01 REPRODUCE THE LOCATION DEPENDENCE DIRECTLY, without needing a second checkout, so the defect is demonstrated rather than described. Call `leak_sanitizer.build_ruleset` for two repo roots (one under the invoking user's home directory, one under a temporary directory) and scan the SAME shape of planted string against each, showing findings for the first and none for the second. This is the measurement that identifies the coupling as `self.repo` feeding both sides.
+- [ ] E-01 REPRODUCE THE LOCATION DEPENDENCE AND LOCALIZE IT TO THE PLANTED VALUE, without needing a second checkout, so the defect is demonstrated rather than described. Two measurements, and the SECOND is the one that identifies the fix. (a) Scan the planted string shape against a ruleset built for a home-tree root and for a temp-directory root, showing findings for the first and none for the second. (b) PROVE THE RULESET IS NOT THE VARIABLE: compare the two rulesets' fail-rule names (expect an empty difference) and show the TEMP-root ruleset flagging a home-style string, so the only thing that changed is the planted value. Without (b) an executor may "fix" the ruleset construction, which measurement shows would fix nothing (F6).
   - Depends on: none
-  - Expected outcome: pasted output showing a nonzero finding count for the home-tree ruleset and zero for the temp-tree ruleset on equivalent planted input, at execution HEAD.
+  - Expected outcome: pasted output at execution HEAD showing (a) nonzero findings for the home-tree case and zero for the temp-tree case on equivalent planted input, and (b) the two rulesets' fail-rule names identical with an empty difference, plus the temp-root ruleset flagging a home-style string. Review's baseline for (a) was 2 findings (`home-path`, `handle`) vs 0, and for (b) eight identical rule names.
   - Execution state: pending
 
-- [ ] E-02 DECIDE AND RECORD WHAT THESE TESTS ACTUALLY ASSERT, because the fix follows from it and the two candidate readings differ. Reading A: "a real absolute path under this repo's root is detected", which is inherently location-dependent and should be SKIPPED with a stated reason when the checkout is not under a home directory. Reading B: "the sanitizer detects a home-style absolute path travelling through the renderer", which is location-INDEPENDENT and should plant a synthetic home-style path rather than the live repo root. State which reading each of the three tests in the class holds (`test_the_produced_bundle_is_clean`, `test_the_CONTROL_proves_...`, `test_a_leaky_value_travelling_through_a_finding_is_still_detected`) and note that the CONTROL test's purpose (proving the detector was looking) makes a silent skip the wrong answer for it specifically.
+- [ ] E-02 DECIDE AND RECORD WHAT EACH TEST ACTUALLY ASSERTS, because the remedy follows from it and the readings differ per test. Reading A: "a real absolute path under THIS repo's root is detected", which is inherently location-dependent and would warrant a loud SKIP outside a home directory. Reading B: "the sanitizer detects a home-style absolute path travelling through the renderer", which is location-INDEPENDENT and warrants planting a synthetic home-style path. State which reading each of the three tests holds, and note two things review already established so they are not re-litigated: `test_the_produced_bundle_is_clean` does NOT reference `self.repo`, already passes outside the home tree, and is therefore NOT part of this defect (F7); and the CONTROL test's purpose (proving the detector was looking) makes a silent skip the wrong answer for it specifically.
   - Depends on: E-01
-  - Expected outcome: a written per-test statement of which reading it holds and therefore which remedy applies, with the CONTROL test's special status addressed explicitly.
+  - Expected outcome: a written per-test statement of which reading it holds and therefore which remedy applies, explicitly recording that the clean-bundle test needs NO change, and addressing the CONTROL test's special status.
   - Execution state: pending
 
-- [ ] E-03 MAKE THE ASSERTIONS LOCATION-INDEPENDENT per E-02's decision, preferring a synthetic home-style root for the planted leak over deriving it from the live checkout. The ruleset and the planted value must no longer be able to agree by both being empty of anything detectable. DO NOT weaken any assertion to make it pass: turning `assertTrue(findings)` into a tolerance of zero findings would delete the only thing the CONTROL test proves, which is the same class of error as lowering a threshold to silence a guard. If a test genuinely cannot be made location-independent, SKIP it with an explicit reason naming the condition, never let it pass vacuously.
+- [ ] E-03 MAKE THE TWO AFFECTED ASSERTIONS LOCATION-INDEPENDENT by planting a SYNTHETIC home-style path instead of the live checkout root. Use a path that is home-style by CONSTRUCTION and independent of the invoking user, e.g. `/home/user/checkouts/agent-workflows/.aw/worktrees/lane-x` (the `user` placeholder is one the sanitizer's own rules deliberately allow, so this plan's text stays self-clean); do NOT build it from `Path.home()`, because that reintroduces an environment dependency (on a machine whose home is not under `/home`, such as macOS, the `home-path` rule would not match it). REVIEW MEASURED BOTH FORMS: the user-independent home-style and macOS-style placeholder strings each yield 1 `fail` finding when spelled with a REAL-looking account name under a home-tree ruleset AND under a temp-directory ruleset, while a `Path.home()`-derived string yields 2 under both only because this machine's home happens to be `/home/<name>`. So the fixed literal is the portable choice and it is what makes the assertion mean the same thing everywhere. DO NOT weaken any assertion to make it pass: turning `assertTrue(findings)` into a tolerance of zero findings would delete the only thing the CONTROL test proves, the same class of error as lowering a threshold to silence a guard. If a test genuinely cannot be made location-independent, SKIP it with an explicit reason naming the condition, never let it pass vacuously. LEAVE `test_the_produced_bundle_is_clean` ALONE (F7).
   - Depends on: E-02
-  - Expected outcome: the tests passing in BOTH a home-tree checkout and a temp-directory checkout, with the assertions still demanding real findings; pasted from both locations.
+  - Expected outcome: the three tests passing in BOTH a home-tree checkout and a temp-directory checkout, with the two fixed assertions still demanding real findings and the planted value shown to be a fixed literal rather than derived from the environment; pasted from both locations.
   - Execution state: pending
 
-- [ ] E-04 ADD THE NON-VACUITY GUARD, so this fix cannot itself decay into a test that passes because it checks nothing. Assert that the detector fires on the planted input AND does not fire on a control string that should be clean, in the same test run. That pairing is what makes the clean assertion evidence, per the class's own docstring, and it is the property that must survive relocation.
+- [ ] E-04 ADD THE NON-VACUITY GUARD IN ONE TEST, so the pairing cannot be broken by test selection or ordering. Assert that the detector fires on the planted input AND does not fire on a clean control string WITHIN A SINGLE TEST METHOD. WHY IN ONE METHOD, measured at review: the clean assertion and the CONTROL currently live in SEPARATE methods, so the class docstring's "the control run is what makes the clean assertion evidence" holds only if both happen to run; `pytest-randomly` is active and `-k` can select either alone (F8). A guard whose two halves can be separated is not a guard. ALSO ASSERT THE RULE NAMES, not merely a nonzero count, so a future change that starts matching for an unrelated reason cannot keep this green: the planted home-style path must be flagged by `home-path` specifically, at `fail` severity.
   - Depends on: E-03
-  - Expected outcome: pasted evidence that the planted case yields findings and the clean case yields none, from a checkout OUTSIDE the home tree, proving the guard works where the original failed.
+  - Expected outcome: pasted evidence from a checkout OUTSIDE the home tree that a single test asserts both halves (planted yields `home-path`/`fail`, clean yields none) and passes, proving the guard works where the original failed.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -63,7 +67,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | # | Sev | Location | Finding | Evidence |
 | --- | --- | --- | --- | --- |
-| F1 | MEDIUM | `tests/test_run_analytics_spa.py` `setUp` | **THE PLANTED LEAK AND THE DETECTOR COME FROM ONE VALUE.** `self.repo = Path(__file__).resolve().parent.parent` feeds both `build_ruleset(self.repo)` and the planted `f"{self.repo}/.aw/worktrees/lane-x"`, so the two agree vacuously wherever the repo root contains nothing the rules recognize. | the `setUp` body; `build_ruleset` returning 2 findings for a home-tree root and 0 for a temp-directory root on equivalent input |
+| F1 | MEDIUM | `tests/test_run_analytics_spa.py` `setUp` | **THE PLANTED LEAK IS THE LIVE CHECKOUT PATH, so the test asserts a property of its own location.** `self.repo = Path(__file__).resolve().parent.parent` is interpolated into the planted string, which is therefore a home-style path in one checkout and a `/tmp` path in another. RESTATED AT REVIEW: the original wording ("the planted leak and the detector come from ONE value ... so the two agree vacuously") is WRONG about the mechanism and would misdirect the fix. See F6. | the `setUp` body; measured 2 findings (`home-path`, `handle`) for a home-tree root vs 0 for a temp-directory root |
+| F6 | MEDIUM | `agent_workflows/leak_sanitizer.py:65-84`, `:441-455` | **THE RULESET IS NOT LOCATION-DEPENDENT AT ALL, so `build_ruleset(self.repo)` is not half of the coupling.** The fail patterns are HARDCODED (`home-path` = `/home/(?!u/|alice/|user/|USER/|<)[A-Za-z0-9._-]+`, `handle` = an escaped literal username fragment); `repo_root` only selects an optional repo allowlist/config. MEASURED: `build_ruleset(<repo>)` and `build_ruleset(<temp dir>)` yield the SAME eight fail-rule names with an EMPTY difference, and the temp-root ruleset flags a home-style string (1 finding) exactly as the repo-root ruleset does. So the remedy is to fix the PLANTED VALUE only; changing how the ruleset is built would fix nothing. | the two `build_ruleset` calls compared by rule name; a cross-check scanning a home-style string with the temp-root ruleset |
+| F7 | LOW | `test_the_produced_bundle_is_clean` | THAT TEST DOES NOT USE `self.repo` AND ALREADY PASSES EVERYWHERE, so it is not part of this defect and must not be "fixed". Measured with a synthetic outside-home root: `findings=0 -> PASS`, while the other two FAIL. It reads only `self.ruleset`, which F6 shows is location-independent. E-02's per-test statement should record it as ALREADY location-independent rather than assigning it a remedy. | its body (no `self.repo` reference); the three-test simulation showing PASS/FAIL/FAIL |
+| F8 | LOW | the class's pairing claim | THE CONTROL AND THE CLEAN ASSERTION ARE IN SEPARATE TEST METHODS, so the docstring's "the control run is what makes the clean assertion evidence" is true only across the whole class, not within any single test. `pytest-randomly` is active (per `addopts`), and either test can run alone under `-k`. E-04's "in the same test run" requirement is therefore the right instinct, and it should be satisfied by pairing them IN ONE TEST rather than by relying on both methods happening to run. | the two separate method bodies; the configured random ordering |
 | F2 | MEDIUM | `test_the_CONTROL_proves_the_same_ruleset_flags_a_raw_absolute_path` | **THE TEST WHOSE JOB IS PROVING THE DETECTOR WAS LOOKING IS THE ONE THAT FAILS.** Its message reads "the CONTROL found nothing, so the detector was not looking and the clean result above is meaningless" -- which is accurate about the environment and misleading about the code. A reader sees an anti-vacuity guard failing and reasonably suspects the sanitizer. | the failure message, observed in a temp-directory worktree |
 | F3 | MEDIUM | this session | **IT COST A REAL FALSE ALARM AT THE WORST MOMENT.** It fired while I was establishing a baseline for a conflicted merge, so it had to be ruled out as a merge regression before the merge could proceed. A test that fails for environmental reasons during a risky operation is a tax on exactly the care it should support. | the session transcript: 2 failures in the temp-directory worktree, 0 on `main` at the same commit |
 | F4 | LOW | the fix direction | **THE OBVIOUS FIX IS THE WRONG ONE.** Making the assertion tolerate zero findings would turn both tests green everywhere and delete their entire value, since what they assert is that detection HAPPENS. Named here so an executor under time pressure does not reach for it. | the class docstring's own statement that the control is "what makes the clean assertion evidence" |
@@ -71,10 +78,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Proposed changes (ordered, validatable)
 
-1. Reproduce the location dependence by calling `build_ruleset` for two roots (E-01).
-2. Decide and record what each of the three tests actually asserts (E-02).
-3. Make the assertions location-independent, preferring a synthetic home-style planted path; skip loudly rather than pass vacuously if a property is genuinely environmental (E-03).
-4. Add the paired non-vacuity guard and prove it from outside the home tree (E-04).
+1. Reproduce the location dependence AND localize it to the planted value, proving the ruleset is not the variable (E-01).
+2. Decide and record what each of the three tests actually asserts, including that the clean-bundle test needs no change (E-02).
+3. Plant a FIXED synthetic home-style literal (not a `Path.home()`-derived one) so the two affected assertions mean the same thing everywhere; skip loudly rather than pass vacuously if a property is genuinely environmental (E-03).
+4. Put the non-vacuity pairing inside ONE test, assert the rule name and severity, and prove it from outside the home tree (E-04).
+
+REVIEW NOTE: this plan changes only two of the three tests. `test_the_produced_bundle_is_clean` is not
+affected by the defect (F7) and touching it would be over-scope.
 
 ## Deferred / out of scope (with reason)
 
@@ -84,16 +94,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Scope check
 
-- Over-scope: none. One test module, one coupling.
-- Under-scope: none for the reported defect. The wider `Path(__file__)` sweep is deferred above with a reason.
+- Over-scope: none as scoped, but ONE RISK NAMED at review: the plan spoke of "these tests" and "both
+  tests" interchangeably across three tests, and `test_the_produced_bundle_is_clean` is NOT affected (F7).
+  An executor who "fixed" all three would be editing a passing test for no reason. E-02 and E-03 now say so.
+- Under-scope: none for the reported defect. The wider `Path(__file__)` sweep is deferred below with a
+  reason. NOTE the non-vacuity gap E-04 closes is slightly wider than the location defect: the pairing was
+  ALREADY split across two test methods before this plan, so it was already breakable by `-k` or by random
+  ordering even inside the home tree (F8). That is in scope because E-04 is where the pairing is asserted.
 
 ## Required tests / validation
 
-1. `python3 -m pytest` bare, pasted summary line, compared against the pre-execution baseline (also pasted).
+1. `python3 -m pytest` bare, pasted summary line, compared against the pre-execution baseline (also pasted). RUN IT BARE: `pyproject.toml` `addopts` already supplies the quiet/parallel/fast-subset flags, and a second `-q` suppresses the summary line this item requires. A managed worker lane also fails a set of lifecycle tests BY DESIGN (backlog `770fkp`, measured at 31 in this session), so take the baseline in the SAME tree and gate on NO NEW failures rather than an absolute count.
 2. The three `LeakSanitizerTests` shown passing from a checkout INSIDE the home tree.
-3. The same three shown passing from a checkout OUTSIDE it (a temporary directory), which is the condition that currently fails. Both pasted.
-4. The non-vacuity pairing demonstrated in the outside-home run: planted input yields findings, clean input yields none.
-5. `aw ipd lint --phase pre-transition` conforming; `aw sanitize --agent` clean.
+3. The same three shown passing from a checkout OUTSIDE it (a temporary directory), which is the condition that currently fails. Both pasted. STATE THE MEASURED BASELINE THIS FIX MUST FLIP, so the after-state is comparable: at review, an outside-home root gives `test_the_produced_bundle_is_clean` PASS, `test_the_CONTROL_proves_...` FAIL, `test_a_leaky_value_travelling_...` FAIL.
+4. The non-vacuity pairing demonstrated in the outside-home run, WITHIN ONE TEST METHOD: planted input flagged by `home-path` at `fail` severity, clean input yielding none. Two separate green methods do not satisfy this (F8).
+5. THE PLANTED VALUE SHOWN TO BE ENVIRONMENT-FREE: quote it and show it contains no `Path.home()`, `$HOME`, or checkout-derived component. This is the assertion that the fix is actually hermetic rather than differently coupled.
+6. A DELIBERATE MUTATION CHECK, cheap and decisive: temporarily break the planted literal (e.g. change it to a `/tmp/...` path) and show the fixed test FAILS. A test that passes both before and after such a mutation is not testing detection.
+7. `aw ipd lint --phase pre-transition` conforming; `aw sanitize --agent` clean.
 
 ## Spec / documentation sync
 
@@ -101,6 +118,11 @@ No spec change expected: this is test construction, not a documented contract, a
 declares no `.spec.md`. If the executor finds spec text asserting that the SPA bundle is sanitizer-clean
 as a shipped guarantee, that guarantee is unaffected by this plan (the assertion is preserved, only its
 construction changes); record the citation here rather than editing the spec.
+
+REVIEW CONFIRMED THE PRESERVATION CLAIM IS SAFE TO MAKE: the shipped guarantee lives in
+`test_the_produced_bundle_is_clean`, which this plan does NOT touch (F7), so the clean-bundle assertion is
+preserved byte-for-byte rather than merely re-expressed. The two tests that DO change are the control and
+the leak-through-a-finding case, neither of which is a shipped guarantee about the bundle.
 
 ## Open questions
 
@@ -110,28 +132,36 @@ construction changes); record the citation here rather than editing the spec.
 - Status: open
 - Owner: maintainer
 - Resolution or deferral rationale: NOT blocking, because E-02 decides it per test from the code and E-03 implements the stronger option by default (synthesize a home-style path, so the assertion runs everywhere). FOR SYNTHESIZING: the property under test is "the sanitizer detects a home-style absolute path travelling through the renderer", which does not actually depend on where this repo sits, so a synthetic path tests the real thing in every checkout. FOR SKIPPING: if a test genuinely asserts something about THIS repository's own root, a loud skip is more honest than a synthetic substitute that quietly tests something adjacent. Recorded because the choice is a judgement about what the test is FOR, and getting it wrong produces a green test that proves less than it claims.
+  NARROWED AT REVIEW, and the narrowing removes most of the judgement: measurement shows NEITHER of the two
+  affected tests asserts anything about THIS repository's root. Both assert that a home-style absolute path
+  travelling through the renderer is detected, and the live root was merely a convenient source of such a
+  path. Since the detector's `home-path` rule is a hardcoded regex that is identical in every checkout
+  (F6), a synthetic literal tests the SAME property rather than an adjacent one, so the "FOR SKIPPING"
+  branch has no applicable case here and no skip should be introduced. What remains genuinely open, and is
+  the maintainer's, is only whether a future test that DOES want to assert something about the live root
+  should skip or synthesize; that question is not raised by this plan's three tests.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted output at execution HEAD showing `build_ruleset` for a home-tree root yielding a nonzero finding count on the planted string and for a temp-directory root yielding zero on the equivalent string. The two calls and their results must both be visible, so the coupling is demonstrated rather than asserted. PLUS any other test noted that derives a fixture from `Path(__file__)` in the same shape, or an explicit "none encountered".
+  - Required evidence: pasted output at execution HEAD for BOTH measurements. (a) `build_ruleset` for a home-tree root yielding a nonzero finding count on the planted string and for a temp-directory root yielding zero on the equivalent string, with both calls and both results visible. (b) THE LOCALIZATION: the two rulesets' fail-rule names compared with an empty difference, AND the temp-root ruleset shown flagging a home-style string. Part (b) is not optional: without it the plan's original (wrong) reading that the ruleset is half the coupling would stand, and the fix could be aimed at the wrong side (F6). PLUS any other test noted that derives a fixture from `Path(__file__)` in the same shape, or an explicit "none encountered".
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: the written per-test statement quoted, covering all three tests in the class by name and saying which reading each holds and which remedy applies. The CONTROL test must be addressed explicitly, including why a silent skip is the wrong remedy for it.
+  - Required evidence: the written per-test statement quoted, covering all three tests in the class by name and saying which reading each holds and which remedy applies. It MUST record that `test_the_produced_bundle_is_clean` needs no change, with the evidence that it references no `self.repo` and already passes outside the home tree (F7); a statement that assigns it a remedy is wrong and does not satisfy this item. The CONTROL test must be addressed explicitly, including why a silent skip is the wrong remedy for it.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: the three tests pasted PASSING from two different checkout locations, one inside the home tree and one outside it, with the location stated for each run. PLUS the assertions quoted to show none was weakened: `assertTrue(findings)` (or its replacement) must still demand real findings, and any `skip` must carry an explicit reason naming its condition.
+  - Required evidence: the three tests pasted PASSING from two different checkout locations, one inside the home tree and one outside it, with the location stated for each run. PLUS the assertions quoted to show none was weakened: `assertTrue(findings)` (or its replacement) must still demand real findings, and any `skip` must carry an explicit reason naming its condition. PLUS the planted value quoted, shown to be a FIXED LITERAL and not derived from `Path.home()`, `$HOME`, or the checkout path; a `Path.home()`-derived plant does not satisfy this item because it would still depend on the machine's home layout.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: from the OUTSIDE-home run specifically, pasted evidence that the planted input yields findings AND the clean control yields none. Evidence from the home-tree run alone does NOT satisfy this item, since that is the location where the original tests already passed.
+  - Required evidence: from the OUTSIDE-home run specifically, the SINGLE test method quoted showing both halves in it, and its pasted pass: the planted input flagged by `home-path` at `fail` severity, and the clean control yielding none. Evidence from the home-tree run alone does NOT satisfy this item (that is where the originals already passed), and two separate passing test methods do NOT satisfy it either, since the whole point is that the pairing survives `-k` selection and random ordering (F8).
   - Observed evidence:
   - Result: pending
 
@@ -143,10 +173,16 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 EXECUTION CONTRACT. `OQ-01` is non-blocking and the maintainer's; execute with the SYNTHESIZE form and do
 not guess a relaxation. SCOPE FENCE: this plan declares `tests/test_run_analytics_spa.py` only; an
 out-of-scope edit must be made only if genuinely required and then JUSTIFIED to `aw ipd finalize` with a
-`--scope-reason` per path. THE ONE THING THIS PLAN MUST NOT DO, stated because it is the shortest path to
-green: do NOT weaken an assertion to tolerate zero findings. That would make both tests pass everywhere
-while deleting the only property they assert, and it is the same error as lowering a guard's threshold to
-silence it. A loud skip is acceptable; a vacuous pass is not. THE HARD-MUST HONESTY RULE: paste the ACTUAL
+`--scope-reason` per path. THE THREE THINGS THIS PLAN MUST NOT DO, each a short path to a green test that
+proves less than it claims. FIRST, do NOT weaken an assertion to tolerate zero findings. That would make
+both tests pass everywhere while deleting the only property they assert, and it is the same error as
+lowering a guard's threshold to silence it. A loud skip is acceptable; a vacuous pass is not. SECOND, do NOT
+derive the planted path from `Path.home()` or `$HOME`. It would pass on this machine and reintroduce the same
+class of coupling, since the `home-path` rule matches `/home/<name>` specifically and a machine whose home is
+elsewhere (a macOS `/Users/<name>` home, or a container with `HOME=/root`) would not match it. Plant a FIXED literal.
+THIRD, do NOT edit `test_the_produced_bundle_is_clean`: measurement shows it references no `self.repo` and
+already passes outside the home tree, so it is not part of this defect and it carries the shipped
+sanitizer-clean guarantee. THE HARD-MUST HONESTY RULE: paste the ACTUAL
 test output for every `V-*`, and for V-03 and V-04 paste it from BOTH checkout locations with the location
 named, since a single-location run cannot demonstrate the fix. Commit path-scoped
 (`git commit -m msg -- <paths>`); never `git add -A`; never push. Before every commit run
