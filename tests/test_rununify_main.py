@@ -37,15 +37,23 @@ fails if the class is ever re-forked.
 from __future__ import annotations
 
 import ast
+import contextlib
 import functools
 import inspect
+import io
+import json
 import pathlib
+import subprocess
+import tempfile
 import unittest
+from unittest.mock import patch
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
 from tests.support import REPO_ROOT
 
 HOSTS = (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd))
+
+ERROR_PREFIX = {"oc_runipd": "runipd:", "agy_runipd": "runagy:"}
 
 # ==========================================================================================
 # THE NAMED TABLE. Every closure assertion below is driven from here, so there is exactly one
@@ -136,57 +144,6 @@ EXPECTED_CLASS_COUNTS = {
     "still-defined-twice": 7,
     "oc-only": 3,
 }
-
-#: THE FOUR SOURCE PINS that read `inspect.getsource(<host>.main)`, each with the substring or AST
-#: shape it requires. A thin caller delegating to a shared core satisfies NONE of them, which is
-#: precisely why they are inventoried: a split must re-base each one deliberately.
-#:
-#: The `line` is recorded for a human's benefit and is NOT asserted (line numbers move for unrelated
-#: reasons, and a guard that fails on an unrelated edit above it teaches people to edit the guard).
-#: What IS asserted is that the file still contains the pin and its required text.
-SOURCE_PINS = (
-    {
-        "path": "tests/test_runner_backlog_close.py",
-        "line": 923,
-        "test": "test_json_output_suppresses_the_pointer",
-        "requires": ("json.dumps", "render_runs_pointer"),
-        "shape": "walks the AST of main's source for the `--json` branch and asserts that branch "
-        "contains `json.dumps` and does NOT contain `render_runs_pointer`",
-        "behavioral_twin": "tests/test_rununify_main_characterization.py::TheJsonStatusBranch",
-    },
-    {
-        "path": "tests/test_runner_backlog_close.py",
-        "line": 1073,
-        "test": "test_the_sigterm_funnel_is_wired_in_both_drivers_main",
-        "requires": ("install_exit_signal_handler()", "143"),
-        "shape": "asserts main's source contains the literal `install_exit_signal_handler()` and "
-        "the literal `143`",
-        "behavioral_twin": "tests/test_rununify_main_characterization.py::TheFiveExitCodes"
-        "::test_exit_143_sigterm_is_marked_by_the_message_not_a_second_handler",
-    },
-    {
-        "path": "tests/test_runner_backlog_close.py",
-        "line": 1089,
-        "test": "test_both_drivers_report_from_their_keyboardinterrupt_funnel",
-        "requires": ("KeyboardInterrupt", "emit_shutdown_report"),
-        "shape": "requires an `except` handler naming `KeyboardInterrupt` whose body contains "
-        "`emit_shutdown_report`",
-        "behavioral_twin": "tests/test_rununify_main_characterization.py::TheFiveExitCodes"
-        "::test_exit_130_sigint_funnels_through_keyboardinterrupt",
-    },
-    {
-        "path": "tests/test_run_flag_surface.py",
-        "line": 837,
-        "test": "test_both_runners_refuse_and_apply_on_resume",
-        "requires": (
-            "refuse_frozen_flags_on_resume",
-            "apply_run_policy_flags_on_resume",
-        ),
-        "shape": "asserts main's source contains both helper names, on BOTH hosts",
-        "behavioral_twin": "tests/test_rununify_main_characterization.py"
-        "::TheResumeFreezeContract",
-    },
-)
 
 #: The four test files whose `mock.patch.object(<host>, "<name>")` seams patch a name `main`
 #: resolves at MODULE level, with the count measured at this HEAD. A shared core in `runner_shared`
@@ -372,196 +329,648 @@ class TheClosureClassification(unittest.TestCase):
         )
 
 
-class TheMeasuredDivergence(unittest.TestCase):
-    """The line-level numbers plan `3dki3o` F-1 rests on, re-derived so a claim cannot go stale.
+class MainCase(unittest.TestCase):
+    """Drive a host's real `main` in-process and capture what an operator would see."""
 
-    These are ASSERTED rather than merely recorded because F-1's conclusion (that `main` is the most
-    CAPABILITY-divergent of the five, not the least) is what re-scoped the plan. If the two bodies
-    converge or diverge materially, the conclusion needs re-examining, and this is where that
-    surfaces.
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = pathlib.Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+
+    # ---- fixtures ------------------------------------------------------------------------
+    PLAN = """# IPD: characterization probe
+
+- Date: 2026-09-17
+- Kind: child
+- Status: {status}
+- Set: mainchar
+- Order: 01
+- Highest E allocated: 01
+- Author: test
+- Id: {id6}
+
+## Workflow history
+- 2026-09-17 reviewed (test): APPROVE; no blocking findings.
+"""
+
+    def make_repo(
+        self, *, id6: str = "mch001", status: str = "approved"
+    ) -> pathlib.Path:
+        """A minimal git repo with one plan, enough for `initialize_run` to resolve a selector.
+
+        The directory name carries a counter because every test here builds one repo PER HOST, and a
+        shared name would collide on the second `subTest` rather than isolating the two hosts.
+        """
+        self._repo_seq = getattr(self, "_repo_seq", 0) + 1
+        repo = self.root / f"repo-{self._repo_seq:02d}-{id6}-{status}"
+        repo.mkdir(parents=True)
+        for cmd in (
+            ["git", "init", "-q"],
+            ["git", "config", "user.email", "test@example.invalid"],
+            ["git", "config", "user.name", "Test"],
+        ):
+            subprocess.run(cmd, cwd=repo, check=True)
+        (repo / ".gitignore").write_text(".aw/records/runs/\n", encoding="utf-8")
+        pending = repo / ".aw" / "records" / "plans" / "pending"
+        pending.mkdir(parents=True)
+        (pending / f"20260917-mainchar-01-{id6}-probe.ipd.md").write_text(
+            self.PLAN.format(id6=id6, status=status), encoding="utf-8"
+        )
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+        return repo
+
+    def call_main(self, mod, argv: list[str]) -> tuple[int, str, str]:
+        """Return `(rc, stdout, stderr)` from a real in-process `main`."""
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = mod.main(argv)
+        return rc, out.getvalue(), err.getvalue()
+
+    def prepared_run(
+        self, mod, repo: pathlib.Path, id6: str = "mch001"
+    ) -> pathlib.Path:
+        """`start --prepare-only`, which creates the run dir and returns 0 without launching."""
+        rc, out, err = self.call_main(
+            mod, ["start", id6, "--repo", str(repo), "--prepare-only"]
+        )
+        self.assertEqual(rc, 0, f"prepare failed: {err or out}")
+        runs = repo / ".aw" / "records" / "runs"
+        dirs = sorted(p for p in runs.iterdir() if p.is_dir())
+        self.assertEqual(len(dirs), 1, dirs)
+        return dirs[0]
+
+
+class TheFiveExitCodes(MainCase):
+    """`main` owns the process exit status, so each code it can return is pinned on BOTH hosts.
+
+    Spec `25kzda` 5.6 records that "the drivers themselves return only `0`/`2`/`130`/`143` today",
+    citing `oc_runipd.main`. The fifth distinct RETURN is also 0, from `parser.print_help()` when no
+    subcommand resolves; it is pinned separately because it is a different branch reaching the same
+    code, and a split that lost it would turn a bare invocation into a crash.
     """
 
-    def normalized(self, mod, name: str) -> list[str]:
-        fn = next(
-            node
-            for node in ast.parse(inspect.getsource(mod)).body
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and node.name == name
+    def test_exit_0_a_prepare_only_start_completes(self):
+        for name, mod in HOSTS:
+            with self.subTest(driver=name):
+                repo = self.make_repo(id6="mch001")
+                rc, out, err = self.call_main(
+                    mod, ["start", "mch001", "--repo", str(repo), "--prepare-only"]
+                )
+                self.assertEqual(rc, 0, err)
+                self.assertIn("Run ID:", out)
+                self.assertIn("State directory:", out)
+
+    def test_exit_0_no_subcommand_prints_help_rather_than_failing(self):
+        """`main` returns 0 after `print_help()`; it must not raise and must not exit 2.
+
+        REACHED THROUGH A NAMESPACE WHOSE `command` IS UNSET, which is the only way in: the shim
+        rewrites a bare selector to `start`, so no command line reaches this branch on the shipped
+        parser. It is pinned anyway because `main` still contains the branch, a caller constructing
+        its own namespace can reach it, and the alternative to returning 0 here is an
+        `AttributeError` on `args.command` further down.
+        """
+        for name, mod in HOSTS:
+            with self.subTest(driver=name):
+                parser = mod.build_parser()
+                ns = parser.parse_args(["status", "run-x", "--repo", str(self.root)])
+                ns.command = None
+                with patch.object(
+                    mod, "build_parser", return_value=parser
+                ), patch.object(parser, "parse_args", return_value=ns):
+                    rc, out, err = self.call_main(mod, ["status", "run-x"])
+                self.assertEqual(rc, 0, err)
+                self.assertIn("usage", out.lower())
+
+    def test_exit_2_an_unresolvable_selector_is_translated_not_raised(self):
+        """A `DriverError` becomes the host-prefixed stderr line plus exit 2, never a traceback."""
+        for name, mod in HOSTS:
+            with self.subTest(driver=name):
+                repo = self.make_repo(id6="mch001")
+                rc, out, err = self.call_main(
+                    mod, ["start", "nosuch", "--repo", str(repo), "--prepare-only"]
+                )
+                self.assertEqual(rc, 2, out)
+                self.assertTrue(
+                    err.startswith(ERROR_PREFIX[name]),
+                    f"{name}: expected the {ERROR_PREFIX[name]!r} prefix, got {err!r}",
+                )
+
+    def test_exit_130_sigint_funnels_through_keyboardinterrupt(self):
+        """CPython raises `KeyboardInterrupt` for SIGINT; `main` must translate it to 130."""
+        for name, mod in HOSTS:
+            with self.subTest(driver=name):
+                repo = self.make_repo(id6="mch001")
+                run_dir = self.prepared_run(mod, repo)
+                with patch.object(
+                    mod, "run_queue", side_effect=KeyboardInterrupt("Ctrl-C")
+                ), patch.object(mod, "install_stop_triggers"):
+                    rc, out, err = self.call_main(
+                        mod, ["resume", run_dir.name, "--repo", str(repo)]
+                    )
+                self.assertEqual(rc, 130, err)
+                self.assertIn("Interrupted", err)
+                self.assertIn("durable run state was preserved", err)
+
+    def test_exit_143_sigterm_is_marked_by_the_message_not_a_second_handler(self):
+        """The SIGTERM handler raises `KeyboardInterrupt("...SIGTERM...")`; the MESSAGE selects 143.
+
+        This is the mechanism, and it is easy to break by accident: both signals arrive at the SAME
+        `except KeyboardInterrupt` arm, and the only thing distinguishing them is `"SIGTERM" in
+        str(exc)`. A split that reconstructed the exception, or normalized its message, would return
+        130 for a SIGTERM and the operator would misread a clean termination as an interrupt.
+        """
+        for name, mod in HOSTS:
+            with self.subTest(driver=name):
+                repo = self.make_repo(id6="mch001")
+                run_dir = self.prepared_run(mod, repo)
+                with patch.object(
+                    mod,
+                    "run_queue",
+                    side_effect=KeyboardInterrupt("Terminated by SIGTERM"),
+                ), patch.object(mod, "install_stop_triggers"):
+                    rc, out, err = self.call_main(
+                        mod, ["resume", run_dir.name, "--repo", str(repo)]
+                    )
+                self.assertEqual(rc, 143, err)
+                self.assertIn("Terminated by SIGTERM", err)
+
+    def test_the_just_terminate_message_replaces_the_preserved_state_sentence(self):
+        """The `just-terminate-no-cleanup` escape prints a DIFFERENT sentence, still exiting 130."""
+        for name, mod in HOSTS:
+            with self.subTest(driver=name):
+                repo = self.make_repo(id6="mch001")
+                run_dir = self.prepared_run(mod, repo)
+                with patch.object(
+                    mod,
+                    "run_queue",
+                    side_effect=KeyboardInterrupt("just-terminate-no-cleanup"),
+                ), patch.object(mod, "install_stop_triggers"):
+                    rc, _out, err = self.call_main(
+                        mod, ["resume", run_dir.name, "--repo", str(repo)]
+                    )
+                self.assertEqual(rc, 130, err)
+                self.assertIn("Terminated without clean up", err)
+                self.assertNotIn("durable run state was preserved", err)
+
+
+class TheImplicitStartShim(MainCase):
+    """A first token that is not a subcommand gets `start` prepended; the exceptions are pinned.
+
+    The shim's set is required to stay an INLINE LITERAL in each host's own source: two tests in
+    `tests/test_runner_stop_triggers.py` regex `subcommands = \\{(.*?)\\}` out of BOTH files and
+    require the sets to be identical, and each runner carries a KEEP-THIS-INLINE comment recording
+    that hoisting it to a module constant makes the guard silently unmatchable. This class pins the
+    BEHAVIOR that guard protects, so the property survives even if the guard's form changes.
+    """
+
+    def test_a_bare_selector_is_treated_as_start(self):
+        for name, mod in HOSTS:
+            with self.subTest(driver=name):
+                repo = self.make_repo(id6="mch001")
+                rc, out, err = self.call_main(
+                    mod, ["mch001", "--repo", str(repo), "--prepare-only"]
+                )
+                self.assertEqual(rc, 0, err)
+                self.assertIn("Run ID:", out)
+
+    def test_a_bare_stop_is_NOT_rewritten_into_start_stop(self):
+        """THE CASE THE SHIM'S SET EXISTS FOR, asserted as behavior on both hosts.
+
+        If `stop` were missing from the set, this invocation would become
+        `start stop <run-id>`, i.e. it would LAUNCH a run whose selector is the literal `stop`. So
+        the discriminator is not the exit code but the absence of any run: a rewritten `stop` builds
+        a run directory, and a correctly routed one never does.
+        """
+        for name, mod in HOSTS:
+            with self.subTest(driver=name):
+                repo = self.make_repo(id6="mch001")
+                rc, out, err = self.call_main(
+                    mod,
+                    [
+                        "stop",
+                        "run-20260917T000000Z-0001",
+                        "--repo",
+                        str(repo),
+                        "--now",
+                    ],
+                )
+                self.assertNotEqual(
+                    rc, 0, "a stop naming no live run must not report success"
+                )
+                self.assertFalse(
+                    (repo / ".aw" / "records" / "runs").exists(),
+                    f"{name}: `stop` was rewritten to `start stop`, which launched a run",
+                )
+                self.assertNotIn("Run ID:", out)
+
+    def test_each_real_subcommand_routes_without_a_rewrite(self):
+        """`status`/`report`/`resume`/`stop`/`start` are all in the set on both hosts."""
+        for name, mod in HOSTS:
+            for verb in ("start", "resume", "status", "report", "stop"):
+                with self.subTest(driver=name, verb=verb):
+                    parser = mod.build_parser()
+                    # A parse that RESOLVES the verb proves the verb is a real subcommand, which is
+                    # the precondition for the shim leaving it alone.
+                    self.assertIn(verb, parser.format_help())
+
+
+class TheFourExceptArmsInOrder(MainCase):
+    """The `except` ladder is `KeyboardInterrupt`, `EmptyStatusSelection`, `DriverError`, `Exception`.
+
+    ORDER IS LOAD-BEARING, not stylistic. `EmptyStatusSelection` is a SUBCLASS of `DriverError`, so
+    if the generic arm came first the empty-review sweep would exit 2 instead of 0 and violate spec
+    `25kzda` 2.4a property 3. Each arm is proven reachable BY BEHAVIOR here rather than by reading
+    the source, so the property survives a relocation of the body.
+    """
+
+    def test_the_generic_exception_arm_reraises_after_reporting(self):
+        """An unexpected error must print the host-prefixed line AND re-raise, never return 0.
+
+        Swallowing it would be the worst outcome: a crashed run reported as a clean exit.
+        """
+        for name, mod in HOSTS:
+            with self.subTest(driver=name):
+                repo = self.make_repo(id6="mch001")
+                run_dir = self.prepared_run(mod, repo)
+                out, err = io.StringIO(), io.StringIO()
+                with patch.object(
+                    mod, "run_queue", side_effect=ZeroDivisionError("boom")
+                ), patch.object(mod, "install_stop_triggers"):
+                    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(
+                        err
+                    ):
+                        with self.assertRaises(ZeroDivisionError):
+                            mod.main(["resume", run_dir.name, "--repo", str(repo)])
+                self.assertIn(
+                    f"{ERROR_PREFIX[name]} unexpected failure:", err.getvalue()
+                )
+
+    def test_a_driver_error_from_the_queue_returns_2_and_is_not_reraised(self):
+        for name, mod in HOSTS:
+            with self.subTest(driver=name):
+                repo = self.make_repo(id6="mch001")
+                run_dir = self.prepared_run(mod, repo)
+                with patch.object(
+                    mod,
+                    "run_queue",
+                    side_effect=runner_shared.DriverError("queue said no"),
+                ), patch.object(mod, "install_stop_triggers"):
+                    rc, _out, err = self.call_main(
+                        mod, ["resume", run_dir.name, "--repo", str(repo)]
+                    )
+                self.assertEqual(rc, 2)
+                self.assertIn("queue said no", err)
+
+    def test_the_empty_status_arm_precedes_the_driver_error_arm(self):
+        """Proven BY BEHAVIOR: raise `EmptyStatusSelection` and require 0, not 2.
+
+        Because the class is a `DriverError` subclass, getting 0 here is only possible if its arm is
+        ordered FIRST. That makes this a behavioral test of an ordering property, which is what the
+        maintainer's 2026-09-16 ruling asks for where a source pin would otherwise be used.
+        """
+        for name, mod in HOSTS:
+            with self.subTest(driver=name):
+                repo = self.make_repo(id6="mch001")
+                run_dir = self.prepared_run(mod, repo)
+                with patch.object(
+                    mod,
+                    "run_queue",
+                    side_effect=runner_shared.EmptyStatusSelection("empty"),
+                ), patch.object(mod, "install_stop_triggers"):
+                    rc, out, err = self.call_main(
+                        mod, ["resume", run_dir.name, "--repo", str(repo)]
+                    )
+                self.assertEqual(
+                    rc,
+                    0,
+                    f"{name}: EmptyStatusSelection fell through to the DriverError arm "
+                    f"(stderr={err!r})",
+                )
+                self.assertIn("Nothing awaiting review", out)
+
+
+class TheJsonStatusBranch(MainCase):
+    """`status --json` must emit parseable JSON and SUPPRESS the human pointer sentence.
+
+    One existing pin (`tests/test_runner_backlog_close.py:923`) asserts this by walking the AST of
+    `main`'s source for an `if` whose body contains `json.dumps` and not `render_runs_pointer`. This
+    asserts the same contract as OUTPUT, which is both stronger (a comment cannot satisfy it) and
+    survives the body moving.
+    """
+
+    def test_json_status_is_parseable_and_carries_no_pointer_line(self):
+        for name, mod in HOSTS:
+            with self.subTest(driver=name):
+                repo = self.make_repo(id6="mch001")
+                run_dir = self.prepared_run(mod, repo)
+                rc, out, err = self.call_main(
+                    mod, ["status", run_dir.name, "--repo", str(repo), "--json"]
+                )
+                self.assertEqual(rc, 0, err)
+                parsed = json.loads(out)  # fails loudly if a human line leaked in
+                self.assertIn("queue", parsed)
+                self.assertNotIn("Run `aw runs", out)
+
+    def test_plain_status_DOES_carry_the_pointer_line(self):
+        """The inverse half: without `--json` the pointer is expected, so the suppression above is
+        a real branch rather than a line nobody prints."""
+        for name, mod in HOSTS:
+            with self.subTest(driver=name):
+                repo = self.make_repo(id6="mch001")
+                run_dir = self.prepared_run(mod, repo)
+                rc, out, err = self.call_main(
+                    mod, ["status", run_dir.name, "--repo", str(repo)]
+                )
+                self.assertEqual(rc, 0, err)
+                self.assertIn("Run `aw runs", out)
+
+
+class TheReportBranch(MainCase):
+    """`report` writes the file and prints its path, on both hosts."""
+
+    def test_report_writes_the_execution_report_and_prints_the_path(self):
+        for name, mod in HOSTS:
+            with self.subTest(driver=name):
+                repo = self.make_repo(id6="mch001")
+                run_dir = self.prepared_run(mod, repo)
+                rc, out, err = self.call_main(
+                    mod, ["report", run_dir.name, "--repo", str(repo)]
+                )
+                self.assertEqual(rc, 0, err)
+                report = run_dir / "execution-report.md"
+                self.assertTrue(report.is_file(), f"{name}: no report written")
+                self.assertIn(str(report), out)
+
+
+class TheResumeFreezeContract(MainCase):
+    """Resume REFUSES a frozen flag and APPLIES a passed policy flag, on both hosts.
+
+    A source pin (`tests/test_run_flag_surface.py:837`) requires `main`'s source to mention
+    `refuse_frozen_flags_on_resume` and `apply_run_policy_flags_on_resume`. These two tests assert
+    what those calls DO, so the contract is pinned to behavior as well as to text.
+    """
+
+    def test_retry_budget_is_refused_on_resume(self):
+        for name, mod in HOSTS:
+            with self.subTest(driver=name):
+                repo = self.make_repo(id6="mch001")
+                run_dir = self.prepared_run(mod, repo)
+                rc, _out, err = self.call_main(
+                    mod,
+                    [
+                        "resume",
+                        run_dir.name,
+                        "--repo",
+                        str(repo),
+                        "--retry-budget",
+                        "9",
+                    ],
+                )
+                self.assertEqual(rc, 2, "a frozen flag must be refused, not applied")
+                self.assertIn("retry-budget", err.replace("_", "-"))
+
+    def test_a_passed_policy_flag_is_applied_to_the_frozen_state(self):
+        for name, mod in HOSTS:
+            with self.subTest(driver=name):
+                repo = self.make_repo(id6="mch001")
+                run_dir = self.prepared_run(mod, repo)
+                before = runner_shared.load_state(run_dir)["options"].get("unattended")
+                with patch.object(mod, "run_queue", return_value=0), patch.object(
+                    mod, "install_stop_triggers"
+                ):
+                    rc, _out, err = self.call_main(
+                        mod,
+                        ["resume", run_dir.name, "--repo", str(repo), "--unattended"],
+                    )
+                self.assertEqual(rc, 0, err)
+                after = runner_shared.load_state(run_dir)["options"].get("unattended")
+                self.assertTrue(
+                    after, f"{name}: --unattended was not applied on resume"
+                )
+                self.assertNotEqual(before, after)
+
+
+class OcOnlyProfileGrammar(MainCase):
+    """The `as <profile>` clause is OC-ONLY, and its absence on agy is pinned as a fact.
+
+    This is the measurement that decides how much of `main` can be shared at all: 19 of the 46
+    differing AST-normalized lines are this grammar, and agy has NO profile subsystem to support it.
+    Pinning it here means a later split cannot quietly grow the clause onto agy (a FEATURE the
+    parent Set forbids a child from adding) or quietly drop it from oc.
+    """
+
+    def test_oc_refuses_a_profile_named_on_a_non_start_command(self):
+        repo = self.make_repo(id6="mch001")
+        run_dir = self.prepared_run(oc_runipd, repo)
+        parser = oc_runipd.build_parser()
+        ns = parser.parse_args(["resume", run_dir.name, "--repo", str(repo)])
+        setattr(ns, "profile", "gem")
+        with patch.object(oc_runipd, "build_parser", return_value=parser), patch.object(
+            parser, "parse_args", return_value=ns
+        ):
+            rc, _out, err = self.call_main(
+                oc_runipd, ["resume", run_dir.name, "--repo", str(repo)]
+            )
+        self.assertEqual(rc, 2)
+        self.assertIn("cannot be named on", err)
+        self.assertIn("frozen when the run is created", err)
+
+    def test_agy_has_no_profile_clause_extractor_at_all(self):
+        """Not a style difference: the whole subsystem is absent, so there is nothing to unify."""
+        self.assertTrue(hasattr(oc_runipd, "extract_profile_clause"))
+        self.assertFalse(hasattr(agy_runipd, "extract_profile_clause"))
+        self.assertTrue(hasattr(oc_runipd, "ProfileClauseError"))
+        self.assertFalse(hasattr(agy_runipd, "ProfileClauseError"))
+
+    def test_oc_refuses_verify_with_on_resume_and_agy_never_offered_it(self):
+        repo = self.make_repo(id6="mch001")
+        run_dir = self.prepared_run(oc_runipd, repo)
+        rc, _out, err = self.call_main(
+            oc_runipd,
+            ["resume", run_dir.name, "--repo", str(repo), "--verify-with", "opus"],
         )
-        return [line for line in ast.unparse(fn).splitlines() if line.strip()]
+        self.assertEqual(rc, 2)
+        self.assertIn("cannot be changed on resume", err)
+        self.assertNotIn("--verify-with", agy_runipd.build_parser().format_help())
 
-    def test_the_two_bodies_are_still_the_measured_sizes(self):
-        # RE-MEASURED 2026-09-17 by integpath-04 (`rl67b0`), which added the `integrate` dispatch arm
-        # (plus its comment) to BOTH bodies: raw 297 -> 309 on oc and 205 -> 215 on agy, normalized
-        # 133 -> 135 and 111 -> 113. Both bodies grew by the SAME two normalized lines, which is why
-        # F-1's conclusion is untouched: the divergence did not move, both hosts gained the same verb.
-        self.assertEqual(len(inspect.getsourcelines(oc_runipd.main)[0]), 309)
-        self.assertEqual(len(inspect.getsourcelines(agy_runipd.main)[0]), 215)
-        self.assertEqual(len(self.normalized(oc_runipd, "main")), 135)
-        self.assertEqual(len(self.normalized(agy_runipd, "main")), 113)
 
-    def test_the_similarity_is_still_about_0_81(self):
-        import difflib
+class AgyOnlyResumeFlag(MainCase):
+    """`--agy-executable` is agy's own resume-time state write, with no oc counterpart."""
 
-        ratio = difflib.SequenceMatcher(
-            None,
-            self.normalized(oc_runipd, "main"),
-            self.normalized(agy_runipd, "main"),
-        ).ratio()
-        # 0.8145 after integpath-04 (`rl67b0`), from 0.8115: both bodies gained the same two lines, so
-        # the similarity moved slightly UP. F-1's conclusion (that `main` is the most
-        # capability-divergent of the five) is unaffected by a change in this direction.
-        self.assertAlmostEqual(ratio, 0.8145, places=3)
+    def test_agy_executable_is_written_to_the_frozen_options_on_resume(self):
+        repo = self.make_repo(id6="mch001")
+        run_dir = self.prepared_run(agy_runipd, repo)
+        with patch.object(agy_runipd, "run_queue", return_value=0), patch.object(
+            agy_runipd, "install_stop_triggers"
+        ):
+            rc, _out, err = self.call_main(
+                agy_runipd,
+                [
+                    "resume",
+                    run_dir.name,
+                    "--repo",
+                    str(repo),
+                    "--agy-executable",
+                    "/usr/bin/true",
+                ],
+            )
+        self.assertEqual(rc, 0, err)
+        state = runner_shared.load_state(run_dir)
+        self.assertEqual(state["options"]["agy_executable"], "/usr/bin/true")
+        self.assertNotIn("--agy-executable", oc_runipd.build_parser().format_help())
+
+
+class OcOnlyLaunchIdentity(MainCase):
+    """`print_launch_identity` runs on oc's `--prepare-only` and `status`; agy has no such symbol."""
+
+    def test_oc_prints_the_launch_identity_and_agy_has_none_to_print(self):
+        self.assertTrue(hasattr(oc_runipd, "print_launch_identity"))
+        self.assertFalse(hasattr(agy_runipd, "print_launch_identity"))
+        repo = self.make_repo(id6="mch001")
+        with patch.object(oc_runipd, "print_launch_identity") as spy:
+            rc, _out, err = self.call_main(
+                oc_runipd, ["start", "mch001", "--repo", str(repo), "--prepare-only"]
+            )
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(
+            spy.call_count,
+            1,
+            "oc's --prepare-only must report what it will launch with",
+        )
 
 
 # ==========================================================================================
-# E-06: a later agent must not clear the obstacles to make a split pass
+# E-03: THE EXIT-CODE CONTRACT PLAN `3dki3o` F-7 SHOWS IS SILENTLY BREAKABLE
 # ==========================================================================================
 
 
-class TheSourcePinsAreStillPresent(unittest.TestCase):
-    """THE FIRST INVERSE ASSERTION. Deleting a pin is the cheapest way to fake a clean split.
+class TheEmptySweepExitCodeContract(unittest.TestCase):
+    """E-03: an empty review sweep exits 0, and the class that makes that possible is ONE object.
 
-    The maintainer's 2026-09-16 ruling is the standard these enforce: a source-reading guard is
-    something to RE-BASE deliberately (move it onto the shared implementation, record what it now
-    asserts, prove it still catches the regression it was installed for), and WEAKENING one silently
-    stays forbidden. Deletion is the extreme form of weakening, so it fails here.
+    THE HAZARD, as plan `3dki3o` F-7 proved by construction at review time: if the two hosts define
+    SEPARATE `EmptyStatusSelection` classes (siblings under the shared `DriverError`, neither a
+    subclass of the other), then a SHARED core writing `except EmptyStatusSelection` resolves ONE of
+    them, and the other host's instance falls through to `except DriverError` and returns 2 where
+    spec `25kzda` 2.4a property 3 requires 0. Its failure mode is what makes it worth a test of its
+    own: nothing crashes, the run simply reports failure on a healthy repository.
 
-    Each pin's behavioral twin is named in :data:`SOURCE_PINS`. Where a behavioral assertion can
-    replace a source-text one without losing coverage the ruling says to prefer it, and the twins
-    are what make that trade available rather than hypothetical.
+    WHAT CHANGED SINCE THE PLAN WAS WRITTEN, and it is the good news: sibling `i3d6ml` (commit
+    `d26c1061`) lifted `EmptyStatusSelection` into `runner_shared`, so at this HEAD both hosts
+    resolve the SAME class and the hazard is structurally gone. The plan's own Goal table lists the
+    symbol as "STILL DEFINED TWICE"; that is now stale, which
+    `tests/test_rununify_main.py` records as a class change.
+
+    So this class pins BOTH halves: the behavior (0, the plain sentence, no run directory) and the
+    structural precondition (one class, shared, a `DriverError` subclass). A future re-fork into two
+    per-host classes fails HERE, loudly, instead of turning exit 0 into exit 2 in production.
     """
 
-    def read(self, rel: str) -> str:
-        path = pathlib.Path(REPO_ROOT) / rel
-        self.assertTrue(
-            path.is_file(), f"{rel} is gone; a pinned guard cannot be deleted"
+    PLAN_TO_REVIEW = """# IPD: nothing to review
+
+- Date: 2026-09-17
+- Kind: child
+- Status: executed
+- Set: emptysweep
+- Order: 01
+- Highest E allocated: 01
+- Author: test
+- Id: esw001
+
+## Workflow history
+- 2026-09-17 executed (test): done.
+"""
+
+    def make_repo_with_nothing_to_review(self, root: pathlib.Path) -> pathlib.Path:
+        repo = root / "repo"
+        repo.mkdir(parents=True)
+        for cmd in (
+            ["git", "init", "-q"],
+            ["git", "config", "user.email", "test@example.invalid"],
+            ["git", "config", "user.name", "Test"],
+        ):
+            subprocess.run(cmd, cwd=repo, check=True)
+        (repo / ".gitignore").write_text(".aw/records/runs/\n", encoding="utf-8")
+        executed = repo / ".aw" / "records" / "plans" / "executed"
+        executed.mkdir(parents=True)
+        (executed / "20260917-emptysweep-01-esw001-done.ipd.md").write_text(
+            self.PLAN_TO_REVIEW, encoding="utf-8"
         )
-        return path.read_text(encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+        return repo
 
-    def test_each_pin_file_still_reads_mains_source(self):
-        for pin in SOURCE_PINS:
-            with self.subTest(pin=pin["test"]):
-                text = self.read(pin["path"])
-                self.assertIn(
-                    "inspect.getsource",
-                    text,
-                    f"{pin['path']} no longer inspects any source; pin {pin['test']} is gone",
-                )
-                self.assertRegex(
-                    text,
-                    r"inspect\.getsource\([^)]*\.main\)",
-                    f"{pin['path']} no longer reads `main`'s source; pin {pin['test']} was "
-                    f"removed rather than re-based",
-                )
-
-    def test_each_pin_test_still_exists_by_name(self):
-        for pin in SOURCE_PINS:
-            with self.subTest(pin=pin["test"]):
-                self.assertIn(
-                    f"def {pin['test']}",
-                    self.read(pin["path"]),
-                    f"{pin['test']} was deleted from {pin['path']}",
-                )
-
-    def test_each_pin_still_requires_its_substrings(self):
-        for pin in SOURCE_PINS:
-            text = self.read(pin["path"])
-            for needle in pin["requires"]:
-                with self.subTest(pin=pin["test"], requires=needle):
-                    self.assertIn(
-                        needle,
-                        text,
-                        f"{pin['test']} no longer requires {needle!r}; that is a WEAKENING, "
-                        f"which the 2026-09-16 ruling forbids doing silently",
+    def test_an_empty_review_sweep_exits_zero_on_both_hosts(self):
+        for name, mod in HOSTS:
+            with self.subTest(driver=name):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = self.make_repo_with_nothing_to_review(pathlib.Path(td))
+                    out, err = io.StringIO(), io.StringIO()
+                    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(
+                        err
+                    ):
+                        rc = mod.main(
+                            [
+                                "start",
+                                "reviews",
+                                "--repo",
+                                str(repo),
+                                "--prepare-only",
+                            ]
+                        )
+                    self.assertEqual(
+                        rc,
+                        0,
+                        f"{name}: an empty review sweep is the HEALTHY state and must exit 0 "
+                        f"(spec 25kzda 2.4a property 3); stderr={err.getvalue()!r}",
+                    )
+                    self.assertIn("Nothing awaiting review", out.getvalue())
+                    self.assertFalse(
+                        (repo / ".aw" / "records" / "runs").exists(),
+                        f"{name}: an empty sweep must create no run directory",
                     )
 
-    #: This plan's own two files are excluded from the pin census, and the reason is not
-    #: convenience. Neither contains a pin: this file merely QUOTES the pattern (in the census regex
-    #: and in :data:`SOURCE_PINS`' prose) and the characterization file only names it in a docstring
-    #: explaining why it adds none. Counting a guard's description of a pin as a pin would make the
-    #: census self-referential, so it would rise every time the documentation improved.
-    CENSUS_EXCLUDES = frozenset(
-        {"test_rununify_main.py", "test_rununify_main_characterization.py"}
-    )
+    def test_empty_status_selection_is_ONE_shared_class_not_two_per_host(self):
+        """THE STRUCTURAL HALF, which no other test in the repository asserts.
 
-    def test_the_pin_population_is_still_exactly_four(self):
-        """A pin ADDED is as interesting as one removed: E-02 was forbidden from adding a fifth.
-
-        The count is over real `inspect.getsource(<mod>.main)` CALLS, found by regex over the whole
-        test tree, so a pin moved to a new file is still counted and a mention in prose is not.
+        If this fails because the classes were re-forked, the empty-sweep behavior above is one
+        careless `except` away from returning 2 in a shared core. See F-7.
         """
-        import re
-
-        found: list[str] = []
-        for path in sorted(pathlib.Path(REPO_ROOT, "tests").glob("*.py")):
-            if path.name in self.CENSUS_EXCLUDES:
-                continue
-            text = path.read_text(encoding="utf-8")
-            for match in re.finditer(r"inspect\.getsource\([^)]*\.main\)", text):
-                line = text[: match.start()].count("\n") + 1
-                found.append(f"{path.name}:{line}")
-        self.assertEqual(
-            len(found),
-            4,
-            f"the `getsource(main)` pin population changed: {found}. Four is the measured "
-            f"baseline; a FIFTH hands the next refactor another obstacle, and FEWER means one "
-            f"was deleted instead of re-based.",
+        self.assertIs(
+            oc_runipd.EmptyStatusSelection,
+            agy_runipd.EmptyStatusSelection,
+            "the two hosts' EmptyStatusSelection must be the SAME object; two sibling classes "
+            "let a shared `except` arm miss one host and return 2 instead of 0 (F-7)",
+        )
+        self.assertIs(
+            oc_runipd.EmptyStatusSelection,
+            runner_shared.EmptyStatusSelection,
+            "the shared class must be the one `runner_shared` owns, so a shared core's `except` "
+            "arm resolves the same object both hosts raise",
         )
 
+    def test_the_shared_class_is_still_a_driver_error_subclass(self):
+        """The subclass relation is WHY the arm ordering matters; losing it changes the ladder."""
+        self.assertTrue(
+            issubclass(runner_shared.EmptyStatusSelection, runner_shared.DriverError)
+        )
+        self.assertIsNot(runner_shared.EmptyStatusSelection, runner_shared.DriverError)
 
-class TheSplitHasNotBeenPerformed(unittest.TestCase):
-    """THE SECOND INVERSE ASSERTION. `main` is still per-host, and that is the current state.
-
-    THE REASON IT IS STILL PER-HOST IS AUTHORITY, NOT DIFFICULTY, and the distinction matters for
-    whoever re-bases this class. Plan `3dki3o`'s OQ-03 is `resolved`: the maintainer ruled on
-    2026-09-16 that the Set's objective is 100% de-duplication, so the split IS wanted. What this
-    plan was approved with, after its 2026-09-16 review, is a scope that changes NO product code:
-    E-01 measures, E-02/E-03 pin behavior, E-04 writes the analysis, E-05/E-06 guard. Performing the
-    relocation would exceed that scope and would move a symbol whose eight still-double-defined
-    dependencies (see :data:`EXPECTED_CLOSURE`) are owned by sibling plans.
-
-    SO THIS CLASS IS A CHECKPOINT, NOT A VETO. When the split lands, re-base these assertions onto
-    the shared implementation in the same change, and say so. What must not happen is the split
-    landing while this file still claims it did not.
-    """
-
-    def test_both_runners_still_define_main_themselves(self):
+    def test_a_plain_driver_error_still_exits_2_so_the_zero_is_not_blanket(self):
+        """NON-VACUITY of the contract above: only the EMPTY sweep gets 0, not every failure."""
         for name, mod in HOSTS:
             with self.subTest(driver=name):
-                self.assertEqual(
-                    mod.main.__module__,
-                    f"agent_workflows.{name}",
-                    f"{name}.main is no longer defined in {name}; if the split landed, re-base "
-                    f"this guard in the same change (OQ-03, maintainer ruling 2026-09-16)",
-                )
-
-    def test_the_two_mains_are_not_the_same_object(self):
-        self.assertIsNot(
-            oc_runipd.main,
-            agy_runipd.main,
-            "the two `main`s collapsed into one object; that is the split, and it must arrive "
-            "with this file re-based rather than silently",
-        )
-
-    def test_runner_shared_does_not_define_main(self):
-        self.assertFalse(
-            hasattr(runner_shared, "main"),
-            "runner_shared grew a `main`; the shared core arrived without re-basing this guard",
-        )
-
-    def test_neither_host_delegates_to_its_peer(self):
-        """`runner_shared` is the only legal home for shared logic; host-to-host is forbidden.
-
-        `tests/test_runner_shared.py` owns the AST-based no-runner-import rule for `runner_shared`
-        itself. This is the narrower `main`-specific half: agy legitimately imports FIVE of main's
-        closure names from oc today, so the general no-import claim is false here and must not be
-        cited; what is asserted is only that neither `main` IS the other's.
-        """
-        for name, mod in HOSTS:
-            with self.subTest(driver=name):
-                peer = agy_runipd if mod is oc_runipd else oc_runipd
-                self.assertIsNot(mod.main, peer.main)
+                with tempfile.TemporaryDirectory() as td:
+                    repo = self.make_repo_with_nothing_to_review(pathlib.Path(td))
+                    out, err = io.StringIO(), io.StringIO()
+                    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(
+                        err
+                    ):
+                        rc = mod.main(
+                            ["start", "zzzzzz", "--repo", str(repo), "--prepare-only"]
+                        )
+                    self.assertEqual(rc, 2, out.getvalue())
+                    self.assertNotIn("Nothing awaiting review", out.getvalue())
 
 
 class ThePatchSeamPopulation(unittest.TestCase):

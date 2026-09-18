@@ -354,11 +354,19 @@ class TheGatesStillRefuseWhatTheyExistToRefuse(unittest.TestCase):
     def test_integration_is_not_earned_without_a_passing_suite(self):
         """The predicate that keeps unverified work out of main must refuse a failing suite."""
         earned = oc_runipd.integration_is_earned
-        signature = inspect.signature(earned)
-        self.assertIn(
-            "suite",
-            " ".join(signature.parameters),
-            "integration_is_earned must consider the suite result",
+        failing_suite = oc_runipd.SuiteCheckResult(
+            passing=False,
+            exit_code=1,
+            summary="1 failed",
+            reason="exit 1",
+            cwd="/",
+            timeout_seconds=60.0,
+            elapsed_seconds=1.0,
+        )
+        verdict = earned(validate=False, verify_disp=None, suite_result=failing_suite)
+        self.assertFalse(
+            verdict.earned,
+            "integration_is_earned must consider the suite result and refuse on failure",
         )
 
     def test_both_hosts_bind_the_same_integration_predicate_object(self):

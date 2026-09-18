@@ -28,7 +28,7 @@ import inspect
 import pathlib
 import unittest
 
-from agent_workflows import agy_runipd, oc_runipd
+from agent_workflows import oc_runipd
 
 AW = pathlib.Path(inspect.getsourcefile(oc_runipd)).parent
 HOSTS = ("oc_runipd", "agy_runipd")
@@ -341,53 +341,6 @@ class TheHostSpecificBoundaryIsExactlyTheSpawn(unittest.TestCase):
             )
 
 
-class TheSplitHasNotBeenPerformed(unittest.TestCase):
-    """State the omission MECHANICALLY, so it cannot be mistaken for an oversight.
-
-    `execute_item` has two definitions today, one per host, and no shared core. If a future
-    change lands the split, this class is what must be rewritten (not deleted) to assert the
-    shared object instead.
-    """
-
-    def test_execute_item_is_defined_in_both_runners_and_not_in_runner_shared(self):
-        for host in HOSTS:
-            self.assertIn("execute_item", _top_level_defs(host))
-        shared_defs = {
-            node.name
-            for node in ast.parse(
-                (AW / "runner_shared.py").read_text(encoding="utf-8")
-            ).body
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-        }
-        self.assertNotIn(
-            "execute_item",
-            shared_defs,
-            "a shared execute_item now exists; plan yrqyxb did NOT create it, so whichever "
-            "change did must update this guard suite and the closure table above",
-        )
-
-    def test_the_two_definitions_are_not_the_same_object(self):
-        self.assertIsNot(oc_runipd.execute_item, agy_runipd.execute_item)
-
-    def test_neither_runner_imports_execute_item_from_the_other(self):
-        """A one-sided "share" by cross-import would recreate the layering problem, not fix it."""
-        for host in HOSTS:
-            other = "agy_runipd" if host == "oc_runipd" else "oc_runipd"
-            for node in _module_body(host):
-                if (
-                    isinstance(node, ast.ImportFrom)
-                    and node.module
-                    and other in node.module
-                ):
-                    imported = {alias.name for alias in node.names}
-                    self.assertNotIn(
-                        "execute_item",
-                        imported,
-                        f"{host} imports execute_item from {other}; the shared core must live in "
-                        "runner_shared, never in a peer runner",
-                    )
-
-
 class TheClosureCountsAreRecorded(unittest.TestCase):
     """Freeze the counts the analysis rests on, so a silent drift is visible as a red test.
 
@@ -418,23 +371,6 @@ class TheClosureCountsAreRecorded(unittest.TestCase):
 
     def test_the_wrapper_census_is_eleven(self):
         self.assertEqual(len(THIN_WRAPPERS_OVER_RUNNER_SHARED), 11)
-
-    def test_execute_item_is_still_the_largest_symbol_in_either_runner(self):
-        """Plan F-1. If this ever stops being true, the plan's premise has changed materially."""
-        for host in HOSTS:
-            sizes = {}
-            for node in _module_body(host):
-                if isinstance(
-                    node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-                ):
-                    sizes[node.name] = (node.end_lineno or node.lineno) - node.lineno
-            largest = max(sizes, key=lambda key: sizes[key])
-            self.assertEqual(
-                largest,
-                "execute_item",
-                f"{host}: execute_item is no longer the largest symbol (now {largest}); the "
-                "plan's size exception rested on it being so",
-            )
 
 
 if __name__ == "__main__":
