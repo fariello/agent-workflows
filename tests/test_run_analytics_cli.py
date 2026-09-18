@@ -1061,5 +1061,64 @@ class FailureSemanticsTests(_RepoFixture):
             self.assertNotIn(forbidden, imported)
 
 
+class TheReportIsRenderedByTheSpaNotAStub(unittest.TestCase):
+    """`aw runs analyze` must publish the real document, not a placeholder.
+
+    REGRESSION GUARD for a gap between two plans that both reported done. Order 07 (`6eq3oq`) built
+    `run_analytics_spa.render_document` (1567 lines, shipped CSS/JS) and its goal was that opening the
+    HTML from disk "must provide useful charts, raw normalized data, quality context, and findings
+    without a server or network"; it then scoped the wiring out by name to Order 08 (`mm5p3v`). Order 08
+    registered the leaves and wrote a hardcoded four-line HTML string instead of calling the renderer,
+    so `render_document` had ZERO callers in the package and every published report was a 194-byte stub
+    reading "Machine-readable companion: analysis.json". Measured 2026-09-18 over 180 analyzed runs.
+
+    These assert the OUTCOME (a document with the panels and the corpus in it) rather than the call, so
+    they still hold if the wiring is refactored.
+    """
+
+    def test_the_renderer_is_reachable_from_this_module(self):
+        """The stub had zero callers; a grep-proof assertion is cheaper than reading the HTML."""
+        import inspect
+
+        source = inspect.getsource(analytics_cli._render_report_html)
+        self.assertIn("render_document", source)
+        self.assertIn("build_view_model", source)
+
+    def test_the_rendered_document_carries_the_panels_and_is_not_a_stub(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            html = analytics_cli._render_report_html(repo, generated_label="probe")
+            # The stub was 194 bytes. A real document is an order of magnitude larger, but assert on
+            # STRUCTURE rather than size so the test says what it means.
+            for panel in (
+                "overview",
+                "charts",
+                "findings",
+                "pricing",
+                "quality",
+                "refusals",
+            ):
+                with self.subTest(panel=panel):
+                    self.assertIn(f'id="{panel}"', html)
+            self.assertNotIn("Machine-readable companion: analysis.json", html)
+
+    def test_an_empty_corpus_still_renders_rather_than_refusing(self):
+        """A repo with no runs must produce a document that says so, not an exception."""
+        with tempfile.TemporaryDirectory() as tmp:
+            html = analytics_cli._render_report_html(Path(tmp), generated_label="empty")
+            self.assertIn("<!DOCTYPE html>", html)
+            self.assertIn('id="overview"', html)
+
+    def test_the_raw_table_is_not_truncated_to_the_terminal_page_size(self):
+        """`run_query`'s default limit is 20 rows; a report showing 20 of N is a silent truncation."""
+        import inspect
+
+        source = inspect.getsource(analytics_cli._render_report_html)
+        # The limit must be read from the grammar's own ceiling, not left at the default and not
+        # hardcoded to a number that can drift from `max_limit`.
+        self.assertIn("max_limit", source)
+        self.assertIn("limit=row_limit", source)
+
+
 if __name__ == "__main__":
     unittest.main()

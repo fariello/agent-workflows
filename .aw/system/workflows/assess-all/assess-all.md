@@ -52,7 +52,7 @@ Running all concerns is expensive (many deep passes). Before running anything:
    concerns rolled up: `- <date> /assess-all (<agent/model>): rolled up <concerns>; proposed
    N changes` (a single consolidated IPD carries a single Status and one history line, not
    per-concern sub-entries).
-5. **Write a rollup run record** under `workflow-artifacts/assess-all/<RUN_ID>/`:
+5. **Write a rollup run record** under `.aw/workflow-artifacts/assess-all/<RUN_ID>/`:
    the consolidated report, the resolved scope and cost, and links to any per-concern run
    records produced along the way.
 6. It does NOT change code and does NOT execute the plan (the assess contract). **Commit**

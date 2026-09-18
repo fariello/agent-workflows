@@ -13,6 +13,7 @@ Stdlib ``unittest`` (repository convention).
 
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
@@ -168,6 +169,127 @@ class ModelProfileTableTests(unittest.TestCase):
                 ],
                 benchmark_date="2026-08-21",
             )
+
+
+def _bare_run_scratch_refs(text: str) -> list[str]:
+    """Return every BARE `workflow-artifacts/` PATH reference in ``text``.
+
+    THE UNIT IS OCCURRENCES, NOT LINES (wfartifacts Order 03, finding F-8): some lines carry
+    two references, so a line-based sweep under-reports and reports itself complete while
+    references remain.
+
+    THREE SPELLINGS ARE DELIBERATELY NOT MATCHED, because none of them is a stale path:
+
+    1. `.aw/workflow-artifacts/` - the live, correct path (the negative lookbehind).
+    2. `/workflow-artifacts/` as the ANCHORED GITIGNORE PATTERN. Patterns in the
+       framework-owned `.aw/.gitignore` are `.aw/`-relative, so the pattern that ignores run
+       scratch is written `/workflow-artifacts/` and a body naming it is CORRECT. Any
+       slash-preceded form is therefore allowed, which subsumes case 1.
+    3. `workflow-artifacts-README.md`, the installer TEMPLATE FILENAME under
+       `.aw/system/workflows/templates/` (a hyphen, not a slash, follows), plus the bare
+       segment name in `assess/tools/scan_secrets.py`'s `SKIP_DIR_NAMES` (no trailing slash),
+       which must stay bare because that set is matched per path SEGMENT.
+    """
+
+    return re.findall(r"(?<![/\w-])workflow-artifacts/", text)
+
+
+class ShippedRunScratchPathTests(unittest.TestCase):
+    """wfartifacts Order 03: no shipped workflow body may name the RETIRED run-scratch path.
+
+    Order 07 (spec `20260817-2124-01`) moved run scratch from a repo-root `workflow-artifacts/`
+    to `.aw/workflow-artifacts/`, but the shipped bodies were never updated: 86 stale references
+    across 25 files, and two of them (`assess/assess.md`) actively asserted the retired path was
+    gitignored when nothing ignored it in a target repo. An agent that trusts such a sentence
+    writes local context (absolute home paths, session detail) into TRACKED working material,
+    which is the D92 leak this guard exists to prevent recurring.
+
+    This test is the regression pin: without it, the rewrite decays exactly as Order 07's did.
+    """
+
+    WORKFLOWS_DIR = REPO_ROOT / ".aw" / "system" / "workflows"
+
+    def _shipped_bodies(self):
+        for suffix in ("*.md", "*.py"):
+            for path in sorted(self.WORKFLOWS_DIR.rglob(suffix)):
+                # `__pycache__` holds compiled build output, not editable shipped bodies;
+                # counting it once inflated this surface from 25 files to 28 (finding F-7).
+                if "__pycache__" in path.parts:
+                    continue
+                yield path
+
+    def test_shipped_dir_exists(self):
+        self.assertTrue(self.WORKFLOWS_DIR.is_dir(), self.WORKFLOWS_DIR)
+
+    def test_no_bare_run_scratch_path_in_shipped_bodies(self):
+        offenders: list[str] = []
+        scanned = 0
+        for path in self._shipped_bodies():
+            scanned += 1
+            hits = _bare_run_scratch_refs(path.read_text(encoding="utf-8"))
+            if hits:
+                rel = path.relative_to(REPO_ROOT).as_posix()
+                offenders.append(f"{rel}: {len(hits)} bare reference(s)")
+        self.assertTrue(scanned, "no shipped bodies were scanned")
+        self.assertEqual(
+            offenders,
+            [],
+            "shipped workflow bodies name the RETIRED repo-root run-scratch path; "
+            "write `.aw/workflow-artifacts/` instead:\n" + "\n".join(offenders),
+        )
+
+    def test_no_doubled_aw_prefix_in_shipped_bodies(self):
+        # The mechanical hazard of the sweep itself (finding F-5): re-running a substitution
+        # over an already-rewritten file yields `.aw/.aw/workflow-artifacts/`.
+        for path in self._shipped_bodies():
+            text = path.read_text(encoding="utf-8")
+            self.assertNotIn(".aw/.aw/", text, path.relative_to(REPO_ROOT).as_posix())
+
+
+class ShippedRunScratchGuardFalsifiabilityTests(unittest.TestCase):
+    """The guard must FAIL on a reintroduced reference; one that cannot fail proves nothing."""
+
+    def test_detects_reintroduced_bare_reference(self):
+        self.assertEqual(
+            _bare_run_scratch_refs(
+                "Write the run record to `workflow-artifacts/assess-security/<RUN_ID>/`."
+            ),
+            ["workflow-artifacts/"],
+        )
+
+    def test_detects_two_references_on_one_line(self):
+        # The F-8 unit error: a line-based check would count this once and miss a rewrite.
+        self.assertEqual(
+            len(
+                _bare_run_scratch_refs(
+                    "Do NOT commit workflow-artifacts/ and never force-add workflow-artifacts/ either."
+                )
+            ),
+            2,
+        )
+
+    def test_allows_the_live_prefixed_path(self):
+        self.assertEqual(
+            _bare_run_scratch_refs("Run records live under `.aw/workflow-artifacts/`."),
+            [],
+        )
+
+    def test_allows_the_anchored_gitignore_pattern(self):
+        self.assertEqual(
+            _bare_run_scratch_refs(
+                "`.aw/.gitignore` carries the anchored pattern `/workflow-artifacts/`."
+            ),
+            [],
+        )
+
+    def test_allows_the_installer_template_filename(self):
+        self.assertEqual(
+            _bare_run_scratch_refs("`workflow-artifacts-README.md` is a template."), []
+        )
+
+    def test_allows_the_bare_segment_name_used_as_code(self):
+        # scan_secrets.py's SKIP_DIR_NAMES holds path SEGMENTS, which carry no slash.
+        self.assertEqual(_bare_run_scratch_refs('    "workflow-artifacts",'), [])
 
 
 class BenchmarkThresholdTableTests(unittest.TestCase):

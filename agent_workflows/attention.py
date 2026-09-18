@@ -15,11 +15,12 @@ no timestamps/mtime/locale; `last_history_at` parsed from history, never mtime.
 
 from __future__ import annotations
 
+import functools
 import json
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
+from typing import Collection, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import artifact_core as core
 from agent_workflows import attention_contract as A
@@ -88,6 +89,9 @@ class Item(NamedTuple):
 _OQ_SECTION_RE = re.compile(
     r"^##\s+(?:[0-9]+\.\s*)?(?:Open|Resolved)\s+questions\b", re.IGNORECASE
 )
+_OQ_SECTION_SEARCH_RE = re.compile(
+    r"(?m)^##\s+(?:[0-9]+\.\s*)?(?:Open|Resolved)\s+questions\b", re.IGNORECASE
+)
 _OQ_HEADING_RE = re.compile(
     r"^###\s+((?:OQ|RQ)-[0-9]+|(?:OQ|RQ)-[A-Za-z0-9_-]+):?\s*(.*)$", re.IGNORECASE
 )
@@ -96,8 +100,21 @@ _OQ_STATUS_RE = re.compile(r"^-[ \t]*Status:[ \t]*(\S+)", re.IGNORECASE)
 
 def count_question_stats(text: str) -> Tuple[int, int]:
     """Count (unresolved_oqs, resolved_rqs) in an artifact's '## Open questions' section."""
-    if not text or "questions" not in text.lower():
+    if not text:
         return 0, 0
+    m = _OQ_SECTION_SEARCH_RE.search(text)
+    if not m:
+        return 0, 0
+    next_h2 = re.search(r"(?m)^##\s+", text[m.end() :])
+    if next_h2:
+        section_text = text[m.start() : m.end() + next_h2.start()]
+    else:
+        section_text = text[m.start() :]
+
+    sec_lower = section_text.lower()
+    if "oq-" not in sec_lower and "rq-" not in sec_lower:
+        return 0, 0
+
     in_section = False
     unresolved_count = 0
     resolved_count = 0
@@ -121,7 +138,7 @@ def count_question_stats(text: str) -> Tuple[int, int]:
         is_resolved = False
         explicit_status = False
 
-    for line in text.splitlines():
+    for line in section_text.splitlines():
         if line.startswith("## "):
             _flush_question()
             in_section = bool(_OQ_SECTION_RE.match(line.strip()))
@@ -147,8 +164,11 @@ def count_question_stats(text: str) -> Tuple[int, int]:
             m_s = _OQ_STATUS_RE.match(line.strip())
             if m_s and not explicit_status:
                 status_val = m_s.group(1).lower().strip("[]().,")
+                if status_val in ("resolved", "closed", "done", "answered"):
+                    is_resolved = True
+                elif status_val in ("open", "deferred", "pending", "unresolved"):
+                    is_resolved = False
                 explicit_status = True
-                is_resolved = status_val == "resolved"
             elif not explicit_status:
                 if re.search(r"^-[ \t]*Blocking:.*\(resolved\)", line, re.IGNORECASE):
                     is_resolved = True
@@ -187,8 +207,7 @@ def count_unresolved_open_questions(text: str) -> int:
     return oqs
 
 
-_E_LEAF_RE = re.compile(r"^-\s*\[([ xX])\]\s*E-[0-9]{2,}\b", re.MULTILINE)
-_V_LEAF_RE = re.compile(r"^-\s*\[([ xX])\]\s*V-[0-9]{2,}\b", re.MULTILINE)
+_EV_LEAF_RE = re.compile(r"^-\s*\[([ xX])\]\s*([EV])-[0-9]{2,}\b", re.MULTILINE)
 
 
 def _extract_checklist_progress(
@@ -200,8 +219,13 @@ def _extract_checklist_progress(
     """
     if not text or ("E-" not in text and "V-" not in text):
         return None, None
-    e_matches = _E_LEAF_RE.findall(text)
-    v_matches = _V_LEAF_RE.findall(text)
+    e_matches: List[str] = []
+    v_matches: List[str] = []
+    for mark, kind in _EV_LEAF_RE.findall(text):
+        if kind == "E":
+            e_matches.append(mark)
+        else:
+            v_matches.append(mark)
 
     exec_prog = (
         (sum(1 for m in e_matches if m in ("x", "X")), len(e_matches))
@@ -237,21 +261,29 @@ def _extract_detail(text: str) -> Tuple[Optional[str], Optional[str]]:
     Summary -> Scope -> Concern -> Question -> Title -> H1 header.
     """
     for tag, rx in _FIELD_PATTERNS:
-        m = rx.search(text)
+        cap = tag.capitalize() + ":"
+        low = tag + ":"
+        up = tag.upper() + ":"
+        if cap in text or low in text or up in text:
+            m = rx.search(text)
+            if m:
+                val = m.group(1).strip()
+                if val:
+                    return tag, val
+    if "# " in text:
+        m = _H1_RX.search(text)
         if m:
             val = m.group(1).strip()
             if val:
-                return tag, val
-    m = _H1_RX.search(text)
-    if m:
-        val = m.group(1).strip()
-        if val:
-            return "title", val
+                return "title", val
     return None, None
 
 
 def _rel_posix(repo_root: Path, p: Path) -> str:
-    return p.resolve().relative_to(repo_root.resolve()).as_posix()
+    try:
+        return p.relative_to(repo_root).as_posix()
+    except ValueError:
+        return p.resolve().relative_to(repo_root.resolve()).as_posix()
 
 
 def _classify_tree(rel_posix: str) -> Optional[A.TreePolicy]:
@@ -288,17 +320,18 @@ def _classify_tree(rel_posix: str) -> Optional[A.TreePolicy]:
 
 
 def _history_section_lines(text: str) -> List[str]:
-    out: List[str] = []
-    in_hist = False
-    for line in text.split("\n"):
-        if line.strip() == "## Workflow history":
-            in_hist = True
-            continue
-        if in_hist:
-            if line.startswith("## "):
-                break
-            out.append(line)
-    return out
+    if "## Workflow history" not in text:
+        return []
+    m = re.search(r"(?m)^## Workflow history[ \t]*$", text)
+    if not m:
+        return []
+    start_pos = m.end()
+    m_end = re.search(r"(?m)^## ", text[start_pos:])
+    section = text[start_pos : start_pos + m_end.start()] if m_end else text[start_pos:]
+    lines = section.splitlines()
+    if lines and not lines[0].strip():
+        lines = lines[1:]
+    return lines
 
 
 # worksequence i6015i E-07: the `- Item-Dependencies:` front-matter bullet. Only the bullet is matched
@@ -317,6 +350,8 @@ def _extract_item_dependencies(text: str) -> Optional[Tuple[str, ...]]:
     READ on a display/ordering path, and the fail-closed contract violation for a bad edge already
     belongs to `aw check`, which must stay the single authority for that finding. Pure.
     """
+    if "Item-Dependencies:" not in text and "item-dependencies:" not in text:
+        return None
     m = _ITEM_DEPS_RE.search(text)
     if m is None:
         return None
@@ -327,14 +362,38 @@ def _extract_item_dependencies(text: str) -> Optional[Tuple[str, ...]]:
 
 
 def _plans_id(text: str) -> Optional[str]:
-    for line in text.split("\n"):
+    m = re.search(r"(?m)^-\s*Id:\s*(\S+)", text[:2048])
+    if m:
+        return m.group(1).strip()
+    for line in text.splitlines():
         s = line.strip()
         if s.startswith("- Id:"):
             return s[len("- Id:") :].strip()
     return None
 
 
-def scan(repo_root: Path) -> Tuple[List[Item], List[core.Drift]]:
+_TREE_TO_SCAN_ROOTS: Dict[str, Tuple[str, ...]] = {
+    "plans": (".aw/records/plans", ".agents/plans"),
+    "specs": (".aw/records/specs", ".agents/docs/specs"),
+    "research": (".aw/records/research", ".agents/docs/research"),
+    "backlog": (".aw/records/backlog", ".agents/backlog"),
+    "releases": (".aw/records/releases", ".agents/releases"),
+    "walkthroughs": (".aw/records/walkthroughs", ".agents/docs/walkthroughs"),
+    "roadmaps": (".aw/records/roadmaps", ".agents/docs/roadmaps"),
+    "prompts": (
+        ".aw/records/prompt-library",
+        ".agents/docs/prompts",
+        ".aw/records/prompts",
+        ".agents/prompts",
+    ),
+    "prompt-library": (".aw/records/prompt-library", ".agents/docs/prompts"),
+    "comms": (".aw/records/comms", ".agents/comms"),
+}
+
+
+def scan(
+    repo_root: Path, type_filters: Optional[Collection[str]] = None
+) -> Tuple[List[Item], List[core.Drift]]:
     """Full deterministic scan of the tracked trees. Returns (items, violations). Pure read."""
 
     items: List[Item] = []
@@ -342,7 +401,25 @@ def scan(repo_root: Path) -> Tuple[List[Item], List[core.Drift]]:
     seen_ids: Dict[str, str] = {}
     seen_paths: set = set()
 
-    for f in core.iter_scan_files(repo_root):
+    scan_roots = None
+    if type_filters:
+        collected = []
+        for t in type_filters:
+            if t in _TREE_TO_SCAN_ROOTS:
+                collected.extend(_TREE_TO_SCAN_ROOTS[t])
+            else:
+                collected = None
+                break
+        if collected is not None and collected:
+            scan_roots = tuple(dict.fromkeys(collected))
+
+    scan_files = (
+        core.iter_scan_files(repo_root, scan_roots=scan_roots)
+        if scan_roots
+        else core.iter_scan_files(repo_root)
+    )
+
+    for f in scan_files:
         rel = _rel_posix(repo_root, f)
         # only artifacts under an inventoried tree matter; the four root docs + READMEs are not artifacts
         pol = _classify_tree(rel)
@@ -896,7 +973,7 @@ def _plans_record(
     rel: str, path: Path, text: str
 ) -> Tuple[Optional[Item], List[core.Drift]]:
     drift: List[core.Drift] = []
-    status = plans_mod.read_status(path)
+    status = plans_mod.read_status(path, text=text)
     if status is None:
         drift.append(core.Drift(rel, "attention.missing-status", "no plan Status"))
         return None, drift
@@ -932,13 +1009,23 @@ def _plans_record(
     # IPD 7mw7m5 E-02: populate Item.blocks_release for a release-blocking plan so it renders with
     # the `>` glyph / `[blocking]` label like specs/backlog blockers (the release_blockers SET scan
     # already re-reads the file, so set-membership does not depend on this; display parity does).
-    br_m = re.search(r"(?m)^- Blocks-Release:\s*(\S+)\s*$", text)
-    br = br_m.group(1) if br_m else None
+    br = None
+    if "Blocks-Release:" in text:
+        br_m = re.search(r"(?m)^- Blocks-Release:\s*(\S+)\s*$", text[:4096])
+        if not br_m and len(text) > 4096:
+            br_m = re.search(r"(?m)^- Blocks-Release:\s*(\S+)\s*$", text)
+        if br_m:
+            br = br_m.group(1)
     # xprio 1b45el E-03: populate Item.priority from the plan's `- Priority:` line so the board LABELS
     # a plan's priority via the existing type-agnostic renderer (absent = None = no label). This does
     # NOT alter the shared attention sort key (core), which excludes priority for all trees today.
-    pr_m = re.search(r"(?m)^- Priority:[ \t]*(\S+)[ \t]*$", text)
-    pr = pr_m.group(1) if pr_m else None
+    pr = None
+    if "Priority:" in text:
+        pr_m = re.search(r"(?m)^- Priority:[ \t]*(\S+)[ \t]*$", text[:4096])
+        if not pr_m and len(text) > 4096:
+            pr_m = re.search(r"(?m)^- Priority:[ \t]*(\S+)[ \t]*$", text)
+        if pr_m:
+            pr = pr_m.group(1)
     d_kind, d_text = _extract_detail(text)
     rd = read_readiness(text)
     oqs, rqs = count_question_stats(text)
@@ -1166,7 +1253,10 @@ def stranded_lane_drift(repo_root: Path) -> List[core.Drift]:
         return []
 
     try:
-        records = rs.stranded_lane_records(target_root, states)
+        from agent_workflows import worktree_lease
+
+        with worktree_lease.memoize_worktrees(target_root):
+            records = rs.stranded_lane_records(target_root, states)
     except Exception:
         return []
 
@@ -1499,6 +1589,21 @@ def matches_priority(it: Item, priority_filters: set[str]) -> bool:
     return p in priority_filters
 
 
+@functools.lru_cache(maxsize=32)
+def _get_planned_release_info(repo_root: Optional[Path]) -> Tuple[str, str]:
+    if not repo_root:
+        return "", ""
+    try:
+        from agent_workflows import releases as _releases
+
+        desc = _releases.describe_planned_release(repo_root)
+        if desc:
+            return (desc[0] or "").lower(), (desc[1] or "").lower()
+    except (AttributeError, OSError, ValueError):
+        pass
+    return "", ""
+
+
 def matches_blocking(
     it: Item, blocking_filters: set[str], repo_root: Path | None = None
 ) -> bool:
@@ -1510,18 +1615,7 @@ def matches_blocking(
     resolved_ver = (
         _resolve_release_version(repo_root, it.blocks_release).lower() if is_blk else ""
     )
-    planned_ver = ""
-    planned_id = ""
-    if repo_root:
-        try:
-            from agent_workflows import releases as _releases
-
-            desc = _releases.describe_planned_release(repo_root)
-            if desc:
-                planned_id = (desc[0] or "").lower()
-                planned_ver = (desc[1] or "").lower()
-        except (AttributeError, OSError, ValueError):
-            pass
+    planned_id, planned_ver = _get_planned_release_info(repo_root)
 
     for tok in blocking_filters:
         if tok in ("true", "yes", "1", "any", "blocking"):
@@ -1626,24 +1720,12 @@ def release_blockers(items: List[Item], repo_root: Path) -> List[Item]:
     release, since nobody is going to do it. Skipping only ``DONE`` counted a plan retired to
     ``superseded/`` as an outstanding blocker, which is how a split plan kept appearing in the
     release-blocker list after its replacements were filed."""
-    import re as _re
-
-    rx = _re.compile(r"(?m)^- Blocks-Release:\s*(\S+)\s*$")
     out: List[Item] = []
     for it in items:
         if it.attention_class in (A.DONE, A.PARKED):
             continue
         if it.blocks_release and it.blocks_release != "-":
             out.append(it)
-            continue
-        if it.blocks_release is None and it.tree in ("specs", "plans", "backlog"):
-            for base in (repo_root / it.path, repo_root / ".aw" / "records" / it.path):
-                try:
-                    if base.is_file() and rx.search(base.read_text(encoding="utf-8")):
-                        out.append(it)
-                        break
-                except OSError:
-                    continue
     return out
 
 
@@ -1829,6 +1911,7 @@ def _render_item_row(
     return line
 
 
+@functools.lru_cache(maxsize=256)
 def _resolve_release_version(repo_root: Optional[Path], val: Optional[str]) -> str:
     """Resolve a Blocks-Release value to a concrete release version string (e.g. '2.0.0'),
     or '-' if absent/None."""
@@ -2752,13 +2835,13 @@ def run(args) -> int:
                 exit_code=3,
                 summary=no_project_message("attention"),
             )
-            return get_renderer(ctx).emit(res, ctx)
         sys.stderr.write(no_project_message("attention") + "\n")
         return 3
-        return 3
+
+    type_filters = parse_type_filters(getattr(args, "types", None))
 
     try:
-        items, drift = scan(repo_root)
+        items, drift = scan(repo_root, type_filters=type_filters)
     except (
         Exception
     ) as exc:  # a could-not-run condition (missing contract symbol, etc.)
@@ -3090,12 +3173,8 @@ def run(args) -> int:
                 )
             else:
                 blockers = release_blockers(items, repo_root)
-                blocker_keys = {(repo_root / it.path).resolve() for it in blockers}
-                main_items = [
-                    it
-                    for it in items
-                    if (repo_root / it.path).resolve() not in blocker_keys
-                ]
+                blocker_keys = {it.path for it in blockers}
+                main_items = [it for it in items if it.path not in blocker_keys]
 
                 board = render_board(
                     main_items,
@@ -3157,19 +3236,22 @@ def run(args) -> int:
         # bklggrad orb9zb E-06: advisory release-gate warnings (human view only; NEVER affect the
         # exit code). Surfaces orphaned-live-blocker (an open blocking item already handed off to a
         # plan) with a de-gate/close hint.
-        try:
-            from agent_workflows import check_engine as _ce
+        run_gate_warnings = not type_filters or "backlog" in type_filters
+        gate_warnings = []
+        if run_gate_warnings:
+            try:
+                from agent_workflows import check_engine as _ce
 
-            gate_warnings = _ce.release_gate_warnings(repo_root)
-            if selectors_arg and gate_warnings:
-                selected_paths = {(repo_root / it.path).resolve() for it in items}
-                gate_warnings = [
-                    w
-                    for w in gate_warnings
-                    if (repo_root / w.location).resolve() in selected_paths
-                ]
-        except Exception:
-            gate_warnings = []
+                gate_warnings = _ce.release_gate_warnings(repo_root)
+                if selectors_arg and gate_warnings:
+                    selected_paths = {(repo_root / it.path).resolve() for it in items}
+                    gate_warnings = [
+                        w
+                        for w in gate_warnings
+                        if (repo_root / w.location).resolve() in selected_paths
+                    ]
+            except Exception:
+                gate_warnings = []
         if gate_warnings:
             gw_header = f"release-gate-warnings ({len(gate_warnings)})"
             if colored:

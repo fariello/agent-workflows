@@ -21,7 +21,7 @@ tree and full git history. Recommended invocation:
 
 ```
 python3 .aw/system/workflows/assess/tools/scan_secrets.py --repo . --format json \
-  --out workflow-artifacts/assess-secrets/<RUN_ID>/scan.json
+  --out .aw/workflow-artifacts/assess-secrets/<RUN_ID>/scan.json
 ```
 
 On very large repos, bound history with `--max-commits N` or `--since DATE`, or start

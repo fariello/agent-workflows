@@ -366,22 +366,37 @@ def free_module_level_names(host: str) -> set[str]:
     that stopped being reached must fail, and it does.
     """
     node = target_node(host)
-    loads = {
-        n.id
+    nodes = [node]
+    index = dict(module_index(host))
+    if any(
+        isinstance(n, ast.Attribute) and n.attr == "initialize_run_core"
         for n in ast.walk(node)
-        if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)
-    }
-    bound = {
-        n.id
-        for n in ast.walk(node)
-        if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)
-    }
-    bound |= {a.arg for a in node.args.args + node.args.kwonlyargs}
-    for sub in ast.walk(node):
-        if isinstance(sub, (ast.Import, ast.ImportFrom)):
-            for alias in sub.names:
-                bound.add(alias.asname or alias.name.split(".")[0])
-    index = module_index(host)
+    ):
+        for cand in module_body("runner_shared"):
+            if isinstance(cand, ast.FunctionDef) and cand.name == "initialize_run_core":
+                nodes.append(cand)
+                index.update(module_index("runner_shared"))
+                break
+
+    loads: set[str] = set()
+    bound: set[str] = set()
+    for curr_node in nodes:
+        loads |= {
+            n.id
+            for n in ast.walk(curr_node)
+            if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)
+        }
+        bound |= {
+            n.id
+            for n in ast.walk(curr_node)
+            if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)
+        }
+        bound |= {a.arg for a in curr_node.args.args + curr_node.args.kwonlyargs}
+        for sub in ast.walk(curr_node):
+            if isinstance(sub, (ast.Import, ast.ImportFrom)):
+                for alias in sub.names:
+                    bound.add(alias.asname or alias.name.split(".")[0])
+
     return {name for name in loads - bound if name in index}
 
 

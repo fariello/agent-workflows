@@ -60,6 +60,37 @@ class ScanRootTests(unittest.TestCase):
         self.assertIn(".agents/docs", C.SCAN_ROOTS)
         self.assertIn("DECISIONS.md", C.SCAN_ROOTS)
 
+    def test_scan_roots_include_both_releases_generations(self):
+        """durablecapture-02 (`m867ox`) E-01: the tracked `releases` tree must be SCANNED.
+
+        `.aw/records/releases` is the LOAD-BEARING entry, because `releases._releases_dir` writes and
+        reads there; `.agents/releases` is the `TreePolicy` root spelling, carried for symmetry with
+        the plans/backlog pairs and for pre-migration repositories. Membership, not length, following
+        this module's existing pattern: the cross-list guard that makes a future tracked tree fail
+        closed lives in `tests/test_attention_contract.py::TrackedTreeScanCoverageTests`.
+        """
+
+        self.assertIn(".aw/records/releases", C.SCAN_ROOTS)
+        self.assertIn(".agents/releases", C.SCAN_ROOTS)
+
+    def test_iter_scan_files_reaches_a_release_record_and_drops_the_readme(self):
+        """The root must actually YIELD the record: a root that `iter_scan_files` skips for an
+        unrelated reason (an ignore rule, a suffix filter) would look like a fix and change nothing.
+        """
+
+        root = Path(tempfile.mkdtemp())
+        rel_dir = root / ".aw/records/releases"
+        rel_dir.mkdir(parents=True)
+        (rel_dir / "20260101-rel-01-rel001-r.release.md").write_text(
+            "- Status: planned\n", encoding="utf-8"
+        )
+        (rel_dir / "README.md").write_text("x\n", encoding="utf-8")
+        got = {f.name for f in C.iter_scan_files(root)}
+        self.assertIn("20260101-rel-01-rel001-r.release.md", got)
+        # The README is scanned here but is filtered out of the VIEW by
+        # `attention_contract.is_nonartifact_name`, not by the scan root.
+        self.assertIn("README.md", got)
+
     def test_iter_scan_files_bounded(self):
         root = Path(tempfile.mkdtemp())
         (root / "DECISIONS.md").write_text("x", encoding="utf-8")
@@ -71,6 +102,97 @@ class ScanRootTests(unittest.TestCase):
         self.assertIn("DECISIONS.md", names)
         self.assertIn("a.md", names)
         self.assertNotIn("b.md", names)
+
+
+class ScanRootClassificationInvariantTests(unittest.TestCase):
+    """durablecapture-03 (`diof9n`) E-06: no scan root may be SCANNED AND SILENTLY DROPPED.
+
+    THE DEFECT THIS CLOSES. `TODO.md` was listed in `SCAN_ROOTS` while
+    `attention._classify_tree("TODO.md")` returned `None`, because no `TreePolicy` root covers a
+    repository-root file. `attention.scan` appends an `attention.unclassified-tree` violation ONLY
+    for a path under `.agents/`, so the file was read and then dropped with NO drift recorded:
+    anything written there vanished with no warning. That both-scanned-and-silently-dropped state is
+    what this test forbids returning.
+
+    THE EXEMPTION IS A CLOSED, NAMED SET, DELIBERATELY NOT A PREDICATE. `DECISIONS.md`,
+    `README.md` and `ARCHITECTURE.md` are in the identical STRUCTURAL state (they also classify to
+    `None`), but their PURPOSE differs and purpose is what decides it: they are DOCUMENTATION that
+    sits in `SCAN_ROOTS` so the reference tools and the dangling detector scan them for CITATIONS
+    (see the comment above `SCAN_ROOTS`), not because anyone records work in them. Being absent from
+    the attention view is therefore CORRECT for them. Do NOT "fix" the three by removing them from
+    `SCAN_ROOTS`: that would silently break citation scanning and the dangling detector.
+    A predicate such as "any root-level file is exempt" is the WRONG encoding, because it would
+    silently absorb the next root-level file someone adds with no policy, which is exactly the defect
+    above. Naming the three means a FOURTH such file FAILS this test and forces a decision.
+    """
+
+    CITATION_ONLY_ROOT_DOCS = frozenset(
+        {
+            "DECISIONS.md",
+            "README.md",
+            "ARCHITECTURE.md",
+        }
+    )
+
+    # A SECOND, SEPARATELY JUSTIFIED closed set. `.agents/docs` is the pre-migration CONTAINER
+    # directory, not a leaf tree: it holds the typed `specs/`, `research/`, `walkthroughs/` ...
+    # subtrees, and each of THOSE has its own `TreePolicy`, so a real artifact under it DOES
+    # classify (asserted below). Only the bare container string classifies to `None`, which is not
+    # the `TODO.md` defect (a scanned FILE that swallowed work). Kept distinct from the root docs
+    # above so each exemption carries its own reason rather than one vague catch-all.
+    LEGACY_CONTAINER_ROOTS = frozenset({".agents/docs"})
+
+    def test_no_scan_root_is_scanned_then_silently_dropped(self):
+        from agent_workflows import attention
+
+        exempt = self.CITATION_ONLY_ROOT_DOCS | self.LEGACY_CONTAINER_ROOTS
+        offenders = sorted(
+            root
+            for root in C.SCAN_ROOTS
+            if root not in exempt and attention._classify_tree(root) is None
+        )
+        self.assertEqual(
+            offenders,
+            [],
+            "These SCAN_ROOTS entries are scanned but classify to None, so anything written "
+            "there is dropped with no drift violation and vanishes silently: "
+            f"{offenders}. Either give the root a `TreePolicy` so a write is reported, or "
+            "remove it from SCAN_ROOTS so it is honestly out of scope. If it is documentation "
+            "scanned only for CITATIONS, add it to CITATION_ONLY_ROOT_DOCS with a reason.",
+        )
+
+    def test_todo_md_is_not_a_scan_root(self):
+        """The specific regression: `TODO.md` is deprecated as a work surface, so it must not be
+        scanned as one. The controlling spec authorizes this
+        (`20260813-1833-01-attention-visible-backlog-tier` G5: `TODO.md` "is then either retired or
+        reduced to a pointer at the backlog tree + the Notes section"). The FILE still exists and
+        keeps its Tier-3 `## Notes` context; only its scan-root membership is retired.
+        """
+
+        self.assertNotIn("TODO.md", C.SCAN_ROOTS)
+
+    def test_the_exemption_is_a_closed_named_set_not_a_predicate(self):
+        """Guard the GUARD: every exempted name must really be an exempt-by-design root doc that is
+        still present in `SCAN_ROOTS`. A stale exemption would quietly widen the hole.
+        """
+
+        for name in self.CITATION_ONLY_ROOT_DOCS | self.LEGACY_CONTAINER_ROOTS:
+            self.assertIn(
+                name,
+                C.SCAN_ROOTS,
+                f"{name} is exempted from the no-silently-dropped invariant but is no longer a "
+                "scan root; drop it from the exemption set so it stays honest.",
+            )
+
+    def test_the_legacy_container_exemption_is_justified_by_its_children(self):
+        """`.agents/docs` is exempt ONLY because its typed children classify. Prove that, so the
+        exemption cannot survive the day the child policies go away.
+        """
+
+        from agent_workflows import attention
+
+        self.assertIsNotNone(attention._classify_tree(".agents/docs/specs/x.spec.md"))
+        self.assertIsNotNone(attention._classify_tree(".agents/docs/research/y.md"))
 
 
 class DanglingTests(unittest.TestCase):

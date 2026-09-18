@@ -275,9 +275,17 @@ def git_mv(repo_root: Path, src_rel: str, dst_rel: str) -> None:
 
 # The pinned tracked-text scan roots, relative POSIX to the repo root. This is the single
 # enumeration shared by the reference tools and the dangling detector across areas.
+# `TODO.md` is DELIBERATELY ABSENT (durablecapture-03, `diof9n`). It used to be listed, but no
+# `TreePolicy` root covers a repository-root file, so `attention._classify_tree("TODO.md")` returned
+# None and `attention.scan` dropped it with NO drift violation (the unclassified branch fires only
+# under `.agents/`). That made it read-but-ignored: work written there vanished silently. The
+# controlling spec authorizes retiring it (`.aw/records/specs/20260813-1833-01-attention-visible-
+# backlog-tier.spec.md` G5: `TODO.md` "is then either retired or reduced to a pointer at the backlog
+# tree + the Notes section"). Committed lightweight work belongs in `records/backlog/`, which IS
+# scanned and IS attention-visible. Do not re-add `TODO.md` here: see
+# `tests/test_artifact_core.py::ScanRootClassificationInvariantTests`.
 SCAN_ROOTS = (
     "DECISIONS.md",
-    "TODO.md",
     "README.md",
     "ARCHITECTURE.md",
     ".agents/plans",
@@ -291,6 +299,16 @@ SCAN_ROOTS = (
     ".aw/records/roadmaps",
     ".aw/records/prompt-library",
     ".aw/records/backlog",
+    # Releases (ship-gate anchors). `releases` is a TRACKED tree in `attention_contract.TREE_POLICY`
+    # and carries a full status map, but it matched NO scan root until durablecapture-02 (`m867ox`),
+    # so every release record was invisible to `aw attention` while the view still reported
+    # `valid: true` (an unclassified file is only flagged as drift under `.agents/`). BOTH path
+    # generations are listed, as for plans/backlog, but they are NOT interchangeable:
+    # `.aw/records/releases` is the LOAD-BEARING entry, because `releases._releases_dir` writes and
+    # reads there; `.agents/releases` (the `TreePolicy` root spelling) is carried for symmetry and
+    # for pre-migration repositories, and on its own it fixes NOTHING here.
+    ".agents/releases",
+    ".aw/records/releases",
 )
 
 _TEXT_SUFFIXES = (".md", ".txt")
@@ -368,14 +386,11 @@ def is_ignored_path(
 ) -> bool:
     """Return True if path is within an ignored directory or matches ignore rules."""
     try:
-        # PERF: repo_root.resolve() is loop-invariant but was recomputed on EVERY call
-        # (978 calls per `aw find`, each an lstat chain over every path component). Memoize
-        # the root resolution; `path` still resolves per call because it genuinely varies.
-        rel_path = path.resolve().relative_to(_resolved_root(repo_root))
-    except (ValueError, OSError):
+        rel_path = path.relative_to(repo_root)
+    except ValueError:
         try:
-            rel_path = path.relative_to(repo_root)
-        except ValueError:
+            rel_path = path.resolve().relative_to(_resolved_root(repo_root))
+        except (ValueError, OSError):
             rel_path = Path(path.as_posix())
 
     rel_parts = rel_path.parts

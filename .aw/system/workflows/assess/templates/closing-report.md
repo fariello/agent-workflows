@@ -27,7 +27,7 @@ The report has two required parts and one branch:
 ```
 Created:
   IPD:        .aw/records/plans/pending/20260722-1430-01-<slug>.md
-  Run record: workflow-artifacts/assess-security/20260722-143012/
+  Run record: .aw/workflow-artifacts/assess-security/20260722-143012/
 
 Next steps:
   1. Review the IPD (optionally run /plan-review on it).
@@ -40,7 +40,7 @@ Next steps:
 Created: none.
 Reason:  assessed <concern> across <scope> and found nothing that warrants a plan; the
          current state is adequate. A run record was still written for the audit trail.
-  Run record: workflow-artifacts/assess-security/20260722-143012/
+  Run record: .aw/workflow-artifacts/assess-security/20260722-143012/
 
 Next steps:
   - No action required. Re-run this assessment after relevant changes if you want a fresh check.

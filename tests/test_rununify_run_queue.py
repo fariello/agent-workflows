@@ -1651,7 +1651,8 @@ class ToolIdentityIsRunFatalNotItemLocal(RunQueueCase):
                     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
                         buf
                     ):
-                        module.run_queue(run_dir, retry_incomplete=False)
+                        with self.assertRaises(module.ToolIdentityError):
+                            module.run_queue(run_dir, retry_incomplete=False)
                 state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
                 self.assertNotEqual(
                     self.statuses(state)["aaa111"],
@@ -1699,52 +1700,10 @@ class ToolIdentityIsRunFatalNotItemLocal(RunQueueCase):
                 )
 
 
-class ADocumentedDefectInTheToolIdentityHandler(RunQueueCase):
-    """A LIVE DEFECT this plan's characterization pass found, pinned as the behavior that EXISTS.
+class ToolIdentityHandlerRepairedAndRunFatal(RunQueueCase):
+    """Pins the restored run-fatal behavior of ToolIdentityError on both hosts (hp9rot E-04 / BUG-02)."""
 
-    NOT A DESIGN CHOICE, AND NOT THIS PLAN'S TO FIX. `run_queue`'s `except ToolIdentityError`
-    clause on BOTH hosts is:
-
-        except ToolIdentityError:
-            # ... "Re-raise to abort the whole run."
-            save_state(run_dir, state)
-
-    The comment says re-raise. There is no `raise`. The clause was AUTHORED WITH ONE: commit
-    `b04c70ce` (lanetruth `af7i6p`, 2026-08-30) added `save_state(run_dir, state)` followed by a
-    bare `raise`. The `raise` was LOST IN A MERGE the same day, at `04a613aa` (the `laneorphan-01`
-    / `zwnjp3` lane merge), whose first parent had the `raise` and whose second parent did not have
-    the clause at all. So this is a silent semantic regression introduced by an integration, not a
-    decision anyone recorded.
-
-    THE MEASURED CONSEQUENCE, on both hosts. Swallowing leaves the item at whatever status
-    `execute_item` last wrote, and `execute_item` writes `item["status"] = "running"` BEFORE it
-    calls `assert_child_tool_identity` (oc_runipd.py:6807 vs :7057; agy_runipd.py:3558 vs :3755).
-    So a real tool-identity mismatch:
-
-      * does NOT abort the run: EVERY remaining item is dispatched under the same wrong control
-        plane, which is exactly the outcome af7i6p OQ-02 says it rejects; and
-      * leaves each item stuck at the non-terminal status `running`, which is neither a terminal
-        disposition nor a re-queueable one.
-
-    `tests/test_lane_tool_identity.py:733` does not catch it because it asserts only that the
-    clause appears BEFORE `except DriverError` in the source text. It does, so that pin is green
-    on broken code. That is the general weakness of a source-offset pin and is the reason this
-    file exists.
-
-    WHY THIS FILE PINS THE BREAKAGE RATHER THAN FIXING IT. This plan's scope is measure, pin, and
-    repair ONE named defect (F-9's missing signal refreshes). Adding a `raise` here changes
-    control flow on the run-fatal path of both runners, which is a behavior change the parent Set
-    forbids a child from making outside its declared scope, and it would need its own
-    characterization of the interrupt/teardown interaction below the clause. Filed as a backlog
-    item and reported in this turn's defect report instead.
-
-    SO THESE TESTS ARE DELIBERATELY ASSERTING WHAT IS WRONG. When the defect is fixed, they FAIL,
-    and that failure is the fix's confirmation: replace them with the intended-behavior assertions
-    (the run raises, and later items are never dispatched) in the SAME change that adds the
-    `raise`. That is the "re-base deliberately, never weaken silently" rule.
-    """
-
-    def test_the_handler_currently_swallows_the_run_fatal_error(self):
+    def test_the_handler_raises_and_aborts_queue_execution(self):
         for label, module in HOST_PAIRS:
             with self.subTest(host=label):
                 self.turns.clear()
@@ -1764,72 +1723,26 @@ class ADocumentedDefectInTheToolIdentityHandler(RunQueueCase):
                     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
                         buf
                     ):
-                        rc = module.run_queue(run_dir, retry_incomplete=False)
+                        with self.assertRaises(module.ToolIdentityError):
+                            module.run_queue(run_dir, retry_incomplete=False)
                 self.assertEqual(
                     self.turns,
-                    ["aaa111", "bbb222"],
-                    f"{label}: DEFECT PINNED: the run does NOT abort, so the second item is "
-                    "dispatched under the same wrong control plane. If this now fails with only "
-                    "['aaa111'], the `raise` has been restored: delete this test and assert the "
-                    "intended run-fatal behavior instead",
-                )
-                self.assertNotEqual(
-                    rc, 0, f"{label}: the run must at least not report success"
+                    ["aaa111"],
+                    f"{label}: ToolIdentityError must abort immediately; second item must not run",
                 )
 
-    def test_the_swallowed_error_leaves_the_item_non_terminal(self):
-        for label, module in HOST_PAIRS:
-            with self.subTest(host=label):
-                self.turns.clear()
-
-                def boom(rd, st, it, *a, **kw):
-                    it["status"] = "running"
-                    module.save_state(rd, st)
-                    raise module.ToolIdentityError("tool-identity mismatch (synthetic)")
-
-                run_dir = self.make_run(
-                    [self.item("aaa111", position=1)], run_id=f"identstuck-{label}"
-                )
-                buf = io.StringIO()
-                with patch.object(module, "execute_item", side_effect=boom):
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
-                    ):
-                        module.run_queue(run_dir, retry_incomplete=False)
-                state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
-                self.assertEqual(
-                    self.statuses(state)["aaa111"],
-                    "running",
-                    f"{label}: DEFECT PINNED: the item is stranded at the non-terminal status "
-                    "`running`, because execute_item writes it before the identity check and the "
-                    "handler neither re-raises nor records a disposition",
-                )
-                self.assertNotIn(
-                    "running",
-                    set(module.TERMINAL_STATES),
-                    f"{label}: `running` is not terminal, which is what makes the strand a defect",
-                )
-
-    def test_the_existing_source_pin_is_green_on_this_broken_code(self):
-        """WHY the source pin missed it, asserted rather than described.
-
-        `tests/test_lane_tool_identity.py:733` checks the clause ORDER in the source text. Both
-        halves it asserts are true right now, so it passes; the missing `raise` is invisible to it.
-        This is the case FOR behavioral pinning, stated as a test so the argument is checkable.
-        """
+    def test_the_source_contains_the_raise_statement(self):
         import ast
         import inspect
 
         for label, module in HOST_PAIRS:
             with self.subTest(host=label):
                 src = inspect.getsource(module.run_queue)
-                # The source pin's two assertions, reproduced.
                 self.assertIn("except ToolIdentityError", src)
                 self.assertLess(
                     src.index("except ToolIdentityError"),
                     src.index("except DriverError"),
                 )
-                # And the property it cannot see.
                 handler = None
                 for node in ast.walk(ast.parse(src.lstrip())):
                     if (
@@ -1842,10 +1755,9 @@ class ADocumentedDefectInTheToolIdentityHandler(RunQueueCase):
                 assert (
                     handler is not None
                 ), f"{label}: no ToolIdentityError handler found"
-                self.assertFalse(
+                self.assertTrue(
                     any(isinstance(n, ast.Raise) for n in ast.walk(handler)),
-                    f"{label}: the `raise` is back. The comment's promise now matches the code: "
-                    "delete this class and assert the intended run-fatal behavior",
+                    f"{label}: the  must be present in except ToolIdentityError",
                 )
 
 

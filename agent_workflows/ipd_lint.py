@@ -70,6 +70,9 @@ C_EXEC_ATTRIBUTION = (
 C_READINESS_UNATTESTED = (
     "IPD-M107"  # `- Readiness:` present with no review verdict behind it (rdattest)
 )
+C_GATE_HAND_ROLLED_MOVE = (
+    "IPD-M108"  # gate prescribes hand-rolled terminal lifecycle move (dcri4s)
+)
 C_OQ = "IPD-Q501"
 C_SIZE = "IPD-Z601"
 C_SIZE_DENSITY = "IPD-Z602"
@@ -165,6 +168,7 @@ class ParsedDoc(NamedTuple):
     open_questions: List[Dict[str, str]]
     size_assessment: Optional[str]
     history_lines: List[Tuple[int, str]]
+    gate_lines: List[Tuple[int, str]] = []
 
 
 _FENCE_RE = re.compile(r"^(\s*)(```|~~~)")
@@ -276,6 +280,7 @@ def parse(text: str) -> ParsedDoc:
     open_questions: List[Dict[str, str]] = []
     size_assessment: Optional[str] = None
     history_lines: List[Tuple[int, str]] = []
+    gate_lines: List[Tuple[int, str]] = []
 
     current_h2 = ""
     current_leaf: Optional[Leaf] = None
@@ -382,6 +387,17 @@ def parse(text: str) -> ParsedDoc:
     _flush_leaf()
     _flush_oq()
 
+    lines = text.splitlines()
+    gate_h2_idx = next(
+        (i for i, h in enumerate(h2) if h.title == S.H_APPROVAL_GATE), None
+    )
+    if gate_h2_idx is not None:
+        start_line = h2[gate_h2_idx].line
+        end_line = (
+            h2[gate_h2_idx + 1].line - 1 if gate_h2_idx + 1 < len(h2) else len(lines)
+        )
+        gate_lines = [(lno, lines[lno - 1]) for lno in range(start_line, end_line + 1)]
+
     return ParsedDoc(
         title=title,
         meta_fields=meta_fields,
@@ -393,6 +409,7 @@ def parse(text: str) -> ParsedDoc:
         open_questions=open_questions,
         size_assessment=size_assessment,
         history_lines=history_lines,
+        gate_lines=gate_lines,
     )
 
 
@@ -610,6 +627,42 @@ def check_states(doc: ParsedDoc) -> List[Diagnostic]:
                     Diagnostic(lf.line, 1, C_CROSS_STATE, f"{lf.ident}: {cerr}")
                 )
     return diags
+
+
+def check_gate_contract(doc: ParsedDoc) -> List[Diagnostic]:
+    """Refuse a plan whose gate prescribes a hand-rolled terminal move (Order dcri4s E-05)."""
+    if not doc.gate_lines:
+        return []
+    gate_text = "\n".join(raw for _, raw in doc.gate_lines)
+    if "aw ipd finalize" in gate_text:
+        return []
+    pattern = r"\bgit\s+mv\b.*?(?:executed/|terminal\s+directory|status:\s*executed)"
+    m = re.search(pattern, gate_text, re.IGNORECASE | re.DOTALL)
+    if m:
+        start_pos = m.start()
+        prefix = gate_text[max(0, start_pos - 40) : start_pos].strip()
+        if re.search(
+            r"\b(?:never(?:\s+with(?:\s+a(?:\s+raw)?)?)?|not|in no case may you)\s*`?$",
+            prefix,
+            re.IGNORECASE,
+        ):
+            return []
+        line_num = doc.gate_lines[0][0]
+        for lno, raw in doc.gate_lines:
+            if re.search(r"\bgit\s+mv\b", raw):
+                line_num = lno
+                break
+        return [
+            Diagnostic(
+                line_num,
+                1,
+                C_GATE_HAND_ROLLED_MOVE,
+                "approval gate must not prescribe a hand-rolled terminal move "
+                "(`git mv` to `executed/`); run the transition via `aw ipd finalize` "
+                "(or report results and let the runner finalize in a managed lane)",
+            )
+        ]
+    return []
 
 
 def check_open_questions(doc: ParsedDoc) -> List[Diagnostic]:
@@ -1076,6 +1129,7 @@ def lint_text(
     diags += check_headings(doc)
     diags += check_ids_and_bijection(doc)
     diags += check_states(doc)
+    diags += check_gate_contract(doc)
     diags += check_open_questions(doc)
     diags += check_size(doc)
     diags += check_checkpoint(doc, checkpoint, directory)
@@ -1173,6 +1227,7 @@ def lint_file(
             # Resolution is best-effort; a repo-scan failure never masks the pure lint result.
             pass
     result = _merge_review_escalation(path, result, text, checkpoint, doc)
+    result = _merge_durable_carrier(path, result, text, checkpoint, doc)
     return result
 
 
@@ -1236,6 +1291,91 @@ def _merge_review_escalation(
         # result. NOTE this is NOT the fail-open path for a malformed artifact - that case is an
         # explicit reported branch inside the evaluator (E-07(b)), so a bad review file produces a
         # finding here rather than being swallowed.
+        pass
+    return result
+
+
+# durablecapture Order 01 (`rnkqrc`) E-03: the durable-carrier rule at the ONE checkpoint that matters.
+#
+# `pre-transition` ONLY, and the asymmetry with `_REVIEW_ESCALATION_CHECKPOINTS` directly above is
+# DELIBERATE rather than an inconsistency to be "fixed" later. That set EXCLUDES `pre-transition`
+# because "blocking there would only strand a completed plan": a gating review finding needed to stop
+# work BEFORE it started. This rule does the exact opposite for the opposite reason: the transition to
+# `executed` is the precise moment an uncarried obligation VANISHES (`attention_contract._PLANS_MAP`
+# maps `executed` -> `done`), so the claim of doneness is the only place the question can be asked. One
+# set excludes the phase the other requires, and both are right about their own concern.
+#
+# DO NOT WIDEN THIS TO THE EARLIER PHASES. Firing at `author`/`review-finalize`/`pre-execution` would
+# demand a carrier for a row a plan is still drafting, which is the mass-failure E-05 exists to avoid;
+# 664 such rows exist across all 106 pending plans today (measured 2026-09-18).
+#
+# THE EXISTING `pre-execution` BLOCKING-OQ CHECK IS UNTOUCHED. Its exclusion from `pre-transition` is
+# deliberate and documented (`check_checkpoint`), and this item ADDS a different question at a different
+# phase rather than relocating an existing one. Two gates, two questions.
+_CARRIER_CHECKPOINTS = frozenset(("pre-transition",))
+
+
+def _merge_durable_carrier(
+    path: Path, result: LintResult, text: str, checkpoint: str, doc: ParsedDoc
+) -> LintResult:
+    """Merge `check.ipd-uncarried-obligation` diagnostics into a LintResult (durablecapture `rnkqrc`).
+
+    THIS LIVES IN ``lint_file``, NOT ``check_checkpoint``/``lint_text``, and that placement is a
+    CORRECTNESS CONSTRAINT rather than a preference. ``lint_text`` is PURE by documented contract
+    ("Pure: no I/O", :func:`lint_text`), and this rule RESOLVES a carrier id6 against the backlog and
+    plans trees, which is I/O. The repository has already made this exact move twice with the reason
+    recorded: the Item-Dependencies RESOLUTION checks and :func:`_merge_review_escalation` both sit
+    here. This function follows the latter's shape exactly: gate on a checkpoint frozenset, skip
+    legacy/quarantined dispositions, reuse the ALREADY-PARSED ``doc`` rather than re-parsing, and
+    delegate to the ONE shared evaluator.
+
+    THE CONSEQUENCE IS INTENDED AND IS ASSERTED BY THE TESTS: a text-only ``lint_text`` call CANNOT
+    report this rule, exactly as it cannot report the review-escalation rule today. A test that got
+    this rule out of ``lint_text`` would prove the predicate had been wired into the pure path.
+
+    Only a FAILING (non-advisory) verdict blocks. A grandfathered pre-cutover plan yields an
+    `info`-severity Drift from the evaluator, which is surfaced as an ADVISORY here and never flips the
+    disposition, so the 106 pending plans that predate this rule still lint conforming.
+    """
+    if checkpoint not in _CARRIER_CHECKPOINTS:
+        return result
+    if result.disposition not in (S.DISPOSITION_CONFORMING, S.DISPOSITION_ERROR):
+        return result  # legacy / quarantined: leave the grandfathered disposition alone
+    try:
+        from agent_workflows import check_engine as _ce
+
+        repo_root = path.resolve().parent
+        for anc in path.resolve().parents:
+            if (anc / ".aw").is_dir() or (anc / ".agents").is_dir():
+                repo_root = anc
+                break
+        blocking: List[Diagnostic] = []
+        advisory: List[Diagnostic] = []
+        for d in _ce.evaluate_durable_carrier(
+            repo_root,
+            plan_path=path,
+            plan_text=text,
+            open_questions=doc.open_questions,
+        ):
+            diag = Diagnostic(0, 1, d.rule, d.detail)
+            (advisory if d.severity == "info" else blocking).append(diag)
+        if blocking:
+            return LintResult(
+                S.DISPOSITION_ERROR,
+                list(result.diagnostics) + blocking,
+                list(result.advisories) + advisory,
+            )
+        if advisory:
+            return LintResult(
+                result.disposition,
+                list(result.diagnostics),
+                list(result.advisories) + advisory,
+            )
+    except Exception:
+        # Consistent with both sibling merge blocks: a repo-scan failure never masks the pure lint
+        # result. NOTE this is NOT a fail-open path for a malformed CARRIER reference - that case is an
+        # explicit reported branch inside `evaluate_carrier_obligation`, so a bad id6 produces a finding
+        # here rather than being swallowed.
         pass
     return result
 

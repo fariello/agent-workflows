@@ -50,7 +50,7 @@ If those files are absent (this workflow copied alone), apply the same rules fro
 
 - DOES: author/curate a `benchmarks/` suite; capture + diagnose the environment; run the
   benchmarks with warm-up; generate (and, on explicit consent, submit) an HPC job script;
-  write a shareable, optionally anonymized results bundle under `workflow-artifacts/`.
+  write a shareable, optionally anonymized results bundle under `.aw/workflow-artifacts/`.
 - Does NOT: change the product's code, add benchmarking into the product's runtime, modify
   system configuration, auto-submit HPC jobs without per-submission consent, or send
   results anywhere over the network.
@@ -163,7 +163,7 @@ sharing. The tool makes no network calls; sharing is always the user's explicit 
 
 ## Run record
 
-Create `workflow-artifacts/benchmark/<RUN_ID>/` (RUN_ID = local-time `YYYYMMDD-HHMMSS`),
+Create `.aw/workflow-artifacts/benchmark/<RUN_ID>/` (RUN_ID = local-time `YYYYMMDD-HHMMSS`),
 local-only working material (gitignored; do NOT commit or force-add it). Write:
 
 - `environment.json` - the full `bench_env.py --format json` capture (the context).
@@ -175,7 +175,9 @@ local-only working material (gitignored; do NOT commit or force-add it). Write:
   flagged (e.g. "measured on an NFS working set; treat I/O numbers as indicative").
 - optionally a scrubbed copy for sharing (`report.scrubbed.md` / `environment.scrubbed.json`).
 
-`workflow-artifacts/` is gitignored by default (local-only working material); do NOT commit or force-add it.
+`.aw/workflow-artifacts/` is local-only working material, ignored by the framework-owned
+`.aw/.gitignore` (the anchored pattern `/workflow-artifacts/`; verify with `git check-ignore -v
+.aw/workflow-artifacts/`); do NOT commit or force-add it.
 
 
 ## Required report format (to the user)
@@ -185,7 +187,7 @@ local-only working material (gitignored; do NOT commit or force-add it). Write:
 Suite: <path to benchmarks/ or "existing: <tool>">   Isolated: <yes/no + why>
 Environment: <host summary; flagged conditions count>
 Ran: <yes/no; iterations; local or HPC(<scheduler>)>
-Run record: <workflow-artifacts/benchmark/<RUN_ID>/>
+Run record: <.aw/workflow-artifacts/benchmark/<RUN_ID>/>
 
 ### Environment diagnostics
 | Severity | Area | Finding | Suggested remedy |

@@ -51,6 +51,14 @@ from agent_workflows import agy_runipd, lane_containment, oc_runipd, runner_shar
 _DRIVERS = (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd))
 
 
+def _effective_execute_item_source(driver) -> str:
+    fn = driver.execute_item if hasattr(driver, "execute_item") else driver
+    src = inspect.getsource(fn)
+    if "execute_item_core" in src:
+        return inspect.getsource(runner_shared.execute_item_core)
+    return src
+
+
 def _git(repo: Path, *args: str, check: bool = True) -> str:
     res = subprocess.run(
         ["git", *args], cwd=repo, text=True, capture_output=True, check=False
@@ -747,7 +755,7 @@ class TheReviewDispositionComesFromTheLane(unittest.TestCase):
         """F-15: the ordering is FIXED by the code, so "read main after the merge" is not a real branch."""
         for name, driver in _DRIVERS:
             with self.subTest(driver=name):
-                src = inspect.getsource(driver.execute_item)
+                src = _effective_execute_item_source(driver)
                 tree = ast.parse(ast.unparse(ast.parse(src)))
                 disp_lines = [
                     n.lineno

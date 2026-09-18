@@ -195,7 +195,7 @@ pre-commit journal is rolled back idempotently before a fresh attempt.
 
 ## The terminal transaction (post-gate; ordered, recoverable)
 
-Perform these steps as one finalization transaction, in order:
+These ordered steps are what `aw ipd finalize` performs internally (see :105-107); they are documented here for understanding and recovery reasoning, not to be performed by hand:
 
 1. Append the required `## Workflow history` entry (`<date> executed (<agent/model>): ...`).
 2. Set the terminal `Status:` (`executed`, or `superseded`/`not-executed` with a `RETIRED ...`

@@ -155,7 +155,7 @@ green.
 
 ### Run record (ALWAYS)
 
-Write a brief record to `workflow-artifacts/verify-execution/<RUN_ID>/` (RUN_ID = local
+Write a brief record to `.aw/workflow-artifacts/verify-execution/<RUN_ID>/` (RUN_ID = local
 `YYYYMMDD-HHMMSS`): the plan reviewed, the execution commit(s), the per-required-change results, the
 validation result (with baseline attribution), and the verdict. This is durable provenance even on a
 clean MATCHES.
@@ -202,7 +202,7 @@ Readiness: <GO | NO-GO> - <one-line reason>
 - <command> -> <result>; attribution: <introduced by this execution | pre-existing>
 
 ### Run record
-- workflow-artifacts/verify-execution/<RUN_ID>/
+- .aw/workflow-artifacts/verify-execution/<RUN_ID>/
 
 ### Corrective IPD
 - <path to emitted corrective IPD + its status (auto-approved | to-review)> | none (clean MATCHES)

@@ -199,6 +199,11 @@ SKIP_DIR_NAMES = {
     ".cache",
     # Agent-workflow run records are generated deliverables (they may even contain a prior
     # scan's own redacted output); scanning them just re-flags noise, not committed secrets.
+    # DELIBERATELY BARE, not `.aw/workflow-artifacts` (wfartifacts Order 03): this set holds
+    # single path SEGMENT names, matched by `set(rel_posix.split("/")) & SKIP_DIR_NAMES` in
+    # `is_skipped_path`. A segment never contains a slash, so the prefixed spelling could match
+    # NOTHING and would silently stop excluding run records; the bare name already matches the
+    # relocated `.aw/workflow-artifacts/` AND any legacy repo-root copy, which is what we want.
     "workflow-artifacts",
 }
 # Generated lockfiles are high-entropy hash soup, not human-authored secrets.

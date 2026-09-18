@@ -30,6 +30,7 @@ same reason). Every record here is built in `tmp_path`.
 from __future__ import annotations
 
 import ast
+import inspect
 import json
 import subprocess
 import unittest
@@ -41,6 +42,13 @@ from agent_workflows import runner_shared as R
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DRIVERS = (oc_runipd, agy_runipd)
+
+
+def _effective_source(mod: Any) -> str:
+    src = Path(str(mod.__file__)).read_text(encoding="utf-8")
+    if "execute_item_core" in src:
+        src += "\n" + inspect.getsource(R.execute_item_core)
+    return src
 
 
 def _outcome(**over: Any) -> dict[str, Any]:
@@ -163,7 +171,21 @@ class PromptSizeBudgetTests(unittest.TestCase):
     #: enforce (the defect report itself must stay under budget) is now measured against a
     #: same-HEAD baseline instead of a stale one. Measured cost after the change: 1137 characters on
     #: BOTH hosts, comfortably under the 1500 ceiling.
-    BASELINE = {"agent_workflows.oc_runipd": 5466, "agent_workflows.agy_runipd": 5469}
+    #:
+    #: RE-BASED AGAIN (backlog `q1z9gn`) for the same reason and by the same method: the shared execute
+    #: prompt gained a foreground-execution instruction, so the report-free prompt legitimately grew by
+    #: 623 characters on both hosts (5466 -> 6089 on oc, 5469 -> 6092 on agy). The instruction exists
+    #: because an execute turn backgrounded the validation suite, polled it with a scheduled task, and
+    #: ended while it was still running, producing no work and blocking three siblings
+    #: (run-20260918T045802Z-2547360, item `zqs0px`).
+    #:
+    #: WHY RE-BASING IS THE CORRECT FIX AND NOT A DODGE: this constant is DEFINED as "the execute
+    #: prompt's length WITHOUT the defect report", so it is a snapshot that MUST move whenever the
+    #: surrounding prompt legitimately changes. Leaving it stale would silently attribute unrelated
+    #: prompt growth to the defect report and fail this test for a reason it does not measure. The
+    #: quantity actually under test is UNCHANGED: measured at this HEAD the report still costs exactly
+    #: 1137 characters on both hosts, the same figure as before, against an untouched 1500 ceiling.
+    BASELINE = {"agent_workflows.oc_runipd": 6089, "agent_workflows.agy_runipd": 6092}
 
     #: What the report may cost. The demand plus the schema literal is ~1.2KB; the ceiling leaves
     #: room for a wording fix and no room for a fifth field.
@@ -473,9 +495,9 @@ class ReaskPredicateTests(unittest.TestCase):
     ) -> None:
         """The predicate consumes the id observed for THIS attempt, never a set-wide one."""
 
-        src = Path(str(oc_runipd.__file__)).read_text(encoding="utf-8")
+        src = _effective_source(oc_runipd)
         self.assertIn('reask_session = attempt.get("session_id")', src)
-        agy = Path(str(agy_runipd.__file__)).read_text(encoding="utf-8")
+        agy = _effective_source(agy_runipd)
         self.assertIn('reask_session = attempt.get("session_id")', agy)
 
     def test_session_rule_3_the_reask_counts_against_the_rotation_budget(self) -> None:
@@ -802,10 +824,14 @@ class PersistedRecordTests(unittest.TestCase):
 
     def test_case_g_both_hosts_write_the_identical_shape_at_the_same_seam(self) -> None:
         for mod in DRIVERS:
-            src = Path(str(mod.__file__)).read_text(encoding="utf-8")
+            src = _effective_source(mod)
             self.assertIn('item["defect_report"] = record', src, mod.__name__)
             self.assertIn('attempt["defect_report"] = record', src, mod.__name__)
-            self.assertIn("runner_shared.defect_report_record(", src, mod.__name__)
+            self.assertTrue(
+                "runner_shared.defect_report_record(" in src
+                or "defect_report_record(" in src,
+                mod.__name__,
+            )
             self.assertIn('"event": "defect-report-recorded"', src, mod.__name__)
             # Written at the EXISTING per-item seam, beside the other results.
             seam = src.index('item["last_outcome"] = outcome')
@@ -828,6 +854,15 @@ class PersistedRecordTests(unittest.TestCase):
                 for n in tree.body
                 if isinstance(n, ast.FunctionDef) and n.name == "execute_item"
             )
+            if "execute_item_core" in ast.unparse(func):
+                shared_tree = ast.parse(
+                    Path(str(R.__file__)).read_text(encoding="utf-8")
+                )
+                func = next(
+                    n
+                    for n in shared_tree.body
+                    if isinstance(n, ast.FunctionDef) and n.name == "execute_item_core"
+                )
             block = [
                 n
                 for n in ast.walk(func)

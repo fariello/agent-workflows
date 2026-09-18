@@ -848,3 +848,84 @@ class TestExecutionRoleSelector:
         shared = Path(inspect.getfile(lane_containment)).read_text(encoding="utf-8")
         assert "HONEST LIMIT" in shared
         assert "not a boundary" in shared
+
+
+class TestTheAgentIsToldNotToOutliveItsOwnCommands:
+    """A turn's child processes die with the turn, so the agent must be told to WAIT for them.
+
+    WHY THIS IS A TURN-BOUND CONCERN and lives beside the other R4.4 bounds: the bounds above stop a
+    turn that runs too LONG, and this stops the opposite failure, a turn that ends too EARLY while its
+    own work is still running. Both are about the turn's lifetime, and neither is enforceable by the
+    host.
+
+    MEASURED, run `run-20260918T045802Z-2547360` item `zqs0px` (backlog `q1z9gn`): the agent started
+    `python3 -m pytest` as a BACKGROUND task, polled it once with a scheduled wake-up, and then ENDED
+    ITS TURN with the suite at 32%. The host terminated the task (`terminating 2 background task(s) on
+    exit`), reported `status: SUCCESS` for a turn whose final words were "Waiting for test suite
+    baseline run to finish", and the driver correctly recorded `partial` because no outcome file was
+    written. That one `partial` then blocked three siblings and took the run to `BLOCKED` with 1 of 5
+    items executed. The turn used 36s of a 600s stall budget and exited 0, so NO bound fired and none
+    could have: the agent chose to stop.
+
+    WHAT IS ASSERTED is the PROPERTY (both agents are told to run result-bearing commands in the
+    foreground and not to end a turn while one is outstanding), not the exact wording, so a later
+    rewording that preserves the instruction does not fail this test.
+    """
+
+    @DRIVERS
+    def test_the_prompt_tells_the_agent_to_run_commands_in_the_foreground(
+        self, driver, tmp_path
+    ):
+        repo = tmp_path
+        item = {
+            "id6": "abc123",
+            "setid": "demo",
+            "position": 1,
+            "configured_file": "x.ipd.md",
+            "attempts": [{"number": 1}],
+            "action": "execute",
+        }
+        state = {"run_id": "run-1", "repo": str(repo), "options": {}}
+        plan = repo / "plan.ipd.md"
+        plan.write_text("# plan\n", encoding="utf-8")
+
+        prompt = driver.build_prompt(item, state, repo / "rd", plan, False)
+        low = prompt.lower()
+
+        # The instruction is present: run it in the foreground, and wait.
+        assert "foreground" in low
+        # The REASON is present, because an instruction without its reason invites a workaround
+        # (the agent that hit this was not being careless, it was managing a long command).
+        assert "terminated when it ends" in low or "killed" in low
+        # And the specific prohibition, which is the one the measured incident violated.
+        assert "never end your turn while waiting" in low
+
+    def test_both_hosts_receive_the_same_instruction(self, tmp_path):
+        """It is in the SHARED prompt, so neither host can drift from the other on this."""
+
+        prompts = {}
+        for driver in (oc_runipd, agy_runipd):
+            repo = tmp_path / driver.__name__
+            repo.mkdir()
+            plan = repo / "plan.ipd.md"
+            plan.write_text("# plan\n", encoding="utf-8")
+            prompts[driver.__name__] = driver.build_prompt(
+                {
+                    "id6": "abc123",
+                    "setid": "demo",
+                    "position": 1,
+                    "configured_file": "x.ipd.md",
+                    "attempts": [{"number": 1}],
+                    "action": "execute",
+                },
+                {"run_id": "run-1", "repo": str(repo), "options": {}},
+                repo / "rd",
+                plan,
+                False,
+            )
+
+        sentence = "run every command you need the result of in the foreground"
+        for name, text in prompts.items():
+            assert (
+                sentence in text.lower()
+            ), f"{name} is missing the foreground instruction"

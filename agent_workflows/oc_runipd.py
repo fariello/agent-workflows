@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import functools
 import json
 import os
 import re
@@ -85,7 +84,7 @@ from agent_workflows.render_stream import (
     # `record_refusal`, never by assigning the key, so the writer cannot drift from the reader.
     REFUSAL_KEY as REFUSAL_KEY,
     Refusal as Refusal,
-    record_integration_refusal,
+    record_integration_refusal as record_integration_refusal,
     record_refusal as record_refusal,
     refusal_of_item as refusal_of_item,
     Statusline,
@@ -2318,6 +2317,34 @@ def reclaim_lanes_on_interrupt(
                     ),
                     file=sys.stderr,
                 )
+                try:
+                    worktree_lease.teardown_worktree(repo, handle, force=True)
+                    lane["action"] = "reclaimed"
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "lane-reclaimed-on-interrupt",
+                            "id6": lane["id6"],
+                            "branch": lane["branch"],
+                            "worktree": lane["worktree"],
+                            "snapshot_commit": snapshot,
+                            "reason": reason,
+                        },
+                    )
+                except Exception as exc:
+                    lane["action"] = "preserved"
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "lane-teardown-failed",
+                            "id6": lane["id6"],
+                            "branch": lane["branch"],
+                            "detail": str(exc),
+                        },
+                    )
+                continue
             lane["action"] = "preserved"
             append_jsonl(
                 run_dir / "events.jsonl",
@@ -2899,6 +2926,7 @@ def expand_selectors(
                                 "status": rec.status,
                                 "order": rec.order,
                                 "dependencies": rec.dependencies,
+                                "kind": rec.kind,
                             }
                         break
             except OSError:
@@ -3244,451 +3272,55 @@ def launch_profile_record(
 
 
 def initialize_run(args: argparse.Namespace) -> Path:
+    """Initialize a run, freezing queue items (including "from_backlog") and options via runner_shared.initialize_run_core.
+
+    Freezes queue items with "from_backlog" and runs report_untracked_dirt_at_run_start.
+    Evaluates __file__ in the runner module so driver identity attributes to this host.
+    """
     # runprofile-03 (`3cm15q`) E-02: FIRST statement in the function, deliberately. The launch
     # identity is decided before the repository is even validated, so no ordering change can later
-    # slip a durable write (run dir at `run_dir.mkdir`, events, state.json) ahead of a refusal. A
-    # malformed or unknown profile therefore exits nonzero having created nothing.
-    #
-    # runprofile-06 (`kgpptv`) E-02: BOTH launches are resolved here, in this same position, so a
-    # dangling `verify_with` refuses just as early as an unknown `--profile` does. `resolved_verify`
-    # is None when no level named a verifier profile, which means "the verifier reuses the executor's
-    # launch" and is the behavior of every run created before this field existed.
+    # slip a durable write ahead of a refusal.
+    # runprofile-06 (`kgpptv`) E-02: BOTH launches are resolved here in this same position.
     resolved_launch, resolved_verify = resolve_launch_pair(args)
 
-    repo = Path(args.repo).expanduser().resolve()
-    if not (repo / ".git").exists():
-        try:
-            common_dir_exists = git_common_dir(repo).exists()
-        except DriverError:
-            common_dir_exists = False
-        if not common_dir_exists:
-            raise DriverError(f"Not a Git repository: {repo}")
-
-    if getattr(args, "manifest", None):
-        manifest_path = Path(args.manifest).expanduser().resolve()
-        manifest = load_json(manifest_path)
-        validate_manifest(manifest)
-    else:
-        discovered = discover_plans(repo)
-        manifest = build_dynamic_manifest(repo, discovered)
-        manifest_path = None
-
-    if getattr(args, "runbook", None):
-        runbook_path = Path(args.runbook).expanduser().resolve()
-    else:
-        default_rb = (
-            repo
-            / "tools"
-            / "ipdrunner"
-            / "20260823-pending-ipds-overnight-execution-runbook.md"
-        )
-        if default_rb.is_file():
-            runbook_path = default_rb.resolve()
-        else:
-            runbook_path = None
-
-    # runflags-01 (`uyeko5`) E-03/E-04/E-05: refuse an unhonorable flag BEFORE resolution, so a
-    # malformed invocation costs the operator nothing and leaves no durable state. All three refusals
-    # DELEGATE: the unimplemented-flag list is the shared table's, `--unverifiable-ok`'s precondition
-    # is `run_evidence.aggregate_run_exit`'s (executed `zub5f1`), and `--retry-budget`'s 0..10 bound is
-    # `run_recovery.validate_retry_budget`'s (executed `sq61qd`). Nothing is re-decided here.
-    runner_shared.refuse_unimplemented_run_flags(args)
-    runner_shared.evaluate_unverifiable_admission(args)
-    runner_shared.resolve_retry_budget(getattr(args, "retry_budget", None))
-    # integpath-03 (`51vw4y`) E-02/E-05: refused HERE too, for the same reason and at the same seam -
-    # before the run directory exists, so a malformed value costs the operator nothing. A negative
-    # re-attempt count and an unrecognized ladder rung are operator errors, and an overnight run must
-    # learn of them now rather than at the first refused integration hours later.
-    runner_shared.resolve_integration_retry_limit(
-        getattr(args, "integration_retry_limit", None)
-    )
-    runner_shared.resolve_on_integration_blocked(
-        getattr(args, "on_integration_blocked", None)
-    )
-
-    # dirtybase Order 01 (`3i0aaz`) E-02: REPORT the target checkout's UNTRACKED content ONCE, here,
-    # and do not refuse on it. This is the `aw install` case - 130+ uncommitted, largely untracked
-    # files - which the per-item clean-base guard excludes BY DESIGN (see `evaluate_clean_base`).
-    #
-    # THIS SEAM IS "RUN START" AND `execute_item` IS NOT. The clean-base guard runs per queue entry,
-    # so a report placed beside it would say the same thing once per item. Placed here, beside the
-    # shared flag refusals, it fires exactly once and before the run directory exists.
-    #
-    # IT CANNOT FAIL THE RUN: the helper swallows an unreadable tree and returns an empty report.
-    # A report that could refuse would be the tracked-dirt guard wearing a report's clothes.
-    runner_shared.report_untracked_dirt_at_run_start(repo)
-
-    queue_ids = expand_selectors(manifest, args.selectors, repo=repo)
-
-    # revsweep-02 (`6ypimw`) E-04: SPEC 25kzda 2.5a's DRAFT ADMISSION GATE, here and not later. Spec
-    # 2.5a places it "after resolution, BEFORE any lease or session, so a batch cannot stop to ask
-    # halfway through", and this is that seam: the run directory does not exist yet, no lease is held,
-    # no session is open, so an exclusion leaves nothing durable to reconcile.
-    #
-    # IT EXCLUDES, IT NEVER REFUSES. Unlike the mixed-type gate below, an ungated complete draft is
-    # withheld and the REST of the queue proceeds (spec 2.5a bullet 4): a mixed selection means the
-    # operator's intent is unclear, whereas the remaining items' intent is not in doubt. So this
-    # REBINDS `queue_ids` rather than raising.
-    #
-    # ONLY STATUS SELECTORS CAN REACH IT IN PRACTICE, and that is spec 2.5a bullet 2's rule ("a draft
-    # named EXPLICITLY by path or id6 is admitted without gating; the operator named it, asking is
-    # noise"), implemented by `_selection_is_status_sweep` rather than by trusting the token spelling.
-    if runner_shared.is_status_selector(args.selectors):
-        queue_ids, draft_verdict = runner_shared.enforce_draft_admission_gate(
-            manifest,
-            queue_ids,
-            repo=repo,
-            allow_drafts=bool(getattr(args, "allow_drafts", False)),
-            interactive=runner_shared.is_interactive_run(args),
-            host="oc",
-            selector=" ".join(str(s) for s in args.selectors),
-        )
-        if not queue_ids:
-            # EVERY selected item was an ungated draft, so nothing remains to run. This composes the
-            # existing rules rather than inventing a third: 2.5a excludes the drafts WITHOUT failing
-            # the run, and the selector's OWN empty branch already decides what an empty result means.
-            # Freezing an empty queue instead would create a run directory, a report, and a ledger for
-            # zero work, which is durable state an operator then has to reconcile. The exclusion notice
-            # has already been printed, so the operator knows WHY it is empty.
-            #
-            # EACH SELECTOR KEEPS ITS OWN EMPTY SEMANTICS, deliberately: `reviews` raises
-            # `EmptyStatusSelection` (spec 2.4a property 3 makes it a success that exits 0), while
-            # `all` raises the plain `DriverError` it has always raised (exit 2). Collapsing the two
-            # into one would silently change `all`'s established exit code, which no spec amendment
-            # authorizes and which a caller may well depend on.
-            raise (
-                EmptyStatusSelection(
-                    "No items in 'to-review' state found in repository"
-                )
-                if runner_shared.is_review_selector(args.selectors)
-                else DriverError("No actionable pending IPDs found in repository")
-            )
-    else:
-        draft_verdict = None
-
-    # 8guhs0 E-02: FAIL CLOSED on an invalid dependency graph BEFORE any host session starts (and
-    # before the run directory exists, so a refused run leaves no durable state to reconcile). The
-    # rules and their severities are the SHARED evaluator's; see `enforce_dependency_preflight`.
-    selected_plan_paths: list[Path] = []
-    for id6 in queue_ids:
-        try:
-            selected_plan_paths.append(
-                resolve_plan_path(repo, manifest["plans"][id6].get("file", ""), id6)
-            )
-        except (DriverError, KeyError):
-            continue
-    enforce_dependency_preflight(repo, selected_plan_paths)
-
-    # revsweep 76gsmv E-03: `--action` legality, checked HERE for the same reason the dependency
-    # preflight above is: before the run directory exists and before any session, so a refusal
-    # leaves nothing to reconcile. It must also precede the `--full-auto` auto-approval below, which
-    # would otherwise CLEAR a `reviewed` plan to `auto-approved` on the way to executing it inside a
-    # command the operator spelled "review" (F-9). The derived action uses the same `action_for` the
-    # queue builder uses, read from the same manifest+plan-file status, so the two cannot disagree.
-    requested_action = getattr(args, "action", None)
-    if requested_action is not None:
-        preflight_items: list[tuple[str, str, str]] = []
-        for id6 in queue_ids:
-            plan_info = manifest["plans"].get(id6, {})
-            st = plan_info.get("status")
-            # rununify 06 (`sy7uwh`) E-03: resolve the path ONCE, because the kind fallback below needs
-            # it too. Previously it was resolved only when the status was missing, so a legacy manifest
-            # WITH a status but WITHOUT a `kind` key had no path to fall back to.
-            probe_path = None
-            try:
-                probe_path = resolve_plan_path(repo, plan_info.get("file", ""), id6)
-            except Exception:
-                probe_path = None
-            if not st and probe_path is not None:
-                try:
-                    rec_probe = parse_plan_file(probe_path, repo)
-                    st = rec_probe.status if rec_probe else None
-                except Exception:
-                    st = None
-            st = st or "approved"
-            # rununify 06 (`sy7uwh`) E-03: the SAME `resolve_manifest_kind` the queue build calls, which
-            # is what this block's own comment above already PROMISES ("read from the same
-            # manifest+plan-file status, so the two cannot disagree"). Before this, the promise held for
-            # STATUS but not for KIND: this line read the manifest's `kind` raw while the queue build
-            # (on the agy host) fell back to the plan file, so a legacy manifest could make the
-            # `--action` legality check tell the operator an orchestrator's next action was `execute`
-            # while the dispatch correctly treated it as `orchestrate`. One shared resolution at both
-            # sites on both hosts is what makes the promise true.
-            preflight_items.append(
-                (id6, st, action_for(resolve_manifest_kind(plan_info, probe_path), st))
-            )
-        enforce_requested_action(requested_action, preflight_items)
-
-    # runflags-01 (`uyeko5`) E-02: THE CALL SITE THAT MAKES `6lu3rq`'s MIXED-TYPE GATE REACHABLE.
-    # Executed plan `6lu3rq` built the entire gate and NOTHING called it: `run_selection_policy` was
-    # imported by no module in the package and `decide` had ZERO call sites, so a fully tested gate was
-    # dead code and a mixed selection was silently accepted. Here, after resolution and BEFORE any
-    # lease, session, or run directory, which is exactly where spec 2.5 places it.
-    #
-    # HONEST LIMIT: no real invocation can produce a mixed selection yet. Discovery walks only the two
-    # plans trees, the manifest is compiled from those alone, and NEITHER host registers `--type`
-    # (spec 2.2/2.3, out of this plan's scope). So the gate is now REACHED on every run and correctly
-    # does not APPLY, because the classification is single-type. Wiring proven; a live mixed selection
-    # being gated is NOT proven and must not be reported as such.
-    mixed_verdict = runner_shared.enforce_mixed_type_gate(
-        repo,
-        selected_plan_paths,
-        allow_mixed=bool(getattr(args, "allow_mixed", False)),
-        interactive=runner_shared.is_interactive_run(args),
-        host="oc",
-        selector=" ".join(str(s) for s in args.selectors),
-    )
-
-    run_id = getattr(args, "run_id", None) or new_run_id()
-    run_dir = state_root(repo) / run_id
-    if run_dir.exists():
-        raise DriverError(f"Run already exists: {run_id}")
-    for name in ("sessions", "outcomes", "prompts"):
-        (run_dir / name).mkdir(parents=True, exist_ok=True)
-    (run_dir / "decisions-and-questions.md").write_text(
-        f"# Decisions and Questions for {run_id}\n\n", encoding="utf-8"
-    )
-
-    if manifest_path is None:
-        manifest_path = run_dir / "manifest.json"
-        atomic_write_json(manifest_path, manifest)
-
-    if runbook_path is None:
-        runbook_path = run_dir / "runbook.md"
-        runbook_path.write_text(DEFAULT_RUNBOOK_TEXT, encoding="utf-8")
-
-    initial_session = getattr(args, "session", None)
-    set_sessions: dict[str, str] = {}
-    queue: list[dict[str, Any]] = []
-    full_auto = getattr(args, "full_auto", False)
-    for position, id6 in enumerate(queue_ids, start=1):
-        plan = manifest["plans"][id6]
-        setid = plan["set"]
-        if initial_session:
-            set_sessions[setid] = initial_session
-
-        status = plan.get("status")
-        p_path = None
-        rec = None
-        try:
-            p_path = resolve_plan_path(repo, plan.get("file", ""), id6)
-            rec = parse_plan_file(p_path, repo)
-            if rec and not status:
-                status = rec.status
-        except Exception:
-            if not status:
-                status = "approved"
-
-        # `Status: reviewed` remains a hard PRECONDITION: the shared predicate answers only "has
-        # review cleared this plan", never "may it be approved", so a draft/to-review plan can never
-        # be auto-approved here (fullauto 97df1z, no-widening rule). The resulting status is
-        # `auto-approved`, the shipped automated-clear tier, NOT human `approved` (OQ-02).
-        if status == "reviewed" and full_auto and p_path:
-            try:
-                if is_plan_review_approved(p_path):
-                    set_plan_approved(repo, id6)
-                    status = "auto-approved"
-            except Exception:
-                pass
-
-        # Orchestrators are NOT agent-executed by the runner: an orchestrator IPD
-        # (Kind: orchestrator) authors no code and only coordinates/verifies its set.
-        # In runner mode the runner IS the coordinator and each child is already
-        # verified twice (its own V-items + the fresh-session validation turn), so
-        # running the orchestrator as an agent turn is redundant and produces spurious
-        # blocked/partial. Instead the runner administratively finalizes it iff every
-        # child in its set reached `executed` (see run_queue). Detected by the reliable
-        # `- Kind:` field, not the Order number.
-        # Kind + Status decide the action (see action_for): a draft/to-review
-        # orchestrator still needs its /plan-review; only a past-review orchestrator is
-        # 'orchestrate' (not agent-executed; finalized when all children executed).
-        #
-        # rununify 06 (`sy7uwh`) E-03 / OQ-03: THE LEGACY-MANIFEST FALLBACK ARRIVES ON THIS HOST. This
-        # line used to read `plan.get("kind")` STRAIGHT THROUGH while the antigravity host re-read the
-        # plan file when the manifest omitted the key. That made the two hosts disagree about a
-        # correctness gate in THIS host's disfavor: measured, given a hand-written manifest naming an
-        # approved orchestrator with no `kind` key, `aw agy run` derived `orchestrate` and retired it
-        # while `aw oc run` derived `execute` and spent a paid agent turn on a plan that authors no
-        # code - the exact defect orchretire-03 (`pgq326`) fixed. `resolve_manifest_kind` is the ONE
-        # shared manifest-then-file resolution both hosts now call. The behavior change to this host is
-        # authorized by the maintainer's 2026-09-16 ruling and is a FIX; a GENERATED manifest always
-        # carries the key, so no ordinary run reads a second file.
-        kind = resolve_manifest_kind(plan, p_path)
-        action = action_for(kind, status or "approved")
-        queue.append(
+    host_options = {
+        "opencode": getattr(args, "opencode", "opencode"),
+        "model": resolved_launch.model,
+        "variant": resolved_launch.variant,
+        "agent": resolved_launch.agent,
+        "launch_profile": launch_profile_record(resolved_launch),
+        **(
             {
-                "position": position,
-                "id6": id6,
-                "setid": setid,
-                "configured_file": plan["file"],
-                "dependencies": plan.get("dependencies", []),
-                # 8guhs0 E-04: the plan's numeric Order, frozen for use as a TIEBREAKER only (see
-                # `queue_sort_key`). Additive: an older run directory lacking the key still sorts
-                # (the comparator defaults it), so existing runs resume unchanged.
-                "order": plan.get("order"),
-                # bkclose (zhr6mc) E-01: the linked backlog item, frozen on the queue entry. Falls
-                # back to a direct read of the plan file when the manifest predates the key (a
-                # hand-written `tools/ipdrunner/*-driver-manifest.json` does), so an older manifest
-                # still gets the link rather than silently losing it.
-                "from_backlog": plan.get("from_backlog")
-                or (getattr(rec, "from_backlog", None) if p_path else None),
-                # orchretire-03 (`pgq326`) E-04: the plan's `- Kind:`, frozen on the queue entry so a
-                # RESUME re-derives the same action and the durable record shows which items the runner
-                # treated as orchestrators. Additive and symmetric with the agy queue entry; `action`
-                # above is still what the dispatch reads.
-                #
-                # rununify 06 (`sy7uwh`) E-03: the RESOLVED kind, not the raw manifest value, which is
-                # what the agy entry has always frozen. Freezing the raw `None` from a legacy manifest
-                # while `action` was derived from the resolved value would make a RESUME disagree with
-                # the run that created it, and would make the durable record deny that the runner
-                # treated the item as an orchestrator when it did.
-                "kind": kind,
-                "initial_status": status or "approved",
-                "action": action,
-                # A TERMINAL STATUS IS PRESERVED, NOT COLLAPSED TO `reviewed`. The inline allowlist
-                # this replaces had no `executed` arm, so an already-executed plan's queue entry said
-                # `reviewed`, `cascade_dependency_blocked` read that field, and the executed parent
-                # became a dead prerequisite that killed every dependent at queue build. Shared with
-                # the agy host so the two cannot diverge again.
-                "status": runner_shared.initial_queue_status(status),
-                "attempts": [],
+                "verify_model": resolved_verify.model,
+                "verify_variant": resolved_verify.variant,
+                "verify_agent": resolved_verify.agent,
+                "verify_launch_profile": launch_profile_record(resolved_verify),
             }
-        )
-
-    state = {
-        "schema_version": SCHEMA_VERSION,
-        "run_id": run_id,
-        "created_at": utc_now(),
-        "updated_at": utc_now(),
-        "repo": str(repo),
-        "manifest": str(manifest_path),
-        "manifest_sha256": sha256_file(manifest_path),
-        "runbook": str(runbook_path),
-        "runbook_sha256": sha256_file(runbook_path),
-        "selectors": list(args.selectors),
-        "queue": queue,
-        # runorder (prpipy) E-04: the REQUESTED-vs-EXECUTED order comparison, frozen here beside the
-        # queue it describes. Durable on purpose: before this, the only way to discover that the run
-        # had reordered the operator's request was to diff `events.jsonl` timestamps against these
-        # positions after the fact. The queue itself keeps request order; `position` stays identity.
-        "run_order": run_order_rationale(queue, list(args.selectors)),
-        "session_id": initial_session,
-        "set_sessions": set_sessions,
-        "session_turn_counts": {},
-        "options": {
-            "opencode": getattr(args, "opencode", "opencode"),
-            # runprofile-03 (`3cm15q`) E-03: the RESOLVED launch, not the raw flags. These three keys
-            # keep their existing names and meaning (`run_opencode` and every other reader are
-            # untouched), but their VALUE now comes from the single Order-01 resolution above, so a
-            # named or default profile reaches every turn through the path the bare flags always used.
-            # With no profile configured `resolved_launch` returns the flags verbatim, so an existing
-            # invocation freezes byte-identical state.
-            "model": resolved_launch.model,
-            "variant": resolved_launch.variant,
-            "agent": resolved_launch.agent,
-            # The provenance snapshot. Authoritative for "which configuration created this run";
-            # frozen here ONCE and never re-resolved, which is what makes a later edit to
-            # `runner-profiles.json` unable to change an existing run (E-04).
-            "launch_profile": launch_profile_record(resolved_launch),
-            # runprofile-06 (`kgpptv`) E-02: the VERIFIER's launch, frozen BESIDE the executor's
-            # rather than nested inside it (DECISION 06-kgpptv-D4), and built by the SAME
-            # `launch_profile_record` so there is one record shape rather than two. These four keys
-            # are ABSENT ENTIRELY when no verifier profile was configured, which is what keeps an
-            # existing invocation's frozen state byte-identical to what it was before this field.
-            # `run_opencode` reads `verify_model`/`verify_variant`/`verify_agent` only at the
-            # VERIFIER call site, and only when they are present.
-            **(
-                {
-                    "verify_model": resolved_verify.model,
-                    "verify_variant": resolved_verify.variant,
-                    "verify_agent": resolved_verify.agent,
-                    "verify_launch_profile": launch_profile_record(resolved_verify),
-                }
-                if resolved_verify is not None
-                else {}
-            ),
-            "auto": getattr(args, "auto", True),
-            "session": initial_session,
-            "output_mode": getattr(args, "output_mode", "clean"),
-            # streamfmt (mm6wuz) E-05: the live-stream detail tier, frozen beside `output_mode`
-            # because it is the same kind of setting and a resume must be able to honor it.
-            "verbosity": getattr(args, "verbosity", 0) or 0,
-            "stall_timeout": getattr(args, "stall_timeout", DEFAULT_STALL_TIMEOUT),
-            "full_auto": full_auto,
-            # hostdefault-02 (`ybkmzp`) E-03: the RESOLVED decision, not the raw flag. `--validate`
-            # is a tri-state whose absent value falls through to the profile store, so reading
-            # `args` here would discard the operator's stored per-model choice; `resolved_launch`
-            # already carries the resolution from the ONE store read at the top of this function, so
-            # no second `runner_profiles.load()` is needed (a second read would reopen the window
-            # `kgpptv` deliberately closed). `no_audit` is DERIVED from the same resolved value so
-            # the two frozen keys can never disagree.
-            "validate": resolved_launch.validate,
-            "no_audit": not resolved_launch.validate,
-            "self_finalize": getattr(args, "self_finalize", True),
-            "isolate_worktree": getattr(args, "isolate_worktree", True),
-            "max_items_per_session": getattr(args, "max_items_per_session", 4),
-            # revsweep 76gsmv E-03: frozen with the rest of the policy so `aw runs show` and a
-            # resume can both see the run was constrained to one action.
-            "action": requested_action,
-            # runflags-01 (`uyeko5`) E-06: spec 2.1's policy flags FROZEN at queue build, because
-            # spec 2.1 makes resume use "the original host, queue, and options". A policy re-read
-            # from `args` on every resume would silently change meaning between the first turn and
-            # the last. `**` and not eight literals so the frozen set cannot drift from the table.
-            # This also normalizes `--full-auto` implying `--unattended` and resolves
-            # `--retry-budget` to its effective integer; see `freeze_run_policy_flags`.
-            **runner_shared.freeze_run_policy_flags(args),
-        },
-        "driver": {
-            "path": str(Path(__file__).resolve()),
-            "sha256": sha256_file(Path(__file__)),
-        },
+            if resolved_verify is not None
+            else {}
+        ),
+        "auto": getattr(args, "auto", True),
+        "validate": resolved_launch.validate,
+        "no_audit": not resolved_launch.validate,
     }
-    atomic_write_json(run_dir / "state.json", state)
-    append_jsonl(
-        run_dir / "events.jsonl",
-        {"at": utc_now(), "event": "run-created", "run_id": run_id, "queue": queue_ids},
+
+    return runner_shared.initialize_run_core(
+        args,
+        host="oc",
+        driver_path=Path(__file__),
+        host_options=host_options,
+        expand_selectors_fn=expand_selectors,
+        enforce_dependency_preflight_fn=enforce_dependency_preflight,
+        set_plan_approved_fn=set_plan_approved,
+        announce_run_order_fn=announce_run_order,
+        is_plan_review_approved_fn=is_plan_review_approved,
+        run_order_rationale_fn=run_order_rationale,
+        write_report_fn=write_report,
+        git_common_dir_fn=git_common_dir,
+        parse_dependency_token_fn=parse_dependency_token,
+        default_runbook_text=DEFAULT_RUNBOOK_TEXT,
+        default_stall_timeout=DEFAULT_STALL_TIMEOUT,
     )
-    # runflags-01 (`uyeko5`) E-02: spec 2.5 bullet 4's four facts (confirmed type counts, action
-    # preview, response-or-flag, queue digest) recorded in the run ledger. The record is the one
-    # `run_selection_policy` RETURNED - `6lu3rq` deliberately returns these so a caller with a live run
-    # can persist them without re-deriving anything, and re-deriving them here would be a second
-    # implementation of the counts.
-    append_jsonl(
-        run_dir / "events.jsonl",
-        {
-            "at": utc_now(),
-            "event": "mixed-type-gate",
-            "gate_applied": mixed_verdict.gate_applied,
-            "proceed": mixed_verdict.proceed,
-            "reason": mixed_verdict.reason,
-            **mixed_verdict.record.as_dict(),
-        },
-    )
-    # revsweep-02 (`6ypimw`) E-04: spec 2.5a's last bullet - the draft counts, the preview, the
-    # response-or-flag, and the resulting ADMITTED SET recorded in the run ledger. The record is the
-    # one `run_selection_policy` RETURNED, on the same return-not-write convention `MixedTypeRecord`
-    # established, and re-deriving the counts here would be a second implementation of them. Without
-    # this there is no durable evidence of which drafts an `--allow-drafts` run waved through.
-    if draft_verdict is not None:
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": utc_now(),
-                "event": "draft-admission-gate",
-                "gate_applied": draft_verdict.gate_applied,
-                "reason": draft_verdict.reason,
-                "excluded_complete": list(draft_verdict.excluded_complete),
-                "skipped_incomplete": list(draft_verdict.skipped_incomplete),
-                **draft_verdict.record.as_dict(),
-            },
-        )
-    write_report(run_dir, state)
-    # runorder (prpipy) E-04: announce the order the run will EXECUTE in, ALWAYS, and warn loudly
-    # when it diverges from what was requested. Here and not in `run_queue`, because this is where
-    # the queue is frozen, and because the announcement must precede the first child session so the
-    # operator sees it before any work happens rather than inferring it from timestamps afterwards.
-    announce_run_order(run_dir, state)
-    return run_dir
 
 
 def render_launch_identity(state: dict[str, Any]) -> str:
@@ -5469,6 +5101,8 @@ def _record_checkpoint_stop(
     state: dict[str, Any],
     item: dict[str, Any],
     checkpoint_observer: runner_stop.CheckpointObserver,
+    *,
+    work_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """Record a level-3 stop on the item with KNOWN certainty (spec R18), returning the record.
 
@@ -5477,7 +5111,16 @@ def _record_checkpoint_stop(
     deliberate-stop branch, so the two cannot disagree.
     """
 
-    repo = Path(state["repo"])
+    effective_dir = (
+        work_dir
+        or item.get("worktree")
+        or (
+            item.get("attempts", [{}])[-1].get("worktree")
+            if item.get("attempts")
+            else None
+        )
+    )
+    repo = Path(effective_dir) if effective_dir else Path(state["repo"])
     try:
         observed_git = git_status(repo)
     except Exception as exc:  # noqa: BLE001 - an honest note beats failing the stop
@@ -5504,6 +5147,8 @@ def _record_forced_stop(
     state: dict[str, Any],
     item: dict[str, Any],
     stop: runner_stop.StopNowForce,
+    *,
+    work_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """Record a level-4 stop on the item as INDETERMINATE (spec R18/R21/R22), returning the record.
 
@@ -5519,7 +5164,16 @@ def _record_forced_stop(
     deliberate-stop branch (so the two cannot disagree) and this function refuses to record a success.
     """
 
-    repo = Path(state["repo"])
+    effective_dir = (
+        work_dir
+        or item.get("worktree")
+        or (
+            item.get("attempts", [{}])[-1].get("worktree")
+            if item.get("attempts")
+            else None
+        )
+    )
+    repo = Path(effective_dir) if effective_dir else Path(state["repo"])
     try:
         observed_git = git_status(repo)
     except Exception as exc:  # noqa: BLE001 - an honest note beats failing the stop
@@ -6303,7 +5957,6 @@ def run_opencode(
                 breach_watch.__exit__(None, None, None)
 
         if watchdog.stalled:
-            terminate_process(process)
             log.flush()
             with contextlib.suppress(OSError):
                 os.fsync(log.fileno())
@@ -6436,557 +6089,18 @@ def execute_item(
     recovery: bool,
     tracker: StreamTracker | None = None,
 ) -> None:
-    repo = Path(state["repo"])
-    plan_path = resolve_plan_path(repo, item["configured_file"], item["id6"])
-    attempt_no = len(item.get("attempts", [])) + 1
+    """Execute a single queue item via runner_shared.execute_item_core."""
 
-    is_review = item.get("action") == "review"
-    # resumedupe (`txc9l1`) E-01/E-03/E-05: classify the PRIOR attempt's lane BEFORE this turn's own
-    # attempt record and lane exist. Ordering is load-bearing: allocation records
-    # `worktree_lane_id` on the CURRENT attempt, and resolving that fresh, always-empty lane as the
-    # "prior" one would answer `fresh-execution` on every resume (the inert-feature regression). The
-    # decision is computed ONCE here and threaded into every prompt build below.
-    routing = None if is_review else route_recovery_turn(run_dir, state, item, recovery)
-    if is_review:
-        prompt = build_review_prompt(item, state, run_dir, plan_path, repo)
-    else:
-        prompt = build_prompt(
-            item, state, run_dir, plan_path, recovery, routing=routing
-        )
-
-    prompt_path = write_prompt(run_dir, item, prompt, attempt_no)
-    attempt = {
-        "number": attempt_no,
-        "started_at": utc_now(),
-        "starting_head": git_head(repo),
-        "starting_branch": git_branch(repo),
-        "starting_status": git_status(repo),
-        "prompt": str(prompt_path),
-        "prompt_sha256": sha256_file(prompt_path),
-        "session_id": None,
-        "log": str(attempt_log_path(run_dir, item, attempt_no)),
-        "recovery": recovery,
-        "action": item.get("action", "execute"),
-    }
-    item.setdefault("attempts", []).append(attempt)
-    item["status"] = "running"
-    save_state(run_dir, state)
-    append_jsonl(
-        run_dir / "events.jsonl",
-        {
-            "at": utc_now(),
-            "event": "ipd-started",
-            "id6": item["id6"],
-            "action": item.get("action", "execute"),
-            "attempt": attempt_no,
-        },
-    )
-    total = len(state["queue"])
-    pal = Palette(should_color(sys.stdout))
-    mode_note = " (recovery)" if recovery else ""
-    action_str = f"action={item.get('action', 'execute')}"
-    seq = execution_index(item, state)
-    banner = (
-        pal("\u25b6 ", "cyan")
-        + pal(f"IPD {seq:02d}/{total} {item['id6']}", "bold", "cyan")
-        + pal(
-            f"  set={item['setid']}  {action_str}  attempt {attempt_no}{mode_note}",
-            "dim",
-        )
-    )
-    print(banner)
-    print(pal(f"  plan: {plan_path}", "dim"))
-
-    # driverfin-01 (p7peqf): self-finalize step 1 - run the fail-closed `aw ipd begin` gate BEFORE
-    # the agent turn for an execute-action child, so scope + base HEAD are frozen and the agent turn
-    # only starts with execution authority. A begin refusal blocks the child cleanly (no agent turn).
-    self_finalize = state.get("options", {}).get("self_finalize", True)
-    # driverfin-02 (emus4n): per-run worktree isolation. For an execute-action child, allocate a fresh
-    # worktree on an `aw/lane/<id6>` branch (reused worktree_lease) so the agent edits/commits ONLY
-    # there and the MAIN tree stays untouched during the turn. begin runs against MAIN (receipt under
-    # the main repo's `.aw/state/`, findable regardless of worktree); the agent turn + verifier +
-    # finalize run in the worktree. Opt out (share the main tree) with `--no-isolate-worktree`.
-    isolate = state.get("options", {}).get("isolate_worktree", True)
-    wt_handle = None
-    work_dir: str | None = None
-
-    # lanectn Order 02 (`nna8yz`) E-05, spec R5.4: evaluate the target checkout's TRACKED cleanliness
-    # BEFORE anything is spawned or allocated, and act on it per path.
-    #
-    # dirtybase Order 01 (`3i0aaz`) E-03: THE CONDITION NO LONGER REQUIRES `isolate`, and the RULE is
-    # untouched. This block previously read `if isolate and ...`, so a `--no-isolate-worktree` run - the
-    # case where dirt is MOST dangerous, because the agent writes directly into the tree it is
-    # polluting - skipped the guard entirely. `shared_tree=not isolate` selects the true sentence for
-    # that case; the isolated wording would be FALSE there (that turn is not isolated and omits
-    # nothing). No second predicate, no second `git status`, and the tracked-only scope is IDENTICAL on
-    # both paths.
-    #
-    # dirtygates Order 01 (`d7qoxv`) E-01: THE CONSEQUENCE IS NOW SPLIT BY PATH, which is the amended
-    # R5.4. A SHARED-TREE turn is still REFUSED (its own changes could not be told apart from the
-    # uncommitted work already here at commit or finalize time). An ISOLATED turn is REPORTED and
-    # PROCEEDS.
-    #
-    # WHY THE ISOLATED REFUSAL WENT, because it looks like a safety regression and is not. It claimed to
-    # prevent a worker reasoning against an incomplete base, but MEASURED 2026-09-13 a lane cut from
-    # HEAD that lacked an uncommitted change failed EXACTLY as committing that change with no lane
-    # involved failed: the gate never prevented the failure, it deferred it to whenever the operator
-    # committed, which had to happen anyway. Meanwhile it cost 27 of 42, 23 of 41 and 18 of 43 queue
-    # items across three consecutive runs, each naming ONE uncommitted markdown file, cascading 36 more
-    # into `dependency-blocked`. The thing that ACTUALLY catches a stale base is the
-    # merge-and-revalidate gate, which re-runs validation against the COMBINED result and so reports a
-    # real test failure instead of a guess about a dirty file.
-    #
-    # THE VERDICT IS THE SHARED RULE'S, NOT AN `if isolate` HERE. `clean_base_launch_decision` reads
-    # `CleanBaseResult.refuses`, so the split cannot drift between the two hosts - which is exactly how
-    # the `--full-auto` default came to differ between them.
-    #
-    # `aw ipd begin` DOES NOT COVER THE SHARED-TREE CASE, so this is genuinely additional and the two
-    # must not later be "simplified" into one. Begin's dirty check is SCOPE-SCOPED
-    # (`_baseline_ambiguity` over the plan's frozen `Scope-Paths`, delegating to
-    # `run_evidence.dirty_within`) and returns `clean` for dirt OUTSIDE that scope BY DESIGN, which is
-    # the deliberate path-overlap rule that keeps concurrent agents from blocking each other. This
-    # guard is WHOLE-TREE.
-    #
-    # PLACED HERE, ahead of `driver_begin` and `allocate_isolation_worktree`, because R5.4 requires the
-    # refusal to occur before any worker process is spawned and because refusing before begin leaves
-    # NO lifecycle side effect to unwind: no receipt is written, no lane is allocated, nothing to
-    # reconcile. Untracked files do NOT trigger this on EITHER path (see `evaluate_clean_base`); they
-    # are reported once per run from `initialize_run` instead.
-    if self_finalize and not is_review:
-        base = evaluate_clean_base_for_launch(repo, shared_tree=not isolate)
-        # `3i0aaz` E-05: the three-way verdict (proceed / consented / refuse) is ONE shared decision
-        # both hosts consume, never a per-driver `if`. A policy decided in each driver's own body is
-        # exactly how the `--full-auto` default came to differ between the two runners.
-        decision = runner_shared.clean_base_launch_decision(
-            base,
-            allow_dirty_base=bool(
-                state.get("options", {}).get("allow_dirty_base", False)
-            ),
-        )
-        if decision.warned:
-            # dirtygates Order 01 (`d7qoxv`) E-01: the ISOLATED path REPORTS and PROCEEDS.
-            #
-            # THE RECORD IS PER ATTEMPT AND THE OPERATOR-FACING LINE IS NOT (the plan's OQ-01). Each
-            # attempt must be self-describing, so the paths land here in durable state under a
-            # NON-refusal key; the human-facing sentence is emitted ONCE per run from the run-start
-            # report in `initialize_run`, because this block runs once per QUEUE ENTRY and a print here
-            # would repeat the same message N times. (The run-start helper is named there, not here:
-            # `3i0aaz` pins by source inspection that this function does not reference it.)
-            #
-            # NOTE WHAT IS DELIBERATELY ABSENT: no `disposition`, no `item["status"]`, no `return`. The
-            # turn proceeds to begin and lane allocation. A genuinely stale base surfaces at
-            # merge-and-revalidate, which re-runs validation against the COMBINED result.
-            attempt["clean_base_warning"] = decision.reason
-            attempt["clean_base_dirty_paths"] = list(decision.dirty_paths)
-            append_jsonl(
-                run_dir / "events.jsonl",
-                {
-                    "at": utc_now(),
-                    "event": "clean-base-warning",
-                    "id6": item["id6"],
-                    "dirty_paths": list(decision.dirty_paths),
-                    "detail": decision.reason,
-                },
-            )
-        elif decision.consented:
-            # RECORDED, not merely permitted: an audit of a run that trampled something must be able
-            # to see that the operator chose this, and which paths it covered.
-            attempt["clean_base_consented"] = decision.reason
-            attempt["clean_base_dirty_paths"] = list(decision.dirty_paths)
-            append_jsonl(
-                run_dir / "events.jsonl",
-                {
-                    "at": utc_now(),
-                    "event": "clean-base-consented",
-                    "id6": item["id6"],
-                    "dirty_paths": list(decision.dirty_paths),
-                    "detail": decision.reason,
-                },
-            )
-            print(pal(f"  {decision.reason}", "yellow"), file=sys.stderr)
-        elif decision.refused:
-            attempt["ended_at"] = utc_now()
-            attempt["clean_base_refused"] = decision.reason
-            attempt["clean_base_dirty_paths"] = list(decision.dirty_paths)
-            attempt["disposition"] = "blocked"
-            item["status"] = "blocked"
-            item["clean_base_refusal"] = decision.reason
-            save_state(run_dir, state)
-            append_jsonl(
-                run_dir / "events.jsonl",
-                {
-                    "at": utc_now(),
-                    "event": "clean-base-refused",
-                    "id6": item["id6"],
-                    "dirty_paths": list(decision.dirty_paths),
-                    "detail": decision.reason,
-                },
-            )
-            print(
-                pal(
-                    f"\u2717 IPD {seq:02d}/{total} {item['id6']} refused: {decision.reason}",
-                    "red",
-                ),
-                file=sys.stderr,
-            )
-            return
-
-    # dirtygates Order 05 (`ajxr5d`) E-01/E-02: THE REVIEW SWEEP LANE, allocated HERE and deliberately
-    # OUTSIDE the `self_finalize and not is_review` block below.
-    #
-    # WHY IT IS A SEPARATE BRANCH RATHER THAN A WIDENED GUARD, which is the single most important
-    # structural fact about this change (plan finding F-7). The block below reads as a LIFECYCLE
-    # condition (`self_finalize`) but its BODY contains the worktree allocation, so a reader classifying
-    # these guards by their conditions concludes "leave it alone" and thereby ships a review that never
-    # gets a lane at all. Equally, DELETING `not is_review` from it would make a review call
-    # `driver_begin` and claim execution authority it must never have. So the site is SPLIT: the
-    # allocation a review needs is hoisted out into this branch, and the lifecycle calls (`driver_begin`,
-    # and the finalize/suite-check pair further down) stay review-exempt exactly as they are.
-    #
-    # ONE LANE FOR THE WHOLE SWEEP (OQ-02), refreshed between reviews (OQ-04 option (a)). The lane is
-    # keyed on the RUN and its record lives in run-level state, so every review turn of this run gets the
-    # SAME tree - which is also what keeps the shared review session safe, since `xd9sll` was N trees to
-    # one session and one tree to one session cannot reproduce it.
-    sweep_refresh = None
-    if is_review and isolate:
-        try:
-            wt_handle, sweep_refresh = runner_shared.acquire_review_sweep_lane(
-                repo, run_dir, state, save_state=save_state
-            )
-            work_dir = str(wt_handle.path)
-            # The lane is recorded at RUN level by the shared helper (it is not this item's lane to
-            # own), and ALSO on this attempt, because the attempt record is what makes a turn
-            # self-describing and what `_lane_records_from_state` reads.
-            attempt["worktree"] = work_dir
-            attempt["worktree_branch"] = wt_handle.branch
-            attempt["worktree_lane_id"] = wt_handle.lane_id
-            attempt["worktree_base"] = wt_handle.base_commit
-            attempt["worktree_disposition"] = getattr(
-                wt_handle, "disposition", "created"
-            )
-            attempt["review_sweep_lane"] = True
-            # The sweep lane's tip BEFORE this turn writes anything. The scope report below measures
-            # the turn's own commits from here rather than from the lane's frozen base, because the
-            # sweep lane is allocated once per RUN and `main` keeps moving under it (see
-            # `runner_shared.review_turn_changed_files`).
-            attempt["review_lane_tip_before"] = runner_shared.lane_branch_tip(
-                repo, wt_handle
-            )
-            if sweep_refresh is not None:
-                attempt["review_sweep_lane_refreshed"] = sweep_refresh.refreshed
-                attempt["review_sweep_lane_refresh_reason"] = sweep_refresh.reason
-            save_state(run_dir, state)
-            print(
-                pal(
-                    f"  \u2713 review sweep lane {wt_handle.branch} at {work_dir}"
-                    + (
-                        ""
-                        if sweep_refresh is None
-                        else (
-                            " (refreshed to main)"
-                            if sweep_refresh.refreshed
-                            else f" ({sweep_refresh.reason})"
-                        )
-                    ),
-                    "cyan",
-                )
-            )
-        except Exception as exc:
-            # FAIL CLOSED, exactly as the execute path's allocation failure does. A review that cannot
-            # get its lane must NOT silently fall back to running in the shared checkout: that fallback
-            # is the very behavior this plan exists to remove, and it would be invisible.
-            attempt["ended_at"] = utc_now()
-            attempt["disposition"] = "blocked"
-            item["status"] = "blocked"
-            item["worktree_error"] = str(exc)
-            save_state(run_dir, state)
-            append_jsonl(
-                run_dir / "events.jsonl",
-                {
-                    "at": utc_now(),
-                    "event": "review-sweep-lane-alloc-failed",
-                    "id6": item["id6"],
-                    "detail": str(exc),
-                },
-            )
-            print(
-                pal(
-                    f"\u2717 IPD {seq:02d}/{total} {item['id6']} review sweep lane "
-                    f"allocation failed; not launching. {exc}",
-                    "red",
-                ),
-                file=sys.stderr,
-            )
-            return
-
-    if self_finalize and not is_review:
-        actor = driver_actor(state)
-        # lanetruth Order 01 (af7i6p) E-04: verify, ONCE per process, that a pinned nested `aw`
-        # really resolves to this runner's own tooling before we let one perform a lifecycle
-        # transition. Memoized, so this is the FIRST nested invocation's cost only and adds no
-        # per-call subprocess. A mismatch raises ToolIdentityError, which is RUN-FATAL (OQ-02)
-        # and propagates out of the queue loop rather than marking this one item blocked.
-        assert_child_tool_identity(run_dir / "events.jsonl", cwd=repo)
-        # lanetruth Order 02 (z2isfg): declare the baseline the turn will ACTUALLY execute against.
-        # `isolate` is the same flag that allocates the lane below, so begin and the execution tree
-        # cannot disagree. Note the lane does not exist yet at this point (it is allocated only after
-        # begin grants authority, and that fail-closed ordering is deliberately preserved), which is
-        # exactly why this is a declaration of the frozen-base-commit baseline rather than a path.
-        # The kwarg is passed ONLY for an isolated turn so the non-isolated path keeps its exact
-        # pre-existing three-argument call shape (the default already means "measure this tree").
-        if isolate:
-            begin_rc, begin_msg = driver_begin(repo, item["id6"], actor, isolated=True)
-        else:
-            begin_rc, begin_msg = driver_begin(repo, item["id6"], actor)
-        if begin_rc != 0:
-            attempt["ended_at"] = utc_now()
-            attempt["begin_refused"] = begin_msg
-            attempt["disposition"] = "blocked"
-            item["status"] = "blocked"
-            item["begin_refusal"] = begin_msg
-            save_state(run_dir, state)
-            append_jsonl(
-                run_dir / "events.jsonl",
-                {
-                    "at": utc_now(),
-                    "event": "ipd-begin-refused",
-                    "id6": item["id6"],
-                    "exit_code": begin_rc,
-                    "detail": begin_msg,
-                },
-            )
-            print(
-                pal(
-                    f"\u2717 IPD {seq:02d}/{total} {item['id6']} begin refused "
-                    f"(no execution authority); not launching. {begin_msg}",
-                    "red",
-                ),
-                file=sys.stderr,
-            )
-            return
-        if isolate:
-            try:
-                wt_handle = allocate_isolation_worktree(repo, item["id6"])
-                work_dir = str(wt_handle.path)
-                # laneorphan-01 (`zwnjp3`) E-04: register the lane DURABLY at the moment of
-                # allocation, reusing this existing per-item state + event path (no second store), so
-                # an interrupt has something to report and a later run something to find. The lane id
-                # and base sha are recorded too, because allocation may have ATTEMPT-SCOPED the name
-                # and the reclamation classifier needs the real identity, not a reconstructed one.
-                attempt["worktree"] = work_dir
-                attempt["worktree_branch"] = wt_handle.branch
-                attempt["worktree_lane_id"] = wt_handle.lane_id
-                attempt["worktree_base"] = wt_handle.base_commit
-                attempt["worktree_disposition"] = getattr(
-                    wt_handle, "disposition", "created"
-                )
-                # resumedupe (`txc9l1`): persist the DISPLACED lane too. It was already emitted as an
-                # event but never written to durable per-item state, so `resolve_prior_lane`'s last
-                # fallback had nothing to read when an attempt died before the preservation path ran.
-                attempt["worktree_displaced_from"] = getattr(
-                    wt_handle, "displaced_from", None
-                )
-                save_state(run_dir, state)
-                append_jsonl(
-                    run_dir / "events.jsonl",
-                    {
-                        "at": utc_now(),
-                        "event": "worktree-allocated",
-                        "id6": item["id6"],
-                        "worktree": work_dir,
-                        "branch": wt_handle.branch,
-                        "lane_id": wt_handle.lane_id,
-                        "base_commit": wt_handle.base_commit,
-                        "disposition": getattr(wt_handle, "disposition", "created"),
-                        "displaced_from": getattr(wt_handle, "displaced_from", None),
-                    },
-                )
-                disp = getattr(wt_handle, "disposition", "created")
-                suffix = "" if disp == "created" else f" ({disp})"
-                print(
-                    pal(
-                        f"  \u2713 isolated worktree {wt_handle.branch} at {work_dir}{suffix}",
-                        "cyan",
-                    )
-                )
-            except Exception as exc:
-                attempt["ended_at"] = utc_now()
-                attempt["disposition"] = "blocked"
-                item["status"] = "blocked"
-                item["worktree_error"] = str(exc)
-                save_state(run_dir, state)
-                append_jsonl(
-                    run_dir / "events.jsonl",
-                    {
-                        "at": utc_now(),
-                        "event": "worktree-alloc-failed",
-                        "id6": item["id6"],
-                        "detail": str(exc),
-                    },
-                )
-                print(
-                    pal(
-                        f"\u2717 IPD {seq:02d}/{total} {item['id6']} worktree "
-                        f"allocation failed; not launching. {exc}",
-                        "red",
-                    ),
-                    file=sys.stderr,
-                )
-                return
-
-    # laneprompt: REBUILD the prompt now that the lane exists, so its paths and its instructions
-    # describe the tree the turn will actually run in.
-    #
-    # WHY IT IS REBUILT RATHER THAN BUILT LATER: the prompt must exist BEFORE this point because the
-    # begin-refused and allocation-failed paths above write it to the run directory as evidence of an
-    # attempt that never launched. And the lane cannot exist any earlier, because allocation is
-    # deliberately sequenced AFTER `driver_begin` grants execution authority (fail-closed). So the
-    # first build is the fallback, and this is the authoritative one.
-    #
-    # THE BUG THIS FIXES (measured, run-20260831T153226Z-3424176, plan y6mfgo): the prompt was built
-    # only from `repo`, so an isolated turn received MAIN's absolute path for its own plan file and no
-    # statement that it was in a lane. The agent read `../../../DECISIONS.md` and committed 18 files
-    # into MAIN while the lane branch stayed at zero commits. `--dir` alone does not convey isolation.
-    #
-    # dirtygates Order 05 (`ajxr5d`) E-02: THE REVIEW TURN GETS THE SAME TREATMENT, in its own branch
-    # below rather than by widening this guard's condition. The two builds are NOT interchangeable -
-    # this one calls `build_prompt` and materializes the lane input manifest, while a review's whole
-    # instruction is the `/plan-review` slash command - so folding them together would either hand a
-    # review the executor's prompt or hand an executor the review's. Both halves of the `y6mfgo` lesson
-    # are applied to the review path: the lane-resolved plan path AND the explicit in-lane statement.
-    if work_dir and not is_review:
-        lane_root = Path(work_dir)
-        # Prefer the LANE's copy of the plan. `sync_receipt_into_worktree` and the verifier turn
-        # already resolve the plan this way (see the `plan_repo` branch below); the executor turn was
-        # the one place that did not.
-        try:
-            lane_plan_path = resolve_plan_path(
-                lane_root, item["configured_file"], item["id6"]
-            )
-        except DriverError:
-            lane_plan_path = plan_path
-        prompt = build_prompt(
-            item,
-            state,
-            run_dir,
-            lane_plan_path,
-            recovery,
-            lane_root=lane_root,
-            # REUSE the decision classified before allocation; recomputing it here would read the
-            # lane THIS turn just allocated (empty by construction) and lose the routing.
-            routing=routing,
-        )
-        prompt_path = write_prompt(run_dir, item, prompt, attempt_no)
-        attempt["prompt"] = str(prompt_path)
-        # Keep the digest honest: it must describe the prompt the agent actually received, not the
-        # pre-lane draft it replaced.
-        attempt["prompt_sha256"] = sha256_file(prompt_path)
-        attempt["lane_plan_path"] = str(lane_plan_path)
-
-        # lanectn Order 02 (`nna8yz`) E-01/E-04, spec R5.1/R5.1a/R5.2/R5.3: COPY this turn's required
-        # inputs into the lane and record them in a sealed manifest, then attach the lane-local copy.
-        #
-        # WHY THE RUNBOOK NEEDS THIS AND THE PLAN DOES NOT (measured delta, plan finding F-3): the plan
-        # is a TRACKED file, so the lane already holds it at its own commit and `resolve_plan_path`
-        # above already resolves the lane's copy. The runbook is the opposite: `start` accepts
-        # `--runbook <anywhere on disk>` and SYNTHESIZES one under the coordinator's run directory when
-        # none is given, so `state["runbook"]` is a main-checkout/coordinator path that is NOT in the
-        # lane at any commit. It was nevertheless handed to the worker as `--file <that path>`, which
-        # is the one remaining attachment R5.3 fails on.
-        #
-        # The manifest records BOTH, not only the runbook: it is the record of what the worker was
-        # authorized to use, so omitting the plan because it happened to be present already would make
-        # the manifest an incomplete authorization record.
-        lane_manifest = lane_containment.materialize_lane_inputs(
-            lane_root=lane_root,
-            plan_path=lane_plan_path,
-            runbook_path=(
-                Path(state["runbook"])
-                if state.get("runbook") and Path(state["runbook"]).exists()
-                else None
-            ),
-            repo=lane_root,
-        )
-        attempt["lane_input_manifest"] = str(lane_manifest.manifest_path)
-        attempt["lane_input_revision"] = lane_manifest.revision
-        runbook_entry = lane_manifest.entry(lane_containment.INPUT_CLASS_RUNBOOK)
-        if runbook_entry is not None:
-            # The path the attachment will use. Lane-absolute (opencode resolves `--file` against its
-            # own cwd and we do not depend on that being the lane), but INSIDE the lane, which is what
-            # R5.3 requires.
-            attempt["lane_runbook_path"] = str(lane_root / runbook_entry.path)
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": utc_now(),
-                "event": "lane-inputs-materialized",
-                "id6": item["id6"],
-                "revision": lane_manifest.revision,
-                "manifest": str(lane_manifest.manifest_path),
-                "inputs": [entry.path for entry in lane_manifest.entries],
-            },
-        )
-        save_state(run_dir, state)
-
-    # dirtygates Order 05 (`ajxr5d`) E-02: THE REVIEW PROMPT'S LANE REBUILD, the twin of the block above.
-    #
-    # Both halves of the `y6mfgo` lesson are applied here: the plan path is resolved against the LANE
-    # (so the slash command names the lane's own copy) and the shared isolation notice is appended (so
-    # the turn is TOLD it is in a lane). The path fix alone was the measured half-fix.
-    #
-    # THE INPUT MANIFEST IS MATERIALIZED FOR A REVIEW TOO, and it is not redundant with the lane's own
-    # tracked copy of the plan. It is what `driver_written_lane_paths` reads, which is what the teardown
-    # gate uses to tell driver-written content from a worker's unexplained content (spec R5.5), and it is
-    # what `localize_attachment` reads to point the `--file` attachment inside the lane. Without it a
-    # review's attachment silently falls back to MAIN's path (`localize_attachment` returns its fallback
-    # when no manifest exists), which is exactly the R5.3 violation this plan closes. The RUNBOOK is
-    # deliberately not materialized: a review turn is never handed it.
-    if work_dir and is_review:
-        lane_root = Path(work_dir)
-        try:
-            lane_plan_path = resolve_plan_path(
-                lane_root, item["configured_file"], item["id6"]
-            )
-        except DriverError:
-            lane_plan_path = plan_path
-        prompt = build_review_prompt(
-            item, state, run_dir, lane_plan_path, repo, lane_root=lane_root
-        )
-        prompt_path = write_prompt(run_dir, item, prompt, attempt_no)
-        attempt["prompt"] = str(prompt_path)
-        attempt["prompt_sha256"] = sha256_file(prompt_path)
-        attempt["lane_plan_path"] = str(lane_plan_path)
-        # A REVISION PER REVIEW, not a shared `rev-1`, and this is a correctness requirement rather
-        # than tidiness. MEASURED while writing E-06's regression: with every review materializing
-        # revision 1, review 2 OVERWRITES review 1's manifest, so review 1's copied plan file is left
-        # on disk accounted for by nothing. `driver_written_lane_paths` then cannot explain it, the
-        # teardown gate correctly refuses ("2 unknown IGNORED file(s)"), and a perfectly clean sweep
-        # could never retire its lane. Distinct revisions keep EVERY review's inputs declared, which is
-        # also what spec R5.1a part (iii) means by a new revision rather than an in-place edit.
-        lane_manifest = lane_containment.materialize_lane_inputs(
-            lane_root=lane_root,
-            plan_path=lane_plan_path,
-            runbook_path=None,
-            repo=lane_root,
-            revision=int(item["position"]),
-        )
-        attempt["lane_input_manifest"] = str(lane_manifest.manifest_path)
-        attempt["lane_input_revision"] = lane_manifest.revision
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": utc_now(),
-                "event": "lane-inputs-materialized",
-                "id6": item["id6"],
-                "revision": lane_manifest.revision,
-                "manifest": str(lane_manifest.manifest_path),
-                "inputs": [entry.path for entry in lane_manifest.entries],
-            },
-        )
-        save_state(run_dir, state)
-
-    try:
-        exit_code, session_id, log_path, argv = run_opencode(
+    def _spawn_executor(
+        prompt_path: Path,
+        work_dir: Path | None,
+        tracker: Any,
+        plan_path: Path,
+        attempt_no: int,
+        session_id: str | None,
+        use_continue: bool,
+    ) -> tuple[int, str | None, Path, list[str]]:
+        return run_opencode(
             state,
             run_dir,
             item,
@@ -6996,1117 +6110,43 @@ def execute_item(
             tracker=tracker,
             work_dir=work_dir,
         )
-    except runner_stop.StopNowForce as stop:
-        # runstop m0z0ti (E-02/E-03, spec A2/R18/R21/R22): the turn was interrupted IMMEDIATELY, at a
-        # point the driver did NOT observe. So the outcome is INDETERMINATE and is recorded that way;
-        # the child has already been reaped through the SAME shared `clean_shutdown` level 3 uses
-        # (spec R5), and cleanliness is identical - only certainty differs.
-        now = utc_now()
-        attempt["interrupted_at"] = now
-        attempt["ended_at"] = now
-        attempt["interrupt_reason"] = "deliberate-stop-now-force"
-        record = _record_forced_stop(run_dir, state, item, stop)
-        attempt["stopped"] = record
-        attempt["disposition"] = runner_stop.FORCED_DISPOSITION
-        # Through `reconcile_disposition` for the same reason level 3 does it: one place decides the
-        # status, so the recorded certainty and the item status cannot disagree. It returns
-        # `interrupted` (a status the ledger and recovery already understand); the INDETERMINACY is
-        # the explicit `certainty` flag on the record, never a new status. See the decision recorded
-        # in `runner_stop`'s level-4 section for why a bare `unknown_outcome` status is wrong.
-        item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
-        save_state(run_dir, state)
-        print(
-            pal(
-                f"\u25a0 IPD {seq:02d}/{total} {item['id6']} INTERRUPTED IMMEDIATELY "
-                f"(level {record['level']}, {record['level_name']}); outcome is "
-                f"{record['disposition']} (certainty {record['certainty']}) after "
-                f"{record['events_observed']} observed event(s); requested by "
-                f"{record['requester']}. {runner_stop.RECONCILIATION_ACTION}",
-                "yellow",
-            ),
-            file=sys.stderr,
-        )
-        raise
-    except runner_stop.StopAtCheckpoint as stop:
-        # runstop foi1b3 (E-02/E-03, spec A3/R18): the turn was stopped at an OBSERVED safe
-        # checkpoint. Record it with KNOWN certainty and STOP the run; the child has already been
-        # reaped through `clean_shutdown` inside `run_opencode` (spec R5's single reaper).
-        now = utc_now()
-        attempt["interrupted_at"] = now
-        attempt["ended_at"] = now
-        attempt["interrupt_reason"] = "deliberate-stop-at-checkpoint"
-        record = _record_checkpoint_stop(run_dir, state, item, stop.observer)
-        attempt["stopped"] = record
-        attempt["disposition"] = runner_stop.STOPPED_DISPOSITION
-        # Go through `reconcile_disposition` rather than assigning the status directly, so the
-        # deliberate-stop branch there is the ONE place the disposition is decided and the two can
-        # never disagree.
-        item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
-        save_state(run_dir, state)
-        print(
-            pal(
-                f"\u25a0 IPD {seq:02d}/{total} {item['id6']} stopped at a safe "
-                f"checkpoint (level {record['level']}, {record['level_name']}, certainty "
-                f"{record['certainty']}) after event "
-                f"{record['last_completed_event_index']} "
-                f"({record['last_completed_event']}); requested by {record['requester']}",
-                "yellow",
-            ),
-            file=sys.stderr,
-        )
-        raise
-    except KeyboardInterrupt as exc:
-        # Pre-existing interrupt bookkeeping preserved (spec R12)
-        # "event": "ipd-interrupted"
-        runner_shared.reconcile_item_on_interrupt(
-            repo,
-            run_dir,
+
+    def _spawn_verifier(
+        v_prompt_file: Path,
+        current_plan_path: Path,
+        work_dir: Path | None,
+        tracker: Any,
+        attempt_no: int,
+    ) -> tuple[int, str | None, Path, list[str]]:
+        return run_opencode(
             state,
+            run_dir,
             item,
-            attempt,
+            current_plan_path,
+            v_prompt_file,
             attempt_no,
-            work_dir,
-            str(exc),
-            save_state_fn=save_state,
-            seq=seq,
-            total=total,
+            fresh_session=True,
+            log_suffix="verify",
+            label_suffix="verification",
+            tracker=tracker,
+            work_dir=work_dir,
+            use_verifier_launch=True,
+            telemetry_phase=runner_shared.TELEMETRY_PHASE_VALIDATE,
         )
-        raise
-    except StallTimeout:
-        now = utc_now()
-        attempt["interrupted_at"] = now
-        attempt["ended_at"] = now
-        attempt["interrupt_reason"] = "stall_timeout"
-        stall_sec = state.get("options", {}).get("stall_timeout", DEFAULT_STALL_TIMEOUT)
-        attempt["stall_timeout"] = stall_sec
-        item["status"] = "interrupted"
-        save_state(run_dir, state)
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": now,
-                "event": "ipd-stalled",
-                "id6": item["id6"],
-                "stall_timeout": stall_sec,
-                "attempt": attempt_no,
-            },
-        )
-        print(
-            pal(
-                f"\u2717 IPD {seq:02d}/{total} {item['id6']} stalled (no output for {int(stall_sec) if stall_sec else 0}s); turn terminated",
-                "red",
-            ),
-            file=sys.stderr,
-        )
-        return
 
-    if session_id:
-        # lanesess (xd9sll): record the observed session on the ATTEMPT always (it is the audit
-        # trail), but only PROMOTE it to the set/run-wide keys for a non-isolated turn. An isolated
-        # lane deliberately gets a fresh session (see run_opencode), so promoting it would re-arm the
-        # exact carryover this fixes and would make the set-consistency check below fire on every
-        # lane after the first ("changed session unexpectedly"), aborting the run.
-        attempt["session_id"] = session_id
-        # dirtygates Order 05 (`ajxr5d`) E-04: the SWEEP's session is persisted under its OWN run-level
-        # key, so the next review of this run resumes it (the CLI's promised continuity) while
-        # `set_sessions` stays untouched. That separation is what keeps the promotion refusal below
-        # intact for every OTHER isolated turn: a per-item execute lane still promotes nothing, so
-        # `xd9sll`'s carryover cannot be re-armed by way of the sweep.
-        #
-        # THE CONSISTENCY CHECK IS MIRRORED, NOT DROPPED. The set-session path below refuses an
-        # unexplained session change, and moving reviews onto their own key would have silently retired
-        # that guard for the one action type that still shares a session at all. So the same rule is
-        # applied here, with the same planned-rotation escape: an id that changes when no rotation was due
-        # means the host did not resume the conversation we asked for, which for a sweep whose whole point
-        # is continuity is a real defect rather than a detail.
-        if runner_shared.turn_runs_in_review_sweep_lane(state, work_dir):
-            counts = state.setdefault("session_turn_counts", {})
-            existing_sweep = state.get(runner_shared.REVIEW_SWEEP_SESSION_KEY)
-            max_items = state.get("options", {}).get("max_items_per_session", 4)
-            existing_turns = counts.get(existing_sweep, 0) if existing_sweep else 0
-            sweep_rotation = bool(
-                max_items and max_items > 0 and existing_turns >= max_items
-            )
-            if existing_sweep and existing_sweep != session_id and not sweep_rotation:
-                raise DriverError(
-                    f"Review sweep changed session unexpectedly: {existing_sweep} -> {session_id}"
-                )
-            state[runner_shared.REVIEW_SWEEP_SESSION_KEY] = session_id
-            counts[session_id] = counts.get(session_id, 0) + 1
-        if not work_dir:
-            counts = state.setdefault("session_turn_counts", {})
-            existing = state.setdefault("set_sessions", {}).get(item["setid"])
-            max_items = state.get("options", {}).get("max_items_per_session", 4)
-            existing_turns = counts.get(existing, 0) if existing else 0
-            is_planned_rotation = bool(
-                max_items and max_items > 0 and existing_turns >= max_items
-            )
-            if existing and existing != session_id and not is_planned_rotation:
-                raise DriverError(
-                    f"Set {item['setid']} changed session unexpectedly: {existing} -> {session_id}"
-                )
-            state["set_sessions"][item["setid"]] = session_id
-            state["session_id"] = session_id
-            counts[session_id] = counts.get(session_id, 0) + 1
-
-    attempt.update(
-        {
-            "ended_at": utc_now(),
-            "exit_code": exit_code,
-            "ending_head": git_head(repo),
-            "ending_branch": git_branch(repo),
-            "ending_status": git_status(repo),
-            "log": str(log_path),
-            "argv": argv,
-        }
-    )
-    from agent_workflows.run_viewer import extract_log_metrics
-
-    att_cost, att_toks = extract_log_metrics(log_path)
-    if att_cost is not None:
-        attempt["cost"] = att_cost
-    if att_toks:
-        attempt["tokens"] = att_toks
-
-    # lanectn `cqx5v7` E-03/E-04/E-06 (spec R2.1-R2.5): COLLECT the isolated worker's lane-side
-    # submissions to the paths this driver's own readers use, IMMEDIATELY BEFORE the disposition is
-    # computed. The ordering is the requirement, not a preference: `reconcile_disposition` reads
-    # `<run_dir>/outcomes/<NN>-<id6>.json`, so a lane-relative prompt (E-01) without this call would
-    # leave that path empty, score the turn from the empty-outcome fallback, and silently never
-    # finalize a fully successful turn. That is why R2.1 forbids shipping E-01 without E-03.
-    #
-    # No-op for a NON-isolated turn (`work_dir` unset), and never raises for a turn that submitted
-    # nothing: absence is a legitimate observation (R2.4) and reconciliation handles it already.
-    #
-    # dirtygates Order 05 (`ajxr5d`) E-08: THE GUARD IS WIDENED TO INCLUDE A REVIEW, and the reason is
-    # spec R2.1's must-ship-together rule rather than symmetry. E-02 makes the review prompt
-    # lane-relative, and `collect_lane_submissions`' own docstring states it "IS THE OTHER HALF OF R1 AND
-    # MUST SHIP WITH IT (spec R2.1)" because a lane-relative instruction whose output nobody collects
-    # fails INVISIBLY.
-    #
-    # WHAT A REVIEW TURN ACTUALLY SUBMITS, verified rather than assumed (E-08 required this either way).
-    # `build_review_prompt` is the `/plan-review` slash command plus the isolation notice, and it names no
-    # outcome JSON, no report and no decisions file, so a review turn writes NO lane-side submission
-    # today: every one of the three is recorded `absent`, which `_collect_one` handles as the legitimate
-    # observation R2.4 requires. THE CALL IS STILL CORRECT, and this is the difference between widening it
-    # and leaving a comment: the isolation notice DOES tell the turn that everything it writes "under the
-    # submission directory named below" is collected, and the review record itself is a tracked file that
-    # rides the merge. Collecting produces the R2.5 RECEIPT, which is what the teardown gate reads to tell
-    # driver-written content from unexplained content; without a receipt the sweep lane's own inventory
-    # can only ever say "unknown", and a lane that always looks unaccounted-for is a lane that can never
-    # be retired. So the receipt is the load-bearing output here, not the copies.
-    if work_dir and (
-        not is_review or runner_shared.turn_runs_in_review_sweep_lane(state, work_dir)
-    ):
-        try:
-            collection = lane_containment.collect_lane_submissions(
-                run_dir=run_dir,
-                item=item,
-                run_id=state["run_id"],
-                lane_root=Path(work_dir),
-                plan_path=plan_path,
-                attempt=attempt_no,
-            )
-        except (
-            Exception
-        ) as exc:  # pragma: no cover - defensive; collection must never kill a turn
-            collection = None
-            attempt["collection_error"] = f"{type(exc).__name__}: {exc}"
-        if collection is not None:
-            attempt["collection"] = {
-                "status": collection.get("status"),
-                "collected": collection.get("collected"),
-                "failed": collection.get("failed"),
-                "receipt": str(
-                    lane_containment.collection_receipt_path(run_dir, item, attempt_no)
-                ),
-            }
-            append_jsonl(
-                run_dir / "events.jsonl",
-                {
-                    "at": utc_now(),
-                    "event": "lane-submissions-collected",
-                    "id6": item["id6"],
-                    "attempt": attempt_no,
-                    "collected": collection.get("collected"),
-                    "failed": collection.get("failed"),
-                },
-            )
-        # No `save_state` here ON PURPOSE. The RECEIPT on disk is the authoritative record (R2.5) and
-        # is written atomically by the collection itself, and the event above is already durable; the
-        # `attempt["collection"]` annotation is a convenience that the existing `save_state` a few
-        # lines below persists. Adding a call here would also move a call-site count that
-        # `tests/test_runner_shared.py::WrapperTests` pins deliberately.
-
-    # dirtygates Order 05 (`ajxr5d`) E-09: hand the reconciliation the tree that actually holds the
-    # revision. For an isolated REVIEW that is the lane, because the revised plan is committed there and
-    # main still reads `to-review` until the merge lands.
-    #
-    # THE EXECUTE PATH IS UNAFFECTED BY CONSTRUCTION, which is why passing the lane unconditionally is
-    # safe: `plan_repo` is consumed ONLY inside the review branch, and the execute branch's own
-    # `plan_bucket` read below still resolves against `repo`. That is deliberate rather than incidental -
-    # an execute turn's bucket check is asking "did finalize already move this plan on MAIN", and reading
-    # the lane would answer a different question.
-    disposition, outcome = reconcile_disposition(
-        repo,
-        item,
+    runner_shared.execute_item_core(
         run_dir,
-        exit_code,
-        plan_repo=Path(work_dir) if work_dir else None,
-    )
-
-    # Turn 2: independent skeptical verification in a fresh session. After a successful
-    # execution turn, audit the work in a clean session (no inherited context); if the
-    # verifier finds unmet criteria, downgrade the disposition so it is not falsely
-    # reported as executed. Opt in with --validate / --verify / --audit.
-    verify_disp = None
-    opts = state.get("options", {})
-    validate = opts.get("validate", False)
-    if "validate" not in opts:
-        validate = not (opts.get("no_verify") or opts.get("no_audit"))
-    if (
-        not is_review
-        and disposition in ("executed", "substantially-complete")
-        and validate
-    ):
-        # driverfin-02: when isolated, resolve the plan from the WORKTREE (the agent's commits +
-        # the plan itself live there); the verifier turn also runs in the worktree.
-        plan_repo = Path(work_dir) if work_dir else repo
-        try:
-            current_plan_path = resolve_plan_path(
-                plan_repo, item.get("configured_file", ""), item["id6"]
-            )
-        except DriverError:
-            current_plan_path = plan_path
-
-        v_prompt_text = build_verifier_prompt(item, state, run_dir, current_plan_path)
-        v_prompt_file = write_prompt(
-            run_dir, item, v_prompt_text, attempt_no, suffix="verify"
-        )
-        print(
-            pal(
-                f"\n  \u2022 Running independent verification for {item['id6']} in clean session...",
-                "cyan",
-            ),
-            file=sys.stderr,
-            flush=True,
-        )
-        try:
-            v_rc, _v_session, _v_log, _v_argv = run_opencode(
-                state,
-                run_dir,
-                item,
-                current_plan_path,
-                v_prompt_file,
-                attempt_no,
-                fresh_session=True,
-                log_suffix="verify",
-                label_suffix="verification",
-                tracker=tracker,
-                work_dir=work_dir,
-                # runprofile-06 (`kgpptv`) E-03: THE ONLY call site that asks for the verifier's
-                # frozen launch. Passed explicitly from here rather than inferred inside
-                # `run_opencode`, because every signal that inference could use (`fresh_session`,
-                # session-absence) is ALSO true for an isolated EXECUTE turn, which is the default
-                # configuration. No-op when the run froze no verifier profile.
-                use_verifier_launch=True,
-                # runanalytics Order 04 (`5f2h8i`) E-02: state the PHASE. Passed for the same reason
-                # `use_verifier_launch` is - explicitly, from the one call site that is the verifier -
-                # rather than inferred inside `run_opencode` from `fresh_session` or from the
-                # `log_suffix="verify"` string, both of which are also true for turns that are not
-                # verification.
-                telemetry_phase=runner_shared.TELEMETRY_PHASE_VALIDATE,
-            )
-            if _v_log:
-                attempt["verify_log"] = str(_v_log)
-                from agent_workflows.run_viewer import extract_log_metrics
-
-                v_cost, v_toks = extract_log_metrics(_v_log)
-                if v_cost is not None:
-                    attempt["verify_cost"] = v_cost
-                if v_toks:
-                    attempt["verify_tokens"] = v_toks
-            v_outcome_file = (
-                run_dir
-                / "outcomes"
-                / f"{item['position']:02d}-{item['id6']}-verification.json"
-            )
-            if v_outcome_file.is_file():
-                try:
-                    v_data = json.loads(v_outcome_file.read_text(encoding="utf-8"))
-                    verify_verdict = str(v_data.get("verdict", "")).upper()
-                    if (
-                        "BLOCKED" in verify_verdict
-                        or "NOT CONFORMING" in verify_verdict
-                    ):
-                        verify_disp = "blocked"
-                        disposition = "partial"
-                    else:
-                        verify_disp = "verified"
-                except Exception:
-                    verify_disp = "verified" if v_rc == 0 else "unverified"
-            else:
-                verify_disp = "verified" if v_rc == 0 else "unverified"
-        except (KeyboardInterrupt, StallTimeout):
-            verify_disp = "unverified"
-
-    attempt["disposition"] = disposition
-    attempt["verification"] = verify_disp
-    item["status"] = disposition
-    item["last_outcome"] = outcome
-    item["verification_status"] = verify_disp
-
-    # defreport 01 (`b7xarm`) E-04/E-05/E-06: VALIDATE the turn's defect report, RE-ASK ONCE in the
-    # SAME session when it is absent or ambiguous, and PERSIST the normalized record at this existing
-    # per-item seam, beside `last_outcome`/`status`/`verification_status`.
-    #
-    # WHY HERE: the record's whole purpose is to let a later consumer distinguish "no defects found"
-    # from "never asked", so it must be written wherever the other per-item results are written, by
-    # BOTH hosts. A field written by one host only would make a gate's behavior depend on which runner
-    # executed the plan. See `runner_shared.defect_report_record` for the location/shape contract.
-    #
-    # THE RE-ASK REUSES THIS HOST'S OWN RESUME PATH. `run_opencode` already passes `--session <id>`
-    # and already captured the id for THIS attempt, so the launcher is handed to the shared step as a
-    # NAME: no second resume mechanism, and no new `run_opencode(` call site (two tests pin that
-    # count at exactly two so a third launch path cannot inherit the wrong frozen profile).
-    if not is_review:
-        defect_verdict = runner_shared.validate_defect_report(outcome)
-        reask_session = attempt.get("session_id")
-        warranted, reask_reason = runner_shared.defect_reask_is_warranted(
-            defect_verdict,
-            disposition=disposition,
-            session_id=reask_session,
-            already_reasked=bool(attempt.get("defect_reasked")),
-        )
-        reask_verdict = None
-        if warranted:
-            reask_prompt = write_prompt(
-                run_dir,
-                item,
-                runner_shared.defect_reask_message(defect_verdict),
-                attempt_no,
-                suffix="defect-reask",
-            )
-            attempt["defect_reask_prompt"] = str(reask_prompt)
-            attempt["defect_reasked"] = True
-            try:
-                reask_verdict, reask_rc = runner_shared.perform_defect_reask(
-                    verdict=defect_verdict,
-                    prompt_path=reask_prompt,
-                    outcome_path=run_dir
-                    / "outcomes"
-                    / f"{item['position']:02d}-{item['id6']}.json",
-                    # THIS HOST'S RESUME SPELLING, and only this host's. OpenCode resumes with
-                    # `--session <id>`, which `run_opencode` emits from `resume_session`; the
-                    # Antigravity twin passes `session_id=`/`use_continue=False` instead, because it
-                    # emits `--conversation <id>`. A single hardcoded flag in shared code would fail
-                    # silently on one host, which is the one-sided-guard defect class this repo has
-                    # been bitten by, so the shared step owns the POLICY and each host owns its argv.
-                    #
-                    # The launcher is passed as a NAME (via `resume_via_launcher`) rather than called
-                    # here, so this adds NO third `run_opencode(` call site: both
-                    # `tests/test_oc_runipd.py::...test_one_argv_builder_serves_both_call_sites` and
-                    # the telemetry wiring test pin that count at exactly two, on purpose, so a third
-                    # launch path cannot appear and inherit the wrong frozen launch profile.
-                    #
-                    # RESUMING IS SAFE EVEN ON AN ISOLATED LANE, for the same reason the blanket
-                    # isolated-turn refusal exists: that refusal stops ANOTHER lane's session being
-                    # carried into this tree (lanesess `xd9sll`), whereas this resumes the session
-                    # THIS attempt observed in THIS lane. `defect_reask_is_warranted` already refuses
-                    # when no session id was observed at all.
-                    resume=lambda reask_prompt_path: runner_shared.resume_via_launcher(
-                        run_opencode,
-                        # The launcher's own POSITIONAL prefix, kept positional on purpose: every
-                        # existing driver test double is `def fake_run(state, rd, item, plan_path,
-                        # prompt_path, attempt_no, **kwargs)`, so passing these by keyword raises
-                        # `TypeError` against each of them (measured: ten integration tests).
-                        (
-                            state,
-                            run_dir,
-                            item,
-                            plan_path,
-                            reask_prompt_path,
-                            attempt_no,
-                        ),
-                        {
-                            "log_suffix": "defect-reask",
-                            "label_suffix": "defect-reask",
-                            "tracker": tracker,
-                            "work_dir": work_dir,
-                            "resume_session": reask_session,
-                        },
-                    ),
-                    recollect=(
-                        functools.partial(
-                            lane_containment.collect_lane_submissions,
-                            run_dir=run_dir,
-                            item=item,
-                            run_id=state["run_id"],
-                            lane_root=Path(work_dir),
-                            plan_path=plan_path,
-                            attempt=attempt_no,
-                        )
-                        if work_dir
-                        else None
-                    ),
-                    # The third session rule, applied rather than left unstated: a re-ask consumes a
-                    # turn against `max_items_per_session`. Only for a NON-isolated turn, because an
-                    # isolated lane's session is never promoted into the rotation ledger at all.
-                    session_turn_counts=(
-                        None
-                        if work_dir
-                        else state.setdefault("session_turn_counts", {})
-                    ),
-                    session_id=reask_session,
-                )
-                attempt["defect_reask_exit_code"] = reask_rc
-            except (KeyboardInterrupt, StallTimeout):
-                # An interrupted follow-up is NOT retried: the re-ask is bounded at exactly one, and
-                # the record below says plainly that it produced nothing.
-                reask_verdict = None
-        record = runner_shared.defect_report_record(
-            defect_verdict,
-            reasked=warranted,
-            reask_reason=reask_reason,
-            reask_verdict=reask_verdict,
-        )
-        attempt["defect_report"] = record
-        item["defect_report"] = record
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": utc_now(),
-                "event": "defect-report-recorded",
-                "id6": item["id6"],
-                "attempt": attempt_no,
-                "state": record["state"],
-                "verdict": record["verdict"],
-                "findings": len(record["findings"]),
-                "coerced": record["coerced"],
-                "reasked": record["reasked"],
-            },
-        )
-
-    # novalnomerge-01 (evgi9n) E-01/E-03: when validation is OFF, the DRIVER runs the suite itself and
-    # that observed result is the trust signal, because `verify_disp` stays None and the old gate could
-    # never fire. Run it in the PRIMARY checkout (`repo`), NEVER `work_dir`: a lane resolves a different
-    # `.aw/state` (dh0uno), where 15 `test_run_viewer.py` tests fail for reasons unrelated to the work,
-    # which would leave this gate closed forever.
-    suite_result: SuiteCheckResult | None = None
-    # dirtygates Order 05 (`ajxr5d`) E-01: `integration_gate_relevant` KEEPS its `not is_review` term,
-    # and that is the SPLIT rather than an omission.
-    #
-    # This flag gates three things at once, which is exactly the overload finding F-7 warns about: the
-    # SUITE CHECK just below, `driver_finalize`, and the merge-back. The first two must stay
-    # review-exempt (a review runs no suite check and must never perform a terminal transition), so
-    # DELETING `not is_review` here - the tempting one-line "fix" - would make a review claim execution
-    # authority it must not have. Only the MERGE is wanted for a review, so the merge gets its own branch
-    # below and this condition is left exactly as it was.
-    integration_gate_relevant = (
-        self_finalize
-        and not is_review
-        and disposition in ("executed", "substantially-complete")
-    )
-    if integration_gate_relevant and not validate:
-        suite_result = run_suite_check(repo, str(state.get("run_id") or ""))
-        attempt["suite_check"] = {
-            "passing": suite_result.passing,
-            "exit_code": suite_result.exit_code,
-            "summary": suite_result.summary,
-            "cwd": suite_result.cwd,
-            "timeout_seconds": suite_result.timeout_seconds,
-            "elapsed_seconds": round(suite_result.elapsed_seconds, 3),
-        }
-
-    # novalnomerge-01 (evgi9n) E-05: record WHICH signal decided, so "no verifier ran" is
-    # distinguishable from "the verifier declined". Both previously landed in `substantially-complete`
-    # with no way to tell them apart, which is the intent-versus-breakage conflation the spec forbids.
-    # No new disposition value is invented: `substantially-complete` is in EXECUTION_SUCCESS_STATES and
-    # is read by other surfaces, so widening that vocabulary would fork state.
-    integration = integration_is_earned(
-        validate=validate, verify_disp=verify_disp, suite_result=suite_result
-    )
-    if integration_gate_relevant:
-        attempt["integration_signal"] = integration.signal
-        attempt["integration_detail"] = integration.detail
-        item["integration_signal"] = integration.signal
-        item["verifier_ran"] = bool(validate)
-    save_state(run_dir, state)
-
-    # dirtygates Order 05 (`ajxr5d`) E-03/E-05/E-10: LAND A REVIEW'S TWO FILES THROUGH ONE MERGE.
-    #
-    # This is the SPLIT half of the guard above: the merge a review wants, without the suite check,
-    # `driver_finalize`, or any lifecycle transition it must not perform. `integrate_review_lane_branch`
-    # takes no `validation_runner` at all, so the revalidation step is skipped STRUCTURALLY rather than
-    # by any fabricated "validation passed" value (OQ-01's load-bearing line).
-    #
-    # THE LANE IS NOT TORN DOWN HERE, deliberately, and this is the difference between a per-item lane
-    # and a sweep lane: the SAME tree serves every review in the run, so tearing it down after this
-    # review would destroy the lane the next one needs. Its retirement is the coordinator's, once, at
-    # run end (E-11, `runner_shared.retire_review_sweep_lane`).
-    if is_review and wt_handle is not None:
-        # FIRST land the turn's own output ON THE LANE, because `integrate_lane_branch` merges the BRANCH
-        # and cannot see uncommitted files. A review that committed for itself makes this a no-op; a review
-        # that did not would otherwise have its plan edit and review record DESTROYED with the lane, which
-        # is strictly worse than the dirty tree this plan removes. Path-scoped, hooks ran, no `add -A`.
-        review_commit, review_committed_paths = runner_shared.commit_review_lane_output(
-            repo, wt_handle, item["id6"], host_label="aw oc run"
-        )
-        if review_commit:
-            attempt["review_lane_commit"] = review_commit
-            attempt["review_lane_committed_paths"] = list(review_committed_paths)
-            append_jsonl(
-                run_dir / "events.jsonl",
-                {
-                    "at": utc_now(),
-                    "event": "review-lane-output-committed",
-                    "id6": item["id6"],
-                    "commit": review_commit,
-                    "paths": list(review_committed_paths),
-                },
-            )
-        elif review_committed_paths:
-            # Staged but NOT committed: a hook refused. Record it, leave the work in the lane.
-            attempt["review_lane_commit_refused"] = list(review_committed_paths)
-        review_scope = None
-        try:
-            lane_changed = runner_shared.review_turn_changed_files(
-                repo, wt_handle, since_commit=attempt.get("review_lane_tip_before")
-            )
-        except (
-            Exception
-        ) as exc:  # pragma: no cover - defensive; never kill a turn over reporting
-            lane_changed = ()
-            attempt["review_scope_error"] = f"{type(exc).__name__}: {exc}"
-        if lane_changed:
-            # E-10: NAME what this review wrote beyond its own two files, and say so LOUDLY when the
-            # extra path belongs to an item still QUEUED in this run. That is the measured harm (F-9):
-            # reviewing an orchestrator rewrote three sibling child plans that had not had their turns,
-            # and nothing checked it because `_compute_scope_reconciliation` is reachable only from
-            # `driver_finalize`, which a review never calls. The shape chosen is PERMIT-AND-RECONCILE
-            # rather than REFUSE, because an orchestrator review legitimately reads (and may correct) its
-            # children; the objection was that it did so SILENTLY.
-            review_scope = runner_shared.classify_review_writes(
-                lane_changed,
-                id6=item["id6"],
-                queued_id6s=[
-                    entry.get("id6", "")
-                    for entry in state.get("queue", [])
-                    if entry.get("status") == "queued"
-                ],
-            )
-            attempt["review_write_scope"] = {
-                "changed": list(review_scope.changed),
-                "allowed": list(review_scope.allowed),
-                "out_of_scope": list(review_scope.out_of_scope),
-                "queued_siblings": list(review_scope.queued_siblings),
-            }
-            item["review_write_scope"] = attempt["review_write_scope"]
-            if not review_scope.clean:
-                append_jsonl(
-                    run_dir / "events.jsonl",
-                    {
-                        "at": utc_now(),
-                        "event": "review-wrote-out-of-scope-paths",
-                        "id6": item["id6"],
-                        "out_of_scope": list(review_scope.out_of_scope),
-                        "queued_siblings": list(review_scope.queued_siblings),
-                        "detail": runner_shared.describe_review_write_scope(
-                            review_scope, id6=item["id6"]
-                        ),
-                    },
-                )
-                print(
-                    pal(
-                        "  ! "
-                        + runner_shared.describe_review_write_scope(
-                            review_scope, id6=item["id6"]
-                        ),
-                        "yellow",
-                    ),
-                    file=sys.stderr,
-                )
-            save_state(run_dir, state)
-
-        review_integrated, review_reason, review_kind = integrate_review_lane_branch(
-            repo, wt_handle, item["id6"]
-        )
-        attempt["review_integrated"] = review_integrated
-        attempt["review_integration_reason"] = review_reason
-        attempt["review_integration_kind"] = review_kind
-        item["review_integrated"] = review_integrated
-        save_state(run_dir, state)
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": utc_now(),
-                "event": (
-                    "review-lane-integrated"
-                    if review_integrated
-                    else "review-lane-not-integrated"
-                ),
-                "id6": item["id6"],
-                "branch": wt_handle.branch,
-                "kind": review_kind,
-                "detail": review_reason,
-            },
-        )
-        if not review_integrated:
-            # FAIL CLOSED and SAY SO. Main is untouched (the shared function aborts a real conflict and
-            # never starts a refused merge), the review's work is still on the sweep lane, and the
-            # coordinator's retirement will PRESERVE that lane rather than force-remove it. This is the
-            # accepted cost of one shared lane, stated when OQ-02 was decided: a stranded review, never
-            # a lost edit.
-            item["review_integration_refusal"] = review_reason
-            save_state(run_dir, state)
-            print(
-                pal(
-                    f"  ! review {item['id6']} was NOT integrated to main ({review_kind}): "
-                    f"{review_reason}. Its work is preserved on {wt_handle.branch}.",
-                    "yellow",
-                ),
-                file=sys.stderr,
-            )
-        else:
-            print(
-                pal(
-                    f"  \u2713 review {item['id6']} integrated to main ({review_reason})",
-                    "cyan",
-                )
-            )
-
-    # driverfin-01 (p7peqf): self-finalize step 2 - after an execute turn that EARNED integration, run
-    # the gated `aw ipd finalize` with programmatic two-way scope reconciliation. GATE PRECISION: before
-    # finalize the child is still in pending/, so reconcile_disposition reports
-    # `substantially-complete` (an agent self-claimed `executed` is downgraded there); we therefore
-    # trigger on disposition in {executed, substantially-complete} AND an earned integration verdict
-    # (NOT on `disposition == "executed"` alone, which would never fire). On finalize success the plan
-    # is now in executed/, so re-resolve and set the child `executed`; on refusal, keep it
-    # substantially-complete and NEVER force the transition (mirrors finalize_orchestrator).
-    #
-    # novalnomerge-01 (evgi9n) E-03: the fourth condition was `verify_disp == "verified"`, which only
-    # the verifier turn ever set, so with validation off (the DEFAULT) this branch was unreachable and
-    # every item stranded on its lane. It is now the shared `integration_is_earned` predicate: the
-    # verifier decides when validation is ON (unchanged), the driver-run suite decides when it is OFF.
-    if integration_gate_relevant and integration.earned:
-        # driverfin-02 (emus4n): when isolated, finalize runs INSIDE the worktree so the plan-move
-        # (pending/ -> executed/) commits on the `aw/lane/<id6>` branch. The begin receipt lives under
-        # the MAIN repo's `.aw/state/` (anchored by run-id); copy it into the worktree so the
-        # in-worktree finalize finds the execution-authority receipt (the receipt is valid in both
-        # trees because the worktree base == the frozen base HEAD).
-        finalize_repo = Path(work_dir) if (work_dir and wt_handle) else repo
-        if work_dir and wt_handle:
-            sync_receipt_into_worktree(repo, Path(work_dir), item["id6"])
-        try:
-            current_plan_for_finalize = resolve_plan_path(
-                finalize_repo, item.get("configured_file", ""), item["id6"]
-            )
-        except DriverError:
-            current_plan_for_finalize = plan_path
-        actor = driver_actor(state)
-        fin_message = (
-            f"aw oc run self-finalize: {item['id6']} verified "
-            f"(set {item['setid']}, attempt {attempt_no})."
-        )
-        # specvis st5klo E-03: capture the DECLARED-vs-ACTUAL spec delta for the end-of-run report,
-        # here and nowhere else. This is the one point where `finalize_repo` (the LANE worktree the
-        # reconciliation must resolve against) and the queue item are both in hand. It CONSUMES this
-        # host's existing `_compute_scope_reconciliation` rather than diffing again, so there is no
-        # second reconciliation mechanism; and it is recorded BEFORE the finalize call, because the
-        # precheck's view is of the tree as the turn left it.
-        record_item_spec_edits(
-            finalize_repo,
-            current_plan_for_finalize,
-            item,
-            reconcile=_compute_scope_reconciliation,
-        )
-        fin_rc, fin_msg = driver_finalize(
-            finalize_repo, current_plan_for_finalize, item["id6"], actor, fin_message
-        )
-        if fin_rc == 0:
-            # dirtygates-03 (`9iq461`) E-01: CLOSE THE BACKLOG ITEM HERE, IN THE LANE, BEFORE the
-            # integration and while the lane still exists. The plan's own move is already committed on
-            # the lane branch by the finalize above; the item's move is committed as a second LANE
-            # commit, so both transitions sit on the lane branch and reach main through the SAME merge,
-            # landing if and only if it lands.
-            #
-            # WHY THIS IS NOT WHERE IT USED TO BE. The close previously ran AFTER `integrate_lane_branch`
-            # AND AFTER `teardown_isolation_worktree` (so the lane no longer existed), writing the move
-            # and a second commit into the SHARED CHECKOUT mid-run. The comment there argued the close
-            # had to wait until the plan was "genuinely executed on main"; that reasoning does not
-            # survive, because a merge is ATOMIC -- if it succeeds both moves land, if it fails neither
-            # does -- so riding the merge gets the property that comment wanted, and gets it without
-            # touching main. The cost of the old ordering was measured: on 2026-09-13 one item's
-            # uncommitted close left main dirty and a whole-tree gate then refused 27 of 42, 23 of 41
-            # and 18 of 43 remaining items across three consecutive runs.
-            #
-            # ELIGIBILITY IS STILL DECIDED AGAINST MAIN inside `process_backlog_close` (OQ-01); only the
-            # WRITE is redirected. A non-isolated turn passes no lane and behaves exactly as before.
-            if wt_handle is not None:
-                process_backlog_close(
-                    run_dir,
-                    state,
-                    item,
-                    lane_repo=Path(work_dir) if work_dir else None,
-                    lane_handle=wt_handle,
-                )
-                save_state(run_dir, state)
-            # driverfin-02: the plan is now in executed/ ON the lane branch (inside the worktree). If
-            # isolated, integrate the verified branch back to main via the REUSED integration gate +
-            # a driver fast-forward/controlled merge, then tear down the worktree. On a non-passing
-            # gate result (or a merge-back conflict) leave the child NOT integrated (recorded,
-            # deferred to child-03) and do NOT fake executed.
-            integrated = True
-            integ_reason = "in-place (no isolation)"
-            integ_kind = "integrated"
-            if wt_handle is not None:
-                integrated, integ_reason, integ_kind = integrate_lane_branch(
-                    repo,
-                    wt_handle,
-                    item["id6"],
-                    make_integration_validation_runner(state, run_dir, item),
-                )
-            if not integrated:
-                # driverfin-03 (7kbtkw) E-01/E-02: fail closed. Main is left UNTOUCHED (the gate is
-                # diff-based and any real merge was aborted), the verified lane branch/worktree is
-                # PRESERVED, and the child is NOT faked executed (its set therefore is NOT reported
-                # finished - the orchestrator only finalizes when all children executed).
-                #
-                # integpath-03 (`51vw4y`) E-01/E-03: WHICH status that is now comes from the SHARED
-                # ladder instead of a local two-way mapping. `merge-conflict` still goes terminal on
-                # its FIRST attempt, unchanged; only the transient dirty-overlap arm defers, and only
-                # while its own budget lasts. `record_integration_refusal` writes the status, the
-                # counters and the event; the lane is preserved on every branch.
-                #
-                # MERGE NOTE 2026-09-14 (lanes `51vw4y` and `r2i1b1` integrated together): the local
-                # `fail_status`/`fail_event` mapping and the hand-written status/event writes that
-                # `r2i1b1` edited here are GONE, superseded by the shared ladder call, which owns the
-                # status, the durable counters and the event. `r2i1b1`'s contribution is retained in
-                # full as the REFUSAL RECORD write below; only its now-duplicated status derivation
-                # was dropped. Keeping both would have relabelled a DEFERRED rung as terminal, which
-                # is precisely the regression `51vw4y` E-01 exists to prevent.
-                #
-                # THE CHANGED FILE LIST IS STORED HERE because rung 2 needs it later, from the
-                # dispatch loop, where no `LaneOutcome` is in scope: it is what `dirty_tree_overlap`
-                # is re-checked against while polling.
-                with contextlib.suppress(Exception):
-                    item["integration_changed_files"] = list(
-                        build_lane_outcome(repo, wt_handle, item["id6"]).changed_files
-                    )
-                decision = runner_shared.record_integration_refusal(
-                    run_dir=run_dir,
-                    state=state,
-                    item=item,
-                    attempt=attempt,
-                    integ_kind=integ_kind,
-                    integ_reason=integ_reason,
-                    branch=wt_handle.branch if wt_handle else None,
-                    save_state=save_state,
-                    append_jsonl=append_jsonl,
-                )
-                fail_status = decision.status
-                # orchprobe (r2i1b1) E-02, the SOURCE HALF of F-4's repair. These statuses were in the
-                # summary's diagnostics allowlist yet rendered NOTHING, because that branch reads
-                # `driver_error` while this site writes `integration_deferral`; measured, the bug cost
-                # the maintainer an unhelpful report twice (`ueg5cf`, `pgq326`). OQ-02 resolved it in
-                # this direction deliberately: record the reason under the name the reader reads,
-                # rather than teaching the renderer a second field name. `code` is the LADDER's status
-                # so a deferred rung records itself as deferred, never as a terminal failure.
-                record_integration_refusal(
-                    item,
-                    code=fail_status,
-                    reason=integ_reason,
-                    branch=wt_handle.branch if wt_handle else None,
-                )
-                lane_branch = wt_handle.branch if wt_handle else "(none)"
-                print(
-                    pal(
-                        f"  ! IPD {item['id6']} finalized on lane {lane_branch} but NOT "
-                        f"integrated to main ({fail_status}): {integ_reason}",
-                        "yellow",
-                    ),
-                    file=sys.stderr,
-                )
-                if decision.deferred:
-                    print(
-                        pal(
-                            f"    -> {decision.reason}",
-                            "cyan",
-                        ),
-                        file=sys.stderr,
-                    )
-                disposition = fail_status
-            else:
-                # lanectn y5od1h E-01 (spec R3.2): PRESERVE AND PAUSE is enforced HERE, not merely
-                # recorded. A lane that reported a refused missing input keeps its worktree and
-                # branch even on the success path, because `teardown_isolation_worktree` force-removes
-                # both and would destroy the evidence the refusal points at. The predicate is
-                # host-neutral and reads DURABLE state, so it is also correct on a resumed run.
-                if (
-                    wt_handle is not None
-                    and lane_containment.lane_preserved_for_missing_input(item)
-                ):
-                    missing_input_reason = (
-                        "a missing-input report was refused; the lane is preserved and "
-                        "paused (spec 7ckptx R3.2) so its evidence is not destroyed"
-                    )
-                    append_jsonl(
-                        run_dir / "events.jsonl",
-                        {
-                            "at": utc_now(),
-                            "event": "lane-preserved-for-missing-input",
-                            "id6": item["id6"],
-                            "branch": wt_handle.branch,
-                            "worktree": str(wt_handle.path),
-                            "reason": missing_input_reason,
-                        },
-                    )
-                    # lanectn xdr83v E-03 (spec R5.6a): this path has its OWN event, so record only
-                    # the durable state here (a second preservation event would fork the rule, CID-2).
-                    # Without this the summary a human reads would still be silent about the lane.
-                    lane_containment.record_preserved_lane_state(
-                        item=item,
-                        handle=wt_handle,
-                        reason=missing_input_reason,
-                        reason_codes=("missing-input-refused",),
-                    )
-                    print(
-                        pal(
-                            f"  ! lane {wt_handle.branch} PRESERVED: a missing-input report was "
-                            f"refused (paused per spec R3.2); the lane was not torn down",
-                            "yellow",
-                        ),
-                        file=sys.stderr,
-                    )
-                elif wt_handle is not None:
-                    # lanectn xdr83v E-02 (spec R5.5): teardown goes through the SHARED gate, never
-                    # `teardown_isolation_worktree` directly. The gate inventories the lane first -
-                    # INCLUDING ignored files - and REFUSES while it holds a dirty tracked file, an
-                    # unknown untracked or ignored file, or an uncollected submission, because
-                    # force-teardown deletes the branch and the files unrecoverably. An inventory that
-                    # cannot run also refuses: a preserved lane costs disk, a destroyed one costs work.
-                    decision = lane_containment.teardown_lane_if_classified(
-                        repo=repo,
-                        handle=wt_handle,
-                        run_dir=run_dir,
-                        item=item,
-                    )
-                    if decision.torn_down:
-                        wt_handle = None
-                    else:
-                        # E-03 (spec R5.6): record WHICH condition held, on the EXISTING preservation
-                        # event, and leave the lane in place.
-                        lane_containment.record_lane_preserved(
-                            run_dir=run_dir,
-                            item=item,
-                            handle=wt_handle,
-                            reason=decision.reason,
-                            reason_codes=decision.reason_codes,
-                            detail=decision.inventory.as_dict(),
-                        )
-                        print(
-                            pal(
-                                f"  ! lane {wt_handle.branch} PRESERVED (not torn down): "
-                                f"{decision.reason}",
-                                "yellow",
-                            ),
-                            file=sys.stderr,
-                        )
-                disposition = "executed"
-                attempt["disposition"] = "executed"
-                attempt["finalized"] = True
-                attempt["integrated"] = integ_reason
-                item["status"] = "executed"
-                # Re-resolve so any later handling sees the plan now living in executed/ on main.
-                try:
-                    item["last_plan_path"] = str(
-                        resolve_plan_path(
-                            repo, item.get("configured_file", ""), item["id6"]
-                        )
-                    )
-                except DriverError:
-                    pass
-                save_state(run_dir, state)
-                append_jsonl(
-                    run_dir / "events.jsonl",
-                    {
-                        "at": utc_now(),
-                        "event": "ipd-finalized",
-                        "id6": item["id6"],
-                        "setid": item["setid"],
-                        "integration": integ_reason,
-                    },
-                )
-                print(
-                    pal(
-                        f"  \u2713 IPD {item['id6']} finalized -> executed/ and integrated to main "
-                        f"({integ_reason})",
-                        "green",
-                    )
-                )
-                # bkclose (zhr6mc) E-02/E-03/E-04: the plan is now genuinely `executed` on main, so
-                # this is the moment the last carrier landed. `process_backlog_close` fails closed and
-                # records its reason either way, so a refusal is reported (E-06) rather than swallowed.
-                #
-                # dirtygates-03 (`9iq461`) E-01/E-02: THIS SITE IS NOW THE NON-ISOLATED PATH ONLY. An
-                # isolated turn already closed the item IN ITS LANE, before the merge, so its move rode
-                # the merge and nothing was written to the shared checkout. The guard is on the RECORD
-                # rather than on `wt_handle`, because `wt_handle` is set to None by a successful
-                # teardown a few lines above and would no longer distinguish the two paths here.
-                #
-                # WHY A GUARD AND NOT JUST A CONDITION: without it, a second call for an
-                # already-closed item would evaluate `item is already done`, i.e. `close=False`, and
-                # OVERWRITE the successful record with a refusal -- turning a correct close into a
-                # "left open" line in the operator's report (E-04 protects the reporting, so this
-                # matters even though the item on disk would be right).
-                if not (item.get("backlog_close") or {}).get("closed"):
-                    process_backlog_close(run_dir, state, item)
-                save_state(run_dir, state)
-        else:
-            attempt["finalize_refused"] = fin_msg
-            item["finalize_refusal"] = fin_msg
-            save_state(run_dir, state)
-            append_jsonl(
-                run_dir / "events.jsonl",
-                {
-                    "at": utc_now(),
-                    "event": "ipd-finalize-refused",
-                    "id6": item["id6"],
-                    "exit_code": fin_rc,
-                    "detail": fin_msg,
-                },
-            )
-            print(
-                pal(
-                    f"  ! IPD {item['id6']} finalize refused (left {disposition}, not forced): "
-                    f"{fin_msg}",
-                    "yellow",
-                ),
-                file=sys.stderr,
-            )
-
-    # driverfin-02 (emus4n): if a worktree is still allocated here (verification did not pass,
-    # finalize refused, or integration was deferred), PRESERVE it attributably rather than tearing it
-    # away (forward-progress rule: never discard work). The branch holds the agent's commits; child-03
-    # owns the guard + resolution. Record the preserved location so a later turn can find it.
-    #
-    # dirtygates Order 05 (`ajxr5d`) E-01/E-11: A REVIEW IS EXCLUDED, and this exclusion is required
-    # rather than tidy. This block's condition is `status != "executed"`, and a successful review's status
-    # is `reviewed` or `approved`, so without the exclusion EVERY review - including one that integrated
-    # perfectly - would be recorded as a lane "whose work was never integrated". That is false, and it is
-    # false in a load-bearing way: `preserved_*` is what `retry_deferred_integrations` and the lane
-    # reclaimer read, so a clean sweep would advertise a stranded lane that holds nothing. A REVIEW LANE's
-    # preservation decision belongs to the coordinator's retirement (`retire_review_sweep_lane`), which
-    # classifies the lane's actual CONTENT instead of inferring from one item's status - and which is also
-    # the only owner that can be right, since the same lane serves many items.
-    if wt_handle is not None and not is_review and item.get("status") != "executed":
-        # lanectn xdr83v E-03 (spec R5.6, R6.1): the `preserved_*` field writes and the preservation
-        # EVENT were an inline copy here and in `agy_runipd`; both now call the ONE shared emitter, so
-        # the event's shape and the field set have a single definition and every preservation carries a
-        # REASON (the event previously said only THAT a lane survived).
-        lane_containment.record_lane_preserved(
-            run_dir=run_dir,
-            item=item,
-            handle=wt_handle,
-            reason=(
-                f"the item finished {item.get('status')!r} rather than executed, so its work was "
-                "never integrated; the lane is kept attributably for a later turn"
-            ),
-            reason_codes=("not-integrated",),
-        )
-        save_state(run_dir, state)
-        print(
-            pal(
-                f"  \u2022 IPD {item['id6']} work preserved on lane {wt_handle.branch} "
-                f"at {wt_handle.path} (not integrated; attributable for a later turn/child-03)",
-                "dim",
-            ),
-            file=sys.stderr,
-        )
-
-    full_auto = state.get("options", {}).get("full_auto", False)
-    auto_approved = False
-    # dirtygates Order 05 (`ajxr5d`) E-05: THIS STEP MUST RUN AFTER THE MERGE, and it does - the review
-    # integration block sits several hundred lines above, so the promotion below reads the POST-MERGE
-    # plan on MAIN. VERIFIED BY ORDERING rather than asserted: `integrate_review_lane_branch` is called
-    # from the `is_review and wt_handle is not None` branch earlier in this same function, and there is
-    # no path that reaches here without passing it.
-    #
-    # WHY THE ORDER IS LOAD-BEARING IN BOTH DIRECTIONS. It is not only a stale READ. This branch also
-    # WRITES: `set_plan_approved` shells out to `aw set` against `repo`, i.e. MAIN. Before this plan a
-    # review left the tree dirty anyway so the write was merely one more mid-run write; now that a review
-    # is isolated, running the promotion BEFORE the merge would be the one remaining write into the
-    # shared checkout mid-turn - the exact class of write this plan exists to remove. Ordering it after
-    # the merge fixes the stale read AND the stray write in one move.
-    #
-    # IT MUST STAY `auto-approved` AND NEVER `--by-human`. `set_plan_approved`'s docstring records that
-    # the machine asserting a human attestation was a defect deliberately fixed; do not "simplify" it.
-    if is_review and disposition in ("reviewed", "approved") and full_auto:
-        plan_curr = resolve_plan_path(repo, item["configured_file"], item["id6"])
-        # The SHARED predicate (fullauto 97df1z): structured `- Readiness:` first, bounded
-        # newest-history fallback second, fail closed otherwise. Clearing here records
-        # `auto-approved`, never human `approved` (OQ-02).
-        if is_plan_review_approved(plan_curr):
-            try:
-                set_plan_approved(repo, item["id6"])
-                item["action"] = "execute"
-                item["status"] = "queued"
-                item["auto_approved"] = True
-                auto_approved = True
-                save_state(run_dir, state)
-                append_jsonl(
-                    run_dir / "events.jsonl",
-                    {
-                        "at": utc_now(),
-                        "event": "ipd-auto-approved",
-                        "id6": item["id6"],
-                    },
-                )
-            except Exception as exc:
-                print(
-                    pal(
-                        f"  ! Failed to auto-approve IPD {item['id6']}: {exc}",
-                        "yellow",
-                    ),
-                    file=sys.stderr,
-                )
-
-    glyph = "\u2713" if disposition in SUCCESS_STATES else "\u25cf"
-    glyph_color = (
-        "green"
-        if disposition in SUCCESS_STATES
-        else (_STATUS_COLOR.get(disposition, "yellow"))
-    )
-    finish = (
-        pal(f"{glyph} ", glyph_color)
-        + pal(f"IPD {seq:02d}/{total} {item['id6']}", "bold")
-        + pal(f" ({item.get('action', 'execute')})", "dim")
-        + " -> "
-        + pal(disposition, glyph_color)
-        + pal(f"  (exit {exit_code})", "dim")
-    )
-    print(finish)
-    if auto_approved:
-        print(
-            pal(
-                f"  \u2713 IPD {item['id6']} auto-approved (review readiness cleared, "
-                "NOT human approval); progressing to execution",
-                "cyan",
-            )
-        )
-    print()
-    append_jsonl(
-        run_dir / "events.jsonl",
-        {
-            "at": utc_now(),
-            "event": "ipd-finished",
-            "id6": item["id6"],
-            "action": item.get("action", "execute"),
-            "attempt": attempt_no,
-            "exit_code": exit_code,
-            "status": disposition,
-            "session_id": session_id,
-        },
+        state,
+        item,
+        recovery,
+        host_labels=runner_shared.OC_HOST_LABELS,
+        spawn_executor=_spawn_executor,
+        spawn_verifier=_spawn_verifier,
+        raw_launcher=run_opencode,
+        run_suite_check=run_suite_check,
+        process_backlog_close=process_backlog_close,
+        driver_module=sys.modules[__name__],
+        tracker=tracker,
     )
 
 
@@ -8609,6 +6649,7 @@ def run_queue(
             # `failed-safely` while the remaining items kept running under the same wrong tooling
             # -- exactly the misleading outcome OQ-02 rejects). Re-raise to abort the whole run.
             save_state(run_dir, state)
+            raise
         except KeyboardInterrupt:
             # laneorphan-01 (`zwnjp3`) E-05: PRESERVE-AND-RECORD before the interrupt propagates,
             # so the run does not leak lanes (which wedged the next run at allocation) and does not

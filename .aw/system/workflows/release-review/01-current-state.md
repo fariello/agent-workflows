@@ -10,7 +10,7 @@
 
 Understand the repository as it exists now before recommending or making changes. Reconcile actual implementation, tests, documentation, build files, packaging, release artifacts, and recent changes.
 
-This is primarily a review and discovery section. Do not modify tracked project files except for required run setup, such as ensuring `workflow-artifacts/` is gitignored.
+This is primarily a review and discovery section. Do not modify tracked project files except for required run setup, such as confirming `.aw/workflow-artifacts/` is gitignored (the framework-owned `.aw/.gitignore` already carries the anchored `/workflow-artifacts/` pattern; check with `git check-ignore -v .aw/workflow-artifacts/`).
 
 
 ## Standing constraints for this section
@@ -20,7 +20,7 @@ This is primarily a review and discovery section. Do not modify tracked project 
 - Do not create broad refactors or formatting churn.
 - Use run-specific unique IDs for every finding and action.
 - Update the finding and action registers before leaving this section.
-- Use TodoWrite if available, but treat `workflow-artifacts/release-review/<RUN_ID>/` as authoritative.
+- Use TodoWrite if available, but treat `.aw/workflow-artifacts/release-review/<RUN_ID>/` as authoritative.
 - Mark non-applicable checks explicitly rather than forcing findings.
 - Prefer meaningful fixes, not checklist compliance.
 
@@ -42,7 +42,7 @@ After the discovery above and BEFORE starting the audit (and before any parallel
 
 ## Allowed actions
 
-Allowed: inspect files, run non-destructive discovery commands, create and update local run artifacts, and ensure `workflow-artifacts/` is gitignored.
+Allowed: inspect files, run non-destructive discovery commands, create and update local run artifacts, and confirm `.aw/workflow-artifacts/` is gitignored (`git check-ignore -v .aw/workflow-artifacts/`; the framework-owned `.aw/.gitignore` supplies the anchored `/workflow-artifacts/` pattern).
 
 
 Not allowed: product code changes, test changes, documentation changes except run artifacts, deleting files, or moving files.
@@ -51,7 +51,7 @@ Not allowed: product code changes, test changes, documentation changes except ru
 
 Determine what the project currently does, likely project type and scope, likely public contract, existing tests and validation commands, documentation and specifications, build/packaging/deployment/CI/release artifacts, recent changes, obvious drift among artifacts, stale or obsolete candidates, and major ambiguities that affect later sections.
 
-Apply the review scope exclusions from `00-run-protocol.md`: do not inventory or characterize `release-review/` (the runbook) or `workflow-artifacts/` (run records) as part of the project. Exclude them from project type, size, structure, test, and documentation assessments. Record in `01-repository-inventory.md` that these directories are present but out of scope (unless the user has explicitly made the framework itself the subject of the review).
+Apply the review scope exclusions from `00-run-protocol.md`: do not inventory or characterize `release-review/` (the runbook) or `.aw/workflow-artifacts/` (run records) as part of the project. Exclude them from project type, size, structure, test, and documentation assessments. Record in `01-repository-inventory.md` that these directories are present but out of scope (unless the user has explicitly made the framework itself the subject of the review).
 
 ## Required outputs
 
@@ -85,7 +85,7 @@ Use parallel lanes when the repository is large, unfamiliar, or has clearly sepa
 
 If using parallel lanes:
 
-1. Create `workflow-artifacts/release-review/<RUN_ID>/audit-lanes/`.
+1. Create `.aw/workflow-artifacts/release-review/<RUN_ID>/audit-lanes/`.
 2. Define lane scopes.
 3. Instruct lanes to remain read-only.
 4. Require each lane to use `templates/audit-lane-report.md`.

@@ -212,6 +212,34 @@ TREE_POLICY: Tuple[TreePolicy, ...] = (
         "aw releases",
         "release records (ship-gate anchors); tracked lifecycle planned/blocked/shipped (awrelease)",
     ),
+    # durablecapture-02 (`m867ox`) E-03: `reviews` was the only consequential tree that was ABSENT
+    # from this inventory rather than DECIDED, which spec 20260808-1945-01 Section 8.6 calls a
+    # violation ("every known tree is `tracked` ... or `excluded` (with rationale)"). It is EXCLUDED,
+    # and the reason is decisive rather than a preference:
+    #
+    #   1. A REVIEW RECORD CARRIES NO `- Status:` FIELD AT ALL (measured over the whole live corpus:
+    #      zero of 231 `.review.md` files contain one; the front matter is `Subject-Id`/`Subject-Type`/
+    #      `Reviewed-At`/`Reviewer`/`Verdict`). This contract maps `(tree, native_status) -> class` and
+    #      Section 6 requires that mapping be PURE and TOTAL over the tree's native enum while
+    #      FORBIDDING the scanner to infer state from prose. A tree with no status field has no enum to
+    #      be total over, so tracking it would need either a lifecycle the `reviews` owner has not
+    #      defined or a class inferred from `Verdict`, and Section 6 forbids the second. This is the
+    #      same rationale walkthroughs and roadmaps already carry ("no lifecycle status in v1").
+    #   2. EXCLUSION LOSES NO ENFORCEMENT. `check.review-finding-unescalated` (severity `error`) and
+    #      `check.review-decision-unescalated` (severity `warning`) already police review findings and
+    #      decisions, so `aw attention` would add surfacing only, never a gate.
+    #
+    # NO SCAN ROOT IS ADDED FOR REVIEWS: `attention.scan` filters an excluded tree AFTER reading it
+    # (`if not pol.tracked: continue`), so a root would cost 231 file reads per invocation for records
+    # that are then discarded. Tracking the tree later is a CONTRACT change (a new native status
+    # vocabulary plus an amendment to an `implemented` spec) and is maintainer scope, not a drive-by.
+    TreePolicy(
+        "reviews",
+        ".agents/reviews",
+        False,
+        "",
+        "review records carry NO `- Status:` field (Subject-Id/Subject-Type/Reviewed-At/Reviewer/Verdict only), so there is no native enum for the pure+total mapping Section 6 requires and inferring one from Verdict is forbidden; their findings are already policed as errors/warnings by check.review-finding-unescalated + check.review-decision-unescalated, so exclusion loses no enforcement",
+    ),
 )
 
 TRACKED_TREES: Tuple[str, ...] = tuple(p.name for p in TREE_POLICY if p.tracked)

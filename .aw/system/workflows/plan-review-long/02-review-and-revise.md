@@ -82,7 +82,9 @@ Make surgical, well-anchored edits:
 - add missing guardrails, sequencing, acceptance criteria, tests, rollout,
   recovery, specification work, and validation;
 - inject the gate execution contract if missing (resolved open questions, a scope
-  fence, the hard-MUST honesty rule, path-scoped commit and never-push, lifecycle move);
+  fence, the hard-MUST honesty rule, path-scoped commit and never-push, lifecycle transition
+  with conditional runner/executor ownership; flag both a hand-rolled `git mv` to `executed/`
+  and an unconditional `aw ipd finalize` instruction);
 - enforce per-E-item right-sizing (one concern / executable-in-one-focused-pass; split multi-deliverable items);
 - remove unsupported or gold-plated scope;
 - keep the plan concise and executable;

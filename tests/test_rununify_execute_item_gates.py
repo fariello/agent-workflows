@@ -64,7 +64,8 @@ SIXTEEN_GATES = (
 
 
 def _execute_item_ast(module) -> ast.FunctionDef:
-    """Parse the module from disk and return its top-level `execute_item` node.
+    """Parse the module from disk and return its top-level `execute_item` node,
+    or the shared `runner_shared.execute_item_core` if execute_item delegates to it.
 
     Deliberately parsed from SOURCE rather than taken from the live object, because the call
     graph is what these tests assert and it must be readable without importing a runner's
@@ -76,6 +77,17 @@ def _execute_item_ast(module) -> ast.FunctionDef:
             isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
             and node.name == "execute_item"
         ):
+            if any(
+                isinstance(n, ast.Attribute) and n.attr == "execute_item_core"
+                for n in ast.walk(node)
+            ):
+                shared_path = pathlib.Path(inspect.getsourcefile(runner_shared))
+                for cand in ast.parse(shared_path.read_text(encoding="utf-8")).body:
+                    if (
+                        isinstance(cand, ast.FunctionDef)
+                        and cand.name == "execute_item_core"
+                    ):
+                        return cand
             return node
     raise AssertionError(f"{module.__name__} has no top-level execute_item")
 
@@ -169,9 +181,12 @@ class TheGateOrderingIsPinnedOnTheCallGraph(unittest.TestCase):
         spawn = {"oc_runipd": "run_opencode", "agy_runipd": "run_agy_turn"}
         for host, module in HOSTS:
             calls = _called_names(_execute_item_ast(module))
+            spawn_target = (
+                "spawn_executor" if "spawn_executor" in calls else spawn[host]
+            )
             self.assertLess(
                 self._first_line(calls, "clean_base_launch_decision", host),
-                self._first_line(calls, spawn[host], host),
+                self._first_line(calls, spawn_target, host),
                 f"{host}: the launch verdict must be decided before the agent is spawned",
             )
 

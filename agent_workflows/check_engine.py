@@ -336,6 +336,32 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.stale-index-stale": RuleSpec(
         "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # durablecapture Order 01 (`rnkqrc`) E-04: an IPD records an outstanding obligation (a
+    # `## Deferred / out of scope` row, or an `open`/`deferred` question) that names NO durable
+    # carrier, so reaching `executed` would delete it from every attention view.
+    #
+    # `error`, WHICH IS THE END STATE AND NOT THE WHOLE STORY. The maintainer's ruling (OQ-05) is
+    # "This is a MUST, not a should", so the registered severity is the fail-closed one. The evaluator
+    # DOWNGRADES a pre-cutover plan to `_CARRIER_LEGACY_SEVERITY` (`info`) per plan, and that direction
+    # matters: registering the ADVISORY tier here instead would make an unclassified finding
+    # non-failing, whereas registering `error` means anything the downgrade does not reach fails toward
+    # visible. Registration is not bookkeeping either way: an unregistered id falls through to
+    # `_DEFAULT_RULESPEC`, so omitting this entry would silently drop the invariant trace below.
+    #
+    # WHY THE STAGED TIER IS `info` AND NOT `warning` (measured, not assumed): `drift_exit_code` exempts
+    # ONLY `info`, so a `warning` grandfather tier would exit 1 with 106 findings on a clean tree and
+    # fail the CI that enforces `aw check plans` fail-closed. The exact precedent is
+    # `check.stale-index-missing` above, for the identical dilemma, with the reason written down.
+    #
+    # Invariant I-07, claimed deliberately rather than left empty. I-07 is the release/obligation
+    # PRESERVATION invariant its `check.blocking-item-closed-without-gate` and `check.from-backlog-*`
+    # neighbours claim, and this rule is the same predicate shape (`evaluate_blocking_close`'s three
+    # escapes) applied to the same concern: an obligation must survive in a place that is revisited.
+    # Deterministic: a typed-field presence test plus a literal id6 lookup in the artifact inventory and
+    # a closed-vocabulary status comparison. No prose is read, hence no heuristic.
+    "check.ipd-uncarried-obligation": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
 }
 
 # Conservative default for an unregistered rule id: treat it as an error-severity, repository-class,
@@ -745,6 +771,20 @@ def check_content(
         try:
             drift.extend(
                 check_scope_drift(repo_root, include_untracked=include_untracked)
+            )
+        except Exception:
+            pass
+        # durablecapture Order 01 (`rnkqrc`) E-04: an outstanding obligation an IPD records with no
+        # durable carrier. SAME PLACEMENT as its `check_review_finding_unescalated` neighbour above and
+        # for the same documented reason (`check_ipd_dependencies`' "every dependency source is an IPD"
+        # precedent): the concern is keyed off the PLAN, so it belongs in the plans-type content path,
+        # reached by BOTH `aw check plans` and the `aw check all` fan-out exactly once, and deliberately
+        # NOT in the collisions-only cross-tree sweep (which the full sweep alone reaches). Calls the
+        # SAME evaluator `aw ipd lint --phase pre-transition` calls, so the two surfaces cannot disagree.
+        # Fail-isolated in the same shape as every neighbour here.
+        try:
+            drift.extend(
+                check_durable_carrier(repo_root, include_untracked=include_untracked)
             )
         except Exception:
             pass
@@ -3586,6 +3626,470 @@ def check_review_decision_unescalated(
                 plan_path=p,
                 plan_text=text,
                 review_index=index,
+            )
+        )
+    return drift
+
+
+# ======================================================================================
+# durablecapture Order 01 (`rnkqrc`): the ONE durable-carrier predicate.
+#
+# WHAT IT REFUSES, in the maintainer's words (2026-09-05): "A note in an executed IPD is 100%
+# guaranteed to be the same as not writing it anywhere." `attention_contract._PLANS_MAP` maps a plan's
+# `executed` status to the `done` class, so an obligation recorded only in a terminal plan's prose
+# leaves every attention view permanently and silently. The mandatory `## Deferred / out of scope (with
+# reason)` section (`ipd_schema.H_DEFERRED`, in BOTH H2 orders) had NO consumer at all before this:
+# `rg -c H_DEFERRED agent_workflows/ipd_lint.py` exited 1.
+#
+# THE MAINTAINER'S RULING (2026-09-10, this plan's OQ-05): "All defects require one or more backlogs or
+# plans to address. The report is not needed. A backlog item or IPD is. This is a MUST, not a should."
+# Hence the accepted carrier set below is exactly two record types, and a spec is NEVER sufficient
+# (OQ-01, same ruling: a spec is supporting material). The run-record read an earlier revision of this
+# plan mandated is DROPPED as unnecessary, not deferred: nothing here reads `.aw/records/runs/`.
+#
+# THE SHAPE IS `evaluate_blocking_close`'s, MIRRORED AND NOT REINVENTED (see `CloseVerdict` at
+# :1963 and `evaluate_blocking_close` at :1980). Same verdict type, same three escapes, same
+# one-predicate-two-surfaces property `evaluate_review_finding_escalation` states as its design intent:
+# `aw check` (via `check_durable_carrier`) and `aw ipd lint --phase pre-transition` (via
+# `ipd_lint._merge_durable_carrier`) both call `evaluate_durable_carrier`, so they cannot drift.
+#
+# IT IS A DECLARATION GATE, NOT A DETECTOR (OQ-04), and that honesty is the point rather than a
+# caveat. Nothing here can tell that an author described a defect in prose and wrote no field. The
+# predicate decides only mechanical facts: does a typed field exist, does its id6 resolve, is the
+# target non-terminal. Prose is never read, which is also WHY a row saying "tracked in the backlog"
+# with no typed field is refused: there is nothing there for the rule to see.
+# ======================================================================================
+
+_CARRIER_RULE = "check.ipd-uncarried-obligation"
+
+#: HANDOFF targets: the record types a `- Carrier:` id6 may resolve to. TWO entries, per the ruling
+#: above. `specs` is deliberately ABSENT: accepting a spec was offered to the maintainer and REJECTED
+#: ("I don't know when 'just a spec' would be enough"), because it delegates exactly the judgement this
+#: rule exists to remove. Adding it back needs a maintainer decision, not a tweak.
+_CARRIER_TARGET_TYPES = ("backlog", "plans")
+
+#: A carrier target's status that means the obligation is ALREADY HIDDEN, so pointing at it is not a
+#: handoff. `executed` is the whole point of this plan (an executed plan classes `done` in
+#: `aw attention`, which is the hiding place); `superseded`/`not-executed` are the plans tree's other
+#: terminal dirs; `done` is the backlog's. `parked` is included because `attention_contract` maps it to
+#: the `parked` class, which the default board HIDES, so a parked carrier is invisible by construction
+#: exactly as an executed plan is. `graduated` is NOT here: it maps to `active`, so it is revisited.
+_CARRIER_TERMINAL_STATUSES = frozenset(
+    ("executed", "superseded", "not-executed", "done", "parked")
+)
+
+#: The cutover boundary for the `error` tier (E-05 option (c), DECISION 07-rnkqrc-D3). Compared against
+#: the PLAN'S OWN `- Date:`, so no configuration is required and the boundary cannot silently be
+#: absent. The precedent is `SPEC_ID6_CUTOVER_DATE` at the top of this module, a module constant
+#: compared against the artifact's own date, whose value was chosen "strictly AFTER the newest existing
+#: legacy-named spec date ... so ALL existing specs remain grandfathered". This value follows the same
+#: rule: measured 2026-09-18, the newest plan `- Date:` in the corpus is 2026-09-17, so 20260919
+#: grandfathers every plan that exists today (664 offending rows across all 106 pending plans) and
+#: applies the error tier to plans authored after this rule ships.
+#:
+#: WHY NOT `config.dependency_cutover_date` (F-11): measured `None` in this repository, and an absent
+#: marker grandfathers EVERYTHING, which would leave the `error` tier unreachable until someone set a
+#: date, i.e. the rule would ship advisory-forever and quietly satisfy its own test.
+CARRIER_CUTOVER_DATE = "20260919"  # compact YYYYMMDD
+
+#: The severity a PRE-cutover (grandfathered) finding carries. `info`, and the choice is measured
+#: rather than stylistic (DECISION 07-rnkqrc-D2). `artifact_core.drift_exit_code` exempts ONLY `info`,
+#: so a `warning` here would exit 1 on a clean tree with 106 findings and fail CI (which enforces
+#: `aw check plans` fail-closed), which is precisely the "turns the working tree red and trains every
+#: agent to bypass `aw check`" outcome the plan's approval gate forbids. The exact in-tree precedent is
+#: `check.stale-index-missing` above: "MISSING -> `info`, the ONLY non-failing severity ... `warning`
+#: here would still exit 1 on every fresh clone".
+#:
+#: THIS IS A ROLLOUT TIER, NOT A SOFTENING (plan OQ-05: the ruling says MUST). The end state is
+#: `error`, which is what the RULE_REGISTRY entry declares; this constant only spares a corpus that
+#: predates the rule.
+_CARRIER_LEGACY_SEVERITY = "info"
+
+#: Only these OQ statuses carry a live obligation. A `resolved` question is answered and owes nothing.
+#: `open` and `deferred` both leave something outstanding, which is exactly `_UNFIXED_DECISIONS`'
+#: reasoning applied to a question instead of a finding.
+_CARRIER_LIVE_OQ_STATUSES = frozenset(("open", "deferred"))
+
+_CARRIER_DATE_RE = _re.compile(r"(?m)^- Date:[ \t]*(\d{4})-(\d{2})-(\d{2})[ \t]*$")
+
+
+class CarrierObligation(NamedTuple):
+    """One row that must name a durable carrier.
+
+    kind:    "deferred" (a `## Deferred / out of scope` bullet) | "question" (an OQ block).
+    locator: the human-facing handle (`OQ-05`, or `deferred row 3`).
+    line:    1-based source line, or 0 when unknown.
+    fields:  the row's parsed typed subfields (never its prose).
+    """
+
+    kind: str
+    locator: str
+    line: int
+    fields: Dict[str, str]
+
+
+def _plan_date_compact(text: str) -> Optional[str]:
+    """The plan's own `- Date:` as compact YYYYMMDD, or None when absent/malformed."""
+    m = _CARRIER_DATE_RE.search(text)
+    if m is None:
+        return None
+    return "{0}{1}{2}".format(m.group(1), m.group(2), m.group(3))
+
+
+def carrier_severity_for_plan(plan_text: str) -> str:
+    """The severity tier this plan's carrier findings get: `error` post-cutover, else the legacy tier.
+
+    A plan with NO parseable `- Date:` is treated as PRE-cutover (grandfathered). That direction is
+    deliberate: the metadata linter already owns the missing-Date complaint (`IPD-M101`), and inventing
+    a second, harsher consequence for it here would make this rule fire on a defect it does not own.
+    """
+    date = _plan_date_compact(plan_text)
+    if date is None:
+        return _CARRIER_LEGACY_SEVERITY
+    return "error" if date >= CARRIER_CUTOVER_DATE else _CARRIER_LEGACY_SEVERITY
+
+
+def _deferred_section_obligations(plan_text: str) -> List[CarrierObligation]:
+    """Every top-level `## Deferred / out of scope` bullet, with its indented typed subfields.
+
+    Walks the FENCE-AWARE structural view (`ipd_lint._structural_lines`), so a bullet inside a code
+    fence or a block quote is not mistaken for a row. Never raises: an unparseable plan yields no
+    obligations, and the structural linter owns that complaint.
+    """
+    out: List[CarrierObligation] = []
+    try:
+        from agent_workflows import ipd_lint as _lint
+    except Exception:
+        return out
+    try:
+        struct = _lint._structural_lines(plan_text)
+    except Exception:
+        return out
+    in_section = False
+    index = 0
+    current: Optional[CarrierObligation] = None
+    fields: Dict[str, str] = {}
+
+    def _flush():
+        nonlocal current, fields
+        if current is not None:
+            out.append(current._replace(fields=dict(fields)))
+        current = None
+        fields = {}
+
+    for lineno, raw in struct:
+        mh = _lint._H2_RE.match(raw)
+        if mh:
+            _flush()
+            in_section = mh.group(1).strip() == _S.H_DEFERRED
+            continue
+        if not in_section:
+            continue
+        if raw.startswith("- "):
+            _flush()
+            index += 1
+            current = CarrierObligation(
+                "deferred", "deferred row {0}".format(index), lineno, {}
+            )
+            continue
+        msf = _S.DEFERRED_SUBFIELD_RE.match(raw)
+        if msf and current is not None:
+            fields[msf.group("field").strip()] = msf.group("value").strip()
+    _flush()
+    return out
+
+
+def _question_obligations(open_questions) -> List[CarrierObligation]:
+    """Every open question that still owes something (`Status:` open or deferred).
+
+    A `resolved` question is EXCLUDED: it has been answered, and demanding a carrier for an answered
+    question would fire on 464 executed-tree and 154 pending-tree questions that owe nothing (measured
+    2026-09-18). This mirrors `_UNFIXED_DECISIONS`' reasoning: only an unfixed thing needs a home.
+    """
+    out: List[CarrierObligation] = []
+    for oq in open_questions or []:
+        status = (oq.get("Status") or "").strip().lower()
+        if status not in _CARRIER_LIVE_OQ_STATUSES:
+            continue
+        try:
+            line = int(oq.get("line", "0") or 0)
+        except (TypeError, ValueError):
+            line = 0
+        out.append(
+            CarrierObligation("question", oq.get("id", "OQ") or "OQ", line, dict(oq))
+        )
+    return out
+
+
+def _carrier_index(repo_root: Path) -> Dict[str, List[Tuple[str, Optional[str], str]]]:
+    """id6 -> [(record_type, status, path)] for the ACCEPTED carrier types only.
+
+    Built from the SAME unified inventory `build_dependency_index` uses, so "does this id6 resolve" has
+    one answer in this repository rather than two. Filtered to `_CARRIER_TARGET_TYPES` here (not in the
+    inventory) so a spec sharing no id6 with a plan cannot accidentally satisfy a handoff.
+    """
+    index = build_dependency_index(repo_root)
+    out: Dict[str, List[Tuple[str, Optional[str], str]]] = {}
+    for id6, owners in index.owners.items():
+        typed = [o for o in owners if o[0] in _CARRIER_TARGET_TYPES]
+        if typed:
+            out[id6] = typed
+    return out
+
+
+def _resolve_carrier(
+    carrier_index: Dict[str, List[Tuple[str, Optional[str], str]]], id6: str
+) -> Tuple[str, str]:
+    """Resolve one carrier id6. Returns (verdict, detail) with verdict in
+    {"ok", "dangling", "terminal"}.
+
+    RESOLVES, DOES NOT MERELY PARSE (E-02). A dangling id6 FAILS, exactly as
+    `check.from-backlog-dangling` fails a `From-Backlog` pointing at nothing. A target whose status is
+    terminal FAILS TOO, and that case is the whole point of the plan: an `executed` plan classes `done`
+    in `aw attention`, so handing an obligation to one hides it in the very place this rule exists to
+    close.
+    """
+    owners = carrier_index.get(id6) or []
+    if not owners:
+        return "dangling", "carrier {0} resolves to no backlog item or plan".format(id6)
+    live = [
+        o
+        for o in owners
+        if (o[1] or "").strip().lower() not in _CARRIER_TERMINAL_STATUSES
+    ]
+    if live:
+        return "ok", ""
+    statuses = ", ".join(sorted({(o[1] or "?").strip().lower() for o in owners}))
+    return "terminal", (
+        "carrier {0} resolves only to a terminal/hidden artifact ({1}); nothing revisits it".format(
+            id6, statuses
+        )
+    )
+
+
+def evaluate_carrier_obligation(
+    repo_root: Path,
+    obligation: CarrierObligation,
+    *,
+    carrier_index: Optional[Dict[str, List[Tuple[str, Optional[str], str]]]] = None,
+) -> CloseVerdict:
+    """The per-row half of the shared predicate. Returns a `CloseVerdict` (never raises).
+
+    Three escapes, exactly the ones `evaluate_blocking_close` proved:
+
+      HANDOFF   - `- Carrier: <id6>` resolving to a backlog item or a NON-terminal plan.
+      SATISFIED - `- Carrier-Evidence: <path>` resolving via the SHARED
+                  `resolve_evidence_artifact` (the same resolver `aw backlog set done --evidence` uses).
+      DECLINED  - `- Carrier-Declined: <reason>` with a non-empty reason. The reason's MERIT is the
+                  reviewer's job, exactly as `open_question_error` says of an OQ rationale; requiring a
+                  human-judged reason here would be a semantic claim this module cannot make.
+
+    A MALFORMED reference is a FINDING, NOT AN EXCEPTION, following the parse-then-diagnose split the
+    sibling evaluators use: `parse_carrier_ids` returns bad tokens instead of raising, so a good token
+    beside a bad one still resolves. A gate that crashes on bad input is a gate that gets disabled.
+    """
+    fields = obligation.fields or {}
+    if carrier_index is None:
+        try:
+            carrier_index = _carrier_index(repo_root)
+        except Exception:
+            carrier_index = {}
+
+    fixes = (
+        "hand it off: add `- Carrier: <id6>` naming an open backlog item or a pending plan "
+        "(file one with `aw backlog new`)",
+        "cite evidence it is already addressed: add `- Carrier-Evidence: <in-tree artifact path>`",
+        "decline it explicitly, with a reason: add `- Carrier-Declined: <why this needs no carrier>`",
+    )
+
+    declined = (fields.get(_S.CARRIER_DECLINED_FIELD) or "").strip()
+    if declined:
+        return CloseVerdict(
+            True, "ok", "obligation explicitly declined with a reason", (), "DECLINED"
+        )
+
+    evidence = (fields.get(_S.CARRIER_EVIDENCE_FIELD) or "").strip()
+    if evidence:
+        try:
+            resolved = resolve_evidence_artifact(repo_root, evidence)
+        except Exception:
+            resolved = False
+        if resolved:
+            return CloseVerdict(
+                True,
+                "ok",
+                "satisfied by resolvable evidence {0!r}".format(evidence),
+                (),
+                "SATISFIED",
+            )
+        return CloseVerdict(
+            False,
+            "error",
+            "{0}: `Carrier-Evidence: {1}` does not resolve to an in-tree artifact".format(
+                obligation.locator, evidence
+            ),
+            fixes,
+            None,
+        )
+
+    raw_carrier = (fields.get(_S.CARRIER_FIELD) or "").strip()
+    if raw_carrier:
+        good, bad = _S.parse_carrier_ids(raw_carrier)
+        if bad:
+            return CloseVerdict(
+                False,
+                "error",
+                "{0}: malformed `Carrier` reference(s) {1} (expected a bare 6-char id6)".format(
+                    obligation.locator, ", ".join(repr(b) for b in bad)
+                ),
+                fixes,
+                None,
+            )
+        problems: List[str] = []
+        for id6 in good:
+            verdict, detail = _resolve_carrier(carrier_index, id6)
+            if verdict == "ok":
+                return CloseVerdict(
+                    True,
+                    "ok",
+                    "handed off to carrier {0}".format(id6),
+                    (),
+                    "HANDOFF",
+                )
+            problems.append(detail)
+        return CloseVerdict(
+            False,
+            "error",
+            "{0}: {1}".format(obligation.locator, "; ".join(problems)),
+            fixes,
+            None,
+        )
+
+    return CloseVerdict(
+        False,
+        "error",
+        (
+            "{0} records an outstanding obligation with NO durable carrier; once this plan reaches "
+            "`executed` it classes `done` in `aw attention` and this vanishes with no record".format(
+                obligation.locator
+            )
+        ),
+        fixes,
+        None,
+    )
+
+
+def evaluate_durable_carrier(
+    repo_root: Path,
+    *,
+    plan_path: Path,
+    plan_text: str,
+    open_questions=None,
+    carrier_index: Optional[Dict[str, List[Tuple[str, Optional[str], str]]]] = None,
+) -> List[_core.Drift]:
+    """The ONE evaluator for `check.ipd-uncarried-obligation`, shared by both host surfaces.
+
+    `aw check` (via :func:`check_durable_carrier`) and `aw ipd lint --phase pre-transition` (via
+    ``ipd_lint._merge_durable_carrier``) both call THIS function, so the sweep and the checkpoint gate
+    cannot drift apart in what counts as carried. That single-predicate property is the stated design
+    intent of the nearest precedent (:func:`evaluate_review_finding_escalation`) and is asserted
+    directly by ``tests/test_durable_capture.py``.
+
+    Returns AT MOST ONE Drift per plan, enumerating up to five offending locators plus the total count
+    (DECISION 07-rnkqrc-D4). Measured 2026-09-18: 664 offending rows live in 106 pending plans, so a
+    per-row Drift would add 664 lines to every clean `aw check plans`; the per-row verdicts still exist
+    inside :func:`evaluate_carrier_obligation` and are what the tests assert on.
+
+    Severity is per plan via :func:`carrier_severity_for_plan` (post-cutover `error`, else the
+    grandfathered advisory tier). Never raises.
+    """
+    drift: List[_core.Drift] = []
+    if open_questions is None:
+        try:
+            from agent_workflows import ipd_lint as _lint
+
+            open_questions = _lint.parse(plan_text).open_questions
+        except Exception:
+            open_questions = []
+    obligations = _deferred_section_obligations(plan_text) + _question_obligations(
+        open_questions
+    )
+    if not obligations:
+        return drift
+    if carrier_index is None:
+        try:
+            carrier_index = _carrier_index(repo_root)
+        except Exception:
+            carrier_index = {}
+
+    failures: List[Tuple[CarrierObligation, CloseVerdict]] = []
+    for ob in obligations:
+        verdict = evaluate_carrier_obligation(
+            repo_root, ob, carrier_index=carrier_index
+        )
+        if not verdict.legitimate:
+            failures.append((ob, verdict))
+    if not failures:
+        return drift
+
+    severity = carrier_severity_for_plan(plan_text)
+    shown = failures[:5]
+    detail = "{0} obligation(s) name no durable carrier: {1}{2}".format(
+        len(failures),
+        "; ".join(v.reason for _ob, v in shown),
+        ""
+        if len(failures) == len(shown)
+        else " (and {0} more)".format(len(failures) - len(shown)),
+    )
+    fixes = shown[0][1].fixes
+    drift.append(
+        enrich_drift(
+            _core.Drift(str(plan_path), _CARRIER_RULE, detail, severity=severity),
+            observed="{0} row(s)/question(s) with no `Carrier`, `Carrier-Evidence`, or "
+            "`Carrier-Declined` field".format(len(failures)),
+            required=(
+                "every outstanding obligation an IPD records must name a durable carrier: an OPEN "
+                "backlog item or a NON-TERMINAL plan (`- Carrier:`), resolvable evidence "
+                "(`- Carrier-Evidence:`), or an explicit reason for declining "
+                "(`- Carrier-Declined:`)"
+            ),
+            recovery=fixes[0] if fixes else "",
+        )
+    )
+    return drift
+
+
+def check_durable_carrier(
+    repo_root: Path, include_untracked: bool = False
+) -> List[_core.Drift]:
+    """Sweep every PENDING-lane plan for an outstanding obligation with no durable carrier.
+
+    Scoped to pending-lane plans, following the identical grandfathering precedent as
+    :func:`check_review_finding_unescalated` and ``check_lifecycle_transitions``: a terminal plan is
+    already past the transition this rule gates, and retroactively litigating 527 executed plans would
+    be a whole-tree false-positive explosion. The `pre-transition` checkpoint is where a plan HEADING
+    for terminal is caught, so nothing is lost by not sweeping the terminal tree.
+
+    The carrier index is built ONCE for the whole sweep rather than per plan.
+    """
+    drift: List[_core.Drift] = []
+    try:
+        carrier_index = _carrier_index(repo_root)
+    except Exception:
+        return drift
+    for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
+        if "pending" not in p.parts:
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        drift.extend(
+            evaluate_durable_carrier(
+                repo_root,
+                plan_path=p,
+                plan_text=text,
+                carrier_index=carrier_index,
             )
         )
     return drift

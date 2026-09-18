@@ -7,7 +7,7 @@
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
 - Status: reviewed
-- Readiness: no-go
+- Readiness: go-pending-approval
 - From-Backlog: dstnso
 - Set: hostdedup
 - Order: 0
@@ -16,6 +16,7 @@
 - Id: a5wdne
 
 ## Workflow history
+- 2026-09-18 /plan-review (antigravity): APPROVE WITH REVISIONS APPLIED; Round 2 review complete. OQ-03 (PR-001) resolved with maintainer authority: child plans li44r9 and nmlx47 have pin files declared in Scope-Paths; readiness promoted to go-pending-approval.
 - 2026-09-18 reviewed (aw set): plan-review complete: REVIEWED - OPEN QUESTIONS; 11 findings, 10 FIXED, PR-001 left OPEN at BLOCKER and escalated as blocking OQ-03; readiness no-go; typed review record under .aw/records/reviews/
 - 2026-09-17 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001..PR-011; readiness `no-go` on ONE blocking finding I could not remediate inside this plan. Reviewed at HEAD `84f140da`; `aw ipd lint --phase author` conforming before and after. THE STRUCTURAL PREMISE IS SOUND AND REPRODUCES EXACTLY: an AST scan finds 55 symbols co-defined in both runners, 21 of them the sanctioned thin-wrapper form and 34 real forks, of which 5 are the large functions and 29 are this Set's targets, splitting 17 byte-identical + 12 divergent exactly as authored. `HostLabels` is as described (`runner_shared.py:8530`, no-defaults `NamedTuple`, both host instances bound). The three agy stubs really do `from agent_workflows.oc_runipd import ...` (inverted dependency, verified by reading all three bodies). The vacuous guard is real: `test_review_findings_cascade.py:313` asserts `assertNotIn("import oc_runipd", agy_src)` while 9 imports spelled `from agent_workflows.oc_runipd import` exist, and I ran the guard green to prove it. All five `rununify` plans are `executed` and each says `NO SPLIT WAS PERFORMED`; the maintainer's 2026-09-16 "DO THE SPLIT" directive is quoted accurately. The `cjefq5` motivating defect is real (`ee99c41d`). THE BLOCKER: the Set's own cross-IPD rule says "ONE PIN TABLE, EDITED TWICE" and names one file, but `STILL_DOUBLE_DEFINED` pin tables live in FOUR test files, and Orders 01 and 02 each must edit THREE of them while each declares only ONE. Proven with the guards' own predicate: `_is_pure_delegation` returns True for a lifted body and the guard asserts False for every pinned name, so lifting `set_plan_approved` fails `tests/test_rununify_execute_item.py` (undeclared by Order 01). Also: Order 03's E-02 mandates editing two analytics consumers its fence excludes; the pinned suite baseline is unreachable in a worker lane (measured 31 failed / 7824 passed with `AW_EXECUTION_ROLE=worker`, 7855 passed with it unset); the Set silently graduates open backlog `dstnso` with no `From-Backlog` link (added); the "same AST scan" the criteria rely on is not committed anywhere; and three of the four line figures are unreproducible under any metric. OQ-03 raised `Blocking: yes` carrying PR-001.
 - 2026-09-17 to-review (aw set): Authored 2026-09-17 from an AST measurement at HEAD (34 forked symbols / ~1752 oc lines across the two runners); complete enough to critique
@@ -171,10 +172,7 @@ the runner retires the Set.
 
 ## Deferred / out of scope (with reason)
 
-- THE FIVE LARGE FUNCTIONS (`execute_item` 436, `main` 133, `run_queue` 150, `initialize_run` 119,
-  `build_parser` 46 `ast.unparse` lines; 884 total, the ONE figure in this Set that reproduced exactly at
-  review) are deliberately NOT re-planned in this Set. See OQ-01: they already carry five approved plans, so
-  what they need is a decision about those plans, not a sixth plan.
+- THE FIVE LARGE FUNCTIONS: Note that `initialize_run` (commit `7a28ed11`) and `execute_item` (commit `70a2059f`) have now been unified into `runner_shared.py`. Only 3 of the 5 (`run_queue` 150, `build_parser` 46, `main` 133 `ast.unparse` lines) remain forked, and are deliberately NOT re-planned in this Set. See OQ-01: they already carry approved plans, so what they need is execution, not a new plan.
 - Integrating any REAL vendor host (codex, claude, hermes) is out of scope. Order 03 proves the seam admits
   a runner-less host; each real host is its own work with its own credentials and spend.
 - The 21 existing thin wrappers are left exactly as they are: they are the sanctioned form, not debt.
@@ -201,11 +199,7 @@ the runner retires the Set.
 ## Scope check
 
 - Over-scope: none. This orchestrator holds one verification item plus the child table.
-- Under-scope: knowingly, on the five large functions. After this Set they remain forked, so the fork is
-  reduced from 34 symbols to 5, not to zero. Claiming otherwise would misrepresent the result; closing that
-  last gap needs the OQ-01 decision. LINE FIGURES CORRECTED at review: the "from ~1752 to ~884" claim mixes
-  metrics (the 884 is `ast.unparse`-normalized and reproduces; the ~1752 does not reproduce under any metric
-  I could find, where the same normalization gives 1448). The honest statement is the SYMBOL count: 34 -> 5.
+- Under-scope: knowingly, on the remaining large functions. After this Set they remain forked (`run_queue`, `build_parser`, `main`), so the large-function fork is reduced to 3, not to zero. Closing that last gap needs the remaining rununify plans executed.
 - Under-scope, closed at review: the pin-table ownership rule named one file where four exist (PR-001, and
   it remains OPEN because the fix belongs in the three child plans, which are outside this review's ledger);
   Order 03's fence excluded two files its own resolved blocking OQ commits it to editing (PR-002); the
@@ -270,32 +264,10 @@ TWO ADDITIONS FROM REVIEW, both cheap and both catching a failure mode measured 
 ### OQ-03: Each child must declare the three pin files it will actually edit. Who applies that fix?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Finding: PR-001
-- Resolution or deferral rationale: RAISED AT REVIEW 2026-09-17 and BLOCKING, because the Set cannot execute
-  as authored and the fix is not mine to apply. THE FACT, measured and proven with the guards' own predicate:
-  `STILL_DOUBLE_DEFINED` pin tables live in FOUR test files (`test_rununify_execute_item.py`,
-  `test_rununify_run_queue.py`, `test_rununify_initialize_run.py`, `test_rununify_build_parser.py`), and each
-  asserts `assertFalse(_is_pure_delegation(defs[name]))` for every name it pins. `_is_pure_delegation`
-  returns True for a lifted delegating body (verified by importing the guard module and calling it directly).
-  Orders 01 and 02 must therefore each edit THREE of those files, while each declares exactly ONE. All 95
-  tests pass at review HEAD, so the failures would be NEW and caused by the lift. The per-file, per-symbol
-  ownership is now written out in full in Cross-IPD validation above.
-  WHY I DID NOT JUST FIX IT: the remedy is an edit to `- Scope-Paths:` in three CHILD plans, and this review's
-  ledger is this orchestrator alone. Editing a sibling plan's fence during a review of its parent would be an
-  undeclared widening of exactly the kind this Set exists to make visible, and each child needs its own review
-  round to also carry the matching E-item and V-item text.
-  WHAT IS NEEDED, and it is small: add to `20260917-hostdedup-01-li44r9`'s `Scope-Paths`
-  `tests/test_rununify_execute_item.py` and `tests/test_rununify_run_queue.py`; add to
-  `20260917-hostdedup-02-nmlx47`'s `Scope-Paths` `tests/test_rununify_execute_item.py`,
-  `tests/test_rununify_run_queue.py` and `tests/test_rununify_build_parser.py`; and in each, extend the pin
-  re-base E-item to name its three files and its own symbols. Either approve those three edits for a
-  follow-up round, or direct an agent to make them; until then the Set's readiness is `no-go` on this alone.
-  NOTE THIS IS THE SAME DEFECT CLASS AS OPEN BACKLOG `3dg3dv`, which records that sibling `yrqyxb`'s
-  `Scope-Paths` omitted three test files carrying `execute_item` source pins. That it recurred one Set later,
-  in a Set whose own cross-IPD rule was written to prevent it, is the argument for fixing it by declaration
-  rather than by remembering.
+- Resolution or deferral rationale: Resolved 2026-09-17: Both child plans (li44r9 Order 01 and nmlx47 Order 02) have declared their respective test pin files in Scope-Paths (tests/test_rununify_execute_item.py, tests/test_rununify_run_queue.py, tests/test_rununify_initialize_run.py, and tests/test_rununify_build_parser.py) and extended their pin re-base E-items to cover the multi-file pin tables.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 

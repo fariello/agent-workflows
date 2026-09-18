@@ -20,7 +20,7 @@ Be practical but conservative. The goal is not to claim perfection. The goal is 
 - Do not create broad refactors or formatting churn.
 - Use run-specific unique IDs for every finding and action.
 - Update the finding and action registers before leaving this section.
-- Use TodoWrite if available, but treat `workflow-artifacts/release-review/<RUN_ID>/` as authoritative.
+- Use TodoWrite if available, but treat `.aw/workflow-artifacts/release-review/<RUN_ID>/` as authoritative.
 - Mark non-applicable checks explicitly rather than forcing findings.
 - Prefer meaningful fixes, not checklist compliance.
 
@@ -57,7 +57,7 @@ Before writing the final report:
 Before writing the final report, create or update:
 
 ```text
-workflow-artifacts/release-review/<RUN_ID>/final-bug-security-audit.md
+.aw/workflow-artifacts/release-review/<RUN_ID>/final-bug-security-audit.md
 ```
 
 This is not a full repeat of Section 2. It is a final post-implementation sanity audit focused on whether changes made during the run introduced or left unresolved material issues.
@@ -86,7 +86,7 @@ If a new material issue is found, update the finding and action registers and de
 
 Run the most appropriate repository-native validation commands available and safe. Record all results in `10-validation-results.md`. If validation cannot be run, explain why and assess release risk.
 
-Use the `verify` workflow (`verify/tools/run_checks.py`) to run the repo's own checks and produce machine-checkable evidence (`workflow-artifacts/verify/<RUN_ID>/verify-results.json`): actual commands, exit codes, metrics, and logs. `10-validation-results.md` should CITE that evidence rather than assert results from reading the code.
+Use the `verify` workflow (`verify/tools/run_checks.py`) to run the repo's own checks and produce machine-checkable evidence (`.aw/workflow-artifacts/verify/<RUN_ID>/verify-results.json`): actual commands, exit codes, metrics, and logs. `10-validation-results.md` should CITE that evidence rather than assert results from reading the code.
 
 **Evidence gate on the recommendation.** The GO / CONDITIONAL GO / NO-GO recommendation must be backed by this evidence. If a relevant test/lint/build/type-check could not be verified (no runnable setup, needs services/credentials, or blocked by the safety denylist), the recommendation may not be a clean GO: downgrade to CONDITIONAL GO with the unverified checks listed as explicit prerequisites, and state plainly which claims are unverified. Never issue a GO whose basis is the agent's self-report where deterministic evidence was available but not produced. "Could not verify" must appear as prominently as "verified".
 
@@ -114,7 +114,7 @@ Use `REL` IDs for final release decisions and blockers. Preserve earlier IDs whe
 
 ## Push/no-push plan
 
-Create or update `workflow-artifacts/release-review/<RUN_ID>/11-push-plan.md` with current branch, local commits, Git status, whether the user explicitly permitted pushing, push recommendation, risks, suggested command if permitted, and no-push rationale if permission is absent.
+Create or update `.aw/workflow-artifacts/release-review/<RUN_ID>/11-push-plan.md` with current branch, local commits, Git status, whether the user explicitly permitted pushing, push recommendation, risks, suggested command if permitted, and no-push rationale if permission is absent.
 
 Do not push unless explicitly permitted.
 
@@ -124,7 +124,7 @@ Decide whether a new review run should be started. Recommend restart only when i
 
 ## Final report
 
-Save the final report to `workflow-artifacts/release-review/<RUN_ID>/12-final-response.md`, then present the same content to the user.
+Save the final report to `.aw/workflow-artifacts/release-review/<RUN_ID>/12-final-response.md`, then present the same content to the user.
 
 Create or update `section-summaries/08-final-ship-review.md` with the Section 8 final ship review summary.
 

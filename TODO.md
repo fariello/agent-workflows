@@ -1,4 +1,11 @@
-# TODO / backlog
+# TODO / backlog (DEPRECATED as a work surface; notes only)
+
+WORK WRITTEN IN THIS FILE IS NOT TRACKED. This file is deprecated as a place to record work: it is
+not scanned as a work surface, no status is read from it, and nothing here appears in `aw attention`,
+so an item added here is invisible to every status view and to `/whatnext`. File the work instead
+with `aw backlog new`, which creates a tracked item in `records/backlog/` that the attention view
+reports and `aw backlog check` validates. If the work is already designed, write a plan under
+`.aw/records/plans/pending/` instead.
 
 Committed and candidate backlog work now lives in the tracked, attention-visible BACKLOG TREE, not
 in this file. Browse it with `aw attention` (committed items show as `ready`/`blocked`; uncommitted

@@ -26,8 +26,16 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_workflows import agy_runipd
+from agent_workflows import agy_runipd, runner_shared
 from agent_workflows import oc_runipd as driver
+
+
+def _effective_execute_item_source(fn_or_mod) -> str:
+    fn = fn_or_mod.execute_item if hasattr(fn_or_mod, "execute_item") else fn_or_mod
+    src = inspect.getsource(fn)
+    if "execute_item_core" in src:
+        return inspect.getsource(runner_shared.execute_item_core)
+    return src
 
 
 def _base_state(repo: str, session: str | None = None) -> dict:
@@ -122,7 +130,7 @@ class LaneSessionIsolationTests(unittest.TestCase):
         Promoting it would re-arm the carryover AND make the set-consistency check fire on every
         lane after the first ("changed session unexpectedly"), aborting the whole run.
         """
-        src = inspect.getsource(driver.execute_item)
+        src = _effective_execute_item_source(driver.execute_item)
         tree = ast.parse(ast.unparse(ast.parse(src)))
         promotes_set_sessions = [
             node
@@ -155,7 +163,7 @@ class LaneSessionIsolationTests(unittest.TestCase):
             ("oc_runipd.run_opencode", driver.run_opencode),
             ("agy_runipd.execute_item", agy_runipd.execute_item),
         ):
-            src = inspect.getsource(func)
+            src = _effective_execute_item_source(func)
             self.assertIn(
                 "xd9sll",
                 src,
@@ -164,7 +172,7 @@ class LaneSessionIsolationTests(unittest.TestCase):
 
     def test_agy_isolated_lane_clears_session_and_continue(self):
         """agy must ALSO not fall back to --continue, which resumes the prior conversation."""
-        src = inspect.getsource(agy_runipd.execute_item)
+        src = _effective_execute_item_source(agy_runipd.execute_item)
         tree = ast.parse(ast.unparse(ast.parse(src)))
         clears = {
             "session_id": False,

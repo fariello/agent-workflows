@@ -68,7 +68,7 @@ memory: fix-by-default gated by Remediation Risk, and multi-perspective review.
 
 It **does** write two durable outputs: the IPD (the proposal, in the pending-plans
 directory) and a run record (the evidence and report of this assessment, under
-`workflow-artifacts/`). See below.
+`.aw/workflow-artifacts/`). See below.
 
 ---
 
@@ -102,7 +102,7 @@ directory) and a run record (the evidence and report of this assessment, under
 4. **Contributor contract** - `AGENTS.md`/`CONTRIBUTING.md` for plan/spec-sync rules.
 5. **Apply the review scope exclusions** from `../release-review/00-run-protocol.md`:
    do not assess the framework's own directory (`.aw/system/workflows/`) or
-   `workflow-artifacts/` run records as if they were the project.
+   `.aw/workflow-artifacts/` run records as if they were the project.
 
 Then read the selected lens file and adopt its focus, lead personas, and rubric.
 
@@ -134,9 +134,9 @@ Then read the selected lens file and adopt its focus, lead personas, and rubric.
    default; use `draft` only if you are deliberately emitting a stub), and add the first
    `## Workflow history` line: `- <date> /assess <concern> (<agent/model>): assessed;
    proposed N changes`.
-6. **Write the run record** to `workflow-artifacts/assess-<concern>/<RUN_ID>/` (see the
+6. **Write the run record** to `.aw/workflow-artifacts/assess-<concern>/<RUN_ID>/` (see the
    next section) so the report and evidence are durable, not just shown in chat.
-7. **Commit ONLY the IPD**, and NEVER push (commit-only; no remote changes). The run record in `workflow-artifacts/` is local-only working material: it is gitignored by default, so do NOT commit or force-add it. Do not commit unrelated changes; run `git status --short` first.
+7. **Commit ONLY the IPD**, and NEVER push (commit-only; no remote changes). The run record in `.aw/workflow-artifacts/` is local-only working material: the framework-owned `.aw/.gitignore` ignores it (the anchored pattern `/workflow-artifacts/`, verifiable with `git check-ignore -v .aw/workflow-artifacts/`), so do NOT commit or force-add it. Do not commit unrelated changes; run `git status --short` first.
 
 8. **Report and stop.** Present the report (below) to the user, ending with the shared
    closing report (`templates/closing-report.md`): the artifact paths CREATED (the IPD and
@@ -171,11 +171,11 @@ Persist the assessment's report and evidence so it is durable and auditable, mir
 release-review's run record but scaled to this lighter workflow. Create:
 
 ```text
-workflow-artifacts/assess-<concern>/<RUN_ID>/
+.aw/workflow-artifacts/assess-<concern>/<RUN_ID>/
 ```
 
 Use a timestamp run ID (`YYYYMMDD-HHMMSS`); the workflow name is the concern
-(e.g. `workflow-artifacts/assess-security/20260630-101500/`). Write:
+(e.g. `.aw/workflow-artifacts/assess-security/20260630-101500/`). Write:
 
 | File | Contents |
 |---|---|
@@ -185,12 +185,14 @@ Use a timestamp run ID (`YYYYMMDD-HHMMSS`); the workflow name is the concern
 | `evidence.md` | What was inspected (files/paths/commands run) so the assessment is reproducible; note any content that was truncated/sampled. |
 | `ipd-link.md` | The path to the IPD this run wrote, and a one-line summary, so the run record and the plan cross-reference each other. |
 
-The `workflow-artifacts/` directory contains local-only working material and is out of review
-scope (never assess it as if it were the project). It is gitignored by default; do not commit or force-add it.
+The `.aw/workflow-artifacts/` directory contains local-only working material and is out of review
+scope (never assess it as if it were the project). The framework-owned `.aw/.gitignore` ignores it
+(the anchored pattern `/workflow-artifacts/`; confirm with `git check-ignore -v
+.aw/workflow-artifacts/` rather than trusting this sentence). Do not commit or force-add it.
 
 
 Distinction: the **IPD** (in the pending-plans dir) is the living proposal that moves
-through the approval/execution lifecycle; the **run record** (in `workflow-artifacts/`)
+through the approval/execution lifecycle; the **run record** (in `.aw/workflow-artifacts/`)
 is the durable evidence and report of *this assessment run*.
 
 ---

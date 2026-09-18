@@ -60,7 +60,7 @@ the exception, taken with confirmation. Never change source code, and never run 
 Unless the user opts out, save a short session summary to:
 
 ```
-workflow-artifacts/advise-<persona>/<RUN_ID>/
+.aw/workflow-artifacts/advise-<persona>/<RUN_ID>/
 ```
 
 `<RUN_ID>` is a local-time timestamp `YYYYMMDD-HHMMSS`. Write `session-summary.md`:

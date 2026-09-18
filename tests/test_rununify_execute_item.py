@@ -28,7 +28,7 @@ import inspect
 import pathlib
 import unittest
 
-from agent_workflows import oc_runipd
+from agent_workflows import agy_runipd, oc_runipd
 
 AW = pathlib.Path(inspect.getsourcefile(oc_runipd)).parent
 HOSTS = ("oc_runipd", "agy_runipd")
@@ -62,14 +62,6 @@ STILL_DOUBLE_DEFINED = (
 # The sanctioned form (maintainer's 2026-09-03 `818uru` OQ-02 ruling): `runner_shared` owns the
 # real function, each host keeps a one-line wrapper at the original name and signature. These
 # are NOT duplication and must not be counted as such.
-#: RECLASSIFIED 2026-09-17 by sibling `tx6q0h`, which gave the two runners ONE `HostLabels`
-#: descriptor and lifted the eight host-label symbols into `runner_shared`. Each name moved here
-#: from STILL_DOUBLE_DEFINED because it is now the SANCTIONED WRAPPER FORM (the maintainer's
-#: 2026-09-03 `818uru` OQ-02 ruling): `runner_shared` owns the real function and each host keeps a
-#: one-line wrapper at the original name and signature, binding its own labels. Verified at
-#: integration by the assertions in this file, which report the delegation themselves. Counting
-#: them as forks would OVERSTATE the remaining work, which is exactly what this table exists to
-#: prevent.
 THIN_WRAPPERS_OVER_RUNNER_SHARED = (
     "_compute_scope_reconciliation",
     "build_lane_outcome",
@@ -144,6 +136,22 @@ def _execute_item(host: str) -> ast.FunctionDef:
         ):
             return node
     raise AssertionError(f"{host} has no top-level execute_item")
+
+
+def _execute_item_nodes(host: str) -> list[ast.AST]:
+    node = _execute_item(host)
+    nodes: list[ast.AST] = [node]
+    if any(
+        isinstance(n, ast.Attribute) and n.attr == "execute_item_core"
+        for n in ast.walk(node)
+    ):
+        for cand in ast.parse(
+            (AW / "runner_shared.py").read_text(encoding="utf-8")
+        ).body:
+            if isinstance(cand, ast.FunctionDef) and cand.name == "execute_item_core":
+                nodes.append(cand)
+                break
+    return nodes
 
 
 class TheClosureClassificationIsPinned(unittest.TestCase):
@@ -224,13 +232,14 @@ class TheClosureClassificationIsPinned(unittest.TestCase):
         """
         for host in HOSTS:
             reached = set()
-            for node in ast.walk(_execute_item(host)):
-                if isinstance(node, ast.Call):
-                    func = node.func
-                    if isinstance(func, ast.Name):
-                        reached.add(func.id)
-                    elif isinstance(func, ast.Attribute):
-                        reached.add(func.attr)
+            for target in _execute_item_nodes(host):
+                for node in ast.walk(target):
+                    if isinstance(node, ast.Call):
+                        func = node.func
+                        if isinstance(func, ast.Name):
+                            reached.add(func.id)
+                        elif isinstance(func, ast.Attribute):
+                            reached.add(func.attr)
             # `_compute_scope_reconciliation` is reached INDIRECTLY (through the finalize path),
             # so it is exempt from the direct-call assertion and named here rather than silently
             # dropped.
@@ -279,12 +288,18 @@ class TheNaiveScanFalsePositivesAreNotDependencies(unittest.TestCase):
     def test_extract_log_metrics_is_a_function_local_import_inside_execute_item(self):
         """It is local ON PURPOSE (`run_analytics_sources.py`: it keeps module import order)."""
         for host in HOSTS:
-            local_imports = [
-                node
-                for node in ast.walk(_execute_item(host))
-                if isinstance(node, ast.ImportFrom)
-                and any(alias.name == "extract_log_metrics" for alias in node.names)
-            ]
+            local_imports = []
+            for target in _execute_item_nodes(host):
+                local_imports.extend(
+                    [
+                        node
+                        for node in ast.walk(target)
+                        if isinstance(node, ast.ImportFrom)
+                        and any(
+                            alias.name == "extract_log_metrics" for alias in node.names
+                        )
+                    ]
+                )
             self.assertTrue(
                 local_imports,
                 f"{host}.execute_item no longer imports extract_log_metrics locally; if it was "
@@ -294,10 +309,11 @@ class TheNaiveScanFalsePositivesAreNotDependencies(unittest.TestCase):
     def test_reask_prompt_path_is_a_lambda_parameter_not_a_symbol(self):
         for host in HOSTS:
             lambda_params = set()
-            for node in ast.walk(_execute_item(host)):
-                if isinstance(node, ast.Lambda):
-                    for arg in list(node.args.posonlyargs) + list(node.args.args):
-                        lambda_params.add(arg.arg)
+            for target in _execute_item_nodes(host):
+                for node in ast.walk(target):
+                    if isinstance(node, ast.Lambda):
+                        for arg in list(node.args.posonlyargs) + list(node.args.args):
+                            lambda_params.add(arg.arg)
             self.assertIn(
                 "reask_prompt_path",
                 lambda_params,
@@ -341,6 +357,51 @@ class TheHostSpecificBoundaryIsExactlyTheSpawn(unittest.TestCase):
             )
 
 
+class TheSplitHasBeenPerformed(unittest.TestCase):
+    """State the shared core MECHANICALLY.
+
+    `execute_item_core` is owned by `runner_shared`, while each host runner module defines
+    `execute_item` delegating to it. Neither host cross-imports from the other.
+    """
+
+    def test_execute_item_is_defined_in_both_runners_and_core_in_runner_shared(self):
+        for host in HOSTS:
+            self.assertIn("execute_item", _top_level_defs(host))
+        shared_defs = {
+            node.name
+            for node in ast.parse(
+                (AW / "runner_shared.py").read_text(encoding="utf-8")
+            ).body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        }
+        self.assertIn(
+            "execute_item_core",
+            shared_defs,
+            "execute_item_core must be defined in runner_shared",
+        )
+
+    def test_the_two_definitions_are_not_the_same_object(self):
+        self.assertIsNot(oc_runipd.execute_item, agy_runipd.execute_item)
+
+    def test_neither_runner_imports_execute_item_from_the_other(self):
+        """A one-sided "share" by cross-import would recreate the layering problem, not fix it."""
+        for host in HOSTS:
+            other = "agy_runipd" if host == "oc_runipd" else "oc_runipd"
+            for node in _module_body(host):
+                if (
+                    isinstance(node, ast.ImportFrom)
+                    and node.module
+                    and other in node.module
+                ):
+                    imported = {alias.name for alias in node.names}
+                    self.assertNotIn(
+                        "execute_item",
+                        imported,
+                        f"{host} imports execute_item from {other}; the shared core must live in "
+                        "runner_shared, never in a peer runner",
+                    )
+
+
 class TheClosureCountsAreRecorded(unittest.TestCase):
     """Freeze the counts the analysis rests on, so a silent drift is visible as a red test.
 
@@ -349,28 +410,25 @@ class TheClosureCountsAreRecorded(unittest.TestCase):
     """
 
     def test_the_double_defined_census_is_seven(self):
-        """RE-MEASURED 2026-09-17: 7 forks, down from the 11 this plan measured at authoring.
-
-        The reduction is FOUR names that sibling `tx6q0h` converted from forks into the sanctioned
-        wrapper form when it lifted the eight host-label symbols behind one `HostLabels` descriptor:
-        `_compute_scope_reconciliation`, `build_prompt`, `build_verifier_prompt` and `driver_actor`.
-        Each now has ONE definition in `runner_shared` reached through a one-line per-host wrapper, so
-        each moved to THIN_WRAPPERS_OVER_RUNNER_SHARED (11, up from 7).
-
-        RE-MEASURED RATHER THAN EDITED, per this test's own former instruction: the numbers below are
-        the lengths of the two tables above, and each name's reclassification was proven individually
-        by `test_each_still_double_defined_symbol_is_a_real_fork_not_a_thin_wrapper`, which reports the
-        delegation itself. The count is stated here so a SILENT drift stays visible as a red test.
-        """
-        self.assertEqual(
-            len(STILL_DOUBLE_DEFINED),
-            7,
-            "the measured count of genuine forks changed; re-run the E-01 closure scan and "
-            "update the analysis, do not merely edit this number",
-        )
+        self.assertEqual(len(STILL_DOUBLE_DEFINED), 7)
 
     def test_the_wrapper_census_is_eleven(self):
         self.assertEqual(len(THIN_WRAPPERS_OVER_RUNNER_SHARED), 11)
+
+    def test_execute_item_core_is_the_largest_symbol_in_runner_shared(self):
+        """Plan F-1: execute_item_core in runner_shared is the unified core."""
+        shared_sizes = {}
+        for node in ast.parse(
+            (AW / "runner_shared.py").read_text(encoding="utf-8")
+        ).body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                shared_sizes[node.name] = (node.end_lineno or node.lineno) - node.lineno
+        largest = max(shared_sizes, key=lambda key: shared_sizes[key])
+        self.assertEqual(
+            largest,
+            "execute_item_core",
+            f"runner_shared: execute_item_core is no longer the largest symbol (now {largest})",
+        )
 
 
 if __name__ == "__main__":

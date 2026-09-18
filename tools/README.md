@@ -131,6 +131,83 @@ If a repository has previously committed `workflow-artifacts/` run records to Gi
    ```
    **WARNING (destructive; run ONLY with explicit human approval):** this REWRITES history, changes every subsequent commit SHA, and requires a coordinated force-push that invalidates all existing clones and open branches/PRs. It is NOT reversible by a normal pull. Do NOT run it automatically or as part of routine remediation; propose it, explain the blast radius, and wait for an explicit human decision before executing (consistent with the toolkit's never-rewrite-history-without-approval posture).
 
+## `aw_upgrade_test.py` (upgrade rehearsal harness)
+
+`tools/aw_upgrade_test.py` rehearses an install, update, or layout migration against a
+DISPOSABLE copy of a real repository, so the upgrade path can be exercised on realistic
+input before it is run on anything that matters.
+
+It exists because every install test in `tests/` starts from a fresh `git init` or a
+hand-seeded legacy tree, so nothing had ever installed OVER a previous version's real
+on-disk state. That is the only path a real user takes: nobody gets a fresh install, they
+get an upgrade over a tree an older version wrote, plus whatever drift accumulated since
+(hand-edited managed blocks, half-finished migrations, stale backups, untracked working
+material).
+
+This is a maintainer rehearsal rig, not part of the shipped `aw` surface. It makes no
+assertions about what a correct upgrade looks like; it produces evidence a human then
+judges. Its observations are labeled as evidence, not verdicts, for that reason.
+
+### Usage
+
+```bash
+tools/aw_upgrade_test.py list                    # candidate source repos + versions
+tools/aw_upgrade_test.py list --installed-only --size
+tools/aw_upgrade_test.py new pysyslib            # copy, upgrade, report
+tools/aw_upgrade_test.py new pysyslib --rerun    # run twice to check idempotency
+tools/aw_upgrade_test.py new pysyslib --no-run   # copy only; upgrade by hand later
+tools/aw_upgrade_test.py new pysyslib -- --to-aw # pass flags through to `aw install`
+tools/aw_upgrade_test.py new big-repo --strategy clone
+tools/aw_upgrade_test.py sandboxes               # what sandboxes exist
+tools/aw_upgrade_test.py probe <sandbox>         # re-probe state (read-only)
+tools/aw_upgrade_test.py env <sandbox>           # exports to explore it safely
+tools/aw_upgrade_test.py clean --all             # preview; add -y to remove
+```
+
+Anything after a bare `--` is passed to `aw install` verbatim, so any flag combination can
+be rehearsed without this tool needing to know about it.
+
+Sandboxes are named `<repo>.aw-upgrade-test.YYYYMMDD-HHMMSS/` and are created under a
+dedicated sandbox root (see `--dest`, whose default is shown in `--help`) that sits outside
+the configured discovery search roots. Use `--sibling` to place one beside its source
+instead.
+
+### Copy strategies
+
+- `--strategy full` (default) uses `cp -a`: a faithful copy including `.git`, untracked, and
+  gitignored material. Fidelity matters because the installer reads paths a clone would not
+  reproduce, such as `.aw/state`, backups, and the install manifest.
+- `--strategy clone` uses `git clone --local` plus a real copy of the framework trees, for
+  repositories large enough that a full copy is impractical.
+
+Hardlink copying is deliberately not offered. It would be cheap, but any in-place truncation
+inside the sandbox would corrupt the source repository.
+
+### The four safety invariants
+
+This tool copies real repositories and runs a mutating installer on them, so each way it
+could damage real work is closed by construction and covered by a test in
+`tests/test_aw_upgrade_test.py`:
+
+1. **Never mutate the source.** The source is only ever read, and copies never share inodes
+   with it. A test writes through a sandbox file and asserts the source is unchanged.
+2. **Never push.** A `cp -a` copy inherits `.git` verbatim, including remotes pointing at
+   real upstreams. Every sandbox has its remotes removed immediately after the copy and
+   before any install runs; removal is verified, a blackhole push URL is configured so a
+   re-added remote still cannot reach a network, and sandbox commits get a throwaway
+   identity rather than the operator's. A test performs an actual `git push` and asserts it
+   fails.
+3. **Never pollute the real inventory.** Sandboxes live outside the configured discovery
+   search roots, and every `aw` invocation runs with `XDG_CONFIG_HOME` and `AW_HOME`
+   redirected into the sandbox, so the user's real config is never written and a sandbox
+   never becomes a managed repo. Use `env` to get the same isolation in your own shell.
+4. **Never delete anything but a sandbox.** `clean` refuses any directory lacking the
+   `.aw-upgrade-test.json` marker, so a mistyped path is refused rather than deleted. No
+   flag bypasses that gate.
+
+Sources that are git worktrees are skipped, since a worktree shares its parent repository's
+object store and is neither a realistic user scenario nor a safe target.
+
 ## `aw pwatch` (was `pwatch.py`)
 
 A generic process-tree watcher and recorder. It monitors and visualizes process trees matching user-defined strings or regular expressions, collapsing redundant sibling processes and same-name threads with box line art and 256-color styling.

@@ -31,6 +31,7 @@ from agent_workflows.render_stream import (
     refusal_of_item,
 )
 from agent_workflows.runner_shared import (
+    ANALYTICS_DIRNAME,
     analytics_root,
     path_is_within_analytics,
     state_root,
@@ -1148,13 +1149,22 @@ def discover_run_dirs(repo_root: Path = Path(".")) -> list[Path]:
     ]
     seen = set()
     found = []
+    a_roots: set[Path] = set()
+    try:
+        a_roots.add(analytics_root(repo_root).resolve())
+    except Exception:
+        pass
+    a_roots.add((repo_root / ".aw" / "runs" / ANALYTICS_DIRNAME).resolve())
+    a_roots.add((repo_root / ".agents" / "runs" / ANALYTICS_DIRNAME).resolve())
+
     for r in roots:
         if r.is_dir():
             for p in sorted(r.iterdir()):
                 if (
                     p.is_dir()
                     and p.name.startswith("run-")
-                    and not path_is_within_analytics(p, repo_root)
+                    and p.name != ANALYTICS_DIRNAME
+                    and p.resolve() not in a_roots
                     and p.name not in seen
                 ):
                     seen.add(p.name)
