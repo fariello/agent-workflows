@@ -143,6 +143,47 @@ Capture a release blocker in ONE place: the `Blocks-Release` field on the item (
 flags a `Blocks-Release` value that resolves to no release record, and `aw attention` surfaces the
 outstanding release-blocker set for the active release.
 
+### Every live bug gates the next release
+
+We do not ship known bugs. So a backlog item, spec, or plan whose `- Work-Kind:` is `bug` (the enum is
+defined once, in `.aw/records/backlog/README.md`) MUST carry `- Blocks-Release:` while it is LIVE, meaning
+`open`, `blocked`, or `graduated`. This is a policy about WHICH artifacts must carry the field, not a change
+to what the field means, so the BLOCKS-RELEASE versus BLOCKED-BY distinction above is untouched: a bug that
+is merely `open` is still a release blocker. Maintainer ruling, 2026-09-11. `bug` is the only gating
+work-kind today; making that set configurable per repository, defaulting to `bug` alone, is designed but NOT
+yet built (backlog `0htqmm`), so do not look for a config key to widen it.
+
+The gate TRAVELS with the work rather than being re-decided at each handoff. The managed block above
+already obliges a graduating plan or spec to inherit the item's `- Blocks-Release:` "if it has one"; this
+rule is what makes the gate EXIST so there is something to inherit, and that clause remains the single
+statement of the inheritance obligation.
+
+INEFFICIENCY A USER CAN NOTICE IS A DEFECT, and the test is USER-PERCEPTIBLE IMPACT (maintainer ruling,
+2026-09-12). `bug` is therefore not limited to a wrong answer: a correct-but-slow path a human waits on
+qualifies. It is equally not extended to every wasteful code path, because inefficiency users cannot notice
+is not a defect. Provable redundancy is EVIDENCE of inefficiency and is not itself the test: doubling a 2ms
+internal call is redundant and imperceptible, so it is a `chore`, while a path with no redundancy at all can
+be a bug if a user waits on it. Measure the END-TO-END command a user actually runs, warm and cold, rather
+than timing an internal function in isolation, where a single call can read many times its real cost because
+nothing else has warmed the page cache.
+
+The worked example qualifies on its MEASUREMENT, not on its redundancy. Backlog `59t9x5`: `aw find` opens
+every record twice (1240 opens where the resolver needs 620). What earns it `bug` is that the redundant read
+costs about 128ms of a roughly 530ms command an operator waits on, leaving about 402ms once removed, which is
+a difference a human notices. It was filed `chore` on the reasoning that the output was correct, and the
+maintainer reclassified it. Had the same double read cost 3ms, `chore` would have been right. No numeric
+cutoff is set here: "noticeable" is a judgement the filer makes and RECORDS with the number supporting it, so
+a reviewer can dispute the number rather than a vibe. An unmeasured hunch that something feels slow is not a
+bug and should not be filed as one.
+
+Two limits, stated plainly so the rule is not trusted further than it holds. FIRST, the gate keys on an
+AUTHOR'S CLASSIFICATION, so a genuine defect filed as `chore` or `followup` escapes it; the rule is a strict
+improvement over nothing and it is not a completeness claim. The perceptibility test makes this limit bite in
+BOTH directions: a user-visible performance defect is easy to under-file as `chore` (which `59t9x5`
+measurably was), and an invisible one is now easy to over-file as `bug`. Both are misfilings. SECOND, the
+rule governs LIVE items only. A bug already `done` is not retroactively gated, because writing a gate onto it
+now would assert a history that did not happen.
+
 ### Acting on a backlog item (graduate / implement / execute)
 
 This contract is stated once, in the managed block above (single source of truth); it is
