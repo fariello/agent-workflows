@@ -74,6 +74,9 @@ def iter_id6_citations(text: str) -> List[str]:
     excluded so documentation/IPD examples are not mistaken for citations.
     """
 
+    if "RSCH-" not in text and not _RESEARCH_KIND_IN_TEXT_RE.search(text):
+        return []
+
     out = list(_CITE_RSCH_RE.findall(text))
     for token in _CITE_FILENAME_TOKEN_RE.findall(text):
         parsed, _err = parse_name(token)
@@ -177,6 +180,12 @@ KIND_NORMALIZATIONS: Dict[str, str] = {
     "research": "research-report",
     "requirement": "requirements",
 }
+
+_RESEARCH_KIND_IN_TEXT_RE = re.compile(
+    r"\.(?:"
+    + "|".join(re.escape(k) for k in (KINDS | set(KIND_NORMALIZATIONS.keys())))
+    + r")\.md"
+)
 
 # States (spec 4.5) and outcomes.
 # rstodo Order p3o9je (graduated from backlog sr47pt): the hot not-yet-worked state was renamed

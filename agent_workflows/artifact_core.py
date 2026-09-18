@@ -368,14 +368,11 @@ def is_ignored_path(
 ) -> bool:
     """Return True if path is within an ignored directory or matches ignore rules."""
     try:
-        # PERF: repo_root.resolve() is loop-invariant but was recomputed on EVERY call
-        # (978 calls per `aw find`, each an lstat chain over every path component). Memoize
-        # the root resolution; `path` still resolves per call because it genuinely varies.
-        rel_path = path.resolve().relative_to(_resolved_root(repo_root))
-    except (ValueError, OSError):
+        rel_path = path.relative_to(repo_root)
+    except ValueError:
         try:
-            rel_path = path.relative_to(repo_root)
-        except ValueError:
+            rel_path = path.resolve().relative_to(_resolved_root(repo_root))
+        except (ValueError, OSError):
             rel_path = Path(path.as_posix())
 
     rel_parts = rel_path.parts

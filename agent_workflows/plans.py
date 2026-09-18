@@ -114,13 +114,14 @@ def normalize_status(raw: Optional[str]) -> Optional[str]:
     return val if val in RECOGNIZED else LEGACY_GROUP
 
 
-def read_status(md: Path) -> Optional[str]:
+def read_status(md: Path, text: Optional[str] = None) -> Optional[str]:
     """Return the canonical readiness status parsed from a file's front-matter, or None."""
 
-    try:
-        text = md.read_text(encoding="utf-8")
-    except OSError:
-        return None
+    if text is None:
+        try:
+            text = md.read_text(encoding="utf-8")
+        except OSError:
+            return None
     m = _STATUS_RE.search(text)
     return normalize_status(m.group("val")) if m else None
 

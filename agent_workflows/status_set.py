@@ -255,32 +255,37 @@ def read_artifact_record(path: Path, repo_root: Path) -> ArtifactRecord | None:
     )
 
 
-def inventory_all_artifacts(repo_root: Path) -> list[ArtifactRecord]:
+def inventory_all_artifacts(
+    repo_root: Path, scoped_type: str | None = None
+) -> list[ArtifactRecord]:
     """Scan and index all non-index *.md artifacts in the repository across all types."""
     records: list[ArtifactRecord] = []
     seen: set[str] = set()
 
-    for rtype in (
-        "plans",
-        "specs",
-        "prompts",
-        "backlog",
-        "releases",
-        "research",
-        "walkthroughs",
-        "roadmaps",
-        "other",
-    ):
+    types = (
+        (scoped_type,)
+        if scoped_type
+        else (
+            "plans",
+            "specs",
+            "prompts",
+            "backlog",
+            "releases",
+            "research",
+            "walkthroughs",
+            "roadmaps",
+            "other",
+        )
+    )
+
+    for rtype in types:
         for d in _sel.record_dirs(repo_root, rtype):
             if not d.is_dir():
                 continue
             for p in d.rglob("*.md"):
                 if p.name in _sel._SKIP_NAMES:
                     continue
-                try:
-                    rp = str(p.resolve())
-                except OSError:
-                    continue
+                rp = p.as_posix()
                 if rp in seen:
                     continue
                 seen.add(rp)
@@ -310,6 +315,26 @@ def match_selector(
     if not tok:
         return []
 
+    # Fast path: exact id6 or setid from all_records before falling back to filesystem walk
+    cand = Path(tok)
+    cand_is_path = cand.is_file() or (
+        not cand.is_absolute() and (repo_root / tok).is_file()
+    )
+    if not cand_is_path:
+        target_type = (
+            canonical_type(scoped_type) or scoped_type if scoped_type else None
+        )
+        cands = [
+            r for r in all_records if not target_type or r.record_type == target_type
+        ]
+        if _core.ID6_RE.match(tok):
+            id6_matches = [r for r in cands if r.id6 == tok]
+            if id6_matches:
+                return id6_matches
+        set_matches = [r for r in cands if r.set_id == tok]
+        if set_matches:
+            return set_matches
+
     from agent_workflows import selectors as _sel
 
     if scoped_type:
@@ -331,12 +356,12 @@ def match_selector(
     for rt in record_types:
         res = _sel.resolve(repo_root, rt, tok)
         for p in res.paths:
-            matched_paths[str(p.resolve())] = p.resolve()
+            matched_paths[p.as_posix()] = p
 
     if not matched_paths:
         return []
 
-    by_path = {str(r.path.resolve()): r for r in all_records}
+    by_path = {r.path.as_posix(): r for r in all_records}
     out: list[ArtifactRecord] = []
     seen: set[str] = set()
     for key in sorted(matched_paths):
@@ -1300,7 +1325,7 @@ def run_set_command(
 
     scoped_type_canonical = canonical_type(scoped_type)
 
-    all_records = inventory_all_artifacts(repo_root)
+    all_records = inventory_all_artifacts(repo_root, scoped_type=scoped_type_canonical)
 
     resolved_by_token: dict[str, list[ArtifactRecord]] = {}
     matched_records: list[ArtifactRecord] = []

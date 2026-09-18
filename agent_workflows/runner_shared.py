@@ -1155,29 +1155,32 @@ def classify_lane_integration(
     """
     described = describe_lane(repo, lane)
     branch = described.get("branch") or lane.get("branch") or ""
-    landed = lane_work_has_landed(repo, str(branch), target=target)
 
     owner_live = described.get("owner_live")
     live = bool(described.get("owned_by_other_live_process")) or owner_live is True
 
     if live:
+        landed = lane_work_has_landed(repo, str(branch), target=target)
         state = LANE_LIVE
         why = "a live process currently owns this lane"
     elif not described.get("holds_work"):
+        landed = None
         state = LANE_EMPTY_OF_WORK
         why = "the lane holds no commits beyond its base and its tree is clean"
-    elif landed is True:
-        state = LANE_LANDED
-        why = "the lane's work is reachable from {0}".format(target)
-    elif landed is False:
-        state = LANE_STRANDED
-        why = "the lane holds work that is NOT reachable from {0}".format(target)
     else:
-        state = LANE_UNKNOWN
-        why = (
-            "the lane holds work but whether it reached {0} could not be determined "
-            "(branch or target unresolvable)".format(target)
-        )
+        landed = lane_work_has_landed(repo, str(branch), target=target)
+        if landed is True:
+            state = LANE_LANDED
+            why = "the lane's work is reachable from {0}".format(target)
+        elif landed is False:
+            state = LANE_STRANDED
+            why = "the lane holds work that is NOT reachable from {0}".format(target)
+        else:
+            state = LANE_UNKNOWN
+            why = (
+                "the lane holds work but whether it reached {0} could not be determined "
+                "(branch or target unresolvable)".format(target)
+            )
 
     record = dict(described)
     record["lane_state"] = state
@@ -1222,20 +1225,58 @@ def stranded_lane_records(
     De-duplicated by `(run_id, branch, worktree)`, so one lane named by both an attempt and the
     item-level `preserved_*` fields yields one record.
     """
+    from agent_workflows import worktree_lease
+
+    if worktree_lease._WORKTREE_CACHE is None:
+        with worktree_lease.memoize_worktrees(repo):
+            return stranded_lane_records(
+                repo, states, target=target, attention_only=attention_only
+            )
+
     out: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str]] = set()
     for state in states:
         if not isinstance(state, dict):
             continue
         run_id = str(state.get("run_id") or "")
+        queue = state.get("queue") or []
         by_id: dict[str, dict[str, Any]] = {}
-        for item in state.get("queue") or []:
+        for item in queue:
             if isinstance(item, dict) and item.get("id6"):
                 by_id[str(item["id6"])] = item
         try:
             lanes = lane_records_including_sweep(state)
         except Exception:
             continue
+
+        # E-02: Fast pruning for cleanly terminal runs with no preserved worktrees
+        if attention_only and queue:
+            has_pres = any(
+                bool(it.get("preserved_worktree"))
+                for it in queue
+                if isinstance(it, dict)
+            )
+            if not has_pres:
+                all_term = all(
+                    it.get("status") in ("executed", "done", "graduated")
+                    for it in queue
+                    if isinstance(it, dict)
+                )
+                if all_term:
+                    sweep = review_sweep_lane_record(state)
+                    if sweep is None or sweep.get("retired"):
+                        wt_cache = worktree_lease._WORKTREE_CACHE or {}
+                        br_cache = worktree_lease._BRANCH_CACHE or {}
+                        any_live = False
+                        for lane_rec in lanes:
+                            b = lane_rec.get("branch") or ""
+                            ref = "refs/heads/" + b if b else ""
+                            if ref in wt_cache or ref in br_cache:
+                                any_live = True
+                                break
+                        if not any_live:
+                            continue
+
         for lane in lanes:
             key = (
                 run_id,

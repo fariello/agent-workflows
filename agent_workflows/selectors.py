@@ -33,6 +33,7 @@ silently "fixed" here. The same caution applies to the plans index: see the pari
 from __future__ import annotations
 
 import contextlib
+import functools
 import os
 import re
 from pathlib import Path
@@ -192,15 +193,9 @@ _OTHER_SWEEP_SKIP_DIRS = (
 )
 
 
-def record_dirs(repo_root: Path, record_type: str) -> List[Path]:
-    """Directories to search for a record type (primary + any legacy read path).
-
-    Combines the project-context resolver (`resolve_record_read_paths`, which honors a registered
-    project/home backend) with the DIRECT literal layout under `repo_root` (`.aw/records/<type>` +
-    legacy `.agents/<type>`), so this works for a bare/unregistered repo too. De-duplicated; only
-    existing dirs. Returns [] for an unknown/unresolvable type rather than raising.
-    """
-    repo_root = Path(repo_root)
+@functools.lru_cache(maxsize=128)
+def _record_dirs_cached(repo_root_str: str, record_type: str) -> tuple[Path, ...]:
+    repo_root = Path(repo_root_str)
     out: List[Path] = []
     seen: set = set()
 
@@ -229,10 +224,10 @@ def record_dirs(repo_root: Path, record_type: str) -> List[Path]:
                     _add(base)
         _add(repo_root / ".aw" / "records" / "other")
         _add(repo_root / ".agents" / "other")
-        return out
+        return tuple(out)
 
     try:
-        for p in _rp.resolve_record_read_paths(record_type, target_repo=str(repo_root)):
+        for p in _rp.resolve_record_read_paths(record_type, target_repo=repo_root_str):
             _add(p)
     except Exception:
         pass
@@ -240,7 +235,18 @@ def record_dirs(repo_root: Path, record_type: str) -> List[Path]:
     # the RecordClass resolver rejects).
     _add(repo_root / ".aw" / "records" / record_type)
     _add(repo_root / ".agents" / record_type)
-    return out
+    return tuple(out)
+
+
+def record_dirs(repo_root: Path, record_type: str) -> List[Path]:
+    """Directories to search for a record type (primary + any legacy read path).
+
+    Combines the project-context resolver (`resolve_record_read_paths`, which honors a registered
+    project/home backend) with the DIRECT literal layout under `repo_root` (`.aw/records/<type>` +
+    legacy `.agents/<type>`), so this works for a bare/unregistered repo too. De-duplicated; only
+    existing dirs. Returns [] for an unknown/unresolvable type rather than raising.
+    """
+    return list(_record_dirs_cached(str(repo_root), record_type))
 
 
 def _read_id(text: str) -> str | None:

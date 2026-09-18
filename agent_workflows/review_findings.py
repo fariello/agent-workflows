@@ -479,6 +479,8 @@ def _split_row(line: str) -> List[str]:
         s = s[1:]
     if s.endswith("|") and not s.endswith("\\|"):
         s = s[:-1]
+    if "\\" not in s:
+        return [c.strip() for c in s.split("|")]
     cells: List[str] = []
     buf: List[str] = []
     i = 0
@@ -877,6 +879,14 @@ def subject_gating_blocks(
     except Exception:
         return ()
     for path in review_paths:
+        if wanted not in path.name:
+            try:
+                with open(path, "r", encoding="utf-8") as _f:
+                    head = _f.read(1024)
+            except OSError:
+                continue
+            if wanted not in head:
+                continue
         doc = parse_review_file(path)
         # Matches the record's ARTIFACT-NEUTRAL subject id. The id6 alone identifies the artifact
         # (ids are unique across trees), so this predicate needs no `Subject-Type` filter and keeps
@@ -975,6 +985,14 @@ def subject_review_records(repo_root, subject_id6: str) -> Tuple[Path, ...]:
     except Exception:
         return ()
     for path in paths:
+        if wanted not in path.name:
+            try:
+                with open(path, "r", encoding="utf-8") as _f:
+                    head = _f.read(1024)
+            except OSError:
+                continue
+            if wanted not in head:
+                continue
         doc = parse_review_file(path)
         if (doc.subject_id or "").strip() == wanted:
             out.append(path)

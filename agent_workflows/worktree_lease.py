@@ -23,6 +23,7 @@ table is pure in-memory state. No network or model calls.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import json
 import os
 import socket
@@ -199,12 +200,55 @@ class LaneState(NamedTuple):
         )
 
 
+_WORKTREE_CACHE: Optional[Dict[str, dict]] = None
+_BRANCH_CACHE: Optional[Dict[str, str]] = None
+_HEAD_SHA_CACHE: Optional[str] = None
+
+
+@contextmanager
+def memoize_worktrees(repo_root: Path):
+    """Context manager to memoize worktree registration, branch refs, and HEAD sha.
+
+    Ensures git worktree list and branch lookups are executed at most once per sweep.
+    Scoped strictly as a context manager to ensure zero stale-cache drift across distinct operations.
+    """
+    global _WORKTREE_CACHE, _BRANCH_CACHE, _HEAD_SHA_CACHE
+    old_wt = _WORKTREE_CACHE
+    old_br = _BRANCH_CACHE
+    old_head = _HEAD_SHA_CACHE
+    try:
+        _WORKTREE_CACHE = _registered_worktrees(repo_root)
+        rc, out, _ = _git(
+            repo_root,
+            ["for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/"],
+        )
+        bmap: Dict[str, str] = {}
+        if rc == 0:
+            for line in out.splitlines():
+                line = line.strip()
+                if line:
+                    parts = line.split()
+                    if len(parts) == 2:
+                        bmap[parts[0]] = parts[1]
+        _BRANCH_CACHE = bmap
+        rc2, out2, _ = _git(repo_root, ["rev-parse", "HEAD"])
+        _HEAD_SHA_CACHE = out2.strip() if rc2 == 0 else None
+        yield _WORKTREE_CACHE
+    finally:
+        _WORKTREE_CACHE = old_wt
+        _BRANCH_CACHE = old_br
+        _HEAD_SHA_CACHE = old_head
+
+
 def _registered_worktrees(repo_root: Path) -> Dict[str, dict]:
     """Map branch ref -> {path, head} for every worktree git has REGISTERED.
 
     Uses `git worktree list --porcelain`, which is the reliable discovery surface: a lane branch can
     survive with NO worktree directory, and a directory-existence check would miss it entirely.
     """
+    global _WORKTREE_CACHE
+    if _WORKTREE_CACHE is not None:
+        return _WORKTREE_CACHE
     rc, out, _err = _git(repo_root, ["worktree", "list", "--porcelain"])
     if rc != 0:
         return {}
@@ -268,21 +312,62 @@ def inspect_lane(
     is ahead of its base, the durable owner record, and one of the five `LANE_STATES`.
     """
     branch = lane_branch_name(lane_id)
-    rc, out, _err = _git(repo_root, ["rev-parse", base_commit])
-    requested_base = out.strip() if rc == 0 else None
+    ref = "refs/heads/" + branch
 
-    rc, out, _err = _git(repo_root, ["rev-parse", "--verify", branch])
-    branch_exists = rc == 0
-    head = out.strip() if rc == 0 else None
+    if _BRANCH_CACHE is not None and _WORKTREE_CACHE is not None:
+        head = _BRANCH_CACHE.get(ref)
+        branch_exists = head is not None
+        registered = _WORKTREE_CACHE.get(ref)
+        worktree_registered = registered is not None
+        if head is None and registered and registered.get("head"):
+            head = registered["head"]
+        if not branch_exists and not worktree_registered:
+            owner = read_lane_owner(repo_root, lane_id)
+            owner_live = _owner_is_live(owner) if owner else None
+            req_base = (
+                _HEAD_SHA_CACHE
+                if (base_commit == "HEAD" and _HEAD_SHA_CACHE is not None)
+                else None
+            )
+            return LaneState(
+                lane_id=lane_id,
+                state=LANE_ABSENT,
+                branch=branch,
+                branch_exists=False,
+                worktree_path=None,
+                worktree_registered=False,
+                head=None,
+                base_sha=None,
+                requested_base=req_base,
+                commits_ahead=0,
+                dirty=False,
+                owner=owner,
+                owner_live=owner_live,
+            )
+        requested_base = (
+            _HEAD_SHA_CACHE
+            if (base_commit == "HEAD" and _HEAD_SHA_CACHE is not None)
+            else None
+        )
+        if requested_base is None:
+            rc, out, _err = _git(repo_root, ["rev-parse", base_commit])
+            requested_base = out.strip() if rc == 0 else None
+    else:
+        rc, out, _err = _git(repo_root, ["rev-parse", base_commit])
+        requested_base = out.strip() if rc == 0 else None
 
-    registered = _registered_worktrees(repo_root).get("refs/heads/" + branch)
+        rc, out, _err = _git(repo_root, ["rev-parse", "--verify", branch])
+        branch_exists = rc == 0
+        head = out.strip() if rc == 0 else None
+
+        registered = _registered_worktrees(repo_root).get("refs/heads/" + branch)
+        worktree_registered = registered is not None
+        if head is None and registered and registered.get("head"):
+            head = registered["head"]
+
     wt_path = (
         Path(registered["path"]) if registered and registered.get("path") else None
     )
-    worktree_registered = registered is not None
-    if head is None and registered and registered.get("head"):
-        head = registered["head"]
-
     owner = read_lane_owner(repo_root, lane_id)
     owner_live = _owner_is_live(owner) if owner else None
 
