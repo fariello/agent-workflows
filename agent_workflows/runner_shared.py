@@ -10150,6 +10150,14 @@ nonterminal checkpoint mechanism or an attributable isolated branch/worktree. Le
 checkout you did not own safe for subsequent turns. Never claim executed unless the real
 terminal state and acceptance criteria support it.
 
+Run every command you need the RESULT of in the FOREGROUND and wait for it to finish. Do not
+start a long command as a background or scheduled task and then end your turn: your turn's
+processes are terminated when it ends, so a backgrounded test suite is killed unfinished and
+you will have produced nothing. This applies above all to the validation suite, which takes
+minutes in this repository. Never end your turn while waiting for a command you started. If a
+command genuinely cannot finish in this turn, treat that as a deferred question and record the
+preserved state, rather than exiting with the work outstanding.
+
 Before exiting, write valid JSON to {outcome} with at least:
 {{
   "schema_version": 1,

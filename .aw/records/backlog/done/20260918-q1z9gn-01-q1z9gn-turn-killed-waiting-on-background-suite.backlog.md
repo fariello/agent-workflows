@@ -1,11 +1,12 @@
 - Id: q1z9gn
-- Status: open
+- Status: done
 - Set: q1z9gn
 - Priority: high
 - Work-Kind: bug
 - Summary: An execute turn backgrounded the validation suite and was killed still waiting, so it did no work, reported SUCCESS to the host, and blocked three siblings
 
 ## Workflow history
+- 2026-09-18 done (aw set): Fixed the agent-side cause in the SHARED execute prompt (runner_shared.build_prompt, one definition for both hosts): the agent is now told to run any command it needs the result of in the FOREGROUND, that its turn's processes are terminated when the turn ends, and never to end a turn while waiting on a command it started. Regression-tested in tests/test_turn_bounds.py: removing the instruction fails 3 tests, restoring it passes. Suite 8114 passed, 3 skipped, 2 xfailed. Fix sketch items 2 and 3 (state the remaining turn budget; treat a zero-work turn as retryable) are NOT done and are left for a separate decision, recorded below
 - 2026-09-18 created (aw backlog): zqs0px ran python3 -m pytest as a background task and polled it with schedule; the turn ended at 36s, the task was terminated, no outcome was written, and the partial blocked qmgn12/di08i9/rgaasb
 
 MEASURED 2026-09-18 in run `run-20260918T045802Z-2547360` (antigravity host), item `02/5 zqs0px`

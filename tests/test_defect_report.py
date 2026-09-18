@@ -163,7 +163,21 @@ class PromptSizeBudgetTests(unittest.TestCase):
     #: enforce (the defect report itself must stay under budget) is now measured against a
     #: same-HEAD baseline instead of a stale one. Measured cost after the change: 1137 characters on
     #: BOTH hosts, comfortably under the 1500 ceiling.
-    BASELINE = {"agent_workflows.oc_runipd": 5466, "agent_workflows.agy_runipd": 5469}
+    #:
+    #: RE-BASED AGAIN (backlog `q1z9gn`) for the same reason and by the same method: the shared execute
+    #: prompt gained a foreground-execution instruction, so the report-free prompt legitimately grew by
+    #: 623 characters on both hosts (5466 -> 6089 on oc, 5469 -> 6092 on agy). The instruction exists
+    #: because an execute turn backgrounded the validation suite, polled it with a scheduled task, and
+    #: ended while it was still running, producing no work and blocking three siblings
+    #: (run-20260918T045802Z-2547360, item `zqs0px`).
+    #:
+    #: WHY RE-BASING IS THE CORRECT FIX AND NOT A DODGE: this constant is DEFINED as "the execute
+    #: prompt's length WITHOUT the defect report", so it is a snapshot that MUST move whenever the
+    #: surrounding prompt legitimately changes. Leaving it stale would silently attribute unrelated
+    #: prompt growth to the defect report and fail this test for a reason it does not measure. The
+    #: quantity actually under test is UNCHANGED: measured at this HEAD the report still costs exactly
+    #: 1137 characters on both hosts, the same figure as before, against an untouched 1500 ceiling.
+    BASELINE = {"agent_workflows.oc_runipd": 6089, "agent_workflows.agy_runipd": 6092}
 
     #: What the report may cost. The demand plus the schema literal is ~1.2KB; the ceiling leaves
     #: room for a wording fix and no room for a fifth field.
