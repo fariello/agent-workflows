@@ -6,16 +6,16 @@
 - Scope: Verified runner defects in `agent_workflows/oc_runipd.py`, `agent_workflows/agy_runipd.py`, `agent_workflows/runner_stop.py`, and their focused regression tests.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_stop.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_stop.py, tests/test_runner_stop_level3.py, tests/test_runner_backlog_close.py, tests/test_runner_item_dependencies.py, tests/test_runner_shared.py, tests/test_stall_progress.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runnerbugs
 - Order: 1
 - Highest E allocated: 13
 - Author: antigravity
 - Id: hp9rot
-- Approval: 2026-09-09, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-18 executed (aw agy run model=gemini-3.7-flash-high): aw agy run self-finalize: hp9rot verified (set runnerbugs, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/runner_shutdown.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_runner_backlog_close_in_lane.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_rununify_run_queue_characterization.py: changed by the plan's approved execution (auto-reconciled by aw agy run); in-scope-unmodified agent_workflows/runner_stop.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_runner_backlog_close.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_runner_stop_level3.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-09 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-004 fixed
 
