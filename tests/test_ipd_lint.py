@@ -1106,5 +1106,81 @@ class ParenthesizedActorParsesInTheAttributionRegex(unittest.TestCase):
         )
 
 
+class GateContractLintTests(unittest.TestCase):
+    """dcri4s E-05 / E-06: deterministic lint refusing hand-rolled terminal lifecycle moves."""
+
+    PRODUCTION_CLAUSE_13 = (
+        "13. On completion, run `aw ipd lint --phase pre-transition`, confirm it reports conforming and\n"
+        "    every `V-*` carries observed evidence, then `git mv` this file to\n"
+        "    `.aw/records/plans/executed/`, set `- Status: executed`, and append a\n"
+        "    `## Workflow history` line."
+    )
+
+    CORRECTED_CLAUSE = (
+        "11. On completion, run `aw ipd lint --phase pre-transition` and confirm it reports conforming.\n"
+        "    The plan then reaches `executed` ONLY through the gated finalize transaction:\n"
+        "        aw ipd finalize --actor '<agent/model>' --message '<summary>' --apply\n"
+        "    In no case may you `git mv` this file or hand-edit `- Status:`; a hand-built transition\n"
+        "    satisfies neither IPD-S406 nor IPD-M104."
+    )
+
+    RETIREMENT_CLAUSE = "13. On completion, `git mv` this file to `.aw/records/plans/superseded/` and set `- Status: superseded`."
+
+    def _plan_with_gate_body(self, gate_body: str) -> str:
+        return _conforming_child().replace("Gate prose.", gate_body)
+
+    def test_gate_prescribing_hand_rolled_move_fails_lint(self):
+        """Assertion 1: the new rule FIRES on a gate carrying the production clause 13 text."""
+        plan = self._plan_with_gate_body(self.PRODUCTION_CLAUSE_13)
+        res = L.lint_text(plan, checkpoint="author")
+        self.assertEqual(res.disposition, S.DISPOSITION_ERROR)
+        codes = [d.code for d in res.diagnostics]
+        self.assertIn(L.C_GATE_HAND_ROLLED_MOVE, codes)
+        diag = next(d for d in res.diagnostics if d.code == L.C_GATE_HAND_ROLLED_MOVE)
+        self.assertIn("aw ipd finalize", diag.message)
+        self.assertIn("git mv", diag.message)
+
+    def test_gate_naming_finalize_passes(self):
+        """Assertion 2: does NOT fire on a gate naming aw ipd finalize."""
+        plan = self._plan_with_gate_body(self.CORRECTED_CLAUSE)
+        res = L.lint_text(plan, checkpoint="author")
+        codes = [d.code for d in res.diagnostics]
+        self.assertNotIn(L.C_GATE_HAND_ROLLED_MOVE, codes)
+
+    def test_retirement_gate_passes(self):
+        """Assertion 3: does NOT fire on retirement wording."""
+        plan = self._plan_with_gate_body(self.RETIREMENT_CLAUSE)
+        res = L.lint_text(plan, checkpoint="author")
+        codes = [d.code for d in res.diagnostics]
+        self.assertNotIn(L.C_GATE_HAND_ROLLED_MOVE, codes)
+
+    def test_hand_rolled_move_outside_gate_passes(self):
+        """Assertion 4: does NOT fire when the defective clause appears OUTSIDE the gate section."""
+        plan = _conforming_child().replace(
+            "Sample goal.",
+            f"Sample goal.\n\nHere is a quote of defective text:\n{self.PRODUCTION_CLAUSE_13}\n",
+        )
+        res = L.lint_text(plan, checkpoint="author")
+        codes = [d.code for d in res.diagnostics]
+        self.assertNotIn(L.C_GATE_HAND_ROLLED_MOVE, codes)
+
+    def test_template_execution_contract_prescribes_finalize_not_hand_rolled_move(self):
+        """Assertion 5: the templated contract text itself carries the E-02 obligation-plus-conditional-owner wording while instructing git mv to executed/ for no case."""
+        template_path = (
+            REPO_ROOT / ".aw" / "system" / "workflows" / "templates" / "plans-README.md"
+        )
+        text = template_path.read_text(encoding="utf-8")
+        self.assertIn("gated", text)
+        self.assertIn("finalize transaction", text)
+        self.assertIn("IPD-S406", text)
+        self.assertIn("IPD-M104", text)
+        self.assertIn("AW_EXECUTION_ROLE=worker", text)
+        self.assertIn("AW-LIFECYCLE-ROLE-001", text)
+        self.assertIn("aw ipd finalize --actor", text)
+        self.assertIn("superseded", text)
+        self.assertIn("not-executed", text)
+        self.assertNotIn("`git mv` to the terminal directory, set `Status:`", text)
+
+
 if __name__ == "__main__":
     unittest.main()

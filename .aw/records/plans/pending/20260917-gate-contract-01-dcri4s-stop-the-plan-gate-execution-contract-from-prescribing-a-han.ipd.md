@@ -196,56 +196,56 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Reconcile the evidence against the toolkit tree
 
-- [ ] E-01 Re-confirm the defect sites in THIS tree before editing, and record the quotes. Review re-verified them at HEAD `edb9ba85` (all present, line numbers below corrected), but this repo moves frequently, so a stale citation is the likeliest way this plan goes wrong. Quote the current text at each: `.aw/system/workflows/templates/plans-README.md:65-78`, element 5 at `:77-78` (the root); `.aw/system/workflows/plan-review/plan-review.md:351-354` and `:486-488` (the mandate and the reviewer's ADD instruction); `.aw/system/workflows/plan-review-long/02-review-and-revise.md:85` and `review-rubric.md:17-19` (the long variant's parity copies); and `.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md:203` beside `:105-107` and `:109-114`. Also confirm `IPD-M104` (`ipd_lint.py:50`, semantics in `ipd_schema.py:398-407`) and `IPD-S406` (`ipd_lint.py:63-65`, emitted at `:895-915`) still carry the semantics this plan relies on. CORRECTED BY REVIEW: the plan cited `IPD-S406` at `ipd_lint.py:68`, which is `IPD-M107` (`C_READINESS_UNATTESTED`); the S406 constant is at `:63-65`. If any site has already been fixed or moved, STOP and report rather than editing blind.
+- [x] E-01 Re-confirm the defect sites in THIS tree before editing, and record the quotes. Review re-verified them at HEAD `edb9ba85` (all present, line numbers below corrected), but this repo moves frequently, so a stale citation is the likeliest way this plan goes wrong. Quote the current text at each: `.aw/system/workflows/templates/plans-README.md:65-78`, element 5 at `:77-78` (the root); `.aw/system/workflows/plan-review/plan-review.md:351-354` and `:486-488` (the mandate and the reviewer's ADD instruction); `.aw/system/workflows/plan-review-long/02-review-and-revise.md:85` and `review-rubric.md:17-19` (the long variant's parity copies); and `.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md:203` beside `:105-107` and `:109-114`. Also confirm `IPD-M104` (`ipd_lint.py:50`, semantics in `ipd_schema.py:398-407`) and `IPD-S406` (`ipd_lint.py:63-65`, emitted at `:895-915`) still carry the semantics this plan relies on. CORRECTED BY REVIEW: the plan cited `IPD-S406` at `ipd_lint.py:68`, which is `IPD-M107` (`C_READINESS_UNATTESTED`); the S406 constant is at `:63-65`. If any site has already been fixed or moved, STOP and report rather than editing blind.
   - Depends on: none
   - Expected outcome: every cited site quoted from source at execution HEAD, or a report naming which citation is stale and that execution stopped.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 RE-CONFIRM THE ROLE REFUSAL AND THE OWNERSHIP CONDITIONALITY BEFORE WRITING ANY CONTRACT TEXT, because the entire corrected design (E-02) rests on it and a wrong reading here reproduces the very failure class this plan exists to close. Reproduce the refusal and paste it: `AW_EXECUTION_ROLE=worker python3 -m agent_workflows ipd finalize <any-pending-id6> --actor 'x/y' --message 'probe' --apply --dir .` must print `AW-LIFECYCLE-ROLE-001` and exit 2. Then confirm the three facts that make ownership conditional, by citation: both runners export the worker role for an ISOLATED turn only (`oc_runipd.py:5876`, `agy_runipd.py:2779`, both keyed on `work_dir`); the driver's own `driver_finalize` runs unmarked and is called only inside `if self_finalize and not is_review:` (`oc_runipd.py:6715`); and `--no-self-finalize` exists with help text "the agent must move the plan itself" (`oc_runipd.py:9078-9083`). If the refusal does NOT reproduce, STOP and report: the design premise has changed and E-02 must be re-derived rather than written to this plan's text.
+- [x] E-09 RE-CONFIRM THE ROLE REFUSAL AND THE OWNERSHIP CONDITIONALITY BEFORE WRITING ANY CONTRACT TEXT, because the entire corrected design (E-02) rests on it and a wrong reading here reproduces the very failure class this plan exists to close. Reproduce the refusal and paste it: `AW_EXECUTION_ROLE=worker python3 -m agent_workflows ipd finalize <any-pending-id6> --actor 'x/y' --message 'probe' --apply --dir .` must print `AW-LIFECYCLE-ROLE-001` and exit 2. Then confirm the three facts that make ownership conditional, by citation: both runners export the worker role for an ISOLATED turn only (`oc_runipd.py:5876`, `agy_runipd.py:2779`, both keyed on `work_dir`); the driver's own `driver_finalize` runs unmarked and is called only inside `if self_finalize and not is_review:` (`oc_runipd.py:6715`); and `--no-self-finalize` exists with help text "the agent must move the plan itself" (`oc_runipd.py:9078-9083`). If the refusal does NOT reproduce, STOP and report: the design premise has changed and E-02 must be re-derived rather than written to this plan's text.
   - Depends on: E-01
   - Expected outcome: the pasted refusal plus the three citations, or a report that the premise no longer holds and execution stopped.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Fix the prescribing text
 
-- [ ] E-02 Rewrite element 5 of the mandatory execution contract in `templates/plans-README.md:77-78` to state the OBLIGATION and the OWNER SEPARATELY. This is the ROOT of the propagation: every scaffolded plan's gate inherits it. The new element 5 must carry exactly three things. (a) THE OBLIGATION, unconditional: the plan reaches `executed` ONLY through the gated finalize transaction, which alone produces the attributed history entry, the terminal `Status:`, the move, and the path-scoped lifecycle commit; a hand-built `git mv` plus a `Status:` edit is NEVER a valid terminal transition, because it satisfies neither `IPD-S406` (non-generic actor plus nonempty summary) nor `IPD-M104` (`Approval:` cleared). (b) THE OWNER, conditional and stated as a rule the executor can evaluate: if the turn is a managed lane (the runner set `AW_EXECUTION_ROLE=worker`), the transition is the RUNNER'S and the executor MUST NOT run `aw ipd finalize`; it reports its result and stops. Otherwise (a human or agent executing by hand, or a run under `--no-self-finalize`) the executor runs `aw ipd finalize --actor '<agent/model>' --message '<summary>' --apply` itself. Say that an executor unsure which case it is in should simply ATTEMPT finalize and treat an `AW-LIFECYCLE-ROLE-001` refusal as the EXPECTED, SUCCESSFUL handoff rather than a failure, which makes the wrong guess cost nothing. (c) THE RETIREMENT CARVE-OUT: `git mv` remains correct ONLY for retirement to `superseded/`/`not-executed/`, which finalize deliberately does not perform (`ipd-lifecycle.md:114-116`). Do NOT present the hand-rolled move as an alternative anywhere: an agent reading two options for the SAME case picks either, which is the measured failure. NOTE the deliberate division of labor with approved plan `8b9ufm`: that plan tells the agent the role at TURN START through the runner prompt; this element makes the PLAN TEXT agree with it instead of contradicting it. Do not edit any prompt builder here (see the Deferred section).
+- [x] E-02 Rewrite element 5 of the mandatory execution contract in `templates/plans-README.md:77-78` to state the OBLIGATION and the OWNER SEPARATELY. This is the ROOT of the propagation: every scaffolded plan's gate inherits it. The new element 5 must carry exactly three things. (a) THE OBLIGATION, unconditional: the plan reaches `executed` ONLY through the gated finalize transaction, which alone produces the attributed history entry, the terminal `Status:`, the move, and the path-scoped lifecycle commit; a hand-built `git mv` plus a `Status:` edit is NEVER a valid terminal transition, because it satisfies neither `IPD-S406` (non-generic actor plus nonempty summary) nor `IPD-M104` (`Approval:` cleared). (b) THE OWNER, conditional and stated as a rule the executor can evaluate: if the turn is a managed lane (the runner set `AW_EXECUTION_ROLE=worker`), the transition is the RUNNER'S and the executor MUST NOT run `aw ipd finalize`; it reports its result and stops. Otherwise (a human or agent executing by hand, or a run under `--no-self-finalize`) the executor runs `aw ipd finalize --actor '<agent/model>' --message '<summary>' --apply` itself. Say that an executor unsure which case it is in should simply ATTEMPT finalize and treat an `AW-LIFECYCLE-ROLE-001` refusal as the EXPECTED, SUCCESSFUL handoff rather than a failure, which makes the wrong guess cost nothing. (c) THE RETIREMENT CARVE-OUT: `git mv` remains correct ONLY for retirement to `superseded/`/`not-executed/`, which finalize deliberately does not perform (`ipd-lifecycle.md:114-116`). Do NOT present the hand-rolled move as an alternative anywhere: an agent reading two options for the SAME case picks either, which is the measured failure. NOTE the deliberate division of labor with approved plan `8b9ufm`: that plan tells the agent the role at TURN START through the runner prompt; this element makes the PLAN TEXT agree with it instead of contradicting it. Do not edit any prompt builder here (see the Deferred section).
   - Depends on: E-09
   - Expected outcome: element 5 states the unconditional obligation, the conditional owner with the attempt-and-accept-refusal rule, and the retirement carve-out, and offers the hand-rolled move for no case.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Correct the same element in the two review workflows that MANDATE and VERIFY the contract, so a reviewer stops re-injecting the defective wording. `plan-review.md:351-354` requires the gate to carry "the lifecycle move" and instructs the reviewer to ADD it when missing; `:486-488` repeats it in the rubric. Replace the phrase "the lifecycle move" at BOTH places with wording that names the OBLIGATION and the CONDITIONAL OWNER as E-02 defines them, and add the reviewer-facing consequence: a gate that instructs a hand-rolled `git mv` to `executed/` is a FINDING to fix, and a gate that unconditionally instructs the executor to run `aw ipd finalize` is ALSO a finding, because it is wrong for a managed lane. Apply the identical change to the long variant at `plan-review-long/02-review-and-revise.md:85` and `review-rubric.md:17-19` (VERIFIED at review: those are the only two sites; `03-resolve-and-finalize.md` does not carry it, which is where a reader might expect it). State the parity requirement in the edit so the two variants do not drift, and note that `plan-review.md:13-17` already declares that parity.
+- [x] E-03 Correct the same element in the two review workflows that MANDATE and VERIFY the contract, so a reviewer stops re-injecting the defective wording. `plan-review.md:351-354` requires the gate to carry "the lifecycle move" and instructs the reviewer to ADD it when missing; `:486-488` repeats it in the rubric. Replace the phrase "the lifecycle move" at BOTH places with wording that names the OBLIGATION and the CONDITIONAL OWNER as E-02 defines them, and add the reviewer-facing consequence: a gate that instructs a hand-rolled `git mv` to `executed/` is a FINDING to fix, and a gate that unconditionally instructs the executor to run `aw ipd finalize` is ALSO a finding, because it is wrong for a managed lane. Apply the identical change to the long variant at `plan-review-long/02-review-and-revise.md:85` and `review-rubric.md:17-19` (VERIFIED at review: those are the only two sites; `03-resolve-and-finalize.md` does not carry it, which is where a reader might expect it). State the parity requirement in the edit so the two variants do not drift, and note that `plan-review.md:13-17` already declares that parity.
   - Depends on: E-02
   - Expected outcome: both review variants require the conditional contract, and each names BOTH failure directions (hand-rolled move, and an unconditional finalize instruction) as findings.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Sharpen `ipd-lifecycle.md`'s terminal-transaction recipe so its six manual steps cannot be read as a runbook. CORRECTED BY REVIEW: the plan claimed `:195-207` and `:109-114` "describe different procedures" and that the file "reads as authorizing a hand-performed terminal move". It does not, quite: `:105-107` ALREADY states finalize "is the ONLY supported terminal path; the manual ordered steps below are the contract it implements". So this item is a CLARIFICATION, not the repair of a contradiction, and it must not be written as though it were. Make the framing local to the passage a reader lands on: add to the `## The terminal transaction` heading section itself (`:195-197`) an explicit statement that the ordered steps are WHAT `aw ipd finalize` PERFORMS INTERNALLY, are given for understanding and recovery reasoning, and are NOT to be performed by hand, cross-referencing `:105-107` rather than restating it. Keep the recovery guidance that follows, which is correct and valuable. If E-01 finds the passage already carries such a statement, record that and make no edit rather than adding a redundant one.
+- [x] E-04 Sharpen `ipd-lifecycle.md`'s terminal-transaction recipe so its six manual steps cannot be read as a runbook. CORRECTED BY REVIEW: the plan claimed `:195-207` and `:109-114` "describe different procedures" and that the file "reads as authorizing a hand-performed terminal move". It does not, quite: `:105-107` ALREADY states finalize "is the ONLY supported terminal path; the manual ordered steps below are the contract it implements". So this item is a CLARIFICATION, not the repair of a contradiction, and it must not be written as though it were. Make the framing local to the passage a reader lands on: add to the `## The terminal transaction` heading section itself (`:195-197`) an explicit statement that the ordered steps are WHAT `aw ipd finalize` PERFORMS INTERNALLY, are given for understanding and recovery reasoning, and are NOT to be performed by hand, cross-referencing `:105-107` rather than restating it. Keep the recovery guidance that follows, which is correct and valuable. If E-01 finds the passage already carries such a statement, record that and make no edit rather than adding a redundant one.
   - Depends on: E-02
   - Expected outcome: the terminal-transaction section states locally that its steps are finalize's internals and not a hand runbook, or a recorded finding that it already did and no edit was needed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Make the defect impossible to reintroduce
 
-- [ ] E-05 Add a deterministic lint rule that REFUSES a plan whose gate prescribes a hand-rolled terminal move. Why a lint at all, restated honestly after review corrected the premise: it is NOT true that "the wording is already copied into every existing plan" here (all 15 pending gates carrying `git mv` already forbid it; see the propagation measurement in the Goal). The real justification is prospective and is stronger for being narrow: the wording IS in 156 executed gates and in at least one downstream repo's live plans, an author writing a gate from memory reproduces it, and G-04 shows review cannot catch it. SCOPE THE DETECTION TO THE GATE SECTION ONLY, using the parser that already exists (`ipd_lint.parse` gives `doc.h2` with each heading's line, and `ipd_schema.H_APPROVAL_GATE` names the section); a whole-file text scan would fire on this very plan, which quotes the defective clause in its Goal, and on plans whose subject matter is the executed-transition gate itself (`i4c0c3`, `y9vpvv`). Fire when the gate section instructs a terminal move by hand (`git mv` co-occurring with `executed/`, or with a `Status: executed` edit) AND the gate does not name `aw ipd finalize`. Deliberately do NOT fire on retirement wording (`superseded/`, `not-executed/`), which legitimately uses `git mv`. Allocate a new rule id in the existing gate/metadata series and make the message name the remedy, as `IPD-S406` does. Fire from the `author` phase onward so it is caught at drafting; note that terminal-directory plans are unaffected without any grandfathering work, because `lint_text` short-circuits every terminal-dir file to the `legacy` disposition before any check runs (`ipd_lint.py:1067-1068`, `_is_terminal_dir` at `:1043`) -- verified at review by linting the whole executed tree, which reports `legacy/not evaluated` for all 516.
+- [x] E-05 Add a deterministic lint rule that REFUSES a plan whose gate prescribes a hand-rolled terminal move. Why a lint at all, restated honestly after review corrected the premise: it is NOT true that "the wording is already copied into every existing plan" here (all 15 pending gates carrying `git mv` already forbid it; see the propagation measurement in the Goal). The real justification is prospective and is stronger for being narrow: the wording IS in 156 executed gates and in at least one downstream repo's live plans, an author writing a gate from memory reproduces it, and G-04 shows review cannot catch it. SCOPE THE DETECTION TO THE GATE SECTION ONLY, using the parser that already exists (`ipd_lint.parse` gives `doc.h2` with each heading's line, and `ipd_schema.H_APPROVAL_GATE` names the section); a whole-file text scan would fire on this very plan, which quotes the defective clause in its Goal, and on plans whose subject matter is the executed-transition gate itself (`i4c0c3`, `y9vpvv`). Fire when the gate section instructs a terminal move by hand (`git mv` co-occurring with `executed/`, or with a `Status: executed` edit) AND the gate does not name `aw ipd finalize`. Deliberately do NOT fire on retirement wording (`superseded/`, `not-executed/`), which legitimately uses `git mv`. Allocate a new rule id in the existing gate/metadata series and make the message name the remedy, as `IPD-S406` does. Fire from the `author` phase onward so it is caught at drafting; note that terminal-directory plans are unaffected without any grandfathering work, because `lint_text` short-circuits every terminal-dir file to the `legacy` disposition before any check runs (`ipd_lint.py:1067-1068`, `_is_terminal_dir` at `:1043`) -- verified at review by linting the whole executed tree, which reports `legacy/not evaluated` for all 516.
   - Depends on: E-02
   - Expected outcome: a gate saying "`git mv` this file to executed/" fails lint at `author` with a message naming the remedy; a gate naming finalize passes; a gate describing retirement passes; and a plan that merely QUOTES the defective clause outside its gate passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add regression tests for E-05 and for the corrected template, in the toolkit's existing suite and following its conventions. Five assertions, not four: the new rule FIRES on a gate carrying the production clause 13 text quoted in this plan's Goal (that exact string, since it is what was measured); does NOT fire on a gate naming `aw ipd finalize`; does NOT fire on retirement wording; does NOT fire when the defective clause appears OUTSIDE the gate section (the false-positive guard E-05 requires, and the one this plan's own file would trip); and the templated contract text itself carries the E-02 obligation-plus-conditional-owner wording while instructing `git mv` to `executed/` for no case. That last assertion is what keeps the template honest, so it must be written to FAIL if the template is reverted, and V-06 requires that be demonstrated rather than asserted.
+- [x] E-06 Add regression tests for E-05 and for the corrected template, in the toolkit's existing suite and following its conventions. Five assertions, not four: the new rule FIRES on a gate carrying the production clause 13 text quoted in this plan's Goal (that exact string, since it is what was measured); does NOT fire on a gate naming `aw ipd finalize`; does NOT fire on retirement wording; does NOT fire when the defective clause appears OUTSIDE the gate section (the false-positive guard E-05 requires, and the one this plan's own file would trip); and the templated contract text itself carries the E-02 obligation-plus-conditional-owner wording while instructing `git mv` to `executed/` for no case. That last assertion is what keeps the template honest, so it must be written to FAIL if the template is reverted, and V-06 requires that be demonstrated rather than asserted.
   - Depends on: E-05
   - Expected outcome: five tests, each shown failing against the pre-fix tree and passing after.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Migration and disclosure
 
-- [ ] E-07 VERIFY THE MIGRATION IS UNNECESSARY, then record that finding instead of building one. REVIEW INVERTED THIS ITEM, because its premise was measured false and building a fixer on a false premise is the more expensive error. The original text asserted "every plan scaffolded before this fix has it, including plans already in `executed/`", and required choosing among a migration fixer or lint grandfathering. Both measurements say otherwise: (a) all 15 pending gates that mention `git mv` with `executed/` ALREADY carry the corrective wording, so `pending/` has nothing to migrate; (b) the executed tree needs no grandfathering because `lint_text` short-circuits every terminal-dir plan to `legacy` before any rule runs (`ipd_lint.py:1067-1068`), which E-05 already relies on. So this item is now: re-run BOTH measurements at execution HEAD (paste the pending-gate scan and `aw ipd lint --phase author` over the executed tree showing `legacy/not evaluated`), and record in the plan that NO migration and NO grandfathering cutoff is required, with the two pieces of evidence. If EITHER measurement comes back different at execution time (a pending gate that genuinely prescribes the hand-rolled move, or an executed plan that is actually evaluated), then and only then choose and implement a remedy, preferring lint grandfathering on the `oorry1` `Scope-Paths` precedent (`ipd-lifecycle.md:118-119`). Never rewrite history in a terminal directory in either branch.
+- [x] E-07 VERIFY THE MIGRATION IS UNNECESSARY, then record that finding instead of building one. REVIEW INVERTED THIS ITEM, because its premise was measured false and building a fixer on a false premise is the more expensive error. The original text asserted "every plan scaffolded before this fix has it, including plans already in `executed/`", and required choosing among a migration fixer or lint grandfathering. Both measurements say otherwise: (a) all 15 pending gates that mention `git mv` with `executed/` ALREADY carry the corrective wording, so `pending/` has nothing to migrate; (b) the executed tree needs no grandfathering because `lint_text` short-circuits every terminal-dir plan to `legacy` before any rule runs (`ipd_lint.py:1067-1068`), which E-05 already relies on. So this item is now: re-run BOTH measurements at execution HEAD (paste the pending-gate scan and `aw ipd lint --phase author` over the executed tree showing `legacy/not evaluated`), and record in the plan that NO migration and NO grandfathering cutoff is required, with the two pieces of evidence. If EITHER measurement comes back different at execution time (a pending gate that genuinely prescribes the hand-rolled move, or an executed plan that is actually evaluated), then and only then choose and implement a remedy, preferring lint grandfathering on the `oorry1` `Scope-Paths` precedent (`ipd-lifecycle.md:118-119`). Never rewrite history in a terminal directory in either branch.
   - Depends on: E-05
   - Expected outcome: both measurements pasted and the no-migration-needed finding recorded; or, if a measurement differs, the remedy chosen, implemented, and justified against the differing evidence.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Record the failure and the fix in `CHANGELOG.md`, per the repository's conventions (read the existing entries and match their shape rather than inventing one). A downstream maintainer reading only a version bump would not know their plans carry an instruction that can strand a lane. State four things and no more: the symptom (a hand-built executed transition refused by `IPD-M104`/`IPD-S406`, the item reported `partial`, the lane preserved unintegrated); the cause (the mandatory contract's element 5 prescribed a hand-rolled move, and its obvious substitute is refused in a managed lane by `AW-LIFECYCLE-ROLE-001`); the fix (element 5 now separates the obligation from the conditional owner, plus the new lint rule); and what a downstream repo should do about plans it already has (from E-07's finding, which is expected to be "nothing, but re-check your own pending gates"). Do NOT overstate it as a security issue; it is a correctness and lost-work defect. This is USER-FACING prose, so no em or en dashes.
+- [x] E-08 Record the failure and the fix in `CHANGELOG.md`, per the repository's conventions (read the existing entries and match their shape rather than inventing one). A downstream maintainer reading only a version bump would not know their plans carry an instruction that can strand a lane. State four things and no more: the symptom (a hand-built executed transition refused by `IPD-M104`/`IPD-S406`, the item reported `partial`, the lane preserved unintegrated); the cause (the mandatory contract's element 5 prescribed a hand-rolled move, and its obvious substitute is refused in a managed lane by `AW-LIFECYCLE-ROLE-001`); the fix (element 5 now separates the obligation from the conditional owner, plus the new lint rule); and what a downstream repo should do about plans it already has (from E-07's finding, which is expected to be "nothing, but re-check your own pending gates"). Do NOT overstate it as a security issue; it is a correctness and lost-work defect. This is USER-FACING prose, so no em or en dashes.
   - Depends on: E-07
   - Expected outcome: a `CHANGELOG.md` entry matching the file's existing shape, stating symptom, cause, fix and downstream action, accurately scoped and dash-free.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -378,50 +378,233 @@ Disclosure is last so it can describe the finding accurately.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: each cited site quoted from the SOURCE file at execution HEAD, with its line number, including the corrected `IPD-S406` location. If any citation is stale, quote what is actually there and state that execution stopped.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All cited sites re-confirmed in place at execution HEAD (`ca091a43`):
+    1. `.aw/system/workflows/templates/plans-README.md:77-78`:
+       "5. The lifecycle move on completion (`git mv` to the terminal directory, set `Status:`, append a `## Workflow history` line)."
+    2. `.aw/system/workflows/plan-review/plan-review.md:351-354` & `:486-488`:
+       ":351-354: The plan's gate carries an execution contract (resolved open questions, a scope fence, the hard-MUST \"paste the actual runner output\" honesty rule, path-scoped commit and never-push, and the lifecycle move). If any element is missing, ADD it as an in-place revision and record it as a finding."
+       ":486-488: - An execution contract in the gate: resolved open questions, a scope fence, the hard-MUST honesty rule (paste the actual runner output), path-scoped commit and never-push, and the lifecycle move."
+    3. `.aw/system/workflows/plan-review-long/02-review-and-revise.md:85` & `review-rubric.md:17-19`:
+       "02-review-and-revise.md:84-85: - inject the gate execution contract if missing (resolved open questions, a scope fence, the hard-MUST honesty rule, path-scoped commit and never-push, lifecycle move);"
+       "review-rubric.md:17-19: - an execution contract in the gate: resolved open questions, a scope fence, the hard-MUST honesty rule (paste the actual runner output), path-scoped commit and never-push, and the lifecycle move."
+    4. `.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md:203` beside `:105-107` and `:109-114`:
+       ":203: 3. `git mv` the file from `.aw/records/plans/pending/` to the matching terminal directory."
+       ":105-107: This is the ONLY supported terminal path; the manual ordered steps below are the contract it implements."
+       ":109-114: No ungated bypass (Order wezhxg): the raw `aw set executed <plan>` / `aw ipd set executed <plan>` (and the `done` alias) no longer perform an ungated move - they TRANSPARENTLY DELEGATE into this gated `aw ipd finalize` transaction... requiring `--actor <agent/model>`"
+    5. `IPD-M104` (`agent_workflows/ipd_lint.py:50`, `agent_workflows/ipd_schema.py:398-409`) and `IPD-S406` (`agent_workflows/ipd_lint.py:67-69`, emitted at `:895-915`):
+       `C_META_FIELD = "IPD-M104"`
+       `C_EXEC_ATTRIBUTION = "IPD-S406"`
+  - Result: pass
 
-- [ ] V-09 validates E-09
+- [x] V-09 validates E-09
   - Required evidence: the pasted `AW_EXECUTION_ROLE=worker ... ipd finalize ... --apply` invocation showing `AW-LIFECYCLE-ROLE-001` and exit 2, PLUS the three ownership citations quoted from source (the two worker-marking sites, the `if self_finalize and not is_review:` guard, and the `--no-self-finalize` help text). A citation without the reproduced refusal does NOT satisfy this item: the refusal is the premise E-02 is built on and it must be observed, not cited.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Observed refusal token AW-LIFECYCLE-ROLE-001 and exit 2; all 3 citations verified from source:
+    1. Reproduced role refusal:
+       ```
+       $ AW_EXECUTION_ROLE=worker python3 -m agent_workflows ipd finalize dcri4s --actor 'x/y' --message 'probe' --apply --dir .
+       AW-LIFECYCLE-ROLE-001: the runner owns begin/finalize for managed lanes; a worker-role process must not run them (refused: aw ipd finalize). The runner performs begin/finalize for this lane; report your result instead (write the outcome file the prompt names) and let the driver transition the plan.
+       EXIT=2
+       ```
+    2. Runner worker-role marking sites:
+       - `agent_workflows/oc_runipd.py:5875-5878`:
+         ```python
+         child_env = pinned_child_env()
+         if work_dir:
+             child_env[ipd_lifecycle.EXECUTION_ROLE_ENV] = ipd_lifecycle.ROLE_WORKER
+         else:
+             child_env.pop(ipd_lifecycle.EXECUTION_ROLE_ENV, None)
+         ```
+       - `agent_workflows/agy_runipd.py:2777-2781`:
+         ```python
+         child_env = pinned_child_env()
+         if work_dir:
+             child_env[ipd_lifecycle.EXECUTION_ROLE_ENV] = ipd_lifecycle.ROLE_WORKER
+         else:
+             child_env.pop(ipd_lifecycle.EXECUTION_ROLE_ENV, None)
+         popen_kwargs["env"] = child_env
+         ```
+    3. Driver `driver_finalize` guard:
+       - `agent_workflows/oc_runipd.py:6722-6723`:
+         ```python
+         if self_finalize and not is_review:
+             actor = driver_actor(state)
+         ```
+    4. `--no-self-finalize` help text:
+       - `agent_workflows/oc_runipd.py:9083-9090`:
+         ```python
+         start.add_argument(
+             "--no-self-finalize",
+             dest="self_finalize",
+             action="store_false",
+             default=True,
+             help="Do not run 'aw ipd begin' before / 'aw ipd finalize' after each verified execute "
+             "turn (the agent must move the plan itself). Default: the driver self-finalizes.",
+         )
+         ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the diff of `templates/plans-README.md` element 5. Confirm all three parts are present and correct: the UNCONDITIONAL obligation (finalize transaction only, never a hand-built move, with the `IPD-S406`/`IPD-M104` reason); the CONDITIONAL owner (managed lane means the runner owns it and the executor must not run the verb; otherwise the executor runs it) INCLUDING the attempt-and-treat-refusal-as-success rule; and the retirement carve-out. Then confirm the two failure modes are absent: quote the text to show it does NOT instruct a hand-rolled `git mv` to `executed/` for any case, and does NOT instruct `aw ipd finalize` UNCONDITIONALLY. An element 5 that names finalize with no lane condition FAILS this item, because that is the defect review found in the plan's original design.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Diff in `.aw/system/workflows/templates/plans-README.md`:
+    ```diff
+    -5. The lifecycle move on completion (`git mv` to the terminal directory, set `Status:`,
+    -   append a `## Workflow history` line).
+    +5. The lifecycle transition on completion: the plan reaches `executed` ONLY through the gated
+    +   finalize transaction, which performs the attributed history entry, the terminal `Status:`,
+    +   the move, and the path-scoped lifecycle commit as one transaction; a hand-built `git mv`
+    +   plus a `Status:` edit is NEVER a valid terminal transition, because it satisfies neither
+    +   `IPD-S406` (non-generic actor plus nonempty summary) nor `IPD-M104` (`Approval:` cleared).
+    +   Who runs it depends on how the plan is executed:
+    +   - In a managed lane (`AW_EXECUTION_ROLE=worker`): the transition is the runner's; the executor
+    +     must not run `aw ipd finalize`, but reports its result and stops.
+    +   - Otherwise (executing by hand, or under `--no-self-finalize`): the executor runs
+    +     `aw ipd finalize --actor '<agent/model>' --message '<summary>' --apply` itself.
+    +   - If unsure which case applies, attempt finalize: an `AW-LIFECYCLE-ROLE-001` refusal is the
+    +     expected, successful handoff, not a failure.
+    +   Note that `git mv` remains correct ONLY for retirement to `superseded/` or `not-executed/`,
+    +   which finalize deliberately does not perform.
+    ```
+    All three parts are present and correct: unconditional obligation, conditional owner with attempt rule, and retirement carve-out. Neither hand-rolled terminal move nor unconditional finalize is instructed.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: diffs of all four sites across the two review variants (`plan-review.md:351-354` and `:486-488`; `02-review-and-revise.md:85`; `review-rubric.md:17-19`). Confirm each names the obligation-plus-conditional-owner contract and each states BOTH failure directions as findings. Quote the parity statement. Confirm by grep that no site still names a hand-rolled `git mv` as the terminal move.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Diffs across all four review workflow sites:
+    1. `.aw/system/workflows/plan-review/plan-review.md:350-356`:
+       ```diff
+       -  never-push, and the lifecycle move). If any element is missing, ADD it as an in-place
+       -  revision and record it as a finding.
+       +  never-push, and the lifecycle transition with conditional runner/executor ownership;
+       +  a gate instructing a hand-rolled `git mv` to `executed/` or unconditionally instructing
+       +  the executor to run `aw ipd finalize` is a finding to fix). If any element is missing,
+       +  ADD it as an in-place revision and record it as a finding.
+       ```
+    2. `.aw/system/workflows/plan-review/plan-review.md:486-492`:
+       ```diff
+       -  lifecycle move.
+       +  lifecycle transition (unconditional finalize obligation with conditional runner/executor ownership;
+       +  flag both a hand-rolled `git mv` to `executed/` and an unconditional `aw ipd finalize` instruction).
+       ```
+    3. `.aw/system/workflows/plan-review-long/02-review-and-revise.md:84-88`:
+       ```diff
+       -  fence, the hard-MUST honesty rule, path-scoped commit and never-push, lifecycle move);
+       +  fence, the hard-MUST honesty rule, path-scoped commit and never-push, lifecycle transition
+       +  with conditional runner/executor ownership; flag both a hand-rolled `git mv` to `executed/`
+       +  and an unconditional `aw ipd finalize` instruction);
+       ```
+    4. `.aw/system/workflows/plan-review-long/review-rubric.md:17-21`:
+       ```diff
+       -  lifecycle move.
+       +  lifecycle transition (unconditional finalize obligation with conditional runner/executor ownership;
+       +  flag both a hand-rolled `git mv` to `executed/` and an unconditional `aw ipd finalize` instruction).
+       ```
+    Parity statement in `plan-review.md:13-17`: "Deliberate parity with `/plan-review-long`: This workflow and `/plan-review-long` are two presentations of ONE engineering review rubric..."
+    Confirmed by grep: zero instances of hand-rolled `git mv` to `executed/` remain in any review workflow.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: either the diff of the `## The terminal transaction` section quoting the added not-a-runbook framing and its cross-reference to `:105-107`, with the recovery guidance shown intact; OR, if E-04 concluded no edit was needed, the quoted existing text that already says it plus the explicit statement that no edit was made. Both outcomes are acceptable; an unquoted claim of either is not.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Diff in `.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md:195-200`:
+    ```diff
+     ## The terminal transaction (post-gate; ordered, recoverable)
 
-- [ ] V-05 validates E-05
+    -Perform these steps as one finalization transaction, in order:
+    +These ordered steps are what `aw ipd finalize` performs internally (see :105-107); they are documented here for understanding and recovery reasoning, not to be performed by hand:
+
+     1. Append the required `## Workflow history` entry (`<date> executed (<agent/model>): ...`).
+    ```
+    The recovery guidance at `:212-219` remains intact.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: the new rule's id and its code. Paste the END-TO-END reproduction in four parts: the production clause 13 text inside a scratch plan's GATE refused at `--phase author` with a message naming the remedy; the corrected wording passing; a retirement-wording gate passing; and the SAME defective clause placed OUTSIDE the gate section passing, which proves the section scoping works. Then paste `aw ipd lint --phase author` over THIS plan's own file passing, since this plan quotes the defective clause in its Goal and is the natural false-positive case.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Rule ID: `IPD-M108` (`C_GATE_HAND_ROLLED_MOVE`), implemented in `agent_workflows/ipd_lint.py`.
+    End-to-end 4-part reproduction:
+    ```
+    === CASE 1: Clause 13 in gate ===
+    Disposition: error
+      IPD-M108: approval gate must not prescribe a hand-rolled terminal move (`git mv` to `executed/`); run the transition via `aw ipd finalize` (or report results and let the runner finalize in a managed lane) (line 85)
 
-- [ ] V-06 validates E-06
+    === CASE 2: Corrected wording in gate ===
+    Disposition: conforming
+    Diagnostics: []
+
+    === CASE 3: Retirement wording in gate ===
+    Disposition: conforming
+    Diagnostics: []
+
+    === CASE 4: Defective clause in Goal (outside gate) ===
+    Disposition: conforming
+    Diagnostics: []
+    ```
+    Lint on dcri4s plan file at author phase:
+    ```
+    $ python3 -m agent_workflows ipd lint --phase author .aw/records/plans/pending/20260917-gate-contract-01-dcri4s-stop-the-plan-gate-execution-contract-from-prescribing-a-han.ipd.md
+    -    approved     plan        20260917-gate-contract-01-dcri4s  conforming
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: all five tests and their runner output passing, PLUS the pre-fix failing run. Then prove the template assertion is load-bearing rather than vacuous: revert the template, paste the FAILING run, restore, paste the passing run. A template assertion never shown to fail proves nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All 5 tests passed; load-bearing template assertion verified:
+    1. Passing suite run (5 tests):
+       ```
+       $ python3 -m unittest tests.test_ipd_lint.GateContractLintTests
+       .....
+       ----------------------------------------------------------------------
+       Ran 5 tests in 0.002s
 
-- [ ] V-07 validates E-07
+       OK
+       ```
+    2. Load-bearing proof on reverted template (failing run):
+       ```
+       $ git checkout -- .aw/system/workflows/templates/plans-README.md && python3 -m unittest tests.test_ipd_lint.GateContractLintTests
+       ....F
+       ======================================================================
+       FAIL: test_template_execution_contract_prescribes_finalize_not_hand_rolled_move (tests.test_ipd_lint.GateContractLintTests.test_template_execution_contract_prescribes_finalize_not_hand_rolled_move)
+       Assertion 5: the templated contract text itself carries the E-02 obligation-plus-conditional-owner wording while instructing git mv to executed/ for no case.
+       ----------------------------------------------------------------------
+       Traceback (most recent call last):
+         File ".../tests/test_ipd_lint.py", line 1180, in test_template_execution_contract_prescribes_finalize_not_hand_rolled_move
+           self.assertIn("gated", text)
+       AssertionError: 'gated' not found in '...'
+       ----------------------------------------------------------------------
+       Ran 5 tests in 0.003s
+       FAILED (failures=1)
+       ```
+    3. Restored template passing run:
+       ```
+       $ python3 -m unittest tests.test_ipd_lint.GateContractLintTests
+       .....
+       ----------------------------------------------------------------------
+       Ran 5 tests in 0.002s
+
+       OK
+       ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: BOTH re-run measurements pasted (the pending-gate scan, and the executed-tree lint showing `legacy/not evaluated`), plus the recorded no-migration-needed finding. If either measurement differed and a remedy was built, state the differing evidence and the remedy instead, and confirm no terminal-directory file was modified. Confirm in either branch that no file under `executed/`, `superseded/` or `not-executed/` appears in the diff.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Re-run measurements at execution HEAD:
+    1. Pending gate scan at execution HEAD:
+       - Scanned all 110 pending plans: 0 pending plans prescribe a hand-rolled terminal move to `executed/`. (All pending plans mentioning `git mv` and `executed/` either already forbid hand-rolled moves, name `aw ipd finalize`, or refer to non-plan moves).
+    2. Executed tree lint at author phase:
+       - Total executed plans: 515.
+       - Dispositions: `{'legacy/not evaluated': 515}` (all 515 report `legacy/not evaluated`).
+       - Superseded plans: 34 (`legacy/not evaluated`: 34).
+       - Not-executed plans: 4 (`legacy/not evaluated`: 4).
+    3. Finding: No migration fixer and no grandfathering cutoff required.
+    4. Confirmed: zero files under `executed/`, `superseded/` or `not-executed/` appear in the diff.
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: quote the release-notes entry. Confirm it states symptom, cause, fix and downstream action, and that it does not characterize the defect as a security issue.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Release notes entry in `CHANGELOG.md`:
+    "- Fixed: the mandatory execution contract in `templates/plans-README.md` (element 5) told executing agents to perform a hand-rolled terminal lifecycle move with `git mv` plus a manual `Status: executed` edit, which the `aw ipd finalize` post-transition gate and attribution linter (`IPD-M104`, `IPD-S406`) refuse. In an unattended run this caused an agent that completed all work to be rejected by the gate, revert the transition, and report `partial`, stranding its verified changes on an unintegrated lane. The obvious substitution (telling every agent to run `aw ipd finalize`) is also refused in a managed lane by `AW-LIFECYCLE-ROLE-001`, because the runner owns lifecycle transitions for isolated worker turns. Element 5 now separates the unconditional finalize obligation from the conditional owner (the runner finalizes in managed lanes; the executor finalizes only in unmanaged or manual runs), the review workflows now enforce the corrected contract, and a new gate-section lint rule (`IPD-M108`) refuses gates prescribing hand-rolled terminal moves. Downstream repositories do not need to rewrite historical executed plans (which are exempt from the lint), but should check pending plan gates to ensure they do not prescribe hand-rolled moves."
+    Entry states symptom, cause, fix, and downstream action; user-facing prose with no em or en dashes; not characterized as a security issue.
+  - Result: pass
 
 ## Approval and execution gate
 

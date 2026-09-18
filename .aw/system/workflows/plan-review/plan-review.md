@@ -350,8 +350,10 @@ For each reviewed plan confirm:
 - The plan does not claim execution.
 - The plan's gate carries an execution contract (resolved open questions, a scope fence,
   the hard-MUST "paste the actual runner output" honesty rule, path-scoped commit and
-  never-push, and the lifecycle move). If any element is missing, ADD it as an in-place
-  revision and record it as a finding.
+  never-push, and the lifecycle transition with conditional runner/executor ownership;
+  a gate instructing a hand-rolled `git mv` to `executed/` or unconditionally instructing
+  the executor to run `aw ipd finalize` is a finding to fix). If any element is missing,
+  ADD it as an in-place revision and record it as a finding.
 - SCOPE-FENCE WORDING (2026-09-01 maintainer ruling): a fence is a DECLARATION so the runner can
   tell afterwards whether an out-of-scope file was edited or an in-scope file was not. It MUST NOT
   instruct the executor to STOP over a scope question. Do NOT flag a plan for lacking a
@@ -485,7 +487,8 @@ Verify the plan states:
 - Assumptions, open questions, ownership, and follow-up work.
 - An execution contract in the gate: resolved open questions, a scope fence, the hard-MUST
   honesty rule (paste the actual runner output), path-scoped commit and never-push, and the
-  lifecycle move.
+  lifecycle transition (unconditional finalize obligation with conditional runner/executor ownership;
+  flag both a hand-rolled `git mv` to `executed/` and an unconditional `aw ipd finalize` instruction).
 - For an agent-executable plan: BOTH a top execution checklist AND an end verification/cross-check
   checklist that maps 1:1 with concrete per-item evidence. A weak or absent verification checklist
   (one that could let an agent claim completion without doing every step) is an UNDER-SCOPE finding.
