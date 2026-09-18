@@ -1,7 +1,10 @@
 # Lens: Security
 
-Focus the assessment on security posture: protecting the system and its data from
-misuse, compromise, and abuse.
+Focus the assessment on the project's security posture: protecting the system it builds,
+and that system's data, from misuse, compromise, and abuse.
+
+The subject is the project's own code, configuration, and dependencies, per the SUBJECT
+section of `../assess.md`.
 
 ## Lead personas
 

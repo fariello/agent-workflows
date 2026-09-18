@@ -6,6 +6,9 @@ The repo-visible aspects are backup/recovery code, data immutability, blast-radi
 limits, and integrity verification. Organizational backup operations and endpoint
 protection are out-of-repo and routed to the operator.
 
+The subject is the project's own code and configuration, per the SUBJECT section of
+`../assess.md`.
+
 ## Lead personas
 
 Architect and operator (recovery/continuity), with the stakeholder on acceptable data

@@ -70,6 +70,16 @@ compute them):
 
 ## What to cover
 
+**Subject note (this lens is deliberately WIDER than the default).** The SUBJECT section of
+`../assess.md` scopes a bare run to the project's substance and holds `.aw/records/` out of
+scope. This lens is an intentional exception, because the defect it hunts is "identifying
+info reachable in a PUBLIC artifact" and every tracked file is publicly reachable regardless
+of which tree it lives in. So scan the whole tracked tree, the built wheel, and the history,
+INCLUDING `.aw/records/` (a plan or walkthrough quoting `/home/<you>/...` is exactly this
+defect). The exception is bounded to REACHABILITY: still do not assess a record's structure,
+naming, or prose here. `aw check-local-leaks` already scans whole-tree, so consuming its
+records faithfully is the correct behavior, not a scope violation.
+
 - **Shipped surface first** (highest stakes): build the wheel and scan it
   (`--wheel`). Anything identifying that ships is published to every installer and, once
   on a registry, is effectively immutable. Lead the IPD with these.

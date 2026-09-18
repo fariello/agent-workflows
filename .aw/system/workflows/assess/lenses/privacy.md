@@ -1,8 +1,11 @@
 # Lens: Privacy and data protection
 
-Focus the assessment on how personal and sensitive data is collected, used, stored,
-shared, and retained. Distinct from security: this is about *appropriate handling of
-data about people*, not just keeping attackers out.
+Focus the assessment on how the project's own code collects, uses, stores, shares, and
+retains personal and sensitive data. Distinct from security: this is about *appropriate
+handling of data about people*, not just keeping attackers out.
+
+The subject is the project's own code and configuration, per the SUBJECT section of
+`../assess.md`.
 
 ## Lead personas
 

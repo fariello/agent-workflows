@@ -6,6 +6,9 @@ hardening gaps. This is the broad "think like an attacker, then defend in depth"
 that complements the focused `security` lens (which drills the standard categories) and
 the cyber lenses (data-exfiltration, intrusion-detection, ransomware-resilience).
 
+The subject is the project's own code, configuration, and dependencies, per the SUBJECT
+section of `../assess.md`.
+
 ## Lead personas
 
 The security-minded architect (primary) and software engineer, with the stakeholder on

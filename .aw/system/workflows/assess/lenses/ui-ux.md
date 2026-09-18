@@ -5,6 +5,10 @@ Distinct from accessibility (disability access) and self-documentation (in-produ
 learning), though they overlap. Applies to any user surface: GUI, CLI, API
 ergonomics, prompts. Scope out cleanly if there is no user surface.
 
+"The product" means the software the project SHIPS, per the SUBJECT section of
+`../assess.md`. The repository's own process records under `.aw/records/` are not a user
+surface.
+
 ## Lead personas
 
 UI/UX engineer, complete novice, and sophisticated power user (clarity for newcomers
