@@ -11,7 +11,9 @@
 
 ## Workflow history
 
+- 2026-09-18 note (aw specs): AMENDED 2026-09-18 by maintainer ruling: R5.5's refusal on unknown ignored files is removed. Gitignored files (bytecode caches, toolchain dependencies, test residues) are disposable upon lane destruction and do not block teardown. Teardown refuses only on dirty tracked files, unknown untracked files, or uncollected submissions. A15 updated accordingly.
 - 2026-09-16 note (aw specs): AMENDED 2026-09-16 by dirtygates Order 01 (d7qoxv) E-04: R5.4's dirty-tracked-base obligation is SPLIT BY PATH rather than removed. SHARED TREE (--no-isolate-worktree) KEEPS the refusal verbatim in force, because the turn executes in the polluted tree and cannot tell its own changes from the uncommitted work already there at commit or finalize time; that half is what approved release-blocking plan 3i0aaz E-03 builds on and it is deliberately preserved. ISOLATED turns now REPORT the dirty paths and PROCEED. WHY, measured 2026-09-13: a lane cut from HEAD lacking an uncommitted tracked change failed its validation EXACTLY as committing that same change with no lane involved failed, so the refusal never prevented the stale-base harm it named, it only deferred it to whenever the operator committed. What actually catches a stale base is the merge-and-revalidate gate, which re-runs validation against the combined result. MEASURED COST of keeping it: across three consecutive runs the gate blocked 27 of 42, 23 of 41 and 18 of 43 queue items, each refusal naming exactly ONE uncommitted markdown file no plan declared, cascading 36 further items into dependency-blocked (reviews were exempt, so this was the majority of each run and not a total failure). A14 rewritten to assert BOTH halves separately, and new A14b requires the RULE's classification (clean=False, paths named, identical on both paths) be pinned separately from the CALLER's disposition, so an implementation cannot achieve the isolated behavior by making the rule report clean. Untracked exclusion unchanged on both paths.
+
 ## 0. Concepts (kept distinct)
 
 These four are routinely conflated, and every requirement below depends on keeping them apart.
@@ -449,9 +451,17 @@ would make an unattended run unstartable in any working checkout. Untracked cont
 run instead.
 
 R5.5 Teardown MUST be refused while a lane holds content the driver cannot classify: a dirty tracked
-file, an unknown untracked OR IGNORED file, or an unimported submission. The enumeration MUST include
-ignored files; "ignored means disposable" is the specific reasoning that previously destroyed lane
-content silently.
+file, an unknown untracked file, or an unimported submission. Gitignored files (including interpreter
+bytecode caches, toolchain dependencies, and build or test residues) are disposable upon lane destruction
+and do not block teardown.
+
+AMENDED 2026-09-18 by maintainer ruling: R5.5 originally required unknown ignored files to refuse teardown
+on the premise that "ignored means disposable" had previously deleted uncommitted files. In practice,
+because running test suites or agent runtimes routinely generates bytecode (__pycache__/*.pyc) and tool
+state (node_modules), the blanket refusal on ignored files caused 100 percent of clean test runs to fail
+teardown, stranding dozens of worktrees on disk. Teardown refuses only on uncommitted tracked modifications
+(dirty tracked), uncommitted untracked source files (unknown untracked), or uncollected task deliverables
+(.aw/state/lane-submissions/).
 
 R5.6 A refusal under R5.5 MUST be recorded as an event naming the reason, so preservation is auditable
 rather than inferred from a surviving directory.
@@ -610,8 +620,9 @@ re-flag it as a traceability gap.
   achieves the isolated behavior by making the rule report CLEAN fails this criterion: that would discard
   the dirty-path list the report exists to print and would leave the shared-tree refusal unreachable
   through the same rule. (R5.4, R6.1)
-- A15. A lane holding an unknown untracked file is not torn down and an event records the reason; the same
-  for an unknown IGNORED file; a fully classified clean lane is torn down. (R5.5, R5.6)
+- A15. A lane holding an unknown untracked file, a dirty tracked file, or an uncollected submission is not
+  torn down and an event records the reason; gitignored files do not block teardown; a fully classified
+  clean lane is torn down. (R5.5, R5.6)
 - A15b. THE PRESERVATION IS VISIBLE WITHOUT READING THE EVENT LOG. Paste the run's summary output for a run
   that preserved a lane, showing it names the lane and the reason. A test that only asserts the EVENT was
   written does NOT satisfy this criterion, because that is exactly the state measured on
