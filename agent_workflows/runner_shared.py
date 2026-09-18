@@ -2045,14 +2045,87 @@ def describe_review_write_scope(scope: ReviewWriteScope, *, id6: str) -> str:
 # binds its own wrapper - and `integrate_lane_branch` therefore threads it through to its one call.
 
 
+def merge_write_set(repo: Path, branch: str) -> list[str] | None:
+    """mergedirty-01 (`fujm0y`) E-02: the paths a merge of ``branch`` into HEAD would actually WRITE.
+
+    Computed as the MERGE RESULT TREE diffed against HEAD: ``git merge-tree --write-tree HEAD
+    <branch>`` writes the merged tree object, and ``git diff --name-only HEAD <tree>`` names exactly
+    the paths that tree changes relative to HEAD. That is the set the working tree would be updated
+    at, which is precisely the set a pre-merge dirty guard must ask about.
+
+    RETURNS ``None`` WHEN THE ANSWER IS UNKNOWN, and that is a distinct third value rather than an
+    empty list. ``git merge-tree`` exits non-zero for a CONFLICTING merge (rc 1), an unmergeable ref
+    (rc 1), and a usage error such as an older git that lacks ``--write-tree`` (rc 129, measured).
+    In every one of those cases the write set is UNKNOWN, and reporting `[]` would fabricate "no
+    paths", which the guard would read as "clear" - the exact fail-open shape this plan exists to
+    remove. `None` means "do not decide from me": the caller falls back to the lane's own
+    `changed_files` and lets the merge itself, or the existing conflict classification, be the
+    authority. A conflicting merge is a `merge-conflict` (terminal) and must NOT be reclassified as
+    deferrable dirt (OQ-01).
+
+    WHY NOT THE MERGE-BASE-TO-BOTH-TIPS UNION, which is what this plan originally prescribed and
+    review DISPROVED (finding F-7). The union includes every path main advanced on since the lane
+    base whether or not the merge writes it. MEASURED (git 2.43.0): base holds `a.txt`+`b.txt`, the
+    lane changes only `a.txt`, main advances `b.txt` AND is left dirty on `b.txt`. The union is
+    `['a.txt', 'b.txt']`, so a guard fed the union REFUSES on `b.txt` - yet the real `git merge
+    --no-ff` exits 0 ("Merge made by the 'ort' strategy"), touches only `a.txt`, and the co-worker's
+    dirty `b.txt` survives intact. So the union refuses an integration that succeeds safely. The
+    merge-result diff returns `[]` on that same fixture and `['renamed.txt']` on the rename fixture
+    the defect was reproduced with, which is exactly the discrimination required. Do NOT "simplify"
+    this back to a union: it reads as more thorough and is measurably wrong.
+
+    ``--no-renames`` IS DELIBERATE ON THE DIFF. With rename detection on, a lane that renames ``a``
+    -> ``b`` reports only ``b``, yet the merge must still DELETE ``a`` in main, so dirt on ``a``
+    would pass the guard and git would then refuse to start the merge (measured: write set
+    `['b.txt']` with renames, `['a.txt', 'b.txt']` without, and the real merge fails on ``a.txt``).
+    The guard needs every path the working tree is written at, so rename detection - which exists to
+    make diffs READABLE - must be off here.
+
+    ``-z`` IS ALSO DELIBERATE. Git QUOTES unusual path names in the default `--name-only` output
+    (measured: `"w\\303\\251ird name.txt"`), which would not string-compare against the porcelain
+    paths this set is intersected with. NUL-delimited output is emitted raw, so the two sides agree.
+    """
+    rc, out, _err = _run_git(repo, ["merge-tree", "--write-tree", "HEAD", branch])
+    if rc != 0:
+        # UNKNOWN, not empty. See the docstring: conflict, unmergeable ref and unsupported flag all
+        # land here, and none of them licenses claiming the merge writes nothing.
+        return None
+    lines = out.strip().splitlines()
+    if not lines or not lines[0].strip():
+        return None
+    tree = lines[0].strip()
+    rc2, names, _err2 = _run_git(
+        repo, ["diff", "--name-only", "--no-renames", "-z", "HEAD", tree]
+    )
+    if rc2 != 0:
+        return None
+    return sorted({p for p in names.split("\0") if p.strip()})
+
+
 def dirty_tree_overlap(repo: Path, changed_files: Sequence[str]) -> list[str]:
     """driverfin-03 (7kbtkw) E-01: report the MAIN tree's un-owned dirty paths that overlap an
-    incoming lane's ``changed_files``.
+    INCOMING CHANGE.
 
     Inspect ``git status --short`` in the MAIN repo (working tree + index) and return the sorted set
     of paths that are BOTH dirty in main AND part of the incoming change. A non-empty result means the
     integration base is contaminated with un-owned edits to the very paths we are about to integrate,
     so integrating over it could clobber or half-finish; the caller REFUSES rather than integrating.
+
+    ``changed_files`` IS THE SET THE MERGE WOULD WRITE, NOT THE LANE'S OWN DIFF (mergedirty-01
+    `fujm0y` E-02). The caller passes :func:`merge_write_set`'s result - the merge result tree diffed
+    against HEAD - and falls back to the lane's `changed_files` only when that is UNKNOWN. This
+    parameter therefore means "the incoming change as it will land", and the docstring said
+    ``changed_files`` for a reason that no longer holds: passing the lane's diff was the DEFECT. A
+    non-fast-forward merge also writes paths the lane never touched (commits that landed on main
+    since the lane base, and renames of lane-touched files), and those were outside the check.
+    REPRODUCED (git 2.43.0): the lane changed only `a.txt`, main renamed `a.txt` to `renamed.txt` and
+    was dirty there, `dirty_tree_overlap(repo, ["a.txt"])` returned `[]` (guard says clear), and
+    `git merge --no-ff` then failed on `renamed.txt`.
+
+    WHY THE INPUT IS THE MERGE-RESULT DIFF AND NOT A MERGE-BASE-TO-BOTH-TIPS UNION: the union
+    REFUSES a merge that succeeds safely, so it would trade a missed refusal for a wrong one. The
+    counterexample is measured and lives in :func:`merge_write_set`'s docstring (finding F-7). Read it
+    before changing the input set, because the union reads as the more thorough choice and is not.
 
     The porcelain short format is `XY<space>path` (renames use `orig -> dest`); we take the last
     path token so both the origin and destination of a rename are considered dirty.
@@ -2223,7 +2296,18 @@ def integrate_lane_branch(
     lane = build_lane_outcome(repo, handle, id6, run_checked=run_checked)
 
     # E-01: fail closed on a contaminated integration base BEFORE running the gate.
-    overlap = dirty_tree_overlap(repo, lane.changed_files)
+    #
+    # mergedirty-01 (`fujm0y`) E-02: the guard is asked about THE PATHS THE MERGE WOULD WRITE, not the
+    # paths the LANE changed. Those two sets differ whenever main advanced or a rename is involved,
+    # and the difference was the defect: with the lane's own diff, dirt on a path the merge writes but
+    # the lane never touched passed the guard and git then refused the merge, so a deferrable
+    # condition was reported as a terminal `merge-conflict`. `merge_write_set` returns None when it
+    # cannot know (a conflicting merge, or a git without `--write-tree`), and then the lane's
+    # `changed_files` remains the input: that keeps the previous behavior on the unknown path instead
+    # of silently checking NOTHING, and a real conflict stays the merge's own to classify.
+    predicted = merge_write_set(repo, handle.branch)
+    incoming = lane.changed_files if predicted is None else predicted
+    overlap = dirty_tree_overlap(repo, incoming)
     if overlap:
         return (
             False,

@@ -9,7 +9,7 @@
 - Scope: Compute the pre-merge dirty check against every path the merge would actually write (the `git merge-tree --write-tree` result diffed against HEAD; NOT the merge-base-to-both-tips union, which review disproved as F-7), not just the lane's changed files, so transient dirt on a path the merge touches is classified `integration-blocked` rather than `merge-conflict`. ONE implementation in shared code. Change no refusal into an acceptance AND refuse nothing that previously integrated: this plan makes refusal MORE ACCURATE, in both directions.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/lane_containment.py, tests/test_runner_shared.py, tests/test_merge_dirty_scope.py
 - Item-Dependencies: executed:6sb3yu, executed:51vw4y
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Priority: high
 - Work-Kind: bug
@@ -18,11 +18,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: fujm0y
-- Approval: 2026-09-11, human ("approved"): Approved by the maintainer 2026-09-10 during an /askme round ('We can approve AND resolve'). OQ-02 resolved as already-enforced: the executed:51vw4y edge is re-checked at dispatch with no bypass, so this plan will correctly report dependency-blocked until 51vw4y executes. Priority: high, Work-Kind: bug, Blocks-Release: next. Its prerequisite 51vw4y was approved in the same round.
 - From-Backlog: h1ksy6
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-18 executed (aw oc run): aw oc run self-finalize: fujm0y verified (set mergedirty, attempt 1). [Scope reconciliation - out-of-scope tests/test_agy_runipd_cli.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_oc_runipd.py: changed by the plan's approved execution (auto-reconciled by aw oc run); in-scope-unmodified agent_workflows/lane_containment.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-11 approved (aw set, --by-human): Approved by the maintainer 2026-09-10 during an /askme round ('We can approve AND resolve'). OQ-02 resolved as already-enforced: the executed:51vw4y edge is re-checked at dispatch with no bypass, so this plan will correctly report dependency-blocked until 51vw4y executes. Priority: high, Work-Kind: bug, Blocks-Release: next. Its prerequisite 51vw4y was approved in the same round.
 
 - 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW. The three `no-go` conditions were RECOMPUTED and each found clear: `has_unresolved_blocking_question` -> False; `subject_gating_blocks` -> empty (PR-002 closed in review round 2); `newest_verdict` polarity -> neutral (not negative). Specifically, OQ-02 is resolved AND corrected to `Blocking: no`: it requested an approval-ordering PREFERENCE while marked blocking, which held a `Priority: high` release blocker at `no-go` for a constraint the runner already enforces at dispatch (`edge_satisfied`, no bypass flag, `dependency-blocked` terminal). The maintainer challenged the question and it did not survive measurement. The `executed:51vw4y` edge STAYS: the sequencing rationale is sound and dropping it remains refused, so this plan will correctly report `dependency-blocked` until `51vw4y` executes. HUMAN APPROVAL IS STILL REQUIRED.
@@ -39,18 +39,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish the post-extraction ground truth
 
-- [ ] E-01 RE-LOCATE THE FUNCTION AND CONFIRM THERE IS EXACTLY ONE, before changing anything. This plan was authored against a tree with TWO copies and is sequenced to execute against a tree with ONE, after `6sb3yu`. Locate `dirty_tree_overlap` and `integrate_lane_branch` BY SYMBOL and record where each now lives.
+- [x] E-01 RE-LOCATE THE FUNCTION AND CONFIRM THERE IS EXACTLY ONE, before changing anything. This plan was authored against a tree with TWO copies and is sequenced to execute against a tree with ONE, after `6sb3yu`. Locate `dirty_tree_overlap` and `integrate_lane_branch` BY SYMBOL and record where each now lives.
   THE EXTRACTION HAS LANDED, verified at review 2026-09-10: `6sb3yu` is `executed`, `dirty_tree_overlap` has EXACTLY ONE definition at `runner_shared.py:888`, and its call site is `runner_shared.integrate_lane_branch` (`:1003`, `overlap = dirty_tree_overlap(repo, lane.changed_files)`). That call site is the single line E-02 changes.
   DO NOT MISREAD `integrate_lane_branch`'s THREE MATCHES AS SURVIVING DUPLICATION. `grep "def integrate_lane_branch"` returns three hits (`runner_shared.py:959`, `oc_runipd.py:1967`, `agy_runipd.py:1311`), but the two driver hits are THIN WRAPPERS that delegate to the shared implementation, binding only `host_label` and `run_checked`; both docstrings cite `6sb3yu` and say so. Read at review. So three hits here is the POST-extraction shape, not evidence the dependency was skipped, and the stop-and-report rule below does NOT fire on it. The rule keys on `dirty_tree_overlap` having more than one DEFINITION.
   IF TWO `dirty_tree_overlap` DEFINITIONS EXIST, STOP AND REPORT rather than fixing both. That would mean `6sb3yu` was reverted, and patching both would recreate the duplication `6sb3yu` removed and `cnwy8g` documents. Report, do not work around.
   THE LADDER HAS *NOT* LANDED, AND THIS IS THE GATING FACT (F-8). Verified at review: `51vw4y` is `Status: reviewed`, still in `.aw/records/plans/pending/`, and `integration-blocked` remains TERMINAL in both drivers (`oc_runipd.py:6754-6767`, `agy_runipd.py:3813` set `fail_status` to `integration-blocked` or `merge-conflict`, both finalizing). The only `integration_deferred` occurrences are an attempt-record FIELD carrying the reason string, not a non-terminal status. So E-01's own stop condition IS CURRENTLY MET and this plan must not be hand-run today. Re-check `51vw4y`'s status yourself; if it is still unexecuted, STOP AND REPORT, which is a successful outcome for this item.
   - Depends on: none
   - Expected outcome: a written statement, by symbol, that exactly ONE `dirty_tree_overlap` DEFINITION exists and where, that the two driver `integrate_lane_branch` hits are wrappers; plus the ladder's observed state. Any missing prerequisite is a stop-and-report.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: widen the input set
 
-- [ ] E-02 COMPUTE THE PATH SET THE MERGE WOULD ACTUALLY WRITE, and pass THAT to the dirty check instead of `lane.changed_files`. USE `git merge-tree --write-tree` AND DIFF ITS RESULT TREE AGAINST `HEAD`; do NOT use the merge-base-to-both-tips union this plan originally prescribed, which review MEASURED to be wrong (F-7).
+- [x] E-02 COMPUTE THE PATH SET THE MERGE WOULD ACTUALLY WRITE, and pass THAT to the dirty check instead of `lane.changed_files`. USE `git merge-tree --write-tree` AND DIFF ITS RESULT TREE AGAINST `HEAD`; do NOT use the merge-base-to-both-tips union this plan originally prescribed, which review MEASURED to be wrong (F-7).
   WHY THE UNION IS WRONG, and it is the most important correction in this plan. The union includes every path main advanced on since the lane base, whether or not the merge WRITES it. Measured 2026-09-10: base has `a.txt`+`b.txt`; lane changes `a.txt`; main advances `b.txt` AND is dirty on `b.txt`. The union is `['a.txt','b.txt']`, so the widened guard returns `['b.txt']` and REFUSES. But the merge SUCCEEDS (`git merge --no-ff` exit 0, "Merge made by the 'ort' strategy", touching only `a.txt`) and the co-worker's dirty edit to `b.txt` SURVIVES intact. So the union refuses a previously-integrating case, which E-03 and V-03 define as a FAILURE of this plan. The union is not merely imprecise; it violates this plan's own acceptance bar.
   THE CORRECT SET IS WHAT THE MERGE RESULT CHANGES RELATIVE TO HEAD. Compute `git merge-tree --write-tree HEAD <lane>` to get the merge result tree, then `git diff --name-only HEAD <tree>`. Measured on both fixtures: the rename case yields `['renamed.txt']` (correctly BLOCKS, and the real merge does fail there), while the main-advanced case yields `[]` (correctly ALLOWS, and the real merge does succeed). That is exactly the discrimination this plan needs and the union cannot make.
   HANDLE THE CONFLICT EXIT SEPARATELY. `git merge-tree --write-tree` exits non-zero when the merge conflicts; a conflicting merge is a `merge-conflict` (terminal) and must NOT be reclassified as deferrable dirt, per OQ-01. Treat a non-zero merge-tree exit as "let the existing gate classify it", never as an empty path set, or a conflict would silently pass the dirty guard on a fabricated empty set.
@@ -58,22 +58,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   KEEP THE RENAME HANDLING THE FUNCTION ALREADY HAS. Its porcelain parser takes both endpoints of a `orig -> dest` rename as dirty; that behavior is correct and must survive, because the reproduced failure was a rename.
   - Depends on: E-01
   - Expected outcome: the pre-merge check receives exactly the paths the merge result changes relative to HEAD; the reproduced rename case returns `['renamed.txt']` where it previously returned `[]`, AND the main-advanced-plus-dirty case still returns `[]` so it keeps integrating.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 PROVE THE DISPOSITION CHANGES AND THAT NOTHING BECAME PERMISSIVE. The observable win is classification: the reproduced case must now yield `integration-blocked` (with the accurate operator-facing reason naming the paths) instead of `merge-conflict`. Assert the reason string names the offending path.
+- [x] E-03 PROVE THE DISPOSITION CHANGES AND THAT NOTHING BECAME PERMISSIVE. The observable win is classification: the reproduced case must now yield `integration-blocked` (with the accurate operator-facing reason naming the paths) instead of `merge-conflict`. Assert the reason string names the offending path.
   THE ANTI-REGRESSION HALF IS THE LOAD-BEARING ONE: widening an input set to a REFUSAL can only ever refuse MORE, so prove no case that previously integrated now refuses. Enumerate and assert: a clean main still fast-forwards; a clean main that has advanced still non-ff merges; dirt on a genuinely non-overlapping path still integrates and is left untouched (verified 2026-09-07 and again 2026-09-10: git only writes paths the merge result changes, and the dirty edit survives). A widened check that refuses a previously-clean integration is a FAILURE of this plan, not a stricter success.
   ONE ANTI-REGRESSION CASE IS MANDATORY AND NAMED, because it is the case that disproved this plan's original algorithm (F-7). Fixture: base has `a.txt` and `b.txt`; lane changes ONLY `a.txt`; main ADVANCES `b.txt` with a commit AND is left DIRTY on `b.txt`. Assert the widened guard returns `[]` and the integration still SUCCEEDS, and assert the co-worker's dirty `b.txt` content is intact afterwards. Measured: the real `git merge --no-ff` exits 0 here and preserves the dirt, so a guard that blocks this is wrong. If your implementation blocks it, you have built the union rather than the merge-result diff, and E-02 tells you why that is wrong.
   DO NOT TURN A REAL CONFLICT INTO A DEFERRAL. `merge-conflict` must remain reachable and terminal for genuine textual conflict; only the dirty-overlap case moves. Assert a true conflict still returns `merge-conflict`.
   - Depends on: E-02
   - Expected outcome: the reproduced case classifies `integration-blocked` with the paths named; every previously-integrating case still integrates; genuine conflict still returns `merge-conflict`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 TEST THROUGH REAL GIT MERGES ON BOTH HOSTS, in a new `tests/test_merge_dirty_scope.py`, because the defect is precisely that real merge state was never consulted. Build the reproduced fixture: base with `a.txt`; lane changes `a.txt`; main renames `a.txt` to `renamed.txt` and is dirty there; assert the widened check catches it.
+- [x] E-04 TEST THROUGH REAL GIT MERGES ON BOTH HOSTS, in a new `tests/test_merge_dirty_scope.py`, because the defect is precisely that real merge state was never consulted. Build the reproduced fixture: base with `a.txt`; lane changes `a.txt`; main renames `a.txt` to `renamed.txt` and is dirty there; assert the widened check catches it.
   A MOCKED PATH SET PROVES NOTHING HERE. The bug is in which paths get computed from real git history, so a test that hands the function a pre-built list would have passed against the broken code. Drive actual `git merge` behavior in a throwaway repository.
   ASSERT BOTH HOSTS FROM THE ONE SHARED IMPLEMENTATION. After `6sb3yu` there is a single function; assert by object identity that both drivers reach it, rather than running the same assertions twice against two symbols.
   - Depends on: E-03
   - Expected outcome: a test failing against pre-change HEAD on the rename case, passing after, driven through real merges, with both hosts shown to use one implementation.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -122,6 +122,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Under-scope: this plan does NOT extract the function (`6sb3yu`, already landed), does NOT add or alter any ladder rung (`51vw4y`), and does NOT narrow the refusal by content or category.
 - Scope-Paths justification, added at review: `agent_workflows/runner_shared.py` holds the single `dirty_tree_overlap` (`:888`) and its one call site inside `integrate_lane_branch` (`:1003`), which is the line E-02 changes; `tests/test_runner_shared.py` holds the existing coverage of that function; `tests/test_merge_dirty_scope.py` is new and carries the real-git fixtures (E-04). `agent_workflows/lane_containment.py` is declared but this review found NO change it needs: the pre-merge guard and its call site both live in `runner_shared.py`, and `lane_containment.evaluate_clean_base` is a DIFFERENT (base-cleanliness) check the plan does not touch. Either justify the edit at execution or drop the path, because `aw ipd finalize` refuses to complete without a `--scope-ack` for a declared-but-unmodified path.
 - NOT declared and correctly so: `oc_runipd.py` and `agy_runipd.py`. Their `integrate_lane_branch` are wrappers and their `integration-blocked` classification is `51vw4y`'s to change, not this plan's.
+- SCOPE RECONCILIATION AT EXECUTION (2026-09-17). Declared and CHANGED: `agent_workflows/runner_shared.py` (new `merge_write_set`, the widened call site, and the two docstrings), `tests/test_runner_shared.py`, `tests/test_merge_dirty_scope.py` (new). Declared and NOT changed: `agent_workflows/lane_containment.py`, exactly as review predicted; it needs no edit because the guard, its call site and the new computation all live in `runner_shared.py`, and `lane_containment.evaluate_clean_base` is the different base-cleanliness question this plan does not touch. Its porcelain parser was likewise untouched, so `tests/test_dirty_base_gate.py::test_dirty_tree_overlap_was_NOT_touched` (which pins that `dirty_tree_overlap` keeps its own `entry.split(" -> ", 1)` and does not call `parse_porcelain_paths`) stays green. That path therefore needs a `--scope-ack` at finalize rather than an edit.
+- CHANGED BUT NOT DECLARED, stated plainly rather than left for the scope gate to find: `tests/test_oc_runipd.py` and `tests/test_agy_runipd_cli.py`, one hunk each. This was NOT opportunistic scope broadening and no production code in either driver was touched; it was FORCED by this plan's own change. Each host has a test for `metc8b`'s arm (git REFUSING to start a merge) whose fixture reached that arm by exploiting the very defect this plan fixes: rename detection hid the rename origin from `lane.changed_files`, so the old guard let the case through to git. With the guard widened, the pre-merge check now refuses FIRST, so both tests would have kept passing on the same `integration-blocked` kind while never attempting a merge at all, leaving their "Your local changes" assertion vacuous. A silently hollowed test is worse than a failing one, so each now forces `merge_write_set` to UNKNOWN (a shipped code path: the older-git fallback) and thereby still exercises the structural discriminator. The same repair was applied to the three `_refusal_repo` cases in the declared `tests/test_runner_shared.py`, one of which was a genuine hard failure rather than a hollow pass.
 
 ## Required tests / validation
 
@@ -166,31 +168,211 @@ The operator-facing refusal reason is user-facing prose: it must name the offend
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `grep -n "def dirty_tree_overlap" agent_workflows/*.py` showing EXACTLY ONE definition and naming its module (expected `runner_shared.py`), plus its single call site. Paste `grep -n "def integrate_lane_branch" agent_workflows/*.py` AND enough of the two driver bodies to show they are delegating wrappers, so the three hits are not mistaken for surviving duplication (F-9).
     Paste evidence of the ladder's state: `51vw4y`'s `- Status:` and directory, AND the driver code that classifies `integration-blocked`, showing whether it is terminal. At review the ladder was ABSENT and `integration-blocked` was terminal, so the expected outcome TODAY is a STOP. If you stopped, paste what you found and confirm NO edit was made; a stop-and-report is a successful outcome for this item, not a failure.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE STOP CONDITION NO LONGER HOLDS, so this item PROCEEDED rather than stopping, and the change in circumstance is the first thing to record. At review 2026-09-10 `51vw4y` was `reviewed`/`pending/`; at execution (HEAD `80077bb3`, 2026-09-17) BOTH prerequisites are `executed`.
 
-- [ ] V-02 validates E-02
+    EXACTLY ONE `dirty_tree_overlap` DEFINITION, so `6sb3yu` has not been reverted:
+
+    ```
+    $ grep -n "def dirty_tree_overlap" agent_workflows/*.py
+    agent_workflows/runner_shared.py:2105:def dirty_tree_overlap(repo: Path, changed_files: Sequence[str]) -> list[str]:
+    ```
+
+    Its single call site was `runner_shared.py:2299` inside `integrate_lane_branch`, reading `overlap = dirty_tree_overlap(repo, lane.changed_files)`. That is the one line E-02 changed.
+
+    THE THREE `integrate_lane_branch` HITS ARE THE POST-EXTRACTION SHAPE (F-9), not surviving duplication, so E-01's stop rule correctly did not fire on them:
+
+    ```
+    $ grep -n "def integrate_lane_branch" agent_workflows/*.py
+    agent_workflows/agy_runipd.py:1384:def integrate_lane_branch(
+    agent_workflows/oc_runipd.py:2421:def integrate_lane_branch(
+    agent_workflows/runner_shared.py:2208:def integrate_lane_branch(
+    ```
+
+    Both driver bodies are delegating wrappers whose docstrings cite `6sb3yu` ("the IMPLEMENTATION is the single shared `runner_shared.integrate_lane_branch`") and which `return runner_shared.integrate_lane_branch(...)` binding only `host_label`, `run_checked` and the `action_kind` literal.
+
+    THE LADDER HAS LANDED, which is what makes this plan runnable at all (F-8 is now stale):
+
+    Both prerequisite plans now sit in `.aw/records/plans/executed/` and their `- Status:` line reads the terminal `executed` value (quoted here with the leading marker removed, so this evidence block cannot be misread as a status line belonging to THIS plan):
+
+    ```
+    $ grep -m1 "^- Status:" .aw/records/plans/executed/20260906-integpath-03-51vw4y-*.ipd.md
+      Status: executed
+    $ grep -m1 "^- Status:" .aw/records/plans/executed/20260906-integpath-02-6sb3yu-*.ipd.md
+      Status: executed
+    ```
+
+    And `integration-blocked` is no longer the immediate terminal outcome, measured through the live code rather than read from prose:
+
+    ```
+    classify_integration_refusal('integration-blocked') -> True   (deferrable)
+    classify_integration_refusal('merge-conflict')      -> False  (terminal)
+    INTEGRATION_DEFERRED_STATUS                        -> 'integration-deferred'
+    oc_runipd:  'integration-deferred' in TERMINAL_STATES -> False
+    agy_runipd: 'integration-deferred' in TERMINAL_STATES -> False
+    ```
+
+    So the transient arm now defers and the conflict arm stays terminal, which is the precondition this plan's `Item-Dependencies` waited for.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the new path-set computation and the git commands it runs, and show it uses `git merge-tree --write-tree` diffed against HEAD rather than the merge-base-to-both-tips union. Paste the REPRODUCED CASE end to end: build base/lane/main-rename, show `dirty_tree_overlap` returning `[]` for the OLD input set and `['renamed.txt']` for the new one, in the same fixture.
     THEN PASTE THE UNION-DISPROOF CASE (F-7), which is what proves you implemented the right algorithm: base `a.txt`+`b.txt`, lane changes `a.txt`, main advances AND dirties `b.txt`. Show the new computation returns `[]` here. If it returns `['b.txt']` you built the union, and this item FAILS.
     Paste the conflict-exit handling: show a conflicting merge does not yield a fabricated empty path set. Confirm the rename endpoint handling survived by pasting a `orig -> dest` porcelain line being parsed. State the git version you ran against (F-11).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE COMPUTATION, `runner_shared.merge_write_set` (new, `runner_shared.py:2048`), runs exactly two git commands and uses the merge RESULT TREE, not a merge-base union:
 
-- [ ] V-03 validates E-03
+    ```python
+    rc, out, _err = _run_git(repo, ["merge-tree", "--write-tree", "HEAD", branch])
+    if rc != 0:
+        return None            # UNKNOWN, never []
+    tree = out.strip().splitlines()[0].strip()
+    rc2, names, _err2 = _run_git(
+        repo, ["diff", "--name-only", "--no-renames", "-z", "HEAD", tree]
+    )
+    ```
+
+    The call site (`runner_shared.py:2299`) now reads:
+
+    ```python
+    predicted = merge_write_set(repo, handle.branch)
+    incoming = lane.changed_files if predicted is None else predicted
+    overlap = dirty_tree_overlap(repo, incoming)
+    ```
+
+    THE REPRODUCED CASE, both input sets in the SAME fixture (base `a.txt`; lane changes `a.txt`; main renames to `renamed.txt` and is dirty there):
+
+    ```
+    lane.changed_files            = ('a.txt',)
+    merge_write_set               = ['renamed.txt']
+    dirty_tree_overlap(OLD input) = []                 <- the defect: guard says clear
+    dirty_tree_overlap(NEW input) = ['renamed.txt']    <- now caught
+    real git merge rc             = 2 | error: Your local changes to the following files would be overwritten by merge:
+    ```
+
+    So the guard's answer changed from clear to blocked on precisely the case where the real merge fails.
+
+    THE UNION-DISPROOF CASE (F-7), which is what proves the CORRECTED algorithm was implemented (base `a.txt`+`b.txt`; lane changes only `a.txt`; main advances `b.txt` AND is dirty on `b.txt`):
+
+    ```
+    the UNION (wrong)             = ['a.txt', 'b.txt']
+    merge_write_set (correct)     = ['a.txt']
+    dirty_tree_overlap(NEW input) = []
+    ```
+
+    `[]`, not `['b.txt']`, so this is the merge-result diff and not the union.
+
+    THE CONFLICT EXIT IS UNKNOWN, NOT EMPTY:
+
+    ```
+    merge-tree rc   = 1 (non-zero = conflict)
+    merge_write_set = None
+    unmergeable ref = None
+    ```
+
+    `None` is returned rather than `[]` deliberately: `[]` would be intersected with main's dirt and read as "clear". An older git without `--write-tree` exits 129 and lands on the same `None` branch, and the caller then falls back to `lane.changed_files`, i.e. the pre-change behavior.
+
+    RENAME ENDPOINT HANDLING SURVIVED, with the `orig -> dest` porcelain line parsed:
+
+    ```
+    porcelain             = 'R  orig.txt -> dest.txt'
+    overlap(['dest.txt']) = ['dest.txt']
+    overlap(['orig.txt']) = ['orig.txt']
+    ```
+
+    GIT VERSION (F-11): `git version 2.43.0`, above the 2.38 floor `--write-tree` requires. `--no-renames` and `-z` on the diff are both load-bearing and measured: with rename detection ON a lane renaming `a` -> `b` reported only `['b.txt']` while the real merge still failed on `a.txt`, and without `-z` git quoted an unusual path as `"w\303\251ird name.txt"`, which would not compare against the porcelain paths.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the reproduced case's disposition as `integration-blocked` (NOT `merge-conflict`) with the operator-facing reason naming `renamed.txt`.
     THEN PASTE THE ANTI-REGRESSION SET, which is the half that can actually break something: a clean main fast-forwarding; a clean advanced main non-ff merging; dirt on a genuinely NON-overlapping path still integrating with the dirty edit shown intact afterwards; AND the mandatory F-7 case (main advanced on `b.txt` AND dirty on `b.txt` while the lane touched only `a.txt`) integrating successfully with the co-worker's `b.txt` content shown intact. Any previously-integrating case that now refuses is a FAILED validation, and the F-7 case is the one this plan's original algorithm got wrong, so its evidence is not optional.
     Paste a genuine textual conflict still returning `merge-conflict`, proving the terminal path survives.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Driven through EACH HOST'S OWN wrapper (`integrate_lane_branch(repo, handle, id6, validation_runner)`) against real repositories and real merges. Identical on both hosts:
 
-- [ ] V-04 validates E-04
+    ```
+    #### host: oc_runipd
+      rename    integrated=False kind=integration-blocked deferrable=True
+                reason: integration refused: main tree has un-owned dirty paths overlapping the incoming change: renamed.txt
+      ff        integrated=True  kind=integrated          deferrable=False
+      advanced  integrated=True  kind=integrated          deferrable=False
+      disjoint  integrated=True  kind=integrated          deferrable=False | co-worker b.txt intact: 'co-worker dirty b\n'
+      f7        integrated=True  kind=integrated          deferrable=False | co-worker b.txt intact: 'co-worker dirty b\n'
+      conflict  integrated=False kind=merge-conflict      deferrable=False
+                reason: merge-back conflict in 1 file(s): a.txt; Auto-merging a.txt
+                HEAD unmoved: True | status clean: True | MERGE_HEAD absent: True
+    #### host: agy_runipd
+      rename    integrated=False kind=integration-blocked deferrable=True
+                reason: integration refused: main tree has un-owned dirty paths overlapping the incoming change: renamed.txt
+      ff        integrated=True  kind=integrated          deferrable=False
+      advanced  integrated=True  kind=integrated          deferrable=False
+      disjoint  integrated=True  kind=integrated          deferrable=False | co-worker b.txt intact: 'co-worker dirty b\n'
+      f7        integrated=True  kind=integrated          deferrable=False | co-worker b.txt intact: 'co-worker dirty b\n'
+      conflict  integrated=False kind=merge-conflict      deferrable=False
+                reason: merge-back conflict in 1 file(s): a.txt; Auto-merging a.txt
+                HEAD unmoved: True | status clean: True | MERGE_HEAD absent: True
+    ```
+
+    THE DISPOSITION CHANGED as required: `rename` is `integration-blocked` (NOT `merge-conflict`), the reason names `renamed.txt`, and `classify_integration_refusal` reports it DEFERRABLE, so the ladder can recover it.
+
+    THE ANTI-REGRESSION HALF IS CLEAN, which is the load-bearing direction: all four previously-integrating cases STILL INTEGRATE (`ff`, `advanced`, `disjoint`, and the mandatory F-7 case), and in both dirt cases the co-worker's `b.txt` content is shown INTACT afterwards. The F-7 case in particular returns `integrated`, which is what distinguishes this implementation from the union the plan originally prescribed.
+
+    THE TERMINAL PATH SURVIVES: a genuine textual conflict still returns `merge-conflict`, still reports NOT deferrable, and still leaves main pristine (HEAD unmoved, working tree clean, `MERGE_HEAD` absent, so the abort ran).
+
+    The refusal reason is also checked for wording discipline by `test_the_refusal_reason_tells_NOBODY_to_touch_un_owned_work`: it must not say `git stash`, `git reset`, `git clean`, `stash them` or `discard`, and must carry no em or en dash.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the new test FAILING against pre-change HEAD on the rename case and passing after. Paste proof the tests drive REAL merges (the fixture's git commands), not a hand-built path list. Paste the object-identity check showing both drivers reach ONE `dirty_tree_overlap`.
     Paste the bare `python3 -m pytest` summary line with a self-measured BEFORE baseline and the AFTER-minus-BEFORE failure set EMPTY. Inside a lane worktree, ~14 `test_run_viewer.py` failures belong to the separate `agrlvw` defect (plan `utwr6y`); do not report them as this plan's.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE NEW TEST FAILS AGAINST PRE-CHANGE CODE AND PASSES AFTER. With `agent_workflows/runner_shared.py` stashed to HEAD and the new file in place, 11 of the 18 tests fail, and the rename case fails on exactly the assertion the defect is about:
+
+    ```
+    $ git stash push -- agent_workflows/runner_shared.py && python3 -m pytest tests/test_merge_dirty_scope.py -o addopts="" -q
+    >               self.assertIn("un-owned dirty paths", reason)
+    E               AssertionError: 'un-owned dirty paths' not found in 'integration refused by git: main has
+      uncommitted local changes to file(s) this merge would overwrite ... renamed.txt ...'
+    11 failed, 7 passed in 1.68s
+    ```
+
+    That failure message is itself the defect: pre-change, the case reached GIT's late refusal instead of the pre-merge guard. After restoring the change:
+
+    ```
+    $ python3 -m pytest tests/test_merge_dirty_scope.py -o addopts="" -q
+    18 passed in 1.58s
+    ```
+
+    THE TESTS DRIVE REAL MERGES, not hand-built path lists. Every fixture runs `git init`, `git commit`, `git worktree add`, and a real `git merge`; e.g. `make_lane` issues `git worktree add -q <path> <branch>` and commits inside the worktree, and the rename case asserts against the actual merge exit:
+
+    ```python
+    merged = self.git_rc(repo, "merge", "--no-ff", "--no-edit", "-m", "m", handle.branch)
+    self.assertNotEqual(merged.returncode, 0)
+    self.assertIn("renamed.txt", merged.stdout + merged.stderr)
+    ```
+
+    ONE IMPLEMENTATION, BOTH HOSTS, by object identity:
+
+    ```
+    oc_runipd.dirty_tree_overlap  is runner_shared.dirty_tree_overlap -> True
+    agy_runipd.dirty_tree_overlap is runner_shared.dirty_tree_overlap -> True
+    ```
+
+    plus an AST check that neither driver DEFINES `merge_write_set`, and that `integrate_lane_branch` actually CALLS both `merge_write_set` and `dirty_tree_overlap` while no longer containing `dirty_tree_overlap(repo, lane.changed_files)`.
+
+    THE BARE SUITE, with a self-measured baseline and the regression set compared by NODE ID:
+
+    ```
+    BEFORE (change stashed, new test file withheld):  7975 passed, 3 skipped, 2 xfailed
+    AFTER  (change applied, new tests present):       7993 passed, 3 skipped, 2 xfailed in 122.50s
+    ```
+
+    ```
+    $ comm -13 before.txt after.txt      # AFTER minus BEFORE = regressions
+    (empty)
+    ```
+
+    A NOTE ON HOW THE BASELINE WAS MEASURED, because a bare run in this lane is misleading and nearly hid two real regressions. A bare `python3 -m pytest` here reports `31 failed` BEFORE and `31 failed` AFTER, giving an empty regression set. Those 31 are environmental: this lane runs with `AW_EXECUTION_ROLE` set to a worker, so any test invoking `aw ipd begin` is refused with `AW-LIFECYCLE-ROLE-001` before reaching its assertions. That refusal MASKED the two driver tests this change genuinely broke. Re-running with the runner role exposed them (`2 failed, 13 passed`), they were repaired, and the suite is now fully green under that role at 7993 passed, versus 7975 at baseline. The 18-test delta is exactly this plan's new file. No `test_run_viewer.py` failures appeared in either direction.
+  - Result: pass
 
 ## Approval and execution gate
 

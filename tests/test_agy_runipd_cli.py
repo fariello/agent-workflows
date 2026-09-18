@@ -709,11 +709,23 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
             ).stdout.strip()
             dirty = body + "un-owned local edit\n"
 
-            with mock.patch.object(
-                agy_runipd,
-                "run_agy_turn",
-                self._fake_agent_renames_in_worktree(
-                    run_dir, repo, orig="moved.txt", dest="dest.txt", dirty=dirty
+            # mergedirty-01 (`fujm0y`), agy twin of the oc note: the write set is forced UNKNOWN (the
+            # shipped older-git fallback) so this case still reaches GIT's OWN refusal and keeps
+            # testing the structural discriminator. With the widened pre-merge guard active it would
+            # refuse EARLIER, yielding the same kind without ever attempting a merge, so the "Your
+            # local changes" assertion below would be testing nothing.
+            from agent_workflows import runner_shared
+
+            with (
+                mock.patch.object(
+                    agy_runipd,
+                    "run_agy_turn",
+                    self._fake_agent_renames_in_worktree(
+                        run_dir, repo, orig="moved.txt", dest="dest.txt", dirty=dirty
+                    ),
+                ),
+                mock.patch.object(
+                    runner_shared, "merge_write_set", lambda _repo, _branch: None
                 ),
             ):
                 agy_runipd.execute_item(run_dir, state, item, recovery=False)

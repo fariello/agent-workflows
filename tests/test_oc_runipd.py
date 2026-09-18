@@ -3332,7 +3332,19 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
                     (repo / "moved.txt").write_text(dirty, encoding="utf-8")
                 return rc
 
-            with mock.patch.object(driver, "run_opencode", agent_then_dirty_main):
+            # mergedirty-01 (`fujm0y`): the write set is forced UNKNOWN, which is the shipped
+            # older-git fallback, so this case still reaches GIT's OWN refusal and therefore still
+            # tests the structural discriminator this test exists for. Without it the widened
+            # pre-merge guard refuses first and the assertions below would pass for a different
+            # reason - the same kind, but never having attempted a merge, so a hollow pass.
+            from agent_workflows import runner_shared
+
+            with (
+                mock.patch.object(driver, "run_opencode", agent_then_dirty_main),
+                mock.patch.object(
+                    runner_shared, "merge_write_set", lambda _repo, _branch: None
+                ),
+            ):
                 driver.execute_item(run_dir, state, item, recovery=False)
 
             # The refusal is the DEFERRABLE class, so the ladder re-attempts it: NOT merge-conflict.
