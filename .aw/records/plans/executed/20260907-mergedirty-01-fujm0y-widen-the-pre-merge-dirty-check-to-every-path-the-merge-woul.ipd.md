@@ -9,7 +9,7 @@
 - Scope: Compute the pre-merge dirty check against every path the merge would actually write (the `git merge-tree --write-tree` result diffed against HEAD; NOT the merge-base-to-both-tips union, which review disproved as F-7), not just the lane's changed files, so transient dirt on a path the merge touches is classified `integration-blocked` rather than `merge-conflict`. ONE implementation in shared code. Change no refusal into an acceptance AND refuse nothing that previously integrated: this plan makes refusal MORE ACCURATE, in both directions.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/lane_containment.py, tests/test_runner_shared.py, tests/test_merge_dirty_scope.py
 - Item-Dependencies: executed:6sb3yu, executed:51vw4y
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Priority: high
 - Work-Kind: bug
@@ -18,11 +18,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: fujm0y
-- Approval: 2026-09-11, human ("approved"): Approved by the maintainer 2026-09-10 during an /askme round ('We can approve AND resolve'). OQ-02 resolved as already-enforced: the executed:51vw4y edge is re-checked at dispatch with no bypass, so this plan will correctly report dependency-blocked until 51vw4y executes. Priority: high, Work-Kind: bug, Blocks-Release: next. Its prerequisite 51vw4y was approved in the same round.
 - From-Backlog: h1ksy6
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-18 executed (aw oc run): aw oc run self-finalize: fujm0y verified (set mergedirty, attempt 1). [Scope reconciliation - out-of-scope tests/test_agy_runipd_cli.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_oc_runipd.py: changed by the plan's approved execution (auto-reconciled by aw oc run); in-scope-unmodified agent_workflows/lane_containment.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-11 approved (aw set, --by-human): Approved by the maintainer 2026-09-10 during an /askme round ('We can approve AND resolve'). OQ-02 resolved as already-enforced: the executed:51vw4y edge is re-checked at dispatch with no bypass, so this plan will correctly report dependency-blocked until 51vw4y executes. Priority: high, Work-Kind: bug, Blocks-Release: next. Its prerequisite 51vw4y was approved in the same round.
 
 - 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW. The three `no-go` conditions were RECOMPUTED and each found clear: `has_unresolved_blocking_question` -> False; `subject_gating_blocks` -> empty (PR-002 closed in review round 2); `newest_verdict` polarity -> neutral (not negative). Specifically, OQ-02 is resolved AND corrected to `Blocking: no`: it requested an approval-ordering PREFERENCE while marked blocking, which held a `Priority: high` release blocker at `no-go` for a constraint the runner already enforces at dispatch (`edge_satisfied`, no bypass flag, `dependency-blocked` terminal). The maintainer challenged the question and it did not survive measurement. The `executed:51vw4y` edge STAYS: the sequencing rationale is sound and dropping it remains refused, so this plan will correctly report `dependency-blocked` until `51vw4y` executes. HUMAN APPROVAL IS STILL REQUIRED.
