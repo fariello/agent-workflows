@@ -4,7 +4,7 @@
 - Subject-Type: ipd
 - Reviewed-At: 2026-09-18
 - Reviewer: opencode/its_direct-pt3-claude-opus-5-1m-us
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
 
@@ -228,3 +228,21 @@ executability defect of the same class round 1 itself raised as PR-001.
   this plan cannot run regardless of OQ-03. The runner handles that correctly by marking the item
   `dependency-blocked` at dispatch; it is not a defect and I raise it only so the maintainer knows OQ-03 is
   not the only thing standing between this plan and execution.
+
+## Round 3
+
+Reviewed at HEAD `7a28ed11` with the maintainer.
+
+OQ-03 RESOLVED AND PR-001 DISCHARGED. Following the maintainer's direct instruction, `initialize_run` across `oc_runipd.py` and `agy_runipd.py` was unified into `runner_shared.initialize_run_core` in commit `7a28ed11`. The driver identity write (`state['driver']`) now sits centrally in `runner_shared.py` (line 10433), parameterized by caller, completely removing the fork conflict that motivated PR-001 and OQ-03. All blocking questions on plan `xdvglg` are resolved; all findings PR-001..PR-010 and PR-101..PR-105 are FIXED.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | BLOCKER | UNDER-SCOPE | G. executability; A. correctness | `runner_shared.py:10433-10436`; commit `7a28ed11` | **CARRIED FORWARD FROM ROUND 1/2: may this Set edit the identity write inside initialize_run?** Resolved by unifying initialize_run into runner_shared.py (commit `7a28ed11`). The driver identity write is now centralized in shared code and parameterized by caller. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Resolved by commit `7a28ed11`. The identity write is now centralized in `runner_shared.initialize_run_core`. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-301 | OQ-03 resolution and PR-001 disposition | Mark OQ-03 resolved and PR-001 FIXED in Round 3; promote readiness to `go-pending-approval` | Leave open | Maintainer direct instruction and implementation in commit `7a28ed11` unifying initialize_run into runner_shared.py | yes |

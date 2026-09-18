@@ -7,15 +7,18 @@
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_review_lane_isolation.py
 - Item-Dependencies: none
 - Blocks-Release: next
-- Status: reviewed
-- Readiness: no-go
+- Status: approved
+- Readiness: go-pending-approval
 - Set: revladder
 - Order: 1
 - Highest E allocated: 08
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: i4ak5n
+- Approval: 2026-09-18, human ("approved"): Approved by maintainer: Option (a) chosen for sweep lane lifecycle; OQ-01 and OQ-02 resolved and PR-002 discharged
 
 ## Workflow history
+- 2026-09-18 approved (aw set, --by-human): Approved by maintainer: Option (a) chosen for sweep lane lifecycle; OQ-01 and OQ-02 resolved and PR-002 discharged
+- 2026-09-18 reviewed (antigravity pair with maintainer): /plan-review ROUND 2: APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. OQ-02 RESOLVED: maintainer ruled for Option (a) (re-attempts never tear down the sweep lane; coordinator tears down at run end). OQ-01 RESOLVED (shared retry budget). PR-002 dispositioned FIXED. All blocking questions resolved; readiness promoted to go-pending-approval.
 - 2026-09-18 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001..PR-007; readiness `no-go` on ONE blocking finding, plus a second BLOCKER fixed in place. Reviewed at HEAD `d3f418ff`; `aw ipd lint --phase author` conforming before revision; plan byte-identical to the lane input. THE DIAGNOSIS IS CORRECT AND I RE-PROVED IT BY AST RATHER THAN INHERITING IT: on BOTH hosts the enclosing `execute_item` containing the review integration call (`oc_runipd.py:7631`, `agy_runipd.py:4216`) references NONE of `decide_integration_deferral`, `INTEGRATION_DEFERRED_STATUS`, `reattempt_deferred_integrations`, `deferred_integration_items`. F2 verifies verbatim at `runner_shared.py:555` and is emitted from the SHARED merge path both actions reach (`:2295`), so review operators really do see the false promise; F5 verifies (`grep 'stash failed'` across `agent_workflows/` and `hooks/` returns nothing); F4's self-correction is exact. BUT THE PLAN'S CENTRAL PREMISE IS FALSE, and it is the premise that set its scope: "wires a caller in; it does not build a mechanism" and "does NOT change the ladder's rung logic" cannot both hold, because THE LADDER IS ACTION-BLIND IN THREE PLACES. (1) PR-001, BLOCKER, FIXED: the adapter binds `integrate=_integrate` -> this host's EXECUTE wrapper pinning `action_kind=INTEGRATION_ACTION_EXECUTE` (`oc_runipd.py:2440-2448`), and that constant is exactly what triggers `execute_merge_and_revalidate_gate` (`runner_shared.py:2204`), while the review path deliberately uses `integrate_review_lane_branch` which passes `INTEGRATION_ACTION_REVIEW` and takes NO `validation_runner` so a synthetic verdict is structurally impossible (`:2451-2470`); so E-03's status write alone makes the RETRY violate the `ajxr5d` OQ-01 rule the FIRST attempt honors. (2) same root: `finish_integrated=_finish` writes `item["status"] = "executed"` and calls `process_backlog_close`/`resolve_plan_path` (`:2524-2578`), none valid for a review. (3) PR-002, BLOCKER, OPEN: there is ONE sweep lane per run (`review_sweep_lane_id`, `runner_shared.py:1348-1354`) held at RUN level, and `lane_records_including_sweep` states "the lane belongs to no ITEM" (`:1529-1531`), while the ladder rebuilds a PER-ITEM handle from `preserved_*` and TEARS THE LANE DOWN on success (`oc_runipd.py:2543-2570`) - so two deferred reviews resolve to the same branch and the first success retires the lane the second needs, the exact hazard `teardown_review_sweep_lane` names for the per-item path (`lane_containment.py:3356-3357`). Measured that `deferred_integration_items` is action-blind and DOES select a review item. New E-04 (action-correct re-attempt) and E-05 (shared-lane rule) added, old E-05..E-07 renumbered E-06..E-08, `Highest E` 07 -> 08; V-04 now requires a validation runner that RAISES if called plus a post-success item dump, and V-05 requires TWO deferred reviews because one cannot expose the collision. ALSO: the plan named the wrong reuse target (`decide_integration_deferral` is PURE and no driver calls it; the shared write site is `record_integration_refusal`, `:2688`), told the operator to run `aw <host> run integrate <id6>` which IS NOT A COMMAND (the alias is `integrate` under the host group, `cli.py:3929`, and `rl67b0` is `executed` not approved so the verb is live), and every cited line number is stale by ~40 lines. SPEC QUESTION RESOLVED FROM EVIDENCE rather than left to the executor: `25kzda:163` scopes the ladder to the REFUSAL CONDITION and not to the action, and enumerates only what it must never apply to, so this is a delivery gap, no amendment is required, and no `.spec.md` is declared. OQ-02 raised `Blocking: yes` carrying PR-002.
 
 - 2026-09-18 reviewed (aw set): plan-review complete: REVIEWED - OPEN QUESTIONS; 7 findings, 5 FIXED, PR-002 left OPEN at BLOCKER and escalated as blocking OQ-02. The diagnosis is correct and was re-proved by AST on both hosts, but the plan's central premise (pure wiring, no rung-side work) is FALSE: the ladder is action-blind in three places. PR-001 BLOCKER FIXED: the re-attempt binds the EXECUTE wrapper (action_kind=execute), which is exactly what triggers the revalidation gate a review skips by NOT RUNNING, and its success path writes status=executed and closes a backlog item; new E-04 owns action-correctness. PR-002 BLOCKER OPEN: one sweep lane is shared by every review while the ladder is per-item and tears the lane down on success, so the first re-attempt retires the lane a second deferred review still needs; new E-05 carries whichever design OQ-02 authorizes. Also fixed: wrong reuse target (record_integration_refusal, not the pure decide_integration_deferral), a printed recovery verb that does not exist, and stale line numbers throughout. Spec question RESOLVED from evidence: 25kzda:163 scopes the ladder to the refusal CONDITION not the action, so no amendment is required; readiness no-go
@@ -254,17 +257,26 @@ its amendment is already in the tree; read the spec's CURRENT text rather than t
 ### OQ-01: Should a review integration deferral share the execute path's budget, or have its own?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: NOT blocking; E-03 uses the SHARED budget by default, which needs no new flag and no new state. FOR SHARED: one `--integration-retry-limit` is one thing for an operator to reason about, the ladder's existing bound already prevents an infinite loop, and a review re-attempt costs a merge and a revalidation exactly like an execute one. FOR SEPARATE: a review turn produces two small record files while an execute turn produces product code, so an operator might want to retry a review far more patiently than an execute item, and one shared count means a busy execute queue can exhaust the budget a review would have used. Recorded because it is an operator-facing policy call, and because adding a second flag later is cheap while removing one is not.
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-18: Use the shared budget
+  (`--integration-retry-limit`). This keeps a single, uniform retry bound across the run without adding flags or
+  state.
 
 ### OQ-02: One sweep lane is shared by every review in the run, but the ladder is per-item and tears the lane down on success. How should a deferred review's lane be handled?
 
-- Blocking: yes
-- Finding: PR-002
-- Status: open
+- Blocking: no
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: NOT DECIDED BY THE REVIEWER, because every option trades off against
+- Finding: PR-002 (dispositioned FIXED)
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-18: Option (a) is chosen. A review
+  re-attempt NEVER tears down the sweep lane during re-attempt execution; retirement is left entirely to the
+  existing coordinator-owned `teardown_review_sweep_lane` at the end of the run. This preserves the `ajxr5d` OQ-02
+  decision (one sweep lane per run, avoiding session-sharing hazard `lanesess xd9sll`), eliminates the hazard
+  where the first successful review re-attempt tears down the lane needed by subsequent reviews, and satisfies
+  E-05 and V-05. PR-002 is dispositioned FIXED.
+
+  ROUND 1 CONTEXT (KEPT FOR HISTORY): NOT DECIDED BY THE REVIEWER, because every option trades off against
   the `ajxr5d` OQ-02 ruling that this repository already made ("one lane for the whole sweep", accepted
   cost "a stranded review, never a lost edit"), and reopening that is the maintainer's.
   MEASURED AT REVIEW: there is exactly ONE sweep lane per run (`review_sweep_lane_id(run_id)`,
