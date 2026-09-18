@@ -119,6 +119,90 @@ class CollisionTests(unittest.TestCase):
         drift = ce.check_types(self.root, ["all"])
         self.assertEqual(len([d for d in drift if d.rule == "check.id6-collision"]), 1)
 
+    # ---- setidfix 216rgg E-05: the re-scoped setid rule's three missing pins ----
+
+    def test_cross_type_setid_is_not_a_finding(self) -> None:
+        # D153 / spec `2lcqno` N1: a setid is a SHARED cross-type TOPIC label, so one token under
+        # two record types is CORRECT and must report NOTHING. This pin exists so the cross-type
+        # branch removed by E-01 cannot be re-added as a "missing" check (it reported 29 findings on
+        # this repository's own default scope, every one of them for endorsed behavior), and so that
+        # no `info`-severity variant of it creeps back in (spec `2lcqno` OQ-01 rejected that).
+        self._plan("20260101-demo-01-aaa111-p.ipd.md", "aaa111", setid="topic")
+        self._spec("20260101-topic-01-bbb222-s.spec.md", "bbb222", setid="topic")
+        drift = ce.check_collisions(self.root)
+        self.assertEqual([d for d in drift if d.rule == "check.setid-collision"], [])
+
+    def test_within_type_conflict_survives_a_foreign_type_predecessor(self) -> None:
+        # The SHARED-SLOT case (spec `2lcqno` N5), which is why `seen_sets` is keyed per (type,
+        # setid) and not by setid alone. `SUPPORTED` iterates `plans` FIRST, so the plan below is
+        # seen before either spec; with a setid-only key it occupied the slot the spec-vs-spec
+        # comparison needs, and the genuine Alpha/Beta conflict was NEVER reported (measured: the
+        # setid-keyed version emitted two cross-type findings and missed this one, and a same-type
+        # GUARD alone emitted nothing at all, turning a noisy miss into a silent one).
+        self._plan(
+            "20260101-demo-01-aaa111-p.ipd.md", "aaa111", setid="topic", desc="PlanDesc"
+        )
+        self._spec(
+            "20260101-topic-01-bbb222-s1.spec.md", "bbb222", setid="topic", desc="Alpha"
+        )
+        self._spec(
+            "20260101-topic-02-ccc333-s2.spec.md", "ccc333", setid="topic", desc="Beta"
+        )
+        found = [
+            d
+            for d in ce.check_collisions(self.root)
+            if d.rule == "check.setid-collision"
+        ]
+        self.assertEqual(len(found), 1, found)
+        # it is the SPEC-vs-SPEC conflict, and it names both descriptives. WHICH spec is the
+        # first-seen one is filesystem-iteration order and is NOT asserted (both files are in the
+        # same directory, so `rglob` order is not guaranteed); what matters is that the finding is
+        # between the two SPECS and cites both descriptives.
+        self.assertIn(".spec.md", found[0].location)
+        self.assertIn(".spec.md", found[0].detail)
+        self.assertIn("Alpha", found[0].detail)
+        self.assertIn("Beta", found[0].detail)
+        # and nothing was reported about the PLAN, whose cross-type share of `topic` is correct
+        self.assertNotIn("PlanDesc", found[0].detail)
+        self.assertNotIn(".ipd.md", found[0].location)
+        self.assertNotIn(".ipd.md", found[0].detail)
+
+    def test_within_type_conflict_reports_under_one_type_only(self) -> None:
+        # The surviving half, stated positively and per-type: conflicting descriptives inside ONE
+        # type fire, while the SAME setid reused with a CONSISTENT descriptive does not.
+        self._plan(
+            "20260101-demo-01-aaa111-a.ipd.md", "aaa111", setid="topic", desc="Alpha"
+        )
+        self._plan(
+            "20260101-demo-02-bbb222-b.ipd.md", "bbb222", setid="topic", desc="Alpha"
+        )
+        self.assertEqual(
+            [
+                d
+                for d in ce.check_collisions(self.root)
+                if d.rule == "check.setid-collision"
+            ],
+            [],
+        )
+        self._plan(
+            "20260101-demo-03-ccc333-c.ipd.md", "ccc333", setid="topic", desc="Beta"
+        )
+        found = [
+            d
+            for d in ce.check_collisions(self.root)
+            if d.rule == "check.setid-collision"
+        ]
+        self.assertEqual(len(found), 1, found)
+        self.assertIn("descriptive", found[0].detail)
+
+    def test_setid_rule_traces_to_the_setid_semantics_invariant(self) -> None:
+        # E-03: the rule's catalog home is I-16 (setid SEMANTICS), not I-09 (filename-grammar
+        # conformance). The two id6 rules deliberately STAY on I-09: the identity-slot rule genuinely
+        # concerns the filename slot. Spec `pqsx96` Section 4 records the correction.
+        self.assertEqual(ce.rule_spec("check.setid-collision").invariant, "I-16")
+        self.assertEqual(ce.rule_spec("check.id6-collision").invariant, "I-09")
+        self.assertEqual(ce.rule_spec("check.id6-identity-slot").invariant, "I-09")
+
 
 class IdentitySlotTests(unittest.TestCase):
     """Filename identity-slot id6 invariant (DECISIONS.md D140), IPD 9a655p E-01/V-01."""

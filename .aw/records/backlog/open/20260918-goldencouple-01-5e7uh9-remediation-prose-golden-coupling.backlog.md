@@ -1,0 +1,9 @@
+- Id: 5e7uh9
+- Status: open
+- Set: goldencouple
+- Priority: low
+- Work-Kind: chore
+- Summary: Doctor remediation prose is byte-pinned by a conformance golden no plan declares, so changing guidance text fails an unrelated test
+
+## Workflow history
+- 2026-09-18 created (aw backlog): Found while executing plan 216rgg (setidfix Order 01) E-06; filed per the defect-report contract. THE COUPLING: tests/fixtures/conformance_goldens/check_findings.human.golden pins the RENDERED HUMAN OUTPUT of a check finding byte-for-byte, and that rendering includes doctor.build_remediation's title and detailed_fix for whatever rule the synthetic fixture names (today check.setid-collision). So an edit to REMEDIATION GUIDANCE PROSE in doctor.py fails tests/test_cli_quality_gates.py::DeterministicByteGoldenTests::test_human_plain_goldens_stable, a test whose name and file suggest it guards RENDERER determinism, not advice wording. WHY IT MISLEADS: plan 216rgg's review measured that the goldens 'render from a hardcoded synthetic CommandResult, not a corpus scan, so they cannot change', and wrote a tripwire into the plan saying that regenerating a golden means you touched a renderer and are out of scope. That is TRUE of the agent and json goldens and FALSE of the human one, because the human renderer expands the remediation. The plan therefore declared the two goldens that could not move and did not declare the one that did. NOT A BUG IN BEHAVIOR: the golden correctly caught a real output change, and regenerating it with the documented AW_CONFORMANCE_UPDATE_GOLDENS=1 was the right response. The cost is the false signal about scope. OPTIONS: (a) leave it and document in the golden dir README that human goldens transitively pin remediation prose, (b) give the human fixture a rule id with deliberately frozen guidance, or (c) assert the remediation prose in test_doctor_remediations.py and keep the human golden's finding block structural. Prefer (a) unless it recurs.

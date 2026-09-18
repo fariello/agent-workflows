@@ -91,10 +91,16 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.status-untooled": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-03"
     ),
-    # Filename identity-slot / id6 uniqueness (catalog I-09 family).
+    # Setid SEMANTICS (catalog I-16, spec `2lcqno` N5): a setid used within ONE type with two
+    # different descriptives. NOT I-09, which is filename-grammar conformance: I-09 governs a name's
+    # SHAPE, while this rule governs whether one token may be REUSED, which the grammar is silent on.
+    # Repointed here (spec `pqsx96` Section 4 held the code at I-09 deliberately until the rule was
+    # re-scoped). Its two id6 neighbours below stay on I-09 on purpose: the identity-slot rule
+    # genuinely does concern the filename slot.
     "check.setid-collision": RuleSpec(
-        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-09"
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-16"
     ),
+    # Filename identity-slot / id6 uniqueness (catalog I-09 family).
     "check.id6-collision": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-09"
     ),
@@ -880,8 +886,16 @@ def check_collisions(
 
     * frontmatter ``- Id:`` id6: a valid id6 declared on two different resolved files
       (``check.id6-collision``);
-    * setid: the same setid under two different types, or the same setid with two different
-      non-None descriptives (``check.setid-collision``);
+    * setid: the same setid used WITHIN ONE type with two different non-None descriptives
+      (``check.setid-collision``). A setid appearing under two DIFFERENT types is CORRECT and is
+      NOT reported: DECISIONS D153 / spec ``2lcqno`` N1 rule that a setid is a SHARED cross-type
+      TOPIC label, not an identity (identity is the id6, see ``check.id6-collision`` below), so
+      research + specs + backlog + plans on one topic are MEANT to share the token. Do NOT re-add
+      a cross-type branch as a "missing" check, and do not add an ``info`` variant of it either:
+      spec ``2lcqno`` OQ-01 rejected that from measurement (it narrated the normal state on tens of
+      setids per run, which trains a reader to treat correct behavior as remarkable). The
+      comparison slot is keyed per ``(type, setid)`` for the same reason: a foreign-type file must
+      not occupy the slot a within-type comparison needs;
     * filename IDENTITY-SLOT id6 (DECISIONS.md D140): the ``<id6>`` in a file's
       ``YYYYMMDD-<setid>-NN-<id6>-<slug>`` filename slot is that file's UNIQUE IDENTITY. It is
       validated by the precise rule (so it flags a foreign id6 in the slot but never mass-flags
@@ -895,8 +909,13 @@ def check_collisions(
     repo_root = Path(repo_root)
     drift: List[_core.Drift] = []
     seen_ids: Dict[str, str] = {}
-    # setid -> (type, descriptive-or-None, first-path)
-    seen_sets: Dict[str, tuple] = {}
+    # (type, setid) -> (descriptive-or-None, first-path). KEYED PER TYPE, deliberately, and this is
+    # load-bearing rather than tidiness (spec `2lcqno` N5): when the key was the setid ALONE the slot
+    # held whichever file was seen FIRST, and `SUPPORTED` iterates `plans` first, so a foreign-type
+    # predecessor occupied the slot the within-type descriptive comparison needs and a genuine
+    # same-type conflict went unreported. Measured with one plan plus two conflicting specs: the
+    # setid-keyed version reported two cross-type findings and never the real spec-vs-spec conflict.
+    seen_sets: Dict[tuple, tuple] = {}
 
     # First gather, for every file, its declared frontmatter Id and its filename identity-slot id6,
     # so the identity-slot rule (below) can be evaluated with global knowledge of who OWNS each id6.
@@ -932,19 +951,15 @@ def check_collisions(
                     seen_ids[id6] = str(p)
             sid, desc = _parse_setid(text)
             if sid:
-                if sid in seen_sets:
-                    prev_type, prev_desc, prev_path = seen_sets[sid]
-                    if prev_type != record_type:
-                        drift.append(
-                            _core.Drift(
-                                str(p),
-                                "check.setid-collision",
-                                f"setid {sid} conflicts with {prev_path} (different type: {prev_type} vs {record_type})",
-                            )
-                        )
-                    elif (
-                        desc is not None and prev_desc is not None and desc != prev_desc
-                    ):
+                set_key = (record_type, sid)
+                if set_key in seen_sets:
+                    prev_desc, prev_path = seen_sets[set_key]
+                    # WITHIN-TYPE descriptive conflict ONLY. One setid carrying two different
+                    # descriptives inside ONE type is a genuine inconsistency in that Set's own
+                    # name. The cross-type comparison that used to live here was REMOVED per D153 /
+                    # spec `2lcqno` N1 (see this function's docstring); it reported the endorsed
+                    # normal state as an error.
+                    if desc is not None and prev_desc is not None and desc != prev_desc:
                         drift.append(
                             _core.Drift(
                                 str(p),
@@ -953,7 +968,7 @@ def check_collisions(
                             )
                         )
                 else:
-                    seen_sets[sid] = (record_type, desc, str(p))
+                    seen_sets[set_key] = (desc, str(p))
 
     drift.extend(_check_identity_slots(records))
     return drift

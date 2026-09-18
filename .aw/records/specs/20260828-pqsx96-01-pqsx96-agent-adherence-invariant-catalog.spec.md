@@ -174,12 +174,16 @@ Additional worked traces, to show the catalog covers the existing engine:
   **I-08**. Each existing control therefore has a named catalog home, and each future phase-1
   rule must name one before it is added.
 
-- A MISFILING CORRECTED 2026-09-10, recorded rather than silently repointed because the code still
-  carries the old value. `check.setid-collision` is registered in `check_engine.py:95-97` as
+- A MISFILING CORRECTED 2026-09-10 AND CLOSED IN THE CODE 2026-09-18. `check.setid-collision` WAS
+  registered in `check_engine.py` as
   `RuleSpec("error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-09")`, but **I-09 is
   filename-grammar conformance**, and setid semantics is not filename grammar; this catalog did not
-  mention setid at all before today (grep: zero hits). The rule therefore traced to an invariant that
-  does not describe it. Its correct home is the new **I-16**, added above.
+  mention setid at all before the correction (grep: zero hits). The rule therefore traced to an
+  invariant that does not describe it. Its correct home is the new **I-16**, added above, and the
+  rule now CARRIES `"I-16"`: plan `216rgg` (E-03) repointed it in the same commit that re-scoped the
+  rule to its within-type half, so the code and this catalog AGREE. A regression test pins the value
+  (`tests/test_check_engine.py::CollisionTests::test_setid_rule_traces_to_the_setid_semantics_invariant`),
+  which nothing did before.
   THE MISFILING WAS MASKED BY A COINCIDENCE WORTH NAMING: the rule's own subject, the setid, IS a
   component of the filename grammar, so "I-09" looked plausible to every reader. What I-09 governs is
   the SHAPE of a name; what this rule governs is whether one token may be REUSED across types, which
@@ -193,9 +197,11 @@ Additional worked traces, to show the catalog covers the existing engine:
   registered `error`-severity rule currently enforces. That is why the rule reports 78 findings for
   correct behavior, and it is why re-scoping the rule (not renumbering it) is the actual work. The
   normative source is spec `2lcqno`.
-  CONSEQUENCE FOR THE IMPLEMENTER: when `check.setid-collision` is re-scoped to its within-type half,
-  update its `RuleSpec` invariant from `"I-09"` to `"I-16"` in the same change, so the code and this
-  catalog agree. Until then they disagree, and this bullet is the record of why.
+  WHAT THE RE-SCOPE ACTUALLY DID, recorded because I-16's "deterministically detectable in BOTH
+  directions" column is now the whole rule rather than half of it: the cross-type emission was
+  DELETED (not relabelled, not flag-guarded; spec `2lcqno` OQ-01 rejected an `info` variant from
+  measurement), and the surviving within-type comparison was re-keyed per `(type, setid)`, without
+  which removing the cross-type branch would have turned a noisy miss into a SILENT one.
 
 ## 5. Non-goals (this child)
 
