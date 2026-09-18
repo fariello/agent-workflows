@@ -16,6 +16,7 @@
 - Approval: 2026-09-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-18 executed E-01 (opencode/its_direct/pt3-claude-opus-5-1m-us, run-20260918T212013Z-4137362 lane ixis0c attempt 2): THE LAST BLOCKED ITEM IS NOW PERFORMED AND VALIDATED, so E-01..E-09 and V-01..V-09 are all complete. The block is resolved BY EVIDENCE, not reinterpretation: `Item-Dependencies: executed:mm5p3v` is MET (Order 08 sits in `executed/`, finalize commit `a912d5a9` in history) and the conflict risk that justified the block is gone because Order 08's rewrite of the same `_DESCRIPTIONS["runs"]`/`_RUNS_DESCRIPTION` hunks has LANDED. E-01 declares `runs export` (`mutation`/`dry_run_default`) and `runs submit` (`mutation`/`auth_floor`), registers both as REAL subparsers on `runs_sub`, dispatches them beside Order 08's pair, and adds `run_export_leaf`/`run_submit_leaf`. 24 new tests; bare suite `8124 passed, 3 skipped, 2 xfailed` against a self-measured `8100 passed` baseline with an EMPTY failing-node-id delta (both failures earlier attempts reported were pinned to the live mutable plan corpus and no longer occur). The slow-marked conformance gate was run EXPLICITLY: `2 failed, 23 passed`, naming ONLY the five pre-existing `oc profile *` leaves and neither new leaf. FIGURES RE-MEASURED AGAIN: 135 declarations before E-01 and 137 after (review said 129, the previous attempt 131); gate vocabulary 96/22/10/7 before and 96/23/10/8 after (review said 91/21/10/7). TWO DEFECTS FOUND AND FIXED WHILE WIRING, each with a negative control proven to fail against the naive version: a `raw` export of two runs collapsed both runs' same-named `prompt.md` into ONE file (`write_bundle` falls back to `src.name` when `raw_base` is None), and the shared attestation refusal rendered a LOCAL path as the literal `<url>`. TWO ADJACENT DEFECTS FILED NOT FIXED: backlog `cldbus` (`runs resume` declared `mutation` but writes nothing, found by deriving the mutating set from the inventory instead of hand-listing it) and backlog `3f4ayi` (`AgentRenderer.render_summary` raises whenever `--fields` is set; Order 08 documented it in a comment and filed no carrier). The plan STAYS in `pending/`: `aw ipd finalize` is refused for a worker-role process (`AW-LIFECYCLE-ROLE-001`), so the runner owns the terminal transition. Nothing pushed.
 - 2026-09-14 partially executed (opencode/its_direct/pt3-claude-opus-5-1m-us, run-20260914T033154Z-457353 lane ixis0c): E-02..E-09 PERFORMED and V-02..V-09 pass with pasted evidence; 91 new tests, bare suite `1 failed, 6919 passed, 3 skipped, 2 xfailed` with an EMPTY failing-node-id delta against the executor's own measured baseline. E-01/V-01 are BLOCKED and the plan deliberately STAYS in `pending/`: the declared `Item-Dependencies: executed:mm5p3v` is unmet (Order 08 is `approved` in `pending/`, executed only on the unmerged branch `aw/lane/mm5p3v`), and Order 08 already rewrites the same `_DESCRIPTIONS["runs"]`/`_RUNS_DESCRIPTION` hunks E-01 must rewrite, so authoring the leaves now would guarantee a conflict in `cli.py`/`command_surface.py`. Neither shared file was touched. THREE PLAN FIGURES CORRECTED BY RE-MEASUREMENT: detector coverage is 2 of 13 canary classes, not 1 of 12 (the extra catch is the maintainer-specific `handle` rule, which strengthens F-2); `COMMAND_INVENTORY` holds 131 declarations, not 129; and `lifecycle_fixtures.run_no_network` is a FIXTURE taking an `IsolatedEnv`, not a context manager, so its socket-subclass mechanism was reused rather than the symbol. Corpus scale could not be re-measured (this lane has no runs tree). Nothing pushed.
 - 2026-09-08 approved (aw set): status set to approved
 
@@ -38,13 +39,13 @@ RIGHT-SIZING NOTE. Authored with THREE E-items spanning THREE DISTINCT TRUST SUR
 
 ### Task group 1: The surface contract
 
-- [ ] E-01 Declare `runs export` and `runs submit` in `command_surface.COMMAND_INVENTORY` and satisfy the conformance matrix.
+- [x] E-01 Declare `runs export` and `runs submit` in `command_surface.COMMAND_INVENTORY` and satisfy the conformance matrix.
   MEASURED, AND IT IS THE SAME GAP ORDER 08'S REVIEW FOUND. `COMMAND_INVENTORY` holds 129 declarations; `find_undeclared_leaves(_build_parser())` returns exactly the five pre-existing `oc profile *` entries; `tests/test_cli_conformance_matrix.py::test_no_undeclared_parser_leaves` asserts that set is EMPTY, and that file is `pytestmark = pytest.mark.slow`, so the BARE suite this plan requires DESELECTS it. The authored `Scope-Paths` listed `cli.py` but not `command_surface.py`, so two new leaves would have failed a named fail-closed CI job with no in-scope file to fix it in.
   BOTH LEAVES MUTATE, AND BOTH GATES ALREADY EXIST. `aw runs` is documented as the READING half, so `export` (writes a bundle) and `submit` (transmits) are further exceptions after `repair` and Order 08's `analyze`. Measured gate vocabulary in use: `none` 91, `dry_run_default` 21, `confirmation` 10, `auth_floor` 7. `sanitize` and `check-local-leaks` already carry `confirmation`; `run finalize` and the `set` verbs carry `auth_floor`. Choose from that vocabulary rather than inventing one.
   - Depends on: none
   - Expected outcome: both leaves declared with a deliberate `command_class` (`mutation`), `mutation_gate` drawn from the existing four values, and `exit_contract`; `find_undeclared_leaves` returns the SAME five pre-existing entries and no new one; the matrix reports a full scenario row set for both; the `aw runs` description stops claiming a short list of exceptions.
-  - Execution note: See DECISION 03-ixis0c-D1. This item edits `command_surface.py` and `cli.py`, and the declared `Item-Dependencies: executed:mm5p3v` is UNMET: Order 08 is `Status: approved` in `pending/`, its work sits on the unmerged branch `aw/lane/mm5p3v` (3 commits, no `integrate` commit on main), and it already rewrites the SAME `_DESCRIPTIONS["runs"]` / `_RUNS_DESCRIPTION` hunks this item must rewrite. Writing a three-exception description against main would guarantee a textual conflict in the highest-traffic shared file, which this plan's own gate says to STOP and report rather than overwrite. Measured baseline preserved: `find_undeclared_leaves` still returns exactly the five pre-existing `oc profile *` entries and `COMMAND_INVENTORY` still holds 131 declarations, i.e. no new undeclared leaf was introduced.
-  - Execution state: blocked
+  - Execution note: PERFORMED 2026-09-18 (run-20260918T212013Z-4137362), after the earlier attempt left it blocked. See DECISION 10-ixis0c-D1..D5. THE BLOCK IS RESOLVED BY EVIDENCE, not by reinterpretation: the declared `Item-Dependencies: executed:mm5p3v` is now MET (Order 08 sits in `.aw/records/plans/executed/`, its `a912d5a9 lifecycle(mm5p3v): finalize mm5p3v -> executed` commit is in history), and the conflict risk that justified the block is gone because Order 08's rewrite of the SAME `_DESCRIPTIONS["runs"]` / `_RUNS_DESCRIPTION` hunks has LANDED, so this item extends that text rather than racing it. THREE FIGURES RE-MEASURED AND CORRECTED AGAIN: `COMMAND_INVENTORY` held 135 declarations before this item (the review said 129, the previous attempt measured 131) and 137 after; the gate vocabulary measured `none` 96, `dry_run_default` 22, `confirmation` 10, `auth_floor` 7 before (review said 91/21/10/7) and 96/23/10/8 after. The five pre-existing `oc profile *` undeclared leaves are unchanged. TWO DEFECTS WERE FOUND AND FIXED WHILE WIRING, each with a test that fails against the naive version: a `raw` export of two runs COLLAPSED both runs' same-named `prompt.md` into one file, because `write_bundle` falls back to `src.name` when `raw_base` is None, so the leaf now passes the runs' common parent; and the shared `attestation_refusal` text rendered a LOCAL destination path as the literal `<url>`, because it redacts its destination as a url, so the raw-export refusal message is authored at the leaf while the DECISION still uses the shared predicate. TWO ADJACENT DEFECTS WERE FILED, NOT FIXED: backlog `cldbus` (`runs resume` is declared `mutation` but writes nothing) and backlog `3f4ayi` (`AgentRenderer.render_summary` raises whenever `--fields` is set; Order 08 documented it in a comment and filed no carrier).
+  - Execution state: performed
 
 ### Task group 2: Export tiers and the real privacy boundary
 
@@ -118,13 +119,13 @@ RIGHT-SIZING NOTE. Authored with THREE E-items spanning THREE DISTINCT TRUST SUR
 - `urllib`'s DEFAULT OPENER IS NOT SAFE FOR AN UNTRUSTED URL. Measured by execution: the default handler chain includes `HTTPRedirectHandler`, `FileHandler`, `DataHandler` and `FTPHandler`; `urlopen("file://<path>")` returned file contents and `urlopen("data:text/plain,hello")` returned its payload. A restricted `OpenerDirector` with only `HTTPSHandler`, `HTTPDefaultErrorHandler` and `HTTPErrorProcessor` refuses `file://`, but with a bare `AttributeError` that must be wrapped.
 - TWO HTTPS PRECEDENTS EXIST AND BOTH ARE GOOD. `oc_models._scheme_ok` gates credential transmission on https with a loopback exception, and `oc_models.http_fetch_json` sends a bearer header "never echoed anywhere" with a blanket failure path; `versioning.latest_pypi_version` is the second https-only caller. A no-network TEST harness also exists: `lifecycle_fixtures.run_no_network` subclasses `socket.socket` so any `connect` raises. Reuse that to prove zero network calls rather than inventing a mock.
 - ARCHIVE HANDLING IS GREENFIELD AND CANNOT USE THE OBVIOUS API. The only `zipfile` use is `leak_sanitizer` reading a built wheel; there is no `tarfile` import, no `extractall`, no `make_archive`. And `requires-python` is `>=3.9` with CI on 3.9, where `tarfile.data_filter` does not exist (PEP 706 landed in 3.12, backported only to 3.9.17+), so extraction filters must be feature-detected with a working fallback.
-- A NEW LEAF IS A THREE-FILE CONTRACT. `COMMAND_INVENTORY` holds 129 declarations, `find_undeclared_leaves` is asserted EMPTY by `tests/test_cli_conformance_matrix.py::test_no_undeclared_parser_leaves`, and that file is `pytest.mark.slow` so the BARE suite deselects it; it runs in the dedicated `output-conformance` CI job across Python 3.9-3.14. The five `oc profile *` entries are a PRE-EXISTING failure of that assertion and the baseline against which a new one is attributable.
-- THE MUTATION-GATE VOCABULARY IS FIXED AND SUFFICIENT. Measured across the 129 declarations: `none` 91, `dry_run_default` 21, `confirmation` 10, `auth_floor` 7. `sanitize` and `check-local-leaks` carry `confirmation`; `run finalize` and the `set` verbs carry `auth_floor`. Choose from these rather than inventing a gate.
+- A NEW LEAF IS A THREE-FILE CONTRACT. `COMMAND_INVENTORY` holds 129 declarations, `find_undeclared_leaves` is asserted EMPTY by `tests/test_cli_conformance_matrix.py::test_no_undeclared_parser_leaves`, and that file is `pytest.mark.slow` so the BARE suite deselects it; it runs in the dedicated `output-conformance` CI job across Python 3.9-3.14. The five `oc profile *` entries are a PRE-EXISTING failure of that assertion and the baseline against which a new one is attributable. RE-MEASURED AT EXECUTION (2026-09-18): the inventory held 135 declarations before E-01 and 137 after, not 129; the five `oc profile *` entries are unchanged. A CONSEQUENCE THE PLAN DID NOT DRAW: because the authoritative gate is `slow`-marked, a bare suite can be green while a leaf is undeclared, so E-01 also pins the same properties in the FAST suite (six tests in `tests/test_run_analytics_export.py`) rather than trusting a gate nobody runs locally.
+- THE MUTATION-GATE VOCABULARY IS FIXED AND SUFFICIENT. Measured across the 129 declarations: `none` 91, `dry_run_default` 21, `confirmation` 10, `auth_floor` 7. `sanitize` and `check-local-leaks` carry `confirmation`; `run finalize` and the `set` verbs carry `auth_floor`. Choose from these rather than inventing a gate. RE-MEASURED AT EXECUTION (2026-09-18) over 135 declarations: `none` 96, `dry_run_default` 22, `confirmation` 10, `auth_floor` 7; after E-01, 96/23/10/8. THE CHOICE E-01 MADE, and why neither leaf took `none`: `runs export` carries `dry_run_default` because it previews unless `--apply`, and `runs submit` carries `auth_floor` because it is authorized by a `--by-human` attestation, which is precisely the mechanism the seven existing `auth_floor` verbs use. `confirmation` was rejected for both because it asserts a TTY prompt spec `20260815-0151-01` retired.
 - TTY-GATED CONSENT WAS DELIBERATELY REMOVED FROM THIS REPOSITORY. Spec `20260815-0151-01` is `Status: implemented` and replaced a `sys.stdin.isatty()` plus typed-confirmation floor with `--by-human`, an explicit non-TTY attestation, because "an executing agent has no TTY, so it can NEVER record an approval" and because nothing should require asserting "I am human". A fail-closed non-interactive confirm helper also exists in `cli.py` ("non-interactive without --yes: refuse to change things silently").
 - Host-level setup interviews are optional and tolerate unavailable components. Analytics prompts must follow that resilience while never swallowing a requested configuration error silently. `install_wizard` is the precedent and its stated invariant is the right one: "Noninteractive first install with incomplete choices or `--yes` alone FAILS CLOSED before writes".
 - The local cache and report are minimized but not anonymous. Export UI must not overstate privacy.
 - The entire runs tree is disposable, but deletion commands must target exact tool-owned analytics children and preserve source runs unless the user explicitly selects raw run deletion through an existing supported lifecycle. Resolve every path through Order 01's (`xbwq8n`) resolver and `path_is_within_analytics`; never compose the `.aw/records/runs` literal.
-- CLI registration shares Order 08's routing-sensitive `aw runs` surface, so this IPD executes afterward and adds fixed leaves only. Both new leaves MUTATE on a noun documented as the READING half, so each is a further declared exception after `repair` and Order 08's `analyze`.
+- CLI registration shares Order 08's routing-sensitive `aw runs` surface, so this IPD executes afterward and adds fixed leaves only. Both new leaves MUTATE on a noun documented as the READING half, so each is a further declared exception after `repair` and Order 08's `analyze`. CONFIRMED AT EXECUTION: both are registered as REAL subparsers on `runs_sub` (Order 08's pattern), never positionally routed like `repair`, because a positionally-routed leaf is invisible to `discover_parser_leaves` and declaring it would register as declaration/parser drift. The noun's read-only claim now NAMES all four mutating verbs instead of counting them, because that count has already been wrong twice (`ONE` pre-Order 08, `TWO` post-Order 08).
 - THE RAW-EXPORT REVIEW SURFACE IS LARGE. The live corpus holds 135 runs with 472 prompt files and 460 session files, roughly 238 MB, so a `raw` preview must summarize by category with counts and bytes rather than listing everything.
 - ALL ANALYTICS CODE SHIPS WITH THE PACKAGE. Eighteen `run_analytics_*.py` modules appear across the siblings' `Scope-Paths`, all under `agent_workflows/`; the only declared extra is `test`; no optional-feature install mechanism exists. The wizard can gate ENABLEMENT, not code presence.
 
@@ -244,30 +245,148 @@ THE DOCUMENTATION MUST CARRY THE DETECTOR'S BLIND SPOTS, and this is the most im
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste both `CommandDeclaration`s with their `command_class`, `mutation_gate` (drawn from the measured four-value vocabulary) and `exit_contract`. Paste `find_undeclared_leaves` showing the SAME five pre-existing `oc profile *` entries and no new one. Paste the EXPLICIT run of `tests/test_cli_conformance_matrix.py` (it is `slow`-marked and the bare suite deselects it) showing a full scenario row set for both leaves. Paste the updated `aw runs` description.
-  - Observed evidence: NOT VALIDATED, because E-01 was NOT PERFORMED (blocked; see DECISION 03-ixis0c-D1 and E-01's execution state). No `CommandDeclaration` for `runs export` or `runs submit` was written, so there is nothing to paste for the declarations, the scenario rows, or the updated `aw runs` description. What IS pasted is the proof that the measured BASELINE was preserved rather than damaged, which is the part this turn is accountable for:
+  - Observed evidence: BOTH DECLARATIONS, with the gate each carries and why it is that value (DECISION 10-ixis0c-D3):
 
     ```
-    $ python3 -c "from agent_workflows import command_surface as cs; from agent_workflows.cli import _build_parser; print(sorted(cs.find_undeclared_leaves(_build_parser()))); print(len(cs.COMMAND_INVENTORY))"
-    ['oc profile add', 'oc profile default', 'oc profile list', 'oc profile remove', 'oc profile show']
-    131
+    $ python3 -c "from agent_workflows.command_surface import get_declaration; print(get_declaration('runs export')); print(get_declaration('runs submit'))"
+    CommandDeclaration(command='runs export', command_class='mutation', human_recipe='preview',
+      agent_record_kind='result', mutation_gate='dry_run_default',
+      empty_error_renderer='renderer_boundary', legacy_flags=('--agent', '--json'),
+      exit_contract=(0, 1, 2), migrated=True, in_boundary=True, canonical_command=None)
+    CommandDeclaration(command='runs submit', command_class='mutation', human_recipe='status',
+      agent_record_kind='result', mutation_gate='auth_floor',
+      empty_error_renderer='renderer_boundary', legacy_flags=('--agent', '--json'),
+      exit_contract=(0, 1, 2), migrated=True, in_boundary=True, canonical_command=None)
     ```
 
-    RE-MEASURED vs the plan's review-time figures: 131 declarations (review said 129) and the SAME five pre-existing `oc profile *` entries. Gate vocabulary re-measured as `none` 92, `dry_run_default` 22, `confirmation` 10, `auth_floor` 7 (review said 91/21/10/7).
+    BOTH GATES COME FROM THE SHIPPED VOCABULARY AND BOTH ARE TRUE OF THE CODE, which is the part that
+    matters: `dry_run_default` because `runs export` previews and writes nothing without `--apply`
+    (proven by `test_export_previews_by_default_and_writes_nothing`, which asserts the exports
+    directory does not even EXIST afterwards), and `auth_floor` because `runs submit` is authorized by
+    an explicit `--by-human` attestation, the same mechanism every other `auth_floor` verb uses.
+    `confirmation` was deliberately REJECTED: it would assert a TTY prompt that implemented spec
+    `20260815-0151-01` retired, which is one of this plan's six stop conditions.
 
-    The slow-marked gate WAS run explicitly rather than assumed, and it fails on the pre-existing baseline only:
+    THE BASELINE IS PRESERVED, and the figures are RE-MEASURED rather than copied (review said 129
+    declarations and 91/21/10/7 gates; the previous attempt measured 131):
+
+    ```
+    $ python3 -c "<find_undeclared_leaves + len(COMMAND_INVENTORY) + gate Counter>"
+    undeclared: ['oc profile add', 'oc profile default', 'oc profile list', 'oc profile remove', 'oc profile show']
+    inventory: 137
+    gates: {'none': 96, 'confirmation': 10, 'dry_run_default': 23, 'auth_floor': 8}
+    ```
+
+    The SAME five pre-existing `oc profile *` entries and no new one; the inventory rose 135 -> 137
+    (the two leaves) and the gate counts rose by exactly one `dry_run_default` and one `auth_floor`.
+
+    A FULL SCENARIO ROW SET FOR BOTH, derived from `command_class` rather than asserted:
+
+    ```
+    $ python3 -c "<build_matrix + required_scenarios over both leaves>"
+    runs export class= mutation
+      required : ['agent', 'help', 'json', 'no_color', 'non_tty', 'success_preview', 'tty', 'usage_error']
+      covered  : ['agent', 'help', 'json', 'no_color', 'non_tty', 'success_preview', 'tty', 'usage_error']
+      missing  : []
+    runs submit class= mutation
+      required : ['agent', 'help', 'json', 'no_color', 'non_tty', 'success_preview', 'tty', 'usage_error']
+      covered  : ['agent', 'help', 'json', 'no_color', 'non_tty', 'success_preview', 'tty', 'usage_error']
+      missing  : []
+    undeclared in matrix: ['oc profile add', 'oc profile default', 'oc profile list', 'oc profile remove', 'oc profile show']
+    ```
+
+    THE SLOW-MARKED GATE WAS RUN EXPLICITLY, not assumed, because the bare suite deselects it
+    (`pytestmark = pytest.mark.slow` plus `addopts -m 'not slow'`). It fails on the PRE-EXISTING
+    baseline only:
 
     ```
     $ python3 -m pytest tests/test_cli_conformance_matrix.py tests/test_cli_quality_gates.py -o addopts="" -q
-    FAILED tests/test_cli_conformance_matrix.py::UndeclaredLeafGuardTests::test_no_undeclared_parser_leaves
     FAILED tests/test_cli_conformance_matrix.py::UndeclaredLeafGuardTests::test_every_declared_leaf_gets_a_full_scenario_row_set
-    2 failed, 23 passed in 569.25s (0:09:29)
-    AssertionError: Lists differ: ['oc profile add', 'oc profile default', '[52 chars]how'] != []
+    FAILED tests/test_cli_conformance_matrix.py::UndeclaredLeafGuardTests::test_no_undeclared_parser_leaves
+    2 failed, 23 passed in 224.54s (0:03:44)
+
+    AssertionError: Items in the first set but not the second:
+      'oc profile remove' 'oc profile show' 'oc profile add' 'oc profile default' 'oc profile list'
     ```
 
-    Both failures name ONLY the five `oc profile *` leaves; neither names `runs export` or `runs submit`, which is consistent with this turn having added no parser leaf. `git status --porcelain` shows six new untracked files and NO modification to `cli.py` or `command_surface.py`.
-  - Result: blocked
+    Both failures name ONLY the five `oc profile *` leaves. NEITHER names `runs export` or
+    `runs submit`, and both leaves appear in the matrix with complete coverage above, so the two
+    additions are conformant while the pre-existing failure this plan explicitly does not fix remains.
+
+    THOSE PROPERTIES ARE ALSO PINNED IN THE FAST SUITE, deliberately, because relying on a
+    `slow`-marked gate means a regression is invisible to the run everyone actually does:
+
+    ```
+    tests/test_run_analytics_export.py::test_both_new_leaves_are_declared_and_are_real_parser_leaves PASSED
+    tests/test_run_analytics_export.py::test_no_new_undeclared_leaf_was_introduced PASSED
+    tests/test_run_analytics_export.py::test_each_new_leaf_declares_a_gate_matching_the_mechanism_it_implements PASSED
+    tests/test_run_analytics_export.py::test_each_new_leaf_is_a_mutation_so_it_owes_the_success_preview_scenario PASSED
+    tests/test_run_analytics_export.py::test_the_matrix_gives_both_new_leaves_a_full_scenario_row_set PASSED
+    tests/test_run_analytics_export.py::test_the_exit_contract_is_carryable_by_the_agent_record PASSED
+    ```
+
+    THE UPDATED `aw runs` DESCRIPTION, which now NAMES its mutating verbs instead of counting them:
+
+    ```
+    $ python3 -c "<cli.main(['runs','--help'])>"
+    Inspect driver execution runs and run ledgers (the READING half of the run surface): bare
+    'aw runs' renders the run table, and the leaves are 'show' ..., 'list', the analytics pair
+    'analyze' and 'query', and the data-sharing pair 'export' and 'submit'. Read-only, with FOUR
+    exceptions, named rather than counted: the opt-in 'repair' verb; 'analyze', which updates the
+    analytics cache and publishes the local report inside the reserved, gitignored analytics/
+    namespace; 'export', which writes a sensitivity-tiered bundle there (previewing by default,
+    writing only under --apply); and 'submit', which would transmit one and today refuses as
+    unavailable because no endpoint is approved.
+
+    SHARING YOUR OWN DATA (never automatic, never by default)
+      aw runs export                   # PREVIEW a `metrics` bundle; writes nothing
+      aw runs export --apply           # write the bundle under the analytics/ namespace
+      aw runs export --tier events-redacted --apply
+      aw runs export --tier raw --include prompt --by-human --actor 'me' --apply
+      aw runs submit <bundle>          # refuses `unavailable`: no endpoint is approved
+      The bundle is MINIMIZED, never anonymous, and nothing is ever transmitted for you.
+    ```
+
+    WHY THE COUNT IS NAMED RATHER THAN COUNTED (DECISION 10-ixis0c-D4). This string has already said
+    "ONE exception" and then "TWO exceptions", each true only until the next mutating verb landed, so
+    the sibling test was rewritten to DERIVE the mutating set from `COMMAND_INVENTORY` rather than
+    hand-list it. That rewrite is what FOUND backlog `cldbus`: it reported `resume` as a declared
+    mutation, and `resume` writes nothing.
+
+    THE LEAVES WERE EXERCISED END TO END THROUGH THE REAL `cli.main`, not only declared (24 new tests;
+    the behaviors the declarations CLAIM are the ones asserted):
+
+    ```
+    tests/test_run_analytics_submit.py::test_export_previews_by_default_and_writes_nothing PASSED
+    tests/test_run_analytics_submit.py::test_export_writes_only_under_apply PASSED
+    tests/test_run_analytics_submit.py::test_export_defaults_to_the_metrics_tier PASSED
+    tests/test_run_analytics_submit.py::test_export_refuses_an_unknown_tier_rather_than_narrowing_it PASSED
+    tests/test_run_analytics_submit.py::test_raw_export_refuses_without_the_attestation_and_writes_nothing PASSED
+    tests/test_run_analytics_submit.py::test_yes_alone_does_not_authorize_a_raw_export_through_the_cli PASSED
+    tests/test_run_analytics_submit.py::test_raw_export_refuses_when_attested_but_nothing_was_selected PASSED
+    tests/test_run_analytics_submit.py::test_attested_raw_export_records_its_provenance PASSED
+    tests/test_run_analytics_submit.py::test_a_raw_export_of_two_runs_keeps_both_same_named_files PASSED
+    tests/test_run_analytics_submit.py::test_the_raw_preview_summarizes_by_category_with_counts_and_bytes PASSED
+    tests/test_run_analytics_submit.py::test_no_export_record_claims_anonymity_or_safety PASSED
+    tests/test_run_analytics_submit.py::test_the_events_redacted_tier_ships_the_blind_spot_enumeration_through_the_cli PASSED
+    tests/test_run_analytics_submit.py::test_submit_returns_the_expected_unavailable_through_the_cli PASSED
+    tests/test_run_analytics_submit.py::test_submit_reaches_no_network_on_the_unavailable_path PASSED
+    tests/test_run_analytics_submit.py::test_submit_refuses_a_missing_bundle_rather_than_inventing_one PASSED
+    tests/test_run_analytics_submit.py::test_a_raw_bundle_cannot_be_submitted_through_the_cli PASSED
+    tests/test_run_analytics_submit.py::test_neither_new_leaf_prompts_or_reads_a_tty PASSED
+    ```
+
+    TWO OF THOSE ARE NEGATIVE CONTROLS AND BOTH WERE PROVEN NON-VACUOUS BY MEASUREMENT, which is what
+    distinguishes them from tests that would have passed against the defect. With `_common_base`
+    stubbed back to `None` (the naive version), the two-run raw export produced
+    `['raw/prompt.md']`, i.e. ONE file where two were selected, so
+    `test_a_raw_export_of_two_runs_keeps_both_same_named_files` genuinely fails against it. And
+    `attestation_refusal(None, tier='raw', destination='/tmp/.../x-raw')` returns
+    `"... destination=<url> ..."`, so the assertion that `<url>` is absent from the refusal summary
+    genuinely fails against the shared text.
+  - Result: pass
 
 - [x] V-02 validates E-02
   - Required evidence: paste the call path proving `metrics` re-emits Order 02's projected facts and adds no second filter (a grep showing no new projector or sanitizer). Paste the allowlist refusing an unknown key. Paste the bundle field recording the projector version. Paste proof no anonymity claim appears in any label or manifest string.
@@ -588,28 +707,37 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
     THE SUITE-WIDE EVIDENCE THIS ITEM ALSO CARRIES.
 
-    BASELINE CORRECTION, MEASURED IN THIS WORKTREE RATHER THAN COPIED. A bare run here first reported `18 failed, 6811 passed`, which is NOT the review's `2 failed, 5655 passed`. The 18 are ENVIRONMENTAL, not code: this lane exports `AW_EXECUTION_ROLE=worker`, and the lifecycle refuses `begin`/`finalize` for a worker-role process (`AW-LIFECYCLE-ROLE-001`), which fails every test that drives those verbs. Confirmed by clearing only that variable:
+    RE-MEASURED IN THE 2026-09-18 LANE, NOT COPIED FROM THE EARLIER ATTEMPT, and the environmental
+    baseline correction the earlier attempt recorded NO LONGER APPLIES: a bare run here is green with
+    `AW_EXECUTION_ROLE=worker` still exported, so the 18 role-refusal failures that attempt had to
+    explain away are gone from this tree. Verified both ways to be sure the variable was not simply
+    unset:
 
     ```
-    $ env -u AW_EXECUTION_ROLE python3 -m pytest tests/test_ipd_lifecycle_cli.py tests/test_worker_role_refusal.py
-    64 passed in 6.13s
-    ```
-
-    So the true code baseline at `fea2c9f8` before my edits was ONE failure:
-
-    ```
-    FAILED tests/test_orchestrator_retirement.py::RealRepositorySets::test_lanectn_refuses_naming_its_one_unfinished_child
-    ```
-
-    AFTER my changes:
-
-    ```
+    $ echo "AW_EXECUTION_ROLE=${AW_EXECUTION_ROLE:-<unset>}"
+    AW_EXECUTION_ROLE=worker
+    $ python3 -m pytest
+    8100 passed, 3 skipped, 2 xfailed in 103.36s (0:01:43)
     $ env -u AW_EXECUTION_ROLE python3 -m pytest
-    FAILED tests/test_orchestrator_retirement.py::RealRepositorySets::test_lanectn_refuses_naming_its_one_unfinished_child
-    1 failed, 6919 passed, 3 skipped, 2 xfailed in 116.99s (0:01:56)
+    8100 passed, 3 skipped, 2 xfailed in 103.72s (0:01:43)
     ```
 
-    EMPTY DELTA ON FAILING NODE IDS (the criterion, never a total): same single pre-existing failure, pinned to the live mutable plan corpus and unrelated to this plan's files; passing count rose 6811 -> 6919 (+108, the 91 new tests plus the previously role-blocked ones).
+    So the baseline at `8087387e`, BEFORE this turn's edits, is ZERO failures. Note this differs from
+    every earlier figure in this plan (review: `2 failed, 5655 passed`; previous attempt: `1 failed,
+    6919 passed`), because both of those pre-existing failures were pinned to the live mutable plan
+    corpus and the corpus has since moved. That is exactly why the criterion is a NODE-ID delta
+    against a self-measured baseline and never a total.
+
+    AFTER this turn's changes:
+
+    ```
+    $ python3 -m pytest
+    8124 passed, 3 skipped, 2 xfailed in 95.04s (0:01:35)
+    ```
+
+    EMPTY DELTA ON FAILING NODE IDS, trivially: the failing set was empty before and is empty after.
+    The passing count rose 8100 -> 8124 (+24, the new E-01 tests), and no test was removed, skipped or
+    weakened to get there.
 
     ```
     $ git diff --check
@@ -618,7 +746,15 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
     ```
 
-    THE EXPLICIT CONFORMANCE INVOCATION was run and is pasted in V-01; it fails ONLY on the five pre-existing `oc profile *` leaves, and I did not modify `cli.py`/`command_surface.py`. Per the plan's own stop condition, a green bare suite is NOT evidence the leaves are declared, and they are not: E-01 is blocked.
+    THE EXPLICIT CONFORMANCE INVOCATION was run and is pasted in full in V-01. It fails ONLY on the
+    five pre-existing `oc profile *` leaves, which this plan explicitly declines to fix, and names
+    neither `runs export` nor `runs submit`. Per this plan's own stop condition, a green bare suite is
+    NOT evidence the leaves are declared, so that gate was run separately rather than inferred, and
+    the same properties are ALSO pinned in the fast suite so a future regression is visible to a bare
+    run.
+
+    NOTHING WAS PUSHED. Two commits on this lane's branch: `7d47c8fb` (the six in-scope/justified
+    files) and the backlog commit carrying `cldbus` and `3f4ayi`.
   - Result: pass
 
 Additionally, and NOT as a separate V-item because it validates no single E-item: V-09 must also carry bare `python3 -m pytest`, `git diff --check`, and the explicit conformance invocation (`tests/test_cli_conformance_matrix.py tests/test_cli_quality_gates.py`), against the baseline the executor measured itself, comparing failing NODE IDS and never totals.
