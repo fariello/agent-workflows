@@ -17,70 +17,101 @@ DATE = "20260706"  # fixed UTC date for deterministic dev-segment assertions
 
 
 class ParseDescribeTests(unittest.TestCase):
-    """The seven real describe shapes -> exact PEP 440 strings (IPD-1 Step 1)."""
+    """Every real ``git describe --long`` shape -> the exact PEP 440 string it must produce.
 
-    def test_exact_tag_clean(self):
-        self.assertEqual(VER.parse_describe("v1.0.0-0-gd644d2d", date=DATE), "1.0.0")
+    ONE table, not fifteen one-line tests. The subject is a pure function from a describe string to
+    a version string, so the only thing that differed between the old tests was the row. Tabulating
+    it makes the mapping readable as a mapping AND reports every wrong row in one run: a change to
+    the bump logic typically breaks a whole class of shapes at once (all rc rows, all dirty rows),
+    and seeing which rows moved together is what identifies the cause.
 
-    def test_exact_tag_dirty(self):
-        # Release commit with local edits: not a clean release; dev of the next patch.
-        self.assertEqual(
-            VER.parse_describe("v1.0.0-0-gd644d2d-dirty", date=DATE),
+    Non-release tags are in the SAME table as release tags on purpose. The D44 fix makes a
+    non-semver tag degrade to the no-tag form rather than bump into an invalid version, so a
+    regression would show up as a degrade row producing a bumped value, which is only visible if
+    both kinds are asserted against the same function in the same place.
+    """
+
+    #: (describe string, expected version, why this row exists)
+    CASES = (
+        ("v1.0.0-0-gd644d2d", "1.0.0", "exact clean tag is the release itself"),
+        (
+            "v1.0.0-0-gd644d2d-dirty",
             "1.0.1.dev0+gd644d2d.d20260706",
-        )
-
-    def test_ahead_clean(self):
-        self.assertEqual(
-            VER.parse_describe("v1.0.0-2-g49f2bdc", date=DATE), "1.0.1.dev2+g49f2bdc"
-        )
-
-    def test_ahead_dirty(self):
-        self.assertEqual(
-            VER.parse_describe("v1.0.0-2-g49f2bdc-dirty", date=DATE),
+            "a release commit with local edits is NOT that release; it is dev of the next patch",
+        ),
+        ("v1.0.0-2-g49f2bdc", "1.0.1.dev2+g49f2bdc", "ahead of a tag bumps the patch"),
+        (
+            "v1.0.0-2-g49f2bdc-dirty",
             "1.0.1.dev2+g49f2bdc.d20260706",
-        )
-
-    def test_no_tags_clean(self):
-        self.assertEqual(VER.parse_describe("d644d2d", date=DATE), "0.0.0+gd644d2d")
-
-    def test_no_tags_dirty(self):
-        # V-7: the real dirty-no-tags form appends -dirty to the bare sha.
-        self.assertEqual(
-            VER.parse_describe("9042038-dirty", date=DATE), "0.0.0+g9042038.d20260706"
-        )
-
-    def test_next_patch_bump(self):
-        # A non-zero minor tag bumps only the patch.
-        self.assertEqual(
-            VER.parse_describe("v2.3.4-1-gabc1234", date=DATE), "2.3.5.dev1+gabc1234"
-        )
-
-    def test_rc_tag_clean(self):
-        # A clean release-candidate tag normalizes to valid PEP 440 (X.Y.ZrcN),
-        # not the raw SemVer spelling, so pip treats it as a pre-release.
-        self.assertEqual(
-            VER.parse_describe("v1.2.0-rc.1-0-g49f2bdc", date=DATE), "1.2.0rc1"
-        )
-
-    def test_rc_tag_ahead_clean(self):
-        # Ahead of an rc tag: a dev build of the NEXT candidate of the same release,
-        # so it sorts AFTER the rc (1.2.0rc2.devN > 1.2.0rc1), and it is normalized
-        # (not the accidental raw "1.2.0-rc.2.dev3").
-        self.assertEqual(
-            VER.parse_describe("v1.2.0-rc.1-3-g49f2bdc", date=DATE),
+            "ahead and dirty carries both the dev count and the date",
+        ),
+        ("d644d2d", "0.0.0+gd644d2d", "no tags at all degrades to 0.0.0 plus the sha"),
+        (
+            "9042038-dirty",
+            "0.0.0+g9042038.d20260706",
+            "the real dirty-no-tags form appends -dirty to a bare sha (V-7)",
+        ),
+        (
+            "v2.3.4-1-gabc1234",
+            "2.3.5.dev1+gabc1234",
+            "a non-zero minor bumps ONLY the patch",
+        ),
+        (
+            "v1.2.0-rc.1-0-g49f2bdc",
+            "1.2.0rc1",
+            "a clean rc normalizes to PEP 440 (X.Y.ZrcN) so pip treats it as a pre-release",
+        ),
+        (
+            "v1.2.0-rc.1-3-g49f2bdc",
             "1.2.0rc2.dev3+g49f2bdc",
-        )
-
-    def test_rc_tag_ahead_dirty(self):
-        self.assertEqual(
-            VER.parse_describe("v1.2.0-rc.1-3-g49f2bdc-dirty", date=DATE),
+            "ahead of an rc is a dev of the NEXT candidate, so it sorts after rc1",
+        ),
+        (
+            "v1.2.0-rc.1-3-g49f2bdc-dirty",
             "1.2.0rc2.dev3+g49f2bdc.d20260706",
-        )
+            "ahead of an rc and dirty",
+        ),
+        (
+            "v1.2.0rc1-0-g49f2bdc",
+            "1.2.0rc1",
+            "a tag ALREADY in PEP 440 spelling is handled, not double-normalized",
+        ),
+        (
+            "v1.2.0-recreated-3-gabc1234",
+            "0.0.0+gabc1234",
+            "D44: a non-semver tag must DEGRADE, never bump into an invalid 1.3.0-recreated.devN",
+        ),
+        (
+            "v1.2.0-recreated-3-gabc1234-dirty",
+            "0.0.0+gabc1234.d20260706",
+            "D44 degrade path, dirty",
+        ),
+        (
+            "v1.1.0-2-g49f2bdc",
+            "1.1.1.dev2+g49f2bdc",
+            "the D44 guard did not break normal tags",
+        ),
+        (
+            "v1.10.20-2-gabc1234",
+            "1.10.21.dev2+gabc1234",
+            "multi-digit patch still bumps correctly",
+        ),
+    )
 
-    def test_rc_pep440_spelling_tag(self):
-        # A tag already in PEP 440 spelling (rcN, no hyphen/dot) is handled too.
+    def test_every_describe_shape_maps_to_its_pep440_version(self):
+        wrong = []
+        for describe, expected, why in self.CASES:
+            got = VER.parse_describe(describe, date=DATE)
+            if got != expected:
+                wrong.append(
+                    f"  {describe!r}\n    expected {expected!r}\n    got      {got!r}\n"
+                    f"    this row exists because: {why}"
+                )
         self.assertEqual(
-            VER.parse_describe("v1.2.0rc1-0-g49f2bdc", date=DATE), "1.2.0rc1"
+            wrong,
+            [],
+            f"versioning.parse_describe produced the wrong version for {len(wrong)} of "
+            f"{len(self.CASES)} describe shapes:\n" + "\n".join(wrong),
         )
 
 
@@ -125,70 +156,111 @@ class ResolveVersionTests(unittest.TestCase):
 class ComparatorTests(unittest.TestCase):
     """The dependency-free comparator over our controlled shape (V-5)."""
 
-    def test_dev_sorts_before_release(self):
-        self.assertEqual(VER.compare("1.0.1.dev2", "1.0.1"), -1)
-        self.assertEqual(VER.compare("1.0.1", "1.0.1.dev2"), 1)
+    #: (left, right, expected sign, why)
+    ORDERING = (
+        ("1.0.1.dev2", "1.0.1", -1, "a dev build sorts BEFORE its target release"),
+        ("1.0.1", "1.0.1.dev2", 1, "and the comparison is antisymmetric"),
+        ("1.0.1", "1.1.0", -1, "minor outranks patch"),
+        ("1.1.0", "1.0.1", 1, "antisymmetric again"),
+        ("1.0.0", "1.0.0", 0, "equal versions compare equal"),
+        (
+            "1.0.1.dev2+gaaaa",
+            "1.0.1.dev2+gbbbb.d20260706",
+            0,
+            "the LOCAL segment is ignored for ordering, so two builds of one base tie",
+        ),
+        ("1.0.1.dev1", "1.0.1.dev2", -1, "dev numbers order numerically"),
+        ("1.2.0rc1", "1.2.0rc2", -1, "rc numbers order"),
+        ("1.2.0rc2", "1.2.0", -1, "an rc sorts before the final release"),
+        ("1.2.0rc2.dev3", "1.2.0rc2", -1, "a dev of an rc sorts before that rc"),
+        ("1.2.0", "1.2.0rc9", 1, "the final release outranks every rc"),
+    )
 
-    def test_release_ordering(self):
-        self.assertEqual(VER.compare("1.0.1", "1.1.0"), -1)
-        self.assertEqual(VER.compare("1.1.0", "1.0.1"), 1)
-        self.assertEqual(VER.compare("1.0.0", "1.0.0"), 0)
-
-    def test_local_segment_ignored_for_ordering(self):
-        # Two dev builds of the same base with different local segments compare equal.
+    def test_the_ordering_is_total_and_antisymmetric_over_our_shapes(self):
+        wrong = []
+        for left, right, expected, why in self.ORDERING:
+            got = VER.compare(left, right)
+            if got != expected:
+                wrong.append(
+                    f"  compare({left!r}, {right!r}) expected {expected}, got {got}\n"
+                    f"    this row exists because: {why}"
+                )
         self.assertEqual(
-            VER.compare("1.0.1.dev2+gaaaa", "1.0.1.dev2+gbbbb.d20260706"), 0
+            wrong,
+            [],
+            f"versioning.compare ordered {len(wrong)} of {len(self.ORDERING)} pairs wrongly. "
+            "Ordering decides upgrade prompts, so an inversion here is user-visible.\n"
+            + "\n".join(wrong),
         )
 
-    def test_rc_versions_parse_and_order(self):
-        # An rc version (emitted by parse_describe) must be parseable and ordered.
-        self.assertIsNotNone(VER.parse_our_version("1.2.0rc1"))
-        # rc1 < rc2 < final; and rc2.dev3 < rc2 (dev sorts before its target).
-        self.assertEqual(VER.compare("1.2.0rc1", "1.2.0rc2"), -1)
-        self.assertEqual(VER.compare("1.2.0rc2", "1.2.0"), -1)
-        self.assertEqual(VER.compare("1.2.0rc2.dev3", "1.2.0rc2"), -1)
-        self.assertEqual(VER.compare("1.2.0", "1.2.0rc9"), 1)
+    def test_an_rc_version_is_parseable_at_all(self):
+        """Precondition of the rc rows above: if this returns None they tie vacuously."""
+        self.assertIsNotNone(
+            VER.parse_our_version("1.2.0rc1"),
+            "an rc version emitted by parse_describe must be parseable by the comparator, "
+            "otherwise every rc ordering row above compares two unparsed values",
+        )
 
-    def test_rc_status_is_not_unknown(self):
-        # A tagged rc install must report a real status, not "unknown".
-        self.assertEqual(VER.status("1.2.0rc1", "1.2.0rc1"), "current")
-
-    def test_dev_number_ordering(self):
-        self.assertEqual(VER.compare("1.0.1.dev1", "1.0.1.dev2"), -1)
-
-    def test_compare_rejects_legacy(self):
+    def test_compare_rejects_a_legacy_version(self):
+        """A pre-migration YYYYMMDD-NN version must RAISE, not silently sort somewhere."""
         with self.assertRaises(ValueError):
             VER.compare("20260704-06", "1.0.0")
 
 
 class StatusTests(unittest.TestCase):
-    """status(target, packaged) state mapping (V-5)."""
+    """status(target, packaged) -> state. A pure mapping, so it is asserted as a table (V-5)."""
 
-    def test_not_installed(self):
-        self.assertEqual(VER.status(None, "1.0.0"), "not-installed")
-        self.assertEqual(VER.status("", "1.0.0"), "not-installed")
-        self.assertEqual(VER.status("unknown", "1.0.0"), "not-installed")
+    #: (target, packaged, expected state, why)
+    CASES = (
+        (None, "1.0.0", "not-installed", "no target at all"),
+        ("", "1.0.0", "not-installed", "empty string is not a version"),
+        ("unknown", "1.0.0", "not-installed", "the literal 'unknown' target"),
+        ("1.0.0", "1.0.1", "stale", "target behind the packaged version"),
+        ("1.0.1", "1.0.1", "current", "equal versions"),
+        ("1.1.0", "1.0.1", "ahead", "target ahead of the packaged version"),
+        (
+            "1.0.1.dev2+gabc1234",
+            "1.0.0",
+            "dev",
+            "a .devN target is a dev build regardless of how it compares",
+        ),
+        (
+            "1.0.0+gabc1234.d20260706",
+            "1.0.0",
+            "dev",
+            "a +local target is a dirty build regardless of how it compares",
+        ),
+        (
+            "20260704-06",
+            "1.0.0",
+            "unknown",
+            "a pre-migration YYYYMMDD-NN install cannot be classified, so unknown NOT stale",
+        ),
+        ("0.0.0+gd644d2d", "1.0.0", "unknown", "the pre-baseline no-tag version"),
+        (
+            "1.2.0rc1",
+            "1.2.0rc1",
+            "current",
+            "a tagged rc must report a real status, not unknown",
+        ),
+    )
 
-    def test_stale(self):
-        self.assertEqual(VER.status("1.0.0", "1.0.1"), "stale")
-
-    def test_current(self):
-        self.assertEqual(VER.status("1.0.1", "1.0.1"), "current")
-
-    def test_ahead(self):
-        self.assertEqual(VER.status("1.1.0", "1.0.1"), "ahead")
-
-    def test_dev_target_is_dev(self):
-        # A .devN or +local target is a dev/dirty build regardless of comparison.
-        self.assertEqual(VER.status("1.0.1.dev2+gabc1234", "1.0.0"), "dev")
-        self.assertEqual(VER.status("1.0.0+gabc1234.d20260706", "1.0.0"), "dev")
-
-    def test_legacy_target_is_unknown(self):
-        # A pre-migration YYYYMMDD-NN install cannot be classified: unknown, not stale.
-        self.assertEqual(VER.status("20260704-06", "1.0.0"), "unknown")
-
-    def test_prebaseline_is_unknown(self):
-        self.assertEqual(VER.status("0.0.0+gd644d2d", "1.0.0"), "unknown")
+    def test_every_target_and_packaged_pair_maps_to_its_state(self):
+        wrong = []
+        for target, packaged, expected, why in self.CASES:
+            got = VER.status(target, packaged)
+            if got != expected:
+                wrong.append(
+                    f"  status({target!r}, {packaged!r}) expected {expected!r}, got {got!r}\n"
+                    f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"versioning.status misclassified {len(wrong)} of {len(self.CASES)} cases. A wrong "
+            "state here is user-visible: it decides whether `aw` tells someone to upgrade.\n"
+            + "\n".join(wrong),
+        )
 
 
 class BakedVersionGuardTests(unittest.TestCase):
