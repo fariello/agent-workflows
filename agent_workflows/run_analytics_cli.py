@@ -434,6 +434,98 @@ def _resolve_run_dirs(
     return run_viewer.resolve_target_runs_detailed(targets, repo)
 
 
+def _render_report_html(repo: Path, *, generated_label: str) -> str:
+    """The report document, rendered by Order 07's SPA over Order 08's own query views.
+
+    WHY THIS FUNCTION EXISTS, stated plainly because it closes a gap between two plans that both
+    reported done. Order 07 (`6eq3oq`) built the self-contained SPA and its goal was explicit: opening
+    the HTML from disk "must provide useful charts, raw normalized data, quality context, and findings
+    without a server or network". It delivered `run_analytics_spa.render_document`, 1567 lines with
+    shipped CSS/JS assets, and verified it by unit-testing the renderer directly. It then scoped the
+    wiring out by name: "CLI command registration is Order 08 (`mm5p3v`)". Order 08 registered the
+    leaves and wrote a FOUR-LINE hardcoded HTML string instead of calling the renderer, so
+    `render_document` had ZERO callers in the package and every published snapshot was a 194-byte stub
+    reading "Machine-readable companion: analysis.json". Measured 2026-09-18 over 180 analyzed runs.
+
+    THE DATA COMES FROM THE QUERY VIEWS, NOT FROM A SECOND INGESTION PATH. `run_query` is already this
+    module's dependency (it powers `aw runs query` and the `--list` cache summary), it applies the
+    allowlist before reading any corpus, and it is the same computation an agent gets from the CLI. So
+    the document and the machine-readable answer cannot disagree: both are projections of one view.
+    Building a parallel reader here would create the second source of truth Order 07's own scope fence
+    warns against.
+
+    BEST-EFFORT PER VIEW, AND THAT IS DELIBERATE. A view that refuses (a `slices` query with no
+    grouping, an empty corpus, an unreadable cache entry) contributes NOTHING rather than failing the
+    publication: the document's whole purpose is to report what IS known, and Order 07 already renders
+    a refusal as a first-class panel rather than as a missing chart (its E-04). A renderer failure
+    likewise falls back to the machine-readable companion note rather than aborting a sweep that
+    already succeeded.
+    """
+
+    from agent_workflows import run_analytics_spa as spa_mod
+
+    def _view(name: str, **kwargs: Any) -> Any:
+        try:
+            return query_mod.run_query(name, repo=repo, **kwargs)
+        except Exception:
+            return None
+
+    # THE LIMIT IS RAISED DELIBERATELY. `run_query`'s default is 20 rows (a sensible page size for a
+    # terminal), and the report is not a terminal: a raw table showing 20 of 180 runs would be a
+    # silently truncated corpus, which is the opposite of what a "raw normalized data" panel is for.
+    # `max_limit` is the grammar's own ceiling, read from the schema rather than hardcoded here.
+    row_limit = 500
+    try:
+        row_limit = int(
+            (getattr(_view("schema"), "payload", {}) or {}).get("max_limit")
+            or row_limit
+        )
+    except Exception:
+        pass
+
+    overview = _view("overview")
+    findings = _view("findings", limit=row_limit)
+    quality = _view("data-quality", limit=row_limit)
+    cache_status = _view("cache-status", limit=row_limit)
+
+    # The raw table is the per-run corpus the operator wants to sort and filter. `data-quality` is the
+    # per-run view (one row per cached run), so it is the honest source for it.
+    rows: list[dict[str, Any]] = []
+    for source in (quality, cache_status):
+        if source is not None and getattr(source, "rows", None):
+            rows = [dict(r) for r in source.rows]
+            break
+
+    finding_rows = (
+        [dict(r) for r in findings.rows]
+        if findings is not None and getattr(findings, "rows", None)
+        else []
+    )
+
+    try:
+        model = spa_mod.build_view_model(
+            rows=rows,
+            results=[],
+            findings=finding_rows,
+            pricing=dict(getattr(_view("explain", price="era-b"), "payload", {}) or {}),
+            quality=dict(getattr(quality, "payload", {}) or {}),
+            time_accounting=dict(getattr(overview, "payload", {}) or {}),
+            generated_label=generated_label,
+        )
+        return spa_mod.render_document(model)
+    except Exception:
+        # Never lose a completed sweep over a rendering failure; the companion JSON is still written.
+        from agent_workflows import run_analytics_report as report_mod
+
+        return (
+            "<!doctype html><html><head><meta charset='utf-8'>"
+            f"<title>Run analytics snapshot {report_mod.REPORT_SCHEMA_VERSION}</title></head>"
+            "<body><h1>Run analytics snapshot</h1>"
+            "<p>The report could not be rendered. Machine-readable companion: analysis.json</p>"
+            "</body></html>"
+        )
+
+
 def _publish_snapshot(
     repo: Path, label: str, report: Any
 ) -> tuple[dict[str, Any], str]:
@@ -450,12 +542,7 @@ def _publish_snapshot(
 
     from agent_workflows import run_analytics_report as report_mod
 
-    index = (
-        "<!doctype html><html><head><meta charset='utf-8'>"
-        f"<title>Run analytics snapshot {report_mod.REPORT_SCHEMA_VERSION}</title></head>"
-        "<body><h1>Run analytics snapshot</h1>"
-        "<p>Machine-readable companion: analysis.json</p></body></html>"
-    )
+    index = _render_report_html(repo, generated_label=f"snapshot {label}")
     analysis = json.dumps(report.to_dict(), indent=2, sort_keys=True) + "\n"
     try:
         published = report_mod.publish_snapshot(
@@ -547,6 +634,40 @@ def run_analyze(args: argparse.Namespace) -> int:
         f"{totals.get('rebuild', 0)} rebuilt, {skipped} skipped"
     )
 
+    # PUBLISH THE LATEST REPORT, WHICH IS WHAT THIS VERB DOCUMENTS ITSELF AS DOING. Its own help says
+    # it "updates the analytics cache and publishes the local report", `--path` is documented as
+    # printing "the latest report's path", and Order 07's goal was to "generate the latest report
+    # directly at <resolved-runs-root>/analytics/index.html". None of that happened: publication was
+    # reachable ONLY through `--keep-snapshot`, so a plain sweep left `report_files: 0` and `--path`
+    # exited 2 cannot-run on its own happy path. Measured 2026-09-18 after analyzing 180 runs.
+    # ADVISORY, NEVER FATAL: a completed sweep is the valuable part, so a publication failure is
+    # reported in the record rather than discarding the cache update that already succeeded.
+    report_published: dict[str, Any] = {}
+    report_refusal = ""
+    try:
+        from agent_workflows import run_analytics_report as report_mod
+
+        published = report_mod.publish_bundle(
+            report_mod.resolve_report_dir(repo),
+            {
+                report_mod.INDEX_FILENAME: _render_report_html(
+                    repo, generated_label="latest"
+                ),
+                "analysis.json": json.dumps(report.to_dict(), indent=2, sort_keys=True)
+                + "\n",
+            },
+            generated_label="latest",
+            repo=repo,
+        )
+        report_published = {
+            "directory": str(published.directory),
+            "files": list(published.files),
+        }
+    except (
+        Exception
+    ) as exc:  # pragma: no cover - defensive; never kill a completed sweep
+        report_refusal = f"{type(exc).__name__}: {exc}"
+
     snapshot_label = getattr(args, "keep_snapshot", None)
     snapshot: dict[str, Any] = {}
     if snapshot_label:
@@ -565,12 +686,22 @@ def run_analyze(args: argparse.Namespace) -> int:
     data: dict[str, Any] = {"totals": dict(totals), "findings": skipped}
     if snapshot:
         data["snapshot"] = snapshot
+    if report_published:
+        data["report"] = report_published
+    if report_refusal:
+        # Named, not swallowed: a sweep that could not publish must say so, or the operator reads a
+        # clean record and a stale report as agreement.
+        data["report_refusal"] = report_refusal
 
     result = CommandResult(
         command="runs analyze",
         status=status,
         exit_code=exit_code,
-        summary=summary + (f", snapshot {snapshot_label}" if snapshot else ""),
+        summary=(
+            summary
+            + (f", snapshot {snapshot_label}" if snapshot else "")
+            + (" (report NOT published)" if report_refusal else "")
+        ),
         applied=True,
         evidence=[
             Evidence("runs", totals.get("total", 0), "measured"),
