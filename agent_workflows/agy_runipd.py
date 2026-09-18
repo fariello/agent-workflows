@@ -3435,6 +3435,12 @@ def execute_item(
                 wt_handle, "disposition", "created"
             )
             attempt["review_sweep_lane"] = True
+            # The sweep lane's tip BEFORE this turn writes anything; the scope report measures the
+            # turn's own commits from here rather than from the once-per-run frozen base (see
+            # `runner_shared.review_turn_changed_files`).
+            attempt["review_lane_tip_before"] = runner_shared.lane_branch_tip(
+                repo, wt_handle
+            )
             if sweep_refresh is not None:
                 attempt["review_sweep_lane_refreshed"] = sweep_refresh.refreshed
                 attempt["review_sweep_lane_refresh_reason"] = sweep_refresh.reason
@@ -4152,9 +4158,9 @@ def execute_item(
             # Staged but NOT committed: a hook refused. Record it, leave the work in the lane.
             attempt["review_lane_commit_refused"] = list(review_committed_paths)
         try:
-            lane_changed = build_lane_outcome(
-                repo, wt_handle, item["id6"]
-            ).changed_files
+            lane_changed = runner_shared.review_turn_changed_files(
+                repo, wt_handle, since_commit=attempt.get("review_lane_tip_before")
+            )
         except (
             Exception
         ) as exc:  # pragma: no cover - defensive; never kill a turn over reporting

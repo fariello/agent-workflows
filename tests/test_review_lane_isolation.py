@@ -39,11 +39,11 @@ from __future__ import annotations
 
 import ast
 import inspect
-import json
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 from agent_workflows import agy_runipd, lane_containment, oc_runipd, runner_shared
@@ -127,7 +127,9 @@ class _Fixture:
         self.peer.write_text("peer v1\n", encoding="utf-8")
         _git(root, "add", "-A")
         _git(root, "commit", "-qm", "fixture")
-        self.peer.write_text("peer v1 WITH A PEER'S UNCOMMITTED EDIT\n", encoding="utf-8")
+        self.peer.write_text(
+            "peer v1 WITH A PEER'S UNCOMMITTED EDIT\n", encoding="utf-8"
+        )
 
     def porcelain(self) -> str:
         return _git(self.root, "status", "--porcelain", "-uall").strip()
@@ -140,9 +142,7 @@ class _Fixture:
         # worktree with `+`, so both markers have to be stripped; a lane branch is by definition the
         # second case, which is exactly what a naive `strip("* ")` misses.
         out = _git(self.root, "branch", "--list", "aw/lane/*").strip()
-        return [
-            line.lstrip("*+ ").strip() for line in out.splitlines() if line.strip()
-        ]
+        return [line.lstrip("*+ ").strip() for line in out.splitlines() if line.strip()]
 
 
 def _state(repo: Path, plans: list[Path], *, isolate: bool = True) -> dict:
@@ -201,9 +201,9 @@ def _reviewing_agent(
         tree = Path(work_dir) if work_dir else Path(state["repo"])
         id6 = item["id6"]
         observe.setdefault("work_dir", {})[id6] = work_dir
-        observe.setdefault("prompt", {})[id6] = Path(
-            prompt_path
-        ).read_text(encoding="utf-8")
+        observe.setdefault("prompt", {})[id6] = Path(prompt_path).read_text(
+            encoding="utf-8"
+        )
         observe.setdefault("session_arg", {})[id6] = kwargs.get("resume_session")
         observe.setdefault("during", {})[id6] = _git(
             Path(state["repo"]), "status", "--porcelain", "-uall"
@@ -219,7 +219,9 @@ def _reviewing_agent(
                 text.replace("- Status: to-review", f"- Status: {set_status}"),
                 encoding="utf-8",
             )
-        record = tree / ".aw/records/reviews" / f"20260913-{id6}-01-{id6}-demo.review.md"
+        record = (
+            tree / ".aw/records/reviews" / f"20260913-{id6}-01-{id6}-demo.review.md"
+        )
         record.parent.mkdir(parents=True, exist_ok=True)
         record.write_text(f"# Review of {id6}\n\nverdict: fine\n", encoding="utf-8")
 
@@ -240,10 +242,7 @@ def _reviewing_agent(
         if commit_own_work:
             paths = [
                 str(p.relative_to(tree))
-                for p in (
-                    [target] if target is not None else []
-                )
-                + [record]
+                for p in ([target] if target is not None else []) + [record]
             ]
             if also_write_sibling:
                 sib = next(
@@ -329,9 +328,13 @@ class TheSweepRunsInOneLaneAndMainIsUntouched(unittest.TestCase):
                 for n in (1, 2, 3):
                     id6 = f"rev{n:03d}"
                     plan = next(
-                        (fx.root / ".aw/records/plans/pending").glob(f"*-{id6}-*.ipd.md")
+                        (fx.root / ".aw/records/plans/pending").glob(
+                            f"*-{id6}-*.ipd.md"
+                        )
                     )
-                    self.assertIn("- Status: reviewed", plan.read_text(encoding="utf-8"))
+                    self.assertIn(
+                        "- Status: reviewed", plan.read_text(encoding="utf-8")
+                    )
                     self.assertTrue(
                         (fx.root / ".aw/records/reviews").glob(f"*-{id6}-*.review.md"),
                         f"review {id6}'s record must be on main",
@@ -392,7 +395,9 @@ class TheSweepRunsInOneLaneAndMainIsUntouched(unittest.TestCase):
             )
             self.assertIsNone(refresh, "the allocating call performs no refresh")
             # Leave UNEXPLAINED content in the lane: not driver-written, not a collected submission.
-            (Path(handle.path) / "unexplained.txt").write_text("mine\n", encoding="utf-8")
+            (Path(handle.path) / "unexplained.txt").write_text(
+                "mine\n", encoding="utf-8"
+            )
             record = runner_shared.retire_review_sweep_lane(
                 fx.root, run_dir, state, save_state=lambda *_a, **_k: None
             )
@@ -420,9 +425,16 @@ class TheReviewPromptIsLaneRelativeAndSaysSo(unittest.TestCase):
         for name, driver in _DRIVERS:
             with self.subTest(driver=name):
                 lane = Path("/tmp/lane-xyz")
-                plan = lane / ".aw/records/plans/pending/20260913-demo-01-rev001-x.ipd.md"
+                plan = (
+                    lane / ".aw/records/plans/pending/20260913-demo-01-rev001-x.ipd.md"
+                )
                 text = driver.build_review_prompt(
-                    {"id6": "rev001", "setid": "demo", "position": 1, "action": "review"},
+                    {
+                        "id6": "rev001",
+                        "setid": "demo",
+                        "position": 1,
+                        "action": "review",
+                    },
                     {"run_id": "run-test", "repo": "/main/checkout"},
                     Path("/run"),
                     plan,
@@ -448,9 +460,16 @@ class TheReviewPromptIsLaneRelativeAndSaysSo(unittest.TestCase):
         for name, driver in _DRIVERS:
             with self.subTest(driver=name):
                 repo = Path("/main/checkout")
-                plan = repo / ".aw/records/plans/pending/20260913-demo-01-rev001-x.ipd.md"
+                plan = (
+                    repo / ".aw/records/plans/pending/20260913-demo-01-rev001-x.ipd.md"
+                )
                 text = driver.build_review_prompt(
-                    {"id6": "rev001", "setid": "demo", "position": 1, "action": "review"},
+                    {
+                        "id6": "rev001",
+                        "setid": "demo",
+                        "position": 1,
+                        "action": "review",
+                    },
                     {"run_id": "run-test", "repo": str(repo)},
                     Path("/run"),
                     plan,
@@ -604,9 +623,16 @@ class TheReviewMergeIsExplicitAndCarriesBothFiles(unittest.TestCase):
             ).strip()
             self.assertIn("rev001", names)
             self.assertIn(".review.md", names)
-            self.assertIn("- Status: reviewed", (
-                next((fx.root / ".aw/records/plans/pending").glob("*-rev001-*.ipd.md"))
-            ).read_text(encoding="utf-8"))
+            self.assertIn(
+                "- Status: reviewed",
+                (
+                    next(
+                        (fx.root / ".aw/records/plans/pending").glob(
+                            "*-rev001-*.ipd.md"
+                        )
+                    )
+                ).read_text(encoding="utf-8"),
+            )
 
     def test_a_FAILED_merge_lands_NEITHER_file_and_leaves_the_plan_unrevised(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -650,12 +676,17 @@ class TheReviewMergeIsExplicitAndCarriesBothFiles(unittest.TestCase):
             integrated, reason, _kind = oc_runipd.integrate_review_lane_branch(
                 fx.root, handle, "rev001"
             )
-            self.assertFalse(integrated, "a conflicting merge must NOT be reported landed")
+            self.assertFalse(
+                integrated, "a conflicting merge must NOT be reported landed"
+            )
             self.assertTrue(reason)
             # NEITHER file landed, and the peer's bytes are intact.
             self.assertEqual(main_plan.read_text(encoding="utf-8"), peer_bytes)
             self.assertFalse(
-                (fx.root / ".aw/records/reviews/20260913-rev001-01-rev001-x.review.md").exists(),
+                (
+                    fx.root
+                    / ".aw/records/reviews/20260913-rev001-01-rev001-x.review.md"
+                ).exists(),
                 "the review record must not be on main after a failed merge",
             )
             # MAIN IS CLEAN: the abort left no markers and no partial merge.
@@ -710,7 +741,9 @@ class TheReviewDispositionComesFromTheLane(unittest.TestCase):
                     "the lane read above stopped being the thing under test",
                 )
 
-    def test_the_disposition_is_computed_BEFORE_integration_so_the_lane_is_the_only_answer(self):
+    def test_the_disposition_is_computed_BEFORE_integration_so_the_lane_is_the_only_answer(
+        self,
+    ):
         """F-15: the ordering is FIXED by the code, so "read main after the merge" is not a real branch."""
         for name, driver in _DRIVERS:
             with self.subTest(driver=name):
@@ -740,6 +773,123 @@ class TheReviewDispositionComesFromTheLane(unittest.TestCase):
 # ======================================================================================
 # V-10: a review's writes are classified, and a QUEUED sibling is never silently rewritten
 # ======================================================================================
+
+
+class AReviewsWritesAreMeasuredFromItsOwnCommits(unittest.TestCase):
+    """The scope report must not attribute MAIN's commits to the review that ran beside them.
+
+    REGRESSION GUARD for a measured false alarm (2026-09-17): a review of plan `5w8g8j` whose own commit
+    touched exactly TWO files was reported as having "also wrote 34 path(s) outside its own plan and
+    review record", naming `oc_runipd.py`, `runner_shared.py`, `cli.py`, thirteen test files,
+    `CHANGELOG.md` and a spec. A plan review cannot write product code and had not: those were main's own
+    commits, arriving on the sweep lane through the `--ff-only` refresh while the lane's base stayed
+    frozen at allocate.
+
+    WHY THE FALSE ALARM MATTERED. The report IS the whole guard (the chosen shape is
+    PERMIT-AND-RECONCILE, with no refusal behind it), and it exists for a real harm: an orchestrator
+    review silently rewrote three sibling child plans that had not had their turns. A guard that names
+    dozens of innocent paths every run is one an operator learns to skim, and the real sibling rewrite is
+    skimmed with it.
+    """
+
+    def _lane_repo(self, tmp: str):
+        """A repo whose sweep lane was REFRESHED to main before the review turn wrote anything."""
+        repo = Path(tmp)
+        _git(repo, "init", "-q", "-b", "main", ".")
+        _git(repo, "config", "user.email", "t@example.invalid")
+        _git(repo, "config", "user.name", "T")
+        (repo / "f.txt").write_text("base\n", encoding="utf-8")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-qm", "base")
+        _git(repo, "branch", "-q", "sweep")
+        frozen_base = _git(repo, "rev-parse", "HEAD").strip()
+        # Other turns and concurrent sessions land four files on main.
+        for i in range(1, 5):
+            (repo / f"main{i}.py").write_text(f"x{i}\n", encoding="utf-8")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-qm", "other turns land four files")
+        # The sweep lane is fast-forwarded to main before this review's turn, so main's commits are now
+        # reachable from the lane branch. This is the refresh policy working as designed.
+        _git(repo, "checkout", "-q", "sweep")
+        _git(repo, "merge", "-q", "--ff-only", "main")
+        tip_before = _git(repo, "rev-parse", "HEAD").strip()
+        # The review writes exactly one file: its own plan.
+        (repo / "plan-rev001.md").write_text("reviewed\n", encoding="utf-8")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-qm", "review writes its own plan")
+        return repo, frozen_base, tip_before
+
+    def test_measuring_from_the_frozen_base_is_what_produced_the_false_alarm(self):
+        """The BEFORE state, pinned so the fix cannot be reverted without this failing."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, frozen_base, _tip = self._lane_repo(tmp)
+            handle = SimpleNamespace(branch="sweep", base_commit=frozen_base)
+            paths = runner_shared.review_turn_changed_files(
+                repo, handle, since_commit=None
+            )
+            # Four of main's files plus the review's own one.
+            self.assertEqual(len(paths), 5, sorted(paths))
+            scope = runner_shared.classify_review_writes(
+                paths, id6="rev001", queued_id6s=[]
+            )
+            self.assertEqual(len(scope.out_of_scope), 4, sorted(scope.out_of_scope))
+
+    def test_measuring_from_the_pre_turn_tip_reports_only_the_reviews_own_write(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, frozen_base, tip_before = self._lane_repo(tmp)
+            handle = SimpleNamespace(branch="sweep", base_commit=frozen_base)
+            paths = runner_shared.review_turn_changed_files(
+                repo, handle, since_commit=tip_before
+            )
+            self.assertEqual(sorted(paths), ["plan-rev001.md"])
+            scope = runner_shared.classify_review_writes(
+                paths, id6="rev001", queued_id6s=[]
+            )
+            self.assertEqual(scope.out_of_scope, ())
+            self.assertTrue(scope.clean)
+
+    def test_a_genuine_sibling_rewrite_is_still_named(self):
+        """The guard must keep catching the harm it was built for, which is the load-bearing half."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, frozen_base, tip_before = self._lane_repo(tmp)
+            # The review ALSO rewrites a sibling plan that has not had its turn.
+            (repo / "plan-rev002.md").write_text("rewritten\n", encoding="utf-8")
+            _git(repo, "add", "-A")
+            _git(repo, "commit", "-qm", "review also rewrites a sibling")
+            handle = SimpleNamespace(branch="sweep", base_commit=frozen_base)
+            paths = runner_shared.review_turn_changed_files(
+                repo, handle, since_commit=tip_before
+            )
+            scope = runner_shared.classify_review_writes(
+                paths, id6="rev001", queued_id6s=["rev002"]
+            )
+            self.assertEqual(sorted(scope.out_of_scope), ["plan-rev002.md"])
+            self.assertEqual(scope.queued_siblings, ("plan-rev002.md",))
+            self.assertFalse(scope.clean)
+
+    def test_an_unreadable_tip_falls_back_to_the_frozen_base_rather_than_reporting_nothing(
+        self,
+    ):
+        """Over-reporting is the safe direction: under-reporting hides the sibling rewrite."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, frozen_base, _tip = self._lane_repo(tmp)
+            handle = SimpleNamespace(branch="sweep", base_commit=frozen_base)
+            paths = runner_shared.review_turn_changed_files(
+                repo, handle, since_commit="   "
+            )
+            self.assertEqual(len(paths), 5, sorted(paths))
+
+    def test_lane_branch_tip_returns_none_for_an_unknown_branch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, _base, _tip = self._lane_repo(tmp)
+            self.assertIsNone(
+                runner_shared.lane_branch_tip(
+                    repo, SimpleNamespace(branch="no/such/branch")
+                )
+            )
+            self.assertIsNone(
+                runner_shared.lane_branch_tip(repo, SimpleNamespace(branch=""))
+            )
 
 
 class AReviewsWritesAreNamed(unittest.TestCase):
@@ -773,9 +923,10 @@ class AReviewsWritesAreNamed(unittest.TestCase):
         )
         self.assertTrue(scope.clean)
         self.assertEqual(scope.queued_siblings, ())
-        self.assertIn("only its own plan", runner_shared.describe_review_write_scope(
-            scope, id6="rev001"
-        ))
+        self.assertIn(
+            "only its own plan",
+            runner_shared.describe_review_write_scope(scope, id6="rev001"),
+        )
 
     def test_F9s_EXACT_scenario_is_recorded_rather_than_silent(self):
         """Reproduce F-9: reviewing one plan while a SIBLING is still `queued`, and rewriting it.
@@ -797,7 +948,9 @@ class AReviewsWritesAreNamed(unittest.TestCase):
                 )
 
                 def agy_shim(state_, rd, item, prompt_path, attempt_no, **kwargs):
-                    return agent(state_, rd, item, None, prompt_path, attempt_no, **kwargs)
+                    return agent(
+                        state_, rd, item, None, prompt_path, attempt_no, **kwargs
+                    )
 
                 with mock.patch.object(
                     driver,
@@ -812,9 +965,7 @@ class AReviewsWritesAreNamed(unittest.TestCase):
                     scope, "a review's write scope must be recorded on the item"
                 )
                 assert scope is not None
-                sibling_paths = [
-                    p for p in scope["queued_siblings"] if "rev002" in p
-                ]
+                sibling_paths = [p for p in scope["queued_siblings"] if "rev002" in p]
                 self.assertTrue(
                     sibling_paths,
                     f"the QUEUED sibling's rewritten path must be named; scope was {scope!r}",
@@ -846,7 +997,9 @@ class TheLifecycleExclusionsStillHold(unittest.TestCase):
                 agent = _reviewing_agent(run_dir, observe=observe)
 
                 def agy_shim(state_, rd, item, prompt_path, attempt_no, **kwargs):
-                    return agent(state_, rd, item, None, prompt_path, attempt_no, **kwargs)
+                    return agent(
+                        state_, rd, item, None, prompt_path, attempt_no, **kwargs
+                    )
 
                 calls: dict[str, int] = {}
 
@@ -857,20 +1010,25 @@ class TheLifecycleExclusionsStillHold(unittest.TestCase):
 
                     return f
 
-                with mock.patch.object(
-                    driver,
-                    launcher,
-                    side_effect=(agy_shim if driver is agy_runipd else agent),
-                ), mock.patch.object(
-                    driver, "driver_begin", side_effect=counting("begin", (0, "ok"))
-                ), mock.patch.object(
-                    driver,
-                    "driver_finalize",
-                    side_effect=counting("finalize", (0, "ok")),
-                ), mock.patch.object(
-                    driver,
-                    "run_suite_check",
-                    side_effect=counting("suite", None),
+                with (
+                    mock.patch.object(
+                        driver,
+                        launcher,
+                        side_effect=(agy_shim if driver is agy_runipd else agent),
+                    ),
+                    mock.patch.object(
+                        driver, "driver_begin", side_effect=counting("begin", (0, "ok"))
+                    ),
+                    mock.patch.object(
+                        driver,
+                        "driver_finalize",
+                        side_effect=counting("finalize", (0, "ok")),
+                    ),
+                    mock.patch.object(
+                        driver,
+                        "run_suite_check",
+                        side_effect=counting("suite", None),
+                    ),
                 ):
                     driver.execute_item(run_dir, state, state["queue"][0], False)
 
@@ -923,7 +1081,9 @@ class TheSweepLaneRefreshPolicy(unittest.TestCase):
             fx = _Fixture(Path(tmp) / "repo", plans=1)
             handle = runner_shared.allocate_review_sweep_worktree(fx.root, "run-test")
             lane = Path(handle.path)
-            (lane / "PEER.md").write_text("an in-flight review edit\n", encoding="utf-8")
+            (lane / "PEER.md").write_text(
+                "an in-flight review edit\n", encoding="utf-8"
+            )
             fx.peer.write_text("peer v2\n", encoding="utf-8")
             _git(fx.root, "add", "PEER.md")
             _git(fx.root, "commit", "-qm", "main advances")

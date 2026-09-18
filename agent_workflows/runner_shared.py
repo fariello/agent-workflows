@@ -1846,6 +1846,71 @@ def review_record_path_fragment(id6: str) -> str:
     return str(id6)
 
 
+def lane_branch_tip(repo: Path, handle: Any) -> str | None:
+    """The lane branch's current commit sha, or None when it cannot be read.
+
+    Captured by a caller BEFORE a turn runs, so the turn's own writes can later be measured from it
+    (see :func:`review_turn_changed_files`). Returns None rather than raising: this feeds a REPORTING
+    path, and a run must never die because a scope report could not resolve a rev.
+    """
+    branch = str(getattr(handle, "branch", "") or "")
+    if not branch:
+        return None
+    rc, out, _err = _run_git(repo, ["rev-parse", "--verify", "--quiet", branch])
+    tip = out.strip()
+    return tip or None if rc == 0 else None
+
+
+def review_turn_changed_files(
+    repo: Path, handle: Any, *, since_commit: str | None
+) -> tuple[str, ...]:
+    """The paths THIS review turn wrote, measured from the turn's OWN commits.
+
+    DELIBERATELY NOT `build_lane_outcome(...).changed_files`, which is what this replaced and which was
+    WRONG FOR A REVIEW for a structural reason rather than a subtle one. That helper measures
+    ``git diff <base>..<branch>`` where ``base`` is the worktree base FROZEN AT ALLOCATE. For an EXECUTE
+    turn that is exactly right: the lane is cut per item and torn down after it, so its base is the
+    turn's own starting point. But the REVIEW SWEEP LANE is allocated ONCE PER RUN
+    (`review_sweep_lane`, base ``HEAD``) and is deliberately NOT torn down between reviews, because
+    every review of the run shares the one tree. So one frozen base serves the whole run while `main`
+    keeps moving, and `base..branch` then reports every file MAIN changed as though this review had
+    written it.
+
+    MEASURED 2026-09-17, which is why this function exists: a review of plan `5w8g8j` whose own commit
+    touched exactly TWO files (its plan and its review record) was reported as having "also wrote 34
+    path(s) outside its own plan and review record", and the named paths included `oc_runipd.py`,
+    `runner_shared.py`, `cli.py`, thirteen test files, `CHANGELOG.md` and a spec. A plan review cannot
+    write product code, and it had not: those were `main`'s own commits, landed by other turns and by
+    concurrent sessions while the sweep lane's base stayed put. On a live sweep lane the drift was 42
+    commits.
+
+    WHY THAT MATTERED RATHER THAN BEING COSMETIC NOISE. The scope report exists for a REAL measured
+    harm (`ajxr5d` F-9): an orchestrator review silently rewrote three sibling child plans that had not
+    had their turns. The chosen shape is PERMIT-AND-RECONCILE, so the report IS the whole guard: there
+    is no refusal behind it. A guard that names 34 innocent paths every run is one an operator learns
+    to skim, and then the one real sibling rewrite is skimmed with it.
+
+    ``since_commit`` is the lane branch tip as it stood BEFORE this turn ran, captured by the caller at
+    lane acquisition. When it is None (no tip recorded, a first-use lane with no commits yet, or an
+    unreadable rev) this falls back to the frozen-base measurement rather than reporting nothing:
+    OVER-reporting is the safe direction here, because the failure mode of under-reporting is the
+    silent sibling rewrite this guard was built to catch.
+    """
+    branch = str(getattr(handle, "branch", "") or "")
+    if not branch:
+        return ()
+    since = str(since_commit or "").strip()
+    if not since:
+        # Fall back to the frozen base: noisier, never blind.
+        since = str(getattr(handle, "base_commit", "") or "").strip()
+    if not since:
+        return ()
+    rc, out, _err = _run_git(repo, ["diff", "--name-only", f"{since}..{branch}"])
+    if rc != 0:
+        return ()
+    return tuple(line.strip() for line in out.splitlines() if line.strip())
+
+
 def classify_review_writes(
     changed_files: Sequence[str],
     *,
@@ -7744,8 +7809,7 @@ class TelemetryIdentity(NamedTuple):
         """
 
         return (
-            f"{self.position:02d}-{self.id6}-a{self.attempt}"
-            f"-{self.phase}-{self.token}"
+            f"{self.position:02d}-{self.id6}-a{self.attempt}-{self.phase}-{self.token}"
         )
 
     def context(self) -> dict[str, Any]:
