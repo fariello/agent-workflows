@@ -17,6 +17,26 @@ A **lens** file selects the concern (performance, security, accessibility, ...) 
 supplies the concern-specific rubric and lead personas. Read it and apply it on top of
 this shared protocol.
 
+## What you are assessing (the SUBJECT), stated once
+
+**The subject is the project's own substance: its source code, tests, docs, configuration,
+UI/CLI text, and dependencies.** With no scope argument, assess the whole project's
+substance. With a scope argument, assess exactly what was named (a subdirectory, module,
+feature, or set of files) and nothing wider.
+
+**The IPD is this workflow's OUTPUT, never its subject.** This file says "IPD" often, and
+every lens row in the manifest ends with "propose an IPD", because emitting a plan is what
+the workflow DOES with its findings. That is not an instruction to review plans. Likewise,
+Step 0 below spends many lines discovering the plan/IPD lifecycle purely so you know WHERE
+TO FILE your output; reading that section is not assessing it.
+
+So a bare `/assess bugs` hunts defects in the PROJECT'S CODE, not in the structure, naming,
+or conformance of the IPDs under `.aw/records/plans/`. The records trees (`.aw/records/`:
+plans, specs, backlog, research, walkthroughs) are the project's process artifacts, not its
+substance, and are OUT of a bare run's scope; assess them only when a scope argument names
+them explicitly (e.g. `/assess prose .aw/records/specs/`). A lens that does not name its own
+subject inherits this rule; it does not widen it.
+
 ## Selecting the concern (which lens)
 
 This workflow is invoked as `/assess <concern> [scope]` (or, in agents without native
@@ -101,8 +121,10 @@ directory) and a run record (the evidence and report of this assessment, under
    canonical vocabulary). A newly-written IPD is born `to-review`.
 4. **Contributor contract** - `AGENTS.md`/`CONTRIBUTING.md` for plan/spec-sync rules.
 5. **Apply the review scope exclusions** from `../release-review/00-run-protocol.md`:
-   do not assess the framework's own directory (`.aw/system/workflows/`) or
-   `.aw/workflow-artifacts/` run records as if they were the project.
+   do not assess the framework's own directory (`.aw/system/workflows/`), the
+   `.aw/workflow-artifacts/` run records, or the `.aw/records/` process artifacts (plans,
+   specs, backlog, research, walkthroughs) as if they were the project. Each lifts only on
+   an explicit scope argument naming it, per the SUBJECT section above.
 
 Then read the selected lens file and adopt its focus, lead personas, and rubric.
 
