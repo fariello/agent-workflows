@@ -96,74 +96,132 @@ def _rules(drift, prefix="check.ipd-") -> list:
 
 
 class EvaluatorRuleMatrixTests(unittest.TestCase):
-    def setUp(self):
-        self.repo = _mkrepo()
-        # activate cutover in the past so a missing statement is an error here
-        _set_cutover(self.repo, "2020-01-01")
+    """V-01: the pure evaluator emits the right rule for each dependency-statement shape.
 
-    def _eval(self):
-        return ce.evaluate_ipd_dependencies(self.repo, phase="check")
+    ONE table-driven test replaces eleven near-identical ones. Each old test built a fixture and
+    made a single assertion, so the eleven differed only in their DATA; expressing that data as
+    rows makes the truth table readable as a table and, more importantly, reports EVERY wrong row
+    in one run. The old shape stopped at the first failure, so a change that broke the resolver for
+    several shapes at once took several fix-and-rerun cycles to fully diagnose.
 
-    def test_clean_none_has_no_finding(self):
-        _plan(self.repo, id6="aaaaaa", order=1, item_deps="none")
-        self.assertEqual(_rules(self._eval()), [])
+    Each row is `(case, plans, spec_id6s, phase, expect_rule)` where `expect_rule=None` means the
+    fixture must be CLEAN. Asserting cleanliness and a specific rule in the same table is
+    deliberate: a resolver bug that makes everything clean, and one that makes everything fire, are
+    opposite failures and a table containing both kinds cannot pass under either.
+    """
 
-    def test_missing_statement(self):
-        _plan(self.repo, id6="aaaaaa", order=1, item_deps=None)
-        self.assertIn(S.RULE_IPD_DEP_MISSING, _rules(self._eval()))
+    #: (case name, [(id6, order, item_deps)], [spec id6], phase, expected rule or None for clean)
+    CASES = (
+        ("clean 'none' statement", [("aaaaaa", 1, "none")], [], "check", None),
+        (
+            "no statement at all",
+            [("aaaaaa", 1, None)],
+            [],
+            "check",
+            S.RULE_IPD_DEP_MISSING,
+        ),
+        (
+            "the 'unresolved' sentinel at a blocking phase",
+            [("aaaaaa", 1, "unresolved")],
+            [],
+            "pre-execution",
+            S.RULE_IPD_DEP_UNRESOLVED,
+        ),
+        (
+            "duplicate edge (the parser catches this before the self-edge)",
+            [("aaaaaa", 1, "executed:aaaaaa, executed:aaaaaa")],
+            [],
+            "check",
+            S.RULE_IPD_DEP_MALFORMED,
+        ),
+        (
+            "self dependency",
+            [("aaaaaa", 1, "executed:aaaaaa")],
+            [],
+            "check",
+            S.RULE_IPD_DEP_MALFORMED,
+        ),
+        (
+            "edge to an id6 nothing owns",
+            [("aaaaaa", 1, "executed:zzzzzz")],
+            [],
+            "check",
+            S.RULE_IPD_DEP_DANGLING,
+        ),
+        (
+            "edge to an id6 TWO plans claim",
+            [
+                ("dupdup", 1, "none"),
+                ("dupdup", 2, "none"),
+                ("aaaaaa", 3, "executed:dupdup"),
+            ],
+            [],
+            "check",
+            S.RULE_IPD_DEP_AMBIGUOUS,
+        ),
+        (
+            "two-node cycle",
+            [("aaaaaa", 1, "executed:bbbbbb"), ("bbbbbb", 2, "executed:aaaaaa")],
+            [],
+            "check",
+            S.RULE_IPD_DEP_CYCLE,
+        ),
+        (
+            "three-node cycle",
+            [
+                ("aaaaaa", 1, "executed:bbbbbb"),
+                ("bbbbbb", 2, "executed:cccccc"),
+                ("cccccc", 3, "executed:aaaaaa"),
+            ],
+            [],
+            "check",
+            S.RULE_IPD_DEP_CYCLE,
+        ),
+        (
+            "cross-type edge resolves against the SPECS tree",
+            [("aaaaaa", 1, "exists:spec:spec01")],
+            ["spec01"],
+            "check",
+            None,
+        ),
+        (
+            "spec edge where only a PLAN owns that id6 (type is part of the key)",
+            [("plnpln", 1, "none"), ("aaaaaa", 2, "exists:spec:plnpln")],
+            [],
+            "check",
+            S.RULE_IPD_DEP_DANGLING,
+        ),
+    )
 
-    def test_unresolved_sentinel_blocking_phase(self):
-        _plan(self.repo, id6="aaaaaa", order=1, item_deps="unresolved")
-        drift = ce.evaluate_ipd_dependencies(self.repo, phase="pre-execution")
-        self.assertIn(S.RULE_IPD_DEP_UNRESOLVED, _rules(drift))
-
-    def test_malformed(self):
-        _plan(
-            self.repo,
-            id6="aaaaaa",
-            order=1,
-            item_deps="executed:aaaaaa, executed:aaaaaa",
+    def test_every_dependency_shape_produces_its_own_rule(self):
+        failures = []
+        for case, plans, specs, phase, expected in self.CASES:
+            repo = _mkrepo()
+            # Cutover set in the past, so a missing statement is an error rather than grandfathered.
+            _set_cutover(repo, "2020-01-01")
+            for id6 in specs:
+                _spec(repo, id6=id6)
+            for id6, order, item_deps in plans:
+                _plan(repo, id6=id6, order=order, item_deps=item_deps)
+            got = _rules(ce.evaluate_ipd_dependencies(repo, phase=phase))
+            if expected is None:
+                if got:
+                    failures.append(
+                        f"  {case!r} (phase {phase}): expected NO finding, got {got}"
+                    )
+            elif expected not in got:
+                failures.append(
+                    f"  {case!r} (phase {phase}): expected {expected!r}, got {got or 'no findings'}"
+                )
+        self.assertEqual(
+            failures,
+            [],
+            "check_engine.evaluate_ipd_dependencies returned the wrong rule for "
+            f"{len(failures)} of {len(self.CASES)} dependency-statement shapes:\n"
+            + "\n".join(failures)
+            + "\n  Each row is an independent fixture, so several failing rows usually means the "
+            "resolver or the rule ids changed, not that each shape broke separately.",
         )
-        # duplicate edge -> malformed (also self, but duplicate is caught by the parser first)
-        self.assertIn(S.RULE_IPD_DEP_MALFORMED, _rules(self._eval()))
-
-    def test_self_dependency_is_malformed(self):
-        _plan(self.repo, id6="aaaaaa", order=1, item_deps="executed:aaaaaa")
-        self.assertIn(S.RULE_IPD_DEP_MALFORMED, _rules(self._eval()))
-
-    def test_dangling(self):
-        _plan(self.repo, id6="aaaaaa", order=1, item_deps="executed:zzzzzz")
-        self.assertIn(S.RULE_IPD_DEP_DANGLING, _rules(self._eval()))
-
-    def test_ambiguous_multiple_owners(self):
-        # two plans declare the same id6 'dupdup' -> resolving an edge to it is ambiguous
-        _plan(self.repo, id6="dupdup", order=1, item_deps="none")
-        _plan(self.repo, id6="dupdup", order=2, item_deps="none")
-        _plan(self.repo, id6="aaaaaa", order=3, item_deps="executed:dupdup")
-        self.assertIn(S.RULE_IPD_DEP_AMBIGUOUS, _rules(self._eval()))
-
-    def test_cycle_two_node(self):
-        _plan(self.repo, id6="aaaaaa", order=1, item_deps="executed:bbbbbb")
-        _plan(self.repo, id6="bbbbbb", order=2, item_deps="executed:aaaaaa")
-        self.assertIn(S.RULE_IPD_DEP_CYCLE, _rules(self._eval()))
-
-    def test_cycle_three_node(self):
-        _plan(self.repo, id6="aaaaaa", order=1, item_deps="executed:bbbbbb")
-        _plan(self.repo, id6="bbbbbb", order=2, item_deps="executed:cccccc")
-        _plan(self.repo, id6="cccccc", order=3, item_deps="executed:aaaaaa")
-        self.assertIn(S.RULE_IPD_DEP_CYCLE, _rules(self._eval()))
-
-    def test_cross_type_edge_resolves(self):
-        # exists:spec:<id6> resolves against a specs record, not a plans one
-        _spec(self.repo, id6="spec01")
-        _plan(self.repo, id6="aaaaaa", order=1, item_deps="exists:spec:spec01")
-        self.assertEqual(_rules(self._eval()), [])
-
-    def test_spec_edge_dangling_when_only_a_plan_has_that_id6(self):
-        # a plan owns 'plnpln' but the edge asks for a SPEC with that id6 -> dangling
-        _plan(self.repo, id6="plnpln", order=1, item_deps="none")
-        _plan(self.repo, id6="aaaaaa", order=2, item_deps="exists:spec:plnpln")
-        self.assertIn(S.RULE_IPD_DEP_DANGLING, _rules(self._eval()))
 
 
 # --------------------------------------------------------------------------------------
