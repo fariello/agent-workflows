@@ -168,7 +168,7 @@ Propose adding, to the appropriate sections and WITHOUT duplicating existing lin
 - Credential/key patterns: `.env*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks`,
   `*.keystore`, `.netrc`, `.npmrc`, `.pypirc`, `service-account*.json`,
   `credentials*.json`.
-- Agent working material: `workflow-artifacts/` (with comment: `# agent-workflows working material (local-only; do not commit)`). Explicitly advise: NEVER `git add -f` or force-track `workflow-artifacts/`.
+- Agent working material: `.aw/workflow-artifacts/` (with comment: `# agent-workflows working material (local-only; do not commit)`). Explicitly advise: NEVER `git add -f` or force-track `.aw/workflow-artifacts/`.
 - Language/tooling artifacts appropriate to the detected stack (e.g. `__pycache__/`,
   `*.pyc`, `node_modules/`, `dist/`, `build/`, `.venv/`, coverage output).
 - OS/editor cruft (`.DS_Store`, `Thumbs.db`, `*.swp`, `.idea/`, `.vscode/` if not used).

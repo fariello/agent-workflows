@@ -36,7 +36,7 @@ Do not require the user to run each section manually. Execute the full sequence 
 
 Perform a robust repository and code review that improves release readiness while minimizing the risk of unintended damage.
 
-The subject is the **target project**, not this framework. Exclude `release-review/` (the runbook) and `workflow-artifacts/` (run records) from the review scope, and never modify `release-review/` during a run; see the review scope exclusions in `00-run-protocol.md`. (You still create `workflow-artifacts/release-review/<RUN_ID>/` as local-only working material, but do not commit it.)
+The subject is the **target project**, not this framework. Exclude `release-review/` (the runbook) and `.aw/workflow-artifacts/` (run records) from the review scope, and never modify `release-review/` during a run; see the review scope exclusions in `00-run-protocol.md`. (You still create `.aw/workflow-artifacts/release-review/<RUN_ID>/` as local-only working material, but do not commit it.)
 
 
 Maximize correctness, security, privacy, memory/resource safety, tests, documentation accuracy, schema validation, compatibility, packaging, CI readiness, maintainability, clear traceability, and clear final reporting. A central goal is to make the released project as **intuitive and self-documenting** as reasonably possible, so users can learn it as they go without reading a manual or taking a course.
@@ -88,7 +88,7 @@ With fewer than 2 independent surfaces the review stays fully serial (fan-out is
 Rules:
 
 1. Section 1 remains serial and is performed by the main agent.
-2. Parallel audit lanes are read-only and honor the review scope exclusions in `00-run-protocol.md` (do not audit `release-review/` or `workflow-artifacts/`).
+2. Parallel audit lanes are read-only and honor the review scope exclusions in `00-run-protocol.md` (do not audit `release-review/` or `.aw/workflow-artifacts/`).
 3. Parallel audit lanes must not edit tracked files, update official registers directly, commit, push, or make final release decisions.
 4. Each lane should produce an audit-lane report using `templates/audit-lane-report.md`.
 5. The main agent owns synthesis, deduplication, severity decisions, official run-specific IDs, finding/action registers, implementation planning, local commits, validation, final report, and push/no-push decision.
@@ -110,7 +110,7 @@ Read and follow `00-run-protocol.md` first (and `fix-decision-policy.md`, the fi
 8. `08-final-ship-review.md`
 9. `09-release-execution.md` (only after a GO/CONDITIONAL GO and explicit user approval to release)
 
-Do not begin Section 7 implementation before completing Sections 1 through 6 and creating `workflow-artifacts/release-review/<RUN_ID>/implementation-plan.md`.
+Do not begin Section 7 implementation before completing Sections 1 through 6 and creating `.aw/workflow-artifacts/release-review/<RUN_ID>/implementation-plan.md`.
 
 Do not begin Section 9 release execution until Section 8 produces a GO or CONDITIONAL GO and the user has explicitly approved performing the release.
 
@@ -124,7 +124,7 @@ This is a long, multi-step run. Do not work from memory of a section file you re
 4. **Update the registers and artifacts** named in the section's "Required outputs".
 5. **Write the section's per-phase report** to `section-summaries/<NN>-<short-name>.md` using `templates/per-phase-report.md` (what was done, why, what was considered but not done).
 6. **Record the section checkpoint** in `08-checkpoints.md` and reconcile it against the registers.
-7. **Commit** the section's tracked product changes, if any (see commit policy). The per-phase report, registers, and checkpoint are written to `workflow-artifacts/`, which stays local-only; do NOT commit or force-add it. Then mark the TodoWrite item complete.
+7. **Commit** the section's tracked product changes, if any (see commit policy). The per-phase report, registers, and checkpoint are written to `.aw/workflow-artifacts/`, which stays local-only; do NOT commit or force-add it. Then mark the TodoWrite item complete.
 8. **Only then proceed** to the next section.
 
 Do not batch multiple sections before writing reports or committing. If you discover you skipped a step for a prior section, stop and complete it before continuing.
@@ -139,10 +139,10 @@ At the start:
 2. Determine whether the repository uses Git.
 3. Record the initial branch, head commit, remotes, and working tree status.
 4. Create a run ID using local time in this format: `YYYYMMDD-HHMMSS`.
-5. Create `workflow-artifacts/release-review/<RUN_ID>/`.
-6. Ensure `workflow-artifacts/` is git-ignored so run artifacts remain local-only working material and do not leak environment paths, usernames, or session details.
+5. Create `.aw/workflow-artifacts/release-review/<RUN_ID>/`.
+6. Confirm `.aw/workflow-artifacts/` is git-ignored so run artifacts remain local-only working material and do not leak environment paths, usernames, or session details. The framework-owned `.aw/.gitignore` already carries the anchored `/workflow-artifacts/` pattern; verify with `git check-ignore -v .aw/workflow-artifacts/` and only add an ignore rule if that reports none.
 7. Create the required run artifacts defined in `00-run-protocol.md`.
-8. Create `workflow-artifacts/release-review/<RUN_ID>/02-execution-plan.md` after enough initial inspection to understand the project type.
+8. Create `.aw/workflow-artifacts/release-review/<RUN_ID>/02-execution-plan.md` after enough initial inspection to understand the project type.
 9. Use TodoWrite if running in OpenCode and the tool is available.
 
 If the repository is not a Git repository, continue the review and record local commit and push steps as not applicable.
@@ -151,23 +151,23 @@ If the repository is not a Git repository, continue the review and record local 
 
 If TodoWrite is available, use it for live progress visibility. Create todos for run setup, each review section, implementation planning, each coherent implementation batch, final validation, and the final report.
 
-Do not create a TodoWrite item for every file inspected or every tiny edit. The authoritative record is always `workflow-artifacts/release-review/<RUN_ID>/`, not TodoWrite.
+Do not create a TodoWrite item for every file inspected or every tiny edit. The authoritative record is always `.aw/workflow-artifacts/release-review/<RUN_ID>/`, not TodoWrite.
 
 ## Local commits and remote pushes
 
-Use local commits for meaningful tracked repository changes when safe and possible. Commit only files changed by this run. Do not accidentally include unrelated pre-existing user changes. The `workflow-artifacts/release-review/<RUN_ID>/` artifacts are local-only working material by default; do NOT commit or force-add them.
+Use local commits for meaningful tracked repository changes when safe and possible. Commit only files changed by this run. Do not accidentally include unrelated pre-existing user changes. The `.aw/workflow-artifacts/release-review/<RUN_ID>/` artifacts are local-only working material by default; do NOT commit or force-add them.
 
 
 Apply the Fix Bar (see `00-run-protocol.md`): fix findings by default and defer only when the Remediation Risk of the fix itself is Medium-High or higher; severity is for reporting, not for deciding; never silently drop a finding.
 
-Remote pushes are prohibited until the final stage and only allowed if the user has explicitly permitted pushing. If permission is absent, produce a push/no-push recommendation in `workflow-artifacts/release-review/<RUN_ID>/11-push-plan.md` and in the final report.
+Remote pushes are prohibited until the final stage and only allowed if the user has explicitly permitted pushing. If permission is absent, produce a push/no-push recommendation in `.aw/workflow-artifacts/release-review/<RUN_ID>/11-push-plan.md` and in the final report.
 
 ## Final response requirement
 
 The final response must be saved to:
 
 ```text
-workflow-artifacts/release-review/<RUN_ID>/12-final-response.md
+.aw/workflow-artifacts/release-review/<RUN_ID>/12-final-response.md
 ```
 
 Then present the same content to the user.

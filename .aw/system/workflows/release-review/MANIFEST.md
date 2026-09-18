@@ -87,7 +87,7 @@ commands.
 The agent should create and maintain:
 
 ```text
-workflow-artifacts/release-review/<RUN_ID>/
+.aw/workflow-artifacts/release-review/<RUN_ID>/
   00-run-metadata.md
   01-repository-inventory.md
   02-execution-plan.md
@@ -114,7 +114,7 @@ workflow-artifacts/release-review/<RUN_ID>/
   audit-lanes/               (optional parallel read-only audit lane reports)
 ```
 
-The `workflow-artifacts/release-review/<RUN_ID>/` artifacts are local-only working material by default. Do NOT commit or force-add `workflow-artifacts/`. Keep `workflow-artifacts/` gitignored so machine-specific paths, usernames, and session details are not tracked in project history.
+The `.aw/workflow-artifacts/release-review/<RUN_ID>/` artifacts are local-only working material by default. Do NOT commit or force-add `.aw/workflow-artifacts/`. Keep `.aw/workflow-artifacts/` ignored (the anchored `/workflow-artifacts/` pattern in the framework-owned `.aw/.gitignore`, verifiable with `git check-ignore -v .aw/workflow-artifacts/`) so machine-specific paths, usernames, and session details are not tracked in project history.
 
 
 The review applies the Fix Bar (see `00-run-protocol.md`): findings are fixed by default and deferred only when the Remediation Risk of the fix itself is Medium-High or higher (complexity, usability, security, or functionality). Severity is for reporting; Remediation Risk is for deciding.

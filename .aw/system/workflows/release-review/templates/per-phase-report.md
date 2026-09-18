@@ -1,7 +1,7 @@
 # Per-Phase Report
 
 This is the mandatory narrative deliverable for a section. Save it as
-`workflow-artifacts/release-review/<RUN_ID>/section-summaries/<NN>-<short-name>.md`.
+`.aw/workflow-artifacts/release-review/<RUN_ID>/section-summaries/<NN>-<short-name>.md`.
 
 ## Section
 

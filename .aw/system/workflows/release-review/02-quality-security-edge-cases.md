@@ -19,7 +19,7 @@ This section is an audit pass. Do not implement fixes yet unless needed to preve
 - Do not create broad refactors or formatting churn.
 - Use run-specific unique IDs for every finding and action.
 - Update the finding and action registers before leaving this section.
-- Use TodoWrite if available, but treat `workflow-artifacts/release-review/<RUN_ID>/` as authoritative.
+- Use TodoWrite if available, but treat `.aw/workflow-artifacts/release-review/<RUN_ID>/` as authoritative.
 - Mark non-applicable checks explicitly rather than forcing findings.
 - Prefer meaningful fixes, not checklist compliance.
 
@@ -82,7 +82,7 @@ tree. Run the deterministic scanner (read-only, redacted output):
 
 ```
 python3 .aw/system/workflows/assess/tools/scan_secrets.py --repo . --format json \
-  --out workflow-artifacts/release-review/<RUN_ID>/secrets-scan.json
+  --out .aw/workflow-artifacts/release-review/<RUN_ID>/secrets-scan.json
 ```
 
 (On very large repos, bound history with `--max-commits`/`--since` and record that.)

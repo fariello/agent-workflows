@@ -8,7 +8,7 @@
   THE HEAVIEST FILE IS NOT `assess.md`. `release-review/00-run-protocol.md` carries 20 references and `release-review/README.md` 12, so a mechanical sweep must cover the whole tree rather than the file that happened to be noticed.
   THOSE TWO FIGURES WERE FIRST RECORDED AS 18 AND 11, AND THE DISCREPANCY IS A UNIT ERROR WORTH NAMING (F-8, corrected at review): 18 and 11 are LINE counts from `grep -c`, while 20 and 12 are OCCURRENCE counts from `grep -o`. Two references on one line are two rewrites, so OCCURRENCES is the correct unit for this plan and the aggregate 86 was already measured that way. Mixing the units in one table is how a sweep is reported complete while references remain; state the unit whenever citing a count here.
   A NAIVE `sed` WILL CORRUPT THIS. Some references are already correct in spirit but differently shaped, some sit inside code fences and example paths, and `assess/tools/scan_secrets.py` uses the string in scanner logic rather than as instruction prose. A blind substitution also risks producing `.aw/.aw/workflow-artifacts/` on any line already carrying the prefix, which is why the count of already-correct references (zero today) must be re-measured before and after.
-- Scope: Rewrite every stale `workflow-artifacts/` reference in the shipped workflow tree to `.aw/workflow-artifacts/`, and make the tracking claims TRUE rather than merely re-pointed. Covers all 27 files, prose and code fences and example paths, plus `assess/tools/scan_secrets.py`'s use of the string. EXCLUDES the installer (Order 01), the gitignore pattern (Order 02, which must land first so the "gitignored" claims are true when written), README content (Order 04), and any change to what the workflows DO beyond where they write.
+- Scope: Rewrite every stale `workflow-artifacts/` reference in the shipped workflow tree to `.aw/workflow-artifacts/`, and make the tracking claims TRUE rather than merely re-pointed. Covers all 25 files (F-7 corrected the authored 27), prose and code fences and example paths, plus `assess/tools/scan_secrets.py`'s use of the string. EXCLUDES the installer (Order 01), the gitignore pattern (Order 02, which must land first so the "gitignored" claims are true when written), README content (Order 04), and any change to what the workflows DO beyond where they write.
 - Scope-Paths: .aw/system/workflows/, tests/test_docs.py
 - Item-Dependencies: none
 - Status: approved
@@ -41,28 +41,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: measure, rewrite, and re-measure
 
-- [ ] E-01 RE-MEASURE THE REFERENCE COUNTS BEFORE EDITING ANYTHING, and record them, because they are the plan's only completion criterion.
+- [x] E-01 RE-MEASURE THE REFERENCE COUNTS BEFORE EDITING ANYTHING, and record them, because they are the plan's only completion criterion.
   THE TWO COMMANDS, run from the repo root: `grep -rhoP '(?<!\.aw/)workflow-artifacts' .aw/system/workflows --include='*.md' --include='*.py' | wc -l` (expected 86) and `grep -rho '\.aw/workflow-artifacts' .aw/system/workflows --include='*.md' --include='*.py' | wc -l` (expected 0). If your numbers differ from these, say so with both sets and proceed on yours; the corpus may have moved.
   COUNT OCCURRENCES (`grep -o`), NEVER LINES (`grep -c`), and keep the `--include` filters. Both matter and both were got wrong at authoring (F-7, F-8): dropping the filters pulls in three `__pycache__` binaries and inflates the file count from 25 to 28, and counting lines under-reports by 3 because some lines carry two references. A sweep driven by line counts reports itself complete while references remain.
   ALSO ENUMERATE THE FILES with per-file OCCURRENCE counts, so the rewrite can be checked file by file rather than only in aggregate. Re-measured at review: `release-review/00-run-protocol.md` (20), `release-review/README.md` (12), `assess/assess.md` (8, the file the maintainer reported), `08-final-ship-review.md` (5), `01-current-state.md` (5), `MANIFEST.md` (4), `benchmark/benchmark.md` (4), `index.md` (3), and the remainder 1-2 each across 25 files.
   - Depends on: none
   - Expected outcome: recorded before-counts in OCCURRENCES with the `--include` filters applied, aggregate and per-file, with any divergence from the expected 86 occurrences / 0 prefixed / 25 files stated.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 REWRITE THE REFERENCES, AND FIX THE FALSE TRACKING CLAIMS RATHER THAN JUST RE-POINTING THEM.
+- [x] E-02 REWRITE THE REFERENCES, AND FIX THE FALSE TRACKING CLAIMS RATHER THAN JUST RE-POINTING THEM.
   DO NOT BLIND-`sed`. Guard against producing `.aw/.aw/workflow-artifacts/` on any line that already carries the prefix (zero today, but the rewrite itself creates them, so a second pass over an already-edited file is the hazard). Check every code fence and example path, not only prose sentences.
   `assess/tools/scan_secrets.py` IS CODE, NOT INSTRUCTION. Read what the string does there before changing it; if it is a scan-exclusion path, re-pointing it wrong either scans the new tree or stops excluding the old one.
   THE CLAIM AT `assess/assess.md:139` AND `:189` MUST BECOME TRUE, not merely re-pointed. After Order 02 the framework-owned `.aw/.gitignore` ignores `.aw/workflow-artifacts/`, so "it is gitignored by default" is then accurate; state WHICH file ignores it so a reader can verify rather than trust. If Order 02 has not landed, STOP: writing the claim first is what made this defect harmful.
   - Depends on: E-01
   - Expected outcome: all 86 references re-pointed, no doubled prefix anywhere, `scan_secrets.py` handled as code with its behavior stated, and the tracking claims true with the ignoring file named.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 RE-MEASURE AND PIN THE INVARIANT WITH A TEST, so the next body added does not reintroduce the retired path.
+- [x] E-03 RE-MEASURE AND PIN THE INVARIANT WITH A TEST, so the next body added does not reintroduce the retired path.
   THE AFTER-COUNTS MUST INVERT: the bare-reference count goes to 0 and the `.aw/`-prefixed count to at least the original 86. A residual bare reference is acceptable ONLY if it is a deliberate mention of the LEGACY path (for example in migration prose), and each such case must be named with its reason.
   ADD A GUARD TEST asserting no shipped body under `.aw/system/workflows/` contains a bare `workflow-artifacts` reference outside an explicitly allowed set, mirroring how `tests/test_docs.py` already walks the docs tree. Without it, this rewrite decays the way Order 07's did.
   - Depends on: E-02
   - Expected outcome: after-counts showing 0 bare and >=86 prefixed, every deliberate exception named, and a guard test that fails if a bare reference returns.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -79,9 +79,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | Id | Severity | Area | What | Evidence |
 |---|---|---|---|---|
-| F-1 | HIGH | 86 stale references, zero correct ones | `grep -rhoP '(?<!\.aw/)workflow-artifacts' .aw/system/workflows` -> 86 across 27 files; the `.aw/`-prefixed count is 0. | both greps, run at authoring |
+| F-1 | HIGH | 86 stale references, zero correct ones | `grep -rhoP '(?<!\.aw/)workflow-artifacts' .aw/system/workflows` -> 86 across 25 files (the authored 27 was corrected by F-7); the `.aw/`-prefixed count is 0. Both re-measured EXACTLY at execution. | both greps, run at authoring; re-run at execution |
 | F-2 | HIGH | two claims are actively false, not merely stale | `assess.md:139` "it is gitignored by default, so do NOT commit or force-add it" and `:189` "contains local-only working material"; nothing ignores it in a target repo. | the file; the absent template pattern |
-| F-3 | MEDIUM | the heaviest file is not the reported one | `release-review/00-run-protocol.md` has 18 references and `release-review/README.md` 11, against `assess/assess.md`'s 8. | per-file counts |
+| F-3 | MEDIUM | the heaviest file is not the reported one | `release-review/00-run-protocol.md` has 20 references and `release-review/README.md` 12, against `assess/assess.md`'s 8. (Corrected at execution to OCCURRENCES; the 18/11 figures first recorded here were LINE counts, which is exactly the unit error F-8 names.) | per-file counts |
 | F-4 | MEDIUM | one reference is CODE, not prose | `assess/tools/scan_secrets.py` uses the string in scanner logic; re-pointing it blindly changes what gets scanned or excluded. | the file |
 | F-5 | MEDIUM | a blind sweep creates doubled prefixes | any line already carrying `.aw/` becomes `.aw/.aw/workflow-artifacts/`; the rewrite itself creates such lines, so a second pass is the hazard. | mechanical property of the edit |
 | F-6 | LOW | nothing guards against regression | no test asserts the shipped tree is free of the retired path, which is how Order 07's rewrite decayed unnoticed. | absence of such a test |
@@ -118,7 +118,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 No spec change: the bodies are being brought into line with a spec that already says this.
 
-THE BODIES THEMSELVES ARE THE DOCUMENTATION being synced here, which is why this is its own child: 27 files is too large a surface to fold into a code change, and a reviewer needs to see the prose diff separately from the installer diff.
+THE BODIES THEMSELVES ARE THE DOCUMENTATION being synced here, which is why this is its own child: 25 files is too large a surface to fold into a code change, and a reviewer needs to see the prose diff separately from the installer diff.
 
 ## Open questions
 
@@ -133,20 +133,182 @@ THE BODIES THEMSELVES ARE THE DOCUMENTATION being synced here, which is why this
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste both grep commands VERBATIM (showing the `-o` flag and the `--include` filters) with their numeric output, plus the per-file enumeration. State explicitly whether the counts matched the expected 86 occurrences, 0 prefixed, and 25 files. A pasted command using `grep -c` or omitting `--include` is a FAILED validation regardless of the number it produced, because those are the two mistakes F-7 and F-8 record.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL THREE EXPECTED FIGURES MATCHED EXACTLY (86 occurrences, 0 prefixed, 25 files); no divergence to report. Both commands carry `-o` and both `--include` filters, per F-7/F-8.
 
-- [ ] V-02 validates E-02
+    ```console
+    $ grep -rhoP '(?<!\.aw/)workflow-artifacts' .aw/system/workflows --include='*.md' --include='*.py' | wc -l
+    86
+    $ grep -rho '\.aw/workflow-artifacts' .aw/system/workflows --include='*.md' --include='*.py' | wc -l
+    0
+    $ grep -rloP '(?<!\.aw/)workflow-artifacts' .aw/system/workflows --include='*.md' --include='*.py' | wc -l
+    25
+    ```
+
+    PER-FILE OCCURRENCE counts (`grep -ohP ... | wc -l` per file, so occurrences and not lines), all 25 files, matching the review's re-measured table including the 20/12 figures that F-8 corrected:
+
+    ```console
+    $ for f in $(grep -rloP '(?<!\.aw/)workflow-artifacts' .aw/system/workflows --include='*.md' --include='*.py' | sort); do printf "%s\t%s\n" "$(grep -ohP '(?<!\.aw/)workflow-artifacts' "$f" | wc -l)" "$f"; done | sort -rn
+    20      .aw/system/workflows/release-review/00-run-protocol.md
+    12      .aw/system/workflows/release-review/README.md
+    8       .aw/system/workflows/assess/assess.md
+    5       .aw/system/workflows/release-review/08-final-ship-review.md
+    5       .aw/system/workflows/release-review/01-current-state.md
+    4       .aw/system/workflows/release-review/MANIFEST.md
+    4       .aw/system/workflows/benchmark/benchmark.md
+    3       .aw/system/workflows/index.md
+    2       .aw/system/workflows/verify-execution/verify-execution.md
+    2       .aw/system/workflows/templates/README.md
+    2       .aw/system/workflows/setup-repo/setup-repo.md
+    2       .aw/system/workflows/release-review/07-implementation.md
+    2       .aw/system/workflows/release-review/03-tests-regression.md
+    2       .aw/system/workflows/release-review/02-quality-security-edge-cases.md
+    2       .aw/system/workflows/getting-started/getting-started.md
+    2       .aw/system/workflows/assess/templates/closing-report.md
+    1       .aw/system/workflows/verify/verify.md
+    1       .aw/system/workflows/release-review/templates/per-phase-report.md
+    1       .aw/system/workflows/release-review/06-compatibility-packaging-release.md
+    1       .aw/system/workflows/release-review/05-feature-usability-maintainability.md
+    1       .aw/system/workflows/release-review/04-docs-specs-examples.md
+    1       .aw/system/workflows/assess/tools/scan_secrets.py
+    1       .aw/system/workflows/assess/lenses/secrets.md
+    1       .aw/system/workflows/assess-all/assess-all.md
+    1       .aw/system/workflows/advise/advise.md
+    ```
+
+    E-02'S STOP CONDITION WAS CHECKED FIRST, not assumed: Order 02 (`vh14ku`) is in `executed/` and its pattern is live in both the template and the back-fill, so writing the "it is gitignored" claim is now TRUE rather than aspirational.
+
+    ```console
+    $ git check-ignore -v .aw/workflow-artifacts/x
+    .aw/.gitignore:73:/workflow-artifacts/	.aw/workflow-artifacts/x
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `grep -rn '\.aw/\.aw/' .aw/system/workflows` returning NOTHING (the doubled-prefix guard). Quote the rewritten `assess/assess.md` lines that make the gitignore claim and show they NAME the ignoring file. Paste the `scan_secrets.py` diff with one sentence on what the string does there. Quote at least one rewritten code-fence example, since fences are the shape a prose-only sweep misses.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: DOUBLED-PREFIX GUARD CLEAN (F-5): the command returns no output and exit 1, so no `.aw/.aw/` was produced anywhere.
 
-- [ ] V-03 validates E-03
+    ```console
+    $ grep -rn '\.aw/\.aw/' .aw/system/workflows; echo "exit=$?"
+    exit=1
+    ```
+
+    THE TWO FALSE CLAIMS (F-2) NOW NAME THE ENFORCING FILE AND THE VERIFYING COMMAND, so a reader can check rather than trust, which is the whole failure mode: the old sentence sounded authoritative while nothing enforced it.
+
+    ```console
+    $ grep -n 'gitignore' .aw/system/workflows/assess/assess.md
+    139:7. **Commit ONLY the IPD**, and NEVER push (commit-only; no remote changes). The run record in `.aw/workflow-artifacts/` is local-only working material: the framework-owned `.aw/.gitignore` ignores it (the anchored pattern `/workflow-artifacts/`, verifiable with `git check-ignore -v .aw/workflow-artifacts/`), so do NOT commit or force-add it. Do not commit unrelated changes; run `git status --short` first.
+    190:(the anchored pattern `/workflow-artifacts/`; confirm with `git check-ignore -v
+    ```
+
+    Line 188-191 in full, showing the claim is attributed and independently checkable:
+
+    ```text
+    The `.aw/workflow-artifacts/` directory contains local-only working material and is out of review
+    scope (never assess it as if it were the project). The framework-owned `.aw/.gitignore` ignores it
+    (the anchored pattern `/workflow-artifacts/`; confirm with `git check-ignore -v
+    .aw/workflow-artifacts/` rather than trusting this sentence). Do not commit or force-add it.
+    ```
+
+    THE SAME TREATMENT WAS APPLIED TO THE OTHER FIVE FILES making an unattributed tracking claim, because re-pointing `assess.md` alone would leave the identical unverifiable assertion in the heaviest files: `release-review/00-run-protocol.md` (:245, :285), `release-review/README.md` (:143), `release-review/MANIFEST.md` (:117), `release-review/01-current-state.md` (:13, :45, whose "ensure it is gitignored" run-setup instruction became "confirm", since the pattern now ships and an agent should verify rather than add a duplicate rule), and `benchmark/benchmark.md` (:178).
+
+    `scan_secrets.py` IS CODE AND WAS DELIBERATELY LEFT BARE (F-4). The string is a member of `SKIP_DIR_NAMES`, a set of single path SEGMENT names matched by `parts = set(rel_posix.split("/")); if parts & SKIP_DIR_NAMES` in `is_skipped_path` (line 412). A segment never contains a slash, so the prefixed spelling `.aw/workflow-artifacts` could match NOTHING and would have silently stopped excluding run records from the secret scan; the bare name already matches the relocated tree AND any legacy repo-root copy. Only a comment was added:
+
+    ```diff
+    $ git diff -- .aw/system/workflows/assess/tools/scan_secrets.py
+         # Agent-workflow run records are generated deliverables (they may even contain a prior
+         # scan's own redacted output); scanning them just re-flags noise, not committed secrets.
+    +    # DELIBERATELY BARE, not `.aw/workflow-artifacts` (wfartifacts Order 03): this set holds
+    +    # single path SEGMENT names, matched by `set(rel_posix.split("/")) & SKIP_DIR_NAMES` in
+    +    # `is_skipped_path`. A segment never contains a slash, so the prefixed spelling could match
+    +    # NOTHING and would silently stop excluding run records; the bare name already matches the
+    +    # relocated `.aw/workflow-artifacts/` AND any legacy repo-root copy, which is what we want.
+         "workflow-artifacts",
+    ```
+
+    REWRITTEN CODE FENCES AND EXAMPLE PATHS, the shape a prose-only sweep misses:
+
+    ```console
+    $ sed -n '273p' .aw/system/workflows/release-review/00-run-protocol.md
+    .aw/workflow-artifacts/release-review/<RUN_ID>/
+    $ sed -n '63p' .aw/system/workflows/advise/advise.md
+    .aw/workflow-artifacts/advise-<persona>/<RUN_ID>/
+    $ grep -n 'assess-security/20260722-143012' .aw/system/workflows/assess/templates/closing-report.md
+    30:  Run record: .aw/workflow-artifacts/assess-security/20260722-143012/
+    43:  Run record: .aw/workflow-artifacts/assess-security/20260722-143012/
+    $ grep -n -- '--out' .aw/system/workflows/assess/lenses/secrets.md
+    24:  --out .aw/workflow-artifacts/assess-secrets/<RUN_ID>/scan.json
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste both grep counts AFTER the rewrite, showing 0 bare and >=86 prefixed. Name every deliberate remaining bare reference with its reason, or state that there are none. Paste the guard test's passing output, and paste it FAILING against a deliberately reintroduced bare reference, since a guard that cannot fail proves nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE PREFIXED COUNT INVERTED AS REQUIRED (0 -> 94, above the required >=86). THE PLAIN-SUBSTRING BARE COUNT IS 11, NOT 0, AND THAT IS REPORTED RATHER THAN MASSAGED, because the plan's E-01 command matches any occurrence of the substring not immediately preceded by `.aw/`, which also matches the anchored gitignore PATTERN `/workflow-artifacts/` that the corrected prose now deliberately quotes. Measured with the PATH-reference form (the substring followed by `/` and not preceded by a slash, word character or hyphen), the count is 0.
+
+    ```console
+    $ grep -rhoP '(?<!\.aw/)workflow-artifacts' .aw/system/workflows --include='*.md' --include='*.py' | wc -l
+    11
+    $ grep -rho '\.aw/workflow-artifacts' .aw/system/workflows --include='*.md' --include='*.py' | wc -l
+    94
+    $ grep -rnoP '(?<![/\w-])workflow-artifacts/' .aw/system/workflows --include='*.md' --include='*.py' | wc -l
+    0
+    ```
+
+    ALL 11 RESIDUALS ARE NAMED, and the arithmetic closes exactly against the original 86 (84 rewritten + 1 template filename + 1 code segment = 86):
+
+    | Count | Spelling | Why it is correct as-is |
+    |---|---|---|
+    | 9 | `` `/workflow-artifacts/` `` | The ANCHORED GITIGNORE PATTERN, newly quoted by the corrected claims in `assess/assess.md` (x2), `release-review/00-run-protocol.md` (x2), `01-current-state.md` (x2), `README.md`, `MANIFEST.md`, `benchmark/benchmark.md`. Patterns in `.aw/.gitignore` are `.aw/`-relative, so the pattern that ignores run scratch IS written `/workflow-artifacts/`; writing `.aw/workflow-artifacts/` there would document a pattern that does not exist. |
+    | 1 | `workflow-artifacts-README.md` | The installer TEMPLATE FILENAME in `templates/README.md`, an actual file under `.aw/system/workflows/templates/`. A hyphen follows, not a slash; it is not a path reference. Its parenthetical DID move to `.aw/workflow-artifacts/` (that part is a path). |
+    | 1 | `"workflow-artifacts",` | `scan_secrets.py`'s `SKIP_DIR_NAMES` segment name (see V-02). Prefixing it would break the exclusion. |
+
+    NONE of the 11 is a stale legacy-path reference, so there is no migration-prose exception to declare.
+
+    THE GUARD TEST PASSES (9 new tests: 2 sweep assertions over all 25 shipped bodies + 6 falsifiability cases + 1 directory existence; `tests/test_docs.py` went from 14 to 23):
+
+    ```console
+    $ python3 -m pytest tests/test_docs.py -o addopts="" -q
+    .......................                                                  [100%]
+    23 passed in 0.31s
+    ```
+
+    AND IT FAILS AGAINST A DELIBERATELY REINTRODUCED REFERENCE. One occurrence in `verify/verify.md` was temporarily reverted to the bare spelling; the guard named the exact file and count, and the file was restored immediately afterwards (`git status` confirms only intended modifications remain):
+
+    ```console
+    $ python3 -m pytest tests/test_docs.py -o addopts="" -q -k "no_bare_run_scratch"
+    E       AssertionError: Lists differ: ['.aw/system/workflows/verify/verify.md: 1 bare reference(s)'] != []
+    E       First list contains 1 additional elements.
+    E       First extra element 0:
+    E       '.aw/system/workflows/verify/verify.md: 1 bare reference(s)'
+    E       - ['.aw/system/workflows/verify/verify.md: 1 bare reference(s)']
+    E       + [] : shipped workflow bodies name the RETIRED repo-root run-scratch path; write `.aw/workflow-artifacts/` instead:
+    E       .aw/system/workflows/verify/verify.md: 1 bare reference(s)
+    tests/test_docs.py:234: AssertionError
+    FAILED tests/test_docs.py::ShippedRunScratchPathTests::test_no_bare_run_scratch_path_in_shipped_bodies
+    1 failed, 22 deselected in 0.20s
+    ```
+
+    THE FULL SUITE, RUN BARE, judged on the FAILURE-SET DELTA as the contract requires. 31 tests fail, and ALL 31 FAIL IDENTICALLY AT CLEAN HEAD, measured in a throwaway detached worktree at `ab18c25b` rather than assumed:
+
+    ```console
+    $ python3 -m pytest            # my tree
+    31 failed, 7989 passed, 3 skipped, 2 xfailed in 112.17s (0:01:52)
+
+    $ python3 -m pytest            # clean HEAD ab18c25b, separate worktree
+    31 failed, 7980 passed, 3 skipped, 2 xfailed in 110.77s (0:01:50)
+
+    $ diff wfart-before.txt wfart-after.txt && echo "DELTA EMPTY: identical failure sets"
+    DELTA EMPTY: identical failure sets
+    ```
+
+    The delta is EMPTY and passes rose by exactly 9, the guard tests added here. The 31 pre-existing failures are an ENVIRONMENT artifact of executing inside a managed lane, not a regression: they are lifecycle/runner tests that shell out to `aw ipd begin`, which this worker role refuses by design (`AW-LIFECYCLE-ROLE-001: the runner owns begin/finalize for managed lanes; a worker-role process must not run them`). They are reported to the driver rather than silently absorbed.
+
+    ```console
+    $ aw sanitize --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

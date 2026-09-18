@@ -19,7 +19,7 @@ This section is an audit pass. Do not add or change tests yet. Test implementati
 - Do not create broad refactors or formatting churn.
 - Use run-specific unique IDs for every finding and action.
 - Update the finding and action registers before leaving this section.
-- Use TodoWrite if available, but treat `workflow-artifacts/release-review/<RUN_ID>/` as authoritative.
+- Use TodoWrite if available, but treat `.aw/workflow-artifacts/release-review/<RUN_ID>/` as authoritative.
 - Mark non-applicable checks explicitly rather than forcing findings.
 - Prefer meaningful fixes, not checklist compliance.
 
@@ -36,7 +36,7 @@ Not allowed: adding tests, rewriting tests, adding test dependencies, or changin
 
 ## Evidence, not self-report
 
-Any claim you make that tests/lint/build/type-check pass MUST be backed by real evidence, not by your own reading of the code. Use the `verify` workflow (`verify/tools/run_checks.py`) to discover and run the repo's own checks and capture actual exit codes, metrics, and logs into `workflow-artifacts/verify/<RUN_ID>/verify-results.json`. Cite that file for any pass/fail claim in your findings.
+Any claim you make that tests/lint/build/type-check pass MUST be backed by real evidence, not by your own reading of the code. Use the `verify` workflow (`verify/tools/run_checks.py`) to discover and run the repo's own checks and capture actual exit codes, metrics, and logs into `.aw/workflow-artifacts/verify/<RUN_ID>/verify-results.json`. Cite that file for any pass/fail claim in your findings.
 
 Honesty: if a relevant check could not be run (no test setup, needs services/credentials, denied by the safety denylist), record it as UNVERIFIED with the reason. "Could not verify" must be as prominent as "verified". A partial run is not a green. This evidence feeds the final GO/NO-GO in Section 8.
 

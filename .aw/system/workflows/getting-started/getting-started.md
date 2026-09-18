@@ -19,7 +19,7 @@ off. Keep the tour short and adaptive.
 Quietly check the repo so the tour fits the situation:
 
 - Is the toolkit freshly installed, or already in use (any run records under
-  `workflow-artifacts/`, any IPDs under `.aw/records/plans/`)?
+  `.aw/workflow-artifacts/`, any IPDs under `.aw/records/plans/`)?
 - Has `setup-repo` likely been run (secret-scanning config, CI, `.gitignore`, the plan
   lifecycle dirs present)?
 - What kind of repo is this (language/build, app vs. library, has tests/CI)?
@@ -40,7 +40,7 @@ In a few sentences, not a lecture:
 - **Guided/meta** workflows change files with your confirmation (`setup-repo`, `scaffold`);
   `verify` produces evidence; `list-workflows` shows everything.
 - Where things land: assessment/plan proposals as IPDs in `.aw/records/plans/pending/`; durable
-  run records under `workflow-artifacts/<workflow>/<RUN_ID>/`.
+  run records under `.aw/workflow-artifacts/<workflow>/<RUN_ID>/`.
 
 ## Step 3: Ask the goal and route
 

@@ -141,7 +141,7 @@ The `assess-<concern>` workflows all share one body, the `assess/` harness, focu
 a per-concern **lens** file. Each one assesses a single concern deeply and writes two
 durable outputs: a dated Implementation Plan Document (IPD) into the project's
 pending-plans directory (default `.aw/records/plans/pending/`), and a run record (report +
-full findings + decisions/evidence) under `workflow-artifacts/assess-<concern>/<RUN_ID>/`
+full findings + decisions/evidence) under `.aw/workflow-artifacts/assess-<concern>/<RUN_ID>/`
 - mirroring release-review's durability. It does NOT change code and does NOT
 auto-execute. The intended pipeline is:
 
@@ -255,5 +255,5 @@ blocking.
   a shim per catalog row (`is_concern_catalog_row` / `CATALOG_ROW_PREFIXES` in
   `agent_workflows/engine.py`). Re-running the installer on an older install prunes retired
   per-item shims automatically. The run-record directory conventions remain
-  `workflow-artifacts/assess-<concern>/<RUN_ID>/` and
-  `workflow-artifacts/advise-<persona>/<RUN_ID>/`.
+  `.aw/workflow-artifacts/assess-<concern>/<RUN_ID>/` and
+  `.aw/workflow-artifacts/advise-<persona>/<RUN_ID>/`.

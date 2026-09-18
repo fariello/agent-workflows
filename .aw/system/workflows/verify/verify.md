@@ -62,7 +62,7 @@ outside the helper. Never silently bypass the denylist.
 Create:
 
 ```
-workflow-artifacts/verify/<RUN_ID>/
+.aw/workflow-artifacts/verify/<RUN_ID>/
 ```
 
 `<RUN_ID>` is a local-time timestamp `YYYYMMDD-HHMMSS`. Write:
