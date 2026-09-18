@@ -273,16 +273,60 @@ class ParserRegistrationTests(_RepoFixture):
                 self.assertEqual(rc, 2, out + err)
                 self.assertIn("usage", (out + err).lower())
 
-    def test_runs_description_names_both_mutating_exceptions(self):
-        """The read-only claim must stay TRUE now that a second mutating verb exists."""
+    def test_runs_description_names_every_mutating_exception(self):
+        """The read-only claim must stay TRUE as mutating verbs accumulate on this noun.
+
+        THE COUNT IN THIS ASSERTION HAS MOVED TWICE AND WILL MOVE AGAIN, which is the finding rather
+        than an annoyance. It read "ONE exception" before Order 08 (`repair` alone), "TWO" after
+        Order 08 (`analyze`), and "FOUR" after Order 09 (`ixis0c`) added `export` and `submit`. So
+        the NAMES are what this test really pins: every verb declared `mutation` under `runs` in
+        `COMMAND_INVENTORY` must be named in the help text, derived from the inventory rather than
+        hand-listed, so a fifth mutating verb fails here instead of shipping a help string that
+        claims a read-only surface. The count is checked too, because a stale number is itself a
+        false statement.
+        """
+
+        from agent_workflows.command_surface import get_all_declarations
 
         out, err, rc = _run(["runs", "--help"])
         self.assertEqual(rc, 0, out + err)
         text = out + err
-        self.assertIn("TWO exceptions", text)
-        self.assertIn("analyze", text)
-        # The old single-exception claim must be gone, not merely supplemented.
+
+        mutating = {
+            d.command.split(" ", 1)[1]
+            for d in get_all_declarations()
+            if d.command.startswith("runs ") and d.command_class == "mutation"
+        }
+        # `repair` is positionally routed (see `_ViewerOrLeafSubParsersAction`) so it carries no
+        # declaration, but it IS a mutating verb on this noun and must be named too.
+        mutating.add("repair")
+
+        # ONE KNOWN MISDECLARATION IS SUBTRACTED, WITH ITS CARRIER NAMED, rather than silently
+        # tolerated. `runs resume` is declared `mutation` but WRITES NOTHING: `run_cli._run_resume`
+        # calls `run_recovery.resume`, whose body is `reconstruct_state()` +
+        # `detect_unknown_outcomes()` + `get_runnable_steps()` and a print, and `run_cli`'s own
+        # docstring says `next` and `resume` "only reconstruct state and report". Its sibling
+        # `runs next` is correctly declared `read`. Measured 2026-09-18 by THIS test, which found it
+        # because it derives the set instead of hand-listing it; filed as backlog `cldbus` and NOT
+        # fixed here, because re-classifying a shipped leaf changes which conformance scenarios CI
+        # demands for it and does not belong inside a data-sharing plan.
+        self.assertIn(
+            "resume", mutating, "backlog cldbus appears fixed; drop this subtraction"
+        )
+        mutating.discard("resume")
+
+        expected_named = sorted(mutating)
+        self.assertEqual(expected_named, ["analyze", "export", "repair", "submit"])
+        for verb in expected_named:
+            self.assertIn(
+                f"'{verb}'",
+                text,
+                f"the `aw runs` help does not NAME its mutating verb {verb!r}",
+            )
+        self.assertIn("FOUR exceptions", text)
+        # Every superseded count must be gone, not merely supplemented.
         self.assertNotIn("with ONE exception", text)
+        self.assertNotIn("TWO exceptions", text)
 
     def test_runs_help_advertises_both_analytics_leaves(self):
         out, err, rc = _run(["runs", "--help"])

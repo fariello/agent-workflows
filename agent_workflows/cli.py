@@ -119,18 +119,27 @@ _DESCRIPTIONS = {
         "attempt outcome), 'cancel' (record a terminal cancellation), and 'finalize' (evaluate the "
         "completion predicate and record terminal completion). To INSPECT a run, use 'aw runs'."
     ),
-    # runanalytics Order 08 (`mm5p3v`) E-02: `analyze` is the SECOND mutating verb on this noun, so
-    # the read-only claim names both exceptions. This is the SEPARATE description the `--help` page
-    # actually renders; `_RUNS_DESCRIPTION` further down is the parser's own. Both had to change, or
-    # the help text would keep asserting a single exception that no longer holds.
+    # runanalytics Order 08 (`mm5p3v`) E-02 then Order 09 (`ixis0c`) E-01: the mutating verbs on this
+    # noun are now ENUMERATED BY NAME rather than counted. This is the SEPARATE description the
+    # `--help` page actually renders; `_RUNS_DESCRIPTION` further down is the parser's own, and both
+    # must agree or the help text asserts a read-only surface that writes.
+    #
+    # THE COUNT KEEPS GOING STALE, WHICH IS WHY THE NAMES LEAD. This string has already said "ONE
+    # exception" (pre-Order 08) and "TWO exceptions" (Order 08), each true only until the next
+    # mutating verb landed. Four are named here, so a fifth is a visible omission rather than an
+    # off-by-one in prose.
     "runs": (
         "Inspect driver execution runs and run ledgers (the READING half of the run surface): bare "
         "'aw runs' renders the run table, and the leaves are 'show' (run state and completion "
         "predicates), 'status', 'next', 'resume', 'evidence' (captured provenance envelopes and tool "
         "events), 'verify-ledger' (hash chain integrity and evidence validity), 'decisions', "
-        "'questions', 'list', and the analytics pair 'analyze' and 'query'. Read-only, with TWO "
-        "exceptions: the opt-in 'repair' verb, and 'analyze', which updates the analytics cache and "
-        "publishes the local report inside the reserved, gitignored analytics/ namespace."
+        "'questions', 'list', the analytics pair 'analyze' and 'query', and the data-sharing pair "
+        "'export' and 'submit'. Read-only, with FOUR exceptions, named rather than counted: the "
+        "opt-in 'repair' verb; 'analyze', which updates the analytics cache and publishes the local "
+        "report inside the reserved, gitignored analytics/ namespace; 'export', which writes a "
+        "sensitivity-tiered bundle there (previewing by default, writing only under --apply); and "
+        "'submit', which would transmit one and today refuses as unavailable because no endpoint is "
+        "approved."
     ),
     "runs show": (
         "Inspect a workflow run's ledger, steps, verifier decisions, and completion predicate status. "
@@ -2071,6 +2080,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "  aw runs query <view>             # read facts/findings as aw.agent/v1 (no HTML parsing)\n"
         "  aw runs query schema             # the queryable views, filters, groupings and metrics\n"
         "\n"
+        "SHARING YOUR OWN DATA (never automatic, never by default)\n"
+        "  aw runs export                   # PREVIEW a `metrics` bundle; writes nothing\n"
+        "  aw runs export --apply           # write the bundle under the analytics/ namespace\n"
+        "  aw runs export --tier events-redacted --apply\n"
+        "  aw runs export --tier raw --include prompt --by-human --actor 'me' --apply\n"
+        "  aw runs submit <bundle>          # refuses `unavailable`: no endpoint is approved\n"
+        "  The bundle is MINIMIZED, never anonymous, and nothing is ever transmitted for you.\n"
+        "\n"
         "WRITING A RUN LIVES UNDER `aw run` (start/record/cancel/finalize)\n"
         "\n"
         "A TARGET NAMED LIKE A LEAF\n"
@@ -2084,23 +2101,29 @@ def _build_parser() -> argparse.ArgumentParser:
         "  ordinary report having verified nothing. A bare `aw runs` in a repository with no runs is\n"
         "  still exit 0: asking for everything and finding nothing is not a failed request.\n"
     )
-    # runanalytics Order 08 (`mm5p3v`) E-02: this text previously claimed "Read-only, with ONE
-    # exception: the `repair` verb", which `analyze` falsifies the moment it lands. `analyze` updates
-    # the analytics cache and publishes a report bundle, so it is the SECOND mutating verb on the
-    # reading noun and is declared `command_class="mutation"` in `command_surface.COMMAND_INVENTORY`.
-    # Both exceptions are now named, because a help string that understates what a command writes is
-    # a correctness defect and not a wording preference.
+    # runanalytics Order 08 (`mm5p3v`) E-02, then Order 09 (`ixis0c`) E-01. This text has already
+    # said "ONE exception" (when only `repair` mutated) and "TWO" (when `analyze` landed), each true
+    # only until the next mutating verb arrived. So the four are NAMED, and the count is stated with
+    # them rather than instead of them: a help string that understates what a command writes is a
+    # correctness defect, and a bare count is the part that silently rots.
     _RUNS_DESCRIPTION = (
         "Inspect driver execution runs under .aw/records/runs/ and display a unified "
         "summary of the ending status of each IPD step in each run, and inspect run LEDGERS "
         "(show/status/next/resume/evidence/verify-ledger/decisions/questions). This is the READING "
         "half of the run surface; the writing verbs live under `aw run` "
-        "(start/record/cancel/finalize). Read-only, with TWO exceptions. First, the `repair` verb "
+        "(start/record/cancel/finalize). Read-only, with FOUR exceptions, named rather than counted. "
+        "First, the `repair` verb "
         "(`aw runs repair <run-id>`) durably reconciles a run abandoned without a terminal status, "
         "so a step a crashed driver left as `running` stops being reported `abandoned?`; run "
         "`aw runs repair --help` for that verb. Second, `aw runs analyze` updates the analytics "
         "cache and publishes the local report bundle, writing ONLY inside the reserved, gitignored "
-        "analytics/ namespace and never into a source run directory. `aw runs query` is read-only."
+        "analytics/ namespace and never into a source run directory. Third, `aw runs export` writes "
+        "a sensitivity-tiered bundle into that same reserved namespace, and it PREVIEWS by default: "
+        "nothing is written without `--apply`, and the `raw` tier additionally requires an explicit "
+        "`--by-human` attestation naming the tier. Fourth, `aw runs submit` would transmit a bundle "
+        "to a configured endpoint and today refuses as `unavailable`, because this repository "
+        "approves no endpoint, retention policy or deletion method; it writes only a local receipt. "
+        "`aw runs query` is read-only. No bundle is anonymous and nothing is ever submitted for you."
     )
 
     # The sibling VIEWER parser. It owns `targets` and, via the shared parent, every viewer flag.
@@ -2416,6 +2439,178 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Rows per page (default 20, max 500) so each record stays inside its budget.",
     )
     _p_runs_query.add_argument(
+        "--fields",
+        default=None,
+        help="Comma-separated field projection for --agent output (envelope fields are preserved).",
+    )
+
+    # ---- runanalytics Order 09 (`ixis0c`) E-01: the two DATA-SHARING leaves ------------------------
+    #
+    # REGISTERED THE SAME WAY ORDER 08'S PAIR IS, on `runs_sub` (the routing action's own table), so
+    # both are discoverable by `command_surface.discover_parser_leaves` and get native argparse help
+    # and native usage errors (exit 2). Not the `repair` pattern: a positionally-routed leaf is
+    # invisible to the normative surface, so declaring it in `COMMAND_INVENTORY` would register as
+    # declaration/parser DRIFT and fail `tests/test_cli_conformance_matrix.py`.
+    #
+    # NOT VIA `_register_run_leaf`: that helper adds a REQUIRED single `target` positional plus ledger
+    # flags, and neither shape fits. `export` takes zero or more run selectors and defaults to the
+    # whole corpus; `submit` takes a BUNDLE DIRECTORY, which is not a run ledger at all.
+    #
+    # THE CONSENT FLAGS ARE `--by-human` / `--actor`, NOT A PROMPT, and that is a decided question in
+    # this repository rather than a style choice. Implemented spec
+    # `20260815-0151-01-honest-human-approval-attestation` replaced a `sys.stdin.isatty()` requirement
+    # plus a typed confirmation with exactly this attestation, on the reasoning that "an executing
+    # agent has no TTY, so it can NEVER record an approval, even one the human explicitly gave in
+    # chat". `--yes` is deliberately NOT accepted as consent by either leaf: it is a broad
+    # preauthorization for expected mutations, and reading it as consent would make a `raw` export or a
+    # transmission collateral damage of an unrelated batch invocation.
+    _p_runs_export = runs_sub.add_parser(
+        "export",
+        parents=[common],
+        help="MUTATES with --apply: write a sensitivity-tiered analytics bundle you can inspect.",
+        description=(
+            "Build an inspectable, sensitivity-tiered export bundle from the local analytics cache. "
+            "PREVIEWS BY DEFAULT: with no --apply it reports exactly what WOULD be written and "
+            "writes nothing. Bundles land inside the reserved, gitignored analytics/ namespace and "
+            "are never transmitted; sharing one is something you do yourself. "
+            "THREE TIERS, in increasing sensitivity. `metrics` (the default) re-emits facts that "
+            "already crossed the write-side privacy projector. `events-redacted` adds bounded "
+            "structured event facts, FIELD-ALLOWLISTED, plus a report naming what the shared leak "
+            "detector does not look for. `raw` copies ORIGINAL run artifacts and may contain "
+            "prompts, conversations, code, commands, paths and secrets; it requires an explicit "
+            "--by-human attestation and an explicit --include selection, and it is never the default. "
+            "NO TIER IS ANONYMOUS. The bundle is MINIMIZED, and it says so in its own README and "
+            "manifest rather than in documentation you would have to go find. "
+            "Exit 0 previewed/written, 1 refused, 2 cannot-run."
+        ),
+        formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw runs export                   # preview a `metrics` bundle; writes nothing\n"
+            "  aw runs export --apply           # write it\n"
+            "  aw runs export --tier events-redacted --apply\n"
+            "  aw runs export --tier raw --include prompt --by-human --actor 'me' --apply\n"
+            "\n"
+            "WHY --by-human AND NOT A PROMPT\n"
+            "  Spec 20260815-0151-01 retired TTY-gated consent: an agent shell has no TTY, so a\n"
+            "  prompt cannot record an approval a human really gave. --yes NEVER authorizes `raw`.\n"
+            "\n"
+            "OUTPUT & EXITS\n"
+            "  Exit codes: 0 previewed or written, 1 refused, 2 cannot-run/usage error.\n"
+            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+        ),
+    )
+    _p_runs_export.add_argument(
+        "targets",
+        nargs="*",
+        default=None,
+        help="Zero or more run IDs, directory paths, or set IDs (default: every cached run).",
+    )
+    _p_runs_export.add_argument(
+        "--dir", default=None, help="Repo root directory (default: current directory)."
+    )
+    _p_runs_export.add_argument(
+        "--tier",
+        default=None,
+        help="metrics (default), events-redacted, or raw. `raw` carries original content.",
+    )
+    _p_runs_export.add_argument(
+        "--out",
+        default=None,
+        metavar="DIR",
+        help="Bundle directory (default: a timestamped dir under the analytics/exports namespace).",
+    )
+    _p_runs_export.add_argument(
+        "--include",
+        action="append",
+        default=None,
+        metavar="SUBSTRING",
+        help="For --tier raw ONLY: select files whose relative path contains SUBSTRING (repeatable).",
+    )
+    _p_runs_export.add_argument(
+        "--apply",
+        action="store_true",
+        help="Actually write the bundle. Without it this command previews and writes nothing.",
+    )
+    # THE ATTESTATION, spelled exactly as the shipped `set` verbs spell it, so an operator who has
+    # attested a spec approval already knows this flag.
+    _p_runs_export.add_argument(
+        "--by-human",
+        dest="by_human",
+        action="store_true",
+        help="Explicit attestation (required for --tier raw). Honored with no TTY; --yes is not it.",
+    )
+    _p_runs_export.add_argument(
+        "--actor",
+        default=None,
+        help="Who attested, recorded as provenance (e.g. 'maintainer via chat').",
+    )
+    _p_runs_export.add_argument(
+        "--fields",
+        default=None,
+        help="Comma-separated field projection for --agent output (envelope fields are preserved).",
+    )
+
+    _p_runs_submit = runs_sub.add_parser(
+        "submit",
+        parents=[common],
+        help="Submit an exported bundle to a configured endpoint. Today: refuses as unavailable.",
+        description=(
+            "Submit an already-exported bundle to a configured analytics endpoint. "
+            "TODAY THIS REFUSES, AND THAT IS THE IMPLEMENTED BEHAVIOR RATHER THAN A GAP: this "
+            "repository approves no endpoint, operator, TLS posture, retention policy, access "
+            "policy, deletion method or contact for analytics submission, so the command returns an "
+            "actionable `unavailable` and transmits nothing. "
+            "When an endpoint IS configured, submission validates the manifest, schema, per-file "
+            "checksums, tier and size BEFORE sending anything; requires an explicit --by-human "
+            "attestation naming the tier and the destination; reads credentials from an environment "
+            "variable whose NAME is configured (never a stored secret); refuses any scheme but "
+            "https, including via a redirect; and NEVER retries, queues or uploads in the "
+            "background. The `raw` tier is not transmissible at all. "
+            "A local receipt is written on every path and carries no credential. "
+            "Exit 0 submitted, 1 refused or unavailable, 2 cannot-run."
+        ),
+        formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw runs submit path/to/bundle                  # honest `unavailable` refusal today\n"
+            "  aw runs submit path/to/bundle --by-human --actor 'me'\n"
+            "\n"
+            "WHAT IT WILL NOT DO\n"
+            "  No background uploader, no retry daemon, no queue, no beacon, no implicit consent.\n"
+            "  --yes NEVER authorizes a submission; the attestation names the tier AND destination.\n"
+            "\n"
+            "OUTPUT & EXITS\n"
+            "  Exit codes: 0 submitted, 1 refused/unavailable, 2 cannot-run/usage error.\n"
+            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+        ),
+    )
+    _p_runs_submit.add_argument(
+        "bundle",
+        nargs="?",
+        default=None,
+        help="The exported bundle DIRECTORY (the one holding manifest.json).",
+    )
+    _p_runs_submit.add_argument(
+        "--dir", default=None, help="Repo root directory (default: current directory)."
+    )
+    _p_runs_submit.add_argument(
+        "--tier",
+        default=None,
+        help="Require the bundle to be this tier; a mismatch is refused rather than sent.",
+    )
+    _p_runs_submit.add_argument(
+        "--by-human",
+        dest="by_human",
+        action="store_true",
+        help="Explicit attestation naming this tier and destination. Honored with no TTY.",
+    )
+    _p_runs_submit.add_argument(
+        "--actor",
+        default=None,
+        help="Who attested, recorded as provenance in the local receipt.",
+    )
+    _p_runs_submit.add_argument(
         "--fields",
         default=None,
         help="Comma-separated field projection for --agent output (envelope fields are preserved).",
@@ -11497,11 +11692,18 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         # runanalytics Order 08 (`mm5p3v`) E-02: the two ANALYTICS leaves are dispatched BEFORE the
         # ledger dispatcher, because `run_cli` resolves its argument as a run LEDGER and neither of
         # these takes one (`analyze` takes zero or more targets, `query` takes a view name).
-        if runs_cmd in ("analyze", "query"):
+        # runanalytics Order 09 (`ixis0c`) E-01: the two DATA-SHARING leaves join that interception,
+        # for the same reason. `export` takes zero or more run selectors and `submit` takes a BUNDLE
+        # DIRECTORY, so neither argument is a run ledger and `run_cli` would refuse both.
+        if runs_cmd in ("analyze", "query", "export", "submit"):
             from agent_workflows import run_analytics_cli
 
             if runs_cmd == "analyze":
                 return run_analytics_cli.run_analyze(args)
+            if runs_cmd == "export":
+                return run_analytics_cli.run_export_leaf(args)
+            if runs_cmd == "submit":
+                return run_analytics_cli.run_submit_leaf(args)
             return run_analytics_cli.run_query_leaf(args)
         if runs_cmd and runs_cmd != "list":
             from agent_workflows import run_cli
