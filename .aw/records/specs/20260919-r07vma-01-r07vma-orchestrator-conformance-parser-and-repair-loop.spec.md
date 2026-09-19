@@ -1,7 +1,7 @@
-# Spec: Orchestrator conformance: one parser, review-time repair, run-time refusal
+# Spec: Orchestrator conformance: a typed child-tracking checklist, review-time repair, run-time refusal
 
 - Date: 2026-09-19
-- Status: reviewed
+- Status: approved
 - Id: r07vma
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - From-Spec: 77tr3o
@@ -17,9 +17,8 @@
   question, and does not substitute a syntactic rule for the semantic one.
 
 ## Workflow history
-- 2026-09-19 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; SR-001..SR-006, all six FIXED, none deferred, none open. SR-001 was a BLOCKER the draft did not see: it proposed RETIRING the semantic coverage probe and replacing it with a syntactic parser, but approved spec 25kzda 2.5b states the check is SEMANTIC and that 'A syntactic rule MUST NOT be added in its place', and the draft did not cite 2.5b at all. The prohibition's prediction was TESTED rather than accepted on authority and it held: a child-reference signal PASSES rh5tt6 E-02 (the actual production failure, which name-drops 16 children while being pure parent-only work) and a confession-phrase signal catches only 2 of 5 sampled violators, so the substitution would have narrowed real coverage while deleting 476 lines of shipped code and 1265 lines of tests merged the same day. The parser is now ADDITIVE and ordered parser-then-probe. Also FIXED: a missing honest-limits section (SR-002, now five numbered limits including that a clean parse is NOT evidence of coverage), a cost count already stale within hours (SR-003, ten -> eleven pending orchestrators, re-measured with the shape that must survive), three missing acceptance criteria covering the two controls' coexistence, distinguishability and ordering (SR-004), OQ-03 resolved from repository evidence rather than left open (SR-005, decision SR-D1), and a scope line that claimed the probe's territory (SR-006). Two decisions recorded, both reversible. Verified every draft measurement against shipped source: evaluate_set_retirement has zero E-/V-/checklist references, rh5tt6's retirement commit says its items were NOT performed, the 2026-09-06 Readiness incident and IPD-M107 are as described. DISCLOSURE: same agent and model authored this spec earlier in the session, so claims were verified against source and the uncited governing spec was sought out rather than the prose re-read.
 
-- 2026-09-19 to-review (aw specs): Drafted from a maintainer design conversation after a live run refused tb63qv on its single E-item. Establishes that an Order-0 orchestrator may hold only child-tracking items, because retirement is programmatic and skips the E/V checkpoint, so a parent item needing an agent can never be performed (measured: evaluate_set_retirement contains zero references to E-/V-/items/checklist; rh5tt6 was retired 2026-09-08 with its own commit message saying its items were NOT performed). REPLACES 77tr3o R-12's model probe with one shared parser called by both plan-review and the run. The maintainer rejected a new front-matter attestation field: a gate-read field written by the authoring agent is the shape - Readiness: already proved unreliable, and the 2026-09-06 incident was pattern-completion rather than deception, so the fix is to not create the blank. Two open questions recorded rather than settled: how to keep authoring instructions from drifting from the enforcing code, and whether the checklist should become a typed structure.
+- 2026-09-19 approved (aw specs, --by-human): APPROVED by the human maintainer (Gabriele Fariello) 2026-09-19, recorded by the agent at their explicit instruction in session. Approval covers the design as hardened through two review rounds: R1a's typed child-tracking row as the enforcement mechanism (chosen over a prose vocabulary after the maintainer resolved OQ-02 as TYPED), R1b's rule that a cross-child check is a final child with sibling dependencies, the bounded review-time repair loop with honest exhaustion, the batch-report-then-refuse run gate, and the RETENTION of the semantic coverage probe beside the new control per 25kzda 2.5b. The maintainer is on notice of the principal cost: ZERO of 32 live orchestrator rows conform to the new grammar, so every one of the 11 pending orchestrators needs its checklist rewritten, and the migration route is the implementing plan's to choose under acceptance criterion 12. OQ-01 (keeping authoring instructions from drifting from the enforcing code) remains open and non-blocking.
 ## 1. The problem, and what the existing control does not reach
 
 An Order-0 orchestrator IPD is retired PROGRAMMATICALLY. `runner_shared.evaluate_set_retirement` decides
@@ -53,6 +52,9 @@ WHAT IT DOES NOT DO, and this is the gap this spec fills rather than a defect in
 3. IT HAS AN AVAILABILITY FAILURE MODE. A `could-not-ask` proceeds with a warning and a recorded hole.
    That is the correct call for an outage, and it means the probe alone leaves a known gap on the days it
    cannot be reached; a deterministic check has no such day.
+4. IT LEAVES THE AUTHORING SURFACE UNCHANGED, so the violation stays EXPRESSIBLE and the probe's job is to
+   notice it afterwards. The deeper fix is to make a deliverable unwriteable in a checklist row at all,
+   which is what R1a does and which no detector of any kind can achieve.
 
 THE DRAFT OF THIS SPEC MISREAD THAT LIST AS A CASE FOR REPLACEMENT, and review corrected it. `25kzda`
 2.5b, approved, states that the check is semantic and that a syntactic rule MUST NOT be substituted, with
@@ -73,10 +75,63 @@ work: confirming, sequencing, tracking, or verifying the state of named children
 work an agent must perform: producing a deliverable, establishing a baseline before any child runs,
 running a suite or a proof, or reconciling records afterwards.
 
+R1a (THE INVARIANT IS ENFORCED BY SHAPE, NOT BY WORDING). An orchestrator's checklist item is a TYPED
+CHILD-TRACKING ROW, not free prose whose verbs are policed. Each `E-*` item names exactly one child of
+its own Set and the on-disk status that child must reach, in a form a parser reads deterministically:
+
+    - [ ] E-NN CONFIRM <child-id6> REACHED <status>
+      - Depends on: <E-NN | none>
+      - Expected outcome: <child-id6> reads `- Status: <status>` on disk.
+      - Execution state: pending
+
+THE THREE TYPED FIELDS ARE `<child-id6>`, `<status>`, AND THE `Depends on:` EDGE. A conforming item
+supplies all three, its `<child-id6>` resolves to a row of this orchestrator's own child table, and its
+`<status>` is a member of the plan status vocabulary. Free prose MAY follow on continuation lines as
+human-readable context, and is NOT parsed; it may not introduce a second obligation (see R1b).
+
+WHY SHAPE RATHER THAN VOCABULARY, since the draft of this spec proposed the opposite. A vocabulary rule
+polices HOW an item is worded and therefore always has a recall question and a false-positive rate: the
+measurement at review round 1 put a leading-verb allowlist at 11 flags of 32 items, catching every known
+violator but also flagging `ao1rb7` E-01/E-02, which are legitimate sequencing worded as "EXECUTE THE
+CHILDREN IN ORDER". A shape rule has neither property: an item either supplies the three typed fields or
+it does not, and a deliverable has nowhere to be expressed. R1 becomes true BY CONSTRUCTION rather than
+by detection, which is the stronger guarantee and the reason this spec changed direction at review round
+2. The cost is a migration (Section 5 cost 3) and a less discursive hand-run checklist (R2).
+
+R1b (A CROSS-CHILD CONDITION IS A FINAL CHILD, NOT A RICHER PARENT ROW). When a Set needs a check that no
+single child can perform - the merged result of several children, a constant unchanged across all of
+them, a whole-Set measurement - that check is a CHILD plan whose `- Item-Dependencies:` name every
+sibling it must follow. It is NOT an extra clause on a parent row, and the typed shape deliberately
+gives it nowhere to live.
+
+THIS IS NOT A THEORETICAL REMEDY; IT IS THE PATTERN ALREADY IN USE. Measured 2026-09-19: Set `reaskscore`
+carries child 04 `svacmz`, whose child-table row states it "OWNS THE VERIFICATION E-02 AND E-03 DESCRIBE,
+so it is performed and verified by an agent turn instead of being retired unperformed", with
+`- Item-Dependencies: executed:skn8uk, executed:ty7w6o, executed:dy9ymn`. That Set's author reached this
+conclusion independently and applied it before this spec was written, which is the best available evidence
+that the remedy is natural rather than imposed.
+
+AND THE OBJECTION TO A TYPED SHAPE WAS MEASURED AND DID NOT SURVIVE. Review round 1 argued that some
+parent rows carry conditions a typed row cannot express, and named three. All three failed on
+examination: `y9s4vm` E-02's condition (the child consumed the existing `discover_specs`) is asserted by
+child `iuxtjy`'s own Scope and three of its V-items; `lyo1tz` E-02's (the import count fell, with the
+residual set matching) is asserted seven times by child `1f7xno`; and `s0gnha` E-02's (five shared
+constants unchanged on the merged result) had ALREADY been moved into child `svacmz`. Two were
+duplication this spec should reject, and the third was the R1b remedy in the wild. No counter-example was
+found in 32 items across 11 orchestrators, so the expressiveness objection is withdrawn rather than
+accommodated.
+
 R2 (THE CHECKLIST STAYS). R1 is not "a parent has no items". The checklist is what makes a Set execute
 completely and in order when a human or agent runs it BY HAND with no runner involved, which is how many
 Sets are run. Deleting it causes the lost or partial work the invariant exists to prevent. Every plan
 carrying `- Kind: orchestrator` is expected to carry checklist items.
+
+R2a (THE TYPED ROW MUST STILL SERVE THE HAND-RUN READER). R2's reason for keeping the checklist is that a
+human or agent executes the Set from it. A typed row is terser than prose, so it must remain sufficient
+for that: the row names the child, the required status, and its ordering edge, which is exactly what a
+hand-runner needs to execute the Set in order. Where a Set genuinely needs narrative for the hand-run
+path, it goes in the continuation lines (R1a) or in the orchestrator's own prose sections, NOT in a way
+that adds an obligation to the row.
 
 R3 (ONE IMPLEMENTATION, TWO CONSUMERS). The conformance rule is ONE function. `/plan-review` calls it to
 decide whether a plan may be cleared, and a run calls the SAME function to decide whether to proceed.
@@ -88,8 +143,8 @@ R4 (NO NEW FRONT-MATTER FIELD). Conformance is NOT recorded as its own metadata 
 already means "a review ran and reached a verdict", and conformance is part of what a review checks. A
 second field asserting a subset of the same fact would be two fields that can disagree.
 
-R5 (REVIEW REPAIRS, IN A BOUNDED LOOP). When the parser reports a violation during `/plan-review`, the
-review asks the agent to fix it and re-runs the parser, up to a configurable number of attempts
+R5 (REVIEW REPAIRS, IN A BOUNDED LOOP). When the shape check reports a violation during `/plan-review`,
+the review asks the agent to fix it and re-runs the check, up to a configurable number of attempts
 (default 2). `/plan-review` already applies in-place revisions and already re-runs `aw ipd lint --phase
 review-finalize` after them, so this is one more rule at a checkpoint that already exists.
 
@@ -105,7 +160,7 @@ It must not prescribe one. The reasoning is that an agent trusted to author the 
 which remedy fits; and a prohibition-only message gets complied with by deleting the checklist, which is
 the failure R2 exists to prevent.
 
-R8 (THE RUN SCANS, AND REPORTS EVERYTHING BEFORE EXITING). A run re-runs the parser over every queued
+R8 (THE RUN SCANS, AND REPORTS EVERYTHING BEFORE EXITING). A run re-runs the shape check over every queued
 orchestrator before spending anything, collects ALL findings across ALL orchestrators, reports them
 together, and then refuses. It does not stop at the first violation. The maintainer's stated requirement
 is that a fix-one-then-rediscover-the-next cycle is the worst possible operator experience.
@@ -117,14 +172,23 @@ and SR-001: an approved spec (`25kzda` 2.5b) states that the coverage check is S
 syntactic rule MUST NOT be added in its place, and gives the measured reason. This spec is therefore
 scoped to a DIFFERENT and narrower question than the probe's, and the two coexist:
 
-- THE PARSER answers "does this orchestrator's checklist conform to the authoring rules?" It is
-  deterministic, catches the tidy violation, and is the thing review can repair in a loop.
+- THE SHAPE CHECK answers "is every checklist row a well-formed typed child-tracking row whose child
+  resolves and whose status is legal?" It is deterministic with no recall question, because it validates
+  STRUCTURE rather than judging wording, and it is the thing review can repair in a loop.
 - THE PROBE answers "does this orchestrator carry work no child covers, including work stated only in
-  prose?" It is semantic, catches the harmful violation a parser cannot see, and blocks unattended.
+  prose?" It is semantic, and it remains the control for the continuation lines and the orchestrator's
+  prose sections, which R1a explicitly does NOT parse.
 
-Neither subsumes the other, and the ordering is parser first (free, and repairable at review) then
-probe (costly, and the backstop for prose). A run that the parser refuses never reaches the probe, so
-the common case still spends nothing.
+Neither subsumes the other, and the ordering is shape check first (free, and repairable at review) then
+probe (costly, and the backstop for prose). A run the shape check refuses never reaches the probe, so the
+common case still spends nothing.
+
+WHY THE PROBE IS STILL NEEDED EVEN WITH A TYPED SHAPE, stated because a typed row makes it tempting to
+conclude otherwise. The typed shape removes the place a deliverable could be parked IN A ROW. It does not
+remove the continuation lines, the `## Completion criteria` section, or the `## Cross-IPD validation`
+section, all of which are prose an author can still load with an obligation. `25kzda` 2.5b's prohibition
+on substituting a syntactic rule therefore still binds: the shape check narrows the probe's job
+substantially but does not retire it.
 
 ## 3. Why this shape, rather than the alternatives considered
 
@@ -142,22 +206,38 @@ run-only leaves the operator holding a refusal they must fix by hand before re-r
 pipeline later gains independent verification, the run-time scan becomes belt-and-braces rather than
 load-bearing, and dropping it would be a reasonable simplification at that point.
 
-WHY A PARSER IN ADDITION TO A MODEL, given that a parser cannot be complete. A textual rule cannot reliably
-distinguish "verify the Set's combined outcome" (agent work) from "verify child X reached executed"
-(tracking) in every phrasing, and this spec does not claim otherwise. Two things make the parser worth
-ADDING anyway. First, its failure direction is safe: a false refusal leaves the plan in `pending/`, which
-is the status quo, whereas a false pass loses work silently and is what `rh5tt6` measured. Second, R5
-changes what a false refusal COSTS: with an agent asked to fix and re-check, an over-strict parser
-produces a revision rather than a dead end, so strictness is cheap in a way it would not be if the
-parser were the last word. That second reason is the one that made a tight vocabulary acceptable to the
-maintainer, having been reluctant about it earlier in the same conversation.
+WHY A SHAPE CHECK RATHER THAN A VOCABULARY CHECK, which is this spec's largest change of direction and
+happened at review round 2. The draft policed WORDING: an allowlist of tracking verbs, optionally plus a
+requirement that an item name a child id6. Both were measured across all 11 live pending orchestrators
+(32 `E-*` items) and both have a recall problem that cannot be tuned away:
 
-AND THE PARSER IS EXPLICITLY NOT THE LAST WORD, which is what keeps it compatible with `25kzda` 2.5b's
-prohibition. That section forbids substituting a syntactic rule for the semantic check, on the measured
-grounds that false positives would drive agents to delete the child checklist. The prohibition is against
-REPLACEMENT. A parser that runs FIRST, whose refusal is routed to a repair loop that names both remedies
-and forbids deletion (R7), and behind which the semantic probe still runs, does not substitute for
-anything. An implementer who finds themselves removing the probe has left this spec's scope.
+- A LEADING-VERB ALLOWLIST flags 11 of 32. It catches every known violator, but it also flags `ao1rb7`
+  E-01/E-02, whose "EXECUTE THE CHILDREN IN ORDER" is legitimate sequencing, and it can be satisfied by
+  opening a deliverable with an allowlisted verb - `wfjsp4` E-02 and E-04 both begin "VERIFY" while
+  describing whole-Set work no child covers.
+- A CHILD-REFERENCE REQUIREMENT flags 11 of 32 and independently PASSES `rh5tt6` E-02, the one violation
+  measured in production, because that item name-drops sixteen children while being pure parent-only work.
+- A CONFESSION-PHRASE TEST ("no child owns/covers/can") fires on only 2 of 32. Every hit is a true
+  positive, but the recall is near zero.
+
+A TYPED SHAPE HAS NO RECALL QUESTION because it is not a judgement. A row either supplies a resolvable
+child id6, a legal status, and an ordering edge, or it does not. A deliverable cannot be phrased into that
+form, so the invariant holds by construction instead of by detection. That is a different kind of
+guarantee from any of the three signals above, and it is why the vocabulary work the draft specified is
+not merely improved but unnecessary.
+
+WHAT IS GIVEN UP, AND WHY IT WAS JUDGED AFFORDABLE. A typed row cannot carry a cross-child condition, and
+review round 1 treated that as disqualifying. Measurement reversed it: all three candidate counter-examples
+were either duplication of a child's own assertion or work already relocated into a final child (R1b). The
+remaining cost is real but smaller: 11 existing orchestrators need rewriting, and the hand-run checklist
+becomes terser (R2a addresses that directly).
+
+THE PROHIBITION IN `25kzda` 2.5b STILL BINDS AND IS STILL SATISFIED. That section forbids substituting a
+syntactic rule for the semantic check, on the measured grounds that false positives would drive agents to
+delete the child checklist. A shape check runs FIRST, its refusal is routed to a repair loop that names
+both remedies and forbids deletion (R7), and the semantic probe still runs behind it over the prose the
+shape check does not read. Nothing is substituted. An implementer who finds themselves removing the probe
+has left this spec's scope.
 
 WHY NO ATTESTATION FIELD, and the affordance argument behind it. An earlier draft of this design carried
 a "this orchestrator passed conformance on this date" field plus a content digest, so a run could check
@@ -213,15 +293,18 @@ against the live corpus and each missed real violations. A reference test (does 
 id6?) passes `rh5tt6` E-02, the actual production failure, because it name-drops sixteen children while
 being pure parent-only work. A confession-phrase test ("no child owns/covers/can") catches `s0gnha` and
 `wfjsp4` but misses `5e4sb6`, `tb63qv` and `a5wdne`, which carry parent-only work in ordinary prose: 2
-of 5 on a sample this spec already had in hand. So the parser's recall on the harmful case is
-demonstrably partial, and retiring the semantic check would have narrowed coverage while claiming to
-harden it.
+of 5 on a sample this spec already had in hand. So a WORDING-BASED rule's recall on the harmful case is
+demonstrably partial, and retiring the semantic check in favour of one would have narrowed coverage while
+claiming to harden it. (Review round 2 then removed the wording rule entirely in favour of the typed
+shape, which is why these measurements survive here as the REASON for that change rather than as a
+description of what ships.)
 
-WHAT THE PARSER IS STILL FOR, given that. It is cheap, it is deterministic, it runs at REVIEW where a
-violation can be repaired rather than merely reported, and a false refusal there costs a revision
-instead of a dead end (R5). That is a real contribution to a real problem; it is just not a replacement
-for the semantic check. The honest framing is defense in depth with distinct coverage, not one mechanism
-superseding another.
+WHAT THE DETERMINISTIC CHECK IS STILL FOR, given that. It is cheap, it runs at REVIEW where a violation
+can be repaired rather than merely reported, and a refusal there costs a revision instead of a dead end
+(R5). That is a real contribution to a real problem; it is just not a replacement for the semantic check.
+The honest framing is defense in depth with distinct coverage, not one mechanism superseding another. Note
+the typed shape chosen in round 2 is STRONGER than the wording rule measured above: it does not detect a
+deliverable, it makes one unwriteable in a row.
 
 THE COST OF HAVING BEEN WRONG HERE IS WORTH RECORDING, because it is the argument for reading the
 governing spec before proposing to replace its mechanism: the draft would have deleted 476 lines of
@@ -234,32 +317,41 @@ payload, its cache keyed on exactly the inputs it reasons over, and its collect-
 structure. R8's batch reporting is that structure generalized across check kinds.
 
 WHAT IS GENUINELY UNRESOLVED, flagged rather than papered over. The maintainer raised, and this spec does
-not settle, how to keep the ENFORCEMENT CODE and the AUTHORING INSTRUCTIONS from drifting apart: a
-vocabulary and structure the parser enforces must also be documented for the agent writing a Set, and
-two hand-maintained statements of one rule drift. OQ-01 carries a proposed direction (generate the
-instructions from the rule) rather than a decision.
+not settle, how to keep the ENFORCEMENT CODE and the AUTHORING INSTRUCTIONS from drifting apart: the row
+grammar the check enforces must also be documented for the agent writing a Set, and two hand-maintained
+statements of one rule drift. OQ-01 carries a proposed direction (render the instructions from the rule)
+rather than a decision, and records that the TYPED choice shrinks this question because a conforming
+scaffold shows an author the shape instead of telling them a rule.
 
 ## 3a. Honest limits: what this spec does NOT prove
 
 Stated explicitly because the draft claimed more than it delivers, and a spec that oversells is worse
 than one with a narrow scope.
 
-1. A CLEAN PARSER RESULT IS NOT EVIDENCE THAT AN ORCHESTRATOR CARRIES NO UNCOVERED WORK. It is evidence
-   that the checklist conforms to the authoring rules. The prose case is out of a parser's reach by
-   construction (`25kzda` 2.5b), which is why the semantic probe is retained rather than replaced.
-2. THE PARSER'S RECALL IS NOT QUANTIFIED. Two candidate signals were measured on a five-plan sample at
-   review and both missed real violations. An implementer should measure recall on the live corpus and
-   RECORD it, so the residue is known rather than assumed.
+1. A CONFORMING CHECKLIST IS NOT EVIDENCE THAT AN ORCHESTRATOR CARRIES NO UNCOVERED WORK. It is evidence
+   that every ROW is a well-formed child-tracking row. R1a deliberately does not parse the continuation
+   lines, the `## Completion criteria` section, or the `## Cross-IPD validation` section, and an
+   obligation can still be written there. That residue is the semantic probe's job, which is why `25kzda`
+   2.5b's prohibition still binds and the probe is retained.
+2. THE SHAPE CHECK HAS NO RECALL QUESTION FOR ROWS, AND AN UNQUANTIFIED ONE FOR PROSE. Within a row the
+   check is structural, so "recall" does not apply: a deliverable cannot take the typed form. Outside a
+   row it has no reach at all. An implementer should measure how much of the real violation population
+   lived in ROWS versus in PROSE before and after, and RECORD it, because that ratio is what says whether
+   the shape change closed most of the gap or merely moved it.
 3. REVIEW-TIME REPAIR IS AGENT-PERFORMED AND SELF-ASSESSED. R5/R6 bound and log it; they do not make it
-   independent. The run-time consumer is what provides independence, and it re-parses rather than trusting
-   the review's verdict.
-4. NOTHING HERE PREVENTS A DELIBERATELY CONCEALED DELIVERABLE. An author intent on hiding agent work in
-   an orchestrator can phrase it to pass both a parser and, plausibly, a probe. The controls raise the
+   independent. The run-time consumer is what provides independence, and it re-validates rather than
+   trusting the review's verdict.
+4. NOTHING HERE PREVENTS A DELIBERATELY CONCEALED DELIVERABLE. An author intent on hiding agent work can
+   put it in the prose R1a does not read, and plausibly phrase it past a probe too. The controls raise the
    cost of the ACCIDENTAL violation, which is the measured failure mode (`rh5tt6`, and the 2026-09-06
    `Readiness` incident, were both pattern-completion rather than deception).
-5. THIS SPEC DOES NOT ESTABLISH THAT A PARSER IS SUFFICIENT. It establishes that a parser is a cheap,
-   repairable first line. If measurement later shows its recall is negligible on real violations, dropping
-   it and keeping only the probe would be a reasonable response to that evidence.
+5. THE TYPED SHAPE IS A CONSTRAINT ON THE ROW, NOT A PROOF ABOUT THE SET. It guarantees that what a row
+   SAYS is a child-tracking obligation. It does not guarantee the Set's children actually cover the Set's
+   work: a parent can conform perfectly while its author simply omitted a needed final child. R1b names
+   the remedy but nothing detects the omission, and this spec does not claim to.
+6. THE MIGRATION IS NOT DESIGNED HERE. Section 5 cost 3 states that 11 orchestrators need rewriting and
+   names the cutover pattern; choosing between a cutover, a sweep, and a grandfather clause is the
+   implementing plan's decision, and a wrong choice there could strand a Set mid-flight.
 
 ## 4. Non-goals
 
@@ -282,22 +374,38 @@ than one with a narrow scope.
    silently passing.
 2. TWO CONSUMERS MEANS THE CHECK RUNS TWICE. Deliberate, per Section 3's first paragraph. The cost is a
    second parse, not a second rule.
-3. THE EXISTING PENDING ORCHESTRATORS WILL REFUSE OR NEED REWORDING. Measured during the design
-   conversation: of ten pending `Kind: orchestrator` plans, seven were classified as carrying at least
-   one parent-only item. RE-MEASURED AT REVIEW, and the population moved WITHIN HOURS, which is why this
-   is a dated snapshot and not a fixture: there are now ELEVEN (`7ewc74` left by being finalized;
-   `2xz59a` and `s0gnha` arrived). The SHAPE is what must survive re-measurement - a majority of live
-   orchestrators carry at least one parent-only item - and it did. An implementer must re-derive the
-   count and report the denominator. A date cutover (the `check_engine.CARRIER_CUTOVER_DATE` pattern) can
-   make this gradual, which is the implementing plan's decision to make.
+3. EVERY EXISTING ORCHESTRATOR NEEDS ITS CHECKLIST REWRITTEN, AND THE COST IS LARGER THAN THE DRAFT SAID.
+   This is the principal cost of choosing TYPED over a vocabulary rule, and it is stated at full size
+   rather than minimised. Measured during the design conversation: of ten pending `Kind: orchestrator`
+   plans, seven carried at least one parent-only item. RE-MEASURED AT REVIEW the population was ELEVEN
+   (`7ewc74` left by being finalized; `2xz59a` and `s0gnha` arrived), which is why this is a dated
+   snapshot and not a fixture.
+   THE DRAFT UNDERSTATED THE REWRITE by claiming most items were already schema-shaped. Measured properly,
+   only 11 of 32 `E-*` items are even close (a single resolvable child reference and a short body); the
+   other 21 have first lines between 133 and 1528 characters.
+   MEASURED AGAINST THE R1a GRAMMAR ITSELF, THE ANSWER IS BLUNTER AND IS STATED RATHER THAN SOFTENED:
+   **ZERO of 32 rows conform today.** Every `E-*` item on every live orchestrator needs rewriting, because
+   none is currently written as `CONFIRM <child-id6> REACHED <status>`. This is the single largest cost in
+   this spec and the honest counterweight to the by-construction guarantee: the guarantee is bought with a
+   total rewrite of an existing surface, not with a formatting pass. Prose currently carrying genuine
+   orchestration meaning must be relocated into continuation lines (R1a), into the orchestrator's prose
+   sections, or into a final child (R1b).
+   AN IMPLEMENTER SHOULD RE-DERIVE THAT ZERO rather than trust it, and should expect it to stay near zero
+   until the migration runs: the grammar is new, so nothing authored before this spec can satisfy it by
+   accident. A non-zero count before migration would mean the grammar was quietly widened.
+   THE ROUTE IS THE IMPLEMENTING PLAN'S TO CHOOSE and criterion 12 constrains the outcome rather than the
+   method: a date cutover (the `check_engine.CARRIER_CUTOVER_DATE` pattern), a migration sweep, or an
+   explicit grandfather clause are all admissible, but none may leave a Set refused with no available
+   remedy. An implementer must re-derive the population and report the denominator.
 4. REVIEW STILL ASSERTS A CHECK THE SAME AGENT PERFORMED. R8 mitigates rather than eliminates this. It is
    a property of the whole review pipeline, not something introduced here.
-5. THE PARSER'S RECALL ON THE HARMFUL CASE IS PARTIAL AND UNQUANTIFIED. Measured at review on a
-   five-plan sample, a confession-phrase signal caught 2 of 5 and a child-reference signal passed the
-   known production failure outright (Section 3). This spec therefore does NOT claim the parser detects
-   parent-only work in general; it claims the parser enforces AUTHORING CONFORMANCE deterministically and
-   repairs it at review, while the semantic probe remains the control for the prose case. A consumer must
-   not read a clean parser result as evidence that an orchestrator carries no uncovered work.
+5. THE SHAPE CHECK GOVERNS ROWS ONLY, AND ITS REACH ENDS THERE. Within a row it is structural and has no
+   recall question, because a deliverable cannot be expressed as three typed fields (R1a). Outside a row
+   it has no reach at all: R1a deliberately does not parse continuation lines or the orchestrator's prose
+   sections, so the semantic probe remains the control for those. A consumer must not read a conforming
+   checklist as evidence that an orchestrator carries no uncovered work. The vocabulary signals the draft
+   proposed were measured and abandoned for exactly this reason (Section 3): each policed wording and each
+   had a measurable miss rate, which by-construction avoids rather than improves.
 
 ## 6. Acceptance criteria
 
@@ -307,27 +415,42 @@ quoting this document.
 
 1. ONE function decides conformance, and both consumers call it. Evidence: the function, and both call
    sites, with a grep showing no second implementation of the rule.
-2. A conforming orchestrator passes at both consumers; one carrying a parent-only item fails at both.
-   Evidence: a fixture of each, plus a MUTATION check (break the rule, show the pin fails, restore).
-3. The refusal text states the invariant, forbids satisfying it by deletion, and names both remedies
+2. THE TYPED ROW IS PARSED AS THREE FIELDS, and each is validated. Evidence: a conforming row yielding
+   `(child_id6, status, depends_on)`; a row whose `<child-id6>` resolves to no row of that orchestrator's
+   own child table REFUSED; a row whose `<status>` is outside the plan status vocabulary REFUSED; a row
+   missing the `Depends on:` edge REFUSED. One fixture per case, each with the rendered message.
+3. A DELIVERABLE CANNOT BE EXPRESSED AS A CONFORMING ROW. Evidence: take the three real parent-only items
+   measured at review (`5e4sb6` E-01 "Produce the function-by-function INVENTORY", `wfjsp4` E-02 "VERIFY
+   THE BROWSE AFFORDANCE ACTUALLY ARRIVED", `tb63qv` E-01 "After both children are executed, verify the
+   Set's combined outcome") and show each is refused. This is the pin for R1a's by-construction claim and
+   it must include `wfjsp4` E-02 specifically, since that item opens with an allowlisted VERB and would
+   have passed the draft's vocabulary rule.
+4. A CONFORMING ORCHESTRATOR AND A CROSS-CHILD CHECK COEXIST. Evidence: an orchestrator whose rows all
+   conform, plus a final child carrying `- Item-Dependencies:` naming every sibling, together passing. Cite
+   `svacmz` as the in-tree precedent rather than inventing a fixture shape.
+5. The refusal text states the invariant, forbids satisfying it by deletion, and names both remedies
    without prescribing one. Evidence: the rendered message.
-4. `/plan-review` repairs a violating orchestrator within the attempt budget and the repaired plan
+6. `/plan-review` repairs a violating orchestrator within the attempt budget and the repaired plan
    passes. Evidence: the before and after checklists plus the round record.
-5. An exhausted loop leaves the plan `to-review` with `- Readiness:` ABSENT and the attempts logged.
+7. An exhausted loop leaves the plan `to-review` with `- Readiness:` ABSENT and the attempts logged.
    Evidence: the plan's front matter and the round record after a deliberately unfixable case.
-6. A run reports EVERY finding across EVERY queued orchestrator in one pass, then refuses. Evidence: a
+8. A run reports EVERY finding across EVERY queued orchestrator in one pass, then refuses. Evidence: a
    multi-violation queue's output showing all findings before the exit.
-7. The model probe STILL RUNS and still blocks, and the parser did not displace it. Evidence: a queued
-   orchestrator carrying parent-only work stated only in PROSE (no matching checklist syntax) is still
-   refused after this change, plus `tests/test_orchestrator_probe.py` passing UNEDITED, plus `grep`
-   showing the probe's seven functions intact. This criterion inverts the draft's criterion 7 and is the
-   pin for SR-001.
-8. The parser's REFUSAL and the probe's REFUSAL are distinguishable to an operator, so a human reading a
-   refused run knows which control fired and therefore which remedy applies. Evidence: both messages,
-   side by side, naming different rule ids.
-9. The ordering is parser-then-probe, and a parser refusal spends no model call. Evidence: a run refused
-   by the parser showing zero probe invocations (an empty probe event stream or an equivalent assertion).
-10. The full suite passes and `aw check all` is no worse than its pre-change baseline, both counts pasted.
+9. The model probe STILL RUNS and still blocks, and the shape check did not displace it. Evidence: a
+   queued orchestrator whose ROWS all conform but which carries an obligation in its continuation lines or
+   its `## Completion criteria` section is still refused, plus `tests/test_orchestrator_probe.py` passing
+   UNEDITED, plus `grep` showing the probe's seven functions intact. This criterion inverts the draft's
+   criterion 7 and is the pin for SR-001.
+10. The shape check's REFUSAL and the probe's REFUSAL are distinguishable to an operator, so a human
+    reading a refused run knows which control fired and therefore which remedy applies. Evidence: both
+    messages, side by side, naming different rule ids.
+11. The ordering is shape-check-then-probe, and a shape refusal spends no model call. Evidence: a run
+    refused by the shape check showing zero probe invocations.
+12. THE MIGRATION LEAVES NO SET STRANDED. Evidence: after whichever migration route is chosen, every one
+    of the pre-existing orchestrators either conforms or is explicitly grandfathered with its mechanism
+    named, and NONE is left in a state where a run refuses it with no available remedy. Re-derive the
+    population; it was 11 at review and moves.
+13. The full suite passes and `aw check all` is no worse than its pre-change baseline, both counts pasted.
 
 ## 7. Open questions
 
@@ -338,30 +461,52 @@ quoting this document.
 - Owner: maintainer
 - Resolution or deferral rationale: NOT blocking, because the conformance rule and its two consumers can
   be built and tested before this is settled; an implementer would simply hand-write the instructions and
-  inherit the drift risk. It matters because a rule the parser enforces must also be documented for the
+  inherit the drift risk. It matters because a rule the check enforces must also be documented for the
   agent AUTHORING a Set, and two hand-maintained statements of one rule diverge, which is the failure
-  this whole spec is a response to at a different level. PROPOSED DIRECTION, not a decision: keep the
-  vocabulary and prohibitions as DATA in the rule module, and render the refusal message, the `aw ipd
-  scaffold` guidance, and the documentation from that one source, so the instructions cannot disagree with
-  the check. The alternative (prose beside code, kept in step by discipline) is what the repository does
-  today for most rules and is honestly workable; it just has a known decay mode.
+  this whole spec is a response to at a different level. PROPOSED DIRECTION, not a decision: hold the row
+  GRAMMAR as data in the rule module and render the refusal message, the `aw ipd scaffold` skeleton, and
+  the documentation from that one source, so the instructions cannot disagree with the check. The
+  alternative (prose beside code, kept in step by discipline) is what the repository does today for most
+  rules and is honestly workable; it just has a known decay mode.
+  NARROWED BY THE OQ-02 RESOLUTION, AND THIS IS THE USEFUL PART: choosing TYPED shrinks this question
+  considerably. A vocabulary would have meant documenting a verb list, its rationale, and its edge cases in
+  prose for authors while the code held the same list - two statements that drift. A typed row is mostly
+  self-documenting through the scaffold: an author who starts from a conforming skeleton is shown the shape
+  rather than told the rule. So the residual drift risk is the GRAMMAR plus the refusal wording, which is a
+  much smaller surface than a vocabulary and its exceptions would have been.
 
 ### OQ-02: Should the orchestrator checklist stay prose with an enforced vocabulary, or become a typed child-tracking structure?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: NOT blocking: R1 through R9 are expressible either way, and the
-  prose-with-vocabulary route is the smaller change and the one this spec is written against. The
-  question is worth recording because the two routes converge: a vocabulary and structure strict enough
-  to parse reliably IS most of a typed table, at which point the vocabulary rules become redundant
-  scaffolding around it. A typed structure would also make R1 true BY CONSTRUCTION (there would be
-  nowhere to park a deliverable) rather than by detection, which is the stronger guarantee. Against it:
-  it is a bigger migration for the existing orchestrators, it makes the hand-run path (R2's reason for
-  keeping the checklist) less readable to a human, and it is harder to extend when a Set needs to say
-  something the schema did not anticipate. Deferred rather than answered because the maintainer leaned
-  toward the prose route once R5 made strictness cheap, and that lean should be tested by building it
-  before committing to a schema.
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-19 AS **TYPED**, and R1a/R1b/R2a
+  are that resolution written into the normative section. The decision reversed this spec's draft, which
+  specified a prose vocabulary, so the reasoning is recorded in full rather than as an outcome.
+  WHAT THE DRAFT ARGUED, AND WHY IT WAS WRONG. It claimed some parent rows carry cross-child conditions a
+  typed row cannot express, and named three. Measurement refuted all three: `y9s4vm` E-02's condition is
+  already asserted by child `iuxtjy`'s own Scope and three of its V-items; `lyo1tz` E-02's is asserted
+  seven times by child `1f7xno`; and `s0gnha` E-02's had already been relocated into child `svacmz`,
+  which carries `- Item-Dependencies:` naming all three siblings. So two were duplication the spec should
+  reject and the third was the R1b remedy already in production use. Zero counter-examples were found in
+  32 items across 11 orchestrators.
+  A SECOND DRAFT CLAIM WAS ALSO FALSE and is corrected here because it made the migration look cheaper
+  than it is: the draft asserted that "21 of 32 items already reduce to confirm-child-X-is-executed, so
+  the corpus is mostly typed already". Measured properly, only 11 of 32 are schema-shaped; the rest have
+  first lines from 133 to 1528 characters. The migration is therefore LARGER than the draft implied, and
+  Section 5 cost 3 now says so.
+  WHY TYPED WON ANYWAY. A vocabulary rule polices wording, so it always carries a recall question and a
+  false-positive rate, both measured: a verb allowlist flags 11 of 32 but passes `wfjsp4` E-02 (a
+  deliverable opening with "VERIFY") and wrongly flags `ao1rb7`'s legitimate sequencing; a child-reference
+  rule passes `rh5tt6` E-02, the production failure. A typed row has neither property, because a
+  deliverable cannot be phrased into three typed fields. The maintainer's standing objection to this whole
+  area was brittleness of enforcement, and by-construction is the only answer to that which does not
+  depend on a heuristic.
+  WHAT REMAINS ARGUABLE, since this is a trade and not a proof: a typed row is terser for the hand-run
+  reader R2 exists to serve (R2a addresses it but does not eliminate it), and the schema cannot express
+  something a future Set genuinely needs, in which case the answer is a child (R1b) rather than a wider
+  schema. If an implementer finds a legitimate case that is neither expressible as a row nor sensible as a
+  child, that is evidence worth bringing back rather than a reason to widen the row quietly.
 
 ### OQ-03: Does the conformance rule apply to an orchestrator a runner will never queue?
 

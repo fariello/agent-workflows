@@ -115,3 +115,69 @@ contract flags; it now states the conditional runner/executor ownership instead.
 | D-1 | E-01 names a workflow that refuses this spec's status. Escalate as blocking, or re-specify the mechanism in place? | RE-SPECIFY in place: perform the re-read directly and record it with `aw specs note`, forbidding `/spec-review`, any `aw specs set` on this spec, and any `.review.md` for it. Not escalated. | (a) Escalate `Blocking: yes`: rejected, this is answerable from repository evidence (the workflow's own Step 0.1, the transition table, and the `note` verb's documented contract) rather than from maintainer preference, so escalating would spend a human turn on a settled question. (b) Change the spec to `reviewed` first so `/spec-review` accepts it: rejected as actively harmful, since it de-approves a release-gating spec to satisfy a tool precondition and needs a `--by-human` re-approval. (c) Amend Section 12a's wording as part of this plan: rejected, the sentence's conclusion is right and only its premise is stale; rewriting an approved spec's prose to fix a plan is the wrong direction, and the plan can simply use the correct verb. | `spec-review.md:111-114` (refuses `approved`); `uonrjg` line 4 `- Status: approved`; `attention_contract.transition_allowed('approved','reviewed')` True; `spec-review.md:259-284` (its setter step and the approval-gate arming); `aw specs note --help` ("WITHOUT changing its status"). | yes |
 | D-2 | The plan waives the suite run. Accept the waiver for a docs-only child, or require a run? | REQUIRE a bare run plus `aw check specs`, and RECORD a measured baseline so a pre-existing failure is distinguishable. | (a) Accept the waiver: rejected, 25 test modules read the live tree and this child writes a tracked record in it, so "no code changes" does not imply "no test can break". (b) Require only `aw check specs`: rejected as the cheaper half of the right answer; it covers the record's conformance but not the corpus-reading tests. (c) Name specific test modules to run: rejected, a narrowed run needs `-o addopts=""` to report counts and the repo contract prefers the bare suite; naming modules also dates as tests move. | `grep -rlc "parents\[1\]" tests/*.py` -> 25; `tests/test_check_engine_spec_handoff.py:216` is live-repo but pinned to `c4gd2h`, not `uonrjg`; bare run in this lane at `6ce719d5` -> `8369 passed, 3 skipped, 2 xfailed in 100.98s`. | yes |
 | D-3 | OQ-01 asks whether amending a criterion needs fresh maintainer approval. Resolve it, or leave it open? | LEAVE OPEN, non-blocking, and sharpen its rationale rather than answering it. | (a) Resolve it as "no approval needed": rejected, `uonrjg` carries `Blocks-Release: next`, so moving its acceptance bar moves a release gate, and AGENTS.md reserves approval authority to the human; an agent answering this would be authorizing its own future latitude. (b) Make it `Blocking: yes`: rejected, it is CONDITIONAL on E-03 finding a divergence, and the common case (no divergence, history append only) is provably approval-free because `aw specs note` changes no status and no requirement, so blocking the plan on it would stall a gate that may never fire. | `aw specs note --help` (no status change); `uonrjg` `- Blocks-Release: next`; AGENTS.md's approval-attestation rule and the `--by-human` floor in `TRANSITION_AUTHORITY['->approved']` (`{'who': 'human', 'by_human': True, ...}`). Judged REVERSIBLE because the decision only defers the question, and the harm path it leaves open is now closed IN THE PLAN: E-03/OQ-01 require the executor to surface an amended criterion to the maintainer, and the gate forbids any `aw specs set` on this spec and any self-written `--by-human`. Without those mitigations this row would be irreversible and would need escalation. | yes |
+
+## Round 2
+
+RECONCILIATION OF TWO INDEPENDENT ROUND 1 REVIEWS OF THIS PLAN, not a fresh review of the plan itself.
+
+Two `/plan-review` runs reviewed `n4xq3l` on 2026-09-19 and each filed a Round 1 at this path. The
+surviving record above (`PR-101`..`PR-105`, commit `c4e16ecb`) is the one that reached `main`; a second
+(`PR-001`..`PR-009`, commit `76018805`) stayed on lane `review-sweep-run-20260919T133719Z-1618106` and
+was never merged, because a straight merge of that lane conflicted add/add on this file and on `udgilu`'s
+while a live `aw oc run lifeglyph` was rewriting both. Rather than pick one record and discard the other,
+the unmerged record's findings were checked ONE BY ONE against the plan as it stands on `main`. This round
+records that comparison and the two fixes it justified, so the discarded review's real results are not
+lost with its file.
+
+BOTH ROUND 1 RECORDS AGREE ON THE CENTRAL DEFECT AND REACHED THE SAME FIX, INDEPENDENTLY. `PR-101`/`PR-001`
+are the same BLOCKER (E-01 named `/spec-review`, which refuses an `approved` spec, so the Section 12a gate
+would have discharged nothing), and `PR-102`/`PR-001`'s second half are the same authority harm (the
+`approved -> reviewed` workaround demotes a release-gating spec and re-arms a `--by-human` gate). Both
+chose to re-specify E-01 around `aw specs note` and to forbid the transition by name. That convergence is
+evidence for the fix rather than duplicated effort, and it is why no change was needed here.
+
+SIX OF THE UNMERGED RECORD'S NINE FINDINGS WERE ALREADY SATISFIED by the plan on `main`, verified by
+reading it rather than by trusting either record: its `PR-002` (Section 12a's stale `reviewed` premise) is
+`PR-104`; `PR-004` (hand-rolled `git mv`, missing fence/honesty rule) is `PR-105`, and the gate now routes
+the terminal move through `aw ipd finalize`; `PR-005` and `PR-007` (V-items that cannot distinguish success
+from silent failure; "documentary" treated as unverifiable) are covered by `PR-103`'s restored suite run
+plus the three negative proofs now demanded in V-01; `PR-006` (E-02's measurements named loosely) is
+covered by OQ-01's at-review resolution, which enumerates the owners and their counts; and `PR-009` (the
+review record arms an approval gate with no override) is stated four times in the current plan.
+
+TWO FINDINGS WERE GENUINE GAPS AND ARE FIXED IN THIS ROUND.
+
+**R2-01, from the unmerged `PR-003` (MEDIUM, and the more dangerous of the two).** The Scope check asserted
+that Section 12a's edge obligation "is satisfied structurally by this plan's own `- Item-Dependencies:`
+line". It is not: obligation 1 binds "the plan that lands the resolver", which is `udgilu`. Confirmed by
+reading both plans at this HEAD: `n4xq3l` carries `- Item-Dependencies: executed:yaxr4i` while `udgilu`
+carries `- Item-Dependencies: executed:yaxr4i, executed:n4xq3l`. The obligation IS discharged, by `udgilu`.
+The false claim mattered because it implied `udgilu`'s edge was redundant with this plan's, which would
+license a later tidier to delete it and free the resolver to be built against the pre-`yaxr4i` surface,
+the one outcome this plan exists to prevent. FIXED: the Scope check now names whose obligation it is,
+cites the spec sentence, records `udgilu`'s edge as verified rather than assumed, and states why this
+plan's own edge exists for an independent reason.
+
+**R2-02, from the unmerged `PR-008` (LOW as filed, and measurement showed it is worse than that).** V-01
+instructed pasting `git log --oneline -1 -- .aw/records/plans/executed/*yaxr4i*`. The glob is expanded by
+the SHELL, not by git, and `yaxr4i` is still in `pending/`. Measured at this HEAD: BOTH the quoted and the
+unquoted forms print nothing and exit 0. So the command cannot currently distinguish "executed" from "not
+executed", and empty-and-successful output is indistinguishable from a satisfied check. The unmerged record
+proposed quoting the pathspec; quoting alone does NOT fix it, which the measurement above demonstrates.
+FIXED with a stronger remedy than either record proposed: V-01 now requires a command that FAILS LOUDLY on
+absence (`ls ... | grep yaxr4i`, nonzero exit when missing), explicitly forbids the bare glob form, and
+records the measurement so the prohibition is not mistaken for style.
+
+NOTHING ELSE WAS CHANGED, and the plan's `- Status: reviewed` and `- Readiness: go-pending-approval` are
+untouched: this round narrows two evidence demands and corrects one false claim, none of which alters the
+plan's intent, scope, or approval state. `aw ipd lint` reports `conforming` at `--phase author` and raises
+no carrier finding at `--phase pre-transition`.
+
+ONE OBSERVATION THE UNMERGED RECORD MADE THAT IS WORTH KEEPING, recorded here because its own file is not
+being merged and the concern belongs to nobody. Its `D-1` found that the sealed lane input it was handed
+did NOT match the plan committed to `main`: the input hashed `a82cf6e1`, the committed plan `a794daec`, and
+`aw ipd lint --phase author` exited 1 with four errors on the input (`IPD-H202` plus `IPD-I303` three
+times) while the committed plan was `conforming`. That reviewer correctly reviewed the committed plan and
+declined to file four false positives. The implication is runner-side and independent of this plan: a
+review lane can seal a mid-authoring working tree and hand a reviewer a draft its author would not
+recognize. It is not a defect in `n4xq3l` and no finding is raised against it here.
