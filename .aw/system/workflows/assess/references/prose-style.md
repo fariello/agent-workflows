@@ -24,11 +24,42 @@ memo cadence, structure, or register on terse or technical surfaces.
 | Error / log / help / CLI `--help` text | Universal rules + be specific and actionable (say what happened and what to do); no vague inflation. |
 | Commit messages / PR descriptions (advisory) | Universal rules; state what changed and why. Advisory only (history). |
 
+### USER-FACING versus INTERNAL, and why one rule is scoped to the first
+
+One of the universal rules below, NO EM DASHES, exists to stop prose reading as
+machine-written, which is a concern about text a READER OUTSIDE the project encounters.
+It is therefore scoped to USER-FACING surfaces: READMEs, CHANGELOG, guides, other docs
+meant for end users, UI strings, and error, log, help, or CLI text. The contract
+`AGENTS.md` states covers EN DASHES on the same terms, so treat both marks alike even
+though only the em dash has its own section here.
+
+It does NOT apply to INTERNAL or AI-FACING artifacts, where an author should spend no
+effort avoiding dashes: IPDs and plans, specs, research findings, prompts, walkthroughs,
+review records, commit messages, and code comments or docstrings. THIS IS A DELIBERATE
+EXEMPTION RATHER THAN AN OVERSIGHT, and the reason is proportionality: a dash in a plan
+costs a reader nothing, while the effort of hunting dashes across internal prose buys
+nothing a reader will ever see.
+
+THE OTHER UNIVERSAL RULES ARE UNAFFECTED and still hold on every surface, including
+internal ones, because each of them is about whether the writing is accurate and
+economical rather than about how it reads to an outsider. Substance over decoration,
+modifier restraint, and honest evidence are as valuable in a plan as in a README.
+
+THE CONTRACT IS THE AUTHORITY HERE, NOT THIS FILE. `AGENTS.md`'s agent execution
+contract states the same scope and binds what an agent must spend effort on; this
+section is aligned to it, and where the two could be read differently the contract
+wins. (Corrected 2026-09-19 on the maintainer's ruling: this reference previously
+listed the dash rules as universal without qualification, which contradicted the
+contract's explicit exemption and would have had the `assess-prose` lens file findings
+against surfaces the contract frees.)
+
 ## Universal rules (all prose)
 
-### No em dashes
-Do not use em dashes. Rewrite with a period, comma, colon, parentheses, or a simpler
-sentence.
+### No em dashes (USER-FACING surfaces only)
+Do not use em dashes in user-facing prose. Rewrite with a period, comma, colon,
+parentheses, or a simpler sentence. Exempt on internal and AI-facing surfaces per the
+scope note above, so do NOT file a finding against a dash in a plan, spec, research
+document, prompt, walkthrough, commit message, or code comment.
 
 ### Prefer substance over decoration
 Concrete nouns, active verbs, named actors, specific consequences, measured claims.

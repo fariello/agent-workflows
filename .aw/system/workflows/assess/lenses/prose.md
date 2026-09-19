@@ -19,8 +19,9 @@ views for user-facing copy.
 
 Assess against `../assess/references/prose-style.md` (the framework's distilled prose
 style guide, adapted from the maintainer's nonfiction-prose toolkit). That reference
-defines the universal rules (no em dashes, substance over decoration, modifier and
-rhetorical restraint, honest evidence), the mechanical fingerprints to avoid (openings,
+defines the universal rules (substance over decoration, modifier and rhetorical
+restraint, honest evidence, plus no em or en dashes on USER-FACING surfaces only, per
+that reference's scope note), the mechanical fingerprints to avoid (openings,
 transitions, sentence structures, prestige words, rhythm and conclusion habits), the
 positive "quiet force" model, and - importantly - how intensity varies by surface. Read
 it and apply it; do not re-derive the banned lists here.
@@ -28,9 +29,11 @@ it and apply it; do not re-derive the banned lists here.
 ## Apply by surface (do not over-apply)
 
 Per the reference's surface table: hold every surface to the universal rules, but apply
-the full authored/quiet-force bar only to long-form prose. A code comment or a one-line
-tooltip should be terse and plain; do NOT rewrite it into executive-memo cadence. The
-most common real defects are: em dashes; inflated modifiers and prestige words;
+the full authored/quiet-force bar only to long-form prose, and note that the DASH rules
+are scoped to user-facing surfaces while the rest hold everywhere. A code comment or a
+one-line tooltip should be terse and plain; do NOT rewrite it into executive-memo
+cadence. The most common real defects are: em dashes in user-facing text; inflated
+modifiers and prestige words;
 generic openings and reflex transitions; section endings that reach for uplift instead
 of the implication; and unsupported or overstated claims.
 
@@ -39,8 +42,15 @@ of the implication; and unsupported or overstated claims.
 - **Mechanical fingerprints:** scan for the openings, transitions, sentence structures,
   prestige/filler words, and rhythm/conclusion habits in the reference. Flag by pattern,
   with location and the suggested plainer rewrite.
-- **Em dashes:** flag every em dash (fast, objective, high-signal); propose a period/
-  comma/colon/parenthetical/simpler-sentence rewrite.
+- **Em and en dashes:** flag every one in USER-FACING prose (fast, objective,
+  high-signal); propose a period/comma/colon/parenthetical/simpler-sentence rewrite.
+  SCOPED, NOT BLANKET: user-facing means READMEs, CHANGELOG, guides and other end-user
+  docs, UI strings, and error/log/help/CLI text. Do NOT flag a dash in an internal or
+  AI-facing artifact (a plan or IPD, spec, research document, prompt, walkthrough, review
+  record, commit message, or code comment or docstring): `AGENTS.md`'s execution contract
+  exempts those explicitly and says an author should spend no effort avoiding dashes
+  there, so such a finding is a false positive that spends a reviewer's attention on
+  something the contract frees.
 - **Modifier and hyperbole discipline:** flag inflated modifiers and hyperbole not
   warranted by the evidence.
 - **Honesty:** flag prose that overstates certainty, implies unsupported facts, or reads

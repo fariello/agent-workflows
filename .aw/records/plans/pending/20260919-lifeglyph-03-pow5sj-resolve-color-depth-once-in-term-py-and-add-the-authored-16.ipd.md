@@ -6,17 +6,19 @@
 - Scope: IN: one depth resolver beside `should_color` in `term.py` implementing the R9.3a.2 precedence chain; the AUTHORED 16-color palette of R9.3a.3 with its named collapses; an `aw config` key pinning the depth, refusing an invalid value with a message naming the accepted set; and the A12a-A12d tests. OUT: the semantic stage table itself (child `udgilu`), the lifecycle rendering helpers (child `bn026f`), and any consumer conversion. Also OUT: a per-stage color override beyond what R9.3a.4 marks SHOULD, which is recorded as deferred with its reason rather than silently dropped.
 - Scope-Paths: agent_workflows/term.py, agent_workflows/config.py, tests/test_term.py, tests/test_config.py
 - Item-Dependencies: executed:yaxr4i, executed:udgilu, executed:z8ddk0
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: lifeglyph
 - Order: 3
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: pow5sj
+- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - From-Spec: uonrjg
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-19 approved (aw set): status set to approved
 - 2026-09-19 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates at HEAD `f12390d7` and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False (the round-1 blocker OQ-02 is now `Status: resolved`); `review_findings.subject_gating_blocks` -> empty (the round-1 BLOCKER finding is now `FIXED` in the review record, with its resolution recorded there); and `plan_readiness.newest_verdict` polarity -> neutral, not negative. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-19 reviewed (aw set): plan-review round 1: REVIEWED - OPEN QUESTIONS. PR-302..PR-305 FIXED; PR-301 (BLOCKER) escalated as OQ-02 Blocking: yes (R9.3a.2's 'unconditional' NO_COLOR rung contradicts Section 9.3's preserve-current-FORCE_COLOR requirement; measured FORCE_COLOR currently wins). Readiness no-go.
 
