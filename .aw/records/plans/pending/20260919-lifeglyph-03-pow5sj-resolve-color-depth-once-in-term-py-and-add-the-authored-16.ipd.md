@@ -6,7 +6,7 @@
 - Scope: IN: one depth resolver beside `should_color` in `term.py` implementing the R9.3a.2 precedence chain; the AUTHORED 16-color palette of R9.3a.3 with its named collapses; an `aw config` key pinning the depth, refusing an invalid value with a message naming the accepted set; and the A12a-A12d tests. OUT: the semantic stage table itself (child `udgilu`), the lifecycle rendering helpers (child `bn026f`), and any consumer conversion. Also OUT: a per-stage color override beyond what R9.3a.4 marks SHOULD, which is recorded as deferred with its reason rather than silently dropped.
 - Scope-Paths: agent_workflows/term.py, agent_workflows/config.py, tests/test_term.py, tests/test_config.py
 - Item-Dependencies: executed:yaxr4i, executed:udgilu
-- Status: to-review
+- Status: reviewed
 - Readiness: no-go
 - Set: lifeglyph
 - Order: 3
@@ -17,6 +17,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-19 reviewed (aw set): plan-review round 1: REVIEWED - OPEN QUESTIONS. PR-302..PR-305 FIXED; PR-301 (BLOCKER) escalated as OQ-02 Blocking: yes (R9.3a.2's 'unconditional' NO_COLOR rung contradicts Section 9.3's preserve-current-FORCE_COLOR requirement; measured FORCE_COLOR currently wins). Readiness no-go.
 
 - 2026-09-19 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-302, PR-303, PR-304, PR-305 FIXED, PR-301 (BLOCKER) escalated as OQ-02 `Blocking: yes`. Reviewed at HEAD `a5ab0515`; `aw ipd lint --phase author --agent` clean, exit 0. THE SPEC SPECIFIES E-01'S TOP RUNG TWICE AND INCOMPATIBLY: R9.3a.2 calls `NO_COLOR -> none` "unchanged, and unconditional", Section 9.3 requires preserving current `FORCE_COLOR` behavior, and the current behavior (measured by execution, not read) is that `FORCE_COLOR` DEFEATS `NO_COLOR` at `term.py:100-104`, pinned by the shipped test `test_force_color_overrides_no_color`. So "unchanged" is false as written and the literal reading breaks a shipped test; a maintainer must rule. ALSO: the resolver's top rung spans two layers, since `term.should_color` cannot see `--no-color` (the flag is applied in `result_types.select_output`), which E-01 now states so nobody adds argparse awareness to `term.py`. Two counting errors corrected from measurement: 20 stages not 21, and R9.3a.3's "four grays" is six by its own list (five at 244 plus `formative` at 245).
 - 2026-09-19 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from spec uonrjg Section 9.3a (R9.3a.1-R9.3a.5) and criteria A12a-A12d. Carries the spec's `Blocks-Release: next` gate.
