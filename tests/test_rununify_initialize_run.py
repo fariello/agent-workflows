@@ -1397,9 +1397,34 @@ class TheFrozenQueueEntryShapeIsIdenticalOnBothHosts(InitializeRunCase):
     """F-2's resume hazard, measured rather than assumed.
 
     The plan's F-2 warned that a shared writer could change the queue-entry key set a RESUME reads.
-    Measured at review and again here: both hosts write the IDENTICAL twelve keys, differing only in
+    Measured at review and again here: both hosts write the IDENTICAL key set, differing only in
     the source-order of `kind` and `order`, which JSON round-trips do not preserve as significant.
     So the hazard is LOW, and this class is what keeps it low.
+
+    THE COUNT WENT 12 -> 13, AND THAT IS A DELIBERATE CONTRACT CHANGE, not a drift (`runnoop` Order 01,
+    `zz5yxq` E-03/E-07). The 13th key is `needs_input`, the durable, explicit record that an item was
+    NOT dispatched because its plan still needs human approval. Before it, that fact was only IMPLICIT
+    in the frozen queue status (`reviewed` rather than `queued`), and a fact each reporting surface has
+    to INFER is a fact each surface reports differently - which is how an approval-blocked queue came
+    to print a clean run and exit 0 (backlog `em0z50`).
+
+    THIS TEST WAS NOT WEAKENED TO ACCOMMODATE THAT. The failure message below is what made the change
+    visible in the first place ("a key added or removed here is a compatibility change"), so the
+    correct response was to move the constant and say WHY here, not to relax the shape check. The
+    assertion is still an exact `assertEqual` against a frozen set, so the NEXT unannounced key still
+    fails. The name moved with it: a test named `..._twelve_keys` asserting thirteen would be the
+    real weakening.
+
+    THE RESUME QUESTION, since that is what the class exists for: adding a key is the SAFE direction.
+    A resume READS this entry, and every reader takes the keys it knows by name; an older state file
+    written without `needs_input` simply lacks the key, and the only consumer
+    (`runner_shared.item_needs_approval`'s frozen result) is re-derivable. No reader iterates the key
+    set and refuses an unknown member, so no in-flight run is invalidated by the addition.
+
+    MERGE NOTE (2026-09-18): this class was consolidated here from
+    `test_rununify_initialize_run_characterization.py` by `7ebc2964` while `zz5yxq` was executing
+    against that now-deleted file, so the 12 -> 13 update landed by hand-merge rather than by the
+    lane's own commit. The assertion and rationale are the lane's, unchanged.
     """
 
     EXPECTED_KEYS = frozenset(
@@ -1416,10 +1441,13 @@ class TheFrozenQueueEntryShapeIsIdenticalOnBothHosts(InitializeRunCase):
             "action",
             "status",
             "attempts",
+            # zz5yxq E-03. See the class docstring for why this key exists and why adding it is a
+            # deliberate compatibility change rather than an accident.
+            "needs_input",
         }
     )
 
-    def test_both_hosts_freeze_the_same_twelve_keys(self):
+    def test_both_hosts_freeze_the_same_thirteen_keys(self):
         seen = {}
         for name, mod in HOST_PAIRS:
             _run_dir, state, _out, _err = self.initialize(mod, self.make_repo())

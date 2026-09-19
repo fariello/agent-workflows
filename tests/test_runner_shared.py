@@ -1380,6 +1380,97 @@ class UnmovableSymbolTests(unittest.TestCase):
                     setattr(module, "_LANE_PROMPT_DISABLED", saved)
 
 
+class CrossHostSuccessBarEqualityTests(unittest.TestCase):
+    """`runnoop` Order 01 (`zz5yxq`) E-04: the two success bars may not diverge between the hosts.
+
+    WHAT IS ALREADY SHARED AND WHAT IS NOT, measured rather than assumed, because the answer changed
+    under this plan and the plan's own text is stale on it. `SUCCESS_STATES` was relocated into
+    `runner_shared` by `rununify` Order 04 (`tx6q0h`) and both hosts now re-export the SAME object
+    (`oc.SUCCESS_STATES is agy.SUCCESS_STATES` -> True), which is why the identity assertion below is
+    available for it at all; `tests/test_rununify_host_descriptor.py::RELOCATED_CONSTANTS` pins that
+    relocation from the other direction. `EXECUTION_SUCCESS_STATES` did NOT move: each host still
+    declares its own set literal, so the two are EQUAL BUT NOT IDENTICAL, and an equality assertion is
+    the strongest true statement available for it.
+
+    WHY THE WEAKER ASSERTION IS STILL WORTH MAKING. A one-sided edit to a duplicated constant is
+    SILENT: both are module-level set literals with identical values, so no host-token diff, no import
+    error and no type check would show it, and the consequence is that a later fix to the bar reaches
+    one driver only. This class is the tripwire. Unifying the objects is `rununify`'s extraction and
+    `cnwy8g`'s layering correction, deliberately NOT done here; pinning the equality is the cheap
+    durable guard that keeps the gap harmless until then.
+    """
+
+    def test_SUCCESS_STATES_is_ONE_OBJECT_across_both_hosts(self):
+        self.assertIs(oc_runipd.SUCCESS_STATES, runner_shared.SUCCESS_STATES)
+        self.assertIs(agy_runipd.SUCCESS_STATES, runner_shared.SUCCESS_STATES)
+
+    def test_EXECUTION_SUCCESS_STATES_is_EQUAL_on_both_hosts_even_though_duplicated(
+        self,
+    ):
+        """FAILS if either host's set literal is edited alone, which is the whole point.
+
+        The `assertIsNot` is deliberate and is NOT a wish for divergence: it RECORDS the measured
+        present state, so if a later plan unifies the objects this test fails loudly and is updated
+        together with the change, rather than silently continuing to assert something weaker than the
+        truth.
+        """
+        self.assertEqual(
+            oc_runipd.EXECUTION_SUCCESS_STATES, agy_runipd.EXECUTION_SUCCESS_STATES
+        )
+        self.assertEqual(
+            oc_runipd.EXECUTION_SUCCESS_STATES, {"executed", "substantially-complete"}
+        )
+        self.assertIsNot(
+            oc_runipd.EXECUTION_SUCCESS_STATES,
+            agy_runipd.EXECUTION_SUCCESS_STATES,
+            "the two are now ONE object; unify the constant and simplify this test, do not "
+            "delete the equality pin",
+        )
+
+    def test_the_action_aware_bar_is_the_SAME_OBJECT_from_every_module_that_exposes_it(
+        self,
+    ):
+        """Grep cannot tell a shared object from a textually identical copy; `assertIs` can.
+
+        `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` carries the same four names and asserts
+        BOTH halves of its contract (no runner-local definition, plus attribute identity). This is the
+        behavioral restatement sited with its constants, so the guarantee does not rest on one file.
+        """
+        for name in (
+            "success_states_for_action",
+            "item_reached_success",
+            "item_needs_approval",
+            "exit_code_statuses",
+        ):
+            with self.subTest(symbol=name):
+                shared = getattr(runner_shared, name)
+                self.assertIs(getattr(oc_runipd, name), shared)
+                self.assertIs(getattr(agy_runipd, name), shared)
+                self.assertEqual(shared.__module__, "agent_workflows.runner_shared")
+
+    def test_the_needs_input_token_is_the_one_the_package_already_ships(self):
+        """zz5yxq OQ-01: the durable needs-approval fact REUSES an existing token, byte for byte.
+
+        A second spelling of one meaning is how two surfaces come to report the same fact differently,
+        so this asserts against the two modules that already own the token rather than against a
+        literal repeated here.
+        """
+        from agent_workflows import run_evidence, run_gates
+
+        self.assertEqual(
+            runner_shared.NEEDS_INPUT_TOKEN, run_gates.GATE_STATUS_NEEDS_INPUT
+        )
+        self.assertEqual(
+            runner_shared.NEEDS_INPUT_TOKEN, run_evidence.AGGREGATE_NEEDS_INPUT
+        )
+        self.assertEqual(runner_shared.NEEDS_INPUT_KEY, runner_shared.NEEDS_INPUT_TOKEN)
+        for module in (oc_runipd, agy_runipd):
+            with self.subTest(host=module.__name__):
+                self.assertEqual(
+                    module.NEEDS_INPUT_TOKEN, runner_shared.NEEDS_INPUT_TOKEN
+                )
+
+
 class DriverErrorUnificationTests(unittest.TestCase):
     """`DriverError` was the one symbol here that was a latent BUG, not merely a duplicate."""
 

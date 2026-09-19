@@ -181,6 +181,33 @@ from agent_workflows.runner_shared import (
     conflicted_paths as conflicted_paths,
 )
 
+# runnoop zz5yxq (E-02/E-04): the ACTION-AWARE SUCCESS BAR. ONE definition in `runner_shared`, bound
+# here with the `as <same-name>` form and pinned by object identity in
+# `tests/test_runner_refork_guard.py`'s `REFORK_TABLE`. A SECOND COPY IN THIS FILE IS FORBIDDEN: the
+# whole point is that a later fix to the bar reaches BOTH drivers, and a copy here is precisely how
+# agy carried a broken `dependency_status_detailed` for months.
+from agent_workflows.runner_shared import (
+    success_states_for_action as success_states_for_action,
+)
+from agent_workflows.runner_shared import (
+    item_reached_success as item_reached_success,
+)
+from agent_workflows.runner_shared import (
+    item_needs_approval as item_needs_approval,
+)
+from agent_workflows.runner_shared import (
+    exit_code_statuses as exit_code_statuses,
+)
+from agent_workflows.runner_shared import (
+    EXIT_SUCCESS_TOKEN as EXIT_SUCCESS_TOKEN,
+)
+from agent_workflows.runner_shared import (
+    NEEDS_INPUT_TOKEN as NEEDS_INPUT_TOKEN,
+)
+from agent_workflows.runner_shared import (
+    NEEDS_INPUT_KEY as NEEDS_INPUT_KEY,
+)
+
 # integpath-02 (`6sb3yu`): a PURE move, bound by re-export rather than wrapped (its two neighbours
 # need this host's `run_checked`/`host_label` and so keep wrappers). The `as <same-name>` form marks
 # it as a deliberate re-export so `ruff` does not "clean up" a symbol this module never calls itself.
@@ -3568,9 +3595,15 @@ def run_queue(
     # runstop foi1b3: a level-3 stop is equally DELIBERATE and takes the same contract. Its own item
     # is `interrupted`, not a success state, so the run still exits nonzero for it - deliberately;
     # only items the stop never STARTED are excused, exactly as for levels 1-2.
+    #
+    # runnoop zz5yxq (E-02): the SAME action-aware bar as `oc_runipd`, through the SAME shared
+    # projection, so the two hosts cannot disagree about whether a run succeeded. See the longer note
+    # at the OpenCode site and the call-site classification at `runner_shared.SUCCESS_STATES`: a
+    # `reviewed`-but-unapproved EXECUTE item is never dispatched and must not exit 0, while a
+    # `reviewed` REVIEW item still must. No status is rewritten and `queued` passes through verbatim.
     return runner_stop.deliberate_stop_exit_code(
-        (item["status"] for item in state["queue"]),
-        success_states=SUCCESS_STATES,
+        runner_shared.exit_code_statuses(state["queue"]),
+        success_states={runner_shared.EXIT_SUCCESS_TOKEN},
         stopped=wind_down is not None or stopped_at_checkpoint,
     )
 

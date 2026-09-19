@@ -63,6 +63,16 @@ MODULES = {"oc_runipd": oc_runipd, "agy_runipd": agy_runipd}
 STILL_DOUBLE_DEFINED = (
     "_observe_between_turn_stop",
     "_record_deliberate_stop",
+    # ADDED 2026-09-18 by `runnoop` Order 01 (`zz5yxq`), and it is a TABLE REPAIR, not this plan's
+    # doing. `run_queue` on BOTH hosts calls `_integrate_stranded_lanes` and each host defines its own
+    # (measured: `oc._integrate_stranded_lanes is agy._integrate_stranded_lanes` -> False,
+    # `__module__` `agent_workflows.oc_runipd` vs `agent_workflows.agy_runipd`), so it has always
+    # belonged in this class. It was simply never classified: measured at the PRE-CHANGE baseline, it
+    # was already `reached but not in table`, which the membership test below cannot see because that
+    # test only fails in the other direction (a LISTED name that stopped being reached). It is added
+    # here because this plan's removal of `SUCCESS_STATES` moved the census total, and paying for that
+    # by lowering `CLOSURE_TOTAL` would have hidden a real fork instead of recording it.
+    "_integrate_stranded_lanes",
     "disable_lane_prompt",
     "execute_item",
     "reclaim_lanes_on_interrupt",
@@ -133,7 +143,26 @@ THIN_WRAPPERS_OVER_RUNNER_SHARED = (
 )
 
 # Module constants defined twice with EQUAL values: they can be lifted with the loop.
-EQUAL_CONSTANTS = ("EXECUTION_SUCCESS_STATES", "SUCCESS_STATES", "TERMINAL_STATES")
+#
+# RE-MEASURED 2026-09-18 by `runnoop` Order 01 (`zz5yxq`): `SUCCESS_STATES` was REMOVED from this
+# tuple because `run_queue` NO LONGER REACHES IT. This table's stated contract is that it "describes
+# what the FUNCTION reaches", and the load-bearing test below fails when a listed name stops being
+# reached, so leaving it here would make the table assert something false.
+#
+# WHY IT STOPPED BEING REACHED, so a reader can tell a real regression from this: the exit-code site
+# used to pass the bare `SUCCESS_STATES` to `runner_stop.deliberate_stop_exit_code`, which applies ONE
+# container to the WHOLE queue and therefore could not judge an item against the bar its own `action`
+# earns. A `reviewed`-but-unapproved EXECUTE item is never dispatched, and that bar counted it as a
+# success, so an approval-blocked queue exited 0 having done nothing (backlog `em0z50`). The site now
+# calls `runner_shared.exit_code_statuses(...)`, which makes the per-item decision in SHARED code, so
+# the name the function closes over is `runner_shared` (already classified in ALREADY_ONE_OBJECT) and
+# no longer the constant.
+#
+# NOT A WEAKENING, AND THE COUNTS CONFIRM IT: `EXECUTION_SUCCESS_STATES` and `TERMINAL_STATES` are
+# still reached and still pinned, `CLOSURE_TOTAL` is unchanged at 41 (measured), and the split
+# analysis this table feeds is unaffected, because a name that moved INTO `runner_shared` is one
+# fewer symbol a shared core would have to be injected with, not one more.
+EQUAL_CONSTANTS = ("EXECUTION_SUCCESS_STATES", "TERMINAL_STATES")
 
 # Defined twice with values that DIFFER BY HOST, by design: a hook input. Lifting it unchanged
 # would print the wrong recovery command on one host.
@@ -427,7 +456,15 @@ class TheClosureClassificationIsPinned(unittest.TestCase):
         # so they moved to THIN_WRAPPERS_OVER_RUNNER_SHARED. Re-measured from the tables above rather
         # than edited to fit, and each reclassification is proven individually by the fork-vs-wrapper
         # test in this class, which reports the delegation itself.
-        self.assertEqual(len(STILL_DOUBLE_DEFINED), 8)
+        #
+        # 8 -> 9, RE-MEASURED 2026-09-18 by `runnoop` Order 01 (`zz5yxq`): `_integrate_stranded_lanes`
+        # was added to `STILL_DOUBLE_DEFINED`. It is a REAL, PRE-EXISTING fork that the table never
+        # classified (both hosts define their own; measured NOT the same object), not new work by that
+        # plan. This number is DERIVED from the tuple above, so it is re-measured here rather than the
+        # tuple being trimmed to preserve the old figure, which would have hidden the fork. The
+        # fork-vs-wrapper test in this class proves the classification for every name listed,
+        # including this one.
+        self.assertEqual(len(STILL_DOUBLE_DEFINED), 9)
         self.assertEqual(
             len(STILL_DOUBLE_DEFINED)
             + len(RESOLVES_IN_RUNNER_SHARED)
@@ -1939,6 +1976,150 @@ class TheExitCodeReflectsTheRealOutcome(RunQueueCase):
                     0,
                     f"{label}: the exit code is computed from SUCCESS_STATES, which does NOT "
                     "contain substantially-complete; a 0 here means the wrong constant was used",
+                )
+
+
+class AnApprovalBlockedQueueIsNotASilentSuccess(RunQueueCase):
+    """`runnoop` Order 01 (`zz5yxq`) E-05: the MEASURED incident, and the control a naive fix breaks.
+
+    THE INCIDENT (backlog `em0z50`, 2026-08-29). `aw oc run wtiso` was launched with all 8 `wtiso`
+    plans at `- Status: reviewed`. It printed the run id, the state dir, and "No OpenCode session was
+    captured for this run.", then EXITED 0. `aw runs <id>` showed `8 steps: 8 reviewed`,
+    `action=execute`, `Attempts: 0` on every row, an empty `outcomes/`, and a single `run-created`
+    event. The operator believed 8 plans were queued. The cause was that one status carried two
+    contradictory meanings: `action_for('child','reviewed')` -> `'execute'` (a ROUTING decision, "run
+    this") while `'reviewed' in SUCCESS_STATES` -> True (a COMPLETION decision, "this succeeded"), and
+    the queue builder froze such an item as queue status `reviewed` rather than `queued`, so it was
+    never dispatched AND was counted as a success.
+
+    THE CONTROL IS THE LOAD-BEARING HALF OF THIS CLASS, not a courtesy. The tempting one-line fix is
+    to remove `reviewed` from `SUCCESS_STATES`, and that is WRONG: `cascade_dependency_blocked`'s
+    in-tree docstring records run `run-20260904T042705Z-1025943`, a 6-item all-`review` run of the
+    `wslayout` Set that reviewed Orders 00 and 01 and then killed Orders 02-05 the instant Order 01
+    reached `reviewed`, because that site hardcoded the execution bar. A review pass legitimately
+    SUCCEEDS at `reviewed`. A suite covering only the execute case would pass over a re-broken
+    review-mode Set run, so both cases are asserted here, on both hosts.
+    """
+
+    def test_a_reviewed_EXECUTE_item_is_not_counted_as_a_success(self):
+        """The incident itself: an item the loop never dispatches must not produce exit 0."""
+        for label, module in HOST_PAIRS:
+            with self.subTest(host=label):
+                self.turns.clear()
+                # `status="reviewed"` is what the REAL queue builder freezes for a `reviewed`-but-
+                # unapproved plan (`runner_shared.initial_queue_status`: `reviewed` is absent from
+                # `NON_TERMINAL_QUEUE_STATUSES`, so the entry is born NOT `queued`), paired with
+                # `action="execute"` from `action_for`. Asserted against those two real functions
+                # below, so this fixture cannot drift from what the builder actually writes.
+                self.assertEqual(module.action_for("child", "reviewed"), "execute")
+                self.assertEqual(
+                    module.runner_shared.initial_queue_status("reviewed"), "reviewed"
+                )
+                run_dir = self.make_run(
+                    [
+                        self.item(
+                            "aaa111", position=1, action="execute", status="reviewed"
+                        ),
+                        self.item(
+                            "bbb222", position=2, action="execute", status="reviewed"
+                        ),
+                    ],
+                    run_id=f"needsapproval-{label}",
+                )
+                rc, state, _ = self.drive(module, run_dir)
+                self.assertEqual(
+                    self.turns,
+                    [],
+                    f"{label}: neither item is dispatchable, so no turn may run; if one did, the "
+                    "admission tuple changed and this test is measuring the wrong thing",
+                )
+                self.assertNotEqual(
+                    rc,
+                    0,
+                    f"{label}: a queue of `reviewed`-but-unapproved EXECUTE items did NO WORK, so "
+                    "exit 0 would report a silent success (backlog em0z50)",
+                )
+                self.assertEqual(
+                    rc,
+                    1,
+                    f"{label}: zz5yxq OQ-02 resolved to 1 from this site. Spec 25kzda 5.6's exit 3 "
+                    "for `needs_input` is reachable only by wiring the drivers to "
+                    "`run_evidence.aggregate_run_exit`, which they do not call today.",
+                )
+                self.assertEqual(
+                    self.statuses(state),
+                    {"aaa111": "reviewed", "bbb222": "reviewed"},
+                    f"{label}: no status may be REWRITTEN to produce the nonzero exit (spec R22); "
+                    "the bar changed, the record did not",
+                )
+
+    def test_a_reviewed_REVIEW_item_is_still_a_success(self):
+        """The control. A review pass ending `reviewed` is a COMPLETED review and must still exit 0.
+
+        This is the case the docstring on `cascade_dependency_blocked` records as having been broken
+        once by exactly the shape of fix this plan makes (run `run-20260904T042705Z-1025943`).
+        """
+        for label, module in HOST_PAIRS:
+            with self.subTest(host=label):
+                self.turns.clear()
+
+                def on_turn(item):
+                    item["status"] = "reviewed"
+
+                run_dir = self.make_run(
+                    [
+                        self.item("aaa111", position=1, action="review"),
+                        self.item("bbb222", position=2, action="review"),
+                    ],
+                    run_id=f"reviewmode-{label}",
+                )
+                rc, state, _ = self.drive(module, run_dir, on_turn=on_turn)
+                self.assertEqual(
+                    sorted(self.turns),
+                    ["aaa111", "bbb222"],
+                    f"{label}: both review items must actually be dispatched",
+                )
+                self.assertEqual(
+                    rc,
+                    0,
+                    f"{label}: a completed REVIEW run must still exit 0. A nonzero here means the "
+                    "execute-action fix was applied to the review action too, which is the "
+                    "regression that made a review-mode Set run impossible to complete "
+                    "(run-20260904T042705Z-1025943)",
+                )
+                self.assertEqual(
+                    self.statuses(state), {"aaa111": "reviewed", "bbb222": "reviewed"}
+                )
+
+    def test_a_review_run_that_reached_reviewed_and_an_execute_one_get_OPPOSITE_verdicts(
+        self,
+    ):
+        """The two halves stated as ONE assertion, so the distinction cannot be lost by editing one.
+
+        Identical statuses, different actions, opposite verdicts. Driven through the SHARED predicate
+        rather than the loop, because this is a claim about the bar itself.
+        """
+        for label, module in HOST_PAIRS:
+            with self.subTest(host=label):
+                bar = module.item_reached_success
+                self.assertFalse(bar({"action": "execute", "status": "reviewed"}))
+                self.assertTrue(bar({"action": "review", "status": "reviewed"}))
+                # And the unambiguous cases still behave: a real execution success, and a failure.
+                self.assertTrue(bar({"action": "execute", "status": "executed"}))
+                self.assertFalse(bar({"action": "review", "status": "failed-safely"}))
+                # THE NARROWING IS EXACTLY ONE STATUS FOR EXACTLY ONE ACTION. `substantially-complete`
+                # must STILL be a non-success for reporting, on BOTH actions: the sibling test
+                # `test_the_exit_code_reads_SUCCESS_STATES_not_EXECUTION_SUCCESS_STATES` pins that as a
+                # deliberate contract, and it is what rules out reusing the DEPENDENCY bar
+                # (`EXECUTION_SUCCESS_STATES`, which contains it) for this question.
+                self.assertFalse(
+                    bar({"action": "execute", "status": "substantially-complete"})
+                )
+                self.assertEqual(
+                    set(module.runner_shared.EXECUTE_REPORTING_SUCCESS_STATES),
+                    {"executed", "approved"},
+                    f"{label}: the execute reporting bar must be SUCCESS_STATES minus `reviewed` "
+                    "and nothing else",
                 )
 
 
