@@ -87,20 +87,77 @@ _STATUS_LINE_LABELS = (
 _STATUS_WIDTH = max(len(_STATUS_STYLE[k][0]) for k in _STATUS_LINE_LABELS)
 
 
+#: Values of `FORCE_COLOR` that mean "do NOT force", i.e. the user wrote the variable but wrote a
+#: falsey value in it. Compared case-insensitively against the stripped value.
+#:
+#: WHY THE VALUE IS INTERPRETED RATHER THAN MERELY TESTED FOR PRESENCE (maintainer ruling,
+#: 2026-09-19; plan `z8ddk0`). `FORCE_COLOR=0` is common in CI configuration and plainly means "do
+#: not force color". Reading it by TRUTHINESS in Python makes the string `"0"` true, so the value a
+#: user writes to mean "off" FORCED COLOR ON, even into a pipe. That is the one behavior here that is
+#: the exact opposite of what the user asked for, so it is the reading that changed.
+#:
+#: `NO_COLOR`, by contrast, stays PRESENCE-ONLY and interprets nothing: that is the published
+#: no-color.org convention ("when present, regardless of its value"), and a repo-local
+#: reinterpretation of an external accessibility convention would be worse than the inconsistency.
+_FORCE_COLOR_FALSEY = frozenset({"", "0", "false", "no", "off"})
+
+
+def _force_color_is_forcing() -> bool:
+    """Is `FORCE_COLOR` set to a value that genuinely FORCES color on?
+
+    THE SINGLE FORCING PREDICATE, and the reason it exists as a named helper rather than as an
+    inline test is that `should_color` must consult `FORCE_COLOR` TWICE: once to decide whether it
+    cancels `NO_COLOR`, and once to decide whether it forces color past TTY detection. Those two
+    readings were INDEPENDENT before plan `z8ddk0` (presence at one site, truthiness at the other),
+    which is what let a falsey `FORCE_COLOR` both fail to force AND still cancel `NO_COLOR`.
+
+    MEASURED AT EXECUTION 2026-09-19 (that plan's F-05): correcting only the forcing site leaves the
+    cancelling site a presence test, and SIX of the twelve `NO_COLOR`-set cells then colorize on a
+    TTY - every cell where `NO_COLOR` is set AND `FORCE_COLOR` is present-but-falsey, including
+    `NO_COLOR=1 FORCE_COLOR=0`. (The plan predicted twelve; the other six have `FORCE_COLOR` UNSET,
+    where the naive presence test is still correct and the cell stays plain. The defect is real and
+    the count is six, so it is recorded as six.) That silently voids the accessibility convention for
+    any user who sets both, which is strictly worse than the defect being fixed. Routing BOTH
+    readings through one predicate makes them move together by construction; a second independent
+    falsey check at each site would re-create the very split this closes.
+    """
+
+    value = os.environ.get("FORCE_COLOR")
+    if value is None:
+        return False
+    return value.strip().lower() not in _FORCE_COLOR_FALSEY
+
+
 def should_color(stream: Optional[TextIO] = None) -> bool:
     """Decide whether to emit ANSI color for ``stream`` (default stdout).
 
-    Precedence: NO_COLOR (off) is only overridden by FORCE_COLOR (on). Otherwise color is
-    on only for a real TTY with a capable TERM.
+    THE SINGLE ORIGINATING DEFINITION of the color capability decision, package-wide (plan
+    `z8ddk0`, for spec `uonrjg` R9.3a.2). `runner_shared.should_color` is a sanctioned one-line
+    delegation to this function and `pwatch` calls it directly; both previously carried independent
+    implementations that DISAGREED with this one, measured 2026-09-19, so a caller must reach this
+    body rather than reimplement it. `tests/test_term.py::OneOriginatingDefinitionTests` fails if a
+    second ORIGINATING definition appears anywhere in the package.
+
+    Precedence, highest first:
+
+    1. `NO_COLOR` PRESENT (any value, empty included) disables color, unless `FORCE_COLOR` is set
+       to a genuinely FORCING value (see :func:`_force_color_is_forcing`).
+    2. A forcing `FORCE_COLOR` enables color, overriding TTY detection (so a pipe gets color).
+    3. `TERM` of `dumb` or empty/absent disables color.
+    4. Otherwise color is on only for a real TTY.
+
+    A falsey `FORCE_COLOR` (`0`/`false`/`no`/`off`/empty) is NOT an instruction to suppress: it
+    means "do not force", so it falls through to ordinary detection. Suppressing is `NO_COLOR`'s
+    job.
     """
 
     stream = stream or sys.stdout
 
-    # NO_COLOR: any value (even empty) disables, UNLESS FORCE_COLOR is set.
-    if "NO_COLOR" in os.environ and "FORCE_COLOR" not in os.environ:
+    # NO_COLOR: any value (even empty) disables, UNLESS FORCE_COLOR is genuinely FORCING.
+    if "NO_COLOR" in os.environ and not _force_color_is_forcing():
         return False
-    # FORCE_COLOR: any value forces color on (overrides TTY detection).
-    if os.environ.get("FORCE_COLOR"):
+    # FORCE_COLOR: a forcing value beats TTY detection. A falsey value falls through.
+    if _force_color_is_forcing():
         return True
 
     term = os.environ.get("TERM", "")
