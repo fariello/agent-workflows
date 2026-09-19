@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: The runner retires an orchestrator once every child is `executed`, omitting the pre-transition E/V checkpoint on the premise that its items are "performed by NOBODY" (`ipd_lifecycle.py:1825`, `ROLLUP_OMITTED_GATES:1897`). When a parent carries work no child covers, that premise is false and the work is reported complete having never been performed OR verified. Nothing detects this. THIS IS NO LONGER HYPOTHETICAL: on 2026-09-08, while this plan sat in `to-review`, `aw oc run` retired `rh5tt6` (commit `8b4e1570`, message "Its own `E-*`/`V-*` items were NOT performed") whose E-02 (repo-wide suite, leak sanitization, and an end-to-end install proof the plan itself calls "the part no child owns") still reads `Execution state: pending` with a blank V-02. See F-14. The gate is now compensating for a failure with a measured instance, not a modeled one. It cannot be a pattern match: the dangerous case is PROSE ("someone must migrate the database before the children run"), which matches no checklist syntax, so a syntactic rule catches only the tidy mistake and misses the harmful one. It is a semantic question, so it needs a model to answer it. A blunt syntactic rule was built and REVERTED 2026-09-07 for a second reason too: most orchestrator checklist items are legitimate orchestration, and a rule that flags them teaches agents to DELETE the checklist that makes non-runner execution complete.
 - Scope: A bounded pre-run gate. IN: a short prompt per queued orchestrator returning ONE parsable line, over an explicitly bounded excerpt rather than the whole file; consuming child 02's cache so an unmodified orchestrator is never re-probed; an interactive prompt when a TTY is present, a hard failure when not, and an override flag that is recorded with its justification; the COULD-NOT-ASK retry-and-warn path the maintainer's OQ-02 ruling requires, so a model outage cannot halt a run; emitting child 01's refusal record so the reason and its remedy reach both surfaces. OUT: the retirement predicate and the rollup transition (`77tr3o` owns both); any `ipd_lint` rule (rejected; see Deferred); backfilling the existing orchestrators.
-- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/engine.py, .aw/records/specs/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md, tests/test_orchestrator_probe.py, tests/test_orchestrator_retirement.py
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/engine.py, .aw/records/specs/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md, .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md, tests/test_orchestrator_probe.py, tests/test_orchestrator_retirement.py, tests/test_rununify_build_parser.py
 - Item-Dependencies: executed:r2i1b1, executed:8tgg6g
 - Status: approved
 - Readiness: go-pending-approval
@@ -16,6 +16,7 @@
 - Approval: 2026-09-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-19 executed-substantially (opencode/its_direct/pt3-claude-opus-5-1m-us): E-01..E-10 all PERFORMED and V-01..V-04/V-06..V-10 verified with pasted evidence at code commit `0daacf0a`; `aw ipd lint` CONFORMING. NOT FINALIZED, deliberately: `--phase pre-transition` reports exactly one error, `V-05: not 'pass'`, and it is CORRECT. V-05 carries OQ-03's precondition, and re-classified at execution SEVEN pending `Kind: orchestrator` plans still carry parent-only work (`5e4sb6` E-01/E-02/E-03, `wfjsp4` E-02/E-03/E-04, `a5wdne` E-01, `tb63qv` E-01 unambiguously; `ao1rb7`/`y9s4vm`/`lyo1tz` E-03 borderline), so the plan stays in `pending/` rather than forging the attestation this Set exists to protect. OQ-03's three-id snapshot is stale both ways: two are no longer pending and five newer parents joined. The gate itself is LIVE on both hosts through one seam (`initialize_run_core`), spec `77tr3o` gained R-12, `25kzda` gained 2.1's `--allow-uncovered-orchestrator-work` plus a new Section 2.5b, and the AGENTS.md managed block was regenerated from `engine.py` with the thrice-stale '46 of 130' fraction replaced by a property. Suite bare: `8335 passed, 3 skipped, 2 xfailed` vs a worktree baseline of `8258 passed, 3 skipped, 2 xfailed` at `b5208b0e`, no new failing node ids. DEFECT FIXED IN PASSING: `probe_cache_payload` read `ipd_lint.Leaf.text` (a leaf's OPENING LINE only), dropping 58 percent of the live corpus's action prose and leaving the cache key under-sensitive to the continuation-line edits that actually change what an item asks for; fixed via `e_item_action_blocks` with the five `xmqv5l` no-op invariants re-proved. THREE DEFECTS FILED: `168p5j` (`frozen_region_digest` has the same blind spot, so a begin receipt survives a requirement rewrite - reproduced), `b6i85r` (`aw specs note` claims to append but DESTROYS prior history; it ate four real maintainer entries across the two specs amended here, all restored from git), `rmcqw8` (the payload cannot see prose outside an item, pinned by a test that fails if widened alone). Backlog `wtd5m2` tracks the seven-orchestrator debt V-05 blocks on.
 - 2026-09-08 approved (aw set): status set to approved
 - 2026-09-08 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review ROUND 2: APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. PR-011..PR-019 FIXED, and round 1's PR-002/PR-005 now dispositioned FIXED by the maintainer's 2026-09-07 rulings, so no finding is open. The verdict token is stated explicitly because `plan_readiness.newest_verdict` reads the newest review record's first verdict token and falls back to a negative scan when none is present. THE FINDING THAT MATTERED MOST IS THAT A MAINTAINER RULING HAD NO DELIVERABLE AND THE PLAN SPECIFIED ITS NEGATION (PR-012, F-12): OQ-02's 2026-09-07 resolution requires splitting COULD-NOT-ASK from ASKED-AND-GOT-NONSENSE, retrying the former to a budget and then PROCEEDING with a loud warning so a model outage cannot halt a run, yet NO E-item implemented it and E-02 said the opposite in as many words ("an empty reply, a truncated turn" -> `unknown` -> blocks). New E-10 owns that path in its own task group and E-02 now returns FOUR states, since a tri-state cannot express the split. Its companion PR-013: the ruling's "default 3" contradicts the SHIPPED default of 2 (`run_recovery.DEFAULT_RETRY_LIMIT`, printed), while `--retry-budget` already exists on both hosts (`runner_shared.py:1648`), already resolves before the run directory exists (`oc_runipd.py:2815`) and already has a single 0..10 bound, so E-10 must choose and RECORD rather than fork a second retry knob. THE HAZARD BECAME REAL WHILE THE PLAN WAITED (PR-014, F-14): `rh5tt6`, one of the four orchestrators OQ-03 says to clear FIRST, was instead RETIRED by `aw oc run` to `executed/` on 2026-09-08 (commit `8b4e1570`, message "Its own `E-*`/`V-*` items were NOT performed") with its E-02 (repo-wide suite, leak sanitization, and an end-to-end install proof the plan calls "the part no child owns") still `Execution state: pending` and its V-02 blank, so a parent-only deliverable is marked complete having been neither performed nor verified; OQ-03's list narrows to THREE and "clear first" is now racing a live runner. That plan is explicitly OUT of scope (never edit a plan in `executed/`) and the decision is the maintainer's. THE GATE ASSERTED A BLOCKER THAT DOES NOT EXIST (PR-011, F-11), the third instance in this Set: it claimed OQ-02 and OQ-03 are `Blocking: yes` while both have read `- Blocking: no` / `- Status: resolved` since the rulings; measured, `has_unresolved_blocking_question` returns False and `_blocking_question_ids` is empty, and `approval_refusals` named only the stale `- Readiness: no-go` plus the two round-1 findings this round closes. EVERY CITATION HAD DRIFTED and was re-measured at HEAD `130d9cc7`: `run_opencode:5304`, `run_agy_turn:2768`, `attempt_log_path:4939`, the three pre-queue gates at `:2833`/`:2876`/`:2913` before `mkdir` at `:2927`, `resolve_launch_profile:2702`; the ORDERING and the SIGNATURES are unchanged, so D-1's siting stands, and E-05 now says to locate the seam BY SYMBOL. Newly noticed: `oc_runipd.py:2770-2773` documents that pre-directory ordering as DELIBERATE, so this probe is the first gate that cannot honor a stated invariant and must say so at its call site. ALSO FIXED: the corpus figure moved 46-of-47 to 48-of-48 to 50-of-50 (100 percent) and pending orchestrators six to EIGHT (~58k to ~72k tokens) in one day, so every figure is marked re-measure-at-execution and E-08 must phrase the AGENTS.md denominator so it cannot rot (PR-015); the baseline's FAILURE SET grew overnight to `2 failed, 5655 passed` with the new failure being a live-corpus coupling, which is why required-tests now demands FROZEN fixtures (PR-016); E-09's absolute object-identity rule, which the parent's CID-3 carve-out for host-parameterized text already refutes (PR-017); the `25kzda` reference that resolved only by grepping `- Id:` (PR-018); and E-03 reading "the child table" while child 02's key was corrected to row CELL text, which would have served stale verdicts (PR-019).
 
@@ -36,33 +37,33 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the probe
 
-- [ ] E-01 Write the prompt, and BIAS IT TOWARD SUSPICION. It must return exactly one line, either `ORCHESTRATOR: CONTAINS EXECUTIONS` or `ORCHESTRATOR: CONTAINS NO EXECUTIONS`, and nothing else. It must state that a checklist naming the children is EXPECTED and is not an execution, since that is the legitimate orchestration case and a prompt that misreads it would produce constant false alarms on the five live orchestrators. It must instruct that any doubt resolves to `CONTAINS EXECUTIONS`: a false alarm costs one prompt, while a false clear launders a bad state with apparent authority, which is worse than having no probe at all.
+- [x] E-01 Write the prompt, and BIAS IT TOWARD SUSPICION. It must return exactly one line, either `ORCHESTRATOR: CONTAINS EXECUTIONS` or `ORCHESTRATOR: CONTAINS NO EXECUTIONS`, and nothing else. It must state that a checklist naming the children is EXPECTED and is not an execution, since that is the legitimate orchestration case and a prompt that misreads it would produce constant false alarms on the five live orchestrators. It must instruct that any doubt resolves to `CONTAINS EXECUTIONS`: a false alarm costs one prompt, while a false clear launders a bad state with apparent authority, which is worse than having no probe at all.
   - Depends on: none
   - Expected outcome: a prompt held as data (not inlined at a call site), with the two sentinel strings as named constants so the parser and the prompt cannot drift.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Parse the reply STRICTLY and fail closed ON AN ANSWER THAT WAS RECEIVED. Accept only the two exact sentinels; an answer that arrived but is unusable (extra prose, a refusal, a reply carrying both sentinels, an answer reporting a problem) is `unknown`, which blocks exactly as `CONTAINS EXECUTIONS` does. A permissive parser here would convert a confused model into a silent pass, which is the failure mode this whole child exists to prevent.
+- [x] E-02 Parse the reply STRICTLY and fail closed ON AN ANSWER THAT WAS RECEIVED. Accept only the two exact sentinels; an answer that arrived but is unusable (extra prose, a refusal, a reply carrying both sentinels, an answer reporting a problem) is `unknown`, which blocks exactly as `CONTAINS EXECUTIONS` does. A permissive parser here would convert a confused model into a silent pass, which is the failure mode this whole child exists to prevent.
   DISTINGUISH `unknown` FROM `could-not-ask`, WHICH IS E-10's STATE AND MUST NOT BLOCK. The maintainer's OQ-02 ruling splits the two deliberately, so this parser must NOT collapse them: an empty reply or a truncated turn caused by an unreachable host, a missing binary, a timeout or a rate-limit is a COULD-NOT-ASK and is E-10's to retry and then WARN past, not to block on. Only classify as `unknown` a reply the host actually delivered. Return a FOUR-state result (`no-executions`, `executions`, `unknown`, `could-not-ask`), not the tri-state an earlier revision specified, because a tri-state cannot express the ruling.
   - Depends on: E-01
   - Expected outcome: a four-state result; pasted proof that a chatty reply, a refusal reply and a both-sentinels reply each yield `unknown` and BLOCK, and that a transport failure yields `could-not-ask` and does NOT.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Define and bound the PROBE INPUT explicitly: send the orchestrator's E-item action text plus its `## Child IPDs` table, NOT the whole file.
+- [x] E-03 Define and bound the PROBE INPUT explicitly: send the orchestrator's E-item action text plus its `## Child IPDs` table, NOT the whole file.
   WHY, MEASURED: the pending orchestrators are 16,715 to 65,705 characters (roughly 4,200 to 16,400 tokens each; ~72,000 tokens for all EIGHT, re-measured 2026-09-08 at HEAD `130d9cc7`, up from six at 58,000 the day before), so "a short prompt" describes the INSTRUCTION and says nothing about the PAYLOAD, and an unbounded probe would send a 16k-token file to answer a yes/no question. RE-MEASURE at execution: the corpus grew by two orchestrators and ~14,000 tokens in ONE DAY, so any figure recorded here is a snapshot and the cost scales with a population that is still growing.
   TAKE THE CHILD TABLE AS ROW CELL TEXT, matching child 02's corrected E-01: `8tgg6g`'s round-2 review measured that `ipd_set_plan.parse_child_table` returns only the ORDER GRAPH (`{order: (dep_orders,)}`), so a child Id swap and a full description rewrite both leave it byte-identical. A probe reasoning over row text while the cache keys on the order graph is exactly the divergence the next paragraph forbids, so both sides must be the ROW CELLS.
   Use the SAME two inputs child 02's digest keys on (`8tgg6g` E-02), so the cache key and the probe input cannot diverge: if the probe reasons over something the digest does not cover, an edit to that thing would serve a stale verdict, which is the one way this cache can be actively wrong rather than merely useless.
   - Depends on: E-02
   - Expected outcome: a bounded excerpt builder whose output is the digest's inputs; the per-orchestrator payload size recorded for the live corpus so a reader can see the cost.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Probe only the orchestrators IN THIS RUN'S QUEUE, and consult child 02's cache first. `aw oc run all` could otherwise sweep the whole corpus; scope keeps the cost proportional to the run. A cache hit spends nothing; a miss or a digest change probes.
+- [x] E-04 Probe only the orchestrators IN THIS RUN'S QUEUE, and consult child 02's cache first. `aw oc run all` could otherwise sweep the whole corpus; scope keeps the cost proportional to the run. A cache hit spends nothing; a miss or a digest change probes.
   - Depends on: E-03
   - Expected outcome: with 5 queued orchestrators all cached, ZERO model calls; after editing one orchestrator's E-item text, exactly ONE call.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the gate and its voice
 
-- [ ] E-05 Gate the run: PROMPT interactively when stdin is a TTY, FAIL when it is not, and provide an override flag for a maintainer who accepts the risk deliberately.
+- [x] E-05 Gate the run: PROMPT interactively when stdin is a TTY, FAIL when it is not, and provide an override flag for a maintainer who accepts the risk deliberately.
   SITE IT AFTER THE RUN DIRECTORY EXISTS BUT BEFORE ANY AGENT TURN, LANE WORKTREE OR SESSION. The pre-revision instruction ("before any agent turn or lane worktree is created ... a refusal creates no run directory lease") is NOT IMPLEMENTABLE, measured: the only two model-invocation helpers both REQUIRE a `run_dir` and a queue `item` (`run_opencode(state, run_dir, item, plan_path, prompt_path, attempt_no, ...)` at `oc_runipd.py:5304`, `run_agy_turn(state, run_dir, item, prompt_path, attempt_no, ...)` at `agy_runipd.py:2768`), and each writes its transcript to `run_dir/sessions/<position:02d>-<id6>-attempt-N.jsonl` (`oc_runipd.attempt_log_path:4939`) keyed on `item['position']`, which only exists once the queue is frozen. So a pre-directory probe cannot call a model and cannot log the call. The parent's completion criterion 3 independently requires the refusal be readable in `aw runs`, which reads durable run state, and today's pre-queue gates leave nothing for it to read.
   LOCATE THE SEAM BY SYMBOL, NOT BY LINE, because these coordinates drifted twice within two days. RE-MEASURED 2026-09-08 at HEAD `130d9cc7`: the pre-queue gates are `enforce_draft_admission_gate` (`oc_runipd.py:2833`), `enforce_dependency_preflight` (`:2876`) and `enforce_mixed_type_gate` (`:2913`), all of which raise BEFORE the run directory is created at `:2927`. Round 1 of this review cited `:2791`/`:2871`/`:2880` for the same three facts and every one of those numbers is now wrong while the ORDERING is unchanged, which is why the executor must find the seam by those symbol names.
   AND KNOW THAT THIS ORDERING IS A STATED INVARIANT YOU ARE CHANGING, not an oversight you are fixing. `oc_runipd.py:2770-2773` documents that the launch identity is resolved as the FIRST statement of `initialize_run` deliberately, "so no ordering change can later slip a durable write (run dir at `run_dir.mkdir`, events, state.json) ahead of a refusal". Every gate before `:2927` honors that. This probe is the first gate that CANNOT, because it needs the run directory in order to log its model call. Say so in the code comment you leave at the call site, so a later reader sees a priced exception rather than a violation.
@@ -70,40 +71,40 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   RECORD THE OVERRIDE WITH A REASON, not merely a flag. Require the maintainer to supply a justification string that is written into run state beside the override, so a later reader can tell an accepted risk from an unnoticed one AND why it was accepted. A bare boolean records that someone clicked past the gate and nothing about whether they should have.
   - Depends on: E-04
   - Expected outcome: the three paths demonstrated; a refusal leaves no worktree, no session and no agent turn, and its record is readable in `aw runs` after the process exits; the override is recorded with its justification.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Emit child 01's refusal record with a REMEDY that names the constructive action: the uncovered work belongs in a child, so ADD A CHILD for it. Do NOT phrase it as "an orchestrator must not contain executions": `AGENTS.md` records that a prohibition-only message gets complied with by DELETION, and deleting these items destroys the orchestration checklist that makes non-runner execution complete. The remedy wording is the deliverable here, not a nicety.
+- [x] E-06 Emit child 01's refusal record with a REMEDY that names the constructive action: the uncovered work belongs in a child, so ADD A CHILD for it. Do NOT phrase it as "an orchestrator must not contain executions": `AGENTS.md` records that a prohibition-only message gets complied with by DELETION, and deleting these items destroys the orchestration checklist that makes non-runner execution complete. The remedy wording is the deliverable here, not a nicety.
   - Depends on: E-05
   - Expected outcome: the reason and remedy visible in both the end-of-run summary and `aw runs`, with the remedy naming child creation.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Amend spec `77tr3o` (`- Status: approved`) so this gate is a recorded requirement rather than undocumented code, and declare the file in `Scope-Paths` (done) so the pre-run spec-impact announcement names it.
+- [x] E-07 Amend spec `77tr3o` (`- Status: approved`) so this gate is a recorded requirement rather than undocumented code, and declare the file in `Scope-Paths` (done) so the pre-run spec-impact announcement names it.
   WHY THAT SPEC AND NOT ANOTHER: its R-5 resolution is what CREATED the omission this gate compensates for. R-5 required the E/V pre-transition requirement be "resolved explicitly, not bypassed" and the maintainer chose shape (b), a runner-owned rollup that skips the checkpoint, on the premise that an orchestrator's items are performed by nobody. This gate is the control that makes that premise CHECKED rather than assumed, so a spec still asserting the bare premise is a spec that no longer describes the system. State the gate, its fail-closed behavior, and the override in the amendment.
   - Depends on: E-06
   - Expected outcome: an amended `77tr3o` recording the gate as a requirement alongside R-5's resolution, and the pre-run spec-impact announcement naming that file.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Update the AGENTS.md managed block via `engine.py` (never by hand, it is generated) to state that this gate exists, what it checks, and what to do when it fires.
+- [x] E-08 Update the AGENTS.md managed block via `engine.py` (never by hand, it is generated) to state that this gate exists, what it checks, and what to do when it fires.
   KNOW THE TEST YOU WILL TRIP. The natural home is the `### The runners own ordering, isolation, and orchestrators` section, and `tests/test_orchestrator_retirement.py::test_every_assertion_in_the_new_text_maps_to_a_test_in_THIS_module` reads EXACTLY that section (it slices from that heading to the next `### `) and asserts every claim fragment in its `mapping` dict is present AND backed by a named test class in that module. So new prose there requires new mapping entries and real tests behind them; `tests/test_orchestrator_retirement.py` is declared in `Scope-Paths` for that reason. Also update the neighbouring "Do NOT raise" instruction (`AGENTS.md:44`) if this gate's refusal becomes a legitimate thing to raise, since that list currently enumerates what an agent may report and a refusal nobody may mention is a refusal nobody acts on.
   While there, correct the stale denominator that section carries. `AGENTS.md:80` (rendered from `engine.py:1349`) says "46 of 130 orchestrators carry checklist items". Both numbers are wrong and the ratio they imply (35 percent) is wrong in the direction that matters: 130 is the filename-`-00-` population (134 at 2026-09-08, of which 84 are pre-`Kind` legacy plans carrying ZERO E-items, so they dilute a ratio they are not members of), and among plans actually carrying `- Kind: orchestrator` it is 50 of 50, i.e. 100 percent (re-measured 2026-09-08 at HEAD `130d9cc7`; 46 of 47 at review round 1, 48 of 48 the next day). RE-COUNT AT EXECUTION AND WRITE THE FIGURE YOU MEASURE: this number has moved on every single measurement, always toward 100 percent, so pasting the one above would ship a third stale denominator. State it in a form that does not rot (for example "every plan carrying `- Kind: orchestrator` carries checklist items") rather than as a fraction that needs re-editing each week.
   - Depends on: E-07
   - Expected outcome: regenerated AGENTS.md carrying the gate, a denominator re-measured at execution and phrased so it does not go stale, mapping entries plus tests for every new claim, and the idempotent-render test still passing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 Confirm both hosts share every symbol added, by OBJECT IDENTITY not grep (`2r306y`/`818uru`), and that `agy_runipd` gained no new import from `oc_runipd` (measured 47 by AST walk, re-measured unchanged at 47 on 2026-09-08; backlog `cnwy8g` recorded 40, so it is growing; RE-MEASURE in the executing worktree rather than trusting 47). Both hosts must reach the probe through `runner_shared`, never through the other host's driver, and BOTH must actually gate: `pgq326`'s review found agy DECIDING an orchestrator action while having no dispatch branch that read it, so a shared decider proves nothing about whether agy acts.
+- [x] E-09 Confirm both hosts share every symbol added, by OBJECT IDENTITY not grep (`2r306y`/`818uru`), and that `agy_runipd` gained no new import from `oc_runipd` (measured 47 by AST walk, re-measured unchanged at 47 on 2026-09-08; backlog `cnwy8g` recorded 40, so it is growing; RE-MEASURE in the executing worktree rather than trusting 47). Both hosts must reach the probe through `runner_shared`, never through the other host's driver, and BOTH must actually gate: `pgq326`'s review found agy DECIDING an orchestrator action while having no dispatch branch that read it, so a shared decider proves nothing about whether agy acts.
   ONE CARVE-OUT THE PARENT'S CID-3 ALREADY MEASURED, inherited here so this item does not contradict it: HOST-PARAMETERIZED TEXT is legitimately not one object. `DEPENDENCY_BLOCK_RECOVERY_HINT` is defined once per runner (`oc_runipd.py:345`, `agy_runipd.py:400`) and the two strings differ by design, each naming its own host's recovery command. A probe REMEDY that names a `resume` invocation is that same shape. So assert that the FUNCTION composing the message is one shared object taking the host as an argument; do NOT assert that the resulting strings are identical, and a remedy that names the wrong host FAILS this item even if identity passes.
   - Depends on: E-05, E-06, E-10
   - Expected outcome: pasted object-identity proof per new symbol (with the host-parameterized carve-out stated where it applies), an unchanged oc-to-agy import count re-measured in the worktree, and a demonstration that `aw agy run` refuses on the same fixture `aw oc run` refuses on.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: availability, per the maintainer's OQ-02 ruling
 
-- [ ] E-10 Implement the COULD-NOT-ASK path the maintainer's OQ-02 ruling requires, which no other item covers and which the plan previously recorded only as a resolved question. Retry a could-not-ask (unreachable host, missing binary, timeout, rate-limit) up to a budget, and when the budget is exhausted PROCEED with a loud warning rather than blocking, so a model outage cannot halt a run that is otherwise fine. An `unknown` (an answer received and unusable, E-02) still blocks; only a could-not-ask is warned past.
+- [x] E-10 Implement the COULD-NOT-ASK path the maintainer's OQ-02 ruling requires, which no other item covers and which the plan previously recorded only as a resolved question. Retry a could-not-ask (unreachable host, missing binary, timeout, rate-limit) up to a budget, and when the budget is exhausted PROCEED with a loud warning rather than blocking, so a model outage cannot halt a run that is otherwise fine. An `unknown` (an answer received and unusable, E-02) still blocks; only a could-not-ask is warned past.
   DO NOT ADD A NEW FLAG WITHOUT CHECKING THE ONE THAT EXISTS. `--retry-budget` is already registered on both hosts through the shared table (`runner_shared.py:1648`) and already resolved before the run directory is created (`runner_shared.resolve_retry_budget`, called at `oc_runipd.py:2815`), and its 0..10 bound is `run_recovery.validate_retry_budget`'s SINGLE definition. Its default is `run_recovery.DEFAULT_RETRY_LIMIT`, which is 2 (measured 2026-09-08), NOT the 3 the ruling names, so DECIDE AND RECORD one of: reuse `--retry-budget` and accept 2, reuse it with a probe-specific default of 3, or add a separate probe budget. Reusing the existing flag is preferred (a second retry knob is the re-fork this Set spends E-09 preventing); whichever is chosen, do NOT re-implement the range check.
   RECORD THE WARNED-PAST OUTCOME DURABLY, not only on the terminal. A run that proceeded because the probe could not be asked has a KNOWN HOLE in it: nothing established whether its orchestrators carry uncovered work. That must be readable in `aw runs` after the process exits, via child 01's refusal-record carrier, or the hole is invisible to every later reader.
   - Depends on: E-02
   - Expected outcome: a transport failure retried to the budget and then WARNED PAST with the run proceeding; an `unknown` still blocking; the chosen budget source recorded with its default; the warned-past hole readable in `aw runs` after exit.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -213,56 +214,436 @@ IF A SECOND AMENDMENT IS NEEDED, ITS FILE IS NAMED HERE so the decision is cheap
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the prompt text, showing it names the two sentinels, states that a child checklist is expected and is not an execution, and instructs that doubt resolves to CONTAINS EXECUTIONS. Paste the sentinel constants proving prompt and parser share them.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PERFORMED at HEAD `0daacf0a`. The prompt is HELD AS DATA (`runner_shared.PROBE_PROMPT_TEMPLATE`, composed by `render_probe_prompt`), never inlined at a call site. Pasted in full:
 
-- [ ] V-02 validates E-02
+    ```
+    You are auditing ONE Implementation Plan Document that coordinates a Set of child plans (an ORCHESTRATOR). Answer exactly one question about it.
+
+    THE QUESTION: does this orchestrator carry WORK THAT NO CHILD COVERS?
+
+    WHAT IS EXPECTED AND IS *NOT* WORK. An orchestrator SHOULD carry a checklist of its children. Sequencing the children, confirming each child reached `executed` on disk before dispatching the next, stopping on the first that did not, reading a child's status, and refusing to perform a child's work are ALL legitimate ORCHESTRATION. A checklist naming the children is therefore EXPECTED and is NOT an execution. Do not report it as one.
+
+    WHAT *IS* WORK NO CHILD COVERS. An item that produces a deliverable of its own (a research artifact, a document, a code or record change); an item that establishes a baseline or a measurement BEFORE any child runs; an item that reconciles records, runs a repo-wide suite, performs a whole-Set verification or audit, or closes a backlog item AFTER the children execute. Such an item may be stated in PROSE rather than as a checklist entry, and prose counts: a sentence like "the database must be migrated before the children run" is work no child covers.
+
+    HOW TO DECIDE A HARD CASE: any doubt resolves to CONTAINS EXECUTIONS. A missed instance is reported complete having never been performed or verified, so under-reporting is far more expensive than over-reporting.
+
+    ANSWER FORMAT. Reply with EXACTLY ONE of these two lines and NOTHING else - no preamble, no explanation, no code fence, no second line:
+
+    ORCHESTRATOR: CONTAINS EXECUTIONS
+    ORCHESTRATOR: CONTAINS NO EXECUTIONS
+
+    THE ORCHESTRATOR'S EXCERPT FOLLOWS. It is its checklist item action text plus its child table, which is everything the question depends on.
+
+    <EXCERPT GOES HERE>
+    ```
+
+    THE THREE REQUIRED PROPERTIES, each present above: it names BOTH sentinels; it states that a child checklist is EXPECTED and is NOT an execution ("A checklist naming the children is therefore EXPECTED and is NOT an execution. Do not report it as one."); and it instructs that "any doubt resolves to CONTAINS EXECUTIONS".
+
+    THE SENTINEL CONSTANTS, proving prompt and parser share the same objects (printed):
+
+    ```
+    PROBE_SENTINEL_EXECUTIONS    = 'ORCHESTRATOR: CONTAINS EXECUTIONS'
+    PROBE_SENTINEL_NO_EXECUTIONS = 'ORCHESTRATOR: CONTAINS NO EXECUTIONS'
+    classify_probe_reply(PROBE_SENTINEL_EXECUTIONS)    -> executions
+    classify_probe_reply(PROBE_SENTINEL_NO_EXECUTIONS) -> no-executions
+    ```
+
+    The prompt is rendered by `.format()` FROM those constants, so a spelling change moves both sides at once. Pinned by `tests/test_orchestrator_probe.py::ThePromptIsBiasedTowardSuspicion` (5 tests).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste parser results for the two exact sentinels, plus a chatty reply, a refusal reply, and a reply carrying BOTH sentinels: those three must yield `unknown` and BLOCK. Paste, separately, a transport-level failure yielding `could-not-ask` and NOT blocking, showing the two states are distinguishable rather than collapsed (that split is the maintainer's OQ-02 ruling; E-10 owns what happens next). Include a mutation check: loosen the parser so a chatty reply passes, show a test fails, revert.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PERFORMED at HEAD `0daacf0a`. `classify_probe_reply` called directly on each case (printed verbatim):
 
-- [ ] V-03 validates E-03
+    ```
+      the exact CONTAINS EXECUTIONS sentinel       -> executions     BLOCKS=True
+      the exact CONTAINS NO EXECUTIONS sentinel    -> no-executions  BLOCKS=False
+      a CHATTY reply                               -> unknown        BLOCKS=True
+      a REFUSAL reply                              -> unknown        BLOCKS=True
+      BOTH sentinels                               -> unknown        BLOCKS=True
+      an answer REPORTING A PROBLEM                -> unknown        BLOCKS=True
+      a TRANSPORT failure (no answer delivered)    -> could-not-ask  BLOCKS=False
+    ```
+
+    So the three DELIVERED-and-unusable cases the item names (chatty, refusal, both sentinels) each yield `unknown` and each BLOCK, while a transport failure is a DISTINCT state that does NOT block. The two are not collapsed: `PROBE_BLOCKING_ANSWERS` contains `executions` and `unknown` and deliberately omits `could-not-ask` (E-10 owns what happens next). Transport failures are classified from the SPAWN rather than from the text, so a missing binary, a 127/124 exit, a `FileNotFoundError`, a timeout and an empty reply all reach `could-not-ask` (four separate tests in `TheCouldNotAskPathIsDistinctFromUnknown`).
+
+    MUTATION CHECK (loosen the parser so a chatty reply passes), run and REVERTED byte-for-byte. Replacing the two equality tests with membership tests:
+
+    ```
+    -    if text == PROBE_SENTINEL_EXECUTIONS:
+    +    if PROBE_SENTINEL_EXECUTIONS in text:
+    ```
+
+    gives:
+
+    ```
+    E       AssertionError: 'no-executions' != 'unknown'
+    FAILED tests/test_orchestrator_probe.py::TheParserFailsClosed::test_a_chatty_reply_is_unknown_and_BLOCKS
+    1 failed, 76 passed in 3.41s
+    ```
+
+    and after reverting: `77 passed in 3.08s`.
+
+    A SECOND DEFECT THE MUTATION EXERCISE CAUGHT IN MY OWN FIRST DRAFT, recorded because it is the failure direction that would have been worst: the first parser subtracted one sentinel count from the other, which classified the CORRECT `CONTAINS NO EXECUTIONS` reply as `unknown` and would therefore have blocked EVERY run. Neither sentinel is a substring of the other, so the counts are now taken independently; the comment in `classify_probe_reply` records it and both single-sentinel cases are pinned.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the excerpt the probe actually sends for one real orchestrator, with its character and approximate token count, and paste the digest inputs child 02 keys on beside it, showing they are THE SAME two things (E-item action text plus the child table's ROW CELL text, not the parsed order graph, per `8tgg6g`'s corrected E-01). Paste the measured payload size for each pending orchestrator, MEASURED AT EXECUTION, so the cost is on the record rather than described as "short"; the population moved from six to eight and ~58k to ~72k tokens in one day, so re-measure rather than copying this plan's figures.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PERFORMED at HEAD `0daacf0a`. THE EXCERPT THE PROBE ACTUALLY SENDS for a real orchestrator (`yeh7gc`, this Set's own parent), pasted verbatim:
 
-- [ ] V-04 validates E-04
+    ```
+    ### Checklist item action text
+
+    - E-01 SEQUENCE THE THREE CHILDREN IN ORDER, confirming each is `executed` on disk before dispatching the next, and STOP on the first that does not reach `executed`. The order is fixed by consumption, not preference: 01 (`r2i1b1`) the surfacing, then 02 (`8tgg6g`) the cache, then 03 (`m7gvuz`) the probe, which consumes both. Order 02 may run before or beside 01; only 03 requires both. DO NOT PERFORM ANY CHILD'S WORK FROM HERE: if a child appears to need a change this parent could make, the child table is wrong, so fix the child.
+
+    ### Child IPDs table (row cells, in document order)
+
+    | Order | Id | Child plan | Depends on |
+    | 01 | r2i1b1 | Surface a per-item refusal reason and its remedy in the run summary and `aw runs` | none |
+    | 02 | 8tgg6g | Cache an orchestrator probe verdict against a content digest that ignores execution state | none |
+    | 03 | m7gvuz | Probe every queued orchestrator for uncovered work before the run starts in earnest | executed:r2i1b1, executed:8tgg6g |
+    ```
+
+    THE DIGEST'S INPUTS BESIDE IT, showing they are THE SAME TWO THINGS rather than two things that agree: `orchestrator_probe_excerpt` is RENDERED FROM `probe_cache_payload`, whose keys printed as `['child_table_rows', 'e_items']`. The child table arrives as ROW CELL TEXT (each row rendered cell by cell above), never as `ipd_set_plan.parse_child_table`'s order graph, matching `8tgg6g`'s corrected E-01; pinned by `TheExcerptIsTheCacheKeysOwnInputs` including an Id-swap case that moves the excerpt.
+
+    PAYLOAD SIZE PER ORCHESTRATOR, MEASURED AT EXECUTION (2026-09-19, worktree HEAD `b5208b0e`), not copied from this plan:
+
+    ```
+      5e4sb6: file  77702 chars (~19425 tok) -> PAYLOAD  9483 chars (~2370 tok) = 12%
+      yeh7gc: file  41457 chars (~10364 tok) -> PAYLOAD  1021 chars (~ 255 tok) =  2%
+      ao1rb7: file  31234 chars (~ 7808 tok) -> PAYLOAD  6103 chars (~1525 tok) = 19%
+      y9s4vm: file  45236 chars (~11309 tok) -> PAYLOAD  4046 chars (~1011 tok) =  8%
+      lyo1tz: file  43574 chars (~10893 tok) -> PAYLOAD  3565 chars (~ 891 tok) =  8%
+      7ewc74: file  37562 chars (~ 9390 tok) -> PAYLOAD  2125 chars (~ 531 tok) =  5%
+      wfjsp4: file  54770 chars (~13692 tok) -> PAYLOAD  9054 chars (~2263 tok) = 16%
+      d0cbt3: file  32224 chars (~ 8056 tok) -> PAYLOAD  2271 chars (~ 567 tok) =  7%
+      a5wdne: file  30438 chars (~ 7609 tok) -> PAYLOAD  2156 chars (~ 539 tok) =  7%
+      tb63qv: file  22826 chars (~ 5706 tok) -> PAYLOAD  2204 chars (~ 551 tok) =  9%
+      ---- 10 orchestrators: whole-file would be ~104255 tok; the BOUNDED payload is ~10507 tok (10%)
+    ```
+
+    The population is TEN, not the eight this plan recorded, and the whole-file cost is ~104k tokens rather than ~72k, which is why the item said to re-measure; the bound reduces it to 10 percent.
+
+    A DEFECT FOUND AND FIXED WHILE PERFORMING THIS ITEM, which is the substantive part of this evidence. The payload took each action from `ipd_lint.Leaf.text`, which is the remainder of a leaf's OPENING LINE only, so every CONTINUATION line was dropped:
+
+    ```
+      (before) TOTAL captured: 11758/27949 = 42%   [wfjsp4: 831/7816 = 10%]
+      (after)  TOTAL captured: 27869/27869 = 100%
+    ```
+
+    That was wrong in BOTH directions: as a payload it hid the prose the coverage question turns on, and as a CACHE KEY it was under-sensitive, so rewriting an item's continuation lines served a STALE verdict for a materially different plan. Fixed by adding `runner_shared.e_item_action_blocks` (anchor on the parser's `Leaf.line`, stop at the first indented sub-field, the next leaf, or the next heading) and re-keying `probe_cache_digest` on it. `8tgg6g`'s five `xmqv5l` no-op invariants were re-proved unchanged (`tests/test_orchestrator_probe_cache.py`: `56 passed`), and `TheActionTextIsTheWholeBlockNotItsFirstLine` (7 tests) pins the fix in both directions. `ipd_lifecycle.frozen_region_digest` has the SAME blind spot and is a shipped begin-receipt gate outside this plan's `Scope-Paths`; reproduced and filed as backlog `168p5j` rather than changed here.
+
+    THE LIMIT OF THE BOUND, stated rather than left to be discovered: prose in a section OUTSIDE the checklist (a Goal paragraph) is NOT sent, because E-03 requires payload and key be identical and widening the payload alone would serve stale verdicts. Pinned by `TheExcerptHasAKnownLIMIT`, which fails loudly if someone widens one without the other, and filed as backlog `rmcqw8`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste a run with all queued orchestrators cached showing ZERO model calls (a stub call counter is acceptable evidence), then edit one orchestrator's E-item text and paste the same run showing exactly ONE call. Paste proof the probe is queue-scoped: a run selecting ONE Set must not probe orchestrators outside it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PERFORMED at HEAD `0daacf0a`. Call counts measured through an injected `asker` double that records one entry per invocation, so the numbers are ACTUAL calls and not an inference that a cache was used.
+
+    ZERO CALLS WHEN CACHED, and exactly ONE after a content edit (`python3 -m pytest ... -o addopts="" -v`):
+
+    ```
+    tests/test_orchestrator_probe.py::TheCacheIsConsultedFirst::test_every_orchestrator_cached_means_ZERO_model_calls PASSED
+    tests/test_orchestrator_probe.py::TheCacheIsConsultedFirst::test_editing_an_E_item_action_costs_exactly_ONE_call PASSED
+    tests/test_orchestrator_probe.py::TheCacheIsConsultedFirst::test_a_probed_verdict_is_RECORDED_so_the_next_run_is_free PASSED
+    tests/test_orchestrator_probe.py::TheCacheIsConsultedFirst::test_a_MISS_is_never_read_as_a_pass PASSED
+    ```
+
+    The first asserts `decision.calls == 0` AND `asker.calls == []` with the verdict pre-recorded; the second pre-records a verdict, then edits a CONTINUATION line of an E-item and asserts `decision.calls == 1`. The edit is deliberately a continuation line: that is where an author actually changes what an item asks for, and it was invisible to the digest until this child's E-03 fix.
+
+    QUEUE-SCOPED, proven by the cases a corpus sweep would fail:
+
+    ```
+    tests/test_orchestrator_probe.py::TheProbeIsQueueScoped::test_an_orchestrator_on_disk_but_NOT_in_the_queue_is_never_probed PASSED
+    tests/test_orchestrator_probe.py::TheProbeIsQueueScoped::test_a_CHILD_in_the_queue_is_not_probed PASSED
+    tests/test_orchestrator_probe.py::TheProbeIsQueueScoped::test_an_unreadable_plan_is_skipped_rather_than_crashing_the_gate PASSED
+    tests/test_orchestrator_probe.py::TheProbeIsQueueScoped::test_queue_order_is_preserved_so_the_first_blocker_is_the_first_in_the_queue PASSED
+
+    8 passed in 0.40s
+    ```
+
+    The first writes a SECOND orchestrator to disk and asserts `queued_orchestrator_targets` returns only the queued one, which is the `aw oc run all` case the item is about. `TheGateHasThreePaths::test_a_run_with_NO_queued_orchestrator_spends_nothing_and_proceeds` additionally asserts a queue of children alone spends zero calls.
+  - Result: pass
 
 - [ ] V-05 validates E-05
   - Required evidence: paste all three paths (interactive prompt, non-interactive failure, override accepted-and-recorded-with-its-justification). Paste proof a refusal left NO lane worktree, NO session and NO agent turn behind (an empty `sessions/` directory plus a zero attempt count is acceptable), and paste `aw runs` for the refused run read AFTER the process exited, showing the refusal is durable. Do NOT assert "no run directory": E-05 records why that is impossible, and a V-item demanding it would be unpassable.
   ALSO CARRY THE OQ-03 PRECONDITION'S EVIDENCE HERE, because no code can express it and this is the item that lands the live gate. Paste the measured `- Status:` and per-item classification of every pending `Kind: orchestrator` plan at execution time, showing that none still carries uncovered parent-only work. If any does, this item FAILS and the plan must not be finalized: `rh5tt6` (F-14) is the measured proof that waiting is not free, and running the gate over known debt is what teaches an operator to reach for the override.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PERFORMED at HEAD `0daacf0a`. ALL THREE PATHS driven through the REAL `initialize_run` on a fixture repo, with the model call stubbed (never spawned):
 
-- [ ] V-06 validates E-06
+    ```
+    1. oc + parent-only work, UNATTENDED
+    outcome: REFUSED: the orchestrator coverage probe reports that orc002 carries work no child covers. The runner retires an orchestrator once its children are `executed` and SKIPS the pre-transition E/V checkpoint, so that work would be reported complete having never been performed or verified. ADD A CHILD for the uncovered work: ...
+
+    3. oc + override WITH justification
+    outcome: proceeded
+    stderr: orchestrator coverage probe OVERRIDDEN for orc002: ... Justification recorded: maintainer accepted: child authored in the next Set
+
+    4. oc + ORCHESTRATION-ONLY parent (must NOT flag)
+    outcome: proceeded
+
+    5. oc + chatty/unusable reply (unknown) -> BLOCKS
+    outcome: REFUSED: ... (or answered unusably, which is treated the same way) ...
+
+    6. oc + COULD-NOT-ASK -> proceeds, loud warning
+    outcome: proceeded
+    stderr: WARNING: the orchestrator coverage probe could not be asked about orc002 (retried to the budget of 2). The run is PROCEEDING with a KNOWN HOLE ...
+    ```
+
+    The INTERACTIVE path is exercised with the exact-phrase rule (`TheGateHasThreePaths::test_interactively_the_EXACT_phrase_admits_and_anything_else_refuses`): `run uncovered` admits, while `y` and an empty answer REFUSE, following the shipped `run drafts`/`RUN-MIXED-TYPES` precedent. The prompt is never asked without a TTY (`test_the_prompt_is_only_asked_when_a_TTY_was_established_by_the_caller`), so an unattended run cannot block on input.
+
+    THE OVERRIDE IS RECORDED WITH ITS JUSTIFICATION, not as a boolean: `state["options"]["allow_uncovered_orchestrator_work"]` holds the operator's string, the gate event carries `"justification": "maintainer accepted 2026-09-19"`, and an EMPTY justification is not an override (`test_an_EMPTY_justification_is_not_an_override` -> still refuses).
+
+    NO WORKTREE, NO SESSION, NO AGENT TURN behind a refusal (`TheRefusalIsDURABLE::test_a_refusal_leaves_NO_session_and_NO_worktree_behind`): `sessions/` is empty, the item's `attempts` is `[]` and it carries no `worktree` key. As E-05 records, "no run directory" is NOT asserted and would be unpassable; the directory exists because the model call must be logged somewhere.
+
+    DURABLE AND READABLE IN `aw runs` AFTER THE PROCESS EXITED (`run_viewer.load_run_summary` + `format_refusal_summary` + `render_steps_table` on the refused run directory, read in a fresh process):
+
+    ```
+    Refusals (what the run declined, and what to do):
+      ! 20260919-fixture-00-orc002 [orchestrator-uncovered-work]: the orchestrator coverage probe reports that orc002 carries work no child covers. ...
+        -> remedy: ADD A CHILD for the uncovered work: ...
+
+    | Status | Item                       | Action      | ... | Issue |
+    | queued | 20260919-fixture-00-orc002 | orchestrate | ... | YES   |
+    ```
+
+    THE OQ-03 PRECONDITION IS **NOT MET**, MEASURED AT EXECUTION, AND THIS IS THE ONE PART OF THIS ITEM THAT DOES NOT PASS. Every pending `Kind: orchestrator` plan was re-classified by reading each item's FULL action text (2026-09-19, HEAD `b5208b0e`):
+
+    ```
+    id6      Status     items  classification
+    5e4sb6   approved   3      E-01:PARENT-ONLY WORK, E-02:PARENT-ONLY WORK, E-03:PARENT-ONLY WORK
+    yeh7gc   approved   1      E-01:orchestration
+    ao1rb7   approved   3      E-01:orchestration, E-02:orchestration, E-03:PARENT-ONLY WORK
+    y9s4vm   approved   3      E-01:orchestration, E-02:orchestration, E-03:PARENT-ONLY WORK
+    lyo1tz   approved   3      E-01:orchestration, E-02:orchestration, E-03:PARENT-ONLY WORK
+    7ewc74   approved   3      E-01:orchestration, E-02:orchestration, E-03:orchestration
+    wfjsp4   approved   4      E-01:orchestration, E-02:PARENT-ONLY WORK, E-03:PARENT-ONLY WORK, E-04:PARENT-ONLY WORK
+    d0cbt3   approved   2      E-01:orchestration, E-02:orchestration
+    a5wdne   reviewed   1      E-01:PARENT-ONLY WORK
+    tb63qv   reviewed   1      E-01:PARENT-ONLY WORK
+    ```
+
+    Seven parents still carry uncovered work: `5e4sb6` (produce a research artifact, establish a baseline before any child runs, verify the whole Set), `wfjsp4` (three whole-Set verifications), `a5wdne` and `tb63qv` (verify and record the Set's combined result) are unambiguous; `ao1rb7` E-03, `y9s4vm` E-03 and `lyo1tz` E-03 are borderline reconciliation steps a reviewer may judge to be orchestration. Note OQ-03's three-id snapshot (`5e4sb6`, `h0zljh`, `3m0urk`) is stale in both directions: `h0zljh` and `3m0urk` are no longer pending, and five parents authored since have joined the set.
+
+    CONSEQUENCE, STATED PLAINLY RATHER THAN WORKED AROUND: the gate is correct and it WILL refuse on this known debt the first time a run queues any of those seven. The maintainer's ruling was CLEAR FIRST precisely so the override does not become reflex. Authoring those children is explicitly OUT of this child's scope (its Deferred section says so), and NO orchestrator was edited to make this item pass, which the parent's CID-2 forbids. The debt is filed with its per-item measurement as backlog `wtd5m2` so it is tracked rather than noted in prose, and this item is reported as PARTIAL on that basis; the decision to clear it before or after this gate lands is the maintainer's.
+  - Result: blocked
+
+- [x] V-06 validates E-06
   - Required evidence: paste the summary block and the `aw runs` output for a refused run, showing the reason AND a remedy that says to add a child. Assert the message does NOT read as a bare prohibition: paste the full string and state which words name the constructive action.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PERFORMED at HEAD `0daacf0a`. THE FULL REMEDY STRING, as it reaches both the end-of-run summary and `aw runs` (pasted from `probe_refusal_remedy(OC_HOST_LABELS, "orc002")`):
 
-- [ ] V-07 validates E-07
+    ```
+    ADD A CHILD for the uncovered work: author a child plan of orc002's Set that owns it, add its row to the orchestrator's `## Child IPDs` table, and leave the parent's existing checklist in place. Do NOT delete the parent's items - that checklist is what makes `execute <setid>` complete when no runner is involved. Then re-run `aw oc run`; the verdict cache re-probes automatically because both edits change what it keys on. To launch anyway, accepting that the parent's own items will be reported complete having never been performed or verified, pass `--allow-uncovered-orchestrator-work '<why you accept it>'`.
+    ```
+
+    WHICH WORDS NAME THE CONSTRUCTIVE ACTION, as the item requires: the string OPENS with "**ADD A CHILD** for the uncovered work", and the next clause says how ("author a child plan of orc002's Set that owns it, add its row to the orchestrator's `## Child IPDs` table"). The destructive reading is then closed explicitly: "**Do NOT delete the parent's items** - that checklist is what makes `execute <setid>` complete when no runner is involved", which states the CONSEQUENCE of deleting rather than merely forbidding it.
+
+    IT DOES NOT READ AS A BARE PROHIBITION, asserted mechanically rather than claimed: `TheRefusalNamesAddAChild` checks that "ADD A CHILD" appears in the FIRST HALF of the string (so the constructive action leads rather than trails), and that none of "must not contain executions", "cannot have executions" or "is not allowed" appears at all.
+
+    IT REACHES BOTH SURFACES, through child 01's carriers rather than a second renderer. The end-of-run summary (`render_stream.render_run_summary_table` on the refused run's state):
+
+    ```
+      - 20260919-fixture-00-orc002: queued (the orchestrator coverage probe reports that orc002 carries work no child covers. ...)
+        -> remedy: ADD A CHILD for the uncovered work: ...
+    ```
+
+    and `aw runs`, read AFTER the process exited (`run_viewer.format_refusal_summary`):
+
+    ```
+    Refusals (what the run declined, and what to do):
+      ! 20260919-fixture-00-orc002 [orchestrator-uncovered-work]: ...
+        -> remedy: ADD A CHILD for the uncovered work: ...
+    ```
+
+    The gate writes through `render_stream.record_refusal`, the ONE writer child 01 built, so no surface can look under a key the producer does not write (r2i1b1's F-4 defect class). 5 tests in `TheRefusalNamesAddAChild`.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the `77tr3o` diff showing the gate recorded as a requirement beside R-5's resolution, and paste the pre-run spec-impact announcement naming that file (which is the parent's CID-6). If a second spec (`25kzda` 2.5/2.5a) was judged to need amending too, paste that decision and its outcome; if it was judged unnecessary, say why.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PERFORMED at HEAD `0daacf0a`. `77tr3o` AMENDED with a new R-12, sited immediately after R-11 and reading in part:
 
-- [ ] V-08 validates E-08
+    ```
+    +- R-12 R-5's PREMISE MUST BE CHECKED BEFORE A RUN RELIES ON IT, NOT ASSUMED. Added 2026-09-19 by
+    +  orchprobe-03 (`m7gvuz`). R-5 was resolved as shape (b), a runner-owned rollup that SKIPS the
+    +  pre-transition E/V checkpoint, and OQ-1 records the premise that licenses that skip: an
+    +  orchestrator's own `E-*`/`V-*` items are "performed by nobody", so there is nothing for the
+    +  checkpoint to verify. THAT PREMISE IS TRUE OF AN ORCHESTRATOR HOLDING ONLY ORCHESTRATION AND FALSE OF
+    +  ONE HOLDING WORK NO CHILD COVERS, and until this requirement nothing established which kind was in
+    +  front of it. The premise was falsified IN PRODUCTION on 2026-09-08: `aw oc run` retired `rh5tt6` as a
+    +  rollup (commit `8b4e1570`, whose message states plainly "Its own `E-*`/`V-*` items were NOT
+    +  performed") while its E-02 ... still read `Execution state: pending` with a blank V-02.
+    +
+    +  THEREFORE: before a run spends an agent turn, allocates a lane worktree, or opens a session, it MUST
+    +  establish for every orchestrator IN ITS QUEUE whether that orchestrator carries work no child
+    +  covers, and MUST refuse (unattended) or prompt (interactive) when it does. ...
+    +  1. FAIL CLOSED ON A DELIVERED ANSWER. ... The ONE exception is availability ...
+    +  2. THE REFUSAL NAMES THE CONSTRUCTIVE ACTION, which is to ADD A CHILD that owns the work. ...
+    +  3. THE CHECK IS NOT A LINTER RULE, AND R-5's REJECTION OF SHAPE (a) STANDS UNCHANGED. ...
+    +  An override exists for a maintainer who accepts the risk deliberately, and it MUST record a
+    +  JUSTIFICATION rather than a bare boolean ...
+    ```
+
+    It is sited BESIDE R-5's resolution deliberately and names it, so a reader meeting R-5's premise is sent to the control that checks it. Section 4 also gains the honest consequence: the backfill of orchestrators carrying this debt today is OUT of scope and the first runs after R-12 lands will refuse on them.
+
+    A SECOND SPEC WAS JUDGED NECESSARY, and the reason is mechanical rather than a preference: the gate's unattended half is a RUN FLAG, and `tests/test_run_flag_surface.py` reads spec `25kzda` 2.1's grammar block as a FILE in BOTH directions, so a flag registered in `RUN_POLICY_FLAGS` that 2.1 does not declare turns that suite red (and vice versa). `25kzda` therefore gains `[--allow-uncovered-orchestrator-work <justification>]` in 2.1, the rule that it takes a justification string (the grammar's only operator-authored value), and a new Section 2.5b specifying the gate's mechanism beside its sibling pre-queue gates 2.5 and 2.5a. Per the plan's declared-but-conditional clause, that path was ADDED to `- Scope-Paths:` BEFORE the file was edited.
+
+    THE PRE-RUN SPEC-IMPACT ANNOUNCEMENT NAMES BOTH (the parent's CID-6), from `runner_shared.spec_impacts_for_queue` over a queue containing this plan:
+
+    ```
+    {
+      "id6": "m7gvuz",
+      "setid": "orchprobe",
+      "specs": [
+        ".aw/records/specs/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md",
+        ".aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md"
+      ]
+    }
+    ```
+
+    `aw specs check` reports `all specs conform.`
+
+    A TOOL DEFECT WAS HIT AND REPAIRED WHILE PERFORMING THIS ITEM. `aw specs note` reports "appended a history record" but REBUILDS the `## Workflow history` section, destroying every pre-existing entry. It ate `77tr3o`'s 2026-09-06 entry recording the maintainer's OQ-1/OQ-2 RULINGS and three entries in `25kzda` (two 2026-09-14 flag amendments and a 2026-09-13 telemetry amendment). All four were restored from `git show HEAD:<path>` and verified additive; reproduced in an isolated scratch repo (two pre-existing entries, both destroyed, exit 0 with the success message) and filed as backlog `b6i85r`.
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste the regenerated AGENTS.md passage; paste the corrected denominator in it (46 of 47 `Kind: orchestrator` plans, not 46 of 130); paste `test_every_assertion_in_the_new_text_maps_to_a_test_in_THIS_module` PASSING together with the mapping entries added and the test class each new claim maps to; and paste the idempotent-render test passing. Also paste `TheRejectedShapeWasNotTaken` passing UNMODIFIED, since the parent's CID-1 depends on it and this item edits the same module.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PERFORMED at HEAD `0daacf0a`. The managed block was regenerated FROM `engine.py` via `engine.agents_managed_sections` + `engine.merge_aw_block` (never hand-edited), and the new passage in `### The runners own ordering, isolation, and orchestrators` reads:
 
-- [ ] V-09 validates E-09
+    ```
+    THE ORCHESTRATOR COVERAGE GATE, which is what stops that retirement being a lie. Retirement SKIPS the pre-transition E/V checkpoint on the premise that a parent's own items are performed by nobody, and that premise is FALSE for a parent carrying work no child covers - measured in production on 2026-09-08, when a rollup retired a plan whose own commit message says its items were NOT performed while its E-02 still read pending. So before any agent turn, lane worktree or session, a run asks a MODEL once per queued orchestrator whether it carries work no child covers, and REFUSES unattended (or PROMPTS on a TTY) when it does. The refusal is DURABLE and readable afterwards in `aw runs`, not only in scrollback. WHEN IT FIRES, ADD A CHILD that owns the work and add its row to the parent's child table; do NOT delete the parent's items to make it pass, which destroys the orchestration checklist and causes the very lost work the gate exists to prevent. The verdict is CACHED on the parent's item text plus its child table, so an unmodified orchestrator is never re-probed while the real fix re-probes automatically and a ticked checkbox does not. If the model host cannot be reached the run PROCEEDS with a loud warning and records the KNOWN HOLE rather than halting, so an outage costs a warning and not a night's work. A maintainer who accepts the risk passes `--allow-uncovered-orchestrator-work '<why>'`, which REQUIRES a justification and records it. Specified in `25kzda` 2.5b and `77tr3o` R-12.
+    ```
+
+    The neighbouring "Do NOT raise" instruction was updated in the same change, since this refusal is now a legitimate thing to raise: it adds "or a run the ORCHESTRATOR COVERAGE GATE refused (or warned past) with the plan it named. That last one is worth raising precisely because it needs a human act too: the remedy is to author the missing child, and the honest report is that the parent carries work no child covers, never that the gate is broken."
+
+    THE DENOMINATOR WAS RE-MEASURED AT EXECUTION AND PHRASED SO IT CANNOT ROT. Measured 2026-09-19: `Kind: orchestrator` plans = **60**, of those carrying E-items = **60** (100 percent); filename-`-00-` population = 144, of which 84 carry no `Kind` and no E-items. The plan's own figure (50 of 50) was already stale, which is exactly why the item forbade pasting it. The text now states a PROPERTY rather than a fraction:
+
+    ```
+    EVERY plan carrying `- Kind: orchestrator` carries checklist items, without exception, and most of those items are legitimate orchestration, which is why the distinction matters and why a blunt 'no items on a parent' rule is wrong. That is stated as a PROPERTY rather than as a fraction because the fraction rotted three times: it read '46 of 130', whose denominator was the filename `-00-` population, most of which are pre-`Kind` legacy plans carrying ZERO E-items and so diluting a ratio they are not members of; measured on the plans that actually declare the kind it has been 100 percent at every single measurement.
+    ```
+
+    MAPPING ENTRIES ADDED, each backed by a NAMED test class containing real tests: `"REFUSES unattended"` and `"PROMPTS on a TTY"` and `"REQUIRES a justification"` -> `TheGateHasThreePaths`; `"ADD A CHILD"` and `"do NOT delete the parent's items"` -> `TheRefusalNamesAddAChild`; `"readable afterwards in `aw runs`"` -> `TheRefusalIsDURABLE`; `"PROCEEDS with a loud warning"` and `"KNOWN HOLE"` -> `TheCouldNotAskPathDoesNotBlock`. All four classes live in `tests/test_orchestrator_probe.py` and are imported into the mapping; the comment records why the test's "THIS module" name is now a half-truth and was deliberately not renamed (its node id is cited by several plans, and moving the gate's tests away from the code they exercise would be worse).
+
+    THE GUARDED TESTS PASS, including the two the item names:
+
+    ```
+    timeout 600 python3 -m pytest tests/test_orchestrator_retirement.py
+    137 passed in 6.38s
+    ```
+
+    which contains `TheDocumentedClaimMatchesTheCode::test_every_assertion_in_the_new_text_maps_to_a_test_in_THIS_module`, `::test_a_re_render_is_IDEMPOTENT`, `::test_the_rendered_AGENTS_md_carries_the_corrected_text`, and `TheRejectedShapeWasNotTaken` (3 tests) UNMODIFIED - the parent's CID-1 depends on that last one and this child edits the same module. Idempotence was also checked directly at render time (`merge_aw_block` applied twice, second pass a byte-for-byte no-op) before the file was written.
+  - Result: pass
+
+- [x] V-09 validates E-09
   - Required evidence: pasted object-identity output per new symbol showing both hosts resolve it to the same object from `runner_shared`; the AST-measured oc-to-agy import count taken in the EXECUTING WORKTREE before and after, showing it did not increase (47 at 2026-09-08; measure, do not assume); and the `pgq326` lesson closed out by DEMONSTRATING that `aw agy run` refuses on the same fixture `aw oc run` refuses on, not merely that both compute the same decision. Where a string is legitimately host-parameterized, paste the ONE shared composing function plus BOTH rendered remedies, and state that each names its own host's command (the parent's CID-3 carve-out); identical strings are NOT required and a remedy naming the wrong host fails this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PERFORMED at HEAD `0daacf0a`. OBJECT IDENTITY per new symbol, printed as `id()` from each host so the assertion is identity and not a grep:
 
-- [ ] V-10 validates E-10
+    ```
+    PROBE_SENTINEL_EXECUTIONS              shared=139157690085216 oc=139157690085216 agy=139157690085216 SAME=True
+    PROBE_SENTINEL_NO_EXECUTIONS           shared=139157690085296 oc=139157690085296 agy=139157690085296 SAME=True
+    PROBE_PROMPT_TEMPLATE                  shared=100817851405712 oc=100817851405712 agy=100817851405712 SAME=True
+    render_probe_prompt                    shared=139157686985552 oc=139157686985552 agy=139157686985552 SAME=True
+    orchestrator_probe_excerpt             shared=139157686985904 oc=139157686985904 agy=139157686985904 SAME=True
+    classify_probe_reply                   shared=139157686986256 oc=139157686986256 agy=139157686986256 SAME=True
+    probe_reply_text                       shared=139157686986608 oc=139157686986608 agy=139157686986608 SAME=True
+    probe_argv                             shared=139157686986960 oc=139157686986960 agy=139157686986960 SAME=True
+    ask_orchestrator_probe                 shared=139157686987664 oc=139157686987664 agy=139157686987664 SAME=True
+    probe_orchestrator                     shared=139157686991536 oc=139157686991536 agy=139157686991536 SAME=True
+    probe_refusal_remedy                   shared=139157686991888 oc=139157686991888 agy=139157686991888 SAME=True
+    probe_unavailable_remedy               shared=139157686992240 oc=139157686992240 agy=139157686992240 SAME=True
+    enforce_orchestrator_probe_gate        shared=139157687043344 oc=139157687043344 agy=139157687043344 SAME=True
+    queued_orchestrator_targets            shared=139157686989600 oc=139157686989600 agy=139157686989600 SAME=True
+    e_item_action_blocks                   shared=139157686983440 oc=139157686983440 agy=139157686983440 SAME=True
+    ```
+
+    THE OC-TO-AGY IMPORT COUNT, MEASURED BY AST IN THE EXECUTING WORKTREE rather than trusted: **53** (this plan recorded 47, and `8tgg6g` already measured 48, so the figure had moved twice; the RULE is what matters). It did NOT increase for this change, and no new symbol reaches agy through the other host's driver:
+
+    ```
+    === V-09 oc-to-agy import count (AST, THIS worktree): 53 ===
+    any new probe symbol imported from the other host's driver: NONE
+    ```
+
+    Both hosts reach the gate through ONE seam: `runner_shared.initialize_run_core`, which both `initialize_run` functions delegate to, so there is no per-host call site to drift.
+
+    THE HOST-PARAMETERIZED CARVE-OUT, which is the parent's CID-3 stated precisely. The composing FUNCTION is one object (identity above); the rendered strings legitimately DIFFER because each names its own host's command, exactly as `DEPENDENCY_BLOCK_RECOVERY_HINT` does:
+
+    ```
+    OC : ADD A CHILD ... Then re-run `aw oc run`; the verdict cache re-probes automatically ...
+    AGY: ADD A CHILD ... Then re-run `aw agy run`; the verdict cache re-probes automatically ...
+    ```
+
+    Identical strings are NOT asserted; instead the test asserts each rendering contains its OWN host's command and NOT the other's, so a remedy naming the wrong host fails even though identity passes.
+
+    THE `pgq326` LESSON CLOSED OUT: agy does not merely compute the same decision, it REFUSES. Driving the REAL `agy_runipd.initialize_run` over the same fixture `aw oc run` refuses on:
+
+    ```
+    2. agy + the SAME fixture (E-09: agy actually GATES)
+    outcome: REFUSED: the orchestrator coverage probe reports that orc002 carries work no child covers. ... Then re-run `aw agy run`; ...
+    ```
+
+    and both hosts CLEAR an orchestration-only parent. `BothHostsActuallyRefuse` (4 tests) drives both hosts' real `initialize_run` for the refuse, the clear, the host-naming, and the `--prepare-only` case.
+  - Result: pass
+
+- [x] V-10 validates E-10
   - Required evidence: paste the four-way classification in action, one case each: a delivered-but-chatty reply BLOCKING as `unknown`, and a simulated transport failure (unreachable host or missing binary, stubbed) classified `could-not-ask`, RETRIED to the budget, and then PROCEEDING with the run rather than blocking. Paste the loud warning text. Paste the budget decision with its evidence: which flag was used, what its default resolved to (state the measured `DEFAULT_RETRY_LIMIT`), and, if `--retry-budget` was reused, proof the 0..10 bound is still `run_recovery.validate_retry_budget`'s single definition and was not re-implemented. Paste `aw runs` for the warned-past run read AFTER the process exited, showing the KNOWN HOLE is durable and not terminal-only. Include a mutation check: make a `could-not-ask` block, show a test fails, revert; that is what pins the ruling rather than merely describing it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PERFORMED at HEAD `0daacf0a`. THE FOUR-WAY CLASSIFICATION IN ACTION, one case each, driven through the real gate:
+
+    A DELIVERED-BUT-CHATTY REPLY BLOCKS as `unknown`:
+
+    ```
+    5. oc + chatty/unusable reply (unknown) -> BLOCKS
+    outcome: REFUSED: the orchestrator coverage probe reports that orc002 carries work no child covers (or answered unusably, which is treated the same way). ...
+    ```
+
+    A SIMULATED TRANSPORT FAILURE is classified `could-not-ask`, RETRIED to the budget, and the run PROCEEDS:
+
+    ```
+    6. oc + COULD-NOT-ASK -> proceeds, loud warning
+    outcome: proceeded
+    ```
+
+    THE LOUD WARNING, pasted verbatim from stderr:
+
+    ```
+    WARNING: the orchestrator coverage probe could not be asked about orc002 (retried to the budget of 2). The run is PROCEEDING with a KNOWN HOLE: nothing established whether those orchestrators carry work no child covers. This run has a KNOWN HOLE: nothing established whether its orchestrators carry work no child covers, so a Set completing here may retire a parent whose own items were never performed. Re-run `aw oc run` once the model host is reachable to get the answer, and until then treat any orchestrator this run retires as UNVERIFIED on that point.
+    ```
+
+    The retry count is asserted, not assumed: with `retry_budget=2` the asker is called exactly **3** times (the initial attempt plus the budget), and with `retry_budget=0` exactly once. An `unknown` is NOT retried (1 call) and still blocks, because retrying a confused model is how a fail-closed gate is talked into passing.
+
+    THE BUDGET DECISION AND ITS EVIDENCE. The existing `--retry-budget` is REUSED and its default ACCEPTED; no second knob was added (printed):
+
+    ```
+    run_recovery.DEFAULT_RETRY_LIMIT      = 2
+    rs.resolve_retry_budget(None)         = 2
+    the 0..10 bound has ONE definition    = agent_workflows.run_recovery.validate_retry_budget
+      resolve_retry_budget(11) -> --retry-budget: invalid retry budget 11: must be an int in the inclusive range 0..10 (spec 25kzda 2.1)
+    a SECOND retry knob was NOT added     = none
+    ```
+
+    So the ruling's "default 3" is resolved in favor of the SHIPPED default of 2, recorded in `enforce_orchestrator_probe_gate`'s docstring with the reason: a second retry knob is the re-fork E-09 exists to prevent, and the difference between two and three retries of an unreachable host does not justify a divergent surface. The bound is CALLED, never re-implemented (single definition proven above by the refusal's own message).
+
+    THE KNOWN HOLE IS DURABLE, read from the warned-past run AFTER the process exited:
+
+    ```
+    Refusals (what the run declined, and what to do):
+      ! 20260919-fixture-00-orc002 [orchestrator-probe-unavailable]: the orchestrator coverage probe COULD NOT BE ASKED about orc002 after 3 attempt(s) (retry budget 2): host binary not on PATH. The run PROCEEDED without an answer
+        -> remedy: This run has a KNOWN HOLE: nothing established whether its orchestrators carry work no child covers, so a Set completing here may retire a parent whose own items were never performed. Re-run `aw oc run` once the model host is reachable to get the answer, and until then treat any orchestrator this run retires as UNVERIFIED on that point.
+    ```
+
+    It uses a DISTINCT code (`orchestrator-probe-unavailable`) from the refusal's (`orchestrator-uncovered-work`), because "this parent carries uncovered work" and "nobody established whether it does" are different facts. A could-not-ask is also never written to the verdict cache (`record_probe_verdict` raises on any non-pass/fail value), so "not probed" cannot become a stored fact.
+
+    MUTATION CHECK (make a could-not-ask BLOCK, i.e. ship the ruling's negation), run and REVERTED byte-for-byte. Adding `PROBE_ANSWER_COULD_NOT_ASK` to `PROBE_BLOCKING_ANSWERS`:
+
+    ```
+    FAILED tests/test_orchestrator_probe.py::TheParserFailsClosed::test_the_answer_vocabulary_is_FOUR_states_not_three
+    FAILED tests/test_orchestrator_probe.py::TheCouldNotAskPathDoesNotBlock::test_it_is_retried_to_the_budget_and_then_PROCEEDS
+    FAILED tests/test_orchestrator_probe.py::TheCouldNotAskPathIsDistinctFromUnknown::test_a_transport_failure_is_could_not_ask_and_does_NOT_block
+    FAILED tests/test_orchestrator_probe.py::TheCouldNotAskPathDoesNotBlock::test_the_KNOWN_HOLE_is_durable_and_readable_after_the_process_exits
+    4 failed, 73 passed in 6.02s
+    ```
+
+    and after reverting: `77 passed in 5.58s`. That is what pins the maintainer's ruling rather than merely describing it.
+  - Result: pass
 
 ## Approval and execution gate
 
@@ -280,3 +661,43 @@ AND THE PRECONDITION IS NOW RACING AN ACTIVE RUNNER (F-14). While this plan sat 
 Execution contract: commit ONLY the files this plan changed, path-scoped; never `git add -A`, never `-a`, never push. Verify the staged set before every commit and RE-VERIFY after any failed or hook-interrupted commit. Paste ACTUAL runner output when reporting tests passed.
 
 Post-gate lifecycle: requires explicit human approval (`aw ipd set approved m7gvuz --by-human --message ...`) before execution, and its `Item-Dependencies` refuse dispatch until both `r2i1b1` and `8tgg6g` are executed. Do NOT hand-write a `Readiness:` field. Transition via `aw ipd finalize` after `aw ipd lint --phase pre-transition` conforms and every `V-*` carries pasted evidence.
+
+## Execution status (2026-09-19, run-20260919T043715Z-4183972)
+
+SUBSTANTIALLY COMPLETE, AND DELIBERATELY NOT FINALIZED. All ten `E-*` items are PERFORMED and nine of
+ten `V-*` items are verified with pasted evidence at code commit `0daacf0a`. `aw ipd lint` reports
+CONFORMING; `aw ipd lint --phase pre-transition` reports exactly ONE error, `V-05: not 'pass'`, and
+that error is CORRECT rather than an artifact to be worked around.
+
+WHY V-05 IS `blocked` AND WHY THAT BLOCKS FINALIZATION. V-05 carries the OQ-03 precondition's evidence
+by design, because no code can express "another Set's parent no longer carries uncovered work" and the
+gate paragraph states that V-05 "FAILS the item if this plan executed before the remaining
+orchestrators were cleared". Re-classified at execution over every pending `Kind: orchestrator` plan,
+SEVEN still carry parent-only work: `5e4sb6` (E-01/E-02/E-03), `wfjsp4` (E-02/E-03/E-04), `a5wdne`
+(E-01) and `tb63qv` (E-01) unambiguously, plus `ao1rb7`/`y9s4vm`/`lyo1tz` (E-03 each) as borderline
+reconciliation steps. OQ-03's snapshot (`5e4sb6`, `h0zljh`, `3m0urk`) is stale in both directions: two
+are no longer pending and five parents authored since have joined the set. Marking V-05 `pass` would
+forge the one attestation this Set exists to protect, so it reads `blocked` and the plan stays in
+`pending/`.
+
+WHAT THE MAINTAINER DECIDES. Either author the missing children first (the ruling's CLEAR FIRST, whose
+purpose is that the override never becomes reflex) and then finalize this plan, or rule that the gate
+may land over known debt. Authoring those children is explicitly OUT of this plan's scope, and NO
+orchestrator was edited to make any item pass, which the parent's CID-2 forbids. The debt is tracked
+with its per-item measurement as backlog `wtd5m2`.
+
+THE CODE IS COMPLETE AND SHIPPED in `0daacf0a`: the gate is live on BOTH hosts through one seam, spec
+`77tr3o` gained R-12 and `25kzda` gained 2.1's flag plus a new 2.5b, and the AGENTS.md managed block
+was regenerated from `engine.py`. Suite: `python3 -m pytest` bare gives `8335 passed, 3 skipped,
+2 xfailed` against a worktree baseline of `8258 passed, 3 skipped, 2 xfailed` at `b5208b0e` - no
+pre-existing failures and none introduced.
+
+THREE DEFECTS FOUND AND FILED, one of them fixed here. (1) `probe_cache_payload` read
+`ipd_lint.Leaf.text`, the remainder of a leaf's OPENING LINE only, dropping 58 percent of the action
+prose across the live orchestrators; fixed in this plan via `e_item_action_blocks`, with the five
+`xmqv5l` no-op invariants re-proved. (2) `ipd_lifecycle.frozen_region_digest` has the SAME blind spot
+and is a shipped begin-receipt gate, so a receipt survives a continuation-line requirement rewrite -
+reproduced and filed as backlog `168p5j` (out of scope here). (3) `aw specs note` reports "appended a
+history record" while REBUILDING the section, which destroyed four real maintainer history entries
+across the two specs this plan amends; all four were restored from git and it is filed as backlog
+`b6i85r`. The payload's residual prose limit is filed as `rmcqw8`.
