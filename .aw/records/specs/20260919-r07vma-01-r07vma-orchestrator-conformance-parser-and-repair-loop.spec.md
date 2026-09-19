@@ -1,19 +1,26 @@
 # Spec: Orchestrator conformance: one parser, review-time repair, run-time refusal
 
 - Date: 2026-09-19
-- Status: to-review
+- Status: reviewed
 - Id: r07vma
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - From-Spec: 77tr3o
-- Scope: An Order-0 orchestrator may hold only child-tracking items; one shared parser enforces that, plan-review repairs violations in a bounded loop, and a run re-parses and refuses with every finding at once.
+- Scope: An Order-0 orchestrator may hold only child-tracking items; one shared parser enforces AUTHORING CONFORMANCE deterministically, plan-review repairs violations in a bounded loop, and a run re-parses and refuses with every finding at once. ADDITIVE to the existing semantic coverage probe, which it does not replace.
 - Parent: `.aw/records/specs/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md` (`77tr3o`,
-  `approved`), which owns runner-owned retirement. This spec REPLACES that spec's R-12 mechanism (a
-  model probe at run start) with a deterministic one, and leaves R-1 through R-11 untouched.
+  `approved`), which owns runner-owned retirement. This spec ADDS a deterministic authoring-conformance
+  control beside that spec's R-12 semantic probe. It leaves R-1 through R-12 intact and does NOT retire
+  the probe; see SR-001 and Section 3.
+- Constrained-by: `.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`
+  (`25kzda`, `approved`) Section 2.5b, which owns the coverage gate's MECHANISM and states that the check
+  is semantic, that a syntactic rule MUST NOT be added in its place, and why. This spec is written to be
+  compatible with that prohibition rather than to amend it: it adds a conformance check with a different
+  question, and does not substitute a syntactic rule for the semantic one.
 
 ## Workflow history
+- 2026-09-19 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; SR-001..SR-006, all six FIXED, none deferred, none open. SR-001 was a BLOCKER the draft did not see: it proposed RETIRING the semantic coverage probe and replacing it with a syntactic parser, but approved spec 25kzda 2.5b states the check is SEMANTIC and that 'A syntactic rule MUST NOT be added in its place', and the draft did not cite 2.5b at all. The prohibition's prediction was TESTED rather than accepted on authority and it held: a child-reference signal PASSES rh5tt6 E-02 (the actual production failure, which name-drops 16 children while being pure parent-only work) and a confession-phrase signal catches only 2 of 5 sampled violators, so the substitution would have narrowed real coverage while deleting 476 lines of shipped code and 1265 lines of tests merged the same day. The parser is now ADDITIVE and ordered parser-then-probe. Also FIXED: a missing honest-limits section (SR-002, now five numbered limits including that a clean parse is NOT evidence of coverage), a cost count already stale within hours (SR-003, ten -> eleven pending orchestrators, re-measured with the shape that must survive), three missing acceptance criteria covering the two controls' coexistence, distinguishability and ordering (SR-004), OQ-03 resolved from repository evidence rather than left open (SR-005, decision SR-D1), and a scope line that claimed the probe's territory (SR-006). Two decisions recorded, both reversible. Verified every draft measurement against shipped source: evaluate_set_retirement has zero E-/V-/checklist references, rh5tt6's retirement commit says its items were NOT performed, the 2026-09-06 Readiness incident and IPD-M107 are as described. DISCLOSURE: same agent and model authored this spec earlier in the session, so claims were verified against source and the uncited governing spec was sought out rather than the prose re-read.
 
 - 2026-09-19 to-review (aw specs): Drafted from a maintainer design conversation after a live run refused tb63qv on its single E-item. Establishes that an Order-0 orchestrator may hold only child-tracking items, because retirement is programmatic and skips the E/V checkpoint, so a parent item needing an agent can never be performed (measured: evaluate_set_retirement contains zero references to E-/V-/items/checklist; rh5tt6 was retired 2026-09-08 with its own commit message saying its items were NOT performed). REPLACES 77tr3o R-12's model probe with one shared parser called by both plan-review and the run. The maintainer rejected a new front-matter attestation field: a gate-read field written by the authoring agent is the shape - Readiness: already proved unreliable, and the 2026-09-06 incident was pattern-completion rather than deception, so the fix is to not create the blank. Two open questions recorded rather than settled: how to keep authoring instructions from drifting from the enforcing code, and whether the checklist should become a typed structure.
-## 1. The problem, and why the existing fix is the wrong shape
+## 1. The problem, and what the existing control does not reach
 
 An Order-0 orchestrator IPD is retired PROGRAMMATICALLY. `runner_shared.evaluate_set_retirement` decides
 eligibility from four facts: an orchestrator exists, the Set has at least one child, every child's
@@ -32,19 +39,25 @@ with a commit message that says outright "Its own `E-*`/`V-*` items were NOT per
 still read `Execution state: pending` and its V-02 was blank.
 
 `77tr3o` R-12 addressed that by asking a MODEL, once per queued orchestrator before any agent turn,
-whether the parent carries work no child covers. That gate works and has already refused a real run. But
-three properties make it a poor fit for this particular invariant, and they are why this spec proposes a
-different mechanism rather than tuning the existing one:
+whether the parent carries work no child covers. That gate works, has already refused a real run, and is
+the right control for the case it targets: work stated in PROSE, which no parser can see.
 
-1. IT IS A SOFT CHECK ON A HARD INVARIANT. Whether a parent can hold agent work is not a judgement call
-   under R-5; it is decided by the retirement path having no agent turn. A model verdict introduces
-   variance into something the design settles.
-2. IT FAILS OPEN ON AVAILABILITY. A `could-not-ask` (missing binary, timeout, empty reply) proceeds with
-   a warning and a recorded hole, which is the right call for an availability failure and the wrong
-   place for the only enforcement of an absolute rule to live.
-3. IT REFUSES AT THE WRONG MOMENT. The refusal lands at run start, when the remedy (editing a plan's
-   checklist, possibly authoring a child) is exactly what a run must not do to another agent's plan. The
-   operator is told to go fix something by hand, having already queued a run.
+WHAT IT DOES NOT DO, and this is the gap this spec fills rather than a defect in the probe:
+
+1. IT CANNOT REPAIR. The refusal lands at run start, where editing another agent's plan is exactly what
+   a run must not do. The operator is told to fix something by hand, having already queued a run. Nothing
+   in the pipeline offers to fix the violation at the one point that is licensed to rewrite a plan, which
+   is review.
+2. IT SPENDS A MODEL CALL FOR THE TIDY CASE TOO. An orchestrator whose violation is plainly visible in
+   its checklist costs the same probe as one whose violation is buried in prose.
+3. IT HAS AN AVAILABILITY FAILURE MODE. A `could-not-ask` proceeds with a warning and a recorded hole.
+   That is the correct call for an outage, and it means the probe alone leaves a known gap on the days it
+   cannot be reached; a deterministic check has no such day.
+
+THE DRAFT OF THIS SPEC MISREAD THAT LIST AS A CASE FOR REPLACEMENT, and review corrected it. `25kzda`
+2.5b, approved, states that the check is semantic and that a syntactic rule MUST NOT be substituted, with
+a measured reason. So this spec adds a control and retires nothing. Section 3 records the correction and
+the measurements that settled it.
 
 The maintainer's framing, which is the load-bearing observation and is recorded here because it explains
 the whole design: the orchestrator exists to help an AGENT run a complex Set with fewer errors, by
@@ -97,9 +110,21 @@ orchestrator before spending anything, collects ALL findings across ALL orchestr
 together, and then refuses. It does not stop at the first violation. The maintainer's stated requirement
 is that a fix-one-then-rediscover-the-next cycle is the worst possible operator experience.
 
-R9 (THE RUN ASKS NO MODEL). The run-time check spends no tokens and has no availability failure mode.
-The model probe R-12 introduced is RETIRED by this spec rather than layered beneath the parser, because
-two mechanisms answering one question is how they come to disagree.
+R9 (THE RUN'S CHECK IS DETERMINISTIC, AND THE MODEL PROBE IS RETAINED BESIDE IT). The parser-based
+run-time check spends no tokens and has no availability failure mode. It does NOT replace the model
+probe, and this spec does not retire that probe. See Section 3's "why the probe is retained" paragraph
+and SR-001: an approved spec (`25kzda` 2.5b) states that the coverage check is SEMANTIC, that a
+syntactic rule MUST NOT be added in its place, and gives the measured reason. This spec is therefore
+scoped to a DIFFERENT and narrower question than the probe's, and the two coexist:
+
+- THE PARSER answers "does this orchestrator's checklist conform to the authoring rules?" It is
+  deterministic, catches the tidy violation, and is the thing review can repair in a loop.
+- THE PROBE answers "does this orchestrator carry work no child covers, including work stated only in
+  prose?" It is semantic, catches the harmful violation a parser cannot see, and blocks unattended.
+
+Neither subsumes the other, and the ordering is parser first (free, and repairable at review) then
+probe (costly, and the backstop for prose). A run that the parser refuses never reaches the probe, so
+the common case still spends nothing.
 
 ## 3. Why this shape, rather than the alternatives considered
 
@@ -117,15 +142,22 @@ run-only leaves the operator holding a refusal they must fix by hand before re-r
 pipeline later gains independent verification, the run-time scan becomes belt-and-braces rather than
 load-bearing, and dropping it would be a reasonable simplification at that point.
 
-WHY A PARSER RATHER THAN A MODEL, given that a parser cannot be complete. A textual rule cannot reliably
+WHY A PARSER IN ADDITION TO A MODEL, given that a parser cannot be complete. A textual rule cannot reliably
 distinguish "verify the Set's combined outcome" (agent work) from "verify child X reached executed"
-(tracking) in every phrasing, and this spec does not claim otherwise. Two things make the parser the
-better trade anyway. First, its failure direction is safe: a false refusal leaves the plan in `pending/`,
-which is the status quo, whereas a false pass loses work silently and is what `rh5tt6` measured. Second,
-R5 changes what a false refusal COSTS: with an agent asked to fix and re-check, an over-strict parser
+(tracking) in every phrasing, and this spec does not claim otherwise. Two things make the parser worth
+ADDING anyway. First, its failure direction is safe: a false refusal leaves the plan in `pending/`, which
+is the status quo, whereas a false pass loses work silently and is what `rh5tt6` measured. Second, R5
+changes what a false refusal COSTS: with an agent asked to fix and re-check, an over-strict parser
 produces a revision rather than a dead end, so strictness is cheap in a way it would not be if the
 parser were the last word. That second reason is the one that made a tight vocabulary acceptable to the
 maintainer, having been reluctant about it earlier in the same conversation.
+
+AND THE PARSER IS EXPLICITLY NOT THE LAST WORD, which is what keeps it compatible with `25kzda` 2.5b's
+prohibition. That section forbids substituting a syntactic rule for the semantic check, on the measured
+grounds that false positives would drive agents to delete the child checklist. The prohibition is against
+REPLACEMENT. A parser that runs FIRST, whose refusal is routed to a repair loop that names both remedies
+and forbids deletion (R7), and behind which the semantic probe still runs, does not substitute for
+anything. An implementer who finds themselves removing the probe has left this spec's scope.
 
 WHY NO ATTESTATION FIELD, and the affordance argument behind it. An earlier draft of this design carried
 a "this orchestrator passed conformance on this date" field plus a content digest, so a run could check
@@ -162,18 +194,72 @@ than inventing a number. Note that resolver's middle tier is NOT implemented tod
 tracks a repository-policy home), so a configurable default here will face the same gap and should not
 pretend otherwise.
 
-WHY THE MODEL PROBE IS RETIRED RATHER THAN KEPT AS A BACKSTOP. Keeping both means two answers to one
-question, and they will eventually differ; the probe also fails open, so as a backstop it would
-contribute nothing on the one axis that matters. The probe's SUPPORTING machinery is worth salvaging
-though: its bounded payload, its cache keyed on the same inputs it reasons over, and its
-collect-all-then-partition structure are all reusable, and R8's batch reporting is that structure
-generalized across check kinds.
+WHY THE MODEL PROBE IS RETAINED, CORRECTING THIS SPEC'S FIRST DRAFT. The draft proposed retiring the
+probe, on the reasoning that two mechanisms answering one question eventually disagree and that a
+fail-open backstop contributes nothing to an absolute rule. That reasoning was wrong on its premise,
+and the correction is the most important thing this spec learned at review.
+
+THE TWO MECHANISMS DO NOT ANSWER ONE QUESTION. A parser can only see syntax. Spec `25kzda` 2.5b states
+the decisive case plainly: the dangerous violation is stated in PROSE ("the database must be migrated
+before the children run"), which matches no checklist syntax, "so a syntactic rule catches only the tidy
+mistake and misses the harmful one". It goes further and forbids the substitution outright: "A syntactic
+rule MUST NOT be added in its place", because `77tr3o` R-5's resolution forbids teaching the linter
+about `Kind`, and because a syntactic rule's false positives "would teach agents to DELETE the child
+checklist that makes `execute <setid>` complete with no runner involved" - which is R2's whole concern,
+arriving from the direction this spec did not expect.
+
+THAT PREDICTION WAS TESTED AT REVIEW AND HELD. The candidate deterministic signals were measured
+against the live corpus and each missed real violations. A reference test (does the item name a child
+id6?) passes `rh5tt6` E-02, the actual production failure, because it name-drops sixteen children while
+being pure parent-only work. A confession-phrase test ("no child owns/covers/can") catches `s0gnha` and
+`wfjsp4` but misses `5e4sb6`, `tb63qv` and `a5wdne`, which carry parent-only work in ordinary prose: 2
+of 5 on a sample this spec already had in hand. So the parser's recall on the harmful case is
+demonstrably partial, and retiring the semantic check would have narrowed coverage while claiming to
+harden it.
+
+WHAT THE PARSER IS STILL FOR, given that. It is cheap, it is deterministic, it runs at REVIEW where a
+violation can be repaired rather than merely reported, and a false refusal there costs a revision
+instead of a dead end (R5). That is a real contribution to a real problem; it is just not a replacement
+for the semantic check. The honest framing is defense in depth with distinct coverage, not one mechanism
+superseding another.
+
+THE COST OF HAVING BEEN WRONG HERE IS WORTH RECORDING, because it is the argument for reading the
+governing spec before proposing to replace its mechanism: the draft would have deleted 476 lines of
+shipped code across seven functions and 1265 lines of tests, merged the same day, and contradicted an
+approved spec's explicit prohibition. Nothing in the draft's reasoning was sufficient to justify that,
+and the draft did not cite 2.5b at all.
+
+THE PROBE'S SUPPORTING MACHINERY IS ALSO WHAT THIS SPEC BUILDS ON rather than salvages: its bounded
+payload, its cache keyed on exactly the inputs it reasons over, and its collect-all-then-partition
+structure. R8's batch reporting is that structure generalized across check kinds.
 
 WHAT IS GENUINELY UNRESOLVED, flagged rather than papered over. The maintainer raised, and this spec does
 not settle, how to keep the ENFORCEMENT CODE and the AUTHORING INSTRUCTIONS from drifting apart: a
 vocabulary and structure the parser enforces must also be documented for the agent writing a Set, and
 two hand-maintained statements of one rule drift. OQ-01 carries a proposed direction (generate the
 instructions from the rule) rather than a decision.
+
+## 3a. Honest limits: what this spec does NOT prove
+
+Stated explicitly because the draft claimed more than it delivers, and a spec that oversells is worse
+than one with a narrow scope.
+
+1. A CLEAN PARSER RESULT IS NOT EVIDENCE THAT AN ORCHESTRATOR CARRIES NO UNCOVERED WORK. It is evidence
+   that the checklist conforms to the authoring rules. The prose case is out of a parser's reach by
+   construction (`25kzda` 2.5b), which is why the semantic probe is retained rather than replaced.
+2. THE PARSER'S RECALL IS NOT QUANTIFIED. Two candidate signals were measured on a five-plan sample at
+   review and both missed real violations. An implementer should measure recall on the live corpus and
+   RECORD it, so the residue is known rather than assumed.
+3. REVIEW-TIME REPAIR IS AGENT-PERFORMED AND SELF-ASSESSED. R5/R6 bound and log it; they do not make it
+   independent. The run-time consumer is what provides independence, and it re-parses rather than trusting
+   the review's verdict.
+4. NOTHING HERE PREVENTS A DELIBERATELY CONCEALED DELIVERABLE. An author intent on hiding agent work in
+   an orchestrator can phrase it to pass both a parser and, plausibly, a probe. The controls raise the
+   cost of the ACCIDENTAL violation, which is the measured failure mode (`rh5tt6`, and the 2026-09-06
+   `Readiness` incident, were both pattern-completion rather than deception).
+5. THIS SPEC DOES NOT ESTABLISH THAT A PARSER IS SUFFICIENT. It establishes that a parser is a cheap,
+   repairable first line. If measurement later shows its recall is negligible on real violations, dropping
+   it and keeping only the probe would be a reasonable response to that evidence.
 
 ## 4. Non-goals
 
@@ -198,10 +284,20 @@ instructions from the rule) rather than a decision.
    second parse, not a second rule.
 3. THE EXISTING PENDING ORCHESTRATORS WILL REFUSE OR NEED REWORDING. Measured during the design
    conversation: of ten pending `Kind: orchestrator` plans, seven were classified as carrying at least
-   one parent-only item. A date cutover (the `check_engine.CARRIER_CUTOVER_DATE` pattern) can make this
-   gradual, which is the implementing plan's decision to make.
+   one parent-only item. RE-MEASURED AT REVIEW, and the population moved WITHIN HOURS, which is why this
+   is a dated snapshot and not a fixture: there are now ELEVEN (`7ewc74` left by being finalized;
+   `2xz59a` and `s0gnha` arrived). The SHAPE is what must survive re-measurement - a majority of live
+   orchestrators carry at least one parent-only item - and it did. An implementer must re-derive the
+   count and report the denominator. A date cutover (the `check_engine.CARRIER_CUTOVER_DATE` pattern) can
+   make this gradual, which is the implementing plan's decision to make.
 4. REVIEW STILL ASSERTS A CHECK THE SAME AGENT PERFORMED. R8 mitigates rather than eliminates this. It is
    a property of the whole review pipeline, not something introduced here.
+5. THE PARSER'S RECALL ON THE HARMFUL CASE IS PARTIAL AND UNQUANTIFIED. Measured at review on a
+   five-plan sample, a confession-phrase signal caught 2 of 5 and a child-reference signal passed the
+   known production failure outright (Section 3). This spec therefore does NOT claim the parser detects
+   parent-only work in general; it claims the parser enforces AUTHORING CONFORMANCE deterministically and
+   repairs it at review, while the semantic probe remains the control for the prose case. A consumer must
+   not read a clean parser result as evidence that an orchestrator carries no uncovered work.
 
 ## 6. Acceptance criteria
 
@@ -221,9 +317,17 @@ quoting this document.
    Evidence: the plan's front matter and the round record after a deliberately unfixable case.
 6. A run reports EVERY finding across EVERY queued orchestrator in one pass, then refuses. Evidence: a
    multi-violation queue's output showing all findings before the exit.
-7. The model probe is gone, not merely bypassed. Evidence: `grep` for its symbols, and the tests that
-   pinned it either removed with a reason or retargeted.
-8. The full suite passes and `aw check all` is no worse than its pre-change baseline, both counts pasted.
+7. The model probe STILL RUNS and still blocks, and the parser did not displace it. Evidence: a queued
+   orchestrator carrying parent-only work stated only in PROSE (no matching checklist syntax) is still
+   refused after this change, plus `tests/test_orchestrator_probe.py` passing UNEDITED, plus `grep`
+   showing the probe's seven functions intact. This criterion inverts the draft's criterion 7 and is the
+   pin for SR-001.
+8. The parser's REFUSAL and the probe's REFUSAL are distinguishable to an operator, so a human reading a
+   refused run knows which control fired and therefore which remedy applies. Evidence: both messages,
+   side by side, naming different rule ids.
+9. The ordering is parser-then-probe, and a parser refusal spends no model call. Evidence: a run refused
+   by the parser showing zero probe invocations (an empty probe event stream or an equivalent assertion).
+10. The full suite passes and `aw check all` is no worse than its pre-change baseline, both counts pasted.
 
 ## 7. Open questions
 
@@ -262,14 +366,21 @@ quoting this document.
 ### OQ-03: Does the conformance rule apply to an orchestrator a runner will never queue?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: NOT blocking for the run-time consumer, which by construction sees
-  only queued orchestrators. It is a real question for the REVIEW consumer, which sees every plan it
-  reviews. The invariant's justification is mechanical and specific to the runner's retirement path, so
-  an orchestrator that will only ever be hand-run is not subject to the failure R1 prevents: a human or
-  agent running it by hand DOES execute its items, which is exactly what `77tr3o`'s own Scope preserves.
-  PROPOSED DIRECTION: apply the rule uniformly anyway, because nothing marks a plan as hand-run-only, and
-  a Set's execution route is not fixed at authoring time. The cost of uniformity is that a legitimately
-  hand-run Set loses the ability to put a whole-Set step on its parent; the cost of non-uniformity is a
-  rule that depends on an unknowable future, which is worse.
+- Resolution or deferral rationale: RESOLVED AT REVIEW FROM REPOSITORY EVIDENCE as APPLY UNIFORMLY, and
+  recorded as review decision SR-D1 (reversible). The question is real: R1's justification is mechanical
+  and specific to the runner's retirement path, and `77tr3o`'s own Scope states it "does NOT change the
+  agent-driven path (a human or agent running a Set by hand still executes the orchestrator's own
+  `E-*`/`V-*` items)". So an orchestrator that will only ever be hand-run is genuinely not exposed to the
+  failure R1 prevents.
+  WHAT SETTLES IT is that the exemption is not expressible. Nothing in the plan schema marks a Set as
+  hand-run-only, a Set's execution route is chosen at run time and not at authoring time, and the same
+  plan is routinely run both ways (this repository's Sets are run by `aw oc run` and by hand). A rule
+  conditioned on an unknowable future property would therefore have to guess, and guessing wrong in the
+  permissive direction reintroduces exactly the silent loss `rh5tt6` measured.
+  THE ACCEPTED COST, stated rather than hidden: a Set that will only ever be hand-run loses the ability
+  to put a whole-Set step on its parent, and must put it in a final child instead. That is a small
+  authoring inconvenience with a mechanical remedy (R7's first option), weighed against a failure mode
+  that is silent and has occurred in production. REVISIT IF a durable marker for execution route is ever
+  introduced, at which point a conditional rule becomes expressible and this trade can be re-taken.
