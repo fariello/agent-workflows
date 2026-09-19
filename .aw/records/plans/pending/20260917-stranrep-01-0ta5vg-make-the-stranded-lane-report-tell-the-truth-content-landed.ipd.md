@@ -8,17 +8,19 @@
 - Scope: Fix the four reporting defects and amend F3a to match. Add a CONTENT-landed reading beside the ancestry one and consult both, so a re-executed lane is LANDED and silent; collapse the reported set to one row per lane branch while KEEPING the existing within-run collapse; existence-check the worktree before rendering it and omit it when absent; repair the dead `cmd_integrate` sentinel to probe a symbol that exists. AMENDS spec F3a to state the content-landed reading and the one-row-per-lane rule, declared in `Scope-Paths`. Does NOT change `describe_lane` (its body is pinned byte-for-byte against `tests/fixtures/runner_shared_premove_fingerprints.json` captured at HEAD `1ecc5891`, and `classify_lane_integration`'s docstring at runner_shared.py:1124-1130 records that editing it breaks a pure-move proof for an unrelated reason); does NOT change what `commits_ahead` MEANS, since `LANE_STALE`/`LANE_FOREIGN` adoption reads it; does NOT extend `SCAN_ROOTS` to `.aw/worktrees` or `.aw/records/runs`, which F3a forbids; does NOT delete, merge, prune or reclaim ANY lane, branch or worktree, so `aw attention` stays READ-ONLY per F3a and spec G3; and does NOT decide the DISPOSITION of the 12 currently-reported lanes, which is plan `ut0vzr`'s (`qliia1`).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/attention.py, tests/test_runner_shared.py, tests/test_attention.py, .aw/records/specs/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md, .aw/records/plans/pending/20260917-stranrep-01-0ta5vg-make-the-stranded-lane-report-tell-the-truth-content-landed.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: stranrep
 - Order: 1
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 0ta5vg
+- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - From-Backlog: kvf5xo
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-19 approved (aw set): status set to approved
 
 - 2026-09-19 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 all FIXED, none deferred, none open; Readiness go-pending-approval. Reviewed at HEAD 7562ca6c. Three of four diagnosed defects verified real and independently fixable (25 rows over 17 lanes, 19 of 25 worktree paths absent, dead cmd_integrate probe). THE FOURTH FIX HAS ZERO MEASURED YIELD: git cherry resolves 0 of 17 reported lanes because the six re-executions were REIMPLEMENTATIONS (blob identity 0/7, 0/5, 0/19), so E-08 now gates E-01/E-02/E-03 on a re-measurement plus an explicit keep/drop/stop decision. BLOCKER PR-001 fixed: E-02 would have silenced a DIRTY lane and lost uncommitted work (reproduced), so the content conclusion is now gated on not-dirty and empty cherry output no longer reads as landed. Also corrected: an unachievable Goal demanding exit 0 (17 lanes genuinely unlanded, exit 1 is the pass), E-05 naming the wrong code branch (25 of 25 records take the success path), a false cannot-measure-in-a-lane convention, an impossible implemented-spec transition, and an oldest-first history that tripped check.lifecycle-transition-invalid. Watermark 07 -> 08.
 - 2026-09-17 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog kvf5xo (with q96tpi, 46fb5i, fci7yn), all four measured at HEAD d188eaad; spec F3a amendment declared; maintainer chose one cohesive plan over a Set.
