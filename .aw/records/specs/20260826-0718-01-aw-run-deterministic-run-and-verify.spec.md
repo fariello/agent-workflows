@@ -139,6 +139,7 @@ aw <host> run <selector>
     [--allow-dirty-base]
     [--integration-retry-limit <N>]
     [--on-integration-blocked <defer|poll|ask|block>]
+    [--allow-uncovered-orchestrator-work <justification>]
     [--action <review|plan|execute>]
 
 aw <host> review [<selector>] [<any run flag>]...
@@ -164,6 +165,7 @@ Rules:
 - `--unverifiable-ok` is legal only when contractless prompts were explicitly admitted by `--allow-unverifiable` or the interactive `run unverifiable` confirmation. It affects only aggregate success and exit-code calculation, never the item's outcome or verification label.
 - `--with-dependencies` expands the selection to the transitive declared dependency closure before the queue is frozen. Any newly introduced type is subject to the same mixed-type gate. Without the flag, dependencies outside the selection are checked against current repository state but are not silently enqueued.
 - `--action` is allowed only when every selected item has the same type and the requested action is legal from every item's current status. It cannot force a status transition, execute an unapproved item, or turn a non-runnable record into a runnable one.
+- `--allow-uncovered-orchestrator-work` is the unattended half of the orchestrator coverage gate defined in Section 2.5b, and it TAKES A JUSTIFICATION STRING rather than being a bare boolean. It is the only flag in this grammar with an operator-authored value, and that is deliberate: the risk it accepts is that a parent plan's own items will be reported complete having never been performed or verified, so the record must say WHY that was accepted and not merely that somebody accepted it. The justification is recorded in the run ledger beside the decision. It acknowledges only that one risk, and it waives no other gate.
 - `--allow-drafts` is the unattended half of the draft admission gate defined in Section 2.5a. It acknowledges only that complete `draft` items may be promoted and reviewed in this run. It waives no other gate, and it never converts an INCOMPLETE draft into a runnable item: an incomplete draft is skipped with findings at every setting of this flag.
 - `--allow-dirty-base` acknowledges that the target checkout has uncommitted changes to TRACKED files and that this run may launch anyway. Without it, a turn whose base holds dirty tracked paths is refused before anything is spawned, and the refusal names the paths. Consent covers THIS run's base and nothing else: it does not waive the approval gate, the scope gate, the Section 4.2 V-evidence checks, or the integration-time dirty-overlap refusal, and a lane whose changed files OVERLAP a dirty path is still refused at integration. It never applies to UNTRACKED content, which is reported once at run start and refuses on no path, so there is nothing for this flag to consent to there. The consent is recorded in the run ledger with the paths it covered.
 - No flag may cause a run to CLAIM verified success while the deterministic V-evidence checks of Section 4.2 have not passed. That guarantee is enforced by reading repository artifacts, so no flag can reach it. TODAY the enforcer is `ipd_lint --phase pre-transition` plus the `ipd_lifecycle` finalize gates (see the Section 1.3 row for exact symbols); Section 4.2's `IPD-EXEC-V-EVIDENCE` and siblings SPECIFY the same guarantee but are unbound names as of 2026-09-05. A flag that merely selects whether an ADDITIONAL independent verifier turn runs is not a bypass of it, and an item whose V-evidence is incomplete is failed regardless of any flag. There is no `--skip-audit` flag and no GIT hook-bypass flag on `run`: the commit gateway rejects `--no-verify` in its git sense (Sections 4.2 `RUN-COMMIT-GATEWAY` and 5.8 row 3), and a hook-bypass attempt is one of the six `ABORT RUN` classes.
@@ -289,6 +291,54 @@ Exact refusal, when drafts were excluded unattended:
 ```text
 [RUN-DRAFTS-EXCLUDED] Selection included <count> complete draft item(s), excluded because --allow-drafts was absent. <remaining> item(s) proceeded. To include them, run: aw <host> run <selector> --allow-drafts
 ```
+
+### 2.5b Orchestrator coverage gate
+
+The runner RETIRES an Order-0 orchestrator to `executed` once every child of its Set is `executed` on
+disk, and that rollup transition deliberately SKIPS the pre-transition E/V checkpoint (spec `77tr3o`
+R-5, resolved as shape (b)) on the premise that an orchestrator's own `E-*`/`V-*` items are performed
+by nobody. This section is the control that makes that premise CHECKED rather than assumed. When the
+premise is false, the parent's work is reported complete having been neither performed nor verified;
+that has been measured in production, not modeled (`rh5tt6`, 2026-09-08, whose own retirement commit
+states "Its own `E-*`/`V-*` items were NOT performed" while its E-02 still read `Execution state:
+pending`).
+
+- The check is SEMANTIC and is therefore a MODEL question, not a pattern match. The dangerous case is
+  stated in PROSE ("the database must be migrated before the children run"), which matches no
+  checklist syntax, so a syntactic rule catches only the tidy mistake and misses the harmful one. A
+  syntactic rule MUST NOT be added in its place: `77tr3o` R-5's resolution forbids teaching the
+  linter about `Kind`, and measured over the live corpus every orchestrator carries checklist items,
+  most of them legitimate orchestration, so a syntactic rule's false positives would teach agents to
+  DELETE the child checklist that makes `execute <setid>` complete with no runner involved.
+- It runs ONCE per run, over the orchestrators IN THAT RUN'S QUEUE only, AFTER the run directory
+  exists and BEFORE any agent turn, lane worktree, or session. The run-directory ordering is a
+  deliberate exception to the rule that a pre-queue refusal leaves nothing durable: this gate spends
+  a model call, which needs somewhere to be logged, and its refusal must be readable in `aw runs`,
+  which reads durable run state. "Costs nothing" therefore means no agent turn, no worktree, and no
+  session.
+- The verdict is CACHED against a digest of only what the answer depends on (the orchestrator's
+  checklist item action text and its child table's row cells), so an unmodified orchestrator is never
+  re-probed and a genuine fix re-probes automatically. Ticking a checkbox, filling evidence, or
+  appending workflow history MUST NOT re-probe.
+- A DELIVERED but unusable answer (extra prose, a refusal, both sentinels, an answer reporting a
+  problem) BLOCKS exactly as a positive finding does. A permissive parser would convert a confused
+  model into a silent pass.
+- A COULD-NOT-ASK (unreachable host, missing binary, timeout, rate limit) is NOT the same fact and
+  MUST NOT block. It is retried up to the run's `--retry-budget` and then the run PROCEEDS with a
+  loud warning, so a model outage cannot halt work that is otherwise fine. The resulting KNOWN HOLE
+  is recorded durably against the affected items, so it is readable after the process exits and not
+  only in terminal scrollback.
+- In an interactive terminal the operator must type the exact phrase `run uncovered`. In unattended
+  mode the run is REFUSED unless `--allow-uncovered-orchestrator-work <justification>` was present.
+  Refusal here starts no work at all, following Section 2.5 rather than 2.5a, because the finding
+  means a Set's completion accounting is wrong and executing its children would carry that error
+  forward.
+- The refusal MUST name the constructive action, which is to ADD A CHILD that owns the uncovered
+  work, and MUST NOT be phrased as a bare prohibition. A refusal saying only that an orchestrator
+  may not contain executions gets complied with by DELETION of the very checklist that makes
+  non-runner execution complete.
+- The probed orchestrators, the verdicts, the model calls spent, the response or flag, and any
+  recorded justification are written to the run ledger.
 
 ### 2.6 Overrides
 
@@ -1289,6 +1339,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-09-19 note (aw specs): Section 2.5b ADDED and 2.1 amended by orchprobe-03 (m7gvuz): the ORCHESTRATOR COVERAGE GATE, plus its unattended half --allow-uncovered-orchestrator-work. WHY HERE: 77tr3o R-5 resolved the E/V pre-transition question as shape (b), a runner-owned rollup that SKIPS the checkpoint on the premise that an orchestrator's own items are performed by nobody; that premise was falsified in production on 2026-09-08 (rh5tt6, commit 8b4e1570). 77tr3o R-12 now makes the check OWED; this section owns its MECHANISM, beside the sibling pre-queue gates of 2.5 and 2.5a. Specified: it is a MODEL question and must not be replaced by a syntactic rule (the dangerous case is prose, and every live orchestrator carries items most of which are legitimate orchestration, so false positives would drive deletion of the child checklist); it runs once per run over the QUEUED orchestrators only, after the run directory exists and before any agent turn, worktree or session, which is a deliberate exception to the pre-durable-write ordering because it spends a model call that must be logged and its refusal must be readable in aw runs; the verdict is cached on content so a correct execution's checkbox ticks do not re-probe; a DELIVERED but unusable answer blocks while a COULD-NOT-ASK is retried to --retry-budget and then warned past with a durable hole record; the interactive phrase is 'run uncovered' and refusal starts no work at all, following 2.5 rather than 2.5a; and the refusal must name ADD A CHILD rather than a prohibition. 2.1 gains the flag and the rule that it TAKES A JUSTIFICATION STRING, the grammar's only operator-authored value: the risk accepted is that a parent's items are reported complete unperformed, so the ledger must record WHY and not merely that someone accepted it.
 - 2026-09-14 note (aw specs): AMENDED 2.1 (plan 3i0aaz, dirtybase Order 01): declared --allow-dirty-base in the 'aw <host> run <selector>' grammar stanza plus one Rules bullet. WHY: dirtybase E-03 adds a dirty-tracked-base refusal on the --no-isolate-worktree path, which nna8yz E-05 structurally could not reach (its call was gated on 'isolate'), and shipping a refusal with no sanctioned override is how an operator learns to work around a gate instead of through it. The declaration and the code registration are ATOMIC because tests/test_run_flag_surface.py reads this file in BOTH directions. Section 4.2's finding-code table and every other section are untouched; Status stays approved.
 - 2026-09-14 note (aw specs): AMENDED 2.1 by declaring two new run policy flags, --integration-retry-limit and --on-integration-blocked, per the maintainer's 2026-09-07 ruling on plan 51vw4y OQ-04 (option (a): amend 2.1, then register in runner_shared.RUN_POLICY_FLAGS). WHY THE SPEC MOVED WITH THE CODE: plan 51vw4y (Set integpath) adds the integration deferral ladder so a lane refused on transient dirty-path overlap is re-attempted instead of going terminally integration-blocked on first refusal, and that ladder needs an operator surface. tests/test_run_flag_surface.py reads THIS FILE, extracts 2.1's grammar stanza and asserts BOTH directions, so registering either flag before this declaration would turn the suite red; the declaration therefore lands FIRST and in the same change. This file is declared in 51vw4y's Scope-Paths, so the pre-run spec-impact announcement names it. WHAT THE TWO RULES BULLETS PIN: --integration-retry-limit counts INTEGRATION RE-ATTEMPTS and is explicitly NOT the 0..10 correction budget --retry-budget bounds (different quantity, different default, neither moves the other), because a correction retry spends a paid agent turn and cannot succeed by repetition while an integration re-attempt costs one git status plus one git merge-tree and CAN succeed, the blocker being another writer's transient uncommitted file; every re-attempt must route through the same merge-and-revalidate gate, since a clean merge-tree proves absence of textual conflict and never that the combined result still passes. --on-integration-blocked selects the ladder rung, with block reproducing the previous first-refusal-is-terminal behavior exactly, which is what makes the change adoptable; the ladder is scoped to the TRANSIENT dirty-overlap refusal ONLY and never to a genuine merge conflict, stale base, combined-red revalidation, or scope violation; the refusal CONDITION is unchanged at every setting, no rung integrates over a contaminated base and none stashes, resets, or cleans another writer's work; and the ask rung is suppressed with no interactive channel and carries its own timeout so no setting can wait indefinitely. NO OTHER SECTION WAS TOUCHED, specifically not 4.2's finding-code table (transcribed verbatim into run_evidence.RUN_FINDING_CODES under a byte-equality test, so editing a cell IS a code change): git diff --stat reports 4 insertions and 0 deletions, both hunks inside 2.1. Status was NOT hand-edited.
 - 2026-09-13 note (aw specs): AMENDED 5.3 by adding 5.3a, per-invocation telemetry as a BEST-EFFORT DERIVED run artifact that is NEVER A GATE (plan 5f2h8i, Set runanalytics, which wires plan lhccjf's collector into both host runners). WHY THE SPEC MOVED WITH THE CODE: a run now writes a class of artifact 5.3 did not describe, so a reader auditing what a run produces would find an undocumented tree, and this repository's contract requires a plan that changes behavior a spec describes to carry the spec amendment in the same change. The file is declared in 5f2h8i's Scope-Paths, so the pre-run spec-impact announcement names it. WHAT 5.3a PINS: telemetry is derived and best effort rather than authoritative (the hash-chained ledger stays the run's record); a telemetry fault MUST leave exit status, item statuses, state transitions, merge decisions and cleanup byte-identical to an uninstrumented run, proven by fault injection against paired uninstrumented controls; one stream per INVOCATION with phase as an explicit FIELD and a per-invocation identity component, because the persisted attempt counter does not reset across a resume and therefore cannot distinguish a pre- from a post-resume invocation of the same attempt; the location is RESOLVED through the run-root resolver so a companion or home records_backend places it correctly, and it is deliberately NOT inside the reserved analytics/ namespace whose contract is that deleting it loses nothing; two lifecycle events default ON and periodic sampling defaults OFF; disabled means NOTHING on disk; and privacy is codes, counts and numbers only, with a salted PSEUDONYM node id that must never be called anonymous. SECTION 2.1 WAS DELIBERATELY NOT AMENDED, and that is the load-bearing choice rather than an omission: telemetry is configured through .aw/config/project.json with a gitignored machine-local override (owned by plan lhccjf), NOT through a run flag, so no flag exists to declare. The precedent is this spec's own 2026-09-07 record: tests/test_run_flag_surface.py reads this file, extracts 2.1's grammar and asserts BOTH directions, so a spec-only flag declaration is a guaranteed suite failure and any future telemetry flag must land in the SAME change that registers it in runner_shared.RUN_POLICY_FLAGS. Verified after this edit: tests/test_run_flag_surface.py 89 passed.

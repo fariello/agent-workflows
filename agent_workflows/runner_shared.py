@@ -167,6 +167,10 @@ from agent_workflows.render_stream import (
     StreamTracker,
     _STATUS_COLOR,
     execution_index,
+    # orchprobe-03 (`m7gvuz`) E-06: the probe gate records its refusal through child 01's ONE writer
+    # rather than assigning the key itself, which is the whole point of that record existing: a
+    # literal spelled at N sites is how a reader and a writer drift apart (r2i1b1 F-4).
+    record_refusal,
     record_integration_refusal as render_record_integration_refusal,
     render_run_summary_table,
 )
@@ -5191,11 +5195,17 @@ class RunPolicyFlag(NamedTuple):
       * ``flag``        - the exact operator-facing spelling (what the spec declares).
       * ``dest``        - the argparse destination, hence the run-state option key.
       * ``kind``        - ``"bool"`` (a `BooleanOptionalAction`, matching shipped `--full-auto`),
-                          ``"int"``, or ``"choice"`` (a closed string vocabulary carried in
-                          ``choices``). ``"choice"`` arrived with integpath-03's
-                          `--on-integration-blocked`, whose value SELECTS A POLICY rather than
-                          toggling one, so argparse must reject an unrecognized spelling at parse
-                          time instead of leaving a typo to be discovered mid-run.
+                          ``"int"``, ``"choice"`` (a closed string vocabulary carried in
+                          ``choices``), or ``"str"`` (an OPEN operator-authored string).
+                          ``"choice"`` arrived with integpath-03's `--on-integration-blocked`, whose
+                          value SELECTS A POLICY rather than toggling one, so argparse must reject an
+                          unrecognized spelling at parse time instead of leaving a typo to be
+                          discovered mid-run. ``"str"`` arrived with orchprobe-03's
+                          `--allow-uncovered-orchestrator-work`, whose value is a JUSTIFICATION the
+                          operator writes: a bare boolean there would record that somebody clicked
+                          past a gate and nothing about whether they should have, so requiring an
+                          argument is what makes the record answerable. It is the only open-valued
+                          row, and that is deliberately rare.
       * ``implemented`` - whether the flag's BEHAVIOR ships. False means registered-and-refusing:
                           the flag parses, appears in `--help`, and REFUSES with `not yet
                           implemented`. Carried as data so the contract test can assert the refusal
@@ -5401,6 +5411,32 @@ RUN_POLICY_FLAGS: tuple = (
         ),
         resume_rule=RESUME_REFUSE,
     ),
+    # orchprobe-03 (`m7gvuz`) E-05: the orchestrator coverage gate's UNATTENDED half. Spec `25kzda`
+    # 2.1 and the new 2.5b are amended in the same change that registers it, because
+    # `tests/test_run_flag_surface.py` reads that section as a FILE in BOTH directions and a row here
+    # the spec does not declare fails the suite.
+    #
+    # IT TAKES A JUSTIFICATION, WHICH IS WHY IT IS THE TABLE'S FIRST `"str"` ROW. The risk it accepts
+    # is that a parent plan's own items are reported complete having never been performed OR verified,
+    # so a bare boolean would record that someone clicked past the gate and nothing about whether they
+    # should have. argparse requiring an argument is what makes the recorded justification
+    # unavoidable rather than aspirational.
+    RunPolicyFlag(
+        flag="--allow-uncovered-orchestrator-work",
+        dest="allow_uncovered_orchestrator_work",
+        kind="str",
+        implemented=True,
+        owner="runner_shared.enforce_orchestrator_probe_gate",
+        help=(
+            "Launch even though the coverage probe reports a queued ORCHESTRATOR carries work no "
+            "child covers, and RECORD THE SUPPLIED JUSTIFICATION for having done so. Takes a reason "
+            "string; it cannot be passed bare, because the risk accepted is that the parent's own "
+            "E-*/V-* items will be reported complete having never been performed or verified (the "
+            "runner retires an orchestrator without the pre-transition E/V checkpoint). The "
+            "non-destructive fix is to ADD A CHILD that owns the work, never to delete the parent's "
+            "checklist. It waives no other gate"
+        ),
+    ),
     RunPolicyFlag(
         flag="--on-integration-blocked",
         dest="on_integration_blocked",
@@ -5506,6 +5542,17 @@ def register_run_policy_flags(
                 dest=row.dest,
                 choices=list(row.choices),
                 default=None,
+                help=row.help,
+            )
+        elif row.kind == "str":
+            # `default=None` on BOTH parsers for the same reason a choice row uses it: `None` means
+            # the operator said nothing. `metavar` is the operator-facing word for what the value IS,
+            # which for the one row of this kind is the reason they are accepting a risk.
+            parser.add_argument(
+                row.flag,
+                dest=row.dest,
+                default=None,
+                metavar="JUSTIFICATION",
                 help=row.help,
             )
         else:  # pragma: no cover - the table is closed; a new kind is a programming error
@@ -6003,6 +6050,14 @@ def freeze_run_policy_flags(args: Any) -> dict:
             frozen[row.dest] = resolve_integration_retry_limit(_supplied(row.dest))
         elif row.dest == "on_integration_blocked":
             frozen[row.dest] = resolve_on_integration_blocked(_supplied(row.dest))
+        elif row.kind == "str":
+            # orchprobe-03 (`m7gvuz`) E-05: frozen as the OPERATOR'S TEXT, never coerced to a bool.
+            # The generic `bool(...)` arm below would freeze `True` and destroy the justification,
+            # which is the entire content of this row: a reader of the ledger needs WHY the risk was
+            # accepted, and "True" answers a question nobody asked. `_supplied` is used so a namespace
+            # filled in generically (the contract test's `{dest: False}` idiom) reads as ABSENT rather
+            # than as the literal justification `False`.
+            frozen[row.dest] = str(_supplied(row.dest) or "")
         else:
             frozen[row.dest] = bool(getattr(args, row.dest, False) or False)
     if frozen.get("full_auto"):
@@ -7048,20 +7103,77 @@ def probe_cache_payload(orchestrator_text: str) -> dict[str, Any]:
 
     THE ACTION TEXT IS TAKEN STRUCTURALLY, not by a text rule: `ipd_lint.parse` puts a leaf's
     indented `- Key: value` sub-fields in `Leaf.fields` and its checkbox in `Leaf.checked`, while
-    `Leaf.text` is the action alone. That is why ticking a box, filling `Observed evidence` or
+    the action is everything else. That is why ticking a box, filling `Observed evidence` or
     appending history CANNOT move this payload - the same structural exclusion
     `ipd_lifecycle.frozen_region_digest` relies on, for the same `xmqv5l` reason.
+
+    THE ACTION IS ITS WHOLE BLOCK, NOT ITS FIRST LINE, which is a CORRECTION landed by orchprobe-03
+    (`m7gvuz`) and is the reason :func:`e_item_action_blocks` exists. `ipd_lint.Leaf.text` is the
+    remainder of the leaf's OPENING LINE only, so every CONTINUATION line of a multi-line item was
+    silently dropped here. Measured over the ten live pending orchestrators at 2026-09-19, that lost
+    58 percent of the action prose (11,758 of 27,949 characters), and on the worst plan (`wfjsp4`) it
+    kept 10 percent. Two consequences, both bad and both fixed by this change:
+
+      * AS A CACHE KEY it was UNDER-SENSITIVE: rewriting an item's continuation lines - which is how
+        an author actually changes what an item asks for - left the digest unchanged, so a stale
+        verdict was served for a materially different plan.
+      * AS A PROBE PAYLOAD it hid the evidence the question turns on. The parent-only work this Set
+        exists to detect is stated in exactly those continuation lines ("Establish the baseline BEFORE
+        any child reconciles anything", "run the repo-wide suite"), so the probe was being asked to
+        judge coverage from the first line of each item.
+
+    Widening the payload necessarily moves the digest, which invalidates previously cached verdicts.
+    That is the SAFE direction and costs one re-probe per orchestrator: a cache miss blocks (it reads
+    `unknown`), so nothing is cleared by the invalidation.
+    """
+
+    return {
+        "e_items": sorted(e_item_action_blocks(orchestrator_text)),
+        "child_table_rows": [list(row) for row in child_table_rows(orchestrator_text)],
+    }
+
+
+def e_item_action_blocks(orchestrator_text: str) -> tuple[str, ...]:
+    """Each `E-*` item's FULL action text: its opening line plus every continuation line.
+
+    WHAT IS EXCLUDED, and it is the same structural exclusion the digest has always relied on: the
+    `[ ]`/`[x]` checkbox mark, and every indented `- Key: value` sub-field (`Depends on`, `Expected
+    outcome`, `Execution state`, `Execution note`). So a conforming executor ticking a box, writing an
+    execution note, or filling evidence still moves nothing.
+
+    WHY THIS IS NOT `Leaf.text`. `ipd_lint`'s `_LEAF_RE` matches the leaf's OPENING line and `text` is
+    the remainder OF THAT LINE, so a multi-line action - which is the norm in this repository - is
+    truncated at its first newline. The leaf's `line` anchor is exact, so the block is recovered by
+    reading forward from it and stopping at the first sub-field, the next leaf, or the next heading.
+    Anchoring on the PARSER's line number rather than re-matching the leaf pattern keeps one
+    definition of what a leaf IS; this function only decides where its action ENDS.
     """
 
     from agent_workflows import ipd_lint as _lint  # local: see the section note above
 
-    doc = _lint.parse(orchestrator_text or "")
-    return {
-        "e_items": sorted(
-            lf.text for lf in doc.exec_leaves if lf.kind == "E" and lf.text.strip()
-        ),
-        "child_table_rows": [list(row) for row in child_table_rows(orchestrator_text)],
-    }
+    text = orchestrator_text or ""
+    lines = text.splitlines()
+    doc = _lint.parse(text)
+    blocks: list[str] = []
+    for leaf in doc.exec_leaves:
+        if leaf.kind != "E":
+            continue
+        collected = [leaf.text.strip()]
+        for raw in lines[leaf.line :]:
+            stripped = raw.strip()
+            if not stripped:
+                break
+            if raw.startswith("- [") or raw.startswith("#"):
+                break
+            if _lint._SUBFIELD_RE.match(raw):
+                break
+            if not raw[:1].isspace():
+                break
+            collected.append(stripped)
+        body = " ".join(part for part in collected if part).strip()
+        if body:
+            blocks.append(body)
+    return tuple(blocks)
 
 
 def probe_cache_digest(orchestrator_text: str) -> str:
@@ -7291,6 +7403,851 @@ def read_probe_verdict(
         recorded_verdict=recorded,
         recorded_at=recorded_at,
         model=recorded_model,
+    )
+
+
+# ==================================================================================================
+# orchprobe-03 (`m7gvuz`): THE PRE-RUN ORCHESTRATOR COVERAGE PROBE AND ITS GATE
+# (spec `77tr3o` R-5's premise, made CHECKED rather than assumed)
+# ==================================================================================================
+#
+# WHAT THIS IS FOR, and why it cannot be a pattern match. The runner RETIRES an orchestrator once
+# every child is `executed` and deliberately SKIPS the pre-transition E/V checkpoint
+# (`ipd_lifecycle.ROLLUP_OMITTED_GATES`), on the premise that a parent's items are "performed by
+# NOBODY". When a parent carries work no child covers, that premise is FALSE and the work is reported
+# complete having been neither performed NOR verified. That is not hypothetical: on 2026-09-08
+# `aw oc run` retired `rh5tt6` (commit `8b4e1570`, message "Its own `E-*`/`V-*` items were NOT
+# performed") while its E-02 - a repo-wide suite run, leak sanitization, and an end-to-end install
+# proof the plan itself calls "the part no child owns" - still read `Execution state: pending` with a
+# blank V-02.
+#
+# WHY A MODEL AND NOT A LINT RULE. The dangerous case is PROSE ("someone must migrate the database
+# before the children run"), which matches no checklist syntax, so a syntactic rule catches only the
+# tidy mistake and misses the harmful one. A blunt syntactic rule was in fact built and REVERTED
+# 2026-09-07 for a second reason: measured over the live corpus, EVERY plan carrying
+# `- Kind: orchestrator` carries checklist items, and most of those items are LEGITIMATE
+# orchestration. A rule that flags them teaches agents to DELETE the checklist that makes
+# non-runner execution complete, which is the destructive reading `AGENTS.md` warns about. So the
+# question is semantic, it needs a model to answer it, and the probe's FALSE-POSITIVE rate (not its
+# coverage) is the dominant cost.
+#
+# THE FOUR-STATE ANSWER IS THE MAINTAINER'S OQ-02 RULING, not a defensive elaboration. COULD-NOT-ASK
+# (unreachable host, missing binary, timeout, rate limit) is split from ASKED-AND-GOT-NONSENSE: the
+# former is retried to a budget and then WARNED PAST so a model outage cannot halt an otherwise fine
+# run, while the latter BLOCKS. A tri-state cannot express that split, which is why there are four.
+#
+# WHAT THIS SECTION DOES NOT OWN: the retirement predicate and the rollup transition (`77tr3o` and
+# `pgq326` own both), and any `ipd_lint` rule (REJECTED by `77tr3o` R-5's resolution; `ipd_lint.py`
+# still contains zero occurrences of "orchestrator" and `tests/test_orchestrator_retirement.py
+# ::TheRejectedShapeWasNotTaken` pins that).
+
+#: The ONLY two strings the probe may answer with. Named constants because the PROMPT and the PARSER
+#: must not drift: a prompt asking for one spelling while the parser accepts another turns every
+#: answer into `unknown`, which blocks every run rather than failing visibly.
+PROBE_SENTINEL_EXECUTIONS = "ORCHESTRATOR: CONTAINS EXECUTIONS"
+PROBE_SENTINEL_NO_EXECUTIONS = "ORCHESTRATOR: CONTAINS NO EXECUTIONS"
+
+#: The FOUR states a probe attempt can reach (the maintainer's OQ-02 ruling; see the section note).
+#:
+#: `unknown` and `could-not-ask` are deliberately DISTINCT and must never be collapsed: an answer the
+#: host DELIVERED but that is unusable is evidence of a confused model and BLOCKS, while a transport
+#: failure is evidence of nothing at all and is retried and then warned past.
+PROBE_ANSWER_NO_EXECUTIONS = "no-executions"
+PROBE_ANSWER_EXECUTIONS = "executions"
+PROBE_ANSWER_UNKNOWN = "unknown"
+PROBE_ANSWER_COULD_NOT_ASK = "could-not-ask"
+
+#: The answers that BLOCK a run. `could-not-ask` is deliberately absent (E-10 warns past it).
+PROBE_BLOCKING_ANSWERS = frozenset({PROBE_ANSWER_EXECUTIONS, PROBE_ANSWER_UNKNOWN})
+
+#: The stable refusal CODE the gate records, so `aw runs` and the end-of-run summary can key on it.
+PROBE_REFUSAL_CODE = "orchestrator-uncovered-work"
+
+#: The stable code for the KNOWN HOLE a warned-past run carries (E-10). A different code from the
+#: refusal above, because they are different facts: one says "this parent carries uncovered work", the
+#: other says "nobody established whether it does".
+PROBE_UNAVAILABLE_CODE = "orchestrator-probe-unavailable"
+
+#: The exact phrase an interactive operator types to launch anyway, following the shipped
+#: `run drafts` / `RUN-MIXED-TYPES` precedent (one phrase, compared in ONE place).
+PROBE_CONFIRM_PHRASE = "run uncovered"
+
+#: Subprocess exit codes `run_evidence.capture_command` uses for a spawn failure and a timeout. Both
+#: are COULD-NOT-ASK by definition: no answer was delivered, so no answer can be judged.
+_PROBE_SPAWN_FAIL_EXIT = 127
+_PROBE_TIMEOUT_EXIT = 124
+
+#: How long one probe turn may take. A yes/no question over a bounded excerpt; a probe that outlives
+#: this was not going to answer.
+PROBE_ASK_TIMEOUT_SECONDS = 180.0
+
+#: The instruction sent with every probe. HELD AS DATA rather than inlined at a call site, so the
+#: sentinels below are the same objects the parser compares against.
+#:
+#: BIASED TOWARD SUSPICION, DELIBERATELY. A false alarm costs one prompt; a false CLEAR launders a bad
+#: state with apparent authority, which is worse than having no probe at all. So doubt resolves to
+#: CONTAINS EXECUTIONS.
+#:
+#: AND IT STATES THAT A CHILD CHECKLIST IS EXPECTED, which is the half that keeps the probe usable.
+#: Measured over the live corpus, every orchestrator carries items and most of them are sequencing;
+#: a prompt that misread sequencing as work would fire on all of them and the operator would learn to
+#: reach for the override.
+PROBE_PROMPT_TEMPLATE = (
+    "You are auditing ONE Implementation Plan Document that coordinates a Set of child plans (an "
+    "ORCHESTRATOR). Answer exactly one question about it.\n"
+    "\n"
+    "THE QUESTION: does this orchestrator carry WORK THAT NO CHILD COVERS?\n"
+    "\n"
+    "WHAT IS EXPECTED AND IS *NOT* WORK. An orchestrator SHOULD carry a checklist of its children. "
+    "Sequencing the children, confirming each child reached `executed` on disk before dispatching "
+    "the next, stopping on the first that did not, reading a child's status, and refusing to perform "
+    "a child's work are ALL legitimate ORCHESTRATION. A checklist naming the children is therefore "
+    "EXPECTED and is NOT an execution. Do not report it as one.\n"
+    "\n"
+    "WHAT *IS* WORK NO CHILD COVERS. An item that produces a deliverable of its own (a research "
+    "artifact, a document, a code or record change); an item that establishes a baseline or a "
+    "measurement BEFORE any child runs; an item that reconciles records, runs a repo-wide suite, "
+    "performs a whole-Set verification or audit, or closes a backlog item AFTER the children "
+    "execute. Such an item may be stated in PROSE rather than as a checklist entry, and prose counts: "
+    'a sentence like "the database must be migrated before the children run" is work no child '
+    "covers.\n"
+    "\n"
+    "HOW TO DECIDE A HARD CASE: any doubt resolves to CONTAINS EXECUTIONS. A missed instance is "
+    "reported complete having never been performed or verified, so under-reporting is far more "
+    "expensive than over-reporting.\n"
+    "\n"
+    "ANSWER FORMAT. Reply with EXACTLY ONE of these two lines and NOTHING else - no preamble, no "
+    "explanation, no code fence, no second line:\n"
+    "\n"
+    "{executions}\n"
+    "{no_executions}\n"
+    "\n"
+    "THE ORCHESTRATOR'S EXCERPT FOLLOWS. It is its checklist item action text plus its child table, "
+    "which is everything the question depends on.\n"
+    "\n"
+    "{excerpt}\n"
+)
+
+
+def render_probe_prompt(excerpt: str) -> str:
+    """The probe prompt for one bounded excerpt, composed from :data:`PROBE_PROMPT_TEMPLATE`.
+
+    ONE composer, so the two sentinel constants reach the prompt from the same objects the parser
+    compares against and the two cannot drift.
+    """
+
+    return PROBE_PROMPT_TEMPLATE.format(
+        executions=PROBE_SENTINEL_EXECUTIONS,
+        no_executions=PROBE_SENTINEL_NO_EXECUTIONS,
+        excerpt=excerpt or "(the excerpt was empty)",
+    )
+
+
+def orchestrator_probe_excerpt(orchestrator_text: str) -> str:
+    """The BOUNDED payload the probe sends: E-item action text plus the child table's row cells.
+
+    NOT THE WHOLE FILE, and the reason is measured rather than stylistic. The pending orchestrators
+    run tens of thousands of characters each (re-measure at execution; the population and the totals
+    have moved on every measurement), so "a short prompt" describes the INSTRUCTION and says nothing
+    about the PAYLOAD. An unbounded probe would send a five-figure token file to answer a yes/no
+    question.
+
+    RENDERED FROM :func:`probe_cache_payload`, WHICH IS THE POINT. The excerpt and the cache KEY are
+    the same two inputs BY CONSTRUCTION, because both read that one function. If the probe reasoned
+    over something the digest did not cover, editing that thing would serve a STALE verdict, which is
+    the one way the cache can be actively WRONG rather than merely useless. In particular the child
+    table is taken as ROW CELL TEXT and never as `ipd_set_plan.parse_child_table`'s order graph: that
+    returns `{order: (dep_orders,)}`, so an Id swap and a description rewrite leave it byte-identical.
+    """
+
+    payload = probe_cache_payload(orchestrator_text)
+    lines: list[str] = ["### Checklist item action text", ""]
+    items = payload.get("e_items") or []
+    if items:
+        for text in items:
+            lines.append(f"- {text}")
+    else:
+        lines.append("(this orchestrator declares no checklist items)")
+    lines.extend(["", "### Child IPDs table (row cells, in document order)", ""])
+    rows = payload.get("child_table_rows") or []
+    if rows:
+        for row in rows:
+            lines.append("| " + " | ".join(str(cell) for cell in row) + " |")
+    else:
+        lines.append("(this orchestrator declares no child table)")
+    return "\n".join(lines) + "\n"
+
+
+def classify_probe_reply(reply: str | None, *, transport_ok: bool = True) -> str:
+    """Classify one probe reply into the FOUR states, failing closed ON A DELIVERED ANSWER.
+
+    Returns one of :data:`PROBE_ANSWER_NO_EXECUTIONS`, :data:`PROBE_ANSWER_EXECUTIONS`,
+    :data:`PROBE_ANSWER_UNKNOWN`, :data:`PROBE_ANSWER_COULD_NOT_ASK`.
+
+    STRICT ON PURPOSE. Only the two EXACT sentinels are accepted. An answer that ARRIVED but is
+    unusable - extra prose, a refusal, a reply carrying BOTH sentinels, a reply reporting a problem -
+    is `unknown`, which blocks exactly as `executions` does. A permissive parser here would convert a
+    confused model into a silent pass, which is the failure this whole gate exists to prevent.
+
+    `transport_ok=False` IS THE OTHER HALF, AND IT IS NOT THE SAME THING. The maintainer's OQ-02
+    ruling splits COULD-NOT-ASK from ASKED-AND-GOT-NONSENSE deliberately, so this function must not
+    collapse them: an unreachable host, a missing binary, a timeout or a rate limit yields
+    `could-not-ask`, which E-10 retries and then WARNS PAST rather than blocking on. Only a reply the
+    host actually DELIVERED can be judged `unknown`. An empty reply is likewise `could-not-ask`: there
+    is nothing there to have been confused BY.
+    """
+
+    text = (reply or "").strip()
+    if not transport_ok or not text:
+        return PROBE_ANSWER_COULD_NOT_ASK
+    # EQUALITY, not membership, which is what makes this parser strict. Extra prose around a correct
+    # sentinel is `unknown` because a model that would not follow a two-line format is a model whose
+    # judgement on a subtler question is not evidence of anything.
+    #
+    # NEITHER SENTINEL IS A SUBSTRING OF THE OTHER (`CONTAINS EXECUTIONS` vs `CONTAINS NO
+    # EXECUTIONS`), so the both-present case is detected by counting each independently. An early
+    # revision of this function subtracted one count from the other and thereby classified the
+    # correct `CONTAINS NO EXECUTIONS` reply as `unknown`, which would have blocked every run; the
+    # test module pins both single cases for that reason.
+    yes_hits = text.count(PROBE_SENTINEL_EXECUTIONS)
+    no_hits = text.count(PROBE_SENTINEL_NO_EXECUTIONS)
+    if yes_hits and no_hits:
+        return PROBE_ANSWER_UNKNOWN  # both sentinels: the model did not choose
+    if text == PROBE_SENTINEL_EXECUTIONS:
+        return PROBE_ANSWER_EXECUTIONS
+    if text == PROBE_SENTINEL_NO_EXECUTIONS:
+        return PROBE_ANSWER_NO_EXECUTIONS
+    return PROBE_ANSWER_UNKNOWN
+
+
+def probe_reply_text(stdout: str, *, host: str) -> str:
+    """The model's TEXT from one host's raw turn output, with no host-specific parser forked.
+
+    ONE function taking the HOST as an argument, which is this Set's CID-3 discipline: a second
+    extractor per host is how two hosts come to disagree about what the model said. Both shipped
+    schemas are handled, plus a plain-text fallback:
+
+      * opencode `--format json`: `{"type":"text","part":{"text":...}}` events.
+      * antigravity `--output-format stream-json`: `step_update` events whose `step_type` is
+        `agent_response`, plus a terminal `result`.
+      * anything unparseable: returned as-is, so a host that changes its schema degrades into a
+        STRICTER parse (the raw line will not equal a sentinel and reads `unknown`) rather than into a
+        silent pass.
+    """
+
+    collected: list[str] = []
+    saw_json = False
+    for raw in (stdout or "").splitlines():
+        line = raw.strip()
+        if not line or not line.startswith("{"):
+            continue
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        saw_json = True
+        if host == "agy":
+            step = event.get("step_update")
+            if isinstance(step, dict):
+                for key in ("text", "response", "message", "content"):
+                    value = step.get(key)
+                    if isinstance(value, str) and value.strip():
+                        collected.append(value)
+            result = event.get("result")
+            if isinstance(result, dict):
+                for key in ("text", "response", "message", "output"):
+                    value = result.get(key)
+                    if isinstance(value, str) and value.strip():
+                        collected.append(value)
+            continue
+        if event.get("type") == "text":
+            part = event.get("part")
+            if isinstance(part, dict):
+                value = part.get("text")
+                if isinstance(value, str) and value.strip():
+                    collected.append(value)
+    if collected:
+        return "\n".join(collected).strip()
+    return "" if saw_json else (stdout or "").strip()
+
+
+def probe_argv(
+    state: Mapping[str, Any], *, host: str, prompt: str, repo: str
+) -> list[str]:
+    """The argv for ONE one-shot probe turn on `host`, composed from the run's FROZEN options.
+
+    ONE builder taking the host as an argument (CID-3), reading the launch identity the run already
+    resolved rather than resolving a second one: OQ-01's resolution is USE THE RUN'S ALREADY-RESOLVED
+    MODEL and add no role routing here, so `runner_profiles` is not consulted and no per-action
+    profile is invented.
+
+    A ONE-SHOT, NEVER A QUEUE TURN. `run_opencode` and `run_agy_turn` both require a `run_dir` AND a
+    frozen queue `item` (each logs to `run_dir/sessions/<position:02d>-<id6>-attempt-N.jsonl`, keyed
+    on `item['position']`), and neither creates a session-free question. This builder therefore
+    composes the host's own binary directly, with NO session, so the probe cannot join, rotate or
+    pollute any Set's session.
+    """
+
+    options = state.get("options") or {}
+    if host == "agy":
+        agy_bin = options.get("agy_executable") or options.get("agy") or "agy"
+        argv = [
+            str(agy_bin),
+            "-p",
+            prompt,
+            "--output-format",
+            "stream-json",
+            "--print-timeout",
+            str(int(PROBE_ASK_TIMEOUT_SECONDS)),
+        ]
+        if options.get("dangerously_skip_permissions", True):
+            argv.append("--dangerously-skip-permissions")
+        if options.get("model"):
+            argv.extend(["--model", str(options["model"])])
+        if options.get("effort"):
+            argv.extend(["--effort", str(options["effort"])])
+        return argv
+    argv = [str(options.get("opencode") or "opencode"), "run"]
+    argv.extend(["--dir", repo, "--format", "json"])
+    if options.get("model"):
+        argv.extend(["--model", str(options["model"])])
+    if options.get("variant"):
+        argv.extend(["--variant", str(options["variant"])])
+    if options.get("agent"):
+        argv.extend(["--agent", str(options["agent"])])
+    argv.extend(["--", prompt])
+    return argv
+
+
+#: The environment variable that names an ACTIVE pytest test, set by pytest itself for every test it
+#: runs. Read here for exactly one purpose; see :func:`_assert_probe_spawn_is_permitted`.
+_PYTEST_ACTIVE_ENV = "PYTEST_CURRENT_TEST"
+
+
+def _assert_probe_spawn_is_permitted(argv: Sequence[str]) -> None:
+    """RAISE rather than spawn a real model turn from inside the test suite.
+
+    ASSERTED BY CONSTRUCTION, NOT BY HOPING, which is what this plan's validation section demands. The
+    probe is reached from `initialize_run`, and the suite drives the real `initialize_run` from more
+    than a hundred places; a stub that a future test forgets to inject would silently spend tokens on
+    a paid model, and the symptom would be a slow suite and a bill rather than a failure. So the real
+    spawn refuses outright whenever pytest is running, and every test must pass its own `runner`
+    double (or reach a path that needs no ask at all).
+
+    THIS IS NOT A PRODUCTION CODE PATH GUARD. `PYTEST_CURRENT_TEST` is set by pytest and by nothing
+    else, so a real `aw oc run` never sees it and this function never fires there.
+    """
+
+    if os.environ.get(_PYTEST_ACTIVE_ENV):
+        raise DriverError(
+            "the orchestrator coverage probe attempted a REAL model spawn from inside the test "
+            f"suite ({' '.join(str(a) for a in argv[:2])}...). A test that spends tokens is not a "
+            "test: inject a `runner` double, or stub `ask_orchestrator_probe` / pass "
+            "`asker=`. This refusal is deliberate and must not be removed to make a test pass"
+        )
+
+
+def ask_orchestrator_probe(
+    state: Mapping[str, Any],
+    excerpt: str,
+    *,
+    host: str,
+    repo: Path | str,
+    runner: Any = None,
+) -> tuple[str, str]:
+    """Ask the probe ONCE. Returns `(answer, detail)` where `answer` is one of the four states.
+
+    `runner` is the injected spawn seam, `(argv, cwd, timeout) -> (exit_code, stdout, stderr)`,
+    exactly the shape `host_runner.RunnerFn` already defines. EVERY TEST INJECTS IT: a test that
+    spends tokens is not a test, and the suite asserts the real spawn is unreachable by construction
+    rather than by hoping.
+
+    A SPAWN THAT NEVER RAN IS `could-not-ask`, NEVER `unknown`. A missing binary (`FileNotFoundError`,
+    exit 127), a timeout (exit 124) and an empty reply are transport failures, so they carry no
+    evidence about the orchestrator and must not block. An answer that ARRIVED is classified by
+    :func:`classify_probe_reply`, which fails closed.
+    """
+
+    prompt = render_probe_prompt(excerpt)
+    argv = probe_argv(state, host=host, prompt=prompt, repo=str(repo))
+    try:
+        if runner is not None:
+            exit_code, stdout, stderr = runner(
+                list(argv), str(repo), PROBE_ASK_TIMEOUT_SECONDS
+            )
+        else:  # pragma: no cover - the real spawn; every test injects `runner`
+            _assert_probe_spawn_is_permitted(argv)
+            completed = subprocess.run(
+                list(argv),
+                cwd=str(repo),
+                capture_output=True,
+                text=True,
+                timeout=PROBE_ASK_TIMEOUT_SECONDS,
+                check=False,
+                stdin=subprocess.DEVNULL,
+            )
+            exit_code, stdout, stderr = (
+                completed.returncode,
+                completed.stdout or "",
+                completed.stderr or "",
+            )
+    except FileNotFoundError as exc:
+        return PROBE_ANSWER_COULD_NOT_ASK, f"the host binary is not on PATH: {exc}"
+    except subprocess.TimeoutExpired:
+        return (
+            PROBE_ANSWER_COULD_NOT_ASK,
+            f"the probe turn exceeded {PROBE_ASK_TIMEOUT_SECONDS:.0f}s",
+        )
+    except OSError as exc:  # pragma: no cover - defensive: a spawn that could not start
+        return PROBE_ANSWER_COULD_NOT_ASK, f"the probe turn could not be spawned: {exc}"
+    reply = probe_reply_text(stdout or "", host=host)
+    transport_ok = int(exit_code) not in (
+        _PROBE_SPAWN_FAIL_EXIT,
+        _PROBE_TIMEOUT_EXIT,
+    )
+    answer = classify_probe_reply(reply, transport_ok=transport_ok)
+    if answer == PROBE_ANSWER_COULD_NOT_ASK:
+        detail = (
+            (stderr or "").strip().splitlines()[-1]
+            if (stderr or "").strip()
+            else f"exit {exit_code} with no answer delivered"
+        )
+        return answer, detail
+    return answer, reply
+
+
+class ProbeTarget(NamedTuple):
+    """One queued orchestrator the gate must decide about, with the text it reasons over."""
+
+    id6: str
+    position: int
+    setid: str
+    path: Path
+    text: str
+
+    @property
+    def digest(self) -> str:
+        return probe_cache_digest(self.text)
+
+
+def queued_orchestrator_targets(
+    state: Mapping[str, Any], *, repo: Path
+) -> tuple[ProbeTarget, ...]:
+    """The orchestrators IN THIS RUN'S QUEUE, in queue order. Never the whole corpus.
+
+    SCOPED TO THE QUEUE because `aw oc run all` would otherwise sweep every orchestrator in the
+    repository, making the probe's cost a function of the tree rather than of the run. An
+    unreadable or unresolvable plan file is SKIPPED here rather than refused: this function answers
+    "what is in the queue", and a plan the runner cannot even read is a different refusal that the
+    existing preflight already owns.
+    """
+
+    targets: list[ProbeTarget] = []
+    for item in state.get("queue") or []:
+        if not isinstance(item, dict):
+            continue
+        if (item.get("kind") or "") != "orchestrator":
+            continue
+        try:
+            path = resolve_plan_path(
+                Path(repo),
+                item.get("configured_file") or "",
+                str(item.get("id6") or ""),
+            )
+            text = path.read_text(encoding="utf-8")
+        except (DriverError, OSError):
+            continue
+        targets.append(
+            ProbeTarget(
+                id6=str(item.get("id6") or ""),
+                position=int(item.get("position") or 0),
+                setid=str(item.get("setid") or ""),
+                path=path,
+                text=text,
+            )
+        )
+    return tuple(targets)
+
+
+class ProbeOutcome(NamedTuple):
+    """What the probe concluded about ONE orchestrator, and how much it cost to learn it."""
+
+    id6: str
+    answer: str
+    cached: bool
+    calls: int
+    detail: str = ""
+
+    @property
+    def blocks(self) -> bool:
+        return self.answer in PROBE_BLOCKING_ANSWERS
+
+
+def probe_orchestrator(
+    state: Mapping[str, Any],
+    target: ProbeTarget,
+    *,
+    repo: Path,
+    host: str,
+    retry_budget: int,
+    asker: Any = None,
+    runner: Any = None,
+    counter: list | None = None,
+) -> ProbeOutcome:
+    """Decide ONE orchestrator, consulting child 02's verdict cache FIRST.
+
+    A CACHE HIT SPENDS NOTHING. A miss, or any change to the E-item action text or the child table
+    (the two inputs `probe_cache_digest` covers), probes and records the result, so a genuine FIX -
+    moving the uncovered work into a new child, which edits BOTH of those - discards the stale
+    complaint by construction.
+
+    THE COULD-NOT-ASK PATH IS THE MAINTAINER'S OQ-02 RULING (E-10). A transport failure is retried up
+    to `retry_budget` ADDITIONAL attempts and then returned as `could-not-ask` for the caller to warn
+    past; it is NOT converted into a block. An `unknown` - an answer the host delivered and that is
+    unusable - is returned immediately and DOES block, because retrying a confused model is how a
+    fail-closed gate is talked into passing.
+
+    `retry_budget` is the run's OWN `--retry-budget`, resolved once by
+    :func:`resolve_retry_budget`; no second retry knob is introduced (see the gate's docstring for
+    why, and for what its default measures).
+    """
+
+    options = state.get("options") or {}
+    model = options.get("model") or ""
+    cached = read_probe_verdict(Path(repo), target.digest, model=model)
+    if cached.is_hit:
+        return ProbeOutcome(
+            id6=target.id6,
+            answer=(
+                PROBE_ANSWER_NO_EXECUTIONS
+                if cached.verdict == PROBE_VERDICT_PASS
+                else PROBE_ANSWER_EXECUTIONS
+            ),
+            cached=True,
+            calls=0,
+            detail=f"served from the verdict cache (recorded {cached.recorded_at})",
+        )
+
+    ask = asker if asker is not None else ask_orchestrator_probe
+    excerpt = orchestrator_probe_excerpt(target.text)
+    calls = 0
+    answer = PROBE_ANSWER_COULD_NOT_ASK
+    detail = "not attempted"
+    for _attempt in range(max(0, int(retry_budget)) + 1):
+        answer, detail = ask(state, excerpt, host=host, repo=Path(repo), runner=runner)
+        calls += 1
+        if counter is not None:
+            counter.append(target.id6)
+        if answer != PROBE_ANSWER_COULD_NOT_ASK:
+            break
+    if answer in (PROBE_ANSWER_NO_EXECUTIONS, PROBE_ANSWER_EXECUTIONS):
+        record_probe_verdict(
+            Path(repo),
+            target.digest,
+            PROBE_VERDICT_PASS
+            if answer == PROBE_ANSWER_NO_EXECUTIONS
+            else PROBE_VERDICT_FAIL,
+            model=model or None,
+        )
+    return ProbeOutcome(
+        id6=target.id6, answer=answer, cached=False, calls=calls, detail=detail
+    )
+
+
+def probe_refusal_remedy(labels: HostLabels, id6: str) -> str:
+    """WHAT TO DO about an orchestrator carrying uncovered work. THE WORDING IS THE DELIVERABLE.
+
+    NEVER PHRASED AS A PROHIBITION. `AGENTS.md` records the measured failure mode: a message saying
+    only "an orchestrator must not contain executions" gets complied with by DELETION, and deleting
+    those items destroys the orchestration checklist that makes a Set execute completely when a human
+    simply tells an agent "execute <setid>" with no runner involved. So this names the CONSTRUCTIVE
+    action first and by name: ADD A CHILD.
+
+    ONE COMPOSING FUNCTION TAKING THE HOST AS AN ARGUMENT, which is this Set's CID-3 carve-out stated
+    precisely. The rendered strings legitimately DIFFER per host because each names its own host's
+    command, exactly as `DEPENDENCY_BLOCK_RECOVERY_HINT` does; what must be ONE object is this
+    function. A remedy naming the wrong host is a defect even though the identity check passes.
+    """
+
+    return (
+        f"ADD A CHILD for the uncovered work: author a child plan of {id6}'s Set that owns it, add "
+        f"its row to the orchestrator's `## Child IPDs` table, and leave the parent's existing "
+        f"checklist in place. Do NOT delete the parent's items - that checklist is what makes "
+        f"`execute <setid>` complete when no runner is involved. Then re-run "
+        f"`{labels.command}`; the verdict cache re-probes automatically because both edits change "
+        f"what it keys on. To launch anyway, accepting that the parent's own items will be reported "
+        f"complete having never been performed or verified, pass "
+        f"`--allow-uncovered-orchestrator-work '<why you accept it>'`."
+    )
+
+
+def probe_unavailable_remedy(labels: HostLabels) -> str:
+    """WHAT TO DO about a run that proceeded WITHOUT an answer (E-10's known hole).
+
+    Host-parameterized for the same reason and by the same rule as :func:`probe_refusal_remedy`.
+    """
+
+    return (
+        "This run has a KNOWN HOLE: nothing established whether its orchestrators carry work no "
+        "child covers, so a Set completing here may retire a parent whose own items were never "
+        "performed. Re-run `"
+        f"{labels.command}` once the model host is reachable to get the answer, and until then treat "
+        "any orchestrator this run retires as UNVERIFIED on that point."
+    )
+
+
+class ProbeGateDecision(NamedTuple):
+    """The gate's verdict for the whole run: what it found, what it spent, what it decided."""
+
+    #: True when the run may proceed. False means a refusal was recorded and the caller must raise.
+    proceed: bool
+    #: Every orchestrator the gate decided about, in queue order.
+    outcomes: tuple[ProbeOutcome, ...]
+    #: Model calls actually spent. Zero when every queued orchestrator was cached.
+    calls: int
+    #: The refusal recorded on the blocking item, or None.
+    refusal: Any = None
+    #: The justification an operator supplied with the override, recorded verbatim.
+    override_justification: str = ""
+    #: True when the run proceeded WITHOUT an answer (E-10's warned-past path).
+    warned_past: bool = False
+    #: The human message the caller prints and, on a refusal, raises with.
+    message: str = ""
+
+
+def enforce_orchestrator_probe_gate(
+    run_dir: Path,
+    state: dict[str, Any],
+    *,
+    repo: Path,
+    host: str,
+    interactive: bool,
+    write_report_fn: Any,
+    override_justification: str | None = None,
+    retry_budget: int | None = None,
+    asker: Any = None,
+    runner: Any = None,
+    response: Any = None,
+    prompt: Any = None,
+) -> ProbeGateDecision:
+    """Gate the run on the probe: PROMPT on a TTY, FAIL without one, and honor a JUSTIFIED override.
+
+    SITED AFTER THE RUN DIRECTORY EXISTS AND BEFORE ANY AGENT TURN, LANE WORKTREE OR SESSION, and
+    that siting is a PRICED EXCEPTION to a stated invariant rather than an oversight being fixed.
+    `initialize_run` resolves the launch identity as its first statement deliberately, "so no ordering
+    change can later slip a durable write (run dir, events, state.json) ahead of a refusal", and the
+    three existing pre-queue gates (`enforce_draft_admission_gate`, `enforce_dependency_preflight`,
+    `enforce_mixed_type_gate`) all raise BEFORE the directory is created. This gate CANNOT: it needs
+    somewhere durable to log its model call, and the Set's completion criterion independently requires
+    the refusal be readable in `aw runs`, which reads durable run state. A pre-directory refusal leaves
+    that surface nothing to read. So "costs nothing" here means NO AGENT TURN, NO WORKTREE, NO
+    SESSION - not "no run directory".
+
+    THE OVERRIDE CARRIES ITS REASON, NOT A BOOLEAN. `--allow-uncovered-orchestrator-work` takes a
+    justification STRING, so the flag cannot be passed without one, and the string is written into run
+    state beside the decision. A bare boolean records that somebody clicked past the gate and nothing
+    about whether they should have.
+
+    THE RETRY BUDGET IS THE EXISTING FLAG, DECIDED AND RECORDED. `--retry-budget` is already
+    registered on both hosts through the shared table, already resolved before the run directory
+    exists, and its 0..10 bound has a SINGLE definition in `run_recovery.validate_retry_budget`. Its
+    default is `run_recovery.DEFAULT_RETRY_LIMIT`, which is 2, NOT the 3 the OQ-02 ruling names. The
+    choice made here is REUSE THE EXISTING FLAG AND ACCEPT 2, because a second retry knob is exactly
+    the re-fork this Set spends an item preventing, and the difference between two and three retries
+    of an unreachable host is not worth a divergent surface. The bound is not re-implemented.
+    """
+
+    labels = AGY_HOST_LABELS if host == "agy" else OC_HOST_LABELS
+    targets = queued_orchestrator_targets(state, repo=Path(repo))
+    budget = (
+        resolve_retry_budget(None)
+        if retry_budget is None
+        else max(0, int(retry_budget))
+    )
+    justification = (override_justification or "").strip()
+
+    outcomes: list[ProbeOutcome] = []
+    calls = 0
+    for target in targets:
+        outcome = probe_orchestrator(
+            state,
+            target,
+            repo=Path(repo),
+            host=host,
+            retry_budget=budget,
+            asker=asker,
+            runner=runner,
+        )
+        outcomes.append(outcome)
+        calls += outcome.calls
+
+    blocking = [o for o in outcomes if o.blocks]
+    unavailable = [o for o in outcomes if o.answer == PROBE_ANSWER_COULD_NOT_ASK]
+    by_id = {str(item.get("id6")): item for item in state.get("queue") or []}
+
+    def _emit(event: str, payload: dict[str, Any]) -> None:
+        append_jsonl(
+            Path(run_dir) / "events.jsonl", {"at": utc_now(), "event": event, **payload}
+        )
+
+    if not blocking:
+        warned = bool(unavailable)
+        message = ""
+        if warned:
+            # E-10: PROCEED, LOUDLY. A model outage must not halt a run that is otherwise fine, and
+            # the hole it leaves must be DURABLE rather than terminal-only, so the same refusal
+            # carrier child 01 built records it against each item `aw runs` will show.
+            remedy = probe_unavailable_remedy(labels)
+            for outcome in unavailable:
+                item = by_id.get(outcome.id6)
+                if item is not None:
+                    record_refusal(
+                        item,
+                        code=PROBE_UNAVAILABLE_CODE,
+                        reason=(
+                            f"the orchestrator coverage probe COULD NOT BE ASKED about {outcome.id6} "
+                            f"after {outcome.calls} attempt(s) (retry budget {budget}): "
+                            f"{outcome.detail}. The run PROCEEDED without an answer"
+                        ),
+                        remedy=remedy,
+                    )
+            save_state(Path(run_dir), state, write_report=write_report_fn)
+            message = (
+                "WARNING: the orchestrator coverage probe could not be asked about "
+                + ", ".join(o.id6 for o in unavailable)
+                + f" (retried to the budget of {budget}). The run is PROCEEDING with a KNOWN HOLE: "
+                "nothing established whether those orchestrators carry work no child covers. "
+                + remedy
+            )
+            print(message, file=sys.stderr)
+        _emit(
+            "orchestrator-probe-gate",
+            {
+                "proceed": True,
+                "probed": [o.id6 for o in outcomes],
+                "calls": calls,
+                "warned_past": warned,
+            },
+        )
+        return ProbeGateDecision(
+            proceed=True,
+            outcomes=tuple(outcomes),
+            calls=calls,
+            warned_past=warned,
+            message=message,
+        )
+
+    names = ", ".join(o.id6 for o in blocking)
+    reason = (
+        f"the orchestrator coverage probe reports that {names} carr"
+        + ("ies" if len(blocking) == 1 else "y")
+        + " work no child covers"
+        + (
+            " (or answered unusably, which is treated the same way)"
+            if any(o.answer == PROBE_ANSWER_UNKNOWN for o in blocking)
+            else ""
+        )
+        + ". The runner retires an orchestrator once its children are `executed` and SKIPS the "
+        "pre-transition E/V checkpoint, so that work would be reported complete having never been "
+        "performed or verified"
+    )
+    remedy = probe_refusal_remedy(labels, blocking[0].id6)
+    refusal = None
+    for outcome in blocking:
+        item = by_id.get(outcome.id6)
+        if item is not None:
+            refusal = record_refusal(
+                item, code=PROBE_REFUSAL_CODE, reason=reason, remedy=remedy
+            )
+
+    if justification:
+        # The override, RECORDED WITH ITS REASON so a later reader can tell an accepted risk from an
+        # unnoticed one, and why it was accepted.
+        state.setdefault("options", {})["allow_uncovered_orchestrator_work"] = (
+            justification
+        )
+        save_state(Path(run_dir), state, write_report=write_report_fn)
+        _emit(
+            "orchestrator-probe-gate",
+            {
+                "proceed": True,
+                "probed": [o.id6 for o in outcomes],
+                "calls": calls,
+                "override": "flag",
+                "justification": justification,
+                "blocking": [o.id6 for o in blocking],
+            },
+        )
+        message = (
+            f"orchestrator coverage probe OVERRIDDEN for {names}: {reason}. "
+            f"Justification recorded: {justification}"
+        )
+        print(message, file=sys.stderr)
+        return ProbeGateDecision(
+            proceed=True,
+            outcomes=tuple(outcomes),
+            calls=calls,
+            refusal=refusal,
+            override_justification=justification,
+            message=message,
+        )
+
+    answer = response
+    if answer is None and interactive:
+        asker_fn = prompt if prompt is not None else prompt_for_gate_phrase
+        answer = asker_fn(
+            f"{reason}\n{remedy}\nType '{PROBE_CONFIRM_PHRASE}' to launch anyway, "
+            "anything else to refuse: "
+        )
+    if answer is not None and str(answer).strip() == PROBE_CONFIRM_PHRASE:
+        # An interactive consent is still an override and is recorded as one, with the phrase as its
+        # justification: an operator who typed it at 03:00 must be distinguishable in the record from
+        # a run nobody gated at all.
+        state.setdefault("options", {})["allow_uncovered_orchestrator_work"] = (
+            f"interactive confirmation: {PROBE_CONFIRM_PHRASE}"
+        )
+        save_state(Path(run_dir), state, write_report=write_report_fn)
+        _emit(
+            "orchestrator-probe-gate",
+            {
+                "proceed": True,
+                "probed": [o.id6 for o in outcomes],
+                "calls": calls,
+                "override": "interactive",
+                "blocking": [o.id6 for o in blocking],
+            },
+        )
+        message = f"orchestrator coverage probe OVERRIDDEN interactively for {names}: {reason}"
+        print(message, file=sys.stderr)
+        return ProbeGateDecision(
+            proceed=True,
+            outcomes=tuple(outcomes),
+            calls=calls,
+            refusal=refusal,
+            override_justification=f"interactive confirmation: {PROBE_CONFIRM_PHRASE}",
+            message=message,
+        )
+
+    save_state(Path(run_dir), state, write_report=write_report_fn)
+    _emit(
+        "orchestrator-probe-gate",
+        {
+            "proceed": False,
+            "probed": [o.id6 for o in outcomes],
+            "calls": calls,
+            "blocking": [o.id6 for o in blocking],
+            "reason": reason,
+            "remedy": remedy,
+        },
+    )
+    return ProbeGateDecision(
+        proceed=False,
+        outcomes=tuple(outcomes),
+        calls=calls,
+        refusal=refusal,
+        message=f"{reason}. {remedy}",
     )
 
 
@@ -10872,6 +11829,71 @@ def initialize_run_core(
             },
         )
     write_report_fn(run_dir, state)
+
+    # orchprobe-03 (`m7gvuz`) E-05: THE ORCHESTRATOR COVERAGE GATE, sited HERE and nowhere earlier.
+    #
+    # THIS IS A PRICED EXCEPTION TO A STATED INVARIANT, not an ordering oversight. Each host resolves
+    # its launch identity as the FIRST statement of `initialize_run` deliberately, "so no ordering
+    # change can later slip a durable write (run dir, events, state.json) ahead of a refusal", and the
+    # THREE PRE-QUEUE GATES ABOVE (draft admission, dependency preflight, and the mixed-type gate,
+    # each named at its own call site earlier in this function) all raise BEFORE `run_dir` is created.
+    # This one CANNOT: it spends a model call that needs somewhere durable to be logged, and the Set's
+    # own completion criterion requires its refusal be readable in `aw runs`, which reads durable run
+    # state. A pre-directory refusal leaves that surface nothing to read at all.
+    #
+    # THE THREE GATES ARE DESCRIBED HERE AND NOT SPELLED, deliberately: `test_run_flag_surface.py
+    # ::test_the_mixed_type_call_site_was_not_duplicated` counts occurrences of that gate's SYMBOL in
+    # this function's source to prove it has exactly one call site, so naming it in a comment would
+    # fail a correct test on a comment. Locate each by its own call above.
+    #
+    # WHAT "COSTS NOTHING" MEANS HERE: no agent turn, no lane worktree, no session. All three are
+    # allocated downstream in `run_queue`/`execute_item`, so a refusal that raises from this line has
+    # spent one model call and created one run directory, and nothing else.
+    #
+    # BOTH HOSTS REACH IT THROUGH THIS ONE SEAM, which is what makes `aw agy run` actually GATE rather
+    # than merely compute the same decision - the `pgq326` lesson, where agy DECIDED an orchestrator
+    # action while having no dispatch branch that read it.
+    #
+    # `--prepare-only` DOES NOT PROBE, and that is a correctness requirement rather than a saving.
+    # That flag's documented contract is "create and display the durable queue WITHOUT launching
+    # OpenCode", so spending a model turn under it would break the one promise it makes. It is also
+    # not a hole: this gate exists to stop a run from RETIRING an orchestrator whose own items were
+    # never performed, and `--prepare-only` returns before `run_queue`, so it dispatches nothing,
+    # retires nothing, and allocates no session or worktree. The queue it prints is then probed by the
+    # `resume` that actually runs it. The skip is ANNOUNCED rather than silent, because an operator
+    # inspecting a queue must not conclude the orchestrators in it were cleared.
+    if getattr(args, "prepare_only", False):
+        print(
+            "orchestrator coverage probe: SKIPPED under --prepare-only (it launches no host turn "
+            "by contract, and this queue dispatches nothing). The orchestrators in this queue are "
+            "NOT yet cleared; the run that executes it will probe them.",
+            file=sys.stderr,
+        )
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "orchestrator-probe-gate",
+                "proceed": True,
+                "skipped": "prepare-only",
+            },
+        )
+        announce_run_order_fn(run_dir, state)
+        return run_dir
+
+    probe_decision = enforce_orchestrator_probe_gate(
+        run_dir,
+        state,
+        repo=repo,
+        host=host,
+        interactive=is_interactive_run(args),
+        write_report_fn=write_report_fn,
+        override_justification=getattr(args, "allow_uncovered_orchestrator_work", None),
+        retry_budget=resolve_retry_budget(getattr(args, "retry_budget", None)),
+    )
+    if not probe_decision.proceed:
+        raise DriverError(probe_decision.message)
+
     announce_run_order_fn(run_dir, state)
     return run_dir
 

@@ -107,7 +107,11 @@ LITERAL_PARTITION = {"shared": 17, "oc_only": 7, "agy_only": 10}
 #: dest-form positional-free flag whose spelling both hosts already carried nowhere else. Because the
 #: declaration is shared, the partition moved SYMMETRICALLY: neither `oc_only` nor `agy_only` changed,
 #: which is exactly the property this table exists to police.
-LIVE_PARTITION = {"shared": 52, "oc_only": 8, "agy_only": 8}
+#: RE-MEASURED 2026-09-19 (52 -> 53 shared) by orchprobe-03 (`m7gvuz`), which registered spec 2.5b's
+#: `--allow-uncovered-orchestrator-work` through the SHARED `RUN_POLICY_FLAGS` table. A rise in the
+#: SHARED count for that reason is the direction this suite wants: the flag reaches both hosts because
+#: one table declares it, so it could not have landed on one host only.
+LIVE_PARTITION = {"shared": 53, "oc_only": 8, "agy_only": 8}
 
 #: E-03: the residual de-duplication payoff, as a NUMBER rather than an impression. Identical
 #: normalized code lines between the two `build_parser` bodies. THIS IS THE CEILING on what
@@ -122,9 +126,14 @@ LIVE_PARTITION = {"shared": 52, "oc_only": 8, "agy_only": 8}
 IDENTICAL_NORMALIZED_LINES = 24
 
 #: E-03: `runner_shared.RUN_POLICY_FLAGS` rows, and the live option strings they account for.
-POLICY_FLAG_ROWS = 12
+#:
+#: RE-MEASURED 2026-09-19 (12 -> 13 rows, 21 -> 22 strings) by orchprobe-03 (`m7gvuz`). The new row is
+#: `--allow-uncovered-orchestrator-work` and it adds exactly ONE option string rather than two, which
+#: is the measurement worth keeping: it is the table's first `kind="str"` row, and a valued flag gets
+#: no auto-generated `--no-X` the way every `bool` row does.
+POLICY_FLAG_ROWS = 13
 POLICY_REGISTRATIONS_PER_HOST = 2
-LIVE_STRINGS_FROM_POLICY_TABLE = 21
+LIVE_STRINGS_FROM_POLICY_TABLE = 22
 
 
 def module_body(name: str) -> list[ast.stmt]:
@@ -420,6 +429,7 @@ EXPECTED_OPTION_STRINGS: dict[str, dict[str, frozenset[str]]] = {
                 "--allow-dirty-base",
                 "--allow-drafts",
                 "--allow-mixed",
+                "--allow-uncovered-orchestrator-work",
                 "--allow-unverifiable",
                 "--audit",
                 "--follow-generated",
@@ -467,6 +477,7 @@ EXPECTED_OPTION_STRINGS: dict[str, dict[str, frozenset[str]]] = {
                 "--allow-dirty-base",
                 "--allow-drafts",
                 "--allow-mixed",
+                "--allow-uncovered-orchestrator-work",
                 "--allow-unverifiable",
                 "--audit",
                 "--auto",
@@ -542,6 +553,7 @@ EXPECTED_OPTION_STRINGS: dict[str, dict[str, frozenset[str]]] = {
                 "--allow-dirty-base",
                 "--allow-drafts",
                 "--allow-mixed",
+                "--allow-uncovered-orchestrator-work",
                 "--allow-unverifiable",
                 "--follow-generated",
                 "--full-auto",
@@ -582,6 +594,7 @@ EXPECTED_OPTION_STRINGS: dict[str, dict[str, frozenset[str]]] = {
                 "--allow-dirty-base",
                 "--allow-drafts",
                 "--allow-mixed",
+                "--allow-uncovered-orchestrator-work",
                 "--allow-unverifiable",
                 "--dangerous",
                 "--dangerously-skip-permissions",
@@ -798,7 +811,7 @@ class EachHostRegistersExactlyItsOwnFlagSet(unittest.TestCase):
         )
         self.assertEqual(
             len(oc_all & agy_all),
-            52,
+            53,
             "the number of SHARED option strings changed; a flag became host-specific or stopped "
             "being so",
         )
