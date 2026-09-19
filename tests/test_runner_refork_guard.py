@@ -42,6 +42,7 @@ from agent_workflows import (
     agy_runipd,
     oc_runipd,
     render_stream,
+    run_selection_policy,
     runner_shared,
     selectors,
 )
@@ -176,6 +177,29 @@ REFORK_TABLE: tuple[Owned, ...] = (
     Owned("item_reached_success", "runner_shared", BOTH),
     Owned("item_needs_approval", "runner_shared", BOTH),
     Owned("exit_code_statuses", "runner_shared", BOTH),
+    # --- run_selection_policy: the PER-ARTIFACT DISPOSITION LINE, added by `runnoop` Order 02 (`m85gxh`) ---
+    #
+    # THE FIRST ROW THIS TABLE CARRIES FOR `run_selection_policy` (measured before adding it: zero
+    # rows named that owner). The module is the established pure-renderer home for run-selection
+    # output, and the renderer below is called by BOTH hosts at their end-of-run site, so both halves
+    # of this table's contract apply unchanged: no runner-local definition, and each runner attribute
+    # IS the owner's object.
+    #
+    # WHY A ROW IS REQUIRED HERE RATHER THAN IMPLIED BY THE TABLE'S OTHER TESTS, stated because the
+    # opposite was once believed and is FALSE (m85gxh F-9, re-measured at execution): a SYMMETRIC row
+    # is a requirement of this plan, not something `test_the_table_covers_both_runners` enforces. That
+    # test asserts only that the table's AGGREGATE `runners` set equals `BOTH` and that more than one
+    # row names agy; four of the shipped rows legitimately name a single runner and pass. What makes
+    # THIS row bite is the per-row identity assertion
+    # (`test_every_runner_attribute_is_the_owning_modules_object`) plus the AST half
+    # (`test_no_runner_redefines_an_already_extracted_symbol`), both proven against this symbol by the
+    # mutation check recorded in the plan's V-04.
+    #
+    # WHAT IT BUYS: the operator-facing REASON text (why a matched artifact was not acted on) must be
+    # ONE object. A textually identical copy in one driver is exactly how `render_stream`'s ANSI
+    # constants came to be re-forked and how `aw agy run` silently missed a display fix; a reader
+    # cannot tell a shared object from a copy, and `assertIs` can.
+    Owned("render_queue_dispositions", "run_selection_policy", BOTH),
 )
 
 _MODULES = {
@@ -183,6 +207,7 @@ _MODULES = {
     "agy_runipd": agy_runipd,
     "render_stream": render_stream,
     "runner_shared": runner_shared,
+    "run_selection_policy": run_selection_policy,
     "selectors": selectors,
 }
 

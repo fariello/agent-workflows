@@ -39,6 +39,24 @@ from agent_workflows import (
     stall_progress,
 )
 
+# runnoop Order 02 (`m85gxh`): the pure PER-ARTIFACT DISPOSITION renderer, whose wording and reason
+# vocabulary live in `run_selection_policy` and must never be forked into a driver.
+#
+# SAFE AT MODULE LEVEL, measured rather than assumed: an AST walk of MODULE-LEVEL imports reachable
+# from `run_selection_policy` reaches 16 modules and NONE of them is `oc_runipd`, `agy_runipd`,
+# `runner_shared` or `render_stream`, so this edge closes no cycle. (A walk that also follows
+# function-local imports does reach all four, which is why the distinction is stated here: those are
+# deferred imports and cannot participate in an import-time cycle.)
+#
+# THE `as <same-name>` FORM IS DELIBERATE, and it is this repository's documented idiom for a shared
+# symbol a runner must expose: it keeps `ruff` from stripping the binding as unused (which it has done
+# to six such re-exports before, caught only by a symmetry test) and it makes the attribute reachable
+# for `tests/test_runner_refork_guard.py`'s object-identity half. BOTH hosts import this from the
+# owning module DIRECTLY; neither imports it from the other.
+from agent_workflows.run_selection_policy import (
+    render_queue_dispositions as render_queue_dispositions,
+)
+
 # terseout `ntf6sx` E-04: the ONE concise-reporting contract, embedded in FULL in this driver's
 # execution and verifier prompts. A fresh worker session must not depend only on ambient host
 # instructions, which is why the drivers already embed their other critical safeguards.
@@ -6779,6 +6797,40 @@ def run_queue(
             driver_label="opencode",
         )
     )
+    # runnoop Order 02 (`m85gxh`) E-03: THE PER-ARTIFACT DISPOSITION LINE, carrying the REASON.
+    #
+    # WHAT THIS ADDS THAT THE TABLE ABOVE DOES NOT, stated because the obvious reading is that it
+    # duplicates it. The summary table already renders one ROW per matched artifact with its
+    # disposition, INCLUDING an item with zero attempts; measured, a single `reviewed`/zero-attempt
+    # item yields `01 | 01 | abc123 | wtiso | execute | reviewed` and the word `approval` appears
+    # ZERO times in the whole render. So the missing thing was never the line, it was the REASON: a
+    # reader saw `reviewed` and had to already know it meant "frozen, needing human approval, never
+    # dispatched". This block supplies exactly that, for every matched artifact, from the facts the
+    # runner already computed (`zz5yxq`'s durable needs-approval flag, the dependency reason strings,
+    # `r2i1b1`'s refusal record).
+    #
+    # ONE CLOSING PASS OVER THE QUEUE, and that resolves the plan's OQ-01. The alternative (emit at
+    # each item's termination) cannot cover this plan's whole point, because an artifact that is never
+    # dispatched HAS no termination point, so that shape needs a closing pass anyway; and one pass
+    # makes "exactly one line per matched artifact" STRUCTURAL rather than a discipline, since the
+    # queue holds exactly one entry per matched artifact however many ATTEMPTS it accumulated. Live
+    # per-item feedback already exists (the finish line in `runner_shared.execute_item_core`), so
+    # nothing is lost by making this the retrospective surface.
+    #
+    # ONE CALL SITE PER HOST, deliberately, and NOT also on the interrupt/`DriverError` paths that
+    # render their own summary: six call sites for one block is the duplication shape this repository
+    # keeps paying for, and those paths are aborted runs whose dispositions are still mid-flight,
+    # whereas the measured defect (a queue of `reviewed` plans, acted on by nothing) exits through
+    # THIS path - the selection loop finds no `queued` item and breaks straight to here.
+    #
+    # The WORDING and the reason vocabulary live in the pure `run_selection_policy` module, never in a
+    # driver, and both hosts import that module directly rather than one host importing from the
+    # other. `refusal_of_item` is `r2i1b1`'s ONE reader, passed in so a recorded refusal reaches this
+    # line through that plan's seam instead of a second read of the same key.
+    for _disposition_line in render_queue_dispositions(
+        state.get("queue", []), refusal_reader=refusal_of_item
+    ):
+        print(_disposition_line)
     # specvis st5klo E-03: the PRIMARY end-of-run site. Sited with the summary table rather than on a
     # new surface, because this is the block an operator already reads at exit; a spec rewrite reported
     # anywhere else would be as easy to miss as it was when the only report was pre-dispatch. NOT

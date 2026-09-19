@@ -34,7 +34,16 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Dict, List, Mapping, NamedTuple, Optional, Sequence, Tuple
+from typing import (
+    Callable,
+    Dict,
+    List,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 from agent_workflows import selectors as _sel
 from agent_workflows import status_set as _status_set
@@ -1193,3 +1202,422 @@ def decide_selection_gates(
         selector=selector,
     )
     return CombinedGateVerdict(proceed=mixed.proceed, mixed=mixed, drafts=drafts)
+
+
+# --------------------------------------------------------------------------------------------------
+# runnoop Order 02 (`m85gxh`): the PER-ARTIFACT DISPOSITION LINE
+# --------------------------------------------------------------------------------------------------
+#
+# WHAT WAS ACTUALLY MISSING, stated precisely because the obvious reading of the defect is too strong
+# and leads to building the wrong thing (plan F-8, re-measured at execution 2026-09-19 at HEAD
+# `7562ca6c`). TWO shipped surfaces ALREADY name every matched artifact:
+#
+#   * `render_stream.format_run_order_announcement`, printed unconditionally at queue freeze, lists
+#     every matched id6 in execution order; and
+#   * `render_stream.render_run_summary_table` renders ONE ROW PER MATCHED ARTIFACT carrying its id6,
+#     set, action and disposition, INCLUDING an item with ZERO attempts.
+#
+# So the line is not missing. What is missing is the REASON. Measured by rendering the real summary
+# with a single `reviewed`/zero-attempt item: the row `01 | 01 | abc123 | wtiso | execute | reviewed`
+# is present, the progress line reads `1/1 [##########] 100% (1 reviewed)`, and the string `approval`
+# appears ZERO times, because that renderer's diagnostics block emits a reason only for an item
+# carrying a `Refusal` record or one of four legacy fields. A reader therefore sees `reviewed` and has
+# to already know it means "frozen, needing human approval, never dispatched".
+#
+# THIS IS THEREFORE A REASON RENDERER, NOT A THIRD QUEUE LISTING. An implementation that re-lists the
+# queue without a reason satisfies the words "one line per matched artifact" and fixes NOTHING.
+#
+# WHY IT LIVES HERE. This module is the established PURE-RENDERER home for run-selection output
+# (`render_action_preview`, `render_counts_inline`, `render_refusal`, `render_drafts_preview`,
+# `render_drafts_exclusion`), and `render_action_preview`'s docstring already records the
+# anti-duplication rule this follows ("the alignment rule, the type order, the action order, and the
+# untyped-tail line would then exist twice and drift once"). `render_stream` is NOT an alternative
+# home for anything that must read runner-computed selection data: `runner_shared` imports
+# `render_stream` at module level, so the reverse edge would be a cycle.
+#
+# WHY IT COEXISTS WITH `render_stream`'s DIAGNOSTICS BLOCK rather than replacing it. That block is
+# owned by `orchprobe` `r2i1b1` (executed) and renders a `Refusal` record's reason and REMEDY for any
+# status. It only fires when a producer RECORDED a refusal, and nothing records one for an artifact
+# the run never dispatched, which is exactly this plan's case. The two surfaces are deliberately
+# complementary: the diagnostics block explains an item the run ACTED on and refused, while this line
+# explains every matched artifact including the ones no code ever touched. See
+# `reason_from_refusal` for how this renderer CONSUMES that record rather than formatting a parallel
+# reason string when one exists.
+
+
+#: The closed, documented set of reasons a matched artifact was NOT acted on (`m85gxh` E-02).
+#:
+#: NAMES COME FROM SPEC `25kzda`, NOT FROM THIS MODULE. Every name below is transcribed from that
+#: approved spec so the run's human output and its machine reason codes cannot use two vocabularies
+#: for one fact:
+#:
+#:   * `needs_human_approval`          spec 5.4 "Stable dependency reason codes" (source outcome for
+#:                                     "Human gate stopped prerequisite") and 5.7 ("Human gate |
+#:                                     Required human receipt absent | Persist and stop").
+#:   * `dependency_not_met`            spec 5.4 (the direct/transitive dependent outcome) and 5.7.
+#:   * `dependency_not_met_external`   spec 5.4 ("Dependency omitted from queue and currently
+#:                                     unsatisfied").
+#:   * `ipd_already_executed`          spec 6's worked example, item 8 (`done08`): "Status/directory,
+#:                                     dependency statement, and terminal evidence are checked. No
+#:                                     session or mutation occurs." -> `skipped`,
+#:                                     `ipd_already_executed`.
+#:   * `type_or_status_not_runnable`   spec 5.7 ("Non-runnable state/type | Valid terminal/gated/
+#:                                     narrative record | Skip without a session").
+#:   * `host_capability_unavailable`   spec 5.4 and 5.7 ("Host guarantee unavailable ... Refuse the
+#:                                     item before session start").
+#:
+#: NOTHING IS MINTED HERE. The backlog item (`em0z50`) named six reasons in prose and the plan
+#: expected two of them ("already executed", "status not runnable") to need new names because spec
+#: 5.4's table is dependency-scoped. Re-measured at execution: both ARE named by the spec, just in
+#: OTHER sections (6's example and 5.7's failure-class table), so no coinage is required and none is
+#: made.
+#:
+#: HONEST BINDING LIMIT, so a reader does not over-trust the alignment: most of these strings are not
+#: bound to a shipped constant anywhere else (measured 2026-09-19: `needs_human_approval` and
+#: `type_or_status_not_runnable` each grep to ZERO other occurrences under `agent_workflows/`;
+#: `dependency_not_met` exists only as a `run_evidence.AggregatedItem` boolean field;
+#: `host_capability_unavailable` IS bound, at `host_sandbox_profile.REASON_HOST_CAPABILITY_UNAVAILABLE`).
+#: So no contract test would go red if these diverged from the spec; they follow it anyway, and the
+#: authority is cited above so the next reader can check rather than guess.
+SKIP_NEEDS_HUMAN_APPROVAL = "needs_human_approval"
+SKIP_DEPENDENCY_NOT_MET = "dependency_not_met"
+SKIP_DEPENDENCY_NOT_MET_EXTERNAL = "dependency_not_met_external"
+SKIP_ALREADY_EXECUTED = "ipd_already_executed"
+SKIP_NOT_RUNNABLE = "type_or_status_not_runnable"
+SKIP_HOST_CAPABILITY_UNAVAILABLE = "host_capability_unavailable"
+
+#: Where each reason's VALUE is read from in a live run, as data rather than as prose, so a caller
+#: never recomputes a fact the runner already decided. Each entry names the shipped producer.
+#:
+#: The two deliberate ABSENCES from the backlog item's list of six, each with the measurement:
+#:
+#:   * "GATE REFUSED" IS NOT ONE REASON AND MOSTLY IS NOT PER-ARTIFACT AT ALL. Measured at HEAD
+#:     `7562ca6c` by reading `runner_shared.initialize_run_core`: of the five gates it runs before the
+#:     run directory exists, FOUR refuse the WHOLE RUN by raising `DriverError` (the mixed-type gate,
+#:     the requested-action legality check, the dependency preflight, and `refuse_unimplemented_run_flags`),
+#:     so no artifact of that run ever reaches a per-artifact line and a reason value for them could
+#:     never render. They are excluded for that reason. The FIFTH, the draft-admission gate, genuinely
+#:     excludes PER ARTIFACT (`enforce_draft_admission_gate` returns a filtered `queue_ids` and
+#:     contains no `raise`) - but it runs at offset 70 of `initialize_run_core` while the run directory
+#:     is not created until offset 134, so an excluded draft never enters the queue, has no queue entry
+#:     and no disposition. Its exclusion is ALREADY reported, verbatim from spec 2.5a, by
+#:     `render_drafts_exclusion` above, which is the renderer this module already owns and which this
+#:     one therefore does NOT duplicate.
+#:   * `host_capability_unavailable` IS per-artifact by construction
+#:     (`host_sandbox_profile.preflight_host_capabilities` returns `aborts_run=False`,
+#:     `cascade_dependents=True`) and IS spec-named, so it is KEPT in the vocabulary above. But
+#:     measured: neither driver nor `runner_shared` calls that preflight (zero occurrences of
+#:     `preflight_host_capabilities` in all three files), so no run can produce it TODAY. It is listed
+#:     so the reason exists when the preflight is wired, and this note exists so nobody reports it as
+#:     a reason a current run can emit.
+SKIP_REASON_SOURCES: Mapping[str, str] = {
+    SKIP_NEEDS_HUMAN_APPROVAL: (
+        "the durable queue-entry flag `runner_shared.NEEDS_INPUT_KEY`, frozen at queue-build time by "
+        "`runner_shared.item_needs_approval` (runnoop Order 01, `zz5yxq` E-03)"
+    ),
+    SKIP_DEPENDENCY_NOT_MET: (
+        "`item['unsatisfied_dependencies']` plus `item['unsatisfied_dependency_reasons']`, written by "
+        "each driver's drain path from `dependency_status_detailed`/`edge_satisfied`"
+    ),
+    SKIP_DEPENDENCY_NOT_MET_EXTERNAL: (
+        "the same two keys; `edge_satisfied`'s EXTERNAL branch marks a target that is not in the queue "
+        "and cannot become satisfied in this run ('it is not in this run, so it cannot become "
+        "satisfied here')"
+    ),
+    SKIP_ALREADY_EXECUTED: (
+        "the queue entry's own status, preserved verbatim as `executed` by "
+        "`runner_shared.initial_queue_status` via `TERMINAL_QUEUE_STATUSES`"
+    ),
+    SKIP_NOT_RUNNABLE: (
+        "the queue entry's frozen `initial_status` plus its queue `status`: a plan whose on-disk status "
+        "is terminal-but-not-`executed` (`superseded`, `not-executed`) or absent falls back to the "
+        "queue status `reviewed` without being approval-blocked (`initial_queue_status`, and "
+        "`item_needs_approval` returning False)"
+    ),
+    SKIP_HOST_CAPABILITY_UNAVAILABLE: (
+        "`host_sandbox_profile.preflight_host_capabilities`' refusal "
+        "(`REASON_HOST_CAPABILITY_UNAVAILABLE`). NOT REACHABLE TODAY: neither driver calls that "
+        "preflight (measured zero call sites), so no current run emits this reason"
+    ),
+}
+
+#: The reason vocabulary as a tuple, in the render/documentation order above. CLOSED: a caller may
+#: pass any reason TEXT it likes to :func:`render_item_disposition`, but a reason CODE outside this set
+#: is a programming error, so :func:`skip_reason_text` refuses one rather than inventing a label.
+SKIP_REASONS: Tuple[str, ...] = (
+    SKIP_NEEDS_HUMAN_APPROVAL,
+    SKIP_DEPENDENCY_NOT_MET,
+    SKIP_DEPENDENCY_NOT_MET_EXTERNAL,
+    SKIP_ALREADY_EXECUTED,
+    SKIP_NOT_RUNNABLE,
+    SKIP_HOST_CAPABILITY_UNAVAILABLE,
+)
+
+#: The human gloss rendered beside each reason code, so the line explains itself to a reader who does
+#: not know the code. The CODE is always printed too (it is the machine-stable half and the thing a
+#: later `aw runs` surface can key on); the gloss is what makes `reviewed` legible without the reader
+#: already knowing what `reviewed` means, which is this plan's whole point.
+SKIP_REASON_LABELS: Mapping[str, str] = {
+    SKIP_NEEDS_HUMAN_APPROVAL: (
+        "frozen awaiting human approval; reviewed but not approved, so it was never dispatched"
+    ),
+    SKIP_DEPENDENCY_NOT_MET: "a declared dependency was not satisfied in this run",
+    SKIP_DEPENDENCY_NOT_MET_EXTERNAL: (
+        "a declared dependency is outside this run's queue and unsatisfied, so it cannot be met here"
+    ),
+    SKIP_ALREADY_EXECUTED: "already executed on disk, so there was nothing to do",
+    SKIP_NOT_RUNNABLE: "its status is not runnable, so no session was appropriate",
+    SKIP_HOST_CAPABILITY_UNAVAILABLE: (
+        "the host could not prove a capability this action requires"
+    ),
+}
+
+#: The label used when an artifact WAS acted on, so the acted-on and skipped lines are the same shape.
+#: Deliberately a fixed word rather than an empty string: a reader scanning a column of lines must be
+#: able to see that the run DID act on this one, and a blank reads as missing information.
+ACTED_REASON_LABEL = "acted on by this run"
+
+
+def skip_reason_text(code: str) -> str:
+    """The human gloss for one CLOSED skip-reason code. Raises `ValueError` on an unknown code.
+
+    FAILS CLOSED ON PURPOSE. A renderer that silently accepted an unknown code would let a caller
+    invent a seventh reason at a call site, which is precisely the "a reason is a value rather than an
+    ad-hoc string" property E-02 exists to establish.
+    """
+
+    norm = str(code or "").strip()
+    if norm not in SKIP_REASON_LABELS:
+        raise ValueError(
+            "unknown skip reason code {0!r}; the closed set (spec 25kzda 5.4/5.7/6) is: {1}".format(
+                code, ", ".join(SKIP_REASONS)
+            )
+        )
+    return SKIP_REASON_LABELS[norm]
+
+
+def reason_from_refusal(refusal: object) -> Optional[str]:
+    """The reason text carried by a `render_stream.Refusal`, or ``None`` when there is none.
+
+    E-05's INTEGRATION SEAM WITH `orchprobe` `r2i1b1` (executed; read at execution time, as this
+    plan's E-05 requires). That plan ships the per-item refusal RECORD (`code`/`reason`/`remedy`) and
+    owns it; this plan defines no record type and must not. Where a run DID record a refusal for an
+    item, this line reports THAT record's reason rather than formatting a parallel string, so the two
+    surfaces cannot disagree about why one item was refused.
+
+    DUCK-TYPED RATHER THAN IMPORTED, deliberately: importing `render_stream` here would add a
+    first-party import to a module whose two-import purity is a property other plans depend on, for no
+    gain, since all this needs is the `reason` attribute. The remedy is deliberately NOT rendered
+    here; the summary's diagnostics block already prints it on its own line and duplicating it would
+    put the same remedy on the operator's screen twice.
+    """
+
+    if refusal is None:
+        return None
+    reason = getattr(refusal, "reason", None)
+    if isinstance(reason, str) and reason.strip():
+        return reason.strip()
+    return None
+
+
+def render_item_disposition(
+    identity: str,
+    action: Optional[str],
+    disposition: Optional[str],
+    reason: Optional[str] = None,
+    *,
+    position: Optional[int] = None,
+    setid: Optional[str] = None,
+) -> str:
+    """ONE line describing what happened to ONE matched artifact (`m85gxh` E-01).
+
+    THE SAME FUNCTION RENDERS BOTH CASES, acted-on and skipped, which is the requirement: the backlog
+    item asks that a skipped artifact be reported "in the SAME shape as an acted-on one", and two
+    renderers would drift exactly as `render_action_preview`'s docstring records. ``reason`` is the
+    only field that differs, and it is never blank: an acted-on artifact carries
+    :data:`ACTED_REASON_LABEL`, so every line has the same fields in the same order and a reader can
+    scan the column.
+
+    PURE. Builds and returns a string; prints nothing, opens nothing, imports no runner. Every input
+    is a plain value the caller already has, which is what makes each branch testable without a run.
+
+    ``reason`` is free TEXT, not a code, because three different kinds of thing legitimately fill it:
+    :func:`skip_reason_text`'s gloss for a closed code, a `Refusal` record's own reason (via
+    :func:`reason_from_refusal`), and a dependency reason string naming the unmet edge. Compose it
+    with :func:`render_item_disposition_for_reason` when you have a CLOSED code, which is the path
+    that keeps the vocabulary closed.
+
+    Shape::
+
+        - 01 abc123 [wtiso] execute -> reviewed: needs_human_approval (frozen awaiting human ...)
+        - 02 def456 [wtiso] execute -> executed: acted on by this run
+    """
+
+    ident = str(identity or "?").strip() or "?"
+    head = "- "
+    if position is not None:
+        head += "{0:02d} ".format(int(position))
+    head += ident
+    if setid:
+        head += " [{0}]".format(str(setid).strip())
+    act = str(action or "?").strip() or "?"
+    disp = str(disposition or "?").strip() or "?"
+    text = str(reason or "").strip() or ACTED_REASON_LABEL
+    return "{0} {1} -> {2}: {3}".format(head, act, disp, text)
+
+
+def render_item_disposition_for_reason(
+    identity: str,
+    action: Optional[str],
+    disposition: Optional[str],
+    code: str,
+    *,
+    detail: Optional[str] = None,
+    position: Optional[int] = None,
+    setid: Optional[str] = None,
+) -> str:
+    """:func:`render_item_disposition` for a CLOSED reason code, printing the code AND its gloss.
+
+    The code is what a later machine surface can key on; the gloss is what makes the line legible to a
+    reader who does not already know the code. ``detail`` appends run-specific specifics, which is how
+    the dependency reasons NAME the unmet dependency (the backlog item requires that specifically)
+    without a second renderer.
+
+    Raises `ValueError` for a code outside :data:`SKIP_REASONS`, via :func:`skip_reason_text`.
+    """
+
+    gloss = skip_reason_text(code)
+    if detail and str(detail).strip():
+        gloss = "{0}; {1}".format(gloss, str(detail).strip())
+    return render_item_disposition(
+        identity,
+        action,
+        disposition,
+        "{0} ({1})".format(str(code).strip(), gloss),
+        position=position,
+        setid=setid,
+    )
+
+
+#: The header printed above the per-artifact block, so a reader knows the list is EVERY artifact the
+#: selector matched rather than only the interesting ones. Worded to state the guarantee, because the
+#: guarantee (nothing matched is omitted) is what makes the block answerable to "what did the run
+#: ignore, and why?".
+DISPOSITION_HEADER = "Per-artifact disposition (every artifact this selector matched):"
+
+
+def render_queue_dispositions(
+    entries: Sequence[Mapping[str, object]],
+    *,
+    header: str = DISPOSITION_HEADER,
+    # Typed loosely on PURPOSE: the shipped reader this is designed to receive
+    # (`render_stream.refusal_of_item`) is annotated `dict[str, Any] -> Refusal | None`, and a
+    # narrower parameter type here would make the real call site a type error for no behavioral gain.
+    # This module must not import `render_stream` to name that type (see `reason_from_refusal`).
+    refusal_reader: Optional[Callable[..., object]] = None,
+) -> List[str]:
+    """Render ONE line per matched artifact, from the facts the runner already computed.
+
+    ``entries`` are the run's queue entries (or any mapping carrying the same keys), which is what
+    makes the once-per-artifact property structural rather than a discipline the caller has to
+    remember: the queue holds exactly one entry per matched artifact no matter how many ATTEMPTS an
+    item accumulated, so iterating it once cannot produce two lines for one artifact.
+
+    Returns a LIST OF LINES rather than printing, and rather than one joined string, so the caller
+    owns the stream and an empty selection renders as an empty list instead of a stray header.
+
+    ``refusal_reader`` is how E-05's integration with `orchprobe` `r2i1b1` is wired without this
+    module importing `render_stream`: the caller passes that plan's shipped ONE READER
+    (`render_stream.refusal_of_item`), which is the function every other surface goes through, so a
+    recorded refusal's reason reaches this line through the same seam rather than through a second
+    reading of the same key. Omitted, no refusal is consulted, which is the correct behavior for a
+    caller that has no run state.
+
+    THE REASON IS DERIVED HERE, ONCE, from the shipped producers named in
+    :data:`SKIP_REASON_SOURCES`; nothing is recomputed. Precedence, and why:
+
+      1. A recorded `Refusal` (`orchprobe` `r2i1b1`) wins, because a producer that explicitly said why
+         it refused THIS item is more specific than anything inferable from its status.
+      2. Then the durable needs-approval flag (`runnoop` `zz5yxq`), which is the measured case this
+         whole Set exists for.
+      3. Then the dependency reasons, which NAME the unmet edge.
+      4. Then `executed`, which is a real disposition and not a defect.
+      5. Then a queue status that is terminal without the run having acted, which is the honest
+         "not runnable" answer.
+      6. Otherwise the artifact was acted on (or is still in flight) and carries
+         :data:`ACTED_REASON_LABEL`.
+    """
+
+    lines: List[str] = []
+    for entry in entries:
+        get = entry.get
+        status = str(get("status") or "").strip()
+        reason: Optional[str] = None
+
+        refusal_reason = reason_from_refusal(
+            refusal_reader(entry) if refusal_reader is not None else None
+        )
+        if refusal_reason:
+            reason = refusal_reason
+        elif bool(get("needs_input")):
+            reason = "{0} ({1})".format(
+                SKIP_NEEDS_HUMAN_APPROVAL, skip_reason_text(SKIP_NEEDS_HUMAN_APPROVAL)
+            )
+        elif isinstance(get("unsatisfied_dependencies"), (list, tuple)) and get(
+            "unsatisfied_dependencies"
+        ):
+            raw_deps = get("unsatisfied_dependencies")
+            deps = (
+                [str(d) for d in raw_deps]
+                if isinstance(raw_deps, (list, tuple))
+                else []
+            )
+            raw_why = get("unsatisfied_dependency_reasons")
+            why: Mapping[str, object] = raw_why if isinstance(raw_why, Mapping) else {}
+            # NO PLACEHOLDER WHEN NO REASON WAS RECORDED, because the two producers of this key
+            # write DIFFERENT shapes and a blanket fallback double-reports. Measured at HEAD
+            # `7562ca6c`: the drain path writes a BARE token plus a separate
+            # `unsatisfied_dependency_reasons` map, while `cascade_dependency_blocked` writes the
+            # reason INTO the token (`executed:aaa111 (target reviewed)`) and writes NO map at all.
+            # A `reasons.get(d, "unsatisfied")` fallback therefore renders the cascade's already-
+            # explained token as `executed:aaa111 (target reviewed) (unsatisfied)`, which reads as
+            # two contradictory reasons. `render_stream`'s diagnostics block has the same fallback
+            # shape (`reasons.get(d, "blocked")`) and the same wart; that block is outside this
+            # plan's fence, so the divergence is REPORTED rather than edited here.
+            named = ", ".join(
+                "{0} ({1})".format(d, why[d]) if d in why else str(d) for d in deps
+            )
+            # The EXTERNAL variant is distinguished by the reason text `edge_satisfied` already
+            # writes for a target outside the queue, rather than by a second computation here.
+            code = (
+                SKIP_DEPENDENCY_NOT_MET_EXTERNAL
+                if "not in this run" in named
+                else SKIP_DEPENDENCY_NOT_MET
+            )
+            reason = "{0} ({1}; unmet: {2})".format(code, skip_reason_text(code), named)
+        elif status == "executed" and not get("attempts"):
+            reason = "{0} ({1})".format(
+                SKIP_ALREADY_EXECUTED, skip_reason_text(SKIP_ALREADY_EXECUTED)
+            )
+        elif status in ("reviewed", "not-attempted") and not get("attempts"):
+            reason = "{0} ({1})".format(
+                SKIP_NOT_RUNNABLE, skip_reason_text(SKIP_NOT_RUNNABLE)
+            )
+
+        lines.append(
+            render_item_disposition(
+                str(get("id6") or get("identity") or "?"),
+                str(get("action") or ""),
+                status,
+                reason,
+                position=(
+                    int(get("position"))  # type: ignore[arg-type]
+                    if isinstance(get("position"), int)
+                    else None
+                ),
+                setid=str(get("setid") or "") or None,
+            )
+        )
+    if not lines:
+        return []
+    return [header] + lines
