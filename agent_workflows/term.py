@@ -87,14 +87,73 @@ _STATUS_LINE_LABELS = (
 _STATUS_WIDTH = max(len(_STATUS_STYLE[k][0]) for k in _STATUS_LINE_LABELS)
 
 
-def should_color(stream: Optional[TextIO] = None) -> bool:
+#: The PROCESS-WIDE color-flag override, set once per CLI invocation from the parsed
+#: ``--color`` / ``--no-color`` pair and consulted by :func:`should_color` when no explicit
+#: ``override=`` argument is supplied.
+#:
+#: WHY A PROCESS-WIDE VALUE RATHER THAN THREADING AN ARGUMENT THROUGH EVERY CALL SITE: the
+#: package constructs ``Term`` and calls ``should_color`` from hundreds of places, most of
+#: which never see the parsed namespace (measured: 40+ ``Term(color=False if
+#: getattr(args, "no_color", False) else None)`` call sites alone). Threading a parameter to
+#: all of them is the change that gets half-applied, leaving ``--color`` silently inert on
+#: whichever renderer was missed - which is the exact per-command inconsistency this work
+#: exists to remove.
+#:
+#: WHY NOT ``os.environ``, which would be the obvious alternative: this package spawns nested
+#: ``aw`` invocations (both IPD runners, ``aw ipd finalize``, the commit helper), and an
+#: environment variable is INHERITED. A presentation choice about this terminal would restyle
+#: a child process's output too. A module-level value cannot leak across a process boundary.
+#:
+#: SET UNCONDITIONALLY, INCLUDING TO ``None``, once per ``cli._dispatch`` call, so an
+#: invocation that passes no flag RESETS it rather than inheriting a previous invocation's
+#: value. That is what keeps repeated in-process CLI calls (i.e. the test suite) independent.
+_COLOR_OVERRIDE: Optional[bool] = None
+
+
+def set_color_override(value: Optional[bool]) -> None:
+    """Set the process-wide ``--color``/``--no-color`` override (``None`` clears it)."""
+
+    global _COLOR_OVERRIDE
+    _COLOR_OVERRIDE = None if value is None else bool(value)
+
+
+def get_color_override() -> Optional[bool]:
+    """Return the process-wide color-flag override set by :func:`set_color_override`."""
+
+    return _COLOR_OVERRIDE
+
+
+def should_color(
+    stream: Optional[TextIO] = None, *, override: Optional[bool] = None
+) -> bool:
     """Decide whether to emit ANSI color for ``stream`` (default stdout).
 
-    Precedence: NO_COLOR (off) is only overridden by FORCE_COLOR (on). Otherwise color is
-    on only for a real TTY with a capable TERM.
+    Precedence: FLAG beats ENV beats DETECTION.
+
+    1. ``override`` (the ``--color`` / ``--no-color`` flag layer): ``True`` forces color on,
+       ``False`` forces it off, and ``None`` falls back to the process-wide override set by
+       :func:`set_color_override` (also ``None`` when no flag was passed).
+    2. ``NO_COLOR`` (off) is only overridden by ``FORCE_COLOR`` (on).
+    3. Otherwise color is on only for a real TTY with a capable ``TERM``.
+
+    ``override`` EXISTS SO A FLAG NEVER HAS TO MUTATE ``os.environ``. Setting ``FORCE_COLOR``
+    or ``NO_COLOR`` from a flag handler would be inherited by every subprocess this package
+    spawns (the two IPD runners launch nested ``aw`` invocations), so a presentation choice
+    about THIS terminal would silently restyle a child's output too. The override is passed
+    as an argument and therefore cannot leak.
+
+    The full precedence table is published in ``docs/cli-output-contract.md`` section 1.1 and
+    pinned by ``tests/test_term.py``.
     """
 
     stream = stream or sys.stdout
+
+    # The FLAG layer, above everything: an explicit --color/--no-color is the operator's
+    # direct instruction and beats both env detection and TTY detection. An explicit argument
+    # wins over the process-wide value so a caller can always decide locally.
+    effective = override if override is not None else _COLOR_OVERRIDE
+    if effective is not None:
+        return bool(effective)
 
     # NO_COLOR: any value (even empty) disables, UNLESS FORCE_COLOR is set.
     if "NO_COLOR" in os.environ and "FORCE_COLOR" not in os.environ:
@@ -112,6 +171,28 @@ def should_color(stream: Optional[TextIO] = None) -> bool:
         return bool(isatty and isatty())
     except Exception:
         return False
+
+
+def color_override(args: Any = None) -> Optional[bool]:
+    """Read the ``--color`` / ``--no-color`` pair off a parsed namespace.
+
+    Returns ``True`` for ``--color``, ``False`` for ``--no-color``, and ``None`` when neither
+    was passed (the "fall through to env and detection" case).
+
+    THE ONE READER OF THAT FLAG PAIR, so the flag layer cannot be interpreted differently at
+    different call sites. Passing both flags is refused STRUCTURALLY by argparse's mutually
+    exclusive group in ``cli._build_parser``, so this function never has to arbitrate a
+    conflict; if a caller hand-builds a namespace carrying both, ``--no-color`` wins here,
+    which is the safe direction (never invent escapes the caller may not be able to render).
+    """
+
+    if args is None:
+        return None
+    if getattr(args, "no_color", False):
+        return False
+    if getattr(args, "color", False):
+        return True
+    return None
 
 
 STATUS_COLOR_256 = {

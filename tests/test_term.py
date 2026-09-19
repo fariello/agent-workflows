@@ -65,6 +65,129 @@ class ShouldColorTests(unittest.TestCase):
         self.assertFalse(T.should_color(_FakeTTY()))
 
 
+class ColorPrecedenceTests(unittest.TestCase):
+    """THE PRECEDENCE TABLE, pinned: flag beats env beats detection (ttyflags `yaxr4i` E-03).
+
+    Slots into the existing env/isatty harness above rather than building a new one; the only new
+    ingredient is the `override=` parameter that carries the `--color`/`--no-color` flag layer.
+
+    WHY THE FLAG LAYER TAKES AN ARGUMENT INSTEAD OF SETTING AN ENV VAR, since that is the design
+    decision these tests protect: this package spawns nested `aw` processes, and an environment
+    variable would be INHERITED, so a parent's terminal choice would silently restyle a child's
+    output. `test_no_env_mutation` is the assertion that keeps that from being reintroduced.
+    """
+
+    def setUp(self):
+        self._saved = {
+            k: os.environ.get(k) for k in ("NO_COLOR", "FORCE_COLOR", "TERM")
+        }
+        self.addCleanup(self._restore)
+        self.addCleanup(T.set_color_override, None)
+        for k in ("NO_COLOR", "FORCE_COLOR"):
+            os.environ.pop(k, None)
+        os.environ["TERM"] = "xterm-256color"
+
+    def _restore(self):
+        for k, v in self._saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+    # --- rung 1: the flag beats the env, in BOTH directions -------------------------------------
+    def test_color_flag_beats_no_color_env(self):
+        os.environ["NO_COLOR"] = "1"
+        self.assertTrue(T.should_color(_FakeTTY(), override=True))
+        self.assertTrue(T.should_color(_FakePipe(), override=True))
+
+    def test_no_color_flag_beats_force_color_env(self):
+        os.environ["FORCE_COLOR"] = "1"
+        self.assertFalse(T.should_color(_FakeTTY(), override=False))
+        self.assertFalse(T.should_color(_FakePipe(), override=False))
+
+    def test_no_color_flag_beats_a_capable_tty(self):
+        self.assertFalse(T.should_color(_FakeTTY(), override=False))
+
+    def test_color_flag_beats_term_dumb(self):
+        os.environ["TERM"] = "dumb"
+        self.assertTrue(T.should_color(_FakeTTY(), override=True))
+
+    # --- rung 2: the env beats detection when NO flag is passed ---------------------------------
+    def test_env_beats_detection_without_a_flag(self):
+        os.environ["FORCE_COLOR"] = "1"
+        self.assertTrue(T.should_color(_FakePipe()))
+        os.environ.pop("FORCE_COLOR")
+        os.environ["NO_COLOR"] = "1"
+        self.assertFalse(T.should_color(_FakeTTY()))
+
+    # --- rung 3: detection alone, with neither flag nor env -------------------------------------
+    def test_detection_alone_with_neither_flag_nor_env(self):
+        self.assertTrue(T.should_color(_FakeTTY()))
+        self.assertFalse(T.should_color(_FakePipe()))
+
+    # --- the process-wide override, and the no-leak invariant -----------------------------------
+    def test_process_wide_override_applies_and_resets(self):
+        T.set_color_override(True)
+        self.assertTrue(T.should_color(_FakePipe()))
+        self.assertEqual(T.get_color_override(), True)
+        T.set_color_override(None)
+        self.assertFalse(T.should_color(_FakePipe()))
+        self.assertIsNone(T.get_color_override())
+
+    def test_explicit_argument_beats_the_process_wide_override(self):
+        T.set_color_override(False)
+        self.assertTrue(T.should_color(_FakePipe(), override=True))
+
+    def test_no_env_mutation(self):
+        before = {k: os.environ.get(k) for k in ("NO_COLOR", "FORCE_COLOR", "TERM")}
+        T.set_color_override(True)
+        T.should_color(_FakePipe())
+        T.set_color_override(False)
+        T.should_color(_FakeTTY())
+        after = {k: os.environ.get(k) for k in ("NO_COLOR", "FORCE_COLOR", "TERM")}
+        self.assertEqual(before, after)
+
+    # --- the flag pair is read in ONE place ----------------------------------------------------
+    def test_color_override_reads_the_flag_pair_from_a_namespace(self):
+        import argparse as _argparse
+
+        self.assertIsNone(T.color_override(None))
+        self.assertIsNone(
+            T.color_override(_argparse.Namespace(no_color=False, color=False))
+        )
+        self.assertTrue(
+            T.color_override(_argparse.Namespace(no_color=False, color=True))
+        )
+        self.assertFalse(
+            T.color_override(_argparse.Namespace(no_color=True, color=False))
+        )
+        # A hand-built namespace carrying BOTH (argparse refuses this structurally) resolves to
+        # the SAFE direction: never invent escapes a caller may not be able to render.
+        self.assertFalse(
+            T.color_override(_argparse.Namespace(no_color=True, color=True))
+        )
+
+    def test_the_256_color_path_is_reached_by_the_same_boolean(self):
+        """The maintainer asked for 256-color, and no new capability tier is needed: `color256`
+        and the 16-color `colorize` are gated by the SAME `self.color` boolean, so `--color` sets
+        one thing. A distinct 16-vs-256 tier is a separate question and is deliberately not here."""
+
+        forced = T.Term(
+            stream=_FakePipe(), color=T.should_color(_FakePipe(), override=True)
+        )
+        self.assertTrue(forced.color)
+        self.assertRegex(forced.color256("hi", 46), _ANSI)
+        self.assertIn("38;5;46", forced.color256("hi", 46))
+        self.assertRegex(forced.colorize("hi", "red"), _ANSI)
+
+        plain = T.Term(
+            stream=_FakeTTY(), color=T.should_color(_FakeTTY(), override=False)
+        )
+        self.assertFalse(plain.color)
+        self.assertEqual(plain.color256("hi", 46), "hi")
+        self.assertEqual(plain.colorize("hi", "red"), "hi")
+
+
 class StylingTests(unittest.TestCase):
     def test_colorize_plain_when_color_off(self):
         t = T.Term(stream=io.StringIO(), color=False)

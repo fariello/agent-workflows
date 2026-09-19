@@ -15,24 +15,85 @@ Every invocation of an `aw` command resolves its output destination and formatti
 single deterministic precedence rule:
 
 ```text
-explicit (--json / --format <fmt>)  >  --agent  >  non-TTY stdout (pipe/redirect) => agent  >  TTY stdout => human
+explicit (--json / --format <fmt>)  >  --agent  >  human
 ```
 
 1. **Explicit format flags** (`--json`, `--format json`, `--format <fmt>`):
-   Selects the specified explicit serialization mode (`OutputMode.JSON`). Overrides TTY
-   detection and `--agent`. Color is disabled (`color=False`).
-2. **Agent flag or non-TTY stdout**:
-   If `--agent` is passed or `stdout.isatty()` is False (e.g. piped to another command, subshell,
-   or redirected to a file), `OutputMode.AGENT` is selected. Output is emitted as compact,
+   Selects the specified explicit serialization mode (`OutputMode.JSON`). Overrides `--agent`.
+   Color is disabled (`color=False`).
+2. **Agent flag**:
+   If `--agent` is passed, `OutputMode.AGENT` is selected. Output is emitted as compact,
    ANSI-free `aw.agent/v1` JSONL records. Color is disabled (`color=False`).
-   *Note*: `stdin.isatty()` controls interactive prompting (such as confirmation dialogs or wizards),
-   NOT the output audience or mode.
-3. **Interactive Human TTY**:
-   When stdout is a TTY and no agent/explicit format flags are given, `OutputMode.HUMAN` is selected.
+3. **Human (the default, TTY or not)**:
+   With no agent/explicit format flag, `OutputMode.HUMAN` is selected. THE TTY-NESS OF STDOUT
+   DOES NOT AFFECT THE MODE: a piped, redirected or captured invocation still emits
+   human-readable text, and `--agent` is the only way to obtain `aw.agent/v1` JSONL. TTY-ness
+   affects COLOR only (see section 1.1).
+   *Note*: `stdin.isatty()` controls interactive prompting (such as confirmation dialogs or
+   wizards), NOT the output audience or mode. See section 9 for why those two axes stay separate.
 4. **Color and Styling Flags**:
-   `--no-color`, `NO_COLOR`, and `FORCE_COLOR` control ANSI styling within human mode only. They
-   never alter the audience mode itself (i.e. `--no-color` on a TTY emits monochrome human text,
-   never machine JSONL).
+   `--color`, `--no-color`, `NO_COLOR`, and `FORCE_COLOR` control ANSI styling within human mode
+   only. They never alter the audience mode itself (i.e. `--no-color` on a TTY emits monochrome
+   human text, never machine JSONL; `--color` on a pipe emits colored human text, never JSONL).
+
+### 1.1 Color Precedence: flag beats env beats detection
+
+The styling decision is a separate, single chain, resolved once in `term.should_color`. Highest
+precedence first:
+
+```text
+--color / --no-color  >  NO_COLOR / FORCE_COLOR  >  TERM capability  >  stdout.isatty()
+```
+
+| # | Layer | Rule |
+| --- | --- | --- |
+| 1 | Flag | `--color` forces ANSI on; `--no-color` forces it off. Passing BOTH is a usage error (exit 2), never a silent winner, so a scripted invocation never depends on argument order. |
+| 2 | Env | `NO_COLOR` (any value, including empty) disables, UNLESS `FORCE_COLOR` is set; `FORCE_COLOR` (any non-empty value) enables. |
+| 3 | Capability | `TERM=dumb` or an unset `TERM` disables. |
+| 4 | Detection | Otherwise ANSI is on only when the target stream is a real TTY. |
+
+Worked cases, each pinned by a test in `tests/test_term.py` and `tests/test_flag_surface_uniformity.py`:
+
+| Invocation | Result |
+| --- | --- |
+| `NO_COLOR=1 aw <cmd> --color` | colored (flag beats env) |
+| `FORCE_COLOR=1 aw <cmd> --no-color` | monochrome (flag beats env) |
+| `FORCE_COLOR=1 aw <cmd> \| cat` | colored (env beats detection) |
+| `aw <cmd> \| cat` | monochrome (detection alone) |
+| `aw <cmd> --color \| cat` | colored (flag beats detection) |
+
+Two invariants hold across all of it. FIRST, a flag NEVER reaches the engine by mutating
+`os.environ`: the override is passed as an argument, because this package spawns nested `aw`
+processes and an environment variable would be inherited, silently restyling a child's output.
+SECOND, the flags are STYLING ONLY: `--agent` and `--json` payloads are byte-identical under
+every combination of them and contain no ANSI escapes (section 6).
+
+### 1.2 Flag Availability: uniform across every subcommand
+
+`--color` and `--no-color` work on EVERY subcommand, nested ones included. That uniformity is the
+contract: a presentation flag that works on one verb and is a usage error on another cannot be
+scripted around. It is reached two ways, and the difference is visible only in `--help`:
+
+1. **By declaration.** `--color`, `--no-color`, `--agent`, and `--json` are declared ONCE on shared
+   argparse parents and inherited by every subcommand that `aw` itself handles.
+2. **By consumption.** The host-driver leaves that forward their argv VERBATIM to another program
+   (`aw oc run`, `aw agy run`, the `review`/`integrate` aliases, `aw run as`, `aw run ipd`,
+   `aw agy sessions|view|exec`) deliberately declare NO flags of their own, so that the downstream
+   parser owns every flag and its `--help` and the two spellings cannot drift. `aw` therefore
+   CONSUMES `--color`/`--no-color` from the argv before forwarding it. The flag works; it is simply
+   absent from that leaf's own `--help`, which renders the driver's help rather than `aw`'s.
+
+`--agent` and `--json` are NOT provided on the forwarded leaves, by either route. `aw` does not
+render their output, and on `aw oc run start` a downstream `--agent` is an OpenCode AGENT NAME rather
+than a machine-output flag, so honoring it at the `aw` layer would change what the operator asked
+for. Use the driver's own flags there.
+
+`tests/test_flag_surface_uniformity.py` enforces both halves: it walks the built parser tree
+recursively for the declared surface, and drives the dispatch path for the consumed one. Its two
+skip lists are CLOSED NAMED SETS rather than predicates, so a newly added command cannot be absorbed
+silently: `EXEMPT_SUBCOMMANDS` (only the hidden shell-completion command `__complete`, which is
+invoked by the shell and emits a bare candidate list) and `FORWARDED_SUBCOMMANDS` (the verbatim
+forwarders above, which are asserted to declare no flags AND to consume them).
 
 ---
 
@@ -156,11 +217,60 @@ The canonical agent machine format is tagged with:
 
 ---
 
-## 9. Automatic Non-TTY Migration Policy (Hard Cutover)
+## 9. Automatic Non-TTY Migration Policy: RETRACTED 2026-09-19
 
-Per maintainer decision OQ-01, non-TTY stdout adopts `aw.agent/v1` JSONL immediately upon release
-with no deprecation window. Any external script parsing legacy plain-text or TSV pipe output
-must migrate to `aw.agent/v1` or use explicit `--format` flags.
+**This policy is RETRACTED. It is recorded here rather than deleted so a reader can tell that it
+was reversed deliberately, and not lost in an edit.**
+
+The retracted text read: "Per maintainer decision OQ-01, non-TTY stdout adopts `aw.agent/v1` JSONL
+immediately upon release with no deprecation window. Any external script parsing legacy plain-text
+or TSV pipe output must migrate to `aw.agent/v1` or use explicit `--format` flags."
+
+**What is true instead.** Piping or redirecting `aw` emits HUMAN-READABLE TEXT. `--agent` is the
+explicit and only way to obtain `aw.agent/v1` JSONL, and `--json` the only way to obtain the full
+structured JSON. Non-TTY stdout affects COLOR only (section 1.1).
+
+**Why it was retracted** (maintainer ruling, ttyflags `yaxr4i` OQ-01, 2026-09-10):
+
+1. **The promise never shipped.** No release ever implemented it. `select_output` has never
+   consulted `stdout.isatty()` for mode selection; the only TTY consultation is the color one.
+   So this section described behavior that did not exist, in a document published as normative.
+2. **Nothing can depend on behavior that never existed**, while an unknown number of consumers
+   (external scripts, log captures, CI steps that pipe `aw` and read prose) depend on the actual
+   behavior. Implementing the promise would break them, with no compensating gain.
+3. **The capability was never missing.** `--agent` already emits the JSONL, and this
+   repository's own CI uses the explicit flag rather than relying on an automatic switch, so the
+   auto-switch would have been convenience, not capability.
+
+**What this does NOT say.** It does not rule that non-TTY detection is unwanted, and it does not
+foreclose a future proposal to make piped output machine-readable. It retracts one AUTO-SWITCH
+promise that was never implemented. Any such future change needs its own decision and a migration
+story this section never had (it specified a hard cutover with no deprecation window).
+
+### 9.1 Design constraint on a future `--tty` flag (NOT implemented)
+
+No `--tty` flag exists, deliberately. This section records the constraint any future one must
+satisfy, so a successor inherits the analysis instead of rediscovering it.
+
+**TTY-ness controls two unrelated things, through two different streams.**
+
+| Axis | Keyed on | Governs | Where |
+| --- | --- | --- | --- |
+| Presentation | `stdout` | whether ANSI escapes are emitted | `term.should_color` |
+| Interactivity | `stdin` | whether the process may PROMPT a human | ~57 `isatty` references package-wide, 19 in `cli.py`, plus `git_commit_helper._is_interactive` |
+
+**So a single undifferentiated `--tty` boolean MUST NOT be added.** Conflating the axes would let
+a request for color silently re-enable prompting, which would weaken a real fail-safe: today
+`cli._confirm` and `git_commit_helper._is_interactive` DECLINE rather than prompt when stdin is not
+a terminal, which is what keeps an unattended runner from wedging forever on a question nobody can
+answer. Two requirements follow:
+
+1. **Two axes, never one flag.** If both are wanted, they are separate flags (for example
+   `--color/--no-color`, which already exist, and an `--interactive/--no-interactive` pair).
+2. **One resolver for interactivity.** The interactivity override must route through a SINGLE
+   resolver that every call site already consults, not a flag check added at each of the ~57 sites.
+   `git_commit_helper._is_interactive` (an explicit override parameter falling back to
+   `sys.stdin.isatty()`) is the shape to generalize; a per-site check is how the axes drift apart.
 
 ---
 
