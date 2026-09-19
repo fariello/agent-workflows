@@ -6,17 +6,19 @@
 - Scope: IN: ordering, dependency edges, and whole-Set completion criteria for children 01 through 08. OUT: every unit of implementation work, each of which belongs to exactly one child; this plan performs none of it.
 - Scope-Paths: none
 - Item-Dependencies: executed:yaxr4i
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: lifeglyph
 - Order: 0
 - Highest E allocated: 09
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 2xz59a
+- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - From-Spec: uonrjg
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-19 approved (aw set): status set to approved
 - 2026-09-19 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates at HEAD `f12390d7` and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False (the round-1 blocker OQ-02 is now `Status: resolved`); `review_findings.subject_gating_blocks` -> empty (the round-1 BLOCKER finding is now `FIXED` in the review record, with its resolution recorded there); and `plan_readiness.newest_verdict` polarity -> neutral, not negative. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-19 reviewed (aw set): plan-review round 1: REVIEWED - OPEN QUESTIONS. PR-002..PR-006 fixed in place; PR-001 (BLOCKER) escalated as OQ-02 Blocking: yes. Readiness no-go.
 

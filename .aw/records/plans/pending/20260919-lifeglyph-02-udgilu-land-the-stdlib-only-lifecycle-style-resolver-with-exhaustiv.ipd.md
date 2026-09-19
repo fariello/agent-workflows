@@ -6,17 +6,19 @@
 - Scope: IN: create `agent_workflows/lifecycle_style.py` containing the TWENTY semantic stages of Section 5 with their Unicode glyph, ASCII fallback, xterm-256 index and bold flag; the native mappings of Sections 6.1-6.7; the runner/ledger mappings of Sections 7.1-7.4; the precedence resolver of Section 8; and the self-validation of R10.1 that rejects duplicate keys and incomplete coverage. Plus the A2 enumeration tests that fail when an owner adds a status without a mapping. OUT: emitting any ANSI (R10.1 forbids it in this module), the depth ladder and 16-color tier (child `pow5sj`), the `Term` rendering helpers (child `bn026f`), and converting any consumer (children `f9t5hz` onward). ALSO OUT, and newly explicit at review: deciding what stage the uncovered `integration-deferred` status maps to, which is OQ-02's blocking question rather than this plan's to guess.
 - Scope-Paths: agent_workflows/lifecycle_style.py, tests/test_lifecycle_style.py
 - Item-Dependencies: executed:yaxr4i, executed:n4xq3l
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: lifeglyph
 - Order: 2
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: udgilu
+- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - From-Spec: uonrjg
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-19 approved (aw set): status set to approved
 - 2026-09-19 finding port (opencode its_direct/pt3-claude-opus-5-1m-us): PORTED TWO FINDINGS FROM AN UNMERGED REVIEW LANE, `review-sweep-run-20260919T133719Z-1618106`, which reviewed this plan at HEAD `4f1642a7` and was never integrated. THIS IS NOT A REVIEW and sets no readiness: two findings were transcribed, nothing was re-critiqued. That lane recorded EIGHT findings (PR-001..008) against the SIX (PR-201..206) in the review on main; six pair to the same defects including the same blocker, and two were unique and unmitigated here. PR-008 was a live correctness risk: V-05 and V-06 demand deliberately breaking the module as their evidence (duplicate stage key, removed status, bogus owner-enum member) and nothing told the executor to revert it, so committing one would ship a broken stage table or an A2 test that cannot fail. Both V-items now require a proven-empty `git diff` before any commit. PR-004 recorded that NINE Section 7.2 words have no owner-enum member and two appear nowhere in the package, so an executor could 'tidy' the resolver and silently narrow an approved spec; E-06 now names them and asserts one direction only. DELIBERATELY NOT PORTED: that lane mapped `integration-deferred` to `blocked`, which is SUPERSEDED. This plan's OQ-02 resolved it to `recovering` on stronger evidence (three in-code statements that the status is in-flight with an automatically scheduled re-attempt), so the lane's mapping and its rationale were left behind rather than merged.
 - 2026-09-19 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates at HEAD `f12390d7` and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False (the round-1 blocker OQ-02 is now `Status: resolved`); `review_findings.subject_gating_blocks` -> empty (the round-1 BLOCKER finding is now `FIXED` in the review record, with its resolution recorded there); and `plan_readiness.newest_verdict` polarity -> neutral, not negative. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-19 reviewed (aw set): plan-review round 1: REVIEWED - OPEN QUESTIONS. PR-201/202/204/205/206 FIXED; PR-203 (BLOCKER) escalated as OQ-02 Blocking: yes (integration-deferred has no spec Section 7.2 row, so criterion A2 is unsatisfiable). Readiness no-go.
