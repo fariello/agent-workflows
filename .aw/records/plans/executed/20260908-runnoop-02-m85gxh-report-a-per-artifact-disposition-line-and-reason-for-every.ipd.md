@@ -10,18 +10,18 @@
 - Scope: Emit exactly ONE output line per artifact the selector MATCHED, in the SAME shape whether the run acted on it or not, carrying its disposition and, when it was skipped, the reason. Site the wording in a PURE module both hosts import, never in a driver. EXCLUDES the end-of-run aggregate summary and its counts and remedies (child 03 `bsc457`); excludes adding any new refusal kind or refusal RECORD type (pending plan `r2i1b1`); excludes the `aw runs` `Issue` column and the `--json`/`--agent` payloads (also `r2i1b1`); excludes changing any disposition's MEANING (child 01 `zz5yxq`, which must land first).
 - Scope-Paths: agent_workflows/run_selection_policy.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_run_selection_policy.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_refork_guard.py
 - Item-Dependencies: executed:zz5yxq
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runnoop
 - Order: 2
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: m85gxh
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 - From-Backlog: em0z50
 
 ## Workflow history
+- 2026-09-19 executed (aw oc run): aw oc run self-finalize: m85gxh verified (set runnoop, attempt 1).
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-601..PR-609 all FIXED in place; review record written; aw ipd lint --phase review-finalize conforms.
 
