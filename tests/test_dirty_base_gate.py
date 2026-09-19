@@ -561,8 +561,19 @@ class ConsentFlagSurfaceTests(unittest.TestCase):
         """
         from tests.test_run_flag_surface import SpecFlagListTests
 
-        declared = SpecFlagListTests("test_no_owned_flag_is_absent_from_the_spec")
-        self.assertIn("--allow-dirty-base", declared.spec_grammar_flags())
+        # Borrow the contract test's PARSER, not one of its test methods. unittest requires a real
+        # method name to instantiate a TestCase, and naming a specific one couples this file to that
+        # file's method names: a rename there raised ValueError here and broke a test about a flag,
+        # for a reason that had nothing to do with the flag. `spec_grammar_flags` is the helper being
+        # borrowed, and it is a stable public-ish name, so use it as the placeholder.
+        declared = SpecFlagListTests("spec_grammar_flags")
+        self.assertIn(
+            "--allow-dirty-base",
+            declared.spec_grammar_flags(),
+            "spec 2.1's `run <selector>` stanza must DECLARE --allow-dirty-base. Read through the "
+            "contract test's own parser rather than by eye, because its stanza scoping decides the "
+            "answer: a declaration outside that stanza does not count",
+        )
 
     def test_it_is_FROZEN_into_run_state(self):
         base: dict[str, Any] = {
