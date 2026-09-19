@@ -221,21 +221,26 @@ class LookupDefectTests(unittest.TestCase):
             self.assertEqual(found.kind, "id6")
             self.assertFalse(found.is_collision)
 
-    def test_filename_tier_covers_a_declared_id_below_the_bounded_header(self):
+    def test_filename_tier_covers_a_record_with_no_declared_id(self):
         """The filename tier is REQUIRED, not a nicety.
 
-        `selectors` reads a bounded 4096-byte header, and measured on this repository 268 of 1202
-        records declare their `- Id:` BELOW that cap (this plan's own file declares it at byte 6485),
-        so an exact-only lookup would report those as `missing_entirely`.
+        HISTORY, because this test used to assert the OPPOSITE MECHANISM and that matters. It was
+        written as `..._below_the_bounded_header`, pinning that `selectors` hard-capped its header
+        read at 4096 bytes so a late `- Id:` was INVISIBLE to the exact tier. That truncation was a
+        BUG (it also dropped two `runnoop` children from their own Set, wedging the orchestrator
+        `7ewc74` permanently) and has been fixed: `_read_header` now reads to the end of the metadata
+        block, so a deep `- Id:` IS found by the exact tier and this test's original premise is gone.
+
+        The filename tier still earns its place, for a DIFFERENT and permanent reason: a record that
+        declares no `- Id:` at all cannot be found by any header read, however generous. That is what
+        this test now pins.
         """
         with tempfile.TemporaryDirectory() as td:
             root = self._root(td)
             p = root / ".aw" / "records" / "plans" / "pending"
             f = p / "20260901-deep-01-dep001-buried-id.ipd.md"
-            f.write_text(
-                "# IPD\n\n" + ("x" * 6000) + "\n- Id: dep001\n- Status: approved\n"
-            )
-            # The exact tier genuinely cannot see it...
+            f.write_text("# IPD\n\n- Status: approved\n\n## Notes\n\nNo Id bullet.\n")
+            # The exact tier genuinely cannot see it: there is nothing to see.
             from agent_workflows import selectors
 
             header = selectors._read_header(f)
@@ -244,6 +249,29 @@ class LookupDefectTests(unittest.TestCase):
             found = artifact_audit.find_artifact(root, "dep001")
             self.assertEqual(found.path, f)
             self.assertEqual(found.kind, "filename-id6")
+
+    def test_exact_tier_now_finds_an_id_past_the_first_read_chunk(self):
+        """The truncation fix, asserted from the audit's side (regression pin).
+
+        A record declaring `- Id:` past byte 4096 must be found by the EXACT tier, not fall through
+        to the filename tier. This is the audit-level consequence of the `_read_header` fix.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = self._root(td)
+            p = root / ".aw" / "records" / "plans" / "pending"
+            f = p / "20260901-deep-02-dep002-late-id.ipd.md"
+            f.write_text(
+                "# IPD\n\n- Concern: "
+                + ("prose " * 1200)
+                + "\n- Id: dep002\n- Status: approved\n\n## Workflow history\n"
+            )
+            from agent_workflows import selectors
+
+            header = selectors._read_header(f)
+            self.assertEqual(selectors._read_id(header or ""), "dep002")
+            found = artifact_audit.find_artifact(root, "dep002")
+            self.assertEqual(found.path, f)
+            self.assertEqual(found.kind, "id6")
 
     def test_no_hardcoded_directory_list_remains(self):
         src = Path(artifact_audit.__file__).read_text(encoding="utf-8")

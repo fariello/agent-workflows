@@ -33,10 +33,14 @@ load-bearing. The exact rule is what makes widening the type set SAFE: the old s
 also match a REVIEW record, because a review carries its SUBJECT's id6 in its filename, and reviews
 were previously unreachable only because the hardcoded list never searched them. A review declares
 ``- Subject-Id:`` and not ``- Id:``, so the exact rule skips it for free. But an exact-only rule
-would REGRESS the audit, which is why the filename tier exists: ``selectors`` reads a BOUNDED 4096-
-byte header (``selectors._HEADER_BYTES``), and measured on this repository 268 of 1202 records
-declare an ``- Id:`` BELOW that cap (this plan's own file declares it at byte 6485), so an exact-only
-lookup reports 268 artifacts as ``missing_entirely`` that are plainly on disk. The filename tier is
+would REGRESS the audit, which is why the filename tier exists. HISTORICAL REASON, NOW FIXED AT THE
+SOURCE: ``selectors`` used to read a HARD-CAPPED 4096-byte header, and measured on this repository
+268 of 1202 records declare an ``- Id:`` BEYOND that cap (this plan's own file declares it at byte
+6485), so an exact-only lookup reported 268 artifacts as ``missing_entirely`` that were plainly on
+disk. That truncation was a BUG and was fixed: ``selectors._read_header`` now reads to the end of the
+metadata block (see its note, and the `runnoop`/`7ewc74` incident it records), so the exact tier no
+longer loses a late ``- Id:``. The filename tier is KEPT regardless, because it covers a record with
+no declared ``- Id:`` at all, which is a different gap than truncation. The filename tier is
 restricted to the id6 field of the clustered naming grammar (``artifact_naming.parse_clustered``),
 never a bare substring, so it cannot match a review record either.
 
