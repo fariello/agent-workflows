@@ -1,7 +1,7 @@
 # Spec: Orchestrator conformance: a typed child-tracking checklist, review-time repair, run-time refusal
 
 - Date: 2026-09-19
-- Status: reviewed
+- Status: approved
 - Id: r07vma
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - From-Spec: 77tr3o
@@ -17,6 +17,7 @@
   question, and does not substitute a syntactic rule for the semantic one.
 
 ## Workflow history
+- 2026-09-19 approved (aw set, --by-human): status set to approved
 
 - 2026-09-19 note (aw specs): /spec-review round 2 (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-007..SR-012 all FIXED, none deferred, none open. ROUND 1 MISSED THE CENTRAL HOLE: the spec said 'the parser' twelve times and specified its algorithm zero times, so rubric G failed outright and the implementing plan would have had to invent the detection rule. OQ-02 RESOLVED BY THE MAINTAINER AS TYPED, which changed the answer rather than completing it: R1a now specifies a typed row CONFIRM <child-id6> REACHED <status> with three validated fields, R1b states that a cross-child check is a final child with sibling dependencies, and R2a keeps the hand-run reader served. MY ROUND-1 RECOMMENDATION OF PROSE WAS UNSUPPORTED and is recorded as a finding against myself (SR-008): all three counter-examples I cited for it failed on measurement, two being duplication of a child's own assertion and the third already relocated into child svacmz, which another agent authored independently the same day. A second round-1 claim was also false (SR-009): I said 21 of 32 items were already schema-shaped; properly measured only 11 are, and against the new grammar ZERO of 32 rows conform, so the migration is total and cost 3 now says so. The semantic probe is RETAINED (SR-D4) because R1a deliberately does not parse continuation lines or the prose sections, so 25kzda 2.5b still binds. Six acceptance criteria added or inverted to pin the grammar, the by-construction claim, the coexistence with a cross-child child, and that no Set is left refused with no remedy.
 ## 1. The problem, and what the existing control does not reach
