@@ -6446,5 +6446,153 @@ class VerifierGateAndRunnerBugTests(unittest.TestCase):
             )
 
 
+class PerArtifactDispositionLineTests(unittest.TestCase):
+    """runnoop Order 02 (`m85gxh`) E-03: every MATCHED artifact gets one line carrying its REASON.
+
+    THE DEFECT IS AN UNEXPLAINED DISPOSITION, NOT A MISSING LINE, and that distinction decides what
+    these tests must assert. The end-of-run summary table ALREADY renders one row per matched artifact
+    with its disposition, including an item with ZERO attempts, and the order announcement already
+    names every matched id6. Measured (backlog `em0z50`, 2026-08-29): a run over 8 `reviewed` plans
+    showed `8 steps: 8 reviewed`, `Attempts: 0` on every row, and NO explanation anywhere of what
+    `reviewed` meant. So a test that asserted only "a line naming the artifact appears" would have
+    PASSED on the shipped defect. Each test below therefore asserts the REASON.
+    """
+
+    def _run_and_capture(self, queue: list) -> str:
+        """Drive the REAL `run_queue` over a queue nothing can dispatch, and return its stdout.
+
+        A LAUNCHER THAT FAILS THE TEST IF CALLED, so "no turn was dispatched" is proven positively
+        rather than inferred from the absence of an attempt record: every item here is
+        matched-but-never-dispatched, which is exactly the case with no per-item finish line.
+        """
+
+        def _must_not_launch(*_a, **_k):
+            raise AssertionError(
+                "an agent turn was dispatched for an item that must never be dispatched"
+            )
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            run_dir = _make_run_dir(root, queue)
+            buf = io.StringIO()
+            with (
+                mock.patch.object(driver, "run_opencode", _must_not_launch),
+                contextlib.redirect_stdout(buf),
+            ):
+                driver.run_queue(run_dir, retry_incomplete=False)
+            return buf.getvalue()
+
+    @staticmethod
+    def _entry(position: int, id6: str, **over) -> dict:
+        entry = {
+            "position": position,
+            "id6": id6,
+            "setid": "wtiso",
+            "configured_file": ".aw/records/plans/pending/p.ipd.md",
+            "kind": "child",
+            "action": "execute",
+            "status": "reviewed",
+            "attempts": [],
+            "dependencies": [],
+        }
+        entry.update(over)
+        return entry
+
+    def _disposition_lines(self, out: str) -> list:
+        from agent_workflows import run_selection_policy as pol
+
+        lines = out.splitlines()
+        start = lines.index(pol.DISPOSITION_HEADER)
+        block = []
+        for line in lines[start + 1 :]:
+            if not line.startswith("- "):
+                break
+            block.append(line)
+        return block
+
+    def test_an_approval_blocked_queue_explains_itself_instead_of_showing_a_bare_reviewed(
+        self,
+    ):
+        """THE MEASURED DEFECT, fixed: the reason is present and legible without prior knowledge."""
+        out = self._run_and_capture(
+            [
+                self._entry(1, "abc123", needs_input=True),
+                self._entry(2, "def456", needs_input=True),
+            ]
+        )
+        lines = self._disposition_lines(out)
+        self.assertEqual(len(lines), 2)
+        for line in lines:
+            self.assertIn("needs_human_approval", line)
+            self.assertIn("approval", line)
+        self.assertIn("abc123", lines[0])
+        self.assertIn("def456", lines[1])
+
+    def test_the_line_count_equals_the_number_of_matched_artifacts(self):
+        """Nothing matched is omitted, which is what makes the block answer "what did the run ignore?"."""
+        queue = [
+            self._entry(1, "aaa111", needs_input=True),
+            self._entry(2, "bbb222", status="executed"),
+            self._entry(3, "ccc333", status="not-attempted"),
+            self._entry(
+                4,
+                "ddd444",
+                dependencies=["executed:aaa111"],
+            ),
+        ]
+        out = self._run_and_capture(queue)
+        lines = self._disposition_lines(out)
+        self.assertEqual(len(lines), len(queue))
+
+    def test_a_mixed_run_reports_four_distinct_dispositions_each_with_a_reason(self):
+        """Four different dispositions, four different explanations, one line each."""
+        queue = [
+            self._entry(1, "aaa111", needs_input=True),
+            self._entry(2, "bbb222", status="executed"),
+            self._entry(3, "ccc333", status="not-attempted"),
+            # `queued` DELIBERATELY: the drain path reaches only a `queued` item, so this is what
+            # makes the run itself compute the `dependency-blocked` disposition and its reason
+            # strings rather than the test hand-writing them. Its prerequisite is item 1, which is
+            # approval-frozen, so the edge can never be satisfied in this run.
+            self._entry(4, "ddd444", status="queued", dependencies=["executed:aaa111"]),
+        ]
+        out = self._run_and_capture(queue)
+        lines = self._disposition_lines(out)
+        joined = "\n".join(lines)
+        self.assertIn("needs_human_approval", joined)
+        self.assertIn("ipd_already_executed", joined)
+        self.assertIn("type_or_status_not_runnable", joined)
+        # The dependency case NAMES the unmet dependency, per the backlog item.
+        self.assertIn("dependency_not_met", joined)
+        self.assertIn("executed:aaa111", joined)
+        # Every line carries SOME reason: no line ends at the disposition.
+        for line in lines:
+            self.assertRegex(line, r" -> [^:]+: \S")
+
+    def test_a_multi_attempt_item_still_produces_exactly_one_disposition_line(self):
+        """Once per ARTIFACT, not once per ATTEMPT, or child 03's counts would not sum."""
+        out = self._run_and_capture(
+            [
+                self._entry(
+                    1,
+                    "eee555",
+                    status="executed",
+                    attempts=[{"n": 1}, {"n": 2}, {"n": 3}],
+                )
+            ]
+        )
+        lines = self._disposition_lines(out)
+        self.assertEqual(len([line for line in lines if "eee555" in line]), 1)
+
+    def test_the_wording_comes_from_the_pure_module_and_not_from_this_driver(self):
+        """The driver must hold NO copy of the reason vocabulary (the anti-fork rule)."""
+        src = Path(str(driver.__file__)).read_text(encoding="utf-8")
+        from agent_workflows import run_selection_policy as pol
+
+        for label in pol.SKIP_REASON_LABELS.values():
+            self.assertNotIn(label, src)
+        self.assertIs(driver.render_queue_dispositions, pol.render_queue_dispositions)
+
+
 if __name__ == "__main__":
     unittest.main()

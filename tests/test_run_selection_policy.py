@@ -1001,3 +1001,289 @@ def test_the_combined_case_collects_both_confirmations_in_one_interaction():
     )
     assert only_drafts.proceed is False  # the mixed gate still refuses the run
     assert only_drafts.drafts.admitted == ("c0",)
+
+
+# --------------------------------------------------------------------------------------------------
+# runnoop Order 02 (`m85gxh`): the per-artifact disposition line and its closed reason set
+# --------------------------------------------------------------------------------------------------
+#
+# WHY THESE LIVE HERE AND NEED NO RUN. The renderer is PURE, so every branch is a function of its
+# inputs and can be asserted directly; a test that needed a live run to prove a reason string would be
+# proving the driver's wiring, which is `tests/test_oc_runipd.py`'s and `tests/test_agy_runipd_cli.py`'s
+# job. What is proven here is the CONTRACT: one renderer for both shapes, a closed reason vocabulary,
+# and a dependency reason that NAMES the unmet dependency.
+
+
+def _queue_entry(**over):
+    """One queue entry in the shape `runner_shared.initialize_run_core` actually freezes."""
+    entry = {
+        "position": 1,
+        "id6": "abc123",
+        "setid": "wtiso",
+        "action": "execute",
+        "status": "reviewed",
+        "attempts": [],
+    }
+    entry.update(over)
+    return entry
+
+
+def test_one_renderer_produces_the_acted_on_and_skipped_lines_in_the_same_shape():
+    """The backlog item's actual requirement: a skipped artifact reported in the SAME shape.
+
+    ASSERTED STRUCTURALLY, not by eyeballing two strings: both lines come from the SAME function, and
+    the field layout (`- <pos> <id6> [<set>] <action> -> <disposition>: <reason>`) is identical up to
+    the reason text. Two renderers would drift exactly as `render_action_preview`'s docstring records.
+    """
+    skipped = pol.render_item_disposition(
+        "abc123",
+        "execute",
+        "reviewed",
+        "needs_human_approval (frozen)",
+        position=1,
+        setid="wtiso",
+    )
+    acted = pol.render_item_disposition(
+        "def456", "execute", "executed", None, position=2, setid="wtiso"
+    )
+    assert (
+        skipped
+        == "- 01 abc123 [wtiso] execute -> reviewed: needs_human_approval (frozen)"
+    )
+    assert acted == "- 02 def456 [wtiso] execute -> executed: acted on by this run"
+    # The SHAPE is identical: same prefix, same arrow, same colon, same field count.
+    for line in (skipped, acted):
+        head, _, reason = line.partition(": ")
+        assert head.startswith("- ")
+        assert " -> " in head
+        assert reason  # never blank, which is what keeps the two shapes comparable
+
+
+def test_an_acted_on_artifact_never_renders_a_blank_reason():
+    """A blank reason reads as missing information, so the acted-on case carries a fixed label."""
+    assert pol.ACTED_REASON_LABEL in pol.render_item_disposition(
+        "a", "execute", "executed"
+    )
+    assert pol.ACTED_REASON_LABEL in pol.render_item_disposition(
+        "a", "execute", "executed", "   "
+    )
+
+
+def test_the_skip_reason_set_is_closed_and_uses_the_spec_names():
+    """Spec `25kzda` supplies EVERY name; this plan mints none (E-02).
+
+    The four dependency/approval/capability names come from 5.4's "Stable dependency reason codes"
+    and 5.7's failure-class table; `ipd_already_executed` from Section 6's worked example item 8; and
+    `type_or_status_not_runnable` from 5.7's "Non-runnable state/type" row.
+    """
+    assert set(pol.SKIP_REASONS) == {
+        "needs_human_approval",
+        "dependency_not_met",
+        "dependency_not_met_external",
+        "ipd_already_executed",
+        "type_or_status_not_runnable",
+        "host_capability_unavailable",
+    }
+    # Every reason is documented with WHERE its value is read from, and glossed for a human.
+    for code in pol.SKIP_REASONS:
+        assert pol.SKIP_REASON_SOURCES[code].strip()
+        assert pol.SKIP_REASON_LABELS[code].strip()
+    # CLOSED: an invented seventh reason is refused rather than silently rendered.
+    with pytest.raises(ValueError) as err:
+        pol.skip_reason_text("gate_refused")
+    assert "unknown skip reason code" in str(err.value)
+
+
+def test_every_named_reason_renders_a_line_carrying_its_code_and_gloss():
+    """The code is the machine-stable half; the gloss is what makes the line legible."""
+    for code in pol.SKIP_REASONS:
+        line = pol.render_item_disposition_for_reason(
+            "abc123", "execute", "reviewed", code
+        )
+        assert code in line
+        assert pol.SKIP_REASON_LABELS[code] in line
+
+
+def test_the_dependency_reason_names_the_unmet_dependency():
+    """The backlog item requires this specifically, so it is asserted specifically."""
+    lines = pol.render_queue_dispositions(
+        [
+            _queue_entry(
+                status="dependency-blocked",
+                unsatisfied_dependencies=["executed:zz5yxq"],
+                unsatisfied_dependency_reasons={
+                    "executed:zz5yxq": "in-run target zz5yxq is 'reviewed'"
+                },
+            )
+        ]
+    )
+    assert len(lines) == 2  # header + one artifact
+    assert "dependency_not_met" in lines[1]
+    assert "executed:zz5yxq" in lines[1]
+    assert "in-run target zz5yxq is 'reviewed'" in lines[1]
+
+
+def test_an_external_unsatisfiable_dependency_takes_the_external_reason_code():
+    """`edge_satisfied`'s own wording for an out-of-queue target selects the spec's EXTERNAL code."""
+    lines = pol.render_queue_dispositions(
+        [
+            _queue_entry(
+                status="dependency-blocked",
+                unsatisfied_dependencies=["executed:aaa111"],
+                unsatisfied_dependency_reasons={
+                    "executed:aaa111": (
+                        "executed:aaa111: external target aaa111 is 'approved' (directory 'pending'), "
+                        "it is not in this run, so it cannot become satisfied here"
+                    )
+                },
+            )
+        ]
+    )
+    assert "dependency_not_met_external" in lines[1]
+
+
+def test_the_needs_approval_line_explains_reviewed_to_a_reader_who_does_not_know_it():
+    """THE MEASURED DEFECT (backlog `em0z50`): `reviewed` displayed with no explanation.
+
+    The summary table already shows `reviewed` for this item. What was missing is the REASON, so this
+    asserts the reason is present and mentions approval in words, not merely that a line exists.
+    """
+    lines = pol.render_queue_dispositions([_queue_entry(needs_input=True)])
+    assert len(lines) == 2
+    assert "needs_human_approval" in lines[1]
+    assert "approval" in lines[1]
+
+
+def test_one_line_per_matched_artifact_regardless_of_attempt_count():
+    """The once-per-artifact property, which is what makes child 03's counts sum (E-03)."""
+    queue = [
+        _queue_entry(position=1, id6="abc123", needs_input=True),
+        _queue_entry(
+            position=2,
+            id6="def456",
+            status="executed",
+            attempts=[{"n": 1}, {"n": 2}, {"n": 3}],
+        ),
+        _queue_entry(position=3, id6="ghi789", status="executed"),
+        _queue_entry(position=4, id6="jkl012", status="not-attempted"),
+    ]
+    lines = pol.render_queue_dispositions(queue)
+    assert lines[0] == pol.DISPOSITION_HEADER
+    assert len(lines) - 1 == len(queue)
+    # Four DISTINCT dispositions, each explained; the three-attempt item still gets exactly one line.
+    assert sum(1 for line in lines if "def456" in line) == 1
+    assert "needs_human_approval" in lines[1]
+    assert pol.ACTED_REASON_LABEL in lines[2]
+    assert "ipd_already_executed" in lines[3]
+    assert "type_or_status_not_runnable" in lines[4]
+
+
+def test_an_empty_selection_renders_no_header():
+    """A stray header over nothing is worse than silence."""
+    assert pol.render_queue_dispositions([]) == []
+
+
+def test_a_recorded_refusal_supplies_the_reason_through_the_owning_plans_reader():
+    """E-05's seam: `orchprobe` `r2i1b1`'s record WINS, and this plan defines no record type.
+
+    The reader is INJECTED (that plan's shipped `refusal_of_item`), so this module never imports
+    `render_stream` and never reads the refusal key itself.
+    """
+    from agent_workflows import render_stream
+
+    entry = _queue_entry(status="merge-conflict")
+    render_stream.record_refusal(
+        entry,
+        code="merge-conflict",
+        reason="the lane conflicted with main on two files",
+        remedy="inspect the lane, resolve, then re-integrate",
+    )
+    lines = pol.render_queue_dispositions(
+        [entry], refusal_reader=render_stream.refusal_of_item
+    )
+    assert "the lane conflicted with main on two files" in lines[1]
+    # The REMEDY is deliberately NOT duplicated here: the summary's diagnostics block already prints it.
+    assert "inspect the lane" not in lines[1]
+    # Without the reader, no refusal is consulted at all.
+    assert "conflicted" not in pol.render_queue_dispositions([entry])[1]
+
+
+def test_the_refusal_record_outranks_an_inferable_reason():
+    """A producer that said WHY is more specific than anything inferable from a status."""
+    from agent_workflows import render_stream
+
+    entry = _queue_entry(needs_input=True)
+    render_stream.record_refusal(
+        entry, code="custom", reason="a specific recorded reason", remedy="do the thing"
+    )
+    line = pol.render_queue_dispositions(
+        [entry], refusal_reader=render_stream.refusal_of_item
+    )[1]
+    assert "a specific recorded reason" in line
+    assert "needs_human_approval" not in line
+
+
+def test_the_renderer_is_pure_no_print_no_filesystem():
+    """PURITY IS A PROPERTY TO PRESERVE (the module's own convention), so it is asserted."""
+    import io
+    import contextlib
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        out = pol.render_queue_dispositions([_queue_entry(needs_input=True)])
+    assert buf.getvalue() == ""
+    assert isinstance(out, list) and out
+
+
+def test_the_module_gained_no_first_party_import():
+    """The two-import purity other plans depend on, asserted by AST rather than by eye."""
+    import ast
+    import pathlib
+
+    tree = ast.parse(pathlib.Path(str(pol.__file__)).read_text(encoding="utf-8"))
+    first_party = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "agent_workflows":
+            first_party |= {a.name for a in node.names}
+        elif isinstance(node, ast.ImportFrom) and (node.module or "").startswith(
+            "agent_workflows."
+        ):
+            first_party.add((node.module or "").split(".", 1)[1])
+        elif isinstance(node, ast.Import):
+            for a in node.names:
+                if a.name.startswith("agent_workflows"):
+                    first_party.add(a.name.split(".", 1)[1])
+    assert first_party == {"selectors", "status_set"}
+
+
+def test_a_dependency_token_that_already_carries_its_reason_is_not_double_explained():
+    """The TWO producers of `unsatisfied_dependencies` write DIFFERENT shapes (measured).
+
+    The drain path writes a BARE token plus a separate reason MAP, while `cascade_dependency_blocked`
+    writes the reason INTO the token and no map. A `reasons.get(d, "unsatisfied")` fallback renders the
+    cascade's token as `executed:aaa111 (target reviewed) (unsatisfied)`: two contradictory reasons on
+    one line. This pins the fix.
+    """
+    line = pol.render_queue_dispositions(
+        [
+            _queue_entry(
+                status="dependency-blocked",
+                unsatisfied_dependencies=["executed:aaa111 (target reviewed)"],
+            )
+        ]
+    )[1]
+    assert "executed:aaa111 (target reviewed)" in line
+    assert "(unsatisfied)" not in line
+    # And the OTHER producer's shape still renders its recorded reason.
+    other = pol.render_queue_dispositions(
+        [
+            _queue_entry(
+                status="dependency-blocked",
+                unsatisfied_dependencies=["executed:bbb222"],
+                unsatisfied_dependency_reasons={
+                    "executed:bbb222": "in-run target is 'reviewed'"
+                },
+            )
+        ]
+    )[1]
+    assert "executed:bbb222 (in-run target is 'reviewed')" in other

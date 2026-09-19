@@ -2177,5 +2177,99 @@ class ToolIdentityAbortsTests(unittest.TestCase):
             )
 
 
+class AgyPerArtifactDispositionLineTests(unittest.TestCase):
+    """runnoop Order 02 (`m85gxh`) E-03, the AGY HALF: the same block, from the same object.
+
+    A CHILD MUST LAND IN BOTH RUNNERS OR IN NEITHER (the orchestrator's hard constraint), and a
+    one-sided guard is how `render_stream` was extracted and then re-forked in the other driver with
+    nothing noticing. So this host's block is proven by driving THIS driver's real `run_queue`, not by
+    reading its source.
+    """
+
+    def _run_and_capture(self, repo: Path, queue: list) -> str:
+        def _must_not_launch(*_a, **_k):
+            raise AssertionError(
+                "an agent turn was dispatched for an item that must never be dispatched"
+            )
+
+        run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+        (run_dir / "outcomes").mkdir(parents=True, exist_ok=True)
+        (run_dir / "prompts").mkdir(parents=True, exist_ok=True)
+        state = {
+            "run_id": "run-test",
+            "created_at": "2026-09-19T00:00:00+00:00",
+            "updated_at": "2026-09-19T00:00:00+00:00",
+            "selectors": ["wtiso"],
+            "repo": str(repo),
+            "queue": queue,
+            "set_sessions": {},
+            "session_id": None,
+            "options": {"model": "opus", "isolate_worktree": False},
+        }
+        (run_dir / "state.json").write_text(
+            json.dumps(state, indent=2, sort_keys=True), encoding="utf-8"
+        )
+        buf = io.StringIO()
+        with (
+            mock.patch.object(agy_runipd, "run_agy_turn", _must_not_launch),
+            redirect_stdout(buf),
+        ):
+            agy_runipd.run_queue(run_dir, retry_incomplete=False)
+        return buf.getvalue()
+
+    def test_this_host_prints_one_explained_line_per_matched_artifact(self):
+        from agent_workflows import run_selection_policy as pol
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            _init_repo_with_conforming_plan(repo, "agy001")
+            out = self._run_and_capture(
+                repo,
+                [
+                    {
+                        "position": 1,
+                        "id6": "agy001",
+                        "setid": "wtiso",
+                        "action": "execute",
+                        "status": "reviewed",
+                        "attempts": [],
+                        "needs_input": True,
+                    },
+                    {
+                        "position": 2,
+                        "id6": "agy002",
+                        "setid": "wtiso",
+                        "action": "execute",
+                        "status": "executed",
+                        "attempts": [],
+                    },
+                ],
+            )
+            self.assertIn(pol.DISPOSITION_HEADER, out)
+            lines = [line for line in out.splitlines() if line.startswith("- 0")]
+            self.assertEqual(len(lines), 2)
+            self.assertIn("needs_human_approval", lines[0])
+            self.assertIn("approval", lines[0])
+            self.assertIn("ipd_already_executed", lines[1])
+
+    def test_both_hosts_render_the_line_from_the_same_object(self):
+        """The anti-re-fork half, asserted by identity because source reading cannot see a copy."""
+        from agent_workflows import oc_runipd, run_selection_policy as pol
+
+        self.assertIs(
+            agy_runipd.render_queue_dispositions, pol.render_queue_dispositions
+        )
+        self.assertIs(
+            agy_runipd.render_queue_dispositions, oc_runipd.render_queue_dispositions
+        )
+
+    def test_this_host_holds_no_copy_of_the_reason_vocabulary(self):
+        from agent_workflows import run_selection_policy as pol
+
+        src = Path(str(agy_runipd.__file__)).read_text(encoding="utf-8")
+        for label in pol.SKIP_REASON_LABELS.values():
+            self.assertNotIn(label, src)
+
+
 if __name__ == "__main__":
     unittest.main()

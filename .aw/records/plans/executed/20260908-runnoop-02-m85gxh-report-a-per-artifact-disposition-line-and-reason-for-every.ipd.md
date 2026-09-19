@@ -10,18 +10,18 @@
 - Scope: Emit exactly ONE output line per artifact the selector MATCHED, in the SAME shape whether the run acted on it or not, carrying its disposition and, when it was skipped, the reason. Site the wording in a PURE module both hosts import, never in a driver. EXCLUDES the end-of-run aggregate summary and its counts and remedies (child 03 `bsc457`); excludes adding any new refusal kind or refusal RECORD type (pending plan `r2i1b1`); excludes the `aw runs` `Issue` column and the `--json`/`--agent` payloads (also `r2i1b1`); excludes changing any disposition's MEANING (child 01 `zz5yxq`, which must land first).
 - Scope-Paths: agent_workflows/run_selection_policy.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_run_selection_policy.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_refork_guard.py
 - Item-Dependencies: executed:zz5yxq
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runnoop
 - Order: 2
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: m85gxh
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 - From-Backlog: em0z50
 
 ## Workflow history
+- 2026-09-19 executed (aw oc run): aw oc run self-finalize: m85gxh verified (set runnoop, attempt 1).
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-601..PR-609 all FIXED in place; review record written; aw ipd lint --phase review-finalize conforms.
 
@@ -41,46 +41,46 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one pure renderer for the per-artifact line
 
-- [ ] E-01 ADD ONE PURE RENDERER to `run_selection_policy.py` that formats a SINGLE per-artifact disposition line from plain data: the artifact identity, its action, its disposition, and an optional reason. Pure means it builds and returns a string, prints nothing, touches no filesystem, and imports no runner, exactly as `render_action_preview` (`:589`) and `render_refusal` (`:693`) already do in that module.
+- [x] E-01 ADD ONE PURE RENDERER to `run_selection_policy.py` that formats a SINGLE per-artifact disposition line from plain data: the artifact identity, its action, its disposition, and an optional reason. Pure means it builds and returns a string, prints nothing, touches no filesystem, and imports no runner, exactly as `render_action_preview` (`:589`) and `render_refusal` (`:693`) already do in that module.
   ONE RENDERER, NOT ONE PER DISPOSITION. The line for an acted-on artifact and the line for a skipped one must come from the SAME function with the same alignment and field order, because the backlog item's requirement is that a skipped artifact is reported "in the SAME shape as an acted-on one". Two renderers would drift in exactly the way `render_action_preview`'s docstring records.
   DO NOT ADD A FIRST-PARTY IMPORT beyond the two the module already has (`selectors`, `status_set`, AST-verified at `:39-40`). If the line needs a fact the caller has and the module does not, pass it in as a parameter; that is what makes every branch testable without a run.
   - Depends on: none
   - Expected outcome: one function in `run_selection_policy.py` returning a formatted line for any (identity, action, disposition, reason) tuple; an AST walk shows the module's first-party imports unchanged; the acted-on and skipped forms are field-aligned and produced by this one function.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 ENUMERATE AND NAME THE SKIP REASONS the line must be able to carry, as a closed, documented set in the same module, so a reason is a value rather than an ad-hoc string at a call site. The backlog item names six: needs-approval, dependency unsatisfied (naming the unmet dependency), already executed, status not runnable, gate refused, and filtered out by a flag.
+- [x] E-02 ENUMERATE AND NAME THE SKIP REASONS the line must be able to carry, as a closed, documented set in the same module, so a reason is a value rather than an ad-hoc string at a call site. The backlog item names six: needs-approval, dependency unsatisfied (naming the unmet dependency), already executed, status not runnable, gate refused, and filtered out by a flag.
   READ EACH REASON FROM WHERE IT IS ALREADY COMPUTED; do NOT recompute any. Located at HEAD `44d4950d`: needs-approval from child 01's durable fact on the queue item (`zz5yxq` E-03), which is why this plan depends on that child; dependency-unsatisfied from `unsatisfied_dependencies` plus `unsatisfied_dependency_reasons`, which `edge_satisfied` already populates and which today reach only the summary diagnostics block (`render_stream.py:2152`); already-executed and status-not-runnable from the plan status and `action_for` (`runner_shared.py:3074`); the draft exclusion from `run_selection_policy.decide_draft_admission` (`:1004`), which already renders its own notice at `render_drafts_exclusion` (`:966`) and must be REUSED rather than reformatted.
   STATE WHAT YOU FIND FOR "GATE REFUSED" RATHER THAN INVENTING IT. That reason is the least well-defined of the six and the runner has several distinct gates (draft admission, mixed-type, dependency preflight, requested-action legality, host capability). Enumerate which of them can leave an artifact matched-but-unacted, and if one of them refuses the whole RUN rather than one artifact, say so and exclude it: a per-artifact line cannot report a run-wide refusal and pretending otherwise would produce a line that never renders.
   USE SPEC §5.4's NAMES WHERE ONE EXISTS (PR-607, settled at review). Spec `25kzda` §5.4 (`:948-958`) defines a "Stable dependency reason codes" vocabulary that already names four of the six: `needs_human_approval` for the needs-approval case, `dependency_not_met` and `dependency_not_met_external` for the dependency cases, plus `host_capability_unavailable`, `dependency_graph_invalid` and `dependency_cycle`. Mint a name ONLY for a reason the spec does not cover (already-executed and status-not-runnable have no entry, that table being dependency-scoped). Note none of these is bound to a code constant today (`needs_human_approval` greps to ZERO under `agent_workflows/`, and `dependency_not_met` exists only as an `AggregatedItem` boolean at `run_evidence.py:1977`), so nothing will go red if you diverge; follow the spec regardless and cite §5.4 in the code so the authority is findable.
   - Depends on: E-01
   - Expected outcome: a closed named set of skip reasons in `run_selection_policy.py`, using spec §5.4's names wherever one exists and citing that section, each documented with WHERE its value is read from; the draft exclusion reuses the existing renderer; any of the six that turns out to be run-wide rather than per-artifact is excluded with the measurement that showed it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: wire both hosts
 
-- [ ] E-03 CALL THE RENDERER FROM BOTH HOSTS at the point a disposition becomes known, and ALSO for every matched artifact the run never dispatches. The second half is the defect: the existing per-item finish line lives INSIDE `execute_item` (now unified in `runner_shared.execute_item_core:12050`, previously `oc_runipd.py:6956-6970` and `agy_runipd.py:4013-6027`) and prints only for an item that RAN, so an item frozen as needs-approval never reaches it.
+- [x] E-03 CALL THE RENDERER FROM BOTH HOSTS at the point a disposition becomes known, and ALSO for every matched artifact the run never dispatches. The second half is the defect: the existing per-item finish line lives INSIDE `execute_item` (now unified in `runner_shared.execute_item_core:12050`, previously `oc_runipd.py:6956-6970` and `agy_runipd.py:4013-6027`) and prints only for an item that RAN, so an item frozen as needs-approval never reaches it.
   DO NOT BUILD A SECOND SUMMARY TABLE, AND KNOW WHAT ALREADY PRINTS (PR-601). The end-of-run summary ALREADY renders one row per matched artifact with its disposition, including zero-attempt items, and the order announcement already names every matched id6. What is missing is the REASON beside the disposition. So this item's value is a per-artifact line carrying the REASON at a point where the operator sees it, not a re-listing of the queue. If your output duplicates the summary table's rows without adding a reason, you have built nothing; V-03 now requires the reason to be visible in the pasted output.
   MIND THE DIAGNOSTICS PRECEDENT AND ITS FENCE. `render_stream.py:2152-2173` already prints `  • <id6>: <status> (<reason>)` for five statuses. That is the SHAPE an operator already reads reasons in, so matching it is sensible, but the allowlist itself belongs to `r2i1b1` and `render_stream.py` is outside this plan's fence. Do NOT widen that allowlist here; emit your line from the driver through the `run_selection_policy` renderer instead, and say in the code why the two surfaces coexist so the next reader does not merge them by accident.
   DO NOT ADD A SYMBOL TO `oc_runipd` FOR AGY TO IMPORT. `agy_runipd` already imports 47 names from `oc_runipd` (AST-measured 2026-09-08) and zero flow back. Both hosts import the renderer from `run_selection_policy` directly.
   PRINT ONCE PER ARTIFACT, NOT ONCE PER ATTEMPT. An item with three attempts must still produce one disposition line, or the counts child 03 aggregates will not sum to the number matched. Decide where that one line is emitted (after the item reaches a terminal disposition, or in one pass over the queue at a defined point) and record the choice with its reason.
   - Depends on: E-02
   - Expected outcome: both hosts emit exactly one line per matched artifact, including artifacts never dispatched; neither host gained an import from the other; the once-per-artifact property holds for a multi-attempt item.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 PIN THE SHARING BY OBJECT IDENTITY. Every symbol this plan adds must resolve to the SAME object from `oc_runipd`, `agy_runipd` and `run_selection_policy`. Register it in `tests/test_runner_refork_guard.py`'s `REFORK_TABLE`.
+- [x] E-04 PIN THE SHARING BY OBJECT IDENTITY. Every symbol this plan adds must resolve to the SAME object from `oc_runipd`, `agy_runipd` and `run_selection_policy`. Register it in `tests/test_runner_refork_guard.py`'s `REFORK_TABLE`.
   ADD `tests/test_runner_refork_guard.py` TO `Scope-Paths` BEFORE YOU EDIT IT (PR-604). The plan requires a new table row but never declared the file, so the edit would be out of fence and `aw ipd finalize` would demand a `--scope-reason` for work the plan mandates. It is now declared.
   THE GUARD DOES NOT WORK THE WAY THIS ITEM CLAIMED, so do not rely on the claim (PR-603, measured at review). `test_the_table_covers_both_runners` (`tests/test_runner_refork_guard.py:336-344`) does NOT fail a one-sided ROW: it asserts only that the table's AGGREGATE `runners` set equals `BOTH` and that MORE THAN ONE row names agy. Measured: 4 of the 46 existing rows name a single runner (`StreamTracker`, `format_tokens`, `format_statusline`, `render_event`), and they pass. So a one-sided row for your symbol would NOT be caught by that test, and the plan's "a table row naming only `oc_runipd` is a failed E-04" was true as a REQUIREMENT but false as a claim about enforcement.
   THEREFORE STATE THE REQUIREMENT ON ITS OWN TERMS AND PROVE IT DIRECTLY. Both hosts import the renderer, so BOTH must appear in your row (`BOTH`), and V-04's mutation check is what actually establishes the guard bites for YOUR symbol. Do not cite `test_the_table_covers_both_runners` as the enforcer; cite the identity assertions the table drives per row (`:270`, `:290`, `:318`).
   NOTE `run_selection_policy` OWNS NO ROWS TODAY (measured: zero rows with that owner), so yours will be the first. Follow the existing `Owned(symbol, owner, BOTH)` shape rather than inventing a variant.
   - Depends on: E-03
   - Expected outcome: object-identity assertions for every added symbol across all three modules; a `REFORK_TABLE` row naming BOTH runners, proven to bite by V-04's mutation check rather than by the aggregate test; `tests/test_runner_refork_guard.py` declared in Scope-Paths; the AST-measured oc-to-agy import count not increased above its measured baseline of 48.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 RECONCILE WITH PENDING PLAN `r2i1b1` AT EXECUTION TIME rather than at authoring time, and record the answer. Read that plan's current `- Status:` and location. If it has EXECUTED, its refusal record carries a reason and a REMEDY, and this plan's line must consume that record rather than formatting a parallel reason string. If it has NOT executed, this plan's line stands alone and must not define a record type that would collide with it.
+- [x] E-05 RECONCILE WITH PENDING PLAN `r2i1b1` AT EXECUTION TIME rather than at authoring time, and record the answer. Read that plan's current `- Status:` and location. If it has EXECUTED, its refusal record carries a reason and a REMEDY, and this plan's line must consume that record rather than formatting a parallel reason string. If it has NOT executed, this plan's line stands alone and must not define a record type that would collide with it.
   DO NOT DEFINE A REFUSAL RECORD HERE UNDER ANY BRANCH. Even if `r2i1b1` never lands, a record type is that plan's deliverable and defining a second one is how two vocabularies for one fact appear.
   - Depends on: E-04
   - Expected outcome: `r2i1b1`'s status read and recorded; the integration decision made and justified from that reading; no refusal record type defined in this plan under either branch.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -166,30 +166,321 @@ DO NOT EDIT §4.2's finding-code table: it is transcribed verbatim into `run_evi
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the renderer as written. Paste TWO rendered lines from it, one acted-on and one skipped, side by side, so the reader can SEE the shapes are identical rather than being told so. Paste an AST walk of `run_selection_policy.py`'s `Import`/`ImportFrom` nodes showing the first-party imports are still exactly `selectors` and `status_set`, and paste proof the function prints nothing and touches no filesystem (call it in a fresh interpreter with no repo present).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ONE renderer, TWO field-aligned lines, purity proven in a fresh interpreter with no repository, and the module's first-party imports still exactly `selectors` + `status_set`. Detail below.
+    THE RENDERER AS WRITTEN (`agent_workflows/run_selection_policy.py`, body; the docstring is in the file):
 
-- [ ] V-02 validates E-02
+    ```python
+    def render_item_disposition(
+        identity: str,
+        action: Optional[str],
+        disposition: Optional[str],
+        reason: Optional[str] = None,
+        *,
+        position: Optional[int] = None,
+        setid: Optional[str] = None,
+    ) -> str:
+        ident = str(identity or "?").strip() or "?"
+        head = "- "
+        if position is not None:
+            head += "{0:02d} ".format(int(position))
+        head += ident
+        if setid:
+            head += " [{0}]".format(str(setid).strip())
+        act = str(action or "?").strip() or "?"
+        disp = str(disposition or "?").strip() or "?"
+        text = str(reason or "").strip() or ACTED_REASON_LABEL
+        return "{0} {1} -> {2}: {3}".format(head, act, disp, text)
+    ```
+
+    TWO LINES FROM THAT ONE FUNCTION, SIDE BY SIDE, so the identical shape is visible rather than asserted:
+
+    ```text
+    - 01 abc123 [wtiso] execute -> reviewed: needs_human_approval (frozen awaiting human approval; reviewed but not approved, so it was never dispatched)
+    - 02 def456 [wtiso] execute -> executed: acted on by this run
+    ```
+
+    Same prefix (`- `), same two-digit position, same `[set]`, same ` -> `, same `: `, same field count and order; only the REASON text differs, and it is never blank (the acted-on case carries `ACTED_REASON_LABEL`). Both lines are produced by THIS function: `tests/test_run_selection_policy.py::test_one_renderer_produces_the_acted_on_and_skipped_lines_in_the_same_shape` calls `render_item_disposition` twice and asserts both byte strings.
+
+    AST WALK of this module's `Import`/`ImportFrom` nodes, run at validation time:
+
+    ```text
+    $ python3 -c "...ast.walk over run_selection_policy.py..."
+    run_selection_policy first-party imports: ['selectors', 'status_set']
+    ```
+
+    Pinned as a test too (`test_the_module_gained_no_first_party_import` asserts the set equals `{"selectors", "status_set"}`), so a later import cannot be added silently.
+
+    PURITY, PROVEN IN A FRESH INTERPRETER IN A DIRECTORY WITH NO REPOSITORY:
+
+    ```text
+    cwd (a fresh empty dir, NO repository): .../.aw/state/tmp_m5q2iqm
+      .aw present here: False  .git present here: False
+    stdout captured from the renderers: ''
+    returned line : - 01 abc123 [wtiso] execute -> reviewed: needs_human_approval (x)
+    returned block: ['Per-artifact disposition (every artifact this selector matched):', '- 01 abc123 [wtiso] execute -> reviewed: needs_human_approval (frozen awaiting human approval; reviewed but not approved, so it was never dispatched)']
+    return types  : str list
+    files created in cwd by the call: []
+    ```
+
+    Nothing printed, nothing created, and the functions returned their strings with no repository present at all.
+  - Result: pass
+
+
+- [x] V-02 validates E-02
   - Required evidence: paste the closed reason set as written, with each entry's documented SOURCE. Show that every reason for which spec §5.4 supplies a name USES that name (`needs_human_approval`, `dependency_not_met`, `dependency_not_met_external`, and the three others if applicable), and for any name you minted, state which §5.4 row you checked and why none applies (PR-607). For each reason, paste one rendered line carrying it. For the dependency reason, paste a line that NAMES the unmet dependency, since the backlog item requires that specifically. Paste proof the draft exclusion REUSES `render_drafts_exclusion` rather than reformatting (show the call, not a similar string). For any of the six reasons excluded as run-wide, paste the measurement that showed it refuses before an artifact could be reported.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All six reasons are spec-named and NOTHING was minted (the plan predicted two coinages; the spec names both outside 5.4). Each rendered, the dependency one naming the unmet edge; the closed set refuses an unknown code; the four run-wide gates excluded with the measurement. Detail below.
+    THE CLOSED SET AS WRITTEN, with each entry's SOURCE. Every one of the six is spec-named and NOTHING WAS MINTED, which is a correction to the plan's own expectation (it predicted two coinages):
 
-- [ ] V-03 validates E-03
+    | Constant | Value | Spec authority | Where the VALUE is read from |
+    | --- | --- | --- | --- |
+    | `SKIP_NEEDS_HUMAN_APPROVAL` | `needs_human_approval` | 5.4 "Stable dependency reason codes" (Human gate row) and 5.7 ("Human gate / Required human receipt absent") | the durable queue flag `runner_shared.NEEDS_INPUT_KEY`, frozen by `item_needs_approval` (`zz5yxq` E-03) |
+    | `SKIP_DEPENDENCY_NOT_MET` | `dependency_not_met` | 5.4 (dependent outcome) and 5.7 | `item['unsatisfied_dependencies']` + `item['unsatisfied_dependency_reasons']` |
+    | `SKIP_DEPENDENCY_NOT_MET_EXTERNAL` | `dependency_not_met_external` | 5.4 ("Dependency omitted from queue and currently unsatisfied") | the same two keys; `edge_satisfied`'s EXTERNAL branch wording |
+    | `SKIP_ALREADY_EXECUTED` | `ipd_already_executed` | Section 6's worked example item 8 (`done08` -> `skipped`, `ipd_already_executed`) | the queue status preserved as `executed` by `initial_queue_status` via `TERMINAL_QUEUE_STATUSES` |
+    | `SKIP_NOT_RUNNABLE` | `type_or_status_not_runnable` | 5.7 ("Non-runnable state/type / Valid terminal/gated/narrative record / Skip without a session") | the frozen `initial_status` plus the queue `status` |
+    | `SKIP_HOST_CAPABILITY_UNAVAILABLE` | `host_capability_unavailable` | 5.4 and 5.7 ("Host guarantee unavailable") | `host_sandbox_profile.REASON_HOST_CAPABILITY_UNAVAILABLE` |
+
+    ON THE TWO THE PLAN EXPECTED TO MINT. PR-607 said §5.4 is dependency-scoped so "already executed" and "status not runnable" have no entry, and that is TRUE OF §5.4. Re-measured at execution, the spec names both ELSEWHERE, so a coinage would have created a second vocabulary for a fact the contract already names: `ipd_already_executed` is spec line 1225 (Section 6, item 8) and `type_or_status_not_runnable` is spec line 1124 (§5.7's failure-class table, alongside `needs_human_approval` at 1123 and `host_capability_unavailable` at 1127). Grepped to confirm the strings exist in the spec file rather than inferred. §5.4 itself was checked row by row for both and neither appears there, which is why the plan's reading was right about §5.4 and wrong about the spec.
+
+    HONEST BINDING LIMIT, measured so nothing is over-claimed: `needs_human_approval` and `type_or_status_not_runnable` each grep to ZERO other occurrences under `agent_workflows/`; `dependency_not_met` exists only as a `run_evidence.AggregatedItem` boolean field; only `host_capability_unavailable` is bound to a shipped constant. So no contract test would go red on divergence. The spec is followed anyway and §5.4/5.7/6 are cited IN THE CODE so the authority is findable.
+
+    ONE RENDERED LINE PER REASON (from `render_item_disposition_for_reason`, each carrying the CODE and its gloss):
+
+    ```text
+    - abc123 execute -> reviewed: needs_human_approval (frozen awaiting human approval; reviewed but not approved, so it was never dispatched)
+    - abc123 execute -> dependency-blocked: dependency_not_met (a declared dependency was not satisfied in this run)
+    - abc123 execute -> dependency-blocked: dependency_not_met_external (a declared dependency is outside this run's queue and unsatisfied, so it cannot be met here)
+    - abc123 execute -> executed: ipd_already_executed (already executed on disk, so there was nothing to do)
+    - abc123 execute -> not-attempted: type_or_status_not_runnable (its status is not runnable, so no session was appropriate)
+    - abc123 execute -> failed-safely: host_capability_unavailable (the host could not prove a capability this action requires)
+    ```
+
+    Pinned by `test_every_named_reason_renders_a_line_carrying_its_code_and_gloss`, which iterates `SKIP_REASONS` so a new reason cannot be added without a rendered line.
+
+    THE DEPENDENCY LINE NAMES THE UNMET DEPENDENCY, which the backlog item requires specifically:
+
+    ```text
+    - 01 abc123 [wtiso] execute -> dependency-blocked: dependency_not_met (a declared dependency was not satisfied in this run; unmet: executed:zz5yxq (in-run target zz5yxq is 'reviewed'))
+    ```
+
+    THE SET IS CLOSED, proven in the failing direction: `skip_reason_text("gate_refused")` raises `ValueError: unknown skip reason code 'gate_refused'; the closed set (spec 25kzda 5.4/5.7/6) is: ...` (`test_the_skip_reason_set_is_closed_and_uses_the_spec_names`).
+
+    THE DRAFT EXCLUSION IS REUSED, NOT REFORMATTED, and the reuse is the SHIPPED call, not a new one. `runner_shared.enforce_draft_admission_gate` already prints `verdict.message`, which `decide_draft_admission` composes by CALLING `render_drafts_exclusion(excluded_count=..., remaining_count=..., host=..., selector=...)` (the call, in `run_selection_policy.py`'s `decide_draft_admission`). This plan adds no second rendering of it and does not reformat it; see the exclusion measurement below for why the draft case cannot be a queue line at all.
+
+    THE RUN-WIDE REFUSALS, EXCLUDED WITH THE MEASUREMENT (OQ-02's answer). Measured by reading `runner_shared.initialize_run_core` at HEAD `7562ca6c` and printing each gate's OFFSET within that function:
+
+    ```text
+    draft gate       offset   70  queue_ids, draft_verdict = enforce_draft_admission_gate(
+    dep preflight    offset    8  enforce_dependency_preflight_fn: Any = None,
+    action legality  offset  122  enforce_requested_action(requested_action, preflight_items, labels=labels)
+    mixed gate       offset  124  mixed_verdict = enforce_mixed_type_gate(
+    run_dir assign   offset  134  run_dir = state_root(repo) / run_id
+    mkdir            offset  138  (run_dir / name).mkdir(parents=True, exist_ok=True)
+
+    mixed gate raises DriverError: True
+    action legality raises DriverError: True
+    dep preflight raises DriverError: True
+    draft gate raises: False      (its only `raise` hit is the word inside a COMMENT: "Printed, NOT raised")
+    host capability preflight aborts_run: True   (i.e. it carries `aborts_run=False`, so it is per-ITEM)
+    ```
+
+    So FOUR of the five gates refuse the WHOLE RUN by raising `DriverError` before any artifact can carry a disposition, and a per-artifact reason value for them could never render. They are excluded. The FIFTH (draft admission) genuinely excludes PER ARTIFACT and returns a filtered `queue_ids` with no `raise` at all - but it runs at offset 70 while the run directory is not created until offset 134, so an excluded draft has NO queue entry, NO disposition, and cannot appear in a queue-derived line. Its exclusion is already reported verbatim from spec 2.5a by the existing renderer, which is why E-02's "REUSE rather than reformat" is satisfied by leaving that path untouched.
+
+    `host_capability_unavailable` IS KEPT because it is genuinely per-artifact (`aborts_run=False`, `cascade_dependents=True`), with the honest limit measured and recorded in the code: `preflight_host_capabilities` occurrences in `oc_runipd.py` = 0, `agy_runipd.py` = 0, `runner_shared.py` = 0, so no current run can emit it. Filed as backlog `7bj5sa`.
+  - Result: pass
+
+
+- [x] V-03 validates E-03
   - Required evidence: paste the ACTUAL stdout of a run whose selector matched artifacts it did not act on, showing one line per matched artifact. THE LINE MUST CARRY A REASON, and that is the load-bearing part of this paste (F-8): the summary table already shows `reviewed` per artifact, so a pasted line that adds no reason proves nothing was fixed. For the needs-approval case, the pasted line must make the cause legible to a reader who does not already know what `reviewed` means. Paste the same for a MIXED run covering at least four distinct dispositions, and show the line count EQUALS the number matched. Paste a multi-attempt item's output showing exactly ONE disposition line for it. State where the line is emitted and why (OQ-01's answer). Paste the AST-measured oc-to-agy import count before and after, showing it did not increase above the measured baseline of 48 (F-11; the plan's original "47" was wrong). Confirm `render_stream.py` is unmodified.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Real `run_queue` stdout from BOTH hosts: 8/8 `reviewed` artifacts each explained, a mixed run with 6 matched and 6 lines, a 3-attempt item producing 1 line, oc-to-agy imports unchanged (49/53 before and after), `render_stream.py` unmodified. Detail below.
+    CASE 1, THE MEASURED DEFECT ITSELF. A run over 8 `reviewed`-not-approved plans, driven through the REAL `oc_runipd.run_queue` with a launcher that raises if called (so "nothing was dispatched" is proven positively). ACTUAL stdout, verbatim, table included so the contrast is visible:
 
-- [ ] V-04 validates E-04
+    ```text
+    | Run | Pos | ID6    | Set   | Action  | Status   | Verify |   Duration | Spend | Tok tot | ...
+    |  01 |  01 | wt0001 | wtiso | execute | reviewed | -      |          - |     - |       - | ...
+    |  02 |  02 | wt0002 | wtiso | execute | reviewed | -      |          - |     - |       - | ...
+    |  03 |  03 | wt0003 | wtiso | execute | reviewed | -      |          - |     - |       - | ...
+    |  04 |  04 | wt0004 | wtiso | execute | reviewed | -      |          - |     - |       - | ...
+    |  05 |  05 | wt0005 | wtiso | execute | reviewed | -      |          - |     - |       - | ...
+    |  06 |  06 | wt0006 | wtiso | execute | reviewed | -      |          - |     - |       - | ...
+    |  07 |  07 | wt0007 | wtiso | execute | reviewed | -      |          - |     - |       - | ...
+    |  08 |  08 | wt0008 | wtiso | execute | reviewed | -      |          - |     - |       - | ...
+    Per-artifact disposition (every artifact this selector matched):
+    - 01 wt0001 [wtiso] execute -> reviewed: needs_human_approval (frozen awaiting human approval; reviewed but not approved, so it was never dispatched)
+    - 02 wt0002 [wtiso] execute -> reviewed: needs_human_approval (frozen awaiting human approval; reviewed but not approved, so it was never dispatched)
+    - 03 wt0003 [wtiso] execute -> reviewed: needs_human_approval (frozen awaiting human approval; reviewed but not approved, so it was never dispatched)
+    - 04 wt0004 [wtiso] execute -> reviewed: needs_human_approval (frozen awaiting human approval; reviewed but not approved, so it was never dispatched)
+    - 05 wt0005 [wtiso] execute -> reviewed: needs_human_approval (frozen awaiting human approval; reviewed but not approved, so it was never dispatched)
+    - 06 wt0006 [wtiso] execute -> reviewed: needs_human_approval (frozen awaiting human approval; reviewed but not approved, so it was never dispatched)
+    - 07 wt0007 [wtiso] execute -> reviewed: needs_human_approval (frozen awaiting human approval; reviewed but not approved, so it was never dispatched)
+    - 08 wt0008 [wtiso] execute -> reviewed: needs_human_approval (frozen awaiting human approval; reviewed but not approved, so it was never dispatched)
+
+    exit code: 1
+    ```
+
+    THIS IS THE LOAD-BEARING PART (F-8). The table above is what SHIPPED and it shows `reviewed` eight times with no explanation anywhere; the block below it is what this plan adds, and it names the cause in words ("frozen awaiting human approval; reviewed but not approved, so it was never dispatched") for a reader who does not know what `reviewed` means. The exit code is 1 rather than the measured silent 0 because child 01 (`zz5yxq`) already fixed the success bar; this plan changed no exit code.
+
+    CASE 2, A MIXED RUN: six matched artifacts, FIVE distinct dispositions, five distinct reasons, one line each. Same real `run_queue`, same must-not-launch launcher. Note item 04 is queued with an unsatisfiable edge so the RUN ITSELF computes the `dependency-blocked` disposition and its reason strings rather than the fixture hand-writing them, and item 05 carries a real `Refusal` recorded through `r2i1b1`'s `record_refusal`:
+
+    ```text
+    Per-artifact disposition (every artifact this selector matched):
+    - 01 aaa111 [wtiso] execute -> reviewed: needs_human_approval (frozen awaiting human approval; reviewed but not approved, so it was never dispatched)
+    - 02 bbb222 [wtiso] execute -> executed: ipd_already_executed (already executed on disk, so there was nothing to do)
+    - 03 ccc333 [wtiso] execute -> not-attempted: type_or_status_not_runnable (its status is not runnable, so no session was appropriate)
+    - 04 ddd444 [wtiso] execute -> dependency-blocked: dependency_not_met (a declared dependency was not satisfied in this run; unmet: executed:aaa111 (target reviewed))
+    - 05 ref555 [wtiso] execute -> merge-conflict: the lane conflicted with main on agent_workflows/oc_runipd.py
+    - 06 fff666 [wtiso] execute -> executed: acted on by this run
+
+    matched: 6  lines: 6  equal: True
+    exit: 1
+    ```
+
+    THE LINE COUNT EQUALS THE NUMBER MATCHED (6 == 6), computed from the run's own stdout rather than asserted. Line 05 carries `r2i1b1`'s RECORDED reason rather than an inferred one (E-05's seam), and deliberately not its remedy, which the summary's diagnostics block already prints on its own line.
+
+    A MULTI-ATTEMPT ITEM GETS EXACTLY ONE LINE: item 06 above (`fff666`) carries three attempts and produced ONE disposition line ("lines naming fff666 (3 attempts): 1"). Pinned by `tests/test_oc_runipd.py::PerArtifactDispositionLineTests::test_a_multi_attempt_item_still_produces_exactly_one_disposition_line`.
+
+    THE AGY HOST, same block from the same object, driven through `agy_runipd.run_queue`:
+
+    ```text
+    Per-artifact disposition (every artifact this selector matched):
+    - 01 agy001 [wtiso] execute -> reviewed: needs_human_approval (frozen awaiting human approval; reviewed but not approved, so it was never dispatched)
+    - 02 agy002 [wtiso] execute -> executed: ipd_already_executed (already executed on disk, so there was nothing to do)
+    exit code: 1
+    ```
+
+    WHERE THE LINE IS EMITTED AND WHY (OQ-01's ANSWER, resolved to ONE CLOSING PASS). It is emitted once per host, immediately after `render_run_summary_table` on the normal `run_queue` exit path, iterating `state["queue"]` once. Reasons, in order of weight. FIRST, an artifact that is NEVER DISPATCHED has no termination point, so the emit-at-termination shape needs a closing pass anyway for precisely the case this plan exists to fix; the hybrid the plan called "probably right" therefore collapses to the closing pass alone, because the live half already exists (the per-item finish line in `runner_shared.execute_item_core`) and did not need re-inventing. SECOND, iterating the queue makes "exactly one line per matched artifact" STRUCTURAL rather than a discipline the caller must remember, since the queue holds exactly one entry per matched artifact however many attempts it accumulated - which is what makes child 03's counts sum. THIRD, the measured defect exits through THIS path (the selection loop finds no `queued` item and breaks straight to it), so one site covers it. NOT also wired onto the interrupt/`DriverError` paths that render their own summary: six call sites for one block is the duplication shape this repository keeps paying for, and those are aborted runs whose dispositions are still mid-flight.
+
+    OC-TO-AGY IMPORT COUNT, AST-MEASURED BEFORE AND AFTER (and note the F-11 baseline of 48 is itself stale at this HEAD; it is 49 top-level / 53 including nested, which is why this pastes BOTH numbers from BOTH trees rather than comparing to the plan's figure):
+
+    ```text
+    agy imports FROM oc_runipd  BEFORE (HEAD 7562ca6c): top=49 all=53
+    agy imports FROM oc_runipd  AFTER  (working tree):  top=49 all=53
+    oc imports FROM agy_runipd  BEFORE: 0
+    oc imports FROM agy_runipd  AFTER : 0
+    ```
+
+    UNCHANGED, and it did not increase, because both hosts import the renderer DIRECTLY from `run_selection_policy`. The reverse direction is still zero.
+
+    `render_stream.py` IS UNMODIFIED:
+
+    ```text
+    $ git diff --stat -- agent_workflows/render_stream.py
+    $ git status --porcelain -- agent_workflows/render_stream.py
+    (both empty)
+    ```
+  - Result: pass
+
+
+- [x] V-04 validates E-04
   - Required evidence: paste object-identity output for every added symbol resolving to the same object from all three modules. Paste the new `REFORK_TABLE` row showing BOTH runners listed, and paste `tests/test_runner_refork_guard.py` passing. THE MUTATION CHECK IS THE ONLY REAL PROOF HERE, because `test_the_table_covers_both_runners` does NOT fail a one-sided row (F-9: 4 of 46 shipped rows are one-sided and pass): define a local copy of one added symbol in `agy_runipd`, show the guard FAILS, revert, show it passes. Do NOT cite the aggregate test as the enforcer. A guard that cannot fail is not evidence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Object identity across all three modules, the new `BOTH` row, the guard passing, and the MUTATION check failing BOTH halves and passing after revert. Detail below.
+    OBJECT IDENTITY across all three modules, read at validation time:
 
-- [ ] V-05 validates E-05
+    ```text
+    $ python3 -c "from agent_workflows import oc_runipd as oc, agy_runipd as agy, run_selection_policy as p; ..."
+    oc.render_queue_dispositions is p.render_queue_dispositions   -> True
+    agy.render_queue_dispositions is p.render_queue_dispositions  -> True
+    oc.render_queue_dispositions is agy.render_queue_dispositions -> True
+    ```
+
+    ONE symbol was added to the shared surface (`render_queue_dispositions`); the reason vocabulary and the single-line renderer are reached THROUGH it, so there is exactly one row to pin. Also asserted as tests, on both hosts: `tests/test_oc_runipd.py::...::test_the_wording_comes_from_the_pure_module_and_not_from_this_driver` and `tests/test_agy_runipd_cli.py::AgyPerArtifactDispositionLineTests::test_both_hosts_render_the_line_from_the_same_object`.
+
+    THE NEW `REFORK_TABLE` ROW, naming BOTH runners (`BOTH` == `("oc_runipd", "agy_runipd")`), and the first row this table carries for this owner (measured before adding it: zero rows with owner `run_selection_policy`):
+
+    ```python
+    # --- run_selection_policy: the PER-ARTIFACT DISPOSITION LINE, added by `runnoop` Order 02 (`m85gxh`) ---
+    Owned("render_queue_dispositions", "run_selection_policy", BOTH),
+    ```
+
+    `run_selection_policy` was also registered in that file's `_MODULES` map, without which `test_the_owning_module_really_defines_every_tabled_symbol` would `KeyError` rather than assert.
+
+    THE GUARD PASSING:
+
+    ```text
+    $ python3 -m pytest tests/test_runner_refork_guard.py -o addopts="" -q
+    .........                                                                [100%]
+    9 passed in 5.51s
+    ```
+
+    THE MUTATION CHECK, WHICH IS THE ONLY REAL PROOF (F-9: `test_the_table_covers_both_runners` does NOT fail a one-sided row, since it asserts only the table's AGGREGATE and four shipped rows are legitimately one-sided and pass). A runner-local re-fork was defined in `agy_runipd` in place of the import:
+
+    ```python
+    def render_queue_dispositions(entries, *, header="x", refusal_reader=None):
+        """MUTATION FOR V-04: a runner-local re-fork of the shared renderer."""
+        return []
+    ```
+
+    BOTH HALVES OF THE CONTRACT FAILED under it, which is stronger than the one failure this item asked for:
+
+    ```text
+    $ python3 -m pytest tests/test_runner_refork_guard.py -o addopts="" -q
+    E       AssertionError: Lists differ: ['agy_runipd.render_queue_dispositions is [142 chars]pd)'] != []
+    E       First extra element 0:
+    E       'agy_runipd.render_queue_dispositions is NOT `run_selection_policy.render_queue_dispositions` (got <function render_queue_dispositions at 0x7bdf3fdec5c0> from agent_workflows.agy_runipd)'
+    FAILED tests/test_runner_refork_guard.py::SymmetricReForkGuardTests::test_no_runner_redefines_an_already_extracted_symbol
+    FAILED tests/test_runner_refork_guard.py::SymmetricReForkGuardTests::test_every_runner_attribute_is_the_owning_modules_object
+    2 failed, 7 passed in 6.14s
+    ```
+
+    AND PASSING AGAIN AFTER REVERT:
+
+    ```text
+    reverted
+    $ python3 -m pytest tests/test_runner_refork_guard.py -o addopts="" -q
+    .........                                                                [100%]
+    9 passed in 5.51s
+    ```
+
+    The enforcer cited is the per-row AST half plus the per-row identity half, NOT the aggregate test.
+  - Result: pass
+
+
+- [x] V-05 validates E-05
   - Required evidence: paste `r2i1b1`'s `- Status:` line and its directory, read at validation time. State which branch applied and what was done. If it executed, paste the code showing this plan's line consumes its record; if it did not, paste proof this plan defines no refusal record type (a grep for a record/dataclass definition in the changed files, returning nothing).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `r2i1b1` reads `- Status: executed` in `.aw/records/plans/executed/`, so the EXECUTED branch applied: this line CONSUMES its refusal record via its own `refusal_of_item` reader, injected as a parameter, and defines no record type. Detail below.
+    `r2i1b1`'s STATUS AND DIRECTORY, read at validation time:
+
+    ```text
+    $ grep -n "^- Status:\|^- Id:" .aw/records/plans/executed/20260907-orchprobe-01-r2i1b1-surface-a-per-item-refusal-reason-and-its-remedy-in-the-run.ipd.md
+    10:- Status: executed
+    16:- Id: r2i1b1
+    ```
+
+    Directory: `.aw/records/plans/executed/`. So the EXECUTED branch applied, which is the branch the orchestrator predicted was likely ("`r2i1b1` is approved and RUNNABLE now ... so 'if `r2i1b1` lands first' is not a hypothetical").
+
+    WHAT WAS DONE: this plan's line CONSUMES that plan's refusal record rather than formatting a parallel reason string, and it does so through that plan's OWN ONE READER (`render_stream.refusal_of_item`), which is the function its docstring says every surface must go through ("Consume this instead of indexing `item[REFUSAL_KEY]`"). The reader is INJECTED as a parameter rather than imported, so this module still imports no first-party module beyond `selectors` and `status_set`:
+
+    ```python
+    # run_selection_policy.render_queue_dispositions
+    refusal_reason = reason_from_refusal(
+        refusal_reader(entry) if refusal_reader is not None else None
+    )
+    if refusal_reason:
+        reason = refusal_reason
+    ```
+
+    ```python
+    # both hosts, identically (oc_runipd.py and agy_runipd.py)
+    for _disposition_line in render_queue_dispositions(
+        state.get("queue", []), refusal_reader=refusal_of_item
+    ):
+        print(_disposition_line)
+    ```
+
+    THE RECORD OUTRANKS ANY INFERRED REASON, because a producer that explicitly said why it refused THIS item is more specific than anything derivable from a status; pinned by `test_the_refusal_record_outranks_an_inferable_reason` (an item carrying BOTH a recorded refusal and the needs-approval flag renders the RECORD's reason and not `needs_human_approval`). Proven working end-to-end in V-03's Case 2, line 05, whose reason text came from `record_refusal`. The REMEDY is deliberately not rendered here: the summary's diagnostics block already prints it on its own line and duplicating it would put the same remedy on the operator's screen twice.
+
+    NO REFUSAL RECORD TYPE IS DEFINED BY THIS PLAN, under either branch, grepped over the three changed source files:
+
+    ```text
+    $ git diff HEAD~1 -U0 -- agent_workflows/run_selection_policy.py agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py | grep -E "^\+" | grep -E "@dataclass|^\+class |NamedTuple\)|REFUSAL_KEY|_KEY = "
+    (no output; exit 1)
+    ```
+
+    The only added module-level data are the six reason-code string constants and three plain mappings; no class, no dataclass, no NamedTuple, and no second record key.
+  - Result: pass
+
 
 ## Approval and execution gate
 

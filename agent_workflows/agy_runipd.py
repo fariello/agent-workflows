@@ -39,6 +39,16 @@ from typing import Any, Callable, Iterable, Optional
 from agent_workflows.render_stream import Heartbeat as Heartbeat
 from agent_workflows import platform_lock, runner_shutdown
 
+# runnoop Order 02 (`m85gxh`): the pure PER-ARTIFACT DISPOSITION renderer, imported from its OWNING
+# module and NOT from `oc_runipd`. This module already imports 48 names from that driver and zero flow
+# back, so a shared renderer must not become the 49th: the symbol is owned by a third module both
+# hosts read, and `tests/test_runner_refork_guard.py` pins that both see the SAME object. The
+# `as <same-name>` form matches the idiom used for every other re-export here and keeps a linter from
+# stripping the binding.
+from agent_workflows.run_selection_policy import (
+    render_queue_dispositions as render_queue_dispositions,
+)
+
 # rununify 01 (`2r306y`): the rest of the display layer this module used to RE-FORK. `Palette`,
 # `_strip_ansi`, `_one_line` and the four ANSI/status constants their bodies close over were
 # inline copies here, AST-identical to `render_stream`'s, for exactly the reason `Heartbeat`
@@ -3577,6 +3587,19 @@ def run_queue(
             driver_label="antigravity",
         )
     )
+    # runnoop Order 02 (`m85gxh`) E-03: THE PER-ARTIFACT DISPOSITION LINE, the exact mirror of the oc
+    # twin. The REASON is the deliverable, not the line: the summary table above already renders one
+    # row per matched artifact with its disposition (including a zero-attempt item), and carries no
+    # explanation of what that disposition MEANS. Emitted in ONE CLOSING PASS over the queue, which is
+    # what makes "exactly one line per matched artifact" structural and what covers the artifact that
+    # is never dispatched and therefore has no termination point. The wording and the reason vocabulary
+    # come from the pure `run_selection_policy` module (imported DIRECTLY by this host, never through
+    # `oc_runipd`), and `refusal_of_item` is `orchprobe` `r2i1b1`'s ONE reader. See the longer note at
+    # the oc call site for the measurement and for why only this exit path carries the block.
+    for _disposition_line in render_queue_dispositions(
+        state.get("queue", []), refusal_reader=refusal_of_item
+    ):
+        print(_disposition_line)
     # specvis st5klo E-03: the PRIMARY end-of-run site for this host, from the SAME shared
     # `report_run_spec_edits` the OpenCode driver calls. The report's computation and wording are
     # defined once (in `oc_runipd`/`render_stream`); only the SITE is per-driver.
