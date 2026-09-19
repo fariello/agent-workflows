@@ -6,16 +6,16 @@
 - Scope: Update `LaneInventory` in `agent_workflows/lane_containment.py` so gitignored files do not block classification, implementing amended spec `7ckptx` R5.5 (committed at `e94a7c4e`). Teardown continues to refuse on uncommitted tracked modifications (dirty tracked files), uncommitted untracked source files (unknown untracked files), and uncollected submissions under `.aw/state/lane-submissions/`. Update `tests/test_lane_retention.py` to match the amended contract.
 - Scope-Paths: agent_workflows/lane_containment.py, tests/test_lane_retention.py, .aw/records/specs/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: laneign
 - Order: 1
 - Highest E allocated: 03
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: 5w8g8j
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-19 executed (aw oc run): aw oc run self-finalize: 5w8g8j verified (set laneign, attempt 1). [Scope reconciliation - in-scope-unmodified .aw/records/specs/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-19 approved (aw set): status set to approved
 
 - 2026-09-18 reviewed (aw set): plan-review round 2 complete: APPROVE WITH REVISIONS APPLIED. Spec 7ckptx R5.5 amended in commit e94a7c4e per maintainer ruling: gitignored files are disposable upon lane destruction and do not block teardown. PR-001 and PR-002 marked FIXED. OQ-02 and OQ-03 resolved. Plan simplified to 3 E/V items. Readiness go-pending-approval.
