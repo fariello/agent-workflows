@@ -9914,6 +9914,75 @@ def driver_actor(state: dict[str, Any], *, labels: HostLabels) -> str:
     return f"{labels.command} " + " ".join(parts) if parts else labels.command
 
 
+#: Queue statuses that PROVE the runner dispatched (or began dispatching) a turn for an item, so a run
+#: holding one cannot honestly claim "no turn was attempted" (`bsc457` E-04).
+#:
+#: AN ALLOWLIST OF THE NEVER-DISPATCHED STATUSES WOULD BE THE WRONG SHAPE, and this is the correction
+#: that matters: a status absent from a closed "never ran" set must be treated as HAVING RUN, because
+#: the cost of the two mistakes is asymmetric. Saying "no turn was attempted" about a run that DID
+#: attempt one is an affirmative false statement about what the runner did; falling back to the older,
+#: vaguer sentence merely fails to add information. So this set names what proves dispatch and
+#: everything else defaults to the cautious branch.
+#:
+#: MEASURED, AND WHY THE `attempts` KEY ALONE IS NOT ENOUGH: `tests/test_oc_runipd.py`'s
+#: `test_no_sessions_captured_incomplete` renders a queue of `[{"status": "failed"}]` with NO
+#: `attempts` key at all. That item plainly ran and failed, so a predicate reading only `attempts`
+#: would have called it unattempted and printed the new sentence about a run that really did try to
+#: launch. Statuses are taken from `runner_shutdown.KNOWN_ITEM_STATUSES` plus the bare `failed` that
+#: this shipped test fixture uses.
+DISPATCH_PROVING_STATUSES: frozenset = frozenset(
+    {
+        # in flight, or cut short mid-turn
+        "running",
+        "interrupted",
+        # ran and produced an outcome
+        "failed",
+        "failed-safely",
+        "partial",
+        "substantially-complete",
+        "blocked",
+        # ran, finalized, and then hit the integration gate
+        "integration-blocked",
+        "integration-deferred",
+        "merge-conflict",
+    }
+)
+
+
+def no_turn_was_attempted(state: Mapping[str, Any]) -> bool:
+    """Did this run dispatch NOTHING AT ALL, so its missing session is expected rather than a failure?
+
+    THE EVIDENCE IS THE QUEUE'S OWN RECORDS, not any new state (`bsc457` E-04): an item the runner
+    dispatched accumulates `attempts`, and a status in :data:`DISPATCH_PROVING_STATUSES` proves a turn
+    ran even where the attempt list is absent.
+
+    FAILS CLOSED IN THREE WAYS, each deliberate, because the caller uses a True answer to make an
+    affirmative claim about what the runner did:
+
+      * an EMPTY or unreadable queue returns False. "Nothing was attempted" is a statement about
+        matched work, and with no queue to read there is no basis for it.
+      * a malformed entry (anything that is not a mapping) returns False, since an unreadable entry
+        cannot be shown not to have run.
+      * any dispatch-proving status or any recorded attempt returns False.
+
+    Tolerant of a state file an older driver wrote, because this is consulted on the exit path of every
+    run and a footer must never raise.
+    """
+
+    queue = state.get("queue")
+    if not isinstance(queue, list) or not queue:
+        return False
+    for item in queue:
+        if not isinstance(item, dict):
+            return False
+        if item.get("attempts"):
+            return False
+        status = str(item.get("status") or "").strip().lower()
+        if status in DISPATCH_PROVING_STATUSES:
+            return False
+    return True
+
+
 def render_continuation_hint(
     state: dict[str, Any],
     run_dir: Path,
@@ -9938,7 +10007,35 @@ def render_continuation_hint(
 
     lines = ["", pal(f"--- {labels.product} Session Continuity ---", "bold")]
     if not captured:
-        lines.append(f"No {labels.product} session was captured for this run.")
+        # runnoop Order 03 (`bsc457`) E-04: TWO CASES, NOT ONE REWORDED SENTENCE.
+        #
+        # "No session was captured BECAUSE NO TURN WAS ATTEMPTED" and "no session was captured ALTHOUGH
+        # a turn was attempted" are different facts with different remedies, and collapsing them is the
+        # defect. Measured (backlog `em0z50`): `aw oc run wtiso` matched 8 approval-frozen plans,
+        # dispatched nothing, and closed with the bare sentence below, which reads as a LAUNCH FAILURE.
+        # An operator seeing it reasonably concludes the host is broken and starts debugging the
+        # launcher, when the truth is that the runner deliberately declined to dispatch and the fix is
+        # an approval.
+        #
+        # THE QUEUE'S OWN ATTEMPT RECORDS ARE THE EVIDENCE, rather than any new state: an item the
+        # runner dispatched has attempts, so `attempts` being empty across the WHOLE queue is exactly
+        # "nothing was ever launched". A non-empty queue is required for that claim, since an empty
+        # queue is a different situation and must keep the original wording.
+        #
+        # THE PRODUCT NAME STAYS PER-HOST. This body is shared, and `labels.product` is what keeps oc
+        # saying "OpenCode" and agy saying "Antigravity"; the STRUCTURE is identical, the literal
+        # string is not (pinned by `test_the_continuation_hint_names_each_host_by_its_OWN_product_name`).
+        #
+        # THE RESUME-HINT BRANCH BELOW IS DELIBERATELY UNTOUCHED: `all_success` is `zz5yxq`'s to move,
+        # and this item changes the SENTENCE, not the branch.
+        if no_turn_was_attempted(state):
+            lines.append(
+                f"No turn was attempted, so no {labels.product} session exists for this run. "
+                "This is NOT a failed launch: the runner dispatched nothing. See the disposition "
+                "summary above for what it matched and what to do about each item."
+            )
+        else:
+            lines.append(f"No {labels.product} session was captured for this run.")
     elif len(captured) == 1:
         setid, sid = captured[0]
         lines.append(f"Captured session: {pal(sid, 'cyan')} (Set: {setid})")

@@ -200,6 +200,28 @@ REFORK_TABLE: tuple[Owned, ...] = (
     # constants came to be re-forked and how `aw agy run` silently missed a display fix; a reader
     # cannot tell a shared object from a copy, and `assertIs` can.
     Owned("render_queue_dispositions", "run_selection_policy", BOTH),
+    # --- run_selection_policy: the END-OF-RUN DISPOSITION SUMMARY, added by `runnoop` Order 03 (`bsc457`) ---
+    #
+    # SYMMETRIC (`BOTH`) BECAUSE THE SUMMARY IS PRINTED BY BOTH HOSTS at their end-of-run site, from the
+    # owning pure module, never one host importing it from the other.
+    #
+    # WHAT THIS ROW BUYS, since grep would not buy it: the operator-facing REMEDY text must be ONE
+    # object. A remedy is the line that tells a human how to unblock a run at 3am, and `AGENTS.md`
+    # records the measured failure mode when a message names only the prohibition (it gets complied with
+    # by DELETION). A textually identical copy in one driver would let a remedy correction reach only
+    # one host, which is exactly how `render_stream`'s ANSI constants came to be re-forked and how
+    # `aw agy run` silently carried a broken `dependency_status_detailed` for months. `assertIs`
+    # distinguishes a shared object from a copy; reading the source cannot.
+    #
+    # AND NOTE WHAT ENFORCES THE SYMMETRY, because the obvious answer is WRONG and was corrected at this
+    # plan's review (F-9, re-measured at execution): `test_the_table_covers_both_runners` asserts only
+    # that the table's AGGREGATE `runners` set equals `BOTH` and that more than one row names agy. It
+    # does NOT fail a one-sided ROW; measured, four shipped rows legitimately name a single runner and
+    # the suite passes. What makes THIS row bite is the per-row identity assertion
+    # (`test_every_runner_attribute_is_the_owning_modules_object`) plus the AST half
+    # (`test_no_runner_redefines_an_already_extracted_symbol`), both proven against this symbol by the
+    # mutation check recorded in the plan's V-05.
+    Owned("render_disposition_summary", "run_selection_policy", BOTH),
 )
 
 _MODULES = {

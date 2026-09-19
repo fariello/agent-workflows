@@ -1287,3 +1287,166 @@ def test_a_dependency_token_that_already_carries_its_reason_is_not_double_explai
         ]
     )[1]
     assert "executed:bbb222 (in-run target is 'reviewed')" in other
+
+
+# --------------------------------------------------------------------------------------------------
+# The END-OF-RUN DISPOSITION SUMMARY (`runnoop` Order 03, `bsc457`)
+# --------------------------------------------------------------------------------------------------
+
+
+def test_a_run_that_acted_on_nothing_still_gets_a_summary_naming_every_artifact():
+    """THE MEASURED INCIDENT (backlog `em0z50`), at the pure-renderer level.
+
+    `aw oc run wtiso` matched 8 plans, acted on NONE, and no surface said so. The counts must SUM to
+    the number matched, which is the property worth asserting rather than any individual number.
+    """
+    queue = [
+        _queue_entry(position=i, id6="id%04d" % i, needs_input=True)
+        for i in range(1, 9)
+    ]
+    lines = pol.render_disposition_summary(queue)
+    text = "\n".join(lines)
+    assert pol.SUMMARY_HEADER in text
+    # The HONEST VERDICT: the table says COMPLETED at 100% for this same queue.
+    assert "NO WORK WAS PERFORMED" in text
+    assert "matched 8 artifact(s) and acted on NONE" in text
+    # The count, and the remedy beside it, in the shape the backlog item specifies.
+    assert "needs_human_approval (8)" in text
+    assert "aw ipd set approved <id6> --by-human" in text
+    rows = pol.summarize_dispositions(queue)
+    assert sum(count for _c, count, _r in rows) == len(queue)
+
+
+def test_the_counts_sum_to_the_number_matched_for_a_mixed_queue():
+    """The partition property: every entry lands in exactly one bucket, so nothing is lost or double-counted."""
+    queue = [
+        _queue_entry(position=1, id6="aaa111", needs_input=True),
+        _queue_entry(position=2, id6="bbb222", status="executed"),
+        _queue_entry(position=3, id6="ccc333", status="not-attempted"),
+        _queue_entry(
+            position=4,
+            id6="ddd444",
+            status="dependency-blocked",
+            unsatisfied_dependencies=["executed:aaa111"],
+        ),
+        _queue_entry(position=5, id6="eee555", status="executed", attempts=[{"n": 1}]),
+    ]
+    rows = pol.summarize_dispositions(queue)
+    assert sum(count for _c, count, _r in rows) == len(queue)
+    text = "\n".join(pol.render_disposition_summary(queue))
+    assert "total: 5 matched, 1 acted on, 4 not acted on" in text
+
+
+def test_every_actionable_disposition_carries_a_remedy_and_terminal_ones_do_not():
+    """A needed-no-remedy disposition and an unknown one must render DIFFERENTLY, never alike."""
+    # Actionable -> a remedy.
+    for code in pol.DISPOSITION_REMEDIES:
+        assert pol.remedy_for_disposition(code) == pol.DISPOSITION_REMEDIES[code]
+    # Legitimately terminal -> None, meaning "nothing to do, and that is correct".
+    for code in pol.DISPOSITIONS_NEEDING_NO_REMEDY:
+        assert pol.remedy_for_disposition(code) is None
+    # Unrecognized -> an explicit admission, NOT silence.
+    unknown = pol.remedy_for_disposition("a_reason_nobody_wrote_a_remedy_for")
+    assert unknown == pol.REMEDY_UNKNOWN_TEXT
+    assert unknown != pol.remedy_for_disposition(pol.SKIP_ALREADY_EXECUTED)
+
+
+def test_every_closed_skip_reason_resolves_to_a_remedy_or_an_explicit_no_remedy():
+    """A new reason cannot be added without an author noticing its remedy is missing."""
+    for code in pol.SKIP_REASONS:
+        assert (
+            code in pol.DISPOSITION_REMEDIES
+            or code in pol.DISPOSITIONS_NEEDING_NO_REMEDY
+        ), f"{code} has neither a remedy nor an explicit 'needs none' marker"
+        assert pol.remedy_for_disposition(code) != pol.REMEDY_UNKNOWN_TEXT
+
+
+def test_the_unknown_and_the_no_remedy_cases_render_differently():
+    """Asserted on the RENDERED block, because rendering a gap as a correct outcome is the defect."""
+    known = "\n".join(pol.render_disposition_summary([_queue_entry(status="executed")]))
+    assert "ipd_already_executed (1)" in known
+    assert pol.REMEDY_UNKNOWN_TEXT not in known
+
+    class _Refusal:
+        code = "a_brand_new_refusal_code"
+        reason = "something novel happened"
+        remedy = ""
+
+    gap = "\n".join(
+        pol.render_disposition_summary(
+            [_queue_entry(status="blocked")], refusal_reader=lambda _e: _Refusal()
+        )
+    )
+    assert "a_brand_new_refusal_code (1)" in gap
+    assert pol.REMEDY_UNKNOWN_TEXT in gap
+
+
+def test_a_recorded_refusals_own_remedy_is_sourced_not_duplicated():
+    """E-06's executed branch: `orchprobe` `r2i1b1` shipped the record, so its remedy is the authority."""
+    from agent_workflows import render_stream
+
+    entry = _queue_entry(status="integration-blocked", attempts=[{"n": 1}])
+    render_stream.record_refusal(
+        entry,
+        code="integration-blocked",
+        reason="the lane finalized but could not be merged",
+        remedy="re-attempt with `aw oc run integrate <run-id>`",
+    )
+    text = "\n".join(
+        pol.render_disposition_summary(
+            [entry], refusal_reader=render_stream.refusal_of_item
+        )
+    )
+    assert "integration-blocked (1)" in text
+    # The record's OWN remedy, rather than a second copy maintained in this module.
+    assert "re-attempt with `aw oc run integrate <run-id>`" in text
+    assert "integration-blocked" not in pol.DISPOSITION_REMEDIES
+
+
+def test_the_line_and_the_summary_cannot_disagree_about_one_artifact():
+    """CID-3: ONE disposition vocabulary, because both read the SAME derivation."""
+    queue = [
+        _queue_entry(position=1, id6="aaa111", needs_input=True),
+        _queue_entry(position=2, id6="bbb222", status="executed"),
+    ]
+    lines = pol.render_queue_dispositions(queue)
+    summary = "\n".join(pol.render_disposition_summary(queue))
+    for code in (pol.SKIP_NEEDS_HUMAN_APPROVAL, pol.SKIP_ALREADY_EXECUTED):
+        assert any(code in line for line in lines[1:])
+        assert code in summary
+
+
+def test_an_acted_on_artifact_is_a_real_bucket_so_the_counts_can_sum():
+    """`acted_on` is a KEY, not the absence of one, or the partition would not be total."""
+    queue = [_queue_entry(status="executed", attempts=[{"n": 1}])]
+    rows = pol.summarize_dispositions(queue)
+    assert rows == ((pol.DISPOSITION_ACTED_ON, 1, None),)
+    text = "\n".join(pol.render_disposition_summary(queue))
+    assert "acted on all 1 artifact(s)" in text
+
+
+def test_the_summary_orders_attention_first_and_acted_on_last():
+    """A reader must reach the things needing action before the total of what went fine."""
+    queue = [
+        _queue_entry(position=1, id6="aaa111", status="executed", attempts=[{"n": 1}]),
+        _queue_entry(position=2, id6="bbb222", needs_input=True),
+    ]
+    codes = [code for code, _n, _r in pol.summarize_dispositions(queue)]
+    assert codes == [pol.SKIP_NEEDS_HUMAN_APPROVAL, pol.DISPOSITION_ACTED_ON]
+
+
+def test_the_summary_renderer_is_pure_no_print_no_filesystem():
+    """Same purity contract the module's other renderers carry."""
+    import io
+    import contextlib
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        out = pol.render_disposition_summary([_queue_entry(needs_input=True)])
+    assert buf.getvalue() == ""
+    assert isinstance(out, list) and out
+
+
+def test_an_empty_selection_renders_no_summary():
+    """Nothing matched is NOT the zero-action case; a stray header over nothing is noise."""
+    assert pol.render_disposition_summary([]) == []
