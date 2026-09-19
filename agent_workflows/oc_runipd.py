@@ -57,6 +57,14 @@ from agent_workflows.run_selection_policy import (
     render_queue_dispositions as render_queue_dispositions,
 )
 
+# runnoop Order 03 (`bsc457`) E-03: the END-OF-RUN DISPOSITION SUMMARY, imported from the SAME owning
+# module and on the same terms as the line renderer above. Not added to `oc_runipd` for the other host
+# to import: both hosts read `run_selection_policy` directly, so the one-way oc-to-agy import count is
+# unchanged.
+from agent_workflows.run_selection_policy import (
+    render_disposition_summary as render_disposition_summary,
+)
+
 # terseout `ntf6sx` E-04: the ONE concise-reporting contract, embedded in FULL in this driver's
 # execution and verifier prompts. A fresh worker session must not depend only on ambient host
 # instructions, which is why the drivers already embed their other critical safeguards.
@@ -6836,6 +6844,31 @@ def run_queue(
     # anywhere else would be as easy to miss as it was when the only report was pre-dispatch. NOT
     # `partial`: this path runs after the queue drained normally.
     report_run_spec_edits(state)
+    # runnoop Order 03 (`bsc457`) E-03: THE CLOSING DISPOSITION SUMMARY, printed UNCONDITIONALLY,
+    # INCLUDING for a run that acted on nothing - which is precisely the case that printed no answer
+    # at all. Measured (backlog `em0z50`): `aw oc run wtiso` matched 8 plans, acted on none, and the
+    # closing words an operator reacted to were `No OpenCode session was captured for this run.`
+    # beneath a table reading `Outcome: COMPLETED` at 100%.
+    #
+    # UNCONDITIONAL FOLLOWS THE ESTABLISHED PRECEDENT rather than inventing a rule: `announce_run_order`
+    # prints the run order whether or not anything was reordered, and its docstring gives the reason
+    # ("the order must be auditable in the log even when nothing was reordered"). The argument is
+    # stronger at exit, because the zero-action case is exactly the one a conditional print would skip.
+    #
+    # AT THE END AND SELF-CONTAINED (the plan's OQ-01, resolved from the maintainer's four-place ruling
+    # recorded in `r2i1b1`'s OQ-01): the block repeats its own counts and remedies rather than referring
+    # upward to the table, because readers pipe this output through `head` or `tail`. The START side is
+    # already satisfied by `announce_run_order`, and a start-side print could not carry dispositions
+    # that do not exist yet.
+    #
+    # BEFORE the continuation footer deliberately: the footer is session-continuity plumbing, so the
+    # answer to "what did this run do?" must not sit beneath it. The wording and the remedy table live
+    # in the pure `run_selection_policy` module, never in a driver, and `refusal_of_item` is
+    # `r2i1b1`'s ONE reader, so a recorded refusal's own remedy is SOURCED rather than duplicated here.
+    for _summary_line in render_disposition_summary(
+        state.get("queue", []), refusal_reader=refusal_of_item
+    ):
+        print(_summary_line)
     print(render_continuation_hint(state, run_dir))
     state["_summary_table_printed"] = True
     # bkclose (zhr6mc) E-06/E-07: the NORMAL-exit half of the shutdown report. `emit_shutdown_report`

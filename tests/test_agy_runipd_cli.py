@@ -2271,5 +2271,86 @@ class AgyPerArtifactDispositionLineTests(unittest.TestCase):
             self.assertNotIn(label, src)
 
 
+class AgyEndOfRunDispositionSummaryTests(AgyPerArtifactDispositionLineTests):
+    """runnoop Order 03 (`bsc457`) E-05, the AGY HALF of the closing summary.
+
+    INHERITS the sibling's harness deliberately: the two halves must drive the SAME real `run_queue`
+    over the SAME queue shape, and a second copy of that fixture is how one host's guard drifts from
+    the other's. Asserted on ACTUAL rendered stdout, because the defect was that nothing was printed.
+    """
+
+    def test_a_run_that_acted_on_ZERO_artifacts_still_prints_the_summary(self):
+        from agent_workflows import run_selection_policy as pol
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            _init_repo_with_conforming_plan(repo, "agy001")
+            out = self._run_and_capture(
+                repo,
+                [
+                    {
+                        "position": i,
+                        "id6": "agy%03d" % i,
+                        "setid": "wtiso",
+                        "action": "execute",
+                        "status": "reviewed",
+                        "attempts": [],
+                        "needs_input": True,
+                    }
+                    for i in range(1, 9)
+                ],
+            )
+            self.assertIn(pol.SUMMARY_HEADER, out)
+            self.assertIn("NO WORK WAS PERFORMED", out)
+            self.assertIn("matched 8 artifact(s) and acted on NONE", out)
+            self.assertIn("needs_human_approval (8)", out)
+            # The remedy, verified against `aw ipd set --help`.
+            self.assertIn("aw ipd set approved <id6> --by-human", out)
+            self.assertIn("total: 8 matched, 0 acted on, 8 not acted on", out)
+
+    def test_this_hosts_footer_names_ANTIGRAVITY_and_not_opencode(self):
+        """E-04's structure is shared; the PRODUCT NAME is not. An oc name here is a failed change."""
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            _init_repo_with_conforming_plan(repo, "agy001")
+            out = self._run_and_capture(
+                repo,
+                [
+                    {
+                        "position": 1,
+                        "id6": "agy001",
+                        "setid": "wtiso",
+                        "action": "execute",
+                        "status": "reviewed",
+                        "attempts": [],
+                        "needs_input": True,
+                    }
+                ],
+            )
+            self.assertIn("No turn was attempted", out)
+            self.assertIn("no Antigravity session exists for this run", out)
+            self.assertNotIn("no OpenCode session exists", out)
+            self.assertIn("--- Antigravity Session Continuity ---", out)
+
+    def test_both_hosts_render_the_summary_from_the_same_object(self):
+        """The anti-re-fork half, by identity, because source reading cannot see a copy."""
+        from agent_workflows import oc_runipd, run_selection_policy as pol
+
+        self.assertIs(
+            agy_runipd.render_disposition_summary, pol.render_disposition_summary
+        )
+        self.assertIs(
+            agy_runipd.render_disposition_summary, oc_runipd.render_disposition_summary
+        )
+
+    def test_this_host_holds_no_copy_of_the_summary_vocabulary(self):
+        from agent_workflows import run_selection_policy as pol
+
+        src = Path(str(agy_runipd.__file__)).read_text(encoding="utf-8")
+        self.assertNotIn(pol.SUMMARY_HEADER, src)
+        for remedy in pol.DISPOSITION_REMEDIES.values():
+            self.assertNotIn(remedy, src)
+
+
 if __name__ == "__main__":
     unittest.main()

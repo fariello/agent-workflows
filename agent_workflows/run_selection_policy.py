@@ -1506,6 +1506,135 @@ def render_item_disposition_for_reason(
 DISPOSITION_HEADER = "Per-artifact disposition (every artifact this selector matched):"
 
 
+class ItemDisposition(NamedTuple):
+    """What ONE matched artifact's disposition WAS, derived once and consumed by every surface.
+
+    THE REASON THIS TYPE EXISTS IS THAT TWO SURFACES MUST NOT DERIVE THE SAME FACT TWICE (`bsc457`
+    E-01). The per-artifact LINE (`m85gxh`) and the per-disposition COUNTS (this plan) are the same
+    judgement rendered two ways, so the judgement is made ONCE, here, and both callers read it. Had
+    the counts re-derived it, the line and the count could disagree about the same artifact, which is
+    exactly the drift `render_action_preview`'s docstring records as the reason this module forbids a
+    second renderer.
+
+    Fields:
+      ``code``   the disposition key the counts group by: a member of :data:`SKIP_REASONS`, a
+                 `Refusal` record's own ``code``, or :data:`DISPOSITION_ACTED_ON` when the run acted.
+      ``reason`` the human reason TEXT for the line (already composed, including any gloss/detail).
+      ``remedy`` the remedy carried BY A RECORDED REFUSAL, when there was one, or ``None``. Only a
+                 `Refusal` supplies this; everything else resolves through
+                 :func:`remedy_for_disposition`, so this plan maintains no second copy of the
+                 remedies `orchprobe` `r2i1b1` already records per item.
+    """
+
+    code: str
+    reason: Optional[str]
+    remedy: Optional[str] = None
+
+
+#: The count key for an artifact the run DID act on (or is still acting on). A real key rather than
+#: the absence of one, because the counts must SUM to the number matched, which they cannot do if the
+#: acted-on artifacts fall outside the partition.
+DISPOSITION_ACTED_ON = "acted_on"
+
+
+def derive_item_disposition(
+    entry: Mapping[str, object],
+    refusal_reader: Optional[Callable[..., object]] = None,
+) -> ItemDisposition:
+    """Decide ONE matched artifact's disposition from the facts the runner already computed.
+
+    Extracted from :func:`render_queue_dispositions` by `bsc457` E-01 with its precedence UNCHANGED,
+    so the per-artifact line's behavior is byte-identical and the counts cannot key on a different
+    judgement than the line displays. Precedence, and why (unchanged from `m85gxh`):
+
+      1. A recorded `Refusal` (`orchprobe` `r2i1b1`) wins, because a producer that explicitly said why
+         it refused THIS item is more specific than anything inferable from its status. Its own
+         ``code`` becomes the count key and its own ``remedy`` travels with it.
+      2. Then the durable needs-approval flag (`runnoop` `zz5yxq`), which is the measured case this
+         whole Set exists for.
+      3. Then the dependency reasons, which NAME the unmet edge.
+      4. Then `executed`, which is a real disposition and not a defect.
+      5. Then a queue status that is terminal without the run having acted, which is the honest
+         "not runnable" answer.
+      6. Otherwise the artifact was acted on (or is still in flight) and carries
+         :data:`DISPOSITION_ACTED_ON`, whose line text is :data:`ACTED_REASON_LABEL`.
+    """
+
+    get = entry.get
+    status = str(get("status") or "").strip()
+
+    refusal = refusal_reader(entry) if refusal_reader is not None else None
+    refusal_reason = reason_from_refusal(refusal)
+    if refusal_reason:
+        # THE REFUSAL'S OWN CODE AND REMEDY ARE SOURCED, NOT RE-DERIVED (`bsc457` E-06's executed
+        # branch). `r2i1b1` is `- Status: executed`, so its record carries `code`/`reason`/`remedy`
+        # and is the authority for an item it refused; this plan defines no second remedy for such an
+        # item. Duck-typed for the same reason `reason_from_refusal` is: importing `render_stream`
+        # here would add a first-party import to a module whose two-import purity other plans depend
+        # on, for no gain.
+        code = getattr(refusal, "code", None)
+        remedy = getattr(refusal, "remedy", None)
+        return ItemDisposition(
+            str(code).strip() if isinstance(code, str) and code.strip() else "refused",
+            refusal_reason,
+            str(remedy).strip() if isinstance(remedy, str) and remedy.strip() else None,
+        )
+
+    if bool(get("needs_input")):
+        return ItemDisposition(
+            SKIP_NEEDS_HUMAN_APPROVAL,
+            "{0} ({1})".format(
+                SKIP_NEEDS_HUMAN_APPROVAL, skip_reason_text(SKIP_NEEDS_HUMAN_APPROVAL)
+            ),
+        )
+
+    raw_deps = get("unsatisfied_dependencies")
+    if isinstance(raw_deps, (list, tuple)) and raw_deps:
+        deps = [str(d) for d in raw_deps]
+        raw_why = get("unsatisfied_dependency_reasons")
+        why: Mapping[str, object] = raw_why if isinstance(raw_why, Mapping) else {}
+        # NO PLACEHOLDER WHEN NO REASON WAS RECORDED, because the two producers of this key
+        # write DIFFERENT shapes and a blanket fallback double-reports. Measured at HEAD
+        # `7562ca6c`: the drain path writes a BARE token plus a separate
+        # `unsatisfied_dependency_reasons` map, while `cascade_dependency_blocked` writes the
+        # reason INTO the token (`executed:aaa111 (target reviewed)`) and writes NO map at all.
+        # A `reasons.get(d, "unsatisfied")` fallback therefore renders the cascade's already-
+        # explained token as `executed:aaa111 (target reviewed) (unsatisfied)`, which reads as
+        # two contradictory reasons. `render_stream`'s diagnostics block carries the same fallback
+        # shape (`reasons.get(d, "blocked")`) and the same wart; that block is outside this
+        # plan's fence, so the divergence is REPORTED rather than edited here.
+        named = ", ".join(
+            "{0} ({1})".format(d, why[d]) if d in why else str(d) for d in deps
+        )
+        # The EXTERNAL variant is distinguished by the reason text `edge_satisfied` already
+        # writes for a target outside the queue, rather than by a second computation here.
+        code = (
+            SKIP_DEPENDENCY_NOT_MET_EXTERNAL
+            if "not in this run" in named
+            else SKIP_DEPENDENCY_NOT_MET
+        )
+        return ItemDisposition(
+            code,
+            "{0} ({1}; unmet: {2})".format(code, skip_reason_text(code), named),
+        )
+
+    if status == "executed" and not get("attempts"):
+        return ItemDisposition(
+            SKIP_ALREADY_EXECUTED,
+            "{0} ({1})".format(
+                SKIP_ALREADY_EXECUTED, skip_reason_text(SKIP_ALREADY_EXECUTED)
+            ),
+        )
+
+    if status in ("reviewed", "not-attempted") and not get("attempts"):
+        return ItemDisposition(
+            SKIP_NOT_RUNNABLE,
+            "{0} ({1})".format(SKIP_NOT_RUNNABLE, skip_reason_text(SKIP_NOT_RUNNABLE)),
+        )
+
+    return ItemDisposition(DISPOSITION_ACTED_ON, None)
+
+
 def render_queue_dispositions(
     entries: Sequence[Mapping[str, object]],
     *,
@@ -1533,83 +1662,23 @@ def render_queue_dispositions(
     reading of the same key. Omitted, no refusal is consulted, which is the correct behavior for a
     caller that has no run state.
 
-    THE REASON IS DERIVED HERE, ONCE, from the shipped producers named in
-    :data:`SKIP_REASON_SOURCES`; nothing is recomputed. Precedence, and why:
-
-      1. A recorded `Refusal` (`orchprobe` `r2i1b1`) wins, because a producer that explicitly said why
-         it refused THIS item is more specific than anything inferable from its status.
-      2. Then the durable needs-approval flag (`runnoop` `zz5yxq`), which is the measured case this
-         whole Set exists for.
-      3. Then the dependency reasons, which NAME the unmet edge.
-      4. Then `executed`, which is a real disposition and not a defect.
-      5. Then a queue status that is terminal without the run having acted, which is the honest
-         "not runnable" answer.
-      6. Otherwise the artifact was acted on (or is still in flight) and carries
-         :data:`ACTED_REASON_LABEL`.
+    THE REASON IS DERIVED ONCE, BY :func:`derive_item_disposition`, from the shipped producers named
+    in :data:`SKIP_REASON_SOURCES`; nothing is recomputed here and nothing is recomputed by the
+    per-disposition SUMMARY either (`bsc457` E-01), which reads the same derivation. That shared
+    judgement is what makes the line and the counts structurally unable to disagree about one
+    artifact. See that function for the precedence and for why each step is ordered as it is.
     """
 
     lines: List[str] = []
     for entry in entries:
         get = entry.get
-        status = str(get("status") or "").strip()
-        reason: Optional[str] = None
-
-        refusal_reason = reason_from_refusal(
-            refusal_reader(entry) if refusal_reader is not None else None
-        )
-        if refusal_reason:
-            reason = refusal_reason
-        elif bool(get("needs_input")):
-            reason = "{0} ({1})".format(
-                SKIP_NEEDS_HUMAN_APPROVAL, skip_reason_text(SKIP_NEEDS_HUMAN_APPROVAL)
-            )
-        elif isinstance(get("unsatisfied_dependencies"), (list, tuple)) and get(
-            "unsatisfied_dependencies"
-        ):
-            raw_deps = get("unsatisfied_dependencies")
-            deps = (
-                [str(d) for d in raw_deps]
-                if isinstance(raw_deps, (list, tuple))
-                else []
-            )
-            raw_why = get("unsatisfied_dependency_reasons")
-            why: Mapping[str, object] = raw_why if isinstance(raw_why, Mapping) else {}
-            # NO PLACEHOLDER WHEN NO REASON WAS RECORDED, because the two producers of this key
-            # write DIFFERENT shapes and a blanket fallback double-reports. Measured at HEAD
-            # `7562ca6c`: the drain path writes a BARE token plus a separate
-            # `unsatisfied_dependency_reasons` map, while `cascade_dependency_blocked` writes the
-            # reason INTO the token (`executed:aaa111 (target reviewed)`) and writes NO map at all.
-            # A `reasons.get(d, "unsatisfied")` fallback therefore renders the cascade's already-
-            # explained token as `executed:aaa111 (target reviewed) (unsatisfied)`, which reads as
-            # two contradictory reasons. `render_stream`'s diagnostics block has the same fallback
-            # shape (`reasons.get(d, "blocked")`) and the same wart; that block is outside this
-            # plan's fence, so the divergence is REPORTED rather than edited here.
-            named = ", ".join(
-                "{0} ({1})".format(d, why[d]) if d in why else str(d) for d in deps
-            )
-            # The EXTERNAL variant is distinguished by the reason text `edge_satisfied` already
-            # writes for a target outside the queue, rather than by a second computation here.
-            code = (
-                SKIP_DEPENDENCY_NOT_MET_EXTERNAL
-                if "not in this run" in named
-                else SKIP_DEPENDENCY_NOT_MET
-            )
-            reason = "{0} ({1}; unmet: {2})".format(code, skip_reason_text(code), named)
-        elif status == "executed" and not get("attempts"):
-            reason = "{0} ({1})".format(
-                SKIP_ALREADY_EXECUTED, skip_reason_text(SKIP_ALREADY_EXECUTED)
-            )
-        elif status in ("reviewed", "not-attempted") and not get("attempts"):
-            reason = "{0} ({1})".format(
-                SKIP_NOT_RUNNABLE, skip_reason_text(SKIP_NOT_RUNNABLE)
-            )
-
+        decided = derive_item_disposition(entry, refusal_reader)
         lines.append(
             render_item_disposition(
                 str(get("id6") or get("identity") or "?"),
                 str(get("action") or ""),
-                status,
-                reason,
+                str(get("status") or "").strip(),
+                decided.reason,
                 position=(
                     int(get("position"))  # type: ignore[arg-type]
                     if isinstance(get("position"), int)
@@ -1621,3 +1690,266 @@ def render_queue_dispositions(
     if not lines:
         return []
     return [header] + lines
+
+
+# --------------------------------------------------------------------------------------------------
+# The END-OF-RUN DISPOSITION SUMMARY: counts, and the REMEDY for each actionable disposition
+# (`runnoop` Order 03, `bsc457`)
+# --------------------------------------------------------------------------------------------------
+#
+# WHAT THIS BLOCK IS FOR, AND WHAT IT IS DELIBERATELY NOT. The obvious reading is that it duplicates
+# the exit summary TABLE, and that reading is why this note is long. Measured at execution time by
+# rendering the real `render_stream.render_run_summary_table` with one `reviewed`/zero-attempt item:
+# it ALREADY prints a bordered table containing a per-artifact row
+# (`01 | 01 | abc123 | wtiso | execute | reviewed`), a count line (`Progress: 1/1 [##...] 100%
+# (1 reviewed)`) and a totals row. So a THIRD listing of the queue would satisfy the words "a line per
+# matched artifact and a per-disposition count line" while fixing nothing an operator cares about
+# (this plan's F-8, and the specific failure its review exists to prevent).
+#
+# The three things the table genuinely lacks, which are therefore this block's whole content:
+#
+#   1. AN HONEST VERDICT. That same render says `Outcome: COMPLETED` at `100%` for a run that
+#      performed ZERO work, because the COMPLETED tuple contains `reviewed`. This block states what
+#      the run actually DID, so a reader is not told a no-op succeeded. The table's own `Outcome:` is
+#      NOT edited here: that expression belongs to `orchprobe` `r2i1b1`'s fence (this plan's OQ-02),
+#      and if the two visibly disagree that is a finding to report, not a quiet cross-fence edit.
+#   2. THE REMEDY. A count without one tells an operator they are stuck. `AGENTS.md` and `r2i1b1`'s
+#      OQ-01 both record the measured failure mode: a message saying only "X is not allowed" gets
+#      complied with by DELETING the thing, when a correct non-destructive fix exists.
+#   3. COUNTS THAT KEY ON A DISPOSITION rather than on a queue STATUS. The table's count line groups
+#      by queue status, a different denominator: `reviewed` is one status covering both "frozen
+#      awaiting approval" and "not runnable", and it is silent about WHY.
+#
+# SELF-CONTAINED ON PURPOSE (this plan's OQ-01, resolved from the maintainer's four-place ruling
+# recorded in `r2i1b1`'s OQ-01). The block repeats its own counts and remedies rather than referring
+# upward to the table, because readers pipe runner output through `head` or `tail`; a `tail` reader
+# must need nothing above it. The START side is already satisfied by shipped code
+# (`announce_run_order` prints the matched order unconditionally, and a start-side print cannot carry
+# dispositions that do not exist yet), so this plan adds only the END.
+
+
+#: The remedy for each disposition that an operator can ACT on, as data beside the disposition rather
+#: than a string at a call site, so a new disposition cannot be added without an author noticing its
+#: remedy is missing.
+#:
+#: EVERY COMMAND HERE WAS VERIFIED BY RUNNING ITS `--help` AT EXECUTION TIME, not written from memory
+#: (this plan's E-02 requires it and V-02 pastes the output). What was checked:
+#:
+#:   * `aw ipd set approved <id6> --by-human` - `aw ipd set --help` lists `--by-human` and its
+#:     positional syntax is `<status> <selector...>`.
+#:   * `--full-auto` - `aw oc run start --help` states it "Clear[s] a plan that is already
+#:     'Status: reviewed' to 'auto-approved'" and, verbatim, "This records an AUTOMATED clear, NOT
+#:     human approval: no --by-human attestation is asserted". The wording below therefore does NOT
+#:     claim it grants human approval; overstating what a remedy grants is worse than omitting it
+#:     (executed plan `97df1z`, and the shipped provenance string "auto-approved by --full-auto:
+#:     review readiness cleared (not human approval)").
+#:   * `aw host capabilities` - exists, "Print[s] the host capability contract and the per-action
+#:     verdicts derived from it".
+#:   * `aw find plans <id6>` - `aw find --help` takes `[type] [selector ...]`.
+#:
+#: A DISPOSITION ABSENT FROM THIS MAPPING IS NOT AUTOMATICALLY "no remedy": see
+#: :func:`remedy_for_disposition`, which distinguishes the three cases (a known remedy, a disposition
+#: that legitimately needs none, and one whose remedy is UNKNOWN) rather than rendering the last two
+#: alike.
+DISPOSITION_REMEDIES: Mapping[str, str] = {
+    SKIP_NEEDS_HUMAN_APPROVAL: (
+        "approve it with `aw ipd set approved <id6> --by-human --message ...`, then re-run. "
+        "`--full-auto` instead clears a `reviewed` plan to `auto-approved` (an AUTOMATED clear, "
+        "NOT human approval)"
+    ),
+    SKIP_DEPENDENCY_NOT_MET: (
+        "run the dependency to its declared state first, or include it in the same selector so this "
+        "run can satisfy the edge"
+    ),
+    SKIP_DEPENDENCY_NOT_MET_EXTERNAL: (
+        "the dependency is outside this run's queue, so widen the selector to include it (or run it "
+        "first); this run cannot satisfy the edge no matter how often it is resumed"
+    ),
+    SKIP_NOT_RUNNABLE: (
+        "check the artifact's `- Status:` with `aw find plans <id6>`: a terminal status "
+        "(`superseded`, `not-executed`) is correctly skipped, while a MISSING status is a defect in "
+        "the artifact worth fixing"
+    ),
+    SKIP_HOST_CAPABILITY_UNAVAILABLE: (
+        "inspect the refused capability with `aw host capabilities`, then run the item on a host that "
+        "satisfies it"
+    ),
+}
+
+
+#: The dispositions that need NO remedy because nothing is wrong with them. Distinguished from an
+#: unknown remedy deliberately: printing a fabricated remedy beside a correct, terminal outcome is
+#: noise, and printing nothing beside an UNRECOGNIZED disposition would hide a gap in this table.
+DISPOSITIONS_NEEDING_NO_REMEDY: frozenset = frozenset(
+    {
+        # The run acted on it. Whatever happened next is the item's own outcome, not a selection
+        # refusal an operator must unblock.
+        DISPOSITION_ACTED_ON,
+        # Already executed on disk. A correct, terminal disposition: there was nothing to do, and
+        # "fixing" it would mean re-executing finished work.
+        SKIP_ALREADY_EXECUTED,
+    }
+)
+
+#: Rendered in place of a remedy for a disposition this table does not know. NOT an empty string, and
+#: not silence: an unrecognized disposition is a GAP (a new refusal reason shipped without its
+#: remedy), and the operator-visible admission of ignorance is what makes that gap get fixed instead
+#: of quietly reading as "nothing to do here".
+REMEDY_UNKNOWN_TEXT = (
+    "no remedy is recorded for this disposition; this is a gap in the runner's remedy table, "
+    "please report it"
+)
+
+
+def remedy_for_disposition(code: str) -> Optional[str]:
+    """The remedy text for ONE disposition code, or ``None`` when it legitimately needs none.
+
+    THREE OUTCOMES, NOT TWO, which is the point of this function existing rather than a bare
+    `DISPOSITION_REMEDIES.get(code)`:
+
+      * a known actionable disposition -> its verified remedy;
+      * a disposition in :data:`DISPOSITIONS_NEEDING_NO_REMEDY` -> ``None``, meaning "nothing to do,
+        and that is correct";
+      * anything else -> :data:`REMEDY_UNKNOWN_TEXT`, meaning "this disposition SHOULD have a remedy
+        and nobody wrote one".
+
+    Collapsing the last two would render a gap in the table identically to a correct terminal
+    outcome, which is the specific mistake E-02 forbids.
+
+    A refusal record's OWN remedy never reaches here: `orchprobe` `r2i1b1` stores `remedy` on the
+    item, and :func:`derive_item_disposition` carries it through, so the record stays the authority
+    for an item it refused and this plan maintains no second copy of it.
+    """
+
+    norm = str(code or "").strip()
+    if norm in DISPOSITION_REMEDIES:
+        return DISPOSITION_REMEDIES[norm]
+    if norm in DISPOSITIONS_NEEDING_NO_REMEDY:
+        return None
+    return REMEDY_UNKNOWN_TEXT
+
+
+#: The header of the closing block. States the QUESTION it answers, because "what did this invocation
+#: actually do?" is the question backlog `em0z50` records an operator being unable to answer.
+SUMMARY_HEADER = "What this run did (every artifact its selector matched):"
+
+#: The verdict line for a run that matched artifacts and acted on NONE of them. THE MEASURED
+#: INCIDENT: `aw oc run wtiso` matched 8 plans, acted on none, exited 0, and its closing words were
+#: `No OpenCode session was captured for this run.` while the summary table said `COMPLETED` at 100%.
+#: This sentence is the honest answer that was missing.
+SUMMARY_NO_ACTION_VERDICT = (
+    "NO WORK WAS PERFORMED: this run matched {matched} artifact(s) and acted on NONE of them. "
+    "This is not a failed launch; nothing was dispatched. See the remedies below."
+)
+
+#: The verdict line for a run that acted on some but not all of what it matched.
+SUMMARY_PARTIAL_VERDICT = "This run matched {matched} artifact(s) and acted on {acted}; {skipped} were not acted on."
+
+#: The verdict line for a run that acted on everything it matched.
+SUMMARY_ALL_ACTED_VERDICT = (
+    "This run acted on all {matched} artifact(s) its selector matched."
+)
+
+
+def summarize_dispositions(
+    entries: Sequence[Mapping[str, object]],
+    refusal_reader: Optional[Callable[..., object]] = None,
+) -> "Tuple[Tuple[str, int, Optional[str]], ...]":
+    """Count matched artifacts per DISPOSITION, with each disposition's remedy, in render order.
+
+    Returns ``((code, count, remedy_or_None), ...)``. THE COUNTS SUM TO THE NUMBER OF ENTRIES, which
+    is the property worth asserting rather than any individual number: every entry lands in exactly
+    one bucket because :func:`derive_item_disposition` returns exactly one code per entry and
+    :data:`DISPOSITION_ACTED_ON` is a real bucket rather than the absence of one.
+
+    ``remedy`` is the per-disposition remedy from :func:`remedy_for_disposition`, EXCEPT where a
+    recorded `Refusal` supplied its own (`orchprobe` `r2i1b1`), in which case that record's remedy is
+    reported for its code. First record wins for a given code, so a second item refused under the
+    same code cannot silently replace the remedy the reader is shown.
+
+    Ordered by :data:`SKIP_REASONS` first (the documented reason order), then any refusal codes in
+    first-seen order, then :data:`DISPOSITION_ACTED_ON` LAST, so the things needing attention are
+    read first and the acted-on total closes the list.
+    """
+
+    counts: Dict[str, int] = {}
+    remedies: Dict[str, Optional[str]] = {}
+    seen_order: List[str] = []
+    for entry in entries:
+        decided = derive_item_disposition(entry, refusal_reader)
+        code = decided.code
+        if code not in counts:
+            counts[code] = 0
+            seen_order.append(code)
+            remedies[code] = decided.remedy or remedy_for_disposition(code)
+        counts[code] += 1
+
+    ordered: List[str] = [code for code in SKIP_REASONS if code in counts]
+    ordered += [
+        code
+        for code in seen_order
+        if code not in ordered and code != DISPOSITION_ACTED_ON
+    ]
+    if DISPOSITION_ACTED_ON in counts:
+        ordered.append(DISPOSITION_ACTED_ON)
+    return tuple((code, counts[code], remedies[code]) for code in ordered)
+
+
+def render_disposition_summary(
+    entries: Sequence[Mapping[str, object]],
+    *,
+    header: str = SUMMARY_HEADER,
+    refusal_reader: Optional[Callable[..., object]] = None,
+) -> List[str]:
+    """The closing block: an honest verdict, per-disposition counts, and each remedy.
+
+    PURE. Returns a list of LINES; prints nothing, opens nothing, imports no runner, exactly as
+    :func:`render_action_preview` and :func:`render_refusal` do in this module. The caller owns the
+    stream, which is what lets both hosts print it at their own exit site.
+
+    Returns ``[]`` for an EMPTY selection, and that is not the zero-action case this plan exists to
+    fix: nothing matched means there is nothing to report a disposition for, and a stray header would
+    be noise. The case that matters is a run that matched N artifacts and acted on ZERO, which yields
+    the full block with :data:`SUMMARY_NO_ACTION_VERDICT`.
+
+    The per-artifact lines are NOT re-formatted here: :func:`render_queue_dispositions` (`m85gxh`
+    E-01) owns that shape and this block's counts come from the SAME
+    :func:`derive_item_disposition`, so one disposition vocabulary spans the line and the summary by
+    construction rather than by test.
+    """
+
+    rows = summarize_dispositions(entries, refusal_reader)
+    if not rows:
+        return []
+
+    matched = sum(count for _code, count, _remedy in rows)
+    acted = sum(count for code, count, _remedy in rows if code == DISPOSITION_ACTED_ON)
+    skipped = matched - acted
+    if acted == 0:
+        verdict = SUMMARY_NO_ACTION_VERDICT.format(matched=matched)
+    elif skipped:
+        verdict = SUMMARY_PARTIAL_VERDICT.format(
+            matched=matched, acted=acted, skipped=skipped
+        )
+    else:
+        verdict = SUMMARY_ALL_ACTED_VERDICT.format(matched=matched)
+
+    lines: List[str] = [header, verdict]
+    for code, count, remedy in rows:
+        label = (
+            ACTED_REASON_LABEL
+            if code == DISPOSITION_ACTED_ON
+            else SKIP_REASON_LABELS.get(code, "")
+        )
+        head = "  {0} ({1})".format(code, count)
+        lines.append("{0}: {1}".format(head, label) if label else head)
+        if remedy:
+            lines.append("    remedy: {0}".format(remedy))
+    # The counts are RESTATED as a total rather than left for the reader to add up, so the block's own
+    # guarantee (nothing matched is omitted) is checkable on its face by a `tail` reader.
+    lines.append(
+        "  total: {0} matched, {1} acted on, {2} not acted on".format(
+            matched, acted, skipped
+        )
+    )
+    return lines
