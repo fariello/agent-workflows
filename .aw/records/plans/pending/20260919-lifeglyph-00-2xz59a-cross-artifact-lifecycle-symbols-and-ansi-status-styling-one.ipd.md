@@ -6,7 +6,7 @@
 - Scope: IN: ordering, dependency edges, and whole-Set completion criteria for children 01 through 08. OUT: every unit of implementation work, each of which belongs to exactly one child; this plan performs none of it.
 - Scope-Paths: none
 - Item-Dependencies: executed:yaxr4i
-- Status: to-review
+- Status: reviewed
 - Readiness: no-go
 - Set: lifeglyph
 - Order: 0
@@ -17,6 +17,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-19 reviewed (aw set): plan-review round 1: REVIEWED - OPEN QUESTIONS. PR-002..PR-006 fixed in place; PR-001 (BLOCKER) escalated as OQ-02 Blocking: yes. Readiness no-go.
 
 - 2026-09-19 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 (BLOCKER, escalated as OQ-02), PR-002, PR-003, PR-004, PR-005, PR-006 fixed in place. Reviewed at HEAD `f3da906e`; `aw ipd lint --phase author --agent` reported clean, exit 0, before and after. The blocking finding is a criterion-coverage gap: six of spec `uonrjg`'s acceptance criteria (A1, A4, A6, A12, A19, A21) are claimed by this parent's coverage map and demanded by no child, and the fix belongs in the child plans rather than on this parent because a runner retires an orchestrator without running its E/V checkpoint.
 - 2026-09-19 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored as the Order-0 orchestrator for spec uonrjg's implementation, sequencing eight children per spec Section 12 plus the Section 12a upstream dependency and re-review gate. Carries the spec's `Blocks-Release: next` gate.
