@@ -6,16 +6,16 @@
 - Scope: Sequence Orders 01 through 10, preserve their ownership boundaries, map every prompt requirement to an executable child, and define whole-Set completion evidence.
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runanalytics
 - Order: 0
 - Highest E allocated: 01
 - Author: Codex
 - Id: 5lxvl3
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-19 executed (aw oc run): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set runanalytics reached executed, so the runner (run run-20260918T212013Z-4137362) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: xbwq8n, bzz5e6, lhccjf, 5f2h8i, 8hald1, aflsz3, 6eq3oq, mm5p3v, ixis0c, 9xycbh.
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False; `review_findings.subject_gating_blocks` -> empty; `plan_readiness.newest_verdict` polarity -> neutral (not negative). Specifically, its blocking OQ-01 is moot on re-measurement and the finding it escalated (PR-002) is now closed in review round 2. Performed at HEAD `84111de2` at the maintainer's explicit instruction of 2026-09-10, who was shown that 10 of 15 `no-go` plans were held by stale bookkeeping and chose to have them hand-fixed with evidence recorded rather than re-reviewed. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
