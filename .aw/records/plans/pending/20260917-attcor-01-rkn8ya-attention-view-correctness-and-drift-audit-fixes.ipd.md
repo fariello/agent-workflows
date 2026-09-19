@@ -6,15 +6,17 @@
 - Scope: agent_workflows/attention.py, agent_workflows/specs.py, and attention regression tests
 - Scope-Paths: agent_workflows/attention.py,agent_workflows/specs.py,tests/test_attention.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: attcor (attention-correctness)
 - Order: 1
 - Highest E allocated: 13
 - Author: Antigravity
 - Id: rkn8ya
+- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-19 approved (aw set): status set to approved
 
 - 2026-09-18 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-014, all 14 FIXED, none deferred, none open (three of the plan's own FINDINGS, F-04/F-09/F-10, are now explicitly out of scope with typed reasons, which is a scope decision recorded in the plan and not an unfixed review finding). Every one of the 14 authored findings was re-derived from the code rather than trusted, and the finding-to-E-item mapping was wrong in five ways: E-01 covered ONE of THREE identical prune sites; V-05 demanded evidence the rule can never produce; E-03 was a measured no-op; E-06 named a derived table the code comments forbid editing; and E-12 instructed the executor to DELETE `arcive_state`, which is a shipped, tested CLI alias, not a typo. F-09 and F-10 had no E-item at all while the plan claimed all 14 were proposed for remediation. Eleven E-items survive with corrected sites, fixtures, and per-item tests.
 - 2026-09-17 to-review (Antigravity): /assess bugs: assessed; proposed 14 changes.

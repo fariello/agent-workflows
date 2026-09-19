@@ -6,7 +6,7 @@
 - Scope: Make the VERSION written into a target reflect the framework actually being installed, by resolving the value on the write path instead of copying bytes. Decide and implement the dev-checkout policy, and record the manifest's `installed_version` consistently.
 - Scope-Paths: agent_workflows/engine.py, tests/test_installer.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Blocks-Release: next
 - Readiness: go-pending-approval
 - Set: verstamp
@@ -14,9 +14,11 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: i8u6hh
+- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - From-Backlog: ygtykn
 
 ## Workflow history
+- 2026-09-19 approved (aw set): status set to approved
 - 2026-09-18 reviewed (aw set): status set to reviewed
 - 2026-09-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED
 

@@ -6,15 +6,17 @@
 - Scope: Make `aw attention` distinguish NO-MATCH from MATCHED-BUT-EMPTY for EVERY selector form it accepts (id6, setid, path, tree, status, priority, attention class, substring), report the no-match case explicitly on EVERY output surface the verb has (human board, `--agent`, `--json`/`--format json`, `--check`, and the three list modes `-id`/`--paths`/`--filenames`), and choose the exit code deliberately. Does NOT change which artifacts are shown, the attention classes, the default hiding of terminal/parked items, or any other verb's selector handling.
 - Scope-Paths: agent_workflows/attention.py, tests/test_attention.py, agent_workflows/cli.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: attsel
 - Order: 1
 - Highest E allocated: 10
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: fqnj8k
+- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-19 approved (aw set): status set to approved
 - 2026-09-17 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; 12 findings PR-001..PR-012 all FIXED in place; readiness go-pending-approval; typed review record .aw/records/reviews/20260917-attsel-01-fqnj8k-...review.md
 
 - 2026-09-17 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-012 all FIXED. Reviewed at HEAD `cf0ebf7a`; `aw ipd lint --phase author` conforming before revision (one `IPD-Z602` density advisory on E-05, addressed by splitting it into E-05/E-09/E-10). THE CENTRAL DEFECT REPRODUCES: `aw att zzzzzz` -> 1 blank line, exit 0, and `--agent` -> `outcome:clean, exit:0, findings:0`, identical to a successful selector. BUT THE PLAN'S OWN AMBIGUITY FIXTURE WAS WRONG, and it was the specification for E-01/E-03/V-01: a selector FORCES `show_all` (`attention.py:3071`), so `aw att sv0sf3` DOES show its parked item (measured: 2 lines vs 1). The real matched-but-empty twin is a DOWNSTREAM-FILTERED match (`aw att sv0sf3 -t plans` -> empty, exit 0), which also breaks E-03's premise, since `--type` filters the item list BEFORE the selector filter sees it (`:2797-2799` then `:2806-2808`), so a match fact computed inside the filter reports a FALSE no-match for it (measured: filter over the full 1063-item scan matches 1, over the `-t plans` 661-item scan matches 0). Also found: FIVE further output surfaces the plan never named (`--json`/`--format json`, `--check`, `-id`, `--paths`, `--filenames`), all silent today; a VOCABULARY class of legitimate zero-match tokens (`abandoned`, `reusable`, `planned`, `roadmaps`, `releases` as a tree) that the fail-closed default would newly make nonzero; and a repository PRECEDENT that answers OQ-01 (spec `25kzda` Section 2.3/2.4a: zero matches exit 2, status selectors exempt). E-01..E-06 rewritten, E-07..E-10 added, `Highest E allocated` 06 -> 10, `cli.py` added to the fence for the `--help` exit contract. Readiness `go-pending-approval`.

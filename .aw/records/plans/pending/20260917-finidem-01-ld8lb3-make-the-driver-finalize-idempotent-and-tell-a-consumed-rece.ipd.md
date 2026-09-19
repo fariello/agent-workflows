@@ -6,7 +6,7 @@
 - Scope: TWO changes, one per defect, in the two places that own them. (1) BEHAVIOR: make the driver's finalize step idempotent, so an already-finalized item proceeds to INTEGRATION instead of being refused. (2) DIAGNOSIS: make `finalize_precheck` distinguish a CONSUMED receipt (the transition already succeeded) from a NEVER-ISSUED one (genuinely no authority), with distinct findings a caller can branch on. THIRD ITEM AMENDED AT REVIEW: the transition owner is NOT undecided (the driver owns it whenever `self_finalize` is true, enforced since `cdef9c90` by the `AW_EXECUTION_ROLE=worker` guard, and APPROVED plan `8b9ufm` already states it at turn start), so E-06 no longer "decides and documents" an owner. It instead closes the measured DELEGATION HOLE in that guard: `worker_role_active` is checked only in the CLI wrappers, so `aw set executed` reaches `finalize()` from a worker lane unguarded.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_finidem_double_finalize.py, tests/test_ipd_lifecycle_cli.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Blocks-Release: next
 - Readiness: go-pending-approval
 - From-Backlog: 02371s
@@ -15,8 +15,10 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: ld8lb3
+- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-19 approved (aw set): status set to approved
 - 2026-09-18 reviewed (aw set): status set to reviewed
 - 2026-09-18 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 all FIXED; OQ-01 resolved from evidence; corrected a fail-open predicate, a false finding, and an E-06 that duplicated approved plan 8b9ufm
 - 2026-09-17 to-review (aw set): Authored 2026-09-17 from run-20260917T210518Z-1714328 (IPD 63425h false refusal); graduates backlog 02371s and 894vzu; complete enough to critique

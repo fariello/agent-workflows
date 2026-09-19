@@ -12,15 +12,17 @@
 - Scope: The IPD authoring contract's treatment of code citations, the scaffold guidance an author starts from, and a lint diagnostic that nudges new plans toward durable anchors. IN: stating the anchor rule in the IPD spec; emitting it in `aw ipd scaffold`'s `## Project conventions discovered (Step 0)` guidance so an author meets it before writing findings; adding ONE advisory `aw ipd lint` diagnostic at `info` that reports a bare file:line anchor in a plan being authored, with a `--legacy`-style exemption for plans predating the rule. OUT: retrofitting the 2816 existing citations (see Deferred, and note this is the single largest thing this plan deliberately does not do); any change to `check_engine`'s rules; any change to how REVIEWS cite code; forbidding line numbers outright.
 - Scope-Paths: agent_workflows/ipd_lint.py, agent_workflows/ipd_authoring.py, tests/test_ipd_lint.py, tests/test_ipd_templates.py, .aw/system/workflows/assess/templates/ipd.md, .aw/records/specs/20260802-1904-01-ipd-structure-and-linting.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: citeanchor
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: mzc019
+- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-19 approved (aw set): status set to approved
 
 - 2026-09-19 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED, none deferred, none open; Readiness go-pending-approval. Reviewed at HEAD `7562ca6c`; plan byte-identical to the lane input, so no pre-review snapshot. THE DIAGNOSIS IS CORRECT AND THE MECHANISM WAS NOT: three of the four surfaces this plan named behave differently from how it described them, each measured rather than reasoned about. (1) The detector as specified could not have flagged this plan's OWN headline evidence: 99% of the corpus's citations already sit beside a backticked token and the drifted `216rgg` anchors are backticked themselves, so the test scored them anchored; the corrected form measures 20% and flags them. (2) The scaffold body lives in `ipd_authoring`, not `ipd_schema`, and editing it breaks a byte-parity pin on the shipped template (failure reproduced). (3) An advisory prints no code and no message without `--detail`, so the nudge reached nobody; added E-05. Also corrected the `Scope-Paths` fence (three paths missing, one spurious), a SELF-carrier that resolves today and vanishes at execution (added E-06), and a V-01 demand for a spec status transition that `implemented -> *` refuses. Watermark 04 -> 06. Full record: `.aw/records/reviews/20260918-citeanchor-01-mzc019-require-symbol-and-content-anchors-in-ipd-citations-because.review.md`.
 - 2026-09-18 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Authored at the maintainer's instruction ("we need to stop putting line numbers in plans"), after the drift was measured on `216rgg` while preparing to execute it. Every claim in this plan is anchored by SYMBOL or by CONTENT STRING rather than by line number, which is both the rule it proposes and the only honest way to state it. THE COUNTS TO RE-DERIVE, not to trust: 96/101 plans, 2816 citations, 8 provably dead, and `216rgg`'s four drifted anchors. The maintainer chose a plan over a backlog item.

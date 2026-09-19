@@ -6,17 +6,19 @@
 - Scope: Repoint `doctor.probe_environment`'s three misresolved reads at the canonical locations, delegating version resolution to the single existing authority (`engine.read_installed_version`) instead of a second divergent path list; add regression tests that fail on the current code.
 - Scope-Paths: agent_workflows/doctor.py, agent_workflows/cli.py, tests/test_doctor.py, tests/test_cli.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: doctorprobe
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode
 - Id: h90ij1
+- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - From-Backlog: hdhzr2
 - Blocks-Release: f33nrj
 
 ## Workflow history
+- 2026-09-19 approved (aw set): status set to approved
 - 2026-09-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED
 
 - 2026-09-12 to-review (opencode): authored from backlog item hdhzr2; graduated with measured evidence and repo-cited root cause.

@@ -6,17 +6,19 @@
 - Scope: Give the install-time migration path a way to reach a cleanup disposition, sweep the empty legacy directories it leaves, and stop the residue from being reported as a live split-brain layout. Includes a regression test built from the measured real-repo state.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/layout_migration.py, agent_workflows/doctor.py, tests/test_layout_migration.py, tests/test_installer.py, tests/test_doctor.py
 - Item-Dependencies: executed:h90ij1
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: migleftover
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode
 - Id: z1yefm
+- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - From-Backlog: x15f0q
 - Blocks-Release: f33nrj
 
 ## Workflow history
+- 2026-09-19 approved (aw set): status set to approved
 - 2026-09-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED
 
 - 2026-09-12 to-review (opencode): authored from backlog item x15f0q; root cause verified in-tree, and the item's incorrect skills claim corrected before planning.
