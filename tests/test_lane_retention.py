@@ -5,12 +5,20 @@ Covers spec `7ckptx` R5.5, R5.6 and R5.6a (criteria A15, A15b) for plan `xdr83v`
 WHY THESE ASSERTIONS ARE SHAPED THE WAY THEY ARE, since the obvious version of each is the one the
 spec calls insufficient:
 
-  * THE IGNORED CASE IS FIRST-CLASS, not a variation on the untracked one. Enumerating only untracked
-    content leaves ignored content invisible, and "ignored means disposable" is precisely the reasoning
-    that destroyed lane content silently before (spec R5.5, plan F-1). `IgnoredEnumerationTests`
-    therefore proves the enumeration SEES ignored files, and does it by REMOVING the ignored half of
-    the flags and showing the file stops being reported: a suite that passes for the untracked file
-    while silently missing the ignored one is the exact defect the requirement exists to prevent.
+  * THE IGNORED CASE IS STILL FIRST-CLASS, but it is an ENUMERATION requirement, no longer a REFUSAL
+    one. `IgnoredEnumerationTests` proves the enumeration SEES ignored files - by REMOVING the ignored
+    half of the flags and showing the file stops being reported - because the inventory must still
+    report them as evidence in `as_dict()`. What it no longer proves is that they BLOCK teardown:
+    amended R5.5 (2026-09-18, `laneign` `5w8g8j`) makes gitignored content disposable upon lane
+    destruction, so `classified` ignores it and `reason_codes` never names it.
+
+    WHY THE AMENDMENT WAS NOT A WEAKENING OF THIS SUITE. The original rule was written because "ignored
+    means disposable" had once destroyed real work. That hazard is still covered, by the UNTRACKED and
+    DIRTY TRACKED cases: uncommitted work is untracked or dirty, never gitignored. What the blanket
+    ignored-refusal actually caught was `__pycache__` and `node_modules`, firing on 100 percent of
+    clean runs and stranding 38 worktrees. So two tests pin the new boundary from both sides:
+    `test_a_lane_holding_ONLY_gitignored_files_IS_torn_down` (the residue no longer blocks) and
+    `test_gitignored_residue_does_NOT_mask_a_real_refusal` (it also grants no amnesty to anything else).
   * DISCARDABILITY COMES FROM RECORDS, NOT FROM PATHS. Driver-written content is established from the
     SEALED INPUT MANIFEST (`nna8yz`, R5.1) and a collected submission from the ATTEMPT-KEYED COLLECTION
     RECEIPT (`cqx5v7`, R2.5). `ManifestSourcedClassificationTests` proves the lookup is the manifest by
@@ -87,7 +95,15 @@ class LaneFixture:
         _git(self.lane, "config", "user.name", "driver")
         # `.aw/state/` is ignored in the real repository, and the lane is a worktree of the same
         # commit, so the ignore rule applies inside the lane too. Reproduced here for the same reason.
-        (self.lane / ".gitignore").write_text(".aw/state/\n*.log\n", encoding="utf-8")
+        #
+        # THE LAST THREE PATTERNS ARE COPIED FROM THE REAL REPOSITORY'S OWN IGNORE RULES, because the
+        # amended R5.5 case is specifically about THESE shapes: bytecode from running the suite, an
+        # agent toolchain's installed dependencies, and a test-runner cache. Inventing a synthetic
+        # pattern instead would prove the rule for a file no real lane ever holds.
+        (self.lane / ".gitignore").write_text(
+            ".aw/state/\n*.log\n__pycache__/\n.opencode/node_modules/\n.pytest_cache/\n",
+            encoding="utf-8",
+        )
         (self.lane / "tracked.txt").write_text("original\n", encoding="utf-8")
         _git(self.lane, "add", ".gitignore", "tracked.txt")
         _git(self.lane, "commit", "-qm", "base")
@@ -111,6 +127,25 @@ class LaneFixture:
         target = self.lane / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("ignored but real\n", encoding="utf-8")
+        return target
+
+    def add_gitignored_residue(self, rel: str) -> Path:
+        """A gitignored build/tool/test residue of a REAL shape, ASSERTED to be ignored by git.
+
+        THE ASSERTION IS THE POINT. A residue path that git does not actually ignore would be reported
+        `??` and land in `unknown_untracked`, so a test using it would then be proving the UNTRACKED
+        rule while claiming to prove the ignored one - and would keep passing if the amended rule were
+        reverted. `git check-ignore` is what makes that impossible.
+        """
+        target = self.lane / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("regenerable residue\n", encoding="utf-8")
+        proc = subprocess.run(
+            ["git", "check-ignore", "-q", rel],
+            cwd=str(self.lane),
+            check=False,
+        )
+        assert proc.returncode == 0, f"fixture error: git does not ignore {rel!r}"
         return target
 
     def dirty_tracked(self) -> Path:
@@ -195,18 +230,28 @@ class ClassificationTests(_FixtureCase):
         self.assertFalse(inv.classified)
         self.assertIn(LC.RETENTION_UNKNOWN_UNTRACKED, inv.reason_codes)
 
-    def test_an_unknown_IGNORED_file_is_reported_unknown(self):
-        # THE CASE THIS REQUIREMENT EXISTS FOR (spec R5.5, plan F-1). Ignored content was previously
-        # invisible to the enumeration and therefore destroyed silently.
+    def test_an_unknown_IGNORED_file_is_ENUMERATED_but_does_NOT_block_teardown(self):
+        """Amended R5.5 / A15 (`laneign` `5w8g8j`): gitignored content is disposable.
+
+        BOTH HALVES ARE ASSERTED, and the second is why this is not simply a deleted test. The file
+        must still be SEEN and recorded (`unknown_ignored`, and in `as_dict()` so the event carries the
+        diagnostic evidence), because an enumeration that stopped reporting ignored files would be the
+        pre-`xdr83v` blindness returning and would make `IgnoredEnumerationTests` vacuous. What changed
+        is only the VERDICT: it no longer refuses, and it no longer contributes a refusal reason code.
+        """
         self.fx.materialize_inputs()
         self.fx.submit()
         self.fx.collect()
         self.fx.add_ignored()
         inv = self.fx.inventory()
 
+        # Still enumerated, still recorded as evidence.
         self.assertIn("build/output.log", inv.unknown_ignored)
-        self.assertFalse(inv.classified)
-        self.assertIn(LC.RETENTION_UNKNOWN_IGNORED, inv.reason_codes)
+        self.assertIn("build/output.log", inv.as_dict()["unknown_ignored"])
+        # But no longer blocking, and no longer a refusal reason (R5.6: a code records a REFUSAL).
+        self.assertTrue(inv.classified, inv.reason)
+        self.assertEqual(inv.reason_codes, ())
+        self.assertNotIn("build/output.log", inv.unknown)
 
     def test_a_dirty_tracked_file_is_reported_unknown(self):
         self.fx.materialize_inputs()
@@ -245,12 +290,16 @@ class ClassificationTests(_FixtureCase):
             {
                 LC.RETENTION_DIRTY_TRACKED,
                 LC.RETENTION_UNKNOWN_UNTRACKED,
-                LC.RETENTION_UNKNOWN_IGNORED,
                 LC.RETENTION_UNCOLLECTED_SUBMISSION,
             },
         )
-        for fragment in ("tracked.txt", "work/note.txt", "build/output.log"):
+        for fragment in ("tracked.txt", "work/note.txt"):
             self.assertIn(fragment, inv.reason)
+        # AND THE IGNORED FILE IS NOT NAMED AS A CAUSE, because it is not one under amended R5.5. This
+        # is the assertion that keeps the sentence useful on a real lane: 4170 bytecode paths listed as
+        # reasons would bury the one dirty tracked file that actually caused the refusal.
+        self.assertNotIn("build/output.log", inv.reason)
+        self.assertNotIn("IGNORED", inv.reason)
 
     def test_the_reason_caps_the_named_paths_but_never_the_recorded_evidence(self):
         # The SENTENCE is truncated past the limit; the RECORD keeps every path. Truncating the
@@ -520,7 +569,6 @@ class TeardownGateTests(_FixtureCase):
         # this test first passed against a lane that no longer existed.
         cases = {
             LC.RETENTION_UNKNOWN_UNTRACKED: "add_untracked",
-            LC.RETENTION_UNKNOWN_IGNORED: "add_ignored",
             LC.RETENTION_DIRTY_TRACKED: "dirty_tracked",
         }
         for code, maker in cases.items():
@@ -539,6 +587,52 @@ class TeardownGateTests(_FixtureCase):
                     self.fx.lane.is_dir(), "the lane directory MUST still exist"
                 )
                 self.assertIn(code, decision.reason_codes)
+
+    def test_a_lane_holding_ONLY_gitignored_files_IS_torn_down(self):
+        """THE REGRESSION THIS AMENDMENT EXISTS FOR (amended R5.5/A15, `laneign` `5w8g8j`).
+
+        MEASURED BEFORE THE FIX: 38 undisposed lane worktrees accumulated in this checkout because 100
+        percent of clean runs left behind routine gitignored residue and the gate refused on it. The
+        shapes below are the real three, not invented ones: interpreter bytecode from running the test
+        suite, an agent toolchain's installed dependency tree, and a test-runner cache.
+        """
+        self.fx.materialize_inputs()
+        self.fx.submit()
+        self.fx.collect()
+        for rel in (
+            "agent_workflows/__pycache__/lane_containment.cpython-311.pyc",
+            ".opencode/node_modules/some-dep/index.js",
+            ".pytest_cache/v/cache/nodeids",
+        ):
+            self.fx.add_gitignored_residue(rel)
+
+        inventory = self.fx.inventory()
+        # The residue was SEEN (so this is not passing because the enumeration missed it)...
+        self.assertTrue(inventory.unknown_ignored, inventory.as_dict())
+        # ...and the lane was destroyed anyway.
+        decision = self._decide()
+        self.assertTrue(decision.torn_down, decision.reason)
+        self.assertEqual(len(self._teardown_calls), 1)
+        self.assertFalse(self.fx.lane.exists())
+
+    def test_gitignored_residue_does_NOT_mask_a_real_refusal(self):
+        """The dangerous direction: residue must not become a blanket amnesty.
+
+        A lane holding bytecode AND an uncommitted source file must still be preserved, and the reason
+        must name the source file. Without this, "ignore the ignored files" could be implemented as
+        "ignore everything" and the suite above would not notice.
+        """
+        self.fx.materialize_inputs()
+        self.fx.submit()
+        self.fx.collect()
+        self.fx.add_gitignored_residue("agent_workflows/__pycache__/x.cpython-311.pyc")
+        self.fx.add_untracked()  # the real work, uncommitted
+
+        decision = self._decide()
+        self.assertFalse(decision.torn_down)
+        self.assertTrue(self.fx.lane.is_dir())
+        self.assertIn(LC.RETENTION_UNKNOWN_UNTRACKED, decision.reason_codes)
+        self.assertIn("work/note.txt", decision.reason)
 
     def test_an_uncollected_submission_leaves_the_lane_on_disk(self):
         self.fx.materialize_inputs()
@@ -616,9 +710,14 @@ class PreservationRecordTests(_FixtureCase):
     """R5.6: the refusal is recorded on the EXISTING preservation event, naming the condition."""
 
     def _preserve(self) -> dict[str, Any]:
+        # THE TRIGGER IS AN UNKNOWN UNTRACKED FILE, not an ignored one. It was `add_ignored` until the
+        # 2026-09-18 R5.5 amendment made gitignored content non-blocking; an ignored file now yields a
+        # CLASSIFIED inventory with no reason codes, so continuing to use it would test the recording of
+        # a refusal that never happened. The property under test (R5.6: the event names WHICH condition
+        # held, with its evidence) is unchanged and is simply asserted against a condition that refuses.
         self.fx.materialize_inputs()
         self.fx.submit()
-        self.fx.add_ignored()
+        self.fx.add_untracked()
         inventory = self.fx.inventory()
         return LC.record_lane_preserved(
             run_dir=self.fx.run_dir,
@@ -643,18 +742,18 @@ class PreservationRecordTests(_FixtureCase):
         self.assertEqual(len(events), 1, events)
         event = events[0]
         self.assertEqual(event["event"], LC.LANE_PRESERVED_EVENT)
-        self.assertIn(LC.RETENTION_UNKNOWN_IGNORED, event["retention_reasons"])
+        self.assertIn(LC.RETENTION_UNKNOWN_UNTRACKED, event["retention_reasons"])
         self.assertIn(LC.RETENTION_UNCOLLECTED_SUBMISSION, event["retention_reasons"])
         # And it carries the EVIDENCE, not merely a code: the paths behind the verdict.
-        self.assertIn("build/output.log", event["unknown_ignored"])
+        self.assertIn("work/note.txt", event["unknown_untracked"])
 
     def test_the_event_is_not_generic(self):
         # ASSERT THE PROPERTY, NOT THE WORDING: the reason must name a specific condition, so a
         # reworded generic message ("lane preserved") still fails.
         self._preserve()
         reason = self._events()[0]["reason"]
-        self.assertIn("IGNORED", reason)
-        self.assertIn("build/output.log", reason)
+        self.assertIn("UNTRACKED", reason)
+        self.assertIn("work/note.txt", reason)
 
     def test_it_EXTENDS_the_existing_event_rather_than_adding_a_second(self):
         """CID-2: one preservation event, one emitter.
@@ -709,9 +808,13 @@ class SummaryVisibilityTests(_FixtureCase):
     """R5.6a (criterion A15b): the preservation is visible WITHOUT reading the event log."""
 
     def _state(self) -> dict[str, Any]:
+        # AN UNKNOWN UNTRACKED FILE is the refusal this renders, for the same reason as
+        # `PreservationRecordTests._preserve`: after the 2026-09-18 R5.5 amendment an ignored file does
+        # not cause a preservation at all, so rendering "the preserved lane's reason" from one would be
+        # rendering a verdict the gate never reaches. R5.6a itself is unchanged.
         self.fx.materialize_inputs()
         self.fx.submit()
-        self.fx.add_ignored()
+        self.fx.add_untracked()
         inventory = self.fx.inventory()
         LC.record_lane_preserved(
             run_dir=self.fx.run_dir,
@@ -739,8 +842,8 @@ class SummaryVisibilityTests(_FixtureCase):
 
                 self.assertIn("Preserved lanes", report)
                 self.assertIn(self.fx.handle.branch, report)
-                self.assertIn("build/output.log", report)
-                self.assertIn(LC.RETENTION_UNKNOWN_IGNORED, report)
+                self.assertIn("work/note.txt", report)
+                self.assertIn(LC.RETENTION_UNKNOWN_UNTRACKED, report)
 
     def test_a_run_with_no_preserved_lane_renders_nothing_extra(self):
         # So an unaffected run's report is unchanged: the section is emitted only when it has content.
@@ -783,12 +886,12 @@ class SummaryVisibilityTests(_FixtureCase):
                     module.write_report(run_dir, state)
                 silent = (run_dir / "execution-report.md").read_text(encoding="utf-8")
                 self.assertNotIn("Preserved lanes", silent)
-                self.assertNotIn("build/output.log", silent)
+                self.assertNotIn("work/note.txt", silent)
 
                 module.write_report(run_dir, state)  # restored
                 restored = (run_dir / "execution-report.md").read_text(encoding="utf-8")
                 self.assertIn("Preserved lanes", restored)
-                self.assertIn("build/output.log", restored)
+                self.assertIn("work/note.txt", restored)
 
 
 class TwinParityTests(unittest.TestCase):
