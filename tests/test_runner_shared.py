@@ -4272,10 +4272,25 @@ class StrandedLanePredicateTests(unittest.TestCase):
             # in neither case does the absolute prefix survive.
             # Composed rather than a literal, for the reason the attention fixture records: the
             # leak-sanitizer fails a tracked file containing a home path, fixture or not.
-            outside = runner_shared.lane_worktree_display(
-                repo, "/" + "home" + "/someone/VC/proj/.aw/worktrees/lane09"
+            #
+            # WHICH OF THE TWO IT IS NOW DEPENDS ON EXISTENCE (plan `0ta5vg` E-05), and this assertion was
+            # UPDATED rather than deleted. It previously demanded the reconstruction for an ABSENT
+            # directory; a row must not assert a tree that is gone, so an absent one is now OMITTED. The
+            # invariant this test exists for is untouched and still asserted on every branch below: no
+            # absolute prefix ever survives. Omission strictly REDUCES what is printed, so it cannot
+            # weaken the leak guard.
+            self.assertIsNone(
+                runner_shared.lane_worktree_display(
+                    repo, "/" + "home" + "/someone/VC/proj/.aw/worktrees/lane09"
+                )
             )
-            self.assertEqual(outside, ".aw/worktrees/lane09")
+            # The reconstruction branch is still exercised, for an outside-the-repo lane that EXISTS.
+            outside_live = root / "elsewhere" / "worktrees" / "lane09"
+            outside_live.mkdir(parents=True)
+            self.assertEqual(
+                runner_shared.lane_worktree_display(repo, str(outside_live)),
+                ".aw/worktrees/lane09",
+            )
             self.assertIsNone(
                 runner_shared.lane_worktree_display(repo, "/var/tmp/elsewhere")
             )
@@ -4296,6 +4311,409 @@ class StrandedLanePredicateTests(unittest.TestCase):
             runner_shared.lane_work_has_landed.__module__,
             "agent_workflows.runner_shared",
         )
+
+
+# ==================================================================================================
+# stranrep-01 (`0ta5vg`): THE CONTENT-LANDED READING, ONE ROW PER LANE, AND NO PHANTOM WORKTREE
+# ==================================================================================================
+
+
+def _advance_main(repo: pathlib.Path, name: str = "independent") -> None:
+    """Put an INDEPENDENT commit on main, which is what makes a cherry-pick produce a DIFFERENT sha.
+
+    LOAD-BEARING, NOT DECORATION. Cherry-picking a lane commit onto an UNADVANCED main reproduces the
+    IDENTICAL sha, which makes the lane an ancestor and proves nothing about the content reading: the
+    ancestry reading would already have answered True. Advancing main first is what creates the shape
+    this reading exists for.
+    """
+    import subprocess
+
+    (repo / "{0}.txt".format(name)).write_text("main moves\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-qm", "main: {0}".format(name)], cwd=repo, check=True
+    )
+
+
+def _cherry_pick_onto_main(repo: pathlib.Path, rev: str) -> None:
+    import subprocess
+
+    subprocess.run(
+        ["git", "cherry-pick", "-x", rev], cwd=repo, check=True, capture_output=True
+    )
+
+
+class ContentLandedReadingTests(unittest.TestCase):
+    """E-01/E-02: patch-id landing, its two parse guards, and the DIRTY lane that must never be silenced.
+
+    EVERY CASE BUILDS ITS OWN TEMPORARY GIT REPOSITORY and passes an explicit repo path. Backlog `no0j8g`
+    records four tests that read the developer's own repository and so had live-state-dependent results;
+    and this repository holds dozens of real `aw/lane/*` branches whose unintegrated work is exactly what
+    this predicate protects.
+    """
+
+    def test_a_CHERRY_PICKED_lane_is_landed_by_CONTENT_though_not_by_ancestry(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            lane_tip = _git(root / "lane01", "rev-parse", "HEAD")
+
+            # Main advances INDEPENDENTLY first, so the cherry-pick cannot reproduce the same sha.
+            _advance_main(repo)
+            _cherry_pick_onto_main(repo, lane_tip)
+
+            # The two readings DISAGREE, which is the whole point of carrying both.
+            self.assertIs(
+                runner_shared.lane_work_has_landed(repo, lane["branch"], target="main"),
+                False,
+            )
+            self.assertIs(
+                runner_shared.lane_work_landed_by_content(
+                    repo, lane["branch"], target="main"
+                ),
+                True,
+            )
+
+    def test_a_genuinely_ABSENT_commit_reads_False(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            _advance_main(repo)
+            self.assertIs(
+                runner_shared.lane_work_landed_by_content(
+                    repo, lane["branch"], target="main"
+                ),
+                False,
+            )
+
+    def test_the_PARTIAL_case_reads_False_because_one_commit_is_still_absent(self):
+        """A mixed `-`/`+` output must NOT read as landed: the lane still holds work main lacks."""
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane_dir = root / "lane01"
+            lane = _add_lane(repo, lane_dir, "lane01")
+            first_tip = _git(lane_dir, "rev-parse", "HEAD")
+            (lane_dir / "second.txt").write_text("more\n", encoding="utf-8")
+            subprocess.run(["git", "add", "-A"], cwd=lane_dir, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "lane work 2"], cwd=lane_dir, check=True
+            )
+
+            _advance_main(repo)
+            _cherry_pick_onto_main(repo, first_tip)  # only the FIRST of two
+
+            out = _git(repo, "cherry", "main", lane["branch"])
+            self.assertTrue(any(ln.startswith("-") for ln in out.splitlines()))
+            self.assertTrue(any(ln.startswith("+") for ln in out.splitlines()))
+            self.assertIs(
+                runner_shared.lane_work_landed_by_content(
+                    repo, lane["branch"], target="main"
+                ),
+                False,
+            )
+
+    def test_EMPTY_output_reads_False_and_NEVER_vacuously_landed(self):
+        """Guard (a). `git cherry` exits 0 with no lines, and "every line begins `-`" is vacuously true."""
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01", commit=False)
+
+            out = _git(repo, "cherry", "main", lane["branch"])
+            self.assertEqual(out.strip(), "")
+            self.assertIs(
+                runner_shared.lane_work_landed_by_content(
+                    repo, lane["branch"], target="main"
+                ),
+                False,
+            )
+
+    def test_an_UNRESOLVABLE_ref_reads_None_and_never_False(self):
+        """Guard (b). A question we cannot answer must stay UNKNOWN, never read as either answer."""
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            self.assertIsNone(
+                runner_shared.lane_work_landed_by_content(
+                    repo, "aw/lane/no-such-branch", target="main"
+                )
+            )
+            self.assertIsNone(
+                runner_shared.lane_work_landed_by_content(
+                    repo, lane["branch"], target="refs/heads/no-such-target"
+                )
+            )
+            self.assertIsNone(
+                runner_shared.lane_work_landed_by_content(repo, "", target="main")
+            )
+
+    def test_a_cherry_picked_CLEAN_lane_classifies_LANDED_by_content(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            lane_tip = _git(root / "lane01", "rev-parse", "HEAD")
+            _advance_main(repo)
+            _cherry_pick_onto_main(repo, lane_tip)
+
+            rec = runner_shared.classify_lane_integration(repo, lane, target="main")
+            self.assertEqual(rec["lane_state"], runner_shared.LANE_LANDED)
+            self.assertFalse(rec["needs_attention"])
+            self.assertFalse(rec["dirty"])
+            self.assertEqual(rec["landed_by"], "content")
+            self.assertIs(rec["landed"], True)
+
+    def test_a_cherry_picked_DIRTY_lane_STAYS_REPORTABLE_so_uncommitted_work_is_not_lost(
+        self,
+    ):
+        """THE DATA-LOSS GUARD, and the most important case in this class.
+
+        `holds_work` is `commits_ahead > 0 OR dirty`, so a lane whose commits ALL landed by patch id but
+        whose tree still holds uncommitted changes reaches the landing question. Patch ids describe
+        COMMITS only, so the content reading says nothing about those files. The ancestry-only reading
+        ACCIDENTALLY protected them; silencing this lane would remove that protection and lose the file.
+        """
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            lane_dir = root / "lane01"
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, lane_dir, "lane01")
+            lane_tip = _git(lane_dir, "rev-parse", "HEAD")
+            _advance_main(repo)
+            _cherry_pick_onto_main(repo, lane_tip)
+
+            # The precious file: uncommitted, and invisible to any patch-id reading.
+            (lane_dir / "precious_uncommitted.txt").write_text(
+                "not committed anywhere\n", encoding="utf-8"
+            )
+
+            # The commits DID land by content...
+            self.assertIs(
+                runner_shared.lane_work_landed_by_content(
+                    repo, lane["branch"], target="main"
+                ),
+                True,
+            )
+            # ...and the lane is STILL REPORTED, because its tree is dirty.
+            rec = runner_shared.classify_lane_integration(repo, lane, target="main")
+            self.assertTrue(rec["dirty"])
+            self.assertTrue(rec["needs_attention"])
+            self.assertEqual(rec["lane_state"], runner_shared.LANE_STRANDED)
+            self.assertIsNone(rec["landed_by"])
+            self.assertTrue((lane_dir / "precious_uncommitted.txt").is_file())
+
+    def test_a_genuinely_unmerged_lane_still_classifies_STRANDED(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            _advance_main(repo)
+            rec = runner_shared.classify_lane_integration(repo, lane, target="main")
+            self.assertEqual(rec["lane_state"], runner_shared.LANE_STRANDED)
+            self.assertTrue(rec["needs_attention"])
+            self.assertIsNone(rec["landed_by"])
+
+    def test_an_UNANSWERABLE_content_reading_does_NOT_rescue_a_negative_ancestry(self):
+        """FAIL-CLOSED DIRECTION. A false LANDED hides real loss; a false STRANDED only costs a row."""
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            _advance_main(repo)
+
+            def _unanswerable(*_a: Any, **_k: Any) -> Any:
+                return None
+
+            with mock.patch.object(
+                runner_shared, "lane_work_landed_by_content", _unanswerable
+            ):
+                rec = runner_shared.classify_lane_integration(repo, lane, target="main")
+            self.assertTrue(rec["needs_attention"])
+            self.assertEqual(rec["lane_state"], runner_shared.LANE_STRANDED)
+            self.assertIsNone(rec["landed_by"])
+
+    def test_the_content_reading_is_gated_on_NOT_DIRTY_in_the_source(self):
+        """Pins the gate itself, so removing it fails here rather than silently in production."""
+        import inspect
+
+        source = inspect.getsource(runner_shared.classify_lane_integration)
+        self.assertIn('if not described.get("dirty")', source)
+
+    def test_an_ancestor_landed_lane_records_landed_by_ancestor(self):
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            subprocess.run(
+                [
+                    "git",
+                    "merge",
+                    "--no-ff",
+                    "--no-edit",
+                    "-m",
+                    "integrate lane01",
+                    lane["branch"],
+                ],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            rec = runner_shared.classify_lane_integration(repo, lane, target="main")
+            self.assertEqual(rec["lane_state"], runner_shared.LANE_LANDED)
+            self.assertEqual(rec["landed_by"], "ancestor")
+
+
+class OneRowPerLaneTests(unittest.TestCase):
+    """E-04: one lane is one row across runs, WITHOUT losing the within-run collapse or the evidence."""
+
+    def test_a_lane_named_by_THREE_runs_yields_ONE_row_carrying_the_run_count(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            states = [
+                _state_for(repo, [lane], run_id="run-20260101T000000Z-1"),
+                _state_for(repo, [lane], run_id="run-20260202T000000Z-2"),
+                _state_for(repo, [lane], run_id="run-20260303T000000Z-3"),
+            ]
+            recs = runner_shared.stranded_lane_records(repo, states, target="main")
+            self.assertEqual(len(recs), 1)
+            self.assertEqual(recs[0]["branch"], "aw/lane/lane01")
+            self.assertEqual(recs[0]["run_count"], 3)
+            # The NEWEST run is the one an operator opens first.
+            self.assertEqual(recs[0]["run_id"], "run-20260303T000000Z-3")
+            self.assertEqual(len(recs[0]["run_ids"]), 3)
+
+    def test_the_WITHIN_RUN_collapse_SURVIVES_one_lane_named_twice_in_one_run(self):
+        """The stage-1 key was CORRECT for its own duplicate and must not be lost to the stage-2 fix.
+
+        One run naming a lane by BOTH an attempt and the item-level `preserved_*` fields must still yield
+        exactly ONE record, which is what the original `(run_id, branch, worktree)` key delivered.
+        """
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            state = _state_for(repo, [lane], run_id="run-solo")
+            recs = runner_shared.stranded_lane_records(repo, [state], target="main")
+            self.assertEqual(len(recs), 1)
+            self.assertEqual(recs[0]["run_count"], 1)
+            self.assertEqual(recs[0]["run_id"], "run-solo")
+
+    def test_TWO_DISTINCT_lanes_are_NOT_collapsed_into_one_row(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane_a = _add_lane(repo, root / "lane01", "lane01")
+            lane_b = _add_lane(repo, root / "lane02", "lane02")
+            state = _state_for(repo, [lane_a, lane_b], run_id="run-both")
+            recs = runner_shared.stranded_lane_records(repo, [state], target="main")
+            self.assertEqual(len(recs), 2)
+            self.assertEqual(
+                sorted(r["branch"] for r in recs),
+                ["aw/lane/lane01", "aw/lane/lane02"],
+            )
+
+    def test_the_retained_row_is_the_MOST_INFORMATIVE_one(self):
+        """An `integration_signal` names WHY the lane did not integrate, so it must survive the collapse."""
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            bare = _state_for(repo, [lane], run_id="run-20260101T000000Z-1")
+            for item in bare["queue"]:
+                item["integration_signal"] = None
+                for attempt in item["attempts"]:
+                    attempt["integration_signal"] = None
+            rich = _state_for(repo, [lane], run_id="run-20260202T000000Z-2")
+
+            recs = runner_shared.stranded_lane_records(
+                repo, [bare, rich], target="main"
+            )
+            self.assertEqual(len(recs), 1)
+            self.assertEqual(recs[0]["integration_signal"], "suite-failed")
+            self.assertEqual(recs[0]["run_count"], 2)
+
+
+class LaneWorktreeDisplayExistenceTests(unittest.TestCase):
+    """E-05: a row must not assert a directory that is gone, and must still name one that is there."""
+
+    def test_an_ABSENT_worktree_is_OMITTED(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            gone = repo / ".aw" / "worktrees" / "reclaimed"
+            self.assertFalse(gone.exists())
+            self.assertIsNone(runner_shared.lane_worktree_display(repo, str(gone)))
+
+    def test_an_EXISTING_worktree_still_renders_REPOSITORY_RELATIVE(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            live = repo / ".aw" / "worktrees" / "alive"
+            live.mkdir(parents=True)
+            self.assertEqual(
+                runner_shared.lane_worktree_display(repo, str(live)),
+                ".aw/worktrees/alive",
+            )
+
+    def test_the_guard_protects_the_SUCCESS_return_not_only_the_reconstruction(self):
+        """The intuitive suspect was the except branch, and it was the WRONG one.
+
+        `Path.resolve()` does not require the path to exist, so `relative_to(root)` SUCCEEDS for a
+        long-gone directory and the value is returned by the NORMAL path. Measured over the live record
+        set: every record carrying a worktree took the success path and none took the except branch.
+        """
+        import inspect
+
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            gone = repo / ".aw" / "worktrees" / "reclaimed"
+            # The success path really is the one taken: `relative_to` does not raise for an absent path.
+            self.assertEqual(
+                gone.resolve().relative_to(repo.resolve()).as_posix(),
+                ".aw/worktrees/reclaimed",
+            )
+            self.assertIsNone(runner_shared.lane_worktree_display(repo, str(gone)))
+
+        source = inspect.getsource(runner_shared.lane_worktree_display)
+        self.assertIn("if not _exists(resolved):", source)
+
+    def test_an_absent_worktree_OUTSIDE_the_repository_is_still_omitted(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            self.assertIsNone(
+                runner_shared.lane_worktree_display(
+                    repo, str(root / "elsewhere" / "worktrees" / "ghost")
+                )
+            )
+
+    def test_NO_surface_ever_renders_an_ABSOLUTE_path(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            live = repo / ".aw" / "worktrees" / "alive"
+            live.mkdir(parents=True)
+            for candidate in (
+                str(live),
+                str(repo / ".aw" / "worktrees" / "gone"),
+                str(root / "outside"),
+                "",
+                None,
+            ):
+                got = runner_shared.lane_worktree_display(repo, candidate)
+                if got is not None:
+                    self.assertFalse(pathlib.Path(got).is_absolute(), got)
 
 
 # ==================================================================================================

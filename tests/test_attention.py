@@ -2698,6 +2698,64 @@ Some content
         )
 
 
+class LaneRemedyHintTests(unittest.TestCase):
+    """E-06: the remedy must name a verb that EXISTS, and the probe must be observable when it rots.
+
+    THE DEFECT WAS UNOBSERVABILITY, NOT THE WRONG STRING. The old probe was a bare
+    `hasattr(oc_runipd, "cmd_integrate")` against a name NOTHING ELSE in the repository referenced, so
+    when `rl67b0` shipped the verb as `handle_integrate_command` the conditional silently froze in its
+    pre-`rl67b0` state and kept telling operators "no `aw integrate` verb exists yet". Nothing failed.
+    """
+
+    def test_the_hint_names_the_integrate_verb_that_really_exists(self):
+        hint = att.lane_remedy_hint()
+        self.assertIn("aw oc integrate", hint)
+        self.assertNotIn("no `aw integrate` verb exists yet", hint)
+
+    def test_the_hint_names_the_CONCRETE_command_when_given_an_id6(self):
+        self.assertIn("aw oc integrate abc123", att.lane_remedy_hint("abc123"))
+        # The no-argument call must keep working: it is part of the function's contract.
+        self.assertIn("<id6>", att.lane_remedy_hint())
+
+    def test_the_PROBED_SYMBOL_really_exists_on_BOTH_hosts(self):
+        """THE PIN. If the probed name disappears or is renamed again, THIS fails loudly.
+
+        Both hosts are asserted because the hint claims a route that must not be host-specific fiction.
+        """
+        from agent_workflows import agy_runipd, oc_runipd
+
+        self.assertTrue(
+            hasattr(oc_runipd, att.LANE_INTEGRATE_PROBE_SYMBOL),
+            "oc_runipd lost {0}; lane_remedy_hint would silently fall back to the manual "
+            "hint again".format(att.LANE_INTEGRATE_PROBE_SYMBOL),
+        )
+        self.assertTrue(
+            hasattr(agy_runipd, att.LANE_INTEGRATE_PROBE_SYMBOL),
+            "agy_runipd lost {0}".format(att.LANE_INTEGRATE_PROBE_SYMBOL),
+        )
+
+    def test_it_DEGRADES_to_the_manual_hint_when_the_verb_is_genuinely_absent(self):
+        """The rule the function keeps: do not print a verb that does not exist.
+
+        Probing for a name that is really absent is what proves the conditional is LIVE rather than
+        effectively constant, which is precisely what the old `cmd_integrate` probe had become.
+        """
+        with mock.patch.object(att, "LANE_INTEGRATE_PROBE_SYMBOL", "no_such_symbol"):
+            hint = att.lane_remedy_hint()
+        self.assertIn("no `aw integrate` verb exists yet", hint)
+        self.assertNotIn("aw oc integrate", hint)
+
+    def test_the_stranded_row_carries_the_concrete_remedy(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = StrandedLaneViewTests()._fixture(Path(td))
+            with mock.patch(
+                "agent_workflows.run_viewer.driver_holder_state", return_value="none"
+            ):
+                drift = att.stranded_lane_drift(root)
+            self.assertEqual(len(drift), 1)
+            self.assertIn("aw oc integrate lane01", drift[0].detail)
+
+
 def core_Drift(*args, **kw):
     from agent_workflows import artifact_core
 

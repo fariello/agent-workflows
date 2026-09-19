@@ -1120,6 +1120,73 @@ def lane_work_has_landed(
     return None
 
 
+def lane_work_landed_by_content(
+    repo: Path, branch: str, *, target: str = LANE_INTEGRATION_TARGET_FALLBACK
+) -> Optional[bool]:
+    """Is every commit ``branch`` adds already on ``target`` BY PATCH ID? True / False / None.
+
+    THE SECOND READING, and it exists because the FIRST one answers a narrower question than the spec
+    demands. `lane_work_has_landed` asks about ANCESTRY, which is exact for the two shapes the drivers
+    produce themselves (fast-forward, controlled `--no-ff` merge) and BLIND to work that reached the
+    target as a different commit. Spec `attention-registry-and-cross-tree-status` F3a makes the
+    exclusion NORMATIVE ("a lane whose work HAS reached the integration target MUST NOT fail it
+    either"), and ancestry alone does not satisfy it.
+
+    WHY THIS IS NOT A HYPOTHETICAL SHAPE, which is the whole justification for carrying a second
+    reading. Two live recovery paths in this codebase tell the operator to CHERRY-PICK by name:
+    `commit_lock`'s `ISO_RACED` ("the work is preserved as commit ...; cherry-pick or retry") and
+    `ipd_lifecycle`'s `RECONCILED_RACED` ("The work is preserved as commit ... (cherry-pick or
+    retry)"). An operator who follows either lands the lane's work by patch id and NOT by ancestry, so
+    the next such race produces exactly the lane the ancestry-only reading mis-reports as stranded.
+
+    ITS MEASURED YIELD ON THIS REPOSITORY'S CORPUS IS ZERO, STATED HERE SO NOBODY RE-DISCOVERS IT AS A
+    BUG. Measured 2026-09-19 over all 13 then-reported lanes: `git cherry` returned only `+` lines for
+    every one, silencing none. The six lanes this reading was written for were REIMPLEMENTATIONS rather
+    than cherry-picks (a blob-identity check found 0 of 7, 0 of 5 and 0 of 19 of their touched files
+    matching HEAD), so no patch-id or content-identity reading can see their work. This is a
+    FORWARD-LOOKING guard for a real integration shape, not a fix for today's rows (plan `0ta5vg`
+    E-08, decision D1).
+
+    `git cherry <target> <branch>` prints one line per commit the branch adds beyond the merge-base:
+    `-` when an equivalent patch id is ALREADY on the target, `+` when it is genuinely absent.
+
+    TWO PARSE GUARDS, BOTH LOAD-BEARING, because the naive rule ("every line begins `-`") is unsafe:
+
+      * EMPTY OUTPUT IS NOT LANDED. `git cherry` exits 0 with NO lines when the branch adds nothing,
+        and "every line begins `-`" is VACUOUSLY TRUE on an empty list. A lane reaches the landing
+        question whenever `holds_work` is True, and `holds_work` is `commits_ahead > 0 OR dirty`, so a
+        lane with ZERO commits and a DIRTY tree arrives here; reading that as LANDED would silence a
+        tree holding uncommitted work. Empty output therefore returns False and the caller falls
+        through to the ancestry answer.
+      * A NONZERO GIT EXIT IS `None`, NEVER `False`. `git cherry <target> nosuchbranch` exits 128
+        (`fatal: unknown commit`). An unanswerable question must stay UNKNOWN rather than read as
+        either answer, which is the same three-valued contract `lane_work_has_landed` documents and the
+        same reason its error case is not folded into `False`.
+
+    IT SAYS NOTHING ABOUT UNCOMMITTED WORK, and its one caller must not forget that. Patch ids exist
+    only for COMMITS, so a True here means "the commits landed" and never "the lane is safe to lose".
+    `classify_lane_integration` gates the content conclusion on `not dirty` for exactly that reason.
+    """
+    if not branch:
+        return None
+    rc, _out, _err = _run_git(repo, ["rev-parse", "--verify", "--quiet", branch])
+    if rc != 0:
+        return None
+    rc, _out, _err = _run_git(repo, ["rev-parse", "--verify", "--quiet", target])
+    if rc != 0:
+        return None
+    rc, out, _err = _run_git(repo, ["cherry", target, branch])
+    if rc != 0:
+        return None
+    lines = [ln for ln in (out or "").splitlines() if ln.strip()]
+    if not lines:
+        # Nothing to compare. NOT landed: see the empty-output guard above.
+        return False
+    if any(ln.startswith("+") for ln in lines):
+        return False
+    return any(ln.startswith("-") for ln in lines)
+
+
 def classify_lane_integration(
     repo: Path,
     lane: dict[str, Any],
@@ -1134,8 +1201,14 @@ def classify_lane_integration(
          `commits_ahead`, `dirty`, `owner_live` and `owned_by_other_live_process`. This half is NOT
          reimplemented here; reimplementing it is the duplication `nuanaw`'s one-reader constraint
          forbids.
-      2. "Has that work reached the integration target?" -> :func:`lane_work_has_landed`, the ONE added
-         git reachability question. IT WENT IN A NEW HELPER RATHER THAN INTO `describe_lane` because
+      2. "Has that work reached the integration target?" -> TWO readings, because one of them answers a
+         narrower question than spec F3a asks. :func:`lane_work_has_landed` asks about ANCESTRY, exact
+         for the shapes the drivers produce themselves; :func:`lane_work_landed_by_content` asks whether
+         every commit is present BY PATCH ID, which additionally sees a cherry-pick or a rebase (a shape
+         this codebase's own race remedies instruct an operator to produce). The second is consulted
+         ONLY when the first did not already say LANDED, and ONLY on a NOT-DIRTY lane; see the inline
+         comment at the call for why that dirty gate is a data-loss guard. IT WENT IN A NEW HELPER
+         RATHER THAN INTO `describe_lane` because
          `describe_lane`'s body is pinned byte-for-byte against a pre-move fingerprint fixture
          (`tests/fixtures/runner_shared_premove_fingerprints.json`, captured at HEAD `1ecc5891`) that
          proves it was a PURE MOVE out of the two runners; editing it would break that proof for a
@@ -1154,7 +1227,11 @@ def classify_lane_integration(
         an UNKNOWN owner and never a "not live"; only an explicit `True`, or
         `owned_by_other_live_process`, suppresses the report.
       * EMPTY next. No commits beyond base and a clean tree means there is nothing to lose.
-      * Then the landing question. `True` -> LANDED (silent), `False` -> STRANDED, `None` -> UNKNOWN.
+      * Then the landing question, over BOTH readings. LANDED by ancestry, else LANDED by content on a
+        clean lane, else `False` -> STRANDED and `None` -> UNKNOWN. The composition is deliberately
+        ASYMMETRIC and fail-closed: the content reading can only ever turn a STRANDED into a LANDED, and
+        a `None` from either reading never rescues a lane, because a false LANDED hides real loss while a
+        false STRANDED only costs a row.
 
     PURE ENOUGH TO TEST: it prints nothing, exits nothing, and takes no argparse namespace. Rendering
     belongs to the consumer, and there is more than one consumer.
@@ -1172,6 +1249,10 @@ def classify_lane_integration(
     owner_live = described.get("owner_live")
     live = bool(described.get("owned_by_other_live_process")) or owner_live is True
 
+    #: Which reading settled a LANDED verdict. Only the landing question below can set it, so LIVE and
+    #: EMPTY (which are silent WITHOUT asking whether the work landed) correctly leave it None.
+    landed_by: Optional[str] = None
+
     if live:
         landed = lane_work_has_landed(repo, str(branch), target=target)
         state = LANE_LIVE
@@ -1183,21 +1264,67 @@ def classify_lane_integration(
     else:
         landed = lane_work_has_landed(repo, str(branch), target=target)
         if landed is True:
+            landed_by = "ancestor"
             state = LANE_LANDED
             why = "the lane's work is reachable from {0}".format(target)
-        elif landed is False:
-            state = LANE_STRANDED
-            why = "the lane holds work that is NOT reachable from {0}".format(target)
         else:
-            state = LANE_UNKNOWN
-            why = (
-                "the lane holds work but whether it reached {0} could not be determined "
-                "(branch or target unresolvable)".format(target)
+            # THE SECOND READING, consulted ONLY when ancestry did not already settle it LANDED. A
+            # cherry-picked or rebased lane is not an ancestor of the target yet its commits are all
+            # present by patch id, which is the case spec F3a's exclusion covers and ancestry cannot
+            # see (`lane_work_landed_by_content` documents the shape and its measured zero yield).
+            #
+            # A DIRTY LANE IS NEVER SILENCED BY THIS READING, AND THAT GUARD IS A DATA-LOSS GUARD.
+            # `holds_work` is `commits_ahead > 0 OR dirty`, so a lane whose commits all landed by patch
+            # id but whose worktree still holds UNCOMMITTED changes arrives here. Patch ids describe
+            # COMMITS only, so the content reading answers True for the commits while saying NOTHING
+            # about those files. Reproduced before this was written: such a lane reads rc=1 from
+            # `merge-base --is-ancestor` (reported today) and all-`-` from `git cherry` (silent without
+            # this guard), so the ancestry-only reading was ACCIDENTALLY protecting the uncommitted
+            # file and removing it without this gate would lose it.
+            #
+            # HONEST LIMIT, STATED SO THIS PREDICATE IS NOT REUSED FOR A DESTRUCTIVE ACT: `dirty` comes
+            # from a plain `git status --porcelain` and is BLIND TO IGNORED FILES (plan `65cuw0`'s
+            # review measured a force-delete hazard from exactly that blindness). Here the only
+            # consequence of a missed ignored file is a MISSING ROW, never lost data, because this
+            # function decides whether to REPORT and never whether to delete. Do NOT delegate a
+            # teardown, prune or force-delete decision to this reading.
+            content = (
+                lane_work_landed_by_content(repo, str(branch), target=target)
+                if not described.get("dirty")
+                else None
             )
+            if content is True:
+                landed = True
+                landed_by = "content"
+                state = LANE_LANDED
+                why = (
+                    "every commit the lane adds is already present on {0} by patch id "
+                    "(cherry-picked or rebased), and its tree is clean".format(target)
+                )
+            elif landed is False:
+                # FAIL CLOSED. An unanswerable or negative content reading does NOT rescue the lane
+                # from a negative ancestry reading: a false LANDED hides real loss and is strictly
+                # worse than the false STRANDED this pair of readings narrows.
+                landed_by = None
+                state = LANE_STRANDED
+                why = "the lane holds work that is NOT reachable from {0}".format(
+                    target
+                )
+            else:
+                landed_by = None
+                state = LANE_UNKNOWN
+                why = (
+                    "the lane holds work but whether it reached {0} could not be determined "
+                    "(branch or target unresolvable)".format(target)
+                )
 
     record = dict(described)
     record["lane_state"] = state
     record["landed"] = landed
+    #: WHICH reading settled a LANDED verdict (`ancestor` / `content`), else None. Debuggability only:
+    #: it stays INTERNAL and does not reach the `--json` payload, so `attention.SCHEMA_VERSION` is
+    #: unaffected (plan `0ta5vg` E-02/E-07, F-8).
+    record["landed_by"] = landed_by
     record["integration_target"] = target
     record["why"] = why
     record["needs_attention"] = state in LANE_ATTENTION_STATES
@@ -1235,8 +1362,21 @@ def stranded_lane_records(
     rule binds (`preserved_worktree` is an absolute home path in most recorded items), and
     `lane_worktree_display` below is the shared way to satisfy it.
 
-    De-duplicated by `(run_id, branch, worktree)`, so one lane named by both an attempt and the
-    item-level `preserved_*` fields yields one record.
+    ONE LANE IS AT MOST ONE RECORD, IN TWO STAGES, and the stages answer different duplicates.
+
+      1. WITHIN a run, de-duplicated by `(run_id, branch, worktree)`, so one lane named by both an
+         attempt and the item-level `preserved_*` fields yields one record. This stage is unchanged.
+      2. ACROSS runs, the REPORTED set is then collapsed per BRANCH. A lane touched by three runs was
+         printing three identical-in-substance rows, because `run_id` is part of the stage-1 key:
+         measured 2026-09-19, 20 rows covered 13 distinct lanes (`7p9n2v`/`qcqhj7`/`rchpms` tripled,
+         `58ha43` doubled), inflating the violation count by 54% and making the gate read as a much
+         larger problem than it is. A lane is ONE thing needing ONE human act, so it gets ONE row.
+
+    THE COLLAPSE DROPS NO EVIDENCE. The retained record is the most informative one (preferring a record
+    carrying an `integration_signal`, then the highest `commits_ahead`), and it gains `run_count` plus
+    `run_ids` so the row can still say how many runs touched the lane and which was newest. The stage-2
+    collapse applies to the REPORTED set only (`attention_only=True`), since a caller asking for every
+    lane's classification is asking a per-run question and must keep the per-run rows.
     """
     from agent_workflows import worktree_lease
 
@@ -1331,6 +1471,73 @@ def stranded_lane_records(
             record.setdefault("worktree", lane.get("worktree"))
             out.append(record)
     out.sort(key=lambda r: (str(r.get("branch") or ""), str(r.get("run_id") or "")))
+    if attention_only:
+        out = _collapse_lane_records_per_branch(out)
+    return out
+
+
+def _lane_record_informativeness(record: dict[str, Any]) -> tuple[int, int]:
+    """How much a candidate row tells a human, for the per-branch collapse. Higher wins.
+
+    An `integration_signal` is ranked FIRST because it is the only field naming WHY the lane did not
+    integrate (conflict, stale base, lane failure), which is what decides the human's next act;
+    `commits_ahead` breaks the tie because more commits beyond base is the larger stake.
+
+    THE LOCAL IS `has_integration_signal` AND NOT `signal`, DELIBERATELY. An AST guard in
+    `tests/test_runner_telemetry_integration.py` asserts this module contains NO `ast.Name` called
+    `signal`, to prove the seam installs no signal handler; a plain local of that name trips it (measured
+    while writing this). Keep the name qualified.
+    """
+    has_integration_signal = 1 if record.get("integration_signal") else 0
+    try:
+        ahead = int(record.get("commits_ahead") or 0)
+    except (TypeError, ValueError):
+        ahead = 0
+    return (has_integration_signal, ahead)
+
+
+def _collapse_lane_records_per_branch(
+    records: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Collapse REPORTED lane records to one per branch, carrying the run evidence forward (E-04).
+
+    Stage 2 of `stranded_lane_records`'s de-duplication; see its docstring for why one lane must be one
+    row. Records with no branch are passed through UNCOLLAPSED, because a branchless record has no key
+    that would make two of them the same lane and merging them on a shared empty string would fuse
+    genuinely distinct lanes into one row.
+
+    Preserves the caller's sort order and adds `run_count` plus `run_ids` (oldest to newest, as sorted)
+    to every collapsed record, so no run is silently dropped from the evidence a row carries.
+    """
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    order: list[str] = []
+    passthrough: list[dict[str, Any]] = []
+    for record in records:
+        branch = str(record.get("branch") or "")
+        if not branch:
+            passthrough.append(record)
+            continue
+        if branch not in grouped:
+            grouped[branch] = []
+            order.append(branch)
+        grouped[branch].append(record)
+
+    out: list[dict[str, Any]] = []
+    for branch in order:
+        group = grouped[branch]
+        best = max(group, key=_lane_record_informativeness)
+        merged = dict(best)
+        run_ids = [str(r.get("run_id") or "") for r in group if r.get("run_id")]
+        merged["run_count"] = len(group)
+        merged["run_ids"] = run_ids
+        # The row's own `run_id` names the NEWEST run that touched the lane, since that is the run whose
+        # records an operator will open first. Run ids are timestamp-prefixed, so the sorted maximum is
+        # the newest one.
+        if run_ids:
+            merged["run_id"] = max(run_ids)
+        out.append(merged)
+    out.extend(passthrough)
+    out.sort(key=lambda r: (str(r.get("branch") or ""), str(r.get("run_id") or "")))
     return out
 
 
@@ -1347,20 +1554,51 @@ def lane_worktree_display(repo: Path, worktree: Any) -> Optional[str]:
     Returns a repository-relative POSIX path when the worktree lies inside ``repo`` (the normal case:
     lanes live under `.aw/worktrees/<lane>`), and otherwise returns None so the caller OMITS it rather
     than leaking it. Never returns an absolute path.
+
+    IT ALSO OMITS A WORKTREE THAT IS NOT THERE, because a row asserting a directory that was reclaimed
+    months ago sends the reader to inspect a tree that does not exist. Measured 2026-09-19 over the live
+    record set: of the rows naming a worktree, MOST named an absent directory while SOME were real, so
+    the check is CONDITIONAL and never a blanket removal - deleting the segment unconditionally would
+    destroy true, useful information for the lanes whose trees survive.
+
+    WHY THE EXISTENCE CHECK GUARDS THE SUCCESS RETURN AND NOT ONLY THE RECONSTRUCTION, since the
+    reconstruction is the intuitive suspect and is the WRONG one: `Path.resolve()` does NOT require the
+    path to exist, so `relative_to(root)` SUCCEEDS for a long-gone directory and the value is returned by
+    the normal path. Measured: every record carrying a worktree took the success path and none took the
+    except branch. Both are guarded here anyway, since an absent path outside the repository is the same
+    defect.
+
+    THIS IS NOT A FILESYSTEM-DERIVED VERDICT and must not be read as licensing one. Spec F3a requires the
+    lane VERDICT to come from the run record, and it still does: nothing here walks `.aw/worktrees/` or
+    changes any classification. The only question asked is whether ONE already-derived DISPLAY field
+    should be rendered. F8a is preserved in the same direction, since omitting strictly reduces output.
     """
     if not worktree:
         return None
+
+    def _exists(path: Path) -> bool:
+        # An unreadable path is treated as ABSENT rather than raising: the fallback is to omit one
+        # display segment, which is the conservative direction for a rendering decision.
+        try:
+            return path.exists()
+        except (OSError, RuntimeError):
+            return False
+
     try:
         candidate = Path(str(worktree))
         root = Path(repo).resolve()
-        rel = candidate.resolve().relative_to(root)
+        resolved = candidate.resolve()
+        rel = resolved.relative_to(root)
     except (ValueError, OSError, RuntimeError):
         # Outside the repository (or unresolvable): omit rather than leak.
-        name = Path(str(worktree)).name
-        parent = Path(str(worktree)).parent.name
-        if parent == "worktrees" and name:
+        raw = Path(str(worktree))
+        name = raw.name
+        parent = raw.parent.name
+        if parent == "worktrees" and name and _exists(raw):
             # The canonical lane shape, reconstructed WITHOUT the absolute prefix.
             return ".aw/worktrees/{0}".format(name)
+        return None
+    if not _exists(resolved):
         return None
     text = rel.as_posix()
     return text if text not in ("", ".") else None

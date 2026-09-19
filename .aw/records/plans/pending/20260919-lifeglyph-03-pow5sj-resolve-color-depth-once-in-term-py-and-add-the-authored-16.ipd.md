@@ -6,7 +6,8 @@
 - Scope: IN: one depth resolver beside `should_color` in `term.py` implementing the R9.3a.2 precedence chain; the AUTHORED 16-color palette of R9.3a.3 with its named collapses; an `aw config` key pinning the depth, refusing an invalid value with a message naming the accepted set; and the A12a-A12d tests. OUT: the semantic stage table itself (child `udgilu`), the lifecycle rendering helpers (child `bn026f`), and any consumer conversion. Also OUT: a per-stage color override beyond what R9.3a.4 marks SHOULD, which is recorded as deferred with its reason rather than silently dropped.
 - Scope-Paths: agent_workflows/term.py, agent_workflows/config.py, tests/test_term.py, tests/test_config.py
 - Item-Dependencies: executed:yaxr4i, executed:udgilu
-- Status: to-review
+- Status: reviewed
+- Readiness: no-go
 - Set: lifeglyph
 - Order: 3
 - Highest E allocated: 05
@@ -16,7 +17,9 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-19 reviewed (aw set): plan-review round 1: REVIEWED - OPEN QUESTIONS. PR-302..PR-305 FIXED; PR-301 (BLOCKER) escalated as OQ-02 Blocking: yes (R9.3a.2's 'unconditional' NO_COLOR rung contradicts Section 9.3's preserve-current-FORCE_COLOR requirement; measured FORCE_COLOR currently wins). Readiness no-go.
 
+- 2026-09-19 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-302, PR-303, PR-304, PR-305 FIXED, PR-301 (BLOCKER) escalated as OQ-02 `Blocking: yes`. Reviewed at HEAD `a5ab0515`; `aw ipd lint --phase author --agent` clean, exit 0. THE SPEC SPECIFIES E-01'S TOP RUNG TWICE AND INCOMPATIBLY: R9.3a.2 calls `NO_COLOR -> none` "unchanged, and unconditional", Section 9.3 requires preserving current `FORCE_COLOR` behavior, and the current behavior (measured by execution, not read) is that `FORCE_COLOR` DEFEATS `NO_COLOR` at `term.py:100-104`, pinned by the shipped test `test_force_color_overrides_no_color`. So "unchanged" is false as written and the literal reading breaks a shipped test; a maintainer must rule. ALSO: the resolver's top rung spans two layers, since `term.should_color` cannot see `--no-color` (the flag is applied in `result_types.select_output`), which E-01 now states so nobody adds argparse awareness to `term.py`. Two counting errors corrected from measurement: 20 stages not 21, and R9.3a.3's "four grays" is six by its own list (five at 244 plus `formative` at 245).
 - 2026-09-19 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from spec uonrjg Section 9.3a (R9.3a.1-R9.3a.5) and criteria A12a-A12d. Carries the spec's `Blocks-Release: next` gate.
 - 2026-09-19 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 
@@ -30,17 +33,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: The depth resolver
 
-- [ ] E-01 Add a single color-depth resolver beside `should_color` in `agent_workflows/term.py`, implementing the R9.3a.2 precedence chain highest-first: `NO_COLOR`/`--no-color`/`TERM=dumb`/non-TTY yields none unconditionally; then an explicit user depth setting; then detected capability via `COLORTERM`/`TERM`; then the default of 256.
+- [ ] E-01 Add a single color-depth resolver beside `should_color` in `agent_workflows/term.py`, implementing the R9.3a.2 precedence chain highest-first: `NO_COLOR`/`--no-color`/`TERM=dumb`/non-TTY yields none; then an explicit user depth setting; then detected capability via `COLORTERM`/`TERM`; then the default of 256. The top rung's exact treatment of `FORCE_COLOR` is OQ-02's blocking question; implement whatever it resolves rather than choosing.
   - Depends on: none
   - Expected outcome: Exactly one definition of depth in the package. `NO_COLOR` with a pinned depth still yields none, because an accessibility convention outranks a preference. The default is 256, not the most conservative rung.
   - Execution state: pending
 
+  TWO SEAM FACTS MEASURED AT REVIEW, because "beside `should_color`" is not by itself enough to place this correctly. FIRST, `term.should_color` CANNOT SEE `--no-color`: it reads only `NO_COLOR`, `FORCE_COLOR`, `TERM` and `isatty()` (`term.py:90-114`), and the FLAG is applied one layer up in `result_types.select_output`, which computes `color_enabled = should_color(out_stream)` only `if not getattr(args, "no_color", False)` (`result_types.py:158-160`). So a depth resolver living in `term.py` can implement three of the four top-rung inputs and MUST take the flag's effect as a parameter (or be called only after the flag has been applied) rather than reaching for `args`. Do not add argparse awareness to `term.py`; that is the layering `yaxr4i` E-03 settles by putting the flag layer ABOVE the env layer. SECOND, `should_color` has 38 call sites across 7 modules, so whatever signature the resolver takes must not force a change at any of them; this child converts no consumer.
+
 ### Task group 2: The authored 16-color tier
 
-- [ ] E-02 Add the AUTHORED 16-color palette required by R9.3a.3 as an explicit table, NOT a mechanical nearest-neighbour mapping of the 11 distinct 256 indices. It MUST preserve three separations: `ready` is not `done`, `blocked` is not `failed`, `waiting-input` is not `blocked`.
+- [ ] E-02 Add the AUTHORED 16-color palette required by R9.3a.3 as an explicit table covering all TWENTY stages, NOT a mechanical nearest-neighbour mapping of the 11 distinct 256 indices. It MUST preserve three separations: `ready` is not `done`, `blocked` is not `failed`, `waiting-input` is not `blocked`.
   - Depends on: E-01
-  - Expected outcome: A 16-color context renders from the authored table. The three separations hold, and the two EXPECTED collapses are present: the five active subtypes plus `active` to one yellow, and the grays (`parked`, `superseded`, `abandoned`, `unknown`, `none`, `formative`) to one neutral.
+  - Expected outcome: A 16-color context renders from the authored table. The three separations hold, and the two EXPECTED collapses are present: the five active subtypes plus `active` to one yellow, and the six gray-family stages (`parked`, `superseded`, `abandoned`, `unknown`, `none`, `formative`) to one neutral.
   - Execution state: pending
+
+  THE 256 TIER VERIFIED AT REVIEW, so the authored table is written against measured facts rather than the spec's prose. Parsing Section 5's table on 2026-09-19 gives exactly 11 distinct indices, which confirms R9.3a.3's own count: `39` review-queued; `45` ready; `46` done; `81` reusable; `135` authority-queued; `196` failed; `208` blocked; `214` waiting-input; `220` the five active subtypes plus `active` (already one color, so that collapse is free); `244` parked/superseded/abandoned/unknown/none; `245` formative.
+  NOTE THE GRAY COUNT: R9.3a.3 says "the four grays" and then lists SIX names. The LIST is right and the WORD is wrong, which the measurement settles: five stages sit at 244 and `formative` sits at 245, so six stages collapse into the one neutral. Implement six. The three separations are all genuinely at risk under a mechanical mapping, since 208 versus 196 (blocked/failed) and 214 versus 208 (waiting-input/blocked) are adjacent-ish in the 256 cube while 45 versus 46 (ready/done) are adjacent by index and completely different in meaning; that adjacency is precisely why R9.3a.3 forbids deriving the tier.
 
 ### Task group 3: User configurability
 
@@ -75,6 +83,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 |---|---|---|---|
 | F-01 | High | No depth resolution exists, so the D42 ladder is entirely unimplemented and Section 5's 256 palette would reach a 16-color terminal unchanged. | `COLORTERM`/`256color` grep to zero in `agent_workflows/`; `term.should_color` returns bool (term.py:90-102). |
 | F-02 | High | The accessibility need is concrete rather than theoretical: Section 5 puts `blocked` at 208 and `waiting-input` at 214, an adjacent orange pair, which is exactly what a colorblind user may not distinguish and what detection cannot detect. | `uonrjg` Section 5 table; R9.3a.4 rationale ("DETECTION CANNOT SEE THE USER"). |
+| F-04 | High | R9.3a.2's top rung and Section 9.3 CONTRADICT each other on `FORCE_COLOR`, so E-01 cannot be written without a ruling. R9.3a.2 calls `NO_COLOR -> none` "unchanged, and unconditional"; Section 9.3 requires preserving current `FORCE_COLOR` behavior; and the current behavior is that `FORCE_COLOR` DEFEATS `NO_COLOR`. So "unchanged" is false as written, and the literal reading breaks a shipped test. Carried as blocking OQ-02. | Measured by execution 2026-09-19: `NO_COLOR=1` + `FORCE_COLOR=1` on a fake TTY -> `should_color` returns True; implemented at `term.py:100-104`; pinned by `tests/test_term.py:48-52` `test_force_color_overrides_no_color`. |
+| F-05 | Medium | Two counting errors inherited from prose rather than measurement. (a) The plan says "21 stages" in two places; Section 5 holds 20, and the spec's own D13 rejects "a new 21st stage", which only parses at 20. (b) R9.3a.3 says "the four grays" then lists SIX names; the list is right and the word is wrong, since five stages sit at 244 and `formative` at 245. Left uncorrected, V-02's dump would assert a count that cannot hold and the neutral collapse would be built for four of six stages. | Section 5 parsed -> 20 rows, 11 distinct indices; `uonrjg` D13; spec line 484 "the four grays (`parked`, `superseded`, `abandoned`, `unknown`, `none`, `formative`)". |
+| F-06 | Medium | `term.should_color` cannot see `--no-color`, so the resolver's top rung is split across two layers. The flag is applied in `result_types.select_output`, not in `term.py`, and `should_color` has 38 call sites across 7 modules. E-01 as authored said only "beside `should_color`", which invites either adding argparse awareness to `term.py` or silently dropping the flag from the chain. | `term.py:90-114` reads only `NO_COLOR`/`FORCE_COLOR`/`TERM`/`isatty`; `result_types.py:158-160` gates on `args.no_color`; `grep -c should_color` -> 38 call sites in 7 modules. |
 | F-03 | Medium | The spec's OQ-01 resolution asserts configurability is "a schema entry rather than a new mechanism", and that is only HALF true. `ConfigKeySpec` carries just `key`, `type_name`, `description`, `read_only` (config.py:83-87) with no allowed-values field, and `grep allowed/choices/enum` finds only a hand-rolled `_ALLOWED_REPOS_KEYS` check. So A12c's "REFUSED at validation with a message naming the accepted set" needs a constraint mechanism that does not exist. E-03 names this explicitly rather than inheriting the spec's optimism. | `config.py:83-87`; `_ALLOWED_REPOS_KEYS` at config.py:652,973 is a bespoke check, not a schema feature. |
 
 ## Proposed changes (ordered, validatable)
@@ -87,7 +98,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Deferred / out of scope (with reason)
 
-- The per-stage color override: R9.3a.4 marks the depth pin a MUST and the per-stage override a SHOULD. Deferring the SHOULD is legitimate, but the reason is proportionality rather than effort: a per-stage override multiplies the config surface by 21 stages and needs its own validation and precedence story, while the depth pin already delivers the accessibility remedy F-02 names. Recorded here rather than dropped; criterion A12c's "where implemented" wording anticipates exactly this.
+- The per-stage color override: R9.3a.4 marks the depth pin a MUST and the per-stage override a SHOULD. Deferring the SHOULD is legitimate, but the reason is proportionality rather than effort: a per-stage override multiplies the config surface by 20 stages and needs its own validation and precedence story, while the depth pin already delivers the accessibility remedy F-02 names. Recorded here rather than dropped; criterion A12c's "where implemented" wording anticipates exactly this.
   - Carrier-Declined: R9.3a.4 makes the depth pin a MUST and the per-stage override a SHOULD, and criterion A12c's own wording ("where implemented") anticipates the override being absent. The accessibility remedy F-02 names is delivered by the depth pin, so no requirement is left unmet. Recorded as a deliberate proportionality judgement rather than deferred work; if a user later needs per-stage control it is a new request, not an unpaid debt of this plan.
 - The semantic stage table, the rendering helpers, and consumer conversion: children `udgilu`, `bn026f`, and `f9t5hz` onward.
   - Carrier: bn026f
@@ -96,16 +107,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Scope check
 
-- Over-scope: none. Every E-item maps to an R9.3a requirement or an A12a-A12d criterion.
-- Under-scope: none. Note F-03 identifies work the spec did not anticipate (a config value-constraint mechanism); it is IN scope here via E-03 rather than deferred, because A12c cannot be satisfied without it.
+- Over-scope: none. Every E-item maps to an R9.3a requirement or an A12a-A12d criterion. Note the CONDITIONAL exception in Spec / documentation sync: if OQ-02 is resolved the literal way, amending Section 9.3 is in scope only once the `uonrjg` spec path is declared.
+- Under-scope: ONE GAP, found at review and carried as blocking OQ-02. E-01 could not have been written as authored because the spec specifies its top rung twice and incompatibly (R9.3a.2 "unconditional" versus Section 9.3 "preserve current `FORCE_COLOR` behavior", where current behavior lets `FORCE_COLOR` win). Otherwise complete: F-03 identifies work the spec did not anticipate (a config value-constraint mechanism) and it is IN scope here via E-03 rather than deferred, because A12c cannot be satisfied without it.
 
 ## Required tests / validation
 
 Run the suite BARE: `python3 -m pytest`. Paste the actual summary line. New and extended tests must cover criteria A12a (each precedence rung, explicitly), A12b (the three separations plus the two expected collapses at 16-color), A12c (config pin accepted, invalid value refused with the set named, pin does not defeat `NO_COLOR`), and A12d (glyph and word present at all three tiers).
 
+REUSE THE SHIPPED HARNESS rather than building one: `tests/test_term.py` already exercises the `NO_COLOR`/`FORCE_COLOR`/`TERM=dumb`/isatty matrix against `_FakeTTY()` and `_FakePipe()` stream doubles with a `_clear()` env helper (`tests/test_term.py:38-65`), which is exactly the shape the per-rung A12a tests need. A depth rung slots into that class; do not introduce a second stream-double pattern.
+
+BASELINE, measured in this lane at HEAD `a5ab0515` on 2026-09-19 so an executor can tell a pre-existing failure from one it caused:
+
+```text
+8369 passed, 3 skipped, 2 xfailed in 100.98s (0:01:40)
+```
+
+Compare NODE IDS, not totals: this child ADDS tests, so the total is expected to rise, and only a NEW failing node id is a regression. Watch `tests/test_term.py::...::test_force_color_overrides_no_color` specifically, since OQ-02's ruling decides whether it must keep passing. Do NOT add `-n0`, a second `-q`, or `-p no:randomly` per AGENTS.md.
+
 ## Spec / documentation sync
 
-No `.spec.md` edit in this child, deliberately: the accessibility lens was ALREADY corrected during the spec's own review (verified 2026-09-19 at `.aw/system/workflows/assess/lenses/accessibility.md`, which now states the 256/16/none ladder, that a user's explicit choice outranks detection, and that `NO_COLOR` still wins), so the amendment OQ-01 called for is discharged and must not be re-applied. The `25kzda` Section 5.6 amendment is child `7p3tt8`'s. User-facing documentation of the new config key is part of child `7p3tt8`'s documentation item.
+No `.spec.md` edit in this child AS CURRENTLY SCOPED, deliberately: the accessibility lens was ALREADY corrected during the spec's own review (verified again at review 2026-09-19 at `.aw/system/workflows/assess/lenses/accessibility.md:56-65`, which now states the 256/16/none ladder, that a user's explicit choice outranks detection, and that "`NO_COLOR` still wins over any such setting"), so the amendment OQ-01 called for is discharged and must not be re-applied. The `25kzda` Section 5.6 amendment is child `7p3tt8`'s. User-facing documentation of the new config key is part of child `7p3tt8`'s documentation item.
+
+TWO CONDITIONAL SPEC EDITS, recorded here because AGENTS.md requires a spec edit be DECLARED before it is made, and `- Scope-Paths:` is deliberately left unchanged at review since both are contingent on rulings that have not happened. FIRST, if OQ-02 resolves the LITERAL way (`NO_COLOR` beats `FORCE_COLOR` absolutely), Section 9.3's "MUST preserve current `FORCE_COLOR` behavior" must be amended in the same change, because the new behavior would contradict it. SECOND, regardless of that ruling, R9.3a.3's "the four grays" is wrong beside its own six-name list and SHOULD be corrected to six so the next implementer is not misled. Either edit requires adding `.aw/records/specs/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md` to `- Scope-Paths:` FIRST, since both runners announce declared spec edits before a run and the finalize scope gate reconciles what changed against what was declared. Do not edit the spec without that declaration.
 
 ## Open questions
 
@@ -117,17 +140,27 @@ No `.spec.md` edit in this child, deliberately: the accessibility lens was ALREA
 - Carrier-Declined: AN IMPLEMENTATION CHOICE MADE DURING THIS PLAN'S OWN EXECUTION, with both routes conforming. E-03 requires the choice be recorded and V-03 requires naming which route was taken, so the decision is captured in this plan's own evidence rather than handed onward. Criterion A12c is satisfied either way, so no requirement is left outstanding.
 - Resolution or deferral rationale: NOT BLOCKING because either route satisfies A12c and the choice is an ordinary implementation judgement the executing agent can make from the code. Recorded because F-03 shows the spec assumed this was free and it is not, so an agent should choose DELIBERATELY rather than discovering the gap mid-execution. The declarative route (an optional allowed-values field on `ConfigKeySpec`) generalizes to future enum keys and is the better shape if any other key wants it; the setter-local route is smaller and matches the existing `_ALLOWED_REPOS_KEYS` precedent. Whichever is chosen, A12c requires the refusal message to NAME the accepted set, which rules out a bare type error.
 
+### OQ-02: Does `FORCE_COLOR` still override `NO_COLOR` at the new depth resolver, or is R9.3a.2's "unconditional" top rung a deliberate behavior change?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-301
+- Resolution or deferral rationale: BLOCKING because the spec answers it BOTH WAYS in adjacent sections and this plan's E-01 cannot be written without a ruling. Section 9.3a.2 lists `NO_COLOR / --no-color / TERM=dumb / non-TTY -> none` and calls that rung "unchanged, and unconditional", and its commentary says plainly that `NO_COLOR` "is an accessibility convention and a preference may not defeat it". But Section 9.3, four lines earlier, requires that "The system MUST preserve current `NO_COLOR`, `FORCE_COLOR`, `TERM=dumb`, TTY ... behavior", and the CURRENT behavior is that `FORCE_COLOR` DOES defeat `NO_COLOR`. Measured at review on 2026-09-19 by execution, not by reading: with `NO_COLOR=1` and `FORCE_COLOR=1` on a fake TTY, `term.should_color` returns **True**, implemented at `term.py:100-104` ("NO_COLOR: any value (even empty) disables, UNLESS FORCE_COLOR is set") and PINNED by a shipped test named `test_force_color_overrides_no_color` (`tests/test_term.py:48-52`).
+  SO THE WORD "unchanged" IN R9.3a.2 IS FALSE AS WRITTEN, and the two readings lead to different code and different tests. READING A (preserve current behavior): the top rung is `NO_COLOR AND NOT FORCE_COLOR`, the existing test keeps passing, and R9.3a.2's "unconditional" is loose wording for "unconditional with respect to the DEPTH PIN" rather than with respect to `FORCE_COLOR`. READING B (literal): `NO_COLOR` wins absolutely, which CONTRADICTS Section 9.3, BREAKS `test_force_color_overrides_no_color`, and changes shipped behavior for anyone who sets both. A12a's own text ("`NO_COLOR` with a pinned depth still yields plain text") only ever contrasts `NO_COLOR` with the PIN, never with `FORCE_COLOR`, which is weak evidence for Reading A.
+  REVIEWER'S RECOMMENDATION IS READING A: it satisfies both sections at once (the pin never defeats `NO_COLOR`, which is the accessibility promise the spec actually argues for, while `FORCE_COLOR`'s shipped escape hatch survives), it changes no behavior, and it breaks no test. Reading B would be a deliberate behavior change to a documented convention and needs its own decision, its own Section 9.3 amendment, and the deletion of a shipped test. But this is a MAINTAINER call because it is a user-visible behavior question on an `approved`, `Blocks-Release: next` spec, and whichever way it goes the spec should be amended so the next reader is not caught by the same contradiction. If Reading B is chosen, declare the `uonrjg` spec path in `- Scope-Paths:` and amend Section 9.3 in the same change.
+
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Paste `grep -c` proving exactly ONE depth-resolver definition exists in the package (R9.3a.2 requires one definition). Paste the resolver's output under each input condition of the precedence chain.
+  - Required evidence: Paste `grep -c` proving exactly ONE depth-resolver definition exists in the package (R9.3a.2 requires one definition). Paste the resolver's output under each input condition of the precedence chain. ALSO paste the OQ-02 ruling being implemented and the resolver's output for the `NO_COLOR=1` PLUS `FORCE_COLOR=1` case, since that is the one input the two spec sections disagree about; an evidence block that omits it FAILS this item. Paste `python3 -m pytest tests/test_term.py -o addopts=""` showing `test_force_color_overrides_no_color` still passing, or, if the ruling deliberately changed it, the spec amendment and the test's replacement. Finally paste a grep proving `term.py` gained no `argparse`/`args` awareness (F-06), and that the 38 existing `should_color` call sites are unchanged.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: Paste the authored 16-color table and the resolved 16-color value for each of the 21 stages. Explicitly show `ready` differing from `done`, `blocked` from `failed`, and `waiting-input` from `blocked`. Show the five active subtypes plus `active` sharing one yellow, and the grays sharing one neutral.
+  - Required evidence: Paste the authored 16-color table and the resolved 16-color value for each of the TWENTY stages (20, not 21: the count is measured from Section 5's table and corroborated by the spec's own D13, which rejects "a new 21st stage"). A dump covering fewer than 20 stages, or asserting 21, FAILS this item. Explicitly show `ready` differing from `done`, `blocked` from `failed`, and `waiting-input` from `blocked`. Show the five active subtypes plus `active` sharing one yellow, and all SIX gray-family stages (`parked`, `superseded`, `abandoned`, `unknown`, `none`, `formative`) sharing one neutral.
   - Observed evidence:
   - Result: pending
 
@@ -151,6 +184,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan MUST NOT execute until a human approves it (`aw set approved pow5sj --by-human`). Its `- Item-Dependencies: executed:yaxr4i, executed:udgilu` edges are re-checked at dispatch: `yaxr4i` because it settles the `--color`/`--no-color` flag surface this resolver's top rung reads, and `udgilu` because the 16-color table is authored against the stage vocabulary that child defines.
+This plan MUST NOT execute until a human approves it (`aw set approved pow5sj --by-human`). Its `- Item-Dependencies: executed:yaxr4i, executed:udgilu` edges are re-checked at dispatch: `yaxr4i` because it settles the `--color`/`--no-color` flag surface this resolver's top rung reads, and `udgilu` because the 16-color table is authored against the stage vocabulary that child defines. Both edges are load-bearing here rather than nominal: verified at review, `--color` has NO flag form today (`grep -c '"--color"' agent_workflows/cli.py` -> 0) and `term.should_color` reads no flags at all, so `yaxr4i` E-03's flag-above-env layering is what makes this resolver's top rung implementable.
 
-On completion: append the workflow-history line, set the terminal `Status: executed`, and `git mv` this plan to `.aw/records/plans/executed/` as a post-gate lifecycle step via `aw ipd finalize`, never as a checklist item. Commit path-scoped; never push.
+OPEN QUESTIONS: OQ-01 is non-blocking (an implementation route this plan's own E-03/V-03 record). OQ-02 is `- Blocking: yes` and UNRESOLVED, so `aw ipd lint` refuses this plan at every checkpoint until a maintainer rules on whether `FORCE_COLOR` still overrides `NO_COLOR` at the depth resolver. That refusal is intended: E-01's top rung, V-01's evidence, and the fate of a shipped test all depend on the answer, and guessing would either silently change documented behavior or silently contradict R9.3a.2.
+
+SCOPE FENCE: the files this plan may write are those declared in `- Scope-Paths:` (`agent_workflows/term.py`, `agent_workflows/config.py`, `tests/test_term.py`, `tests/test_config.py`), plus the `uonrjg` spec ONLY IF a conditional amendment above applies AND that path has been added to the declaration first. An out-of-scope edit is permitted but must then be JUSTIFIED, which `aw ipd finalize` enforces by refusing to complete without a `--scope-reason` per out-of-scope path and a `--scope-ack` per declared-but-unmodified path. In particular this child must NOT convert any consumer and must NOT delete `term.py`'s `STATUS_COLOR_256`: that deletion is `qdd5jq`'s, after every consumer moves off it, and doing it here would break live views. DO STOP AND REPORT for one genuinely unsafe condition: if `udgilu` landed a stage table whose membership differs from Section 5's 20 rows, the authored 16-color table cannot be written against a known vocabulary; report that rather than inventing the difference away.
+
+HONESTY RULE (hard MUST): when reporting tests or measurements, paste the ACTUAL command output. Never claim a suite run, a resolver dump, a config refusal message, or a three-tier render you did not run.
+
+On completion: append the workflow-history line, set the terminal `Status: executed`, and move this plan to `.aw/records/plans/executed/` via `aw ipd finalize` as a post-gate lifecycle step, never as a checklist item and never as a hand-rolled `git mv`. When a runner owns the turn it performs that finalize itself; a hand-run executor invokes it directly. Commit path-scoped (`git commit -m msg -- <path>`); never `git add -A`; never push.

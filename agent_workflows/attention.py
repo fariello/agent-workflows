@@ -1278,9 +1278,23 @@ def stranded_lane_drift(repo_root: Path) -> List[core.Drift]:
         if display:
             bits.append("worktree {0}".format(display))
         if rec.get("run_id"):
-            bits.append("run {0}".format(rec["run_id"]))
+            # ONE ROW PER LANE, so the row must say how many runs touched it: the per-branch collapse in
+            # `stranded_lane_records` replaced N identical-in-substance rows with one, and dropping the
+            # count would lose the fact that the lane recurred rather than merely reformat it.
+            try:
+                run_count = int(rec.get("run_count") or 1)
+            except (TypeError, ValueError):
+                run_count = 1
+            if run_count > 1:
+                bits.append(
+                    "newest run {0} of {1} runs".format(rec["run_id"], run_count)
+                )
+            else:
+                bits.append("run {0}".format(rec["run_id"]))
         detail = "{0}: {1}. {2}".format(
-            "; ".join(bits), rec.get("why") or "", lane_remedy_hint()
+            "; ".join(bits),
+            rec.get("why") or "",
+            lane_remedy_hint(str(rec["id6"]) if rec.get("id6") else None),
         )
         out.append(
             core.Drift(
@@ -1294,12 +1308,30 @@ def stranded_lane_drift(repo_root: Path) -> List[core.Drift]:
     return out
 
 
-def lane_remedy_hint() -> str:
+#: The symbol whose presence PROVES `aw <host> integrate` is really wired, probed by
+#: :func:`lane_remedy_hint`. NAMED AS A CONSTANT so the probe is observable: the previous probe was a
+#: bare `hasattr` against `cmd_integrate`, a name NOTHING ELSE IN THE REPOSITORY REFERENCES, so when the
+#: verb shipped under a different name the conditional froze in its pre-`rl67b0` state and kept printing
+#: "no `aw integrate` verb exists yet" for a verb that existed. That UNOBSERVABILITY was the defect, not
+#: the wrong string, which is why a test pins this name (plan `0ta5vg` E-06).
+LANE_INTEGRATE_PROBE_SYMBOL = "handle_integrate_command"
+
+
+def lane_remedy_hint(id6: Optional[str] = None) -> str:
     """The remedy to print beside a stranded lane. An alarm with no route trains its own dismissal.
 
-    NAMES ONLY A VERB THAT EXISTS AT RUNTIME. Plan `rl67b0` adds `aw <host> integrate <id6>`; it had
-    not landed when this shipped, so the honest remedy is the manual one and the verb is printed only
-    once it is really there. Do not print a verb that does not exist.
+    NAMES ONLY A VERB THAT EXISTS AT RUNTIME, which is the rule that survived unchanged; what changed is
+    that the probe now names a symbol that is really there. `rl67b0` shipped the verb as
+    `handle_integrate_command` (the CLI forwards `aw oc integrate` as REMAINDER args rather than binding
+    a `cmd_*` function), so the old `cmd_integrate` probe could never be True. Do not print a verb that
+    does not exist, and do not probe a name nothing else references.
+
+    HOST-NEUTRAL BY DEFAULT: both hosts carry the verb (`oc_runipd` and `agy_runipd` both define
+    `handle_integrate_command`), so the hint names `aw oc integrate` as the concrete route rather than
+    claiming only one host has it.
+
+    ``id6`` is OPTIONAL so the no-argument call keeps working; when given, the hint names the concrete
+    command instead of a `<id6>` placeholder the reader must substitute.
     """
     try:
         from agent_workflows import cli as _cli  # noqa: F401
@@ -1309,11 +1341,11 @@ def lane_remedy_hint() -> str:
     try:
         from agent_workflows import oc_runipd as _oc
 
-        integrate_exists = hasattr(_oc, "cmd_integrate")
+        integrate_exists = hasattr(_oc, LANE_INTEGRATE_PROBE_SYMBOL)
     except Exception:
         integrate_exists = False
     if integrate_exists:
-        return "Recover it with `aw oc integrate <id6>`."
+        return "Recover it with `aw oc integrate {0}`.".format(id6 if id6 else "<id6>")
     return (
         "Recover it by hand: `git log main..<branch>` to see the work, then merge that branch "
         "(no `aw integrate` verb exists yet)."
