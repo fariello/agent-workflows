@@ -2830,14 +2830,25 @@ LANE_INVENTORY_STATUS_ARGS = (
 PORCELAIN_UNTRACKED = "??"
 PORCELAIN_IGNORED = "!!"
 
-#: The three reason codes a refusal names, plus the inventory-failure one. Reason codes rather than
-#: prose, because spec R5.6 requires the event to name WHICH condition held and a caller (or a test)
-#: must be able to assert the condition rather than match a sentence.
+#: The reason codes a refusal names, plus the inventory-failure one. Reason codes rather than prose,
+#: because spec R5.6 requires the event to name WHICH condition held and a caller (or a test) must be
+#: able to assert the condition rather than match a sentence.
 RETENTION_DIRTY_TRACKED = "dirty-tracked-file"
 RETENTION_UNKNOWN_UNTRACKED = "unknown-untracked-file"
-RETENTION_UNKNOWN_IGNORED = "unknown-ignored-file"
 RETENTION_UNCOLLECTED_SUBMISSION = "uncollected-submission"
 RETENTION_INVENTORY_FAILED = "inventory-failed"
+
+#: RETIRED AS A REFUSAL REASON by the 2026-09-18 amendment to spec R5.5 (`laneign` `5w8g8j`), and kept
+#: DEFINED rather than deleted for two reasons: historical run records already carry the literal in
+#: their `retention_reasons`, so a reader decoding them needs the name to stay meaningful, and removing
+#: a public module constant would break an importer for no gain.
+#:
+#: NEVER EMITTED BY `reason_codes` NOW, deliberately. R5.6 makes a reason code the record of a REFUSAL,
+#: and a gitignored file no longer refuses anything, so emitting it would assert a refusal that did not
+#: happen - and would break the invariant that a classified lane has NO reason codes. The paths
+#: themselves are still enumerated and still recorded in `as_dict()["unknown_ignored"]`, so the
+#: diagnostic evidence survives without a false refusal claim attached to it.
+RETENTION_UNKNOWN_IGNORED = "unknown-ignored-file"
 
 #: How many offending paths the human-facing `reason` sentence names before summarizing the rest.
 #:
@@ -2880,14 +2891,31 @@ class LaneInventory(NamedTuple):
 
     @property
     def unknown(self) -> tuple[str, ...]:
-        """Every path the driver cannot account for, in one tuple, sorted."""
-        return tuple(
-            sorted(self.dirty_tracked + self.unknown_untracked + self.unknown_ignored)
-        )
+        """Every path that BLOCKS teardown, in one tuple, sorted.
+
+        `unknown_ignored` IS DELIBERATELY EXCLUDED as of the 2026-09-18 amendment to spec R5.5. This
+        property feeds `classified`, so a gitignored path appearing here is exactly what made every
+        clean lane unretirable; the ignored paths remain available as their own field for diagnostics.
+        """
+        return tuple(sorted(self.dirty_tracked + self.unknown_untracked))
 
     @property
     def classified(self) -> bool:
-        """True only when EVERY condition in R5.5 is answered and none of them holds."""
+        """True only when EVERY condition in R5.5 is answered and none of them holds.
+
+        R5.5 AS AMENDED 2026-09-18 (`laneign` `5w8g8j`): the blocking conditions are an unreadable
+        inventory, a dirty TRACKED file, an unknown UNTRACKED file, and an uncollected submission.
+        Gitignored files are disposable upon lane destruction and do not block teardown.
+
+        WHY THE AMENDMENT, since this direction WIDENS destruction and that is the dangerous direction:
+        the original rule refused on any unknown ignored file on the premise that "ignored means
+        disposable" had once deleted real work. In practice a lane that merely RAN THE TEST SUITE holds
+        `__pycache__/*.pyc`, and a lane that ran an agent holds `.opencode/node_modules/`, so the
+        refusal fired on 100 percent of clean runs and stranded 38 worktrees in this checkout. The
+        protection that actually matters is untouched: an uncommitted TRACKED edit and an uncommitted
+        UNTRACKED source file both still refuse, and so does an uncollected submission, so no path
+        holding the only copy of real work is discarded.
+        """
         return self.readable and not self.unknown and not self.uncollected_submission
 
     @property
@@ -2900,8 +2928,8 @@ class LaneInventory(NamedTuple):
             codes.append(RETENTION_DIRTY_TRACKED)
         if self.unknown_untracked:
             codes.append(RETENTION_UNKNOWN_UNTRACKED)
-        if self.unknown_ignored:
-            codes.append(RETENTION_UNKNOWN_IGNORED)
+        # NO CODE FOR `unknown_ignored`: it is not a refusal reason under amended R5.5, and R5.6 makes a
+        # reason code the record of a refusal. See `RETENTION_UNKNOWN_IGNORED`.
         if self.uncollected_submission:
             codes.append(RETENTION_UNCOLLECTED_SUBMISSION)
         return tuple(codes)
@@ -2935,12 +2963,9 @@ class LaneInventory(NamedTuple):
                     len(self.unknown_untracked), _name_paths(self.unknown_untracked)
                 )
             )
-        if self.unknown_ignored:
-            parts.append(
-                "{0} unknown IGNORED file(s): {1}".format(
-                    len(self.unknown_ignored), _name_paths(self.unknown_ignored)
-                )
-            )
+        # `unknown_ignored` IS NOT NAMED HERE. This sentence explains a REFUSAL, and under amended R5.5
+        # a gitignored file never causes one, so listing it would name a cause that is not a cause -
+        # and on a real lane the 4170 bytecode paths would bury the one dirty file that IS the cause.
         if self.uncollected_submission:
             parts.append(
                 "an uncollected submission ({0})".format(
