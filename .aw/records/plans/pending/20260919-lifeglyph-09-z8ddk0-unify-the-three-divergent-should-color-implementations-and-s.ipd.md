@@ -35,54 +35,54 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: One definition, with the ruled semantics
 
-- [ ] E-01 Make `term.should_color` the single definition and apply the maintainer's 2026-09-19 semantics: `NO_COLOR` is PRESENCE-ONLY (any setting disables, empty included, no value interpreted); `FORCE_COLOR` INTERPRETS its value, so `0`/`false`/`no`/`off` mean NOT FORCING and fall through to ordinary TTY detection rather than suppressing.
+- [x] E-01 Make `term.should_color` the single definition and apply the maintainer's 2026-09-19 semantics: `NO_COLOR` is PRESENCE-ONLY (any setting disables, empty included, no value interpreted); `FORCE_COLOR` INTERPRETS its value, so `0`/`false`/`no`/`off` mean NOT FORCING and fall through to ordinary TTY detection rather than suppressing.
 
   IMPLEMENT ONE FORCING PREDICATE AND CONSULT IT IN BOTH PLACES. This is the whole content of the item and the reason it is not a two-line edit. `term.py` reads `FORCE_COLOR` TWICE: by PRESENCE at `:100` (where it cancels `NO_COLOR`) and by TRUTHINESS at `:103` (where it forces). Changing only the second reading, which is the literal text of this item's first sentence and is the edit an executor will reach for, leaves the FIRST reading a presence test, and a presence test is now WRONG because a falsey `FORCE_COLOR` must no longer cancel `NO_COLOR`. MEASURED AT REVIEW by executing that exact naive edit: it produces COLOR ON A TTY for all twelve cells where `NO_COLOR` is set and `FORCE_COLOR` is present, including `NO_COLOR=1 FORCE_COLOR=0`, which is a NEW accessibility regression strictly worse than the defect being fixed (see F-05). So define one helper, e.g. `_force_color_is_forcing() -> bool` returning `v is not None and v.strip().lower() not in {"", "0", "false", "no", "off"}`, and write the `NO_COLOR` rung as `"NO_COLOR" in os.environ and not _force_color_is_forcing()`. Both readings then move together by construction, which is the durable property; a second independent falsey check at each site would re-create the same two-reading split this item exists to close.
   - Depends on: none
   - Expected outcome: `FORCE_COLOR=0` no longer forces color and no longer reaches a pipe; it falls through, giving color on a TTY and plain to a pipe. `NO_COLOR=1 FORCE_COLOR=0` is PLAIN on a TTY (the naive edit makes it colored). `FORCE_COLOR=1` still beats `NO_COLOR=1`, so `tests/test_term.py:48` keeps passing unchanged. `FORCE_COLOR=''` is read ONCE, through the shared predicate, so the presence-versus-truthiness contradiction at `:100`/`:103` is structurally gone rather than merely corrected at one of the two sites.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Convert `runner_shared.py:275` to consume the single definition instead of reimplementing it, in the SANCTIONED WRAPPER SHAPE rather than as an import. Note this makes the runners start honoring `TERM=dumb`, a behavior CHANGE and the correct one.
+- [x] E-02 Convert `runner_shared.py:275` to consume the single definition instead of reimplementing it, in the SANCTIONED WRAPPER SHAPE rather than as an import. Note this makes the runners start honoring `TERM=dumb`, a behavior CHANGE and the correct one.
 
   THE SHAPE IS NOT FREE, AND THE OBVIOUS SHAPE BREAKS FOUR SHIPPED GUARDS. Measured at review by running the real guard methods against each candidate shape (F-06): deleting `runner_shared`'s `def` in favor of `from agent_workflows.term import should_color` FAILS four tests, because three separate harnesses assert that `runner_shared` DEFINES this symbol (`test_runner_refork_guard.py:224` region via `Owned("should_color", "runner_shared", BOTH)`; `test_rununify_run_queue.py:93` `RESOLVES_IN_RUNNER_SHARED`; `test_runner_shared.py` `test_exactly_one_definition_package_wide`, which asserts exactly ONE in-scope def site and gets zero). USE SHAPE B, the one-line delegating wrapper the repository already sanctions for exactly this case (`is_pure_delegation`, `tests/test_rununify_run_queue.py:250`): a single `return` statement naming the shared callable, docstring permitted. Measured, Shape B keeps three of the four guards PASSING. The fourth is E-03's work, so do not attempt to satisfy it here.
   - Depends on: E-01
   - Expected outcome: `runner_shared.should_color` is a one-statement delegation to `term.should_color`; both runners still reach it at their existing 15 call sites unchanged. `TERM=dumb aw oc run` is plain, matching `aw attention`. `test_runner_refork_guard`, `test_rununify_run_queue`'s closure classification, and `test_exactly_one_definition_package_wide` all still pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Re-baseline the ONE guard E-02 cannot satisfy in place: `tests/test_runner_shared.py::PureMoveFingerprintTests::test_every_clean_symbol_is_a_STRICT_fingerprint_match`, which holds `should_color`'s BODY byte-identical to the pre-move capture in `tests/fixtures/runner_shared_premove_fingerprints.json`, and which therefore FAILS under every shape that changes that body (measured: both Shape A and Shape B fail). This is deliberate, not incidental: that harness exists to prove a moved body was not silently edited, so a legitimate supersession must be DECLARED there rather than worked around.
+- [x] E-03 Re-baseline the ONE guard E-02 cannot satisfy in place: `tests/test_runner_shared.py::PureMoveFingerprintTests::test_every_clean_symbol_is_a_STRICT_fingerprint_match`, which holds `should_color`'s BODY byte-identical to the pre-move capture in `tests/fixtures/runner_shared_premove_fingerprints.json`, and which therefore FAILS under every shape that changes that body (measured: both Shape A and Shape B fail). This is deliberate, not incidental: that harness exists to prove a moved body was not silently edited, so a legitimate supersession must be DECLARED there rather than worked around.
 
   DO IT THE WAY THE FILE ALREADY DOES IT, which is an enumerated exemption with a written reason. Add `should_color` to `SUPERSEDED_SINCE_MOVE` (`tests/test_runner_shared.py:199`), which is the list `state_root` and `_run_git` already occupy for exactly this reason ("SUPERSEDED by design in subsequent approved IPDs"), and write the paragraph of justification the file's convention requires beside theirs, citing this plan's id. TWO COUNT ASSERTIONS MOVE WITH IT and both are in the same method: the clean-move count `23` becomes `22` and `len(SUPERSEDED_SINCE_MOVE)` `2` becomes `3`. Measured at review: leaving either untouched fails. Do NOT instead delete the exemption machinery, loosen the comparison, or edit the FIXTURE's captured fingerprint: the fixture is a historical capture of pre-move bodies, and rewriting it would destroy the harness's only evidence rather than record a supersession.
   - Depends on: E-02
   - Expected outcome: `python3 -m pytest tests/test_runner_shared.py` passes; `should_color` appears in `SUPERSEDED_SINCE_MOVE` with a reason naming `z8ddk0`; the two counts are updated together in the same method; the fixture JSON is UNCHANGED.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Convert `pwatch.py:950-952` to consume the single definition, PRESERVING its `--no-color` flag as an override ABOVE the shared decision. This makes `pwatch` start honoring `FORCE_COLOR` and `TERM`, both behavior CHANGES and both correct.
+- [x] E-04 Convert `pwatch.py:950-952` to consume the single definition, PRESERVING its `--no-color` flag as an override ABOVE the shared decision. This makes `pwatch` start honoring `FORCE_COLOR` and `TERM`, both behavior CHANGES and both correct.
 
   THE FLAG MUST SURVIVE THE CONVERSION AND ITS OWN TESTS WILL NOT TELL YOU IF IT DOES NOT. `pwatch`'s expression is `not args.no_color and os.environ.get("NO_COLOR") is None and sys.stdout.isatty()`; only the last two conjuncts are the shared decision, and `args.no_color` is a USER-FACING flag (`pwatch.py:847`) with no equivalent inside `should_color`, which reads no argparse state. Replacing the whole expression with `term.should_color(sys.stdout)` therefore SILENTLY DELETES `--no-color`. Measured at review on a real pty: with `--no-color` passed, the current expression yields `False` and the naive replacement yields `True`. Write it as `color_enabled = not args.no_color and term.should_color(sys.stdout)`. AND NOTE THE MEASUREMENT GAP (F-07): the two shipped tests that pass `--no-color` (`tests/test_pwatch.py:225`, `:236`) run through a PIPE, where `isatty()` is already False, so both keep passing with the flag entirely removed; they cannot detect this regression, which is why E-06 adds a pty case.
   - Depends on: E-01
   - Expected outcome: `color_enabled` consults the shared decision with `--no-color` layered above it. `FORCE_COLOR=1 aw pwatch | cat` colorizes, matching every other command. `TERM=dumb` is plain. `aw pwatch --no-color` on a REAL TTY is still plain.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Pin what was never pinned
 
-- [ ] E-05 Pin EVERY cell of the two measured tables in `tests/test_term.py`: the 4x4 `NO_COLOR` x `FORCE_COLOR` grid (unset / `''` / `'0'` / `'1'`) against both a TTY and a pipe, plus the `TERM` axis (`xterm-256color` / `dumb` / `''` / unset). None of the empty-string or `'0'` cases is pinned today, which is why all four defects survived: the behavior is accidental, not contractual.
+- [x] E-05 Pin EVERY cell of the two measured tables in `tests/test_term.py`: the 4x4 `NO_COLOR` x `FORCE_COLOR` grid (unset / `''` / `'0'` / `'1'`) against both a TTY and a pipe, plus the `TERM` axis (`xterm-256color` / `dumb` / `''` / unset). None of the empty-string or `'0'` cases is pinned today, which is why all four defects survived: the behavior is accidental, not contractual.
 
   THE TWELVE `NO_COLOR`-SET CELLS ARE THE POINT, not filler. They are what distinguishes the correct composition from the naive edit E-01 warns about: the two implementations agree on the four cells where `NO_COLOR` is unset and disagree on all twelve where it is set (measured at review, F-05). A grid that pins only the headline `FORCE_COLOR='0'` case therefore passes for the broken edit. Pin the EXPECTED value explicitly per cell rather than computing it from the implementation, and name each case so a failure identifies the cell. The authoritative expectations are the table reproduced under `## Project conventions discovered` below, itself the backlog `nyz8dt` tri-state ruling made concrete.
   - Depends on: E-01
   - Expected outcome: a table-driven test whose 32 env cases (16 cells x 2 stream kinds) plus 8 `TERM` cases are the measured grid, each with a named expectation. Reverting any part of E-01 fails at least one named case, INCLUDING the naive single-site edit.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Pin the two consumer behavior CHANGES E-02 and E-04 make, because neither is covered by any existing test and both are the user-visible half of this plan. (a) `runner_shared.should_color` honors `TERM=dumb` (it ignores `TERM` entirely today, and no test reads `TERM` against it). (b) `pwatch`'s `--no-color` still suppresses color ON A REAL TTY after the conversion, which requires a pty because a piped run is already colorless and so cannot distinguish the flag working from the flag being deleted (F-07). Use `pty.fork`, as measured at review; `tests/test_pwatch.py` already shells out via `subprocess`, so this is a new case in a familiar file rather than a new harness.
+- [x] E-06 Pin the two consumer behavior CHANGES E-02 and E-04 make, because neither is covered by any existing test and both are the user-visible half of this plan. (a) `runner_shared.should_color` honors `TERM=dumb` (it ignores `TERM` entirely today, and no test reads `TERM` against it). (b) `pwatch`'s `--no-color` still suppresses color ON A REAL TTY after the conversion, which requires a pty because a piped run is already colorless and so cannot distinguish the flag working from the flag being deleted (F-07). Use `pty.fork`, as measured at review; `tests/test_pwatch.py` already shells out via `subprocess`, so this is a new case in a familiar file rather than a new harness.
   - Depends on: E-02, E-04
   - Expected outcome: a `TERM=dumb` case against `runner_shared.should_color` that FAILS before E-02, and a pty-based `pwatch --no-color` case that FAILS if the flag conjunct is dropped. Both named so the failure says which behavior regressed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Add a guard asserting the package contains exactly ONE ORIGINATING `should_color` definition, so a future module cannot quietly add a fourth. This is the mechanical property R9.3a.2 demands and that `pow5sj`'s V-01 will grep for.
+- [x] E-07 Add a guard asserting the package contains exactly ONE ORIGINATING `should_color` definition, so a future module cannot quietly add a fourth. This is the mechanical property R9.3a.2 demands and that `pow5sj`'s V-01 will grep for.
 
   THE OBVIOUS FORM OF THIS GUARD IS FALSE AFTER E-02, and getting this wrong makes the guard either permanently red or decorative. `grep -c "def should_color"` returns TWO after E-02, because the sanctioned delegating wrapper in `runner_shared` IS a `def` (measured at review). So the guard must assert one ORIGINATING definition and permit sanctioned delegations, which is precisely the distinction `is_pure_delegation` (`tests/test_rununify_run_queue.py:250`) already draws: reuse that predicate rather than authoring a second notion of the same thing. State the rule as: across `agent_workflows/*.py`, exactly one top-level `def should_color` is not a pure delegation, and it is in `term.py`. AST, not substring: the file-local convention (`tests/test_runner_refork_guard.py` docstring) records that `assertNotIn("class Palette:", src)` was evaded by whitespace and satisfied by a comment.
   - Depends on: E-02, E-04
   - Expected outcome: a test that FAILS if a second ORIGINATING definition is introduced and PASSES with `runner_shared`'s sanctioned wrapper present. `pow5sj`'s one-definition evidence becomes true by construction rather than by inspection at that moment, and its V-01 `grep` expectation is corrected by this plan's V-07 evidence rather than left to surprise that plan's executor.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -188,40 +188,683 @@ THE USER-FACING DOCUMENTATION THIS PLAN FALSIFIES IS ALSO `7p3tt8`'s, checked at
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the executed 4x4 grid (`NO_COLOR` unset/`''`/`'0'`/`'1'` x `FORCE_COLOR` unset/`''`/`'0'`/`'1'`) against a TTY and a pipe, and reconcile it CELL BY CELL against the authoritative table under `## Project conventions discovered`; an evidence block that pastes a grid without stating it matches that table fails this item. It must show: `FORCE_COLOR='0'` now falls through (color on a TTY, plain to a pipe) rather than forcing; `NO_COLOR=''` disables; `FORCE_COLOR='1'` still beats `NO_COLOR='1'`. AND IT MUST SHOW THE F-05 CELL EXPLICITLY: `NO_COLOR=1` with `FORCE_COLOR=0` is PLAIN ON A TTY. That one cell is the difference between this item and the naive edit, so an evidence block omitting it does not demonstrate E-01 was done correctly. Paste the source of the single forcing predicate and a `grep` showing BOTH `FORCE_COLOR` read sites call it, proving the two-reading split is structurally closed rather than corrected at one site. Paste `tests/test_term.py:48` `test_force_color_overrides_no_color` PASSING unchanged, since the ruling preserves it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the post-change 4x4 grid matches the authoritative table in all 32 cells, the F-05 cell `NO_COLOR=1 FORCE_COLOR=0` is PLAIN on a TTY, both `FORCE_COLOR` read sites call the one predicate, and `test_force_color_overrides_no_color` passes unchanged. Detail:
 
-- [ ] V-02 validates E-02
+    POST-CHANGE GRID, executed 2026-09-19. Each cell is `TTY / PIPE`; `COLOR` in caps marks color reaching a PIPE.
+
+    ```
+    # measuring: <worktree>/agent_workflows/term.py
+
+    --- term.should_color (TERM=xterm-256color) ---
+    | NO_COLOR \ FORCE_COLOR | unset | '' | '0' | '1' |
+    |---|---|---|---|---|
+    | unset | color / plain | color / plain | color / plain | color / COLOR |
+    | '' | plain / plain | plain / plain | plain / plain | color / COLOR |
+    | '0' | plain / plain | plain / plain | plain / plain | color / COLOR |
+    | '1' | plain / plain | plain / plain | plain / plain | color / COLOR |
+
+    --- term.should_color: TERM axis (NO_COLOR and FORCE_COLOR unset) ---
+    | TERM | TTY | PIPE |
+    |---|---|---|
+    | xterm-256color | color | plain |
+    | dumb | plain | plain |
+    | '' | plain | plain |
+    | unset | plain | plain |
+    ```
+
+    CELL-BY-CELL RECONCILIATION AGAINST THE AUTHORITATIVE TABLE: all 16 cells x 2 stream kinds MATCH the
+    table under `## Project conventions discovered`, and all 4 `TERM` rows x 2 stream kinds match the
+    second table. Checked mechanically rather than by eye, by the permanent test that encodes the table
+    independently of the implementation (`_COLOR_GRID` / `_TERM_GRID` in `tests/test_term.py`), which
+    enumerates 40 named cases and reports every one passing (see V-05). Zero cells differ.
+
+    The three specifically demanded cells, read off the grid above:
+    - `FORCE_COLOR='0'` with `NO_COLOR` unset FALLS THROUGH: row `unset`, column `'0'` is `color / plain`.
+      Was `color / COLOR` before (color forced into a pipe).
+    - `NO_COLOR=''` DISABLES: row `''`, column `unset` is `plain / plain`.
+    - `FORCE_COLOR='1'` still beats `NO_COLOR='1'`: row `'1'`, column `'1'` is `color / COLOR`.
+
+    THE F-05 CELL, EXPLICITLY. Row `'1'`, column `'0'` (`NO_COLOR=1 FORCE_COLOR=0`) is `plain / plain`, so
+    it is PLAIN ON A TTY. The naive single-site edit makes this cell colored; measured under that exact
+    mutation in V-05 below, where it fails by name.
+
+    PRE-CHANGE BASELINE, measured from this worktree's git HEAD (`c58ec3ab`) rather than from memory, so
+    the change is attributable:
+
+    ```
+    # measuring PRE-CHANGE term.should_color from git HEAD
+    # has _force_color_is_forcing: False
+
+    --- term.should_color AT HEAD (pre-change) (TERM=xterm-256color) ---
+    | NO_COLOR \ FORCE_COLOR | unset | '' | '0' | '1' |
+    |---|---|---|---|---|
+    | unset | color / plain | color / plain | color / COLOR | color / COLOR |
+    | '' | plain / plain | color / plain | color / COLOR | color / COLOR |
+    | '0' | plain / plain | color / plain | color / COLOR | color / COLOR |
+    | '1' | plain / plain | color / plain | color / COLOR | color / COLOR |
+    ```
+
+    THE SINGLE FORCING PREDICATE, post-change source:
+
+    ```python
+    def _force_color_is_forcing() -> bool:
+        """Is `FORCE_COLOR` set to a value that genuinely FORCES color on?
+        ...
+        """
+
+        value = os.environ.get("FORCE_COLOR")
+        if value is None:
+            return False
+        return value.strip().lower() not in _FORCE_COLOR_FALSEY
+    ```
+
+    BOTH READ SITES CONSULT IT, so the split is structurally closed rather than corrected at one site:
+
+    ```
+    $ grep -n "_force_color_is_forcing" agent_workflows/term.py
+    105:def _force_color_is_forcing() -> bool:
+    141:       to a genuinely FORCING value (see :func:`_force_color_is_forcing`).
+    154:    if "NO_COLOR" in os.environ and not _force_color_is_forcing():
+    157:    if _force_color_is_forcing():
+    ```
+
+    `:154` is the `NO_COLOR`-cancelling rung and `:157` is the forcing rung; `FORCE_COLOR` is now named
+    NOWHERE else in the function, which `test_both_force_color_read_sites_agree_by_construction` asserts
+    by AST (zero direct `FORCE_COLOR` constants in `should_color`, exactly two calls to the predicate).
+
+    THE PRESERVED CASE, passing unchanged (the test body is untouched; my diff of this file deletes no lines):
+
+    ```
+    $ python3 -m pytest tests/test_term.py::ShouldColorTests::test_force_color_overrides_no_color -o addopts="" -v
+    tests/test_term.py::ShouldColorTests::test_force_color_overrides_no_color PASSED [100%]
+    ============================== 1 passed in 0.11s ===============================
+    ```
+
+    ONE CORRECTION TO THE PLAN'S OWN PREDICTION, recorded because it is a measurement and not a
+    preference: F-05 and this item both say the naive edit colorizes all TWELVE `NO_COLOR`-set cells. It
+    colorizes SIX of them (measured, V-05). The six with `FORCE_COLOR` UNSET stay plain, because there the
+    naive presence test is still the correct test. The defect is real, the direction is exactly as
+    described, and the count is six. The code comments and the test header state six.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste `runner_shared.should_color`'s post-change source, showing a SINGLE statement delegating to `term.should_color`. Paste `python3 -m pytest tests/test_runner_refork_guard.py tests/test_rununify_run_queue.py -o addopts=""` PASSING, and name the three guards F-06 measured as shape-sensitive (`test_the_owning_module_really_defines_every_tabled_symbol`, `test_the_shared_resolving_names_really_do_resolve_in_runner_shared`, `test_exactly_one_definition_package_wide`), each shown passing. Paste `TERM=dumb` output from a runner command and from `aw attention` showing BOTH plain (they diverge today). Do NOT paste a `grep -c "def should_color" == 1` claim here: after this item the correct count is 2, and V-07 owns the one-definition property in its corrected form (F-08).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `runner_shared.should_color` is a delegation to `term.should_color`, all three shape-sensitive guards pass by name (67 passed across the two files), and the runner now matches `aw attention` under `TERM=dumb` where they diverged at HEAD in four cases. One declared deviation: a fifth shipped guard forced the import to be function-local. Detail:
 
-- [ ] V-03 validates E-03
+    POST-CHANGE SOURCE. One delegating statement, plus a function-local import that the shape discussion below explains:
+
+    ```python
+    def should_color(stream: TextIO | None = None) -> bool:
+        """Decide whether to emit ANSI color for ``stream`` (default stdout).
+
+        A SANCTIONED ONE-LINE DELEGATION to :func:`agent_workflows.term.should_color` ...
+        """
+        from agent_workflows import term
+
+        return term.should_color(stream)
+    ```
+
+    A DEVIATION FROM THE ITEM AS WRITTEN, DECLARED RATHER THAN ABSORBED, and it is the one material
+    surprise of this execution. The item says "a single `return` statement naming the shared callable",
+    which I implemented first as a module-level `from agent_workflows import term as _term` plus a bare
+    return. That FAILED a FIFTH shipped guard the plan did not anticipate:
+
+    ```
+    $ python3 -m pytest tests/test_orchestrator_probe_cache.py -o addopts=""
+    AssertionError: Items in the first set but not the second:
+    'agent_workflows.term' : runner_shared gained a module-level first-party import: ['agent_workflows.term']
+    FAILED tests/test_orchestrator_probe_cache.py::TheRowWalkIsSharedWithTheRetirementGate::test_no_new_module_level_first_party_import_in_runner_shared
+    ```
+
+    That guard allows exactly `render_stream` and `runner_profiles` at module level, "because a
+    module-level import added here would change the import graph for BOTH host drivers", and its own
+    docstring names the function-local import as this module's established route (which is how
+    `ipd_lint`, `ipd_schema`, `ipd_lifecycle` and `worktree_lease` all arrive). Its file is NOT in this
+    plan's `- Scope-Paths:`, and the scope fence forbids re-baselining an anti-re-fork guard to make a
+    test green, so I conformed to the convention instead: the import moved inside the function. The body
+    is therefore `import` + `return` rather than `return` alone. Decision recorded as D-01 with the
+    alternatives; the underlying predicate gap is filed as backlog `uhbi1o`.
+
+    THE THREE SHAPE-SENSITIVE GUARDS F-06 NAMED, each shown passing by name:
+
+    ```
+    $ python3 -m pytest "tests/test_runner_refork_guard.py::SymmetricReForkGuardTests::test_the_owning_module_really_defines_every_tabled_symbol" \
+        "tests/test_rununify_run_queue.py::TheClosureClassificationIsPinned::test_the_shared_resolving_names_really_do_resolve_in_runner_shared" \
+        "tests/test_runner_shared.py::SingleDefinitionTests::test_exactly_one_definition_package_wide" \
+        "tests/test_runner_shared.py::LaneIntegrationExtractionTests::test_exactly_one_definition_package_wide" -o addopts="" -v
+    tests/test_runner_refork_guard.py::SymmetricReForkGuardTests::test_the_owning_module_really_defines_every_tabled_symbol PASSED [ 25%]
+    tests/test_runner_shared.py::LaneIntegrationExtractionTests::test_exactly_one_definition_package_wide PASSED [ 50%]
+    tests/test_runner_shared.py::SingleDefinitionTests::test_exactly_one_definition_package_wide PASSED [ 75%]
+    tests/test_rununify_run_queue.py::TheClosureClassificationIsPinned::test_the_shared_resolving_names_really_do_resolve_in_runner_shared PASSED [100%]
+    ============================== 4 passed in 5.34s ===============================
+    ```
+
+    (The plan named three; `test_exactly_one_definition_package_wide` exists in TWO classes, so four node
+    ids are run. Both pass.)
+
+    THE WHOLE TWO FILES, PASSING:
+
+    ```
+    $ python3 -m pytest tests/test_runner_refork_guard.py tests/test_rununify_run_queue.py -o addopts="" -q
+    ...................................................................      [100%]
+    67 passed in 8.51s
+    ```
+
+    `TERM=dumb` PARITY, measured on a REAL pty (a pipe is plain regardless and so proves nothing here):
+
+    ```
+    aw attention, TERM=dumb, pty           -> ANSI present: False
+    aw attention, capable TERM, pty        -> ANSI present: True
+    aw oc runs, TERM=dumb                  -> ANSI present: False
+    aw oc runs, capable                    -> ANSI present: True
+    aw oc run --help, TERM=dumb            -> ANSI present: False
+    aw oc run --help, capable              -> ANSI present: True
+    ```
+
+    Both plain under `TERM=dumb`, both colored on a capable terminal, so the runner and `attention` now
+    AGREE. And the decision the runners actually call, measured on a pty at the symbol level, since the
+    CLI surfaces above reach several display paths:
+
+    ```
+    ===== on a REAL TTY with TERM=dumb =====
+    oc_runipd.should_color   : False
+    agy_runipd.should_color  : False
+    runner_shared.should_color: False
+    term.should_color        : False
+    isatty                   : True
+    ```
+
+    THE DIVERGENCE THIS CLOSED, measured at git HEAD (`c58ec3ab`) by loading both pre-change bodies, so the
+    "they diverge today" claim is evidenced rather than asserted:
+
+    ```
+    PRE-CHANGE (git HEAD) disagreement table
+    | case | term.py | runner_shared.py | agree? |
+    |---|---|---|---|
+    | TERM=dumb, TTY | False | True | NO |
+    | TERM='' , TTY | False | True | NO |
+    | NO_COLOR='', TTY | False | True | NO |
+    | NO_COLOR='0', FORCE='' TTY | True | False | NO |
+    | FORCE_COLOR='0', PIPE | True | True | yes |
+    ```
+
+    Four disagreeing cases before, zero after (V-01's grid and the runner grid are now cell-identical).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste `python3 -m pytest tests/test_runner_shared.py -o addopts=""` PASSING. Paste the `SUPERSEDED_SINCE_MOVE` tuple showing `should_color` added, the justification paragraph written beside `state_root`'s and `_run_git`'s, and the two updated count assertions (`23`->`22`, `2`->`3`). Paste `git diff --stat tests/fixtures/runner_shared_premove_fingerprints.json` showing NO CHANGE, since editing the historical capture instead of declaring the supersession is the failure mode this item exists to prevent.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_runner_shared.py` passes (186), `should_color` is enumerated in `SUPERSEDED_SINCE_MOVE` with its written justification, the two counts moved `23`->`22` and `2`->`3`, and the historical fixture is UNCHANGED. Detail:
 
-- [ ] V-04 validates E-04
+    THE FILE PASSING:
+
+    ```
+    $ python3 -m pytest tests/test_runner_shared.py -o addopts="" -q
+    ..........................................                               [100%]
+    186 passed in 23.30s
+    ```
+
+    (186, up from the 181 at HEAD: E-06 added the 4-test `SharedColorDecisionTests` class and the
+    fingerprint test moved from failing to passing.)
+
+    BEFORE THE EXEMPTION, the one guard E-02 could not satisfy in place, failing exactly as F-06 predicted:
+
+    ```
+    $ python3 -m pytest tests/test_runner_shared.py -o addopts="" -q
+    E    AssertionError: 'Module(body=[FunctionDef(name=\'should_c[1788 chars]))])' != "Module(body=[FunctionDef(name='should_co[1405 chars]))])"
+    E    : `should_color` was NOT a pure move: its body differs from the pre-move capture at 1ecc5891f6bf8c4f1e42b1e9f863839157c8cc6d
+    FAILED tests/test_runner_shared.py::PureMoveFingerprintTests::test_every_clean_symbol_is_a_STRICT_fingerprint_match
+    1 failed, 181 passed in 21.34s
+    ```
+
+    THE ENUMERATED EXEMPTION:
+
+    ```
+    $ grep -n "SUPERSEDED_SINCE_MOVE = " tests/test_runner_shared.py
+    220:SUPERSEDED_SINCE_MOVE = ("state_root", "_run_git", "should_color")
+    ```
+
+    THE JUSTIFICATION PARAGRAPH, written beside `state_root`'s and `_run_git`'s in the same comment block
+    and in the same form (what changed, why the exemption is legitimate, where the replacement coverage
+    lives), abridged here and present in full at `tests/test_runner_shared.py:201-219`:
+
+    ```
+    # `should_color` BECAME A DELEGATION to `term.should_color` (IPD `z8ddk0` E-02), and the exemption is
+    # recorded here rather than absorbed. WHY IT IS LEGITIMATE: the pre-move body was one of THREE
+    # independent implementations of the color capability decision that DISAGREED with each other,
+    # measured by execution 2026-09-19. This one ignored `TERM` entirely, so `TERM=dumb aw oc run` emitted
+    # color while `TERM=dumb aw attention` did not, and it read both variables by TRUTHINESS, so
+    # `FORCE_COLOR=0` - the value that plainly means "do not force" - FORCED COLOR ON, even into a pipe.
+    # Spec `uonrjg` R9.3a.2 requires the depth resolver above this decision have EXACTLY ONE definition,
+    # which is unsatisfiable while the decision beneath it has three.
+    # ... THE `def` DELIBERATELY REMAINS, as a single delegating statement, because three shipped guards
+    # assert `runner_shared` DEFINES this symbol ... A delegation cannot fingerprint as the body it
+    # replaces, which is why no shape of this change can satisfy the STRICT match and why the exemption is
+    # the only honest route. The unified decision has its OWN dedicated coverage in `tests/test_term.py`
+    # ... and the delegation itself is pinned by `SharedColorDecisionTests` in this file.
+    ```
+
+    THE TWO COUNTS, updated together in the same method (`23`->`22` and `2`->`3`):
+
+    ```
+    $ grep -n "len(clean)," -A 2 tests/test_runner_shared.py
+    458:            len(clean),
+    459-            22,
+    460-            "the clean-move count must not drift silently",
+
+    $ grep -n "len(SUPERSEDED_SINCE_MOVE)," -A 2 tests/test_runner_shared.py
+    463:            len(SUPERSEDED_SINCE_MOVE),
+    464-            3,
+    465-            "a name added to SUPERSEDED_SINCE_MOVE must be accounted for in the clean count above",
+    ```
+
+    THE FIXTURE IS UNTOUCHED, which is the failure mode this item exists to prevent:
+
+    ```
+    $ git diff --stat tests/fixtures/runner_shared_premove_fingerprints.json
+    $ git status --short tests/fixtures/runner_shared_premove_fingerprints.json
+    ```
+
+    Both produce NO OUTPUT, i.e. the historical capture is unmodified and unstaged. It stays declared in
+    `- Scope-Paths:` so the fence is honest about the file that had to be seen NOT to change; expect a
+    `--scope-ack` for it at finalize, which the plan's scope fence already anticipates as the correct
+    outcome rather than a failure.
+
+    AND THE EXEMPTION IS NOT DECORATIVE: `test_a_superseded_symbol_is_accounted_for` asserts every name on
+    that list genuinely DIFFERS from the pre-move capture, so a name added without a real supersession
+    fails. It is among the 186 passing above.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste `pwatch.py`'s post-change `color_enabled` assignment showing `not args.no_color` STILL PRESENT above the shared call. Paste `FORCE_COLOR=1 aw pwatch ... | cat` showing ANSI bytes (plain today) and a `TERM=dumb` run showing none. Then paste the pty measurement from E-06 proving `aw pwatch --no-color` on a REAL TTY is still plain; a piped `--no-color` run is NOT acceptable evidence here, because F-07 measured that it passes even with the flag deleted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `not args.no_color` is still present above the shared call, `FORCE_COLOR=1` now colorizes a pipe and `TERM=dumb` does not (both wrong at HEAD), and a REAL pty shows `--no-color` plain with a colored control. Detail:
 
-- [ ] V-05 validates E-05
+    THE FLAG SURVIVED THE CONVERSION, layered above the shared call:
+
+    ```
+    $ grep -n "color_enabled = " agent_workflows/pwatch.py
+    964:    color_enabled = not args.no_color and term.should_color(sys.stdout)
+    ```
+
+    `FORCE_COLOR=1` NOW REACHES A PIPE (it was plain before this plan, the only command in the toolkit
+    that ignored the variable). Piped through `cat`, rendered with `cat -v` so the escapes are visible:
+
+    ```
+    $ env -u NO_COLOR FORCE_COLOR=1 TERM=xterm-256color python3 -m agent_workflows pwatch --once python | cat -v
+    ^[[1;38;5;39mpwatch: python^[[0m ^[[2m(every 2.5s)^[[0m ^[[38;5;241m...^[[0m ^[[38;5;244m2026-09-19 17:13:42^[[0m
+    ^[[1;38;5;255mdeluged^[[0m^[[38;5;245m,2775^[[0m ^[[38;5;186m/usr/bin/deluged^[[0m ...
+    ```
+
+    `TERM=dumb` IS PLAIN (also a behavior change; `pwatch` ignored `TERM` too):
+
+    ```
+    $ env -u NO_COLOR -u FORCE_COLOR TERM=dumb python3 -m agent_workflows pwatch --once python | cat -v
+    pwatch: python (every 2.5s) -- 2026-09-19 17:13:42
+
+    deluged,2775 /usr/bin/deluged -d -c /var/lib/deluged/config -l /var/log/deluged/daemon.log -L info
+    ```
+
+    BOTH WERE WRONG AT HEAD, measured by checking out the pre-change file and re-running the same commands,
+    so these are attributable changes and not ambient behavior:
+
+    ```
+    $ git checkout HEAD -- agent_workflows/pwatch.py
+    $ env -u NO_COLOR FORCE_COLOR=1 TERM=xterm-256color python3 -m agent_workflows pwatch --once python | cat -v
+    pwatch: python (every 2.5s) -- 2026-09-19 17:13:48        <- NO escapes: FORCE_COLOR ignored
+    $ python3 <pty probe>
+    pty, TERM=dumb           -> ANSI present: True            <- TERM ignored
+    ```
+
+    THE PTY MEASUREMENT, which is the only evidence that can distinguish a working flag from a deleted one:
+
+    ```
+    pty, --no-color          -> ANSI present: False
+    pty, default             -> ANSI present: True
+    pty, TERM=dumb           -> ANSI present: False
+    ```
+
+    `--no-color` on a REAL TTY is plain, while the same TTY without the flag is colored, so the second line
+    is the control that stops the first passing vacuously. Both are permanent cases now
+    (`tests/test_pwatch.py::ColorDecisionOnARealTtyTests`), and V-06 shows the first FAILING when the
+    conjunct is dropped.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste the new table-driven test's case list and its passing output, showing a named case for every cell of the 4x4 grid on both stream kinds plus the four `TERM` values. Then prove the pins BITE, and prove it against the RIGHT mutation: apply the NAIVE single-site edit F-05 describes (change only the truthiness test at `term.py:103`, leave the presence test at `:100`), paste the suite FAILING with the `NO_COLOR`-set cells named, and restore. A revert of the whole item is the easy mutation and proves less; the naive edit is the one a real executor would plausibly ship, so that is the one the grid must catch.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: all 40 named cases pass (32 env cells + 8 TERM), and the NAIVE single-site edit fails six of them by name including the F-05 cell, plus the structural test. Detail:
 
-- [ ] V-06 validates E-06
+    ALL 40 NAMED CASES, enumerated and passing (32 = 16 cells x 2 stream kinds, plus 8 = 4 `TERM` values x 2):
+
+    ```
+    ok   case='NO_COLOR=unset FORCE_COLOR=unset on a tty'
+    ok   case='NO_COLOR=unset FORCE_COLOR=unset on a pipe'
+    ok   case='NO_COLOR=unset FORCE_COLOR=empty on a tty'
+    ok   case='NO_COLOR=unset FORCE_COLOR=empty on a pipe'
+    ok   case='NO_COLOR=unset FORCE_COLOR=0 on a tty'
+    ok   case='NO_COLOR=unset FORCE_COLOR=0 on a pipe'
+    ok   case='NO_COLOR=unset FORCE_COLOR=1 on a tty'
+    ok   case='NO_COLOR=unset FORCE_COLOR=1 on a pipe'
+    ok   case='NO_COLOR=empty FORCE_COLOR=unset on a tty'
+    ok   case='NO_COLOR=empty FORCE_COLOR=unset on a pipe'
+    ok   case='NO_COLOR=empty FORCE_COLOR=empty on a tty'
+    ok   case='NO_COLOR=empty FORCE_COLOR=empty on a pipe'
+    ok   case='NO_COLOR=empty FORCE_COLOR=0 on a tty'
+    ok   case='NO_COLOR=empty FORCE_COLOR=0 on a pipe'
+    ok   case='NO_COLOR=empty FORCE_COLOR=1 on a tty'
+    ok   case='NO_COLOR=empty FORCE_COLOR=1 on a pipe'
+    ok   case='NO_COLOR=0 FORCE_COLOR=unset on a tty'
+    ok   case='NO_COLOR=0 FORCE_COLOR=unset on a pipe'
+    ok   case='NO_COLOR=0 FORCE_COLOR=empty on a tty'
+    ok   case='NO_COLOR=0 FORCE_COLOR=empty on a pipe'
+    ok   case='NO_COLOR=0 FORCE_COLOR=0 on a tty'
+    ok   case='NO_COLOR=0 FORCE_COLOR=0 on a pipe'
+    ok   case='NO_COLOR=0 FORCE_COLOR=1 on a tty'
+    ok   case='NO_COLOR=0 FORCE_COLOR=1 on a pipe'
+    ok   case='NO_COLOR=1 FORCE_COLOR=unset on a tty'
+    ok   case='NO_COLOR=1 FORCE_COLOR=unset on a pipe'
+    ok   case='NO_COLOR=1 FORCE_COLOR=empty on a tty'
+    ok   case='NO_COLOR=1 FORCE_COLOR=empty on a pipe'
+    ok   case='NO_COLOR=1 FORCE_COLOR=0 on a tty'
+    ok   case='NO_COLOR=1 FORCE_COLOR=0 on a pipe'
+    ok   case='NO_COLOR=1 FORCE_COLOR=1 on a tty'
+    ok   case='NO_COLOR=1 FORCE_COLOR=1 on a pipe'
+    ok   case='TERM=xterm-256color on a tty'
+    ok   case='TERM=xterm-256color on a pipe'
+    ok   case='TERM=dumb on a tty'
+    ok   case='TERM=dumb on a pipe'
+    ok   case='TERM=empty on a tty'
+    ok   case='TERM=empty on a pipe'
+    ok   case='TERM=unset on a tty'
+    ok   case='TERM=unset on a pipe'
+
+    total named cases: 40  failures: 0
+    ```
+
+    ```
+    $ python3 -m pytest tests/test_term.py -o addopts="" -q
+    .......................                                                  [100%]
+    23 passed in 2.17s
+    ```
+
+    The expectations are WRITTEN OUT per cell in `_COLOR_GRID`/`_TERM_GRID`, never computed from the
+    implementation, so the table is a stated contract a reviewer can dispute rather than a mirror of
+    whatever the code does. `test_the_grid_covers_every_combination_exhaustively` asserts the table has all
+    16 combinations and the 4 `TERM` values, so a silently-dropped row fails too.
+
+    THE PINS BITE, AGAINST THE RIGHT MUTATION. Applied exactly the naive single-site edit F-05 describes -
+    corrected the forcing site, left the `NO_COLOR`-cancelling site a PRESENCE test:
+
+    ```
+    $ python3 - <<'EOF'   # the naive edit
+    old = '    if "NO_COLOR" in os.environ and not _force_color_is_forcing():'
+    new = '    if "NO_COLOR" in os.environ and "FORCE_COLOR" not in os.environ:'
+    EOF
+    applied naive single-site edit
+    ```
+
+    The grid under that mutation, showing color where the table demands plain:
+
+    ```
+    --- term.should_color (TERM=xterm-256color) ---
+    | NO_COLOR \ FORCE_COLOR | unset | '' | '0' | '1' |
+    |---|---|---|---|---|
+    | unset | color / plain | color / plain | color / plain | color / COLOR |
+    | '' | plain / plain | color / plain | color / plain | color / COLOR |
+    | '0' | plain / plain | color / plain | color / plain | color / COLOR |
+    | '1' | plain / plain | color / plain | color / plain | color / COLOR |
+    ```
+
+    And the suite FAILING with the offending cells NAMED, one subtest per cell:
+
+    ```
+    $ python3 -m unittest -v tests.test_term.ShouldColorGridTests.test_every_no_color_force_color_cell_matches_the_ruled_expectation
+      ... (case='NO_COLOR=empty FORCE_COLOR=empty on a tty') ... FAIL
+      ... (case='NO_COLOR=empty FORCE_COLOR=0 on a tty') ... FAIL
+      ... (case='NO_COLOR=0 FORCE_COLOR=empty on a tty') ... FAIL
+      ... (case='NO_COLOR=0 FORCE_COLOR=0 on a tty') ... FAIL
+      ... (case='NO_COLOR=1 FORCE_COLOR=empty on a tty') ... FAIL
+      ... (case='NO_COLOR=1 FORCE_COLOR=0 on a tty') ... FAIL
+    AssertionError: True != False : NO_COLOR=empty FORCE_COLOR=empty on a tty: expected plain
+    AssertionError: True != False : NO_COLOR=empty FORCE_COLOR=0 on a tty: expected plain
+    AssertionError: True != False : NO_COLOR=0 FORCE_COLOR=empty on a tty: expected plain
+    AssertionError: True != False : NO_COLOR=0 FORCE_COLOR=0 on a tty: expected plain
+    AssertionError: True != False : NO_COLOR=1 FORCE_COLOR=empty on a tty: expected plain
+    AssertionError: True != False : NO_COLOR=1 FORCE_COLOR=0 on a tty: expected plain
+    Ran 4 tests in 0.101s
+    FAILED (failures=3)
+    ```
+
+    ```
+    $ python3 -m pytest tests/test_term.py -o addopts="" -q     # under the mutation
+    2 failed, 18 passed in 0.15s
+    FAILED tests/test_term.py::ShouldColorGridTests::test_every_no_color_force_color_cell_matches_the_ruled_expectation
+    FAILED tests/test_term.py::ShouldColorGridTests::test_both_force_color_read_sites_agree_by_construction
+    ```
+
+    THE F-05 CELL IS AMONG THEM by name: `NO_COLOR=1 FORCE_COLOR=0 on a tty: expected plain`. The
+    structural test fails independently, which is the second line of defense: even a grid that had missed a
+    cell would catch this mutation, because the two `FORCE_COLOR` readings no longer go through one
+    predicate.
+
+    A MEASURED CORRECTION TO F-05's COUNT: SIX cells flip, not twelve. The six are exactly those where
+    `NO_COLOR` is set AND `FORCE_COLOR` is PRESENT-but-falsey (`''` or `'0'`). The other six `NO_COLOR`-set
+    cells have `FORCE_COLOR` UNSET, where the naive presence test `"FORCE_COLOR" not in os.environ` is
+    still the correct test and the cell stays plain. The regression is real and in the described direction;
+    only the magnitude differs. Recorded here, in the code comment, and in the test header so the next
+    reader is not misled by the plan's figure.
+
+    RESTORED after measuring:
+
+    ```
+    $ git diff --stat agent_workflows/term.py
+     agent_workflows/term.py | 66 ++++++++++++++++++++++++++++++++++++++++++++-----
+     1 file changed, 60 insertions(+), 6 deletions(-)
+    $ python3 -m pytest tests/test_term.py -o addopts="" -q
+    ....................                                                     [100%]
+    20 passed in 0.13s
+    ```
+
+    (20 at that moment; 23 after E-07 added its three cases.)
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Paste both new cases passing. Then prove each BITES independently: revert E-02's `TERM` behavior in a scratch edit and paste the `TERM=dumb` runner case FAILING; separately drop the `not args.no_color` conjunct and paste the pty `pwatch` case FAILING. Restore after each. State plainly that the pre-existing piped `--no-color` tests kept passing under that second mutation (`tests/test_pwatch.py:225`, `:236`), which is the measured gap this item closes.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: both consumer pins pass (186 and 14) and each BITES independently: the `TERM=dumb` runner case fails on a pre-change body, the pty `pwatch` case fails when the flag conjunct is dropped while the shipped piped tests still report `10 passed`. Detail:
 
-- [ ] V-07 validates E-07
+    BOTH NEW SURFACES PASSING:
+
+    ```
+    $ python3 -m pytest tests/test_runner_shared.py -o addopts="" -q
+    186 passed in 23.30s
+
+    $ python3 -m pytest tests/test_pwatch.py -o addopts="" -q
+    ..............                                                           [100%]
+    14 passed in 1.53s
+    ```
+
+    (14, up from the 10 at HEAD: four new pty/pipe cases.)
+
+    (a) THE `TERM=dumb` RUNNER CASE BITES. Reverted `runner_shared.should_color` to its pre-change body in a
+    scratch edit, leaving everything else in place:
+
+    ```
+    $ python3 -m unittest -v tests.test_runner_shared.SharedColorDecisionTests
+    test_a_falsey_force_color_no_longer_forces_color_into_a_pipe ... FAIL
+    test_it_is_a_single_delegating_statement ... FAIL
+    test_it_reaches_the_single_originating_definition ... ok
+    test_term_dumb_is_now_honored ... FAIL
+    AssertionError: True is not false : TERM=dumb must be plain; the runners are not consulting the shared decision
+    AssertionError: 4 != 1 : should_color has 4 statements; a wrapper that grows logic is a re-fork with extra steps
+    AssertionError: True is not false : FORCE_COLOR=0 must not force color into a pipe
+    Ran 4 tests in 0.101s
+    FAILED (failures=3)
+    ```
+
+    `test_term_dumb_is_now_honored` FAILS before E-02, which is the property the plan demanded. Note
+    `test_it_reaches_the_single_originating_definition` stayed green under this mutation and that is
+    honest, not a weakness: it compares the two functions' answers in a case where the pre-change bodies
+    happened to AGREE, so the `TERM` case is what carries the proof. Restored:
+
+    ```
+    $ python3 -m unittest tests.test_runner_shared.SharedColorDecisionTests
+    Ran 4 tests in 0.095s
+    OK
+    ```
+
+    (b) THE PTY `pwatch` CASE BITES, and the shipped piped tests DO NOT. Dropped the `not args.no_color`
+    conjunct (the naive conversion), changing nothing else:
+
+    ```
+    $ python3 - <<'EOF'
+    old = "    color_enabled = not args.no_color and term.should_color(sys.stdout)"
+    new = "    color_enabled = term.should_color(sys.stdout)"
+    EOF
+    DROPPED the `not args.no_color` conjunct (the naive conversion)
+
+    $ python3 <pty probe>
+    pty, --no-color          -> ANSI present: True      <- the flag is GONE
+    pty, default             -> ANSI present: True
+    pty, TERM=dumb           -> ANSI present: False
+    ```
+
+    ```
+    $ python3 -m pytest tests/test_pwatch.py -o addopts="" -q     # NEW cases present, mutation applied
+    FAILED tests/test_pwatch.py::ColorDecisionOnARealTtyTests::test_no_color_flag_still_suppresses_color_on_a_real_tty
+    ```
+
+    STATED PLAINLY, AS THE ITEM REQUIRES: under that SAME mutation, the two pre-existing piped `--no-color`
+    tests (`tests/test_pwatch.py:225` `test_all_flag_combinations_parse_and_run` and `:236`
+    `test_watch_agy_wrapper_backwards_compatibility`) KEPT PASSING, and so did the whole file as it stood
+    at HEAD:
+
+    ```
+    $ python3 -m pytest tests/test_pwatch.py -o addopts="" -q     # at HEAD's test content, mutation applied
+    ..........                                                               [100%]
+    10 passed in 0.75s
+    ```
+
+    Ten passed with a user-facing flag entirely deleted. That is the measured coverage gap this item closes:
+    both of those tests run through a PIPE, where `isatty()` is already False, so the output is colorless
+    whether the flag works or does not exist. Only the pty case distinguishes them. Restored:
+
+    ```
+    $ grep -n "color_enabled = " agent_workflows/pwatch.py
+    964:    color_enabled = not args.no_color and term.should_color(sys.stdout)
+    ```
+
+    A NOTE ON THE `DeprecationWarning` the pty cases emit under `pytest -n auto` (3 warnings in the full
+    run): CPython warns whenever `forkpty` runs in a multi-threaded process, which an xdist worker is. The
+    documented hazard is a child that keeps executing Python after the fork; this child `execve`s
+    immediately, replacing the process image and discarding every inherited lock, so the warning is expected
+    rather than a latent deadlock. Measured stable: `14 passed` on five consecutive parallel runs. Recorded
+    in the test docstring so the coverage is not deleted to silence a warning.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: Paste the guard passing WITH `runner_shared`'s sanctioned wrapper in place, which is what proves it is not simply counting `def`s. Paste `grep -c "def should_color" agent_workflows/*.py` showing the total is 2 and explain which one is the delegation, so the next reader (and `pow5sj`'s executor) is not misled by F-08's trap. Then add a second ORIGINATING `def should_color` in a scratch module, paste the guard FAILING, and remove it. Finally paste the BARE `python3 -m pytest` summary line for the final state, compared against the review baseline `7306 passed, 3 skipped, 2 xfailed`, and list any test updated because it encoded the old divergence with the reason for each.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the guard passes with the sanctioned wrapper present, `grep -c` totals 2 (one originating in `term.py`, one delegation in `runner_shared.py`), a scratch fourth originating definition makes it FAIL, and the bare suite is `1 failed, 7096 passed, 3 skipped, 2 xfailed` against a measured pre-change baseline of `1 failed, 7080 passed, 3 skipped, 2 xfailed` - the SAME one pre-existing failure, filed as backlog `a3ugp1`. Detail:
+
+    THE GUARD PASSES WITH THE SANCTIONED WRAPPER IN PLACE, which is what proves it is not counting `def`s:
+
+    ```
+    $ python3 -m pytest tests/test_term.py::OneOriginatingDefinitionTests -o addopts="" -v
+    tests/test_term.py::OneOriginatingDefinitionTests::test_exactly_one_originating_definition_and_it_is_in_term PASSED
+    tests/test_term.py::OneOriginatingDefinitionTests::test_the_known_delegation_is_recognized_rather_than_counted_as_a_fork PASSED
+    tests/test_term.py::OneOriginatingDefinitionTests::test_the_delegation_predicate_refuses_a_body_with_logic PASSED
+    ```
+
+    THE COUNT IS TWO, AND F-08's TRAP IS REAL:
+
+    ```
+    $ grep -c "def should_color" agent_workflows/*.py | grep -v ":0"
+    agent_workflows/runner_shared.py:1
+    agent_workflows/term.py:1
+    --- total: 2
+    ```
+
+    FOR THE NEXT READER AND FOR `pow5sj`'s EXECUTOR: `term.py`'s is the ONE ORIGINATING definition, the real
+    implementation. `runner_shared.py`'s is a SANCTIONED DELEGATION whose entire body is
+    `from agent_workflows import term` + `return term.should_color(stream)`; it exists as a `def` rather
+    than an import because three shipped guards assert that module DEFINES the symbol (see V-02), and an
+    import fails all three. So a `grep -c "def should_color" == 1` expectation is FALSE on a correct tree,
+    and `pow5sj`'s V-01 should expect TWO `def`s with ONE originating body, asserted the way
+    `OneOriginatingDefinitionTests` does it (AST + a delegation predicate), not by counting lines.
+
+    THE GUARD FAILS ON A FOURTH ORIGINATING DEFINITION. Added a scratch module carrying a real body:
+
+    ```
+    $ cat agent_workflows/_z8ddk0_scratch_fork.py
+    def should_color(stream=None):
+        target = stream if stream is not None else sys.stdout
+        if os.environ.get("FORCE_COLOR"):
+            return True
+        return bool(target.isatty())
+
+    $ grep -c "def should_color" agent_workflows/*.py | grep -v ":0"
+    agent_workflows/runner_shared.py:1
+    agent_workflows/term.py:1
+    agent_workflows/_z8ddk0_scratch_fork.py:1
+
+    $ python3 -m pytest tests/test_term.py::OneOriginatingDefinitionTests -o addopts="" -q
+    E       AssertionError: Lists differ: ['_z8ddk0_scratch_fork.py', 'term.py'] != ['term.py']
+    FAILED tests/test_term.py::OneOriginatingDefinitionTests::test_exactly_one_originating_definition_and_it_is_in_term
+    1 failed, 2 passed in 2.06s
+    ```
+
+    Note WHICH assertion failed and which did not: the originating-count test failed while the
+    delegation-recognition test stayed green, i.e. the guard distinguishes a fork from a wrapper rather than
+    rejecting both. Scratch module removed:
+
+    ```
+    $ rm agent_workflows/_z8ddk0_scratch_fork.py
+    $ python3 -m pytest tests/test_term.py -o addopts="" -q
+    .......................                                                  [100%]
+    23 passed in 2.17s
+    ```
+
+    THE BARE SUITE, FINAL STATE:
+
+    ```
+    $ python3 -m pytest
+    FAILED tests/test_plan_readiness.py::ApprovalGateRealCorpusTests::test_no_pending_plan_is_refused_on_a_verdict_today
+    1 failed, 7096 passed, 3 skipped, 2 xfailed, 3 warnings in 89.10s (0:01:29)
+    ```
+
+    COMPARED AGAINST THE BASELINE, and the baseline I compare against is the one I MEASURED on this tree
+    rather than the review's remembered figure. At HEAD `c58ec3ab`, BEFORE any edit of mine:
+
+    ```
+    $ python3 -m pytest        # pre-change, clean tree
+    FAILED tests/test_plan_readiness.py::ApprovalGateRealCorpusTests::test_no_pending_plan_is_refused_on_a_verdict_today
+    1 failed, 7080 passed, 3 skipped, 2 xfailed in 93.13s (0:01:33)
+    ```
+
+    So: `7080 -> 7096 passed` (+16 net, from the new grid/consumer/guard cases), skips and xfails unchanged,
+    and THE SAME ONE PRE-EXISTING FAILURE before and after. The review's `7306` figure does not reproduce on
+    this tree at this HEAD, which the plan's own conventions section anticipates ("a DIFFERENT total is
+    expected and only an unexplained FAILURE is a finding"); the lane was rebased and suites consolidated
+    since that measurement.
+
+    THE ONE FAILURE IS NOT MINE AND IS NOT IN MY SCOPE.
+    `test_no_pending_plan_is_refused_on_a_verdict_today` fails identically on the untouched tree (shown
+    above). It names three `reaskscore` plans (`s0gnha`, `ty7w6o`, `svacmz`) whose newest history entry is
+    the one RESOLVING their blocking question and which `plan_readiness.newest_verdict` still classifies
+    `negative`. Nothing in this plan touches `plan_readiness.py` or those plans. FILED as backlog `a3ugp1`
+    (`Work-Kind: bug`, `Blocks-Release: next`, since it is a live bug) with the reproduction.
+
+    TESTS UPDATED BECAUSE THEY ENCODED THE OLD DIVERGENCE: NONE, and that is a measured statement rather
+    than an omission. No shipped assertion was weakened, deleted, or rewritten. The only pre-existing test
+    content I modified is in the two files the plan declares for exactly this purpose:
+    - `tests/test_runner_shared.py`: added `should_color` to `SUPERSEDED_SINCE_MOVE` with its written
+      justification and moved the two counts `23`->`22` / `2`->`3` (E-03, the declared exemption; V-03).
+    - `tests/test_runner_shared.py` and `tests/test_term.py`: my OWN new delegation predicates subtract a
+      function-local `import` as well as a docstring, because the shipped import guard makes
+      `import` + `return` the only legal spelling of a delegation in `runner_shared` (see V-02 and D-01).
+      Both still refuse a body carrying real logic, which `test_the_delegation_predicate_refuses_a_body_with_logic`
+      proves in both directions.
+    The historical fixture `tests/fixtures/runner_shared_premove_fingerprints.json` is UNCHANGED (V-03).
+  - Result: pass
 
 ## Approval and execution gate
 
