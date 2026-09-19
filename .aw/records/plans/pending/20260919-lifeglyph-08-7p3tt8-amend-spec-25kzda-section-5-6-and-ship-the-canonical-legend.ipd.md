@@ -9,7 +9,7 @@
 - Status: to-review
 - Set: lifeglyph
 - Order: 8
-- Highest E allocated: 04
+- Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 7p3tt8
 - From-Spec: uonrjg
@@ -33,6 +33,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - [ ] E-01 Amend `25kzda` Section 5.6 (line 1085) so its five-color list points at `uonrjg` as the authority for lifecycle color and glyph, and record the supersession in `25kzda`'s own workflow history via `aw specs note`. Leave Section 5.6's outcome vocabulary, exit codes, and reporting columns UNCHANGED.
   - Depends on: none
   - Expected outcome: A reader arriving at `25kzda` Section 5.6 is sent to `uonrjg` rather than given a contradicting palette. `25kzda`'s `- Status:` stays `approved`; only the display paragraph changes, plus an appended history line.
+  - Execution state: pending
+
+- [ ] E-05 ADD THE MISSING `integration-deferred` ROW TO SPEC SECTION 7.2, mapping it to `recovering`. This is not discretionary: measured 2026-09-19, `integration-deferred` is the ONLY one of the 15 `runner_shutdown.KNOWN_ITEM_STATUSES` members that appears ZERO times in `uonrjg`, so without this row a faithful criterion A2 assertion over that owner enum FAILS and child `udgilu`'s E-05 is unsatisfiable. The stage was resolved from code evidence in `udgilu` OQ-02 (`runner_shutdown.py:84-87` files it as in-flight and "awaiting a re-attempt"; `oc_runipd.py:6123` records it as deliberately non-terminal; `oc_runipd.py:6554-6560` shows the re-attempt is automatically scheduled at zero cost), which is the spec's own definition of `recovering` and not of `blocked`.
+  - Depends on: none
+  - Expected outcome: Section 7.2 carries an `integration-deferred` -> `recovering` row, so every member of `KNOWN_ITEM_STATUSES` has exactly one mapping and `udgilu`'s A2 test can pass over that enum.
   - Execution state: pending
 
 ### Task group 2: The stale user-facing claim
@@ -120,6 +125,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 
+- [ ] V-05 validates E-05
+  - Required evidence: Paste the `git diff` of `uonrjg` Section 7.2 showing the added `integration-deferred` -> `recovering` row. Then paste a programmatic check that EVERY member of `runner_shutdown.KNOWN_ITEM_STATUSES` (15 members) now appears in the spec, with an empty "missing" list as the result. A diff alone FAILS this item, because the point is total coverage of the owner enum rather than one row being present.
+  - Observed evidence:
+  - Result: pending
+
 - [ ] V-02 validates E-02
   - Required evidence: Paste the `git diff` of `docs/cli-human-guide.md` showing the 16-colors-only claim replaced by the 256/16/none ladder plus the depth pin and the `NO_COLOR`-wins rule. Paste the surviving "never the sole carrier" sentence proving it was preserved. Paste `aw sanitize --agent` output, and confirm no em or en dash was introduced into this user-facing file.
   - Observed evidence:
@@ -134,6 +144,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: Paste the BARE `python3 -m pytest` summary line. Then prove the guard bites: add a 22nd stage to `lifecycle_style` in a scratch edit, show the suite FAILING because the legend does not cover it, revert, and show it passing. A guard that cannot fail is not evidence. Paste `aw check specs` output confirming the amended spec conforms.
   - Observed evidence:
   - Result: pending
+
 
 ## Approval and execution gate
 
