@@ -9,6 +9,32 @@ type, because the prompt itself went into a pipe.
 Two independent layers are asserted here, because each alone would have prevented the incident and
 neither is redundant: the CALLEE must not treat an inherited TTY as consent, and the CALLER must not
 hand a child a terminal at all.
+
+MOST OF THIS FILE IS TABLE-DRIVEN, because most of it was one shape repeated: vary one input and
+assert one bool. The tables group BY LAYER, which is the boundary that matters here: the callee's
+predicate, the callee's real source, the caller's launch sites, and the completeness of the owner set
+the caller guard is scoped to.
+
+THE INTERACTIVE ROWS AND THE NON-INTERACTIVE ROWS SHARE ONE TABLE, which is the load-bearing decision
+in the predicate matrix. The two failure directions are opposite and both are real: a predicate that
+returned False for everything satisfies every non-interactive row while silently removing every
+legitimate prompt a human relies on, and one that returned True for everything satisfies the
+human-terminal row while REPRODUCING THE ORIGINAL INCIDENT exactly. Neither can pass the table, and
+the failure message says which direction collapsed.
+
+HOST IS A COLUMN, NOT A CLASS, in the caller table, and the PARITY claim between the two drivers is
+kept and stated explicitly on measured values. A fix landing in one host only must not pass, and that
+is a property OF THE PAIR: no per-host test can express it, which is precisely why the old form
+counted across both and why the count is asserted per module here with the equality checked after the
+loop.
+
+COUNTS ARE MINIMA, NOT EXACT, AND THAT IS DELIBERATE. The threshold history is recorded in the rows:
+it has twice been RE-BASED (`818uru` moved `run_checked` into `runner_shared`, `ct4w0a` moved
+`driver_begin`) and never LOWERED. A minimum fails when a launcher is deleted while tolerating one
+being added, and the UNIVERSAL beside it (every non-exempt launcher denies stdin) is what makes the
+count non-vacuous, since a count can be satisfied while one site is uncovered.
+
+Tests that are NOT rows carry a one-line docstring saying why they stay separate.
 """
 
 from __future__ import annotations
@@ -81,75 +107,374 @@ def _interactive(
 
 
 class PredicateMatrixTests(unittest.TestCase):
-    """E-01: the full matrix, not just the happy path."""
+    """E-01: the full matrix of inputs that decide whether `run_finalize` may prompt.
 
-    def test_the_incident_case_is_now_non_interactive(self):
-        """stdin inherited TTY + stdout piped: exactly what wedged for 1h49m."""
-        self.assertFalse(_interactive(stdin_tty=True, stdout_tty=False))
+    ONE table replaces eight tests. Every one called `_interactive` with a different keyword
+    combination and asserted a bool; two of them already looped over a list of values inline, which is
+    the table wanting to exist. Each varying input - the two stream states, the two output modes, the
+    env override, and whether `isatty` RAISES - is a column.
 
-    def test_real_human_terminal_still_prompts(self):
-        """No regression: a genuine interactive session must still be interactive."""
-        self.assertTrue(_interactive(stdin_tty=True, stdout_tty=True))
+    Why the table beats the eight: a single boolean expression decides every row, so the realistic
+    regression is one conjunct being dropped or inverted, and that moves a legible GROUP of cells. All
+    four falsey-env rows failing together means the value parsing went; both mode rows means the
+    agent/json guard went; the incident row alone means the stdout requirement was removed, which is
+    the exact conjunct the incident turned on. Eight tests report any of these as unrelated `False is
+    not true` lines that name no input at all.
 
-    def test_aw_noninteractive_env_forces_off(self):
-        self.assertFalse(
-            _interactive(
-                stdin_tty=True, stdout_tty=True, env={"AW_NONINTERACTIVE": "1"}
+    THE ONE INTERACTIVE-EXPECTING ROW IS LOAD-BEARING FOR EVERY OTHER ROW. A predicate returning False
+    unconditionally satisfies all nine non-interactive rows while removing every legitimate prompt in
+    the tool, and that would be a silent, hard-to-notice regression precisely because nothing wedges.
+    Conversely a predicate returning True satisfies the interactive rows while reproducing the 1h49m
+    wedge. Keeping both senses here is what makes the table unsatisfiable by either degenerate
+    implementation, and the failure message names the direction.
+    """
+
+    #: (case, stdin is a tty, stdout is a tty, is_agent, is_json, the env mapping (None for empty),
+    #: the exception `stdin.isatty()` raises (None for none), whether the predicate must say
+    #: INTERACTIVE, why this row exists)
+    MATRIX = (
+        (
+            "stdin an inherited TTY, stdout piped",
+            True,
+            False,
+            False,
+            False,
+            None,
+            None,
+            False,
+            "THE INCIDENT, EXACTLY: this combination wedged a driver-spawned `aw ipd finalize` for "
+            "1h49m holding its run lock. The child saw the operator's real terminal on stdin while its "
+            "prompt went into a pipe, so it waited for an answer nobody could see it asking for. "
+            "Requiring stdout too is what makes the prompt VISIBLE before it is asked",
+        ),
+        (
+            "a genuine human terminal on both streams",
+            True,
+            True,
+            False,
+            False,
+            None,
+            None,
+            True,
+            "THE ONLY ROW THAT MUST BE INTERACTIVE, and it carries the whole table: while it is broken "
+            "every other row here is VACUOUS, because a predicate returning False for everything "
+            "satisfies all of them - and it would do so while silently deleting every legitimate "
+            "prompt in the tool, a regression nothing wedges to reveal",
+        ),
+        (
+            "AW_NONINTERACTIVE=1 on a real terminal",
+            True,
+            True,
+            False,
+            False,
+            {"AW_NONINTERACTIVE": "1"},
+            None,
+            False,
+            "THE EXPLICIT OVERRIDE must beat a real TTY, because it is how an operator says 'do not "
+            "stop for me' when running a long unattended job from their own terminal. A predicate that "
+            "checked the streams first and the env second would fail exactly here",
+        ),
+        (
+            "CI=true on a real terminal",
+            True,
+            True,
+            False,
+            False,
+            {"CI": "true"},
+            None,
+            False,
+            "THE CONVENTIONAL CI SIGNAL, honored as an alias of the override above so no pipeline has "
+            "to know this tool's own variable name. A prompt in CI is an infinite hang with a log that "
+            "ends mid-sentence",
+        ),
+        (
+            "CI set to the empty string",
+            True,
+            True,
+            False,
+            False,
+            {"CI": ""},
+            None,
+            True,
+            "A PRESENT-BUT-EMPTY VARIABLE IS NOT A SIGNAL. `CI` is exported empty by plenty of shells "
+            "and wrappers, and a mere presence check would make every one of those developers' "
+            "terminals silently non-interactive",
+        ),
+        (
+            "CI=0",
+            True,
+            True,
+            False,
+            False,
+            {"CI": "0"},
+            None,
+            True,
+            "THE EXPLICIT OFF VALUE: `0` must mean off, not 'set'. This is the row a truthiness test on "
+            "the raw string fails, since any non-empty string is truthy in Python",
+        ),
+        (
+            "CI=false",
+            True,
+            True,
+            False,
+            False,
+            {"CI": "false"},
+            None,
+            True,
+            "the word-spelled off value, kept beside `0` so the rule reads as a small closed set of "
+            "falsey spellings rather than one numeric special case",
+        ),
+        (
+            "CI=no",
+            True,
+            True,
+            False,
+            False,
+            {"CI": "no"},
+            None,
+            True,
+            "the third falsey spelling. These four rows must be read TOGETHER: all of them failing at "
+            "once means value parsing was replaced by a presence check, which would turn off prompting "
+            "for every operator whose shell exports CI empty",
+        ),
+        (
+            "CI set to whitespace only",
+            True,
+            True,
+            False,
+            False,
+            {"CI": "  "},
+            None,
+            True,
+            "the whitespace case, which pins that the value is STRIPPED before comparison. A "
+            "`.strip()` dropped from the implementation fails only here",
+        ),
+        (
+            "--agent mode on a real terminal",
+            True,
+            True,
+            True,
+            False,
+            None,
+            None,
+            False,
+            "AGENT MODE IS NON-INTERACTIVE BY DEFINITION: there is no human in the loop to answer, so a "
+            "prompt is a hang. An agent may well be driving from a terminal it inherited, which is why "
+            "this cannot be inferred from the streams",
+        ),
+        (
+            "--json mode on a real terminal",
+            True,
+            True,
+            False,
+            True,
+            None,
+            None,
+            False,
+            "JSON MODE HAS NOWHERE TO PUT A PROMPT: the question would land in the middle of the "
+            "document and corrupt it for the parser waiting on stdout. Kept as its own row beside "
+            "`--agent` so a refactor cannot drop one of the two disjuncts unnoticed",
+        ),
+        (
+            "neither stream a terminal",
+            False,
+            False,
+            False,
+            False,
+            None,
+            None,
+            False,
+            "THE ORDINARY PIPED CASE, e.g. output redirected to a file. It is the baseline the incident "
+            "row differs from by a single input, which is what isolates the inherited-stdin conjunct",
+        ),
+        (
+            "stdin.isatty() raises ValueError",
+            True,
+            True,
+            False,
+            False,
+            None,
+            ValueError,
+            False,
+            "A CLOSED STREAM RAISES ValueError, and that must read as 'no terminal' rather than "
+            "crashing. A traceback here would abort a finalize mid-transition, which is a worse "
+            "outcome than the wedge this file is about",
+        ),
+        (
+            "stdin.isatty() raises OSError",
+            True,
+            True,
+            False,
+            False,
+            None,
+            OSError,
+            False,
+            "the other exception a detached or exotic stream raises. Both are caught, so the pair of "
+            "rows states the rule is 'an unanswerable stream is not a terminal' rather than one "
+            "hardcoded exception type",
+        ),
+    )
+
+    def test_the_predicate_permits_a_prompt_only_for_a_real_answerable_human(self):
+        wrong = []
+        interactive_rows_broken = 0
+        noninteractive_rows_broken = 0
+        for (
+            case,
+            stdin_tty,
+            stdout_tty,
+            is_agent,
+            is_json,
+            env,
+            stdin_raises,
+            expected,
+            why,
+        ) in self.MATRIX:
+            got = _interactive(
+                stdin_tty=stdin_tty,
+                stdout_tty=stdout_tty,
+                is_agent=is_agent,
+                is_json=is_json,
+                env=env,
+                stdin_raises=stdin_raises,
             )
+            if got is not expected:
+                if expected:
+                    interactive_rows_broken += 1
+                else:
+                    noninteractive_rows_broken += 1
+                wrong.append(
+                    f"  {case}:\n"
+                    f"    - expected interactive={expected}, got {got!r}\n"
+                    f"    - inputs: stdin_tty={stdin_tty}, stdout_tty={stdout_tty}, "
+                    f"is_agent={is_agent}, is_json={is_json}, env={env!r}, "
+                    f"stdin_raises={getattr(stdin_raises, '__name__', None)}\n"
+                    f"    this row exists because: {why}"
+                )
+        direction = ""
+        if noninteractive_rows_broken and not interactive_rows_broken:
+            direction = (
+                f" ALL {noninteractive_rows_broken} failing row(s) expect NON-interactive, so the "
+                "predicate has widened and a nested `aw` can prompt again: that is the 1h49m wedge, "
+                "reproduced."
+            )
+        elif interactive_rows_broken and not noninteractive_rows_broken:
+            direction = (
+                f" ALL {interactive_rows_broken} failing row(s) expect INTERACTIVE, so the predicate "
+                "now refuses to prompt a real human. Every non-interactive row above proves nothing "
+                "while that is true (a predicate returning False for everything satisfies them all), "
+                "and the symptom is silent: prompts simply stop appearing, and nothing hangs to "
+                "reveal it."
+            )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the interactivity predicate answered wrongly for {len(wrong)} of {len(self.MATRIX)} "
+            f"input combinations.{direction} ONE boolean expression decides every row, so read the "
+            "grouping: the four falsey-`CI` rows failing together means value parsing became a "
+            "presence check (which silences prompts for every shell that exports CI empty); both mode "
+            "rows means the agent/json guard went; the two raising rows means the exception handling "
+            "went; the INCIDENT row alone means the stdout requirement was dropped, which is the exact "
+            "conjunct the wedge turned on. FIX: this helper MIRRORS `ipd_lifecycle.run_finalize`, so a "
+            "failure here means the mirror and the real predicate have diverged - check the source "
+            "table below before editing either, and never fix a row by relaxing it.\n"
+            + "\n".join(wrong),
         )
-
-    def test_ci_env_forces_off(self):
-        self.assertFalse(
-            _interactive(stdin_tty=True, stdout_tty=True, env={"CI": "true"})
-        )
-
-    def test_falsey_env_values_do_not_force_off(self):
-        """`CI=0` / `CI=` must not be mistaken for a signal."""
-        for value in ("", "0", "false", "no", "  "):
-            self.assertTrue(
-                _interactive(stdin_tty=True, stdout_tty=True, env={"CI": value}),
-                f"CI={value!r} should not force non-interactive",
-            )
-
-    def test_agent_and_json_modes_remain_non_interactive(self):
-        self.assertFalse(_interactive(stdin_tty=True, stdout_tty=True, is_agent=True))
-        self.assertFalse(_interactive(stdin_tty=True, stdout_tty=True, is_json=True))
-
-    def test_no_tty_at_all_is_non_interactive(self):
-        self.assertFalse(_interactive(stdin_tty=False, stdout_tty=False))
-
-    def test_detached_stream_is_not_a_terminal(self):
-        """A closed/detached stream raises; that must read as 'no terminal', not crash."""
-        for exc in (ValueError, OSError):
-            self.assertFalse(
-                _interactive(stdin_tty=True, stdout_tty=True, stdin_raises=exc)
-            )
 
 
 class CalleeSourceTests(unittest.TestCase):
-    """E-01: pin that the real predicate still carries every condition."""
+    """E-01: pin that the real predicate still carries every condition the mirror above models.
+
+    ONE table replaces four tests. Each read the same window of `ipd_lifecycle.py` and asserted one
+    substring was present, so the needle is the only thing that varied.
+
+    WHY THIS EXISTS AT ALL, since it is otherwise an odd thing to assert: the matrix above tests a
+    MIRROR of the predicate, not the predicate itself, because the real one reads process-global
+    `sys.stdin`/`sys.stdout` and the real environment. That mirror is worthless if the original drifts,
+    so these needles are the seam. They are the cheapest possible check on the strongest possible
+    claim: every condition the matrix models is still present in the shipped code.
+
+    Why the table beats the four: all four needles are conditions of ONE expression, so a rewrite of
+    that expression removes several at once - which is the shape of the actual risk - and one failure
+    naming every missing condition says 'the predicate was rewritten' where four separate failures
+    suggest four unrelated edits. THE WINDOW ANCHOR IS CHECKED FIRST and reported as its own problem,
+    because if `forced_noninteractive` is gone every needle fails for a reason that has nothing to do
+    with the needles.
+    """
+
+    #: (the substring the predicate's source must contain, why this row exists)
+    NEEDLES = (
+        (
+            "_is_tty(_sys.stdout)",
+            "THE CONJUNCT THE INCIDENT TURNED ON. Requiring stdout is what makes a prompt VISIBLE "
+            "before it is asked; without it a child with stdin inherited and stdout piped asks a "
+            "question into a pipe and waits forever",
+        ),
+        (
+            "_is_tty(_sys.stdin)",
+            "the other half of the stream requirement: an ANSWERABLE stream. Both must be named, "
+            "because either one alone is satisfiable by a driver-spawned child",
+        ),
+        (
+            "AW_NONINTERACTIVE",
+            "THE EXPLICIT OVERRIDE must still be read from the environment. The drivers set it when "
+            "spawning, so it is the belt to the stdin devnull's braces - and the only one that works "
+            "for a nested `aw` a driver did not spawn itself",
+        ),
+        (
+            "CI",
+            "the conventional alias, so no pipeline has to know this tool's own variable name. A short "
+            "needle deliberately: it only has to prove the variable is consulted, and the matrix above "
+            "pins the value semantics",
+        ),
+        (
+            "ctx.is_agent or ctx.is_json",
+            "THE MODE GUARD, pinned as the whole disjunction rather than as two needles, because the "
+            "risk is a refactor that keeps one branch and drops the other. Neither mode has a human to "
+            "answer or anywhere to put the question",
+        ),
+    )
 
     def _predicate_src(self) -> str:
         src = (REPO_ROOT / "agent_workflows" / "ipd_lifecycle.py").read_text(
             encoding="utf-8"
         )
         i = src.find("forced_noninteractive")
-        self.assertGreater(i, -1, "the hardened predicate is gone")
-        return src[i - 400 : i + 700]
+        return "" if i < 0 else src[i - 400 : i + 700]
 
-    def test_requires_stdout_tty(self):
-        self.assertIn("_is_tty(_sys.stdout)", self._predicate_src())
-
-    def test_requires_stdin_tty(self):
-        self.assertIn("_is_tty(_sys.stdin)", self._predicate_src())
-
-    def test_honours_env_signals(self):
+    def test_the_shipped_predicate_still_carries_every_modelled_condition(self):
         src = self._predicate_src()
-        self.assertIn("AW_NONINTERACTIVE", src)
-        self.assertIn("CI", src)
-
-    def test_still_excludes_agent_and_json_modes(self):
-        self.assertIn("ctx.is_agent or ctx.is_json", self._predicate_src())
+        wrong = []
+        if not src:
+            wrong.append(
+                "  the predicate itself:\n"
+                "    - `forced_noninteractive` is not in `agent_workflows/ipd_lifecycle.py` at all, so "
+                "the hardened predicate is GONE and every needle below fails for that one reason\n"
+                "    this row exists because: this symbol is the window anchor every needle is "
+                "measured against; reporting it separately stops five needle failures from being read "
+                "as five independent edits"
+            )
+        else:
+            for needle, why in self.NEEDLES:
+                if needle not in src:
+                    wrong.append(
+                        f"  {needle!r}:\n"
+                        "    - absent from the predicate's source window\n"
+                        f"    this row exists because: {why}"
+                    )
+        self.assertEqual(
+            wrong,
+            [],
+            f"{len(wrong)} of {len(self.NEEDLES)} conditions are missing from the shipped "
+            "interactivity predicate. These needles are the SEAM between the real code and the mirror "
+            "`_interactive` helper that `PredicateMatrixTests` exercises: the matrix is worthless if "
+            "the original has drifted, which is the only thing this test can detect. All of them "
+            "failing together means the expression was rewritten (check the window anchor line first); "
+            "one failing means that condition was dropped. FIX: restore the condition in "
+            "`ipd_lifecycle.py`, or - if the change is intended - update `_interactive` in this file in "
+            "the SAME commit, because a mirror nobody updated is worse than no mirror.\n"
+            + "\n".join(wrong),
+        )
 
 
 def _subprocess_calls(rel: str) -> list[tuple[int, set[str], str]]:
@@ -166,12 +491,85 @@ def _subprocess_calls(rel: str) -> list[tuple[int, set[str], str]]:
     return out
 
 
+#: The `role` column of `CallerDevnullTests.MODULES`.
+DRIVER = "driver (host-specific)"
+SHARED = "shared by both drivers"
+
+
 class CallerDevnullTests(unittest.TestCase):
-    """E-02/E-03/E-04: an AST guard, not a grep (a grep would match this file's own literals)."""
+    """E-02/E-03/E-04: every nested-`aw` launcher in the owner set denies stdin - an AST guard, not a grep.
+
+    ONE table replaces three tests (`test_the_owner_set_has_nested_aw_call_sites`,
+    `test_every_nested_aw_run_denies_stdin`, `test_symmetry_across_both_drivers`), which between them
+    asserted the SAME universal twice and disagreed about how to count its population. The owning
+    MODULE is now a row and its ROLE is a column, so the per-module population, the exemptions, and
+    the universal are all stated once, per module, in one place.
+
+    THE PARITY CLAIM IS KEPT AND IS ASSERTED ON MEASURED VALUES, after the loop. `oc_runipd` and
+    `agy_runipd` must hold the same number of their OWN stdin-covered launchers, because a fix landing
+    in one host only must not pass. That is a property of the PAIR and no per-host row can express it,
+    which is exactly why the guard has always counted across both. It is checked on what was measured
+    rather than on the expectations in the table, so a drift that moved both hosts equally still fails
+    the per-module minimum while parity itself remains an independent, measured claim.
+
+    COUNTS ARE MINIMA AND THE HISTORY MATTERS. The threshold has been RE-BASED TWICE AND NEVER
+    LOWERED: the original form required at least 3 sites PER DRIVER FILE, which held only while every
+    launcher lived in a driver; `818uru` moved `run_checked` into `runner_shared` and `ct4w0a` moved
+    `driver_begin`, so per-file arithmetic broke while not one launcher lost its `stdin=`. A MINIMUM
+    fails when a launcher is deleted and tolerates one being added. Beside it sits the UNIVERSAL -
+    every non-exempt launcher denies stdin - which is strictly stronger than any count, since a count
+    can be satisfied while one site is uncovered.
+
+    THE agent `Popen` EXEMPTION IS COUNTED EXACTLY, not skipped silently. It is the host agent spawn
+    (owned by backlog `qyaime`, not this plan), and an exact count is what stops a THIRD exemption
+    appearing and quietly removing a site from the guard. That is the one number here that must not
+    grow.
+
+    MODULE EXISTENCE IS A COLUMN rather than a separate test: a renamed module would otherwise be
+    silently skipped by every scan in this file, so the row fails loudly instead of passing vacuously.
+    """
 
     # The nested-`aw` launchers: run_checked, driver_begin, driver_finalize in each driver. They pass
     # a prebuilt `argv`/`cmd` list, unlike the inline `['git', ...]` calls which cannot prompt.
     NESTED_AW_FIRST_ARGS = ("argv", "cmd")
+
+    #: (module, role, MINIMUM nested-`aw` launch sites, EXACT count of exempt agent `Popen` spawns,
+    #: MINIMUM non-exempt launchers that must all deny stdin, why this row exists)
+    MODULES = (
+        (
+            "agent_workflows/oc_runipd.py",
+            DRIVER,
+            2,
+            1,
+            1,
+            "THE OPENCODE DRIVER. It still launches nested `aw` of its own after `818uru`/`ct4w0a` "
+            "moved two launchers into the shared module, and its single agent `Popen` is the exempt "
+            "host spawn. Its own stdin-covered count is one half of the PARITY claim asserted below",
+        ),
+        (
+            "agent_workflows/agy_runipd.py",
+            DRIVER,
+            2,
+            1,
+            1,
+            "THE ANTIGRAVITY DRIVER, whose numbers must MATCH the row above. Both hosts run the same "
+            "lifecycle, so a `stdin=` added to one and not the other is the drift the parity check "
+            "exists to catch - and it is the realistic one, since a fix is written against whichever "
+            "host reproduced the bug",
+        ),
+        (
+            "agent_workflows/runner_shared.py",
+            SHARED,
+            2,
+            0,
+            2,
+            "THE SHARED MODULE, and the reason the guard was re-based off files onto an OWNER SET: it "
+            "now holds `run_checked` (`818uru`) and `driver_begin` (`ct4w0a`), so a guard that "
+            "inspected only the driver files would have STOPPED INSPECTING two launchers without any "
+            "count going down. It holds NO exempt `Popen`, because the host agent is spawned by the "
+            "drivers and not from here",
+        ),
+    )
 
     def _nested_aw_calls(self, rel: str):
         return [
@@ -180,107 +578,99 @@ class CallerDevnullTests(unittest.TestCase):
             if first in self.NESTED_AW_FIRST_ARGS
         ]
 
-    def test_the_owner_set_has_nested_aw_call_sites(self):
-        """The launchers must still EXIST, counted over the OWNER SET rather than per driver file.
-
-        RE-BASED by rununify 05 (`ct4w0a`) E-03 per the maintainer's OQ-03 ruling. This asserted at
-        least 3 sites PER DRIVER FILE, which was true only while every launcher lived in a driver.
-        `818uru` moved `run_checked` into `runner_shared` and `ct4w0a` moved `driver_begin`, so each
-        driver file legitimately holds fewer of its own; the launchers did not vanish, their address
-        changed. THE THRESHOLD IS NOT LOWERED, it is re-based: the total over the owner set is asserted
-        at the SAME 6 sites that exist today, which is strictly more than the old form's 3-per-file
-        could see, and a deleted launcher anywhere in the set now fails here.
-        """
-        total = sum(len(self._nested_aw_calls(rel)) for rel in OWNER_SET)
-        self.assertGreaterEqual(
-            total,
-            6,
-            "nested-`aw` launch sites vanished from the owner set: "
-            + repr({rel: len(self._nested_aw_calls(rel)) for rel in OWNER_SET}),
-        )
-
-    def test_every_nested_aw_run_denies_stdin(self):
-        """The core guard. `subprocess.Popen` for the AGENT is deliberately exempt (backlog qyaime).
-
-        COUNTED OVER THE OWNER SET since `ct4w0a`: the shared module holds two launchers now, and
-        checking only the driver files would have stopped inspecting them.
-        """
-        for rel in OWNER_SET:
-            for lineno, kw, first in self._nested_aw_calls(rel):
-                src = (REPO_ROOT / rel).read_text(encoding="utf-8").splitlines()
-                is_popen = "Popen" in src[lineno - 1]
-                if is_popen:
-                    continue  # the host agent spawn; owned by qyaime, not this plan
-                self.assertIn(
-                    "stdin",
-                    kw,
-                    f"{rel}:{lineno} spawns a nested aw without stdin= (arg0={first})",
+    def test_every_nested_aw_launcher_in_the_owner_set_denies_stdin(self):
+        wrong = []
+        uncovered_total = 0
+        own_covered: dict[str, int] = {}
+        for rel, role, min_sites, exact_popen, min_launchers, why in self.MODULES:
+            problems = []
+            target = REPO_ROOT / rel
+            if not target.is_file():
+                problems.append(
+                    "the module is named in OWNER_SET but DOES NOT EXIST, so every scan in this file "
+                    "silently skips it; a renamed module must fail loudly rather than pass vacuously"
                 )
-
-    def test_symmetry_across_both_drivers(self):
-        """A fix landed in one driver only must not pass.
-
-        COUNTED ACROSS THE OWNER SET since rununify Order 02 (`818uru` E-05) and RE-BASED ONTO IT
-        ENTIRELY by Order 05 (`ct4w0a` E-03), per the maintainer's OQ-03 ruling.
-
-        WHAT THE OLD FORM DID AND WHY IT COULD NOT SURVIVE: it required each driver's OWN stdin-covered
-        count PLUS the shared count to be at least 3, which was exactly `2 + 1` while `run_checked` was
-        the only shared launcher. `ct4w0a` shared `driver_begin` too, making it `1 + 2`, so the per-file
-        arithmetic broke even though not one launcher lost its `stdin=`.
-
-        THE THRESHOLD IS RE-BASED, NOT LOWERED, and the distinction is the whole point. `818uru`'s
-        docstring recorded why lowering is forbidden ("would have made this pass while silently
-        accepting a future change that actually removed a `stdin=`"), and that reasoning is honored
-        here: this now asserts that EVERY nested-`aw` launcher in the owner set that is not the exempt
-        agent `Popen` denies stdin -- a UNIVERSAL, which is strictly stronger than any count, since a
-        count can be satisfied while one site is uncovered. The symmetry half is preserved as the
-        property it was protecting (a fix landing in one host only), by requiring each DRIVER to hold
-        the same number of its own launchers.
-        """
-        agent_popen_exemptions = 0
-        uncovered: list[str] = []
-        launchers = 0
-        for rel in OWNER_SET:
-            src_lines = (REPO_ROOT / rel).read_text(encoding="utf-8").splitlines()
-            for lineno, kw, first in self._nested_aw_calls(rel):
-                if "Popen" in src_lines[lineno - 1]:
-                    agent_popen_exemptions += 1
-                    continue  # the host agent spawn; owned by backlog qyaime
-                launchers += 1
-                if "stdin" not in kw:
-                    uncovered.append(f"{rel}:{lineno} (arg0={first})")
-        # THE UNIVERSAL: no nested-`aw` launcher anywhere in the owner set may inherit a terminal.
+                wrong.append(
+                    f"  {rel} ({role}):\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+                continue
+            src_lines = target.read_text(encoding="utf-8").splitlines()
+            sites = self._nested_aw_calls(rel)
+            popen = [(ln, kw, a) for ln, kw, a in sites if "Popen" in src_lines[ln - 1]]
+            launchers = [s for s in sites if s not in popen]
+            uncovered = [
+                f"{rel}:{ln} (arg0={a})" for ln, kw, a in launchers if "stdin" not in kw
+            ]
+            uncovered_total += len(uncovered)
+            own_covered[rel] = sum(1 for _ln, kw, _a in launchers if "stdin" in kw)
+            # THE UNIVERSAL: no nested-`aw` launcher anywhere in the owner set may inherit a terminal.
+            if uncovered:
+                problems.append(
+                    "these nested-`aw` launch sites do NOT deny stdin, so each can hand a child the "
+                    f"operator's terminal: {uncovered!r}"
+                )
+            # NON-VACUITY: a universal over an empty set is trivially true, so the population is pinned.
+            if len(sites) < min_sites:
+                problems.append(
+                    f"only {len(sites)} nested-`aw` launch site(s) found, expected at least "
+                    f"{min_sites}; a launcher that VANISHED makes the universal above vacuous"
+                )
+            if len(launchers) < min_launchers:
+                problems.append(
+                    f"only {len(launchers)} non-exempt launcher(s) found, expected at least "
+                    f"{min_launchers}"
+                )
+            if len(popen) != exact_popen:
+                problems.append(
+                    f"expected EXACTLY {exact_popen} exempt agent `Popen` spawn(s), found "
+                    f"{len(popen)} at lines {[ln for ln, _kw, _a in popen]!r}; an extra exemption "
+                    "means something else stopped being checked"
+                )
+            if problems:
+                wrong.append(
+                    f"  {rel} ({role}):\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        # THE PARITY PROPERTY, on MEASURED values: a fix landing in one host only must not pass. It is
+        # a property of the PAIR, so it cannot live in any single row above.
+        if len(own_covered) == len(self.MODULES):
+            a, b = DRIVERS
+            if own_covered.get(a) != own_covered.get(b):
+                wrong.append(
+                    "  the two drivers' own stdin= coverage:\n"
+                    f"    - {a} covers {own_covered.get(a)!r} of its own launchers while {b} covers "
+                    f"{own_covered.get(b)!r}\n"
+                    "    this row exists because: BOTH HOSTS RUN THE SAME LIFECYCLE, so a `stdin=` "
+                    "added to one driver and not the other is the realistic drift (a fix gets written "
+                    "against whichever host reproduced the bug). No per-host row can state this; it is "
+                    "a property of the pair"
+                )
         self.assertEqual(
-            uncovered,
+            wrong,
             [],
-            "nested-`aw` launch site(s) in the owner set do not deny stdin: "
-            + ", ".join(uncovered),
-        )
-        # NON-VACUITY: a universal over an empty set is trivially true, so the population is pinned.
-        self.assertGreaterEqual(
-            launchers,
-            4,
-            f"expected at least 4 non-exempt nested-`aw` launchers in the owner set, saw {launchers}",
-        )
-        self.assertEqual(
-            agent_popen_exemptions,
-            2,
-            "expected exactly the two host agent `Popen` spawns to be exempt; a third exemption "
-            "means something else stopped being checked",
-        )
-        # THE SYMMETRY PROPERTY the old count was protecting: a fix in one host only must not pass.
-        own = {
-            rel: sum(1 for lineno, kw, _ in self._nested_aw_calls(rel) if "stdin" in kw)
-            for rel in DRIVERS
-        }
-        self.assertEqual(
-            own[DRIVERS[0]],
-            own[DRIVERS[1]],
-            f"drivers disagree on stdin= coverage: {own}",
+            f"{len(wrong)} of {len(self.MODULES)} owner-set modules (plus the cross-driver parity "
+            f"check) are wrong; {uncovered_total} nested-`aw` launch site(s) can inherit a terminal. "
+            "Read the grouping: an UNCOVERED site is the incident itself waiting to happen, so fix it "
+            "by adding `stdin=subprocess.DEVNULL` at that call rather than by editing this table; a "
+            "count BELOW its minimum means a launcher was deleted or renamed, which makes the "
+            "universal vacuous - if a launcher legitimately MOVED, move its count to the receiving "
+            "module's row (the threshold has been re-based twice and never lowered); an extra exempt "
+            "`Popen` means a site stopped being checked and that number must not grow; a PARITY "
+            "failure means one host was fixed and the other was not. FIX: if a launcher moved to a "
+            "module not listed in OWNER_SET, add the module here - `OwnerSetCompletenessTests` below "
+            "is what refuses to let it hide.\n" + "\n".join(wrong),
         )
 
     def test_guard_fails_on_an_injected_regression(self):
-        """Proves the guard guards something, rather than merely passing today."""
+        """Kept separate: the subject is a SYNTHETIC snippet, not a module in the owner set.
+
+        Every row above scans real shipped code, which can only ever prove the guard passes TODAY.
+        This runs the same detection logic over a deliberately broken snippet to prove it would
+        FAIL, which is a different claim and needs an input that must never exist in the tree.
+        """
         snippet = (
             "import subprocess\n"
             "def f(cmd, repo):\n"
@@ -309,6 +699,20 @@ class OwnerSetCompletenessTests(unittest.TestCase):
     never be inspected, so the guard above would keep passing while an unprotected nested `aw` shipped.
     That is a worse hole than the one the re-base closed, so the set's completeness is asserted rather
     than assumed. This class is the price of the ruling and it is deliberately paid here.
+
+    ONE TABLE here replaces the two non-vacuity tests (`test_the_completeness_scan_would_catch_a_stray
+    _launcher`, `test_the_semantic_detector_ignores_a_plain_git_invocation`). Both wrote a real
+    temporary module under the package and asked `_semantic_nested_aw_sites` what it found, differing
+    only in the SOURCE and therefore in whether anything should be found - which is the accept/reject
+    sense, a column.
+
+    BOTH SENSES MUST SHARE THAT TABLE, and here the reason is measured rather than theoretical. The
+    driver guard identifies launchers by `arg0 in ('argv', 'cmd')`, which is precise inside the drivers
+    and useless package-wide, because `cmd` is also what a plain `git` invocation is called: that
+    filter yields 5 false positives across the package, all `git`/`--version` calls that cannot prompt
+    for anything. So a detector that cried wolf would make the package-wide scan below unmaintainable
+    and it would be TURNED OFF, while a detector that found nothing would let a stray launcher ship.
+    One row proves recall, the other precision, and neither alone is worth anything.
     """
 
     # Nested-`aw` launches that live OUTSIDE the owner set, each with the reason it is not covered by
@@ -382,12 +786,94 @@ class OwnerSetCompletenessTests(unittest.TestCase):
                             found.append((node.lineno, name, "stdin" in kw))
         return found
 
-    def test_no_unaccounted_nested_aw_launcher_lives_outside_the_owner_set(self):
-        """Scan the WHOLE package by MEANING, so an unlisted launcher fails loudly.
+    #: (case, the module filename to write, its source, the EXACT `(function, stdin-covered)` pairs
+    #: the detector must report, why this row exists)
+    DETECTOR = (
+        (
+            "a stray nested-`aw` launcher in an unlisted module",
+            "stray_launcher.py",
+            "import subprocess\n"
+            "def sneaky(repo):\n"
+            "    argv = pinned_module_argv(['ipd', 'set', 'executed'])\n"
+            "    return subprocess.run(argv, cwd=repo, stdout=subprocess.PIPE)\n",
+            [("sneaky", False)],
+            "RECALL: this is the hole the owner-set re-base created, so the scan below must SEE it. "
+            "The expected pair also pins that it is reported as NOT stdin-covered, since a detector "
+            "that found the site but misjudged its coverage would report a real hole as safe",
+        ),
+        (
+            "a plain `git` invocation whose argv is called `cmd`",
+            "benign_git.py",
+            "import subprocess\n"
+            "def commit(repo, paths):\n"
+            "    cmd = ['git', 'commit', '-m', 'x', '--'] + paths\n"
+            "    return subprocess.run(cmd, cwd=repo)\n",
+            [],
+            "PRECISION, and the reason this detector works by MEANING rather than by the `arg0` NAME "
+            "the driver guard uses: measured, the name filter reports 5 false positives package-wide, "
+            "all `git`/`--version` calls that cannot prompt. A scan that cried wolf on ordinary `git` "
+            "calls would be turned off, taking the recall row's protection with it",
+        ),
+    )
 
-        This is what the re-base onto an owner set costs, and paying it is the point: a launcher added
-        to a module nobody listed would never be inspected by the stdin guard above, which is a worse
-        hole than the per-file counting the ruling replaced.
+    def test_the_semantic_detector_finds_stray_launchers_without_crying_wolf(self):
+        wrong = []
+        recall_rows_broken = 0
+        precision_rows_broken = 0
+        for case, filename, source, expected, why in self.DETECTOR:
+            # A REAL file on disk under the package, and asserted through the SAME function the
+            # package-wide scan uses, so a detector that stopped detecting fails here.
+            with tempfile.TemporaryDirectory(dir=REPO_ROOT / "agent_workflows") as temp:
+                module = Path(temp) / filename
+                module.write_text(source, encoding="utf-8")
+                rel = module.relative_to(REPO_ROOT).as_posix()
+                got = [
+                    (fn, covered)
+                    for _ln, fn, covered in self._semantic_nested_aw_sites(rel)
+                ]
+            if got != expected:
+                if expected:
+                    recall_rows_broken += 1
+                else:
+                    precision_rows_broken += 1
+                wrong.append(
+                    f"  {case}:\n"
+                    f"    - expected the detector to report {expected!r}\n"
+                    f"    - got {got!r}\n"
+                    f"    this row exists because: {why}"
+                )
+        direction = ""
+        if recall_rows_broken and not precision_rows_broken:
+            direction = (
+                " The RECALL row failed, so the package-wide scan below is now blind: a nested-`aw` "
+                "launcher added to an unlisted module would never be inspected by the stdin guard and "
+                "would ship unprotected."
+            )
+        elif precision_rows_broken and not recall_rows_broken:
+            direction = (
+                " The PRECISION row failed, so the detector is now reporting ordinary `git` calls. "
+                "That makes the scan below unmaintainable, and an unmaintainable scan gets turned off "
+                "- taking the recall protection with it."
+            )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the semantic detector was wrong on {len(wrong)} of {len(self.DETECTOR)} synthetic "
+            f"modules.{direction} Both senses share this table because neither is worth anything "
+            "alone: a detector that finds nothing satisfies the precision row while letting a stray "
+            "launcher ship, and one that flags everything satisfies the recall row while burying the "
+            "package-wide scan in false positives. FIX: this detector is what makes the OWNER_SET "
+            "re-base safe, so repair the detector rather than the expectation - and note the recall "
+            "row asserts the COVERAGE flag too, since reporting a real hole as stdin-covered is as "
+            "bad as not reporting it.\n" + "\n".join(wrong),
+        )
+
+    def test_no_unaccounted_nested_aw_launcher_lives_outside_the_owner_set(self):
+        """Kept separate: the subject is the WHOLE SHIPPED PACKAGE, not a fixture.
+
+        Every other assertion in this file is about a named module or a synthetic snippet. This walks
+        all of `agent_workflows/` and is the only guard that a launcher added to a module NOBODY
+        listed fails loudly - which is the single hole the owner-set re-base introduced.
         """
         package = REPO_ROOT / "agent_workflows"
         strays: dict[str, list[str]] = {}
@@ -409,62 +895,6 @@ class OwnerSetCompletenessTests(unittest.TestCase):
             "module to OWNER_SET (preferred, it then gets the guard) or add it to "
             "EXEMPT_OUTSIDE_OWNER_SET with the reason. Found: " + repr(strays),
         )
-
-    def test_the_owner_set_names_only_modules_that_exist(self):
-        for rel in OWNER_SET:
-            with self.subTest(module=rel):
-                self.assertTrue(
-                    (REPO_ROOT / rel).is_file(),
-                    f"{rel} is named in OWNER_SET but does not exist; a renamed module would "
-                    "silently stop being scanned",
-                )
-
-    def test_the_completeness_scan_would_catch_a_stray_launcher(self):
-        """Non-vacuity for the scan itself, run against a REAL temporary module on disk.
-
-        Asserted through `_semantic_nested_aw_sites`, the same function the scan uses, rather than
-        against a re-implementation, so a detector that stopped detecting fails here.
-        """
-        with tempfile.TemporaryDirectory(dir=REPO_ROOT / "agent_workflows") as temp:
-            stray = Path(temp) / "stray_launcher.py"
-            stray.write_text(
-                "import subprocess\n"
-                "def sneaky(repo):\n"
-                "    argv = pinned_module_argv(['ipd', 'set', 'executed'])\n"
-                "    return subprocess.run(argv, cwd=repo, stdout=subprocess.PIPE)\n",
-                encoding="utf-8",
-            )
-            rel = stray.relative_to(REPO_ROOT).as_posix()
-            sites = self._semantic_nested_aw_sites(rel)
-            self.assertEqual(
-                [(fn, covered) for _ln, fn, covered in sites],
-                [("sneaky", False)],
-                "the completeness scan must recognise a nested-`aw` launcher in an unlisted module, "
-                "and must report it as NOT stdin-covered",
-            )
-
-    def test_the_semantic_detector_ignores_a_plain_git_invocation(self):
-        """The other half of non-vacuity: it must not cry wolf on a `cmd` that is just `git`.
-
-        This is why the package-wide scan uses meaning rather than the `arg0` NAME the driver guard
-        uses: measured, the name filter reports 5 false positives package-wide, all `git`/`--version`
-        calls that cannot prompt.
-        """
-        with tempfile.TemporaryDirectory(dir=REPO_ROOT / "agent_workflows") as temp:
-            benign = Path(temp) / "benign_git.py"
-            benign.write_text(
-                "import subprocess\n"
-                "def commit(repo, paths):\n"
-                "    cmd = ['git', 'commit', '-m', 'x', '--'] + paths\n"
-                "    return subprocess.run(cmd, cwd=repo)\n",
-                encoding="utf-8",
-            )
-            rel = benign.relative_to(REPO_ROOT).as_posix()
-            self.assertEqual(
-                self._semantic_nested_aw_sites(rel),
-                [],
-                "a plain `git` launch must NOT be reported as a nested-`aw` launcher",
-            )
 
 
 if __name__ == "__main__":  # pragma: no cover
