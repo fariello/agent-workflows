@@ -4528,10 +4528,21 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Set id (default: a singleton from the item id).",
     )
+    # bkgradcli: DERIVE THE STATUS VOCABULARY, never retype it. `graduated` shipped as a real status
+    # in `backlog.STATUS_DIRS` (a directory, a valid `- Status:`, and an `aw attention` class of
+    # `active`), and both setters have always ACCEPTED it because they validate against
+    # `backlog.STATUSES`. Only these help strings were hand-typed with the pre-`graduated` four, so the
+    # CLI's own documentation denied a status the code implements. Measured cost 2026-09-19: an advisory
+    # told a maintainer to close a release blocker `done` because `--help` offered no `graduated`, and
+    # `done` on unimplemented work is exactly the false completion claim the status exists to prevent.
+    # Reads from the one definition, following the `--work-kind`/`--priority` precedent below.
+    from agent_workflows import backlog as _backlog_status_vocab
+
     p_backlog_new.add_argument(
         "--status",
         default="open",
-        help="open | blocked | parked | done (default: open).",
+        choices=sorted(_backlog_status_vocab.STATUSES),
+        help=" | ".join(sorted(_backlog_status_vocab.STATUSES)) + " (default: open).",
     )
     p_backlog_new.add_argument(
         "--priority", default="medium", help="high | medium | low (default: medium)."
@@ -4588,7 +4599,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_backlog_set = backlog_sub.add_parser(
         "set",
         parents=[common],
-        description="Transition a backlog item's status (moving it between open/blocked/parked/done) and append history.",
+        description="Transition a backlog item's status (moving it between open/graduated/blocked/parked/done) and append history.",
         help="Transition a backlog item's status + append history (e.g. 'aw backlog set done <id6|setid|fname>...').",
     )
     p_backlog_set.add_argument(
@@ -4598,7 +4609,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir", default=None, help="Repo root (default: current directory)."
     )
     p_backlog_set.add_argument(
-        "--status", default=None, help="Target status: open | blocked | parked | done."
+        "--status",
+        default=None,
+        choices=sorted(_backlog_status_vocab.STATUSES),
+        help="Target status: "
+        + " | ".join(sorted(_backlog_status_vocab.STATUSES))
+        + ". 'graduated' means the design is handed off to a plan or spec while the code is "
+        "not yet written, and is the honest transition for an item whose plan exists but has "
+        "not been executed; 'done' claims the code is written and validated.",
     )
     p_backlog_set.add_argument("--message", default="", help="History record message.")
     p_backlog_set.add_argument(
