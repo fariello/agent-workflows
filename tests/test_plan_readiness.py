@@ -1972,5 +1972,89 @@ class AParenthesizedActorDoesNotDisableTheApprovalGate(unittest.TestCase):
         )
 
 
+class AClearedNoGoIsNotAssertedTests(unittest.TestCase):
+    """A record reporting a no-go was CLEARED must not be read as asserting one.
+
+    REGRESSION GUARD for the incident of 2026-09-19, which cost run
+    `run-20260919T194413Z-2056285` 2h10m and $55.02 for zero integrated work. Three `reaskscore`
+    plans recorded "clearing this plan's only blocking question and with it its `no-go`". The
+    negative-readiness check was a plain substring scan, so it matched the token inside that clause
+    and `newest_verdict` returned NEGATIVE for three plans that had just been cleared. That reddened
+    `ApprovalGateRealCorpusTests::test_no_pending_plan_is_refused_on_a_verdict_today`, which reads the
+    LIVE pending tree, so the driver-run suite failed in EVERY lane, `integration_is_earned` returned
+    `suite-failed`, self-finalize was gated off, three lanes were preserved unmerged, and eight
+    further items cascaded to `dependency-blocked`.
+    """
+
+    ASSERTED = (
+        ("a bare negative readiness", "readiness no-go"),
+        ("a rejection naming it", "REJECT - NEEDS REPLAN. readiness no-go"),
+        ("a blocking question remaining", "blocking OQ remains; Readiness no-go."),
+        ("the token alone", "no-go"),
+        (
+            "a REGRESSION to no-go, which must still refuse",
+            "readiness go-pending-approval -> no-go after re-review",
+        ),
+        (
+            "a clearing verb for a DIFFERENT thing, with a new no-go in its own sentence",
+            "OQ-01 resolved. A new blocker was found, so readiness no-go.",
+        ),
+    )
+
+    CLEARED = (
+        (
+            "the exact production phrasing that caused the incident",
+            "/askme: OQ-03 RESOLVED FROM THE REPOSITORY WITHOUT ASKING, clearing this plan's only "
+            "blocking question and with it its `no-go`.",
+        ),
+        (
+            "an attested readiness re-check narrating the transition",
+            "`- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK.",
+        ),
+        (
+            "a resolution lifting it",
+            "OQ-02 resolved, lifting the no-go recorded in round 1.",
+        ),
+    )
+
+    def test_an_asserted_negative_readiness_is_still_refused(self):
+        for label, message in self.ASSERTED:
+            with self.subTest(label):
+                self.assertTrue(
+                    PR.negative_readiness_asserted(message),
+                    "this message ASSERTS a negative readiness and must keep refusing, or a plan "
+                    "its own review rejected becomes executable: " + message,
+                )
+
+    def test_a_cleared_negative_readiness_is_not_asserted(self):
+        for label, message in self.CLEARED:
+            with self.subTest(label):
+                self.assertFalse(
+                    PR.negative_readiness_asserted(message),
+                    "this message reports the no-go CLEARED; reading it as asserted is the "
+                    "2026-09-19 lockout that failed the suite in every lane: "
+                    + message,
+                )
+
+    def test_newest_verdict_does_not_refuse_a_cleared_plan(self):
+        """End to end through the public reader, not just the predicate."""
+        for label, message in self.CLEARED:
+            with self.subTest(label):
+                text = (
+                    "# IPD: x\n\n- Status: approved\n\n## Workflow history\n\n"
+                    "- 2026-09-19 reviewed (opencode its_direct/m): " + message + "\n"
+                )
+                polarity, _entry = PR.newest_verdict(text)
+                self.assertNotEqual(
+                    polarity,
+                    PR.NEGATIVE,
+                    "newest_verdict read a CLEARED no-go as NEGATIVE, which is the incident: "
+                    + message,
+                )
+
+    def test_an_empty_message_asserts_nothing(self):
+        self.assertFalse(PR.negative_readiness_asserted(""))
+
+
 if __name__ == "__main__":
     unittest.main()

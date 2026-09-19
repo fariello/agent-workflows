@@ -143,6 +143,50 @@ _NEGATIVE_READINESS_SCAN_RE = _vocabulary_scan_re(
     tuple(k for k, v in READINESS_TOKENS.items() if v == NEGATIVE)
 )
 
+#: A negative readiness token that the SAME SENTENCE reports CLEARING rather than asserting.
+#:
+#: MEASURED IN PRODUCTION 2026-09-19, and the cost was a whole run. Three `reaskscore` plans recorded
+#: "clearing this plan's only blocking question and with it its `no-go`", which is a statement that the
+#: no-go is GONE. `_NEGATIVE_READINESS_SCAN_RE` is a plain substring scan, so it matched the token
+#: inside that clause and `newest_verdict` returned NEGATIVE for three plans that had just been
+#: cleared. That reddened `tests/test_plan_readiness.py::ApprovalGateRealCorpusTests
+#: ::test_no_pending_plan_is_refused_on_a_verdict_today`, which reads the LIVE pending tree; the red
+#: test failed the driver-run suite in every lane of run `run-20260919T194413Z-2056285`; a failed suite
+#: made `integration_is_earned` return `suite-failed`; and that gates self-finalize, so nothing
+#: integrated, three lanes were preserved unmerged, and eight further items cascaded to
+#: `dependency-blocked`. Total: 2h10m and $55.02 for zero integrated work.
+#:
+#: TWO SHAPES, both observed in this repository's own history lines:
+#:   1. a CLEARING VERB before the token ("clearing ... its `no-go`", "resolved ... the no-go");
+#:   2. an ARROW TRANSITION away from it ("CHANGED `no-go` -> `go-pending-approval`").
+#:
+#: WHAT THIS DELIBERATELY DOES NOT DO: it does not relax the gate for a real rejection. A bare
+#: "readiness no-go", a "REJECT - NEEDS REPLAN ... no-go", and a REGRESSION *to* no-go
+#: ("go-pending-approval -> no-go") all still refuse, because none of them matches. The 80-character
+#: bound and the `[^.]` class keep the clearing verb and the token inside ONE SENTENCE, so a record
+#: that resolves one question and separately reports a new no-go is still refused.
+_CLEARED_NEGATIVE_READINESS_RE = re.compile(
+    r"(?:clear(?:ing|ed|s)?|resolv(?:ing|ed|es)?|lift(?:ing|ed|s)?|remov(?:ing|ed|es)?|"
+    r"no longer|with it its|and with it)\b[^.]{0,80}?\b(?:no-go)\b"
+    r"|\b(?:no-go)\b\s*`?\s*(?:->|-->|\u2192)\s*`?\s*(?:go|go-pending-approval)\b",
+    re.IGNORECASE,
+)
+
+
+def negative_readiness_asserted(message: str) -> bool:
+    """Whether ``message`` ASSERTS a negative readiness, as against reporting one CLEARED.
+
+    Pure and side-effect free, so the distinction is testable without a plan on disk. Returns False
+    for an empty message. See `_CLEARED_NEGATIVE_READINESS_RE` for the measured incident that made
+    the plain substring scan insufficient and for what this intentionally still refuses.
+    """
+
+    if not message:
+        return False
+    if not _NEGATIVE_READINESS_SCAN_RE.search(message):
+        return False
+    return not _CLEARED_NEGATIVE_READINESS_RE.search(message)
+
 
 def _normalize_token(raw: str) -> str:
     """A matched phrase folded to its canonical vocabulary key (upper, single-spaced, ``-`` tight)."""
@@ -224,6 +268,13 @@ def history_verdict_approves(entry: Optional[str]) -> bool:
     """
     if not entry:
         return False
+    # DELIBERATELY THE PLAIN SCAN, NOT `negative_readiness_asserted`. This is the STRICTER
+    # auto-approve rule, and it disqualifies on ANY mention of a negative readiness token, including
+    # one a record narrates as CLEARED. The asymmetry with `newest_verdict` is intentional and pinned
+    # by `ReviewEntryDiscriminatorTests::test_the_newest_review_records_verdict_is_read_from_every_
+    # history_shape`: this rule's false negative costs ONE deferral to a human, while the approval
+    # gate's false positive is an UNOVERRIDABLE LOCKOUT, so the two accept opposite risks on purpose.
+    # Relaxing this line is a policy change about which risk we accept, not a bug fix.
     if _NEGATIVE_READINESS_SCAN_RE.search(entry):
         return False
     # ANY verdict token that is not itself a clearance disqualifies, wherever it appears, so a record
@@ -433,7 +484,10 @@ def newest_verdict(text: str) -> Tuple[Optional[str], str]:
             return polarity, candidate
         # No verdict token at all. A negative READINESS token is then the only signal present, and it
         # is unambiguous precisely BECAUSE no verdict competes with it for the reader's attention.
-        if _NEGATIVE_READINESS_SCAN_RE.search(message):
+        # BUT ONLY WHEN IT IS ASSERTED: a record stating that a no-go was CLEARED contains the token
+        # while saying the opposite, which is what `negative_readiness_asserted` separates. Measured
+        # 2026-09-19: the plain scan returned NEGATIVE for three just-cleared plans and cost a run.
+        if negative_readiness_asserted(message):
             return NEGATIVE, candidate
         return None, candidate
     return None, ""
