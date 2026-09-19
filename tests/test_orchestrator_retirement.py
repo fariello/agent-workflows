@@ -3717,6 +3717,20 @@ class TheDocumentedClaimMatchesTheCode(unittest.TestCase):
         demonstrates it. A claim with no test must be deleted rather than shipped.
         """
 
+        # orchprobe-03 (`m7gvuz`) E-08: the COVERAGE GATE's claims join this mapping, and the tests
+        # behind them live in `tests/test_orchestrator_probe.py`. THE "THIS module" IN THIS TEST'S NAME
+        # IS NOW A HALF-TRUTH AND IS LEFT DELIBERATELY: the property that matters is that every claim
+        # is backed by a NAMED test class containing real tests, and importing that Set sibling's
+        # classes satisfies it exactly as a local class does. Renaming the test would churn a node id
+        # several plans cite; splitting the gate's tests into this module to satisfy the name would put
+        # them away from the code they exercise, which is worse.
+        from tests.test_orchestrator_probe import (
+            TheCouldNotAskPathDoesNotBlock,
+            TheGateHasThreePaths,
+            TheRefusalIsDURABLE,
+            TheRefusalNamesAddAChild,
+        )
+
         para = self.paragraph()
         mapping = {
             # claim fragment -> the test that demonstrates it
@@ -3728,6 +3742,15 @@ class TheDocumentedClaimMatchesTheCode(unittest.TestCase):
             "no agent turn": TheAgyHostActsOnTheDecision,
             "ON DISK": AnOrchestratorIsRetiredMidRun,
             "this run cannot finish": ADeadSetTerminatesInsteadOfLooping,
+            # The coverage gate (`25kzda` 2.5b / `77tr3o` R-12).
+            "REFUSES unattended": TheGateHasThreePaths,
+            "PROMPTS on a TTY": TheGateHasThreePaths,
+            "ADD A CHILD": TheRefusalNamesAddAChild,
+            "do NOT delete the parent's items": TheRefusalNamesAddAChild,
+            "readable afterwards in `aw runs`": TheRefusalIsDURABLE,
+            "PROCEEDS with a loud warning": TheCouldNotAskPathDoesNotBlock,
+            "KNOWN HOLE": TheCouldNotAskPathDoesNotBlock,
+            "REQUIRES a justification": TheGateHasThreePaths,
         }
         for fragment, test_class in mapping.items():
             with self.subTest(claim=fragment):

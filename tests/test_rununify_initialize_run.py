@@ -95,6 +95,7 @@ SHARED_OPTION_KEYS = frozenset(
         "allow_dirty_base",
         "allow_drafts",
         "allow_mixed",
+        "allow_uncovered_orchestrator_work",
         "allow_unverifiable",
         "follow_generated",
         "full_auto",
@@ -144,7 +145,11 @@ OC_CONDITIONAL_OPTION_KEYS = frozenset(
 )
 
 HOST_SPECIFIC_OPTION_COUNT = 13  # 7 oc-only + 6 agy-only
-LIVE_OPTION_KEY_UNION = 34  # 21 shared + 13 host-specific
+# RE-MEASURED 2026-09-19 (34 -> 35) by orchprobe-03 (`m7gvuz`): the union grew by one SHARED key,
+# `allow_uncovered_orchestrator_work`, frozen by the one shared `freeze_run_policy_flags` expansion.
+# The host-specific count is UNCHANGED, which is the property that matters here: the new policy could
+# not land on one host only.
+LIVE_OPTION_KEY_UNION = 35  # 22 shared + 13 host-specific
 
 # ==================================================================================================
 # E-01(b): THE CLOSURE. 37 free module-level names at execution HEAD (the plan's review said 34).
