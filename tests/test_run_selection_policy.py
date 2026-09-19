@@ -4,6 +4,34 @@ IPD 6lu3rq E-05, covering spec `25kzda` 2.5. The gate is demonstrated in BOTH di
 one-sided test does not demonstrate a gate), the verbatim refusal is asserted against the spec's own
 text rather than a paraphrase, and the classification is proven to DEFER to the shipped resolver
 rather than duplicating it.
+
+TWO KINDS OF TABLE LIVE HERE, and they are not interchangeable. Where the varying input is a SCALAR
+and each case is genuinely independent, `@pytest.mark.parametrize` is right and is already used: the
+20-case status->action dispatch table, its 8-case undeterminable counterpart, the 12-case
+confirmation-phrase rejection table, the 3-case accepted-phrase table, and the `host` parameter that
+runs the sweep property on BOTH runners. Those are not touched, and should not be: a parametrized
+case is individually named and individually reported, which is what you want when the cases are
+unrelated points in a large input space.
+
+Where instead a CLUSTER OF ROWS is really one property observed under several input combinations, the
+rows live in a module-level tuple and ONE test accumulates failures and reports them together. That
+shape is used for `needs_review`'s four interacting inputs, `classify_paths`' selections, the
+per-artifact disposition line, the public vocabulary strings, and the renderer conventions. The
+difference is deliberate: in each of those the interesting information is WHICH COMBINATIONS moved
+together (completeness only matters on `draft`; a terminal directory overrides an otherwise
+review-worthy status; an untyped record raises the item count without making a selection mixed), and
+N independently-reported failures actively hide that.
+
+MODES ARE COLUMNS in the accumulating tables: `spec_type`, the three-valued `authoring_complete`, the
+file's DIRECTORY, and the queue entry's shape all vary within one table rather than across several.
+
+WHAT IS DELIBERATELY NOT TABULATED, so the next reader does not redo the analysis. Tests that read
+the SPEC FILE and compare character-for-character stay apart (their subject is a document, not an
+input). So do the purity/no-mutation proofs, the AST import guard, the `inspect.signature` guards on
+what the predicates deliberately do NOT accept, and `test_membership_derives_from_the_action_table...`
+plus `test_every_legal_edge_in_table_is_accepted`, which already iterate the product's own tables and
+so extend themselves when a row is added - restating those as literal rows would freeze a copy that a
+newly added status could not fail.
 """
 
 from __future__ import annotations
@@ -101,32 +129,231 @@ def test_type_mapping_is_one_data_table_covering_the_resolver_vocabulary():
         assert pol.SPEC_TYPE_BY_RESOLVER_TYPE[resolver_type] == spec_type
 
 
-def test_single_type_selection_reports_exactly_one_type(repo: Path):
-    plan = next((repo / ".aw" / "records" / "plans").rglob("*.ipd.md"))
-    c = pol.classify_paths(repo, [plan])
-    assert c.type_count == 1
-    assert c.spec_types == ("ipd",)
-    assert c.is_mixed is False
+#: (case, which seeded records to select, expected `spec_types`, expected `is_mixed`, expected item
+#: count, expected untyped count, expected (spec_type, status, action) per item, why this row exists)
+#:
+#: ONE table replaces three tests (`single_type_selection_reports_exactly_one_type`,
+#: `mixed_selection_counts_each_type`,
+#: `untyped_files_are_reported_not_dropped_and_do_not_make_a_selection_mixed`) and folds in a fourth
+#: (`reviewed_ipd_is_undetermined_end_to_end_through_classify_paths`). Every one of them called
+#: `classify_paths` on one selection and asserted a few of the same fields.
+#:
+#: WHY THE TABLE BEATS THE FOUR. `is_mixed` is the input to the CONFIRMATION GATE, so what matters is
+#: not any one selection but the BOUNDARY: which selections are mixed and which are not. That boundary
+#: is subtle in exactly one place - an UNTYPED record raises the item count without making the
+#: selection mixed, because an unrunnable record is not a KIND OF WORK - and seeing the one-type,
+#: three-type and untyped rows together is the only way to state it. Separated, a change that made
+#: untyped records count as a type would break one test and read as a bug in that test's fixture.
+#:
+#: THE ORDER OF `spec_types` IS PART OF THE CONTRACT and is asserted as a tuple, not a set: it is
+#: `SPEC_TYPE_ORDER`, deliberately NOT input order, which is what makes the preview and the queue
+#: digest stable across shuffled inputs.
+#:
+#: THE ACTION COLUMN carries this end to end. Three of the old tests stopped at the counts, so the
+#: per-item action - the thing dispatch actually consumes - was only checked by a fourth test on one
+#: status. Every row now pins it, which is strictly more coverage.
+_CLASSIFICATIONS = (
+    (
+        "one approved plan",
+        ("plan",),
+        ("ipd",),
+        False,
+        1,
+        0,
+        (("ipd", "approved", pol.ACTION_EXECUTE),),
+        "THE SINGLE-TYPE BASELINE: one type is never mixed, so the gate never applies. This is the "
+        "row that would break if `is_mixed` were derived from the ITEM count rather than the TYPE "
+        "count, which would gate every multi-item run and make the flag mandatory",
+    ),
+    (
+        "one approved spec",
+        ("spec",),
+        ("spec",),
+        False,
+        1,
+        0,
+        (("spec", "approved", pol.ACTION_PLAN),),
+        "the same claim for a DIFFERENT type, and its action differs: an approved spec routes to "
+        "`plan`, not `execute`. Without this row the classifier could be plan-shaped and the table "
+        "would still pass",
+    ),
+    (
+        "one open backlog item",
+        ("backlog",),
+        ("backlog",),
+        False,
+        1,
+        0,
+        (("backlog", "open", pol.ACTION_PLAN),),
+        "the third runnable type. `open` also routes to `plan`, which is what makes the pairing with "
+        "the spec row meaningful: two different (type, status) inputs reaching the SAME action is "
+        "real behavior, not a copy",
+    ),
+    (
+        "all three types under one selector",
+        ("plan", "spec", "backlog"),
+        ("ipd", "spec", "backlog"),
+        True,
+        3,
+        0,
+        (
+            ("ipd", "approved", pol.ACTION_EXECUTE),
+            ("spec", "approved", pol.ACTION_PLAN),
+            ("backlog", "open", pol.ACTION_PLAN),
+        ),
+        "THE MIXED ROW, and the one the gate exists for. `spec_types` is asserted as an ORDERED "
+        "tuple in `SPEC_TYPE_ORDER` rather than input order, which is the property the stable "
+        "preview and the order-independent queue digest are built on",
+    ),
+    (
+        "a plan plus an UNTYPED comms record",
+        ("plan", "comm"),
+        ("ipd",),
+        False,
+        2,
+        1,
+        (
+            ("ipd", "approved", pol.ACTION_EXECUTE),
+            (None, None, pol.ACTION_SKIP),
+        ),
+        "THE SUBTLE BOUNDARY, and the reason these rows must sit together: the untyped record IS "
+        "REPORTED (two items, one untyped) and is NOT silently dropped, yet the selection is NOT "
+        "mixed - an unrunnable record is not a KIND OF WORK, so it must not trigger a confirmation "
+        "prompt. Its action is `skip`, which is how it reaches the preview without reaching dispatch",
+    ),
+    (
+        "ONLY an untyped comms record",
+        ("comm",),
+        (),
+        False,
+        1,
+        1,
+        ((None, None, pol.ACTION_SKIP),),
+        "the degenerate case of the row above: NO typed work at all. `spec_types` must be empty and "
+        "the selection still not mixed, so a selection of nothing-runnable neither gates nor "
+        "pretends to have found work",
+    ),
+    (
+        "a REVIEWED plan, classified end to end",
+        ("reviewed-plan",),
+        ("ipd",),
+        False,
+        1,
+        0,
+        (("ipd", "reviewed", pol.ACTION_UNDETERMINED),),
+        "THE END-TO-END UNDETERMINED ROW: `reviewed` branches on `--full-auto`, a flag the classifier "
+        "cannot see, so it must reach `classify_paths`' output as UNDETERMINED rather than being "
+        "guessed into a real action. Proven through the FILE-READING path, not by calling "
+        "`_action_for` directly, so the status is parsed out of a real record",
+    ),
+)
 
 
-def test_mixed_selection_counts_each_type(repo: Path):
-    paths = [
-        next((repo / ".aw" / "records" / "plans").rglob("*.ipd.md")),
-        next((repo / ".aw" / "records" / "specs").rglob("*.spec.md")),
-        next((repo / ".aw" / "records" / "backlog").rglob("*.backlog.md")),
-    ]
-    c = pol.classify_paths(repo, paths)
-    assert c.spec_types == (
-        "ipd",
-        "spec",
-        "backlog",
-    )  # SPEC_TYPE_ORDER, not input order
-    assert {tc.spec_type: tc.total for tc in c.counts} == {
-        "ipd": 1,
-        "spec": 1,
-        "backlog": 1,
+def test_every_selection_classifies_to_the_types_and_actions_it_should(repo: Path):
+    available = {
+        "plan": next((repo / ".aw" / "records" / "plans").rglob("*-demo.ipd.md")),
+        "spec": next((repo / ".aw" / "records" / "specs").rglob("*.spec.md")),
+        "backlog": next((repo / ".aw" / "records" / "backlog").rglob("*.backlog.md")),
+        "comm": _write(
+            repo / ".aw" / "records" / "comms" / "shared" / "note.md",
+            "# note\n\n- Id: ddd444\n",
+        ),
+        "reviewed-plan": _write(
+            repo
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20260101-mixdemo-03-eee555-rev.ipd.md",
+            "# IPD: rev\n\n- Id: eee555\n- Set: mixdemo\n- Status: reviewed\n",
+        ),
     }
-    assert c.is_mixed is True
+    wrong = []
+    single_type_rows_broken = 0
+    for (
+        case,
+        keys,
+        expect_types,
+        expect_mixed,
+        expect_items,
+        expect_untyped,
+        expect_triples,
+        why,
+    ) in _CLASSIFICATIONS:
+        c = pol.classify_paths(repo, [available[k] for k in keys])
+        problems = []
+        if c.spec_types != expect_types:
+            problems.append(
+                "spec_types is {0!r}, expected {1!r} (SPEC_TYPE_ORDER, not input order)".format(
+                    c.spec_types, expect_types
+                )
+            )
+        if c.type_count != len(expect_types):
+            problems.append(
+                "type_count is {0!r}, expected {1!r}".format(
+                    c.type_count, len(expect_types)
+                )
+            )
+        if c.is_mixed is not expect_mixed:
+            problems.append(
+                "is_mixed is {0!r}, expected {1!r}; this is the CONFIRMATION GATE's input, so a "
+                "wrong value either prompts for a single-type run or lets a mixed one through "
+                "unconfirmed".format(c.is_mixed, expect_mixed)
+            )
+            if not expect_mixed:
+                single_type_rows_broken += 1
+        if len(c.items) != expect_items:
+            problems.append(
+                "{0} item(s) reported, expected {1}; an item silently DROPPED is worse than one "
+                "misclassified, because nothing downstream can see it went missing".format(
+                    len(c.items), expect_items
+                )
+            )
+        if len(c.untyped) != expect_untyped:
+            problems.append(
+                "{0} untyped path(s) reported, expected {1}".format(
+                    len(c.untyped), expect_untyped
+                )
+            )
+        got_triples = tuple((i.spec_type, i.status, i.action) for i in c.items)
+        if got_triples != expect_triples:
+            problems.append(
+                "the per-item (type, status, action) triples are {0!r}, expected {1!r}".format(
+                    got_triples, expect_triples
+                )
+            )
+        counts = {tc.spec_type: tc.total for tc in c.counts}
+        expected_counts = {t: expect_types.count(t) for t in expect_types}
+        if counts != expected_counts:
+            problems.append(
+                "the per-type counts are {0!r}, expected {1!r}".format(
+                    counts, expected_counts
+                )
+            )
+        if problems:
+            wrong.append(
+                "  {0}\n    selected: {1!r}\n".format(case, keys)
+                + "".join("    - {0}\n".format(p) for p in problems)
+                + "    this row exists because: {0}".format(why)
+            )
+    extra = ""
+    if single_type_rows_broken:
+        extra = (
+            " {0} row(s) that must NOT be mixed are among the failures, which is the direction that "
+            "costs an operator a prompt on every ordinary single-type run.".format(
+                single_type_rows_broken
+            )
+        )
+    assert not wrong, (
+        "classify_paths answered wrongly for {0} of {1} selections.{2} `is_mixed` is the input to "
+        "the confirmation gate, so read the grouping: the UNTYPED rows failing on `is_mixed` means "
+        "an unrunnable record is now counted as a kind of work, so a comms note beside a plan would "
+        "demand a confirmation phrase; the MIXED row failing alone means the type count collapsed; a "
+        "wrong `spec_types` ORDER breaks the stable preview and the order-independent queue digest "
+        "even when the membership is right. FIX: a row reporting too FEW items is the severe case - "
+        "a dropped path is invisible downstream, whereas a misclassified one at least appears.\n"
+        "{3}".format(len(wrong), len(_CLASSIFICATIONS), extra, "\n".join(wrong))
+    )
 
 
 def test_resolution_defers_to_selectors_resolve(repo: Path, monkeypatch):
@@ -166,18 +393,21 @@ def test_unique_kind_collision_is_reported_using_the_shipped_policy(repo: Path):
     assert c.items == ()
 
 
-def test_untyped_files_are_reported_not_dropped_and_do_not_make_a_selection_mixed(
-    repo: Path,
-):
+def test_the_untyped_path_itself_is_named_in_untyped(repo: Path):
+    """Kept separate: identity of the PATH OBJECT, which the classification table cannot assert.
+
+    That table counts untyped paths, because a count is what its uniform shape can express. This
+    asserts the specific path is the one reported, so `untyped` names WHICH record could not be typed
+    rather than merely how many. Without it, a classifier that reported the wrong path would satisfy
+    every count in the table.
+    """
     comm = _write(
         repo / ".aw" / "records" / "comms" / "shared" / "note.md",
         "# note\n\n- Id: ddd444\n",
     )
-    plan = next((repo / ".aw" / "records" / "plans").rglob("*.ipd.md"))
+    plan = next((repo / ".aw" / "records" / "plans").rglob("*-demo.ipd.md"))
     c = pol.classify_paths(repo, [plan, comm])
     assert comm in c.untyped
-    assert len(c.items) == 2  # reported, not silently dropped
-    assert c.is_mixed is False  # an unrunnable record is not a KIND OF WORK
 
 
 # --------------------------------------------------------------------------------------------------
@@ -274,21 +504,6 @@ def test_undetermined_appears_in_the_preview_rather_than_silently_counting_as_an
         pol.ACTION_PLAN,
         pol.ACTION_EXECUTE,
     }
-
-
-def test_reviewed_ipd_is_undetermined_end_to_end_through_classify_paths(repo: Path):
-    p = _write(
-        repo
-        / ".aw"
-        / "records"
-        / "plans"
-        / "pending"
-        / "20260101-mixdemo-03-eee555-rev.ipd.md",
-        "# IPD: rev\n\n- Id: eee555\n- Set: mixdemo\n- Status: reviewed\n",
-    )
-    c = pol.classify_paths(repo, [p])
-    assert c.items[0].status == "reviewed"
-    assert c.items[0].action == pol.ACTION_UNDETERMINED
 
 
 # --------------------------------------------------------------------------------------------------
@@ -434,8 +649,78 @@ def test_queue_digest_changes_with_the_queue():
 # --------------------------------------------------------------------------------------------------
 
 
-def test_finding_code_string_is_exactly_run_mixed_types():
-    assert pol.RUN_MIXED_TYPES == "RUN-MIXED-TYPES"
+#: (constant name, the constant, its exact required value, why this row exists) - ONE table replacing
+#: two tests (`finding_code_string_is_exactly_run_mixed_types`,
+#: `confirm_phrase_constant_is_the_spec_phrase`) and pinning the two phrases beside them.
+#:
+#: WHY THE TABLE BEATS THE TWO. These four strings are a PUBLIC VOCABULARY fixed by spec `25kzda`:
+#: the finding codes appear in refusal output that operators grep and agents match on, and the
+#: confirmation phrases are what a human must type EXACTLY. Nothing in the code will break if one is
+#: reworded - the gate still gates, the refusal still refuses - so a drifted constant is silent, and
+#: for the phrases it is silent in the worst direction: an operator who types the documented phrase is
+#: refused, with the run reporting that they declined.
+#:
+#: THE VALUES ARE LITERAL STRINGS, NOT REFERENCES, AND THAT IS DELIBERATE. Asserting
+#: `pol.CONFIRM_PHRASE == pol.CONFIRM_PHRASE` is vacuous, and that is exactly what a
+#: constant-referencing version of this table would be. The literals are transcribed from the spec.
+_PUBLIC_VOCABULARY = (
+    (
+        "RUN_MIXED_TYPES",
+        pol.RUN_MIXED_TYPES,
+        "RUN-MIXED-TYPES",
+        "the finding code the mixed-type refusal is reported under. It is printed in the refusal, "
+        "recorded in the ledger, and matched by agents, so renaming it breaks every consumer while "
+        "the gate itself keeps working - a silent break",
+    ),
+    (
+        "RUN_DRAFTS_EXCLUDED",
+        pol.RUN_DRAFTS_EXCLUDED,
+        "RUN-DRAFTS-EXCLUDED",
+        "the second finding code, and the pairing matters: the two gates have DIFFERENT codes "
+        "because their outcomes differ (a mixed selection refuses the run, an ungated draft is merely "
+        "excluded while the run proceeds). One code for both would tell a consumer the wrong thing "
+        "happened",
+    ),
+    (
+        "CONFIRM_PHRASE",
+        pol.CONFIRM_PHRASE,
+        "run mixed",
+        "THE PHRASE A HUMAN MUST TYPE EXACTLY. This is the row whose drift is worst: the phrase is "
+        "documented and printed, so changing it means an operator typing the documented words is "
+        "refused and the run reports that they declined - a wrong answer to a question they answered "
+        "correctly",
+    ),
+    (
+        "DRAFTS_CONFIRM_PHRASE",
+        pol.DRAFTS_CONFIRM_PHRASE,
+        "run drafts",
+        "the draft gate's phrase, which must be DISTINCT from the mixed gate's: spec 2.5a bullet 5 "
+        "has both gates collected in one interaction, so a shared phrase would let one answer waive "
+        "both - which is precisely what `test_the_combined_case...` proves it does not",
+    ),
+)
+
+
+def test_every_public_vocabulary_string_is_exactly_the_spec_text():
+    wrong = []
+    for name, actual, expected, why in _PUBLIC_VOCABULARY:
+        if actual != expected:
+            wrong.append(
+                "  {0}\n    - expected {1!r}, got {2!r}\n"
+                "    this row exists because: {3}".format(name, expected, actual, why)
+            )
+    assert not wrong, (
+        "{0} of {1} public vocabulary strings have drifted from spec `25kzda`. NOTHING IN THE CODE "
+        "BREAKS WHEN ONE OF THESE MOVES, which is why they are pinned: the gate still gates and the "
+        "refusal still refuses, so the damage is entirely to consumers. Read the grouping: both "
+        "FINDING CODES moving together means a renaming pass, and every agent matching on them stops "
+        "matching; a CONFIRM PHRASE moving is the severe case, because an operator typing the "
+        "documented words is then refused and the run records that they declined. FIX: these are "
+        "literal strings ON PURPOSE - do not 'tidy' them into references to the constants they check, "
+        "which would make the assertions vacuous.\n{2}".format(
+            len(wrong), len(_PUBLIC_VOCABULARY), "\n".join(wrong)
+        )
+    )
 
 
 def test_refusal_template_is_character_identical_to_the_spec():
@@ -461,8 +746,14 @@ def test_refusal_message_names_the_counts_and_the_recovery_command():
     assert "aw oc run mixdemo --type <type> ... --allow-mixed" in v.message
 
 
-def test_confirm_phrase_constant_is_the_spec_phrase():
-    assert pol.CONFIRM_PHRASE == "run mixed"
+def test_the_matcher_defaults_to_the_mixed_phrase_and_rejects_a_reflex_answer():
+    """Kept separate: the MATCHER's default-argument behavior, not a constant's value.
+
+    The vocabulary table pins what `CONFIRM_PHRASE` IS. This pins that
+    `is_confirmation_accepted` uses it when called with no `phrase=`, which is a different claim: a
+    matcher whose default drifted to something else would leave every constant above correct while
+    accepting the wrong word at the prompt.
+    """
     assert pol.is_confirmation_accepted("run mixed") is True
     assert pol.is_confirmation_accepted("y") is False
 
@@ -701,11 +992,13 @@ def test_a_complete_draft_is_swept_and_an_incomplete_one_is_not(
 
 
 def test_membership_derives_from_the_action_table_not_a_status_comparison():
-    """Spec 2.4a property 2: `ACTION_REVIEW` is the single source of truth.
+    """Already property-driven over the product's own tables, so kept as it is.
 
-    Asserted as a PROPERTY over the tables rather than by re-listing statuses: for every row the
-    table actually carries, the predicate agrees with `_action_for`. A corrected copy of the old
-    `status == "to-review"` comparison would pass a to-review test and fail this one.
+    Spec 2.4a property 2: `ACTION_REVIEW` is the single source of truth. Asserted as a PROPERTY over
+    the tables rather than by re-listing statuses: for every row the table actually carries, the
+    predicate agrees with `_action_for`. A corrected copy of the old `status == "to-review"`
+    comparison would pass a to-review test and fail this one. Restating those rows as literal data
+    would freeze a copy that a newly added status could not fail.
     """
     for spec_type, table in pol._ACTION_TABLES.items():
         for status, action in table.items():
@@ -714,28 +1007,292 @@ def test_membership_derives_from_the_action_table_not_a_status_comparison():
             ), "{0}/{1} disagrees with the table".format(spec_type, status)
 
 
-def test_undetermined_is_not_treated_as_needs_review():
-    """THE failure mode that would sweep up stubs and past-review plans.
+#: (case, spec_type, status, authoring_complete, file_path, expected `needs_review`, why this row
+#: exists) - ONE table replacing four tests (`undetermined_is_not_treated_as_needs_review`,
+#: `only_the_draft_row_consults_completeness`, `the_terminal_directory_exclusion_survives`,
+#: `the_predicate_answers_for_a_spec_handed_to_it_directly`). Every one of them called
+#: `needs_review` with a different combination of the same four inputs and asserted a bool.
+#:
+#: WHY THE TABLE BEATS THE FOUR. `needs_review` is the ONE predicate `reviews`-sweep membership is
+#: derived from (spec 2.4a property 2), and the divergence `6ypimw` fixed was invisible precisely
+#: because its inputs were tested in separate places: each host's `expand_selectors` carried its own
+#: `status == "to-review"` closure while `determine_action` routed `to-review` AND `draft` to review,
+#: so a complete draft named explicitly was reviewed while the same draft was silently absent from
+#: the sweep. The four inputs INTERACT - completeness only matters on `draft`, and a terminal
+#: DIRECTORY overrides an otherwise review-worthy status - so the cells worth seeing are the
+#: combinations, which four separate tests cannot lay side by side.
+#:
+#: THE INPUTS ARE COLUMNS, NOT SEPARATE TABLES: `spec_type` (ipd and spec, since E-05 made the
+#: signature type-aware), `authoring_complete` (True / False / None-not-supplied, three-valued on
+#: purpose) and `file_path` (a terminal directory or a live one) all vary within one table.
+#:
+#: POSITIVE ROWS ARE IN THE SAME TABLE. A predicate returning False unconditionally would satisfy
+#: every exclusion row here, so the rows that must answer True are what keep them honest.
+_NEEDS_REVIEW_CELLS = (
+    (
+        "a to-review IPD in pending",
+        "ipd",
+        "to-review",
+        None,
+        None,
+        True,
+        "THE POSITIVE BASELINE: the plainest review-worthy case there is. Every False row below is "
+        "VACUOUS while this is broken, because a predicate that answered False unconditionally "
+        "would satisfy all of them - and it would also empty the `reviews` sweep entirely",
+    ),
+    (
+        "a COMPLETE draft IPD, completeness supplied as True",
+        "ipd",
+        "draft",
+        True,
+        None,
+        True,
+        "THE ROW THE `6ypimw` DIVERGENCE WAS ABOUT: `determine_action` routes a complete draft to "
+        'review, so sweep membership must include it. The deleted `status == "to-review"` closures '
+        "excluded exactly this, which is why a draft named EXPLICITLY got reviewed while the same "
+        "draft was missing from the sweep",
+    ),
+    (
+        "an INCOMPLETE draft IPD, completeness supplied as False",
+        "ipd",
+        "draft",
+        False,
+        None,
+        False,
+        "spec 2.5a splits `draft` on authoring completeness: a scaffold stub has nothing to review "
+        "yet. Paired with the row above, this is what makes completeness a real input rather than a "
+        "parameter the predicate ignores",
+    ),
+    (
+        "a draft IPD with completeness NOT SUPPLIED",
+        "ipd",
+        "draft",
+        None,
+        None,
+        False,
+        "THREE-VALUED ON PURPOSE: `None` means the caller could not determine completeness, and the "
+        "answer must be False rather than defaulting to the optimistic True. A caller that cannot "
+        "tell a stub from a finished plan must not sweep either into review",
+    ),
+    (
+        "a REVIEWED IPD, with completeness supplied as True",
+        "ipd",
+        "reviewed",
+        True,
+        None,
+        False,
+        "`reviewed` means the review ALREADY HAPPENED; spec 3.2 dispatches it on `--full-auto`, a "
+        "flag this predicate cannot see. Completeness is supplied here deliberately: only the "
+        "`draft` row may consult it, so a predicate consulting it generally would wrongly answer "
+        "True and re-review every past-review plan on every sweep",
+    ),
+    (
+        "an IPD with a status nothing recognizes",
+        "ipd",
+        "no-such-status",
+        True,
+        None,
+        False,
+        "an unknown status is UNDETERMINED, and spec 3.2 makes it a red abort rather than a review. "
+        "Guessing review here would run a session against a plan whose state nothing could read",
+    ),
+    (
+        "a to-review SPEC handed to the predicate directly",
+        "spec",
+        "to-review",
+        None,
+        None,
+        True,
+        "E-05's TYPE COLUMN: the signature takes a type and consults `_ACTION_TABLES`, which carries "
+        "`spec`. Without a spec row the predicate could be IPD-hardcoded and every IPD row here "
+        "would still pass",
+    ),
+    (
+        "a COMPLETE draft SPEC",
+        "spec",
+        "draft",
+        True,
+        None,
+        True,
+        "the draft split is a PROPERTY OF THE TABLES, not a special case bolted onto IPDs, so it "
+        "must hold for `spec` too. This row plus the next are the spec-side mirror of the two IPD "
+        "draft rows",
+    ),
+    (
+        "an INCOMPLETE draft SPEC",
+        "spec",
+        "draft",
+        False,
+        None,
+        False,
+        "the mirror, so the spec type cannot pass by answering True to every draft",
+    ),
+    (
+        "an APPROVED spec",
+        "spec",
+        "approved",
+        None,
+        None,
+        False,
+        "spec 3.3 routes an approved spec to `plan`, NOT to review: it has been reviewed and the "
+        "next act is authoring a plan. Sweeping it into `reviews` would re-review settled contracts",
+    ),
+    (
+        "an IMPLEMENTED spec",
+        "spec",
+        "implemented",
+        None,
+        None,
+        False,
+        "the terminal spec status. Nothing is pending on it, so a sweep that included it would grow "
+        "without bound as the repository accumulates history",
+    ),
+    (
+        "a to-review IPD in the EXECUTED directory",
+        "ipd",
+        "to-review",
+        None,
+        ".aw/records/plans/executed/20260101-s1-01-aaa111-x.ipd.md",
+        False,
+        "NOT REDUNDANT WITH STATUS, which is the whole reason this column exists: a directory and a "
+        "`- Status:` line CAN disagree, and spec 3.2 makes that mismatch a red abort rather than a "
+        "review. Both deleted closures performed this check, so dropping it would silently "
+        "re-review executed work",
+    ),
+    (
+        "a to-review IPD in the SUPERSEDED directory",
+        "ipd",
+        "to-review",
+        None,
+        ".aw/records/plans/superseded/20260101-s1-01-aaa111-x.ipd.md",
+        False,
+        "the second terminal directory. Four buckets are terminal and each gets a row, because a "
+        "check written against one name (a `== 'executed'` comparison) passes one row and fails the "
+        "other three",
+    ),
+    (
+        "a to-review IPD in the NOT-EXECUTED directory",
+        "ipd",
+        "to-review",
+        None,
+        ".aw/records/plans/not-executed/20260101-s1-01-aaa111-x.ipd.md",
+        False,
+        "the third, for the same reason",
+    ),
+    (
+        "a to-review IPD in the REUSABLE directory",
+        "ipd",
+        "to-review",
+        None,
+        ".aw/records/plans/reusable/20260101-s1-01-aaa111-x.ipd.md",
+        False,
+        "the fourth, and the odd one out: `reusable` is a STANDING disposition rather than a "
+        "finished one, so a reader might reasonably think it belongs in a sweep. It does not, and "
+        "that judgement is recorded here rather than left implicit",
+    ),
+    (
+        "a COMPLETE draft IPD in a terminal directory",
+        "ipd",
+        "draft",
+        True,
+        ".aw/records/plans/executed/20260101-s1-01-aaa111-x.ipd.md",
+        False,
+        "THE INTERACTION ROW, and the reason a table beats four tests: the directory exclusion must "
+        "outrank the completeness admission. Checked in the WRONG ORDER, a complete draft in an "
+        "executed directory answers True, and no single-input test can see that",
+    ),
+    (
+        "a to-review IPD in PENDING, stated as a path",
+        "ipd",
+        "to-review",
+        None,
+        ".aw/records/plans/pending/20260101-s1-01-aaa111-x.ipd.md",
+        True,
+        "THE SECOND POSITIVE, and what keeps the four exclusion rows above honest: a predicate that "
+        "answered False whenever a `file_path` was supplied at all would satisfy every one of them",
+    ),
+)
 
-    `_IPD_ACTIONS` omits `draft` AND `reviewed` on purpose, mapping both to `ACTION_UNDETERMINED`
-    (they branch on content, `--full-auto`, or `--action`). Only the `draft` row consults the
-    completeness input; `reviewed` must answer False, and a draft whose completeness could not be
-    determined must answer False too.
+
+def test_needs_review_answers_every_input_combination_correctly():
+    wrong = []
+    positive_rows_broken = 0
+    for (
+        case,
+        spec_type,
+        status,
+        complete,
+        file_path,
+        expected,
+        why,
+    ) in _NEEDS_REVIEW_CELLS:
+        kwargs = {}
+        if complete is not None:
+            kwargs["authoring_complete"] = complete
+        if file_path is not None:
+            kwargs["file_path"] = file_path
+        got = pol.needs_review(spec_type, status, **kwargs)
+        if got is not expected:
+            if expected:
+                positive_rows_broken += 1
+            wrong.append(
+                "  {0}\n    call: needs_review({1!r}, {2!r}{3})\n"
+                "    - expected {4!r}, got {5!r}\n"
+                "    this row exists because: {6}".format(
+                    case,
+                    spec_type,
+                    status,
+                    "".join(", {0}={1!r}".format(k, v) for k, v in kwargs.items()),
+                    expected,
+                    got,
+                    why,
+                )
+            )
+    extra = ""
+    if positive_rows_broken:
+        extra = (
+            " {0} row(s) that must answer True are among the failures, and while any of those is "
+            "broken every False row is VACUOUS: a predicate answering False unconditionally "
+            "satisfies all of them, and it also empties the `reviews` sweep entirely.".format(
+                positive_rows_broken
+            )
+        )
+    assert not wrong, (
+        "needs_review answered wrongly for {0} of {1} input combinations.{2} THIS PREDICATE IS THE "
+        "SINGLE SOURCE OF `reviews` SWEEP MEMBERSHIP (spec 25kzda 2.4a property 2), so read the "
+        "grouping: every DRAFT row failing means the completeness split moved; every TERMINAL "
+        "DIRECTORY row failing means that exclusion was dropped, which silently re-reviews finished "
+        "work; every SPEC row failing while the IPD rows pass means the predicate went back to being "
+        "IPD-hardcoded. FIX: if the INTERACTION row (a complete draft in a terminal directory) is "
+        "the only failure, the two checks are being applied in the wrong ORDER - the directory "
+        "exclusion must outrank the completeness admission.\n{3}".format(
+            len(wrong),
+            len(_NEEDS_REVIEW_CELLS),
+            extra,
+            "\n".join(wrong),
+        )
+    )
+
+
+def test_undetermined_is_the_action_behind_the_two_excluded_ipd_statuses():
+    """Kept separate: asserts `_action_for`, the ACTION table, not the `needs_review` predicate.
+
+    The cell table above proves `draft` and `reviewed` are not swept. This proves WHY: `_IPD_ACTIONS`
+    omits both on purpose, mapping them to `ACTION_UNDETERMINED` because they branch on content,
+    `--full-auto`, or `--action`. A predicate hard-coding two exclusions would pass every cell above
+    while the action table said something else entirely.
     """
     assert pol._action_for("ipd", "reviewed") == pol.ACTION_UNDETERMINED
-    assert pol.needs_review("ipd", "reviewed") is False
-    assert pol.needs_review("ipd", "reviewed", authoring_complete=True) is False
     assert pol._action_for("ipd", "draft") == pol.ACTION_UNDETERMINED
-    assert pol.needs_review("ipd", "draft") is False  # completeness not supplied
-    assert pol.needs_review("ipd", "draft", authoring_complete=None) is False
-    assert pol.needs_review("ipd", "draft", authoring_complete=False) is False
-    assert pol.needs_review("ipd", "draft", authoring_complete=True) is True
-    # An unknown status is undetermined and is never review-worthy (spec 3.2 makes it a red abort).
-    assert pol.needs_review("ipd", "no-such-status", authoring_complete=True) is False
 
 
 def test_only_the_draft_row_consults_completeness():
-    """The "which rows need content" rule has ONE definition, so no caller hardcodes `draft`."""
+    """Kept separate: a DIFFERENT function answering "which rows need content", not a review verdict.
+
+    `review_depends_on_completeness` is what stops each caller hard-coding `draft` for itself, so the
+    rule has ONE definition. The cell table exercises completeness as an INPUT; this names the rows
+    it is allowed to affect, which is a claim about the table's shape rather than about any verdict.
+    """
     assert pol.review_depends_on_completeness("ipd", "draft") is True
     assert pol.review_depends_on_completeness("spec", "DRAFT ") is True
     for status in ("to-review", "reviewed", "approved", "executed", None):
@@ -744,36 +1301,28 @@ def test_only_the_draft_row_consults_completeness():
     assert pol.review_depends_on_completeness("research", "draft") is False
 
 
-def test_the_terminal_directory_exclusion_survives():
-    """NOT redundant with status: a directory and a `- Status:` line CAN disagree, and spec 3.2 makes
-    that mismatch a red abort rather than a review. Both deleted closures performed this check."""
+def test_the_terminal_directory_predicate_itself_classifies_every_bucket():
+    """Kept separate: `is_in_terminal_directory` is a PATH classifier, not a review verdict.
+
+    The cell table consumes this through `needs_review`, where a False can come from either the
+    directory check or the status. This isolates the classifier so a regression is attributable: if
+    these pass and the table's directory rows fail, `needs_review` stopped CONSULTING the classifier
+    rather than the classifier being wrong.
+    """
     for bucket in ("executed", "superseded", "not-executed", "reusable"):
         path = ".aw/records/plans/{0}/20260101-s1-01-aaa111-x.ipd.md".format(bucket)
         assert pol.is_in_terminal_directory(path) is True
-        assert pol.needs_review("ipd", "to-review", file_path=path) is False
-        assert (
-            pol.needs_review("ipd", "draft", authoring_complete=True, file_path=path)
-            is False
+    assert (
+        pol.is_in_terminal_directory(
+            ".aw/records/plans/pending/20260101-s1-01-aaa111-x.ipd.md"
         )
-    pending = ".aw/records/plans/pending/20260101-s1-01-aaa111-x.ipd.md"
-    assert pol.is_in_terminal_directory(pending) is False
-    assert pol.needs_review("ipd", "to-review", file_path=pending) is True
+        is False
+    )
 
 
 # --------------------------------------------------------------------------------------------------
 # revsweep-02 (`6ypimw`) E-05: TYPE-AWARE SIGNATURE, IPD-ONLY REACH
 # --------------------------------------------------------------------------------------------------
-
-
-def test_the_predicate_answers_for_a_spec_handed_to_it_directly():
-    """E-05: the signature takes a type and consults `_ACTION_TABLES`, which carries `spec`."""
-    assert pol.needs_review("spec", "to-review") is True
-    assert pol.needs_review("spec", "draft", authoring_complete=True) is True
-    assert pol.needs_review("spec", "draft", authoring_complete=False) is False
-    assert (
-        pol.needs_review("spec", "approved") is False
-    )  # spec 3.3 routes that to `plan`
-    assert pol.needs_review("spec", "implemented") is False
 
 
 def test_the_ipd_only_limit_is_stated_at_the_definition_and_discovery_is_unchanged():
@@ -1104,54 +1653,154 @@ def test_every_named_reason_renders_a_line_carrying_its_code_and_gloss():
         assert pol.SKIP_REASON_LABELS[code] in line
 
 
-def test_the_dependency_reason_names_the_unmet_dependency():
-    """The backlog item requires this specifically, so it is asserted specifically."""
-    lines = pol.render_queue_dispositions(
-        [
-            _queue_entry(
-                status="dependency-blocked",
-                unsatisfied_dependencies=["executed:zz5yxq"],
-                unsatisfied_dependency_reasons={
-                    "executed:zz5yxq": "in-run target zz5yxq is 'reviewed'"
-                },
+#: (case, queue-entry overrides, substrings that MUST appear in the rendered line, substrings that
+#: must NOT appear, why this row exists) - ONE table replacing four tests
+#: (`the_dependency_reason_names_the_unmet_dependency`,
+#: `an_external_unsatisfiable_dependency_takes_the_external_reason_code`,
+#: `the_needs_approval_line_explains_reviewed_to_a_reader_who_does_not_know_it`,
+#: `a_dependency_token_that_already_carries_its_reason_is_not_double_explained`). Every one of them
+#: built ONE queue entry, rendered it, and asserted substrings of the single resulting line.
+#:
+#: WHY THE TABLE BEATS THE FOUR. The reason set is CLOSED (spec `25kzda` supplies every name; this
+#: module mints none), and one derivation maps an entry's shape onto one of those codes plus a gloss.
+#: The realistic failure is that derivation picking the WRONG CODE for a shape - which is what the
+#: two dependency-producer rows exist for, since the two producers write genuinely different shapes
+#: and a single `reasons.get(d, "unsatisfied")` fallback renders one of them with two contradictory
+#: reasons on one line. Four tests report a wrong code as four unrelated substring misses; the table
+#: reports which shapes now derive the wrong code, together, which is how a mis-mapped derivation
+#: actually looks.
+#:
+#: THE FORBIDDEN-SUBSTRING COLUMN IS NOT DECORATION. A line can carry the right code and STILL be
+#: wrong: the inline-reason row must not gain a second `(unsatisfied)` gloss, and the
+#: recorded-refusal row must not also print the inferable reason it outranks. Those are claims about
+#: what is ABSENT, which a present-substring-only table cannot make.
+_DISPOSITION_LINES = (
+    (
+        "an item frozen awaiting human approval",
+        {"needs_input": True},
+        ("needs_human_approval", "approval"),
+        (),
+        "THE MEASURED DEFECT (backlog `em0z50`): `reviewed` was displayed with no explanation. The "
+        "summary already showed the status; what was missing is the REASON. Both the machine CODE "
+        "and the word `approval` in prose are required, because a reader who does not already know "
+        "what `reviewed` implies learns nothing from the code alone",
+    ),
+    (
+        "a dependency unmet by an IN-RUN target, reason supplied in the MAP",
+        {
+            "status": "dependency-blocked",
+            "unsatisfied_dependencies": ["executed:zz5yxq"],
+            "unsatisfied_dependency_reasons": {
+                "executed:zz5yxq": "in-run target zz5yxq is 'reviewed'"
+            },
+        },
+        (
+            "dependency_not_met",
+            "executed:zz5yxq",
+            "in-run target zz5yxq is 'reviewed'",
+        ),
+        ("dependency_not_met_external",),
+        "THE BACKLOG ITEM REQUIRES THE UNMET DEPENDENCY TO BE NAMED, so it is asserted specifically: "
+        "the code, the dependency TOKEN, and the recorded reason must all appear. `dependency_not_met` "
+        "is a prefix of `dependency_not_met_external`, so the external code is FORBIDDEN here - "
+        "otherwise this row would pass against a renderer that emitted the external code for "
+        "everything",
+    ),
+    (
+        "a dependency on an OUT-OF-QUEUE target, reason supplied in the map",
+        {
+            "status": "dependency-blocked",
+            "unsatisfied_dependencies": ["executed:aaa111"],
+            "unsatisfied_dependency_reasons": {
+                "executed:aaa111": (
+                    "executed:aaa111: external target aaa111 is 'approved' (directory 'pending'), "
+                    "it is not in this run, so it cannot become satisfied here"
+                )
+            },
+        },
+        ("dependency_not_met_external",),
+        (),
+        "`edge_satisfied`'s own wording for an out-of-queue target selects the spec's EXTERNAL code, "
+        "and the DISTINCTION IS ACTIONABLE: an in-run dependency may yet be satisfied by this run, "
+        "while an external one never can, so an operator's next step differs. Deriving the code from "
+        "the reason TEXT is what makes this row a real test of the mapping",
+    ),
+    (
+        "a dependency token that ALREADY CARRIES its reason, with no map",
+        {
+            "status": "dependency-blocked",
+            "unsatisfied_dependencies": ["executed:aaa111 (target reviewed)"],
+        },
+        ("dependency_not_met", "executed:aaa111 (target reviewed)"),
+        ("(unsatisfied)",),
+        "THE TWO PRODUCERS WRITE DIFFERENT SHAPES (measured): the drain path writes a BARE token "
+        "plus a separate reason MAP, while `cascade_dependency_blocked` writes the reason INTO the "
+        'token and supplies no map. A `reasons.get(d, "unsatisfied")` fallback renders this one as '
+        "`executed:aaa111 (target reviewed) (unsatisfied)` - two contradictory reasons on one line - "
+        "which is why `(unsatisfied)` is the FORBIDDEN substring rather than a missing one",
+    ),
+    (
+        "the OTHER producer's shape, bare token plus map",
+        {
+            "status": "dependency-blocked",
+            "unsatisfied_dependencies": ["executed:bbb222"],
+            "unsatisfied_dependency_reasons": {
+                "executed:bbb222": "in-run target is 'reviewed'"
+            },
+        },
+        ("executed:bbb222 (in-run target is 'reviewed')",),
+        (),
+        "the paired half of the row above, asserted as the EXACT composed form rather than as two "
+        "separate substrings: the fix for the double-gloss must not be 'stop printing the reason', "
+        "so this row pins that a bare token still gets its mapped reason parenthesized exactly once",
+    ),
+)
+
+
+def test_every_entry_shape_renders_its_own_reason_code_and_gloss():
+    wrong = []
+    for case, overrides, needles, forbidden, why in _DISPOSITION_LINES:
+        lines = pol.render_queue_dispositions([_queue_entry(**overrides)])
+        problems = []
+        if len(lines) != 2:
+            problems.append(
+                "expected a header plus exactly ONE artifact line, got {0} line(s): {1!r}".format(
+                    len(lines), lines
+                )
             )
-        ]
-    )
-    assert len(lines) == 2  # header + one artifact
-    assert "dependency_not_met" in lines[1]
-    assert "executed:zz5yxq" in lines[1]
-    assert "in-run target zz5yxq is 'reviewed'" in lines[1]
-
-
-def test_an_external_unsatisfiable_dependency_takes_the_external_reason_code():
-    """`edge_satisfied`'s own wording for an out-of-queue target selects the spec's EXTERNAL code."""
-    lines = pol.render_queue_dispositions(
-        [
-            _queue_entry(
-                status="dependency-blocked",
-                unsatisfied_dependencies=["executed:aaa111"],
-                unsatisfied_dependency_reasons={
-                    "executed:aaa111": (
-                        "executed:aaa111: external target aaa111 is 'approved' (directory 'pending'), "
-                        "it is not in this run, so it cannot become satisfied here"
+            line = ""
+        else:
+            line = lines[1]
+        for needle in needles:
+            if needle not in line:
+                problems.append(
+                    "the line is missing {0!r}; it is {1!r}".format(needle, line)
+                )
+        for banned in forbidden:
+            if banned in line:
+                problems.append(
+                    "the line contains {0!r}, which is WRONG for this shape; it is {1!r}".format(
+                        banned, line
                     )
-                },
+                )
+        if problems:
+            wrong.append(
+                "  {0}\n".format(case)
+                + "".join("    - {0}\n".format(p) for p in problems)
+                + "    this row exists because: {0}".format(why)
             )
-        ]
+    assert not wrong, (
+        "the per-artifact disposition line is wrong for {0} of {1} entry shapes. The reason set is "
+        "CLOSED and spec `25kzda` supplies every name, so read the grouping: every DEPENDENCY row "
+        "failing together means the dependency derivation changed, while the in-run and external "
+        "rows disagreeing means the two codes are being confused - and that distinction is "
+        "ACTIONABLE, since an in-run dependency may yet be satisfied by this run and an external one "
+        "never can. FIX: a FORBIDDEN-substring failure is not cosmetic. `(unsatisfied)` appearing "
+        "beside a reason the token already carries puts two contradictory reasons on one line, which "
+        "is the measured defect these rows pin.\n{2}".format(
+            len(wrong), len(_DISPOSITION_LINES), "\n".join(wrong)
+        )
     )
-    assert "dependency_not_met_external" in lines[1]
-
-
-def test_the_needs_approval_line_explains_reviewed_to_a_reader_who_does_not_know_it():
-    """THE MEASURED DEFECT (backlog `em0z50`): `reviewed` displayed with no explanation.
-
-    The summary table already shows `reviewed` for this item. What was missing is the REASON, so this
-    asserts the reason is present and mentions approval in words, not merely that a line exists.
-    """
-    lines = pol.render_queue_dispositions([_queue_entry(needs_input=True)])
-    assert len(lines) == 2
-    assert "needs_human_approval" in lines[1]
-    assert "approval" in lines[1]
 
 
 def test_one_line_per_matched_artifact_regardless_of_attempt_count():
@@ -1176,11 +1825,6 @@ def test_one_line_per_matched_artifact_regardless_of_attempt_count():
     assert pol.ACTED_REASON_LABEL in lines[2]
     assert "ipd_already_executed" in lines[3]
     assert "type_or_status_not_runnable" in lines[4]
-
-
-def test_an_empty_selection_renders_no_header():
-    """A stray header over nothing is worse than silence."""
-    assert pol.render_queue_dispositions([]) == []
 
 
 def test_a_recorded_refusal_supplies_the_reason_through_the_owning_plans_reader():
@@ -1223,16 +1867,90 @@ def test_the_refusal_record_outranks_an_inferable_reason():
     assert "needs_human_approval" not in line
 
 
-def test_the_renderer_is_pure_no_print_no_filesystem():
-    """PURITY IS A PROPERTY TO PRESERVE (the module's own convention), so it is asserted."""
-    import io
-    import contextlib
+#: (renderer name, the renderer, why this row exists) - the two public renderers, each of which must
+#: be PURE (return lines, print nothing) and must render NOTHING for an empty selection.
+#:
+#: ONE table replaces four tests (`the_renderer_is_pure_no_print_no_filesystem`,
+#: `an_empty_selection_renders_no_header`, `the_summary_renderer_is_pure_no_print_no_filesystem`,
+#: `an_empty_selection_renders_no_summary`) - two claims x two renderers, written out as four.
+#:
+#: WHY THE TABLE BEATS THE FOUR. Both claims are MODULE CONVENTIONS rather than facts about either
+#: function: purity is what lets these renderers be called from anywhere (including inside a run
+#: whose stdout is a machine stream), and empty-renders-nothing is what stops a stray header
+#: appearing over nothing. A convention tested per-function rots per-function - a third renderer
+#: added later gets neither test - whereas a table over the renderer SET makes the omission visible,
+#: since adding a renderer without adding its row is now the conspicuous act.
+_PURE_RENDERERS = (
+    (
+        "render_queue_dispositions",
+        pol.render_queue_dispositions,
+        "the per-artifact line renderer. Its empty case must produce NO HEADER: a stray "
+        "`Per-artifact disposition` heading over zero lines reads as 'the run matched nothing and "
+        "also told you nothing', which is worse than silence",
+    ),
+    (
+        "render_disposition_summary",
+        pol.render_disposition_summary,
+        "the end-of-run summary renderer. Its empty case is DIFFERENT IN KIND and that is why it "
+        "needs its own row: nothing matched is NOT the zero-action case, so a summary saying 'acted "
+        "on 0 of 0' would be a claim about a run that never had a queue",
+    ),
+)
 
-    buf = io.StringIO()
-    with contextlib.redirect_stdout(buf):
-        out = pol.render_queue_dispositions([_queue_entry(needs_input=True)])
-    assert buf.getvalue() == ""
-    assert isinstance(out, list) and out
+
+def test_every_renderer_is_pure_and_renders_nothing_for_an_empty_selection():
+    import contextlib
+    import io
+
+    wrong = []
+    for name, renderer, why in _PURE_RENDERERS:
+        problems = []
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            out = renderer([_queue_entry(needs_input=True)])
+        if buf.getvalue() != "":
+            problems.append(
+                "wrote {0!r} to stdout; a renderer must RETURN its lines so a caller decides where "
+                "they go (a run whose stdout is a machine stream cannot have prose injected into "
+                "it)".format(buf.getvalue()[:200])
+            )
+        if not isinstance(out, list):
+            problems.append(
+                "returned {0!r}, expected a list of lines".format(type(out).__name__)
+            )
+        elif not out:
+            problems.append(
+                "returned NO lines for a non-empty queue, so the artifact it was given is invisible"
+            )
+        empty_buf = io.StringIO()
+        with contextlib.redirect_stdout(empty_buf):
+            empty_out = renderer([])
+        if empty_out != []:
+            problems.append(
+                "rendered {0!r} for an EMPTY selection, expected []".format(empty_out)
+            )
+        if empty_buf.getvalue() != "":
+            problems.append(
+                "wrote {0!r} to stdout for an empty selection".format(
+                    empty_buf.getvalue()[:200]
+                )
+            )
+        if problems:
+            wrong.append(
+                "  {0}\n".format(name)
+                + "".join("    - {0}\n".format(p) for p in problems)
+                + "    this row exists because: {0}".format(why)
+            )
+    assert not wrong, (
+        "{0} of {1} renderers violate the module's conventions. BOTH ROWS FAILING THE SAME WAY means "
+        "a convention was abandoned module-wide rather than one function regressing: a renderer that "
+        "PRINTS cannot be called from a run whose stdout is a machine stream, and one that renders a "
+        "header over an empty selection reports a run that matched nothing as though it had output. "
+        "FIX: if you added a third renderer, add its row here rather than writing it two new tests - "
+        "that is what this table is for.\n{2}".format(
+            len(wrong), len(_PURE_RENDERERS), "\n".join(wrong)
+        )
+    )
 
 
 def test_the_module_gained_no_first_party_import():
@@ -1254,39 +1972,6 @@ def test_the_module_gained_no_first_party_import():
                 if a.name.startswith("agent_workflows"):
                     first_party.add(a.name.split(".", 1)[1])
     assert first_party == {"selectors", "status_set"}
-
-
-def test_a_dependency_token_that_already_carries_its_reason_is_not_double_explained():
-    """The TWO producers of `unsatisfied_dependencies` write DIFFERENT shapes (measured).
-
-    The drain path writes a BARE token plus a separate reason MAP, while `cascade_dependency_blocked`
-    writes the reason INTO the token and no map. A `reasons.get(d, "unsatisfied")` fallback renders the
-    cascade's token as `executed:aaa111 (target reviewed) (unsatisfied)`: two contradictory reasons on
-    one line. This pins the fix.
-    """
-    line = pol.render_queue_dispositions(
-        [
-            _queue_entry(
-                status="dependency-blocked",
-                unsatisfied_dependencies=["executed:aaa111 (target reviewed)"],
-            )
-        ]
-    )[1]
-    assert "executed:aaa111 (target reviewed)" in line
-    assert "(unsatisfied)" not in line
-    # And the OTHER producer's shape still renders its recorded reason.
-    other = pol.render_queue_dispositions(
-        [
-            _queue_entry(
-                status="dependency-blocked",
-                unsatisfied_dependencies=["executed:bbb222"],
-                unsatisfied_dependency_reasons={
-                    "executed:bbb222": "in-run target is 'reviewed'"
-                },
-            )
-        ]
-    )[1]
-    assert "executed:bbb222 (in-run target is 'reviewed')" in other
 
 
 # --------------------------------------------------------------------------------------------------
@@ -1433,20 +2118,3 @@ def test_the_summary_orders_attention_first_and_acted_on_last():
     ]
     codes = [code for code, _n, _r in pol.summarize_dispositions(queue)]
     assert codes == [pol.SKIP_NEEDS_HUMAN_APPROVAL, pol.DISPOSITION_ACTED_ON]
-
-
-def test_the_summary_renderer_is_pure_no_print_no_filesystem():
-    """Same purity contract the module's other renderers carry."""
-    import io
-    import contextlib
-
-    buf = io.StringIO()
-    with contextlib.redirect_stdout(buf):
-        out = pol.render_disposition_summary([_queue_entry(needs_input=True)])
-    assert buf.getvalue() == ""
-    assert isinstance(out, list) and out
-
-
-def test_an_empty_selection_renders_no_summary():
-    """Nothing matched is NOT the zero-action case; a stray header over nothing is noise."""
-    assert pol.render_disposition_summary([]) == []

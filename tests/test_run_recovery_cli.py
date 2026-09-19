@@ -15,6 +15,34 @@ Coverage:
   * E-03 CLI golden tests for every subcommand + each exit class; NO ANSI in machine output;
     terminal refusal (finalize refuses incomplete/invalid/unauthorized); JSONL index rebuild from
     the ledger.
+
+MOST OF THIS FILE IS TABLE-DRIVEN, in two rounds. An earlier round tabulated the CLI surface (the
+seventeen-invocation exit-class table and the wrong-format verdict table); a later one tabulated the
+RECOVERY layer beneath it, where the repeated shape was: seed a ledger into one state, issue a call
+or two, and read back one of a small fixed set of observables.
+
+EXIT CODES AND JSON KEYS ARE LOAD-BEARING and are therefore asserted EXACTLY, with an exit-code
+column in every CLI table. `run_cli.EXIT_*` is a closed set machines branch on (0 ok, 1 incomplete, 2
+invalid invocation, 3 blocked, 4 invalid evidence, 5 corrupted ledger, 7 not a ledger), and the JSON
+payloads are what an agent keys off. Human prose is pinned ONLY as the one identifying phrase a user
+greps for (`Run:`, `incomplete`, `EV-FAILED-EXIT`, `not a run ledger`); whole sentences are not
+asserted, because rewording a message is not a regression.
+
+A DOCUMENTED ASYMMETRY IS PINNED HERE, NOT FIXED: `runs show` reports ledger corruption with exit 2
+while its siblings use `EXIT_CORRUPTED_LEDGER` (5) for the same condition. That is measured, real,
+and deliberately preserved by a row in `TestLedgerResolutionAndWrongFormatVerdict.VERDICTS` whose
+comment names the code location. Do not "tidy" it: if it is ever unified, THAT row is the one to
+update, and the prose claim beside it is what must not weaken.
+
+WHAT IS DELIBERATELY NOT TABULATED, so the next reader does not redo the analysis. `assertRaises`
+tests stay apart, because this module's typed exceptions carry the distinctions that matter - a
+caller error (`InvalidRetryBudgetError`) must not be catchable as runtime budget exhaustion
+(`RetryLimitExceededError`), and the three transition refusals are three DIFFERENT types because an
+operator's fix differs for each; a cell asserting "it raised" would erase exactly that. Also apart:
+`test_every_legal_edge_in_table_is_accepted`, which already iterates the product's own
+`TRANSITION_RULES` and so extends itself when an edge is added; tests with patched collaborators or a
+second thread; and tests whose claim is a durable effect read back through a fresh engine. Each
+carries a one-line docstring saying which of these reasons applies.
 """
 
 from __future__ import annotations
@@ -95,12 +123,63 @@ def _engine(store: ledger_store.RunLedgerStore) -> run_engine.RunEngine:
     return run_engine.RunEngine(_WORKFLOW, store, run_id=RUN_ID)
 
 
+def _plan_retry_accepted_limit(engine: run_engine.RunEngine, value: Any) -> Any:
+    """The limit `plan_retry` ACCEPTED for `value`, distinguishing acceptance from rejection.
+
+    `plan_retry` does two things in order: it VALIDATES the limit, then it applies it. Those two
+    have different failures and must not be conflated, which is what this helper exists for.
+    `InvalidRetryBudgetError` means the value was REJECTED and propagates, so the acceptance table
+    reports it. `RetryLimitExceededError` means the value was accepted and then APPLIED - which is
+    exactly what a legal `limit=0` must produce, since a zero budget makes the first retry already
+    over budget - so the limit it carries is returned as the accepted answer.
+    """
+
+    try:
+        return run_recovery.plan_retry(engine, "S-01", "transient", limit=value).limit
+    except run_recovery.RetryLimitExceededError as exc:
+        return exc.limit
+
+
 # ==================================================================================================
 # E-01: bounded retry + correction keyed by failure class
 # ==================================================================================================
 
 
 class TestBoundedRetry(unittest.TestCase):
+    """What a retry does to the ledger, expressed as a sequence of retry calls and its observables.
+
+    ONE table replaces five tests (`failed_attempt_is_preserved`,
+    `retry_records_budget_and_preserves_failure`, `idempotency_key_dedup_no_duplicate`,
+    `retry_is_not_repetition_to_success`, `retry_budget_remaining`). Every one of them ran the SAME
+    setup (drive S-01 to a failed attempt), issued zero or more `plan_retry` calls, and asserted one
+    or two of the same four observables: how many failed attempts survive, how many retries are
+    recorded, what the step's reconstructed state is, and how much budget remains. Only the CALL
+    SEQUENCE differed.
+
+    Why the table beats the five. The four observables are not independent - they are four readings
+    of one append-only ledger - and the realistic failure is a retry append that also does something
+    else: deletes the failure it retries, counts a deduplicated call anyway, or flips the step to a
+    non-failed state. Five tests each report one reading; the table reports the whole ledger state
+    after each sequence, so "the failure was deleted" and "the count is off by one" are visible as
+    the same defect or as different ones. It also puts the DEDUP rows immediately beside the
+    distinct-key rows, which is the only way to see that a repeated key and a fresh key differ in
+    exactly one reading.
+
+    EVERY ROW ASSERTS ALL FOUR OBSERVABLES, not merely the one its predecessor cared about, which is
+    strictly more coverage than the five tests had: the old dedup test never checked that the failed
+    attempt survived deduplication, and the old budget test never checked the step state.
+
+    THE PRESERVATION CLAIM IS THE LOAD-BEARING ONE and is why `failed_attempts` is a column on every
+    row rather than one test: the ledger is APPEND-ONLY, so a retry that deletes the attempt it
+    retries destroys the only record that the work was tried and failed. A row reporting 0 preserved
+    attempts is that, whatever else it reports.
+
+    The `assertRaises` refusals and the evidence-invalidation test are deliberately NOT rows: an
+    exception's TYPE and its ATTRIBUTES are a different kind of claim than a ledger reading, and
+    evidence invalidation needs a materially different seed (an evidence envelope appended before
+    the failure) plus an assertion over a private sequence helper.
+    """
+
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp = Path(self._tmp.name)
@@ -114,39 +193,159 @@ class TestBoundedRetry(unittest.TestCase):
     def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    def test_failed_attempt_is_preserved(self) -> None:
-        """The failed attempt is durably preserved in the ledger (never deleted)."""
-        preserved = run_recovery.failed_attempts(self.engine, "S-01")
-        self.assertEqual(len(preserved), 1)
-        self.assertEqual(preserved[0]["state"], "failed")
+    #: (case, the retry calls to issue as (idempotency_key or None) tuples, expected surviving failed
+    #: attempts, expected recorded retries, expected `duplicate` flags one per call, expected
+    #: remaining budget, why this row exists)
+    #:
+    #: Budgets are expressed relative to `DEFAULT_RETRY_LIMIT` by the loop, never hard-coded:
+    #: aligning the default to the spec's 2 (2026-08-31) must not silently invalidate a row.
+    RETRY_SEQUENCES = (
+        (
+            "no retry at all, immediately after the failure",
+            (),
+            1,
+            0,
+            (),
+            0,
+            "THE BASELINE, and the row that gives every other row its meaning: one failed attempt is "
+            "durably present, no retry is recorded, and the FULL budget is available. A retry "
+            "implementation that recorded something on read would show up here first",
+        ),
+        (
+            "one retry with NO idempotency key",
+            (None,),
+            1,
+            1,
+            (False,),
+            1,
+            "the ordinary path: the retry is appended, it is NOT a duplicate, and the failed attempt "
+            "it retries SURVIVES. A ledger that overwrote the failure would report 0 preserved here "
+            "while still counting the retry, which is why both columns are on every row",
+        ),
+        (
+            "the SAME idempotency key twice",
+            ("k1", "k1"),
+            1,
+            1,
+            (False, True),
+            1,
+            "IDEMPOTENCY: a repeated key is reported as `duplicate` AND appends nothing, so a "
+            "crash-resumed caller that re-issues its retry does not consume budget twice. The two "
+            "flags in sequence are the claim - the FIRST call must not be flagged duplicate, or the "
+            "check is matching on something other than the recorded key",
+        ),
+        (
+            "TWO DISTINCT idempotency keys",
+            ("k1", "k2"),
+            1,
+            2,
+            (False, False),
+            2,
+            "the mirror of the row above, and what stops it passing vacuously: an implementation "
+            "that flagged EVERY keyed retry as a duplicate would satisfy the dedup row while making "
+            "keyed retries useless. Two distinct keys must consume two units of budget",
+        ),
+    )
 
-    def test_retry_records_budget_and_preserves_failure(self) -> None:
-        """plan_retry appends a retry record and does NOT delete the failed attempt."""
-        plan = run_recovery.plan_retry(self.engine, "S-01", "transient")
-        self.assertFalse(plan.duplicate)
-        self.assertEqual(run_recovery.count_retries(self.engine, "S-01"), 1)
-        # failed attempt is still present
-        self.assertEqual(len(run_recovery.failed_attempts(self.engine, "S-01")), 1)
-
-    def test_idempotency_key_dedup_no_duplicate(self) -> None:
-        """A retry with an already-recorded idempotency key is a no-op append (not duplicated)."""
-        first = run_recovery.plan_retry(
-            self.engine, "S-01", "transient", idempotency_key="k1"
+    def test_every_retry_sequence_leaves_the_ledger_in_the_right_state(self) -> None:
+        limit = run_recovery.DEFAULT_RETRY_LIMIT
+        wrong = []
+        baseline_broken = 0
+        for (
+            case,
+            keys,
+            expect_failed,
+            expect_retries,
+            expect_dupes,
+            budget_consumed,
+            why,
+        ) in self.RETRY_SEQUENCES:
+            with tempfile.TemporaryDirectory() as d:
+                store = _seed_store(Path(d), ["R-01"])
+                eng = _engine(store)
+                eng.release_step("S-01")
+                eng.start_step("S-01")
+                eng.record_step_attempt("S-01", state="failed", actor="executor")
+                dupes = []
+                for key in keys:
+                    plan = run_recovery.plan_retry(
+                        eng, "S-01", "transient", idempotency_key=key
+                    )
+                    dupes.append(plan.duplicate)
+                problems = []
+                preserved = run_recovery.failed_attempts(eng, "S-01")
+                if len(preserved) != expect_failed:
+                    problems.append(
+                        f"{len(preserved)} failed attempt(s) survive, expected {expect_failed}. THE "
+                        "LEDGER IS APPEND-ONLY: a retry that deletes the attempt it retries "
+                        "destroys the only record that the work was tried and failed"
+                    )
+                elif preserved and preserved[0]["state"] != "failed":
+                    problems.append(
+                        f"the preserved attempt's state is {preserved[0]['state']!r}, expected "
+                        "'failed'; the record survived but its verdict was rewritten"
+                    )
+                recorded = run_recovery.count_retries(eng, "S-01")
+                if recorded != expect_retries:
+                    problems.append(
+                        f"{recorded} retry/retries recorded, expected {expect_retries}"
+                    )
+                if tuple(dupes) != expect_dupes:
+                    problems.append(
+                        f"the `duplicate` flags were {tuple(dupes)!r}, expected {expect_dupes!r}"
+                    )
+                # A retry NEVER converts a failed step to success by mere repetition.
+                state = eng.step_state("S-01")
+                if state != "failed":
+                    problems.append(
+                        f"the step reconstructs as {state!r}, expected 'failed'. A retry is "
+                        "PERMISSION to try again, never a claim that the step now succeeded"
+                    )
+                remaining = run_recovery.retry_budget_remaining(eng, "S-01")
+                expected_remaining = max(0, limit - budget_consumed)
+                if remaining != expected_remaining:
+                    problems.append(
+                        f"budget remaining is {remaining}, expected {expected_remaining} "
+                        f"(DEFAULT_RETRY_LIMIT is {limit} and this row consumes "
+                        f"{budget_consumed})"
+                    )
+                if problems:
+                    if not keys:
+                        baseline_broken += 1
+                    wrong.append(
+                        f"  {case}\n    retry keys issued: {keys!r}\n"
+                        + "".join(f"    - {p}\n" for p in problems)
+                        + f"    this row exists because: {why}"
+                    )
+        extra = ""
+        if baseline_broken:
+            extra = (
+                " THE BASELINE ROW (no retry at all) IS AMONG THE FAILURES, and while it is broken "
+                "every other row is uninterpretable: they all measure a DELTA from it, so a wrong "
+                "starting state makes each of them wrong for a reason that is not about retries."
+            )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the retry path left the ledger wrong for {len(wrong)} of "
+            f"{len(self.RETRY_SEQUENCES)} call sequences.{extra} All four readings come from ONE "
+            "append-only ledger, so read WHICH reading moved: every row reporting too few PRESERVED "
+            "attempts means the retry path now deletes what it retries, which is the severe case "
+            "and loses history permanently; every row's COUNT being high by the number of calls "
+            "means deduplication stopped working, so a crash-resumed caller silently burns its "
+            "budget; a wrong STEP STATE means a retry is being read as a success. FIX: the budget "
+            "figures are derived from `DEFAULT_RETRY_LIMIT`, so if only the budget column is wrong, "
+            f"check whether the DEFAULT moved rather than editing a row.\n"
+            + "\n".join(wrong),
         )
-        self.assertFalse(first.duplicate)
-        dup = run_recovery.plan_retry(
-            self.engine, "S-01", "transient", idempotency_key="k1"
-        )
-        self.assertTrue(dup.duplicate)
-        # only ONE retry recorded despite two calls with same key
-        self.assertEqual(run_recovery.count_retries(self.engine, "S-01"), 1)
 
     def test_retry_limit_escalates_not_loops(self) -> None:
-        """Once the budget is exhausted, plan_retry escalates with RetryLimitExceededError.
+        """Kept separate: an `assertRaises` whose claim is the exception's ATTRIBUTES, not a reading.
 
-        Consumes exactly `DEFAULT_RETRY_LIMIT` retries and then expects the refusal, DERIVING the
-        count from the constant rather than hard-coding it: the previous version issued three fixed
-        retries, which silently coupled this test to the value being 3.
+        Once the budget is exhausted, plan_retry escalates with RetryLimitExceededError. Consumes
+        exactly `DEFAULT_RETRY_LIMIT` retries and then expects the refusal, DERIVING the count from
+        the constant rather than hard-coding it: the previous version issued three fixed retries,
+        which silently coupled this test to the value being 3.
         """
         for i in range(run_recovery.DEFAULT_RETRY_LIMIT):
             run_recovery.plan_retry(
@@ -161,15 +360,13 @@ class TestBoundedRetry(unittest.TestCase):
             ctx.exception.attempts, run_recovery.DEFAULT_RETRY_LIMIT
         )
 
-    def test_retry_is_not_repetition_to_success(self) -> None:
-        """A retry never converts the failed step to success by mere repetition."""
-        run_recovery.plan_retry(self.engine, "S-01", "transient")
-        # The step's reconstructed state is still failed; retry alone did not make it complete.
-        self.assertEqual(self.engine.step_state("S-01"), "failed")
-
     def test_retry_of_non_retryable_state_rejected(self) -> None:
-        """Planning a retry for a non-failed/blocked step fails closed."""
-        # Build a fresh run where S-01 is performed (not retryable).
+        """Kept separate: an `assertRaises`, and the seed is materially different (a PERFORMED step).
+
+        Every table row seeds a FAILED S-01, which is the only state a retry is legal from. This one
+        needs the opposite seed, so folding it in would mean carrying a seed column no other row
+        varies.
+        """
         tmp2 = Path(tempfile.mkdtemp())
         st = _seed_store(tmp2, ["R-01"])
         eng = _engine(st)
@@ -180,7 +377,13 @@ class TestBoundedRetry(unittest.TestCase):
             run_recovery.plan_retry(eng, "S-01", "transient")
 
     def test_evidence_invalidated_after_change(self) -> None:
-        """Evidence bound to the retried step is invalidated so a stale green result is not reused."""
+        """Kept separate: materially different setup and an assertion over a private seq helper.
+
+        Evidence bound to the retried step is invalidated so a stale green result is not reused. The
+        seed must append an evidence envelope BEFORE the failure, and the claim is a set equality
+        between the plan's `invalidated_evidence` and the sequence numbers `_step_evidence_seqs`
+        reported live beforehand - an object no table row constructs.
+        """
         tmp2 = Path(tempfile.mkdtemp())
         st = _seed_store(tmp2, ["R-01"])
         eng = _engine(st)
@@ -204,27 +407,17 @@ class TestBoundedRetry(unittest.TestCase):
         self.assertEqual(run_recovery._step_evidence_seqs(recs_after, "S-01"), ())
 
     def test_correction_required_appends_blocker(self) -> None:
-        """correction_required appends a correction the completion predicate treats as a blocker."""
+        """Kept separate: a different VERB over a different record kind, not a retry sequence.
+
+        `correction_required` appends a `correction` record that the completion predicate treats as
+        a blocker. No table row calls it, and its observable is a record KIND rather than any of the
+        four retry readings.
+        """
         run_recovery.correction_required(self.engine, "R-01", "fix the bug")
         recs = self.store.read_records()
         corrections = [r for r in recs if r.get("kind") == "correction"]
         self.assertTrue(
             any(c.get("corrects_requirement") == "R-01" for c in corrections)
-        )
-
-    def test_retry_budget_remaining(self) -> None:
-        """retry_budget_remaining decrements as retries are consumed and never goes negative.
-
-        Anchored to `DEFAULT_RETRY_LIMIT` rather than a literal, so aligning the default to the
-        spec's 2 (2026-08-31) cannot silently invalidate the assertion.
-        """
-        limit = run_recovery.DEFAULT_RETRY_LIMIT
-        self.assertEqual(
-            run_recovery.retry_budget_remaining(self.engine, "S-01"), limit
-        )
-        run_recovery.plan_retry(self.engine, "S-01", "transient", idempotency_key="k1")
-        self.assertEqual(
-            run_recovery.retry_budget_remaining(self.engine, "S-01"), limit - 1
         )
 
 
@@ -256,18 +449,132 @@ class TestRetryBudgetRangeValidation(unittest.TestCase):
     def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    # ---- the shared validator, called with the value ALONE ----------------------------------------
+    # ---- what the three entry points ACCEPT, in one table -----------------------------------------
 
-    def test_validator_is_callable_with_the_value_alone(self) -> None:
-        """The bound lives in ONE validator taking just the value (no engine, no step id).
+    #: (case, a probe taking the budget value and returning the accepted answer, why this row exists)
+    #:
+    #: The THREE ENTRY POINTS ARE THE COLUMN, which is the whole point: spec 25kzda 2.1's range must
+    #: be enforced by ONE validator that all three route through, so the interesting property is that
+    #: the same value gets the same answer everywhere. A per-function test cannot state that, and a
+    #: per-function test is exactly how `plan_retry` came to be the only path with a bound.
+    #:
+    #: `retry_budget_remaining` is probed with a FRESH engine per row (no retries consumed), so its
+    #: accepted answer is the budget itself and the three probes are directly comparable.
+    ACCEPTANCE_PROBES = (
+        (
+            "validate_retry_budget, the shared validator called with the VALUE ALONE",
+            lambda eng, value: run_recovery.validate_retry_budget(value),
+            "the bound lives in ONE validator taking just the value (no engine, no step id), which "
+            "is what makes it reachable from the `--retry-budget` flag layer (`uyeko5` E-04) where "
+            "an operator value is validated at parse time and no engine or step exists yet",
+        ),
+        (
+            "plan_retry(limit=...), the runtime path",
+            _plan_retry_accepted_limit,
+            "the path an actual retry takes. It must ROUTE THROUGH the validator rather than carry "
+            "its own bound, and the accepted value must reach the returned plan's `limit` unchanged "
+            "- a path that clamped instead of accepting would silently run a different budget than "
+            "the caller asked for. MEASURED AND CORRECTED: a first draft of this probe called "
+            "`plan_retry` directly and reported the LOWER BOUND as refused, because `limit=0` is "
+            "VALIDATED fine and then correctly raises `RetryLimitExceededError` on the spot (zero "
+            "budget means the first retry is already over budget). That is the product behaving "
+            "right, so the probe now distinguishes a BUDGET-EXHAUSTION refusal, which confirms the "
+            "limit was accepted and applied, from an `InvalidRetryBudgetError`, which is a rejection",
+        ),
+        (
+            "retry_budget_remaining(limit=...), the read path",
+            lambda eng, value: run_recovery.retry_budget_remaining(
+                eng, "S-01", limit=value
+            ),
+            "the third entry point, and the one most likely to be forgotten: it is a READ, so an "
+            "unvalidated limit here produces a plausible-looking number rather than an error. With "
+            "no retries consumed its answer IS the budget, which is what makes it comparable to the "
+            "two rows above",
+        ),
+    )
 
-        This is what makes it reachable from the `--retry-budget` flag layer (`uyeko5` E-04), which
-        validates an operator value at parse time when no engine or step exists.
+    #: (case, the value, the answer every entry point must return for it, why this row exists)
+    #:
+    #: BOUNDARIES ONLY, plus one interior value and the shipped default. An off-by-one is the only
+    #: bug this validation can realistically ship, and a middle value passes against one.
+    ACCEPTED_VALUES = (
+        (
+            "the inclusive LOWER bound",
+            run_recovery.MIN_RETRY_LIMIT,
+            run_recovery.MIN_RETRY_LIMIT,
+            "0 is LEGAL and means zero retries. The boundary that a `> 0` check would wrongly "
+            "reject, and the one a falsy-value bug would silently replace with the default (its "
+            "BEHAVIOR is asserted separately, because acceptance alone would not catch that)",
+        ),
+        (
+            "the inclusive UPPER bound",
+            run_recovery.MAX_RETRY_LIMIT,
+            run_recovery.MAX_RETRY_LIMIT,
+            "10 is LEGAL: the range is inclusive at BOTH ends, so this is the boundary a `< MAX` "
+            "check would wrongly reject. Paired with the `MAX + 1` refusal below it fixes the "
+            "boundary exactly",
+        ),
+        (
+            "an arbitrary interior value, deliberately NOT the default",
+            5,
+            5,
+            "chosen so this row says nothing about what the default happens to be. If the interior "
+            "failed while both boundaries passed, the validator would be an allowlist of two values "
+            "rather than a range",
+        ),
+        (
+            "the SHIPPED DEFAULT",
+            run_recovery.DEFAULT_RETRY_LIMIT,
+            run_recovery.DEFAULT_RETRY_LIMIT,
+            "the default must satisfy the bound it ships beside, or every unqualified call refuses. "
+            "Derived from the constant rather than hard-coding 2, so aligning the default cannot "
+            "silently invalidate this row",
+        ),
+    )
 
-        Uses an arbitrary in-range value, deliberately NOT the default, so this test says nothing
-        about what the default happens to be.
-        """
-        self.assertEqual(run_recovery.validate_retry_budget(5), 5)
+    def test_every_entry_point_accepts_every_legal_budget_identically(self) -> None:
+        wrong = []
+        for case, value, expected, why in self.ACCEPTED_VALUES:
+            for probe_case, probe, probe_why in self.ACCEPTANCE_PROBES:
+                with tempfile.TemporaryDirectory() as d:
+                    store = _seed_store(Path(d), ["R-01"])
+                    eng = _engine(store)
+                    eng.release_step("S-01")
+                    eng.start_step("S-01")
+                    eng.record_step_attempt("S-01", state="failed", actor="executor")
+                    try:
+                        got = probe(eng, value)
+                    except Exception as exc:
+                        wrong.append(
+                            f"  {case} ({value!r}) via {probe_case}\n"
+                            f"    - REFUSED a legal budget: {type(exc).__name__}: {exc}\n"
+                            f"    this row exists because: {why}\n"
+                            f"    this entry point is probed because: {probe_why}"
+                        )
+                        continue
+                    if got != expected:
+                        wrong.append(
+                            f"  {case} ({value!r}) via {probe_case}\n"
+                            f"    - expected {expected!r}, got {got!r}\n"
+                            f"    this row exists because: {why}\n"
+                            f"    this entry point is probed because: {probe_why}"
+                        )
+        cells = len(self.ACCEPTED_VALUES) * len(self.ACCEPTANCE_PROBES)
+        self.assertEqual(
+            wrong,
+            [],
+            f"{len(wrong)} of {cells} (legal budget x entry point) cells answered wrongly. Spec "
+            "`25kzda` 2.1's range is enforced by ONE validator all three entry points route "
+            "through, so read the grouping: an entire ENTRY POINT column failing means that path "
+            "stopped delegating and grew a bound of its own (which is the state this table exists to "
+            "prevent - `plan_retry` was once the only path with any bound at all); an entire VALUE "
+            "row failing means the range itself moved. FIX: if only the BOUNDARY rows fail, it is an "
+            "off-by-one and the range is inclusive at both ends; if only the DEFAULT row fails, the "
+            "shipped default has drifted outside the bound it ships beside, which makes every "
+            f"unqualified call refuse.\n" + "\n".join(wrong),
+        )
+
+    # ---- the refusals, each an assertRaises kept apart ---------------------------------------------
 
     def test_validator_rejects_below_lower_bound(self) -> None:
         """-1 is refused, and the message names the offending value and the legal range."""
@@ -289,17 +596,6 @@ class TestRetryBudgetRangeValidation(unittest.TestCase):
         """A huge budget is refused: an unbounded correction loop is what the bound exists to stop."""
         with self.assertRaises(run_recovery.InvalidRetryBudgetError):
             run_recovery.validate_retry_budget(10_000)
-
-    def test_validator_accepts_both_inclusive_boundaries(self) -> None:
-        """0 and 10 are LEGAL (the range is inclusive at both ends)."""
-        self.assertEqual(
-            run_recovery.validate_retry_budget(run_recovery.MIN_RETRY_LIMIT),
-            run_recovery.MIN_RETRY_LIMIT,
-        )
-        self.assertEqual(
-            run_recovery.validate_retry_budget(run_recovery.MAX_RETRY_LIMIT),
-            run_recovery.MAX_RETRY_LIMIT,
-        )
 
     def test_validator_rejects_bool_and_non_int(self) -> None:
         """`bool` is a subclass of `int`, so `True` must not silently mean a budget of 1."""
@@ -353,13 +649,6 @@ class TestRetryBudgetRangeValidation(unittest.TestCase):
         with self.assertRaises(run_recovery.InvalidRetryBudgetError):
             run_recovery.plan_retry(self.engine, "S-01", "transient", limit=True)
 
-    def test_plan_retry_accepts_upper_boundary(self) -> None:
-        plan = run_recovery.plan_retry(
-            self.engine, "S-01", "transient", limit=run_recovery.MAX_RETRY_LIMIT
-        )
-        self.assertEqual(plan.limit, run_recovery.MAX_RETRY_LIMIT)
-        self.assertFalse(plan.duplicate)
-
     def test_an_out_of_range_budget_appends_nothing(self) -> None:
         """A refused budget is refused BEFORE any ledger append (fail closed, no side effect)."""
         before = len(self.store.read_records())
@@ -383,14 +672,6 @@ class TestRetryBudgetRangeValidation(unittest.TestCase):
         with self.assertRaises(run_recovery.InvalidRetryBudgetError):
             run_recovery.retry_budget_remaining(self.engine, "S-01", limit=True)
 
-    def test_retry_budget_remaining_accepts_upper_boundary(self) -> None:
-        self.assertEqual(
-            run_recovery.retry_budget_remaining(
-                self.engine, "S-01", limit=run_recovery.MAX_RETRY_LIMIT
-            ),
-            run_recovery.MAX_RETRY_LIMIT,
-        )
-
     def test_retry_budget_remaining_clamp_still_never_negative(self) -> None:
         """The independent `max(0, ...)` clamp survives: a consumed budget never reports negative."""
         limit = run_recovery.MIN_RETRY_LIMIT + 1
@@ -404,10 +685,13 @@ class TestRetryBudgetRangeValidation(unittest.TestCase):
     # ---- 0 means NO RETRIES, behaviorally ---------------------------------------------------------
 
     def test_zero_budget_means_no_retries_not_the_default(self) -> None:
-        """`limit=0` is accepted AND means zero retries, not a silently substituted default.
+        """Kept separate: an `assertRaises` plus the BEHAVIOR of an accepted value, not acceptance.
 
-        "Accepted" alone would also pass against an implementation that treated the falsy 0 as unset
-        and swapped in DEFAULT_RETRY_LIMIT, so the BEHAVIOR is what is asserted here.
+        The acceptance table already proves `limit=0` is ACCEPTED at all three entry points. That is
+        not enough on its own, and this is the test that says why: an implementation treating the
+        falsy 0 as "unset" and swapping in `DEFAULT_RETRY_LIMIT` would be ACCEPTED by every row of
+        that table while running two retries where the caller asked for none. So the claim here is
+        that zero MEANS zero - the FIRST retry is refused, and nothing is recorded.
         """
         zero = run_recovery.MIN_RETRY_LIMIT
         self.assertEqual(
@@ -419,17 +703,6 @@ class TestRetryBudgetRangeValidation(unittest.TestCase):
         # No retry was recorded: the FIRST retry was refused, not merely a later one.
         self.assertEqual(run_recovery.count_retries(self.engine, "S-01"), 0)
 
-    def test_the_default_budget_is_itself_in_range(self) -> None:
-        """The shipped default must satisfy the bound it ships beside.
-
-        Derived from the constant rather than hard-coding 2, matching the existing tests in this
-        module, so aligning the default cannot silently invalidate this assertion.
-        """
-        self.assertEqual(
-            run_recovery.validate_retry_budget(run_recovery.DEFAULT_RETRY_LIMIT),
-            run_recovery.DEFAULT_RETRY_LIMIT,
-        )
-
 
 # ==================================================================================================
 # E-02: resume / cancel / crash recovery
@@ -437,6 +710,30 @@ class TestRetryBudgetRangeValidation(unittest.TestCase):
 
 
 class TestResumeCancelCrash(unittest.TestCase):
+    """What `resume` reconstructs from a ledger, and what `cancel` writes into one.
+
+    ONE table replaces two tests (`resume_reconstructs_from_ledger_only`,
+    `cancel_records_terminal_transaction`). Both seeded a ledger into one shape and asked whether the
+    run reconstructs the way that shape implies; they differed in the shape and in which field they
+    happened to check.
+
+    Why the table beats the two. `resume` is PURE LEDGER RECONSTRUCTION - that is the whole design
+    claim - so the interesting property is that a run's state is a FUNCTION OF ITS LEDGER and of
+    nothing else, which one seed cannot state. The terminal/non-terminal contrast is the load-bearing
+    part and it needs both shapes side by side: a `resume` that reported `terminal=False`
+    unconditionally would pass the old non-terminal test forever, and the cancelled row is what
+    refutes it. Every row also asserts through a FRESH ENGINE over the same file, so no row can pass
+    on in-memory state the writer happened to leave behind.
+
+    THE FRESH-ENGINE RE-READ IS NOT DECORATION. The seeds are built by driving an engine, so reading
+    back through the SAME object would prove only that the object remembers what it was told. Each
+    row therefore constructs a second engine over the same path and asserts the same facts from it,
+    which is what makes "reconstructed from the ledger" a tested claim rather than a docstring.
+
+    The `assertRaises` refusals (unknown-outcome detection, both reconciliation rejections) and the
+    crash-recovery test are deliberately NOT rows, each with its own note saying why.
+    """
+
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp = Path(self._tmp.name)
@@ -444,21 +741,119 @@ class TestResumeCancelCrash(unittest.TestCase):
     def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    def test_resume_reconstructs_from_ledger_only(self) -> None:
-        """resume reconstructs state purely from the ledger (a fresh engine sees the same state)."""
-        store = _seed_store(self.tmp, ["R-01"])
-        eng = _engine(store)
-        eng.release_step("S-01")
-        eng.start_step("S-01")
-        eng.record_step_attempt("S-01", state="performed", actor="executor")
-        # New engine over the SAME ledger reconstructs identical state (no shared memory).
-        fresh = _engine(ledger_store.RunLedgerStore(store.path))
-        report = run_recovery.resume(fresh)
-        self.assertEqual(report.run_id, RUN_ID)
-        self.assertFalse(report.terminal)
+    #: (case, a builder driving one seed shape and returning any extra facts, expected terminal flag,
+    #: expected reconstructed run_state, why this row exists)
+    #:
+    #: Each builder receives a fresh engine over a fresh ledger and leaves the run in one shape. The
+    #: table then RE-READS every fact through a SECOND engine over the same file.
+    RECONSTRUCTIONS = (
+        (
+            "a seeded run nobody has touched",
+            lambda eng: None,
+            False,
+            "pending",
+            "THE FLOOR: a run with a `run` record and a requirement set and nothing else "
+            "reconstructs as `pending` and NOT terminal, so an interrupted operator can resume it. "
+            "If this reported terminal, every resumable run would look finished",
+        ),
+        (
+            "a run whose root step was PERFORMED",
+            lambda eng: (
+                eng.release_step("S-01"),
+                eng.start_step("S-01"),
+                eng.record_step_attempt("S-01", state="performed", actor="executor"),
+            ),
+            False,
+            "running",
+            "PROGRESS IS NOT COMPLETION: one performed step moves the run to `running` and it is "
+            "still NOT terminal, because S-02 remains. This is the row that would break if `resume` "
+            "read progress as doneness, which would strand the rest of the DAG unexecuted",
+        ),
+        (
+            "a run that was CANCELLED",
+            lambda eng: run_recovery.cancel(
+                eng, reason="operator abort", actor="coordinator"
+            ),
+            True,
+            run_state.STATE_CANCELLED,
+            "THE TERMINAL ROW, and what makes the two above non-vacuous: a `resume` hard-coding "
+            "`terminal=False` would satisfy both of them and only fail here. It also proves "
+            "`cancel`'s effect is DURABLE - the cancellation is read back out of the file by an "
+            "engine that never saw the call",
+        ),
+    )
+
+    def test_every_ledger_shape_reconstructs_the_state_it_implies(self) -> None:
+        wrong = []
+        terminal_rows_broken = 0
+        for case, build, expect_terminal, expect_state, why in self.RECONSTRUCTIONS:
+            with tempfile.TemporaryDirectory() as d:
+                store = _seed_store(Path(d), ["R-01"])
+                build(_engine(store))
+                # A SECOND engine over the SAME file: no shared memory with the writer above, so
+                # every fact below had to come out of the ledger.
+                fresh = _engine(ledger_store.RunLedgerStore(store.path))
+                problems = []
+                report = run_recovery.resume(fresh)
+                if report.run_id != RUN_ID:
+                    problems.append(
+                        f"reconstructed run_id {report.run_id!r}, expected {RUN_ID!r}"
+                    )
+                if report.terminal is not expect_terminal:
+                    problems.append(
+                        f"terminal is {report.terminal!r}, expected {expect_terminal!r}"
+                    )
+                    if expect_terminal:
+                        terminal_rows_broken += 1
+                if report.run_state != expect_state:
+                    problems.append(
+                        f"run_state is {report.run_state!r}, expected {expect_state!r}"
+                    )
+                # No row seeds an interrupted side effect, so none may report one: a false unknown
+                # outcome would refuse a resume the operator is entitled to.
+                unknown = run_recovery.detect_unknown_outcomes(fresh)
+                if unknown != ():
+                    problems.append(
+                        f"reports unknown outcomes {unknown!r}, but this shape has no step left "
+                        "running; a false positive REFUSES a legitimate resume"
+                    )
+                if problems:
+                    wrong.append(
+                        f"  {case}\n"
+                        + "".join(f"    - {p}\n" for p in problems)
+                        + f"    this row exists because: {why}"
+                    )
+        extra = ""
+        if terminal_rows_broken:
+            extra = (
+                " THE TERMINAL (cancelled) ROW IS AMONG THE FAILURES, which matters out of "
+                "proportion to its count: the two non-terminal rows are VACUOUS against a `resume` "
+                "that reports `terminal=False` unconditionally, and this is the only row that "
+                "refutes that."
+            )
+        self.assertEqual(
+            wrong,
+            [],
+            f"{len(wrong)} of {len(self.RECONSTRUCTIONS)} ledger shapes reconstructed wrongly."
+            f"{extra} Every fact here is re-read through a SECOND engine over the same file, so a "
+            "failure means the LEDGER does not carry what the run did - not merely that a return "
+            "value is off. Read the grouping: all rows reporting the same wrong `run_state` means "
+            "the state derivation changed; the TERMINAL flags disagreeing means the "
+            "terminal-detection predicate moved, which is the dangerous direction in both senses "
+            "(a resumable run that looks finished is abandoned, a finished run that looks resumable "
+            "gets restarted). FIX: an unexpected unknown-outcome report means detection now fires on "
+            f"a shape with nothing running, which refuses resumes that should succeed.\n"
+            + "\n".join(wrong),
+        )
 
     def test_unknown_outcome_detected_and_refused(self) -> None:
-        """A step left running with no terminal attempt is unknown_outcome; resume refuses it."""
+        """Kept separate: an `assertRaises` whose claim is WHICH STEP the exception names.
+
+        Every `RECONSTRUCTIONS` row asserts a successful reconstruction and that NO unknown outcome
+        is reported. This is the opposite shape - a step left running with no terminal attempt, where
+        `resume` must REFUSE - and the assertion is on the raised exception's `step_id`, which no row
+        returning a report can express.
+        """
         store = _seed_store(self.tmp, ["R-01"])
         eng = _engine(store)
         eng.release_step("S-01")
@@ -471,7 +866,12 @@ class TestResumeCancelCrash(unittest.TestCase):
         self.assertEqual(ctx.exception.step_id, "S-01")
 
     def test_reconcile_unknown_outcome_requires_explicit_state(self) -> None:
-        """Reconciliation requires an explicit terminal outcome; a silent rerun is never done."""
+        """Kept separate: an `assertRaises` and a BEFORE/AFTER pair around one mutation.
+
+        Reconciliation requires an explicit terminal outcome; a silent rerun is never done. The
+        claim spans a rejection and then a state TRANSITION on the same engine (unknown-outcome
+        present, then cleared), which is a sequence rather than a seed shape.
+        """
         store = _seed_store(self.tmp, ["R-01"])
         eng = _engine(store)
         eng.release_step("S-01")
@@ -488,14 +888,21 @@ class TestResumeCancelCrash(unittest.TestCase):
         self.assertEqual(report.run_state, "running")
 
     def test_reconcile_of_non_unknown_step_rejected(self) -> None:
-        """Reconciling a step that is not in an unknown-outcome condition fails closed."""
+        """Kept separate: an `assertRaises` over a step with NOTHING recorded against it."""
         store = _seed_store(self.tmp, ["R-01"])
         eng = _engine(store)
         with self.assertRaises(run_recovery.RecoveryError):
             run_recovery.reconcile_unknown_outcome(eng, "S-01", "performed")
 
-    def test_cancel_records_terminal_transaction(self) -> None:
-        """cancel records a terminal cancellation and the run reconstructs as cancelled."""
+    def test_cancel_reports_the_reason_it_was_given(self) -> None:
+        """Kept separate: the RETURNED snapshot's reason text, not the reconstructed run state.
+
+        The table's cancelled row already proves the cancellation is DURABLE (a fresh engine reads
+        the run back as terminal-cancelled). What it cannot see is the operator's REASON, which
+        `resume`'s report does not carry: it lives on the snapshot `cancel` returns. Asserted here so
+        an abort recorded with a reason cannot silently drop it, which would leave a cancelled run
+        with no record of why.
+        """
         store = _seed_store(self.tmp, ["R-01"])
         eng = _engine(store)
         snap = run_recovery.cancel(eng, reason="operator abort", actor="coordinator")
@@ -503,7 +910,13 @@ class TestResumeCancelCrash(unittest.TestCase):
         self.assertEqual(snap.cancellation_reason, "operator abort")
 
     def test_crash_recovery_truncates_torn_line_and_flags_unknown(self) -> None:
-        """recover_crash truncates a torn trailing line and reconstructs surviving state."""
+        """Kept separate: materially different setup (a hand-torn file) and a BEFORE/AFTER claim.
+
+        `recover_crash` truncates a torn trailing line and reconstructs surviving state. The seed is
+        a file mutated OUTSIDE the store's own append path - a partial line with no newline, as a
+        crash mid-append leaves - and the assertions are about the RECOVERY report (a torn line was
+        found, bytes were truncated), which no reconstruction row produces.
+        """
         store = _seed_store(self.tmp, ["R-01"])
         eng = _engine(store)
         eng.release_step("S-01")
@@ -525,6 +938,26 @@ class TestResumeCancelCrash(unittest.TestCase):
 
 
 class TestTransitionsAndDependencies(unittest.TestCase):
+    """The state machine's edges, its three refusal classes, the DAG gate, and the writer lock.
+
+    DELIBERATELY NOT TABULATED, and the reasoning is recorded so the next agent does not repeat the
+    investigation. Nothing here is a cluster of rows differing only in data:
+
+    * `test_every_legal_edge_in_table_is_accepted` is ALREADY the table, and a better one than a
+      hand-written row set could be: it iterates `run_state.TRANSITION_RULES` itself, deriving the
+      actor and the predicate FROM each rule, so adding an edge to the product extends the coverage
+      automatically. Re-expressing those edges as literal rows would freeze a copy that a new edge
+      could not fail.
+    * The three refusals are `assertRaises` over three DIFFERENT exception types
+      (`IllegalTransitionError`, `UnauthorizedActorError`, `PredicateUnsatisfiedError`), which is the
+      whole point of them: they are the three reasons a transition can be refused, and an operator's
+      fix differs for each. A table cell asserting "it raised" would be satisfied by any of the
+      three, so merging them would delete the distinction they exist to make.
+    * The dependency-gate and lock-collision tests are structurally different from everything else
+      here: one is a BEFORE/AFTER sequence over a mutating engine, the other runs a second THREAD to
+      contend for a lease.
+    """
+
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp = Path(self._tmp.name)
@@ -535,7 +968,10 @@ class TestTransitionsAndDependencies(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_every_legal_edge_in_table_is_accepted(self) -> None:
-        """Each rule in TRANSITION_RULES is accepted for an authorized actor with its predicate."""
+        """Already table-driven, and derived from the product's own rule table rather than restated.
+
+        Each rule in TRANSITION_RULES is accepted for an authorized actor with its predicate.
+        """
         for rule in run_state.TRANSITION_RULES:
             actor = sorted(rule.authorized_actors)[0]
             accepted = run_state.check_transition(
@@ -708,6 +1144,19 @@ def _stdout_problems(out: str, checks: "tuple[tuple[Any, ...], ...]") -> List[st
                 f"{parsed[check[1]]!r}"
             )
     return problems
+
+
+def _rewrite_is_byte_identical(index_path: Path) -> bool:
+    """Re-derive the index at `index_path` and report whether the bytes are unchanged.
+
+    Split out of the projection table so the determinism row stays a one-line probe like its
+    neighbors. The ledger path is recovered from the sibling `run.jsonl`, which is how every seed in
+    this module lays the two files out.
+    """
+
+    before = index_path.read_bytes()
+    run_cli.write_index(index_path.parent / "run.jsonl", index_path)
+    return index_path.read_bytes() == before
 
 
 def _complete_run_records() -> List[Dict[str, Any]]:
@@ -1217,7 +1666,14 @@ class TestRunCliSubcommands(unittest.TestCase):
         )
 
     def test_resume_cli_reports_unknown_outcome_condition(self) -> None:
-        """The resume CLI surfaces the UNKNOWN_OUTCOME sentinel when a side effect is interrupted."""
+        """Kept separate: the only CLI test with PATCHED COLLABORATORS, which no table row has.
+
+        The resume CLI surfaces the UNKNOWN_OUTCOME sentinel when a side effect is interrupted. The
+        `running` state is EPHEMERAL and not persisted, so no ledger a table row could seed produces
+        this condition in a fresh CLI process; reaching the branch at all requires patching
+        `detect_unknown_outcomes` and `resume`. Folding that into the invocation table would mean
+        every other row carrying patches it must not apply.
+        """
         self._seed_incomplete()
 
         # Force the interrupted-side-effect branch: patch detection + resume to raise as if a step
@@ -1246,6 +1702,13 @@ class TestRunCliSubcommands(unittest.TestCase):
         self.assertIn("S-01", data["unknown_outcome_steps"])
 
     def test_resume_refuses_unknown_outcome(self) -> None:
+        """Kept separate: an `assertRaises` at the RECOVERY layer, not a CLI invocation at all.
+
+        The comment below records why this cannot be a CLI test: `running` is ephemeral, so the
+        condition is only observable in-process. It lives in this class because it is the in-process
+        counterpart of the patched CLI test above, and the two together are what show the sentinel is
+        real rather than only mocked.
+        """
         store = self._store()
         store.append(_run_record())
         store.append(_requirement_set(["R-01"]))
@@ -1261,17 +1724,98 @@ class TestRunCliSubcommands(unittest.TestCase):
         with self.assertRaises(run_recovery.UnknownOutcomeError):
             run_recovery.resume(eng)
 
-    # ---- machine output is ANSI-free across all mutating subcommands ------------------------------
+    # ---- machine output is ANSI-free, PARSES, and carries its verdict, in both modes ---------------
 
-    def test_all_machine_modes_ansi_free(self) -> None:
+    #: (read verb, expected exit code on a COMPLETE ledger, why this row exists)
+    #:
+    #: `status`, `next` and `resume` are READ verbs, so they live under `aw runs` after the
+    #: runnamecollapse `0soncw` split (`next`/`resume` only reconstruct state and report). The OUTPUT
+    #: MODE is a column supplied by the loop (`--agent` one compact line, `--json` pretty
+    #: multi-line), because the whole claim is that BOTH machine modes are consumable and carry the
+    #: same verdict; a per-mode test would let one of them rot.
+    #:
+    #: EXIT CODES ARE ASSERTED, not just ANSI-absence. The three verbs deliberately reach three
+    #: DIFFERENT classes on one and the same ledger, which is the property worth pinning: a machine
+    #: polling these cannot act on a payload it cannot classify.
+    MACHINE_READ_VERBS = (
+        (
+            "status",
+            run_cli.EXIT_INCOMPLETE,
+            "reports the run and exits INCOMPLETE (1): every step is not done, and `status` is "
+            "honest about that rather than exiting 0 because the read itself succeeded",
+        ),
+        (
+            "next",
+            run_cli.EXIT_BLOCKED,
+            "the SAME ledger yields BLOCKED (3) here, because S-01 is performed and S-02 is gated "
+            "on a human approval, so there is nothing runnable. A driver polling `next` must be able "
+            "to tell 'wait for a human' from 'the run is incomplete'",
+        ),
+        (
+            "resume",
+            run_cli.EXIT_OK,
+            "and the SAME ledger yields OK (0) here, because the run is resumable: nothing is "
+            "wrong. Three verbs, three classes, one file - which is what makes the codes meaningful "
+            "rather than a synonym for 'the command ran'",
+        ),
+    )
+
+    def test_both_machine_modes_are_parseable_ansi_free_and_carry_the_verdict(
+        self,
+    ) -> None:
         self._seed_complete()
-        # `status`, `next` and `resume` are READ verbs, so they live under `aw runs` after the
-        # runnamecollapse 0soncw split (`next`/`resume` only reconstruct state and report).
-        for sub in ("status", "next", "resume"):
-            _, out = self._cli("runs", sub, str(self.ledger), "--agent")
-            self.assertNotIn("\x1b", out, f"ANSI leaked in `runs {sub} --agent`")
-            _, out2 = self._cli("runs", sub, str(self.ledger), "--json")
-            self.assertNotIn("\x1b", out2, f"ANSI leaked in `runs {sub} --json`")
+        wrong = []
+        for verb, expected_rc, why in self.MACHINE_READ_VERBS:
+            for mode in ("--agent", "--json"):
+                rc, out = self._cli("runs", verb, str(self.ledger), mode)
+                problems = []
+                if rc != expected_rc:
+                    problems.append(
+                        f"exit code expected {expected_rc} "
+                        f"({TestRunCliSubcommands._exit_name(expected_rc)}), got {rc} "
+                        f"({TestRunCliSubcommands._exit_name(rc)})"
+                    )
+                if "\x1b" in out:
+                    problems.append(
+                        "an ANSI escape leaked into machine-consumed output, so a consumer parsing "
+                        "this gets control characters inside its payload"
+                    )
+                try:
+                    parsed = _parse_machine(out)
+                except ValueError as exc:
+                    problems.append(
+                        f"the payload did not parse as JSON ({exc}); got {out[:200]!r}"
+                    )
+                else:
+                    if not isinstance(parsed, dict):
+                        problems.append(
+                            f"the payload is not a JSON object; got {parsed!r}"
+                        )
+                    elif parsed.get("run_id") != RUN_ID:
+                        problems.append(
+                            f"the payload's `run_id` is {parsed.get('run_id')!r}, expected "
+                            f"{RUN_ID!r}; an agent keys off the FIELD, not the prose"
+                        )
+                if problems:
+                    wrong.append(
+                        f"  aw runs {verb} {mode}\n"
+                        + "".join(f"    - {p}\n" for p in problems)
+                        + f"    this row exists because: {why}"
+                    )
+        cells = len(self.MACHINE_READ_VERBS) * 2
+        self.assertEqual(
+            wrong,
+            [],
+            f"{len(wrong)} of {cells} (read verb x machine mode) cells produced unusable machine "
+            "output. Read the grouping: one whole MODE column failing means that renderer changed "
+            "(most likely a human-prose line being emitted into the machine stream); one whole VERB "
+            "row failing means that verb's payload or class moved; every cell leaking ANSI means "
+            "color detection stopped honoring the machine modes, which corrupts every consumer at "
+            "once. FIX: a wrong EXIT CODE is the load-bearing failure here - the three verbs "
+            "deliberately reach three different classes on ONE ledger, so two of them agreeing on "
+            "the same code means the classes collapsed and a driver can no longer tell 'wait for a "
+            f"human' from 'incomplete'.\n" + "\n".join(wrong),
+        )
 
 
 # ==================================================================================================
@@ -1280,6 +1824,25 @@ class TestRunCliSubcommands(unittest.TestCase):
 
 
 class TestRebuildableIndex(unittest.TestCase):
+    """The runtime index is a REBUILDABLE PROJECTION of the ledger (append-only JSONL, no SQLite).
+
+    ONE table replaces two tests. Both projected the same complete ledger and asserted one property
+    of the result; they differed in whether the projection was taken IN MEMORY (`rebuild_index`) or
+    THROUGH A FILE (`write_index`), and in which property each happened to check.
+
+    Why the table beats the two. "Rebuildable projection" is a conjunction of properties, and the two
+    tests split it arbitrarily: the in-memory one checked record kinds and seq contiguity while the
+    file one checked line count and byte-stability, so neither checked the other's half and a
+    projection that reordered records on the way to disk would have passed both. Every row here
+    states ONE property and every property is checked in BOTH forms, which is what makes the file and
+    the in-memory answer provably the same object.
+
+    THE LEDGER STAYS AUTHORITATIVE is the claim under all of it: the index may be deleted and rebuilt
+    at any time, so it must be a pure function of the ledger. That is why DETERMINISM (writing twice
+    produces identical bytes) is a row rather than a footnote - a projection that varied between runs
+    would make the index unrebuildable and put it in an operator's diffs on every invocation.
+    """
+
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp = Path(self._tmp.name)
@@ -1291,27 +1854,116 @@ class TestRebuildableIndex(unittest.TestCase):
     def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    def test_index_is_rebuilt_from_ledger(self) -> None:
-        """The runtime index is a rebuildable projection of the ledger (append-only JSONL, no SQLite)."""
-        rows = run_cli.rebuild_index(self.ledger)
-        kinds = [r["kind"] for r in rows]
-        self.assertEqual(kinds[0], "run")
-        self.assertIn("step_attempt", kinds)
-        self.assertIn("verifier_decision", kinds)
-        # seqs are contiguous from 0 (the ledger stays authoritative)
-        self.assertEqual([r["seq"] for r in rows], list(range(len(rows))))
+    #: (case, a probe taking (rows read back from the FILE, rows from `rebuild_index`, the written
+    #: path) and returning a problem string or None, why this row exists)
+    PROJECTION_PROPERTIES = (
+        (
+            "the first row is the `run` record",
+            lambda disk, mem, path: (
+                None
+                if mem and mem[0]["kind"] == "run"
+                else f"the first projected kind is {(mem[0]['kind'] if mem else None)!r}, expected "
+                "'run'"
+            ),
+            "a run's OPENING record must come first, because every later record is interpreted "
+            "relative to it (the run id, the workflow digest, the head commit). A projection that "
+            "reordered records would make the index unreadable in sequence",
+        ),
+        (
+            "every record kind in the ledger survives the projection",
+            lambda disk, mem, path: (
+                None
+                if {"run", "requirement_set", "step_attempt", "verifier_decision"}
+                <= {r["kind"] for r in mem}
+                else "the projection dropped kind(s) "
+                f"{sorted({'run', 'requirement_set', 'step_attempt', 'verifier_decision'} - {r['kind'] for r in mem})!r}"
+            ),
+            "THE PROJECTION MUST LOSE NOTHING. `step_attempt` and `verifier_decision` are the two "
+            "kinds that carry what was DONE and what was VERIFIED, so an index that filtered either "
+            "would answer questions about a run with evidence silently missing",
+        ),
+        (
+            "sequence numbers are contiguous from 0",
+            lambda disk, mem, path: (
+                None
+                if [r["seq"] for r in mem] == list(range(len(mem)))
+                else f"seqs are {[r['seq'] for r in mem]!r}, expected {list(range(len(mem)))!r}"
+            ),
+            "a GAP would mean a record was skipped and a REPEAT would mean one was counted twice, "
+            "and either makes the index disagree with the ledger it projects. Contiguity from 0 is "
+            "how a reader knows it has the whole run",
+        ),
+        (
+            "the written file holds exactly one JSON object per projected row",
+            lambda disk, mem, path: (
+                None
+                if len(disk) == len(mem)
+                else f"the file has {len(disk)} line(s) but the projection has {len(mem)} row(s)"
+            ),
+            "JSONL, not a JSON array: the file must be line-addressable so a consumer can stream it "
+            "without holding a whole run in memory. This row is also what proves the disk form and "
+            "the in-memory form are the SAME projection rather than two similar ones",
+        ),
+        (
+            "the written rows are byte-parseable and carry the same kinds in the same order",
+            lambda disk, mem, path: (
+                None
+                if [r["kind"] for r in disk] == [r["kind"] for r in mem]
+                else f"the file's kinds {[r['kind'] for r in disk]!r} differ from the projection's "
+                f"{[r['kind'] for r in mem]!r}"
+            ),
+            "ORDER is part of the contract, not an accident of iteration: the two tests this table "
+            "replaced split kinds and line-count between them, so a projection that reordered "
+            "records on the way to disk would have passed BOTH of them",
+        ),
+        (
+            "writing twice produces identical bytes",
+            lambda disk, mem, path: (
+                None
+                if _rewrite_is_byte_identical(path)
+                else "re-running write_index produced DIFFERENT bytes, so the projection is not "
+                "deterministic"
+            ),
+            "DETERMINISM IS WHAT MAKES THE INDEX DISPOSABLE: it may be deleted and rebuilt at any "
+            "time, so a projection that varied between runs would put the index in an operator's "
+            "diffs on every invocation and make 'rebuild it' an unsafe instruction",
+        ),
+    )
 
-    def test_index_written_as_jsonl_and_reparses(self) -> None:
+    def test_the_index_is_a_faithful_deterministic_projection_of_the_ledger(
+        self,
+    ) -> None:
         index_path = self.tmp / "index.jsonl"
-        out = run_cli.write_index(self.ledger, index_path)
-        self.assertTrue(out.is_file())
-        lines = out.read_text(encoding="utf-8").strip().splitlines()
-        parsed = [json.loads(line) for line in lines]
-        self.assertEqual(len(parsed), len(run_cli.rebuild_index(self.ledger)))
-        # Rebuilding again is deterministic (idempotent projection).
-        run_cli.write_index(self.ledger, index_path)
-        lines2 = out.read_text(encoding="utf-8").strip().splitlines()
-        self.assertEqual(lines, lines2)
+        written = run_cli.write_index(self.ledger, index_path)
+        self.assertTrue(
+            written.is_file(),
+            f"write_index reported {written!r} but no file exists there, so no row below can be "
+            "evaluated",
+        )
+        mem = run_cli.rebuild_index(self.ledger)
+        disk = [
+            json.loads(line)
+            for line in written.read_text(encoding="utf-8").strip().splitlines()
+        ]
+        wrong = []
+        for case, probe, why in self.PROJECTION_PROPERTIES:
+            problem = probe(disk, mem, written)
+            if problem:
+                wrong.append(
+                    f"  {case}\n    - {problem}\n    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the index projection violates {len(wrong)} of {len(self.PROJECTION_PROPERTIES)} "
+            "properties. THE LEDGER IS AUTHORITATIVE and the index is a disposable function of it, "
+            "so read the grouping: the ORDER and CONTIGUITY rows failing together means the "
+            "projection's iteration changed, and a DROPPED KIND is the severe case because the "
+            "index then answers questions about a run with evidence silently missing. FIX: if only "
+            "the DETERMINISM row fails, the projection has acquired a timestamp, a set iteration or "
+            "some other nondeterminism - the index still reads correctly today but can no longer be "
+            f"rebuilt without showing up as a spurious change.\n" + "\n".join(wrong),
+        )
 
 
 class TestLedgerResolutionAndWrongFormatVerdict(unittest.TestCase):
