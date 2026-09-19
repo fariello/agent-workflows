@@ -235,6 +235,79 @@ class DocumentationAgreementTests(unittest.TestCase):
         self.assertNotIn("\u2014", section, "em dash in authored user-facing prose")
         self.assertNotIn("\u2013", section, "en dash in authored user-facing prose")
 
+    def test_module_docstring_status_list_matches_statuses(self):
+        """The `backlog.py` docstring's own `- Status:` line must equal the code's vocabulary.
+
+        It read the pre-`graduated` four for as long as `graduated` had shipped, which is the same
+        drift class the README test above already guards, one file over. Asserted against
+        `backlog.STATUSES` rather than a literal so a future member cannot desynchronize it.
+        """
+        m = re.search(r"^    - Status: (.+)$", backlog.__doc__ or "", re.M)
+        self.assertIsNotNone(m, "the module docstring must document a `- Status:` line")
+        assert m is not None
+        documented = {s.strip() for s in m.group(1).split("|")}
+        self.assertEqual(
+            documented,
+            set(backlog.STATUSES),
+            "backlog.py's docstring status list must equal backlog.STATUSES",
+        )
+
+
+class CliStatusSurfaceTests(unittest.TestCase):
+    """bkgradcli: the CLI must OFFER every status the code accepts.
+
+    WHY THIS EXISTS, measured 2026-09-19. `graduated` shipped as a real status (a directory in
+    `STATUS_DIRS`, a valid `- Status:`, an `aw attention` class of `active`) and both setters always
+    ACCEPTED it, because they validate against `backlog.STATUSES`. But the two argparse help strings
+    were hand-typed with the pre-`graduated` four, so `aw backlog set --help` documented only
+    `open | blocked | parked | done`. The consequence was not cosmetic: an `aw attention` advisory
+    told a maintainer to close a release-blocking item `done`, and `--help` offered no `graduated`,
+    so the only reachable closure asserted that unwritten code was written and validated. That is
+    precisely the false completion claim `graduated` was introduced to prevent.
+
+    Pinned as PROPERTIES against `backlog.STATUSES`, following
+    `test_work_kind.py::test_the_cli_choices_match_the_shared_vocab`, so a future status is offered
+    automatically and a hand-typed regression fails here.
+    """
+
+    def _action(self, path: tuple[str, ...], dest: str):
+        from agent_workflows import cli
+
+        import argparse
+
+        node = cli._build_parser()
+        for name in path:
+            sub = next(
+                a for a in node._actions if isinstance(a, argparse._SubParsersAction)
+            )
+            node = sub.choices[name]
+        return next(a for a in node._actions if getattr(a, "dest", "") == dest)
+
+    def test_backlog_set_offers_every_status(self):
+        action = self._action(("backlog", "set"), "status")
+        self.assertEqual(set(action.choices or ()), set(backlog.STATUSES))
+
+    def test_backlog_new_offers_every_status(self):
+        action = self._action(("backlog", "new"), "status")
+        self.assertEqual(set(action.choices or ()), set(backlog.STATUSES))
+
+    def test_both_status_help_strings_name_graduated(self):
+        """The HELP TEXT, not only the choices: `--help` is where the maintainer reads the option."""
+        for path in (("backlog", "set"), ("backlog", "new")):
+            action = self._action(path, "status")
+            self.assertIn(
+                "graduated",
+                action.help or "",
+                f"aw {' '.join(path)} --status help must name graduated",
+            )
+
+    def test_set_help_distinguishes_graduated_from_done(self):
+        """Offering the word is not enough: the two are confusable and the cost of picking `done`
+        wrongly is a false claim that code was written. The help must say which is which."""
+        help_text = (self._action(("backlog", "set"), "status").help or "").lower()
+        self.assertIn("handed off", help_text)
+        self.assertIn("not yet written", help_text)
+
 
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()

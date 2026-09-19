@@ -25,7 +25,7 @@ deliberately asymmetric with plans and specs where it is optional: the Set unifi
 requiredness.
 
     - Id: <id6>
-    - Status: open | blocked | parked | done
+    - Status: open | graduated | blocked | parked | done
     - Set: <terse-id>
     - Priority: high | medium | low
     - Work-Kind: bug | feature | chore | security | followup
