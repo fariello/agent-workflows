@@ -41,6 +41,8 @@ from __future__ import annotations
 
 import textwrap
 import unittest
+
+import pytest
 from pathlib import Path
 
 from agent_workflows import ipd_schema as S
@@ -1671,8 +1673,26 @@ class ApprovalGateRealCorpusTests(unittest.TestCase):
             polarity, _ = PR.newest_verdict(path.read_text(encoding="utf-8"))
             self.assertNotEqual(polarity, PR.NEGATIVE, f"{id6} falsely refused")
 
+    @pytest.mark.livecorpus
     def test_no_pending_plan_is_refused_on_a_verdict_today(self):
-        """A gate that refuses live, legitimately-reviewed plans is a lockout, not a safeguard."""
+        """A gate that refuses live, legitimately-reviewed plans is a lockout, not a safeguard.
+
+        MARKED `livecorpus`, SO THE DEFAULT SUITE SKIPS IT, and the reason is WHERE it fires rather
+        than whether it should. This test sweeps EVERY plan in the live `pending/` tree, so any agent
+        authoring a plan can turn it red. A runner lane merges its work only when the full test suite
+        passes, so a red test here blocks integration for EVERY concurrent lane, including lanes whose
+        work is unrelated and correct.
+
+        MEASURED 2026-09-19: three `reaskscore` plans wrote "clearing ... its `no-go`", the negative
+        readiness check matched the token inside that clearing clause, this test went red, and run
+        `run-20260919T194413Z-2056285` spent 2h 10m and $55.02 integrating NOTHING. Three lanes were
+        preserved unmerged and eight further items cascaded to `dependency-blocked`.
+
+        IT IS NOT DELETED, BECAUSE IT WORKED: it is the only check that caught that parser bug, and a
+        made-up-data test could not have. It still runs in `make test-all`, in release-review, and in
+        any invocation that clears the marker filter (`-m ''` or `-m livecorpus`), where a failure
+        informs a human instead of halting a queue.
+        """
         pending = sorted(PENDING_DIR.glob("*.ipd.md"))
         self.assertGreater(len(pending), 0)
         refused = [
