@@ -26,6 +26,31 @@ Traceability contract:
 - 19.23: screen_reader_linear_semantics (Order 04)
 - 19.24: privacy_doctor_refuses_unverified_privacy (Order 03)
 - 19.25: broken_navigation_link_resolver_succeeds (Orders 01, 03)
+
+WHY THIS FILE IS NOT TABULATED, and must not be: it is ALREADY a conformance matrix, and here the
+METHOD NAMES ARE THE DATA. This file is one test per numbered acceptance scenario, and that one-to-one
+mapping is not a style choice a reader is free to tidy into a table; it is enforced mechanically from
+TWO independent directions, both verified by deliberately breaking them (2026-09-19):
+
+1. EXTERNALLY, by `tools/awphysical/scenario-token-bindings.json`, which binds 24 of the 34 methods
+   here BY FULLY-QUALIFIED NAME (`tests.test_acceptance_matrix.<Class>.<method>`) and is checked by
+   `PhysicalLayoutAcceptanceTests.test_e06` below and again by
+   `tools.awphysical.test_awphysical_tools.ScenarioBindingTests`. Merging `test_19_11_move_and_reattach`
+   into a table fails with `unloadable test tests.test_acceptance_matrix...test_19_11_move_and_reattach`.
+2. INTERNALLY, by `test_25_scenario_completeness`, which DERIVES the covered scenario set by reflecting
+   over `dir(self)` for `test_19_*` names. Merging even an UNBOUND scenario (19.5) fails with
+   `[5] != []`, because the scenario it covered no longer has a method spelling its number.
+
+So a row in a table cannot carry a scenario's identity here the way a NAME can: collapsing N scenarios
+into one method would delete N-1 loadable binding targets and silently shrink the derived coverage set,
+which is the opposite of what an acceptance matrix is for. The traceability list above, the external
+binding file, and the method names are three views of one contract, and the tests that would otherwise
+be merge candidates (19.13 through 19.16 are four one-assertion tests over the same setup marker) are
+kept apart deliberately for exactly this reason. Add a scenario by adding a METHOD, never a row.
+
+The internal structure of an INDIVIDUAL scenario test is not covered by any of the above: several here
+(`test_19_22_color_env_matrix`, `SourceRepositoryMigrationTests.test_e03`, `test_e04`, `test_e05`) make
+several assertions with a falsifiable negative, which is the right shape for a scenario that has one.
 """
 
 from __future__ import annotations
