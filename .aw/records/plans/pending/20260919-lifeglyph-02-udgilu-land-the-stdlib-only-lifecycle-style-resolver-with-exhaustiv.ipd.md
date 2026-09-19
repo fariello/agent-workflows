@@ -6,7 +6,7 @@
 - Scope: IN: create `agent_workflows/lifecycle_style.py` containing the TWENTY semantic stages of Section 5 with their Unicode glyph, ASCII fallback, xterm-256 index and bold flag; the native mappings of Sections 6.1-6.7; the runner/ledger mappings of Sections 7.1-7.4; the precedence resolver of Section 8; and the self-validation of R10.1 that rejects duplicate keys and incomplete coverage. Plus the A2 enumeration tests that fail when an owner adds a status without a mapping. OUT: emitting any ANSI (R10.1 forbids it in this module), the depth ladder and 16-color tier (child `pow5sj`), the `Term` rendering helpers (child `bn026f`), and converting any consumer (children `f9t5hz` onward). ALSO OUT, and newly explicit at review: deciding what stage the uncovered `integration-deferred` status maps to, which is OQ-02's blocking question rather than this plan's to guess.
 - Scope-Paths: agent_workflows/lifecycle_style.py, tests/test_lifecycle_style.py
 - Item-Dependencies: executed:yaxr4i, executed:n4xq3l
-- Status: to-review
+- Status: reviewed
 - Readiness: no-go
 - Set: lifeglyph
 - Order: 2
@@ -17,6 +17,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-19 reviewed (aw set): plan-review round 1: REVIEWED - OPEN QUESTIONS. PR-201/202/204/205/206 FIXED; PR-203 (BLOCKER) escalated as OQ-02 Blocking: yes (integration-deferred has no spec Section 7.2 row, so criterion A2 is unsatisfiable). Readiness no-go.
 
 - 2026-09-19 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-201, PR-202, PR-204, PR-205, PR-206 FIXED, PR-203 (BLOCKER) escalated as OQ-02 `Blocking: yes`. Reviewed at HEAD `07dabf1b`; `aw ipd lint --phase author --agent` clean, exit 0. A SIXTH ORPHAN STATUS makes criterion A2 unsatisfiable as authored: `runner_shutdown.KNOWN_ITEM_STATUSES` has 15 members and spec Section 7.2 covers 14, with `integration-deferred` appearing zero times in the spec and zero times in this Set. It was added by `integpath-03` AFTER the spec's review, so the spec's own five-orphan fix could not have caught it, and every way of proceeding without a ruling either guts the A2 test or writes an unreviewed presentation decision into the canonical module. THE STAGE COUNT WAS ALSO WRONG: Section 5 holds 20 stages, not 21 (the spec's own D13 rejects "a new 21st stage", which only parses at 20), and the wrong number had propagated to four places across three plans. OQ-01 is RESOLVED at review by importing all seven owner enums and diffing them against the spec: six mappings are already total, and the question's premise was false for prompts, which have no status enum at all.
 - 2026-09-19 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from spec uonrjg R10.1/R10.4 and Section 12 step 1. Carries the spec's `Blocks-Release: next` gate and the Section 12a `executed:yaxr4i` edge.
