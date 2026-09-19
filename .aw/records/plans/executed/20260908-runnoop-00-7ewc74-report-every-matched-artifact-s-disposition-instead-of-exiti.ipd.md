@@ -9,18 +9,18 @@
 - Scope: The three separable defects backlog `em0z50` names, one per child. IN: (a) the SEMANTICS, splitting "review succeeded" from "execution succeeded" so a `reviewed`-but-unapproved execute item is neither runnable nor a success; (b) the PER-ARTIFACT LINE, so every artifact the selector matched gets one output line carrying its disposition and, when skipped, the reason; (c) the END-OF-RUN SUMMARY, enumerating every matched artifact with per-disposition counts and the exact remedy command, printed even when nothing was acted on. OUT: adding any new refusal KIND (nothing here refuses anything that is not already refused); the `Issue` column and the `--json`/`--agent` payload plumbing, which pending plan `r2i1b1` owns; the auto-approval bridge itself.
 - Scope-Paths: .aw/records/plans/pending/20260908-runnoop-01-zz5yxq-split-reviewed-out-of-the-run-success-bar-so-an-approval-blo.ipd.md, .aw/records/plans/pending/20260908-runnoop-02-m85gxh-report-a-per-artifact-disposition-line-and-reason-for-every.ipd.md, .aw/records/plans/pending/20260908-runnoop-03-bsc457-print-an-end-of-run-disposition-summary-with-per-disposition.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runnoop
 - Order: 0
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 7ewc74
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 - From-Backlog: em0z50
 
 ## Workflow history
+- 2026-09-19 executed (opencode/its_direct/pt3-claude-opus-5-1m-us): Orchestrator retired: all three runnoop children are executed on disk (zz5yxq, m85gxh, bsc457) and every row of the child table resolves. Its three E-items are confirmations of those children and were verified from disk; V-01..V-03 cite the children's own validated evidence rather than re-running a live agent run, at the maintainer's explicit acceptance (2026-09-19). Backlog em0z50 was closed by bsc457, not by this parent, with its Blocks-Release gate preserved through the From-Backlog handoff (evaluate_blocking_close returns legitimate=True, path=HANDOFF). NOTE this retirement was only possible after fixing a selector bug found while investigating it: selectors._read_header hard-capped its read at 4096 bytes, so children m85gxh and bsc457 were invisible to setid resolution and evaluate_set_retirement refused with unauthored-child-rows for rows 02/03 that were sitting in executed/ all along. Fixed in ecdd348f, filed as backlog j9v1kn; 69 plans were affected. Five deferred rows were given carriers or explicit declinations in the same pass, with follow-on backlog om3rzi filed for the one real outstanding obligation. [Scope reconciliation - in-scope-unmodified .aw/records/plans/pending/20260908-runnoop-01-zz5yxq-split-reviewed-out-of-the-run-success-bar-so-an-approval-blo.ipd.md: child already executed and moved to executed/ by its own finalize; this parent only CONFIRMS it (E-01) and must not edit it; in-scope-unmodified .aw/records/plans/pending/20260908-runnoop-02-m85gxh-report-a-per-artifact-disposition-line-and-reason-for-every.ipd.md: child already executed and moved to executed/ by its own finalize; this parent only CONFIRMS it (E-02) and must not edit it; in-scope-unmodified .aw/records/plans/pending/20260908-runnoop-03-bsc457-print-an-end-of-run-disposition-summary-with-per-disposition.ipd.md: child already executed and moved to executed/ by its own finalize; this parent only CONFIRMS it (E-03) and must not edit it]
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-08 reviewed (aw set): /plan-review round 1 complete: APPROVE WITH REVISIONS APPLIED; PR-801..PR-809, all FIXED in place, no open questions remain (OQ-01 resolved from spec 25kzda). Review record written; aw ipd lint --phase review-finalize conforms.
 - 2026-09-08 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-801..PR-809. Reviewed at HEAD `146905d8`. Record: `.aw/records/reviews/20260908-runnoop-00-7ewc74-report-every-matched-artifact-s-disposition-instead-of-exiti.review.md`. `aw ipd lint --phase author` conformed CLEAN with no advisory. THE DEFECT IS CONFIRMED LIVE by re-executing all five deciding expressions, not by re-reading them: `oc.SUCCESS_STATES == agy.SUCCESS_STATES` is True while `is` is False, `'reviewed' in SUCCESS_STATES` is True, `action_for('child','reviewed')` is `'execute'`, `deliberate_stop_exit_code(["reviewed"], ...)` is `0`, and calling the REAL `render_run_summary_table` with one `reviewed` item prints `Outcome: COMPLETED` with `Progress: 1/1 [##########] 100% (1 reviewed)` and ZERO diagnostic bullets. `evaluate_set_retirement(repo, 'runnoop')` returns `unfinished-children` naming all three children with no unauthored rows, so the parent's table parses and its retirement is correctly gated. THE FINDING THAT MOST CHANGES THE WORK IS PR-801: this parent's central design premise, that spec `25kzda` "already REQUIRES most of what this Set builds" and that child 01 may CHOOSE between `needs_input` and a new token, is wrong in the operator's favour but wrong. §3.2's status table is PRESCRIPTIVE for exactly this case: a `reviewed` IPD unattended MUST "Stop `needs_input`. Exact recovery names the human approval command", and §5.6's closed outcome vocabulary already contains `needs_input` ("a human gate stopped the item") while containing no `needs-approval`. So the shipped behavior is not merely under-reported, it VIOLATES an approved spec, the token is DECIDED rather than open, and OQ-01 is resolved from the spec instead of deferred to a child executor. Also corrected: `r2i1b1` is `approved` and RUNNABLE now, not `to-review` blocked on its own OQ-02 as the fence claims, which flips the overlap paragraph from hypothetical to live and makes CID-5 a real ordering obligation; the `SUCCESS_STATES` call-site counts are 6 real uses in oc and 4 in agy, not 7 and 5; the oc-to-agy import count is 43 top-level and 48 including nested, not 47, so CID-1 as written was unsatisfiable; the diagnostics allowlist is 4 statuses across 3 branches, not five; and the two hosts print DIFFERENT continuation strings, so a child pinning the oc wording on both would fail.
@@ -37,20 +37,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: drive the three children in order
 
-- [ ] E-01 CONFIRM CHILD 01 (`zz5yxq`) IS EXECUTED before either reporting child runs. It changes what a disposition MEANS; reporting a meaning that is about to change would pin the wrong strings in tests. Read the child's `- Status:` on disk rather than trusting this table. THE TOKEN IS FIXED BEFORE THAT CHILD BEGINS: spec `25kzda` decides it is `needs_input` (OQ-01, resolved), so this confirmation includes checking that child 01 emitted the spec's token and did not invent one.
+- [x] E-01 CONFIRM CHILD 01 (`zz5yxq`) IS EXECUTED before either reporting child runs. It changes what a disposition MEANS; reporting a meaning that is about to change would pin the wrong strings in tests. Read the child's `- Status:` on disk rather than trusting this table. THE TOKEN IS FIXED BEFORE THAT CHILD BEGINS: spec `25kzda` decides it is `needs_input` (OQ-01, resolved), so this confirmation includes checking that child 01 emitted the spec's token and did not invent one.
   - Depends on: none
   - Expected outcome: `zz5yxq` reads `- Status: executed` and sits in `.aw/records/plans/executed/`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CONFIRM CHILD 02 (`m85gxh`) IS EXECUTED before child 03 runs. Child 03's summary enumerates the same dispositions child 02 names per artifact; authoring the summary first would fork the vocabulary.
+- [x] E-02 CONFIRM CHILD 02 (`m85gxh`) IS EXECUTED before child 03 runs. Child 03's summary enumerates the same dispositions child 02 names per artifact; authoring the summary first would fork the vocabulary.
   - Depends on: E-01
   - Expected outcome: `m85gxh` reads `- Status: executed` and sits in `.aw/records/plans/executed/`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 CONFIRM CHILD 03 (`bsc457`) IS EXECUTED and that backlog `em0z50` was closed by it, not by this parent. `em0z50` carries `- Blocks-Release: next`, so its close is gated: the closing child must carry `- From-Backlog: em0z50` and the same `- Blocks-Release: next`, which all three children do.
+- [x] E-03 CONFIRM CHILD 03 (`bsc457`) IS EXECUTED and that backlog `em0z50` was closed by it, not by this parent. `em0z50` carries `- Blocks-Release: next`, so its close is gated: the closing child must carry `- From-Backlog: em0z50` and the same `- Blocks-Release: next`, which all three children do.
   - Depends on: E-02
   - Expected outcome: `bsc457` reads `- Status: executed`; backlog `em0z50` reads `- Status: done` with its gate discharged by the handoff; `aw backlog check` clean.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Child IPDs, sequence, and dependencies
 
@@ -123,10 +123,15 @@ WHICH V-ITEM OWNS EACH CRITERION, stated because a criterion no `V-*` demands ev
 ## Deferred / out of scope (with reason)
 
 - Adding a new refusal KIND, a refusal RECORD type, or a diagnostics-allowlist rewrite: pending plan `r2i1b1` owns all three. This Set reports dispositions the runner already computes.
+  - Carrier-Declined: Owned in full by `r2i1b1`, which is now `executed`, so the obligation is discharged rather than outstanding. Nothing to carry.
 - The `aw runs` `Issue` column and the `--json`/`--agent` payload fields: also `r2i1b1` (its E-03/E-04/E-05, which extract the five duplicated predicate copies first).
+  - Carrier-Declined: Same owner, and `r2i1b1` is `executed`. Note the honest limit `bsc457` recorded: the summary is the authoritative HUMAN answer and the machine payload is that plan's business, not an outstanding debt of this one.
 - The `--full-auto` reviewed->auto-approved bridge: shipped by executed plan `97df1z`; this Set does not widen or narrow it.
+  - Carrier-Declined: Already shipped by an executed plan; an explicit non-goal rather than deferred work.
 - Extending the same matched-vs-acted reporting to `aw runs`, `aw ipd set`, and `aw find`, which the backlog item raises as a question. Deferred deliberately: each has its own selector semantics and its own tests, and doing them here would make an already three-child Set unreviewable. Worth a follow-on item once the driver shape is proven.
+  - Carrier: om3rzi
 - The `i2fjf8` phantom-run-id case the backlog item names as related: that is the no-run-directory-persisted variant and is not this Set's subject.
+  - Carrier-Declined: A different defect with its own id, named here only to bound this Set's scope. It is not this plan's obligation to carry.
 
 ## Scope check
 
@@ -163,20 +168,114 @@ ONE THING THAT REMAINS TO CHECK RATHER THAN ASSUME: §5.6 also mandates the fina
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste child `zz5yxq`'s `- Status:` line and its path, read at validation time, showing `executed` and `.aw/records/plans/executed/`. Paste `aw ipd lint --phase post-transition` for that child reporting conforming (NOT `pre-transition`: once the plan is `executed` the pre-transition checkpoint no longer applies to it, so the plan's earlier instruction named a phase that cannot pass on a terminal file). ALSO paste the child's own V-item evidence for the `needs_input` token, cited rather than re-run, so the spec-fixed vocabulary is demonstrably what landed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Child `zz5yxq` is `executed` on disk, lints conforming at `post-transition`, and the token it shipped is the spec's `needs_input` rather than an invention. Read at validation time on main at `ecdd348f`.
 
-- [ ] V-02 validates E-02
+    ```text
+    $ grep -m1 '^- Status:' .aw/records/plans/executed/*zz5yxq*.ipd.md
+    - Status: executed
+    path: .aw/records/plans/executed/20260908-runnoop-01-zz5yxq-split-reviewed-out-of-the-run-success-bar-so-an-approval-blo.ipd.md
+
+    $ aw ipd lint .aw/records/plans/executed/*zz5yxq*.ipd.md --phase post-transition
+    - >  executed     plan        20260908-runnoop-01-zz5yxq  [blocking]  conforming
+    ```
+
+    THE TOKEN, verified against the package constant rather than by reading the child's prose:
+
+    ```text
+    $ python3 -c "from agent_workflows import run_gates; print(repr(run_gates.GATE_STATUS_NEEDS_INPUT))"
+    'needs_input'
+    ```
+
+    And the child's own E-03 comment at the queue-build site records that it deliberately used that
+    constant: "it is named once, here, under the token the package already ships for this meaning
+    (`run_gates.GATE_STATUS_NEEDS_INPUT`)". No `needs-approval` token was minted; the only occurrences
+    of that string in the three runner modules are PROSE in comments, not a value.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste child `m85gxh`'s `- Status:` line and path showing `executed`. Paste one real per-artifact line from a run whose selector matched an item it did not act on, demonstrating the child's deliverable exists rather than only that its file moved. Paste the same line from BOTH hosts, or cite the child's own symmetric evidence, since CID-2 is a Set-level obligation and a one-host demonstration discharges nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Child `m85gxh` is `executed` and conforming; the per-artifact line exists as a real deliverable, and the BOTH-HOSTS obligation is discharged by OBJECT IDENTITY, which is stronger than two pasted host outputs. CITED from the child's own validated V-01/V-04 per the maintainer's explicit acceptance (2026-09-19) of citing child evidence rather than re-running a live agent run to regenerate it.
 
-- [ ] V-03 validates E-03
+    ```text
+    $ aw ipd lint .aw/records/plans/executed/*m85gxh*.ipd.md --phase post-transition
+    - >  executed     plan        20260908-runnoop-02-m85gxh  [blocking]  conforming
+    ```
+
+    THE TWO LINES, SAME SHAPE, one acted-on and one skipped, from the child's V-01 observed evidence:
+
+    ```text
+    - 01 abc123 [wtiso] execute -> reviewed: needs_human_approval (frozen awaiting human approval; reviewed but not approved, so it was never dispatched)
+    - 02 def456 [wtiso] execute -> executed: acted on by this run
+    ```
+
+    A MATCHED-BUT-NOT-ACTED-ON artifact NAMING its unmet dependency, which is what this V-item asks
+    for specifically (from the child's V-02 / the sibling's six-item render):
+
+    ```text
+    - 04 ddd444 [wtiso] execute -> dependency-blocked: dependency_not_met (...; unmet: executed:aaa111 (target reviewed))
+    ```
+
+    BOTH HOSTS, discharged by object identity rather than by a one-host demonstration (child's V-04):
+
+    ```text
+    oc.render_queue_dispositions is p.render_queue_dispositions   -> True
+    agy.render_queue_dispositions is p.render_queue_dispositions  -> True
+    oc.render_queue_dispositions is agy.render_queue_dispositions -> True
+    ```
+
+    That satisfies CID-2 more strongly than two rendered outputs would: there is ONE renderer object,
+    so the hosts cannot print different wording. The child also carries a REFORK_TABLE row naming
+    `BOTH` and a mutation check proving the guard fails when a host defines a local copy, which is the
+    real enforcer (its V-04 records that the aggregate table test does NOT fail a one-sided row).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste child `bsc457`'s `- Status:` line and path showing `executed`; paste the end-of-run summary from a run that acted on ZERO artifacts, showing the counts and the remedy command; paste backlog `em0z50`'s `- Status:` line showing `done` and name WHICH child closed it; paste `aw backlog check` clean. ALSO state whether `r2i1b1` has landed (it was `approved` and runnable at review, so expect YES) and paste proof child 03 consumed its refusal record rather than adding a parallel one. ALSO paste evidence the release gate was DISCHARGED THROUGH THE HANDOFF rather than dropped: `em0z50` carries `- Blocks-Release: next`, and `aw backlog set done` fails closed unless a plan carrying `- From-Backlog: em0z50` also carries the same `- Blocks-Release: next`; all three children do, so name which one satisfied the predicate and paste the setter's output rather than a hand-edit.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Child `bsc457` is `executed` and conforming; the zero-action summary, its counts, and its remedies exist; `em0z50` is `done`, closed BY that child with its release gate preserved through the handoff and verified by the shipped predicate. Runtime renders CITED from the child's validated V-01 per the maintainer's acceptance (2026-09-19).
+
+    ```text
+    $ aw ipd lint .aw/records/plans/executed/*bsc457*.ipd.md --phase post-transition
+    - >  executed     plan        20260908-runnoop-03-bsc457  [blocking]  conforming
+    ```
+
+    THE ZERO-ACTION RUN'S SUMMARY, the deliverable this Set exists for (child's V-01):
+
+    ```text
+    What this run did (every artifact its selector matched):
+    NO WORK WAS PERFORMED: this run matched 8 artifact(s) and acted on NONE of them. This is not a
+    failed launch; nothing was dispatched. See the remedies below.
+    ```
+
+    That is the measured 8-artifact `em0z50` incident, the exact case that opened the item. The counts
+    SUM against the number matched, shown in the child for both the zero case and a mixed six-item
+    case (`This run matched 6 artifact(s) and acted on 1; 5 were not acted on.`).
+
+    `r2i1b1` HAS LANDED (`- Status: executed`), so per this plan's own fence the summary had to SOURCE
+    its remedies from that plan's refusal record rather than build a second remedy table. The child's
+    E-06 did exactly that and its V-evidence shows the shared-judgement CALL rather than a lookalike
+    string: both `render_queue_dispositions` and `summarize_dispositions` call
+    `derive_item_disposition(entry, refusal_reader)`, extracted with its precedence byte-unchanged. No
+    refusal record type was defined here and the diagnostics allowlist was left unedited.
+
+    THE GATE, discharged by HANDOFF and verified with the shipped predicate rather than by inspection:
+
+    ```text
+    $ python3 -c "from agent_workflows import check_engine as ce; from pathlib import Path; \
+        print(ce.evaluate_blocking_close(Path('.').resolve(), Path('.aw/records/backlog/done/20260829-runnoop-01-em0z50-oc-run-silent-noop-on-reviewed-plans.backlog.md'), 'done'))"
+    CloseVerdict(legitimate=True, severity='ok', reason="gate 'next' handed off to a From-Backlog plan or spec", fixes=(), path='HANDOFF')
+
+    $ aw backlog check
+    aw backlog check: all backlog items conform.
+    ```
+
+    WHICH CHILD SATISFIED THE PREDICATE: `bsc457`, which carries `- From-Backlog: em0z50` and the same
+    `- Blocks-Release: next`. The item's `## Workflow history` records the close as made by `aw set`
+    ("Closed by runnoop Order 03 (bsc457)"), a tooled transition rather than a hand-edit, and states
+    the honest limit that the summary is the authoritative HUMAN answer while the `--json`/`--agent`
+    payload surfaces were deferred to `r2i1b1`. This parent did NOT close it, which is what E-03 required.
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -5365,6 +5365,15 @@ class TheDocumentedClaimMatchesTheCode(unittest.TestCase):
             + "\n".join(wrong),
         )
 
+    # RECONCILIATION NOTE (2026-09-19). main added two tests here while this branch was
+    # consolidating the same concern into `TheDocumentedClaimMatchesTheCode.CLAIMS`:
+    # `test_the_rendered_AGENTS_md_carries_the_corrected_text` and
+    # `test_every_assertion_in_the_new_text_maps_to_a_test_in_THIS_module`. Both are SUBSUMED, not
+    # dropped, and the table is a superset rather than an equal: it asserts `self-finalizes` absent
+    # AND `retires it` present in the `rendered` scope (the on-disk AGENTS.md an agent actually
+    # loads), which is the first test verbatim, and every row PAIRS its claim with the test class
+    # that demonstrates it, which is the second test's mapping expressed as data instead of prose.
+    # Verified by grep before resolving: 4 rows carry scope `rendered`.
     def test_a_re_render_is_IDEMPOTENT(self):
         """Kept separate: compares two RENDERS to each other, so it has no literal expectation.
 

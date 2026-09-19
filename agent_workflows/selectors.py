@@ -317,21 +317,73 @@ def _read_setid(text: str) -> str | None:
 
 # PERF (awfindperf): selector matching only ever consults the front-matter bullets
 # (`- Id:`, `- Status:`, `- Set:`) via _read_id/_read_status/_read_setid, which live in the
-# first handful of lines. Reading whole files (some are multi-hundred-KB records) dominated
-# `aw find`. We read a bounded header instead. The cap is generous enough to cover a long
-# metadata block plus a `## Workflow history` preamble.
-_HEADER_BYTES = 4096
+# metadata block at the top of a record. Reading whole files (some are multi-hundred-KB
+# records) dominated `aw find`, so we read a bounded prefix instead.
+#
+# THE CHUNK IS A READ QUANTUM, NOT A CAP, AND THAT DISTINCTION IS THE WHOLE BUG FIX.
+# This was `_HEADER_BYTES = 4096` used as a HARD CAP: one 4096-byte read, and any bullet past
+# that byte offset was INVISIBLE. That is not a hypothetical. Measured 2026-09-19 on this repo:
+# 72 plans carry `- Set:`/`- Id:`/`- Status:` past byte 4096, the worst at 9769, because a long
+# `- Concern:` or `- Scope:` paragraph precedes them in the SAME metadata block. The failure was
+# SILENT AND SUBTRACTIVE: `selectors.resolve` returned a SMALLER match set rather than an error,
+# so a setid resolved to some of its members and nothing reported the shortfall.
+#
+# THE CONCRETE INCIDENT THIS FIX CLOSES: Set `runnoop`'s children `m85gxh` (`- Set:` at byte
+# 5313) and `bsc457` (5731) were invisible to `resolve(..., MATCH_SETID)`, so
+# `read_set_membership` saw ONE child instead of three, and `evaluate_set_retirement` refused
+# the orchestrator `7ewc74` with `unauthored-child-rows` for rows `02`/`03` that were sitting on
+# disk, `executed`, all along. A parent that can never retire, from a truncated read.
+#
+# WHY SCANNING TO THE END OF THE METADATA BLOCK IS THE RIGHT BOUND rather than a bigger number:
+# any fixed cap is the same bug with a higher threshold, and the corpus grows. The block ends at
+# the first line that is neither a `- ` bullet, nor a continuation line indented under one, nor
+# blank, nor the leading `# ` title (in practice the first `## ` heading). That is a STRUCTURAL
+# bound, so it cannot be outgrown. We still never page in a record BODY: reading stops at the
+# first heading, which for these records is within a few KB even when the metadata is long.
+_HEADER_CHUNK_BYTES = 4096
+# Stop growing the prefix at some point even if a pathological file never presents a heading, so
+# a malformed record cannot make this read an entire multi-hundred-KB body. Chosen an order of
+# magnitude above the largest real metadata block measured here (9769 bytes).
+_HEADER_MAX_BYTES = 262144
+
+_METADATA_END_RE = re.compile(r"(?m)^#{2,}\s")
+
+
+def _metadata_region_complete(chunk: str) -> bool:
+    """True when `chunk` provably contains the WHOLE metadata block.
+
+    The block is terminated by the first `##`+ heading (records open with a single `# ` title,
+    then the `- Key: value` bullets, then `## Workflow history` or another section). Seeing such a
+    heading means every bullet that exists is already in `chunk`, so no further read can add one.
+    """
+
+    return _METADATA_END_RE.search(chunk) is not None
 
 
 def _read_header(p: Path) -> str | None:
-    """Read at most _HEADER_BYTES of a record file; None if unreadable.
+    """Read enough of a record to contain its entire metadata block; None if unreadable.
 
-    Front-matter bullets are always near the top, so a bounded read is sufficient for
-    id6/status/setid extraction and avoids paging in large record bodies.
+    Reads in `_HEADER_CHUNK_BYTES` steps and stops as soon as the metadata region is provably
+    complete (a `##` heading has been seen), at EOF, or at `_HEADER_MAX_BYTES`. The common case
+    costs exactly one read, identical to the previous behavior; only a record whose metadata
+    block is genuinely longer than one chunk pays for a second.
+
+    Returning a SHORT read is what silently broke setid/status resolution for 72 plans (see the
+    note above), so the bound here is structural rather than a byte count.
     """
     try:
         with p.open("r", encoding="utf-8", errors="replace") as fh:
-            return fh.read(_HEADER_BYTES)
+            chunk = fh.read(_HEADER_CHUNK_BYTES)
+            if not chunk:
+                return chunk
+            while (
+                not _metadata_region_complete(chunk) and len(chunk) < _HEADER_MAX_BYTES
+            ):
+                more = fh.read(_HEADER_CHUNK_BYTES)
+                if not more:
+                    break
+                chunk += more
+            return chunk
     except OSError:
         return None
 

@@ -49,6 +49,14 @@ from agent_workflows.run_selection_policy import (
     render_queue_dispositions as render_queue_dispositions,
 )
 
+# runnoop Order 03 (`bsc457`) E-03: the END-OF-RUN DISPOSITION SUMMARY. Imported from the OWNING module
+# directly, never from `oc_runipd`, on exactly the terms the note above states: the oc-to-agy import
+# count must not deepen for a symbol a third module owns, and the refork guard pins both hosts to the
+# SAME object.
+from agent_workflows.run_selection_policy import (
+    render_disposition_summary as render_disposition_summary,
+)
+
 # rununify 01 (`2r306y`): the rest of the display layer this module used to RE-FORK. `Palette`,
 # `_strip_ansi`, `_one_line` and the four ANSI/status constants their bodies close over were
 # inline copies here, AST-identical to `render_stream`'s, for exactly the reason `Heartbeat`
@@ -3604,6 +3612,19 @@ def run_queue(
     # `report_run_spec_edits` the OpenCode driver calls. The report's computation and wording are
     # defined once (in `oc_runipd`/`render_stream`); only the SITE is per-driver.
     report_run_spec_edits(state)
+    # runnoop Order 03 (`bsc457`) E-03: THE CLOSING DISPOSITION SUMMARY, the exact mirror of the oc
+    # twin and printed UNCONDITIONALLY, including for a run that acted on nothing - the case that
+    # previously closed with a sentence reading as a failed launch beneath a table saying COMPLETED.
+    # Unconditional follows `announce_run_order`'s established precedent; the block sits at the END and
+    # is self-contained (this plan's OQ-01) because readers pipe runner output through `tail`. Placed
+    # BEFORE the continuity footer, since that footer is session plumbing rather than the answer to
+    # "what did this run do?". The wording and the remedy table come from the pure
+    # `run_selection_policy` module, imported DIRECTLY by this host, and `refusal_of_item` is
+    # `orchprobe` `r2i1b1`'s ONE reader, so a recorded refusal's own remedy is SOURCED, not copied.
+    for _summary_line in render_disposition_summary(
+        state.get("queue", []), refusal_reader=refusal_of_item
+    ):
+        print(_summary_line)
     hint = render_continuation_hint(state, run_dir)
     print(hint)
     state["_summary_table_printed"] = True

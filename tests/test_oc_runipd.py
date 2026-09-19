@@ -1974,6 +1974,87 @@ class ContinuationHintTests(unittest.TestCase):
         self.assertIn("aw oc run resume --repo /repo run-xyz", hint)
         self.assertNotIn("aw runs", hint)
 
+    def test_an_unattempted_run_is_distinguished_from_a_failed_LAUNCH(self):
+        """runnoop Order 03 (`bsc457`) E-04: two different facts, two different sentences.
+
+        `No OpenCode session was captured for this run.` describes a launch that FAILED. Measured
+        (backlog `em0z50`): `aw oc run wtiso` matched 8 approval-frozen plans, dispatched nothing, and
+        closed with exactly that sentence, so an operator reasonably began debugging the launcher when
+        the real fix was an approval. Both cases are asserted here so the distinction cannot be lost by
+        editing one of them.
+        """
+        unattempted = driver.render_continuation_hint(
+            self._state(
+                {},
+                queue=[{"status": "reviewed", "action": "execute", "attempts": []}],
+            ),
+            Path("/x"),
+        )
+        self.assertIn("No turn was attempted", unattempted)
+        self.assertIn("This is NOT a failed launch", unattempted)
+        self.assertNotIn("No OpenCode session was captured", unattempted)
+
+        # The sibling tests above cover the other direction (a `failed` item keeps the original
+        # sentence), which is what makes this a distinction rather than a rename.
+        self.assertIn(
+            "No OpenCode session was captured",
+            driver.render_continuation_hint(
+                self._state({}, queue=[{"status": "failed"}]), Path("/x")
+            ),
+        )
+
+    def test_the_no_turn_claim_FAILS_CLOSED_rather_than_guessing(self):
+        """Claiming "nothing was attempted" about a run that DID attempt one is an affirmative lie.
+
+        Falling back to the older, vaguer sentence merely fails to ADD information, so the asymmetry in
+        cost decides the default. THIS TEST EXISTS BECAUSE THE FIRST IMPLEMENTATION GOT IT WRONG: a
+        predicate reading only `attempts` called a bare `{"status": "failed"}` unattempted, since that
+        shipped fixture carries no `attempts` key at all.
+        """
+        # A status proving dispatch, with NO attempts key -> the cautious sentence.
+        for status in ("failed", "running", "interrupted", "partial", "merge-conflict"):
+            hint = driver.render_continuation_hint(
+                self._state({}, queue=[{"status": status}]), Path("/x")
+            )
+            self.assertIn("No OpenCode session was captured", hint, status)
+            self.assertNotIn("No turn was attempted", hint, status)
+        # A recorded attempt, whatever the status -> the cautious sentence.
+        attempted = driver.render_continuation_hint(
+            self._state({}, queue=[{"status": "reviewed", "attempts": [{"n": 1}]}]),
+            Path("/x"),
+        )
+        self.assertIn("No OpenCode session was captured", attempted)
+        # An EMPTY queue is not evidence of anything -> the cautious sentence.
+        self.assertIn(
+            "No OpenCode session was captured",
+            driver.render_continuation_hint(self._state({}, queue=[]), Path("/x")),
+        )
+        # A malformed entry cannot be shown NOT to have run, asserted on THIS PLAN'S PREDICATE rather
+        # than through the footer. Rendering the footer with such a queue raises today, in the
+        # PRE-EXISTING `all_success` line (`item_reached_success` calls `.get` on the entry
+        # unconditionally); that crash is outside this plan's fence, is reported as a defect rather than
+        # silently fixed here, and asserting through the footer would couple this test to it.
+        from agent_workflows import runner_shared
+
+        self.assertFalse(
+            runner_shared.no_turn_was_attempted(
+                {"queue": ["not-a-mapping"], "run_id": "r", "repo": "."}
+            )
+        )
+        # And ONE dispatched item among many unattempted ones still blocks the claim.
+        mixed = driver.render_continuation_hint(
+            self._state(
+                {},
+                queue=[
+                    {"status": "reviewed", "attempts": []},
+                    {"status": "failed-safely", "attempts": [{"n": 1}]},
+                ],
+            ),
+            Path("/x"),
+        )
+        self.assertIn("No OpenCode session was captured", mixed)
+        self.assertNotIn("No turn was attempted", mixed)
+
     def test_single_session_success(self):
         """The FIXTURE changed from `reviewed` to `executed` (`runnoop` Order 01, `zz5yxq` E-07).
 
@@ -6592,6 +6673,131 @@ class PerArtifactDispositionLineTests(unittest.TestCase):
         for label in pol.SKIP_REASON_LABELS.values():
             self.assertNotIn(label, src)
         self.assertIs(driver.render_queue_dispositions, pol.render_queue_dispositions)
+
+
+class EndOfRunDispositionSummaryTests(unittest.TestCase):
+    """runnoop Order 03 (`bsc457`) E-05: the CLOSING SUMMARY, asserted on ACTUAL rendered stdout.
+
+    ASSERTED ON OUTPUT, NOT ON THE DATA STRUCTURE, because the measured defect was that nothing was
+    PRINTED. Backlog `em0z50`: `aw oc run wtiso` matched 8 plans, acted on none, and the closing words
+    an operator reacted to were `No OpenCode session was captured for this run.` beneath a summary
+    table reading `Outcome: COMPLETED` at 100%. A test on `summarize_dispositions`' return value would
+    pass with the print statement deleted, which is precisely the regression this class must catch (the
+    mutation check recorded in the plan's V-05 proves it can).
+    """
+
+    def _run_and_capture(self, queue: list) -> str:
+        """Drive the REAL `run_queue` over a queue nothing can dispatch, and return its stdout."""
+
+        def _must_not_launch(*_a, **_k):
+            raise AssertionError(
+                "an agent turn was dispatched for an item that must never be dispatched"
+            )
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            run_dir = _make_run_dir(root, queue)
+            buf = io.StringIO()
+            with (
+                mock.patch.object(driver, "run_opencode", _must_not_launch),
+                contextlib.redirect_stdout(buf),
+            ):
+                driver.run_queue(run_dir, retry_incomplete=False)
+            return buf.getvalue()
+
+    @staticmethod
+    def _entry(position: int, id6: str, **over) -> dict:
+        entry = {
+            "position": position,
+            "id6": id6,
+            "setid": "wtiso",
+            "configured_file": ".aw/records/plans/pending/p.ipd.md",
+            "kind": "child",
+            "action": "execute",
+            "status": "reviewed",
+            "attempts": [],
+            "dependencies": [],
+        }
+        entry.update(over)
+        return entry
+
+    def test_a_run_that_acted_on_ZERO_artifacts_still_prints_the_summary(self):
+        """THE MEASURED INCIDENT: the zero-action case is precisely the one that printed no answer."""
+        from agent_workflows import run_selection_policy as pol
+
+        queue = [self._entry(i, "id%04d" % i, needs_input=True) for i in range(1, 9)]
+        out = self._run_and_capture(queue)
+        self.assertIn(pol.SUMMARY_HEADER, out)
+        # The honest verdict, where the table says COMPLETED at 100% for this same queue.
+        self.assertIn("NO WORK WAS PERFORMED", out)
+        self.assertIn("matched 8 artifact(s) and acted on NONE", out)
+
+    def test_the_printed_counts_sum_to_the_number_of_matched_artifacts(self):
+        """Parsed back OUT of the rendered text, so the assertion is about what an operator sees."""
+        import re
+
+        from agent_workflows import run_selection_policy as pol
+
+        queue = [
+            self._entry(1, "aaa111", needs_input=True),
+            self._entry(2, "bbb222", status="executed"),
+            self._entry(3, "ccc333", status="not-attempted"),
+            self._entry(4, "ddd444", status="queued", dependencies=["executed:aaa111"]),
+        ]
+        out = self._run_and_capture(queue)
+        block = out[out.index(pol.SUMMARY_HEADER) :].splitlines()
+        counted = 0
+        for line in block:
+            match = re.match(r"^  (\S+) \((\d+)\)", line)
+            if match:
+                counted += int(match.group(2))
+        self.assertEqual(counted, len(queue))
+        self.assertIn(f"total: {len(queue)} matched,", out)
+
+    def test_each_actionable_disposition_prints_its_remedy(self):
+        """A count without a remedy tells an operator they are stuck (`AGENTS.md`'s recorded rule)."""
+        out = self._run_and_capture(
+            [
+                self._entry(1, "aaa111", needs_input=True),
+                self._entry(2, "ccc333", status="not-attempted"),
+            ]
+        )
+        self.assertIn("remedy:", out)
+        # The exact remedy the backlog item names for the measured case, verified against `aw ipd set --help`.
+        self.assertIn("aw ipd set approved <id6> --by-human", out)
+        # `--full-auto` must not be overstated: it is an AUTOMATED clear, not human approval.
+        self.assertIn("NOT human approval", out)
+
+    def test_a_terminal_disposition_prints_no_fabricated_remedy(self):
+        """`executed` is correct and needs no remedy; inventing one would be noise."""
+        from agent_workflows import run_selection_policy as pol
+
+        out = self._run_and_capture([self._entry(1, "bbb222", status="executed")])
+        block = out[out.index(pol.SUMMARY_HEADER) :]
+        self.assertIn("ipd_already_executed (1)", block)
+        self.assertNotIn("remedy:", block)
+        self.assertNotIn(pol.REMEDY_UNKNOWN_TEXT, block)
+
+    def test_the_footer_says_no_turn_was_attempted_instead_of_implying_a_failed_launch(
+        self,
+    ):
+        """E-04: the sentence that reads as a launch failure, for a run that launched nothing."""
+        out = self._run_and_capture([self._entry(1, "aaa111", needs_input=True)])
+        self.assertIn("No turn was attempted", out)
+        self.assertIn("This is NOT a failed launch", out)
+        self.assertNotIn("No OpenCode session was captured for this run.", out)
+
+    def test_the_summary_wording_comes_from_the_pure_module_and_not_from_this_driver(
+        self,
+    ):
+        """The driver must hold NO copy of the summary vocabulary or the remedies (the anti-fork rule)."""
+        from agent_workflows import run_selection_policy as pol
+
+        src = Path(str(driver.__file__)).read_text(encoding="utf-8")
+        self.assertNotIn(pol.SUMMARY_HEADER, src)
+        for remedy in pol.DISPOSITION_REMEDIES.values():
+            self.assertNotIn(remedy, src)
+        self.assertIs(driver.render_disposition_summary, pol.render_disposition_summary)
 
 
 if __name__ == "__main__":

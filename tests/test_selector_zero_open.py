@@ -245,18 +245,72 @@ class FrontMatterRulesStillReadBoundedTests(_Fixture):
         self.assertGreater(c.count, 0)
 
     def test_header_read_is_bounded(self) -> None:
-        """The read is capped, so a huge record body is never paged in to match front matter."""
-        self.assertEqual(selectors._HEADER_BYTES, 4096)
+        """The read is bounded, so a huge record body is never paged in to match front matter.
+
+        The bound is STRUCTURAL (stop at the first `##` heading), not a byte cap; see
+        `test_header_read_reaches_a_bullet_past_one_chunk` for why a cap was a bug. This asserts
+        the body is not paged in: a 400KB record whose metadata ends normally costs one chunk.
+        """
+        self.assertEqual(selectors._HEADER_CHUNK_BYTES, 4096)
         big = self.pend / "20260101-demo-98-cc0098-huge.ipd.md"
         big.write_text(
-            "# IPD\n\n- Id: cc0098\n- Status: draft\n- Set: demo\n\n" + ("x" * 400_000),
+            "# IPD\n\n- Id: cc0098\n- Status: draft\n- Set: demo\n\n"
+            "## Workflow history\n\n" + ("x" * 400_000),
             encoding="utf-8",
         )
         text = selectors._read_header(big)
         self.assertIsNotNone(text)
         assert text is not None
-        self.assertLessEqual(len(text), selectors._HEADER_BYTES)
+        self.assertLessEqual(len(text), selectors._HEADER_CHUNK_BYTES)
         self.assertEqual(selectors._read_id(text), "cc0098")
+
+    def test_header_read_reaches_a_bullet_past_one_chunk(self) -> None:
+        """A `- Set:` beyond the first chunk MUST still be found (the 4096-byte truncation bug).
+
+        REGRESSION PIN for the measured incident: 72 plans in this repository carry a metadata
+        bullet past byte 4096 because a long `- Concern:` paragraph precedes it, and the old
+        hard-capped read made them invisible to setid/status resolution. `runnoop`'s children
+        `m85gxh` (byte 5313) and `bsc457` (5731) were dropped from their own Set, so the
+        orchestrator `7ewc74` could never retire. The failure was silent and subtractive: a
+        smaller match set, never an error.
+        """
+        long_concern = "- Concern: " + ("prose " * 1200) + "\n"
+        self.assertGreater(len(long_concern), selectors._HEADER_CHUNK_BYTES)
+        deep = self.pend / "20260101-demo-97-cc0097-late-bullets.ipd.md"
+        deep.write_text(
+            "# IPD\n\n"
+            + long_concern
+            + "- Id: cc0097\n- Status: approved\n- Set: latedemo\n\n"
+            "## Workflow history\n\n- 2026-01-01 draft: created.\n",
+            encoding="utf-8",
+        )
+        text = selectors._read_header(deep)
+        self.assertIsNotNone(text)
+        assert text is not None
+        self.assertEqual(selectors._read_id(text), "cc0097")
+        self.assertEqual(selectors._read_status(text), "approved")
+        self.assertEqual(selectors._read_setid(text), "latedemo")
+
+        got = selectors.resolve(
+            self.root, "plans", "latedemo", allow=frozenset({selectors.MATCH_SETID})
+        )
+        self.assertEqual(
+            [p.resolve() for p in got.paths],
+            [deep.resolve()],
+            "a setid declared past the first read chunk must still resolve",
+        )
+
+    def test_header_read_stops_at_the_hard_ceiling(self) -> None:
+        """A malformed record that never presents a heading cannot force an unbounded read."""
+        runaway = self.pend / "20260101-demo-96-cc0096-noheading.ipd.md"
+        runaway.write_text(
+            "# IPD\n\n- Id: cc0096\n" + ("- Filler: " + "y" * 200 + "\n") * 4000,
+            encoding="utf-8",
+        )
+        text = selectors._read_header(runaway)
+        self.assertIsNotNone(text)
+        assert text is not None
+        self.assertLessEqual(len(text), selectors._HEADER_MAX_BYTES)
 
 
 class EnumerationsAgreeTests(_Fixture):

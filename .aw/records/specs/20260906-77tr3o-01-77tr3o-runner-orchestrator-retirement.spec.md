@@ -14,6 +14,7 @@
 
 ## Workflow history
 
+- 2026-09-19 note (aw specs): R-12 ADDED by orchprobe-03 (m7gvuz): R-5's premise must be CHECKED before a run relies on it. R-5 chose shape (b), a rollup that skips the pre-transition E/V checkpoint, on the premise that an orchestrator's items are performed by nobody; that premise is true of a parent holding only orchestration and FALSE of one holding work no child covers, and nothing established which was in front of it. It was falsified in production 2026-09-08 when aw oc run retired rh5tt6 (commit 8b4e1570, message: 'Its own E-*/V-* items were NOT performed') with its E-02 still 'Execution state: pending' and V-02 blank. R-12 requires the run to establish coverage for every QUEUED orchestrator before any agent turn, worktree or session, and states three properties following from R-5: fail closed on a DELIVERED answer (with availability the one exception, a could-not-ask being retried then warned past with a durable hole record); the refusal names ADD A CHILD and is never a bare prohibition, because a prohibition-only message gets complied with by deleting the checklist that makes non-runner execution complete; and shape (a) stays REJECTED, so ipd_lint.py remains Kind-unaware. The mechanism itself is specified in 25kzda 2.5b. Also added to Section 4: the backfill of orchestrators carrying this debt today is OUT of scope, and the honest consequence is that the first runs after this lands will refuse on them.
 - 2026-09-06 note (aw specs): OQ-1 and OQ-2 RESOLVED by the maintainer 2026-09-06, both recorded in Section 5 with the rejected option and its reason. OQ-1: shape (b), a SEPARATE runner-owned rollup transition; ipd_lint.py is NOT to be modified, because teaching the honesty checker a narrow exception is how it stops protecting anything. Accepted cost: two paths can drift, so the rollup must keep every gate except the E/V checkpoint and a test must pin that. OQ-2: parse the orchestrator's own Child IPDs table and refuse on any unresolved row; no new metadata field, so nothing needs backfilling; any non-numeric or unparseable row (5e4sb6's is literally '03+') must refuse, whose worst case is a false refusal (status quo) not a false retirement. Child ueg5cf reworked accordingly: ipd_lint.py dropped from its Scope-Paths and its OQ-01 closed.
 ## 1. Why this exists
 
@@ -196,6 +197,45 @@ so the asymmetry is known in passing but unfixed.
 - R-11 THE DOCUMENTED CLAIM MUST MATCH THE CODE. `AGENTS.md:42` asserts self-finalization works today.
   It must be corrected in the same change that makes it true, and must not be corrected to a NEW
   overstatement.
+- R-12 R-5's PREMISE MUST BE CHECKED BEFORE A RUN RELIES ON IT, NOT ASSUMED. Added 2026-09-19 by
+  orchprobe-03 (`m7gvuz`). R-5 was resolved as shape (b), a runner-owned rollup that SKIPS the
+  pre-transition E/V checkpoint, and OQ-1 records the premise that licenses that skip: an
+  orchestrator's own `E-*`/`V-*` items are "performed by nobody", so there is nothing for the
+  checkpoint to verify. THAT PREMISE IS TRUE OF AN ORCHESTRATOR HOLDING ONLY ORCHESTRATION AND FALSE OF
+  ONE HOLDING WORK NO CHILD COVERS, and until this requirement nothing established which kind was in
+  front of it. The premise was falsified IN PRODUCTION on 2026-09-08: `aw oc run` retired `rh5tt6` as a
+  rollup (commit `8b4e1570`, whose message states plainly "Its own `E-*`/`V-*` items were NOT
+  performed") while its E-02 - a repo-wide suite run, leak sanitization and an end-to-end install proof
+  the plan itself calls "the part no child owns" - still read `Execution state: pending` with a blank
+  V-02. So a parent-only deliverable was marked complete having been neither performed nor verified,
+  which is exactly the outcome R-5 intended to make impossible.
+
+  THEREFORE: before a run spends an agent turn, allocates a lane worktree, or opens a session, it MUST
+  establish for every orchestrator IN ITS QUEUE whether that orchestrator carries work no child
+  covers, and MUST refuse (unattended) or prompt (interactive) when it does. The check is specified in
+  spec `25kzda` Section 2.5b, which owns its mechanism, its caching, its four-state answer, and its
+  override; this requirement is what makes it OWED rather than optional, and states the three
+  properties that follow from R-5 specifically:
+
+  1. FAIL CLOSED ON A DELIVERED ANSWER. An answer that arrived and cannot be used blocks exactly as a
+     positive finding does, because silence must stop meaning safe. The ONE exception is availability:
+     a could-not-ask (unreachable host, missing binary, timeout, rate limit) is retried and then
+     WARNED PAST with the resulting hole recorded durably, so a model outage cannot halt a run.
+  2. THE REFUSAL NAMES THE CONSTRUCTIVE ACTION, which is to ADD A CHILD that owns the work. It MUST
+     NOT be phrased as a bare prohibition: a message saying only that an orchestrator may not contain
+     executions gets complied with by DELETING the parent's checklist, and that checklist is what
+     makes `execute <setid>` complete and ordered when no runner is involved. Deleting it causes the
+     lost work this spec exists to prevent.
+  3. THE CHECK IS NOT A LINTER RULE, AND R-5's REJECTION OF SHAPE (a) STANDS UNCHANGED. `ipd_lint.py`
+     remains Kind-unaware and must continue to contain zero occurrences of "orchestrator". Two
+     independent reasons: the dangerous case is stated in PROSE and matches no syntax, so a pattern
+     match catches only the tidy mistake; and measured over the live corpus every plan carrying
+     `- Kind: orchestrator` carries checklist items, most of them legitimate orchestration, so a
+     syntactic rule's false positives would drive exactly the deletion (2) forbids.
+
+  An override exists for a maintainer who accepts the risk deliberately, and it MUST record a
+  JUSTIFICATION rather than a bare boolean: the risk accepted is that a parent's items will be
+  reported complete unperformed, and a record that says only "someone allowed this" cannot be audited.
 
 ## 4. Deliberately out of scope
 
@@ -210,6 +250,13 @@ so the asymmetry is known in passing but unfixed.
 - Retiring the four orchestrators currently stuck in `pending/` (`rh5tt6`, `h0zljh`, `5e4sb6`,
   `3m0urk`). Only `rh5tt6` is a candidate under this spec's rules; `5e4sb6` fails R-3, and `h0zljh`
   and `3m0urk` fail R-2. Doing it is a consequence of the fix, not part of the mechanism.
+
+- The BACKFILL of existing orchestrators that R-12's check flags. R-12 gates a RUN; it does not
+  retroactively fix a parent already carrying uncovered work, and deciding whether each such parent
+  needs a new child is per-Set authoring work rather than mechanism. The honest consequence, stated
+  rather than discovered: the first runs after R-12 lands will refuse on the orchestrators that carry
+  this debt today, and the remedy is to author the missing children, never to delete the parents'
+  checklists.
 
 ## 5. Open questions
 
