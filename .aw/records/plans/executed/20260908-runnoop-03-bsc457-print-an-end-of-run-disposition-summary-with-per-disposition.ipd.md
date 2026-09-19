@@ -13,18 +13,18 @@
 - Scope: Print an end-of-run DISPOSITION SUMMARY that enumerates every matched artifact with per-disposition counts and, for each actionable disposition, the exact remedy command; print it even when zero artifacts were acted on; and stop the continuation footer from implying a turn was attempted when none was. EXCLUDES the per-artifact line itself (child 02 `m85gxh`, which owns the vocabulary this summary aggregates); excludes any new refusal kind or refusal RECORD type and the existing `render_stream` diagnostics allowlist (pending plan `r2i1b1`); excludes the `aw runs` `Issue` column and the `--json`/`--agent` payloads (also `r2i1b1`); excludes changing any disposition's MEANING (child 01 `zz5yxq`).
 - Scope-Paths: agent_workflows/run_selection_policy.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_run_selection_policy.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_refork_guard.py
 - Item-Dependencies: executed:m85gxh
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runnoop
 - Order: 3
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: bsc457
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 - From-Backlog: em0z50
 
 ## Workflow history
+- 2026-09-19 executed (aw oc run): aw oc run self-finalize: bsc457 verified (set runnoop, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/runner_shared.py: changed by the plan's approved execution (auto-reconciled by aw oc run)]
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1 (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301..PR-310 all FIXED, both OQs resolved from evidence. Record: .aw/records/reviews/20260908-runnoop-03-bsc457-...review.md. THE BLOCKER RE-AIMS THE PLAN (PR-301): the Concern's claim that a zero-action run's ONLY closing output was the session sentence is FALSE. Rendering the real render_run_summary_table with one reviewed/zero-attempt item already prints a bordered table with a per-artifact row, a 'Progress: 1/1 100% (1 reviewed)' count line and a totals row, so E-01's authored deliverable ('a line per matched artifact and a per-disposition count line') was a description of the SHIPPED TABLE and an executor could pass V-01 by building a duplicate. Re-aimed onto the three things the table genuinely lacks: reason, remedy, honest zero-work verdict; V-01 now requires pasting the table's render beside the new block and naming the difference. PR-302 (HIGH): E-04 called the two hosts' sentences twins and demanded identical changes, but agy says 'No Antigravity session was captured' where oc says OpenCode, so a literal copy would put the wrong product name in agy's output. PR-303 (HIGH): E-05's enforcement claim is false (test_the_table_covers_both_runners checks only the table's aggregate; 4 of 46 rows are one-sided and pass), and it commanded an edit to tests/test_runner_refork_guard.py which was undeclared; path added, requirement moved onto its own mutation check. PR-304: status_summary_str is a LOCAL VARIABLE, not a reusable aggregation helper. PR-305: the baseline was wrong in both halves (bare run is 1 failed 5919 passed, and test_orchestrator_retirement is GREEN at 112 passed; the real failure is the environmental reporting-contract case). PR-306: all eight code anchors had drifted. PR-307/308: OQ-01 resolved end-only-and-self-contained from the maintainer's r2i1b1 OQ-01 four-place ruling, and OQ-02 resolved NO since its three-plan premise shrank to two (xtklpd is superseded). PR-309: the oc-to-agy import count is 48, not 47. PR-310: r2i1b1 is APPROVED with no dependencies, so it is the likely FIRST lander and its refusal record must be checked before E-02 authors remedy data. NOTE five of these ten defects were already found and fixed in sibling m85gxh's review and were not propagated here. Lint conforming at author and review-finalize; four decisions recorded, all reversible.
 
