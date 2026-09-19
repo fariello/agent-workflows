@@ -1,5 +1,5 @@
 - Id: nyz8dt
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: nyz8dt
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: Unify the three divergent should_color implementations and stop FORCE_COLOR=0 forcing color on
 
 ## Workflow history
+- 2026-09-19 graduated (aw set): Converted into lifeglyph child z8ddk0 on the maintainer's instruction 2026-09-19, after the three reasons for keeping it standalone were re-examined and two were found false. The gate travels with the plan, which carries Blocks-Release: next and Work-Kind: bug.
 - 2026-09-19 created (aw backlog): Filed from the lifeglyph pow5sj OQ-02 investigation; carries the maintainer's 2026-09-19 ruling on NO_COLOR/FORCE_COLOR semantics.
 
 ## The defect
@@ -103,10 +104,24 @@ It must NOT mean "suppress", which would make it a second `NO_COLOR`.
   including over a pipe and `TERM=dumb`). That plan should consume this item's env-var rules so flags
   and variables land on one precedence chain. Sequencing this after `yaxr4i` avoids writing the
   resolver twice.
-- **`pow5sj`** (plan, lifeglyph 03) builds the color DEPTH resolver and cites this ruling in its
-  OQ-02 resolution. It does not fix this defect: its scope excludes behavior changes, the defect lives
-  in three files the lifeglyph Set does not own, and `pwatch.py` has nothing to do with lifecycle
-  presentation.
+- **`z8ddk0`** (plan, lifeglyph 09) NOW OWNS THIS WORK. This item is `graduated`, not `done`: the design
+  is handed off and the code is not yet written.
+- **`pow5sj`** (plan, lifeglyph 03) builds the color DEPTH resolver on the seam `z8ddk0` unifies, and
+  declares `executed:z8ddk0`.
+
+CORRECTION, 2026-09-19, recorded because this item's own first revision argued the opposite and a later
+reader would otherwise inherit three false claims. This was filed standalone on the reasoning that
+`pow5sj`'s scope excluded behavior changes, that the defect lived in three files the lifeglyph Set did
+not own, and that `yaxr4i` would rewrite the surface anyway. The maintainer asked for those reasons to
+be re-examined and TWO WERE FALSE: `pow5sj`, `bn026f` and `qdd5jq` all declare `agent_workflows/term.py`
+in `- Scope-Paths:` and `qdd5jq` also declares `runner_shared.py`, so only `pwatch.py` was genuinely
+outside the Set; and `yaxr4i` does NOT rewrite the engine, it asserts at its line 97 that "The color
+ENGINE is already correct and complete... it does not need new color logic", a premise these very
+measurements falsify, so it would never have fixed the divergence. The third claim was unsupported:
+`pow5sj`'s Scope excludes the stage table, the rendering helpers, consumer conversion and per-stage
+overrides, and says nothing about behavior changes. What actually pointed the other way is that
+`pow5sj`'s V-01 already demanded proof of exactly ONE depth-resolver definition, which a three-engine
+seam cannot honestly provide. The maintainer ruled to convert this item into a child.
 - **Spec `uonrjg`** Section 9.3a.2 calls its top rung "unchanged, and unconditional", which is FALSE as
   written (`FORCE_COLOR` does currently defeat `NO_COLOR`). Section 9.3 four lines earlier requires
   preserving "current" behavior, and there are two current behaviors. That wording should be amended

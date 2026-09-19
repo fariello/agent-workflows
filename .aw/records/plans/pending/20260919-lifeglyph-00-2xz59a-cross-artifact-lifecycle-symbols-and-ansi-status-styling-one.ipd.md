@@ -10,7 +10,7 @@
 - Readiness: go-pending-approval
 - Set: lifeglyph
 - Order: 0
-- Highest E allocated: 08
+- Highest E allocated: 09
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 2xz59a
 - From-Spec: uonrjg
@@ -56,6 +56,11 @@ THIS CHECKLIST IS ORCHESTRATION, NOT WORK. Every item below is "confirm child X 
   - Expected outcome: `bn026f` is `executed`; resolution and rendering are separate and testable, and the six-profile capability matrix passes.
   - Execution state: pending
 
+- [ ] E-09 Confirm child 09 `z8ddk0` (unify the three `should_color` implementations) reached `executed`.
+  - Depends on: none
+  - Expected outcome: `z8ddk0` is `executed`; `grep -rn "def should_color" agent_workflows/` returns exactly ONE line, so `pow5sj` can honestly satisfy R9.3a.2's one-definition requirement. Note this child is DEPTH-0 and therefore precedes every other code child in the queue regardless of its Order number.
+  - Execution state: pending
+
 ### Task group 2: Conversions, in the order that never breaks a view
 
 - [ ] E-05 Confirm child 05 `f9t5hz` (convert attention.py with identical status and id6 treatment) reached `executed`.
@@ -94,12 +99,14 @@ THIS CHECKLIST IS ORCHESTRATION, NOT WORK. Every item below is "confirm child X 
 | 06 | `20260919-lifeglyph-06-9zvl2w-convert-indexes-status-commands-lint-views-and-run-viewers-t.ipd.md` | Converts `plans_index`, `research_index`, `status_set`, `ipd_lint`, `run_viewer`, and `cli` lifecycle sites. | `executed:f9t5hz` |
 | 07 | `20260919-lifeglyph-07-qdd5jq-convert-both-runner-displays-and-render-stream-lifecycle-row.ipd.md` | Converts both runners and `render_stream`, dismantles the re-export chain, deletes every duplicate table, adds the A17 guard. | `executed:9zvl2w` |
 | 08 | `20260919-lifeglyph-08-7p3tt8-amend-spec-25kzda-section-5-6-and-ship-the-canonical-legend.ipd.md` | Performs the spec's MANDATORY `25kzda` Section 5.6 amendment, corrects the stale user-guide claim, ships one generated legend. | `executed:qdd5jq` |
+| 09 | `20260919-lifeglyph-09-z8ddk0-unify-the-three-divergent-should-color-implementations-and-s.ipd.md` | Unifies the THREE divergent `should_color` implementations into one definition with the maintainer's ruled semantics (`NO_COLOR` presence-only, `FORCE_COLOR` interprets falsey values), and stops `FORCE_COLOR=0` forcing color on. Graduated from backlog `nyz8dt`. DEPTH-0, so it runs FIRST despite its Order: `pow5sj` declares `executed:z8ddk0`. | none |
 
 The chain is strictly linear by design. Two reasons, both load-bearing rather than stylistic: every child after 02 consumes the module the previous one produced, and the table deletion in 07 is only safe once 05 and 06 have moved their consumers off it. The runner sorts the queue by dependency depth as its FIRST key and re-checks each edge at dispatch, so a child whose edge is unmet is marked `dependency-blocked` and the run continues rather than failing.
 
 ## Completion criteria (the whole Set is done only when)
 
-- All eight children are `executed` in `.aw/records/plans/executed/`.
+- All NINE children are `executed` in `.aw/records/plans/executed/`. (Nine, not eight: child `z8ddk0` was added 2026-09-19 when backlog `nyz8dt` was converted into a child of this Set.)
+- Exactly ONE `should_color` definition exists in the package (`z8ddk0`), which is what makes R9.3a.2's one-definition requirement satisfiable rather than asserted.
 - `agent_workflows/lifecycle_style.py` is the ONLY LIFECYCLE color and glyph table in the package. The grep is a NECESSARY BUT NOT SUFFICIENT signal and must be read with the caveat below: `grep -rn "STATUS_COLOR_256\|_STATUS_COLOR" agent_workflows/` returns no palette definition or re-export (criterion A17).
   - THE NAME `STATUS_COLOR_256` DOES NOT MEAN "LIFECYCLE TABLE", and treating the grep as the whole of A17 would either delete working behavior or report a false pass. Measured 2026-09-19: `term.py`'s `STATUS_COLOR_256` holds 56 keys, of which only 34 appear anywhere in spec `uonrjg`; the other 22 (`ok`, `info`, `warn`, `warning`, `advisory`, `action`, `preview`, `success`, `conforms`, `conforming`, `error`, `fail`, `failure`, `legacy`, `current`, `unchanged`, `updated`, `wrote`, `up to date`, `secondary`, `path`, `paths`) are GENERIC command-outcome and formatting roles that R10.3 explicitly keeps valid and outside this spec ("Generic `Term` outcomes such as command-level OK, WARN, and FAIL remain valid... Do not mechanically replace every checkmark"). Three of `term.py`'s four read sites are generic rather than lifecycle: `format_badge` resolves an arbitrary `role_or_code` (`term.py:469`) and `format_path` looks up the `"paths"` role (`term.py:477`), and `"paths"`, `"ok"`, and `"info"` appear ZERO times in the spec. So child `qdd5jq`'s E-04 must SPLIT this table, retaining the generic roles under a non-lifecycle name and moving only the lifecycle keys, rather than deleting the symbol outright. A17 is satisfied when no second LIFECYCLE table remains, not when the string `STATUS_COLOR_256` is absent.
 - Every acceptance criterion A1 through A21 of spec `uonrjg` has evidence in a child's validation section. No criterion is orphaned across the Set.
@@ -206,6 +213,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: Paste `aw show 7p3tt8` showing `Status: executed`. Paste the `25kzda` Section 5.6 diff pointing at `uonrjg`, and the legend drift-guard shown failing against an uncovered 22nd stage then passing.
   - Observed evidence:
   - Result: pending
+- [ ] V-09 validates E-09
+  - Required evidence: Paste `aw show z8ddk0` showing `Status: executed`. Paste `grep -rn "def should_color" agent_workflows/` returning exactly ONE line, which is the property `pow5sj`'s own V-01 depends on. Paste the executed 4x4 `NO_COLOR` x `FORCE_COLOR` grid from that child's V-01 evidence, showing `FORCE_COLOR='0'` falling through rather than forcing color to a pipe.
+  - Observed evidence:
+  - Result: pending
+
 
 ## Approval and execution gate
 
