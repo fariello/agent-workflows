@@ -6,7 +6,7 @@
 - Scope: IN: re-read A11/A12/A13 and Section 9.3 of `uonrjg` once `yaxr4i` is `executed`, against the shipped flag surface and the rewritten contract doc, and record the round in the spec's workflow history via `aw specs note`. Amend A11/A12/A13/9.3 text if and only if the shipped surface differs from what the spec anticipates. OUT: building any part of the resolver (that is `udgilu` onward); any change to the spec's palette, glyph table, or mappings, none of which `yaxr4i` touches; invoking `/spec-review` or filing a `.review.md` for this spec (both are wrong for an `approved` spec, for the measured reasons in E-01 and findings F-04/F-05); and any transition of the spec's `- Status:`, which MUST remain `approved`.
 - Scope-Paths: .aw/records/specs/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md
 - Item-Dependencies: executed:yaxr4i
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Set: lifeglyph
 - Order: 1
@@ -17,6 +17,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-19 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED. PR-101..PR-105 all FIXED, none deferred, none open. Readiness go-pending-approval. OQ-01 left open, non-blocking and conditional.
 
 - 2026-09-19 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101 (BLOCKER), PR-102 (HIGH), PR-103 (MEDIUM), PR-104 (MEDIUM), PR-105 (LOW) all FIXED, none deferred, none open. Reviewed at HEAD `6ce719d5`; `aw ipd lint --phase author --agent` clean, exit 0. THE CENTRAL DEFECT WAS THE MECHANISM, NOT THE INTENT: E-01 instructed running `/spec-review` on `uonrjg`, but that workflow REFUSES an `approved` spec (its Step 0.1 classifies it NOT REVIEWED), so the Section 12a gate this plan exists to discharge would have silently discharged nothing. Worse, running it anyway would have de-approved a release-gating spec (`approved -> reviewed` is a legal transition) and filed a review record that arms an approval gate with no override. E-01 now performs the re-read directly via `aw specs note`, and three writes are forbidden by name. Also: the waived suite run is restored with a measured baseline (25 test modules read the live tree), and OQ-01's rationale no longer rests on a Section 12a sentence whose premise does not hold at `approved`.
 - 2026-09-19 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from spec uonrjg Section 12a obligation 2. Carries the spec's `Blocks-Release: next` gate.
