@@ -4,7 +4,7 @@
 - Subject-Type: ipd
 - Reviewed-At: 2026-09-18
 - Reviewer: opencode/its_direct-pt3-claude-opus-5-1m-us
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
 
@@ -173,3 +173,22 @@ loss unrecoverable, so it is deliberately not authorized by me.
   that "already finished, verified and finalized", which is execute-shaped. I recorded that as an explicit
   deferral in the plan rather than resolving it, because changing that verb is `rl67b0`'s territory.
 - I DID NOT DECIDE OQ-01 (shared vs separate retry budget) OR OQ-02, and I touched no other plan.
+
+## Round 2
+
+Reviewed at HEAD `7a28ed11` with the maintainer.
+
+OQ-02 RESOLVED AND PR-002 DISCHARGED. The maintainer ruled for Option (a): make the re-attempt NEVER tear down a sweep lane during re-attempt execution; leave retirement to the existing coordinator-owned `teardown_review_sweep_lane` at the end of the run. This preserves the `ajxr5d` OQ-02 design ("one lane for the whole sweep", preventing any session-sharing hazards recorded in `lanesess xd9sll`), keeps the per-item path safe from retiring a shared sweep lane that subsequent reviews need, and is fully compatible with E-05 and V-05. OQ-01 is also resolved to use the shared budget (`--integration-retry-limit`). All blocking questions on plan `i4ak5n` are resolved; finding PR-002 is dispositioned FIXED.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-002 | BLOCKER | UNDER-SCOPE | C. architecture; A. correctness | `runner_shared.py:1348-1354`, `:1529-1531`; `oc_runipd.py:2543-2570`; `lane_containment.py:3356-3357` | **ONE SWEEP LANE IS SHARED BY EVERY REVIEW WHILE THE LADDER IS PER-ITEM AND TEARS THE LANE DOWN ON SUCCESS.** | C:Medium; U:Low; S:Low; F:High; Overall:Medium-High | FIXED | Resolved by maintainer ruling for Option (a): re-attempts never tear down a sweep lane, preserving it until the coordinator teardown at run end. E-05 and V-05 enforce this contract. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-201 | OQ-02 resolution and PR-002 disposition | Option (a): re-attempts never tear down the sweep lane; promote readiness to `go-pending-approval` | Options (b), (c), (d) | Preserves ajxr5d OQ-02 single-sweep-lane invariant without session hazard | yes |
+| D-202 | OQ-01 resolution | Shared budget with execute path (`--integration-retry-limit`) | Separate retry budget | Simplest operator interface; consistent retry bound | yes |

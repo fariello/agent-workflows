@@ -69,6 +69,21 @@ def _module_source(module: object) -> str:
     return Path(path).read_text(encoding="utf-8")
 
 
+def _effective_execute_item_body(
+    driver: object, spawn_symbol: str | None = None
+) -> str:
+    source = _module_source(driver)
+    body = source.split("def execute_item", 1)[1]
+    if "execute_item_core" in body:
+        from agent_workflows import runner_shared
+
+        core_body = inspect.getsource(runner_shared.execute_item_core)
+        if spawn_symbol:
+            core_body = core_body.replace("spawn_executor(", spawn_symbol)
+        return core_body
+    return body
+
+
 def _git(repo: Path, *args: str) -> str:
     proc = subprocess.run(
         ["git", *args],
@@ -229,10 +244,9 @@ class NoSpawnBeforeRefusalTests(unittest.TestCase):
     def test_guard_precedes_spawn_and_allocation(self):
         for name, driver, spawn_symbol, alloc_symbol in self.CASES:
             with self.subTest(driver=name):
-                source = _module_source(driver)
-                body = source.split("def execute_item", 1)
-                self.assertEqual(len(body), 2, f"{name}: execute_item not found")
-                body_text = body[1]
+                body_text = _effective_execute_item_body(
+                    driver, spawn_symbol=spawn_symbol
+                )
 
                 guard_at = body_text.find("evaluate_clean_base_for_launch(")
                 spawn_at = body_text.find(spawn_symbol)
@@ -260,8 +274,7 @@ class NoSpawnBeforeRefusalTests(unittest.TestCase):
         """
         for name, driver in DRIVERS:
             with self.subTest(driver=name):
-                source = _module_source(driver)
-                body = source.split("def execute_item", 1)[1]
+                body = _effective_execute_item_body(driver)
                 self.assertIn('attempt["clean_base_dirty_paths"]', body)
                 self.assertIn('"event": "clean-base-refused"', body)
                 self.assertIn('"event": "clean-base-warning"', body)
@@ -278,6 +291,12 @@ class SharedPredicateTests(unittest.TestCase):
                 fn = source.split("def evaluate_clean_base_for_launch", 1)
                 self.assertEqual(len(fn), 2, f"{name}: guard helper missing")
                 body = fn[1].split("\ndef ", 1)[0]
+                if "runner_shared.evaluate_clean_base_for_launch" in body:
+                    from agent_workflows import runner_shared
+
+                    body = inspect.getsource(
+                        runner_shared.evaluate_clean_base_for_launch
+                    )
                 self.assertIn("lane_containment.evaluate_clean_base(", body)
                 # The scope is the R5.4 one: tracked paths only.
                 self.assertIn("--untracked-files=no", body)
@@ -614,7 +633,7 @@ class IsolatedPathReportsRatherThanRefusesTests(unittest.TestCase):
 
         for name, driver, _spawn in _SPAWNS:
             with self.subTest(driver=name):
-                body = _module_source(driver).split("def execute_item", 1)[1]
+                body = _effective_execute_item_body(driver)
                 warn_block = body.split("if decision.warned:", 1)
                 self.assertEqual(len(warn_block), 2, f"{name}: warn branch missing")
                 warn_block_text = warn_block[1].split("elif decision.consented:", 1)[0]

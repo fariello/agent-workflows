@@ -1,11 +1,13 @@
 - Id: tsfk8a
 - Status: open
+- Blocks-Release: next
 - Set: tsfk8a
 - Priority: medium
 - Work-Kind: bug
 - Summary: reconcile_item_on_interrupt treats the _run_git 3-tuple as a string, so a non-isolated interrupted turn is always scored as holding no work
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-14 created (aw backlog): reconcile_item_on_interrupt treats the _run_git 3-tuple as a string, so a non-isolated interrupted turn is always scored as holding no work
 
 MEASURED at HEAD 4234153f, and PRE-EXISTING (not introduced by defreport b7xarm, which merely surfaced it via a type checker while working in the same file).

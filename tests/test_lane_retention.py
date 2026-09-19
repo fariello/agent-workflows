@@ -811,11 +811,21 @@ class TwinParityTests(unittest.TestCase):
         "LANE_PRESERVED_EVENT",
     )
 
+    _pkg_trees = None
+
+    @classmethod
+    def _get_pkg_trees(cls):
+        if cls._pkg_trees is None:
+            pkg = Path(inspect.getfile(LC)).parent
+            cls._pkg_trees = [
+                (path, ast.parse(path.read_text(encoding="utf-8")))
+                for path in sorted(pkg.rglob("*.py"))
+            ]
+        return cls._pkg_trees
+
     def _definition_sites(self, name: str) -> list[str]:
-        pkg = Path(inspect.getfile(LC)).parent
         sites: list[str] = []
-        for path in sorted(pkg.rglob("*.py")):
-            tree = ast.parse(path.read_text(encoding="utf-8"))
+        for path, tree in self._get_pkg_trees():
             for node in tree.body:
                 found = False
                 if isinstance(node, (ast.FunctionDef, ast.ClassDef)):

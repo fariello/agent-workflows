@@ -170,6 +170,15 @@ def _make_probe_repo(root, id6: str = "prb001"):
     return repo, plan
 
 
+def _effective_init_source(runner: str) -> str:
+    import inspect
+
+    source = inspect.getsource(_MODULES[runner].initialize_run)
+    if "initialize_run_core" in source:
+        return inspect.getsource(runner_shared.initialize_run_core)
+    return source
+
+
 class SpecFlagListTests(unittest.TestCase):
     """The drift guard: the SPEC FILE is the input, not a transcription of it."""
 
@@ -1376,10 +1385,11 @@ class RetryBudgetTests(unittest.TestCase):
     # `"resolve_retry_budget"` appeared somewhere in it - which a COMMENT satisfies, and which says
     # nothing about whether the call is REACHED, whether its refusal propagates, or whether a run
     # directory was created before it fired.
-    # `FullAutoEndToEndBehaviorTests.test_an_out_of_range_retry_budget_refuses_before_a_run_directory_exists`
-    # drives `initialize_run` on a real repository with `--retry-budget 11`, requires the refusal on
-    # BOTH hosts, and additionally asserts no durable run state was left behind. That is the property;
-    # the pin was a proxy for it.
+    # `test_every_budget_value_resolves_or_refuses_and_freezes_the_same_way` (this class) drives the
+    # real resolver over every in-range and out-of-range value on BOTH hosts, and
+    # `RefusalBehaviorTests.test_every_refused_invocation_leaves_no_durable_run_state` drives
+    # `initialize_run` on a real repository and asserts BOTH that it refuses AND that no `run-*`
+    # directory survives. That pair is the property; the pin was a proxy for it.
 
 
 class UnimplementedFlagRefusalTests(unittest.TestCase):
@@ -1519,9 +1529,9 @@ class UnimplementedFlagRefusalTests(unittest.TestCase):
     # and asserted `"refuse_unimplemented_run_flags"` appeared in the PREFIX - a claim about the
     # relative BYTE OFFSET of two substrings, which breaks on any reordering or reformatting of a
     # function it is not about, and which a comment placed above that literal satisfies outright.
-    # `FullAutoEndToEndBehaviorTests.test_an_unimplemented_flag_refuses_before_a_run_directory_exists`
-    # already asserts the actual property on both hosts and for both flags: `initialize_run` raises,
-    # AND `.aw/records/runs` contains no `run-*` directory afterwards. That is an OBSERVED absence of
+    # `RefusalBehaviorTests.test_every_refused_invocation_leaves_no_durable_run_state` asserts the
+    # actual property on both hosts for every refusing flag: `initialize_run` raises, AND
+    # `.aw/records/runs` contains no `run-*` directory afterwards. That is an OBSERVED absence of
     # durable state, which is what "before any durable state" means; the text order was a proxy.
 
 
@@ -2504,21 +2514,23 @@ Real gate prose.
         run, which no comment can do.
         """
         import ast
-        import inspect
 
         from agent_workflows import run_selection_policy
 
         for runner in BOTH:
             with self.subTest(runner=runner):
-                source = inspect.getsource(_MODULES[runner].initialize_run)
+                source = _effective_init_source(runner)
                 called = {
                     ast.unparse(node.func)
                     for node in ast.walk(ast.parse(source.strip()))
                     if isinstance(node, ast.Call)
                 }
-                self.assertIn(
-                    "runner_shared.enforce_draft_admission_gate",
-                    called,
+                self.assertTrue(
+                    {
+                        "enforce_draft_admission_gate",
+                        "runner_shared.enforce_draft_admission_gate",
+                    }
+                    & called,
                     "the draft gate has no call site on this host",
                 )
 
@@ -2919,7 +2931,13 @@ Real gate prose.
                     "selection gets confirmed twice"
                 )
         for runner in BOTH:
-            body = inspect.getsource(_MODULES[runner].initialize_run)
+            # AST CALL counts (ours), over the EFFECTIVE body (main's `_effective_init_source`).
+            # Both halves matter and neither side had both. AST counting means a comment or a
+            # docstring naming a gate cannot change the number, so a moved count means real code
+            # moved. Reading the effective body means that after `7a28ed11` unified `initialize_run`
+            # into `runner_shared.initialize_run_core`, the scan follows the code instead of counting
+            # zero calls in a now-thin host wrapper and reporting a DEAD GATE that is in fact live.
+            body = _effective_init_source(runner)
             for gate in ("enforce_mixed_type_gate", "enforce_draft_admission_gate"):
                 got = call_count(body, gate)
                 if got != 1:

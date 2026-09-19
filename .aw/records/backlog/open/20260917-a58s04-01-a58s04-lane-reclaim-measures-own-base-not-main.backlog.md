@@ -1,11 +1,13 @@
 - Id: a58s04
 - Status: open
+- Blocks-Release: next
 - Set: a58s04
 - Priority: high
 - Work-Kind: bug
 - Summary: Lane teardown never reclaims a merged lane: commits_ahead is measured against the lane's OWN base, so an integrated lane reports HOLDS-WORK forever and 28 of 38 worktrees accumulated to 4.7G
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): Lane teardown never reclaims a merged lane: commits_ahead is measured against the lane's OWN base, so an integrated lane reports HOLDS-WORK forever and 28 of 38 worktrees accumulated to 4.7G
 
 ## Observed

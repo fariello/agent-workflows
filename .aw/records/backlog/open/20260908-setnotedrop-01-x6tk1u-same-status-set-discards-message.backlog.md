@@ -1,11 +1,13 @@
 - Id: x6tk1u
 - Status: open
+- Blocks-Release: next
 - Set: setnotedrop
 - Priority: high
 - Work-Kind: bug
 - Summary: aw set on a same-status artifact silently DISCARDS an explicit --message: apply_status_change returns early before the history write, so a deliberate provenance note exits 0 and is never recorded
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-08 created (aw backlog): aw set on a same-status artifact silently DISCARDS an explicit --message: apply_status_change returns early before the history write, so a deliberate provenance note exits 0 and is never recorded
 
 FOUND 2026-09-08 the hard way: I ran `aw backlog set graduated <already-graduated item> --message

@@ -1,11 +1,13 @@
 - Id: sxlvlu
 - Status: open
+- Blocks-Release: next
 - Set: sxlvlu
 - Priority: medium
 - Work-Kind: bug
 - Summary: opencode run with a --session from a different tree exits 0 with zero output: a silent no-op instead of an error, so a caller cannot tell the turn never ran
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-13 created (aw backlog): opencode run with a --session from a different tree exits 0 with zero output: a silent no-op instead of an error, so a caller cannot tell the turn never ran
 
 ## Measured behavior

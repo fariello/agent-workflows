@@ -44,10 +44,18 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from agent_workflows import agy_runipd, oc_runipd
+from agent_workflows import agy_runipd, oc_runipd, runner_shared
 from tests.support import REPO_ROOT
 
 _DRIVERS = (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd))
+
+
+def _effective_execute_item_source(mod) -> str:
+    src = inspect.getsource(mod.execute_item)
+    if "execute_item_core" in src:
+        return inspect.getsource(runner_shared.execute_item_core)
+    return src
+
 
 _PLAN = """\
 # IPD: Demo {id6}
@@ -1040,7 +1048,7 @@ class BothHostsBehaveIdentically(unittest.TestCase):
         in each host's finalize-success branch, else it is not riding the merge."""
         for name, mod in _DRIVERS:
             with self.subTest(driver=name):
-                src = inspect.getsource(mod.execute_item)
+                src = _effective_execute_item_source(mod)
                 self.assertIn(
                     "lane_handle=wt_handle",
                     src,
@@ -1060,7 +1068,7 @@ class BothHostsBehaveIdentically(unittest.TestCase):
         would overwrite the success record with a refusal, reporting a correct close as 'left open'."""
         for name, mod in _DRIVERS:
             with self.subTest(driver=name):
-                src = inspect.getsource(mod.execute_item)
+                src = _effective_execute_item_source(mod)
                 self.assertIn(
                     'if not (item.get("backlog_close") or {}).get("closed"):',
                     src,

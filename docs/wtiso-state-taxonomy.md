@@ -99,21 +99,27 @@ Migration owner is the wtiso child id6 that relocates or repairs the row:
 
 ## Notes on rows that are currently misclassified in code
 
-These are the defects Phase 0 pins with characterization tests. The table above records the
-TARGET classification; the code does not yet honor it.
+The table above records the TARGET classification; the code does not yet honor it.
+
+THESE DEFECTS ARE NO LONGER PINNED BY A TEST. Phase 0 pinned them in
+`tests/test_wtiso_characterization.py`, a suite whose assertions asserted the DEFECTS were still
+present, so that whichever phase fixed one had to come back and invert the assertion. That suite was
+retired on 2026-09-18: all three of its owning fix-plans (`qcqhj7`, `58ha43`, `2c122z`) were moved to
+`superseded`, so nothing was ever going to arrive to invert them, and a green test asserting known-bad
+behavior persists is worse than no test (it reads as approval). The defects below are therefore
+recorded as OPEN NOTES, which is what they are. Re-pin any one of them at the moment a live plan
+actually takes it on, and invert it in the same change.
 
 1. The begin receipt is `control-authority` with a `checkout` namespace, but a COPY is placed
    inside the lane (`oc_runipd.sync_receipt_into_worktree`), so two authorities can diverge.
-   Pinned by `tests/test_wtiso_characterization.py::test_receipt_is_copied_into_lane`.
-   Removed by `58ha43`.
+   Was pinned by the retired characterization suite; `58ha43`, which would have removed it, is
+   `superseded`.
 2. The outcome JSON is `lane-evidence`, yet the worker is directed to write it to an ABSOLUTE
-   path in the main run tree, outside its lane. Pinned by
-   `tests/test_wtiso_characterization.py::test_worker_prompt_names_main_run_paths`. Fixed by
-   `qcqhj7`.
+   path in the main run tree, outside its lane. Was pinned by the retired characterization suite;
+   `qcqhj7`, which would have fixed it, is `superseded`.
 3. The path lease table is `control-authority` but exists only in memory, so a crash loses
    ownership and resume cannot reconstruct it. Retention is therefore `unknown` today.
-   Fixed by `2c122z`.
+   `2c122z`, which would have fixed it, is `superseded`.
 4. Integration validation is `control-authority` for an irreversible action, but it returns
-   `True` before the merged tree exists. Pinned by
-   `tests/test_wtiso_characterization.py::test_integration_validation_returns_true_before_merge`.
-   Fixed by `2c122z`.
+   `True` before the merged tree exists. Was pinned by the retired characterization suite;
+   `2c122z`, which would have fixed it, is `superseded`.

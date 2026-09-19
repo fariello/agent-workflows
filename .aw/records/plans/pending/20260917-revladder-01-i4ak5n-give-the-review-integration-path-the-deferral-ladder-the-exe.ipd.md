@@ -7,15 +7,18 @@
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_review_lane_isolation.py
 - Item-Dependencies: none
 - Blocks-Release: next
-- Status: reviewed
-- Readiness: no-go
+- Status: approved
+- Readiness: go-pending-approval
 - Set: revladder
 - Order: 1
 - Highest E allocated: 08
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: i4ak5n
+- Approval: 2026-09-18, human ("approved"): Approved by maintainer: Option (a) chosen for sweep lane lifecycle; OQ-01 and OQ-02 resolved and PR-002 discharged
 
 ## Workflow history
+- 2026-09-18 approved (aw set, --by-human): Approved by maintainer: Option (a) chosen for sweep lane lifecycle; OQ-01 and OQ-02 resolved and PR-002 discharged
+- 2026-09-18 reviewed (antigravity pair with maintainer): /plan-review ROUND 2: APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. OQ-02 RESOLVED: maintainer ruled for Option (a) (re-attempts never tear down the sweep lane; coordinator tears down at run end). OQ-01 RESOLVED (shared retry budget). PR-002 dispositioned FIXED. All blocking questions resolved; readiness promoted to go-pending-approval.
 - 2026-09-18 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001..PR-007; readiness `no-go` on ONE blocking finding, plus a second BLOCKER fixed in place. Reviewed at HEAD `d3f418ff`; `aw ipd lint --phase author` conforming before revision; plan byte-identical to the lane input. THE DIAGNOSIS IS CORRECT AND I RE-PROVED IT BY AST RATHER THAN INHERITING IT: on BOTH hosts the enclosing `execute_item` containing the review integration call (`oc_runipd.py:7631`, `agy_runipd.py:4216`) references NONE of `decide_integration_deferral`, `INTEGRATION_DEFERRED_STATUS`, `reattempt_deferred_integrations`, `deferred_integration_items`. F2 verifies verbatim at `runner_shared.py:555` and is emitted from the SHARED merge path both actions reach (`:2295`), so review operators really do see the false promise; F5 verifies (`grep 'stash failed'` across `agent_workflows/` and `hooks/` returns nothing); F4's self-correction is exact. BUT THE PLAN'S CENTRAL PREMISE IS FALSE, and it is the premise that set its scope: "wires a caller in; it does not build a mechanism" and "does NOT change the ladder's rung logic" cannot both hold, because THE LADDER IS ACTION-BLIND IN THREE PLACES. (1) PR-001, BLOCKER, FIXED: the adapter binds `integrate=_integrate` -> this host's EXECUTE wrapper pinning `action_kind=INTEGRATION_ACTION_EXECUTE` (`oc_runipd.py:2440-2448`), and that constant is exactly what triggers `execute_merge_and_revalidate_gate` (`runner_shared.py:2204`), while the review path deliberately uses `integrate_review_lane_branch` which passes `INTEGRATION_ACTION_REVIEW` and takes NO `validation_runner` so a synthetic verdict is structurally impossible (`:2451-2470`); so E-03's status write alone makes the RETRY violate the `ajxr5d` OQ-01 rule the FIRST attempt honors. (2) same root: `finish_integrated=_finish` writes `item["status"] = "executed"` and calls `process_backlog_close`/`resolve_plan_path` (`:2524-2578`), none valid for a review. (3) PR-002, BLOCKER, OPEN: there is ONE sweep lane per run (`review_sweep_lane_id`, `runner_shared.py:1348-1354`) held at RUN level, and `lane_records_including_sweep` states "the lane belongs to no ITEM" (`:1529-1531`), while the ladder rebuilds a PER-ITEM handle from `preserved_*` and TEARS THE LANE DOWN on success (`oc_runipd.py:2543-2570`) - so two deferred reviews resolve to the same branch and the first success retires the lane the second needs, the exact hazard `teardown_review_sweep_lane` names for the per-item path (`lane_containment.py:3356-3357`). Measured that `deferred_integration_items` is action-blind and DOES select a review item. New E-04 (action-correct re-attempt) and E-05 (shared-lane rule) added, old E-05..E-07 renumbered E-06..E-08, `Highest E` 07 -> 08; V-04 now requires a validation runner that RAISES if called plus a post-success item dump, and V-05 requires TWO deferred reviews because one cannot expose the collision. ALSO: the plan named the wrong reuse target (`decide_integration_deferral` is PURE and no driver calls it; the shared write site is `record_integration_refusal`, `:2688`), told the operator to run `aw <host> run integrate <id6>` which IS NOT A COMMAND (the alias is `integrate` under the host group, `cli.py:3929`, and `rl67b0` is `executed` not approved so the verb is live), and every cited line number is stale by ~40 lines. SPEC QUESTION RESOLVED FROM EVIDENCE rather than left to the executor: `25kzda:163` scopes the ladder to the REFUSAL CONDITION and not to the action, and enumerates only what it must never apply to, so this is a delivery gap, no amendment is required, and no `.spec.md` is declared. OQ-02 raised `Blocking: yes` carrying PR-002.
 
 - 2026-09-18 reviewed (aw set): plan-review complete: REVIEWED - OPEN QUESTIONS; 7 findings, 5 FIXED, PR-002 left OPEN at BLOCKER and escalated as blocking OQ-02. The diagnosis is correct and was re-proved by AST on both hosts, but the plan's central premise (pure wiring, no rung-side work) is FALSE: the ladder is action-blind in three places. PR-001 BLOCKER FIXED: the re-attempt binds the EXECUTE wrapper (action_kind=execute), which is exactly what triggers the revalidation gate a review skips by NOT RUNNING, and its success path writes status=executed and closes a backlog item; new E-04 owns action-correctness. PR-002 BLOCKER OPEN: one sweep lane is shared by every review while the ladder is per-item and tears the lane down on success, so the first re-attempt retires the lane a second deferred review still needs; new E-05 carries whichever design OQ-02 authorizes. Also fixed: wrong reuse target (record_integration_refusal, not the pure decide_integration_deferral), a printed recovery verb that does not exist, and stale line numbers throughout. Spec question RESOLVED from evidence: 25kzda:163 scopes the ladder to the refusal CONDITION not the action, so no amendment is required; readiness no-go
@@ -79,7 +82,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish the asymmetry from the code before changing either path
 
-- [ ] E-01 PROVE THE ASYMMETRY AT EXECUTION HEAD, and refuse to proceed on this plan's line numbers. Show that an `integration-blocked` refusal from an EXECUTE turn reaches `decide_integration_deferral` and can become `integration-deferred`, and that the SAME refusal from a REVIEW turn does not: scan the review integration call site for any reference to `decide_integration_deferral`, `INTEGRATION_DEFERRED_STATUS`, or `reattempt_deferred_integrations` and show there is none. Do this on BOTH hosts, because the fix must land on both and the two call sites are separate code.
+- [ ] E-01 PROVE THE ASYMMETRY AT EXECUTION HEAD, and refuse to proceed on this plan's line numbers. Show that an `integration-blocked` refusal from an EXECUTE turn reaches `decide_integration_deferral` and can become `integration-deferred`, and that the SAME refusal from a REVIEW turn does not: scan the review integration call site for any reference to `decide_integration_deferral`, `INTEGRATION_DEFERRED_STATUS`, or `reattempt_deferred_integrations` and show there is none. NOTE: With `execute_item` unified into `runner_shared.execute_item_core` (commit `70a2059f`), the review integration call site lives in `runner_shared.py` for both hosts rather than duplicated across `oc_runipd.py` and `agy_runipd.py`.
   - Depends on: none
   - Expected outcome: a pasted per-host comparison naming the execute call site that enters the ladder and the review call site that does not, with the scan that proves the absence.
   - Execution state: pending
@@ -91,7 +94,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: wire the review path into the existing ladder, changing no rung logic
 
-- [ ] E-03 ROUTE A REFUSED REVIEW INTEGRATION THROUGH THE SHARED LADDER WRITE SITE, which is `runner_shared.record_integration_refusal` (`:2688`), NOT `decide_integration_deferral` directly. CORRECTED AT REVIEW: `decide_integration_deferral` is PURE and is called from exactly two places, both inside `record_integration_refusal`; no driver calls it (verified: `grep decide_integration_deferral agent_workflows/` returns only `runner_shared.py`). `record_integration_refusal` is what counts the attempt durably, asks for the verdict, writes the status, and emits the rung-naming event, and it is already shared by both hosts. Reuse it; do NOT add a second decision site, a review-specific policy, or a review-specific budget. The four terminal reasons it enforces through the pure decision (non-transient kind, `--on-integration-blocked=block`, budget exhausted, budget zero) must apply to the review path with no exception carved out.
+- [ ] E-03 ROUTE A REFUSED REVIEW INTEGRATION THROUGH THE SHARED LADDER WRITE SITE, which is `runner_shared.record_integration_refusal` (`:2688`), NOT `decide_integration_deferral` directly. CORRECTED AT REVIEW: `decide_integration_deferral` is PURE and is called from exactly two places, both inside `record_integration_refusal`; no driver calls it (verified: `grep decide_integration_deferral agent_workflows/` returns only `runner_shared.py`). `record_integration_refusal` is what counts the attempt durably, asks for the verdict, writes the status, and emits the rung-naming event, and it is already shared by both hosts. Because `execute_item` is unified in `runner_shared.execute_item_core`, the review integration call site lives in `runner_shared.py`, so wiring it there inherently wires it for both hosts. Reuse it; do NOT add a second decision site, a review-specific policy, or a review-specific budget. The four terminal reasons it enforces through the pure decision (non-transient kind, `--on-integration-blocked=block`, budget exhausted, budget zero) must apply to the review path with no exception carved out.
   - Depends on: E-01, E-02
   - Expected outcome: a refused review integration whose kind is transient records `integration-deferred` with the shared reason string and an `integration_ladder` record; a `merge-conflict` refusal and a `block` policy each stay terminal, all three pasted.
   - Execution state: pending
@@ -106,9 +109,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: TWO reviews deferred in one run, both re-attempted, both integrated, with the sweep lane shown surviving until coordinator retirement and neither review's work lost; plus the case where the first re-attempt succeeds and the second is still pending, shown not to have lost its lane.
   - Execution state: pending
 
-- [ ] E-06 MIRROR THE WIRING ON THE ANTIGRAVITY HOST, in its own item because it is a separate call site and a fix landing on one host only is the drift this repository's `rununify` Set exists to remove. Prefer extending the SHARED function both hosts call over adding a second per-host branch; if the two call sites genuinely differ, state how and why in the execution note rather than forcing a false symmetry. NOTE THE ASYMMETRY IS ALREADY PROVEN SYMMETRIC on the defect side: review AST-verified that `agy_runipd.py`'s enclosing `execute_item` (`:3211-4654`) references none of the four ladder symbols either, and its review integration call sits at `:4216` with its own wrapper at `:1411`. So this host needs the SAME three fixes (E-03 status write, E-04 action-correct re-attempt, E-05 shared-lane rule), not merely a copied status write.
+- [ ] E-06 VERIFY SYMMETRIC WIRING ON THE ANTIGRAVITY HOST. Because `execute_item` was unified into `runner_shared.execute_item_core` (commit `70a2059f`), the review integration call site is already single-implementation in `runner_shared.py`. E-06 therefore validates that the shared wiring covers the Antigravity host symmetrically (running agy tests), confirming that `aw agy run` exercises the identical ladder behavior without requiring any divergent host-specific branch.
   - Depends on: E-03, E-04, E-05
-  - Expected outcome: the same cases from E-03, E-04 and E-05 pasted for the Antigravity host, plus a statement of whether the wiring is shared or per-host and why.
+  - Expected outcome: the same cases from E-03, E-04 and E-05 pasted for the Antigravity host, confirming that the shared wiring in `runner_shared.execute_item_core` covers both hosts identically.
   - Execution state: pending
 
 ### Task group 3: make the report tell the operator what to do
@@ -162,7 +165,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F9 | HIGH | `oc_runipd.py:2524-2578` | **THE LADDER'S SUCCESS PATH WOULD CORRUPT A REVIEW ITEM.** `_finish` sets `item["status"] = "executed"`, calls `process_backlog_close`, resolves a plan path, and deletes the `preserved_*` keys. Measured by inspecting the adapter body, which references all four. For a review none is valid: it executes no plan and carries no backlog item. | the `_finish` body |
 | F10 | HIGH | `runner_shared.py:1348-1354`, `:1529-1531`; `lane_containment.py:3356-3357` | **ONE SWEEP LANE IS SHARED BY EVERY REVIEW, WHILE THE LADDER IS PER-ITEM AND TEARS THE LANE DOWN.** `lane_records_including_sweep` states "the lane belongs to no ITEM". Two deferred reviews resolve to the same branch and the first success retires the lane the second needs, the exact hazard `teardown_review_sweep_lane` names for the per-item path. This is why E-04's authored "is the lane reconstructible?" was the easy half. | the sweep-lane id helper; the run-level record; the teardown docstring |
 | F11 | MEDIUM | `runner_shared.py:2688` vs `:2459` | **THE PLAN NAMES THE WRONG FUNCTION TO REUSE.** `decide_integration_deferral` is PURE and is called from only two places, both inside `record_integration_refusal`; no driver calls it. The shared WRITE site both hosts already use is `record_integration_refusal`, which counts the attempt durably, gets the verdict, writes the status, and emits the rung-naming event. Wiring to the pure function would reimplement the counting and the event. | `grep decide_integration_deferral agent_workflows/` returning `runner_shared.py` only; `oc_runipd.py:7796` and `agy_runipd.py:4349` calling the write site |
-| F12 | LOW | `oc_runipd.py:7631`; `agy_runipd.py:4216` | THE PLAN'S LINE RANGES ARE ALREADY STALE. The authored `:7591-7625` does not contain the review integration call, which is at `:7631` with the refusal block at `:7654-7669`. The plan's own E-01 rightly says "refuse to proceed on this plan's line numbers"; F1's substance was re-verified by AST on both hosts instead. | the AST scan of the enclosing `execute_item` on both hosts |
+| F12 | LOW | `runner_shared.py:12380` (previously `oc_runipd.py:7631`; `agy_runipd.py:4216`) | `execute_item` was unified into `runner_shared.execute_item_core` (commit `70a2059f`), so the review integration call site lives in `runner_shared.py` for both hosts rather than duplicated in the individual runner modules. F1's substance was re-verified by AST. | the AST scan of the enclosing `execute_item_core` |
 
 ## Proposed changes (ordered, validatable)
 
@@ -254,17 +257,26 @@ its amendment is already in the tree; read the spec's CURRENT text rather than t
 ### OQ-01: Should a review integration deferral share the execute path's budget, or have its own?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: NOT blocking; E-03 uses the SHARED budget by default, which needs no new flag and no new state. FOR SHARED: one `--integration-retry-limit` is one thing for an operator to reason about, the ladder's existing bound already prevents an infinite loop, and a review re-attempt costs a merge and a revalidation exactly like an execute one. FOR SEPARATE: a review turn produces two small record files while an execute turn produces product code, so an operator might want to retry a review far more patiently than an execute item, and one shared count means a busy execute queue can exhaust the budget a review would have used. Recorded because it is an operator-facing policy call, and because adding a second flag later is cheap while removing one is not.
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-18: Use the shared budget
+  (`--integration-retry-limit`). This keeps a single, uniform retry bound across the run without adding flags or
+  state.
 
 ### OQ-02: One sweep lane is shared by every review in the run, but the ladder is per-item and tears the lane down on success. How should a deferred review's lane be handled?
 
-- Blocking: yes
-- Finding: PR-002
-- Status: open
+- Blocking: no
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: NOT DECIDED BY THE REVIEWER, because every option trades off against
+- Finding: PR-002 (dispositioned FIXED)
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-18: Option (a) is chosen. A review
+  re-attempt NEVER tears down the sweep lane during re-attempt execution; retirement is left entirely to the
+  existing coordinator-owned `teardown_review_sweep_lane` at the end of the run. This preserves the `ajxr5d` OQ-02
+  decision (one sweep lane per run, avoiding session-sharing hazard `lanesess xd9sll`), eliminates the hazard
+  where the first successful review re-attempt tears down the lane needed by subsequent reviews, and satisfies
+  E-05 and V-05. PR-002 is dispositioned FIXED.
+
+  ROUND 1 CONTEXT (KEPT FOR HISTORY): NOT DECIDED BY THE REVIEWER, because every option trades off against
   the `ajxr5d` OQ-02 ruling that this repository already made ("one lane for the whole sweep", accepted
   cost "a stranded review, never a lost edit"), and reopening that is the maintainer's.
   MEASURED AT REVIEW: there is exactly ONE sweep lane per run (`review_sweep_lane_id(run_id)`,
@@ -318,7 +330,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: V-03's three cases, V-04's three, and V-05's two-review case, each pasted for the Antigravity host, PLUS an explicit statement of whether the wiring is shared between hosts or duplicated, and if duplicated, why the call sites could not share. If the two hosts' behavior differs in any pasted case, that difference is a finding, not a footnote.
+  - Required evidence: V-03's three cases, V-04's three, and V-05's two-review case, each pasted for the Antigravity host, confirming that the shared wiring in `runner_shared.execute_item_core` behaves symmetrically across both hosts without host-divergent branches.
   - Observed evidence:
   - Result: pending
 

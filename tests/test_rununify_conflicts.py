@@ -448,6 +448,8 @@ class BeginBaselineTests(unittest.TestCase):
     def test_agys_call_site_passes_the_truthful_isolate_value(self):
         """agy must declare what is TRUE, not default to `isolated=True` to match oc's call shape."""
         src = inspect.getsource(agy_runipd.execute_item)
+        if "execute_item_core" in src:
+            src = inspect.getsource(runner_shared.execute_item_core)
         self.assertIn("if isolate:", src)
         self.assertIn(
             'driver_begin(repo, item["id6"], actor, isolated=True)',
@@ -473,6 +475,8 @@ class BeginBaselineTests(unittest.TestCase):
         for host_name, host in BOTH:
             with self.subTest(host=host_name):
                 src = inspect.getsource(host)
+                if "execute_item_core" in src:
+                    src = inspect.getsource(runner_shared.execute_item_core)
                 self.assertLess(
                     src.index("begin_rc, begin_msg = driver_begin("),
                     src.index("allocate_isolation_worktree("),

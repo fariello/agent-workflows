@@ -1,7 +1,10 @@
 # Lens: Reliability, resilience, and fault tolerance
 
-Focus the assessment on whether the system keeps working correctly under failure,
-load, and adverse conditions - and recovers gracefully when it does not.
+Focus the assessment on whether the system the project builds keeps working correctly
+under failure, load, and adverse conditions - and recovers gracefully when it does not.
+
+The subject is the project's own code and configuration, per the SUBJECT section of
+`../assess.md`.
 
 ## Lead personas
 

@@ -11,6 +11,7 @@
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/backlog.py, agent_workflows/specs.py, agent_workflows/cli.py, agent_workflows/attention_contract.py, agent_workflows/plan_readiness.py, .aw/records/specs/20260818-1525-02-sidecar-metadata-and-history.spec.md, .aw/records/backlog/README.md, tests/test_status_set.py, tests/test_history_routing.py, tests/test_attention_contract.py
 - Item-Dependencies: none
 - Status: approved
+- Blocks-Release: next
 - Readiness: go-pending-approval
 - Set: setterguard
 - Order: 2
@@ -21,6 +22,7 @@
 - From-Backlog: x6tk1u
 
 ## Workflow history
+- 2026-09-18 approved (aw set): status set to approved
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 (BLOCKER) through PR-012, all 12 FIXED, none deferred; readiness GO - PENDING HUMAN APPROVAL. THE SET WAS RE-ORDERED (PR-001): E-02 as authored mandated newest-first ordering AND preserving prior records AND that `last_history_at` keep working, but that derivation takes the LAST record in FILE order, so the pair would have made it report the OLDEST date; measured by patching `specs._append_history` as authored. E-02 is now the READER fix and E-08 (split out) the writer change that depends on it. THE PLAN'S EXISTENCE PROOF WAS FALSE (PR-002): 273 of 581 multi-record plans ALREADY report a wrong `last_history_at`, so plans do not demonstrate the derivation tolerates multi-record newest-first history; un-slimming first would have spread a live bug to two more trees. E-01 WALKED INTO ITS OWN NAMED TRAP (PR-003): three identical calls produced three duplicate records, and both runners pass a constant message, so a dedup rule is now required. Also narrowed E-04's durability-inverting coupling, grew E-07 from one spec passage to six, corrected 143 to 139 and the `attention_contract.py:434` miscitation, recorded the three measured suite baselines, and declared three previously-undeclared paths.

@@ -1,9 +1,11 @@
 # Lens: Memory, resources, and lifetimes
 
-Focus the assessment on memory and resource correctness: leaks, unbounded growth,
-lifetime hazards, and concurrency/state safety. This is the deep `MEM` pass from
+Focus the assessment on memory and resource correctness in the project's own code: leaks,
+unbounded growth, lifetime hazards, and concurrency/state safety. This is the deep `MEM` pass from
 `../release-review/00-run-protocol.md` as a standalone assessment. High value for
 long-running services, native code, and data-heavy or concurrent systems.
+
+The subject is the project's own code, per the SUBJECT section of `../assess.md`.
 
 ## Lead personas
 

@@ -9,7 +9,7 @@
 - Scope-Paths: .aw/records/specs/20260904-6m4kow-01-6m4kow-cross-type-review.spec.md
   DELIBERATELY MINIMAL, AND WHY THIS IS NOT A FENCE FOR THE BUILD (PR-801, F-7). Only E-01 (the design discussion and its recorded ruling) is executable as authored, and the only tracked file that item can legitimately touch is the spec whose Section 5 records design decisions. The build items E-02 to E-04 have no honest fence until OQ-01 is answered, which is why they are gated by `- Blocking: yes` and `- Readiness: no-go` rather than by an empty field. THE PREVIOUS VALUE WAS NOT A GUARD AT ALL: it was a prose sentence, and `parse_scope_paths` split it on its commas into three "paths" that passed the grammar (no leading `/`, no `..`, no root glob), so `aw ipd lint --phase pre-execution` reported `conforming` and `ipd_lifecycle._frozen_scope_paths` froze three sentence fragments as the allowlist, against which EVERY real repository path matches nothing. WHEN OQ-01 IS ANSWERED, replace this line with the real allowlist the ruling implies; do NOT re-add prose, since a prose value is silently accepted rather than refused.
 - Item-Dependencies: executed:ui8b9b
-- Status: reviewed
+- Status: superseded
 - Readiness: no-go
 - Set: specdispatch
 - Order: 1
@@ -22,6 +22,7 @@
 - From-Spec: 6m4kow
 
 ## Workflow history
+- 2026-09-18 superseded (aw set): Superseded by spec z7nbn1 per maintainer ruling in spec z7nbn1 OQ-03; Blocks-Release: next carried forward to spec z7nbn1
 
 - 2026-09-13 reviewed (opencode (its_direct/pt3-claude-opus-5-1m-us)): /plan-review ROUND 1: REVIEWED - OPEN QUESTIONS; readiness NO-GO. PR-801..PR-806, all six FIXED, none deferred; the one open question is the maintainer's reserved design decision, which this review restored to blocking. THE PLAN'S CONSTRAINTS ARE ACCURATE AND ITS GUARDS WERE FICTION. Verified true: the manifest admits only plans, all three F-3 code citations exact, `_SPEC_ACTIONS` routing `approved`->plan with `implementing` absent, prohibition (c). But the plan asserted three guards against being built before the maintainer's ruling and had NONE: PR-801 its `- Scope-Paths:` was not unset but a PROSE SENTENCE that `parse_scope_paths` split on commas into three grammar-passing "paths", so a copy flipped to `approved` linted `conforming` at pre-execution (an ABSENT field would have been refused by IPD-M106, so prose was strictly worse) and `_frozen_scope_paths` froze three sentence fragments matching zero real paths; PR-802 the plan argued OQ-01 from `Blocking: yes` down to `no` on two premises both measured false (no runner reads `Depends on:` at all, and IPD-Q501's remedy IS E-01) when `yes` refuses at three checkpoints; PR-803 absent `- Readiness:` was fail-closed but silent, so `no-go` now carries the intent with no override. Also: PR-804 E-04 cited three `25kzda` 4.8 checks that grep to ZERO files package-wide, PR-805 `resolve_plan_path` FAILS OPEN and returns a `.spec.md` path with no diagnostic (worse than F-3 described; 48 plan-shaped call sites counted), PR-806 stale sibling status. OQ-01 deliberately NOT answered: the maintainer reserved it. No product code changed.
 - 2026-09-13 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Filed during `/spec-review` of spec `6m4kow`, at the maintainer's explicit direction: they chose "selection now, and file the execution half as its own release blocker too", and added that HOW execution is implemented needs DISCUSSION and that the fact must be captured loudly. This plan is that capture. IT IS DESIGN-FIRST BY INSTRUCTION, not by omission: the constraints below are measured, the approach is NOT chosen, and OQ-01 is blocking so no runner and no agent can execute it as though the design were settled. `- Scope-Paths:` is deliberately TBD for the same reason.
@@ -127,10 +128,15 @@ Spec `6m4kow` R-15 is the requirement this plan completes; sibling `ui8b9b` E-05
 
 ### OQ-01: HOW should the runner dispatch a non-plan artifact?
 
-- Blocking: yes
-- Status: open
+- Blocking: no
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: RULED 2026-09-16, SEE SPEC `z7nbn1` (universal-artifact-dispatch),
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-18: Ruled in spec `z7nbn1`
+  (universal-artifact-dispatch) Section 1 and OQ-03 that plan `mng63x` is SUPERSEDED by spec `z7nbn1`.
+  The release gate `- Blocks-Release: next` has been carried forward to spec `z7nbn1` (and whatever plan
+  graduates from it) per the close-legitimacy rule. Plan `mng63x` is transitioned to `superseded`.
+
+  ROUND 1 CONTEXT (KEPT FOR THE RECORD): RULED 2026-09-16, SEE SPEC `z7nbn1` (universal-artifact-dispatch),
   which records the maintainer's architectural statement and chooses candidate shape (a), generalize the
   queue entry. It also ANSWERS a question this plan did not contemplate: executing a spec or backlog item
   is a PRODUCTION action whose output is new plans or backlog items, not completed work. THIS QUESTION

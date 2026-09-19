@@ -1,11 +1,13 @@
 - Id: 5bmq5f
 - Status: open
+- Blocks-Release: next
 - Set: 5bmq5f
 - Priority: medium
 - Work-Kind: bug
 - Summary: Backlog item egqt32 exists in BOTH done/ and graduated/, so aw backlog check fails closed
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): Backlog item egqt32 exists in BOTH done/ and graduated/, so aw backlog check fails closed
 
 OBSERVED 2026-09-17 while executing rununify 05 (ct4w0a); PRE-EXISTING and unrelated to that plan.

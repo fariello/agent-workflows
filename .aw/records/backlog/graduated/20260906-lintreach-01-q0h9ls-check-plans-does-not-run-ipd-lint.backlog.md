@@ -1,11 +1,13 @@
 - Id: q0h9ls
 - Status: graduated
+- Blocks-Release: next
 - Set: lintreach
 - Priority: medium
 - Work-Kind: bug
 - Summary: aw check plans does not run ipd_lint, so IPD-M107 (and every other lint rule) is invisible to the repo-wide sweep and to CI: a fabricated Readiness is caught only by 'aw ipd lint' or 'aw ipd begin'
 
 ## Workflow history
+- 2026-09-18 graduated (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-08 graduated (aw set): Graduated to plan k9awrq (lintreach-01). Core defect REPRODUCED not trusted: a scaffolded plan with a fabricated Readiness and no review yields IPD-M107 from aw ipd lint --phase author and ZERO findings from aw check plans --agent. TWO OF THE THREE OPEN DECISIONS ARE NOW SETTLED BY MEASUREMENT, which turned this from an exploration into a narrow plan. Question 1 demanded the noise count first: measured ZERO author-phase diagnostics across all 561 tracked plans, so the feared pre-existing backlog does not exist and the rule can be introduced blocking with no phased rollout. Question 2 asked which checkpoint: measured 1261 diagnostics across 74 files at pre-transition, ALL IPD-S404 (the correct state of an unexecuted plan), which forces 'author' and quantifies the alternative. Question 3 (a hook instead) is DECLINED using the item's own reasoning that a local hook is feedback not authority, not cloned, and skippable, so it cannot make CI see the rule; it stays a legitimate later addition. STALE: the closing note cites 488 plans in the corpus guard; the corpus is 561. That guard is deliberately left in place. KEYWORD TRAP recorded: the API keyword is checkpoint=, the CLI flag is --phase, and a wrong-keyword call inside a broad except reports zero for every file (the first measurement attempt returned 561 exceptions counted as zeros). No Blocks-Release on the item, so none inherited.
 - 2026-09-06 created (aw backlog): aw check plans does not run ipd_lint, so IPD-M107 (and every other lint rule) is invisible to the repo-wide sweep and to CI: a fabricated Readiness is caught only by 'aw ipd lint' or 'aw ipd begin'
 

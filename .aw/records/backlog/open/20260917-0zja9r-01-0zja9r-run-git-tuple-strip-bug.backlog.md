@@ -1,11 +1,13 @@
 - Id: 0zja9r
 - Status: open
+- Blocks-Release: next
 - Set: 0zja9r
 - Priority: medium
 - Work-Kind: bug
 - Summary: runner_shared._reset_item_for_retry treats _run_git's 3-tuple as a string, so the non-lane holds_work branch is always truthy
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): runner_shared._reset_item_for_retry treats _run_git's 3-tuple as a string, so the non-lane holds_work branch is always truthy
 
 MEASURED at HEAD 1171f7b2, and PRE-EXISTING (not introduced by plan pr5b0t; the same code is at HEAD, line 2734 there).

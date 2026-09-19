@@ -1,11 +1,13 @@
 - Id: q96tpi
 - Status: graduated
+- Blocks-Release: next
 - Set: q96tpi
 - Priority: medium
 - Work-Kind: bug
 - Summary: aw attention reports one stranded lane once per run, so 12 lanes render as 19 rows: the dedup key includes run_id
 
 ## Workflow history
+- 2026-09-18 graduated (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 graduated (aw set): Design handed off to plan 0ta5vg (stranrep-01), which fixes all four stranded-report defects as one cohesive change; that plan carries From-Backlog: kvf5xo and inherits Blocks-Release: next
 - 2026-09-17 created (aw backlog): aw attention reports one stranded lane once per run (dedup key includes run_id), so 12 lanes render as 19 rows; measured 19 rows / 12 distinct at HEAD d188eaad
 

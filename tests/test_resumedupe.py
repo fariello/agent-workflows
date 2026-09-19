@@ -771,6 +771,8 @@ class TestDriverSymmetry(ResumeRoutingBase):
         """`resolve_prior_lane`'s last fallback needs this in DURABLE state, not only in an event."""
         for module in (OC, AGY):
             source = module_source(module)
+            if "execute_item_core" in source:
+                source += "\n" + module_source(RS)
             self.assertIn('attempt["worktree_displaced_from"]', source, module.__name__)
 
     def test_both_drivers_route_before_allocating_their_own_lane(self):
@@ -781,6 +783,8 @@ class TestDriverSymmetry(ResumeRoutingBase):
         }
         for module, call in source_by_module.items():
             source = module_source(module)
+            if "execute_item_core" in source:
+                source = module_source(RS)
             with self.subTest(driver=module.__name__):
                 self.assertIn(call, source)
                 routing_at = source.index(call)

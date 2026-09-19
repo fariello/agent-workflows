@@ -156,6 +156,26 @@ REFORK_TABLE: tuple[Owned, ...] = (
     Owned("resolve_plan_path", "runner_shared", BOTH),
     Owned("plan_bucket", "runner_shared", BOTH),
     Owned("describe_unresolved_plan_selector", "runner_shared", BOTH),
+    # --- runner_shared: the ACTION-AWARE SUCCESS BAR, added by `runnoop` Order 01 (`zz5yxq`) ------
+    #
+    # WHY THIS TABLE AND NOT `tests/test_runner_item_dependencies.py::_SHARED_NAMES`, stated because
+    # the two are the only legal homes and the choice follows the OWNER. `_SHARED_NAMES` exists for
+    # `oc_runipd`-OWNED names that agy must bind (its own comment records that this table structurally
+    # cannot host one, since naming a runner as `owner` would make the AST half forbid that runner's
+    # own definition). These four are owned by `runner_shared`, so BOTH halves of this table's
+    # contract apply unchanged and they belong here: no runner-local definition, and each runner
+    # attribute IS `runner_shared`'s object.
+    #
+    # WHAT A ROW HERE ACTUALLY BUYS, since grep would not buy it. The bar the exit code, the finish
+    # glyph and `render_continuation_hint`'s `all_success` consult must be ONE object: a textually
+    # identical copy in one host would let a later fix reach only one driver, which is exactly how
+    # `render_stream`'s ANSI constants came to be re-forked and how agy carried a broken
+    # `dependency_status_detailed` for months. `assertIs` distinguishes a shared object from a copy;
+    # reading the source cannot.
+    Owned("success_states_for_action", "runner_shared", BOTH),
+    Owned("item_reached_success", "runner_shared", BOTH),
+    Owned("item_needs_approval", "runner_shared", BOTH),
+    Owned("exit_code_statuses", "runner_shared", BOTH),
 )
 
 _MODULES = {

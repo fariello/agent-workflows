@@ -105,6 +105,58 @@ def _code_only(text: str) -> str:
     return "\n".join(kept)
 
 
+def _code_without_prose(text: str) -> str:
+    """``text`` with comments and DOCSTRINGS removed, but every OTHER string literal KEPT.
+
+    THE MIDDLE GROUND BETWEEN TWO WRONG ANSWERS, both of which were measured on this repository.
+
+    `_code_only` above drops every STRING token. A guard whose pattern anchors on a string literal
+    (``'"queued"\\s*if\\s*status\\s*in\\s*\\('``) therefore becomes UNFALSIFIABLE when run through it:
+    the literal is gone before the regex ever looks. Measured by re-inlining the real pre-fix
+    expression into ``oc_runipd.initialize_run`` -- the shipped guard stayed GREEN.
+
+    Raw source is the opposite error. ``runner_shared.initial_queue_status`` QUOTES the defective
+    expression in its own docstring in order to record what was fixed, so a raw scan reports correct,
+    fixed code as a live re-inlining. Measured at the 2026-09-18 merge: two FALSE POSITIVES.
+
+    So: docstrings and comments are PROSE and go; every other literal is CODE and stays. A docstring
+    is identified structurally, as a bare string EXPRESSION statement, rather than by position, so a
+    module/class/function docstring at any nesting depth is removed while an assignment such as
+    ``x = "queued"`` survives.
+    """
+    import ast
+
+    try:
+        tree = ast.parse(text)
+    except (
+        SyntaxError
+    ):  # pragma: no cover - defensive; a broken module is a different failure
+        return text
+
+    spans: list[tuple[int, int]] = []
+    for node in ast.walk(tree):
+        # `body` is a LIST on modules/classes/functions, but a single expression on a `lambda` and an
+        # `IfExp`, so it must be type-checked rather than merely truth-checked.
+        body = getattr(node, "body", None)
+        if not isinstance(body, list):
+            continue
+        for child in body:
+            if (
+                isinstance(child, ast.Expr)
+                and isinstance(child.value, ast.Constant)
+                and isinstance(child.value.value, str)
+                and child.end_lineno is not None
+            ):
+                spans.append((child.lineno, child.end_lineno))
+
+    drop = {ln for start, end in spans for ln in range(start, end + 1)}
+    return "\n".join(
+        ln
+        for number, ln in enumerate(text.splitlines(), start=1)
+        if number not in drop and not ln.lstrip().startswith("#")
+    )
+
+
 def _plan_text(
     id6: str,
     *,
@@ -2655,11 +2707,33 @@ class AntiDivergenceGuardTests(unittest.TestCase):
                     # against the real pre-fix expression re-inlined into `initialize_run`. Comments
                     # are prose and are dropped so documenting the fix does not trip the guard; string
                     # literals are CODE for this purpose and are kept.
-                    code = "\n".join(
-                        ln
-                        for ln in text.splitlines()
-                        if not ln.lstrip().startswith("#")
-                    )
+                    # WHAT IS STRIPPED, AND WHY EACH CHOICE IS DELIBERATE. This scan must be
+                    # falsifiable, and it must not fire on documentation of the very defect it hunts.
+                    #
+                    # COMMENTS AND DOCSTRINGS ARE STRIPPED because they are PROSE: `initial_queue_status`
+                    # QUOTES the old defective expression verbatim in its own docstring, to record what
+                    # was fixed. Measured at this merge: not stripping docstrings reports that quote as
+                    # a live re-inlining on both hosts, a FALSE POSITIVE on correct code.
+                    #
+                    # OTHER STRING LITERALS ARE KEPT because they are CODE here: the pattern anchors on
+                    # `"queued"`, so a scan that drops every string can never match and the guard becomes
+                    # unfalsifiable. Measured: the shipped guard used `_code_only`, which drops ALL
+                    # STRING tokens, and stayed GREEN against the real pre-fix expression re-inlined
+                    # into `initialize_run`.
+                    #
+                    # So neither `_code_only` (too aggressive, vacuous) nor raw source (too permissive,
+                    # false-positive) is correct; the middle is what this does.
+                    code = _code_without_prose(text)
+                    # ADOPTED FROM main AT THE 2026-09-18 MERGE: after `7a28ed11` unified
+                    # `initialize_run` into `runner_shared.initialize_run_core`, the construct this row
+                    # hunts for can live in the SHARED module rather than the driver file, so a
+                    # driver-only scan would go quiet for the wrong reason. Widen as main does.
+                    if "initialize_run_core" in code:
+                        code += _code_without_prose(
+                            (path.parent / "runner_shared.py").read_text(
+                                encoding="utf-8"
+                            )
+                        )
                     if re.search(pattern, re.sub(r"\s+", " ", code)):
                         problems.append(
                             f"the pattern {pattern!r} matches the CODE (comments stripped, string "

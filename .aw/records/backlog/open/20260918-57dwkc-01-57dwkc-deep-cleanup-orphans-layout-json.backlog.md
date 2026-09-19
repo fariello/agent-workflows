@@ -1,11 +1,13 @@
 - Id: 57dwkc
 - Status: open
+- Blocks-Release: next
 - Set: 57dwkc
 - Priority: medium
 - Work-Kind: bug
 - Summary: aw uninstall --deep orphans .aw/system/layout.json, so the no-.aw-remains promise fails
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 created (aw backlog): aw uninstall --deep orphans .aw/system/layout.json, so the no-.aw-remains promise fails
 
 MEASURED 2026-09-18 while executing wfartifacts Order 01 (gzhd7t); PRE-EXISTING at HEAD 6ff7a7ba, reproduced with the plan's changes stashed, so it is NOT caused by that plan.

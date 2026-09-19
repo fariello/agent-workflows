@@ -1,11 +1,13 @@
 - Id: mo3h5b
 - Status: open
+- Blocks-Release: next
 - Set: toolidraise
 - Priority: high
 - Work-Kind: bug
 - Summary: run_queue's except ToolIdentityError swallows a run-fatal error on both hosts; the raise was lost in merge 04a613aa
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-17 created (aw backlog): Found while executing rununify Order 08 (ty3cj6) E-02
 
 ## What is wrong

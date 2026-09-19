@@ -1,55 +1,45 @@
 #!/usr/bin/env python3
-"""rununify Order 11 (`3dki3o`) E-02/E-03: CHARACTERIZE `main` on BOTH hosts, as behavior.
+"""rununify Order 11 (`3dki3o`) E-05/E-06: GUARD what plan `3dki3o` measured about `main`.
 
-WHY THIS FILE EXISTS, and why every assertion here is on an OBSERVABLE result.
+TWO DIFFERENT ACTORS ARE GUARDED AGAINST HERE, which is why the file has two halves.
 
-The parent Set forbids a child reconciling a symbol the characterization baseline has not pinned,
-and `main` is the process entry point both runners are reached through. It is also, measured, the
-most heavily SOURCE-pinned of the five large functions this Set splits: four pins USED to read
-`inspect.getsource(<host>.main)` and assert substrings or AST shapes of its body. A source pin has
-two failure modes this file is the answer to. It dies when the body MOVES even though behavior is
-unchanged, and it can be satisfied by a COMMENT even when behavior is broken. So nothing below reads
-source text; each test drives the host's real `main` and asserts the return code, the streams, and
-the on-disk state. THIS FILE IS NOW THE WHOLE GUARD: the source pins it was written to replace (and
-the sibling that counted them) were deleted once this behavioral net was in place, which is the
-outcome the plan wanted rather than a loss of coverage.
+E-05 GUARDS AGAINST THE CODE DRIFTING. `main` closes over 27 module-level names, and the plan's
+decision about whether it can be split at all rests on HOW MANY of them are still defined twice.
+:class:`TheClosureClassification` re-derives that classification from the AST at import time and
+asserts it against :data:`EXPECTED_CLOSURE`, a NAMED TABLE. A symbol that silently changes class
+fails here, which is the point: the split's cost is a function of this table, so the table moving
+without anybody noticing is how a stale plan gets executed.
 
-DO NOT ADD A SOURCE PIN HERE. Plan `3dki3o` E-02 states why directly: "adding a fifth source pin
-would hand the next refactor a problem this plan is documenting." Assert on the observable result of
-running `main`, never on the text of its body.
+E-06 GUARDS AGAINST A LATER AGENT CLEARING THE OBSTACLES. This is a different threat from drift. The
+four source pins inventoried in :data:`SOURCE_PINS` are what a split of `main` would break, LOUDLY,
+and the cheapest way to make a split "pass" is to delete them. :class:`TheSourcePinsAreStillPresent`
+asserts each is still there, and :class:`TheSplitHasNotBeenPerformed` asserts `main` is still defined
+in both runners. So a unilateral relocation cannot land quietly; it has to come back through this
+file and say what it did.
 
-AGY IS PRIORITIZED DELIBERATELY, per the plan's E-02. The parent Set measured the two hosts' suites
-as asymmetric, so an agy-side regression can hide behind a green run. Every test here runs against
-BOTH hosts through `subTest`, and each of the five exit codes is asserted on both.
+WHAT THIS FILE DELIBERATELY DOES NOT ASSERT. It contains no assertion about a shared `main` core in
+`runner_shared`. Per E-05, a test asserting a state the code is not in is a failing test rather than
+a guard. When the split lands, the classes below are the place to re-base, and the maintainer's
+2026-09-16 ruling governs how: re-base a guard deliberately and record what it now asserts; never
+weaken one silently.
 
-WHAT IS PINNED HERE, branch by branch, because "characterize `main`" is otherwise unfalsifiable:
-
-* THE FIVE EXIT CODES `main` actually returns: 0 (a completed command), 0 (the `print_help` path
-  when no subcommand resolves), 2 (an invalid invocation translated from `DriverError`), 130
-  (SIGINT via the `KeyboardInterrupt` funnel), and 143 (SIGTERM through the same funnel, which the
-  handler marks by putting `SIGTERM` in the exception message).
-* THE IMPLICIT-START SHIM, including the case it exists for: a bare `stop <run-id>` must NOT be
-  rewritten to `start stop <run-id>`. That rewrite would launch a run whose selector is the literal
-  string `stop`, which is the exact opposite of the operator's intent.
-* THE FOUR `except` ARMS IN ORDER. The ordering is load-bearing rather than stylistic:
-  `EmptyStatusSelection` is a SUBCLASS of `DriverError`, so an arm ordered after it would never
-  run and an empty review sweep would exit 2 instead of 0.
-* THE `--json` STATUS BRANCH suppressing the human pointer line, so machine-readable output stays
-  parseable.
-
-E-03'S EXIT-CODE CONTRACT lives in `TheEmptySweepExitCodeContract` at the bottom. It pins the
-behavior (exit 0, the plain sentence, no run directory) AND the structural fact that makes the
-hazard possible in the first place. Plan `3dki3o` F-7 predicted that a shared core hardcoding one
-host's `EmptyStatusSelection` would silently return 2 on the other host. AT THIS HEAD THAT HAZARD
-IS ALREADY GONE, because sibling `i3d6ml` lifted the class into `runner_shared`, and both hosts now
-resolve the SAME object. The structural test asserts exactly that, so the day someone re-forks the
-class into two per-host definitions this suite fails LOUDLY instead of the empty sweep quietly
-starting to exit 2.
+THE ONE MEASUREMENT THAT MOVED SINCE THE PLAN WAS WRITTEN, recorded here because it is load-bearing
+rather than cosmetic. The plan's Goal table lists `EmptyStatusSelection` as STILL DEFINED TWICE and
+its F-7 calls a shared-core `except` arm on it a BLOCKER, having proven by construction that
+hardcoding one host's class returns 2 where spec `25kzda` 2.4a property 3 requires 0. Sibling
+`i3d6ml` (commit `d26c1061`) has since lifted the class into `runner_shared`, so both hosts now
+resolve the SAME object and that blocker is structurally gone. The class count therefore reads
+9/2/5/8/3 at this HEAD where the plan measured 8/2/5/9/3. The behavioral half of the contract is
+pinned in `tests/test_rununify_main_characterization.py::TheEmptySweepExitCodeContract`, which also
+fails if the class is ever re-forked.
 """
 
 from __future__ import annotations
 
+import ast
 import contextlib
+import functools
+import inspect
 import io
 import json
 import pathlib
@@ -59,14 +49,284 @@ import unittest
 from unittest.mock import patch
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
+from tests.support import REPO_ROOT
 
 HOSTS = (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd))
 
-#: The per-host stderr prefix `main` puts on a translated `DriverError`. It is NOT the parser's
-#: `prog` (that is a coincidence of spelling) and nothing else in `tests/` asserts it, which is why
-#: it is pinned here: it is the one host-specific string in the error-translation tail, so a split
-#: that dropped it would go unnoticed.
 ERROR_PREFIX = {"oc_runipd": "runipd:", "agy_runipd": "runagy:"}
+
+# ==========================================================================================
+# THE NAMED TABLE. Every closure assertion below is driven from here, so there is exactly one
+# place to update when a symbol legitimately changes class, and updating it is a visible edit.
+# ==========================================================================================
+
+#: The five closure classes, in the order plan `3dki3o`'s Goal table states them, with what each
+#: means for a split. The CONSEQUENCE column is the reason the classification is worth guarding:
+#: classes 1 and 3 are free, class 2 needs the ruled wrapper form, and classes 4 and 5 are the cost.
+CLOSURE_CLASSES = {
+    "shared-same-object": "resolves in runner_shared and is the SAME object: moves for free",
+    "shared-host-wrapper": "name in runner_shared but the host object DIFFERS (a per-host "
+    "wrapper): must be injected, or the host label is lost",
+    "one-object-agy-imports-oc": "already ONE object, agy imports it from oc: needs RELOCATION to "
+    "runner_shared, not de-duplication",
+    "still-defined-twice": "STILL DEFINED TWICE: each is an injected parameter, and injecting it "
+    "is the opposite of sharing it",
+    "oc-only": "no agy counterpart exists: host hook, permanently",
+}
+
+#: The 27 module-level free names of `oc_runipd.main`, each mapped to its class.
+#:
+#: MEASURED AT HEAD `761edad3`, 2026-09-17, by the same AST method the assertions below use, and it
+#: is re-derived rather than trusted: :meth:`TheClosureClassification.test_every_name_is_in_the_table`
+#: fails if the code's closure and this table disagree in EITHER direction.
+#:
+#: `EmptyStatusSelection` is classed `shared-same-object` here and was `still-defined-twice` in the
+#: plan. That is the one class change, and it is a REAL improvement rather than a correction: sibling
+#: `i3d6ml` lifted the class, which dissolved plan `3dki3o`'s F-7 blocker. See the module docstring.
+EXPECTED_CLOSURE = {
+    # class 1: resolves in runner_shared, same object (9)
+    "DriverError": "shared-same-object",
+    "EmptyStatusSelection": "shared-same-object",
+    "Palette": "shared-same-object",
+    "json": "shared-same-object",
+    "load_state": "shared-same-object",
+    "render_run_summary_table": "shared-same-object",
+    "resolve_run_dir": "shared-same-object",
+    "should_color": "shared-same-object",
+    "sys": "shared-same-object",
+    # class 2: shared NAME, per-host wrapper object (2)
+    "print_status": "shared-host-wrapper",
+    "save_state": "shared-host-wrapper",
+    # class 3: one object, agy imports it from oc (5)
+    "emit_shutdown_report": "one-object-agy-imports-oc",
+    "install_exit_signal_handler": "one-object-agy-imports-oc",
+    "render_runs_pointer": "one-object-agy-imports-oc",
+    "report_run_spec_edits": "one-object-agy-imports-oc",
+    "runner_shared": "one-object-agy-imports-oc",
+    # class 4: STILL DEFINED TWICE, i.e. the injection cost of a split (8)
+    "build_parser": "still-defined-twice",
+    # ADDED 2026-09-17 by integpath-04 (`rl67b0`): the `integrate` verb's per-host handler, the exact
+    # twin of `handle_stop_command` beside it and forked for the same reason. Each host binds its OWN
+    # `integrate_lane_branch` wrapper (so the merge subject on MAIN names the right driver) and its own
+    # `run_suite_check`, which `runner_shared` may not import; the DECISION is the single shared
+    # `runner_shared.reintegrate_lane`, so the fork is the wiring and not the logic.
+    "handle_integrate_command": "still-defined-twice",
+    "handle_stop_command": "still-defined-twice",
+    "initialize_run": "still-defined-twice",
+    "install_stop_triggers": "still-defined-twice",
+    "locked_run": "still-defined-twice",
+    # RECLASSIFIED 2026-09-17 by sibling `tx6q0h`: lifted behind the `HostLabels` descriptor, so
+    # each host now keeps a one-line wrapper over the single `runner_shared` definition.
+    "render_continuation_hint": "shared-host-wrapper",
+    "run_queue": "still-defined-twice",
+    "write_report": "shared-host-wrapper",  # same reclassification as above (`tx6q0h`)
+    # class 5: oc-only, no agy counterpart (3)
+    "ProfileClauseError": "oc-only",
+    "extract_profile_clause": "oc-only",
+    "print_launch_identity": "oc-only",
+}
+
+#: The class histogram the table above implies. Asserted separately from the per-name mapping so a
+#: failure says WHICH WAY the cost moved, not merely that something changed.
+EXPECTED_CLASS_COUNTS = {
+    "shared-same-object": 9,
+    # RE-MEASURED 2026-09-17: 4, up from 2. `render_continuation_hint` and `write_report` moved from
+    # `still-defined-twice` when sibling `tx6q0h` lifted them behind the `HostLabels` descriptor; the
+    # fork count falls by the same two, so the histogram still partitions the same population.
+    "shared-host-wrapper": 4,
+    "one-object-agy-imports-oc": 5,
+    # RE-MEASURED 2026-09-17: 7, up from 6. integpath-04 (`rl67b0`) added `handle_integrate_command`
+    # per host. A RISE is normally a re-fork and therefore a defect, so the reason is stated: this is a
+    # NEW verb whose per-host half binds host-specific values only (the `integrate_lane_branch` wrapper
+    # carrying the merge subject's label, and `run_suite_check`, which `runner_shared` may not import),
+    # while the decision lives once in `runner_shared.reintegrate_lane`. Nothing previously shared was
+    # forked.
+    "still-defined-twice": 7,
+    "oc-only": 3,
+}
+
+#: The four test files whose `mock.patch.object(<host>, "<name>")` seams patch a name `main`
+#: resolves at MODULE level, with the count measured at this HEAD. A shared core in `runner_shared`
+#: resolves its OWN globals, so it would observe none of them.
+#:
+#: THIS IS THE OBSTACLE WHOSE FAILURE MODE IS SILENT, which is why it is counted rather than merely
+#: described: a broken source pin fails at its assertion, but a LOST patch seam makes the test
+#: exercise the REAL `run_queue`, `locked_run` and `initialize_run` against a temp repo, where it may
+#: still pass while asserting nothing it claims to.
+PATCH_SEAM_FILES = {
+    "tests/test_interrupt_menu.py": 12,
+    "tests/test_run_summary_table.py": 8,
+    "tests/test_oc_runipd.py": 4,
+    "tests/test_oc_runipd_cli.py": 2,
+}
+
+#: Total seams across those four files, i.e. the number plan `3dki3o` F-9 reported.
+EXPECTED_SEAM_TOTAL = 26
+
+
+# ==========================================================================================
+# The measurement, re-derived. Shared by both halves of the file.
+# ==========================================================================================
+
+
+def module_level_free_names(mod, funcname: str) -> set[str]:
+    """Every name `funcname` reads that resolves in `mod`'s module globals.
+
+    Deliberately AST-based rather than `__code__.co_names`: `co_names` also reports attribute names
+    and cannot distinguish a genuine global read from a local rebind, which would inflate the
+    closure and make the table below unfalsifiable.
+    """
+    fn = next(
+        node
+        for node in ast.parse(inspect.getsource(mod)).body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == funcname
+    )
+    bound = {a.arg for a in fn.args.args + fn.args.kwonlyargs + fn.args.posonlyargs}
+    if fn.args.vararg:
+        bound.add(fn.args.vararg.arg)
+    if fn.args.kwarg:
+        bound.add(fn.args.kwarg.arg)
+    loaded: list[str] = []
+    for node in ast.walk(fn):
+        if isinstance(node, ast.Name):
+            if isinstance(node.ctx, (ast.Store, ast.Del)):
+                bound.add(node.id)
+            else:
+                loaded.append(node.id)
+        elif (
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+            and node is not fn
+        ):
+            bound.add(node.name)
+        elif isinstance(node, ast.alias):
+            bound.add((node.asname or node.name).split(".")[0])
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            bound.add(node.name)
+    globals_ = vars(mod)
+    return {n for n in loaded if n not in bound and n in globals_}
+
+
+def classify(name: str) -> str:
+    """Put one closure name in exactly one of :data:`CLOSURE_CLASSES`.
+
+    The order of the checks IS the definition, so it is written to match the Goal table's order:
+    identity with `runner_shared` first (the free case), then a shared name whose object differs
+    (the wrapper case), then absence from agy (the oc-only case), then identity across the two hosts
+    (the relocate case), leaving genuine double definition last.
+    """
+    host_obj = getattr(oc_runipd, name)
+    in_shared = hasattr(runner_shared, name)
+    if in_shared and getattr(runner_shared, name) is host_obj:
+        return "shared-same-object"
+    if in_shared:
+        return "shared-host-wrapper"
+    if not hasattr(agy_runipd, name):
+        return "oc-only"
+    if getattr(agy_runipd, name) is host_obj:
+        return "one-object-agy-imports-oc"
+    return "still-defined-twice"
+
+
+def measured_closure() -> dict[str, str]:
+    return {n: classify(n) for n in module_level_free_names(oc_runipd, "main")}
+
+
+# ==========================================================================================
+# E-05: the code must not drift out from under the plan's measurement
+# ==========================================================================================
+
+
+class TheClosureClassification(unittest.TestCase):
+    """`main`'s closure, re-derived at import and asserted against :data:`EXPECTED_CLOSURE`."""
+
+    def test_every_name_is_in_the_table_and_the_table_has_no_extras(self):
+        """Bidirectional, so neither a NEW closure name nor a stale table entry can hide."""
+        measured = measured_closure()
+        self.assertEqual(
+            sorted(measured),
+            sorted(EXPECTED_CLOSURE),
+            "main's closure and EXPECTED_CLOSURE disagree; update the table DELIBERATELY and say "
+            "in the commit which symbol moved and why",
+        )
+
+    def test_the_closure_is_still_28_names(self):
+        # 28, up from 27: integpath-04 (`rl67b0`) added `handle_integrate_command`, the `integrate`
+        # verb's per-host handler, to `main`'s closure. The table above records its class and why.
+        self.assertEqual(len(measured_closure()), 28)
+        self.assertEqual(len(EXPECTED_CLOSURE), 28)
+
+    def test_each_name_is_still_in_its_expected_class(self):
+        for name, expected in sorted(EXPECTED_CLOSURE.items()):
+            with self.subTest(name=name):
+                self.assertEqual(
+                    classify(name),
+                    expected,
+                    f"{name} changed closure class; a split's cost is a function of this "
+                    f"classification, so the plan that reads it is now stale",
+                )
+
+    def test_the_class_histogram_is_unchanged(self):
+        measured = measured_closure()
+        counts = {cls: 0 for cls in CLOSURE_CLASSES}
+        for cls in measured.values():
+            counts[cls] += 1
+        self.assertEqual(counts, EXPECTED_CLASS_COUNTS)
+
+    def test_every_class_named_in_the_table_is_a_declared_class(self):
+        """Guards the table against a typo silently creating a sixth class nobody asserts."""
+        for name, cls in EXPECTED_CLOSURE.items():
+            with self.subTest(name=name):
+                self.assertIn(cls, CLOSURE_CLASSES)
+
+    def test_the_still_double_defined_count_is_stated_not_implied(self):
+        """The number that decides the split's injection cost, asserted on its own.
+
+        SEVEN, down from the nine plan `3dki3o` measured. A DROP here is progress and is recorded with
+        the sibling that caused it; a RISE means something was re-forked UNLESS the rise is a genuinely
+        new per-host verb, which is stated when it happens.
+
+          * 9 -> 8: `EmptyStatusSelection` moved to `runner_shared` (sibling `i3d6ml`).
+          * 8 -> 6: `render_continuation_hint` and `write_report` became one-line per-host wrappers
+            over single `runner_shared` definitions when sibling `tx6q0h` lifted the eight host-label
+            symbols behind its `HostLabels` descriptor (integrated 2026-09-17). They are now classed
+            `shared-host-wrapper`, so the histogram above partitions the same population.
+          * 6 -> 7: integpath-04 (`rl67b0`) added `handle_integrate_command`, the `integrate` verb's
+            per-host handler and the exact twin of `handle_stop_command`. NOT a re-fork: nothing that
+            was shared became forked. The per-host half binds only host-specific values (this host's
+            `integrate_lane_branch` wrapper, which carries the merge subject's `aw oc run`/`aw agy run`
+            label onto MAIN, and this host's `run_suite_check`, which `runner_shared` is forbidden by
+            test from importing), and the decision itself is the one shared
+            `runner_shared.reintegrate_lane`.
+        """
+        measured = measured_closure()
+        twice = sorted(n for n, c in measured.items() if c == "still-defined-twice")
+        self.assertEqual(len(twice), 7, twice)
+        self.assertNotIn(
+            "EmptyStatusSelection",
+            twice,
+            "EmptyStatusSelection was re-forked into two per-host classes; that revives plan "
+            "3dki3o's F-7 hazard, where a shared `except` arm returns 2 instead of 0",
+        )
+
+    def test_agys_own_closure_is_smaller_and_that_is_the_capability_gap(self):
+        """agy reads 25 module-level names against oc's 28; the 3 missing are oc's profile grammar.
+
+        Pinned because it is the measurement that answers "how much of `main` is even shareable":
+        the difference is a CAPABILITY agy has no subsystem for, not drift to reconcile.
+
+        RE-MEASURED 2026-09-17 (24/27 -> 25/28): integpath-04 (`rl67b0`) added
+        `handle_integrate_command` to BOTH hosts, so both counts rose by one and the GAP - which is what
+        this test is actually about - is unchanged at exactly oc's three profile-grammar symbols.
+        """
+        agy_names = module_level_free_names(agy_runipd, "main")
+        oc_names = module_level_free_names(oc_runipd, "main")
+        self.assertEqual(len(agy_names), 25)
+        self.assertEqual(len(oc_names), 28)
+        self.assertEqual(
+            sorted(oc_names - agy_names),
+            ["ProfileClauseError", "extract_profile_clause", "print_launch_identity"],
+        )
 
 
 class MainCase(unittest.TestCase):
@@ -598,7 +858,8 @@ class TheEmptySweepExitCodeContract(unittest.TestCase):
     WHAT CHANGED SINCE THE PLAN WAS WRITTEN, and it is the good news: sibling `i3d6ml` (commit
     `d26c1061`) lifted `EmptyStatusSelection` into `runner_shared`, so at this HEAD both hosts
     resolve the SAME class and the hazard is structurally gone. The plan's own Goal table lists the
-    symbol as "STILL DEFINED TWICE"; that is now stale.
+    symbol as "STILL DEFINED TWICE"; that is now stale, which
+    `tests/test_rununify_main.py` records as a class change.
 
     So this class pins BOTH halves: the behavior (0, the plain sentence, no run directory) and the
     structural precondition (one class, shared, a `DriverError` subclass). A future re-fork into two
@@ -710,6 +971,87 @@ class TheEmptySweepExitCodeContract(unittest.TestCase):
                         )
                     self.assertEqual(rc, 2, out.getvalue())
                     self.assertNotIn("Nothing awaiting review", out.getvalue())
+
+
+class ThePatchSeamPopulation(unittest.TestCase):
+    """The 26 seams plan `3dki3o` F-9 measured, asserted so their loss cannot be silent.
+
+    WHY COUNT THEM AT ALL, when a split has not happened: because this is the obstacle that does NOT
+    announce itself. A source pin fails at its assertion. A seam that stops taking effect leaves the
+    test GREEN while it silently exercises the real `run_queue`, `locked_run` and `initialize_run`.
+    Counting them here converts "we think 26 tests still mean what they say" into an assertion.
+    """
+
+    @classmethod
+    @functools.lru_cache(maxsize=1)
+    def _cached_seams(cls) -> list[tuple[str, int, str]]:
+        closure = module_level_free_names(oc_runipd, "main") | module_level_free_names(
+            agy_runipd, "main"
+        )
+        direct = {"oc_runipd", "agy_runipd"}
+        indirect = {"driver", "module", "mod", "runner", "host", "_MODULES"}
+        found: list[tuple[str, int, str]] = []
+        for path in sorted(pathlib.Path(REPO_ROOT, "tests").glob("*.py")):
+            text = path.read_text(encoding="utf-8")
+            if "patch.object" not in text and "setattr" not in text:
+                continue
+            tree = ast.parse(text)
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call) or len(node.args) < 2:
+                    continue
+                func = ast.unparse(node.func)
+                if not func.endswith(("patch.object", "setattr")):
+                    continue
+                target = ast.unparse(node.args[0])
+                base = target.split(".")[-1].split("[")[0]
+                if base not in direct and base not in indirect:
+                    continue
+                try:
+                    symbol = ast.literal_eval(node.args[1])
+                except (ValueError, SyntaxError):
+                    continue
+                if not isinstance(symbol, str) or symbol not in closure:
+                    continue
+                found.append((f"tests/{path.name}", node.lineno, symbol))
+        return found
+
+    def seams(self) -> list[tuple[str, int, str]]:
+        """Every `patch.object`/`setattr` on a host module naming a `main`-closure symbol.
+
+        Both spellings of the target are counted: the DIRECT `patch.object(oc_runipd, ...)` and the
+        INDIRECT `patch.object(module, ...)` used inside a both-hosts loop. Counting only the direct
+        form undercounts by 18 of 28, which is how a scan can report a reassuring number and be
+        wrong.
+        """
+        return self._cached_seams()
+
+    def test_the_four_named_files_still_hold_their_measured_seam_counts(self):
+        counts: dict[str, int] = {}
+        for rel, _line, _symbol in self.seams():
+            counts[rel] = counts.get(rel, 0) + 1
+        for rel, expected in sorted(PATCH_SEAM_FILES.items()):
+            with self.subTest(path=rel):
+                self.assertEqual(
+                    counts.get(rel, 0),
+                    expected,
+                    f"{rel}'s patch-seam count moved; a seam that no longer takes effect leaves "
+                    f"its test green while exercising real code (F-9)",
+                )
+
+    def test_the_total_across_those_files_is_still_26(self):
+        total = sum(
+            1 for rel, _line, _symbol in self.seams() if rel in PATCH_SEAM_FILES
+        )
+        self.assertEqual(total, EXPECTED_SEAM_TOTAL, f"expected 26, measured {total}")
+
+    def test_every_seam_still_names_a_symbol_main_actually_reads(self):
+        """Non-vacuity of the count: a seam on an unrelated name would inflate it harmlessly."""
+        closure = module_level_free_names(oc_runipd, "main") | module_level_free_names(
+            agy_runipd, "main"
+        )
+        for rel, line, symbol in self.seams():
+            with self.subTest(site=f"{rel}:{line}"):
+                self.assertIn(symbol, closure)
 
 
 if __name__ == "__main__":  # pragma: no cover

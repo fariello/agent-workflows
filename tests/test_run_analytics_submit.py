@@ -508,3 +508,384 @@ def test_no_network_call_happens_while_building_a_bundle(tmp_path):
         )
     assert bundle.manifest_path.is_file()
     assert events["tier"] == "events-redacted"
+
+
+# --- E-01: the two leaves, exercised through the REAL cli entry point ----------------------------
+#
+# THESE GO THROUGH `cli.main`, NOT THROUGH THE MODULE FUNCTIONS, deliberately. Everything above
+# proves the export/submit LOGIC; this section proves the leaf a user actually types reaches it, with
+# the right exit code and without a prompt. A module-level test cannot catch a dispatch that never
+# wired the leaf, which is exactly what E-01 adds.
+
+
+def _cli(argv):
+    """Invoke the real entry point. Returns ``(stdout, stderr, rc)``."""
+
+    import io
+    from contextlib import redirect_stderr, redirect_stdout
+
+    from agent_workflows import cli
+
+    out, err = io.StringIO(), io.StringIO()
+    try:
+        with redirect_stdout(out), redirect_stderr(err):
+            rc = cli.main(list(argv))
+    except SystemExit as exc:  # argparse usage errors exit rather than return
+        rc = int(exc.code or 0)
+    return out.getvalue(), err.getvalue(), rc
+
+
+def _repo_with_runs(tmp_path: Path, count: int = 2) -> Path:
+    """A synthetic repo with `count` terminal runs, each carrying a same-named prompt file.
+
+    The same NAME in every run is the point: it is what makes the flattening defect detectable.
+    """
+
+    repo = tmp_path / "repo"
+    runs = repo / ".aw" / "records" / "runs"
+    runs.mkdir(parents=True)
+    for index in range(count):
+        rid = f"run-2026091800000{index}Z-11111{index}"
+        run_dir = runs / rid
+        run_dir.mkdir()
+        (run_dir / "state.json").write_text(
+            json.dumps({"run_id": rid, "status": "completed"}), encoding="utf-8"
+        )
+        (run_dir / "prompt.md").write_text(f"prompt of {rid}", encoding="utf-8")
+    return repo
+
+
+def _exports_dir(repo: Path) -> Path:
+    return repo / ".aw" / "records" / "runs" / "analytics" / "exports"
+
+
+def test_export_previews_by_default_and_writes_nothing(tmp_path):
+    """The `dry_run_default` gate is a claim about behavior; this is the behavior."""
+
+    repo = _repo_with_runs(tmp_path)
+    out, err, rc = _cli(["runs", "export", "--dir", str(repo), "--agent"])
+    assert rc == 0, out + err
+    record = json.loads(out.splitlines()[-1])
+    assert record["outcome"] == "preview"
+    assert record["applied"] is False
+    # NOTHING on disk: not an empty bundle, not a directory.
+    assert not _exports_dir(repo).exists()
+
+
+def test_export_writes_only_under_apply(tmp_path):
+    repo = _repo_with_runs(tmp_path)
+    out, err, rc = _cli(["runs", "export", "--dir", str(repo), "--apply", "--json"])
+    assert rc == 0, out + err
+    payload = json.loads(out)
+    assert payload["data"]["wrote_anything"] is True
+    manifest = Path(payload["data"]["manifest_path"])
+    assert manifest.is_file()
+    assert json.loads(manifest.read_text(encoding="utf-8"))["tier"] == "metrics"
+
+
+def test_export_defaults_to_the_metrics_tier(tmp_path):
+    repo = _repo_with_runs(tmp_path)
+    out, _err, rc = _cli(["runs", "export", "--dir", str(repo), "--apply", "--json"])
+    assert rc == 0
+    assert json.loads(out)["data"]["tier"] == "metrics"
+
+
+def test_export_refuses_an_unknown_tier_rather_than_narrowing_it(tmp_path):
+    repo = _repo_with_runs(tmp_path)
+    out, err, rc = _cli(["runs", "export", "--dir", str(repo), "--tier", "kinda-safe"])
+    assert rc == 2, out + err
+    assert "unknown export tier" in (out + err)
+    assert not _exports_dir(repo).exists()
+
+
+def test_raw_export_refuses_without_the_attestation_and_writes_nothing(tmp_path):
+    repo = _repo_with_runs(tmp_path)
+    out, err, rc = _cli(
+        [
+            "runs",
+            "export",
+            "--dir",
+            str(repo),
+            "--tier",
+            "raw",
+            "--include",
+            "prompt",
+            "--apply",
+            "--json",
+        ]
+    )
+    assert rc == 1, out + err
+    data = json.loads(out)["data"]
+    assert data["code"] == "not-attested"
+    assert data["wrote_anything"] is False
+    # The refusal names the LOCAL destination rather than rendering it as a redacted url: the shared
+    # refusal text runs its destination through `_redact_url`, which printed a filesystem path as the
+    # literal "<url>" (measured while wiring the leaf), so the message is authored at the leaf.
+    assert "<url>" not in json.loads(out)["summary"]
+    assert str(repo) in json.loads(out)["summary"]
+    assert not _exports_dir(repo).exists()
+
+
+def test_yes_alone_does_not_authorize_a_raw_export_through_the_cli(tmp_path):
+    """`--yes` is not even accepted here, so it cannot be mistaken for consent."""
+
+    repo = _repo_with_runs(tmp_path)
+    out, err, rc = _cli(
+        [
+            "runs",
+            "export",
+            "--dir",
+            str(repo),
+            "--tier",
+            "raw",
+            "--include",
+            "prompt",
+            "--yes",
+            "--apply",
+        ]
+    )
+    # A native argparse usage error (exit 2), NOT a silently-authorized export.
+    assert rc == 2, out + err
+    assert not _exports_dir(repo).exists()
+
+
+def test_raw_export_refuses_when_attested_but_nothing_was_selected(tmp_path):
+    repo = _repo_with_runs(tmp_path)
+    out, err, rc = _cli(
+        [
+            "runs",
+            "export",
+            "--dir",
+            str(repo),
+            "--tier",
+            "raw",
+            "--by-human",
+            "--actor",
+            "maintainer via chat",
+            "--apply",
+            "--json",
+        ]
+    )
+    assert rc == 1, out + err
+    assert json.loads(out)["data"]["code"] == "no-selection"
+    assert not _exports_dir(repo).exists()
+
+
+def test_attested_raw_export_records_its_provenance(tmp_path):
+    repo = _repo_with_runs(tmp_path)
+    out, err, rc = _cli(
+        [
+            "runs",
+            "export",
+            "--dir",
+            str(repo),
+            "--tier",
+            "raw",
+            "--include",
+            "prompt",
+            "--by-human",
+            "--actor",
+            "maintainer via chat",
+            "--apply",
+            "--json",
+        ]
+    )
+    assert rc == 0, out + err
+    attestation = json.loads(out)["data"]["attestation"]
+    assert attestation["by_human"] is True
+    assert attestation["actor"] == "maintainer via chat"
+    # Per spec 20260815-0151-01: no TTY was needed, and the record says so.
+    assert attestation["tty_required"] is False
+    assert attestation["mechanism"] == "explicit-attestation-flag"
+
+
+def test_a_raw_export_of_two_runs_keeps_both_same_named_files(tmp_path):
+    """MEASURED DEFECT, FIXED: a missing base collapsed every run's `prompt.md` into one file.
+
+    `write_bundle` falls back to `src.name` when `raw_base` is None, and every run directory carries
+    a `prompt.md`, so a two-run raw export produced a single `raw/prompt.md` and silently dropped the
+    other run's content. An export that loses half its selection while reporting success is worse
+    than one that refuses, so the leaf passes the runs' common parent as the base.
+    """
+
+    repo = _repo_with_runs(tmp_path, count=2)
+    out, err, rc = _cli(
+        [
+            "runs",
+            "export",
+            "--dir",
+            str(repo),
+            "--tier",
+            "raw",
+            "--include",
+            "prompt",
+            "--by-human",
+            "--actor",
+            "t",
+            "--apply",
+            "--json",
+        ]
+    )
+    assert rc == 0, out + err
+    manifest = json.loads(
+        Path(json.loads(out)["data"]["manifest_path"]).read_text(encoding="utf-8")
+    )
+    copied = sorted(
+        f["path"] for f in manifest["files"] if f["path"].startswith("raw/")
+    )
+    assert len(copied) == 2, f"a run's file was lost: {copied}"
+    assert copied[0] != copied[1]
+    assert all("prompt.md" in path for path in copied)
+
+
+def test_the_raw_preview_summarizes_by_category_with_counts_and_bytes(tmp_path):
+    repo = _repo_with_runs(tmp_path, count=2)
+    out, _err, rc = _cli(
+        [
+            "runs",
+            "export",
+            "--dir",
+            str(repo),
+            "--tier",
+            "raw",
+            "--include",
+            "prompt",
+            "--by-human",
+            "--actor",
+            "t",
+            "--json",
+        ]
+    )
+    assert rc == 0
+    preview = json.loads(out)["data"]["preview"]
+    assert preview["categories"]["prompts"]["count"] == 2
+    assert preview["categories"]["prompts"]["bytes"] > 0
+    assert any("RAW TIER" in w for w in preview["warnings"])
+
+
+def test_no_export_record_claims_anonymity_or_safety(tmp_path):
+    repo = _repo_with_runs(tmp_path)
+    for extra in (
+        ["--tier", "metrics"],
+        ["--tier", "events-redacted"],
+        ["--tier", "raw", "--include", "prompt", "--by-human", "--actor", "t"],
+    ):
+        out, err, rc = _cli(["runs", "export", "--dir", str(repo), "--json", *extra])
+        assert rc == 0, out + err
+        blob = out.lower()
+        for claim in (
+            "is anonymous",
+            "has been anonymized",
+            "safe to share",
+            "safe to submit",
+            "no sensitive data",
+            "contains no secrets",
+        ):
+            assert claim not in blob, f"{extra} claimed {claim!r}"
+        assert json.loads(out)["data"]["claims_anonymity"] is False
+
+
+def test_the_events_redacted_tier_ships_the_blind_spot_enumeration_through_the_cli(
+    tmp_path,
+):
+    """A report claiming a clean scan without naming its blind spots is a false guarantee."""
+
+    repo = _repo_with_runs(tmp_path)
+    out, err, rc = _cli(
+        ["runs", "export", "--dir", str(repo), "--tier", "events-redacted", "--json"]
+    )
+    assert rc == 0, out + err
+    report = json.loads(out)["data"]["sanitizer_report"]
+    assert "CORROBORATION ONLY" in report["detector_role"]
+    for blind in export.DETECTOR_BLIND_SPOTS:
+        assert blind in report["classes_this_detector_does_not_look_for"]
+    assert "gitleaks" in report["no_secret_shape_detection"]
+
+
+def test_submit_returns_the_expected_unavailable_through_the_cli(tmp_path):
+    """THE EXPECTED OUTCOME TODAY: this repository approves no endpoint."""
+
+    repo = _repo_with_runs(tmp_path)
+    out, err, rc = _cli(["runs", "export", "--dir", str(repo), "--apply", "--json"])
+    assert rc == 0, out + err
+    bundle = Path(json.loads(out)["data"]["manifest_path"]).parent
+
+    out, err, rc = _cli(["runs", "submit", "--dir", str(repo), str(bundle), "--json"])
+    assert rc == 1, out + err
+    data = json.loads(out)["data"]
+    assert data["status"] == "unavailable"
+    assert data["code"] == "endpoint-unavailable"
+    assert data["transmitted"] is False
+    assert "export locally" in data["remedy"].lower()
+
+
+def test_submit_reaches_no_network_on_the_unavailable_path(tmp_path):
+    """Proven with the socket-subclass harness, not by reading the code."""
+
+    repo = _repo_with_runs(tmp_path)
+    out, _err, rc = _cli(["runs", "export", "--dir", str(repo), "--apply", "--json"])
+    assert rc == 0
+    bundle = Path(json.loads(out)["data"]["manifest_path"]).parent
+    with no_network():
+        out, err, rc = _cli(
+            ["runs", "submit", "--dir", str(repo), str(bundle), "--json"]
+        )
+    assert rc == 1, out + err
+    assert json.loads(out)["data"]["transmitted"] is False
+
+
+def test_submit_refuses_a_missing_bundle_rather_than_inventing_one(tmp_path):
+    repo = _repo_with_runs(tmp_path)
+    out, err, rc = _cli(["runs", "submit", "--dir", str(repo), str(tmp_path / "nope")])
+    assert rc == 2, out + err
+    assert "no bundle directory" in (out + err)
+
+
+def test_submit_refuses_with_no_bundle_named(tmp_path):
+    repo = _repo_with_runs(tmp_path)
+    out, err, rc = _cli(["runs", "submit", "--dir", str(repo)])
+    assert rc == 2, out + err
+    assert "manifest.json" in (out + err)
+
+
+def test_a_raw_bundle_cannot_be_submitted_through_the_cli(tmp_path):
+    """The dangerous combination is UNREACHABLE, not merely discouraged."""
+
+    repo = _repo_with_runs(tmp_path)
+    out, err, rc = _cli(
+        [
+            "runs",
+            "export",
+            "--dir",
+            str(repo),
+            "--tier",
+            "raw",
+            "--include",
+            "prompt",
+            "--by-human",
+            "--actor",
+            "t",
+            "--apply",
+            "--json",
+        ]
+    )
+    assert rc == 0, out + err
+    bundle = Path(json.loads(out)["data"]["manifest_path"]).parent
+    # With no endpoint configured the `unavailable` refusal comes first, which is itself the
+    # strongest possible answer; the tier gate is asserted directly so the claim does not depend on
+    # the absence of configuration.
+    out, err, rc = _cli(["runs", "submit", "--dir", str(repo), str(bundle), "--json"])
+    assert rc == 1, out + err
+    assert json.loads(out)["data"]["transmitted"] is False
+    assert "raw" not in submit.SUBMITTABLE_TIERS
+
+
+def test_neither_new_leaf_prompts_or_reads_a_tty(tmp_path):
+    """Every path above ran with stdin unavailable; this pins the absence in the CODE too."""
+
+    from tests.test_run_analytics_export import _code_lines
+
+    code = _code_lines("agent_workflows/run_analytics_cli.py")
+    assert "isatty" not in code
+    assert "input (" not in code
+    assert "I am human" not in code

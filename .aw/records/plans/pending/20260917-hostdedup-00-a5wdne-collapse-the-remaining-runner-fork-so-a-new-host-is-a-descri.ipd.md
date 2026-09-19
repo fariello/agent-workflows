@@ -172,10 +172,7 @@ the runner retires the Set.
 
 ## Deferred / out of scope (with reason)
 
-- THE FIVE LARGE FUNCTIONS (`execute_item` 436, `main` 133, `run_queue` 150, `initialize_run` 119,
-  `build_parser` 46 `ast.unparse` lines; 884 total, the ONE figure in this Set that reproduced exactly at
-  review) are deliberately NOT re-planned in this Set. See OQ-01: they already carry five approved plans, so
-  what they need is a decision about those plans, not a sixth plan.
+- THE FIVE LARGE FUNCTIONS: Note that `initialize_run` (commit `7a28ed11`) and `execute_item` (commit `70a2059f`) have now been unified into `runner_shared.py`. Only 3 of the 5 (`run_queue` 150, `build_parser` 46, `main` 133 `ast.unparse` lines) remain forked, and are deliberately NOT re-planned in this Set. See OQ-01: they already carry approved plans, so what they need is execution, not a new plan.
 - Integrating any REAL vendor host (codex, claude, hermes) is out of scope. Order 03 proves the seam admits
   a runner-less host; each real host is its own work with its own credentials and spend.
 - The 21 existing thin wrappers are left exactly as they are: they are the sanctioned form, not debt.
@@ -202,11 +199,7 @@ the runner retires the Set.
 ## Scope check
 
 - Over-scope: none. This orchestrator holds one verification item plus the child table.
-- Under-scope: knowingly, on the five large functions. After this Set they remain forked, so the fork is
-  reduced from 34 symbols to 5, not to zero. Claiming otherwise would misrepresent the result; closing that
-  last gap needs the OQ-01 decision. LINE FIGURES CORRECTED at review: the "from ~1752 to ~884" claim mixes
-  metrics (the 884 is `ast.unparse`-normalized and reproduces; the ~1752 does not reproduce under any metric
-  I could find, where the same normalization gives 1448). The honest statement is the SYMBOL count: 34 -> 5.
+- Under-scope: knowingly, on the remaining large functions. After this Set they remain forked (`run_queue`, `build_parser`, `main`), so the large-function fork is reduced to 3, not to zero. Closing that last gap needs the remaining rununify plans executed.
 - Under-scope, closed at review: the pin-table ownership rule named one file where four exist (PR-001, and
   it remains OPEN because the fix belongs in the three child plans, which are outside this review's ledger);
   Order 03's fence excluded two files its own resolved blocking OQ commits it to editing (PR-002); the

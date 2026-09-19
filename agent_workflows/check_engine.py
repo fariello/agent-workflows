@@ -91,10 +91,16 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.status-untooled": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-03"
     ),
-    # Filename identity-slot / id6 uniqueness (catalog I-09 family).
+    # Setid SEMANTICS (catalog I-16, spec `2lcqno` N5): a setid used within ONE type with two
+    # different descriptives. NOT I-09, which is filename-grammar conformance: I-09 governs a name's
+    # SHAPE, while this rule governs whether one token may be REUSED, which the grammar is silent on.
+    # Repointed here (spec `pqsx96` Section 4 held the code at I-09 deliberately until the rule was
+    # re-scoped). Its two id6 neighbours below stay on I-09 on purpose: the identity-slot rule
+    # genuinely does concern the filename slot.
     "check.setid-collision": RuleSpec(
-        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-09"
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-16"
     ),
+    # Filename identity-slot / id6 uniqueness (catalog I-09 family).
     "check.id6-collision": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-09"
     ),
@@ -125,6 +131,39 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     ),
     "check.orphaned-live-blocker": RuleSpec(
         "warning", ASSURANCE_REPOSITORY, DET_HEURISTIC, "I-07"
+    ),
+    # nobugship rgaasb E-02: a LIVE `Work-Kind: bug` item carrying NO `- Blocks-Release:`. The
+    # enforcement half of the maintainer's standing rule "we don't ship known bugs", written down by
+    # sibling plan `zqs0px` in AGENTS.md ("Every live bug gates the next release") and defaulted at
+    # creation by sibling `di08i9`. This rule is what makes the policy self-maintaining: documentation
+    # and a creation default both leave the HAND-AUTHORED route open, which is measurably how the
+    # violations accumulated unnoticed.
+    #
+    # `error`, matching its four I-07 siblings above, NOT a staged `warning` with a promise to tighten
+    # later: a rule left permanently at `warning` is a recorded failure mode in this repository
+    # (`rnkqrc` E-05). Behaviorally `warning` would fail an exit code anyway
+    # (`artifact_core.drift_exit_code` exempts only `info`), so the distinction would buy nothing but
+    # a weaker stated contract.
+    #
+    # I-07 IS THE RIGHT HOME AND THE FIT WAS VERIFIED, NOT ASSUMED: read at
+    # `.aw/records/specs/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md:135`,
+    # I-07 is "Release-gate preservation", assurance class "Repository invariant", and its control
+    # column already names `evaluate_blocking_close` plus `check.blocking-item-closed-without-gate`,
+    # `check.from-backlog-gate-mismatch` and `check.orphaned-live-blocker`.
+    #
+    # ONE HONEST TENSION, RECORDED RATHER THAN PAPERED OVER: I-07's catalog TEXT is phrased for the
+    # CLOSE direction ("may close `done` only if the gate is provably preserved..."), while THIS rule
+    # governs the OPEN direction (a live item must CARRY a gate). It is the same invariant's other
+    # half and I-07 is still the correct home - a rule about whether a release gate exists to be
+    # preserved belongs with the rules about preserving it - but a future reader comparing this
+    # registration against the catalog wording would otherwise see a mismatch and re-litigate it.
+    # Widening the catalog wording is a SPEC edit outside this plan's `- Scope-Paths:`, so it is
+    # PROPOSED (see the plan's spec-sync section) and deliberately not performed here.
+    #
+    # Deterministic: a literal `- Work-Kind:` / `- Status:` / `- Blocks-Release:` token test through
+    # the shared `backlog.parse_item`, plus a literal carrier lookup. No inference.
+    "check.live-bug-ungated": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
     # revgate Order 01 (15zvu6) E-06: a `.review.md` whose `Subject-Id:` resolves to no artifact of
     # its declared `Subject-Type:` (revsweep `eyh1fu` made that resolution type-directed; it was
@@ -880,8 +919,16 @@ def check_collisions(
 
     * frontmatter ``- Id:`` id6: a valid id6 declared on two different resolved files
       (``check.id6-collision``);
-    * setid: the same setid under two different types, or the same setid with two different
-      non-None descriptives (``check.setid-collision``);
+    * setid: the same setid used WITHIN ONE type with two different non-None descriptives
+      (``check.setid-collision``). A setid appearing under two DIFFERENT types is CORRECT and is
+      NOT reported: DECISIONS D153 / spec ``2lcqno`` N1 rule that a setid is a SHARED cross-type
+      TOPIC label, not an identity (identity is the id6, see ``check.id6-collision`` below), so
+      research + specs + backlog + plans on one topic are MEANT to share the token. Do NOT re-add
+      a cross-type branch as a "missing" check, and do not add an ``info`` variant of it either:
+      spec ``2lcqno`` OQ-01 rejected that from measurement (it narrated the normal state on tens of
+      setids per run, which trains a reader to treat correct behavior as remarkable). The
+      comparison slot is keyed per ``(type, setid)`` for the same reason: a foreign-type file must
+      not occupy the slot a within-type comparison needs;
     * filename IDENTITY-SLOT id6 (DECISIONS.md D140): the ``<id6>`` in a file's
       ``YYYYMMDD-<setid>-NN-<id6>-<slug>`` filename slot is that file's UNIQUE IDENTITY. It is
       validated by the precise rule (so it flags a foreign id6 in the slot but never mass-flags
@@ -895,8 +942,13 @@ def check_collisions(
     repo_root = Path(repo_root)
     drift: List[_core.Drift] = []
     seen_ids: Dict[str, str] = {}
-    # setid -> (type, descriptive-or-None, first-path)
-    seen_sets: Dict[str, tuple] = {}
+    # (type, setid) -> (descriptive-or-None, first-path). KEYED PER TYPE, deliberately, and this is
+    # load-bearing rather than tidiness (spec `2lcqno` N5): when the key was the setid ALONE the slot
+    # held whichever file was seen FIRST, and `SUPPORTED` iterates `plans` first, so a foreign-type
+    # predecessor occupied the slot the within-type descriptive comparison needs and a genuine
+    # same-type conflict went unreported. Measured with one plan plus two conflicting specs: the
+    # setid-keyed version reported two cross-type findings and never the real spec-vs-spec conflict.
+    seen_sets: Dict[tuple, tuple] = {}
 
     # First gather, for every file, its declared frontmatter Id and its filename identity-slot id6,
     # so the identity-slot rule (below) can be evaluated with global knowledge of who OWNS each id6.
@@ -932,19 +984,15 @@ def check_collisions(
                     seen_ids[id6] = str(p)
             sid, desc = _parse_setid(text)
             if sid:
-                if sid in seen_sets:
-                    prev_type, prev_desc, prev_path = seen_sets[sid]
-                    if prev_type != record_type:
-                        drift.append(
-                            _core.Drift(
-                                str(p),
-                                "check.setid-collision",
-                                f"setid {sid} conflicts with {prev_path} (different type: {prev_type} vs {record_type})",
-                            )
-                        )
-                    elif (
-                        desc is not None and prev_desc is not None and desc != prev_desc
-                    ):
+                set_key = (record_type, sid)
+                if set_key in seen_sets:
+                    prev_desc, prev_path = seen_sets[set_key]
+                    # WITHIN-TYPE descriptive conflict ONLY. One setid carrying two different
+                    # descriptives inside ONE type is a genuine inconsistency in that Set's own
+                    # name. The cross-type comparison that used to live here was REMOVED per D153 /
+                    # spec `2lcqno` N1 (see this function's docstring); it reported the endorsed
+                    # normal state as an error.
+                    if desc is not None and prev_desc is not None and desc != prev_desc:
                         drift.append(
                             _core.Drift(
                                 str(p),
@@ -953,7 +1001,7 @@ def check_collisions(
                             )
                         )
                 else:
-                    seen_sets[sid] = (record_type, desc, str(p))
+                    seen_sets[set_key] = (desc, str(p))
 
     drift.extend(_check_identity_slots(records))
     return drift
@@ -1850,6 +1898,31 @@ def check_types(
             drift.extend(check_release_gate_consistency(repo_root))
         except Exception:
             pass
+        # nobugship rgaasb E-02: a LIVE bug-kind item with no release gate. Rides THIS
+        # once-per-full-sweep seam beside its I-07 siblings above, and the placement is a decision with
+        # two measured consequences rather than a default.
+        #
+        # (1) IT IS DELIBERATELY *NOT* ADDED INSIDE `check_release_gate_consistency`, even though that
+        # would be the tidier-looking home. That function is composed by `check_commit_invariants`, the
+        # opt-in PRE-COMMIT aggregator, and every rule in it is COMMIT- or RECEIPT-scoped for a reason
+        # (its own Rule 1 examines only STAGED items). This rule is WHOLE-TREE, so putting it there
+        # would refuse a commit because some OTHER party's bug item elsewhere in the tree is ungated -
+        # exactly the shared-checkout failure AGENTS.md warns against.
+        #
+        # (2) IT IS THEREFORE NOT REPORTED BY `aw check backlog`, and that is a known, stated cost, not
+        # an oversight: `check_type('backlog')` never reaches this block, so the whole I-07 family is
+        # invisible to the type-scoped command (measured: `check_types(repo,['backlog'])` reports 0
+        # while `['all']` reports the family). Wiring it into the backlog content path instead was
+        # rejected because it would surface this ONE rule while its four siblings stayed invisible on
+        # the same command, which is a more confusing contract than "the family lives on the full
+        # sweep". Consumers must use `aw check` / `aw check all`.
+        #
+        # Own try/except, per the established pattern in this block, so a failure here cannot suppress
+        # any other rule.
+        try:
+            drift.extend(check_live_bug_gate(repo_root))
+        except Exception:
+            pass
         # wslayout Order 05 (30jug9), spec kw5y2s Section 6.2: the emitted layout document is absent
         # or stale. A WORKSPACE-level rule, not a per-type one, so it rides this once-per-full-sweep
         # seam exactly like its neighbors above: fanning it out over `check_type` would emit the same
@@ -2198,14 +2271,79 @@ def _staged_backlog_done_items(repo_root: Path) -> List[str]:
     return paths
 
 
+def _from_backlog_carrier_index(
+    repo_root: Path,
+) -> Dict[str, List[Tuple[Path, Optional[str]]]]:
+    """ONE walk of the plans AND specs trees, indexed by the `- From-Backlog:` item id6 each
+    artifact names: ``{item_id6: [(carrier_path, carrier_blocks_release_or_None), ...]}``.
+
+    nobugship rgaasb E-01. THE SINGLE OWNER of "which artifacts carry a handoff for this item",
+    consumed by BOTH `check_release_gate_consistency` (Rule 2) and `check_live_bug_gate`, so the two
+    rules cannot disagree about what a carrier is and neither needs its own copy of the
+    `Blocks-Release` / `From-Backlog` regexes.
+
+    WHY AN INDEX RATHER THAN A PER-ITEM `find_from_backlog_artifacts` CALL, measured rather than
+    assumed: `find_from_backlog_artifacts` re-walks the COMPLETE plans tree plus the specs tree on
+    every call, so asking it once per candidate item costs O(items x corpus). Driven on this
+    repository (671 plans, 34 specs, 65 candidate items): 65 per-item calls took 11.13 s, while this
+    single shared walk produced the identical mapping in 207 ms - a 54x difference on a command a
+    human waits on (`aw check all`). The exact same defect was already found and fixed one function
+    below in `release_gate_warnings`, whose comment records it ("Calling `find_from_backlog_plans`
+    for every open blocker re-walked the complete plans tree per item, even when no warning
+    existed"); this helper generalizes that fix instead of re-learning it a third time.
+
+    `find_from_backlog_artifacts` REMAINS the right call for a SINGLE known item (the setter gate and
+    `evaluate_blocking_close`'s HANDOFF branch), and is deliberately left untouched: it is O(corpus)
+    once, which is correct when there is exactly one item to answer for.
+
+    The carrier gate is None when the artifact carries no `- Blocks-Release:` line at all, and is
+    kept DISTINCT from the empty string so a caller can tell "no gate field" from a malformed one.
+    """
+    index: Dict[str, List[Tuple[Path, Optional[str]]]] = {}
+    for iterator in (_iter_plan_ipds, _iter_spec_records):
+        for p, text in iterator(repo_root):
+            mfb = _META_FROM_BACKLOG_RE.search(text)
+            if not mfb:
+                continue
+            mbr = _META_BLOCKS_RELEASE_RE.search(text)
+            index.setdefault(mfb.group(1), []).append(
+                (p, mbr.group(1) if mbr else None)
+            )
+    return index
+
+
 def check_release_gate_consistency(repo_root: Path) -> List[_core.Drift]:
     """bklggrad orb9zb E-05: cross-tree consistency rules reusing `evaluate_blocking_close`.
 
     ERROR-severity (fold into the exit-blocking sweep):
       check.blocking-item-closed-without-gate - an already-`done` blocking item whose gate was not
         preserved/satisfied (the backstop for a hand-edit bypass of the setter gate).
-      check.from-backlog-gate-mismatch - a `From-Backlog` plan whose `Blocks-Release` differs from
-        the backlog item's Blocks-Release (a broken handoff).
+      check.from-backlog-gate-mismatch - a LIVE `From-Backlog` plan or spec whose `Blocks-Release`
+        differs from the backlog item's Blocks-Release (a broken handoff).
+
+    RULE 2 IS NARROWED TO A LIVE CARRIER (nobugship rgaasb; maintainer ruling on parent `qmgn12`
+    OQ-03, 2026-09-12). A carrier in a TERMINAL directory (`executed/`, `superseded/`,
+    `not-executed/`) is SKIPPED. This is a restatement of the one-way obligation the rule already
+    implements, not a new exemption, and the reasoning is the maintainer's: what this rule protects
+    is a DROPPED HANDOFF, a plan being NON-blocking when it graduated from a BLOCKING item, so the
+    gate silently vanishes between item and plan. A terminal carrier's work is DONE: it cannot drop a
+    future obligation and there is no future release for it to gate, so flagging it demanded an edit
+    `AGENTS.md` forbids ("Do NOT add commits to a plan already in `.aw/records/plans/executed/`") in
+    order to assert a live claim on an artifact with no future. The rule was over-reaching.
+
+    THE ASYMMETRY IS DELIBERATE AND IS THE OTHER HALF OF THE SAME RULING. A gated CARRIER under an
+    UNGATED item is NOT a finding, because a plan can discover during execution that it gates a
+    release for reasons its originating item never knew, and punishing it for being better informed
+    than its own provenance would be wrong. Today that direction is additionally unreachable by
+    construction (the `item_gate` map below is populated only for an item that HAS a gate), which is
+    exactly why `tests/test_bug_gate_check.py` pins the zero-finding direction explicitly: without
+    that test a refactor could silently make the rule symmetric and nothing would notice.
+
+    Terminal classification uses the shipped `is_retired` predicate rather than a fresh path test,
+    per the ruling. `is_retired` is chosen over the narrower `_EXECUTED_SEGMENT` literal because the
+    ruled rationale ("work is DONE, there is no future release to gate") holds identically for a
+    `superseded/` or `not-executed/` carrier; `_EXECUTED_SEGMENT` is used by the neighbouring
+    staged-path rule only because that rule reasons about a git path string with no file to read.
 
     The WARN-severity `check.orphaned-live-blocker` (a still-open blocking item already graduated to
     a blocking plan) is surfaced via `release_gate_warnings`/attention, NOT here (it must not set the
@@ -2257,18 +2395,21 @@ def check_release_gate_consistency(repo_root: Path) -> List[_core.Drift]:
     # bklgrad Order 01 (v58bvy) E-07: scan PLANS AND SPECS. A spec is now an accepted HANDOFF gate
     # carrier (E-06), so the consistency rule must cover it too or the checker and the setter diverge:
     # a spec could carry a mismatched gate, be accepted as a carrier by nothing, and never be flagged.
-    for kind, iterator in (("plan", _iter_plan_ipds), ("spec", _iter_spec_records)):
-        for p, text in iterator(repo_root):
-            mfb = _META_FROM_BACKLOG_RE.search(text)
-            if not mfb:
+    #
+    # nobugship rgaasb E-01: the walk itself now comes from the shared `_from_backlog_carrier_index`
+    # so this rule and `check_live_bug_gate` have ONE definition of a carrier between them.
+    for target_id6, carriers in _from_backlog_carrier_index(repo_root).items():
+        if target_id6 not in item_gate:
+            continue  # dangling From-Backlog is check.from-backlog-dangling's job (ku93tn)
+        item_br, _item_path = item_gate[target_id6]
+        for p, carrier_br in carriers:
+            # nobugship rgaasb: SKIP A TERMINAL CARRIER (parent qmgn12 OQ-03 ruling). See the
+            # docstring: a finished plan's gate is history, not a live claim, and it cannot drop a
+            # future obligation.
+            if is_retired(p):
                 continue
-            target_id6 = mfb.group(1)
-            if target_id6 not in item_gate:
-                continue  # dangling From-Backlog is check.from-backlog-dangling's job (ku93tn)
-            item_br, _item_path = item_gate[target_id6]
-            mbr = _META_BLOCKS_RELEASE_RE.search(text)
-            carrier_br = mbr.group(1) if mbr else None
             if carrier_br != item_br:
+                kind = "spec" if str(p).endswith(".spec.md") else "plan"
                 drift.append(
                     _core.Drift(
                         str(p),
@@ -2279,6 +2420,114 @@ def check_release_gate_consistency(repo_root: Path) -> List[_core.Drift]:
                         ),
                     )
                 )
+    return drift
+
+
+_LIVE_BUG_GATE_RULE = "check.live-bug-ungated"
+
+
+def check_live_bug_gate(repo_root: Path) -> List[_core.Drift]:
+    """A LIVE `Work-Kind: bug` backlog item carrying NO `- Blocks-Release:` (nobugship rgaasb E-01).
+
+    THE RULE THIS ENFORCES IS WRITTEN DOWN, and this docstring deliberately POINTS AT that text
+    rather than restating the policy, so the two cannot drift: `AGENTS.md`, section "Every live bug
+    gates the next release" (written by sibling plan `zqs0px`). In short: we do not ship known bugs,
+    so a `bug` MUST carry a release gate while it is LIVE.
+
+    LIVE means `open`, `blocked` or `graduated`, which is the same live set `aw attention` uses. The
+    two exclusions are deliberate rather than convenient:
+      * `done` is NEVER flagged. A closed bug shipped or did not, and asserting a gate on it now
+        would rewrite history. (Its own sibling rule `check.blocking-item-closed-without-gate`
+        already governs the close direction.)
+      * `parked` is NEVER flagged. A parked maybe is uncommitted work the attention view hides, so
+        gating a release on one asserts an obligation nobody has taken on. This matches
+        `backlog._GATE_DEFAULT_SKIP_STATUSES` exactly, so the creation default and this check agree.
+
+    A GRADUATED ITEM WHOSE CARRIER HOLDS THE GATE IS SATISFIED, NOT FLAGGED, and this is the
+    substantive design choice. `AGENTS.md` already defines a legitimate HANDOFF as a plan or spec
+    carrying `- From-Backlog: <item>` plus the same `- Blocks-Release:`, and uses exactly that to let
+    a gated item close without dropping its gate. The OPEN direction of the same invariant must
+    recognise the same handoff or a correctly-handed-off bug would be flagged forever and the rule
+    would train people to ignore it. The carrier lookup comes from the shared
+    `_from_backlog_carrier_index`, so "what counts as a carrier" has one owner (and a SPEC is an
+    equally valid carrier, per `find_from_backlog_artifacts`).
+
+    THE EXEMPTION APPLIES TO ANY LIVE STATUS, NOT ONLY `graduated`. The discriminator is whether a
+    handoff carrier holds a gate, not the item's own status: measured on this repository, two `open`
+    items also have carriers, so keying the exemption on `graduated` would treat identical evidence
+    differently depending on a status the handoff does not depend on.
+
+    WHY THIS DOES NOT COMPOSE WITH `evaluate_blocking_close`, which is the obvious-looking reuse and
+    is impossible: that predicate answers the CLOSE direction only, and every one of its branches
+    keys on `blocks_release` being PRESENT. Driven on an ungated live bug it returns
+    `CloseVerdict(legitimate=True, severity='ok', ...)` - for `target_status='done'` with reason
+    'no release gate to preserve' and path 'DE-GATED', and for any other target 'unchecked
+    transition'. An ABSENT gate is outside its domain by construction, so wrapping it would either
+    report nothing or require rewriting a predicate three other surfaces depend on.
+
+    DIVISION OF LABOUR WITH THE REST OF THE I-07 FAMILY, so no reader mistakes this for a duplicate:
+    this rule catches an ABSENT gate; `check.blocks-release-dangling` catches an UNRESOLVABLE one;
+    `check.from-backlog-gate-mismatch` catches a carrier CONTRADICTING its item; and
+    `check.from-backlog-dangling` catches a carrier pointing at nothing.
+
+    HONEST LIMIT: the rule keys on `- Work-Kind:`, which is an AUTHOR'S CLASSIFICATION. A genuine
+    defect filed as `chore` or `followup` is invisible to it, and that leak is real and measured
+    (backlog `59t9x5` was filed `chore` and reclassified `bug` by the maintainer). This is a strict
+    improvement over nothing; it is NOT a completeness claim.
+    """
+    from agent_workflows import backlog as _backlog
+
+    repo_root = Path(repo_root)
+    live = _backlog.STATUSES - _backlog._GATE_DEFAULT_SKIP_STATUSES
+    drift: List[_core.Drift] = []
+    carrier_index: Optional[Dict[str, List[Tuple[Path, Optional[str]]]]] = None
+
+    for f in _backlog._iter_items(repo_root):
+        try:
+            text = f.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        item = _backlog.parse_item(text)
+        if item.kind not in _backlog.GATE_DEFAULT_KINDS:
+            continue
+        if (item.status or "") not in live:
+            continue
+        if item.blocks_release:
+            continue
+        # Only now is the carrier index needed, so a clean tree never pays for the walk.
+        if carrier_index is None:
+            carrier_index = _from_backlog_carrier_index(repo_root)
+        if item.id and any(
+            carrier_br for _p, carrier_br in carrier_index.get(item.id, ())
+        ):
+            continue  # HANDOFF: a From-Backlog carrier holds the gate (AGENTS.md)
+        # `enrich_drift` with a structured `recovery`, matching the family's shape rather than
+        # embedding the fix in the detail text: `recovery` is the field the human renderer prints as
+        # the Fix line and the machine record carries verbatim, so a fix written into `detail` is
+        # invisible where a reader looks for it (driven: the generic "inspect ... frontmatter"
+        # fallback was printed instead).
+        selector = item.id or f.name
+        drift.append(
+            enrich_drift(
+                _core.Drift(
+                    str(f),
+                    _LIVE_BUG_GATE_RULE,
+                    (
+                        f"a LIVE (status {item.status!r}) Work-Kind: bug item carries no "
+                        "- Blocks-Release:; we do not ship known bugs, so every live bug must "
+                        "gate a release (AGENTS.md, 'Every live bug gates the next release')"
+                    ),
+                ),
+                observed=f"Work-Kind: bug, Status: {item.status}, no Blocks-Release",
+                required="- Blocks-Release: <release id6 or 'next'>, or a From-Backlog carrier "
+                "holding the gate",
+                recovery=(
+                    f"aw backlog set {item.status} {selector} --blocks-release next"
+                    "  (or hand the gate to the plan/spec that graduated it, or file an explicit "
+                    "exemption if this bug genuinely does not gate the release)"
+                ),
+            )
+        )
     return drift
 
 
@@ -2484,6 +2733,7 @@ def evaluate_ipd_dependencies(
         _findings_thr: Optional[str] = _config.findings_gate_threshold(repo_root)
     except Exception:
         _findings_thr = None
+    _findings_cache: Dict[str, tuple] = {}
 
     # Gather every plan's declared Id + Item-Dependencies value (whole repo, for the graph). The
     # staged overlay (if any) overrides on-disk text and contributes any newly-staged plan path.
@@ -2622,7 +2872,11 @@ def evaluate_ipd_dependencies(
                 # dependent's prose. Absent/unknown action keeps the STRICT reading, so every
                 # non-runner caller is unchanged and this can only relax a provably code-free turn.
                 if e.kind == "executed" and (actions or {}).get(ps) != "review":
-                    for blk in _findings_blocks_for(repo_root, e.id6, _findings_thr):
+                    if e.id6 not in _findings_cache:
+                        _findings_cache[e.id6] = tuple(
+                            _findings_blocks_for(repo_root, e.id6, _findings_thr)
+                        )
+                    for blk in _findings_cache[e.id6]:
                         drift.append(
                             _core.Drift(
                                 ps,

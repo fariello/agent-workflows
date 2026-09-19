@@ -1,11 +1,13 @@
 - Id: t49rmq
 - Status: open
+- Blocks-Release: next
 - Set: t49rmq
 - Priority: medium
 - Work-Kind: bug
 - Summary: The test suite is not hermetic against an inherited AW_EXECUTION_ROLE: 31 runner tests fail when it is set to worker
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 created (aw backlog): The test suite is not hermetic against an inherited AW_EXECUTION_ROLE: 31 runner tests fail when it is set to worker
 
 MEASURED 2026-09-18 while executing wfartifacts Order 02 (plan vh14ku) inside an `aw oc run` managed lane, which exports `AW_EXECUTION_ROLE=worker` into the agent turn.

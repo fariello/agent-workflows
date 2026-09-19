@@ -1,11 +1,13 @@
 - Id: plsx3r
 - Status: open
+- Blocks-Release: next
 - Set: plsx3r
 - Priority: low
 - Work-Kind: bug
 - Summary: supports_session_resume misdescribes reality (opencode-only while agy resumes via --conversation) and gates no action class
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-14 created (aw backlog): supports_session_resume misdescribes reality (opencode-only while agy resumes via --conversation) and gates no action class
 
 MEASURED during defreport b7xarm E-05, and reported rather than fixed because host_sandbox_profile.py is NOT in that plan's Scope-Paths (its own plan explicitly forbids the fix and the wiring).

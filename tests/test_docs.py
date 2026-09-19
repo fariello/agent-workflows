@@ -324,5 +324,91 @@ class BenchmarkThresholdTableTests(unittest.TestCase):
         self.assertIn("| 0 | 1.0 |", table)
 
 
+class RunAnalyticsPrivacyDocTests(unittest.TestCase):
+    """runanalytics Order 10 (`9xycbh`) E-09: the privacy prose stays COUPLED to the code.
+
+    Documentation about a detector's coverage rots the moment the ruleset changes, and a stale
+    blind-spot list is worse than none: it would tell a reader a class is unchecked when it is, or
+    (far worse) let a newly blind class go unnamed. So the list is asserted against the shipped
+    enumeration rather than being trusted, which makes a future ruleset change fail HERE, with a
+    message naming the document to update.
+    """
+
+    ANALYTICS_DOC = DOCS_DIR / "run-analytics.md"
+
+    def setUp(self):
+        self.maxDiff = None
+        self.text = self.ANALYTICS_DOC.read_text(encoding="utf-8")
+
+    def test_the_analytics_doc_exists_and_is_linked_from_the_index(self):
+        self.assertTrue(self.ANALYTICS_DOC.is_file())
+        index = (DOCS_DIR / "README.md").read_text(encoding="utf-8")
+        self.assertIn("run-analytics.md", index, "the doc is not linked from the index")
+
+    def test_every_detector_blind_spot_is_NAMED_in_the_documentation(self):
+        from agent_workflows.run_analytics_export import (
+            DETECTOR_BLIND_SPOTS,
+            DETECTOR_COVERED_CLASSES,
+        )
+
+        missing = [name for name in DETECTOR_BLIND_SPOTS if name not in self.text]
+        self.assertEqual(
+            missing,
+            [],
+            f"docs/run-analytics.md does not name these detector blind spots: {missing}. "
+            f"A reader would take the list as complete.",
+        )
+        for covered in DETECTOR_COVERED_CLASSES:
+            self.assertIn(covered, self.text, f"{covered} is not named as covered")
+
+    def test_no_document_claims_an_artifact_PASSES_the_sanitizer(self):
+        """The forbidden claim, because it converts corroboration into a guarantee."""
+
+        for path in sorted(DOCS_DIR.rglob("*.md")):
+            body = path.read_text(encoding="utf-8").lower()
+            for forbidden in (
+                "passes the sanitizer",
+                "passed the sanitizer",
+                "sanitizer-clean",
+                "verified clean by the sanitizer",
+            ):
+                with self.subTest(doc=path.name, claim=forbidden):
+                    self.assertNotIn(forbidden, body)
+
+    def test_the_documentation_states_the_no_anonymity_and_no_causation_limits(self):
+        lowered = self.text.lower()
+        self.assertIn("no tier is anonymous", lowered)
+        self.assertIn("minimization is not anonymity", lowered)
+        self.assertIn("causation", lowered)
+        self.assertIn("pseudonymous, never anonymous", lowered)
+
+    def test_the_documentation_distinguishes_measured_derived_and_missing(self):
+        for token in (
+            "recorded",
+            "measured",
+            "derived",
+            "missing",
+            "unavailable",
+            "not-applicable",
+        ):
+            with self.subTest(provenance=token):
+                self.assertIn(token, self.text)
+
+    def test_the_documentation_covers_every_audience_this_plan_owes(self):
+        """The per-audience coverage map, asserted rather than promised."""
+
+        for heading in (
+            "## Quick start (operator)",
+            "## The agent surface",
+            "## The privacy boundary",
+            "## Troubleshooting",
+            "## Compatibility",
+            "## The cache, and when it rebuilds",
+            "## Telemetry",
+        ):
+            with self.subTest(section=heading):
+                self.assertIn(heading, self.text)
+
+
 if __name__ == "__main__":
     unittest.main()

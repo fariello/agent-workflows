@@ -1,11 +1,13 @@
 - Id: 21ct62
 - Status: open
+- Blocks-Release: next
 - Set: wfartgrowth
 - Priority: medium
 - Work-Kind: bug
 - Summary: ARCHITECTURE.md still documents the retired repo-root workflow-artifacts/ run-scratch path in two places
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 created (aw backlog): ARCHITECTURE.md still documents the retired repo-root workflow-artifacts/ run-scratch path in two places
 
 Measured 2026-09-18 while executing wfartifacts Order 03 (plan 9x1rps), which swept the 86 stale references out of the shipped workflow bodies under .aw/system/workflows/.

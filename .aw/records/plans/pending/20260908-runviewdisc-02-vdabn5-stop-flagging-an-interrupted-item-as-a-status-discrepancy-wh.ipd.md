@@ -11,6 +11,7 @@
 - Scope-Paths: agent_workflows/run_viewer.py, tests/test_run_viewer.py
 - Item-Dependencies: none
 - Status: approved
+- Blocks-Release: next
 - Set: runviewdisc
 - Order: 2
 - Highest E allocated: 04
@@ -21,6 +22,7 @@
 - From-Backlog: 13ty0u
 
 ## Workflow history
+- 2026-09-18 approved (aw set): status set to approved
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED; review record written; Readiness go-pending-approval
 

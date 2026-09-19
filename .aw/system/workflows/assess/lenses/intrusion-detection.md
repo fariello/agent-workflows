@@ -5,6 +5,9 @@ intrusion and abuse, and whether those signals are trustworthy and reach somewhe
 they can be acted on. This is repo-scoped: the agent assesses what the code emits and
 how it is structured for detection - it does not run a SIEM/IDS or watch live traffic.
 
+The subject is the project's own code and configuration, per the SUBJECT section of
+`../assess.md`.
+
 ## Lead personas
 
 The security-minded architect and operator (detection/response), with the software

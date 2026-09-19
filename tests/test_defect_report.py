@@ -30,6 +30,7 @@ same reason). Every record here is built in `tmp_path`.
 from __future__ import annotations
 
 import ast
+import inspect
 import json
 import subprocess
 import unittest
@@ -41,6 +42,13 @@ from agent_workflows import runner_shared as R
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DRIVERS = (oc_runipd, agy_runipd)
+
+
+def _effective_source(mod: Any) -> str:
+    src = Path(str(mod.__file__)).read_text(encoding="utf-8")
+    if "execute_item_core" in src:
+        src += "\n" + inspect.getsource(R.execute_item_core)
+    return src
 
 
 def _outcome(**over: Any) -> dict[str, Any]:
@@ -487,9 +495,9 @@ class ReaskPredicateTests(unittest.TestCase):
     ) -> None:
         """The predicate consumes the id observed for THIS attempt, never a set-wide one."""
 
-        src = Path(str(oc_runipd.__file__)).read_text(encoding="utf-8")
+        src = _effective_source(oc_runipd)
         self.assertIn('reask_session = attempt.get("session_id")', src)
-        agy = Path(str(agy_runipd.__file__)).read_text(encoding="utf-8")
+        agy = _effective_source(agy_runipd)
         self.assertIn('reask_session = attempt.get("session_id")', agy)
 
     def test_session_rule_3_the_reask_counts_against_the_rotation_budget(self) -> None:
@@ -816,10 +824,14 @@ class PersistedRecordTests(unittest.TestCase):
 
     def test_case_g_both_hosts_write_the_identical_shape_at_the_same_seam(self) -> None:
         for mod in DRIVERS:
-            src = Path(str(mod.__file__)).read_text(encoding="utf-8")
+            src = _effective_source(mod)
             self.assertIn('item["defect_report"] = record', src, mod.__name__)
             self.assertIn('attempt["defect_report"] = record', src, mod.__name__)
-            self.assertIn("runner_shared.defect_report_record(", src, mod.__name__)
+            self.assertTrue(
+                "runner_shared.defect_report_record(" in src
+                or "defect_report_record(" in src,
+                mod.__name__,
+            )
             self.assertIn('"event": "defect-report-recorded"', src, mod.__name__)
             # Written at the EXISTING per-item seam, beside the other results.
             seam = src.index('item["last_outcome"] = outcome')
@@ -842,6 +854,15 @@ class PersistedRecordTests(unittest.TestCase):
                 for n in tree.body
                 if isinstance(n, ast.FunctionDef) and n.name == "execute_item"
             )
+            if "execute_item_core" in ast.unparse(func):
+                shared_tree = ast.parse(
+                    Path(str(R.__file__)).read_text(encoding="utf-8")
+                )
+                func = next(
+                    n
+                    for n in shared_tree.body
+                    if isinstance(n, ast.FunctionDef) and n.name == "execute_item_core"
+                )
             block = [
                 n
                 for n in ast.walk(func)

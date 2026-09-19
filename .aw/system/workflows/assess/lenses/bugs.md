@@ -1,8 +1,13 @@
 # Lens: Bugs and correctness
 
-Focus the assessment on defects in existing behavior: code that does the wrong thing,
-produces incorrect output, or fails on a reachable path. Complements edge-cases
-(untested limits) and testing (coverage) by hunting for outright incorrectness.
+Focus the assessment on defects in the project's existing behavior: its own source code
+that does the wrong thing, produces incorrect output, or fails on a reachable path.
+Complements edge-cases (untested limits) and testing (coverage) by hunting for outright
+incorrectness.
+
+The subject is the project's code, per the SUBJECT section of `../assess.md`. A bare run
+hunts bugs in the software, NOT in the repository's own plans, specs, or backlog records
+under `.aw/records/` (their conformance belongs to `aw check` / `aw ipd lint`).
 
 ## Lead personas
 

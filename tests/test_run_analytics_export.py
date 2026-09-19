@@ -481,3 +481,117 @@ def test_no_archive_precedent_existed_in_the_package():
     # Nothing in the package calls extractall, including this module: `safe_extract` validates
     # every member and then writes them by hand, which is what makes 3.9 and 3.14 behave alike.
     assert users == [], f"unexpected extractall users: {users}"
+
+
+# --- E-01: the surface contract ------------------------------------------------------------------
+#
+# WHY THESE LIVE HERE AND NOT ONLY IN THE SLOW CONFORMANCE MATRIX. `tests/test_cli_conformance_matrix.py`
+# is `pytestmark = pytest.mark.slow` and `addopts` supplies `-m "not slow"`, so the gate proving a
+# leaf is declared and covered is DESELECTED by a bare `python3 -m pytest`. The plan's own stop
+# condition names that trap ("if a bare suite is green and you are about to report the leaves
+# conformant, STOP"). These tests assert the same properties in the FAST suite, so a regression is
+# caught by the run everyone actually does, and the slow gate remains the authority.
+
+
+def _decl(command: str):
+    from agent_workflows.command_surface import get_declaration
+
+    decl = get_declaration(command)
+    assert decl is not None, f"{command} carries no CommandDeclaration"
+    return decl
+
+
+def test_both_new_leaves_are_declared_and_are_real_parser_leaves():
+    from agent_workflows.cli import _build_parser
+    from agent_workflows.command_surface import discover_parser_leaves
+
+    leaves = discover_parser_leaves(_build_parser())
+    for command in ("runs export", "runs submit"):
+        assert command in leaves, f"{command} is not a parser leaf"
+        _decl(command)
+
+
+def test_no_new_undeclared_leaf_was_introduced():
+    """The measured BASELINE is the five pre-existing `oc profile *` entries, and only those.
+
+    `tests/test_cli_conformance_matrix.py::test_no_undeclared_parser_leaves` asserts this set is
+    EMPTY and currently FAILS on those five, which is a pre-existing condition this plan explicitly
+    does not fix. Asserting the exact set here makes a NEW undeclared leaf attributable in the fast
+    suite rather than hiding behind an already-red slow gate.
+    """
+
+    from agent_workflows.cli import _build_parser
+    from agent_workflows.command_surface import find_undeclared_leaves
+
+    assert sorted(find_undeclared_leaves(_build_parser())) == [
+        "oc profile add",
+        "oc profile default",
+        "oc profile list",
+        "oc profile remove",
+        "oc profile show",
+    ]
+
+
+def test_each_new_leaf_declares_a_gate_matching_the_mechanism_it_implements():
+    """The gate field is a machine-readable claim about authorization, so it must be TRUE.
+
+    Both values are drawn from the shipped four-value vocabulary rather than invented:
+    `dry_run_default` (22 other declarations) for the preview-first verb, and `auth_floor` (7 other
+    declarations, all of them `--by-human`-gated transitions) for the attested one. `confirmation`
+    is deliberately NOT used: it would assert a TTY prompt that implemented spec
+    `20260815-0151-01` retired, which this plan's stop conditions forbid reintroducing.
+    """
+
+    from agent_workflows.command_surface import get_all_declarations
+
+    vocabulary = {d.mutation_gate for d in get_all_declarations()}
+    assert vocabulary <= {
+        "none",
+        "dry_run_default",
+        "confirmation",
+        "auth_floor",
+        "policy",
+    }
+
+    export_decl = _decl("runs export")
+    assert export_decl.command_class == "mutation"
+    assert export_decl.mutation_gate == "dry_run_default"
+    assert export_decl.exit_contract == (0, 1, 2)
+
+    submit_decl = _decl("runs submit")
+    assert submit_decl.command_class == "mutation"
+    assert submit_decl.mutation_gate == "auth_floor"
+    assert submit_decl.exit_contract == (0, 1, 2)
+
+
+def test_each_new_leaf_is_a_mutation_so_it_owes_the_success_preview_scenario():
+    """`command_class` DRIVES required coverage, so a wrong class demands the wrong scenarios."""
+
+    from tests.conformance_matrix import required_scenarios
+
+    for command in ("runs export", "runs submit"):
+        scenarios = set(required_scenarios(_decl(command)))
+        assert "success_preview" in scenarios, command
+        for base in ("tty", "non_tty", "agent", "no_color", "help", "usage_error"):
+            assert base in scenarios, f"{command} missing {base}"
+
+
+def test_the_matrix_gives_both_new_leaves_a_full_scenario_row_set():
+    """The same assertion the slow gate makes, over the two leaves this plan adds."""
+
+    from agent_workflows.cli import _build_parser
+    from tests.conformance_matrix import build_matrix, required_scenarios
+
+    report = build_matrix(_build_parser())
+    for command in ("runs export", "runs submit"):
+        covered = report.scenarios_for(command)
+        missing = set(required_scenarios(_decl(command))) - covered
+        assert missing == set(), f"{command} missing scenarios: {sorted(missing)}"
+
+
+def test_the_exit_contract_is_carryable_by_the_agent_record():
+    """Every declared code must be one `validate_agent_record` accepts for a result record."""
+
+    for command in ("runs export", "runs submit"):
+        for code in _decl(command).exit_contract:
+            assert code in (0, 1, 2), f"{command} declares un-carryable exit {code}"

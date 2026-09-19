@@ -1,11 +1,13 @@
 - Id: 770fkp
 - Status: graduated
+- Blocks-Release: next
 - Set: 770fkp
 - Priority: high
 - Work-Kind: bug
 - Summary: 31 tests fail inside any runner lane because AW_EXECUTION_ROLE=worker refuses aw ipd begin/finalize
 
 ## Workflow history
+- 2026-09-18 graduated (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 graduated (aw set): Graduated into IPD e4lkv5 (lanesuite Order 01); design handed off, code not yet written
 - 2026-09-17 created (aw backlog): 31 tests fail inside any runner lane because AW_EXECUTION_ROLE=worker refuses aw ipd begin/finalize
 

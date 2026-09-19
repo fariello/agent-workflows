@@ -45,6 +45,7 @@ diagnostic and the surrounding good rows still parse.
 
 from __future__ import annotations
 
+import functools
 import re
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
@@ -710,11 +711,21 @@ def parse_review_text(text: str, path: Optional[Path] = None) -> ReviewDocument:
     )
 
 
+@functools.lru_cache(maxsize=1024)
+def _parse_review_file_cached(
+    path_str: str, mtime_ns: int, size: int
+) -> ReviewDocument:
+    p = Path(path_str)
+    text = p.read_text(encoding="utf-8")
+    return parse_review_text(text, path=p)
+
+
 def parse_review_file(path) -> ReviewDocument:
     """Read and parse a `.review.md`. An unreadable file yields a diagnostic, never an exception."""
     p = Path(path)
     try:
-        text = p.read_text(encoding="utf-8")
+        st = p.stat()
+        return _parse_review_file_cached(str(p.resolve()), st.st_mtime_ns, st.st_size)
     except OSError as exc:
         return ReviewDocument(
             subject_id="",
@@ -726,7 +737,6 @@ def parse_review_file(path) -> ReviewDocument:
             diagnostics=(Diagnostic(0, D_UNREADABLE, f"cannot read: {exc}"),),
             path=p,
         )
-    return parse_review_text(text, path=p)
 
 
 def iter_review_files(repo_root):

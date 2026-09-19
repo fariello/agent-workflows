@@ -136,8 +136,10 @@ fingerprint as its guard is `tests/test_run_flag_surface.py`, which drives every
 
 from __future__ import annotations
 
+import argparse
 import contextlib
 import datetime as dt
+import functools
 import hashlib
 import json
 import os
@@ -160,7 +162,14 @@ from typing import (
 )
 
 from agent_workflows import runner_profiles
-from agent_workflows.render_stream import Palette, render_run_summary_table
+from agent_workflows.render_stream import (
+    Palette,
+    StreamTracker,
+    _STATUS_COLOR,
+    execution_index,
+    record_integration_refusal as render_record_integration_refusal,
+    render_run_summary_table,
+)
 
 # ---- module constants the moved bodies close over ------------------------------------------------
 # Byte-identical in both runners (verified by comparing the assignment VALUES at the AST level), so
@@ -9422,8 +9431,8 @@ def driver_begin(
     actor: str,
     *,
     isolated: bool = False,
-    env_builder: Callable[[], Mapping[str, str]],
-    argv_builder: Callable[[Sequence[str]], list[str]],
+    env_builder: Callable[[], Mapping[str, str]] | None = None,
+    argv_builder: Callable[[Sequence[str]], list[str]] | None = None,
 ) -> tuple[int, str]:
     """Run the fail-closed `aw ipd begin <id6> --actor` gate before an execute turn.
 
@@ -9447,6 +9456,10 @@ def driver_begin(
     # is NOT itself lane-shadowed -- it runs with `cwd=str(repo)` (the MAIN tree) and the lane is
     # allocated only AFTER begin returns -- but it is pinned anyway so exactly one shape exists
     # across all launch sites and no future refactor can quietly make it lane-relative.
+    if argv_builder is None:
+        argv_builder = globals()["pinned_module_argv"]
+    if env_builder is None:
+        env_builder = globals()["pinned_child_env"]
     cmd = argv_builder(
         [
             "ipd",
@@ -9596,12 +9609,214 @@ AGY_HOST_LABELS = HostLabels(
 
 #: Item statuses that mean the queue finished that item successfully. Read by
 #: `render_continuation_hint` to choose between the "inspect" and "resume" hint.
+#:
+#: THIS IS THE REVIEW-ACTION BAR, and `reviewed` BELONGS IN IT (zz5yxq E-01). Do NOT "fix" this
+#: constant by removing `reviewed`: that is the tempting one-line change and it is WRONG, with
+#: measured evidence in-tree. `cascade_dependency_blocked`'s docstring (in `oc_runipd`) records run
+#: `run-20260904T042705Z-1025943`, a 6-item all-`review` run of the `wslayout` Set that reviewed
+#: Orders 00 and 01 and then killed Orders 02-05 the instant Order 01 reached `reviewed`, because
+#: that site hardcoded `EXECUTION_SUCCESS_STATES`. A review pass legitimately SUCCEEDS at `reviewed`.
+#: The defect zz5yxq fixes is that the EXECUTE-action sites read this bar too, so a `reviewed`-but-
+#: unapproved plan that the queue builder never dispatches was counted as a success (see
+#: `success_states_for_action` below and the `needs_input` carrier).
+#:
+#: THE CALL-SITE CLASSIFICATION (zz5yxq E-01). Five DIFFERENT questions are asked of these two
+#: constants, and only three of them are `SUCCESS_STATES` reads that this Set changed. Locate each by
+#: grep on the symbol, never by a line number:
+#:
+#:   (1) IS A PREREQUISITE SATISFIED IN THIS RUN?  `edge_satisfied` and
+#:       `cascade_dependency_blocked`. ONE IMPLEMENTATION, not a per-host pair: both are DEFINED in
+#:       `oc_runipd` and RE-EXPORTED into `agy_runipd` with the `as <same-name>` form, pinned by
+#:       `assertIs` in `tests/test_runner_item_dependencies.py::_SHARED_NAMES` (measured:
+#:       `agy.edge_satisfied is oc.edge_satisfied` -> True). They ALREADY select the action-aware bar
+#:       (`EXECUTION_SUCCESS_STATES if is_exec else SUCCESS_STATES`) and were correct before zz5yxq.
+#:   (2) DID THE RUN SUCCEED OVERALL?  the exit code, handed to
+#:       `runner_stop.deliberate_stop_exit_code(success_states=...)`. ONE SITE PER HOST
+#:       (`oc_runipd.run_queue`, `agy_runipd.run_queue`). CHANGED by zz5yxq: now per-item and
+#:       action-aware via `item_reached_success`.
+#:   (3) SHOULD THIS ROW SHOW A CHECKMARK?  the finish glyph and its color, in `execute_item_core`
+#:       below. Shared code, so ONE site serving BOTH hosts. CHANGED by zz5yxq.
+#:   (4) IS THERE ANYTHING LEFT TO RESUME?  `all_success` in `render_continuation_hint` below.
+#:       Shared code, so ONE site serving BOTH hosts. CHANGED by zz5yxq.
+#:   (5) THE ORCHESTRATOR DISPATCH BAR.  `decide_orchestrator_dispatch(success_states=...)` is
+#:       already passed `EXECUTION_SUCCESS_STATES` explicitly by each host and is NOT a
+#:       `SUCCESS_STATES` read at all. Listed ONLY so a later reader does not "fix" it.
+#:
+#: `EXECUTION_SUCCESS_STATES` stays per-host (`oc_runipd`/`agy_runipd`), equal but not identical;
+#: `tests/test_runner_shared.py::CrossHostSuccessBarEqualityTests` pins the equality so a one-sided
+#: edit cannot be silent. Unifying the objects is `rununify`/`cnwy8g`'s work, not this constant's.
 SUCCESS_STATES = {"executed", "reviewed", "approved"}
+
+#: The durable, explicit fact that an item was NOT dispatched because its plan still needs human
+#: approval (zz5yxq E-03). Frozen onto the queue entry as a boolean under this KEY, and reported as
+#: this TOKEN, which is deliberately the one the rest of the package already ships for exactly this
+#: meaning rather than a new coinage: `run_gates.GATE_STATUS_NEEDS_INPUT` and
+#: `run_evidence.AGGREGATE_NEEDS_INPUT` are both the literal `"needs_input"`, the latter commented
+#: "Human input or explicit acknowledgement is required (spec 5.6 exit 3)".
+#:
+#: WHY A QUEUE-ENTRY FLAG AND NOT A NEW MEMBER OF `TERMINAL_STATES`. The needs-approval fact is
+#: carried BESIDE the status, not as one, because `TERMINAL_STATES` is read by
+#: `cascade_dependency_blocked` and `decide_orchestrator_dispatch`, so a new member would change
+#: dependency and retirement behavior for a change that is about REPORTING and the SUCCESS BAR.
+#: `interrupted` is already precedent for a status the runner uses that is absent from that set
+#: (measured: `'interrupted' in TERMINAL_STATES` -> False). The queue status stays `reviewed`, which
+#: `runner_shutdown.KNOWN_ITEM_STATUSES` already admits, so an R3 ledger-coherence check and a
+#: resume are both unaffected.
+#:
+#: NOT WIRED TO `run_evidence.aggregate_run_exit`. That aggregator already maps `needs_input` to
+#: spec `25kzda` 5.6's exit 3 and already outranks a plain item failure, but neither driver calls it
+#: (measured: zero call sites), so reaching 3 means wiring the drivers to it - a change to EVERY
+#: run's exit classification and deliberately outside zz5yxq's fence (its OQ-02). The bar fixed here
+#: therefore emits 1, which is what corrects the measured silent 0.
+NEEDS_INPUT_TOKEN = "needs_input"
+
+#: The queue-entry key carrying :data:`NEEDS_INPUT_TOKEN`'s fact. Named separately from the token so
+#: a reader can see that the KEY and the reported TOKEN are deliberately the same string.
+NEEDS_INPUT_KEY = NEEDS_INPUT_TOKEN
 
 #: The `--action` values the CLI accepts, and the subset actually implemented. Read by
 #: `enforce_requested_action`, which is spec `25kzda` 2.6's enforcement point.
 ACTION_CHOICES = ("review", "plan", "execute")
 ACTION_IMPLEMENTED = frozenset(("review",))
+
+
+#: The REPORTING success bar for an item whose action WRITES CODE (zz5yxq E-02): `SUCCESS_STATES`
+#: with `reviewed` removed, and NOTHING ELSE changed.
+#:
+#: WHY THIS IS A THIRD SET AND NOT `EXECUTION_SUCCESS_STATES`, which is what the plan's E-02 proposed
+#: and what the dependency sites use. The two answer DIFFERENT QUESTIONS and are not interchangeable
+#: here. `EXECUTION_SUCCESS_STATES` = {`executed`, `substantially-complete`} is the DEPENDENCY bar:
+#: "may a dependent of this item now run?", for which `substantially-complete` legitimately counts.
+#: This is the REPORTING bar: "did the run succeed?", for which `substantially-complete` deliberately
+#: does NOT, and that is a pinned contract rather than an accident. MEASURED: substituting
+#: `EXECUTION_SUCCESS_STATES` at the exit-code site makes
+#: `tests/test_rununify_run_queue_characterization.py::TheExitCodeReflectsTheRealOutcome::
+#: test_the_exit_code_reads_SUCCESS_STATES_not_EXECUTION_SUCCESS_STATES` FAIL with `0 == 0`, because
+#: that test exists precisely to pin that a `substantially-complete` item still exits NONZERO. So the
+#: dependency bar would have SILENTLY WIDENED the reporting bar while narrowing it for `reviewed` -
+#: fixing one silent success by introducing another.
+#:
+#: DERIVED BY SUBTRACTION, not written as a literal, so it cannot drift from `SUCCESS_STATES`: adding
+#: a member there propagates here, and the ONE documented difference stays visible as the one
+#: documented difference.
+EXECUTE_REPORTING_SUCCESS_STATES: frozenset[str] = frozenset(
+    SUCCESS_STATES - {"reviewed"}
+)
+
+
+def success_states_for_action(action: str | None) -> Container[str]:
+    """The REPORTING success bar for ONE item, given the ACTION it was queued for (zz5yxq E-02).
+
+    THE DEFECT THIS EXISTS TO FIX, measured at HEAD `44d4950d` and again at `70a2059f`. `reviewed`
+    is simultaneously a ROUTING decision meaning "execute this" (`action_for('child','reviewed')` ->
+    `'execute'`) and a COMPLETION decision meaning "this already succeeded"
+    (`'reviewed' in SUCCESS_STATES` -> True), and the two cannot both be right. The queue builder
+    freezes such an item as queue status `reviewed` rather than `queued` (see `initial_queue_status`),
+    so it is NEVER DISPATCHED - and was then counted a success. Observed (backlog `em0z50`,
+    2026-08-29): `aw oc run wtiso` with all 8 `wtiso` plans at `- Status: reviewed` printed
+    "No OpenCode session was captured for this run." and EXITED 0, with `Attempts: 0` on every row
+    and an empty `outcomes/`. The operator believed 8 plans were queued.
+
+    THE SELECTION SHAPE IS THE ONE ALREADY IN USE (`edge_satisfied` and `cascade_dependency_blocked`
+    both branch on `item.get("action") != "review"`), because a second idiom for one decision is how
+    two functions came to give opposite answers to the same question once before. THE SET SELECTED IS
+    NOT: those two hand the EXECUTE branch `EXECUTION_SUCCESS_STATES`, which is correct for the
+    DEPENDENCY question they answer and WRONG for the reporting question this one answers. See
+    :data:`EXECUTE_REPORTING_SUCCESS_STATES` for the measured proof (substituting it fails a test that
+    exists to pin `substantially-complete` as a nonzero exit).
+
+    A REVIEW ACTION KEEPS `SUCCESS_STATES` UNCHANGED, and that half is load-bearing rather than
+    incidental: reviewing a plan legitimately ends at `reviewed`, and the in-tree docstring on
+    `cascade_dependency_blocked` records a real run (`run-20260904T042705Z-1025943`) in which
+    hardcoding the execution bar for a review pass made a review-mode Set run impossible to
+    complete. So this function widens NOTHING and narrows exactly one status for exactly one action.
+    """
+
+    return SUCCESS_STATES if action == "review" else EXECUTE_REPORTING_SUCCESS_STATES
+
+
+def item_reached_success(item: Mapping[str, Any]) -> bool:
+    """Did ONE queue item finish successfully, judged against the bar its ACTION earns (zz5yxq E-02).
+
+    The per-item form of :func:`success_states_for_action`, so the three execute-action call sites
+    (the run exit code, the finish glyph, and `render_continuation_hint`'s `all_success`) cannot
+    drift from one another.
+
+    Reads `action` and `status` off the entry and NOTHING ELSE, so it is safe to call on a
+    hand-written manifest's entry or on a state file written by an older driver: a missing `action`
+    is treated as the execute case, which is the conservative direction (it can only refuse to call
+    something a success, never manufacture one).
+    """
+
+    status = item.get("status")
+    return isinstance(status, str) and status in success_states_for_action(
+        item.get("action")
+    )
+
+
+def item_needs_approval(status: str | None, action: str | None) -> bool:
+    """Is this item's plan `reviewed`-but-unapproved, for an action that needs approval (zz5yxq E-03)?
+
+    Reads the plan's ON-DISK `- Status:` (the value frozen as `initial_status`), not the queue
+    status, because `reviewed` is the ONLY status that produces this situation: `initial_queue_status`
+    also maps `superseded`, `not-executed` and a missing status onto the queue status `reviewed`, and
+    none of those is waiting for approval - they are retired or unknown. Keying off the plan status
+    keeps the flag's MEANING exact rather than merely correlated.
+
+    `--full-auto` is already handled UPSTREAM of every caller: the queue builder clears an approving
+    `- Readiness:` to `auto-approved` before this is asked, so such an item is `queued` and this
+    correctly returns False. This function does not know about, and must not re-implement, that
+    bridge (executed plan `97df1z`).
+
+    A REVIEW ACTION IS NEVER BLOCKED BY THIS. Reviewing a `reviewed` plan is not the case at issue
+    (and `action_for` routes a `reviewed` plan to `execute` anyway); only an action that would WRITE
+    CODE needs the human approval this reports as missing.
+    """
+
+    return (action != "review") and (status or "").lower().strip() == "reviewed"
+
+
+#: The token :func:`exit_code_statuses` projects an item that MET its action's success bar onto, and
+#: the sole member of the bar handed to `runner_stop.deliberate_stop_exit_code` beside it (zz5yxq
+#: E-02). Deliberately not a real status, and deliberately not spellable as one, so it can never be
+#: confused with something a driver persists.
+EXIT_SUCCESS_TOKEN = "aw-item-met-its-action-success-bar"
+
+
+def exit_code_statuses(queue: Sequence[Mapping[str, Any]]) -> list[str]:
+    """Project each queue entry onto the token the run's exit-code predicate should judge (zz5yxq E-02).
+
+    WHY A PROJECTION AND NOT A SECOND EXIT-CODE FUNCTION. `runner_stop.deliberate_stop_exit_code`
+    takes ONE `success_states` container for the WHOLE queue, so it structurally cannot apply a bar
+    that depends on each item's `action`. Both drivers must keep calling it (it owns the
+    deliberate-stop contract that spec `c4gd2h` A1/A4 require, and
+    `tests/test_runner_stop_levels12.py` pins that both call it), so the per-item decision is made
+    HERE and handed to it already reduced.
+
+    THIS REWRITES NOTHING. It returns a fresh list of argument tokens and never touches
+    `item["status"]`; the queue on disk is untouched. Manufacturing a success by rewriting a status is
+    exactly what spec `c4gd2h` R22 forbids, and this deliberately moves in the opposite direction: an
+    item can only LOSE a success it never earned.
+
+    `queued` IS PRESERVED VERBATIM because `deliberate_stop_exit_code` keys its whole deliberate-stop
+    concession off that literal: under a stop it ignores `queued` items BECAUSE THEY NEVER RAN.
+    Projecting them onto anything else would either break a correct wind-down's exit 0 or silently
+    excuse an item that did run.
+
+    Every other non-success status is passed through unchanged, so it still reads as a failure and a
+    reader of a debugger frame still sees the real disposition.
+    """
+
+    projected: list[str] = []
+    for item in queue:
+        status = item.get("status")
+        if status == "queued":
+            projected.append("queued")
+        elif item_reached_success(item):
+            projected.append(EXIT_SUCCESS_TOKEN)
+        else:
+            projected.append(str(status))
+    return projected
 
 
 def compute_scope_reconciliation(
@@ -9738,7 +9953,13 @@ def render_continuation_hint(
         lines.append(f"  {cmd} --session {last_sid} <selector>")
 
     queue = state.get("queue", [])
-    all_success = all(item.get("status") in SUCCESS_STATES for item in queue)
+    # zz5yxq E-02, question (4) of the classification at `SUCCESS_STATES`: "is there anything left to
+    # resume?". This used to read `SUCCESS_STATES` unconditionally, so a `reviewed`-but-unapproved
+    # EXECUTE item - which the queue builder never dispatches - printed the "inspect the summary"
+    # hint as though the run had finished its work. It is action-aware now, so such an item correctly
+    # yields the "resume" hint. A REVIEW item that reached `reviewed` still counts as a success and
+    # still gets the inspect hint, unchanged (see the docstring's review-mode warning).
+    all_success = all(item_reached_success(item) for item in queue)
 
     if all_success:
         lines.append("To inspect run summary:")
@@ -10018,6 +10239,86 @@ Begin independent verification now.
 {reporting_contract.prompt_block()}"""
 
 
+def build_isolation_notice(lane_root: Path | None) -> str:
+    """The WORK HERE block for an isolated turn, or "" for a main-checkout turn."""
+    from agent_workflows import lane_containment
+
+    return lane_containment.isolation_notice(lane_root)
+
+
+def build_verify_and_continue_notice(repo: Path, decision: Any) -> str:
+    """The prompt block asking a resumed turn to VERIFY AND COMPLETE prior work (E-04)."""
+    if not getattr(decision, "verify_and_continue", False):
+        return ""
+    branch = getattr(decision, "inspected_branch", None) or "(unknown)"
+    lines = [
+        "",
+        "",
+        "## A PRIOR ATTEMPT ALREADY COMMITTED WORK FOR THIS PLAN: verify and continue it",
+        "",
+        "Do NOT implement this plan from scratch. A previous attempt at this same IPD already",
+        f"committed work, and the driver has READ that work: {decision.reason}.",
+        "",
+        f"THAT WORK IS ON A DIFFERENT BRANCH THAN YOUR WORKING DIRECTORY. It is on `{branch}`,",
+        "which is NOT the lane you are running in. Your own lane is where you must produce your",
+        "commits; that other branch is READ-ONLY for you.",
+        "",
+        f"Commits already on `{branch}` (newest first):",
+    ]
+    for sha, subject in getattr(decision, "real_commits", []):
+        lines.append(f"  - {sha} {subject}")
+    if getattr(decision, "dirty", False):
+        lines.append("")
+        lines.append(
+            "That lane ALSO has uncommitted changes in its working tree; a commit there whose"
+        )
+        lines.append(
+            "subject says INTERRUPTED SNAPSHOT is preserved mid-edit work, not finished work."
+        )
+    diffstat = ""
+    base_ref = ""
+    newest_sha = ""
+    real_commits = getattr(decision, "real_commits", [])
+    if real_commits:
+        base_ref = f"{real_commits[-1][0]}~1"
+        newest_sha = real_commits[0][0]
+        rc, out, _err = _run_git(repo, ["diff", "--stat", base_ref, newest_sha])
+        if rc == 0 and out.strip():
+            diffstat = out.strip()
+    if diffstat:
+        diff_cmd = f"git diff --stat {base_ref} {newest_sha}"
+        lines.extend(
+            [
+                "",
+                f"Diffstat of that work against its base (`{diff_cmd}`):",
+                "",
+            ]
+        )
+        lines.extend("    " + line for line in diffstat.splitlines())
+    lines.extend(
+        [
+            "",
+            "WHAT TO DO, in this order:",
+            "",
+            f"1. READ that work first. `git log {branch}` and `git diff` against that ref show you",
+            "   exactly what exists. Read it before you write anything.",
+            "2. Judge it against the plan: which `E-*` items does it actually perform, which `V-*`",
+            "   items does it evidence, and what is still missing or wrong.",
+            "3. BRING FORWARD what is still correct INTO YOUR OWN LANE, then finish the remainder",
+            "   there. Re-authoring work that is already correct produces a duplicate sibling commit",
+            "   and is the exact waste this routing exists to prevent.",
+            f"4. Do NOT `git checkout`, merge, cherry-pick onto, rebase, or commit to `{branch}`, and",
+            "   do not amend or delete anything on it. It may hold another attempt's preserved work",
+            "   and must be left byte-identical. Read it; never write it.",
+            "5. If you conclude the work is ALREADY COMPLETE, you still may not simply assert that:",
+            "   fill each `V-*` item's `Observed evidence:` with the prior work's ACTUAL output (run",
+            "   the tests yourself and paste what they print). A finalize gate checks the checklists",
+            "   and their evidence, not your conclusion.",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def build_prompt(
     item: dict[str, Any],
     state: dict[str, Any],
@@ -10028,8 +10329,10 @@ def build_prompt(
     routing: Any = None,
     *,
     labels: HostLabels,
-    build_isolation_notice: Callable[[Path | None], str],
-    build_verify_and_continue_notice: Callable[[Path, Any], str],
+    build_isolation_notice: Callable[[Path | None], str] = build_isolation_notice,
+    build_verify_and_continue_notice: Callable[
+        [Path, Any], str
+    ] = build_verify_and_continue_notice,
 ) -> str:
     """The execution turn prompt, ONE definition for both hosts.
 
@@ -10184,3 +10487,2239 @@ Before exiting, write valid JSON to {outcome} with at least:
 The disposition must describe the actual repository result, not merely your effort. If no
 material question arose, say so in the summary. Explicitly confirm pushed=false.
 {defect_report_prompt_block()}{reporting_contract.prompt_block()}"""
+
+
+def initialize_run_core(
+    args: argparse.Namespace,
+    *,
+    host: str,
+    driver_path: Path,
+    host_options: dict[str, Any],
+    expand_selectors_fn: Any = None,
+    enforce_dependency_preflight_fn: Any = None,
+    set_plan_approved_fn: Any = None,
+    announce_run_order_fn: Any = None,
+    is_plan_review_approved_fn: Any = None,
+    run_order_rationale_fn: Any = None,
+    write_report_fn: Any = None,
+    git_common_dir_fn: Any = None,
+    parse_dependency_token_fn: Any = None,
+    default_runbook_text: str | None = None,
+    default_stall_timeout: float | None = None,
+) -> Path:
+    """Shared core initialization for all runner hosts.
+
+    Unifies the common runner initialization: repo validation, early flag refusals,
+    manifest/runbook discovery, selector expansion, draft admission gate, dependency
+    preflight, action legality checks, mixed-type gate, run directory creation, queue
+    building, state/events persistence, and execution report emission.
+    """
+    repo = Path(args.repo).expanduser().resolve()
+    if not (repo / ".git").exists():
+        try:
+            common_dir_exists = (
+                git_common_dir_fn(repo).exists() if git_common_dir_fn else False
+            )
+        except DriverError:
+            common_dir_exists = False
+        if not common_dir_exists:
+            raise DriverError(f"Not a Git repository: {repo}")
+
+    if getattr(args, "manifest", None):
+        manifest_path = Path(args.manifest).expanduser().resolve()
+        manifest = load_json(manifest_path)
+        validate_manifest(manifest, parse_dependency_token=parse_dependency_token_fn)
+    else:
+        discovered = discover_plans(repo, parse_plan_file=parse_plan_file)
+        manifest = build_dynamic_manifest(repo, discovered)
+        manifest_path = None
+
+    if getattr(args, "runbook", None):
+        runbook_path = Path(args.runbook).expanduser().resolve()
+    else:
+        default_rb = (
+            repo
+            / "tools"
+            / "ipdrunner"
+            / "20260823-pending-ipds-overnight-execution-runbook.md"
+        )
+        if default_rb.is_file():
+            runbook_path = default_rb.resolve()
+        else:
+            runbook_path = None
+
+    refuse_unimplemented_run_flags(args)
+    evaluate_unverifiable_admission(args)
+    resolve_retry_budget(getattr(args, "retry_budget", None))
+    resolve_integration_retry_limit(getattr(args, "integration_retry_limit", None))
+    resolve_on_integration_blocked(getattr(args, "on_integration_blocked", None))
+    report_untracked_dirt_at_run_start(repo)
+
+    queue_ids = expand_selectors_fn(manifest, args.selectors, repo=repo)
+
+    if is_status_selector(args.selectors):
+        queue_ids, draft_verdict = enforce_draft_admission_gate(
+            manifest,
+            queue_ids,
+            repo=repo,
+            allow_drafts=bool(getattr(args, "allow_drafts", False)),
+            interactive=is_interactive_run(args),
+            host=host,
+            selector=" ".join(str(s) for s in args.selectors),
+        )
+        if not queue_ids:
+            raise (
+                EmptyStatusSelection(
+                    "No items in 'to-review' state found in repository"
+                )
+                if is_review_selector(args.selectors)
+                else DriverError("No actionable pending IPDs found in repository")
+            )
+    else:
+        draft_verdict = None
+
+    selected_plan_paths: list[Path] = []
+    for id6 in queue_ids:
+        try:
+            selected_plan_paths.append(
+                resolve_plan_path(repo, manifest["plans"][id6].get("file", ""), id6)
+            )
+        except (DriverError, KeyError):
+            continue
+    enforce_dependency_preflight_fn(repo, selected_plan_paths)
+
+    requested_action = getattr(args, "action", None)
+    if requested_action is not None:
+        preflight_items: list[tuple[str, str, str]] = []
+        for id6 in queue_ids:
+            plan_info = manifest["plans"].get(id6, {})
+            st = plan_info.get("status")
+            probe_path = None
+            try:
+                probe_path = resolve_plan_path(repo, plan_info.get("file", ""), id6)
+            except Exception:
+                probe_path = None
+            if not st and probe_path is not None:
+                try:
+                    rec_probe = parse_plan_file(probe_path, repo)
+                    st = rec_probe.status if rec_probe else None
+                except Exception:
+                    st = None
+            st = st or "approved"
+            preflight_items.append(
+                (id6, st, action_for(resolve_manifest_kind(plan_info, probe_path), st))
+            )
+        labels = AGY_HOST_LABELS if host == "agy" else OC_HOST_LABELS
+        enforce_requested_action(requested_action, preflight_items, labels=labels)
+
+    mixed_verdict = enforce_mixed_type_gate(
+        repo,
+        selected_plan_paths,
+        allow_mixed=bool(getattr(args, "allow_mixed", False)),
+        interactive=is_interactive_run(args),
+        host=host,
+        selector=" ".join(str(s) for s in args.selectors),
+    )
+
+    run_id = getattr(args, "run_id", None) or new_run_id()
+    run_dir = state_root(repo) / run_id
+    if run_dir.exists():
+        raise DriverError(f"Run already exists: {run_id}")
+    for name in ("sessions", "outcomes", "prompts"):
+        (run_dir / name).mkdir(parents=True, exist_ok=True)
+    (run_dir / "decisions-and-questions.md").write_text(
+        f"# Decisions and Questions for {run_id}\n\n", encoding="utf-8"
+    )
+
+    if manifest_path is None:
+        manifest_path = run_dir / "manifest.json"
+        atomic_write_json(manifest_path, manifest)
+
+    if runbook_path is None:
+        runbook_path = run_dir / "runbook.md"
+        runbook_text = (
+            default_runbook_text
+            if default_runbook_text is not None
+            else (
+                "# IPD Autonomous Execution Runbook\n\n"
+                "This runbook guides automated execution.\n"
+            )
+        )
+        runbook_path.write_text(runbook_text, encoding="utf-8")
+
+    initial_session = getattr(args, "session", None)
+    set_sessions: dict[str, str] = {}
+    queue: list[dict[str, Any]] = []
+    full_auto = getattr(args, "full_auto", False)
+    for position, id6 in enumerate(queue_ids, start=1):
+        plan = manifest["plans"][id6]
+        setid = plan["set"]
+        if initial_session:
+            set_sessions[setid] = initial_session
+
+        status = plan.get("status")
+        p_path = None
+        rec = None
+        try:
+            p_path = resolve_plan_path(repo, plan.get("file", ""), id6)
+            rec = parse_plan_file(p_path, repo)
+            if rec and not status:
+                status = rec.status
+        except Exception:
+            if not status:
+                status = "approved"
+
+        if status == "reviewed" and full_auto and p_path:
+            try:
+                if is_plan_review_approved_fn(p_path):
+                    set_plan_approved_fn(repo, id6)
+                    status = "auto-approved"
+            except Exception:
+                pass
+
+        kind = resolve_manifest_kind(plan, p_path)
+        action = action_for(kind, status or "approved")
+        queue.append(
+            {
+                "position": position,
+                "id6": id6,
+                "setid": setid,
+                "configured_file": plan["file"],
+                "dependencies": plan.get("dependencies", []),
+                "kind": kind,
+                "order": plan.get("order"),
+                "from_backlog": plan.get("from_backlog")
+                or (getattr(rec, "from_backlog", None) if p_path else None),
+                "initial_status": status or "approved",
+                "action": action,
+                "status": initial_queue_status(status),
+                "attempts": [],
+                # zz5yxq E-03: the needs-approval fact, made EXPLICIT and DURABLE at queue-build time
+                # rather than left implicit in the queue status. It was already implicit here (an item
+                # whose plan status is outside `NON_TERMINAL_QUEUE_STATUSES` is frozen `reviewed` and
+                # never dispatched), but a fact a reporting surface has to INFER is a fact that gets
+                # reported differently by each surface. Children 02/03 of this Set print and count it,
+                # so it is named once, here, under the token the package already ships for this
+                # meaning (`run_gates.GATE_STATUS_NEEDS_INPUT`).
+                NEEDS_INPUT_KEY: item_needs_approval(status, action),
+            }
+        )
+
+    stall_timeout = (
+        getattr(args, "stall_timeout", default_stall_timeout)
+        if default_stall_timeout is not None
+        else getattr(args, "stall_timeout", 600.0)
+    )
+
+    state = {
+        "schema_version": SCHEMA_VERSION,
+        "run_id": run_id,
+        "created_at": utc_now(),
+        "updated_at": utc_now(),
+        "repo": str(repo),
+        "manifest": str(manifest_path),
+        "manifest_sha256": sha256_file(manifest_path),
+        "runbook": str(runbook_path),
+        "runbook_sha256": sha256_file(runbook_path),
+        "selectors": list(args.selectors),
+        "queue": queue,
+        "run_order": run_order_rationale_fn(queue, list(args.selectors)),
+        "session_id": initial_session,
+        "set_sessions": set_sessions,
+        "session_turn_counts": {},
+        "options": {
+            "session": initial_session,
+            "output_mode": getattr(args, "output_mode", "clean"),
+            "verbosity": getattr(args, "verbosity", 0) or 0,
+            "stall_timeout": stall_timeout,
+            "full_auto": full_auto,
+            "self_finalize": getattr(args, "self_finalize", True),
+            "isolate_worktree": getattr(args, "isolate_worktree", True),
+            "max_items_per_session": getattr(args, "max_items_per_session", 4),
+            "action": requested_action,
+            **freeze_run_policy_flags(args),
+            **host_options,
+        },
+        "driver": {
+            "path": str(driver_path.resolve()),
+            "sha256": sha256_file(driver_path),
+        },
+    }
+    atomic_write_json(run_dir / "state.json", state)
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {"at": utc_now(), "event": "run-created", "run_id": run_id, "queue": queue_ids},
+    )
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "mixed-type-gate",
+            "gate_applied": mixed_verdict.gate_applied,
+            "proceed": mixed_verdict.proceed,
+            "reason": mixed_verdict.reason,
+            **mixed_verdict.record.as_dict(),
+        },
+    )
+    if draft_verdict is not None:
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "draft-admission-gate",
+                "gate_applied": draft_verdict.gate_applied,
+                "reason": draft_verdict.reason,
+                "excluded_complete": list(draft_verdict.excluded_complete),
+                "skipped_incomplete": list(draft_verdict.skipped_incomplete),
+                **draft_verdict.record.as_dict(),
+            },
+        )
+    write_report_fn(run_dir, state)
+    announce_run_order_fn(run_dir, state)
+    return run_dir
+
+
+# ---- rununify: tool identity & child pinning -----------------------------------------------------
+
+_AW_PIN_STRIP = (
+    "import os,sys\n"
+    "_cwd=os.getcwd()\n"
+    "_drop={'',os.curdir,_cwd,os.path.realpath(_cwd)}\n"
+    "_keep=os.environ.get('AW_PIN_KEEP_ROOT') or ''\n"
+    "_drop-={_keep,os.path.realpath(_keep)} if _keep else set()\n"
+    "sys.path[:]=[p for p in sys.path if p not in _drop]\n"
+)
+
+_AW_PIN_BOOTSTRAP = (
+    _AW_PIN_STRIP
+    + "import runpy\n"
+    + 'runpy.run_module("agent_workflows",run_name="__main__",alter_sys=True)\n'
+)
+
+_AW_PIN_PROBE = _AW_PIN_STRIP + (
+    "import agent_workflows as _a\n"
+    "_f=getattr(_a,'__file__',None) or (list(getattr(_a,'__path__',[]))+[None])[0]\n"
+    "print(os.path.realpath(_f) if _f else 'UNRESOLVED')\n"
+    "print(getattr(_a,'__version__',''))\n"
+)
+
+
+class ToolIdentityError(DriverError):
+    pass
+
+
+_TOOL_IDENTITY_VERIFIED: dict[str, Any] = {}
+
+
+def runner_package_root() -> str:
+    """Absolute path of the directory CONTAINING the runner's own ``agent_workflows`` package."""
+    return str(Path(__file__).resolve().parent.parent)
+
+
+def pinned_child_env(env: dict[str, str] | None = None) -> dict[str, str]:
+    """Child environment with the runner's own package root PREPENDED to ``PYTHONPATH``."""
+    merged = os.environ.copy()
+    root = runner_package_root()
+    current = merged.get("PYTHONPATH", "")
+    if root not in current.split(os.pathsep):
+        merged["PYTHONPATH"] = f"{root}{os.pathsep}{current}".rstrip(os.pathsep)
+    merged["AW_PIN_KEEP_ROOT"] = root
+    if env:
+        merged.update(env)
+    return merged
+
+
+def pinned_module_argv(args: Sequence[str]) -> list[str]:
+    """argv invoking the RUNNER's OWN ``agent_workflows`` CLI with ``args``."""
+    argv = [sys.executable]
+    if sys.version_info >= (3, 11):
+        argv.append("-P")
+    argv.extend(["-c", _AW_PIN_BOOTSTRAP])
+    argv.extend(args)
+    return argv
+
+
+def assert_child_tool_identity(
+    events_path: Path | None = None, cwd: Path | None = None
+) -> dict[str, Any]:
+    """Verify a pinned child resolves ``agent_workflows`` to the RUNNER's OWN copy; fail closed."""
+    if _TOOL_IDENTITY_VERIFIED:
+        return _TOOL_IDENTITY_VERIFIED
+    parent_file = str(Path(__file__).resolve().parent / "__init__.py")
+    probe_argv = [sys.executable]
+    if sys.version_info >= (3, 11):
+        probe_argv.append("-P")
+    probe_argv.extend(["-c", _AW_PIN_PROBE])
+    result = subprocess.run(
+        probe_argv,
+        cwd=str(cwd) if cwd else None,
+        env=pinned_child_env(),
+        text=True,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    lines = [ln.strip() for ln in (result.stdout or "").splitlines() if ln.strip()]
+    child_file = lines[0] if lines else ""
+    child_version = lines[1] if len(lines) > 1 else ""
+    expected = os.path.realpath(parent_file)
+    record: dict[str, Any] = {
+        "at": utc_now(),
+        "event": "tool-identity-verified",
+        "expected_module": expected,
+        "child_module": child_file,
+        "child_version": child_version,
+        "parent_version": globals().get("__version__", ""),
+        "probe_cwd": str(cwd) if cwd else os.getcwd(),
+    }
+    if child_file != expected:
+        record["event"] = "tool-identity-mismatch"
+        record["detail"] = (result.stderr or "").strip()[:500]
+        if events_path is not None:
+            append_jsonl(events_path, record)
+        raise ToolIdentityError(
+            "ABORTING RUN: nested `aw` tool-identity mismatch. A nested `aw` would execute "
+            "code OTHER than this runner's own installation, so every lifecycle transition "
+            "this run performs would be gated by tooling the runner is not.\n"
+            f"  expected module: {expected}\n"
+            f"  child resolved : {child_file or '<no output>'}\n"
+            f"  probe cwd      : {record['probe_cwd']}\n"
+            f"  child version  : {child_version or '<unknown>'}\n"
+            "This is run-fatal by design (plan af7i6p OQ-02; spec 25kzda 1.4/A1 reserves "
+            "ABORT RUN for the identity/integrity class). Marking a single item blocked would "
+            "be misleading, since the remaining items would run under the same wrong tooling."
+        )
+    if events_path is not None:
+        append_jsonl(events_path, record)
+    _TOOL_IDENTITY_VERIFIED.update(record)
+    return record
+
+
+# ---- rununify: constants and shared models -------------------------------------------------------
+
+FULL_AUTO_APPROVAL_MESSAGE = "Auto-approved via --full-auto (review passed all gates)"
+FULL_AUTO_ACTOR = "aw-driver/full-auto"
+
+DEFAULT_STALL_TIMEOUT: float = 600.0
+
+TERMINAL_STATES = frozenset(
+    {
+        "substantially-complete",
+        "not-attempted",
+        "dependency-blocked",
+        "integration-blocked",
+        "executed",
+        "approved",
+        "partial",
+        "merge-conflict",
+        "blocked",
+        "reviewed",
+        "failed-safely",
+    }
+)
+
+
+# ---- rununify: recovery routing ------------------------------------------------------------------
+
+DISPOSITION_FRESH_EXECUTION = "fresh-execution"
+DISPOSITION_VERIFY_AND_CONTINUE = "verify-and-continue"
+DISPOSITION_UNDETERMINED = "undetermined"
+
+RECOVERY_DISPOSITIONS: tuple[str, ...] = (
+    DISPOSITION_FRESH_EXECUTION,
+    DISPOSITION_VERIFY_AND_CONTINUE,
+    DISPOSITION_UNDETERMINED,
+)
+
+
+class RecoveryDisposition(NamedTuple):
+    disposition: str
+    reason: str
+    inspected_lane_id: str | None
+    inspected_branch: str | None
+    inspected_worktree: str | None
+    lane_state: str | None
+    commits_ahead: int
+    dirty: bool
+    snapshot_only: bool
+    real_commits: tuple[tuple[str, str], ...] = ()
+
+    @property
+    def verify_and_continue(self) -> bool:
+        return self.disposition == DISPOSITION_VERIFY_AND_CONTINUE
+
+
+def _lane_commit_subjects(
+    repo: Path, base_sha: str, head_sha: str
+) -> list[tuple[str, str]]:
+    rc, out, _err = _run_git(
+        repo, ["log", "--format=%H%x1f%s", f"{base_sha}..{head_sha}"]
+    )
+    if rc != 0:
+        return []
+    commits: list[tuple[str, str]] = []
+    for line in out.splitlines():
+        if "\x1f" not in line:
+            continue
+        sha, subject = line.split("\x1f", 1)
+        commits.append((sha.strip(), subject.strip()))
+    return commits
+
+
+def classify_recovery_disposition(
+    repo: Path, item: dict[str, Any], state: dict[str, Any]
+) -> RecoveryDisposition:
+    from agent_workflows import worktree_lease
+
+    lane_id, lane_base, _lane_branch = resolve_prior_lane(item)
+    if not lane_id:
+        return RecoveryDisposition(
+            disposition=DISPOSITION_FRESH_EXECUTION,
+            reason="no prior lane is recorded for this item; nothing to verify",
+            inspected_lane_id=None,
+            inspected_branch=None,
+            inspected_worktree=None,
+            lane_state=None,
+            commits_ahead=0,
+            dirty=False,
+            snapshot_only=False,
+        )
+
+    try:
+        st = worktree_lease.inspect_lane(repo, lane_id, base_commit=lane_base or "HEAD")
+    except Exception as exc:
+        return RecoveryDisposition(
+            disposition=DISPOSITION_UNDETERMINED,
+            reason=f"prior lane {lane_id} could not be inspected: {exc}",
+            inspected_lane_id=lane_id,
+            inspected_branch=None,
+            inspected_worktree=None,
+            lane_state=None,
+            commits_ahead=0,
+            dirty=False,
+            snapshot_only=False,
+        )
+
+    branch_head = lane_branch_tip(repo, st.branch) if st.branch else None
+    if not branch_head:
+        return RecoveryDisposition(
+            disposition=DISPOSITION_FRESH_EXECUTION,
+            reason=f"prior lane {lane_id} exists but has no commit tip",
+            inspected_lane_id=lane_id,
+            inspected_branch=st.branch,
+            inspected_worktree=str(st.path) if st.path else None,
+            lane_state=st.state,
+            commits_ahead=0,
+            dirty=False,
+            snapshot_only=False,
+        )
+
+    base_sha = lane_base or st.base_commit or "HEAD"
+    commits = _lane_commit_subjects(repo, base_sha, branch_head)
+    non_snapshot = [
+        (sha, subj) for sha, subj in commits if not subj.startswith("wip(snapshot):")
+    ]
+    snapshot_only = bool(commits) and not non_snapshot
+    if non_snapshot:
+        return RecoveryDisposition(
+            disposition=DISPOSITION_VERIFY_AND_CONTINUE,
+            reason=(
+                f"prior lane {lane_id} holds {len(non_snapshot)} real commit(s) "
+                f"beyond base {base_sha[:8]}"
+            ),
+            inspected_lane_id=lane_id,
+            inspected_branch=st.branch,
+            inspected_worktree=str(st.path) if st.path else None,
+            lane_state=st.state,
+            commits_ahead=len(commits),
+            dirty=False,
+            snapshot_only=False,
+            real_commits=tuple(non_snapshot),
+        )
+
+    reason = (
+        f"prior lane {lane_id} holds only wip snapshot commit(s); discarding and re-executing"
+        if snapshot_only
+        else f"prior lane {lane_id} holds no commits beyond base; re-executing fresh"
+    )
+    return RecoveryDisposition(
+        disposition=DISPOSITION_FRESH_EXECUTION,
+        reason=reason,
+        inspected_lane_id=lane_id,
+        inspected_branch=st.branch,
+        inspected_worktree=str(st.path) if st.path else None,
+        lane_state=st.state,
+        commits_ahead=len(commits),
+        dirty=False,
+        snapshot_only=snapshot_only,
+    )
+
+
+def route_recovery_turn(
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    recovery: bool,
+) -> RecoveryDisposition | None:
+    if not recovery:
+        return None
+    repo = Path(state["repo"])
+    decision = classify_recovery_disposition(repo, item, state)
+    effective = (
+        DISPOSITION_FRESH_EXECUTION
+        if decision.disposition == DISPOSITION_UNDETERMINED
+        else decision.disposition
+    )
+    record = {
+        "disposition": decision.disposition,
+        "dispatched_as": effective,
+        "reason": decision.reason,
+        "inspected_lane_id": decision.inspected_lane_id,
+        "inspected_branch": decision.inspected_branch,
+        "inspected_worktree": decision.inspected_worktree,
+        "lane_state": decision.lane_state,
+        "commits_ahead": decision.commits_ahead,
+        "dirty": decision.dirty,
+        "snapshot_only": decision.snapshot_only,
+        "real_commits": [
+            {"sha": sha, "subject": subject} for sha, subject in decision.real_commits
+        ],
+        "at": utc_now(),
+    }
+    item["recovery_routing"] = record
+    save_state(run_dir, state)
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "recovery-routed",
+            "id6": item.get("id6"),
+            **{k: v for k, v in record.items() if k != "at"},
+        },
+    )
+    pal = Palette(should_color(sys.stdout))
+    if decision.verify_and_continue:
+        print(
+            pal(
+                f"  \u21ba recovery routed VERIFY-AND-CONTINUE: {decision.reason}",
+                "cyan",
+            )
+        )
+    elif decision.disposition == DISPOSITION_UNDETERMINED:
+        print(
+            pal(
+                f"  ! recovery routing undetermined; dispatching a FRESH EXECUTION "
+                f"(never a skip): {decision.reason}",
+                "yellow",
+            ),
+            file=sys.stderr,
+        )
+    return decision
+
+
+# ---- rununify: sub-helpers formerly in both runners ----------------------------------------------
+
+_compute_scope_reconciliation = compute_scope_reconciliation
+
+
+def evaluate_clean_base_for_launch(
+    repo: Path,
+    *,
+    shared_tree: bool = False,
+) -> Any:
+    from agent_workflows import lane_containment
+
+    _rc, out, _err = _run_git(repo, ["status", "--porcelain", "--untracked-files=no"])
+    return lane_containment.evaluate_clean_base(out, shared_tree=shared_tree)
+
+
+def _record_checkpoint_stop(
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    checkpoint_observer: Any,
+    *,
+    work_dir: str | Path | None = None,
+) -> dict[str, Any]:
+    from agent_workflows import runner_stop
+
+    effective_dir = (
+        work_dir
+        or item.get("worktree")
+        or (
+            item.get("attempts", [{}])[-1].get("worktree")
+            if item.get("attempts")
+            else None
+        )
+    )
+    repo = Path(effective_dir) if effective_dir else Path(state["repo"])
+    try:
+        observed_git = git_status(repo)
+    except Exception as exc:  # noqa: BLE001
+        observed_git = f"<unobserved: {exc}>"
+    record = runner_stop.stopped_disposition(
+        level=checkpoint_observer.requested_level or runner_stop.LEVEL_NOW,
+        requester=checkpoint_observer.requester,
+        last_completed_index=checkpoint_observer.last_checkpoint_index,
+        last_completed_label=checkpoint_observer.last_checkpoint_label,
+        git_state=observed_git,
+        events_seen=checkpoint_observer.events_seen,
+        at=utc_now(),
+    )
+    item["stopped"] = record
+    append_jsonl(
+        run_dir / "events.jsonl",
+        runner_stop.stopped_stop_event(record, id6=item.get("id6", ""), at=utc_now()),
+    )
+    return record
+
+
+def _record_forced_stop(
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    stop: Any,
+    *,
+    work_dir: str | Path | None = None,
+) -> dict[str, Any]:
+    from agent_workflows import runner_stop
+
+    effective_dir = (
+        work_dir
+        or item.get("worktree")
+        or (
+            item.get("attempts", [{}])[-1].get("worktree")
+            if item.get("attempts")
+            else None
+        )
+    )
+    repo = Path(effective_dir) if effective_dir else Path(state["repo"])
+    try:
+        observed_git = git_status(repo)
+    except Exception as exc:  # noqa: BLE001
+        observed_git = f"<unobserved: {exc}>"
+    record = runner_stop.forced_disposition(
+        level=stop.level,
+        requester=stop.requester,
+        git_state=observed_git,
+        events_seen=stop.events_seen,
+        prior_completed_index=stop.prior_completed_index,
+        prior_completed_label=stop.prior_completed_label,
+        at=utc_now(),
+    )
+    item["stopped"] = record
+    append_jsonl(
+        run_dir / "events.jsonl",
+        runner_stop.forced_stop_event(record, id6=item.get("id6", ""), at=utc_now()),
+    )
+    return record
+
+
+def reconcile_disposition(
+    repo: Path,
+    item: dict[str, Any],
+    run_dir: Path,
+    exit_code: int,
+    plan_repo: Path | None = None,
+) -> tuple[str, dict[str, Any] | None]:
+    from agent_workflows import runner_stop
+    from agent_workflows.selectors import read_front_matter_status as _read_status
+
+    stopped = item.get("stopped")
+    if isinstance(stopped, dict) and stopped.get("stopped_deliberately"):
+        return runner_stop.STOPPED_DISPOSITION, None
+    if item.get("action") == "review":
+        source = plan_repo or repo
+        try:
+            current_plan = resolve_plan_path(
+                source, item.get("configured_file", ""), item["id6"]
+            )
+            text = current_plan.read_text(encoding="utf-8")
+            status = _read_status(text)
+        except Exception:
+            status = None
+        if exit_code == 0:
+            if status in ("reviewed", "approved"):
+                return status, None
+            return "reviewed", None
+        return "failed-safely", None
+
+    outcome_path = run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
+    outcome: dict[str, Any] | None = None
+    if outcome_path.exists():
+        try:
+            outcome = load_json(outcome_path)
+        except DriverError:
+            outcome = None
+    try:
+        current_plan = resolve_plan_path(
+            repo, item.get("configured_file", ""), item["id6"]
+        )
+        bucket = plan_bucket(current_plan)
+    except DriverError:
+        bucket = None
+    if bucket == "executed":
+        return "executed", outcome
+    if outcome:
+        disposition = outcome.get("disposition")
+        if disposition == "executed":
+            return "substantially-complete", outcome
+        if disposition in TERMINAL_STATES - {"dependency-blocked", "not-attempted"}:
+            return disposition, outcome
+    if item.get("status") == INTEGRATION_DEFERRED_STATUS:
+        return INTEGRATION_DEFERRED_STATUS, outcome
+    return ("partial" if exit_code == 0 else "failed-safely"), outcome
+
+
+def record_item_spec_edits(
+    repo: Path,
+    plan_path: Path,
+    item: MutableMapping[str, Any],
+    *,
+    reconcile: Callable[[Path, Path], tuple[Mapping[str, str], Mapping[str, str]]],
+) -> dict[str, Any]:
+    reasons: Mapping[str, str] = {}
+    acks: Mapping[str, str] = {}
+    refused = False
+    try:
+        reasons, acks = reconcile(repo, plan_path)
+    except Exception:
+        refused = True
+    else:
+        if not reasons and not acks:
+            try:
+                from agent_workflows import ipd_lifecycle
+
+                rc, _msg, _ev, _find = ipd_lifecycle.finalize_precheck(repo, plan_path)
+                if rc != 0:
+                    refused = True
+            except Exception:
+                refused = True
+    record: dict[str, Any] = {
+        "reconciled": not refused,
+        "reasons": dict(reasons),
+        "acks": dict(acks),
+        "refused": refused,
+    }
+    item["spec_edits_reconciliation"] = record
+    return record
+
+
+# ---- rununify: execute_item_core -----------------------------------------------------------------
+
+
+def execute_item_core(
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    recovery: bool,
+    *,
+    host_labels: HostLabels,
+    spawn_executor: Callable[..., tuple[int, str | None, Path, list[str]]],
+    spawn_verifier: Callable[..., tuple[int, str | None, Path, list[str]]],
+    raw_launcher: Callable[..., Any],
+    run_suite_check: Callable[[Path, str], Any],
+    process_backlog_close: Callable[..., Any],
+    driver_module: Any = None,
+    tracker: StreamTracker | None = None,
+) -> None:
+    """Unified execution loop for one plan item, driving all 16 safety gates identically on both hosts."""
+    from agent_workflows import lane_containment, runner_stop, worktree_lease
+    from agent_workflows.plan_readiness import is_plan_review_approved
+
+    write_report = getattr(
+        driver_module,
+        "write_report",
+        lambda rd, st: globals()["write_report"](rd, st, labels=host_labels),
+    )
+    save_state = getattr(
+        driver_module,
+        "save_state",
+        lambda r, s: globals()["save_state"](r, s, write_report=write_report),
+    )
+    integration_is_earned = getattr(driver_module, "integration_is_earned", None)
+
+    driver_begin = getattr(driver_module, "driver_begin", globals().get("driver_begin"))
+    driver_finalize = getattr(driver_module, "driver_finalize", None)
+    assert_child_tool_identity = getattr(
+        driver_module,
+        "assert_child_tool_identity",
+        globals().get("assert_child_tool_identity"),
+    )
+    allocate_isolation_worktree = getattr(
+        driver_module,
+        "allocate_isolation_worktree",
+        globals().get("allocate_isolation_worktree"),
+    )
+    clean_base_launch_decision = getattr(
+        driver_module,
+        "clean_base_launch_decision",
+        globals().get("clean_base_launch_decision"),
+    )
+    evaluate_clean_base_for_launch = getattr(
+        driver_module,
+        "evaluate_clean_base_for_launch",
+        globals().get("evaluate_clean_base_for_launch"),
+    )
+    reconcile_disposition = getattr(
+        driver_module, "reconcile_disposition", globals().get("reconcile_disposition")
+    )
+    integrate_lane_branch = getattr(
+        driver_module, "integrate_lane_branch", globals().get("integrate_lane_branch")
+    )
+    integrate_review_lane_branch = getattr(
+        driver_module,
+        "integrate_review_lane_branch",
+        globals().get("integrate_review_lane_branch"),
+    )
+    acquire_review_sweep_lane = getattr(
+        driver_module,
+        "acquire_review_sweep_lane",
+        globals().get("acquire_review_sweep_lane"),
+    )
+    route_recovery_turn = getattr(
+        driver_module, "route_recovery_turn", globals().get("route_recovery_turn")
+    )
+    make_integration_validation_runner = getattr(
+        driver_module,
+        "make_integration_validation_runner",
+        globals().get("make_integration_validation_runner"),
+    )
+    set_plan_approved = getattr(driver_module, "set_plan_approved", None)
+    is_plan_review_approved = getattr(
+        driver_module, "is_plan_review_approved", is_plan_review_approved
+    )
+    git_head = getattr(driver_module, "git_head", globals().get("git_head"))
+    git_status = getattr(driver_module, "git_status", globals().get("git_status"))
+    run_suite_check = getattr(driver_module, "run_suite_check", run_suite_check)
+    process_backlog_close = getattr(
+        driver_module, "process_backlog_close", process_backlog_close
+    )
+
+    repo = Path(state["repo"])
+    pal = Palette(should_color(sys.stdout))
+    plan_path = resolve_plan_path(repo, item.get("configured_file", ""), item["id6"])
+    attempt_no = len(item.get("attempts", [])) + 1
+    action = item.get("action", "execute")
+    is_review = action == "review"
+
+    routing = None if is_review else route_recovery_turn(run_dir, state, item, recovery)
+    if is_review:
+        prompt_text = build_review_prompt(item, state, run_dir, plan_path, repo)
+    else:
+        prompt_text = build_prompt(
+            item,
+            state,
+            run_dir,
+            plan_path,
+            recovery=recovery,
+            routing=routing,
+            labels=host_labels,
+        )
+
+    prompt_path = write_prompt(run_dir, item, prompt_text, attempt_no)
+
+    max_items = state.get("options", {}).get("max_items_per_session", 4)
+    review_uses_sweep_session = is_review and bool(
+        state.get("options", {}).get("isolate_worktree", True)
+    )
+    raw_session = (
+        state.get(REVIEW_SWEEP_SESSION_KEY) or state.get("options", {}).get("session")
+        if review_uses_sweep_session
+        else (
+            state.get("session_id")
+            or state.get("set_sessions", {}).get(item["setid"])
+            or state.get("options", {}).get("session")
+        )
+    )
+    is_rotation = False
+    if raw_session and max_items and max_items > 0:
+        session_turns = state.get("session_turn_counts", {}).get(raw_session, 0)
+        if session_turns >= max_items:
+            is_rotation = True
+            raw_session = None
+
+    session_id = raw_session
+    use_continue = (
+        False
+        if (state.get("options", {}).get("new_session") or is_rotation)
+        else (session_id is None)
+    )
+
+    attempt: dict[str, Any] = {
+        "number": attempt_no,
+        "started_at": utc_now(),
+        "starting_head": git_head(repo),
+        "starting_branch": git_branch(repo),
+        "starting_status": git_status(repo),
+        "prompt": str(prompt_path),
+        "prompt_sha256": sha256_file(prompt_path),
+        "session_id": None,
+        "log": str(attempt_log_path(run_dir, item, attempt_no)),
+        "recovery": recovery,
+        "action": action,
+    }
+    item.setdefault("attempts", []).append(attempt)
+    item["status"] = "running"
+    save_state(run_dir, state)
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "ipd-started",
+            "id6": item["id6"],
+            "action": action,
+            "attempt": attempt_no,
+        },
+    )
+
+    total = len(state["queue"])
+    mode_note = " (recovery)" if recovery else ""
+    action_str = f"action={action}"
+    seq = execution_index(item, state)
+    banner = (
+        pal("\u25b6 ", "cyan")
+        + pal(f"IPD {seq:02d}/{total} {item['id6']}", "bold", "cyan")
+        + pal(
+            f"  set={item['setid']}  {action_str}  attempt {attempt_no}{mode_note}",
+            "dim",
+        )
+    )
+    print(banner)
+    print(pal(f"  plan: {plan_path}", "dim"))
+
+    self_finalize = state.get("options", {}).get("self_finalize", True)
+    isolate = state.get("options", {}).get("isolate_worktree", True)
+    wt_handle = None
+    work_dir: str | None = None
+
+    if self_finalize and not is_review:
+        base = evaluate_clean_base_for_launch(repo, shared_tree=not isolate)
+        decision = clean_base_launch_decision(
+            base,
+            allow_dirty_base=bool(
+                state.get("options", {}).get("allow_dirty_base", False)
+            ),
+        )
+        if decision.warned:
+            attempt["clean_base_warning"] = decision.reason
+            attempt["clean_base_dirty_paths"] = list(decision.dirty_paths)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "clean-base-warning",
+                    "id6": item["id6"],
+                    "dirty_paths": list(decision.dirty_paths),
+                    "detail": decision.reason,
+                },
+            )
+        elif decision.consented:
+            attempt["clean_base_consented"] = decision.reason
+            attempt["clean_base_dirty_paths"] = list(decision.dirty_paths)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "clean-base-consented",
+                    "id6": item["id6"],
+                    "dirty_paths": list(decision.dirty_paths),
+                    "detail": decision.reason,
+                },
+            )
+            print(pal(f"  {decision.reason}", "yellow"), file=sys.stderr)
+        elif decision.refused:
+            attempt["ended_at"] = utc_now()
+            attempt["clean_base_refused"] = decision.reason
+            attempt["clean_base_dirty_paths"] = list(decision.dirty_paths)
+            attempt["disposition"] = "blocked"
+            item["status"] = "blocked"
+            item["clean_base_refusal"] = decision.reason
+            save_state(run_dir, state)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "clean-base-refused",
+                    "id6": item["id6"],
+                    "dirty_paths": list(decision.dirty_paths),
+                    "detail": decision.reason,
+                },
+            )
+            print(
+                pal(
+                    f"\u2717 IPD {seq:02d}/{total} {item['id6']} refused: {decision.reason}",
+                    "red",
+                ),
+                file=sys.stderr,
+            )
+            return
+
+    sweep_refresh = None
+    if is_review and isolate:
+        try:
+            wt_handle, sweep_refresh = acquire_review_sweep_lane(
+                repo, run_dir, state, save_state=save_state
+            )
+            work_dir = str(wt_handle.path)
+            attempt["worktree"] = work_dir
+            attempt["worktree_branch"] = wt_handle.branch
+            attempt["worktree_lane_id"] = wt_handle.lane_id
+            attempt["worktree_base"] = wt_handle.base_commit
+            attempt["worktree_disposition"] = getattr(
+                wt_handle, "disposition", "created"
+            )
+            attempt["review_sweep_lane"] = True
+            attempt["review_lane_tip_before"] = lane_branch_tip(repo, wt_handle)
+            if sweep_refresh is not None:
+                attempt["review_sweep_lane_refreshed"] = sweep_refresh.refreshed
+                attempt["review_sweep_lane_refresh_reason"] = sweep_refresh.reason
+            save_state(run_dir, state)
+            print(
+                pal(
+                    f"  \u2713 review sweep lane {wt_handle.branch} at {work_dir}"
+                    + (
+                        ""
+                        if sweep_refresh is None
+                        else (
+                            " (refreshed to main)"
+                            if sweep_refresh.refreshed
+                            else f" ({sweep_refresh.reason})"
+                        )
+                    ),
+                    "cyan",
+                )
+            )
+        except Exception as exc:
+            attempt["ended_at"] = utc_now()
+            attempt["disposition"] = "blocked"
+            item["status"] = "blocked"
+            item["worktree_error"] = str(exc)
+            save_state(run_dir, state)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "review-sweep-lane-alloc-failed",
+                    "id6": item["id6"],
+                    "detail": str(exc),
+                },
+            )
+            print(
+                pal(
+                    f"\u2717 IPD {seq:02d}/{total} {item['id6']} review sweep lane "
+                    f"allocation failed; not launching. {exc}",
+                    "red",
+                ),
+                file=sys.stderr,
+            )
+            return
+
+    if self_finalize and not is_review:
+        actor = driver_actor(state, labels=host_labels)
+        assert_child_tool_identity(run_dir / "events.jsonl", cwd=repo)
+        if isolate:
+            begin_rc, begin_msg = driver_begin(repo, item["id6"], actor, isolated=True)
+        else:
+            begin_rc, begin_msg = driver_begin(repo, item["id6"], actor)
+        if begin_rc != 0:
+            attempt["ended_at"] = utc_now()
+            attempt["begin_refused"] = begin_msg
+            attempt["disposition"] = "blocked"
+            item["status"] = "blocked"
+            item["begin_refusal"] = begin_msg
+            save_state(run_dir, state)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "ipd-begin-refused",
+                    "id6": item["id6"],
+                    "exit_code": begin_rc,
+                    "detail": begin_msg,
+                },
+            )
+            print(
+                pal(
+                    f"\u2717 IPD {seq:02d}/{total} {item['id6']} begin refused "
+                    f"(no execution authority); not launching. {begin_msg}",
+                    "red",
+                ),
+                file=sys.stderr,
+            )
+            return
+        if isolate:
+            try:
+                wt_handle = allocate_isolation_worktree(repo, item["id6"])
+                work_dir = str(wt_handle.path)
+                # lanesess (xd9sll): this turn now runs in its OWN tree, so it must NOT inherit a
+                # session bound to a DIFFERENT tree. Sessions were keyed per SET while worktrees are
+                # per ITEM, so lanes 2..N inherited lane 1's conversation and, with it, lane 1's
+                # directory, silently executing in the wrong worktree. Drop the inherited session and
+                # do NOT fall back to `--continue` (which resumes the previous conversation and would
+                # reintroduce the same carryover). Kept symmetric with oc_runipd.run_opencode; a
+                # one-driver-only fix is asserted against in tests.
+                session_id = None
+                use_continue = False
+                attempt["worktree"] = work_dir
+                attempt["worktree_branch"] = wt_handle.branch
+                attempt["worktree_lane_id"] = wt_handle.lane_id
+                attempt["worktree_base"] = wt_handle.base_commit
+                attempt["worktree_disposition"] = getattr(
+                    wt_handle, "disposition", "created"
+                )
+                attempt["worktree_displaced_from"] = getattr(
+                    wt_handle, "displaced_from", None
+                )
+                save_state(run_dir, state)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "worktree-allocated",
+                        "id6": item["id6"],
+                        "worktree": work_dir,
+                        "branch": wt_handle.branch,
+                        "lane_id": wt_handle.lane_id,
+                        "base_commit": wt_handle.base_commit,
+                        "disposition": getattr(wt_handle, "disposition", "created"),
+                        "displaced_from": getattr(wt_handle, "displaced_from", None),
+                    },
+                )
+                disp = getattr(wt_handle, "disposition", "created")
+                suffix = "" if disp == "created" else f" ({disp})"
+                print(
+                    pal(
+                        f"  \u2713 isolated worktree {wt_handle.branch} at {work_dir}{suffix}",
+                        "cyan",
+                    )
+                )
+            except Exception as exc:
+                attempt["ended_at"] = utc_now()
+                attempt["disposition"] = "blocked"
+                item["status"] = "blocked"
+                item["worktree_error"] = str(exc)
+                save_state(run_dir, state)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "worktree-alloc-failed",
+                        "id6": item["id6"],
+                        "detail": str(exc),
+                    },
+                )
+                print(
+                    pal(
+                        f"\u2717 IPD {seq:02d}/{total} {item['id6']} worktree "
+                        f"allocation failed; not launching. {exc}",
+                        "red",
+                    ),
+                    file=sys.stderr,
+                )
+                return
+
+    if work_dir and not is_review:
+        lane_root = Path(work_dir)
+        try:
+            lane_plan_path = resolve_plan_path(
+                lane_root, item.get("configured_file", ""), item["id6"]
+            )
+        except DriverError:
+            lane_plan_path = plan_path
+        prompt_text = build_prompt(
+            item,
+            state,
+            run_dir,
+            lane_plan_path,
+            recovery=recovery,
+            lane_root=lane_root,
+            routing=routing,
+            labels=host_labels,
+        )
+        prompt_path = write_prompt(run_dir, item, prompt_text, attempt_no)
+        attempt["prompt"] = str(prompt_path)
+        attempt["prompt_sha256"] = sha256_file(prompt_path)
+        attempt["lane_plan_path"] = str(lane_plan_path)
+        lane_manifest = lane_containment.materialize_lane_inputs(
+            lane_root=lane_root,
+            plan_path=lane_plan_path,
+            runbook_path=(
+                Path(state["runbook"])
+                if state.get("runbook") and Path(state["runbook"]).exists()
+                else None
+            ),
+            repo=lane_root,
+        )
+        attempt["lane_input_manifest"] = str(lane_manifest.manifest_path)
+        attempt["lane_input_revision"] = lane_manifest.revision
+        runbook_entry = lane_manifest.entry(lane_containment.INPUT_CLASS_RUNBOOK)
+        if runbook_entry is not None:
+            attempt["lane_runbook_path"] = str(lane_root / runbook_entry.path)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "lane-inputs-materialized",
+                "id6": item["id6"],
+                "revision": lane_manifest.revision,
+                "manifest": str(lane_manifest.manifest_path),
+                "inputs": [entry.path for entry in lane_manifest.entries],
+            },
+        )
+        save_state(run_dir, state)
+    if work_dir and is_review:
+        lane_root = Path(work_dir)
+        try:
+            lane_plan_path = resolve_plan_path(
+                lane_root, item.get("configured_file", ""), item["id6"]
+            )
+        except DriverError:
+            lane_plan_path = plan_path
+        prompt_text = build_review_prompt(
+            item, state, run_dir, lane_plan_path, repo, lane_root=lane_root
+        )
+        prompt_path = write_prompt(run_dir, item, prompt_text, attempt_no)
+        attempt["prompt"] = str(prompt_path)
+        attempt["prompt_sha256"] = sha256_file(prompt_path)
+        attempt["lane_plan_path"] = str(lane_plan_path)
+        lane_manifest = lane_containment.materialize_lane_inputs(
+            lane_root=lane_root,
+            plan_path=lane_plan_path,
+            runbook_path=None,
+            repo=lane_root,
+            revision=int(item["position"]),
+        )
+        attempt["lane_input_manifest"] = str(lane_manifest.manifest_path)
+        attempt["lane_input_revision"] = lane_manifest.revision
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "lane-inputs-materialized",
+                "id6": item["id6"],
+                "revision": lane_manifest.revision,
+                "manifest": str(lane_manifest.manifest_path),
+                "inputs": [entry.path for entry in lane_manifest.entries],
+            },
+        )
+        save_state(run_dir, state)
+
+    try:
+        exit_code, session_id, log_path, argv = spawn_executor(
+            prompt_path,
+            work_dir,
+            tracker,
+            plan_path,
+            attempt_no,
+            session_id,
+            use_continue,
+        )
+    except runner_stop.StopNowForce as stop:
+        now = utc_now()
+        record = _record_forced_stop(run_dir, state, item, stop, work_dir=work_dir)
+        attempt["interrupted_at"] = now
+        attempt["ended_at"] = now
+        attempt["interrupt_reason"] = "deliberate-stop-now-force"
+        attempt["exit_code"] = stop.exit_code
+        attempt["stopped"] = record
+        attempt["disposition"] = runner_stop.FORCED_DISPOSITION
+        item["status"] = runner_stop.FORCED_DISPOSITION
+        save_state(run_dir, state)
+        print(
+            pal(
+                f"  \u25cf IPD {item['id6']} interrupted by deliberate force stop",
+                "yellow",
+            ),
+            file=sys.stderr,
+        )
+        return
+    except runner_stop.StopAtCheckpoint as stop:
+        now = utc_now()
+        record = _record_checkpoint_stop(
+            run_dir, state, item, stop.observer, work_dir=work_dir
+        )
+        attempt["interrupted_at"] = now
+        attempt["ended_at"] = now
+        attempt["interrupt_reason"] = "deliberate-stop-at-checkpoint"
+        attempt["exit_code"] = stop.exit_code
+        attempt["stopped"] = record
+        attempt["disposition"] = runner_stop.STOPPED_DISPOSITION
+        item["status"] = runner_stop.STOPPED_DISPOSITION
+        save_state(run_dir, state)
+        print(
+            pal(
+                f"  \u25cf IPD {item['id6']} stopped cleanly at checkpoint: "
+                f"{stop.observer.last_checkpoint_label}",
+                "yellow",
+            ),
+            file=sys.stderr,
+        )
+        return
+    except StallTimeout:
+        from agent_workflows import lane_containment, worktree_lease
+
+        now = utc_now()
+        attempt["interrupted_at"] = now
+        attempt["ended_at"] = now
+        attempt["interrupt_reason"] = "stall_timeout"
+        stall_sec = state.get("options", {}).get("stall_timeout", DEFAULT_STALL_TIMEOUT)
+        attempt["stall_timeout"] = stall_sec
+        item["status"] = "interrupted"
+        if wt_handle is not None:
+            try:
+                worktree_lease.snapshot_lane_dirty_work(
+                    repo, wt_handle, note="Reason: stall_timeout."
+                )
+            except Exception:
+                pass
+            lane_containment.record_lane_preserved(
+                run_dir=run_dir,
+                item=item,
+                handle=wt_handle,
+                reason="turn stalled; lane preserved for recovery",
+                reason_codes=("stall-timeout",),
+            )
+        save_state(run_dir, state)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": now,
+                "event": "ipd-stalled",
+                "id6": item["id6"],
+                "stall_timeout": stall_sec,
+                "attempt": attempt_no,
+            },
+        )
+        print(
+            pal(
+                f"\u2717 IPD {seq:02d}/{total} {item['id6']} stalled (no output for {int(stall_sec) if stall_sec else 0}s); turn terminated",
+                "red",
+            ),
+            file=sys.stderr,
+        )
+        return
+
+    if session_id:
+        attempt["session_id"] = session_id
+        if turn_runs_in_review_sweep_lane(state, work_dir):
+            counts = state.setdefault("session_turn_counts", {})
+            existing_sweep = state.get(REVIEW_SWEEP_SESSION_KEY)
+            existing_turns = counts.get(existing_sweep, 0) if existing_sweep else 0
+            sweep_rotation = bool(
+                max_items and max_items > 0 and existing_turns >= max_items
+            )
+            if existing_sweep and existing_sweep != session_id and not sweep_rotation:
+                raise DriverError(
+                    f"Review sweep changed session unexpectedly: {existing_sweep} -> {session_id}"
+                )
+            state[REVIEW_SWEEP_SESSION_KEY] = session_id
+            counts[session_id] = counts.get(session_id, 0) + 1
+        if not work_dir:
+            counts = state.setdefault("session_turn_counts", {})
+            existing = state.setdefault("set_sessions", {}).get(item["setid"])
+            existing_turns = counts.get(existing, 0) if existing else 0
+            is_planned_rotation = bool(
+                max_items and max_items > 0 and existing_turns >= max_items
+            )
+            if existing and existing != session_id and not is_planned_rotation:
+                raise DriverError(
+                    f"Set {item['setid']} changed session unexpectedly: {existing} -> {session_id}"
+                )
+            state["set_sessions"][item["setid"]] = session_id
+            state["session_id"] = session_id
+            counts[session_id] = counts.get(session_id, 0) + 1
+
+    attempt.update(
+        {
+            "ended_at": utc_now(),
+            "exit_code": exit_code,
+            "ending_head": git_head(repo),
+            "ending_branch": git_branch(repo),
+            "ending_status": git_status(repo),
+            "log": str(log_path),
+            "argv": argv,
+        }
+    )
+    from agent_workflows.run_viewer import extract_log_metrics
+
+    att_cost, att_toks = extract_log_metrics(log_path)
+    if att_cost is not None:
+        attempt["cost"] = att_cost
+    if att_toks:
+        attempt["tokens"] = att_toks
+
+    if work_dir and (not is_review or turn_runs_in_review_sweep_lane(state, work_dir)):
+        try:
+            collection = lane_containment.collect_lane_submissions(
+                run_dir=run_dir,
+                item=item,
+                run_id=state["run_id"],
+                lane_root=Path(work_dir),
+                plan_path=plan_path,
+                attempt=attempt_no,
+            )
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - defensive; collection must never kill a turn
+            collection = None
+            attempt["collection_error"] = f"{type(exc).__name__}: {exc}"
+        if collection is not None:
+            attempt["collection"] = {
+                "status": collection.get("status"),
+                "collected": collection.get("collected"),
+                "failed": collection.get("failed"),
+                "receipt": str(
+                    lane_containment.collection_receipt_path(run_dir, item, attempt_no)
+                ),
+            }
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "lane-submissions-collected",
+                    "id6": item["id6"],
+                    "attempt": attempt_no,
+                    "collected": collection.get("collected"),
+                    "failed": collection.get("failed"),
+                },
+            )
+
+    disposition, outcome = reconcile_disposition(
+        repo,
+        item,
+        run_dir,
+        exit_code,
+        plan_repo=Path(work_dir) if work_dir else None,
+    )
+
+    verify_disp = None
+    opts = state.get("options", {})
+    validate = opts.get("validate", False)
+    if "validate" not in opts:
+        validate = not (opts.get("no_verify") or opts.get("no_audit"))
+    if (
+        not is_review
+        and disposition in ("executed", "substantially-complete")
+        and validate
+    ):
+        plan_repo = Path(work_dir) if work_dir else repo
+        try:
+            current_plan_path = resolve_plan_path(
+                plan_repo, item.get("configured_file", ""), item["id6"]
+            )
+        except DriverError:
+            current_plan_path = plan_path
+        v_prompt = build_verifier_prompt(
+            item, state, run_dir, current_plan_path, labels=host_labels
+        )
+        v_prompt_file = write_prompt(
+            run_dir, item, v_prompt, attempt_no, suffix="verify"
+        )
+        print(
+            pal(
+                f"  \u25b6 Verifying {item['id6']} ({current_plan_path})...",
+                "cyan",
+            ),
+            flush=True,
+        )
+        try:
+            v_rc, _v_session, _v_log, _v_argv = spawn_verifier(
+                v_prompt_file,
+                current_plan_path,
+                work_dir,
+                tracker,
+                attempt_no,
+            )
+            if _v_log:
+                attempt["verify_log"] = str(_v_log)
+                v_cost, v_toks = extract_log_metrics(_v_log)
+                if v_cost is not None:
+                    attempt["verify_cost"] = v_cost
+                if v_toks:
+                    attempt["verify_tokens"] = v_toks
+            v_outcome_file = (
+                run_dir
+                / "outcomes"
+                / f"{item['position']:02d}-{item['id6']}-verification.json"
+            )
+            if v_outcome_file.is_file():
+                try:
+                    v_data = json.loads(v_outcome_file.read_text(encoding="utf-8"))
+                    verify_verdict = str(v_data.get("verdict", "")).strip().upper()
+                    if (
+                        "BLOCKED" in verify_verdict
+                        or "NOT CONFORMING" in verify_verdict
+                    ):
+                        verify_disp = "blocked"
+                        disposition = "partial"
+                    elif verify_verdict == "VERIFIED":
+                        verify_disp = "verified"
+                    else:
+                        verify_disp = "unverified"
+                        disposition = "partial"
+                except Exception:
+                    verify_disp = "unverified"
+                    disposition = "partial"
+            else:
+                verify_disp = "unverified"
+                disposition = "partial"
+        except runner_stop.StopNowForce as stop:
+            now = utc_now()
+            attempt["interrupted_at"] = now
+            attempt["ended_at"] = now
+            attempt["interrupt_reason"] = "deliberate-stop-now-force"
+            record = _record_forced_stop(run_dir, state, item, stop, work_dir=work_dir)
+            attempt["stopped"] = record
+            attempt["disposition"] = runner_stop.FORCED_DISPOSITION
+            item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
+            raise
+        except runner_stop.StopAtCheckpoint as stop:
+            now = utc_now()
+            attempt["interrupted_at"] = now
+            attempt["ended_at"] = now
+            attempt["interrupt_reason"] = "deliberate-stop-at-checkpoint"
+            record = _record_checkpoint_stop(
+                run_dir, state, item, stop.observer, work_dir=work_dir
+            )
+            attempt["stopped"] = record
+            attempt["disposition"] = runner_stop.STOPPED_DISPOSITION
+            item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
+            raise
+        except StallTimeout:
+            verify_disp = "unverified"
+            disposition = "partial"
+
+    attempt["disposition"] = disposition
+    attempt["verification"] = verify_disp
+    attempt["verification_status"] = verify_disp
+    item["status"] = disposition
+    item["last_outcome"] = outcome
+    item["verification_status"] = verify_disp
+
+    if not is_review:
+        defect_verdict = validate_defect_report(outcome)
+        reask_session = attempt.get("session_id")
+        warranted, reask_reason = defect_reask_is_warranted(
+            defect_verdict,
+            disposition=disposition,
+            session_id=reask_session,
+            already_reasked=bool(attempt.get("defect_reasked")),
+        )
+        reask_verdict = None
+        if warranted:
+            reask_prompt = write_prompt(
+                run_dir,
+                item,
+                defect_reask_message(defect_verdict),
+                attempt_no,
+                suffix="defect-reask",
+            )
+            attempt["defect_reask_prompt"] = str(reask_prompt)
+            attempt["defect_reasked"] = True
+            try:
+                reask_verdict, reask_rc = perform_defect_reask(
+                    verdict=defect_verdict,
+                    prompt_path=reask_prompt,
+                    outcome_path=run_dir
+                    / "outcomes"
+                    / f"{item['position']:02d}-{item['id6']}.json",
+                    resume=(
+                        (
+                            lambda reask_prompt_path: resume_via_launcher(
+                                raw_launcher,
+                                (
+                                    state,
+                                    run_dir,
+                                    item,
+                                    plan_path,
+                                    reask_prompt_path,
+                                    attempt_no,
+                                ),
+                                {
+                                    "log_suffix": "defect-reask",
+                                    "label_suffix": "defect-reask",
+                                    "tracker": tracker,
+                                    "work_dir": work_dir,
+                                    "resume_session": reask_session,
+                                },
+                            )
+                        )
+                        if host_labels == OC_HOST_LABELS
+                        else (
+                            lambda reask_prompt_path: resume_via_launcher(
+                                raw_launcher,
+                                (
+                                    state,
+                                    run_dir,
+                                    item,
+                                    reask_prompt_path,
+                                    attempt_no,
+                                ),
+                                {
+                                    "session_id": reask_session,
+                                    "use_continue": False,
+                                    "log_suffix": "defect-reask",
+                                    "label_suffix": "defect-reask",
+                                    "work_dir": work_dir,
+                                    "tracker": tracker,
+                                },
+                            )
+                        )
+                    ),
+                    recollect=(
+                        functools.partial(
+                            lane_containment.collect_lane_submissions,
+                            run_dir=run_dir,
+                            item=item,
+                            run_id=state["run_id"],
+                            lane_root=Path(work_dir),
+                            plan_path=plan_path,
+                            attempt=attempt_no,
+                        )
+                        if work_dir
+                        else None
+                    ),
+                    session_turn_counts=(
+                        None
+                        if work_dir
+                        else state.setdefault("session_turn_counts", {})
+                    ),
+                    session_id=reask_session,
+                )
+                attempt["defect_reask_exit_code"] = reask_rc
+            except (KeyboardInterrupt, StallTimeout):
+                reask_verdict = None
+        record = defect_report_record(
+            defect_verdict,
+            reasked=warranted,
+            reask_reason=reask_reason,
+            reask_verdict=reask_verdict,
+        )
+        attempt["defect_report"] = record
+        item["defect_report"] = record
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "defect-report-recorded",
+                "id6": item["id6"],
+                "disposition": disposition,
+                "reasked": warranted,
+                "reask_reason": reask_reason,
+                "verdict": record["verdict"],
+                "state": record["state"],
+                "coerced": record["coerced"],
+                "findings_count": len(record["findings"]),
+            },
+        )
+
+    suite_result: Any = None
+    integration_gate_relevant = (
+        self_finalize
+        and not is_review
+        and disposition in ("executed", "substantially-complete")
+    )
+    if integration_gate_relevant and not validate:
+        suite_result = run_suite_check(repo, str(state.get("run_id") or ""))
+        attempt["suite_check"] = {
+            "passing": suite_result.passing,
+            "exit_code": suite_result.exit_code,
+            "summary": suite_result.summary,
+            "cwd": suite_result.cwd,
+            "timeout_seconds": suite_result.timeout_seconds,
+            "elapsed_seconds": round(suite_result.elapsed_seconds, 3),
+        }
+    integration = integration_is_earned(
+        validate=validate, verify_disp=verify_disp, suite_result=suite_result
+    )
+    if integration_gate_relevant:
+        attempt["integration_signal"] = integration.signal
+        attempt["integration_detail"] = integration.detail
+        item["integration_signal"] = integration.signal
+        item["verifier_ran"] = bool(validate)
+    save_state(run_dir, state)
+
+    if is_review and wt_handle is not None:
+        review_commit, review_committed_paths = commit_review_lane_output(
+            repo, wt_handle, item["id6"], host_label=host_labels.command
+        )
+        if review_commit:
+            attempt["review_lane_commit"] = review_commit
+            attempt["review_lane_committed_paths"] = list(review_committed_paths)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "review-lane-output-committed",
+                    "id6": item["id6"],
+                    "attempt": attempt_no,
+                    "commit": review_commit,
+                    "paths": list(review_committed_paths),
+                },
+            )
+        elif review_committed_paths:
+            attempt["review_lane_commit_refused"] = list(review_committed_paths)
+        review_scope = None
+        try:
+            lane_changed = review_turn_changed_files(
+                repo, wt_handle, since_commit=attempt.get("review_lane_tip_before")
+            )
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - defensive; never kill a turn over reporting
+            lane_changed = ()
+            attempt["review_scope_error"] = f"{type(exc).__name__}: {exc}"
+        if lane_changed:
+            review_scope = classify_review_writes(
+                lane_changed,
+                id6=item["id6"],
+                queued_id6s=[
+                    entry.get("id6", "")
+                    for entry in state.get("queue", [])
+                    if entry.get("status") == "queued"
+                ],
+            )
+            attempt["review_write_scope"] = {
+                "changed": list(review_scope.changed),
+                "allowed": list(review_scope.allowed),
+                "out_of_scope": list(review_scope.out_of_scope),
+                "queued_siblings": list(review_scope.queued_siblings),
+            }
+            item["review_write_scope"] = attempt["review_write_scope"]
+            if not review_scope.clean:
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "review-wrote-out-of-scope-paths",
+                        "id6": item["id6"],
+                        "out_of_scope": list(review_scope.out_of_scope),
+                        "queued_siblings": list(review_scope.queued_siblings),
+                        "detail": describe_review_write_scope(
+                            review_scope, id6=item["id6"]
+                        ),
+                    },
+                )
+                print(
+                    pal(
+                        "  ! "
+                        + describe_review_write_scope(review_scope, id6=item["id6"]),
+                        "yellow",
+                    ),
+                    file=sys.stderr,
+                )
+            save_state(run_dir, state)
+
+        review_integrated, review_reason, review_kind = integrate_review_lane_branch(
+            repo, wt_handle, item["id6"]
+        )
+        attempt["review_integrated"] = review_integrated
+        attempt["review_integration_reason"] = review_reason
+        attempt["review_integration_kind"] = review_kind
+        item["review_integrated"] = review_integrated
+        save_state(run_dir, state)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": (
+                    "review-lane-integrated"
+                    if review_integrated
+                    else "review-lane-not-integrated"
+                ),
+                "id6": item["id6"],
+                "branch": wt_handle.branch,
+                "kind": review_kind,
+                "detail": review_reason,
+            },
+        )
+        if not review_integrated:
+            item["review_integration_refusal"] = review_reason
+            save_state(run_dir, state)
+            print(
+                pal(
+                    f"  ! review {item['id6']} was NOT integrated to main ({review_kind}): "
+                    f"{review_reason}. Its work is preserved on {wt_handle.branch}.",
+                    "yellow",
+                ),
+                file=sys.stderr,
+            )
+        else:
+            print(
+                pal(
+                    f"  \u2713 review {item['id6']} integrated to main ({review_reason})",
+                    "cyan",
+                )
+            )
+
+    if not is_review and disposition in ("executed", "substantially-complete"):
+        if self_finalize and work_dir and wt_handle is not None and integration.earned:
+            finalize_repo = Path(work_dir)
+            try:
+                current_plan_for_finalize = resolve_plan_path(
+                    finalize_repo, item.get("configured_file", ""), item["id6"]
+                )
+            except DriverError:
+                current_plan_for_finalize = plan_path
+            actor = driver_actor(state, labels=host_labels)
+            fin_message = (
+                f"{host_labels.command} self-finalize: {item['id6']} verified "
+                f"(set {item['setid']}, attempt {attempt_no})."
+            )
+            record_item_spec_edits(
+                finalize_repo,
+                current_plan_for_finalize,
+                item,
+                reconcile=lambda r, p: compute_scope_reconciliation(
+                    r, p, labels=host_labels
+                ),
+            )
+            sync_receipt_into_worktree(repo, finalize_repo, item["id6"])
+            fin_rc, fin_msg = driver_finalize(
+                finalize_repo,
+                current_plan_for_finalize,
+                item["id6"],
+                actor,
+                fin_message,
+            )
+            if fin_rc == 0:
+                process_backlog_close(
+                    run_dir,
+                    state,
+                    item,
+                    lane_handle=wt_handle,
+                    lane_repo=Path(work_dir),
+                )
+                val_runner = make_integration_validation_runner(state, run_dir, item)
+                try:
+                    integrated, integ_reason, integ_kind = integrate_lane_branch(
+                        repo, wt_handle, item["id6"], val_runner
+                    )
+                except TypeError:
+                    integrated, integ_reason, integ_kind = integrate_lane_branch(
+                        repo,
+                        wt_handle,
+                        item["id6"],
+                        val_runner,
+                        host_label=host_labels.command,
+                        run_checked=globals()["run_checked"],
+                        action_kind="execute",
+                    )
+                if not integrated:
+                    with contextlib.suppress(Exception):
+                        item["integration_changed_files"] = list(
+                            build_lane_outcome(
+                                repo, wt_handle, item["id6"]
+                            ).changed_files
+                        )
+                    decision = record_integration_refusal(
+                        run_dir=run_dir,
+                        state=state,
+                        item=item,
+                        attempt=attempt,
+                        integ_kind=integ_kind,
+                        integ_reason=integ_reason,
+                        branch=wt_handle.branch if wt_handle else None,
+                        save_state=save_state,
+                        append_jsonl=append_jsonl,
+                    )
+                    fail_status = decision.status
+                    render_record_integration_refusal(
+                        item,
+                        code=fail_status,
+                        reason=integ_reason,
+                        branch=wt_handle.branch if wt_handle else None,
+                    )
+                    lane_branch = wt_handle.branch if wt_handle else "(none)"
+                    print(
+                        pal(
+                            f"  ! IPD {item['id6']} finalized on lane {lane_branch} but NOT "
+                            f"integrated to main ({fail_status}): {integ_reason}",
+                            "yellow",
+                        ),
+                        file=sys.stderr,
+                    )
+                    if decision.deferred:
+                        print(
+                            pal(
+                                f"    -> {decision.reason}",
+                                "cyan",
+                            ),
+                            file=sys.stderr,
+                        )
+                    disposition = fail_status
+                else:
+                    attempt["ending_head"] = git_head(repo)
+                    attempt["ending_status"] = git_status(repo)
+                    if (
+                        wt_handle is not None
+                        and lane_containment.lane_preserved_for_missing_input(item)
+                    ):
+                        missing_input_reason = (
+                            "a missing-input report was refused; the lane is preserved and "
+                            "paused (spec 7ckptx R3.2) so its evidence is not destroyed"
+                        )
+                        append_jsonl(
+                            run_dir / "events.jsonl",
+                            {
+                                "at": utc_now(),
+                                "event": "lane-preserved-for-missing-input",
+                                "id6": item["id6"],
+                                "branch": wt_handle.branch,
+                                "worktree": str(wt_handle.path),
+                                "reason": missing_input_reason,
+                            },
+                        )
+                        lane_containment.record_preserved_lane_state(
+                            item=item,
+                            handle=wt_handle,
+                            reason=missing_input_reason,
+                            reason_codes=("missing-input-refused",),
+                        )
+                        print(
+                            pal(
+                                f"  ! lane {wt_handle.branch} PRESERVED: a missing-input report was "
+                                f"refused (paused per spec R3.2); the lane was not torn down",
+                                "yellow",
+                            ),
+                            file=sys.stderr,
+                        )
+                    elif wt_handle is not None:
+                        decision = lane_containment.teardown_lane_if_classified(
+                            repo=repo,
+                            handle=wt_handle,
+                            run_dir=run_dir,
+                            item=item,
+                        )
+                        if decision.torn_down:
+                            wt_handle = None
+                        else:
+                            lane_containment.record_lane_preserved(
+                                run_dir=run_dir,
+                                item=item,
+                                handle=wt_handle,
+                                reason=decision.reason,
+                                reason_codes=decision.reason_codes,
+                                detail=decision.inventory.as_dict(),
+                            )
+                            print(
+                                pal(
+                                    f"  ! lane {wt_handle.branch} PRESERVED (not torn down): "
+                                    f"{decision.reason}",
+                                    "yellow",
+                                ),
+                                file=sys.stderr,
+                            )
+                    disposition = "executed"
+                    attempt["disposition"] = "executed"
+                    attempt["finalized"] = True
+                    attempt["integrated"] = integ_reason
+                    item["status"] = "executed"
+                    try:
+                        item["last_plan_path"] = str(
+                            resolve_plan_path(
+                                repo, item.get("configured_file", ""), item["id6"]
+                            )
+                        )
+                    except DriverError:
+                        pass
+                    save_state(run_dir, state)
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "ipd-finalized",
+                            "id6": item["id6"],
+                            "setid": item["setid"],
+                            "integration": integ_reason,
+                        },
+                    )
+            else:
+                attempt["ending_head"] = git_head(repo)
+                attempt["ending_status"] = git_status(repo)
+                attempt["finalize_refused"] = fin_msg
+                item["finalize_refusal"] = fin_msg
+                save_state(run_dir, state)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "ipd-finalize-refused",
+                        "id6": item["id6"],
+                        "exit_code": fin_rc,
+                        "detail": fin_msg,
+                    },
+                )
+                print(
+                    pal(
+                        f"  ! IPD {item['id6']} finalize refused (left {disposition}, not forced): "
+                        f"{fin_msg}",
+                        "yellow",
+                    ),
+                    file=sys.stderr,
+                )
+        elif self_finalize and not work_dir and integration.earned:
+            try:
+                current_plan_for_finalize = resolve_plan_path(
+                    repo, item.get("configured_file", ""), item["id6"]
+                )
+            except DriverError:
+                current_plan_for_finalize = plan_path
+            actor = driver_actor(state, labels=host_labels)
+            fin_message = (
+                f"{host_labels.command} self-finalize: {item['id6']} verified "
+                f"(set {item['setid']}, attempt {attempt_no})."
+            )
+            record_item_spec_edits(
+                repo,
+                current_plan_for_finalize,
+                item,
+                reconcile=lambda r, p: compute_scope_reconciliation(
+                    r, p, labels=host_labels
+                ),
+            )
+            fin_rc, fin_msg = driver_finalize(
+                repo, current_plan_for_finalize, item["id6"], actor, fin_message
+            )
+            attempt["ending_head"] = git_head(repo)
+            attempt["ending_status"] = git_status(repo)
+            if fin_rc == 0:
+                attempt["disposition"] = "executed"
+                attempt["finalized"] = True
+                disposition = "executed"
+                try:
+                    plan_path = resolve_plan_path(
+                        repo, item.get("configured_file", ""), item["id6"]
+                    )
+                except DriverError:
+                    pass
+            else:
+                attempt["finalize_refused"] = fin_msg
+                item["finalize_refusal"] = fin_msg
+                save_state(run_dir, state)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "ipd-finalize-refused",
+                        "id6": item["id6"],
+                        "exit_code": fin_rc,
+                        "detail": fin_msg,
+                    },
+                )
+                print(
+                    pal(
+                        f"  ! IPD {item['id6']} finalize refused (left {disposition}, not forced): "
+                        f"{fin_msg}",
+                        "yellow",
+                    ),
+                    file=sys.stderr,
+                )
+        if disposition == "executed":
+            if not (item.get("backlog_close") or {}).get("closed"):
+                process_backlog_close(run_dir, state, item)
+
+    if wt_handle is not None and not is_review and item.get("status") != "executed":
+        lane_containment.record_lane_preserved(
+            run_dir=run_dir,
+            item=item,
+            handle=wt_handle,
+            reason=(
+                f"the item finished {item.get('status')!r} rather than executed, so its work was "
+                "never integrated; the lane is kept attributably for a later turn"
+            ),
+            reason_codes=("not-integrated",),
+        )
+        save_state(run_dir, state)
+        print(
+            pal(
+                f"  • IPD {item['id6']} work preserved on lane {wt_handle.branch} "
+                f"at {wt_handle.path} (not integrated; attributable for a later turn/child-03)",
+                "dim",
+            ),
+            file=sys.stderr,
+        )
+
+    item["status"] = disposition
+    save_state(run_dir, state)
+
+    full_auto = state.get("options", {}).get("full_auto", False)
+    auto_approved = False
+    if is_review and disposition in ("reviewed", "approved") and full_auto:
+        plan_curr = resolve_plan_path(
+            repo, item.get("configured_file", ""), item["id6"]
+        )
+        if is_plan_review_approved(plan_curr):
+            try:
+                set_plan_approved(repo, item["id6"])
+                run_action = state.get("options", {}).get("action")
+                if run_action != "review":
+                    item["action"] = "execute"
+                    item["status"] = "queued"
+                item["auto_approved"] = True
+                auto_approved = True
+                save_state(run_dir, state)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "ipd-auto-approved",
+                        "id6": item["id6"],
+                    },
+                )
+            except Exception as exc:
+                print(
+                    pal(
+                        f"  ! Failed to auto-approve IPD {item['id6']}: {exc}",
+                        "yellow",
+                    ),
+                    file=sys.stderr,
+                )
+
+    # zz5yxq E-02, question (3) of the classification at `SUCCESS_STATES`: "should this row show a
+    # checkmark?". Both reads used to be unconditional `SUCCESS_STATES` membership, so an EXECUTE item
+    # that ended `reviewed` got a green check for work that never ran. Judged against the item's own
+    # action now: `item["action"]` is read through the entry rather than the local `action`, because
+    # the `--full-auto` bridge above may have just rewritten it from `review` to `execute`, and the
+    # glyph must describe what the item ACTUALLY did. A review pass that reached `reviewed` still
+    # checks green, unchanged.
+    reached_success = item_reached_success(
+        {"action": item.get("action", action), "status": disposition}
+    )
+    glyph = "\u2713" if reached_success else "\u25cf"
+    glyph_color = (
+        "green" if reached_success else (_STATUS_COLOR.get(disposition, "yellow"))
+    )
+    finish = (
+        pal(f"{glyph} ", glyph_color)
+        + pal(f"IPD {seq:02d}/{total} {item['id6']}", "bold")
+        + pal(f" ({action})", "dim")
+        + " -> "
+        + pal(disposition, glyph_color)
+        + pal(f"  (exit {exit_code})", "dim")
+    )
+    print(finish)
+    if auto_approved:
+        print(
+            pal(
+                f"  \u2713 IPD {item['id6']} auto-approved (review readiness cleared, "
+                "NOT human approval); progressing to execution",
+                "cyan",
+            )
+        )
+    print()
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "ipd-finished",
+            "id6": item["id6"],
+            "action": action,
+            "attempt": attempt_no,
+            "exit_code": exit_code,
+            "status": disposition,
+            "session_id": session_id,
+            "verification_status": verify_disp,
+        },
+    )

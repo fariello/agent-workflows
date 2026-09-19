@@ -56,6 +56,17 @@ DRIVERS = (
 )
 
 
+def _effective_execute_item_source(driver, spawn: str | None = None) -> str:
+    fn = driver.execute_item if hasattr(driver, "execute_item") else driver
+    src = inspect.getsource(fn)
+    if "execute_item_core" in src:
+        core_src = inspect.getsource(runner_shared.execute_item_core)
+        if spawn:
+            core_src = core_src.replace("spawn_executor(", f"{spawn}(")
+        return core_src
+    return src
+
+
 def _git(repo: Path, *args: str) -> str:
     proc = subprocess.run(
         ["git", *args], cwd=repo, text=True, capture_output=True, check=True
@@ -171,6 +182,36 @@ class UntrackedReportWiringTests(unittest.TestCase):
                 self.assertNotIn(
                     "report_untracked_dirt_at_run_start",
                     inspect.getsource(driver.execute_item),
+                )
+
+    # RECONCILIATION NOTE (test-suite audit, 2026-09-18). This test was DELETED on the audit branch
+    # as a byte-offset source pin, then restored here by taking main's side. Reasons, recorded so the
+    # decision is re-examinable rather than re-litigated: (1) main did not merely keep it, it
+    # deliberately PATCHED it twice to follow the `initialize_run_core` and `execute_item_core`
+    # refactors, which is a maintainer act, not drift; and (2) the ORDERING claim it makes (the
+    # untracked report must precede queue resolution) is covered behaviorally NOWHERE else in the
+    # suite, unlike the sibling pins the audit removed, which were each redundant with an
+    # end-to-end test. The honest cost is unchanged: this test breaks on a refactor that preserves
+    # behavior, and it has already done so twice. If someone gives the ordering a behavioral proof
+    # (assert the report is emitted before selectors resolve, on a real run), delete this.
+    def test_it_sits_beside_the_shared_preflight_refusals(self):
+        """The established both-hosts preflight seam, before the run directory exists."""
+        for name, driver, _spawn in DRIVERS:
+            with self.subTest(driver=name):
+                init = inspect.getsource(driver.initialize_run)
+                if "initialize_run_core" in init:
+                    init = inspect.getsource(runner_shared.initialize_run_core)
+                self.assertLess(
+                    init.find("refuse_unimplemented_run_flags"),
+                    init.find("report_untracked_dirt_at_run_start"),
+                )
+                expand_idx = init.find("expand_selectors(")
+                if expand_idx < 0:
+                    expand_idx = init.find("expand_selectors_fn(")
+                self.assertLess(
+                    init.find("report_untracked_dirt_at_run_start"),
+                    expand_idx,
+                    "the report must precede queue resolution",
                 )
 
     def test_the_status_invocation_uses_untracked_files_all(self):
@@ -338,6 +379,10 @@ class SharedTreeGuardRuleTests(unittest.TestCase):
         for name, driver, _spawn in DRIVERS:
             with self.subTest(driver=name):
                 source = inspect.getsource(driver.evaluate_clean_base_for_launch)
+                if "runner_shared.evaluate_clean_base_for_launch" in source:
+                    source = inspect.getsource(
+                        runner_shared.evaluate_clean_base_for_launch
+                    )
                 self.assertEqual(source.count("_run_git("), 1)
                 self.assertIn("lane_containment.evaluate_clean_base(", source)
                 self.assertIn("--untracked-files=no", source)
@@ -349,7 +394,7 @@ class SharedTreeGuardWiringTests(unittest.TestCase):
     def test_the_guard_call_is_no_longer_gated_on_isolate(self):
         for name, driver, _spawn in DRIVERS:
             with self.subTest(driver=name):
-                body = inspect.getsource(driver.execute_item)
+                body = _effective_execute_item_source(driver)
                 self.assertNotIn(
                     "if isolate and self_finalize and not is_review:",
                     body,
@@ -503,7 +548,7 @@ class ConsentIsNotConsultedWhereNothingRefusesTests(unittest.TestCase):
         # And neither driver re-decides it with its own `isolate` test in the branch.
         for name, driver, _spawn in DRIVERS:
             with self.subTest(driver=name):
-                body = inspect.getsource(driver.execute_item)
+                body = _effective_execute_item_source(driver)
                 self.assertIn("decision.warned", body)
 
     def _dirty_shared(self) -> Any:
@@ -811,7 +856,7 @@ class NoSpawnAndNothingTouchedTests(unittest.TestCase):
                 # reason, so without this assertion the test could not tell the two apart.
                 self.assertNotIn("clean_base_consented", item["attempts"][-1])
                 self.assertIn(
-                    "shared_tree=not isolate", inspect.getsource(driver.execute_item)
+                    "shared_tree=not isolate", _effective_execute_item_source(driver)
                 )
 
     def test_the_ISOLATED_path_REPORTS_and_LAUNCHES_and_still_touches_nothing(self):
@@ -860,7 +905,7 @@ class NoSpawnAndNothingTouchedTests(unittest.TestCase):
         """
         for name, driver, spawn in DRIVERS:
             with self.subTest(driver=name):
-                body = inspect.getsource(driver.execute_item)
+                body = _effective_execute_item_source(driver, spawn=spawn)
                 guard_at = body.find("evaluate_clean_base_for_launch(")
                 spawn_at = body.find(f"{spawn}(")
                 alloc_at = body.find("allocate_isolation_worktree(")
@@ -874,7 +919,7 @@ class NoSpawnAndNothingTouchedTests(unittest.TestCase):
         """CID-3: one decision reached from both hosts, never two that merely agree today."""
         for name, driver, _spawn in DRIVERS:
             with self.subTest(driver=name):
-                body = inspect.getsource(driver.execute_item)
+                body = _effective_execute_item_source(driver)
                 self.assertIn("clean_base_launch_decision(", body)
                 self.assertNotIn("CLEAN_BASE_REFUSE", body)
                 self.assertNotIn("CLEAN_BASE_CONSENTED", body)

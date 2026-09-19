@@ -939,6 +939,59 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=("--agent", "--json"),
         exit_contract=(0, 1, 2),
     ),
+    # runanalytics Order 09 (`ixis0c`) E-01: the two DATA-SHARING leaves under `aw runs`.
+    #
+    # THESE ARE THE THIRD AND FOURTH MUTATING VERBS ON A NOUN DOCUMENTED AS THE READING HALF, and
+    # both `cli._DESCRIPTIONS["runs"]` and `cli._RUNS_DESCRIPTION` now name all four by name rather
+    # than counting to a number that keeps going stale (`repair`, `analyze`, `export`, `submit`).
+    #
+    # THE GATES ARE DIFFERENT FROM EACH OTHER AND NEITHER IS `none`, which is the whole point of
+    # declaring them. The field is a machine-readable statement of HOW a verb is authorized, so a
+    # wrong value is a false entry in the normative inventory, not a cosmetic one. Re-measured across
+    # all 135 declarations: `none` 96, `dry_run_default` 22, `confirmation` 10, `auth_floor` 7 (the
+    # plan's review-time figures were 91/21/10/7 over 129 declarations).
+    #
+    #   `runs export`  -> `dry_run_default`. It PREVIEWS by default and writes a bundle only under
+    #                     `--apply`, which is exactly what the 22 existing `dry_run_default` verbs
+    #                     mean. A `raw` export additionally needs the attestation, but the default
+    #                     posture of the verb is "show me what would leave".
+    #   `runs submit`  -> `auth_floor`. It is authorized by an explicit `--by-human` attestation
+    #                     naming the tier AND the destination, which is the mechanism every existing
+    #                     `auth_floor` verb uses (`status_set` refuses a transition needing the
+    #                     attestation when the flag is absent). `confirmation` would assert a TTY
+    #                     prompt that implemented spec `20260815-0151-01` deliberately RETIRED, and
+    #                     that this plan's stop conditions forbid reintroducing.
+    #
+    # BOTH ARE `mutation`, INCLUDING `submit`, EVEN THOUGH SUBMISSION IS UNAVAILABLE TODAY. No
+    # endpoint, operator, retention policy, deletion method or contact is approved anywhere in this
+    # repository, so `submit` returns an actionable `unavailable` and transmits nothing. Declaring it
+    # `read` on that basis would be wrong twice over: it writes a local receipt on every path, and the
+    # class drives which conformance scenarios are REQUIRED (`mutation` owes `success_preview`).
+    #
+    # THE EXIT CONTRACT IS CAPPED AT (0, 1, 2) for the same reason Order 08's pair is:
+    # `agent_schema.validate_agent_record` requires a result/summary/error record's `exit` to be in
+    # (0, 1, 2), and both leaves emit agent records on every path. `submit`'s refusals (including the
+    # expected `unavailable`) are exit 1; a usage error or cannot-run is 2.
+    CommandDeclaration(
+        command="runs export",
+        command_class="mutation",
+        human_recipe="preview",
+        agent_record_kind="result",
+        mutation_gate="dry_run_default",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--agent", "--json"),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="runs submit",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="auth_floor",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--agent", "--json"),
+        exit_contract=(0, 1, 2),
+    ),
     CommandDeclaration(
         command="run start",
         command_class="mutation",

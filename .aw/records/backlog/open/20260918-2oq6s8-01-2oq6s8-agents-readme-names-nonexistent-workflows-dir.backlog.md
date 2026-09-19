@@ -1,11 +1,13 @@
 - Id: 2oq6s8
 - Status: open
+- Blocks-Release: next
 - Set: 2oq6s8
 - Priority: medium
 - Work-Kind: bug
 - Summary: The shipped agents-README.md template describes a records/workflows/ dir that no install creates
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-18 created (aw backlog): The shipped agents-README.md template describes a records/workflows/ dir that no install creates
 
 MEASURED 2026-09-18 while executing wfartifacts Order 04 (l1c1iz).

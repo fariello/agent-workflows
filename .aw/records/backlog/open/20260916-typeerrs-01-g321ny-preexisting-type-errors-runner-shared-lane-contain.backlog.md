@@ -1,11 +1,13 @@
 - Id: g321ny
 - Status: open
+- Blocks-Release: next
 - Set: typeerrs
 - Priority: low
 - Work-Kind: bug
 - Summary: Two pre-existing type errors in runner_shared and lane_containment (unpacked git-runner tuple; reaper call arity)
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-16 created (aw backlog): Found while executing dirtygates Order 01 (d7qoxv); pre-existing at commit 4350ebc and NOT introduced by that plan.
 
 TWO STATIC TYPE ERRORS PRESENT BEFORE ANY d7qoxv EDIT, verified by reading the same lines at the baseline commit 4350ebc.

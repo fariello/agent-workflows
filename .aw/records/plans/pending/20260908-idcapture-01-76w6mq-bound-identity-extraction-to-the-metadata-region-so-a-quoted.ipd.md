@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/selectors.py, agent_workflows/check_engine.py, tests/test_selector_zero_open.py, tests/test_id_metadata_region.py
 - Item-Dependencies: none
 - Status: approved
+- Blocks-Release: next
 - Readiness: go-pending-approval
 - Set: idcapture
 - Order: 1
@@ -17,6 +18,7 @@
 - From-Backlog: cqytxf
 
 ## Workflow history
+- 2026-09-18 approved (aw set): status set to approved
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL; PR-201..PR-208, all FIXED, no open questions. Reviewed at HEAD `18d7cc4c`; `aw ipd lint` conformed at `--phase author` and again at `--phase review-finalize`. THE CORE DEFECT IS REAL AND I RE-PROVED IT: `_read_id`/`_read_status`/`_read_setid` on the `27rjro` doc still return `uyeko5`/`reviewed`/`runflags` harvested from a quoted block, and `aw set reviewed uyeko5` still fails with an id6 collision at exit 2. THREE FINDINGS OF THE PLAN'S OWN WERE FALSIFIED and are now marked SUPERSEDED rather than deleted, because the plan leaned on them: F-4/F-5/F-6 claimed `aw check all` reports ZERO id6-collisions and that the repository detector had gone BLIND through retired-record masking. Re-measured, `aw check all` reports exactly ONE `check.id6-collision`, ON the `27rjro` doc, naming a SECOND live research doc (`takpys`) that quotes the same block; so both sides are scannable, nothing is masked, and check and the verbs AGREE. The retired-record mechanism is real but LATENT, and E-06 now says so instead of asserting blindness. PR-201 (HIGH) is the substantive fix: E-05 was told to register the new rule at `warning` severity so the repository would not fail its own check for documenting itself, but `warning` DOES fail the gate (`drift_exit_code` returns 1 for error AND warning, 0 only for `info`, measured), so the instruction defeated its own goal; it now says `info` and cites the two shipped `info` precedents. PR-202 (HIGH): the blast radius is TWO files, not one, so a rule or test keyed on a single doc would ship half-built; verified the region fix repairs both. Also corrected: the file census (1136 tracked, not 1006), a 4096-byte header interaction the region helper must tolerate (85 files have no `##` inside the window), the stale `status: todo` claim (it is `reference`), and E-07's precedence assertion, which as written would have asserted a substring match for a token absent from both filenames. OQ-01 and OQ-02 RESOLVED FROM EVIDENCE rather than left for the maintainer.

@@ -1,11 +1,13 @@
 - Id: 13ty0u
 - Status: graduated
+- Blocks-Release: next
 - Set: runviewdisc
 - Priority: medium
 - Work-Kind: bug
 - Summary: run_viewer flags an interrupted item as a status discrepancy although an unfinished plan MUST still read approved: add interrupted and substantially-complete to the existing tolerance list
 
 ## Workflow history
+- 2026-09-18 graduated (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-08 graduated (aw set): PARTIALLY graduated to plan vdabn5 (runviewdisc-02); see the PARTIAL GRADUATION section appended to this item. GRADUATED: the interrupted half, confirmed live by calling audit_step_artifact against a synthetic repo (interrupted gives status_mismatch=True while queued/running/dependency-blocked/blocked/reviewed all give False, with location_mismatch correctly False throughout). NOT GRADUATED: the substantially-complete half, which is UNSOUND AS WRITTEN. That value normalizes to 'complete' at run_viewer.py:472 and 'complete' selects expected_dir_name='executed' at :474-475, so the audit flags the LOCATION too and a status-list entry fixes half a row; worse, the tolerance branch receives ONE token for two distinct run states, so admitting it would also suppress the genuine regression this item's own test case (c) guards. The surviving work needs a location-side decision plus a way to distinguish the two normalized states, and the normalization is shared by six display sites. This item's own closing warning was the right instinct and understated the problem. Line numbers had drifted ~70 lines. Its 1f9m2j boundary argument re-verified correct.
 - 2026-09-05 created (aw backlog): run_viewer flags an interrupted item as a status discrepancy although an unfinished plan MUST still read approved: add interrupted and substantially-complete to the existing tolerance list
 

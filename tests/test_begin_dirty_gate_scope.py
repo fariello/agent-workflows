@@ -32,6 +32,7 @@ from pathlib import Path
 
 from agent_workflows import ipd_lifecycle as LC
 from agent_workflows import oc_runipd as OC
+from agent_workflows import runner_shared as RS
 
 from tests.test_ipd_lifecycle_cli import (
     _commit_all,
@@ -339,6 +340,8 @@ class RunnerDeclaresTheExecutionBaselineTests(unittest.TestCase):
         # not invert it: that is why the isolated baseline is the frozen base COMMIT rather than a
         # path to a lane that does not exist yet.
         src = Path(OC.__file__).read_text(encoding="utf-8")
+        if "execute_item_core" in src:
+            src = Path(RS.__file__).read_text(encoding="utf-8")
         self.assertLess(
             src.index("begin_rc, begin_msg = driver_begin("),
             src.index("wt_handle = allocate_isolation_worktree("),

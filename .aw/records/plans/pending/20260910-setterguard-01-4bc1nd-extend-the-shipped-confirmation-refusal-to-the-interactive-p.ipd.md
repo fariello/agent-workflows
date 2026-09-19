@@ -10,6 +10,7 @@
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/work_cmd.py, agent_workflows/oc_runipd.py, tests/test_status_set.py, tests/test_work_primitives.py, tests/test_work_kind.py, tests/test_ipd_priority.py
 - Item-Dependencies: none
 - Status: approved
+- Blocks-Release: next
 - Readiness: go-pending-approval
 - Set: setterguard
 - Order: 1
@@ -20,6 +21,7 @@
 - From-Backlog: f5pttg
 
 ## Workflow history
+- 2026-09-18 approved (aw set): status set to approved
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-012 (9 FIXED, 3 DEFERRED each carried by E-06); readiness GO - PENDING HUMAN APPROVAL. Corrected the plan's central diagnosis (PR-001): `select_output` implements no TTY rule, so the guard keys on the `--agent`/`--json` flags and the unguarded set is every flagless caller, not "humans". Measured the blast radius the authored survey could not see (PR-002): applying E-01 in an isolated worktree gave `5955 passed, 4 failed` against a `5959 passed` baseline, breaking `work_cmd.run_finish` (observed) and `finalize_orchestrator` (latent). Closed a corpus-sized hole in E-02 (PR-003): 25 of 479 executed plans carry uppercase `EXECUTED`/`DONE` and would have been skipped by a case-sensitive guard. Added E-06 so three deferred findings get durable backlog carriers instead of dying as prose in a plan bound for `executed/`. `Scope-Paths` grew from 2 to 7 declared paths.

@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/engine.py, tests/test_installer.py
 - Item-Dependencies: none
 - Status: reviewed
+- Blocks-Release: next
 - Readiness: go-pending-approval
 - Set: verstamp
 - Order: 1
@@ -16,6 +17,7 @@
 - From-Backlog: ygtykn
 
 ## Workflow history
+- 2026-09-18 reviewed (aw set): status set to reviewed
 - 2026-09-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED
 
 - 2026-09-12 to-review (opencode): authored from backlog item ygtykn; write-path root cause verified in-tree.

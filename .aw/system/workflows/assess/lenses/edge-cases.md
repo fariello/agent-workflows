@@ -1,8 +1,10 @@
 # Lens: Edge cases and failure modes
 
-Focus the assessment on boundary conditions, unusual inputs, and failure modes that
-the happy path ignores. Complements use-cases (whole scenarios) and bugs (defects in
+Focus the assessment on boundary conditions, unusual inputs, and failure modes that the
+project's happy path ignores. Complements use-cases (whole scenarios) and bugs (defects in
 existing behavior) by systematically probing the limits.
+
+The subject is the project's own code, per the SUBJECT section of `../assess.md`.
 
 ## Lead personas
 

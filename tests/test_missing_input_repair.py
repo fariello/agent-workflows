@@ -20,7 +20,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_workflows import agy_runipd, lane_containment, oc_runipd, worktree_lease
+from agent_workflows import (
+    agy_runipd,
+    lane_containment,
+    oc_runipd,
+    runner_shared,
+    worktree_lease,
+)
 
 LC = lane_containment
 
@@ -579,6 +585,8 @@ class TwinParityTests(unittest.TestCase):
         for label, module in DRIVERS:
             with self.subTest(driver=label):
                 source = inspect.getsource(module)
+                if "execute_item_core" in source:
+                    source += "\n" + inspect.getsource(runner_shared)
                 self.assertIn(
                     "lane_containment.MissingInputObserver(",
                     source,

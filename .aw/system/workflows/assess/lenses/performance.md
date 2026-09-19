@@ -1,7 +1,10 @@
 # Lens: Performance
 
-Focus the assessment on runtime and resource performance: speed, throughput,
-latency, and efficiency under realistic and peak load.
+Focus the assessment on the project's runtime and resource performance: speed,
+throughput, latency, and efficiency under realistic and peak load.
+
+The subject is the project's own code and configuration, per the SUBJECT section of
+`../assess.md`.
 
 ## Lead personas
 

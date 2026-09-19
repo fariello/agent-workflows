@@ -1,11 +1,13 @@
 - Id: e17a2e
 - Status: open
+- Blocks-Release: next
 - Set: e17a2e
 - Priority: high
 - Work-Kind: bug
 - Summary: runner_shared reclaim path calls .strip() on _run_git's 3-tuple, raising AttributeError whenever a lane has no worktree
 
 ## Workflow history
+- 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.
 - 2026-09-16 created (aw backlog): runner_shared reclaim path calls .strip() on _run_git's 3-tuple, raising AttributeError whenever a lane has no worktree
 
 FOUND while executing IPD metc8b (dirtygates-02), in code that plan does not touch.

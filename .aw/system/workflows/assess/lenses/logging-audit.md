@@ -5,6 +5,10 @@ system's logging and audit trail. Good logging underpins debugging, operability,
 intrusion detection, incident response, and many compliance controls - so this lens is
 foundational and frequently cross-referenced.
 
+The subject is the logging the project's own code emits, per the SUBJECT section of
+`../assess.md`. Do not assess the workflow run records under `.aw/workflow-artifacts/` as
+if they were the product's audit trail.
+
 ## Lead personas
 
 Operator and software engineer, with the security-minded view on audit integrity and
