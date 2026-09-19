@@ -86,3 +86,79 @@ READY FOR THE HUMAN APPROVAL GATE. No gating finding remains, so this record arm
 Two open questions remain by design (OQ-01 on instruction/code drift, OQ-02 on prose versus a typed
 checklist), both explicitly non-blocking and both carrying a proposed direction rather than a silent
 default; neither is required to author the implementing plan.
+
+## Round 2
+
+Re-reviewed at HEAD `485b9203` after the maintainer asked whether the spec was complete and well-worded.
+It was not. Round 1 checked internal consistency and cross-spec conflict, and found a real BLOCKER there,
+but never asked the question that matters most for a spec about to graduate: COULD SOMEONE BUILD THIS? The
+answer was no, and that is this round's first finding.
+
+STRUCTURAL PREFLIGHT `aw specs check` CONFORMED before and after every revision. No `- Readiness:` was
+added; `- Status:` and the history remain tool-written; `aw ipd lint` was never invoked against the spec.
+
+THE CENTRAL HOLE. The spec referred to "the parser" twelve times and specified its algorithm zero times.
+No allowlist, no parse target, no grammar: `grep` for `allowlist`, `leading imperative` and `verb` returned
+nothing. R1 stated the invariant in prose adequate for a human and useless to an implementer, and R3 said
+"the conformance rule is ONE function" without saying what the function decides. Rubric G fails outright:
+another agent could not author the implementing plan without inventing the detection rule, which is the
+only genuinely hard part of the work.
+
+AND THE ANALYSIS THAT SHOULD HAVE FILLED IT WAS ALREADY IN THE SPEC, MISFILED. The candidate signals and
+their measured hit rates appear in Section 3 as EVIDENCE THAT A PARSER IS INCOMPLETE, never as the
+specification of what to build. So the spec had the material and put it in the wrong place.
+
+THE MAINTAINER THEN RESOLVED OQ-02 AS TYPED, WHICH CHANGED THE ANSWER RATHER THAN COMPLETING IT. My round-1
+recommendation had been prose-with-a-vocabulary, and when asked why, the honest answer was partly deference
+to an earlier maintainer lean - not a technical argument. Measuring the three counter-examples I had cited
+for prose destroyed the case for it: `y9s4vm` E-02's condition is asserted by child `iuxtjy`'s own Scope
+and three of its V-items; `lyo1tz` E-02's is asserted seven times by child `1f7xno`; and `s0gnha` E-02's
+had ALREADY been relocated into child `svacmz` (`- Item-Dependencies: executed:skn8uk, executed:ty7w6o,
+executed:dy9ymn`), whose child-table row says it owns the verification "so it is performed and verified by
+an agent turn instead of being retired unperformed". Two were duplication the spec should reject; the third
+was the remedy already in production use, authored independently by another agent the same day. Zero
+counter-examples remained across 32 items in 11 orchestrators, so the expressiveness objection is withdrawn
+rather than accommodated.
+
+A SECOND ROUND-1 CLAIM OF MINE WAS ALSO FALSE and is corrected in the spec because it made the migration
+look cheap: I asserted "21 of 32 items already reduce to confirm-child-X-is-executed". Measured properly
+only 11 of 32 are schema-shaped, and the rest have first lines from 133 to 1528 characters.
+
+THE MIGRATION IS TOTAL, AND THE SPEC NOW SAYS SO. Measured against the R1a grammar as written, ZERO of 32
+live rows conform. That is the honest counterweight to a by-construction guarantee: it is bought with a
+complete rewrite of an existing surface, not a formatting pass.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| SR-007 | BLOCKER | UNDER-SCOPE | G (can be planned from), B (requirements testable) | draft R1/R3; `grep allowlist\|verb` returns nothing | The spec never specified what the conformance check actually checks. "The parser" appeared 12 times with no algorithm, no parse target and no grammar, so the implementing plan would have had to invent the detection rule - the only hard part. The candidate signals and their measured rates were present but misfiled in Section 3 as evidence of incompleteness rather than as the specification. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | R1a added: a typed row `CONFIRM <child-id6> REACHED <status>` with three validated fields and an explicit statement that continuation prose is not parsed. R1b added: a cross-child check is a final child with sibling dependencies. R2a added: the typed row must still serve the hand-run reader. Criteria 2, 3 and 4 added to pin the grammar, the by-construction claim, and the coexistence of a conforming parent with a cross-child child. |
+| SR-008 | HIGH | IN-SCOPE | D (decisions recorded), A (claims current) | round-1 report; `y9s4vm` E-02 vs child `iuxtjy`; `lyo1tz` E-02 vs child `1f7xno`; `s0gnha` E-02 vs child `svacmz` | My round-1 recommendation of prose-with-a-vocabulary rested on three cited counter-examples, none of which I had verified against the child that owned the condition. All three failed: two duplicate a child's own assertion, one had already been moved into a final child. The recommendation was therefore unsupported, and partly deference to an earlier maintainer lean rather than a technical judgement. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | OQ-02 resolved TYPED with the full reasoning, including both of my false claims, recorded in the spec rather than only here. Section 3's "why a shape check rather than a vocabulary check" replaces the prose argument and keeps the measurements as the REASON for the change. |
+| SR-009 | HIGH | IN-SCOPE | F (migration consequence) | measured: 0 of 32 rows match the R1a grammar | Cost 3 described the migration as rewording seven of ten plans. Under the typed grammar the true figure is that EVERY row on EVERY live orchestrator needs rewriting, and a spec that understates its own migration invites an implementer to discover it mid-flight. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Cost 3 rewritten with the measured zero, the corrected 11-of-32 schema-shaped figure, an instruction to re-derive, and the note that a non-zero pre-migration count would mean the grammar had been quietly widened. Criterion 12 added requiring that no Set is left refused with no remedy. |
+| SR-010 | MEDIUM | UNDER-SCOPE | C (criteria cover requirements) | draft §3a limit 2 | §3a told the implementer to measure and record recall, but no acceptance criterion required it: an orphan obligation. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | §3a limit 2 rewritten for the typed shape (no recall question within a row, none outside it) and now asks for the rows-versus-prose ratio, which criterion 9 exercises directly. |
+| SR-011 | MEDIUM | IN-SCOPE | F (honest limits) | draft §3a | The limits were written against a wording-based parser and became wrong once the shape changed: a typed row has no recall question at all within its scope, and the real residue moved to the unparsed prose sections. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | §3a limits 1, 2 and 5 rewritten; limit 5 replaced with the stronger honest limit that the shape constrains a ROW and proves nothing about whether the Set's children cover the Set's work; limit 6 added for the undesigned migration. |
+| SR-012 | LOW | IN-SCOPE | B (requirements testable) | title; R5; R8; §3 | The spec's own vocabulary lagged the design: the title and several requirements still said "parser", which under a typed shape misdescribes a structural validator as a wording judge. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Title changed to "a typed child-tracking checklist"; R5, R8, R9 and §3's surviving paragraphs now say shape check, with the historical measurements explicitly marked as the reason for the change rather than a description of what ships. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+| --- | -------- | ------ | ----------------------- | ----- | ---------- |
+| SR-D3 | OQ-02: prose with an enforced vocabulary, or a typed child-tracking row? | TYPED, written into R1a/R1b/R2a. | (a) Prose with a verb allowlist, rejected after measurement: it flags 11 of 32 but PASSES `wfjsp4` E-02 (a deliverable opening with an allowlisted "VERIFY") and wrongly flags `ao1rb7`'s legitimate sequencing, so it has both a miss rate and a false-positive rate. (b) Child-reference requirement, rejected: passes `rh5tt6` E-02, the production failure. (c) Hybrid typed columns plus a constrained free-text condition field, not adopted: the three conditions that motivated it all dissolved on measurement, so the field would exist for no demonstrated case. | the three counter-examples refuted against children `iuxtjy`, `1f7xno` and `svacmz`; 0 of 32 rows conforming to the new grammar; `25kzda` 2.5b's prohibition satisfied by adding rather than substituting | yes - if an implementer finds a legitimate need that is neither a row nor sensibly a child, that is evidence to bring back; the spec says so rather than inviting a quiet widening of the row |
+| SR-D4 | Should the semantic probe be retired now that a typed shape makes the invariant true by construction? | NO. Retained, and R9 now states why a typed row does not remove the need for it. | (a) Retire it, rejected: R1a deliberately does not parse continuation lines, `## Completion criteria`, or `## Cross-IPD validation`, so an obligation can still be written in prose; `25kzda` 2.5b's prohibition still binds. (b) Keep it but make the shape check authoritative, rejected as substitution with extra steps. | R1a's stated non-coverage of prose; `25kzda` 2.5b | yes - if the prose sections were ever themselves typed, the trade could be re-taken |
+
+### Verdict
+
+`APPROVE WITH REVISIONS APPLIED`. Six further findings (SR-007..SR-012), all FIXED, none deferred, none
+open. Two decisions recorded, both reversible. The spec now specifies what to build, states its migration
+cost at full size, and keeps the semantic probe that `25kzda` 2.5b requires.
+
+READY FOR THE HUMAN APPROVAL GATE. No gating finding remains. OQ-01 remains open by design and is
+non-blocking, and is narrower than it was: a typed row is largely self-documenting through the scaffold,
+so the residual drift surface is the grammar plus the refusal wording rather than a vocabulary and its
+exceptions. OQ-02 and OQ-03 are both resolved.
+
+DISCLOSURE, REPEATED FOR THIS ROUND: the same agent and model authored this spec and both review rounds.
+Round 2 exists because the maintainer asked a question round 1 had not, which is the clearest available
+evidence of that limit. Every claim in this round was verified by measurement against the live corpus, and
+the two round-1 claims that measurement contradicted are recorded as findings against myself (SR-008,
+SR-009) rather than silently corrected.
