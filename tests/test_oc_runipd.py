@@ -1988,7 +1988,7 @@ class ContinuationHintTests(unittest.TestCase):
         status; relaxing the `assertNotIn("resume")` instead would have quietly deleted the only
         coverage of the inspect-vs-resume branch. The `reviewed` case is now covered explicitly, in
         both directions, by
-        `tests/test_rununify_run_queue_characterization.py::AnApprovalBlockedQueueIsNotASilentSuccess`.
+        `tests/test_rununify_run_queue.py::AnApprovalBlockedQueueIsNotASilentSuccess`.
         """
         hint = driver.render_continuation_hint(
             self._state({"demo": "ses_abc123"}, queue=[{"status": "executed"}]),

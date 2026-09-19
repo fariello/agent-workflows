@@ -23,7 +23,8 @@ read that basename as the host discriminator. MEASURED, by sabotaging agy exactl
 relocation would: `tests/test_run_analytics_sources.py`, `tests/test_run_viewer.py` and
 `tests/test_run_analytics.py` stayed 183-green while every agy run became host-unattributable. There
 was no test covering the runners' end of that contract at all; `EachHostRecordsItsOwnDriverIdentity`
-in `tests/test_rununify_initialize_run_characterization.py` is now it.
+in THIS file is now it (it arrived here from a companion `..._characterization.py` that
+`7ebc2964` folded in).
 
 WHAT THIS PLAN DELIVERED: the `options` partition and closure measurement (E-01), the
 driver-identity pin plus a behavioral characterization net on both hosts (E-02), the pin inventory
@@ -809,7 +810,7 @@ class TheDriverIdentityIsEvaluatedInEachRunner(unittest.TestCase):
     """`__file__` must be evaluated in the RUNNER module, never in a shared one.
 
     ASSERTED AS A SOURCE PROPERTY here and as BEHAVIOR in
-    `tests/test_rununify_initialize_run_characterization.py`, deliberately, because the two catch
+    the behavioral net now in THIS file, deliberately, because the two catch
     different mistakes. The behavioral test catches a relocation. THIS one catches the narrower
     error of a shared module acquiring its own `state["driver"]` writer, which the behavioral test
     would not see while each host still had its own.

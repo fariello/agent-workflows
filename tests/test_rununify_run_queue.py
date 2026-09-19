@@ -10,7 +10,7 @@ symbols that are still defined twice, one of which is pinned PERMANENTLY unmovab
 is a relocation taking a dozen injected dependencies, not the small move the line count suggests.
 
 WHAT IT DELIVERED: the closure measurement (E-01), a behavioral characterization net on both hosts
-(`tests/test_rununify_run_queue_characterization.py`, E-02), a two-line repair of the ONE real
+(E-02, since folded into THIS file by `7ebc2964`), a two-line repair of the ONE real
 defect the measurement exposed (E-03), the split analysis the sequencing decision needs (E-04), and
 this guard suite.
 
@@ -548,7 +548,8 @@ class TheSignalReportRefreshSitesArePinned(unittest.TestCase):
     """E-03: agy went from THREE `register_signal_report` sites to FIVE, matching oc site for site.
 
     THE COUNT IS PINNED RATHER THAN THE BEHAVIOR HERE ON PURPOSE, and the behavior is pinned
-    separately in `tests/test_rununify_run_queue_characterization.py`. Both are wanted: the
+    separately by `TheExitCodeReflectsTheRealOutcome` in THIS file (it lived in a companion
+    `..._characterization.py` until `7ebc2964` folded that file in here). Both are wanted: the
     behavioral test proves the reporter sees post-reload state, and this one names the SITES, so a
     future edit that deletes one is attributed to the deletion rather than debugged from a
     behavioral symptom.

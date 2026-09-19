@@ -9690,7 +9690,7 @@ ACTION_IMPLEMENTED = frozenset(("review",))
 #: This is the REPORTING bar: "did the run succeed?", for which `substantially-complete` deliberately
 #: does NOT, and that is a pinned contract rather than an accident. MEASURED: substituting
 #: `EXECUTION_SUCCESS_STATES` at the exit-code site makes
-#: `tests/test_rununify_run_queue_characterization.py::TheExitCodeReflectsTheRealOutcome::
+#: `tests/test_rununify_run_queue.py::TheExitCodeReflectsTheRealOutcome::
 #: test_the_exit_code_reads_SUCCESS_STATES_not_EXECUTION_SUCCESS_STATES` FAIL with `0 == 0`, because
 #: that test exists precisely to pin that a `substantially-complete` item still exits NONZERO. So the
 #: dependency bar would have SILENTLY WIDENED the reporting bar while narrowing it for `reviewed` -

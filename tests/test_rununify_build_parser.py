@@ -32,7 +32,7 @@ correct.
 ONE DIFFERENCE IS AN INCOMPATIBLE CONTRACT RATHER THAN DRIFT, which is why the Set's "resolve to the
 oc version" ruling cannot be applied here: `--no-verify` resolves to dest `validate` on oc and
 `no_verify` on agy, and `--verify`/`--audit` do not exist on agy at all. That asymmetry is pinned in
-the companion file `tests/test_rununify_build_parser_characterization.py`, together with the proof
+the companion characterization file (folded into THIS file by `7ebc2964`), together with the proof
 that a naive oc-preferred registration RAISES at parser build time.
 
 SO SOME ASSERTIONS BELOW ARE DELIBERATELY INVERSE: they assert a symbol is STILL defined twice and
@@ -363,7 +363,7 @@ class TheFlagPartitionIsPinnedByBothMeasurementMethods(unittest.TestCase):
             actual,
             LIVE_PARTITION,
             "the LIVE flag partition moved, which means an operator-visible command line changed. "
-            "See tests/test_rununify_build_parser_characterization.py for which flag",
+            "See TheVerificationDestAsymmetryIsPinnedPerHost in this file for which flag",
         )
 
     def test_the_two_methods_genuinely_disagree_so_neither_pin_is_redundant(self):

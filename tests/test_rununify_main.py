@@ -30,7 +30,7 @@ hardcoding one host's class returns 2 where spec `25kzda` 2.4a property 3 requir
 `i3d6ml` (commit `d26c1061`) has since lifted the class into `runner_shared`, so both hosts now
 resolve the SAME object and that blocker is structurally gone. The class count therefore reads
 9/2/5/8/3 at this HEAD where the plan measured 8/2/5/9/3. The behavioral half of the contract is
-pinned in `tests/test_rununify_main_characterization.py::TheEmptySweepExitCodeContract`, which also
+pinned in `TheEmptySweepExitCodeContract`, below in THIS file, which also
 fails if the class is ever re-forked.
 """
 
