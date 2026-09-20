@@ -377,12 +377,54 @@ class MigratedCorpusTests(unittest.TestCase):
         )
 
     def test_the_readme_documents_the_canonical_spelling_and_is_not_an_item(self):
+        """KEPT, and STRENGTHENED from a literal-prefix pin into a vocabulary comparison.
+
+        NOT a prose pin, for the same two reasons the surviving `- Status:` test in
+        `test_backlog_graduated.py::test_readme_status_list_matches_statuses` is not one. FIRST,
+        `- Work-Kind:` is a FRONT-MATTER FIELD SPELLING a parser reads: `backlog.parse_item` keys on
+        it, so the README's line is the template a human copies when hand-writing an item, and the
+        old spelling appearing here would be copied into a real artifact. SECOND, the value list is
+        a CLOSED VOCABULARY that `backlog.run_new`/`run_set` validate against, and this README is
+        one of its duplicate copies.
+
+        WHAT CHANGED: the assertion was `assertRegex(text, r'^- Work-Kind: bug \\| feature')`, which
+        pinned the first two members IN ORDER and said nothing about the rest, so adding or removing
+        a kind left it green while reordering the documented list turned it red. It now parses the
+        line and compares the SET to `backlog.KINDS`, so a reword or reorder is free and a
+        vocabulary change fails. The `assertNotRegex` for the legacy spelling is kept because the
+        rename's whole point is that only ONE spelling is written going forward.
+        """
+
         readme = REPO_ROOT / ".aw" / "records" / "backlog" / "README.md"
         if not readme.exists():  # pragma: no cover - the tree always ships it
             self.skipTest("no backlog README in this checkout")
         text = readme.read_text(encoding="utf-8")
-        self.assertRegex(text, r"(?m)^- Work-Kind: bug \| feature")
-        self.assertNotRegex(text, r"(?m)^- Kind: bug \| feature")
+
+        m = re.search(r"(?m)^- Work-Kind: (.+)$", text)
+        self.assertIsNotNone(
+            m,
+            "the backlog README must document a `- Work-Kind:` line: it is the template a human "
+            "copies when hand-writing an item, and the field name is what `backlog.parse_item` "
+            "keys on.",
+        )
+        assert m is not None
+        documented = {v.strip() for v in m.group(1).split("|")}
+        self.assertEqual(
+            documented,
+            set(backlog.KINDS),
+            f"the README's documented work-kind vocabulary {sorted(documented)} no longer equals "
+            f"`backlog.KINDS` {sorted(backlog.KINDS)}. The setters VALIDATE against the code's set, "
+            "so a value documented here but absent there is refused when a human copies it, and a "
+            "value in the code but missing here is invisible to whoever writes an item by hand. "
+            "FIX: update the README line (its wording and order are NOT pinned, only the set).",
+        )
+        self.assertNotRegex(
+            text,
+            r"(?m)^- Kind: bug \| feature",
+            "the README documents the LEGACY `- Kind:` spelling again. It is still READ for "
+            "back-compat, but only `- Work-Kind:` is written, and documenting the old name gets it "
+            "hand-copied into new items.",
+        )
         # the parser must never have counted it as data
         self.assertNotIn(readme, backlog._iter_items(REPO_ROOT))
 

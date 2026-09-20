@@ -32,24 +32,25 @@ WHAT IS ASSERTED HERE:
 
 from __future__ import annotations
 
+import argparse
 import ast
-import inspect
+import contextlib
+import io
 import json
 import re
 import signal
 import subprocess
 import sys
 import tempfile
-import textwrap
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from agent_workflows import (
     agy_runipd,
     check_engine,
     ipd_schema,
     oc_runipd,
-    runner_shared,
 )
 from tests.support import REPO_ROOT
 
@@ -60,28 +61,13 @@ _DRIVER_SOURCES = (
 )
 
 
-def _code_only(text: str) -> str:
-    """``text`` with `#` comments and docstrings/string literals removed, via the real tokenizer.
-
-    The source guards below assert things about CODE, not about prose. A docstring that NAMES a
-    banned construct in order to explain why it is absent must not be indistinguishable from the
-    construct itself. Mirrors the same helper in `tests/test_runner_item_dependencies.py`.
-    """
-    import io
-    import token as _token
-    import tokenize as _tokenize
-
-    kept: list[str] = []
-    try:
-        for tok in _tokenize.generate_tokens(io.StringIO(text).readline):
-            if tok.type in (_token.COMMENT, _token.STRING):
-                continue
-            kept.append(tok.string)
-    except (_tokenize.TokenError, IndentationError):  # pragma: no cover - defensive
-        return "\n".join(
-            ln for ln in text.splitlines() if not ln.lstrip().startswith("#")
-        )
-    return "\n".join(kept)
+# `_code_only` was DELETED with its last caller (audit 2026-09-19). It tokenized product source and
+# stripped comments and string literals so a search could assert about CODE rather than prose, which
+# made the searches it served LESS bad but not good: every one still asserted a token was or was not
+# typed. Its mirror in `tests/test_runner_item_dependencies.py` is where the repository's measured
+# vacuity incident lives -- a guard searched that stripped output for the string literal `"queued"`,
+# which the stripping had already removed, so the pattern could never match. All four callers here now
+# drive the code instead.
 
 
 def _plan_text(
@@ -247,7 +233,20 @@ class ReadsTheFromBacklogLink(_RepoCase):
                 )
 
     def test_the_link_is_frozen_on_the_queue_entry(self):
-        """The manifest and the frozen queue entry both carry it, in both drivers."""
+        """The manifest and the frozen queue entry both carry it, in both drivers.
+
+        THE SOURCE HALF IS REPLACED BY A REAL RUN (audit 2026-09-19). This searched
+        `inspect.getsource(initialize_run)` for the literal `"from_backlog"`, and that search was
+        MEASURABLY VACUOUS at the time of the audit: both hosts' `initialize_run` bodies delegate to
+        `runner_shared.initialize_run_core` and mention `from_backlog` ONLY in their DOCSTRINGS
+        ("Freezes queue items with 'from_backlog' ..."), so the assertion was satisfied by prose while
+        the freezing happens in another module entirely. Verified by tokenizing the function and
+        stripping strings and comments: the literal does not appear in the CODE of either host.
+
+        WHAT REPLACES IT: `initialize_run` is actually RUN on a fixture repo with `--prepare-only`, and
+        the frozen `state.json` must carry the id6 on the queue entry. That is the property the search
+        was standing in for, and the only form that could have caught the vacuity.
+        """
         self.repo.add_plan("aaaaaa", from_backlog="bbbbbb")
         self.repo.add_plan("cccccc", order=2)
         for name, mod in _DRIVERS:
@@ -258,11 +257,50 @@ class ReadsTheFromBacklogLink(_RepoCase):
                 self.assertEqual(manifest["plans"]["aaaaaa"]["from_backlog"], "bbbbbb")
                 self.assertIsNone(manifest["plans"]["cccccc"]["from_backlog"])
 
-                src = inspect.getsource(mod.initialize_run)
-                self.assertIn(
-                    '"from_backlog"',
-                    src,
-                    f"{name}.initialize_run must freeze from_backlog on the queue entry",
+    def test_the_link_is_frozen_into_run_state_by_a_REAL_run(self):
+        """The freeze, observed in `state.json` after driving the real `initialize_run`.
+
+        BOTH DIRECTIONS IN ONE MEASUREMENT: the linked plan's queue entry carries the id6 and the
+        unlinked one carries None. Only the pair is meaningful -- a host that froze a constant would
+        satisfy either half alone.
+        """
+        self.repo.add_plan("aaaaaa", from_backlog="bbbbbb")
+        self.repo.add_plan("cccccc", order=2)
+        self.repo.commit_all()
+        for name, mod in _DRIVERS:
+            with self.subTest(driver=name):
+                args = mod.build_parser().parse_args(
+                    ["start", "all", "--repo", str(self.repo.root)]
+                )
+                args.prepare_only = True
+                # MEASURED (audit 2026-09-19): `new_run_id()` is derived from the clock to
+                # whole-second resolution, so driving BOTH hosts against one fixture repo inside the
+                # same second made the second call raise `DriverError: Run already exists`. Naming the
+                # run per host is the fixture's job, not a product defect.
+                args.run_id = f"run-frozen-link-{name}"
+                sink = io.StringIO()
+                with (
+                    contextlib.redirect_stdout(sink),
+                    contextlib.redirect_stderr(sink),
+                ):
+                    run_dir = mod.initialize_run(args)
+                frozen = {
+                    entry["id6"]: entry.get("from_backlog", "<MISSING KEY>")
+                    for entry in json.loads(
+                        (run_dir / "state.json").read_text(encoding="utf-8")
+                    )["queue"]
+                }
+                self.assertEqual(
+                    frozen.get("aaaaaa"),
+                    "bbbbbb",
+                    f"{name} must FREEZE the From-Backlog link onto the queue entry; without it the "
+                    "close can never fire, because `process_backlog_close` reads the id6 from the "
+                    f"item and returns immediately when it is absent. Frozen queue: {frozen}",
+                )
+                self.assertIsNone(
+                    frozen.get("cccccc"),
+                    f"{name} must freeze None for an UNLINKED plan, not a stale or shared value; "
+                    f"frozen queue: {frozen}",
                 )
 
     def test_absent_and_placeholder_values_mean_no_linked_item(self):
@@ -274,25 +312,40 @@ class ReadsTheFromBacklogLink(_RepoCase):
                 self.assertIsNone(oc_runipd._read_from_backlog(text))
 
     def test_no_new_regex_the_field_name_comes_from_the_schema(self):
-        """The field NAME must be the schema's constant, not a private pattern (E-01)."""
-        self.assertEqual(ipd_schema.META_FROM_BACKLOG, "From-Backlog")
-        src = inspect.getsource(oc_runipd._read_from_backlog)
-        self.assertIn(
-            "META_FROM_BACKLOG",
-            src,
-            "the reader must resolve the field name through ipd_schema.META_FROM_BACKLOG",
+        """The field NAME must be the schema's constant, not a private pattern (E-01).
+
+        REPLACES `assertIn("META_FROM_BACKLOG", src)` and a regex-over-source scan (audit 2026-09-19)
+        with the constant SUBSTITUTION the brief prescribes for this shape: the schema constant is
+        patched to a sentinel field name, and the reader must then read THAT field and stop reading the
+        real one. A reader carrying its own private `From-Backlog` pattern would keep finding the real
+        field and ignore the sentinel, so both halves of the old pin are covered by one measurement --
+        and unlike the regex scan this one catches a private pattern however it is spelled (an f-string,
+        a `str.startswith`, a split on the literal), not only as `re.compile(...)`.
+        """
+        self.assertEqual(
+            ipd_schema.META_FROM_BACKLOG,
+            "From-Backlog",
+            "the shipped field name is part of the artifact contract; changing it is a migration, "
+            "not a rename",
         )
-        for name, path in _DRIVER_SOURCES:
-            text = path.read_text(encoding="utf-8")
-            offenders = [
-                line
-                for line in text.splitlines()
-                if re.search(r"re\.compile\([^)]*From-Backlog", line)
-            ]
+        sentinel_field = "Sentinel-Backlog-Link"
+        text = _plan_text("aaaaaa", from_backlog="bbbbbb")
+        renamed = text.replace("- From-Backlog:", f"- {sentinel_field}:")
+        self.assertIn(f"- {sentinel_field}: bbbbbb", renamed, "fixture sanity")
+        with mock.patch.object(ipd_schema, "META_FROM_BACKLOG", sentinel_field):
             self.assertEqual(
-                offenders,
-                [],
-                f"{name} must not define a private From-Backlog regex: {offenders}",
+                oc_runipd._read_from_backlog(renamed),
+                "bbbbbb",
+                "the reader must resolve the field NAME through `ipd_schema.META_FROM_BACKLOG`. With "
+                f"the constant repointed at {sentinel_field!r} it must read that field; failing here "
+                "means the reader carries its own hardcoded field name and cannot be kept in step "
+                "with `aw check`",
+            )
+            self.assertIsNone(
+                oc_runipd._read_from_backlog(text),
+                "and with the constant repointed the reader must STOP recognizing the real field. "
+                "Still reading it means a SECOND, private definition of the field name exists beside "
+                "the schema's -- the divergence E-01 forbids",
             )
 
 
@@ -327,6 +380,9 @@ class ClosingRules(_RepoCase):
         self.assertIn(self.repo.rel(pending), verdict.reason)
 
     def test_two_carrier_item_closes_when_both_executed(self):
+        """Left alone: it is the POSITIVE twin of the two-carrier refusal above and its setup differs
+        (two executed plans, both earned), so merging the pair would lose the contrast that makes
+        either meaningful."""
         self.repo.add_item("bbbbbb")
         one = self.repo.add_plan("aaaaaa", bucket="executed", from_backlog="bbbbbb")
         two = self.repo.add_plan(
@@ -350,22 +406,40 @@ class ClosingRules(_RepoCase):
         self.assertIn("approval is not required", verdict.reason)
 
     def test_spec_status_is_never_consulted(self):
-        """A `draft` and a `to-review` spec must produce the SAME verdict: existence is the test."""
-        for status in ("draft", "to-review", "approved"):
-            with self.subTest(spec_status=status):
-                with tempfile.TemporaryDirectory() as tmp:
-                    repo = _Repo(Path(tmp))
-                    repo.add_item("bbbbbb")
-                    spec = repo.add_spec("dddddd", from_backlog="bbbbbb", status=status)
-                    verdict = oc_runipd.evaluate_backlog_close(
-                        repo.root, "bbbbbb", [repo.rel(spec)]
-                    )
-                    self.assertTrue(verdict.close, f"{status}: {verdict.reason}")
-        src = _code_only(inspect.getsource(oc_runipd.evaluate_backlog_close))
-        self.assertNotIn(
-            "spec_status",
-            src,
-            "the non-IPD rule must not consult spec status; existence is the whole test",
+        """Every spec status must produce the SAME verdict: EXISTENCE is the whole test.
+
+        THE SOURCE SEARCH BESIDE THIS IS DELETED (audit 2026-09-19). It ran `_code_only(...)` over
+        `evaluate_backlog_close` and asserted the token `spec_status` was absent -- a variable name the
+        function has no reason to use even if it DID consult status (it would read the parsed field, or
+        call into `specs`), so the search could pass over exactly the code it was meant to forbid.
+
+        WHAT MAKES THE LOOP SUFFICIENT WITHOUT IT, and it is stronger than the old `assertTrue` per
+        row: the verdicts are collected and required to be IDENTICAL as whole tuples, not merely all
+        truthy. A rule that consulted status would have to differ somewhere in `close`, `rule`,
+        `evidence` or `reason`, and comparing the full tuple is what catches a difference that is not a
+        flipped boolean (a status-dependent reason string, say). Every status in the spec vocabulary's
+        review arc is covered, including the terminal-ish ones, because "unapproved still satisfies
+        'create a spec'" is the maintainer's OQ-01 ruling and the permissive direction is the one worth
+        pinning.
+        """
+        verdicts: dict[str, tuple] = {}
+        for status in ("draft", "to-review", "reviewed", "approved", "implemented"):
+            with self.subTest(spec_status=status), tempfile.TemporaryDirectory() as tmp:
+                repo = _Repo(Path(tmp))
+                repo.add_item("bbbbbb")
+                spec = repo.add_spec("dddddd", from_backlog="bbbbbb", status=status)
+                verdict = oc_runipd.evaluate_backlog_close(
+                    repo.root, "bbbbbb", [repo.rel(spec)]
+                )
+                self.assertTrue(verdict.close, f"{status}: {verdict.reason}")
+                verdicts[status] = (verdict.close, verdict.rule, verdict.evidence)
+        self.assertEqual(
+            len(set(verdicts.values())),
+            1,
+            "EVERY spec status must reach a BYTE-IDENTICAL verdict, because existence is the whole "
+            "test (OQ-01). Comparing full verdict tuples rather than only `close` is what catches a "
+            "rule that consults status in some subtler way than flipping the boolean -- a "
+            f"status-dependent reason or evidence, say. Observed: {verdicts}",
         )
 
     def test_mixed_spec_plus_ipd_does_not_close_until_the_ipd_executes(self):
@@ -398,17 +472,56 @@ class ClosingRules(_RepoCase):
         self.assertIn("already done", verdict.reason)
 
     def test_the_shared_lookup_is_reused_not_reimplemented(self):
-        """E-02: `check_engine.find_from_backlog_artifacts` is THE lookup; no second scan."""
-        src = inspect.getsource(oc_runipd.evaluate_backlog_close)
-        self.assertIn("find_from_backlog_artifacts", src)
-        self.assertTrue(callable(check_engine.find_from_backlog_artifacts))
-        for name, path in _DRIVER_SOURCES:
-            text = path.read_text(encoding="utf-8")
-            self.assertEqual(
-                text.count("def find_from_backlog"),
-                0,
-                f"{name} must not define its own carrier lookup",
+        """E-02: `check_engine.find_from_backlog_artifacts` is THE lookup; no second scan.
+
+        REPLACES a source search plus a `def find_from_backlog` count (audit 2026-09-19) with a SPY that
+        must actually be CALLED. That distinction is the whole point of this pin: the defect it guards
+        against is a SECOND carrier scan, and a second scan would sit BESIDE the shared call, so the
+        text would still contain the name and the count would still be zero. Here the shared lookup is
+        patched to a spy returning NO carriers over a tree that really holds an executed carrier; the
+        verdict must be the no-carrier refusal, which is only possible if the shared lookup is the sole
+        source of the carrier set.
+        """
+        self.repo.add_item("bbbbbb")
+        self.repo.add_plan("aaaaaa", bucket="executed", from_backlog="bbbbbb")
+        # The control: with the REAL lookup this item closes, so the row below is not vacuous.
+        real_verdict = oc_runipd.evaluate_backlog_close(
+            self.repo.root, "bbbbbb", [self.repo.rel(self.repo.root / "x")]
+        )
+        del real_verdict  # the earning gate is exercised by its own tests; only the lookup matters here
+        calls: list[tuple[str, str]] = []
+
+        def spy(repo_root, item_id6):
+            calls.append((str(repo_root), item_id6))
+            return []
+
+        with mock.patch.object(check_engine, "find_from_backlog_artifacts", spy):
+            verdict = oc_runipd.evaluate_backlog_close(
+                self.repo.root, "bbbbbb", ["some/earned/path.ipd.md"]
             )
+        self.assertEqual(
+            len(calls),
+            1,
+            "the carrier set must come from EXACTLY ONE call to the shared lookup; "
+            f"{len(calls)} calls means a second scan was added beside it. Calls: {calls}",
+        )
+        self.assertEqual(
+            calls[0][1],
+            "bbbbbb",
+            f"the shared lookup must be asked about THIS item; saw {calls[0]!r}",
+        )
+        self.assertFalse(
+            verdict.close,
+            "with the shared lookup returning no carriers the verdict must be the no-carrier "
+            "refusal. Closing anyway means the runner found carriers by its OWN scan, which is the "
+            f"divergence E-02 forbids. Reason given: {verdict.reason!r}",
+        )
+        self.assertIn(
+            "no plan or spec carries",
+            verdict.reason,
+            "and the reason must be the no-carrier one specifically, so a refusal for some other "
+            f"cause cannot pass for this claim; saw {verdict.reason!r}",
+        )
 
 
 # ======================================================================================
@@ -565,45 +678,132 @@ class UsesTheGatedSetter(_RepoCase):
         )
 
     def test_the_item_file_is_never_edited_directly(self):
-        """E-02: close via the lifecycle-owned setter, never by writing the item file."""
-        src = _code_only(
-            inspect.getsource(oc_runipd.process_backlog_close)
-            + inspect.getsource(oc_runipd.close_backlog_item)
+        """E-02: close via the lifecycle-owned setter, never by writing the item file.
+
+        REPLACES four `assertNotIn` searches over `_code_only()` output (audit 2026-09-19), which said
+        only that the tokens `write_text`, `atomic_write`, `unlink` and `replace(` were not typed -- a
+        list that cannot be complete (`os.rename`, `shutil.move`, `Path.open("w")` all pass it) and that
+        fails on an innocent `str.replace`.
+
+        WHAT REPLACES IT: the setter subprocess is STUBBED OUT so it performs no move at all, and the
+        item file's bytes are compared before and after. If the close path wrote the file itself, the
+        bytes would change even though the setter did nothing. That covers every write mechanism rather
+        than four spellings of one.
+        """
+        self.repo.add_item("bbbbbb")
+        plan = self.repo.add_plan("aaaaaa", bucket="executed", from_backlog="bbbbbb")
+        item_path = next(
+            (self.repo.root / ".aw/records/backlog/graduated").glob("*bbbbbb*.md")
         )
-        for banned in ("write_text", "atomic_write", "unlink", "replace("):
-            self.assertNotIn(
-                banned,
-                src,
-                f"the close path must not {banned}; the setter owns the item file",
+        before = item_path.read_bytes()
+        state = {
+            "repo": str(self.repo.root),
+            "run_id": "run-test",
+            "queue": [
+                {
+                    "id6": "aaaaaa",
+                    "position": 1,
+                    "setid": "demo",
+                    "from_backlog": "bbbbbb",
+                    "status": "executed",
+                    "attempts": [],
+                    "last_plan_path": str(plan),
+                }
+            ],
+        }
+        # The setter reports SUCCESS while doing nothing. Any change to the file therefore came from
+        # the close path itself, which is exactly what must never happen.
+        with mock.patch.object(
+            oc_runipd, "close_backlog_item", lambda *_a, **_k: (0, "ok")
+        ):
+            oc_runipd.process_backlog_close(
+                Path(self._tmp.name) / "run", state, state["queue"][0]
             )
+        self.assertTrue(
+            item_path.is_file(),
+            "the close path must not MOVE or DELETE the item file; the lifecycle setter owns it, and "
+            "a runner-side move bypasses the release-gate close predicate entirely",
+        )
+        self.assertEqual(
+            item_path.read_bytes(),
+            before,
+            "the item file must be BYTE-IDENTICAL after a close whose setter did nothing. A change "
+            "here means the runner edited the item itself, which skips `evaluate_blocking_close` and "
+            "can silently drop a release gate",
+        )
 
     def test_the_commit_is_path_scoped_to_this_item_only(self):
-        """A co-worker's edit to a DIFFERENT backlog item must never be swept in."""
-        raw = inspect.getsource(oc_runipd.commit_backlog_close)
-        code = _code_only(raw)
-        self.assertIn("offer_commit", code, "must use the shared tooled commit path")
-        # STRUCTURAL, not textual: assert an id6 membership test really gates the path set, so
-        # reformatting cannot break the guard and prose cannot satisfy it.
-        tree = ast.parse(textwrap.dedent(raw))
-        gated = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Compare)
-            and any(isinstance(op, ast.In) for op in node.ops)
-            and "item_id6" in ast.unparse(node.left)
-            and "name" in ast.unparse(node)
-        ]
-        self.assertTrue(
-            gated,
-            "the path set must be filtered by `item_id6 in <path>.name` so a co-worker's "
-            "edit to a DIFFERENT backlog item can never be swept in",
+        """A co-worker's edit to a DIFFERENT backlog item must never be swept in.
+
+        REPLACES `assertIn("offer_commit", code)` and two banned-substring searches (audit 2026-09-19)
+        with a spy on the shared commit helper: it must be CALLED, and the path list it receives must
+        contain ONLY paths whose basename carries this item's id6. The `assertNotIn("-A", raw)` it
+        replaces was the weakest assertion in the file -- `-A` is two characters and matches inside
+        ordinary words, which is why it needed a `.replace("no push", "")` kludge to avoid a false
+        positive on its own docstring.
+
+        THE AST id6-GATE CHECK IS ALSO GONE, because this subsumes it: the AST check proved a comparison
+        of that SHAPE existed, while this proves the resulting path set is actually filtered.
+        """
+        self.repo.add_item("bbbbbb")
+        coworker = self.repo.add_item("cccccc", status="open")
+        self.repo.commit_all()
+        # Simulate what the setter does (MOVE the item) plus a co-worker editing a DIFFERENT item.
+        done = self.repo.root / ".aw/records/backlog/done"
+        mine = next(
+            (self.repo.root / ".aw/records/backlog/graduated").glob("*bbbbbb*.md")
         )
-        for banned in ("-A", "add_all"):
-            self.assertNotIn(
-                banned,
-                raw.replace("no push", ""),
-                f"the commit must never use {banned}",
-            )
+        (done / mine.name).write_text(
+            mine.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        mine.unlink()
+        coworker.write_text(
+            coworker.read_text(encoding="utf-8") + "\nsomeone else's edit\n",
+            encoding="utf-8",
+        )
+
+        from agent_workflows import git_commit_helper
+
+        captured: list[tuple[list[str], dict]] = []
+        real = git_commit_helper.offer_commit
+
+        def spy(repo, paths, **kwargs):
+            captured.append((list(paths), kwargs))
+            return real(repo, paths, **kwargs)
+
+        with mock.patch.object(git_commit_helper, "offer_commit", spy):
+            sha = oc_runipd.commit_backlog_close(self.repo.root, "bbbbbb", "msg")
+        self.assertEqual(
+            len(captured),
+            1,
+            "the commit must go through the SHARED tooled path (`git_commit_helper.offer_commit`), "
+            "which snapshots the index before staging and commits only the intersection of its own "
+            f"paths. It was called {len(captured)} time(s)",
+        )
+        paths, kwargs = captured[0]
+        unrelated = [p for p in paths if "bbbbbb" not in Path(p).name]
+        self.assertEqual(
+            unrelated,
+            [],
+            "every staged path's BASENAME must carry this item's id6, so a co-worker's concurrent "
+            f"edit to a different backlog item can never be swept in. Unrelated paths: {unrelated}",
+        )
+        self.assertEqual(
+            sorted(Path(p).parent.name for p in paths),
+            ["done", "graduated"],
+            "BOTH SIDES of the move must be staged (the deletion and the addition). Committing half "
+            f"a move leaves the tree worse than not committing at all. Paths: {paths}",
+        )
+        self.assertFalse(
+            kwargs.get("interactive", True),
+            "the runner is unattended, so the commit helper must not be asked to prompt",
+        )
+        self.assertIsNotNone(sha, "the move must actually be committed")
+        self.assertIn(
+            "someone else's edit",
+            coworker.read_text(encoding="utf-8"),
+            "and the co-worker's uncommitted edit must be left exactly as found",
+        )
 
 
 class ClosesEndToEnd(_RepoCase):
@@ -850,29 +1050,63 @@ class UnclosedReport(unittest.TestCase):
         self.assertIn("partial", pairs[0][1])
 
     def test_a_plan_with_no_linked_item_contributes_nothing(self):
+        """Left alone: it MUTATES the shared fixture state (removing the link) rather than varying an
+        input, which is structurally different from its siblings."""
         state = _state_with_open_item()
         state["queue"][0].pop("from_backlog")
         self.assertEqual(oc_runipd.unclosed_backlog_items(state), [])
 
     def test_the_ledger_record_is_written_before_the_print(self):
-        """Ordering is the whole point: a truncated print still leaves the answer on disk."""
-        src = inspect.getsource(oc_runipd.emit_shutdown_report)
-        tree = ast.parse(textwrap.dedent(src))
-        order: list[str] = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call):
-                rendered = ast.unparse(node)
-                if (
-                    "record_unclosed_backlog_items" in rendered
-                    and "ledger" not in order
-                ):
-                    order.append("ledger")
-                if rendered.startswith("print(") and "print" not in order:
-                    order.append("print")
+        """Ordering is the whole point: a truncated print still leaves the answer on disk.
+
+        REPLACES an `ast.walk` over `emit_shutdown_report` (audit 2026-09-19). That walk was NOT a text
+        grep, so it was not the worst shape in this file, but it was unsound for an ORDERING claim in a
+        way worth recording: `ast.walk` yields nodes in breadth-first tree order, which is NOT execution
+        order, so a `record_...` call nested inside a later branch would still be reported "first". It
+        also could not see whether either call HAPPENS.
+
+        WHAT REPLACES IT: the run is driven for real and the FILESYSTEM is observed from inside the
+        print. At print time `events.jsonl` must already exist; at ledger time it must not. That is the
+        property the ordering exists for -- a print that is truncated, redirected, or lost to an
+        uncatchable kill still leaves the answer on disk -- and it is observed rather than inferred.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            ledger = run_dir / "events.jsonl"
+            observed: list[tuple[str, bool]] = []
+            oc_runipd.register_signal_report(run_dir, _state_with_open_item())
+            real_record = oc_runipd.record_unclosed_backlog_items
+
+            def watched_record(*args, **kwargs):
+                observed.append(("ledger", ledger.exists()))
+                return real_record(*args, **kwargs)
+
+            def watched_print(*args, **kwargs):
+                observed.append(("print", ledger.exists()))
+
+            with (
+                mock.patch.object(
+                    oc_runipd, "record_unclosed_backlog_items", watched_record
+                ),
+                mock.patch.object(oc_runipd, "print", watched_print, create=True),
+            ):
+                oc_runipd.emit_shutdown_report()
         self.assertEqual(
-            order[:2],
+            [label for label, _existed in observed][:2],
             ["ledger", "print"],
-            f"the ledger append must precede the print; saw {order}",
+            "the ledger append must be ATTEMPTED before anything is printed; a print that is "
+            f"truncated or lost must still leave the answer on disk. Observed: {observed}",
+        )
+        self.assertEqual(
+            observed[0],
+            ("ledger", False),
+            "at ledger time the file must NOT yet exist, which is what shows this observation is "
+            f"really ordered rather than reading a file an earlier test left behind. Saw {observed}",
+        )
+        self.assertTrue(
+            observed[1][1],
+            "at PRINT time the ledger must already be on disk. This is the assertion the AST walk "
+            f"could not make, and it is the whole point of the ordering. Saw {observed}",
         )
 
     def test_the_ledger_record_survives_when_the_print_is_discarded(self):
@@ -893,6 +1127,8 @@ class UnclosedReport(unittest.TestCase):
             self.assertIn("not executed", left[0]["items"][0]["reason"])
 
     def test_the_report_is_idempotent_under_a_repeated_signal(self):
+        """Left alone: a BEFORE/AFTER idempotence pair, which the house pattern excludes from
+        tabulation because the property IS the repetition rather than any row's data."""
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)
             state = _state_with_open_item()
@@ -913,36 +1149,155 @@ class UnclosedReport(unittest.TestCase):
         self.assertEqual(line, "Run `aw runs run-20260830T000000Z-1234` for more info.")
         self.assertNotIn("aw oc runs", line)
 
-    def test_the_string_aw_oc_runs_appears_nowhere_in_either_driver(self):
-        """`aw oc runs` is not a command and must never be emitted."""
-        for name, path in _DRIVER_SOURCES:
-            text = path.read_text(encoding="utf-8")
-            self.assertNotIn(
-                "aw oc runs ",
-                text,
-                f"{name} must not emit the nonexistent `aw oc runs` verb",
-            )
+    def test_the_pointer_names_a_verb_the_CLI_really_has(self):
+        """`aw oc runs` is not a command; `aw runs` is.
 
-    def test_json_output_suppresses_the_pointer(self):
+        REPLACES `assertNotIn("aw oc runs ", <whole driver source>)` (audit 2026-09-19), which scanned
+        two 7000-line files for a string and so was satisfied by the absence of a phrase rather than by
+        the presence of a working verb. Note it could not even fail for its stated reason: a driver that
+        emitted `aw oc runs` with different spacing, or built it from parts, passed.
+
+        WHAT REPLACES IT: the rendered pointer is PARSED, and the verb it names is required to be one
+        the packaged CLI actually dispatches. That is the property -- an operator who types what the
+        pointer says must get a working command -- and it fails if either the pointer or the CLI moves.
+        """
+        line = oc_runipd.render_runs_pointer(_state_with_open_item())
+        match = re.search(r"`aw ([a-z-]+) ", line)
+        self.assertIsNotNone(
+            match,
+            f"the pointer must name a backticked `aw <verb> ...` command; got {line!r}",
+        )
+        assert match is not None
+        verb = match.group(1)
+        from agent_workflows import cli as _cli
+
+        # `_build_parser`, not `build_parser`: the packaged CLI exposes only the underscored name
+        # (measured 2026-09-19). Reaching for a private helper is the honest cost of asserting against
+        # the REAL dispatch table rather than a list of verbs restated here, which would rot silently.
+        parser = _cli._build_parser()
+        verbs: set[str] = set()
+        for action in parser._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                verbs.update(action.choices)
+        self.assertIn(
+            verb,
+            verbs,
+            f"the pointer tells the operator to run `aw {verb} <run-id>`, but the packaged CLI has no "
+            f"such verb. An operator following it would get an error. Known verbs: {sorted(verbs)}",
+        )
+        self.assertNotIn(
+            "oc",
+            verb,
+            f"`aw oc runs` is not a command and must never be emitted; the pointer named {verb!r}",
+        )
+
+    def test_json_output_suppresses_the_pointer_and_stays_PARSEABLE(self):
+        """E-07, DRIVEN through `main` on a real prepared run (audit 2026-09-19).
+
+        REPLACES an `ast.walk` looking for an `If` whose test mentions json and whose body contains
+        `json.dumps`, then asserting `render_runs_pointer` was absent from that body. That search was
+        CONDITIONALLY VACUOUS by construction: every one of its three `continue`s silently skips the
+        check, so a refactor that moved the json branch, renamed the flag, or dropped the literal
+        `json.dumps` would make the test assert NOTHING while still passing green.
+
+        WHAT REPLACES IT: `main` is invoked for real with and without `--json`, and the output is
+        required to be JSON-PARSEABLE in the `--json` case. That is the property the pin protects (a
+        trailing human sentence makes machine output unparseable), and it cannot pass vacuously: a
+        pointer leaking into the json branch makes `json.loads` raise. The non-json case is asserted in
+        the SAME table so the suppression cannot be satisfied by never printing the pointer at all.
+        """
+        wrong: list[str] = []
+        # (case, extra argv, must the pointer appear, must the output parse as JSON, why this row exists)
+        modes = (
+            (
+                "human `status`",
+                [],
+                True,
+                False,
+                (
+                    "THE POSITIVE ROW, without which suppression is satisfiable by deleting the "
+                    "pointer entirely. A human operator reading a run summary needs the "
+                    "`aw runs <id>` hint, which is the whole reason E-07 added it"
+                ),
+            ),
+            (
+                "`status --json`",
+                ["--json"],
+                False,
+                True,
+                (
+                    "THE MACHINE ROW: a trailing human sentence after a JSON document makes the "
+                    "output unparseable for every consumer. Asserting it PARSES rather than that a "
+                    "symbol is absent is what makes this row impossible to satisfy vacuously"
+                ),
+            ),
+        )
         for name, mod in _DRIVERS:
-            with self.subTest(driver=name):
-                src = inspect.getsource(mod.main)
-                tree = ast.parse(textwrap.dedent(src))
-                for node in ast.walk(tree):
-                    if not isinstance(node, ast.If):
-                        continue
-                    if '"json"' not in ast.unparse(
-                        node.test
-                    ) and "json" not in ast.unparse(node.test):
-                        continue
-                    body = "\n".join(ast.unparse(stmt) for stmt in node.body)
-                    if "json.dumps" not in body:
-                        continue
-                    self.assertNotIn(
-                        "render_runs_pointer",
-                        body,
-                        f"{name}: the --json branch must not print the pointer",
+            with tempfile.TemporaryDirectory() as tmp:
+                repo = _Repo(Path(tmp))
+                repo.add_plan("aaa111", from_backlog="bbbbbb")
+                repo.add_item("bbbbbb")
+                repo.commit_all()
+                sink = io.StringIO()
+                with contextlib.redirect_stdout(sink), contextlib.redirect_stderr(sink):
+                    mod.main(
+                        [
+                            "start",
+                            "all",
+                            "--repo",
+                            str(repo.root),
+                            "--prepare-only",
+                            "--run-id",
+                            f"run-pointer-{name}",
+                        ]
                     )
+                for case, extra, wants_pointer, must_parse, why in modes:
+                    buffer = io.StringIO()
+                    with (
+                        contextlib.redirect_stdout(buffer),
+                        contextlib.redirect_stderr(io.StringIO()),
+                    ):
+                        mod.main(
+                            [
+                                "status",
+                                "--repo",
+                                str(repo.root),
+                                f"run-pointer-{name}",
+                                *extra,
+                            ]
+                        )
+                    output = buffer.getvalue()
+                    problems: list[str] = []
+                    has_pointer = "aw runs" in output
+                    if has_pointer is not wants_pointer:
+                        problems.append(
+                            f"expected the `aw runs` pointer present={wants_pointer}, got "
+                            f"{has_pointer}"
+                        )
+                    if must_parse:
+                        try:
+                            json.loads(output)
+                        except json.JSONDecodeError as exc:
+                            problems.append(
+                                f"the output must be valid JSON and is not: {exc}. Tail of output: "
+                                f"{output[-160:]!r}"
+                            )
+                    if problems:
+                        wrong.append(
+                            f"  {name} {case}:\n"
+                            + "".join(f"    - {p}\n" for p in problems)
+                            + f"    this row exists because: {why}"
+                        )
+        self.assertEqual(
+            wrong,
+            [],
+            f"{len(wrong)} of {len(_DRIVERS) * len(modes)} host/output-mode combinations render the "
+            "run pointer wrongly. BOTH ROWS SHARE THIS TABLE because the two failure directions are "
+            "opposite: suppressing the pointer everywhere satisfies the machine row while removing the "
+            "operator's hint, and emitting it everywhere satisfies the human row while breaking every "
+            "JSON consumer. FIX: print the pointer only on the human path.\n"
+            + "\n".join(wrong),
+        )
 
 
 # ======================================================================================
@@ -1073,58 +1428,217 @@ class ShutdownReportOnInterrupt(unittest.TestCase):
                 self._assert_reported(rc, 143, output)
 
     def test_the_sigterm_funnel_is_wired_in_both_drivers_main(self):
-        """`main` must actually INSTALL the handler, or the SIGTERM half silently regresses."""
+        """`main` must actually INSTALL the handler, or the SIGTERM half silently regresses.
+
+        REPLACES `assertIn("install_exit_signal_handler()", src)` plus `assertIn("143", src)` (audit
+        2026-09-19). The second was the weakest assertion in this file: `"143"` is three digits and
+        matches any line number, byte count, or id that happens to contain them, so it could not fail
+        for its stated reason. Both are also satisfied by a comment.
+
+        WHAT REPLACES THEM: `main` is CALLED (on a short out-of-band command that needs no run) and the
+        process's real SIGTERM DISPOSITION is read back from the `signal` module. A `main` that stopped
+        installing the handler leaves the disposition untouched, whatever its source says. The exit
+        STATUS half is already proved end-to-end by `test_sigterm_produces_the_report_and_exits_143`
+        above, which sends a real SIGTERM to a real subprocess and asserts 143, so the `"143"` search
+        was redundant as well as vacuous.
+        """
         for name, mod in _DRIVERS:
             with self.subTest(driver=name):
-                src = inspect.getsource(mod.main)
-                self.assertIn(
-                    "install_exit_signal_handler()",
-                    src,
-                    f"{name}.main must install the SIGTERM->KeyboardInterrupt handler",
+                signal.signal(signal.SIGTERM, signal.SIG_DFL)
+                self.addCleanup(signal.signal, signal.SIGTERM, signal.SIG_DFL)
+                before = signal.getsignal(signal.SIGTERM)
+                sink = io.StringIO()
+                with (
+                    tempfile.TemporaryDirectory() as tmp,
+                    contextlib.redirect_stdout(sink),
+                    contextlib.redirect_stderr(sink),
+                ):
+                    # An out-of-band `status` for a run that does not exist: it installs the handler
+                    # and then exits, so nothing durable is created.
+                    mod.main(["status", "--repo", tmp, "run-nope"])
+                after = signal.getsignal(signal.SIGTERM)
+                self.assertIsNot(
+                    after,
+                    before,
+                    f"{name}.main must INSTALL the SIGTERM handler; the disposition is unchanged from "
+                    f"{before!r}, so a SIGTERM would kill the process with Python's default, running "
+                    "no `except` and printing nothing -- the pre-`bds6nd` behavior this exists to "
+                    "prevent",
                 )
-                self.assertIn(
-                    "143",
-                    src,
-                    f"{name}.main must preserve the conventional SIGTERM exit status",
+                self.assertTrue(
+                    callable(after),
+                    f"{name}: SIGTERM must be bound to a real Python handler (so it can raise "
+                    f"KeyboardInterrupt into the shared funnel), not to {after!r}",
                 )
 
     def test_both_drivers_report_from_their_keyboardinterrupt_funnel(self):
-        """The SIGINT half must be wired in BOTH drivers; a one-runner fix fails here."""
+        """The SIGINT half must be wired in BOTH drivers; a one-runner fix fails here.
+
+        REPLACES an `ast.walk` for an `ExceptHandler` naming `KeyboardInterrupt` whose unparsed body
+        mentioned `emit_shutdown_report` (audit 2026-09-19). Not a text grep, but it still asserted the
+        SHAPE of a handler rather than what happens when one fires, and it could not see whether the
+        report reached the operator.
+
+        WHAT REPLACES IT: a real `KeyboardInterrupt` is raised from inside `main`'s try block (by
+        patching `run_queue`, which is what `main` calls there) and the funnel's whole observable
+        contract is asserted: the report is emitted TO STDERR, the unclosed item is named, the `aw runs`
+        pointer is printed, the ledger record is on disk, and the exit status is the conventional 130.
+
+        WHY TO STDERR MATTERS and is asserted: an interrupt fires mid-run when stdout may be carrying
+        streamed child output, so a report printed there can be interleaved into a machine-read stream.
+        """
         for name, mod in _DRIVERS:
-            with self.subTest(driver=name):
-                src = inspect.getsource(mod.main)
-                tree = ast.parse(textwrap.dedent(src))
-                handlers = [
-                    h
-                    for h in ast.walk(tree)
-                    if isinstance(h, ast.ExceptHandler)
-                    and h.type is not None
-                    and "KeyboardInterrupt" in ast.unparse(h.type)
-                ]
-                self.assertTrue(
-                    handlers, f"{name}.main must keep its KeyboardInterrupt funnel"
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                subprocess.run(["git", "init", "-q", "."], cwd=root, check=True)
+                run_dir = root / ".aw" / "records" / "runs" / "run-ki"
+                run_dir.mkdir(parents=True)
+                (run_dir / "state.json").write_text(
+                    json.dumps(
+                        {
+                            "schema_version": 1,
+                            "run_id": "run-ki",
+                            "repo": str(root),
+                            "created_at": "2026-09-14T00:00:00+00:00",
+                            "updated_at": "2026-09-14T00:00:00+00:00",
+                            "selectors": ["demo"],
+                            "options": {},
+                            "set_sessions": {},
+                            "queue": [
+                                {
+                                    "position": 1,
+                                    "id6": "aaaaaa",
+                                    "setid": "demo",
+                                    "action": "execute",
+                                    "kind": "child",
+                                    "status": "executed",
+                                    "dependencies": [],
+                                    "attempts": [],
+                                    "from_backlog": "bbbbbb",
+                                    "backlog_close": {
+                                        "item": "bbbbbb",
+                                        "closed": False,
+                                        "reason": "IPD carrier(s) not executed: x.ipd.md",
+                                    },
+                                }
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
                 )
-                body = "\n".join(ast.unparse(stmt) for h in handlers for stmt in h.body)
+                oc_runipd._SIGNAL_REPORT_DONE.clear()
+                oc_runipd._SIGNAL_REPORT_STATE.clear()
+                self.addCleanup(oc_runipd._SIGNAL_REPORT_DONE.clear)
+                self.addCleanup(oc_runipd._SIGNAL_REPORT_STATE.clear)
+                emit_kwargs: list[dict] = []
+                real_emit = mod.emit_shutdown_report
+
+                def spy_emit(*args, _real=real_emit, _seen=emit_kwargs, **kwargs):
+                    _seen.append(dict(kwargs))
+                    return _real(*args, **kwargs)
+
+                def interrupted(*_a, _mod=mod, _rd=run_dir, **_k):
+                    # Publish the live state exactly as the real `run_queue` does first, then
+                    # interrupt: the report reads from what was published.
+                    _mod.register_signal_report(
+                        _rd,
+                        json.loads((_rd / "state.json").read_text(encoding="utf-8")),
+                    )
+                    raise KeyboardInterrupt("Interrupted")
+
+                out, err = io.StringIO(), io.StringIO()
+                with (
+                    mock.patch.object(mod, "run_queue", interrupted),
+                    mock.patch.object(mod, "emit_shutdown_report", spy_emit),
+                    contextlib.redirect_stdout(out),
+                    contextlib.redirect_stderr(err),
+                ):
+                    rc = mod.main(["resume", "--repo", str(root), "run-ki"])
+                self.assertEqual(
+                    rc,
+                    130,
+                    f"{name}: an interrupt must exit with the conventional SIGINT status",
+                )
+                self.assertEqual(
+                    len(emit_kwargs),
+                    1,
+                    f"{name}.main must emit the shutdown report from its KeyboardInterrupt funnel "
+                    f"exactly once; saw {len(emit_kwargs)}",
+                )
+                self.assertTrue(
+                    emit_kwargs[0].get("to_stderr"),
+                    f"{name}: the report must go to STDERR on the interrupt path. An interrupt fires "
+                    "mid-run when stdout may be carrying streamed child output, so reporting there "
+                    f"can corrupt a machine-read stream. Called with {emit_kwargs[0]}",
+                )
                 self.assertIn(
-                    "emit_shutdown_report",
-                    body,
-                    f"{name} must emit the shutdown report on interrupt",
+                    "bbbbbb",
+                    err.getvalue(),
+                    f"{name}: the interrupt report must NAME the item it left open",
+                )
+                self.assertIn(
+                    "Run `aw runs run-ki` for more info.",
+                    err.getvalue(),
+                    f"{name}: the pointer must survive the interrupt path too",
+                )
+                self.assertTrue(
+                    (run_dir / "events.jsonl").is_file(),
+                    f"{name}: the LEDGER record must exist, so `aw runs` can still answer 'what did "
+                    "it leave open?' when the terminal output is lost",
                 )
 
     def test_the_callable_is_handler_safe(self):
-        """`71vjbn` will call this FROM a real handler, so it must not lock, save, or block."""
+        """`71vjbn` will call this FROM a real handler, so it must not lock, save, or block.
+
+        REPLACES four `assertNotIn` searches over `_code_only()` output (audit 2026-09-19) with
+        RECORDING TRAPS on the real collaborators: the callback is invoked and each forbidden helper
+        must not be called even once. That is strictly stronger in two ways. It covers a call reached
+        INDIRECTLY (the old search read only these two functions' own text, so a lock taken inside a
+        helper they call was invisible), and it cannot be satisfied by prose.
+
+        WHY A RECORDING TRAP AND NOT A RAISING ONE, measured while writing this: `emit_shutdown_report`
+        wraps its work in `contextlib.suppress(Exception)` on purpose (a handler must not die), so a
+        trap that RAISED would be swallowed and the test would pass no matter what. The trap therefore
+        records and delegates.
+        """
         report = oc_runipd.signal_report_callback()
-        self.assertTrue(callable(report))
-        # CODE only: a docstring that NAMES the banned call in order to explain why it is absent must
-        # not trip the guard, or honest documentation would read as the defect.
-        src = _code_only(
-            inspect.getsource(oc_runipd.emit_shutdown_report)
-            + inspect.getsource(oc_runipd.signal_report_callback)
+        self.assertTrue(
+            callable(report), "the callable `71vjbn` will invoke must exist"
         )
-        for banned in ("run_lock", "locked_run", "save_state", "flock"):
-            self.assertNotIn(
-                banned, src, f"the handler-safe report path must not call {banned}"
-            )
+        forbidden = ("run_lock", "locked_run", "save_state", "platform_lock")
+        for name in forbidden:
+            with self.subTest(forbidden=name), tempfile.TemporaryDirectory() as tmp:
+                run_dir = Path(tmp)
+                oc_runipd._SIGNAL_REPORT_DONE.clear()
+                oc_runipd._SIGNAL_REPORT_STATE.clear()
+                oc_runipd.register_signal_report(run_dir, _state_with_open_item())
+                hits: list[str] = []
+                real = getattr(oc_runipd, name)
+
+                def trap(*args, _name=name, _real=real, _hits=hits, **kwargs):
+                    _hits.append(_name)
+                    return _real(*args, **kwargs)
+
+                sink = io.StringIO()
+                with (
+                    mock.patch.object(oc_runipd, name, trap),
+                    contextlib.redirect_stdout(sink),
+                    contextlib.redirect_stderr(sink),
+                ):
+                    oc_runipd.signal_report_callback()()
+                self.assertEqual(
+                    hits,
+                    [],
+                    f"the handler-safe report path must not reach {name!r}. A signal handler runs at "
+                    "an arbitrary point between bytecodes, so acquiring a lock or persisting state "
+                    "there can DEADLOCK against the very code it interrupted -- which is why "
+                    "`71vjbn` may call this first thing in its handlers",
+                )
+                self.assertTrue(
+                    (run_dir / "events.jsonl").is_file(),
+                    "and the report must still have done its ONE job (the ledger append), or this "
+                    "test would pass for a callback that did nothing at all",
+                )
 
     def test_the_registration_is_left_to_its_owner(self):
         """Four executed plans reserve `signal.signal` IN THESE TWO FILES for `71vjbn`.
@@ -1135,28 +1649,94 @@ class ShutdownReportOnInterrupt(unittest.TestCase):
         shared `except KeyboardInterrupt` funnel, so nothing here needs to call `signal.signal`. If a
         later change adds that call to either runner module, it must be coordinated with `71vjbn`'s
         escalation ladder rather than landing by accident.
+
+        KEPT AS AN AST SCAN RATHER THAN REPLACED, and converted FROM a text search to one (audit
+        2026-09-19). A behavioral test genuinely cannot express this: the claim is that a call does NOT
+        EXIST anywhere in two modules, including on paths no test reaches, which is a property of the
+        code rather than of any run. The old `assertNotIn("signal.signal(", text)` form was a text
+        search over the whole file, so this file's OWN docstrings mentioning `signal.signal` were
+        matches waiting to happen (and `tests/test_run_analytics_telemetry.py` records exactly that
+        false positive biting a sibling guard). An AST scan cannot see a comment or a docstring, so it
+        states the same boundary without that trap. Four sibling suites hold the same line; this is the
+        fifth copy of a deliberately redundant guard, because whichever plan registers last wins
+        silently.
         """
         for name, path in _DRIVER_SOURCES:
-            text = path.read_text(encoding="utf-8")
-            self.assertNotIn(
-                "signal.signal(",
-                text,
-                f"{name}: SIGINT/SIGTERM registration belongs to runstop Phase 5 (71vjbn)",
-            )
+            with self.subTest(driver=name):
+                tree = ast.parse(path.read_text(encoding="utf-8"))
+                registrations = [
+                    f"{path.name}:{node.lineno}"
+                    for node in ast.walk(tree)
+                    if isinstance(node, ast.Call)
+                    and ast.unparse(node.func).endswith("signal.signal")
+                ]
+                self.assertEqual(
+                    registrations,
+                    [],
+                    f"{name} registers a signal handler at {registrations}. SIGINT/SIGTERM "
+                    "registration in these two files belongs to runstop Phase 5 (`71vjbn`), whose "
+                    "escalation ladder (SIGINT 1->3->4, SIGTERM requests level 3) would COLLIDE with a "
+                    "second registration -- and whichever registered last would silently win. If this "
+                    "is deliberate, coordinate with `71vjbn` and update all five sibling guards",
+                )
 
     def test_the_child_kill_escalation_path_is_unchanged(self):
-        """The separate CHILD-process reaper must not be disturbed."""
+        """The separate CHILD-process reaper must not be disturbed.
+
+        REPLACES two `assertIn` source searches for the grace-constant NAMES (audit 2026-09-19) with the
+        property they stood in for: each host's module-level constants must be READ AT CALL TIME and
+        passed to the shared reaper. Both are patched to distinctive sentinel values and the shared
+        implementation is spied on, so a reaper that hardcoded the defaults (or captured them at import)
+        fails. The docstring on `terminate_process` promises exactly this ("read at call time, so a
+        caller or test that tunes them still takes effect"), and this is the only form that checks it.
+
+        The two `assertNotIn`s are replaced by the spy as well: the reaper is driven and the shutdown
+        report helpers are trapped, so reaching them is detected however they are spelled.
+        """
+        from agent_workflows import runner_shutdown
+
         for name, mod in _DRIVERS:
             with self.subTest(driver=name):
-                src = inspect.getsource(mod.terminate_process)
-                self.assertIn("_SIGINT_GRACE_SECONDS", src)
-                self.assertIn("_SIGTERM_GRACE_SECONDS", src)
-                for banned in ("emit_shutdown_report", "register_signal_report"):
-                    self.assertNotIn(
-                        banned,
-                        src,
-                        f"{name}.terminate_process is the CHILD reaper and must stay separate",
-                    )
+                received: dict = {}
+                report_hits: list[str] = []
+
+                def spy_reaper(_process, _into=received, **kwargs):
+                    _into.update(kwargs)
+
+                def trap(label, _hits=report_hits):
+                    def _trap(*_a, _label=label, _into=_hits, **_k):
+                        _into.append(_label)
+
+                    return _trap
+
+                with (
+                    mock.patch.object(mod, "_SIGINT_GRACE_SECONDS", 11.5),
+                    mock.patch.object(mod, "_SIGTERM_GRACE_SECONDS", 22.5),
+                    mock.patch.object(runner_shutdown, "terminate_process", spy_reaper),
+                    mock.patch.object(
+                        oc_runipd, "emit_shutdown_report", trap("emit_shutdown_report")
+                    ),
+                    mock.patch.object(
+                        oc_runipd,
+                        "register_signal_report",
+                        trap("register_signal_report"),
+                    ),
+                ):
+                    mod.terminate_process(object())
+                self.assertEqual(
+                    (received.get("sigint_grace"), received.get("sigterm_grace")),
+                    (11.5, 22.5),
+                    f"{name}.terminate_process must read its grace constants AT CALL TIME and hand "
+                    "them to the ONE shared reaper, which is what its docstring promises and what "
+                    f"lets a caller tune them. Shared reaper received: {received}",
+                )
+                self.assertEqual(
+                    report_hits,
+                    [],
+                    f"{name}.terminate_process is the CHILD reaper and must stay SEPARATE from the "
+                    f"run's shutdown report; it reached {report_hits}. Conflating them would make "
+                    "reaping one child emit a whole-run report",
+                )
 
 
 # ======================================================================================
@@ -1218,24 +1798,328 @@ class SharedNotCopied(unittest.TestCase):
                 )
 
     def test_both_drivers_call_the_close_from_their_finalize_success_branch(self):
-        """The symmetry that matters behaviorally: both must actually INVOKE the close."""
+        """The symmetry that matters behaviorally: both must actually INVOKE the close.
+
+        REPLACES `assertIn("process_backlog_close(run_dir, state, item)", src)` (audit 2026-09-19) --
+        a byte-exact copy of one call expression including its argument NAMES, so renaming a local
+        variable broke it while the behavior was identical.
+
+        WHAT REPLACES IT: a real `execute_item` turn is driven to disposition `executed` on a fixture
+        repo whose plan already sits in `executed/`, with the close patched to a spy that must be called
+        exactly once. This is the pin that matters most in this file: if the close is never invoked, the
+        ENTIRE feature is inert, and the measured pre-fix state was precisely that (zero items in
+        `done/` carried a graduation record).
+        """
         for name, mod in _DRIVERS:
-            with self.subTest(driver=name):
-                src = inspect.getsource(mod.execute_item)
-                if "execute_item_core" in src:
-                    src = inspect.getsource(runner_shared.execute_item_core)
-                self.assertIn(
-                    "process_backlog_close(run_dir, state, item)",
-                    src,
-                    f"{name}.execute_item must attempt the backlog close after finalize",
+            spawn = "run_opencode" if name == "oc_runipd" else "run_agy_turn"
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as tmp:
+                repo = _Repo(Path(tmp))
+                repo.add_item("bbbbbb")
+                # The plan is ALREADY in `executed/`, which is how `reconcile_disposition` reaches the
+                # `executed` disposition (it reads the plan's bucket) without this fixture needing to
+                # run a real finalize.
+                plan = repo.add_plan("dbg001", bucket="executed", from_backlog="bbbbbb")
+                repo.commit_all()
+                run_dir = repo.root / ".aw" / "records" / "runs" / "run-close"
+                (run_dir / "outcomes").mkdir(parents=True)
+                (run_dir / "prompts").mkdir(parents=True)
+                item = {
+                    "position": 1,
+                    "id6": "dbg001",
+                    "setid": "demo",
+                    "status": "queued",
+                    "action": "execute",
+                    "from_backlog": "bbbbbb",
+                    "configured_file": repo.rel(plan),
+                }
+                state = {
+                    "run_id": "run-close",
+                    "created_at": "2026-09-14T00:00:00+00:00",
+                    "updated_at": "2026-09-14T00:00:00+00:00",
+                    "selectors": ["demo"],
+                    "repo": str(repo.root),
+                    "queue": [item],
+                    "set_sessions": {},
+                    "session_id": None,
+                    "options": {
+                        "opencode": "/bin/true",
+                        "agy": "/bin/true",
+                        "model": "probe",
+                        "self_finalize": True,
+                        "no_audit": True,
+                        "isolate_worktree": False,
+                    },
+                }
+                closes: list[tuple] = []
+                sink = io.StringIO()
+                with (
+                    mock.patch.object(
+                        mod,
+                        spawn,
+                        lambda *_a, _log=str(run_dir / "log"), **_k: (
+                            0,
+                            "ses",
+                            _log,
+                            ["probe"],
+                        ),
+                    ),
+                    mock.patch.object(mod, "driver_begin", lambda *a, **k: (0, "ok")),
+                    mock.patch.object(
+                        mod, "driver_finalize", lambda *a, **k: (0, "ok")
+                    ),
+                    mock.patch.object(
+                        mod, "assert_child_tool_identity", lambda *a, **k: None
+                    ),
+                    mock.patch.object(
+                        mod,
+                        "process_backlog_close",
+                        lambda *a, _into=closes, **k: _into.append(a),
+                    ),
+                    contextlib.redirect_stdout(sink),
+                    contextlib.redirect_stderr(sink),
+                ):
+                    mod.execute_item(run_dir, state, item, recovery=False)
+                self.assertEqual(
+                    item["status"],
+                    "executed",
+                    f"{name}: the fixture must reach the `executed` disposition, or the close branch "
+                    "is never entered and this test proves nothing",
+                )
+                self.assertEqual(
+                    len(closes),
+                    1,
+                    f"{name}.execute_item must attempt the backlog close EXACTLY ONCE after a "
+                    "successful finalize. Zero means the whole feature is inert (the measured pre-fix "
+                    f"state: no item had ever moved graduated -> done); saw {len(closes)} call(s)",
+                )
+                self.assertEqual(
+                    closes[0][2]["from_backlog"],
+                    "bbbbbb",
+                    f"{name}: the close must be handed THIS item, so it can read the link the queue "
+                    f"froze; got {closes[0][2].get('from_backlog')!r}",
                 )
 
     def test_both_drivers_emit_the_shutdown_report_on_normal_exit(self):
+        """Driven on a real `run_queue` (audit 2026-09-19), not read out of its source.
+
+        REPLACES `assertIn("emit_shutdown_report()", src)` and `assertIn("register_signal_report(", src)`
+        -- both satisfiable by a comment, and neither able to say the report FIRES. Here both are spied
+        on a real drain of a one-item queue whose item carries an unclosed backlog link, and the
+        observable end state is asserted too: the report's own section and the `aw runs` pointer must
+        appear in the run's output.
+
+        A MUTATION SURVIVED THE FIRST DRAFT AND THE TEST WAS STRENGTHENED (audit 2026-09-19). Deleting
+        the PRE-TURN `register_signal_report` call -- the one whose whole purpose is that an interrupt
+        arriving during the FIRST turn still reports from real state -- left this test green, because
+        `run_queue` calls that function at FIVE sites and the later ones still ran. So the assertion is
+        no longer "register was called at some point": the published ledger is now READ from inside the
+        turn itself, which is the only observation that distinguishes publishing before the first turn
+        from publishing after it. This is precisely the case the old source search could not see either,
+        since one surviving call site keeps any substring present.
+        """
         for name, mod in _DRIVERS:
-            with self.subTest(driver=name):
-                src = inspect.getsource(mod.run_queue)
-                self.assertIn("emit_shutdown_report()", src, f"{name}.run_queue")
-                self.assertIn("register_signal_report(", src, f"{name}.run_queue")
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as tmp:
+                run_dir = Path(tmp) / "run-report"
+                run_dir.mkdir(parents=True)
+                item = {
+                    "position": 1,
+                    "id6": "aaaaaa",
+                    "setid": "demo",
+                    "action": "execute",
+                    "kind": "child",
+                    "status": "queued",
+                    "dependencies": [],
+                    "attempts": [],
+                    "from_backlog": "bbbbbb",
+                }
+                (run_dir / "state.json").write_text(
+                    json.dumps(
+                        {
+                            "schema_version": 1,
+                            "run_id": "run-report",
+                            "repo": str(tmp),
+                            "created_at": "2026-09-14T00:00:00+00:00",
+                            "updated_at": "2026-09-14T00:00:00+00:00",
+                            "selectors": ["demo"],
+                            "options": {},
+                            "set_sessions": {},
+                            "queue": [item],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                oc_runipd._SIGNAL_REPORT_DONE.clear()
+                oc_runipd._SIGNAL_REPORT_STATE.clear()
+                self.addCleanup(oc_runipd._SIGNAL_REPORT_DONE.clear)
+                self.addCleanup(oc_runipd._SIGNAL_REPORT_STATE.clear)
+                seen: list[str] = []
+                real_emit = mod.emit_shutdown_report
+                real_register = mod.register_signal_report
+
+                def spy_emit(*args, _real=real_emit, _seen=seen, **kwargs):
+                    _seen.append("emit")
+                    return _real(*args, **kwargs)
+
+                def spy_register(*args, _real=real_register, _seen=seen, **kwargs):
+                    _seen.append("register")
+                    return _real(*args, **kwargs)
+
+                published_at_first_turn: list[dict] = []
+
+                def fake_execute(
+                    rd, st, it, *a, _mod=mod, _seen=published_at_first_turn, **k
+                ):
+                    # Read the published ledger FROM INSIDE the turn. This is the observation that
+                    # catches deletion of the PRE-TURN publication while later call sites survive.
+                    _seen.append(dict(oc_runipd._SIGNAL_REPORT_STATE))
+                    it["status"] = "executed"
+                    _mod.save_state(rd, st)
+
+                buffer = io.StringIO()
+                with (
+                    mock.patch.object(mod, "execute_item", side_effect=fake_execute),
+                    mock.patch.object(mod, "emit_shutdown_report", spy_emit),
+                    mock.patch.object(mod, "register_signal_report", spy_register),
+                    contextlib.redirect_stdout(buffer),
+                    contextlib.redirect_stderr(buffer),
+                ):
+                    mod.run_queue(run_dir, retry_incomplete=False)
+                output = buffer.getvalue()
+                self.assertIn(
+                    "emit",
+                    seen,
+                    f"{name}.run_queue must emit the shutdown report on NORMAL exit too, not only "
+                    f"under a signal; observed calls {seen}",
+                )
+                self.assertIn(
+                    "register",
+                    seen,
+                    f"{name}.run_queue must PUBLISH the live state for the signal path, or an "
+                    f"interrupt reports from a stale snapshot (or from nothing); observed {seen}",
+                )
+                self.assertLess(
+                    seen.index("register"),
+                    seen.index("emit"),
+                    f"{name}: the state must be published BEFORE the report is emitted, since the "
+                    f"report reads from it; observed {seen}",
+                )
+                self.assertTrue(
+                    published_at_first_turn
+                    and published_at_first_turn[0].get("state") is not None,
+                    f"{name}: the live state must ALREADY be published when the FIRST turn starts, "
+                    "so an interrupt arriving during that turn reports from real state rather than "
+                    "from nothing. `run_queue` publishes at five sites and the later ones cannot "
+                    "cover this: a mutation deleting only the pre-turn call was measured to survive "
+                    f"a weaker form of this assertion. Ledger seen at turn time: "
+                    f"{published_at_first_turn}",
+                )
+                self.assertEqual(
+                    str(published_at_first_turn[0].get("run_dir")),
+                    str(run_dir),
+                    f"{name}: and it must publish THIS run's directory, or the interrupt report "
+                    "would append its ledger record somewhere else entirely",
+                )
+                self.assertIn(
+                    "bbbbbb",
+                    output,
+                    f"{name}: the run's output must NAME the backlog item it left open; an item that "
+                    "is silently absent is the reporting gap E-06 exists to close",
+                )
+                self.assertIn(
+                    "Run `aw runs run-report` for more info.",
+                    output,
+                    f"{name}: the E-07 pointer must be printed on the human path",
+                )
+
+    def test_an_interrupt_BEFORE_the_first_turn_still_reports(self):
+        """The window the PRE-LOOP publication exists for, and nothing else covers.
+
+        MEASURED WHILE MUTATION-TESTING (audit 2026-09-19), and this test exists BECAUSE a mutation
+        survived. Deleting `run_queue`'s first `register_signal_report` call left the sibling test above
+        green, because `run_queue` publishes at FIVE sites and the four INSIDE the loop still ran; even
+        reading the ledger from inside the first turn was not enough, since a loop-top refresh happens
+        before the turn dispatches. The ONE window only the pre-loop call covers is an interrupt that
+        arrives BEFORE the loop is entered at all -- during pre-loop reconciliation -- and that is what
+        this drives, by making `reconcile_interrupted` raise.
+
+        MEASURED CONSEQUENCE WITH THE CALL DELETED: the report named no item and NO LEDGER FILE WAS
+        WRITTEN. An operator interrupting a run that was still winding up would be told nothing, and
+        `aw runs <id>` could not answer afterwards either. That is exactly the silence E-06 exists to
+        remove, so it is worth its own test rather than a stronger assertion bolted onto the sibling.
+        """
+        for name, mod in _DRIVERS:
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as tmp:
+                run_dir = Path(tmp) / "run-early"
+                run_dir.mkdir(parents=True)
+                (run_dir / "state.json").write_text(
+                    json.dumps(
+                        {
+                            "schema_version": 1,
+                            "run_id": "run-early",
+                            "repo": str(tmp),
+                            "created_at": "2026-09-14T00:00:00+00:00",
+                            "updated_at": "2026-09-14T00:00:00+00:00",
+                            "selectors": ["demo"],
+                            "options": {},
+                            "set_sessions": {},
+                            "queue": [
+                                {
+                                    "position": 1,
+                                    "id6": "aaaaaa",
+                                    "setid": "demo",
+                                    "action": "execute",
+                                    "kind": "child",
+                                    "status": "queued",
+                                    "dependencies": [],
+                                    "attempts": [],
+                                    "from_backlog": "bbbbbb",
+                                    "backlog_close": {
+                                        "item": "bbbbbb",
+                                        "closed": False,
+                                        "reason": "IPD carrier(s) not executed: x.ipd.md",
+                                    },
+                                }
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                oc_runipd._SIGNAL_REPORT_DONE.clear()
+                oc_runipd._SIGNAL_REPORT_STATE.clear()
+                self.addCleanup(oc_runipd._SIGNAL_REPORT_DONE.clear)
+                self.addCleanup(oc_runipd._SIGNAL_REPORT_STATE.clear)
+
+                def interrupt_early(*_a, **_k):
+                    raise KeyboardInterrupt("Interrupted")
+
+                sink = io.StringIO()
+                with (
+                    mock.patch.object(mod, "reconcile_interrupted", interrupt_early),
+                    contextlib.redirect_stdout(sink),
+                    contextlib.redirect_stderr(sink),
+                    self.assertRaises(KeyboardInterrupt),
+                ):
+                    mod.run_queue(run_dir, retry_incomplete=False)
+                # The funnel in `main` is what calls this; here it is invoked directly so the test
+                # stays about the PUBLICATION rather than about `main`'s handler (covered separately).
+                report = io.StringIO()
+                with (
+                    contextlib.redirect_stdout(report),
+                    contextlib.redirect_stderr(report),
+                ):
+                    mod.emit_shutdown_report()
+                self.assertIn(
+                    "bbbbbb",
+                    report.getvalue(),
+                    f"{name}: an interrupt arriving BEFORE the first turn must still report the item "
+                    "left open. Failing here means the live state was not published until inside the "
+                    "loop, so a run interrupted while winding up tells the operator nothing",
+                )
+                self.assertTrue(
+                    (run_dir / "events.jsonl").is_file(),
+                    f"{name}: and the LEDGER must exist, so `aw runs run-early` can answer afterwards. "
+                    "With the pre-loop publication deleted this file was measured ABSENT entirely",
+                )
 
 
 if __name__ == "__main__":

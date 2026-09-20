@@ -44,10 +44,22 @@ Three clusters merged, each because its members differed ONLY in data:
    functions.
 
 WHAT WAS DELIBERATELY NOT MERGED, and why, is stated in each surviving test's docstring. The
-recurring reasons: the claim is a SYMBOL-LEVEL structural assertion about where code lives
-(`inspect.getsource` checks, which share no input with any fixture); the setup is materially
-different (a deliberately unparseable file, a nonexistent repository root); or the assertion is about
-a registry entry rather than about a plan.
+recurring reasons: the claim is about WHERE a predicate is reached from rather than about any one
+fixture's verdict; the setup is materially different (a deliberately unparseable file, a nonexistent
+repository root); or the assertion is about a registry entry rather than about a plan.
+
+THE TWO `inspect.getsource` PINS THIS FILE CARRIED ARE GONE, and the reason generalizes past this
+file. Both searched a function's SOURCE TEXT for a symbol name in order to claim "this surface calls
+the shared predicate" or "this surface does NOT". A substring search cannot establish either: the
+positive is satisfied by a COMMENT naming the symbol (measured twice in this repository, once on
+`env=pinned_child_env()`), and the NEGATIVE is satisfied in the wrong direction by the same code
+reached under any other name, so a merge wired into the documented-pure path through an alias or a
+direct `check_engine` call would have left all three assertions green. Both are now proved by DRIVING
+the surfaces: the shared evaluator is spied (so the call, or its absence at every checkpoint, is
+OBSERVED) and then replaced by a sentinel whose own detail text must surface on both consumers (so
+"one predicate backs both" is a fact about output rather than about spelling). See
+`test_the_merge_is_wired_into_lint_file_and_not_the_pure_path` and
+`test_one_predicate_backs_both_surfaces`.
 """
 
 from __future__ import annotations
@@ -57,6 +69,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Optional
+from unittest import mock
 
 from agent_workflows import artifact_core as core
 from agent_workflows import check_engine as ce
@@ -1669,50 +1682,117 @@ class CheckpointPlacementTests(_RepoCase):
             )
 
     def test_the_merge_is_wired_into_lint_file_and_not_the_pure_path(self):
-        """Kept separate: a SYMBOL-LEVEL claim read from source text, sharing no input with any row.
+        """The repo-aware evaluator is reached from `lint_file` ONLY, proved by WATCHING the call.
 
-        PROVE THE PLACEMENT BY SYMBOL so a later refactor into the pure path fails here rather than
-        being caught only indirectly by the purity test above. `inspect.getsource` is the subject, which
-        no fixture-driven row can be.
+        REPLACES A SOURCE-TEXT PIN. This searched three functions' source text for the substring
+        `_merge_durable_carrier`: present in `lint_file`, absent from `check_checkpoint` and
+        `lint_text`. Every one of those three assertions is the wrong instrument. The positive is
+        satisfied by a COMMENT in `lint_file` (this repository has measured that exact failure twice),
+        and BOTH negatives are satisfied in the WRONG DIRECTION by the merge being wired into the pure
+        path through any other name at all: a rename, a dispatch table, an alias, or simply calling
+        `check_engine.evaluate_durable_carrier` directly would leave the pure path impure while all
+        three searches stayed green.
+
+        SO THE CALL IS OBSERVED, not read. The shared evaluator is spied and each surface is driven
+        over a fixture that MUST trip the rule: `lint_file` is required to reach it exactly once, and
+        the two pure surfaces are required to reach it ZERO times through any route, which is a claim
+        about I/O actually happening rather than about how the source is spelled.
         """
-        import inspect
+        plan = _plan(
+            self.repo,
+            date=_POST_DATE,
+            deferred_rows="- AN UNCARRIED DEFECT: nothing tracks this.\n",
+        )
+        text = plan.read_text(encoding="utf-8")
+        doc = ipd_lint.parse(text)
 
-        self.assertIn(
-            "_merge_durable_carrier",
-            inspect.getsource(ipd_lint.lint_file),
-            "the repo-aware merge must be called from `lint_file`, which is the surface allowed to "
-            "touch the tree.",
+        # THE REPO-AWARE SURFACE: reaches the evaluator, exactly once, and reports the rule.
+        with mock.patch.object(
+            ce, "evaluate_durable_carrier", wraps=ce.evaluate_durable_carrier
+        ) as spy:
+            res = ipd_lint.lint_file(plan, checkpoint="pre-transition")
+        self.assertEqual(
+            spy.call_count,
+            1,
+            f"`lint_file` reached the shared evaluator {spy.call_count} times; it must reach it "
+            "EXACTLY once. Zero means the repo-aware merge is unwired and an uncarried obligation "
+            "can reach terminal; more than one means the plan is resolved repeatedly, which is the "
+            "cost the per-sweep carrier index exists to avoid.",
         )
-        self.assertNotIn(
-            "_merge_durable_carrier",
-            inspect.getsource(ipd_lint.check_checkpoint),
-            "the merge must NOT live in `check_checkpoint`; that is a pure layer.",
+        self.assertEqual(
+            [d.code for d in res.diagnostics if d.code == RULE],
+            [RULE],
+            "the fixture must actually trip the rule, or the spy count above describes a run that "
+            "short-circuited before the merge",
         )
-        self.assertNotIn(
-            "_merge_durable_carrier",
-            inspect.getsource(ipd_lint.lint_text),
-            "the merge must NOT live in `lint_text`, whose documented contract is purity.",
-        )
+
+        # THE PURE SURFACES: reach it ZERO times, at EVERY checkpoint, by ANY route. `lint_text` and
+        # `check_checkpoint` are documented pure, and resolving a carrier is I/O.
+        for label, drive in (
+            (
+                "lint_text",
+                lambda cp: ipd_lint.lint_text(text, checkpoint=cp, directory="pending"),
+            ),
+            (
+                "check_checkpoint",
+                lambda cp: ipd_lint.check_checkpoint(doc, cp, "pending"),
+            ),
+        ):
+            with mock.patch.object(
+                ce, "evaluate_durable_carrier", wraps=ce.evaluate_durable_carrier
+            ) as spy:
+                for checkpoint in S.CHECKPOINTS:
+                    drive(checkpoint)
+            self.assertEqual(
+                spy.call_count,
+                0,
+                f"`{label}` reached the repo-aware evaluator {spy.call_count} times across "
+                f"{len(S.CHECKPOINTS)} checkpoints. Its documented contract is PURITY (no I/O), and "
+                "resolving a carrier id6 against the backlog and plans trees is I/O. A caller that "
+                "relies on the pure contract now silently touches the filesystem.",
+            )
 
     def test_one_predicate_backs_both_surfaces(self):
-        """Kept separate: a SYMBOL-LEVEL claim, and the stronger form of an agreement test.
+        """Kept separate: a SINGLE-PREDICATE claim, and the stronger form of an agreement test.
 
-        The round-trip table asserts the two surfaces AGREE on every fixture, which a second
-        implementation could satisfy today and violate next month. This asserts they call the SAME
-        function by name, which is the property that makes the agreement structural rather than
-        coincidental. Read from source text, so it cannot be a row.
+        REPLACES A SOURCE-TEXT PIN. This searched `check_durable_carrier`'s and
+        `_merge_durable_carrier`'s source for the substring `evaluate_durable_carrier`. A comment
+        naming the evaluator satisfies it while the body holds a second implementation, which is
+        precisely the drift it existed to prevent, and a rename breaks it with no behavior change.
+
+        WHY IT IS STILL NEEDED BESIDE THE ROUND-TRIP TABLE: that table asserts the two surfaces AGREE
+        on every fixture, which a second implementation can satisfy today and violate next month. So
+        what is asserted here is that ONE function produces BOTH answers, proved by REPLACING it with
+        a sentinel and requiring the sentinel's own detail text to surface on both. A second
+        implementation cannot produce the sentinel, and no fixture row can express this because every
+        row drives the real evaluator.
         """
-        import inspect
-
-        self.assertIn(
-            "evaluate_durable_carrier",
-            inspect.getsource(ce.check_durable_carrier),
-            "the `aw check` sweep must call the shared evaluator, not its own copy.",
+        plan = _plan(
+            self.repo,
+            date=_POST_DATE,
+            deferred_rows="- AN UNCARRIED DEFECT: nothing tracks this.\n",
         )
-        self.assertIn(
-            "evaluate_durable_carrier",
-            inspect.getsource(ipd_lint._merge_durable_carrier),
-            "the lint merge must call the shared evaluator, not its own copy.",
+        marker = "SENTINEL-ONLY-THE-SHARED-EVALUATOR-CAN-PRODUCE-THIS"
+
+        def sentinel(_repo_root, *, plan_path, plan_text, **_kwargs):
+            return [core.Drift(str(plan_path), RULE, marker, severity="error")]
+
+        with mock.patch.object(ce, "evaluate_durable_carrier", sentinel):
+            lint = ipd_lint.lint_file(plan, checkpoint="pre-transition")
+            sweep = ce.check_durable_carrier(self.repo)
+
+        self.assertEqual(
+            [d.message for d in lint.diagnostics if d.code == RULE],
+            [marker],
+            "`aw ipd lint --phase pre-transition` did not surface the shared evaluator's own "
+            "verdict, so the lint merge holds a SECOND implementation. Two predicates that agree "
+            "today let the checkpoint gate and the sweep drift apart on what counts as carried.",
+        )
+        self.assertEqual(
+            [d.detail for d in sweep if d.rule == RULE],
+            [marker],
+            "`aw check` did not surface the shared evaluator's own verdict, so the sweep holds a "
+            "SECOND implementation.",
         )
 
     def test_the_carrier_checkpoint_set_diverges_from_the_review_escalation_set(self):

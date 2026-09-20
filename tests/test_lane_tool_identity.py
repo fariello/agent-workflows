@@ -20,6 +20,25 @@ running `-m agent_workflows --version`, because a minimal decoy package has no `
 `-m` against it dies with "cannot be directly executed" -- which does prove the decoy was
 selected, but on an error path an assertion written against stdout would misread as a failure to
 reproduce. The decoys here are given a `__main__.py` anyway so both surfaces are usable.
+
+WHY THIS FILE IS THE CANONICAL RECORD OF THE COMMENT-SATISFIED-PIN DEFECT, and why the source-text
+pins that used to live beside the runtime tests above are gone (audit 2026-09-19). The shipped guard
+`test_raw_subprocess_module_launches_pass_the_pinned_env` searched `inspect.getsource(driver_begin)`
+for the LITERAL `env=pinned_child_env()`; on `oc_runipd` the real code read
+`env={**pinned_child_env(), **begin_baseline_env(isolated)}`, which does NOT contain that substring,
+so the only match in the whole function was the explanatory COMMENT above it. The guard was green for
+a reason unrelated to the pin. `TheBeginPinSurvivedTheMove` below already replaced that pin's BEGIN
+half behaviorally; this round did the same for the remaining launchers. Each ex-pin's replacement
+DRIVES the launcher with `subprocess.run` patched and asserts the env the child is actually handed
+carries the pin's markers, and asserts the argv is the one `pinned_module_argv` builds -- a comment
+cannot satisfy either, and a rename or reformat cannot break either.
+
+WHAT IS DELIBERATELY KEPT AS AN AST GUARD, and cannot be replaced by a behavioral test.
+`NestedAwLaunchSiteGuardTests` enumerates launch SITES by parsing the module, which is a claim about
+code that does not exist yet: it fails when someone ADDS an unpinned launcher, on a code path no test
+drives. No behavioral test can assert a property of a call site nobody calls. A comment cannot satisfy
+it either, because `ast.parse` does not see comments. `test_stdin_devnull_is_not_regressed` is the one
+remaining `.count()` over source text and it is KEPT for the same reason, stated on the test itself.
 """
 
 from __future__ import annotations
@@ -33,7 +52,9 @@ import sysconfig
 import tempfile
 import textwrap
 import unittest
+import unittest.mock
 from pathlib import Path
+from typing import ClassVar
 
 from agent_workflows import agy_runipd
 from agent_workflows import oc_runipd as driver
@@ -51,6 +72,49 @@ def _module_source(module) -> str:
     path = inspect.getsourcefile(module)
     assert path is not None, f"no source file for {module!r}"
     return Path(path).read_text(encoding="utf-8")
+
+
+class _LaunchSpy:
+    """Stands in for `subprocess.run`, recording the argv and kwargs a child was launched with.
+
+    A CLASS rather than a closure, deliberately: every caller below records inside a loop, and a
+    closure over a per-iteration dict is the `B023` late-binding trap, which in a test silently makes
+    one iteration assert about another's launch.
+    """
+
+    def __init__(self, stdout: str = "ok", returncode: int = 0) -> None:
+        self.stdout = stdout
+        self.returncode = returncode
+        self.stderr = ""
+        self.argv: list[str] | None = None
+        self.kwargs: dict = {}
+        self.calls = 0
+
+    def __call__(self, argv, **kwargs):
+        self.calls += 1
+        self.argv = list(argv)
+        self.kwargs = kwargs
+        return self
+
+    @property
+    def env(self) -> dict:
+        return self.kwargs.get("env") or {}
+
+
+class _CallRecorder:
+    """Append-only ordered log of which patched collaborator ran, for call-ORDER assertions."""
+
+    def __init__(self) -> None:
+        self.order: list[str] = []
+
+    def stub(self, label: str, result=None):
+        """A callable that records `label` and returns `result`, ignoring its arguments."""
+
+        def _stub(*_args, **_kwargs):
+            self.order.append(label)
+            return result
+
+        return _stub
 
 
 def _parent_module() -> str:
@@ -128,87 +192,153 @@ class LaneToolIdentityRuntimeTests(unittest.TestCase):
         self.fx = _Fixture(Path(self._temp.name))
         self.addCleanup(self._temp.cleanup)
 
-    def test_unpinned_launch_imports_the_lane_decoy(self):
-        """(a) FALSIFIABILITY: the OLD bare argv shape imports the LANE's copy -- the defect."""
-        argv = [sys.executable, "-m", "agent_workflows"]
-        got = _resolved_module(
-            [sys.executable, "-c", PROBE], self.fx.lane, self.fx.env(select=True)
-        )
-        self.assertEqual(
-            _marker_of(got),
+    #: The `flag` column: whether the launch carries the version-specific `-P`. Both values are
+    #: needed, because `-P` and `PYTHONSAFEPATH` are BOTH CPython 3.11 features while the declared
+    #: floor is 3.9 (measured on a real 3.9.25: `-P` is REJECTED and `PYTHONSAFEPATH=1` is SILENTLY
+    #: IGNORED), so a pin that depended on either would leave every floor interpreter hijackable
+    #: while looking green on 3.11+.
+    #:
+    #: AND THE COLUMN IS LOAD-BEARING ON THE NEGATIVE ROWS, which a first draft of this table got
+    #: WRONG and a failing run corrected (audit 2026-09-19, on CPython 3.14.6). `-P` is ITSELF a
+    #: suppressing mechanism: with the runner root on PYTHONPATH and `-P` passed, the child imports
+    #: PARENT-RUNNER even with no bootstrap at all. So a row meant to demonstrate the defect must NOT
+    #: pass `-P`, or the interpreter quietly fixes the very hijack the row exists to reproduce. This is
+    #: exactly why the shipped pin cannot rely on `-P`: the mechanism that makes these rows pass on
+    #: 3.11+ does not exist on the floor.
+    WITH_FLAG = "with -P where available"
+    NO_FLAG = "no interpreter flag (the 3.9 floor)"
+
+    #: (case, does the launch SUPPRESS the cwd entry, does the env SELECT the runner root, is the
+    #: default-path copy reachable, `-P` policy, the MARKER of the package that must be imported,
+    #: why this row exists)
+    RESOLUTIONS = (
+        (
+            "neither half: a bare interpreter launch from the lane cwd",
+            False,
+            True,
+            True,
+            NO_FLAG,
             "DECOY-LANE",
-            f"expected the unpinned shape to reproduce the hijack; imported {got!r}",
+            "THE DEFECT ITSELF, REPRODUCED. This is the shipped pre-fix shape, and the row that makes "
+            "every other row meaningful: without it a fixture that simply could not reach the decoy "
+            "would satisfy all the positive rows. Note the env DOES select here, which is the point of "
+            "the next row",
+        ),
+        (
+            "SELECTION only: PYTHONPATH carries the runner root, nothing suppresses the cwd",
+            False,
+            True,
+            True,
+            NO_FLAG,
+            "DECOY-LANE",
+            "THE MEASURED HALF-PIN (finding F6), and the reason the fix needed two parts. BOTH drivers "
+            "already prepended the runner's root to the child PYTHONPATH, which READ as this fix and "
+            "was measurably INERT, because the cwd entry PRECEDES PYTHONPATH in sys.path. This row is "
+            "identical to the one above on purpose: it shows the selecting half changes nothing alone",
+        ),
+        (
+            "SUPPRESSION only: the cwd entry is stripped but nothing selects the runner",
+            True,
+            False,
+            True,
+            NO_FLAG,
+            "THIRD-DEFAULTPATH",
+            "WHY THE FIXTURE NEEDS A THIRD PACKAGE, and why the pin must be POSITIVE rather than "
+            "merely not-the-lane. Suppression defeats the decoy and then falls through to the DEFAULT "
+            "PATH, which equals the runner's own copy ONLY on an editable install (which this repo is). "
+            "A two-package fixture would show this row as a PASS while a normal wheel install silently "
+            "ran third-party code",
+        ),
+        (
+            "BOTH halves: suppression plus selection",
+            True,
+            True,
+            True,
+            WITH_FLAG,
+            "PARENT-RUNNER",
+            "THE FIX, stated positively: the child imports the DESIGNATED PARENT copy, not merely "
+            "something other than the lane's. This is the only row whose marker is the parent, so it "
+            "is the only one that could be produced by a correct two-part pin",
+        ),
+        (
+            "BOTH halves with NO interpreter flag, simulating the 3.9 floor",
+            True,
+            True,
+            True,
+            NO_FLAG,
+            "PARENT-RUNNER",
+            "CORRECTNESS MUST NOT DEPEND ON `-P`. It and `PYTHONSAFEPATH` are both 3.11 features and "
+            "the declared floor is >=3.9 (CI runs 3.9-3.14), so this row is what proves the `-c` "
+            "bootstrap alone carries the suppressing half. `-P` is kept as belt-and-braces upstream "
+            "because it additionally blocks a cwd `sitecustomize.py`, which a post-startup filter "
+            "cannot reach",
+        ),
+    )
+
+    def test_the_pin_resolves_the_right_package_copy_in_every_combination(self):
+        wrong: list[str] = []
+        for (
+            case,
+            suppress,
+            select,
+            extra_default,
+            flag_policy,
+            expected_marker,
+            why,
+        ) in self.RESOLUTIONS:
+            argv = [sys.executable]
+            if flag_policy == self.WITH_FLAG and sys.version_info >= (3, 11):
+                argv.append("-P")
+            bootstrap = driver._AW_PIN_STRIP if suppress else ""
+            argv.extend(["-c", bootstrap + PROBE])
+            got = _resolved_module(
+                argv,
+                self.fx.lane,
+                self.fx.env(select=select, extra_default=extra_default),
+            )
+            marker = _marker_of(got)
+            if marker != expected_marker:
+                wrong.append(
+                    f"  {case} ({flag_policy}):\n"
+                    f"    - expected the child to import {expected_marker}, it imported "
+                    f"{marker} ({got!r})\n"
+                    f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the tooling pin resolved the wrong package copy in {len(wrong)} of "
+            f"{len(self.RESOLUTIONS)} combinations. THE NEGATIVE ROWS AND THE POSITIVE ROWS SHARE THIS "
+            "TABLE, and it is what makes the whole file non-vacuous: two rows must import the DECOY "
+            "(reproducing the defect and the measured half-pin), one must import the THIRD copy "
+            "(showing suppression alone picks the wrong package), and two must import the PARENT. A "
+            "fixture in which the decoy were simply unreachable would satisfy every positive row while "
+            "proving nothing at all. Read the grouping: every row importing PARENT-RUNNER means the "
+            "fixture broke rather than the pin improving; a PARENT row importing DECOY-LANE means the "
+            "pin is gone. FIX: the pin is SUPPRESSION (strip the cwd entry) plus SELECTION (the "
+            "runner's root on PYTHONPATH), and neither half works alone.\n"
+            + "\n".join(wrong),
         )
-        # And the decoy's CLI really would have run, not merely been importable.
+
+    def test_the_decoys_CLI_really_would_have_run_not_merely_been_importable(self):
+        """Kept separate: it runs the decoy's `__main__`, a different surface from the import probe.
+
+        The import probe shows which FILE resolves; this shows the hijacked package's CLI actually
+        EXECUTES (its `__main__` prints its marker and exits 42), which is what makes the defect a
+        control-plane problem rather than a curiosity.
+        """
         result = subprocess.run(
-            argv,
+            [sys.executable, "-m", "agent_workflows"],
             cwd=str(self.fx.lane),
             env=self.fx.env(select=True),
             capture_output=True,
             text=True,
         )
-        self.assertIn("MARKER=DECOY-LANE", result.stdout)
-
-    def test_selecting_half_alone_is_inert(self):
-        """(b) FALSIFIABILITY: PYTHONPATH alone STILL imports the decoy (the old half-pin).
-
-        This is the F6 case: both drivers already prepended the runner's package root to the
-        child PYTHONPATH, which READ as this fix but was measurably inert, because the cwd entry
-        precedes PYTHONPATH in sys.path.
-        """
-        got = _resolved_module(
-            [sys.executable, "-c", PROBE], self.fx.lane, self.fx.env(select=True)
-        )
-        self.assertEqual(
-            _marker_of(got),
-            "DECOY-LANE",
-            "PYTHONPATH alone must be shown INERT (the cwd entry wins); "
-            f"imported {got!r}",
-        )
-
-    def test_suppression_only_lands_on_the_wrong_copy(self):
-        """(c) FALSIFIABILITY: suppression WITHOUT selection resolves the wrong copy.
-
-        It falls through to the default path, which equals the runner's own ONLY on an editable
-        install. This is why the pin must be POSITIVE, and why the fixture needs a third copy.
-        """
-        argv = (
-            [sys.executable]
-            + (["-P"] if sys.version_info >= (3, 11) else [])
-            + ["-c", driver._AW_PIN_STRIP + PROBE]
-        )
-        got = _resolved_module(
-            argv, self.fx.lane, self.fx.env(select=False, extra_default=True)
-        )
-        marker = _marker_of(got)
-        self.assertNotEqual(
-            marker,
-            "DECOY-LANE",
-            f"suppression should defeat the decoy; imported {got!r}",
-        )
-        self.assertEqual(
-            marker,
-            "THIRD-DEFAULTPATH",
-            "suppression alone must be shown to select the WRONG (default-path) copy, not the "
-            f"designated parent; imported {got!r}",
-        )
-
-    def test_full_pin_resolves_to_the_designated_parent(self):
-        """(d) The two-part pin resolves POSITIVELY to the designated parent copy."""
-        argv = (
-            [sys.executable]
-            + (["-P"] if sys.version_info >= (3, 11) else [])
-            + ["-c", driver._AW_PIN_STRIP + PROBE]
-        )
-        got = _resolved_module(argv, self.fx.lane, self.fx.env(select=True))
-        self.assertEqual(
-            _marker_of(got),
-            "PARENT-RUNNER",
-            f"the two-part pin must select the designated parent; imported {got!r}",
-        )
-        self.assertEqual(
-            os.path.realpath(got),
-            str(self.fx.parent / "agent_workflows" / "__init__.py"),
+        self.assertIn(
+            "MARKER=DECOY-LANE",
+            result.stdout,
+            "the unpinned `-m` form must be shown to EXECUTE the lane's copy, not merely to import "
+            f"it; got {result.stdout!r} {result.stderr!r}",
         )
 
     def test_real_pinned_argv_runs_the_runners_own_cli_from_a_decoy_cwd(self):
@@ -259,40 +389,59 @@ class LaneToolIdentityRuntimeTests(unittest.TestCase):
         )
         del argv
 
-    def test_pin_does_not_depend_on_the_version_specific_flag(self):
-        """The bootstrap alone pins, so 3.9/3.10 (no `-P`) behave like 3.11+.
-
-        `-P` and `PYTHONSAFEPATH` are BOTH 3.11 features; measured on a real CPython 3.9.25,
-        `-P` is rejected and `PYTHONSAFEPATH=1` is silently ignored. Correctness therefore must
-        not depend on either. This test omits the flag entirely, simulating the floor.
-        """
-        argv = [sys.executable, "-c", driver._AW_PIN_STRIP + PROBE]
-        got = _resolved_module(argv, self.fx.lane, self.fx.env(select=True))
-        self.assertEqual(
-            _marker_of(got),
-            "PARENT-RUNNER",
-            "the pin must hold with NO interpreter flag, since the declared floor (>=3.9) has "
-            f"neither -P nor PYTHONSAFEPATH; imported {got!r}",
-        )
+    # `test_pin_does_not_depend_on_the_version_specific_flag` was FOLDED IN (audit 2026-09-19) as the
+    # `RESOLUTIONS` table's "BOTH halves with NO interpreter flag" row, which drives the identical
+    # launch. Its reasoning survives in that row's `why` string and in the `flag` column's own note.
 
     def test_bootstrap_strips_the_absolute_cwd_not_just_empty_string(self):
-        """Under `-m`, sys.path[0] is the ABSOLUTE cwd, so filtering only ''/'.' is inert."""
-        self.assertIn("realpath", driver._AW_PIN_STRIP)
+        """Under `-m`, sys.path[0] is the ABSOLUTE cwd, so filtering only ''/'.' is inert.
+
+        MEASURED AND STRENGTHENED (audit 2026-09-19). Two problems were found by mutation-testing the
+        shipped form of this test.
+
+        FIRST, `assertIn("realpath", driver._AW_PIN_STRIP)` is a source-text pin on a string CONSTANT,
+        satisfiable by any use of the word. DELETED.
+
+        SECOND, and worse, the behavioral half was VACUOUS: launched with `-c`, `sys.path[0]` is `''`
+        rather than the absolute cwd, so `os.getcwd() in sys.path` is already False before the bootstrap
+        runs. Mutating the product to filter only `{'', os.curdir}` -- removing the absolute-cwd strip
+        this test is named for -- left the whole file GREEN.
+
+        WHAT MAKES IT BITE: the absolute lane path is placed ON `PYTHONPATH` as well, which is the
+        realistic shape (a parent that exports its own cwd, or a nested launch inheriting one) and the
+        one where the strip is load-bearing. Measured with the weakened filter, the child imports
+        DECOY-LANE; with the shipped filter it imports the parent. Both halves are asserted here.
+        """
         probe = driver._AW_PIN_STRIP + (
             "import sys, os\n"
-            "print(str(os.getcwd() in sys.path) + ':' + str('' in sys.path))\n"
+            "print('cwd_in_path=' + str(os.path.realpath(os.getcwd()) in "
+            "[os.path.realpath(p) for p in sys.path if p]))\n"
+            "import agent_workflows as a\n"
+            "print('MARKER=' + getattr(a, 'MARKER', '<real-package>'))\n"
         )
+        env = self.fx.env(select=True)
+        # THE ABSOLUTE LANE PATH ON PYTHONPATH, which is what a filter of only ''/'.' cannot remove.
+        env["PYTHONPATH"] = os.pathsep.join([str(self.fx.lane), env["PYTHONPATH"]])
+        env["AW_PIN_KEEP_ROOT"] = str(self.fx.parent)
         result = subprocess.run(
             [sys.executable, "-c", probe],
             cwd=str(self.fx.lane),
-            env=self.fx.env(select=True),
+            env=env,
             capture_output=True,
             text=True,
         )
         self.assertIn(
-            "False:False",
+            "cwd_in_path=False",
             result.stdout,
-            f"the bootstrap must remove BOTH the absolute cwd and '': {result.stdout!r}",
+            "the bootstrap must remove the ABSOLUTE cwd from sys.path, not only '' and '.'; under "
+            f"`-m` the cwd entry IS the absolute path. Got {result.stdout!r} {result.stderr!r}",
+        )
+        self.assertIn(
+            "MARKER=PARENT-RUNNER",
+            result.stdout,
+            "and the CONSEQUENCE, which is what makes the assertion above non-vacuous: with the lane's "
+            "absolute path reachable, a filter of only ''/'.' leaves the child importing the LANE's "
+            f"copy. Got {result.stdout!r}",
         )
 
 
@@ -493,47 +642,6 @@ class NestedAwLaunchSiteGuardTests(unittest.TestCase):
                 "fails the guard cannot protect the real drivers either",
             )
 
-    def test_guard_fails_on_a_half_pinned_site(self):
-        """The guard must FAIL when only ONE of the two pin parts is present."""
-        for name, module in self.DRIVERS:
-            src = _module_source(module)
-            self.assertTrue(
-                any(marker in src for marker in _SUPPRESS_MARKERS),
-                f"{name} must carry the SUPPRESSING half of the pin",
-            )
-            self.assertTrue(
-                any(marker in src for marker in _SELECT_MARKERS),
-                f"{name} must carry the SELECTING half of the pin; PYTHONPATH-only or "
-                "suppression-only is a half-pin and was measured insufficient",
-            )
-
-    def test_raw_subprocess_module_launches_pass_the_pinned_env(self):
-        """`driver_finalize` (still per-host) must build a pinned argv and pass the pinned env.
-
-        They previously passed NO `env=` at all, so the selecting half could not reach them.
-
-        SCOPE NARROWED TO `driver_finalize` by rununify 05 (`ct4w0a`) E-03. `driver_begin` is no longer
-        a per-host body: it has ONE definition in `runner_shared` that takes its pin helpers as injected
-        parameters, so `env=pinned_child_env()` cannot appear at that site by construction. Its pin is
-        asserted instead by `TheBeginPinSurvivedTheMove` below, BEHAVIORALLY, which is strictly stronger
-        than this text search -- see that class for the measurement showing this search was already
-        satisfiable by a COMMENT.
-        """
-        for name, module in self.DRIVERS:
-            for func in ("driver_finalize",):
-                src = inspect.getsource(getattr(module, func))
-                self.assertIn(
-                    "pinned_module_argv",
-                    src,
-                    f"{name}.{func} must build its argv with the shared pinned helper",
-                )
-                self.assertIn(
-                    "env=pinned_child_env()",
-                    src,
-                    f"{name}.{func} must pass the pinned env; without it the selecting half "
-                    "of the pin never reaches the child",
-                )
-
     def test_identity_probe_is_not_counted_as_a_nested_aw_launcher(self):
         """The E-04 probe must not create a false 4-vs-3 asymmetry in the ttywedge guard.
 
@@ -542,15 +650,15 @@ class NestedAwLaunchSiteGuardTests(unittest.TestCase):
         probe is a read-only import probe defined once in oc and merely IMPORTED by agy, so naming
         its local `argv` made oc appear to have one more launcher than agy and broke that sibling
         guard. It must stay distinctly named -- while still denying the child a terminal.
+
+        KEPT AS AN AST CHECK, not converted, because the property IS the parameter NAME the sibling
+        guard keys on. A behavioral test cannot observe a local variable's name, and the sibling guard
+        counts by that name, so the only faithful assertion is over the syntax tree. The DEVNULL half
+        is now driven behaviorally instead, by `TheProbeDeniesTheChildATerminal` below.
         """
-        src = inspect.getsource(driver.assert_child_tool_identity)
-        self.assertIn("probe_argv", src)
-        self.assertIn(
-            "stdin=subprocess.DEVNULL",
-            src,
-            "the probe must still deny the child a terminal (ttywedge g40w37)",
+        tree = ast.parse(
+            textwrap.dedent(inspect.getsource(driver.assert_child_tool_identity))
         )
-        tree = ast.parse(textwrap.dedent(src))
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and ast.unparse(node.func).endswith(
                 "subprocess.run"
@@ -573,6 +681,14 @@ class NestedAwLaunchSiteGuardTests(unittest.TestCase):
         actually deleted a DEVNULL site, which is the opposite of what this guard is for. The
         guarantee is intact (the same `subprocess.run` call still passes `stdin=subprocess.DEVNULL`);
         only its address moved.
+
+        KEPT (audit 2026-09-19) as the file's one remaining source-text count, and the reason is the
+        same one that keeps the AST site guard above: this asserts a property of launch sites
+        COLLECTIVELY, including sites no test drives, so a behavioral test over the launchers this file
+        can reach would be a strictly weaker claim rather than a replacement. Every launcher this file
+        CAN drive now has its DEVNULL asserted behaviorally too
+        (`LaunchersPassThePinToTheRealChild` and `TheProbeDeniesTheChildATerminal` below), so the
+        remaining value of the count is precisely the sites those cannot reach.
         """
         from agent_workflows import runner_shared
 
@@ -588,7 +704,14 @@ class NestedAwLaunchSiteGuardTests(unittest.TestCase):
             )
 
     def test_both_drivers_share_one_definition_of_the_pin(self):
-        """E-05: ONE definition, not a per-driver copy. A second copy is how the half-pin drifted."""
+        """E-05: ONE definition, not a per-driver copy. A second copy is how the half-pin drifted.
+
+        THE `assertNotIn` HALVES WERE REPLACED (audit 2026-09-19) by
+        `LaunchersPassThePinToTheRealChild::test_no_launcher_rebuilds_the_pin_for_itself`, which patches
+        the shared builder to an UNPINNED stub and asserts the pin does NOT reappear in the env the
+        child is handed. `assertNotIn("def pinned_child_env", agy_src)` could only ever say the words
+        were not typed; the replacement says a second copy is not REACHED, which is the property.
+        """
         self.assertIs(
             agy_runipd.pinned_module_argv,
             driver.pinned_module_argv,
@@ -599,32 +722,6 @@ class NestedAwLaunchSiteGuardTests(unittest.TestCase):
             driver.pinned_child_env,
             "agy must reuse oc's pinned_child_env, not reimplement it",
         )
-        agy_src = _module_source(agy_runipd)
-        self.assertNotIn(
-            "def pinned_child_env",
-            agy_src,
-            "agy must not define its own copy of the pin",
-        )
-        self.assertNotIn(
-            'merged_env["PYTHONPATH"] = f"{repo_src}',
-            agy_src,
-            "the old inert per-driver PYTHONPATH prepend must be gone, not left beside the fix",
-        )
-
-    def test_run_checked_no_longer_carries_its_own_half_pin(self):
-        """E-05: `run_checked` must consume the shared definition rather than rebuild it."""
-        for name, module in self.DRIVERS:
-            src = inspect.getsource(module.run_checked)
-            self.assertIn(
-                "pinned_child_env",
-                src,
-                f"{name}.run_checked must obtain its env from the shared definition",
-            )
-            self.assertNotIn(
-                "repo_src",
-                src,
-                f"{name}.run_checked must no longer build its own (inert) PYTHONPATH prepend",
-            )
 
     def test_both_drivers_are_fixed_symmetrically_over_existing_sites(self):
         """Symmetry WITHOUT requiring equal site counts.
@@ -639,14 +736,14 @@ class NestedAwLaunchSiteGuardTests(unittest.TestCase):
         oc's from 4 to 3 while NOT ONE launch became unpinned. THE THRESHOLDS ARE UNCHANGED at 4 and 3,
         which is what makes this a re-base and not a weakening: with the shared sites counted, a host
         that really lost a pinned launcher still fails.
+
+        THE `assertIn("af7i6p", src)` PROVENANCE PIN WAS DELETED (audit 2026-09-19). It asserted that
+        a plan id appeared SOMEWHERE in a 7000-line module, which is satisfiable by any comment and is
+        satisfied by this module's own docstrings; it constrained no behavior and would fail on a
+        comment reflow. The pin it was standing in for -- that the pin is really present and really
+        reaches the child -- is now asserted behaviorally by
+        `LaunchersPassThePinToTheRealChild` below.
         """
-        for name, module in self.DRIVERS:
-            src = _module_source(module)
-            self.assertIn(
-                "af7i6p",
-                src,
-                f"{name} must carry the lanetruth pin, traceable to plan af7i6p",
-            )
         shared_pinned = [
             s for s in _classify_sites(runner_shared) if s["kind"] in _PINNED_KINDS
         ]
@@ -721,57 +818,27 @@ class ToolIdentityAssertionTests(unittest.TestCase):
             self.assertIn("/somewhere/else/agent_workflows/__init__.py", message)
             self.assertIn("tool-identity-mismatch", events.read_text(encoding="utf-8"))
 
-    def test_mismatch_is_run_fatal_not_item_local(self):
-        """OQ-02: ToolIdentityError must NOT be downgraded by the item-local DriverError catch.
+    def test_the_mismatch_diagnostic_is_the_shipped_renderer_not_a_copy(self):
+        """The message must NAME what it compared, so an operator can act without reading code.
 
-        ToolIdentityError subclasses DriverError, so without an explicit earlier clause the
-        abort would be recorded as one item `failed-safely` while the remaining items kept
-        running under the same wrong control plane -- the misleading outcome OQ-02 rejects.
+        Kept separate from the raising test above (which is an `assertRaises`): this asserts the
+        CONTENT of the diagnostic on the SAME induced mismatch, and does so by recomputing the two
+        paths independently rather than by matching a fixed sentence.
         """
-        self.assertTrue(issubclass(driver.ToolIdentityError, driver.DriverError))
-        for name, module in (("oc_runipd", driver), ("agy_runipd", agy_runipd)):
-            src = inspect.getsource(module.run_queue)
-            self.assertIn(
-                "except ToolIdentityError",
-                src,
-                f"{name}.run_queue must catch ToolIdentityError BEFORE DriverError and re-raise",
-            )
-            fatal = src.index("except ToolIdentityError")
-            local = src.index("except DriverError")
-            self.assertLess(
-                fatal,
-                local,
-                f"{name}.run_queue must handle ToolIdentityError BEFORE the item-local "
-                "DriverError clause, or the run-fatal abort is silently downgraded",
-            )
-
-    def test_identity_check_uses_the_module_path_as_primary_signal(self):
-        """The version string is git-describe derived and can collide; the path cannot."""
-        src = inspect.getsource(driver.assert_child_tool_identity)
-        self.assertIn("child_module", src)
-        self.assertIn(
-            "expected_module",
-            src,
-            "the comparison must be on the resolved module PATH, not the version alone",
-        )
-        self.assertIn("__version__", driver._AW_PIN_PROBE)
-
-    def test_assertion_is_invoked_before_the_first_nested_lifecycle_call(self):
-        """Placement: in the per-item path, ahead of `driver_begin` (the first nested `aw`)."""
-        for name, module in (("oc_runipd", driver), ("agy_runipd", agy_runipd)):
-            src = inspect.getsource(module.execute_item)
-            if "execute_item_core" in src:
-                src = inspect.getsource(runner_shared.execute_item_core)
-            self.assertIn(
-                "assert_child_tool_identity",
-                src,
-                f"{name}.execute_item must verify tool identity before a lifecycle transition",
-            )
-            self.assertLess(
-                src.index("assert_child_tool_identity"),
-                src.index("driver_begin("),
-                f"{name}: the identity check must precede the first nested `aw` (driver_begin)",
-            )
+        with tempfile.TemporaryDirectory() as temp:
+            events = Path(temp) / "events.jsonl"
+            original = driver._AW_PIN_PROBE
+            foreign = "/somewhere/else/agent_workflows/__init__.py"
+            driver._AW_PIN_PROBE = f"print({foreign!r})\n"
+            try:
+                with self.assertRaises(driver.ToolIdentityError) as ctx:
+                    driver.assert_child_tool_identity(events, cwd=Path(temp))
+            finally:
+                driver._AW_PIN_PROBE = original
+            message = str(ctx.exception)
+            self.assertIn(_parent_module(), message, "must name what it EXPECTED")
+            self.assertIn(foreign, message, "must name what it GOT")
+            self.assertIn(temp, message, "must name the cwd it probed from")
 
 
 class TheBeginPinSurvivedTheMove(unittest.TestCase):
@@ -798,67 +865,600 @@ class TheBeginPinSurvivedTheMove(unittest.TestCase):
 
     HOSTS = (("oc_runipd", driver), ("agy_runipd", agy_runipd))
 
-    def test_each_host_binds_the_real_pin_into_the_shared_launcher(self):
-        """Half one: the wrapper must inject the genuine `pinned_child_env`, not a stub."""
+    def _injected_kwargs(self, module) -> dict:
+        """The kwargs `module.driver_begin` hands the SHARED launcher, captured from a real call."""
+        captured: dict = {}
+
+        def spy(_repo, _id6, _actor, **kwargs):
+            captured.update(kwargs)
+            return (0, "ok")
+
+        with unittest.mock.patch.object(runner_shared, "driver_begin", spy):
+            rc, _msg = module.driver_begin(
+                Path("/nonexistent"), "aaa111", "actor", isolated=True
+            )
+        self.assertEqual(
+            rc,
+            0,
+            f"{module.__name__}.driver_begin must delegate to the shared launcher; if it stopped, "
+            "the injected-pin assertions below cannot see anything",
+        )
+        return captured
+
+    def test_each_host_injects_the_ONE_shared_pin_object_into_the_shared_launcher(self):
+        """Half one, by OBJECT IDENTITY on a real call rather than by reading the call's source.
+
+        REPLACES a source search for `env_builder=pinned_child_env` (audit 2026-09-19). That search is
+        the exact shape this file's docstring records as satisfiable by a COMMENT. Here the shared
+        launcher is patched with a spy, each host's wrapper is really CALLED, and the objects it handed
+        over are compared with `assertIs` to the one shared definition. A second copy of the pin, a
+        stub, or a host that stopped injecting at all fails; a rename or reformat does not.
+        """
         for name, module in self.HOSTS:
             with self.subTest(host=name):
-                src = inspect.getsource(module.driver_begin)
-                self.assertIn(
-                    "env_builder=pinned_child_env",
-                    src,
-                    f"{name}.driver_begin must bind the shared pin as its env_builder",
-                )
-                self.assertIn(
-                    "argv_builder=pinned_module_argv",
-                    src,
-                    f"{name}.driver_begin must bind the shared pinned argv builder",
+                captured = self._injected_kwargs(module)
+                self.assertIs(
+                    captured.get("env_builder"),
+                    driver.pinned_child_env,
+                    f"{name}.driver_begin must inject the ONE shared pinned_child_env object, not "
+                    "a second copy and not a stub",
                 )
                 self.assertIs(
-                    module.pinned_child_env,
-                    driver.pinned_child_env,
-                    f"{name} must bind the ONE shared pin object",
+                    captured.get("argv_builder"),
+                    driver.pinned_module_argv,
+                    f"{name}.driver_begin must inject the ONE shared pinned_module_argv object",
+                )
+                self.assertTrue(
+                    captured.get("isolated"),
+                    f"{name}.driver_begin must pass the isolated declaration through; agy's own "
+                    "copy silently lacked it before ct4w0a",
                 )
 
     def test_the_env_handed_to_the_begin_child_actually_carries_the_pin(self):
         """Half two, and the load-bearing half: the child env really contains the pin's markers.
 
-        This is what the source search could never check. It fails if the pin stops REACHING the
-        child, which is the property the `af7i6p` lane-shadowing incident bought, whereas the search
-        failed only if a particular string stopped being typed.
+        DRIVEN THROUGH THE REAL LAUNCHER (audit 2026-09-19), where this previously rebuilt the env by
+        hand and asserted about the reconstruction. `subprocess.run` is patched, so the env asserted
+        here is byte-for-byte the mapping the shared launcher hands a child, on BOTH hosts and in both
+        isolation modes. It fails if the pin stops REACHING the child, which is the property the
+        `af7i6p` lane-shadowing incident bought.
         """
         root = driver.runner_package_root()
-        for isolated in (False, True):
-            with self.subTest(isolated=isolated):
-                env = {
-                    **driver.pinned_child_env(),
-                    **runner_shared.begin_baseline_env(isolated),
-                }
-                self.assertEqual(
-                    env.get("AW_PIN_KEEP_ROOT"),
-                    root,
-                    "the suppressing half must be told which root to keep",
-                )
-                self.assertIn(
-                    root,
-                    env.get("PYTHONPATH", "").split(os.pathsep),
-                    "the selecting half must put the runner's own root on PYTHONPATH",
-                )
+        prefix = driver.pinned_module_argv([])
+        for name, module in self.HOSTS:
+            for isolated in (False, True):
+                with self.subTest(host=name, isolated=isolated):
+                    spy = _LaunchSpy()
+                    with unittest.mock.patch.object(
+                        runner_shared.subprocess, "run", spy
+                    ):
+                        module.driver_begin(
+                            Path("/nonexistent"), "aaa111", "actor", isolated=isolated
+                        )
+                    self.assertEqual(
+                        spy.calls,
+                        1,
+                        "the shared launcher must launch exactly one child",
+                    )
+                    self.assertEqual(
+                        spy.env.get("AW_PIN_KEEP_ROOT"),
+                        root,
+                        "the suppressing half must be told which root to keep",
+                    )
+                    self.assertIn(
+                        root,
+                        spy.env.get("PYTHONPATH", "").split(os.pathsep),
+                        "the selecting half must put the runner's own root on PYTHONPATH",
+                    )
+                    assert spy.argv is not None
+                    self.assertEqual(
+                        spy.argv[: len(prefix)],
+                        prefix,
+                        "the argv prefix must be exactly what the shared pinned builder produces, "
+                        "so the SUPPRESSING half really reaches the child",
+                    )
+                    self.assertEqual(
+                        spy.kwargs.get("stdin"),
+                        subprocess.DEVNULL,
+                        "the begin child must still be denied a terminal (ttywedge g40w37)",
+                    )
 
     def test_an_unpinned_env_builder_is_detectable(self):
-        """Non-vacuity: an injected regression (a builder that drops the pin) must be visible."""
-        unpinned = dict(os.environ)
-        unpinned.pop("AW_PIN_KEEP_ROOT", None)
-        unpinned.pop("PYTHONPATH", None)
-        env = {**unpinned, **runner_shared.begin_baseline_env(False)}
+        """Non-vacuity, MEASURED THROUGH THE LAUNCHER: an injected regression must be visible.
+
+        The control is a builder that really drops the pin, handed to the SAME shared launcher the
+        test above drives, so this proves the previous assertion can fail rather than asserting about
+        a dict assembled in this file.
+        """
+        stripped = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("AW_PIN_KEEP_ROOT", "PYTHONPATH")
+        }
+        spy = _LaunchSpy()
+        with unittest.mock.patch.object(runner_shared.subprocess, "run", spy):
+            runner_shared.driver_begin(
+                Path("/nonexistent"),
+                "aaa111",
+                "actor",
+                env_builder=lambda: dict(stripped),
+                argv_builder=lambda args: ["true", *args],
+            )
         self.assertIsNone(
-            env.get("AW_PIN_KEEP_ROOT"),
+            spy.env.get("AW_PIN_KEEP_ROOT"),
             "the control must really be unpinned, or this proves nothing",
         )
         self.assertNotIn(
             driver.runner_package_root(),
-            env.get("PYTHONPATH", "").split(os.pathsep),
-            "an unpinned env must NOT satisfy the assertion the previous test makes",
+            spy.env.get("PYTHONPATH", "").split(os.pathsep),
+            "an unpinned builder must NOT satisfy the assertion the previous test makes",
         )
+
+
+class LaunchersPassThePinToTheRealChild(unittest.TestCase):
+    """The ex-source-text pins, REPLACED: each launcher's pin asserted on the child it launches.
+
+    WHAT WAS DELETED AND WHY (audit 2026-09-19). Three pins searched a function's source text:
+    `driver_finalize` had to contain `pinned_module_argv` and the literal `env=pinned_child_env()`;
+    `run_checked` had to contain `pinned_child_env` and must not contain `repo_src`; and each driver's
+    module source had to contain one marker from each half of the pin. Every one of them is the shape
+    this file's own docstring records as MEASURED to be satisfiable by a comment.
+
+    WHAT REPLACES THEM, and why it is strictly stronger. `subprocess.run` is patched at the module that
+    actually performs the launch, the launcher is CALLED, and the assertions are on what the child
+    receives: the argv is compared to what `pinned_module_argv` itself builds, and the env must carry
+    BOTH halves of the pin (`AW_PIN_KEEP_ROOT` and the runner root on `PYTHONPATH`). A comment cannot
+    put a key in an env dict, and a rename cannot break these.
+
+    THE LAUNCHER IS A ROW AND THE HOST IS A COLUMN, because every one of these was one call and two
+    assertions differing only in which function was launched. `finalize_orchestrator` is `oc`-only by
+    design (see `test_both_drivers_are_fixed_symmetrically_over_existing_sites`), which is why the row
+    carries the set of hosts that must have it rather than a separate class.
+    """
+
+    #: The `expect_pinned_argv` column's two values. A nested `aw` MUST carry the suppressing
+    #: bootstrap in its argv; a launcher whose child is plain `git` legitimately does not, and
+    #: collapsing the distinction would let a nested `aw` pass as "well, it launched something".
+    NESTED_AW = "argv must be the pinned bootstrap"
+    PLAIN_GIT = "argv is a plain git call, no bootstrap expected"
+
+    #: (launcher name, hosts that must expose it, the module whose `subprocess` performs the launch,
+    #: a callable driving it, the argv expectation, why this row exists)
+    LAUNCHERS = (
+        (
+            "driver_finalize",
+            ("oc_runipd", "agy_runipd"),
+            "driver",
+            lambda module, repo: module.driver_finalize(
+                repo, repo / "p.ipd.md", "aaa111", "actor", "message"
+            ),
+            NESTED_AW,
+            (
+                "THE PRIMARY LANE-SHADOWED SITE, and the whole reason `af7i6p` exists: its `repo` "
+                "argument IS the lane worktree, so an unpinned launch here had the lane's own "
+                "unreviewed `agent_workflows` perform the very transition meant to gate it. It is also "
+                "the site whose source-text pin was MEASURED to be satisfied by a comment, since the "
+                "real code spells the env `{**pinned_child_env(), **...}` and never as the "
+                "searched-for literal"
+            ),
+        ),
+        (
+            "run_checked",
+            ("oc_runipd", "agy_runipd"),
+            "shared",
+            lambda module, repo: module.run_checked(["git", "status"], cwd=repo),
+            PLAIN_GIT,
+            (
+                "THE HIGH-TRAFFIC LAUNCHER (13 call sites in oc alone) and the one that USED to build "
+                "its own PYTHONPATH prepend, which read as a pin and was measurably INERT because the "
+                "cwd entry precedes PYTHONPATH in sys.path. It is driven here with a git argv, which "
+                "is why its argv column is PLAIN_GIT: this row's claim is about the ENV it supplies "
+                "to whatever it launches, since the argv is the caller's"
+            ),
+        ),
+        (
+            "finalize_orchestrator",
+            ("oc_runipd",),
+            "shared",
+            lambda module, repo: module.finalize_orchestrator(
+                repo, "aaa111", "message"
+            ),
+            NESTED_AW,
+            (
+                "THE oc-ONLY ASYMMETRY, pinned so it is covered rather than exempted. It builds a "
+                "nested-`aw` argv and launches it THROUGH `run_checked`, so its env pin is INHERITED "
+                "while its argv pin is its own -- which is exactly why it needs a row: a rewrite that "
+                "gave it a bare `-m agent_workflows` argv would lose the suppressing half with no "
+                "count changing and no other test noticing"
+            ),
+        ),
+    )
+
+    HOSTS: ClassVar[dict] = {"oc_runipd": driver, "agy_runipd": agy_runipd}
+
+    def _drive(self, module, launcher_owner, drive):
+        """Drive one launcher with `subprocess.run` patched at the module that performs the launch."""
+        spy = _LaunchSpy()
+        launch_module = module if launcher_owner == "driver" else runner_shared
+        with (
+            tempfile.TemporaryDirectory() as temp,
+            unittest.mock.patch.object(
+                module, "_compute_scope_reconciliation", lambda _r, _p: ({}, {})
+            ),
+            unittest.mock.patch.object(launch_module.subprocess, "run", spy),
+        ):
+            drive(module, Path(temp))
+        return spy
+
+    def test_every_launcher_hands_its_child_a_pinned_argv_and_a_pinned_env(self):
+        root = driver.runner_package_root()
+        prefix = driver.pinned_module_argv([])
+        wrong: list[str] = []
+        driven = 0
+        for launcher, hosts, owner, drive, argv_rule, why in self.LAUNCHERS:
+            for host in hosts:
+                module = self.HOSTS[host]
+                problems: list[str] = []
+                if not hasattr(module, launcher):
+                    problems.append(
+                        "the host does not expose this launcher at all, so its pin is unassertable; "
+                        "if it legitimately moved, move the row's owner column rather than deleting "
+                        "the row"
+                    )
+                else:
+                    spy = self._drive(module, owner, drive)
+                    if spy.calls == 0:
+                        problems.append(
+                            "the launcher never reached `subprocess.run`, so nothing was launched "
+                            "and the pin cannot be observed; if it now launches through a different "
+                            "module, update this row's owner column"
+                        )
+                    else:
+                        driven += 1
+                        if spy.env.get("AW_PIN_KEEP_ROOT") != root:
+                            problems.append(
+                                "the SUPPRESSING half is absent: the child was not told which root "
+                                f"to keep (AW_PIN_KEEP_ROOT={spy.env.get('AW_PIN_KEEP_ROOT')!r}, "
+                                f"expected {root!r}), so the bootstrap strips the runner's own root "
+                                "along with the lane's cwd"
+                            )
+                        if root not in spy.env.get("PYTHONPATH", "").split(os.pathsep):
+                            problems.append(
+                                "the SELECTING half is absent: the runner's own package root is not "
+                                f"on the child's PYTHONPATH ({spy.env.get('PYTHONPATH')!r}), so the "
+                                "child resolves `agent_workflows` from the default path, which "
+                                "equals the runner's own copy ONLY on an editable install"
+                            )
+                        if spy.kwargs.get("stdin") is not subprocess.DEVNULL:
+                            problems.append(
+                                "the child was not denied a terminal "
+                                f"(stdin={spy.kwargs.get('stdin')!r}); ttywedge g40w37 measured a "
+                                "nested `aw` wedging 1h49m on a prompt nobody could answer"
+                            )
+                        argv = spy.argv or []
+                        if (
+                            argv_rule == self.NESTED_AW
+                            and argv[: len(prefix)] != prefix
+                        ):
+                            problems.append(
+                                "the argv is NOT what `pinned_module_argv` builds, so this nested "
+                                f"`aw` has no suppressing half: got {argv[:3]!r}, expected the "
+                                f"prefix {prefix[:3]!r}"
+                            )
+                        if argv_rule == self.PLAIN_GIT and (
+                            not argv or str(argv[0]) != "git"
+                        ):
+                            problems.append(
+                                f"expected this row to launch a plain git child; got {argv[:3]!r}. "
+                                "If the launcher now builds a nested `aw` itself, move the row to "
+                                "NESTED_AW rather than relaxing it"
+                            )
+                if problems:
+                    wrong.append(
+                        f"  {launcher} on {host} ({argv_rule}):\n"
+                        + "".join(f"    - {p}\n" for p in problems)
+                        + f"    this row exists because: {why}"
+                    )
+        self.assertEqual(
+            wrong,
+            [],
+            f"{len(wrong)} launcher/host pair(s) ({driven} driven) do not hand their child the "
+            "af7i6p tooling pin. THE PIN IS TWO HALVES AND NEITHER ALONE WORKS (measured with three "
+            "distinguishable packages): suppression alone selects the DEFAULT-PATH copy, which equals "
+            "the runner's own only on an editable install, and selection alone is INERT because the "
+            "cwd entry precedes PYTHONPATH. Read the grouping: a SUPPRESSING-half failure on EVERY row "
+            "means `pinned_child_env` stopped setting AW_PIN_KEEP_ROOT, so one shared definition broke "
+            "for everyone; failures on ONE row mean that launcher alone stopped going through the "
+            "shared builders, which is the drift a per-site fix causes. FIX: route the launch through "
+            "`pinned_module_argv` + `pinned_child_env` (or through `run_checked`, which binds the env "
+            "half), never by editing this table.\n" + "\n".join(wrong),
+        )
+
+    def test_no_launcher_rebuilds_the_pin_for_itself(self):
+        """NON-VACUITY, and the replacement for `assertNotIn("repo_src", src)`.
+
+        The shared builder is patched to an UNPINNED stub. If any launcher still carried its own
+        PYTHONPATH prepend beside the shared one (the measured F6 half-pin, which read as a fix and was
+        inert), the pin would REAPPEAR in the child env despite the stub. A text search for `repo_src`
+        could only ever say one particular variable name was not typed.
+        """
+        for host, module in self.HOSTS.items():
+            with self.subTest(host=host):
+                spy = _LaunchSpy()
+                with (
+                    unittest.mock.patch.object(
+                        module,
+                        "pinned_child_env",
+                        lambda env=None: {"PATH": "/usr/bin"},
+                    ),
+                    unittest.mock.patch.object(runner_shared.subprocess, "run", spy),
+                ):
+                    module.run_checked(["git", "status"], cwd=Path("/"))
+                self.assertEqual(
+                    spy.env,
+                    {"PATH": "/usr/bin"},
+                    f"{host}.run_checked must take its env ENTIRELY from the shared builder; an "
+                    "extra key here means it rebuilt part of the pin itself, which is the F6 "
+                    "half-pin that read as a fix and was measurably inert",
+                )
+
+
+class TheProbeDeniesTheChildATerminal(unittest.TestCase):
+    """The E-04 identity probe's own launch contract, asserted on the launch rather than in source.
+
+    REPLACES the `assertIn("stdin=subprocess.DEVNULL", src)` half of the probe-naming guard and the
+    `assertIn("child_module"/"expected_module", src)` pins (audit 2026-09-19). Each was a substring
+    search over one function; a comment satisfies all three. The NAME half of the probe guard stays an
+    AST check, because the property there genuinely IS a parameter name (see that test).
+    """
+
+    def setUp(self) -> None:
+        driver._TOOL_IDENTITY_VERIFIED.clear()
+        self.addCleanup(driver._TOOL_IDENTITY_VERIFIED.clear)
+
+    def test_the_probe_is_launched_pinned_with_no_terminal(self):
+        spy = _LaunchSpy(stdout=_parent_module() + "\n1.2.3\n")
+        with (
+            tempfile.TemporaryDirectory() as temp,
+            unittest.mock.patch.object(driver.subprocess, "run", spy),
+        ):
+            record = driver.assert_child_tool_identity(
+                Path(temp) / "events.jsonl", cwd=Path(temp)
+            )
+        self.assertEqual(
+            spy.kwargs.get("stdin"),
+            subprocess.DEVNULL,
+            "the probe must deny the child a terminal (ttywedge g40w37)",
+        )
+        self.assertEqual(
+            spy.env.get("AW_PIN_KEEP_ROOT"),
+            driver.runner_package_root(),
+            "the probe must run under the SAME pin a real nested `aw` gets, or it measures a "
+            "different child than the one the runner will launch",
+        )
+        assert spy.argv is not None
+        self.assertIn(
+            "-c", spy.argv, "the probe launches the suppressing bootstrap via -c"
+        )
+        self.assertEqual(record["event"], "tool-identity-verified")
+
+    def test_the_PATH_is_the_primary_signal_and_the_version_is_only_context(self):
+        """The version is git-describe derived and can COLLIDE; the path cannot.
+
+        Driven in BOTH directions on the same function, which is what makes the claim meaningful: a
+        matching path with a wildly different version PASSES, and a matching version with a different
+        path RAISES. The source pins this replaces (`assertIn("child_module", src)`) could not tell
+        those two cases apart at all.
+        """
+        cases = (
+            (
+                "path matches, version differs",
+                _parent_module(),
+                "WILDLY-DIFFERENT-VERSION",
+                False,
+                (
+                    "THE PATH IS PRIMARY: the version comes from `git describe`, so two trees on the "
+                    "same commit differing in uncommitted content can report the same one. A version "
+                    "mismatch must NOT abort a run whose child really is the runner's own copy"
+                ),
+            ),
+            (
+                "path differs, version matches",
+                "/elsewhere/agent_workflows/__init__.py",
+                "1.2.3",
+                True,
+                (
+                    "THE OTHER DIRECTION, and the one that catches the real defect: a lane's copy on "
+                    "the same commit reports an identical version, so a version-only comparison would "
+                    "have passed the very hijack `af7i6p` exists to stop"
+                ),
+            ),
+        )
+        wrong: list[str] = []
+        for case, child_path, child_version, expect_raise, why in cases:
+            driver._TOOL_IDENTITY_VERIFIED.clear()
+            spy = _LaunchSpy(stdout=f"{child_path}\n{child_version}\n")
+            raised = None
+            record = None
+            with (
+                tempfile.TemporaryDirectory() as temp,
+                unittest.mock.patch.object(driver.subprocess, "run", spy),
+            ):
+                try:
+                    record = driver.assert_child_tool_identity(
+                        Path(temp) / "events.jsonl", cwd=Path(temp)
+                    )
+                except driver.ToolIdentityError as exc:
+                    raised = exc
+            problems: list[str] = []
+            if expect_raise and raised is None:
+                problems.append(
+                    "expected ToolIdentityError, got a PASS; the identity check is not comparing the "
+                    "module PATH at all"
+                )
+            if not expect_raise and raised is not None:
+                problems.append(
+                    f"expected a PASS, got ToolIdentityError: {str(raised)[:200]!r}; the check has "
+                    "started treating the version as authoritative, which aborts runs spuriously"
+                )
+            if not expect_raise and record is not None:
+                if record.get("child_version") != child_version:
+                    problems.append(
+                        f"the version must still be RECORDED as context; got "
+                        f"{record.get('child_version')!r}"
+                    )
+                if record.get("expected_module") != _parent_module():
+                    problems.append(
+                        f"the record must name what it expected; got "
+                        f"{record.get('expected_module')!r}"
+                    )
+            if problems:
+                wrong.append(
+                    f"  {case}:\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"{len(wrong)} of {len(cases)} identity comparisons are wrong. BOTH ROWS SHARE THIS TABLE "
+            "DELIBERATELY: a check that raised on everything satisfies the second row while making "
+            "every run abort, and one that raised on nothing satisfies the first while passing the "
+            "hijack. FIX: compare the resolved module PATH and record the version as context; never "
+            "compare the version.\n" + "\n".join(wrong),
+        )
+
+
+class TheIdentityCheckPrecedesTheFirstNestedAw(unittest.TestCase):
+    """The E-04 placement claim, proved by CALL ORDER on a real turn rather than by byte offsets.
+
+    REPLACES `test_assertion_is_invoked_before_the_first_nested_lifecycle_call`, which compared
+    `src.index("assert_child_tool_identity")` against `src.index("driver_begin(")` inside
+    `execute_item`. That pin had already been patched once to chase the `execute_item_core` refactor,
+    and it cannot distinguish a mention in a comment from a call.
+
+    HOW THIS IS STRONGER: both collaborators are patched with spies that APPEND TO ONE LIST, and a real
+    `execute_item` is driven on a fixture repository, so the recorded order is the order the shipped
+    code actually executes. A reordering that put `driver_begin` first fails; a rename, a reflow, or
+    another relocation into a shared core does not.
+
+    HONEST LIMIT: this observes the ONE path the fixture drives (a self-finalizing execute turn in a
+    shared tree). The AST ordering guard in `tests/test_rununify_execute_item_gates.py` covers paths no
+    test drives, which is why that one is not redundant with this one.
+    """
+
+    DRIVERS = (
+        ("oc_runipd", driver, "run_opencode"),
+        ("agy_runipd", agy_runipd, "run_agy_turn"),
+    )
+
+    _PLAN = """# IPD: identity order probe
+
+- Date: 2026-09-19
+- Kind: child
+- Concern: probe.
+- Scope: probe.
+- Scope-Paths: src/
+- Item-Dependencies: none
+- Status: approved
+- Set: probe
+- Order: 1
+- Highest E allocated: 01
+- Author: test
+- Id: idp001
+
+## Workflow history
+- 2026-09-19 approved (test): probe.
+"""
+
+    def _git(self, repo: Path, *args: str) -> None:
+        subprocess.run(
+            ["git", *args], cwd=repo, text=True, capture_output=True, check=True
+        )
+
+    def _fixture(self, tmp: Path):
+        repo = tmp / "repo"
+        repo.mkdir(parents=True)
+        self._git(repo, "init", "-q")
+        self._git(repo, "config", "user.email", "t@example.invalid")
+        self._git(repo, "config", "user.name", "t")
+        (repo / ".gitignore").write_text(
+            ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
+        )
+        (repo / "tracked.txt").write_text("v1\n", encoding="utf-8")
+        pending = repo / ".aw" / "records" / "plans" / "pending"
+        pending.mkdir(parents=True)
+        plan = pending / "20260919-probe-01-idp001-probe.ipd.md"
+        plan.write_text(self._PLAN, encoding="utf-8")
+        self._git(repo, "add", "-A")
+        self._git(repo, "commit", "-qm", "fixture")
+        run_dir = repo / ".aw" / "records" / "runs" / "run-idp"
+        (run_dir / "outcomes").mkdir(parents=True)
+        (run_dir / "prompts").mkdir(parents=True)
+        item = {
+            "position": 1,
+            "id6": "idp001",
+            "setid": "probe",
+            "status": "queued",
+            "configured_file": str(plan.relative_to(repo)),
+            "action": "execute",
+        }
+        state = {
+            "run_id": "run-idp",
+            "created_at": "2026-09-19T00:00:00+00:00",
+            "updated_at": "2026-09-19T00:00:00+00:00",
+            "selectors": ["probe"],
+            "repo": str(repo),
+            "queue": [item],
+            "set_sessions": {},
+            "session_id": None,
+            "options": {
+                "opencode": "/bin/true",
+                "agy": "/bin/true",
+                "model": "probe",
+                "self_finalize": True,
+                "no_audit": True,
+                "isolate_worktree": False,
+            },
+        }
+        return run_dir, state, item
+
+    def test_tool_identity_is_verified_before_the_first_nested_aw_on_both_hosts(self):
+        for name, module, spawn in self.DRIVERS:
+            with self.subTest(host=name), tempfile.TemporaryDirectory() as tmp:
+                run_dir, state, item = self._fixture(Path(tmp))
+                rec = _CallRecorder()
+                with (
+                    unittest.mock.patch.object(
+                        module,
+                        spawn,
+                        rec.stub("spawn", (0, "ses", str(run_dir / "log"), ["probe"])),
+                    ),
+                    unittest.mock.patch.object(
+                        module, "assert_child_tool_identity", rec.stub("identity")
+                    ),
+                    unittest.mock.patch.object(
+                        module, "driver_begin", rec.stub("begin", (0, "ok"))
+                    ),
+                    unittest.mock.patch.object(
+                        module, "driver_finalize", lambda *a, **k: (0, "ok")
+                    ),
+                ):
+                    module.execute_item(run_dir, state, item, recovery=False)
+                order = rec.order
+                self.assertIn(
+                    "identity",
+                    order,
+                    f"{name}: the identity check was never invoked on a real execute turn, so no "
+                    "nested `aw` this run performs was ever verified",
+                )
+                self.assertIn("begin", order, f"{name}: driver_begin was never invoked")
+                self.assertLess(
+                    order.index("identity"),
+                    order.index("begin"),
+                    f"{name}: tool identity must be verified BEFORE the first nested `aw` "
+                    f"(driver_begin); observed call order was {order}",
+                )
 
 
 if __name__ == "__main__":

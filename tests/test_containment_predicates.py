@@ -29,6 +29,32 @@ mechanism in a COPY (never in the product tree) and proves the corresponding che
 verification that cannot fail proves nothing. The plan requires this for the fail-loud check in
 particular: a check that merely calls every predicate and reports success is indistinguishable from
 one that would happily accept a softened stub.
+
+WHAT WAS TABULATED. `check_permission_deadline`'s cases were five tests over ONE pure function that
+differed only in the event stream and the deadline, so they are one table whose rows carry
+(events, deadline, expected violations). The VIOLATION rows and the CLEAN rows are in the SAME table
+because each direction is exactly what falsifies the other: a predicate that reported every stream
+would satisfy all four violation rows, and one that reported none would satisfy all five clean rows.
+
+THE TWO SOURCE-TEXT PINS THIS FILE CARRIED ARE GONE, and the reasoning is worth keeping because it
+sits oddly beside the AST checks that remain. An `ast.parse` check is NOT a text grep and stays (a
+comment cannot add a `Return` node or a second `FunctionDef`); but two assertions here searched source
+TEXT for the substring `_unimplemented`, which any comment or docstring mentioning the helper
+satisfies while the body returns a permissive default. Both are replaced by behavior:
+
+  * `test_no_predicate_owned_by_another_phase_was_modified` searched each unowned predicate's source
+    for `_unimplemented`. DELETED: `FailLoudTests.test_each_unowned_predicate_raises_when_called`
+    already CALLS every one of them and requires `NotImplementedError`, which is the property that
+    matters and which no comment can fake, and
+    `test_no_unowned_predicate_returns_a_permissive_value` adds the AST half (no valued `Return`
+    anywhere in the body, so a conditional early return the representative arguments miss is still
+    caught). The deleted test also claimed to detect a MODIFICATION, which git already records
+    exactly and a substring search records badly.
+  * `test_the_unwired_predicate_nevertheless_has_a_real_body` asserted
+    `assertNotIn("_unimplemented", inspect.getsource(check_scope))` beside a real call. The call is
+    kept and strengthened; the text half is replaced by the positive property a real body has and a
+    stub cannot: `check_scope` DELEGATES to `ipd_lifecycle._scope_match`, proved by spying on the
+    shared matcher and by patching it to a sentinel verdict that must reach the result.
 """
 
 from __future__ import annotations
@@ -38,6 +64,7 @@ import inspect
 import unittest
 from functools import cache
 from pathlib import Path
+from unittest import mock
 
 from agent_workflows import ipd_lifecycle, lane_containment, wtiso_gate
 
@@ -369,7 +396,26 @@ class SingleDefinitionTests(unittest.TestCase):
 
 
 class ImplementedPredicateTests(unittest.TestCase):
-    """R6.1/R6.3 body half: each predicate this Set owns has a real body and unit coverage."""
+    """R6.1/R6.3 body half: each predicate this Set owns has a real body and unit coverage.
+
+    ONE SOURCE-TEXT PIN WAS DELETED FROM HERE, not replaced.
+    `test_no_predicate_owned_by_another_phase_was_modified` searched each `NOT_OWNED` predicate's
+    source for the substring `_unimplemented` and called that "was not modified". It proved nothing a
+    behavioral test does not already prove better, and it claimed something git records exactly:
+
+      * `FailLoudTests.test_each_unowned_predicate_raises_when_called` CALLS every `NOT_OWNED`
+        predicate and requires `NotImplementedError`, which is the property R6.2 actually states. A
+        substring search is satisfied by a docstring naming the helper while the body returns `[]`,
+        which is the exact permissive default R6.2 forbids.
+      * `FailLoudTests.test_each_unowned_predicate_names_a_real_retired_owner` additionally requires
+        the raised message to name the owning phase AND its RETIRED disposition.
+      * `FailLoudTests.test_no_unowned_predicate_returns_a_permissive_value` covers the case a call
+        with representative arguments could miss, via AST: no valued `Return` node anywhere in the
+        body, plus at least one `Raise`. That is a structural check a comment cannot satisfy, which is
+        why it is kept while the text search is not.
+      * `WiringBoundaryTests.test_the_unowned_predicates_also_have_no_product_caller` covers the "not
+        absorbed into product code" half structurally.
+    """
 
     def test_each_implemented_predicate_returns_its_documented_shape(self):
         for name, args, expected in IMPLEMENTED:
@@ -404,124 +450,168 @@ class ImplementedPredicateTests(unittest.TestCase):
             lane_containment.REJECT_MALFORMED_TOKEN,
         )
 
-    def test_permission_deadline_catches_a_nested_child_session_ask(self):
-        """The qyaime shape: the ask is on a CHILD session, so a root-only parser would miss it."""
-
-        events = [
-            {"type": "session.start", "sessionID": "root-1", "time": 0.0},
-            {
-                "type": "session.start",
-                "sessionID": "child-9",
-                "parentID": "root-1",
-                "time": 1.0,
-            },
-            {
-                "type": "permission.ask",
-                "sessionID": "child-9",
-                "permission": "external_directory",
-                "time": 2.0,
-            },
-            {"type": "keepalive", "sessionID": "root-1", "time": 90.0},
-        ]
-        self.assertEqual(
-            wtiso_gate.check_permission_deadline(events, deadline_seconds=5.0),
-            [wtiso_gate.AW_PERMISSION_DEADLINE],
-        )
-
-    def test_permission_deadline_is_cleared_only_by_an_answer_on_the_same_session(self):
-        ask = {"type": "permission.ask", "sessionID": "child-9", "time": 1.0}
-        tail = {"type": "keepalive", "sessionID": "root-1", "time": 99.0}
-
-        answered_same = [
-            ask,
-            {"type": "permission.answer", "sessionID": "child-9", "time": 2.0},
-            tail,
-        ]
-        self.assertEqual(
-            wtiso_gate.check_permission_deadline(answered_same, deadline_seconds=5.0),
+    #: (case, the recorded event stream, the deadline in seconds, the violations expected,
+    #:  why this row exists)
+    #:
+    #: ONE table replaces four tests over ONE pure function. Every one built an event list and asked
+    #: the same question, so the stream and the deadline are the only columns. The streams are typed
+    #: LOOSELY on purpose (one row carries a bare string and a `None` among its events): a driver
+    #: hands this whatever it parsed from a child's stream, so tolerating a malformed entry is the
+    #: requirement and a well-typed-only table would never reach that path.
+    DEADLINES: tuple = (
+        (
+            "an ask on a NESTED CHILD session, never answered",
+            [
+                {"type": "session.start", "sessionID": "root-1", "time": 0.0},
+                {
+                    "type": "session.start",
+                    "sessionID": "child-9",
+                    "parentID": "root-1",
+                    "time": 1.0,
+                },
+                {
+                    "type": "permission.ask",
+                    "sessionID": "child-9",
+                    "permission": "external_directory",
+                    "time": 2.0,
+                },
+                {"type": "keepalive", "sessionID": "root-1", "time": 90.0},
+            ],
+            5.0,
+            True,
+            "THE MEASURED qyaime SHAPE, and the reason the predicate is session-agnostic: the ask "
+            "arrived on a CHILD session, so a parser that compared sessions to a ROOT id would miss "
+            "the only deadlock this has ever been seen to catch",
+        ),
+        (
+            "an ask answered on the SAME session",
+            [
+                {"type": "permission.ask", "sessionID": "child-9", "time": 1.0},
+                {"type": "permission.answer", "sessionID": "child-9", "time": 2.0},
+                {"type": "keepalive", "sessionID": "root-1", "time": 99.0},
+            ],
+            5.0,
+            False,
+            "THE ANSWER THAT DOES CLEAR AN ASK. Read against the next row, which is identical but "
+            "for the answer's session: that pairing IS the per-session matching rule, and neither "
+            "row states it alone",
+        ),
+        (
+            "an ask answered on a DIFFERENT (root) session",
+            [
+                {"type": "permission.ask", "sessionID": "child-9", "time": 1.0},
+                {"type": "permission.answer", "sessionID": "root-1", "time": 2.0},
+                {"type": "keepalive", "sessionID": "root-1", "time": 99.0},
+            ],
+            5.0,
+            True,
+            "A ROOT ANSWER MUST NOT CLEAR A CHILD'S ASK, or unrelated root-session traffic masks the "
+            "deadlock. Differs from the row above ONLY in the answer's `sessionID`",
+        ),
+        (
+            "progress traffic on the asking session, but no answer",
+            [
+                {"type": "permission.ask", "sessionID": "child-9", "time": 1.0},
+                {"type": "keepalive", "sessionID": "child-9", "time": 50.0},
+                {"type": "message.part", "sessionID": "child-9", "time": 99.0},
+            ],
+            5.0,
+            True,
+            "PROGRESS IS NOT AN ANSWER, and this is the whole shape of the deadlock: a session that "
+            "keeps emitting while blocked, which is exactly why the coarse no-output stall watchdog "
+            "could not see it. DELIBERATELY the opposite of "
+            "`lane_containment.TurnBoundWatch.note_progress`, where progress DOES disarm the live "
+            "bound: a recorded stream can be judged after the fact, a live watch cannot see the "
+            "future and accepts the false negative rather than killing a healthy turn",
+        ),
+        (
+            "deadline 0 over a stream that would otherwise violate",
+            [
+                {"type": "permission.ask", "sessionID": "c", "time": 1.0},
+                {"type": "keepalive", "sessionID": "c", "time": 999.0},
+            ],
+            0.0,
+            False,
+            "`0` DISABLES THE CHECK, matching `PERMISSION_TIMEOUT`'s convention. The stream is the "
+            "junk row's violating one, so this row isolates the deadline and nothing else",
+        ),
+        (
+            "an ask still within the deadline",
+            [
+                {"type": "permission.ask", "sessionID": "c", "time": 1.0},
+                {"type": "keepalive", "sessionID": "c", "time": 2.0},
+            ],
+            5.0,
+            False,
+            "AN OPEN ASK IS NOT YET A VIOLATION. Without this row the predicate could report every "
+            "unanswered ask regardless of elapsed time, and a false positive kills a healthy turn "
+            "(R4.4b)",
+        ),
+        (
+            "an ask with no timestamp at all",
+            [{"type": "permission.ask", "sessionID": "c"}],
+            5.0,
+            False,
+            "AN UNDATABLE ASK CANNOT BE SHOWN TO HAVE EXCEEDED ANYTHING, so it fails safe in the "
+            "PERMISSIVE direction deliberately. Guessing `now` here would invent violations from "
+            "incomplete streams",
+        ),
+        (
+            "an empty stream",
             [],
-        )
+            5.0,
+            False,
+            "NEVER RAISES ON NOTHING. A driver may call this before any event arrived",
+        ),
+        (
+            "off-type junk entries beside a real unanswered ask",
+            [
+                "garbage",
+                None,
+                {"type": "permission.ask", "sessionID": "c", "time": 1.0},
+                {"type": "keepalive", "sessionID": "c", "time": 999.0},
+            ],
+            5.0,
+            True,
+            "A MALFORMED ENTRY IS SKIPPED, NOT FATAL, AND DOES NOT HIDE THE REAL ASK. This row is "
+            "the strongest of the nine: it demands robustness AND detection together, so a body that "
+            "bailed out on the first unparseable entry would go green on tolerance while silently "
+            "losing the violation",
+        ),
+    )
 
-        # An answer on the ROOT session must NOT clear a CHILD's ask, or the deadlock this predicate
-        # exists to detect would be masked by unrelated root-session traffic.
-        answered_other = [
-            ask,
-            {"type": "permission.answer", "sessionID": "root-1", "time": 2.0},
-            tail,
-        ]
-        self.assertEqual(
-            wtiso_gate.check_permission_deadline(answered_other, deadline_seconds=5.0),
-            [wtiso_gate.AW_PERMISSION_DEADLINE],
-        )
-
-    def test_permission_deadline_does_not_treat_progress_as_an_answer(self):
-        """Keepalive traffic must not clear an ask: a wedged session keeps talking.
-
-        This is the documented and DELIBERATE difference from
-        `lane_containment.TurnBoundWatch.note_progress`, where progress DOES disarm the live bound.
-        A recorded stream can be judged after the fact; a live watch cannot see the future and
-        accepts the false negative rather than killing a healthy turn.
-        """
-
-        events = [
-            {"type": "permission.ask", "sessionID": "child-9", "time": 1.0},
-            {"type": "keepalive", "sessionID": "child-9", "time": 50.0},
-            {"type": "message.part", "sessionID": "child-9", "time": 99.0},
-        ]
-        self.assertEqual(
-            wtiso_gate.check_permission_deadline(events, deadline_seconds=5.0),
-            [wtiso_gate.AW_PERMISSION_DEADLINE],
-        )
-
-    def test_permission_deadline_is_fail_safe_on_thin_or_odd_input(self):
-        """Never raises and never guesses; a false positive would kill a healthy turn (R4.4b)."""
-
-        ask = {"type": "permission.ask", "sessionID": "c", "time": 1.0}
-        late = {"type": "keepalive", "sessionID": "c", "time": 999.0}
-
-        # `0` disables the check entirely, matching PERMISSION_TIMEOUT's convention.
-        self.assertEqual(
-            wtiso_gate.check_permission_deadline([ask, late], deadline_seconds=0.0), []
-        )
-        # Within the deadline is not a violation.
-        self.assertEqual(
-            wtiso_gate.check_permission_deadline(
-                [ask, {"type": "keepalive", "sessionID": "c", "time": 2.0}],
-                deadline_seconds=5.0,
-            ),
-            [],
-        )
-        # An undatable ask cannot be shown to have exceeded anything.
-        self.assertEqual(
-            wtiso_gate.check_permission_deadline(
-                [{"type": "permission.ask", "sessionID": "c"}], deadline_seconds=5.0
-            ),
-            [],
-        )
-        # Empty and junk input are tolerated rather than raising. The junk is DELIBERATELY off-type
-        # (a bare string and a `None` among the events): a driver hands this whatever it parsed from a
-        # child's stream, so robustness against a malformed entry is the requirement, not a courtesy.
-        # Typed loosely on purpose; a well-typed-only test would never exercise this path.
-        self.assertEqual(
-            wtiso_gate.check_permission_deadline([], deadline_seconds=5.0), []
-        )
-        junk: list = ["garbage", None, ask, late]
-        self.assertEqual(
-            wtiso_gate.check_permission_deadline(junk, deadline_seconds=5.0),
-            [wtiso_gate.AW_PERMISSION_DEADLINE],
-        )
-
-    def test_no_predicate_owned_by_another_phase_was_modified(self):
-        """R6.3: implementing a body this Set does not own would be taking another phase's work."""
-
-        for name, _args in NOT_OWNED:
-            with self.subTest(predicate=name):
-                source = inspect.getsource(getattr(wtiso_gate, name))
-                self.assertIn(
-                    "_unimplemented",
-                    source,
-                    "{0} is not owned by this Set and must still raise".format(name),
+    def test_the_permission_deadline_verdict_for_each_recorded_stream(self):
+        wrong = []
+        for case, events, deadline, want_violation, why in self.DEADLINES:
+            expected = [wtiso_gate.AW_PERMISSION_DEADLINE] if want_violation else []
+            try:
+                got = wtiso_gate.check_permission_deadline(
+                    events, deadline_seconds=deadline
                 )
+            except Exception as exc:  # noqa: BLE001 - raising IS the failure being reported
+                got = "RAISED {0}: {1}".format(type(exc).__name__, exc)
+            if got != expected:
+                wrong.append(
+                    "  {0} (deadline={1}):\n    - expected {2!r}, got {3!r}\n"
+                    "    this row exists because: {4}".format(
+                        case, deadline, expected, got, why
+                    )
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            "`check_permission_deadline` judged {0} of {1} recorded streams wrongly. READ THE "
+            "GROUPING: if all four VIOLATION rows went clean the predicate is inert and a wedged "
+            "lane reports healthy; if all five CLEAN rows started firing it invents violations and a "
+            "false positive kills a healthy turn (R4.4b), which is why both directions share this "
+            "table. The two `answered` rows differ ONLY in the answer's `sessionID`, so if they move "
+            "together the per-session matching rule is gone rather than the answer detection. A "
+            "`RAISED` result is always a defect: a driver hands this whatever it parsed from a "
+            "child's stream. FIX: this is a PURE predicate over a FINISHED stream and is NOT a live "
+            "bound (see its HONEST LIMIT docstring); do not make it consult the wall clock to pass a "
+            "row.\n".format(len(wrong), len(self.DEADLINES))
+            + "\n".join(wrong),
+        )
 
 
 class FailLoudTests(unittest.TestCase):
@@ -633,12 +723,59 @@ class WiringBoundaryTests(unittest.TestCase):
         )
 
     def test_the_unwired_predicate_nevertheless_has_a_real_body(self):
-        """The other half of the split: not-wired must not be mistaken for not-implemented."""
+        """The other half of the split: not-wired must not be mistaken for not-implemented.
 
+        REPLACES A SOURCE-TEXT PIN. The second half of this test read
+        `assertNotIn("_unimplemented", inspect.getsource(check_scope))`. That is a change-detector in
+        both directions: a body that DID raise would still pass if the raise were spelled directly
+        rather than through the helper, and a docstring merely MENTIONING `_unimplemented` (to explain
+        why this predicate does not use it, which is exactly the sort of note this module carries)
+        would fail it while the code is perfectly correct. What "has a real body" means behaviorally
+        is asserted instead: the predicate RETURNS a verdict rather than raising, it DISCRIMINATES
+        (an in-scope path yields nothing, an out-of-scope path yields a violation), and the verdict is
+        computed by the ONE shared matcher rather than by a local restatement of the grammar.
+        """
+
+        # 1. It RETURNS rather than raising, and it discriminates. A stub cannot do both.
         self.assertEqual(
             wtiso_gate.check_scope(["a.py"], ["b.py"]), [wtiso_gate.AW_GATE_SCOPE]
         )
-        self.assertNotIn("_unimplemented", inspect.getsource(wtiso_gate.check_scope))
+        self.assertEqual(wtiso_gate.check_scope(["b.py"], ["b.py"]), [])
+        self.assertEqual(
+            wtiso_gate.check_scope(["a.py", "b.py", "c.py"], ["b.py"]),
+            [wtiso_gate.AW_GATE_SCOPE, wtiso_gate.AW_GATE_SCOPE],
+            "one violation PER offending path, so a caller can report which paths offended",
+        )
+
+        # 2. The verdict is the SHARED matcher's. Spied, so the call is observed to happen during a
+        #    real invocation, which no substring search over the source can establish.
+        with mock.patch.object(
+            ipd_lifecycle, "_scope_match", wraps=ipd_lifecycle._scope_match
+        ) as spy:
+            wtiso_gate.check_scope(["a.py", "tests/x.py"], ["tests/"])
+        self.assertGreater(
+            spy.call_count,
+            0,
+            "`check_scope` never called `ipd_lifecycle._scope_match`, so it restates the Scope-Paths "
+            "grammar itself: an agent could then satisfy this gate while failing finalize (R6.1)",
+        )
+
+        # 3. And the shared matcher's ANSWER is what reaches the result: forcing it either way flips
+        #    the verdict on inputs whose real answer is the opposite.
+        with mock.patch.object(ipd_lifecycle, "_scope_match", lambda _p, _pat: True):
+            self.assertEqual(
+                wtiso_gate.check_scope(["a.py"], ["b.py"]),
+                [],
+                "a forced MATCH did not clear an out-of-scope path, so the verdict is not the shared "
+                "matcher's",
+            )
+        with mock.patch.object(ipd_lifecycle, "_scope_match", lambda _p, _pat: False):
+            self.assertEqual(
+                wtiso_gate.check_scope(["tests/x.py"], ["tests/"]),
+                [wtiso_gate.AW_GATE_SCOPE],
+                "a forced NON-match did not flag an in-scope path, so the verdict is not the shared "
+                "matcher's",
+            )
 
     def test_the_unowned_predicates_also_have_no_product_caller(self):
         """A raising predicate with a live caller would break a production path on every call."""

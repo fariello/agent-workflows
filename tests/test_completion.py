@@ -21,13 +21,15 @@ import argparse
 import io
 import json
 import os
+import re
+import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -2347,14 +2349,140 @@ class CompletionInstallSubprocessTests(_DropInFixture):
 
 
 class ReadmeCompletionDocsTests(unittest.TestCase):
-    """E-05: README documents the feature."""
+    """E-05: what the README tells a user to TYPE, and where it says the file lands, must be true.
 
-    def test_readme_has_shell_tab_completion_section(self) -> None:
-        readme = Path(__file__).resolve().parents[1] / "README.md"
-        body = readme.read_text(encoding="utf-8")
-        self.assertIn("Shell Tab Completion", body)
-        self.assertIn("aw completion install", body)
-        self.assertIn("source <(aw completion bash)", body)
+    WHAT THIS REPLACED, and why. `test_readme_has_shell_tab_completion_section` asserted three
+    literal strings appeared in `README.md` ("Shell Tab Completion", "aw completion install",
+    "source <(aw completion bash)"). That is a change-detector over prose: git already records a
+    README edit, retitling the section is a normal and desirable change, and the pin could not fail
+    for any defect in the feature. It also could not catch the failure that actually matters, namely
+    the README documenting a command or a path that no longer works.
+
+    The two tests below are that check instead. Both are falsifiable against the CODE, not against
+    wording: the README's commands are parsed by the REAL argparse parser, and its per-shell
+    drop-in table is compared to what `resolve_completion_dir` + `completion_filename` actually
+    produce. Rewriting every sentence around them is free.
+
+    NON-VACUITY is asserted deliberately: each test requires that the README documents SOMETHING
+    (at least one `aw completion` invocation; all three shells' paths), because a check over an
+    empty extraction would pass on a README with the section deleted.
+    """
+
+    README = Path(__file__).resolve().parents[1] / "README.md"
+
+    #: A fenced-or-inline `aw ...` invocation, up to a trailing comment or a closing paren.
+    _CMD_RE = re.compile(
+        r"(?m)(?:^|source <\()(aw completion[^#\n)]*|aw install[^#\n)]*)"
+    )
+    #: A row of the per-shell drop-in path table: `| Bash | `<path>` |`.
+    _ROW_RE = re.compile(r"(?m)^\|\s*(Bash|Zsh|Fish)\s*\|\s*`([^`]+)`\s*\|")
+
+    def test_every_command_the_readme_tells_a_user_to_run_parses(self) -> None:
+        """A documented command that argparse rejects is a defect the user hits immediately."""
+
+        from agent_workflows import cli
+
+        body = self.README.read_text(encoding="utf-8")
+        commands = sorted({m.group(1).strip() for m in self._CMD_RE.finditer(body)})
+        self.assertTrue(
+            commands,
+            "the README documents no `aw completion` invocation at all, so this check would be "
+            "vacuous. The feature must be documented somewhere in README.md; the wording and the "
+            "section title are NOT pinned.",
+        )
+        parser = cli._build_parser()
+        broken = []
+        for cmd in commands:
+            argv = shlex.split(cmd)[1:]
+            err = io.StringIO()
+            try:
+                with redirect_stderr(err):
+                    parser.parse_args(argv)
+            except SystemExit:
+                broken.append(
+                    f"  {cmd!r}: argparse REJECTED it -> {err.getvalue().strip().splitlines()[-1:]}"
+                )
+        self.assertEqual(
+            broken,
+            [],
+            f"the README documents {len(broken)} of {len(commands)} completion/install commands "
+            "that the real CLI no longer accepts. A user copies these literally, so each one is a "
+            "command that fails on first use:\n"
+            + "\n".join(broken)
+            + "\n  FIX: update README.md to the current flag spelling, or restore the flag. Only "
+            "the COMMANDS are checked here; the surrounding prose may be rewritten freely.",
+        )
+
+    def test_the_documented_drop_in_paths_are_the_paths_the_installer_uses(
+        self,
+    ) -> None:
+        """The path table is a PROMISE about where a file lands; derive it, do not pin it.
+
+        The README writes the paths in shell-expansion form
+        (`${XDG_DATA_HOME:-~/.local/share}/...`), which is how a user reads them; this resolves
+        that form with the env var SET and again with it UNSET, and compares both against
+        `resolve_completion_dir(shell) / completion_filename(shell)`. So a relocated drop-in
+        directory fails here, while retitling or reformatting the table does not.
+        """
+
+        body = self.README.read_text(encoding="utf-8")
+        documented = {shell.lower(): path for shell, path in self._ROW_RE.findall(body)}
+        self.assertEqual(
+            sorted(documented),
+            sorted(completion.SUPPORTED_SHELLS),
+            f"the README's drop-in path table documents {sorted(documented)}, but the installer "
+            f"supports {sorted(completion.SUPPORTED_SHELLS)}. A supported shell with no documented "
+            "path leaves a user guessing; a documented shell the installer refuses is a promise it "
+            "cannot keep.",
+        )
+
+        wrong = []
+        for shell, template in sorted(documented.items()):
+            # `${VAR:-default}/rest` -> (VAR, default, rest)
+            m = re.match(r"^\$\{([A-Z_]+):-([^}]+)\}(/.*)$", template)
+            if m is None:
+                wrong.append(
+                    f"  {shell}: documented path {template!r} is not in the "
+                    "`${VAR:-default}/rest` form this test can resolve; if the documentation "
+                    "style changed deliberately, update this parser"
+                )
+                continue
+            var, default, rest = m.groups()
+            for mode, env in (
+                ("env set", {var: str(self.SET_BASE)}),
+                ("env unset", {}),
+            ):
+                with mock.patch.dict(os.environ, env, clear=True):
+                    os.environ["HOME"] = str(self.HOME)
+                    actual = completion.resolve_completion_dir(
+                        shell
+                    ) / completion.completion_filename(shell)
+                    base = (
+                        Path(self.SET_BASE)
+                        if mode == "env set"
+                        else Path(default.replace("~", str(self.HOME)))
+                    )
+                    expected = Path(str(base) + rest)
+                if actual != expected:
+                    wrong.append(
+                        f"  {shell} ({mode}): README promises {expected}\n"
+                        f"    installer writes    {actual}"
+                    )
+        self.assertEqual(
+            wrong,
+            [],
+            f"{len(wrong)} documented drop-in path(s) disagree with where the installer actually "
+            "writes. A wrong path in the README sends a user to inspect a file that is not there, "
+            "and looks exactly like completion being broken:\n"
+            + "\n".join(wrong)
+            + "\n  FIX: change `completion._DROPIN_LAYOUT` and the README table together. The env "
+            "var each shell uses is deliberately NOT uniform (fish discovers completions under "
+            "XDG_CONFIG_HOME), so check the per-shell row rather than assuming one base.",
+        )
+
+    #: Fixed bases so the comparison is about the LAYOUT, not about this machine's real HOME/XDG.
+    HOME = Path("/tmp/aw-readme-home")
+    SET_BASE = Path("/tmp/aw-readme-xdg")
 
 
 if __name__ == "__main__":

@@ -50,6 +50,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from agent_workflows import ipd_lifecycle, ipd_set_plan
 from agent_workflows import runner_shared as rs
@@ -261,43 +262,94 @@ class RepoCase(unittest.TestCase):
 
 
 class ChildTableRowsTests(unittest.TestCase):
-    """`child_table_rows` returns FULL cells, in document order, header included."""
+    """`child_table_rows` returns FULL cells, in document order, header included.
 
-    def test_every_row_comes_back_with_all_its_cells(self):
-        rows = rs.child_table_rows(FIXTURE)
+    ONE table replaces four tests that each called `child_table_rows` on one text and asserted the
+    rows. The text is the only thing that varied, so it is the column, and the expectation is the FULL
+    tuple rather than a property of it: an exact-equality row states the cell text, the cell COUNT, the
+    document ORDER, the header's inclusion and the alignment row's exclusion all at once, and each of
+    the four old tests asserted only one of those. This is the payload the digest hashes and the probe
+    reads, so under-specifying it is how an edit becomes invisible to the cache.
+    """
+
+    _FULL_FIXTURE_ROWS = (
+        ("Order", "Id", "Child plan", "Depends on"),
+        ("01", "aaa111", "Surface the refusal reason and its remedy", "none"),
+        ("02", "bbb222", "Cache the verdict against a content digest", "none"),
+        (
+            "03",
+            "ccc333",
+            "Probe every queued orchestrator",
+            "executed:aaa111, executed:bbb222",
+        ),
+    )
+
+    #: (case, the orchestrator text, the exact rows expected, why this row exists)
+    WALKS = (
+        (
+            "the frozen fixture's child table",
+            FIXTURE,
+            _FULL_FIXTURE_ROWS,
+            "THE WHOLE CONTRACT IN ONE EQUALITY, and each clause of it is load-bearing for a different "
+            "reason. ALL CELLS, because a walk that kept only cell 0 is what this function was "
+            "extracted from and the digest needs the rest. DOCUMENT ORDER, because a table's order is "
+            "part of what it says, so sorting here would make a reordering invisible to the cache. THE "
+            "HEADER ROW INCLUDED, which is deliberate and surprising: it makes a COLUMN RENAME move the "
+            "digest, and the five live layouts share only their first column so a header change is a "
+            "real signal. THE ALIGNMENT ROW EXCLUDED, because `|---|:--:|` is layout, so reformatting a "
+            "table must not invalidate a cached verdict. AND the `## Findings` table above it "
+            "contributes NOTHING, which is the section scoping: were it included, editing an unrelated "
+            "findings row would serve a re-probe for no reason",
+        ),
+        (
+            "a document with no child-IPDs section at all",
+            "# IPD: no table here\n",
+            (),
+            "AN ABSENT SECTION YIELDS NO ROWS RATHER THAN RAISING. A child plan legitimately has no "
+            "child table, and both callers run over every queued plan, so an exception here would fail "
+            "a whole run on an ordinary document",
+        ),
+        (
+            "the empty string",
+            "",
+            (),
+            "THE DEGENERATE INPUT, kept because an unreadable or empty plan file reaches this by the "
+            "same path and the two callers differ in how defensively they read text",
+        ),
+        (
+            "the section heading present but carrying no table",
+            f"## {rs._CHILD_IPDS_HEADING}\n\nAll children are authored. No table yet.\n",
+            (),
+            "PROSE IN THE RIGHT SECTION IS NOT A ROW. This is the shape the retirement gate must read "
+            "as `parsed=False` and REFUSE on, so it must not be mistaken for an empty-but-valid table; "
+            "the gate's own handling of it is asserted separately, but the walk must report nothing "
+            "here for that to be reachable",
+        ),
+    )
+
+    def test_the_row_walk_returns_exactly_the_declared_child_rows(self):
+        wrong = []
+        for case, text, expected, why in self.WALKS:
+            got = rs.child_table_rows(text)
+            if got != expected:
+                wrong.append(
+                    f"  {case}:\n    - expected {expected!r}\n    -      got {got!r}\n"
+                    f"    this row exists because: {why}"
+                )
         self.assertEqual(
-            rows,
-            (
-                ("Order", "Id", "Child plan", "Depends on"),
-                ("01", "aaa111", "Surface the refusal reason and its remedy", "none"),
-                ("02", "bbb222", "Cache the verdict against a content digest", "none"),
-                (
-                    "03",
-                    "ccc333",
-                    "Probe every queued orchestrator",
-                    "executed:aaa111, executed:bbb222",
-                ),
-            ),
+            wrong,
+            [],
+            f"the shared row walk returned the wrong rows for {len(wrong)} of {len(self.WALKS)} "
+            "documents. THESE ROWS ARE BOTH A CACHE KEY AND A PROBE PAYLOAD, so the two failure "
+            "directions are opposite and both bad: rows that STOP appearing (a dropped cell, a "
+            "narrowed section scope) make a real edit invisible and serve a stale verdict under "
+            "apparent authority, while rows that START appearing (the alignment row, another section's "
+            "table) invalidate cached verdicts on reformatting and cost a re-probe per orchestrator. "
+            "If the three EMPTY rows failed together, the walk stopped tolerating a document with no "
+            "child table, which raises inside a loop over every queued plan. FIX: both consumers read "
+            "this ONE function (asserted below), so a change here changes the retirement gate too.\n"
+            + "\n".join(wrong),
         )
-
-    def test_the_alignment_row_is_dropped_and_the_header_is_kept(self):
-        rows = rs.child_table_rows(FIXTURE)
-        self.assertEqual(rows[0][0], "Order", "the header row must be included")
-        for row in rows:
-            self.assertNotIn(
-                "---", "".join(row), "an alignment row leaked into the rows"
-            )
-
-    def test_a_table_in_another_section_is_not_read(self):
-        """The `## Findings` table above must not contribute rows."""
-        rows = rs.child_table_rows(FIXTURE)
-        flat = "\n".join("|".join(r) for r in rows)
-        self.assertNotIn("F-1", flat)
-        self.assertNotIn("Severity", flat)
-
-    def test_an_absent_section_yields_no_rows_rather_than_raising(self):
-        self.assertEqual(rs.child_table_rows("# IPD: no table here\n"), ())
-        self.assertEqual(rs.child_table_rows(""), ())
 
     def test_a_backticked_pipe_does_NOT_fragment_the_row(self):
         """The measured live defect: three real orchestrators carry a backticked pipe.
@@ -327,38 +379,215 @@ class ChildTableRowsTests(unittest.TestCase):
 class TheRowWalkIsSharedWithTheRetirementGate(unittest.TestCase):
     """E-01: ONE definition of "a child row", consumed by the gate AND the digest.
 
-    Asserted structurally (the gate's body CALLS the shared helper) rather than by output agreement,
-    because two independent scanners can agree today and drift tomorrow, which is the entire failure
-    class `2r306y`/`818uru` made this module's admission rule about.
+    THREE SOURCE-TEXT PINS WERE REPLACED HERE AND THE REASONING DIFFERS PER PIN, so it is worth
+    reading before re-adding any of them.
+
+    THE TWO "CALLS THE SHARED ROW WALK" PINS searched `inspect.getsource(...)` for the substring
+    `"child_table_rows("`. That is satisfied by a COMMENT or a docstring naming the helper while the
+    body keeps a private scanner, which is EXACTLY the fork the pin existed to prevent, and it breaks
+    on a rename that changes no behavior. Note the old class docstring argued the structural form was
+    chosen OVER output agreement because "two independent scanners can agree today and drift
+    tomorrow" - a correct concern, but a text search does not address it either. What does: SPY on the
+    shared helper (so the call is observed during a real invocation) and then replace it with a
+    SENTINEL row set whose cells must appear in each consumer's output. A private scanner produces the
+    real rows and fails both.
+
+    THE "GATE KEEPS THE NAIVE SPLIT" PIN searched for `"backtick_aware=False"` while its own docstring
+    said the claim was that BEHAVIOR is unchanged. Behavior is now asserted directly, over a table of
+    row shapes INCLUDING the awkward ones the two splitters genuinely disagree on. That is the part
+    the implementation pin could not do and the part that matters: the shipped justification is that
+    cell 0 is "measured identical under both splitters", and that is TRUE for the corpus (a backticked
+    pipe in a LATER cell) but FALSE in general - a backticked pipe spanning cell 0 itself splits
+    differently, measured below. So the table both protects the gate's behavior and records that the
+    equivalence is corpus-specific rather than universal, which is the honest version of the claim.
     """
 
-    def test_parse_declared_child_orders_calls_the_shared_row_walk(self):
-        import inspect
+    def test_both_consumers_reach_the_ONE_shared_row_walk(self):
+        """The gate AND the digest payload call `child_table_rows`, observed rather than grepped."""
+        # 1. Each consumer CALLS it, exactly once, on the text it was given.
+        for label, drive in (
+            ("parse_declared_child_orders", rs.parse_declared_child_orders),
+            ("probe_cache_payload", rs.probe_cache_payload),
+        ):
+            with self.subTest(consumer=label):
+                with mock.patch.object(
+                    rs, "child_table_rows", wraps=rs.child_table_rows
+                ) as spy:
+                    drive(FIXTURE)
+                self.assertEqual(
+                    spy.call_count,
+                    1,
+                    f"{label} called the shared row walk {spy.call_count} times; it must call it "
+                    "exactly ONCE. Zero means it keeps a private scanner, so the retirement gate and "
+                    "the cache would hold two definitions of `a child row` (the `2r306y`/`818uru` "
+                    "failure class).",
+                )
+                self.assertEqual(spy.call_args.args, (FIXTURE,))
 
-        src = inspect.getsource(rs.parse_declared_child_orders)
-        self.assertIn("child_table_rows(", src)
-        self.assertNotIn(
-            "_TABLE_ROW_RE.match",
-            src,
-            "the gate must not keep its own row matcher beside the shared walk",
+        # 2. And the shared walk's OUTPUT is what each consumer reads. These sentinel rows exist in no
+        #    source file, so no substring search could ever establish this.
+        sentinel_rows = (
+            ("Order", "Id", "Child plan", "Depends on"),
+            ("SENTINEL-ORDER-A", "sentaa", "planted row A", "none"),
+            ("SENTINEL-ORDER-B", "sentbb", "planted row B", "none"),
+        )
+        with mock.patch.object(rs, "child_table_rows", lambda _t, **_k: sentinel_rows):
+            tokens, parsed = rs.parse_declared_child_orders(FIXTURE)
+            payload_rows = rs.probe_cache_payload(FIXTURE)["child_table_rows"]
+
+        self.assertEqual(
+            (tokens, parsed),
+            (("SENTINEL-ORDER-A", "SENTINEL-ORDER-B"), True),
+            "the retirement gate's Order tokens did not come from the shared row walk, so it scans "
+            "the table itself",
+        )
+        self.assertEqual(
+            payload_rows,
+            [list(row) for row in sentinel_rows],
+            "the digest payload's rows did not come from the shared row walk, so the cache key "
+            "covers something the gate does not see (or the reverse)",
         )
 
-    def test_the_digest_payload_also_calls_the_shared_row_walk(self):
-        import inspect
+    #: (case, the single table row, the Order tokens the gate MUST return, does the backtick-aware
+    #:  splitter give cell 0 a DIFFERENT value?, why this row exists)
+    #:
+    #: Replaces a pin on `backtick_aware=False`. The claim being protected is the gate's BEHAVIOR, so
+    #: the table drives the gate and additionally records, per row, whether the two splitters actually
+    #: agree on cell 0. The `differs` column is what makes this more than a regression fence: it
+    #: distinguishes rows where the choice of splitter is IRRELEVANT from rows where it changes the
+    #: gate's answer, and only the latter are why the gate is pinned to one splitter at all.
+    ROW_SHAPES = (
+        (
+            "a backticked pipe in a LATER cell",
+            "| 01 | aaa111 | see `aw oc run | agy run` for the host split | none |",
+            ("01",),
+            False,
+            "THE MEASURED LIVE SHAPE: `94dhrt`, `mvz3d2` and `rreixg` each carry such a row, one "
+            "splitting 12 cells instead of 4 under the naive splitter. Cell 0 is UNAFFECTED, which is "
+            "the shipped justification for leaving the gate on the naive split, and this row is what "
+            "keeps that justification true",
+        ),
+        (
+            "a backticked pipe spanning cell 0 itself",
+            "| `01 | 02` | aaa111 | x | none |",
+            ("01",),
+            True,
+            "THE COUNTEREXAMPLE TO THE SHIPPED JUSTIFICATION, and the reason this table exists rather "
+            "than a pin on the flag. `cell 0 is identical under both splitters` is a CORPUS "
+            "measurement, not a theorem: here the naive split yields `` `01 `` (stripping to `01`) "
+            "while the backtick-aware split yields `` `01 | 02` `` (stripping to `01 | 02`), which is "
+            "not an Order and would never resolve. So switching the gate's splitter WOULD change its "
+            "answer on this input, which is exactly what must not happen by accident during a cache "
+            "change",
+        ),
+        (
+            "a backticked pipe inside a non-numeric cell 0",
+            "| `a|b` | x | y | none |",
+            ("a",),
+            True,
+            "the same divergence with no spaces around the pipe, so the split is shown to turn on the "
+            "BACKTICK SPAN and not on whitespace. The gate returns the token either way and the "
+            "CALLER refuses it, which keeps this function a parser",
+        ),
+        (
+            "a decorated token in backticks",
+            "| `01` | aaa111 | x | none |",
+            ("01",),
+            False,
+            "PROSE DECORATION IS STRIPPED: a wholly-backticked token has no interior pipe, so both "
+            "splitters agree and the gate still reads `01`. Without this row the stripping could be "
+            "dropped and only the divergent rows above would notice",
+        ),
+        (
+            "a bold token",
+            "| **02** | bbb222 | x | none |",
+            ("02",),
+            False,
+            "the other decoration authors use. Same stripping rule, different characters",
+        ),
+        (
+            "a non-numeric `03+` token",
+            "| 03+ | ccc333 | x | none |",
+            ("03+",),
+            False,
+            "MEASURED IN `rununify`: tokens are NOT all numeric. The gate must RETURN it rather than "
+            "dropping or crashing on it, because the policy of refusing an unresolvable token belongs "
+            "to the caller and keeping it here would put policy in two places",
+        ),
+        (
+            "the word token `last`",
+            "| last | ddd444 | x | none |",
+            ("last",),
+            False,
+            "the other real `rununify` token. Paired with `03+` so a change that started filtering "
+            "non-numeric tokens fails on both rather than looking like a one-off",
+        ),
+        (
+            "an empty first cell",
+            "|  | aaa111 | x | none |",
+            (),
+            False,
+            "AN EMPTY CELL 0 DECLARES NO ORDER and must be skipped rather than returned as an empty "
+            "token, which a caller would try to resolve. Note this row still counts as a ROW for the "
+            "`parsed` flag, which the assertion below checks separately",
+        ),
+    )
 
-        self.assertIn("child_table_rows(", inspect.getsource(rs.probe_cache_payload))
-
-    def test_the_gate_keeps_the_naive_split_so_its_behavior_is_unchanged(self):
-        """The gate reads only cell 0, where both splitters are measured identical.
-
-        Pinned so a later reader does not "tidy" the gate onto the backtick-aware splitter as part of
-        a cache change: that would be a behavior change to a retirement gate made by a plan about a
-        cache.
-        """
-        import inspect
-
-        src = inspect.getsource(rs.parse_declared_child_orders)
-        self.assertIn("backtick_aware=False", src)
+    def test_the_gate_reads_the_same_Order_tokens_the_naive_split_gives_it(self):
+        wrong = []
+        real_walk = rs.child_table_rows
+        for case, row, expected, differs, why in self.ROW_SHAPES:
+            text = (
+                f"## {rs._CHILD_IPDS_HEADING}\n\n"
+                "| Order | Id | Child plan | Depends on |\n"
+                "| --- | --- | --- | --- |\n"
+                f"{row}\n"
+            )
+            problems = []
+            tokens, parsed = rs.parse_declared_child_orders(text)
+            if tokens != expected:
+                problems.append(f"gate returned {tokens!r}, expected {expected!r}")
+            if not parsed:
+                problems.append(
+                    "gate reported `parsed=False`, so a real table row went unrecognized and the "
+                    "caller would refuse to retire a correctly-authored Set"
+                )
+            # The splitter-sensitivity column, measured rather than asserted in prose: force the gate
+            # onto the backtick-AWARE splitter (the "tidy" a future cache change might perform) and
+            # record whether its answer moves.
+            with mock.patch.object(
+                rs,
+                "child_table_rows",
+                lambda t, **_k: real_walk(t, backtick_aware=True),
+            ):
+                tidied, _ = rs.parse_declared_child_orders(text)
+            if (tidied != tokens) != differs:
+                problems.append(
+                    f"the two splitters were expected to {'DIFFER' if differs else 'AGREE'} on this "
+                    f"row's cell 0, but the naive split gives {tokens!r} and the backtick-aware "
+                    f"split gives {tidied!r}"
+                )
+            if problems:
+                wrong.append(
+                    f"  {case} ({row!r}):\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the retirement gate parsed {len(wrong)} of {len(self.ROW_SHAPES)} row shapes "
+            "differently. THIS GATE DECIDES WHETHER AN ORCHESTRATOR MAY RETIRE, so a token that "
+            "changes value stops resolving and a correctly-authored Set is refused (or, worse, an "
+            "unauthored row goes unnoticed). READ THE `differs` FAILURES SPECIFICALLY: if a row "
+            "expected to AGREE now differs, the shared row walk's naive splitter changed; if a row "
+            "expected to DIFFER now agrees, the two splitters were unified, which is a behavior "
+            "change to this gate and must be a deliberate reviewed act rather than a side effect of a "
+            "cache change. FIX: the gate asks for `backtick_aware=False` because cell 0 is measured "
+            "identical under both splitters across the LIVE corpus; that equivalence is corpus-"
+            "specific, not universal, and two rows here are the counterexamples.\n"
+            + "\n".join(wrong),
+        )
 
     def test_the_gate_still_reads_the_five_real_column_shapes(self):
         """Regression fence for the refactor: the Order tokens must be unchanged.
@@ -523,11 +752,23 @@ class TheDigestIsDeterministic(unittest.TestCase):
         self.assertEqual(outs[0], outs[1])
         self.assertEqual(outs[0], rs.probe_cache_digest(FIXTURE))
 
-    def test_the_docstring_states_the_divergence_from_frozen_region_digest(self):
-        doc = rs.probe_cache_digest.__doc__ or ""
-        self.assertIn("frozen_region_digest", doc)
-        self.assertIn("CHILD-TABLE ROWS ARE IN", doc)
-        self.assertIn("V-ITEM TEXT ARE OUT", doc)
+    # A SOURCE-TEXT PIN WAS DELETED HERE, not replaced.
+    # `test_the_docstring_states_the_divergence_from_frozen_region_digest` asserted three substrings
+    # in `probe_cache_digest.__doc__`: `"frozen_region_digest"`, `"CHILD-TABLE ROWS ARE IN"` and
+    # `"V-ITEM TEXT ARE OUT"`. Each of the three properties it was proxying for is asserted
+    # BEHAVIORALLY, in this same module, on real inputs:
+    #   * the divergence FROM `frozen_region_digest` ->
+    #     `TheDigestDiffersFromFrozenRegionDigest.test_frozen_region_digest_does_NOT_move_on_a_child_
+    #     table_edit` plus `test_the_probe_digest_DOES_move_on_those_same_edits`, which is the
+    #     contrast stated as two measurements rather than as a sentence;
+    #   * CHILD-TABLE ROWS ARE IN -> `TheDigestIgnoresWhatCorrectExecutionChanges
+    #     .test_the_payload_carries_the_row_cell_TEXT` and `TheKeyIsRowTextNotTheOrderGraph
+    #     .test_the_row_cells_DO_distinguish_those_same_edits`;
+    #   * V-ITEM TEXT ARE OUT -> `test_the_payload_carries_no_scope_paths_and_no_V_item_text`.
+    # So the pin added no coverage and subtracted editability: rewording a docstring while the code
+    # and every behavioral assertion stayed correct would fail the suite, and (the worse direction) a
+    # digest that silently stopped covering child-table rows would still pass it as long as the prose
+    # still made the claim. Documentation quality is a review concern, not a substring assertion.
 
 
 class TheDigestDiffersFromFrozenRegionDigest(unittest.TestCase):
@@ -638,6 +879,20 @@ class TheKeyIsRowTextNotTheOrderGraph(unittest.TestCase):
 # ==================================================================================================
 
 
+def _rewrite_entry(path: Path, digest: str, value: object) -> None:
+    """Replace one entry in the store wholesale, keeping the rest of the file valid JSON."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["entries"][digest] = value
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _rewrite_field(path: Path, digest: str, field: str, value: object) -> None:
+    """Replace ONE field of one entry, leaving the entry a well-formed mapping."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["entries"][digest][field] = value
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
 class VerdictStoreTests(RepoCase):
     """E-04: write-then-read round trips, the recorded model, and a corrupt entry."""
 
@@ -709,36 +964,107 @@ class VerdictStoreTests(RepoCase):
             rs.PROBE_VERDICT_FAIL,
         )
 
-    def test_a_corrupt_store_reads_as_ABSENT_rather_than_raising(self):
-        digest = rs.probe_cache_digest(FIXTURE)
-        rs.record_probe_verdict(self.root, digest, rs.PROBE_VERDICT_PASS, model="m")
-        path = rs.probe_verdict_store_path(self.root)
-        path.write_text('{"entries": {"trunc', encoding="utf-8")
-        got = rs.read_probe_verdict(self.root, digest, model="m")
-        self.assertEqual(got.verdict, rs.PROBE_VERDICT_UNKNOWN)
-        self.assertEqual(got.stale_reason, rs.PROBE_STALE_MISS)
+    #: (case, how to damage the store after ONE good verdict was written, the verdict the reader must
+    #:  return, the stale reason it must report, why this row exists)
+    #:
+    #: ONE table replaces three tests. All three wrote the same `pass` verdict, damaged the store in
+    #: some way, and required the read to report `unknown` with a particular reason. Only the damage
+    #: varied, so it is the column, and the damage is expressed as a CALLABLE because the three operate
+    #: at different layers (the file's bytes, one entry's type, one field's value) - which is the
+    #: distinction the table is FOR.
+    #:
+    #: THE STALE REASON IS ASSERTED, NOT JUST THE VERDICT, and that is the whole value of grouping
+    #: these: all three return `unknown`, so a row that checked only the verdict would pass if the
+    #: reasons collapsed into one. They must not, because a MISS and a CORRUPT entry call for different
+    #: operator responses (re-probe versus investigate a damaged file), and they are reported to a
+    #: human.
+    DAMAGE = (
+        (
+            "the whole store file is truncated mid-JSON",
+            lambda path, _digest: path.write_text(
+                '{"entries": {"trunc', encoding="utf-8"
+            ),
+            "PROBE_STALE_MISS",
+            "AN UNPARSEABLE FILE IS `unknown`, NOT AN EXCEPTION AND NOT `pass`. Reported as a MISS "
+            "rather than CORRUPT because no entry could be read at all, so the honest statement is "
+            "`not probed`. An interrupted write is the realistic cause, which is why the file is "
+            "truncated rather than scrambled",
+        ),
+        (
+            "one ENTRY is the wrong type entirely",
+            lambda path, digest: _rewrite_entry(path, digest, "not-an-object"),
+            "PROBE_STALE_CORRUPT",
+            "THE STORE PARSES BUT THE ENTRY IS NOT A MAPPING, which is a DIFFERENT fact from a miss "
+            "and must report CORRUPT: the file is readable, so an operator needs to know something "
+            "damaged an entry rather than that the plan was never probed. Distinguishing these two is "
+            "why the reason column exists",
+        ),
+        (
+            "one entry's `verdict` field holds an unrecognized value",
+            lambda path, digest: _rewrite_field(
+                path, digest, "verdict", "probably-fine"
+            ),
+            "PROBE_STALE_CORRUPT",
+            "AN UNKNOWN VERDICT VALUE IS NOT SILENTLY TRUSTED. The load-bearing direction is that it "
+            "must not read as `pass`: the gate's whole premise is that silence no longer means safe, "
+            "so an unrecognized token must fail closed rather than being passed through to a caller "
+            "that only checks `!= fail`",
+        ),
+    )
 
-    def test_a_corrupt_ENTRY_reads_as_absent_rather_than_raising(self):
-        digest = rs.probe_cache_digest(FIXTURE)
-        rs.record_probe_verdict(self.root, digest, rs.PROBE_VERDICT_PASS, model="m")
-        path = rs.probe_verdict_store_path(self.root)
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        payload["entries"][digest] = "not-an-object"
-        path.write_text(json.dumps(payload), encoding="utf-8")
-        got = rs.read_probe_verdict(self.root, digest, model="m")
-        self.assertEqual(got.verdict, rs.PROBE_VERDICT_UNKNOWN)
-        self.assertEqual(got.stale_reason, rs.PROBE_STALE_CORRUPT)
-
-    def test_an_unrecognized_verdict_value_reads_as_unknown(self):
-        digest = rs.probe_cache_digest(FIXTURE)
-        rs.record_probe_verdict(self.root, digest, rs.PROBE_VERDICT_PASS, model="m")
-        path = rs.probe_verdict_store_path(self.root)
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        payload["entries"][digest]["verdict"] = "probably-fine"
-        path.write_text(json.dumps(payload), encoding="utf-8")
-        got = rs.read_probe_verdict(self.root, digest, model="m")
-        self.assertEqual(got.verdict, rs.PROBE_VERDICT_UNKNOWN)
-        self.assertEqual(got.stale_reason, rs.PROBE_STALE_CORRUPT)
+    def test_a_damaged_store_reads_as_unknown_with_the_right_reason(self):
+        wrong = []
+        for case, damage, reason_attr, why in self.DAMAGE:
+            digest = rs.probe_cache_digest(FIXTURE)
+            rs.record_probe_verdict(self.root, digest, rs.PROBE_VERDICT_PASS, model="m")
+            path = rs.probe_verdict_store_path(self.root)
+            self.assertEqual(
+                rs.read_probe_verdict(self.root, digest, model="m").verdict,
+                rs.PROBE_VERDICT_PASS,
+                f"{case}: the verdict must be SERVED before the damage, or this row proves nothing",
+            )
+            damage(path, digest)
+            expected_reason = getattr(rs, reason_attr)
+            problems = []
+            try:
+                got = rs.read_probe_verdict(self.root, digest, model="m")
+            except Exception as exc:  # noqa: BLE001 - raising IS the failure being reported
+                problems.append(f"RAISED {type(exc).__name__}: {exc}")
+            else:
+                if got.verdict != rs.PROBE_VERDICT_UNKNOWN:
+                    problems.append(
+                        f"verdict was {got.verdict!r}, must be {rs.PROBE_VERDICT_UNKNOWN!r}"
+                        + (
+                            " -- and it read as PASS, which serves a verdict from a damaged store"
+                            if got.verdict == rs.PROBE_VERDICT_PASS
+                            else ""
+                        )
+                    )
+                if got.stale_reason != expected_reason:
+                    problems.append(
+                        f"stale_reason was {got.stale_reason!r}, must be {expected_reason!r} "
+                        f"({reason_attr})"
+                    )
+            if problems:
+                wrong.append(
+                    f"  {case}:\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the reader mishandled {len(wrong)} of {len(self.DAMAGE)} damaged stores. A `RAISED` "
+            "result is always a defect: this reader sits in front of a gate that runs unattended, so "
+            "an exception here fails a whole run over a scratch file. A verdict of `pass` is the "
+            "DANGEROUS failure, because the gate's premise is that silence no longer means safe. If "
+            "the two CORRUPT rows started reporting MISS (or the reverse), the reasons collapsed: "
+            "they are reported to a human and call for different responses (re-probe versus "
+            "investigate a damaged file), so the distinction must survive. FIX: the store is "
+            "gitignored runtime scratch, so any damage is recoverable by re-probing; prefer widening "
+            "what the reader tolerates over making a caller handle an exception.\n"
+            + "\n".join(wrong),
+        )
 
     def test_recording_unknown_is_REFUSED(self):
         """`unknown` is the ABSENCE of an answer; storing it would make 'not probed' a fact."""
@@ -956,60 +1282,209 @@ class StalenessRuleTests(RepoCase):
         )
         return digest
 
-    def test_a_fresh_verdict_is_SERVED(self):
-        digest = self._record(model="vendor/model-x", days_ago=1)
-        got = rs.read_probe_verdict(self.root, digest, model="vendor/model-x")
-        self.assertEqual(got.verdict, rs.PROBE_VERDICT_PASS)
-        self.assertTrue(got.is_hit)
+    #: (case, the model RECORDED, the age in days, the model READ BACK, the `max_age_days` to read
+    #:  with or None for the default, the verdict expected, the stale reason expected, why this row
+    #:  exists)
+    #:
+    #: ONE table replaces four tests. Each recorded a `pass` verdict and read it back, differing only
+    #: in the model on either side, the age, and the explicit bound. THE READ SIDE IS A COLUMN, which
+    #: is what makes the table state something the four could not: the SAME stored entry is served or
+    #: withheld depending on who asks and when, which is the definition of a staleness rule.
+    #:
+    #: AGES ARE DERIVED FROM `DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS`, never written as literals, so
+    #: changing the shipped bound re-aims the fixtures instead of failing rows that still describe
+    #: correct behavior. The rows that pass an EXPLICIT bound deliberately use a fixed age either side
+    #: of it, since the point there is that the argument overrides the default in both directions.
+    STALENESS = (
+        (
+            "fresh, same model",
+            "vendor/model-x",
+            1,
+            "vendor/model-x",
+            None,
+            "PROBE_VERDICT_PASS",
+            "",
+            "THE CACHE HIT: the one row where the cache does its job. Every withholding row below is "
+            "vacuous while this one is broken, because a reader that served nothing would satisfy "
+            "them all and the cache would simply not exist",
+        ),
+        (
+            "past the default bound, same model",
+            "vendor/model-x",
+            None,  # filled from the constant: bound + 1
+            "vendor/model-x",
+            None,
+            "PROBE_VERDICT_UNKNOWN",
+            "PROBE_STALE_TOO_OLD",
+            "A DIGEST MATCH PROVES THE PLAN DID NOT CHANGE, NOT THAT THE ANSWER IS STILL GOOD, which "
+            "is E-06's whole premise: the model, the prompt and the repository's conventions all move "
+            "under an unchanged plan. The TIME BOUND is also the guard that applies even when no "
+            "model can be named, which is why it carries the unnamed-model cases elsewhere",
+        ),
+        (
+            "fresh, but a DIFFERENT model",
+            "vendor/model-x",
+            1,
+            "vendor/model-y",
+            None,
+            "PROBE_VERDICT_UNKNOWN",
+            "PROBE_STALE_MODEL_CHANGED",
+            "A DIFFERENT MODEL IS A DIFFERENT JUDGE. Differs from the HIT row ONLY in the model read "
+            "back, so the pair isolates the model comparison from the time bound; and the REASON "
+            "matters because an operator seeing `model-changed` knows a re-probe will be cheap and "
+            "correct, where `too-old` might mean something else moved",
+        ),
+        (
+            "inside an explicitly WIDER bound",
+            "vendor/model-x",
+            10,
+            "vendor/model-x",
+            30,
+            "PROBE_VERDICT_PASS",
+            "",
+            "THE PER-READ BOUND OVERRIDES THE DEFAULT UPWARDS. Paired with the row below over the "
+            "SAME stored entry and the same age: only the argument differs, which is what states that "
+            "the caller decides rather than the constant",
+        ),
+        (
+            "outside an explicitly NARROWER bound",
+            "vendor/model-x",
+            10,
+            "vendor/model-x",
+            5,
+            "PROBE_VERDICT_UNKNOWN",
+            "PROBE_STALE_TOO_OLD",
+            "and downwards. Without this row `max_age_days` could be accepted and ignored, and the "
+            "row above would still pass since 10 days is inside the default bound anyway",
+        ),
+    )
 
-    def test_a_verdict_past_the_bound_reads_as_unknown(self):
-        digest = self._record(model="vendor/model-x", days_ago=400)
-        got = rs.read_probe_verdict(self.root, digest, model="vendor/model-x")
-        self.assertEqual(got.verdict, rs.PROBE_VERDICT_UNKNOWN)
-        self.assertEqual(got.stale_reason, rs.PROBE_STALE_TOO_OLD)
+    def test_a_stored_verdict_is_served_or_withheld_per_read(self):
+        bound = rs.DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS
+        wrong = []
+        for (
+            case,
+            recorded_model,
+            days_ago,
+            read_model,
+            max_age,
+            verdict_attr,
+            reason_attr,
+            why,
+        ) in self.STALENESS:
+            age = bound + 1 if days_ago is None else days_ago
+            digest = self._record(model=recorded_model, days_ago=age)
+            kwargs = {} if max_age is None else {"max_age_days": max_age}
+            got = rs.read_probe_verdict(self.root, digest, model=read_model, **kwargs)
+            expected_verdict = getattr(rs, verdict_attr)
+            problems = []
+            if got.verdict != expected_verdict:
+                problems.append(
+                    f"verdict was {got.verdict!r}, expected {expected_verdict!r}"
+                )
+            if reason_attr:
+                expected_reason = getattr(rs, reason_attr)
+                if got.stale_reason != expected_reason:
+                    problems.append(
+                        f"stale_reason was {got.stale_reason!r}, expected "
+                        f"{expected_reason!r} ({reason_attr})"
+                    )
+                # A WITHHELD verdict must still REPORT what was stored, so a human can see what
+                # expired rather than only that nothing was served.
+                if got.recorded_verdict != rs.PROBE_VERDICT_PASS:
+                    problems.append(
+                        f"recorded_verdict was {got.recorded_verdict!r}; the reader must still "
+                        "report the STORED value so a human can see what was withheld and why"
+                    )
+            else:
+                if not got.is_hit:
+                    problems.append(
+                        "the verdict was served but `is_hit` is False, so a caller counting cache "
+                        "hits sees none"
+                    )
+            if problems:
+                wrong.append(
+                    f"  {case} (recorded model={recorded_model!r} {age}d ago, read as "
+                    f"{read_model!r}, max_age_days={max_age if max_age is not None else 'default'}):\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
         self.assertEqual(
-            got.recorded_verdict,
-            rs.PROBE_VERDICT_PASS,
-            "the reader must still REPORT what was stored, so a human can see what expired",
+            wrong,
+            [],
+            f"the reader served the wrong thing for {len(wrong)} of {len(self.STALENESS)} reads. READ "
+            "THE GROUPING: if the single HIT row failed, the cache serves nothing and every "
+            "withholding row below became vacuous, so the cache costs a store and buys nothing. If "
+            "every withholding row failed, a stale verdict is now served under apparent authority, "
+            "which is the dangerous direction: this gate's premise is that silence no longer means "
+            "safe. A WRONG REASON on a correct verdict means two staleness causes collapsed, and they "
+            "are reported to an operator who responds differently to `model-changed` than to "
+            "`too-old`. The two explicit-bound rows share one stored entry and one age and differ "
+            "only in the argument, so if they move together `max_age_days` is being ignored. FIX: the "
+            f"ages here are DERIVED from `DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS` (currently {bound}), so "
+            "changing the shipped bound re-aims these fixtures rather than breaking them.\n"
+            + "\n".join(wrong),
         )
 
-    def test_a_DIFFERENT_model_reads_as_unknown(self):
-        digest = self._record(model="vendor/model-x", days_ago=1)
-        got = rs.read_probe_verdict(self.root, digest, model="vendor/model-y")
-        self.assertEqual(got.verdict, rs.PROBE_VERDICT_UNKNOWN)
-        self.assertEqual(got.stale_reason, rs.PROBE_STALE_MODEL_CHANGED)
+    def test_the_reader_defaults_to_the_NAMED_constant_not_a_literal(self):
+        """The reader's default bound IS `DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS`, by identity and by
+        behavior at the boundary.
 
-    def test_the_bound_is_configurable_per_read(self):
-        digest = self._record(model="vendor/model-x", days_ago=10)
-        self.assertEqual(
-            rs.read_probe_verdict(
-                self.root, digest, model="vendor/model-x", max_age_days=30
-            ).verdict,
-            rs.PROBE_VERDICT_PASS,
-        )
-        self.assertEqual(
-            rs.read_probe_verdict(
-                self.root, digest, model="vendor/model-x", max_age_days=5
-            ).verdict,
-            rs.PROBE_VERDICT_UNKNOWN,
-        )
+        REPLACES A SOURCE-TEXT PIN, and this one was the weakest instrument in the file. It called
+        `inspect.getsource(rs)` on the WHOLE module and then:
 
-    def test_the_default_bound_is_a_named_constant_carrying_its_rationale(self):
-        """The bound must be a constant with a recorded WHY, not a literal at a call site."""
+          * searched for the literal `"DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS = 30"`, which fails on
+            `= 30  # noqa`, on a reflowed assignment, or on any reformatting;
+          * sliced a 1600-CHARACTER WINDOW backwards from that literal's offset and searched it for
+            two comment headings, so inserting any unrelated comment above the constant silently
+            pushed the rationale out of the window and broke the test while the code was untouched;
+          * searched for the SIGNATURE TEXT `"max_age_days: int = DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS"`
+            anywhere in the module, which a comment satisfies and which says nothing about what the
+            function actually defaults to.
+
+        The claim worth keeping is the last one, and it is checkable exactly: the parameter's default
+        must BE the constant object, and the served/expired boundary must fall where the constant says.
+        The comment-window search is DELETED rather than replaced: "a constant carries a prose
+        rationale" is a review concern that a byte-offset window cannot police, and pretending
+        otherwise cost a false failure on every edit above line 7296.
+        """
+        # 1. The default IS the named constant, by identity: a literal re-typed into the signature
+        #    would be an equal int and a DIFFERENT object only for large values, so identity alone is
+        #    not enough - the behavioral boundary below is what closes that gap.
         import inspect
 
-        self.assertEqual(rs.DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS, 30)
-        src = inspect.getsource(rs)
-        marker = "DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS = 30"
-        self.assertIn(marker, src)
-        preamble = src[max(0, src.index(marker) - 1600) : src.index(marker)]
-        self.assertIn("WHY 30 DAYS", preamble)
-        self.assertIn("WHY A BOUND AT ALL", preamble)
-        self.assertIn(
-            "max_age_days: int = DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS",
-            src,
-            "the reader must default to the named constant, not to a literal",
+        default = (
+            inspect.signature(rs.read_probe_verdict).parameters["max_age_days"].default
         )
+        self.assertIs(
+            default,
+            rs.DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS,
+            "`read_probe_verdict`'s default bound is not the named constant, so the documented "
+            "default and the actual one can drift",
+        )
+
+        # 2. And the BOUNDARY falls where the constant says, which is the property a caller depends
+        #    on. Asserted either side of it, derived FROM the constant rather than from the number 30,
+        #    so changing the constant changes this test's fixtures instead of failing it.
+        bound = rs.DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS
+        self.assertGreater(
+            bound, 1, "the bound must leave room to test either side of it"
+        )
+        for days_ago, want_verdict, want_reason in (
+            (bound - 1, rs.PROBE_VERDICT_PASS, ""),
+            (bound + 1, rs.PROBE_VERDICT_UNKNOWN, rs.PROBE_STALE_TOO_OLD),
+        ):
+            with self.subTest(days_ago=days_ago):
+                digest = self._record(model="vendor/model-x", days_ago=days_ago)
+                got = rs.read_probe_verdict(self.root, digest, model="vendor/model-x")
+                self.assertEqual(
+                    got.verdict,
+                    want_verdict,
+                    f"a verdict recorded {days_ago} days ago (bound={bound}) read as "
+                    f"{got.verdict!r}; the default bound is not being applied",
+                )
+                if want_reason:
+                    self.assertEqual(got.stale_reason, want_reason)
 
     def test_an_unparseable_timestamp_is_treated_as_infinitely_old(self):
         digest = self._record(model="vendor/model-x", days_ago=1)
@@ -1054,38 +1529,140 @@ class TheHostDefaultModelCaseIsDecided(RepoCase):
             resolved.provenance.get("model"), runner_profiles.PROVENANCE_HOST_DEFAULT
         )
 
-    def test_no_model_either_side_within_the_bound_is_SERVED(self):
-        digest = self._record(model=None, days_ago=1)
-        got = rs.read_probe_verdict(self.root, digest, model=None)
-        self.assertEqual(got.verdict, rs.PROBE_VERDICT_PASS)
-        self.assertEqual(got.model, "")
+    #: (case, model RECORDED, age in days, model READ BACK, expected verdict, expected stale reason
+    #:  or "", why this row exists)
+    #:
+    #: ONE table replaces four tests over the SAME decision: when EITHER side cannot name a model, the
+    #: comparison is SKIPPED and the time bound alone decides. All four combinations of
+    #: (recorded named?, read named?) belong together because the rule is stated over the PAIR, and any
+    #: one of them alone reads as an arbitrary special case.
+    #:
+    #: THE EXPIRY ROW IS IN THIS TABLE DELIBERATELY. Skipping the model comparison means the time bound
+    #: is the ONLY remaining guard for these reads, so the row that shows it still bites is what makes
+    #: the decision defensible rather than merely convenient. Its age is derived from the shipped
+    #: constant, not written as 400.
+    UNNAMED_MODEL = (
+        (
+            "neither side names a model, fresh",
+            None,
+            1,
+            None,
+            "PROBE_VERDICT_PASS",
+            "",
+            "THE COMMON CASE, which is the entire reason for the decision: measured, "
+            "`runner_profiles.resolve` returns `model=None` with provenance `host-default` whenever "
+            "nothing names one. The rejected alternative (an unknown model never matches) would make "
+            "the cache miss here, i.e. a cache that does not exist",
+        ),
+        (
+            "neither side names a model, PAST the bound",
+            None,
+            None,  # bound + 1, derived from the shipped constant
+            None,
+            "PROBE_VERDICT_UNKNOWN",
+            "PROBE_STALE_TOO_OLD",
+            "THE HONEST COST OF THE DECISION, and why it is acceptable: with the model comparison "
+            "skipped, the TIME BOUND is the only guard left for these reads, so it must still bite. "
+            "Without this row the decision would amount to `unnamed models are cached forever`",
+        ),
+        (
+            "a NAMED current model against an UNRECORDED one",
+            None,
+            1,
+            "vendor/model-x",
+            "PROBE_VERDICT_PASS",
+            "",
+            "THE ASYMMETRIC HALF: the entry predates model recording, the caller can name one, and "
+            "the read is still SERVED. This is the migration case - entries written before the model "
+            "was captured must not all miss at once",
+        ),
+        (
+            "an UNNAMED current model against a recorded one",
+            "vendor/model-x",
+            1,
+            None,
+            "PROBE_VERDICT_PASS",
+            "",
+            "the mirror of the row above, which is what makes the rule `EITHER side unnamed` rather "
+            "than `the recorded side unnamed`. Read against "
+            "`StalenessRuleTests`'s `fresh, but a DIFFERENT model` row: two NAMED models that "
+            "disagree DO miss, so this is a skip and not a blanket acceptance",
+        ),
+    )
 
-    def test_no_model_either_side_PAST_the_bound_is_unknown(self):
-        """The time bound is the guard that ALWAYS applies; that is why it carries this case."""
-        digest = self._record(model=None, days_ago=400)
-        got = rs.read_probe_verdict(self.root, digest, model=None)
-        self.assertEqual(got.verdict, rs.PROBE_VERDICT_UNKNOWN)
-        self.assertEqual(got.stale_reason, rs.PROBE_STALE_TOO_OLD)
-
-    def test_a_named_current_model_against_an_UNRECORDED_one_is_served(self):
-        digest = self._record(model=None, days_ago=1)
+    def test_an_unnamed_model_on_either_side_skips_the_comparison(self):
+        bound = rs.DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS
+        wrong = []
+        for (
+            case,
+            recorded_model,
+            days_ago,
+            read_model,
+            verdict_attr,
+            reason_attr,
+            why,
+        ) in self.UNNAMED_MODEL:
+            age = bound + 1 if days_ago is None else days_ago
+            digest = self._record(model=recorded_model, days_ago=age)
+            got = rs.read_probe_verdict(self.root, digest, model=read_model)
+            expected_verdict = getattr(rs, verdict_attr)
+            problems = []
+            if got.verdict != expected_verdict:
+                problems.append(
+                    f"verdict was {got.verdict!r}, expected {expected_verdict!r}"
+                )
+            if reason_attr and got.stale_reason != getattr(rs, reason_attr):
+                problems.append(
+                    f"stale_reason was {got.stale_reason!r}, expected "
+                    f"{getattr(rs, reason_attr)!r} ({reason_attr})"
+                )
+            if not reason_attr and recorded_model is None and got.model != "":
+                problems.append(
+                    f"an unrecorded model read back as {got.model!r}; it must normalise to the "
+                    "empty string so a caller cannot mistake it for a named one"
+                )
+            if problems:
+                wrong.append(
+                    f"  {case} (recorded={recorded_model!r} {age}d ago, read as {read_model!r}):\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
         self.assertEqual(
-            rs.read_probe_verdict(self.root, digest, model="vendor/model-x").verdict,
-            rs.PROBE_VERDICT_PASS,
+            wrong,
+            [],
+            f"the unnamed-model rule answered {len(wrong)} of {len(self.UNNAMED_MODEL)} reads wrongly. "
+            "READ THE GROUPING: if the three SERVED rows failed together, the rule was inverted into "
+            "`an unknown model never matches`, which makes the cache miss in the COMMON case and is a "
+            "cache that does not exist (this alternative was considered and rejected). If only the "
+            "EXPIRY row failed, the decision lost the guard that justifies it: with the model "
+            "comparison skipped the time bound is the ONLY remaining check for these reads, so "
+            f"unnamed-model entries would be cached forever. FIX: the age is derived from the shipped "
+            f"bound (currently {bound}); and note the premise itself is asserted separately by "
+            "`test_the_premise_is_real_a_resolve_can_return_model_None`, so check that first - if it "
+            "also failed, `runner_profiles.resolve` changed and this whole rule may no longer be "
+            "needed.\n" + "\n".join(wrong),
         )
 
-    def test_an_UNNAMED_current_model_against_a_recorded_one_is_served(self):
-        digest = self._record(model="vendor/model-x", days_ago=1)
-        self.assertEqual(
-            rs.read_probe_verdict(self.root, digest, model=None).verdict,
-            rs.PROBE_VERDICT_PASS,
-        )
-
-    def test_the_docstring_states_the_decision_and_its_cost(self):
-        doc = rs.read_probe_verdict.__doc__ or ""
-        self.assertIn("model=None", doc)
-        self.assertIn("TIME BOUND alone decides", doc)
-        self.assertIn("honest limit", doc)
+    # A SOURCE-TEXT PIN WAS DELETED HERE, not replaced.
+    # `test_the_docstring_states_the_decision_and_its_cost` asserted three substrings in
+    # `read_probe_verdict.__doc__`: `"model=None"`, `"TIME BOUND alone decides"` and
+    # `"honest limit"`. The class docstring above says the cost is "stated in `read_probe_verdict`'s
+    # docstring and pinned by the last test here" - but a substring search does not pin a COST, it
+    # pins a spelling. Both halves of the decision it was proxying for are asserted behaviorally by
+    # its four siblings in this class:
+    #   * the DECISION (an absent model on either side skips the comparison) ->
+    #     `test_no_model_either_side_within_the_bound_is_SERVED`,
+    #     `test_a_named_current_model_against_an_UNRECORDED_one_is_served` and
+    #     `test_an_UNNAMED_current_model_against_a_recorded_one_is_served`, which is the rule stated
+    #     over all three combinations rather than as a phrase;
+    #   * the COST (the time bound is then the ONLY guard) ->
+    #     `test_no_model_either_side_PAST_the_bound_is_unknown`, which drives the case the phrase
+    #     describes;
+    #   * and the PREMISE the whole rule rests on -> `test_the_premise_is_real_a_resolve_can_return_
+    #     model_None`, which is the genuinely valuable one because it fails if
+    #     `runner_profiles.resolve` ever stops returning `model=None`, making the rationale false.
+    # Deleting the pin removes a test that would fail on a reworded docstring while passing on a
+    # broken rule.
 
 
 # ==================================================================================================
