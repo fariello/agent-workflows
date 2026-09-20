@@ -22,6 +22,10 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-20 execution performed, awaiting the driver's finalize (opencode/its_direct/pt3-claude-opus-5-1m-us, run `run-20260920T041049Z-2017708` position 02, lane `aw/lane/zzcrlo`): THIS ENTRY DOES NOT CLAIM THE TERMINAL TRANSITION, which only `aw ipd finalize` may write and which this worker lane is correctly refused (`AW-LIFECYCLE-ROLE-001`). It records that the work is complete and verified. All six `E-*` performed and all six `V-*` verified with pasted evidence; `aw ipd lint --phase pre-transition` CONFORMING with 0 diagnostics; bare `python3 -m pytest` -> `7180 passed, 3 skipped, 2 xfailed` against a worktree baseline of `7134 passed, 3 skipped, 2 xfailed` measured here at HEAD `a36dbc1e` (delta exactly the 46 new tests; zero failing node ids before or after).
+  TWO CHANGES OF SHAPE FROM WHAT THE PLAN ANTICIPATED, both because the tree moved under it, both recorded as decisions with evidence. FIRST, the plan's `Scope-Paths` expected TWIN refusal arms in `oc_runipd.py` and `agy_runipd.py`; at HEAD those twins no longer exist (`grep -rn "finalize_refus"` returns nothing in either driver) because the arm moved into the shared `execute_item_core`. The work therefore went to `agent_workflows/runner_shared.py`, which is where this plan's own text says to put shared logic, and BOTH declared driver paths went unmodified. That makes "both hosts behave identically" true by construction rather than by a pinned equality test. SECOND, E-02's in-run dependency defect was ALREADY FIXED by the maintainer's ruling of 2026-09-19, which deleted `edge_satisfied`'s in-run status shortcut after it cost run `run-20260919T194413Z-2056285` 2h10m and $55.02; re-introducing a read there is explicitly forbidden, so E-02 asserts the property as a regression guard and changes no gate.
+  OQ-04 WAS HONORED, NOT WORKED AROUND: `r2i1b1` is `executed`, so E-01 consumes its shared `Refusal` record through `record_refusal`/`refusal_of_item` and added NO renderer branch of its own; the refusal renders through that plan's existing any-status diagnostics block. OQ-03 was resolved as "no" with fresh measurements and its divergence filed as backlog `eh91an`.
+  NOTHING WAS WEAKENED: no gate decision changed, the exit code was deliberately left alone (it was already correct at 1, contrary to the concern's claim), `substantially-complete` was removed from neither the outcome tuple nor `EXECUTION_SUCCESS_STATES`, no CLI flag was added, and the retry trigger is a positive allowlist matched on the finding text that `ipd_lint` actually emits, pinned by a test, with three of spec 5.5's never-retry classes asserted to fall through. Three findings were filed as backlog `144b3x`, `eh91an` and `ibuxe6`.
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False; `review_findings.subject_gating_blocks` -> empty; `plan_readiness.newest_verdict` polarity -> neutral (not negative). Specifically, its blocking OQ-04 was answered on 2026-09-10 (`r2i1b1` lands first) and the finding it escalated, PR-101, is now closed in review round 2. Performed at HEAD `5692797e` at the maintainer's explicit instruction of 2026-09-10, who was shown that 12 of 15 `no-go` plans were held by stale bookkeeping and chose to have them fixed with evidence recorded rather than re-reviewed. This is the SECOND such cleanup in one session; the durable fix is plan `qhy3i3` E-07, authored and awaiting approval. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-10 reviewed (aw set): plan-review round 1: REVIEWED - OPEN QUESTIONS; PR-101..PR-110, nine FIXED and PR-101 escalated as blocking OQ-04; Readiness no-go pending that answer
@@ -49,7 +53,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: stop reporting a refusal as success (independently valuable)
 
-- [ ] E-01 MAKE THE RUN OUTCOME REFLECT A REFUSED FINALIZE instead of counting it as `COMPLETED`.
+- [x] E-01 MAKE THE RUN OUTCOME REFLECT A REFUSED FINALIZE instead of counting it as `COMPLETED`.
   GATED ON OQ-04 (blocking): plan `r2i1b1` is `approved` and its E-01/E-02 build the general refusal record and make the SAME diagnostics block render it for ANY status. Read OQ-04 before touching `render_stream.py`; under one answer this item shrinks to writing a refusal record and adds no renderer branch at all.
   THE EXACT DEFECT, RE-REPRODUCED AT REVIEW: `render_stream.render_run_summary_table` computes `outcome_str = "COMPLETED"` when every queue item's status is in `("executed", "reviewed", "approved", "substantially-complete")` (locate by the `# Outcome label` comment, not by line; the block was at `:1870-1877` at authoring). An item whose finalize was REFUSED sits at `substantially-complete`, so a run that landed nothing prints `COMPLETED` in green at `100%`.
   DO NOT TOUCH THE EXIT CODE. It is ALREADY correct and this is the one way E-01 could cause a regression: exit comes from `runner_stop.deliberate_stop_exit_code` with `success_states=SUCCESS_STATES` (`oc_runipd.py:7507-7511`, `agy_runipd.py:4513-4517`), and `SUCCESS_STATES` excludes `substantially-complete`, so the measured incident exited 1. Verified by direct evaluation on that run's own queue. The defect is the SUMMARY only.
@@ -59,9 +63,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Gated on: OQ-04 (blocking; `r2i1b1` overlap). Stated here because `Depends on` may hold only `E-*` ids.
   - Expected outcome: a run containing an item with a non-empty `finalize_refusal` does NOT report `COMPLETED`; the per-item row or an adjacent note shows the refusal; `substantially-complete` without a refusal is unchanged; the run's EXIT CODE is unchanged (it was already 1); no gate decision changes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 STOP TREATING A REFUSED ITEM AS AN EXECUTION SUCCESS FOR IN-RUN DEPENDENTS, because this is the more dangerous half of the same defect.
+- [x] E-02 STOP TREATING A REFUSED ITEM AS AN EXECUTION SUCCESS FOR IN-RUN DEPENDENTS, because this is the more dangerous half of the same defect.
   WHY THIS MATTERS MORE THAN THE COSMETICS: `EXECUTION_SUCCESS_STATES = {"executed", "substantially-complete"}` (`oc_runipd.py:337`) is consulted by the in-run dependency check (`oc_runipd.py:3377-3380`), which decides whether a LATER item's `Item-Dependencies` edge is satisfied. The measured plan `xbwq8n` is Order 01 of a ten-plan Set whose nine siblings depend on the resolver it delivers. If a sibling had been queued in the same run, it would have been dispatched believing Order 01 landed, when nothing had merged.
   AGAIN, DISCRIMINATE ON THE REFUSAL, not by shrinking the set. Shrinking `EXECUTION_SUCCESS_STATES` would change behavior for every legitimately `substantially-complete` item; the correct test is "reached a success state AND no finalize refusal".
   THE BLAST RADIUS WAS MEASURED AT REVIEW AND IS LARGER THAN THIS ITEM ASSUMED, so start from this enumeration rather than re-deriving it (review, F-14). FIVE call sites, in three distinct roles:
@@ -72,11 +76,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THEREFORE: make a refused item read as NON-ACTIONABLE-BUT-NOT-DEAD while a retry is still possible, or order E-02's effect AFTER the retry budget is exhausted. Whichever you choose, state it and test it: a Set killed as `dead-children` while its child was about to be retried is a worse regression than the bug this plan fixes. If you conclude sites 3 to 5 should keep the looser meaning, say so and leave them alone; that is a legitimate outcome, but it must be a decision, not an omission.
   - Depends on: none
   - Expected outcome: an item whose finalize was refused does NOT satisfy a later item's `Item-Dependencies` edge in the same run; sites 1 and 2 stay in agreement; the interaction with sites 3 to 5 is decided, stated and tested (no Set is killed `dead-children` while its child still has retry budget); no change for a refusal-free `substantially-complete` item.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: hand it back to the agent, bounded by the existing budget
 
-- [ ] E-03 RE-DISPATCH THE ITEM ONCE PER REMAINING BUDGET UNIT after an `IPD-S404` refusal, in the same run, in recovery mode.
+- [x] E-03 RE-DISPATCH THE ITEM ONCE PER REMAINING BUDGET UNIT after an `IPD-S404` refusal, in the same run, in recovery mode.
   THE CHANNEL ALREADY EXISTS, so this is wiring and not construction. Setting `item["recovery_next"] = True` and returning the item to `queued` is the established pattern (`requeue_interrupted`, `oc_runipd.py:7096-7098`), `run_queue` consumes it (`oc_runipd.py:7358`, `agy_runipd.py:4382`), and the recovery prompt already interpolates `Prior attempt: {json.dumps(prior)}` (`oc_runipd.py:4848`, `agy_runipd.py:2397`) whose safe-key list ALREADY INCLUDES `finalize_refused` (`lane_containment.py:199`). So the agent will receive the gate's exact nine findings without a new packet format.
   PUT THE DECISION IN THE REFUSAL ARM, not in a later sweep. `requeue_interrupted`'s docstring states the rule and the reason: a gate placed anywhere other than the requeue itself "would simply be BYPASSED by the call that already ran". The refusal arm (`agy_runipd.py:3909`, `oc_runipd.py:6852`) is where the run knows a refusal happened.
   DO NOT RE-DISPATCH ON EVERY REFUSAL CLASS, and DO NOT USE `IPD-S404` AS THE TRIGGER: measured at review, that code is NOT specific to the retryable family (F-15). `C_CHECKPOINT = "IPD-S404"` (`ipd_lint.py:65`) is the code for EVERY checkpoint diagnostic, including the `status '<x>' is incompatible with checkpoint` case and the pre-execution blocking-question case (`ipd_lint.py:754-812`). Worse, `finalize_precheck` returns the SAME `(rc=1, message)` shape for causes the spec forbids retrying: a MISSING begin receipt, a STALE begin receipt ("the plan content changed since begin"), and scope-reconciliation failures (`ipd_lifecycle.py:1470-1520`). A stale receipt is spec 5.5's "changed frozen requirements" and an out-of-scope mutation is its first never-retry entry, so a naive `IPD-S404` trigger would retry two classes the spec explicitly forbids. And the driver cannot fall back to the exit code: it keeps only `fin_rc`/`fin_msg` and treats every nonzero identically (`oc_runipd.py:6727-6730`, `agy_runipd.py:3777-3780`), with `EXIT_FINDINGS = 1` covering all of the above.
@@ -85,34 +89,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ONE MECHANICAL DETAIL THE CHANNEL DEPENDS ON, verified at review so it is not rediscovered: the recovery prompt reads `item["attempts"][-1]` (`oc_runipd.py:4816`, `agy_runipd.py:2341`), and `finalize_refused` is written onto the ATTEMPT record (`attempt["finalize_refused"] = fin_msg`) as well as onto the item. So the re-dispatched turn sees the findings only if the refused attempt is still the LAST attempt when the next turn builds its prompt. Assert on the rendered prompt (V-03 already requires this), because a change to attempt bookkeeping would silently empty the channel while every flag still looked right. Verified the projection does not truncate: the measured message is 657 characters and `prior_attempt_summary` passes `finalize_refused` through whole.
   - Depends on: E-01, E-02
   - Expected outcome: a refusal whose findings are ALL in the retryable allowlist returns the item to `queued` with `recovery_next = True` and re-dispatches in the same run; the agent's prompt carries the gate's findings via the existing `Prior attempt:` channel with no new format; a message containing any unrecognized finding falls through unchanged; both hosts behave identically.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 SPEND THE FROZEN RETRY BUDGET THROUGH THE SHIPPED HELPERS, and FAIL THE ITEM when it is exhausted.
+- [x] E-04 SPEND THE FROZEN RETRY BUDGET THROUGH THE SHIPPED HELPERS, and FAIL THE ITEM when it is exhausted.
   DO NOT INVENT A SECOND COUNTER. `run_recovery.plan_retry` (`:269`) and `retry_budget_remaining` (`:415`) already exist, are tested, and already enforce spec `25kzda` 2.1's 0..10 range via `validate_retry_budget` before any ledger read. They currently have ZERO production callers; this is their first. Read `plan_retry`'s six documented guarantees before wiring: it refuses a non-retryable state, preserves prior attempts, raises `RetryLimitExceededError` rather than looping, is idempotent on a repeated key, and INVALIDATES evidence bound to the retried step so a stale green cannot survive the retry boundary.
   A BUDGET OF 0 MUST MEAN NO RETRY, not one. Spec Section 5.5 is explicit: "`0` means the first failed deterministic check or retryable host attempt immediately fails the item; no correction packet is issued." CITATION CORRECTED AT REVIEW: that sentence is at `:968`, not `:568` (which is the Section 4 heading); the plan's other twelve spec citations were verified exact. A test must pin the 0 case, because an off-by-one here converts a deliberate opt-out into a silent retry. READ THE FROZEN VALUE, never `args`: `freeze_run_policy_flags` resolves `--retry-budget` to its effective integer at queue build (`runner_shared.py:2175-2176`) precisely so no later reader re-resolves it, and the three newest run directories each carry `options.retry_budget: 2` in `state.json`. Guard it with an `is None` test, not a truthiness test, since 0 is legal.
   EXHAUSTION FAILS THE ITEM. Section 4.6's action is `RETRY, then FAIL ITEM`, and the FAIL half is what makes this safe: without it the run still ends up reporting a non-landing as success, which is the defect E-01 fixes. So on exhaustion set a failed status, not `substantially-complete`.
   IF THE HELPERS DO NOT FIT, SAY SO RATHER THAN FORCING THEM, AND NOTE THAT REVIEW MEASURED THE FIT AS POOR (F-16). `plan_retry(engine, ...)` takes a `run_engine.RunEngine` and calls `engine.reconstruct_state()`; `RunEngine` requires a `RunLedgerStore` over a hash-chained `ledger.jsonl` (`run_engine.py:117-127`). Measured at review: neither driver mentions `run_engine` OR `run_state` at all (grep exit 1 on both), and `find .aw/records/runs -name ledger.jsonl` returns ZERO files across 143 run directories. Spec `25kzda:28` concedes "the ledger is built but UNWIRED". The state vocabularies also disagree: `plan_retry` raises `NoRetryableStateError` unless the step is in `run_state.STATE_FAILED`/`STATE_BLOCKED` (`run_recovery.py:295-303`), and a driver item is never in either. So the alternative branch of this item is the LIKELY one, not the exceptional one, and OQ-03 records it. Implement the bound directly against the attempt list, do NOT quietly duplicate a second budget concept, and name the divergence and its reason. NOTE THE SIBLING: plan `xipfy1` (`reviewed`, `Blocks-Release: next`) owns the general question of where the budget is spent and carries its own blocking question about exactly this substrate mismatch; if it has resolved that question by execution time, follow its answer rather than inventing a second one.
   - Depends on: E-03
   - Expected outcome: each re-dispatch consumes one budget unit through the existing helpers (or a stated, justified alternative); budget 0 performs no retry; exhaustion marks the item FAILED rather than a success state; no second budget counter is introduced.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it with the measured case
 
-- [ ] E-05 GUARD THE EXACT MEASURED REGRESSION: a refused finalize must never be counted as run success.
+- [x] E-05 GUARD THE EXACT MEASURED REGRESSION: a refused finalize must never be counted as run success.
   WRITE THIS AS THE FALSIFIABLE CORE OF THE PLAN. Construct a run state whose single item is `substantially-complete` with a non-empty `finalize_refusal` (the literal shape of `run-20260908T213552Z-3724920`) and assert the rendered outcome is NOT `COMPLETED` and that the item does not satisfy a dependent's edge.
   DEMONSTRATE THE PRE-FIX FAILURE. Show the assertion FAILING against current code, because the whole point is that today it passes as success. An assertion that cannot distinguish fixed from unfixed proves nothing, which is the standard this repository already applies.
   USE THE REAL FIXTURE SHAPE, not an invented one. The nine-finding message is in the measured run's `state.json` under `queue[0].attempts[0].finalize_refused`; use that text so the test pins the real `IPD-S404` format rather than a paraphrase that could drift from what `ipd_lint` emits.
   - Depends on: E-04
   - Expected outcome: a test reproducing the measured state asserts the run is not reported `COMPLETED` and the refused item does not satisfy a dependent edge; the assertion is shown to FAIL against pre-change code; the fixture uses the real refusal text.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 COVER THE LOOP'S BOUNDS AND BOTH HOSTS, since an unbounded or single-host correction loop is a worse defect than the one being fixed.
+- [x] E-06 COVER THE LOOP'S BOUNDS AND BOTH HOSTS, since an unbounded or single-host correction loop is a worse defect than the one being fixed.
   THE REQUIRED CASES: a refusal with budget remaining re-dispatches exactly once per unit and no more; budget 0 does not retry at all; exhaustion FAILS the item; a successful correction (agent ticks the boxes and pastes evidence on the second turn) finalizes and reports success; a refusal class on Section 5.5's never-retry list is NOT retried; and the re-dispatched prompt actually CONTAINS the gate findings (assert on the rendered prompt text, not on the flag).
   ASSERT NO INFINITE LOOP MECHANICALLY, AND KNOW THAT NOTHING ELSE WILL CATCH IT (review, F-17). A test that merely checks "it retried" would pass on an implementation that retries forever. There is NO existing per-item dispatch cap: `max_items_per_session` (`oc_runipd.py:5392`, `:6478`) governs SESSION ROTATION (it rotates the session id after N turns) and never stops dispatch, and the selection loop simply re-picks any `queued` item whose dependencies are satisfied (`oc_runipd.py:7301-7322`), so an item returned to `queued` with no budget decrement is dispatched forever. The precedent for how badly this goes is recorded in-tree: `runner_shared.py:3175-3181` documents a MEASURED orchestrator spin of 201 dispatches in one run under a naive reconsider rule, which the drain path could not catch. Bound the run and assert a maximum dispatch count.
   BOTH HOSTS. Duplicate the coverage for `agy_runipd` and `oc_runipd`, since the measured incident was agy and the twin is where drift hides.
   - Depends on: E-05
   - Expected outcome: all listed cases pass on BOTH hosts, including a mechanical no-infinite-loop bound and an assertion on the rendered prompt containing the findings.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -166,16 +170,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Deferred / out of scope (with reason)
 
-- PREVENTING A DISHONEST TICK. Not implementable at the prompt level and explicitly ruled out by the maintainer (2026-09-08): we are not mitigating malice. A checkbox is text; an agent that will write an unearned one is not stopped by wording. The genuine defense is that the run holds independent evidence (diff, commits, session logs) against which a false claim is checkable, and detecting that contradiction is the verifier's concern (`wyw936`), not this plan's.
-- THE VERIFIER VERDICT FAIL-OPEN. Backlog `wyw936` (`graduated`) and plan `1bfppy` (`to-review`). Adjacent and complementary: that path decides whether a turn's WORK was verified, while this one acts on a DETERMINISTIC gate refusal. Bundling them would merge a verdict-mapping fix with a scheduling change.
-- THE RETRYABLE-CLASS ALLOWLIST FOR HOST AND EXIT FAILURES. Plan `xipfy1` (`to-review`, Set `retrywire`, `Blocks-Release: next`) owns the general allowlist and the flag surface. Its own OQ-01 warns that "a budget with no correction route is dead"; this plan is one such route, for one class. SEQUENCE, do not merge: taking over its scope would violate the graduation contract.
-- BINDING THE `IPD-EXEC-*` FINDING CODES. F-9: they are unbound names across all 11, and binding the family is a spec-wide project. This plan implements the BEHAVIOR against the shipped enforcer, which is what spec `:106` instructs.
-- ANY NEW CLI FLAG. The budget already has a frozen policy value and `--retry-incomplete` already exists. A new flag would be a second control surface for one behavior.
+- PREVENTING A DISHONEST TICK. Not implementable at the prompt level and explicitly ruled out by the maintainer (2026-09-08): we are not mitigating malice. A checkbox is text; an agent that will write an unearned one is not stopped by wording. The genuine defense is that the run holds independent evidence (diff, commits, session logs) against which a false claim is checkable, and detecting that contradiction is the verifier's concern, not this plan's. CARRIER: backlog `wyw936` (`graduated`) and its plan `1bfppy`. NOT AN OBLIGATION THIS PLAN LEAVES OUTSTANDING: it is a maintainer RULING that the work is out of scope, so there is nothing for this plan to hand off beyond the adjacent carrier already named.
+  - Carrier-Declined: A maintainer RULING (2026-09-08) that the work is not implementable and is out of scope, not deferred work. There is no obligation to carry; the adjacent verifier concern has its own carrier named in the next row.
+- THE VERIFIER VERDICT FAIL-OPEN. CARRIER: backlog `wyw936` (`graduated`, verified present at `.aw/records/backlog/graduated/20260829-runverdict-01-wyw936-verifier-verdict-gate-fails-open-on-correction-req.backlog.md`) and plan `1bfppy` (verified still in `pending/`). Adjacent and complementary: that path decides whether a turn's WORK was verified, while this one acts on a DETERMINISTIC gate refusal. Bundling them would merge a verdict-mapping fix with a scheduling change.
+  - Carrier: wyw936
+- THE RETRYABLE-CLASS ALLOWLIST FOR HOST AND EXIT FAILURES. CARRIER: plan `xipfy1` (Set `retrywire`, `Blocks-Release: next`, verified still in `pending/` at execution time). It owns the general allowlist and the flag surface. Its own OQ-01 warns that "a budget with no correction route is dead"; this plan is one such route, for one class. SEQUENCE, do not merge: taking over its scope would violate the graduation contract. NOTE for whoever executes it: its blocking substrate question was still UNANSWERED at this execution, so this plan did not follow an answer that does not exist, and it introduced no competing budget concept for `xipfy1` to reconcile.
+  - Carrier: xipfy1
+- BINDING THE `IPD-EXEC-*` FINDING CODES. F-9: they are unbound names across all 11, and binding the family is a spec-wide project. This plan implements the BEHAVIOR against the shipped enforcer, which is what spec `:106` instructs. CARRIER: backlog `ibuxe6` (`open`), filed at execution because this plan's work made the obligation SHARPER rather than discharging it: three of the eleven codes (`IPD-EXEC-E-COMPLETE`, `IPD-EXEC-V-EVIDENCE`, `IPD-EXEC-PRE-TRANSITION`) are now a one-to-one match for diagnostics `ipd_lint` already emits, so binding those three is cheap and would let the send-back key on codes instead of prose. Recorded as a follow-up rather than scope-crept, exactly as this plan's spec-sync section instructs.
+  - Carrier: ibuxe6
+- MATCHING THE RETRY TRIGGER ON FINDING PROSE RATHER THAN STRUCTURE. Not anticipated by the plan and discovered while implementing E-03: `finalize_precheck` DOES compute a structured `findings` tuple and `aw ipd finalize` CAN emit typed diagnostics under `--agent`, but `driver_finalize` shells out without it and keeps only `(returncode, combined_output)`, so the structure is destroyed at the subprocess boundary and no structured path reaches the runner. E-03 therefore matches prose, which works and is pinned against the live enforcer by a test, but is brittle by construction. CARRIER: backlog `144b3x` (`open`).
+  - Carrier: 144b3x
+- WIRING THE LEDGER SUBSTRATE SO THE SHIPPED RETRY HELPERS BECOME REACHABLE. OQ-03's expected branch was taken (the bound is implemented against the item's own attempt counter reading the frozen budget), which leaves `run_recovery.plan_retry` and `retry_budget_remaining` dormant with zero production callers for another cycle. OQ-03 required that divergence be RECORDED as a finding rather than quietly accepted. CARRIER: backlog `eh91an` (`open`).
+  - Carrier: eh91an
+- ANY NEW CLI FLAG. The budget already has a frozen policy value and `--retry-incomplete` already exists. A new flag would be a second control surface for one behavior. NO OBLIGATION REMAINS: none was added, and the exhausted status stays inside `--retry-incomplete`'s set so the manual route is intact (asserted by `test_the_exhausted_status_keeps_the_manual_recovery_route`).
+  - Carrier-Declined: An explicit non-goal that was honored: no flag was added, so nothing is outstanding. The manual `--retry-incomplete` route remains intact and is asserted by a test.
 - SURFACING REFUSAL REMEDIES IN THE RUN VIEWER. Plan `r2i1b1` (`approved`, Set `orchprobe`) owns the read surfaces and adds a `remedy` field; its scope says "OUT: changing what any existing gate decides". This plan changes dispatch, not the viewer. CORRECTED AND SHARPENED AT REVIEW: the separation is NOT clean for E-01, because `r2i1b1`'s E-02 edits the same `render_run_summary_table` diagnostics block to render a refusal record for ANY status, which is a generalization of exactly what E-01 does for one case. `aw runs`/`run_viewer.py` remains firmly out of scope, but the summary renderer is shared ground, and OQ-04 carries that to the maintainer instead of leaving it as an assumed non-overlap.
-- RE-DISPATCHING REFUSALS OUTSIDE THE PRE-TRANSITION FAMILY. Section 5.5's never-retry list is the boundary and E-03 honors it; widening it needs its own analysis.
+  - Carrier-Declined: Owned in full by `r2i1b1`, which is now `executed`, so the obligation is discharged rather than outstanding. This plan writes that plan's shared `Refusal` record, so every surface already consuming `refusal_of_item` renders this refusal with no further work.
+- RE-DISPATCHING REFUSALS OUTSIDE THE PRE-TRANSITION FAMILY. Section 5.5's never-retry list is the boundary and E-03 honors it; widening it needs its own analysis. CARRIER: plan `xipfy1` as named above, which owns the general retryable-class question. NO OUTSTANDING OBLIGATION ON THIS PLAN: the boundary is ENFORCED here rather than deferred (the allowlist is positive and every unrecognized finding falls through), and three never-retry classes are asserted to fall through in `tests/test_finalize_sendback.py`.
+  - Carrier-Declined: The boundary is ENFORCED by this plan rather than deferred: the allowlist is positive, every unrecognized finding falls through, and three never-retry classes are asserted to fall through. Widening it is `xipfy1`'s scope, carried in its own row above.
+- SURFACING THE REFUSAL IN `aw runs` / `run_viewer.py`. Out of scope and NOT an obligation this plan leaves behind, because the record it writes is r2i1b1's shared `Refusal` rather than a bespoke field: any surface that already consumes `refusal_of_item` renders this refusal with no further work. That is the payoff of OQ-04's ordering.
+  - Carrier-Declined: Not an obligation this plan creates: it records r2i1b1's shared `Refusal` rather than a bespoke field, so no viewer work is owed for this refusal to appear.
 
 ## Scope check
 
+- SCOPE AS ACTUALLY EXECUTED (2026-09-20), recorded here so the finalize reconciliation is not a surprise. FOUR declared paths, of which ONE was modified and TWO go unmodified, plus ONE undeclared path that carries the work:
+  - `agent_workflows/render_stream.py` - MODIFIED as declared (the `outcome_str` guard plus the legacy-refusal read in `refusal_of_item`).
+  - `tests/test_finalize_sendback.py` - CREATED as declared, 46 tests.
+  - `agent_workflows/oc_runipd.py` - DECLARED BUT UNMODIFIED, needs a `--scope-ack`.
+  - `agent_workflows/agy_runipd.py` - DECLARED BUT UNMODIFIED, needs a `--scope-ack`.
+  - `agent_workflows/runner_shared.py` - OUT OF SCOPE, needs a `--scope-reason`.
+  - `tests/test_render_stream.py` - DECLARED BUT UNMODIFIED, needs a `--scope-ack` (the renderer change is covered by the new file's own tests, which is the outcome the Over-scope row below anticipated in reverse).
+  THE SCOPE-REASON, stated once here so the finalize flag can quote it: THE TWIN REFUSAL ARMS THIS PLAN DECLARED NO LONGER EXIST. The plan's fence says "BOTH HOSTS, IDENTICALLY. The refusal arms are twins and must stay twins; if the logic is worth sharing, put it in `runner_shared`, which is where the cross-host seam lives." At HEAD `a36dbc1e` they are already shared: `grep -rn "finalize_refus" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` returns NOTHING, both sites live in `runner_shared.execute_item_core`, and both hosts call it (`oc_runipd.py:6254`, `agy_runipd.py:3078`). Editing the two declared driver paths would have required RE-FORKING per-host copies of an arm the `rununify` Set deliberately merged. So the work went to the seam the plan itself names, which satisfies E-03's "both hosts behave identically" by CONSTRUCTION rather than by a pinned-equality test. (Decision 02-zzcrlo-D2.)
 - Over-scope: `tests/test_finalize_sendback.py` is a NEW file and is declared. If E-01's reporting change is better tested inside `tests/test_render_stream.py` alone, then the new file may go unused and must carry a `--scope-ack` at finalize rather than being created empty to satisfy the declaration.
 - SCOPE-PATHS IS OQ-04-DEPENDENT (review, PR-101). Under OQ-04 option (a) (`r2i1b1` first), E-01 needs no renderer branch, so `agent_workflows/render_stream.py` and `tests/test_render_stream.py` may both go unmodified and would each need a `--scope-ack`. Under option (b) both are edited as declared. Do not execute E-01 without knowing which; the finalize gate reconciles what you actually changed against what was declared.
 - FOUR PENDING PLANS DECLARE BOTH DRIVERS AND THIS FUNCTION. `r2i1b1` (`approved`) declares `render_stream.py`, `runner_shared.py` and both drivers; `1bfppy` (`reviewed`) declares both drivers and `runner_shared.py`; `xipfy1` (`reviewed`) declares both drivers and `runner_shared.py`. That is merge ordering rather than a hazard, since each execute item runs in an isolated worktree returning through the merge-and-revalidate gate, but E-01's specific edit target is the one place two plans would write DIFFERENT logic into the same block, which is why OQ-04 exists.
@@ -211,9 +236,11 @@ NO USER-FACING DOCUMENTATION CHANGE IS EXPECTED, since no CLI surface changes. I
 ### OQ-03: Can the shipped `run_recovery` helpers be used without importing `run_engine`/`run_state` into a driver?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: this plan's executor
-- Resolution or deferral rationale: NOT blocking, because E-04 states the requirement (one bounded spend per re-dispatch, 0 means none, exhaustion fails the item) and permits a justified alternative. SHARPENED AT REVIEW, AND THE ANSWER IS ALMOST CERTAINLY "NO" (F-16): `plan_retry(engine, step_id, failure_class, ...)` takes a `run_engine.RunEngine` and calls `engine.reconstruct_state()`, and `RunEngine` requires a `RunLedgerStore` over a hash-chained `ledger.jsonl` (`run_engine.py:117-127`). Measured at review: NEITHER driver mentions `run_engine` or `run_state` anywhere (grep exit 1 on both, so even the "comment mention" this question cited is gone), `find .aw/records/runs -name ledger.jsonl` returns ZERO files across 143 run directories, and spec `25kzda:28` concedes "the ledger is built but UNWIRED". The step-state vocabularies are also disjoint: `plan_retry` raises `NoRetryableStateError` unless the step is `STATE_FAILED`/`STATE_BLOCKED` (`run_recovery.py:295-303`), values no driver item ever holds. So "use the helpers" is not a small adaptation; it means constructing a ledger substrate the drivers do not have. EXPECTED PATH: bound the retry directly against the item's `attempts` list, reading the FROZEN `options.retry_budget` (verified present, value 2, in the three newest run directories), and RECORD the divergence as a finding so `plan_retry`'s dormancy stays visible rather than being quietly accepted for another cycle. CHECK THE SIBLING FIRST: plan `xipfy1` (`reviewed`, `Blocks-Release: next`) owns the general "where is the budget spent" question and carries a BLOCKING question about this exact substrate mismatch, with three costed options. If a maintainer has answered it by execution time, follow that answer instead of inventing a second one. Do not create a second competing budget concept either way.
+- Carrier: eh91an
+- Resolution or deferral rationale: RESOLVED AT EXECUTION 2026-09-20, AND THE ANSWER IS "NO". Re-measured at HEAD `a36dbc1e` rather than carried over on trust: `grep -c "run_engine\|run_state"` returns `0` for BOTH drivers, and `find .aw/records/runs -name ledger.jsonl` returns ZERO files (the directory does not exist in this lane at all). So the substrate `plan_retry` needs is still absent and the step-state vocabularies are still disjoint. THE EXPECTED PATH WAS TAKEN: the retry is bounded directly against the item's own send-back counter (`finalize_retry_attempts`) while reading the FROZEN `options.retry_budget` through `frozen_retry_budget`, with an `is None` guard so a legal 0 survives. NO second budget concept was introduced (asserted by `test_no_second_budget_knob_was_introduced`). THE SIBLING WAS CHECKED AND HAD NOT ANSWERED: `xipfy1` is still in `pending/`, so there was no maintainer answer to follow and none was invented. THE DIVERGENCE IS RECORDED AS THIS QUESTION REQUIRED, in backlog `eh91an` (`open`), so `plan_retry`'s dormancy stays visible rather than being quietly accepted for another cycle. The original analysis, which this execution confirmed, follows.
+  PRIOR ANALYSIS (review): SHARPENED AT REVIEW, AND THE ANSWER IS ALMOST CERTAINLY "NO" (F-16): `plan_retry(engine, step_id, failure_class, ...)` takes a `run_engine.RunEngine` and calls `engine.reconstruct_state()`, and `RunEngine` requires a `RunLedgerStore` over a hash-chained `ledger.jsonl` (`run_engine.py:117-127`). Measured at review: NEITHER driver mentions `run_engine` or `run_state` anywhere (grep exit 1 on both, so even the "comment mention" this question cited is gone), `find .aw/records/runs -name ledger.jsonl` returns ZERO files across 143 run directories, and spec `25kzda:28` concedes "the ledger is built but UNWIRED". The step-state vocabularies are also disjoint: `plan_retry` raises `NoRetryableStateError` unless the step is `STATE_FAILED`/`STATE_BLOCKED` (`run_recovery.py:295-303`), values no driver item ever holds. So "use the helpers" is not a small adaptation; it means constructing a ledger substrate the drivers do not have. EXPECTED PATH: bound the retry directly against the item's `attempts` list, reading the FROZEN `options.retry_budget` (verified present, value 2, in the three newest run directories), and RECORD the divergence as a finding so `plan_retry`'s dormancy stays visible rather than being quietly accepted for another cycle. CHECK THE SIBLING FIRST: plan `xipfy1` (`reviewed`, `Blocks-Release: next`) owns the general "where is the budget spent" question and carries a BLOCKING question about this exact substrate mismatch, with three costed options. If a maintainer has answered it by execution time, follow that answer instead of inventing a second one. Do not create a second competing budget concept either way.
 
 ### OQ-04: `r2i1b1` is approved and builds this plan's E-01 mechanism generally, in the same function. Which lands first?
 
@@ -231,30 +258,220 @@ NO USER-FACING DOCUMENTATION CHANGE IS EXPECTED, since no CLI surface changes. I
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: FIRST paste the maintainer's answer to OQ-04 and the resulting shape of this item; V-01 may not be marked complete while OQ-04 is open. PASTE the rendered run summary for a state whose single item is `substantially-complete` WITH a non-empty `finalize_refusal`, showing the outcome is NOT `COMPLETED`. PASTE the same render for a `substantially-complete` item WITHOUT a refusal, showing it is UNCHANGED from today. PASTE the per-item row or note showing the refusal is visible. PASTE a diff proving `substantially-complete` was not removed from the outcome tuple and that no gate decision changed. PASTE the EXIT CODE before and after, showing it is still 1 for the measured state (it was never 0; F-13). State the OQ-02 token choice (review resolved it as reuse `PARTIAL`; if you diverge, say why).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: OQ-04 IS RESOLVED AND WAS HONORED. Its answer was option (a), `r2i1b1` LANDS FIRST, and it did: `aw find plans` reports `executed  r2i1b1  orchprobe  .aw/records/plans/executed/20260907-orchprobe-01-r2i1b1-surface-a-per-item-refusal-reason-and-its-remedy-in-the-run.ipd.md`. Its obligation on this executor was to CONSUME that refusal record rather than invent a parallel one and to confirm its shape carries a reason code, a human reason and a remedy: confirmed, the shipped record is `render_stream.Refusal` (frozen dataclass; `code`/`reason`/`remedy` all REQUIRED and non-empty by `__post_init__`) with `REFUSAL_KEY = "refusal"`, ONE reader `refusal_of_item` and ONE writer `record_refusal`. SO THIS ITEM TOOK ITS SHRUNKEN SHAPE: E-01 writes a `Refusal` through `record_refusal` and fixes `outcome_str`, and adds NO renderer branch of its own; the refusal renders through r2i1b1's existing any-status diagnostics block. (Decision 02-zzcrlo-D1.)
+    REFUSED ITEM -> `PARTIAL`, NOT `COMPLETED` (the measured run's own state shape):
+    ```
+    │ AW RUN SUMMARY: run-20260908T213552Z-3724920 (agy)                                        │
+    │ Outcome: PARTIAL   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0)     │
+    │ Progress: 1/1  [██████████] 100% (1 substantially-complete)                               │
+    │  01 │  01 │ xbwq8n │ lanetruth │ execute │ substantially-complete │ verified │ ...         │
+
+    Diagnostics / Blocked Items:
+      • xbwq8n: substantially-complete (the finalize gate refused and the plan was left unmoved: refused: pre-transition gate did NOT conform (error); plan left unmoved. IPD-S404 E-01: not 'performed' at pre-transition)
+        → remedy: complete the plan's `E-*`/`V-*` bookkeeping (tick each performed item and paste the real observed evidence), confirm with `aw ipd lint <id6> --phase pre-transition`, then finalize. ...
+    ```
+    REFUSAL-FREE `substantially-complete` IS UNCHANGED (same state minus the refusal):
+    ```
+    │ Outcome: COMPLETED   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0)   │
+    ```
+    THE REFUSAL IS VISIBLE on the summary itself: the `Diagnostics / Blocked Items:` block above names `xbwq8n` and carries the remedy on its own line. The measured run rendered NO such block at all (pre-fix output pasted under V-05).
+    `substantially-complete` WAS NOT REMOVED FROM THE OUTCOME TUPLE. `git diff agent_workflows/render_stream.py` shows only ADDED lines around it and no `-` line touching the tuple; the whole change is one conjunct plus its comment:
+    ```
+    +        and not any(refusal_of_item(it) is not None for it in queue)
+    ```
+    Pinned by `test_substantially_complete_was_not_removed_from_the_outcome_tuple`.
+    NO GATE DECISION CHANGED: `ipd_lint`'s pre-transition checks and the `ipd_lifecycle` finalize gates are untouched (neither file is modified; `git diff --stat` lists only `agent_workflows/render_stream.py` and `agent_workflows/runner_shared.py`). This plan acts on the verdict.
+    THE EXIT CODE IS UNCHANGED AND WAS NEVER 0 (F-13). Measured AFTER the change on the incident's own queue: `deliberate_stop_exit_code(['substantially-complete'], success_states=SUCCESS_STATES, stopped=False)` -> `1`. The only occurrences of `deliberate_stop_exit_code` in this plan's diff are two COMMENT mentions (`git diff | grep -n` -> lines 66 and 96, both `+ #` comment text), so no exit-code logic was touched. Pinned by `test_the_exit_code_is_UNCHANGED_and_was_never_zero`.
+    OQ-02 TOKEN CHOICE: reuse `PARTIAL`, exactly as the review resolved it. No divergence, so no new vocabulary to document. (Decision 02-zzcrlo-D7.)
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: PASTE the enumeration of EVERY reader of `EXECUTION_SUCCESS_STATES` in both drivers with its intent, reconciled against the five sites review measured (`oc_runipd.py:3377`, `:4273`, `:3560`, `:7393`, `agy_runipd.py:4405`); if you find a different count, say which changed. PASTE test output showing a refused item does NOT satisfy a dependent's `Item-Dependencies` edge in the same run, and that a refusal-free `substantially-complete` item still DOES. PASTE the pre-fix run of that assertion showing it FAILED (today the dependent is dispatched). PASTE evidence that sites 1 and 2 still AGREE (the cascade and `edge_satisfied` use the same bar), since a divergence there is the measured `run-20260904T042705Z-1025943` defect. PASTE the DECIDED treatment of the orchestrator injection sites and a test proving no Set is terminated `dead-children` while its child still has retry budget.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: THE CENSUS CHANGED AND THE COUNT IS NOW FOUR, NOT FIVE, AND THE ONE THAT DISAPPEARED IS THE ONE THIS ITEM WAS AIMED AT. Measured at HEAD `a36dbc1e` with `grep -rn "EXECUTION_SUCCESS_STATES" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py`:
+    ```
+    oc_runipd.py:492    EXECUTION_SUCCESS_STATES = {"executed", "substantially-complete"}   (definition)
+    oc_runipd.py:3796       success_states=EXECUTION_SUCCESS_STATES,   -> decide_orchestrator_dispatch (selection gate)
+    oc_runipd.py:4529       EXECUTION_SUCCESS_STATES if action != review  -> cascade_dependency_blocked
+    oc_runipd.py:6753       success_states=EXECUTION_SUCCESS_STATES,   -> dispatch_orchestrator_item
+    agy_runipd.py:563   EXECUTION_SUCCESS_STATES = {"executed", "substantially-complete"}   (definition)
+    agy_runipd.py:3522      success_states=EXECUTION_SUCCESS_STATES,   -> dispatch_orchestrator_item
+    ```
+    RECONCILED AGAINST REVIEW'S FIVE: site 1 (`edge_satisfied`, the in-run dependency gate this item targeted) IS GONE; sites 2 (cascade), 3/4 (orchestrator, oc) and 5 (orchestrator, agy) remain, renumbered by line drift. So the reader count in the drivers is 4 plus 2 definitions.
+    WHY SITE 1 IS GONE, AND WHY THAT ALREADY SATISFIES THIS ITEM'S FIRST HALF: the maintainer REMOVED the in-run status shortcut from `edge_satisfied` on 2026-09-19 ("one check, not gates in depth"). Its comment records the measured cost, run `run-20260919T194413Z-2056285`: `yaxr4i` finished `substantially-complete` with its commits living only on `aw/lane/yaxr4i`, `n4xq3l` was told its `executed:yaxr4i` edge was met, was dispatched into a tree with none of that work, correctly refused, and cascaded `dependency-blocked` to eight more items for 2h10m and $55.02. `by_id` is now documented as DELIBERATELY UNREAD with "Do not reintroduce a read of it without that ruling being revisited." Measured: the `executed`-edge branch contains no `by_id` read. A refused finalize leaves the plan in `pending/`, so the disk-authoritative gate refuses the edge for exactly the right reason. I therefore ASSERTED the property rather than re-introducing the shortcut behind a narrower condition. (Decision 02-zzcrlo-D3; the plan's F-2/F-14 analysis is stale and is reported as a finding.)
+    A REFUSED DEPENDENCY DOES NOT RELEASE ITS DEPENDENT (real `dependency_status` against a real on-disk `pending/` plan):
+    ```
+    tests/test_finalize_sendback.py::ARefusedItemDoesNotSatisfyADependentEdge::test_a_refused_dependency_does_not_release_its_dependent PASSED [ 75%]
+    tests/test_finalize_sendback.py::ARefusedItemDoesNotSatisfyADependentEdge::test_the_in_run_status_shortcut_is_STILL_GONE PASSED [100%]
+    ```
+    The assertion is `satisfied is False` with `unsatisfied == ["executed:yaxr4i"]`.
+    NO PRE-FIX FAILURE EXISTS FOR THIS HALF, AND THAT IS THE HONEST RESULT RATHER THAN A SKIPPED STEP. V-02 asks for the assertion FAILING against pre-change code on the premise that "today the dependent is dispatched". That premise was true when the plan was written and is FALSE at HEAD: the maintainer's ruling fixed it five days before this execution. Demonstrating a pre-fix failure would require reverting HIS commit, not mine. The test is therefore a REGRESSION GUARD for that ruling, and `test_the_in_run_status_shortcut_is_STILL_GONE` is what makes it fail if anyone re-adds the shortcut.
+    SITES 1 AND 2 CANNOT DISAGREE, which is stronger than "still agree": they are ONE OBJECT per host, re-exported. Measured: `oc.edge_satisfied is agy.edge_satisfied` -> True and `oc.cascade_dependency_blocked is agy.cascade_dependency_blocked` -> True (`test_the_cascade_and_edge_gate_remain_ONE_shared_object_per_host` PASSED). The cascade still selects its bar action-awarely at `oc_runipd.py:4529` with the in-tree comment forbidding a hardcode, so the `run-20260904T042705Z-1025943` review-mode defect stays fixed.
+    THE ORCHESTRATOR INJECTION SITES: DECIDED AS "LEAVE THEM ALONE", which the plan explicitly permits provided it is a decision and not an omission. The plan's own fear (a refusal converted into a terminal Set-wide `dead-children` kill) does not arise, because `decide_orchestrator_dispatch` classifies `dead` only when `run_status in terminal_states and run_status not in success_states`, and the two states do the work: a refused-and-retrying child is `queued`, which is NOT terminal, so it reads ACTIONABLE -> RECONSIDER; an exhausted child is `failed-safely`, which IS terminal and is in NO success bar, so the Set then correctly TERMINATES instead of spinning. (Decision 02-zzcrlo-D4.) Both halves tested:
+    ```
+    tests/test_finalize_sendback.py::TheOrchestratorBarIsNotKilledWhileRetryBudgetRemains::test_a_queued_retrying_child_is_NOT_declared_dead PASSED [ 62%]
+    tests/test_finalize_sendback.py::TheOrchestratorBarIsNotKilledWhileRetryBudgetRemains::test_an_EXHAUSTED_child_DOES_terminate_the_set PASSED [ 50%]
+    tests/test_finalize_sendback.py::TheOrchestratorBarIsNotKilledWhileRetryBudgetRemains::test_the_exhausted_status_is_terminal_and_not_a_success PASSED [ 25%]
+    tests/test_finalize_sendback.py::TheOrchestratorBarIsNotKilledWhileRetryBudgetRemains::test_a_retrying_child_is_not_terminal_which_is_what_makes_it_actionable PASSED [ 37%]
+    tests/test_finalize_sendback.py::TheOrchestratorBarIsNotKilledWhileRetryBudgetRemains::test_the_exhausted_status_keeps_the_manual_recovery_route PASSED [ 12%]
+    ```
+    THE CASCADE CONFIRMS THE SAME ASYMMETRY directly (`cascade_dependency_blocked` on a two-item queue): a `failed-safely` prerequisite blocks its dependent (`blocked ids: ['dpn001'] -> dependency-blocked`), while a `queued` retrying prerequisite does NOT (`retrying dep cascades: [] -> queued`). So no dependent is killed while its prerequisite still has budget, and none is left waiting once the budget is gone.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: PASTE test output showing a refusal whose findings are all in the retryable ALLOWLIST returns the item to `queued` with `recovery_next` set and re-dispatches within the SAME run, on BOTH hosts. PASTE the allowlist itself and confirm the trigger is NOT the bare `IPD-S404` code or the bare nonzero exit (F-15). PASTE THE RENDERED PROMPT of the second dispatch showing it CONTAINS the gate's refusal text (assert on the prompt, not the flag). PASTE at least THREE non-retryable refusals falling through unchanged, chosen to cover the causes that share the same `(1, message)` shape: a MISSING begin receipt, a STALE begin receipt (spec 5.5 "changed frozen requirements"), and a scope-reconciliation refusal (spec 5.5's first never-retry entry). PASTE proof the decision lives in the refusal arm, not a later sweep.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: THE RETRYABLE REFUSAL REQUEUES THE ITEM IN RECOVERY MODE. `handle_finalize_refusal` returns `queued`, sets `item["status"] = "queued"`, `item["recovery_next"] = True` and `item["finalize_retry_attempts"] = 1`, and emits one `ipd-finalize-refused` event carrying `retry_scheduled: True`:
+    ```
+    tests/test_finalize_sendback.py::TheRefusalArmPerformsTheSendBack::test_a_retryable_refusal_requeues_the_item_in_recovery_mode PASSED [100%]
+    ```
+    `queued` + `recovery_next` IS the established re-dispatch pattern (`requeue_interrupted`), and both hosts' `run_queue` already consume it via `recovery = bool(runnable.pop("recovery_next", False))`, so the re-dispatch happens in the SAME run with no new scheduling code.
+    THE ALLOWLIST ITSELF, and the trigger is NEITHER the code NOR the exit status:
+    ```python
+    RETRYABLE_FINALIZE_FINDING_TEXTS = (
+        "not 'performed' at pre-transition",
+        "not 'pass' at pre-transition",
+        "empty Observed evidence at pre-transition",
+    )
+    RETRYABLE_FINALIZE_SUMMARY = "pre-transition gate did NOT conform"
+    ```
+    `finalize_refusal_is_retryable` requires BOTH that the summary be the pre-transition gate's AND that EVERY `IPD-*` finding line match the allowlist. It never reads `fin_rc` and never matches `IPD-S404` (F-15: that code is `ipd_lint.C_CHECKPOINT`, emitted for every checkpoint diagnostic including the status-mismatch and pre-execution blocking-question cases). VERIFIED AGAINST THE REAL ENFORCER rather than trusted: the three texts were reproduced by linting this very plan at `--phase pre-transition`, and `test_the_allowlist_texts_are_the_ones_ipd_lint_ACTUALLY_EMITS` builds an incomplete plan, lints it, and asserts EVERY emitted `IPD-S404` diagnostic is matched, so a reword in `ipd_lint` breaks the test instead of silently disabling the send-back. `test_the_summary_text_is_the_one_finalize_precheck_ACTUALLY_EMITS` pins the summary against `ipd_lifecycle.finalize_precheck`'s source.
+    THE RENDERED PROMPT CONTAINS THE GATE'S FINDINGS, asserted on the PROMPT TEXT for both hosts (`OC_HOST_LABELS` and `AGY_HOST_LABELS`), not on the flag:
+    ```
+    tests/test_finalize_sendback.py::TheRefusalArmPerformsTheSendBack::test_the_REDISPATCHED_PROMPT_CONTAINS_the_gate_findings PASSED [ 56%]
+    tests/test_finalize_sendback.py::TheRefusalArmPerformsTheSendBack::test_finalize_refused_is_an_ALLOWLISTED_prior_attempt_key PASSED [ 62%]
+    tests/test_finalize_sendback.py::TheRefusalArmPerformsTheSendBack::test_the_full_multi_finding_message_survives_the_projection_intact PASSED [ 75%]
+    tests/test_finalize_sendback.py::TheRefusalArmPerformsTheSendBack::test_the_gate_findings_are_PRESERVED_for_the_next_turn PASSED [ 68%]
+    ```
+    It asserts the rendered prompt contains the literal `finalize_refused` plus the finding texts `not 'performed' at pre-transition` and `empty Observed evidence at pre-transition`. This is the assertion F-21 demanded: the channel reads `attempts[-1]`, so it works only while the refused attempt is last, and a change to attempt bookkeeping would empty the channel while every flag still looked right. The 1008-character measured message passes through `prior_attempt_summary` byte-identical.
+    THREE NEVER-RETRY CLASSES FALL THROUGH UNCHANGED, all sharing the identical `(1, message)` shape:
+    ```
+    tests/test_finalize_sendback.py::TheRetryTriggerIsAPositiveAllowlist::test_a_missing_begin_receipt_is_NOT_retryable PASSED [ 33%]
+    tests/test_finalize_sendback.py::TheRetryTriggerIsAPositiveAllowlist::test_a_STALE_begin_receipt_is_NOT_retryable PASSED [ 13%]
+    tests/test_finalize_sendback.py::TheRetryTriggerIsAPositiveAllowlist::test_a_scope_reconciliation_refusal_is_NOT_retryable PASSED [ 26%]
+    tests/test_finalize_sendback.py::TheRetryTriggerIsAPositiveAllowlist::test_a_MIXED_message_is_NOT_retryable PASSED [ 53%]
+    tests/test_finalize_sendback.py::TheRetryTriggerIsAPositiveAllowlist::test_an_empty_or_summary_only_message_is_NOT_retryable PASSED [ 40%]
+    tests/test_finalize_sendback.py::TheRefusalArmPerformsTheSendBack::test_a_never_retry_class_falls_through_UNCHANGED PASSED [ 93%]
+    ```
+    The STALE receipt is spec 5.5's "changed frozen requirements" and the scope refusal is its FIRST never-retry entry. The MIXED case is the load-bearing one: a message pairing an incomplete `V-*` with an out-of-scope path is NOT retried, because "any retryable finding" would have retried a forbidden class. The fall-through leaves `status == "substantially-complete"`, no `recovery_next`, `finalize_retry_attempts == 0` and `retryable: false` on the event, i.e. exactly today's preserve-and-report behavior.
+    THE DECISION LIVES IN THE REFUSAL ARM, not a later sweep, per `requeue_interrupted`'s stated rule that a gate placed elsewhere "would simply be BYPASSED by the call that already ran". Proven by counting the call sites inside `execute_item_core`:
+    ```
+    tests/test_finalize_sendback.py::TheRefusalArmPerformsTheSendBack::test_the_decision_lives_in_the_refusal_arm_and_not_a_later_sweep PASSED [ 81%]
+    ```
+    It asserts `src.count("handle_finalize_refusal(") == 2`, i.e. BOTH refusal arms (the lane-worktree one and the no-lane one) delegate to the one shared performer.
+    BOTH HOSTS, IDENTICALLY, AND BY CONSTRUCTION RATHER THAN BY A PINNED EQUALITY. The plan's `Scope-Paths` expected twin arms in the two drivers; at HEAD those twins no longer exist (`grep -rn "finalize_refus" agent_workflows/agy_runipd.py agent_workflows/oc_runipd.py` returns NOTHING) because the arm moved into the shared `execute_item_core`, which both hosts call. So the logic went to `runner_shared`, exactly as this item's own text instructs ("if the logic is worth sharing, put it in `runner_shared`, which is where the cross-host seam lives"). (Decision 02-zzcrlo-D2.)
+    ```
+    tests/test_finalize_sendback.py::BothHostsBehaveIdentically::test_both_hosts_execute_through_the_SAME_refusal_arm PASSED [ 31%]
+    tests/test_finalize_sendback.py::BothHostsBehaveIdentically::test_the_send_back_symbols_are_reachable_from_both_hosts PASSED [ 25%]
+    tests/test_finalize_sendback.py::BothHostsBehaveIdentically::test_both_hosts_agree_on_the_success_bars PASSED [ 18%]
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: PASTE the budget-0 case showing ZERO retries (spec `:968`, corrected from `:568`). PASTE a case with budget remaining showing exactly one spend per re-dispatch. PASTE the exhaustion case showing the item marked FAILED and the run NOT reporting success. PASTE proof the budget was read from the FROZEN `options.retry_budget` rather than re-resolved from `args`, and that the guard is `is None`-shaped so 0 survives. State whether the shipped `run_recovery` helpers were used; if not, PASTE the justification (review expects this branch, F-16), confirm no second budget counter was introduced, and state whether `xipfy1`'s blocking substrate question had been answered and whether you followed it (OQ-03).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: BUDGET 0 PERFORMS ZERO RETRIES AND FAILS THE ITEM ON THE FIRST REFUSAL, per spec 5.5 ("`0` means the first failed deterministic check ... immediately fails the item; no correction packet is issued"):
+    ```
+    tests/test_finalize_sendback.py::TheBudgetIsSpentOncePerRedispatch::test_budget_zero_performs_NO_retry_and_fails_the_item PASSED [ 66%]
+    tests/test_finalize_sendback.py::TheRefusalArmPerformsTheSendBack::test_budget_zero_fails_on_the_FIRST_refusal PASSED [ 87%]
+    ```
+    At budget 0 the decision is `retry=False, exhausted=True, budget=0` and the arm writes `status = "failed-safely"`. An off-by-one here would have converted a deliberate opt-out into a silent retry, which is why it has its own test on both the decision and the performer.
+    EXACTLY ONE UNIT PER RE-DISPATCH AND NO MORE (budget 2): attempts 0 -> retry, 1 -> retry, 2 -> exhausted.
+    ```
+    tests/test_finalize_sendback.py::TheBudgetIsSpentOncePerRedispatch::test_one_unit_is_spent_per_redispatch_and_no_more PASSED [100%]
+    ```
+    EXHAUSTION MARKS THE ITEM FAILED AND THE RUN DOES NOT REPORT SUCCESS:
+    ```
+    tests/test_finalize_sendback.py::TheRefusalArmPerformsTheSendBack::test_exhaustion_FAILS_the_item_rather_than_leaving_it_success_ish PASSED [ 37%]
+    tests/test_finalize_sendback.py::TheRefusalArmPerformsTheSendBack::test_an_exhausted_item_is_reported_FAILED_not_COMPLETED PASSED [ 43%]
+    ```
+    The exhausted item ends `failed-safely` (not `substantially-complete`), `recovery_next` is cleared, and the rendered outcome is `FAILED`, asserted to contain no `COMPLETED`. This is spec 4.6's `RETRY, then FAIL ITEM` second half, and it is what keeps the loop from ending in the very false-success E-01 fixes.
+    THE BUDGET IS READ FROM FROZEN STATE, NEVER RE-RESOLVED FROM `args`. `frozen_retry_budget(state)` reads `state["options"]["retry_budget"]`, the value `freeze_run_policy_flags` already resolved through `resolve_retry_budget` at queue build. `args` is not reachable from the refusal arm and is not consulted.
+    THE GUARD IS `is None`-SHAPED SO A LEGAL 0 SURVIVES:
+    ```
+    tests/test_finalize_sendback.py::TheBudgetIsSpentOncePerRedispatch::test_the_budget_is_read_from_FROZEN_state_not_re_resolved PASSED [ 60%]
+    tests/test_finalize_sendback.py::TheBudgetIsSpentOncePerRedispatch::test_the_guard_is_is_None_shaped_so_a_legal_zero_survives PASSED [ 73%]
+    tests/test_finalize_sendback.py::TheBudgetIsSpentOncePerRedispatch::test_an_ABSENT_budget_falls_back_to_the_shared_resolver PASSED [ 86%]
+    ```
+    Measured: `frozen_retry_budget({"options": {"retry_budget": 0}})` -> `0` while `frozen_retry_budget({"options": {}})` -> `2`, so a truthiness test would have promoted the opt-out to the default and the third test asserts those two are NOT equal.
+    THE SHIPPED `run_recovery` HELPERS WERE NOT USED, AND THIS IS THE BRANCH REVIEW EXPECTED (F-16). Re-measured at HEAD: `grep -c "run_engine\|run_state" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` -> `0` and `0`; `find .aw/records/runs -name ledger.jsonl` -> 0 files (the directory does not exist in this lane at all). `plan_retry(engine, ...)` requires a `run_engine.RunEngine` over a hash-chained `ledger.jsonl` and raises `NoRetryableStateError` unless the step is in `run_state.STATE_FAILED`/`STATE_BLOCKED`, values a driver queue item never holds; spec `25kzda:28` concedes the ledger "is built but UNWIRED". Using them would mean CONSTRUCTING that substrate inside the driver, which is a different and much larger change outside this plan's fence. So the bound is implemented directly against the item's own attempt counter while reading the frozen budget, and the divergence is REPORTED rather than quietly accepted: backlog `eh91an` (`run_recovery.plan_retry and retry_budget_remaining remain dormant with zero production callers`). (Decision 02-zzcrlo-D5; OQ-03 answered.)
+    NO SECOND BUDGET COUNTER WAS INTRODUCED. The value spent is the run's existing `--retry-budget`; `finalize_retry_attempts` counts CONSUMPTION of that one budget on the item, it does not define a second policy or a second default.
+    ```
+    tests/test_finalize_sendback.py::TheBudgetIsSpentOncePerRedispatch::test_no_second_budget_knob_was_introduced PASSED [ 80%]
+    ```
+    It asserts `resolve_retry_budget(None) == run_recovery.DEFAULT_RETRY_LIMIT`, so the send-back cannot acquire a private default. No CLI flag was added.
+    `xipfy1`'S BLOCKING SUBSTRATE QUESTION WAS NOT ANSWERED, so there was no maintainer answer to follow. Verified: `xipfy1` is still in `.aw/records/plans/pending/`. OQ-03 instructed following its answer "if a maintainer has answered it by execution time"; none had, so I took the expected path and did not invent a competing budget concept.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: PASTE the new test and its passing output. PASTE the SAME test FAILING against pre-change code, which is this plan's central proof. PASTE the fixture showing it uses the real nine-finding `IPD-S404` refusal text from the measured run rather than a paraphrase.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: THE NEW TEST PASSES (`tests/test_finalize_sendback.py`, 46 tests):
+    ```
+    $ python3 -m pytest tests/test_finalize_sendback.py -o addopts=""
+    collected 46 items
+    tests/test_finalize_sendback.py ..............................................  [100%]
+    ============================== 46 passed in 0.35s ==============================
+    ```
+    THE SAME TESTS FAIL AGAINST PRE-CHANGE CODE. This is the plan's central proof, so it was produced by reverting ONLY my two source files (`git stash push -- agent_workflows/render_stream.py agent_workflows/runner_shared.py`) and re-running the unchanged tests:
+    ```
+    $ python3 -m pytest tests/test_finalize_sendback.py -o addopts="" -k "measured_incident or refusal_is_visible or exhausted_item_is_reported"
+
+    E  AssertionError: 'COMPLETED' unexpectedly found in '│ Outcome: COMPLETED   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0) │' : a run whose only item had its finalize REFUSED must not report COMPLETED
+
+    E  AssertionError: 'Diagnostics' not found in '...│ Outcome: COMPLETED ...│ Progress: 1/1 [██████████] 100% (1 substantially-complete)...│ 01 │ 01 │ xbwq8n │ lanetruth │ execute │ substantially-complete │ verified │ ...'
+
+    =========================== short test summary info ============================
+    FAILED tests/test_finalize_sendback.py::TheRefusalArmPerformsTheSendBack::test_an_exhausted_item_is_reported_FAILED_not_COMPLETED
+    FAILED tests/test_finalize_sendback.py::TheRunOutcomeReflectsARefusedFinalize::test_the_measured_incident_is_not_reported_completed
+    FAILED tests/test_finalize_sendback.py::TheRunOutcomeReflectsARefusedFinalize::test_the_refusal_is_visible_on_the_summary_itself
+    ======================= 3 failed, 39 deselected in 0.43s =======================
+    ```
+    That pre-fix output IS the measured defect verbatim: green `COMPLETED` at `100%` over a refused finalize, with NOT ONE WORD of diagnosis. The stash was popped immediately afterwards (`git stash pop`), and the two co-workers' pre-existing stashes were left untouched (`git stash list` still shows both).
+    INDEPENDENTLY CORROBORATED WITHOUT ANY STASHING, because the main checkout is unmodified: running the identical fixture against the main checkout's `agent_workflows` prints `Outcome: COMPLETED`, while running it against this lane prints `Outcome: PARTIAL` plus the diagnostics block and remedy. Same input, two code states, opposite answers.
+    THE FIXTURE USES THE REAL REFUSAL TEXT, not a paraphrase. `MEASURED_REFUSAL` in the test file is the actual shape `aw ipd finalize` emits (a `refused: <summary>` line plus one `  IPD-S404 <ident>: <text>` line per diagnostic), reproduced end-to-end by linting THIS plan at `--phase pre-transition`:
+    ```
+    refused: pre-transition gate did NOT conform (error); plan left unmoved.
+      IPD-S404 E-01: not 'performed' at pre-transition
+      IPD-S404 E-02: not 'performed' at pre-transition
+      IPD-S404 V-01: not 'pass' at pre-transition
+      IPD-S404 V-01: empty Observed evidence at pre-transition
+      IPD-S404 V-02: not 'pass' at pre-transition
+      IPD-S404 V-02: empty Observed evidence at pre-transition
+      IPD-S404 V-03: not 'pass' at pre-transition
+      IPD-S404 V-03: empty Observed evidence at pre-transition
+      IPD-S404 V-04: not 'pass' at pre-transition
+    ```
+    Ten lines, nine `IPD-S404` findings, matching the measured incident's nine-finding refusal. The three finding texts are additionally pinned against `ipd_lint`'s live output by `test_the_allowlist_texts_are_the_ones_ipd_lint_ACTUALLY_EMITS`, so this fixture cannot drift from the enforcer.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: PASTE all required cases on BOTH hosts: budget-remaining single re-dispatch, budget 0, exhaustion fails, successful correction finalizes and reports success, never-retry class not retried, prompt contains findings. PASTE the mechanical no-infinite-loop assertion (a bounded maximum dispatch count), not merely "it retried"; state the bound and note that NO existing mechanism supplies one (`max_items_per_session` rotates the session, it does not cap dispatch; F-17). PASTE the `N passed` summary line from a BARE `python3 -m pytest` with the worktree baseline beside it and a NODE-ID comparison against the re-measured baseline (`1 failed, 5958 passed, 3 skipped, 2 xfailed`, the one failure being the `test_reporting_contract` parity test caused by another party's gitignored tree, which you must not touch). PASTE `git diff --check` clean.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL SIX REQUIRED CASES PASS. The whole file runs green and the six are named individually:
+    ```
+    $ python3 -m pytest tests/test_finalize_sendback.py -o addopts="" -v
+    ... TheRefusalArmPerformsTheSendBack::test_a_retryable_refusal_requeues_the_item_in_recovery_mode PASSED     (budget remaining -> one re-dispatch)
+    ... TheBudgetIsSpentOncePerRedispatch::test_budget_zero_performs_NO_retry_and_fails_the_item PASSED          (budget 0)
+    ... TheRefusalArmPerformsTheSendBack::test_exhaustion_FAILS_the_item_rather_than_leaving_it_success_ish PASSED (exhaustion fails)
+    ... TheLoopIsMECHANICALLYBounded::test_a_successful_correction_ENDS_the_loop PASSED                          (successful correction reports success)
+    ... TheRefusalArmPerformsTheSendBack::test_a_never_retry_class_falls_through_UNCHANGED PASSED                 (never-retry class not retried)
+    ... TheRefusalArmPerformsTheSendBack::test_the_REDISPATCHED_PROMPT_CONTAINS_the_gate_findings PASSED          (prompt contains findings, BOTH hosts)
+    ============================== 46 passed in 0.35s ==============================
+    ```
+    BOTH HOSTS ARE COVERED BY CONSTRUCTION, WHICH IS STRONGER THAN DUPLICATED COVERAGE. The measured incident was agy and the plan warns the twin is where drift hides; at HEAD there is no twin to drift, because the refusal arm now lives once in the shared `execute_item_core` that both hosts call. `test_both_hosts_execute_through_the_SAME_refusal_arm` asserts NEITHER driver carries its own `attempt["finalize_refused"] = fin_msg`, and `test_the_send_back_symbols_are_reachable_from_both_hosts` asserts object identity of the send-back symbols through each driver's own `runner_shared` reference. The prompt test renders with `OC_HOST_LABELS` and `AGY_HOST_LABELS` separately.
+    THE NO-INFINITE-LOOP ASSERTION IS MECHANICAL AND COUNTED, not "it retried":
+    ```
+    tests/test_finalize_sendback.py::TheLoopIsMECHANICALLYBounded::test_total_dispatches_for_one_item_never_exceed_budget_plus_one PASSED [ 12%]
+    ```
+    THE BOUND IS `budget + 1` TOTAL DISPATCHES for one item (the original dispatch plus one per budget unit), asserted with `assertEqual` at budgets 0, 1, 2 and 5 (so 1, 2, 3 and 6 dispatches), and the simulated run loop is hard-capped at 100 iterations with an explicit `self.fail` on the `for/else`, so a runaway implementation FAILS the test instead of hanging. The loop then asserts the terminal decision is `exhausted`.
+    NO EXISTING MECHANISM SUPPLIES THAT BOUND (F-17 confirmed at HEAD): `max_items_per_session` is consumed in `execute_item_core` purely to rotate the SESSION id (`if session_turns >= max_items: is_rotation = True; raw_session = None`) and never stops dispatch, and the selection loop simply re-picks any `queued` item whose dependencies are satisfied. So an item returned to `queued` without a decrement would be dispatched forever; the in-tree precedent is the MEASURED 201-dispatch orchestrator spin recorded in `runner_shared`. The decrement in `handle_finalize_refusal` (written BEFORE `save_state`, so a crash cannot yield a free retry) is the only thing bounding this, which is why it is asserted as a count.
+    BARE SUITE, FINAL RUN IN THIS WORKTREE:
+    ```
+    $ python3 -m pytest
+    7180 passed, 3 skipped, 2 xfailed, 3 warnings in 172.49s (0:02:52)
+    ```
+    WORKTREE BASELINE, measured HERE before any edit, at HEAD `a36dbc1e`:
+    ```
+    $ python3 -m pytest
+    7134 passed, 3 skipped, 2 xfailed, 3 warnings in 201.78s (0:03:21)
+    ```
+    NODE-ID COMPARISON: zero failing node ids before, zero after. `7180 - 7134 = 46`, which is exactly the 46 tests this plan adds in `tests/test_finalize_sendback.py`; skips and xfails are unchanged at 3 and 2. So no pre-existing test changed outcome and nothing regressed.
+    THE PLAN'S EXPECTED BASELINE IS STALE AND ITS NAMED FAILURE IS ABSENT, which is why node ids and not totals are the comparison. V-06 anticipated `1 failed, 5958 passed, 3 skipped, 2 xfailed` with `tests/test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose` failing because of another party's gitignored `opencode-recovery/` tree (backlog `8kttqq`). In THIS worktree that tree does not exist, so the suite is fully green and that test passes; the count is 1176 higher than the plan expected because the suite has grown since authoring. I did NOT touch, delete or gitignore-adjust anything belonging to another party.
+    `git diff --check` IS CLEAN (no whitespace errors; the command produced no output and exited 0).
+  - Result: pass
 
 ## Approval and execution gate
 
