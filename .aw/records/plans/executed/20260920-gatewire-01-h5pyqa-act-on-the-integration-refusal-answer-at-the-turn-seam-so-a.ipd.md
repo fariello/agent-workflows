@@ -6,18 +6,18 @@
 - Scope: IN: at the seam where `integration_is_earned` refuses for a suite failure, ask the agent the question, validate the answer, and act on it: `not-mine` integrates, `fixed` re-runs the full test suite and the RE-RUN decides, `mine` and `needs-human` refuse and preserve. Record the answer durably on the run record and surface `needs-human` in the run report. A failed `fixed` retries within the run's existing `--retry-budget`. OUT: any change to `integration_is_earned`'s own verdict logic (the gate stays hard 100% of the time), any new retry knob, any mechanical verification of a `not-mine` claim, and the review path (a review turn has no suite result to refuse on).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/render_stream.py, agent_workflows/run_evidence.py, tests/test_runner_shared.py, tests/test_gate_answer_wiring.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: gatewire
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: h5pyqa
-- Approval: 2026-09-20, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-20 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: h5pyqa verified (set gatewire, attempt 1). [Scope reconciliation - widened-scope agent_workflows/render_stream.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run); widened-scope agent_workflows/run_evidence.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw oc run); in-scope-unmodified agent_workflows/agy_runipd.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_runner_shared.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-20 executed (opencode its_direct/pt3-claude-opus-5-1m-us): all 7 E-items performed, all 7 V-items verified with pasted evidence and 9 sabotage checks. Suite run BARE: `3 failed, 7442 passed, 3 skipped, 2 xfailed in 168.90s`; the 3 failures are PRE-EXISTING, proven identical on the stashed unmodified tree at base `8b25d779`, and filed as backlog `ad87ah`/`rfu7mk`. SCOPE WIDENED additively by two files, each forced: `render_stream.py` (E-06's operator block lives there, and the refusal code's one definition must too, because the reverse import is circular) and `run_evidence.py` (E-02 was UNSATISFIABLE without it: `run_suite_check` read `tool_event["stdout_excerpt"]`, a key `build_tool_event` never wrote, so `summary` had ALWAYS been empty). Two adjacent defects were found and repaired in passing, both filed: `he9x6j` (the missing output text, which also silently broke `host_runner`'s read) and `cv5n6t` (`build_lane_outcome` called without its required `run_checked`, the `TypeError` eaten by a `suppress`, so `integration_changed_files` was never recorded). `agy_runipd.py` and `tests/test_runner_shared.py` were declared but needed NO edit: both hosts inherit the wiring through the shared `execute_item_core`.
 - 2026-09-20 approved (aw set): status set to approved
 - 2026-09-20 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH) and PR-002 fixed; OQ-01 resolved from evidence, OQ-02 by maintainer ruling; readiness go-pending-approval
