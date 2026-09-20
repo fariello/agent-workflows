@@ -58,8 +58,27 @@ class OutputContractDocTests(unittest.TestCase):
         # 5. Schema Versioning
         self.assertIn("Schema Versioning", text)
         self.assertIn("aw.agent/v1", text)
-        # 6. Hard Cutover Non-TTY Policy
-        self.assertIn("Automatic Non-TTY Migration Policy (Hard Cutover)", text)
+        # 6. Non-TTY Migration Policy, now RETRACTED.
+        #
+        # DELIBERATELY CHANGED by ttyflags `yaxr4i` E-05, and the reason matters more than the new
+        # string. This assertion used to require the literal heading
+        # "Automatic Non-TTY Migration Policy (Hard Cutover)", i.e. it pinned the PRESENCE of a
+        # policy stating that non-TTY stdout adopts `aw.agent/v1` JSONL. That policy WAS NEVER
+        # IMPLEMENTED (`select_output` has never consulted `stdout.isatty()` for mode selection),
+        # so the test was holding a false promise in place.
+        #
+        # The maintainer resolved OQ-01 by RETRACTING the policy rather than implementing it. So
+        # this now asserts the RETRACTION IS EXPLICIT and not a silent deletion: a reader must be
+        # able to tell the policy was reversed on purpose, or the next author re-proposes it as an
+        # unimplemented contract defect. The section, the word RETRACTED, and the statement of what
+        # is true instead are all required.
+        self.assertIn("Automatic Non-TTY Migration Policy", text)
+        self.assertIn("RETRACTED", text)
+        self.assertNotIn("(Hard Cutover)", text)
+        self.assertIn("--agent", text)
+        # 6a. The color precedence table and the two-axis --tty constraint (E-03 / E-06).
+        self.assertIn("flag beats env beats detection", text)
+        self.assertIn("--color", text)
         # 7. Relationship to Legacy Drift Convention
         self.assertIn("Relationship to Legacy `Drift` Convention", text)
         self.assertIn("SUBSUMES and REPLACES", text)

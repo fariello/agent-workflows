@@ -25,6 +25,8 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Optional
 
+from agent_workflows import term
+
 # --- 256-Color & ANSI Palette ---
 C_RESET = "\033[0m"
 C_BOLD = "\033[1m"
@@ -947,9 +949,19 @@ def main(argv: list[str] | None = None) -> int:
 
     is_interactive = not args.once and sys.stdout.isatty()
 
-    color_enabled = (
-        not args.no_color and os.environ.get("NO_COLOR") is None and sys.stdout.isatty()
-    )
+    # The `--no-color` FLAG sits ABOVE the shared capability decision, which is the whole shape of
+    # this expression (IPD `z8ddk0` E-04). `term.should_color` reads no argparse state and cannot,
+    # so replacing the whole expression with a bare call would SILENTLY DELETE the flag; measured on
+    # a real pty 2026-09-19, that naive replacement returns True with `--no-color` passed. The two
+    # shipped tests that pass `--no-color` run through a PIPE, where `isatty()` is already False, so
+    # they keep passing with the flag entirely removed and cannot detect the loss - hence the
+    # pty-based case in `tests/test_pwatch.py`.
+    #
+    # WHAT DELEGATING CHANGED: this module previously reimplemented the decision and IGNORED
+    # `FORCE_COLOR` completely, so `FORCE_COLOR=1 aw pwatch | cat` was plain while every other
+    # command colorized, and it ignored `TERM`, so `TERM=dumb` got color. Both are now `term`'s
+    # answers.
+    color_enabled = not args.no_color and term.should_color(sys.stdout)
 
     def stop_cleanly(_signum: int, _frame: object) -> None:
         raise SystemExit(0)

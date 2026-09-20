@@ -72,10 +72,22 @@ def select_output(
 
     1. Explicit format conflict check (OQ-01 / Order 04 E-03): cannot combine --agent and --json/--format.
     2. Explicit format: `--json` or `--format <fmt>` -> OutputMode.JSON (explicit format context).
-    3. Agent flag or non-TTY stdout: `--agent` or `not stdout.isatty()` -> OutputMode.AGENT.
-       (Note: `stdin.isatty()` controls interactive prompting, NOT audience/mode).
-    4. TTY stdout: -> OutputMode.HUMAN with color determined by `should_color(stdout)`.
-    5. `--no-color` / `NO_COLOR` / `FORCE_COLOR` changes color styling only, not the mode.
+    3. Agent flag: `--agent` -> OutputMode.AGENT.
+    4. Otherwise -> OutputMode.HUMAN, with color from `should_color(stdout, override=...)`.
+       TTY-NESS OF STDOUT AFFECTS COLOR ONLY, NEVER THE MODE: a piped or redirected invocation
+       still emits human-readable text, and `--agent` is the only way to get `aw.agent/v1` JSONL.
+    5. `--color` / `--no-color` / `NO_COLOR` / `FORCE_COLOR` change color styling only, not the mode.
+       Precedence within that styling decision is flag > env > detection.
+
+    `stdin.isatty()` controls interactive prompting, NOT the output audience or mode. The two
+    TTY axes are deliberately separate; see `docs/cli-output-contract.md` section 9.
+
+    THIS DOCSTRING USED TO CLAIM that non-TTY stdout selects AGENT mode, matching a published
+    "hard cutover" policy in `docs/cli-output-contract.md`. NEITHER WAS EVER IMPLEMENTED: this
+    function has never consulted `stdout.isatty()` for mode selection. The maintainer resolved
+    the divergence on 2026-09-10 (ttyflags `yaxr4i` OQ-01) by RETRACTING the policy rather than
+    implementing it, because the promise never shipped, an unknown number of consumers depend on
+    the actual prose output, and `--agent` already covers the capability.
     """
     out_stream = stdout if stdout is not None else sys.stdout
     err_stream = stderr if stderr is not None else sys.stderr
@@ -154,10 +166,12 @@ def select_output(
             fields=fields_val,
         )
 
-    # Human stdout (color enabled if should_color(stream) is True, disabled if non-TTY/NO_COLOR/--no-color)
-    color_enabled = False
-    if not getattr(args, "no_color", False):
-        color_enabled = _term.should_color(out_stream)
+    # Human stdout. The color decision is the ONE precedence chain in `term.should_color`:
+    # flag (--color/--no-color) beats env (NO_COLOR/FORCE_COLOR) beats detection (TERM/isatty).
+    # ttyflags `yaxr4i` E-02/E-03: the flag pair is read by `term.color_override`, the single
+    # reader, and passed as an ARGUMENT so no flag handler ever mutates `os.environ` (which a
+    # spawned child would inherit).
+    color_enabled = _term.should_color(out_stream, override=_term.color_override(args))
 
     return OutputContext(
         mode=OutputMode.HUMAN,

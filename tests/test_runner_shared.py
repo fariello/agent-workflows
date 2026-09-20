@@ -196,7 +196,28 @@ DOCUMENTED_SINCE_MOVE = ("plan_bucket",)
 # `tests/test_artifact_audit.py::EvidenceIndexTests` (`test_it_passes_an_explicit_timeout` asserts the
 # value actually reaches the subprocess, `test_a_timeout_is_unknown_not_a_pass` asserts a timeout
 # classifies as unprovable rather than as a pass).
-SUPERSEDED_SINCE_MOVE = ("state_root", "_run_git")
+#
+# `should_color` BECAME A DELEGATION to `term.should_color` (IPD `z8ddk0` E-02), and the exemption is
+# recorded here rather than absorbed. WHY IT IS LEGITIMATE: the pre-move body was one of THREE
+# independent implementations of the color capability decision that DISAGREED with each other,
+# measured by execution 2026-09-19. This one ignored `TERM` entirely, so `TERM=dumb aw oc run` emitted
+# color while `TERM=dumb aw attention` did not, and it read both variables by TRUTHINESS, so
+# `FORCE_COLOR=0` - the value that plainly means "do not force" - FORCED COLOR ON, even into a pipe.
+# Spec `uonrjg` R9.3a.2 requires the depth resolver above this decision have EXACTLY ONE definition,
+# which is unsatisfiable while the decision beneath it has three.
+#
+# So holding this symbol to its pre-move AST would freeze TWO defects in place and block the spec
+# requirement, exactly as it would have for `state_root`. THE `def` DELIBERATELY REMAINS, as a single
+# delegating statement, because three shipped guards assert `runner_shared` DEFINES this symbol
+# (`test_runner_refork_guard.py`'s `Owned("should_color", "runner_shared", BOTH)` row,
+# `test_rununify_run_queue.py`'s `RESOLVES_IN_RUNNER_SHARED`, and `test_exactly_one_definition_package_wide`
+# below); an import fails all three. A delegation cannot fingerprint as the body it replaces, which is
+# why no shape of this change can satisfy the STRICT match and why the exemption is the only honest
+# route. The unified decision has its OWN dedicated coverage in `tests/test_term.py`
+# (`ShouldColorGridTests` pins all 16 `NO_COLOR` x `FORCE_COLOR` cells against both a TTY and a pipe
+# plus the four `TERM` values; `OneOriginatingDefinitionTests` forbids a fourth implementation), and
+# the delegation itself is pinned by `SharedColorDecisionTests` in this file.
+SUPERSEDED_SINCE_MOVE = ("state_root", "_run_git", "should_color")
 
 
 def load_fixture() -> dict[str, Any]:
@@ -427,18 +448,20 @@ class PureMoveFingerprintTests(unittest.TestCase):
             and n not in HOST_NAMING_ONLY
             and n not in SUPERSEDED_SINCE_MOVE
         ]
-        # 23, DOWN FROM 24 BY EXACTLY ONE: `_run_git` moved to `SUPERSEDED_SINCE_MOVE` when it gained an
-        # optional `timeout` (IPD `zexed1` E-02; see that list for why the exemption is legitimate).
+        # 22, DOWN FROM 23 BY EXACTLY ONE: `should_color` moved to `SUPERSEDED_SINCE_MOVE` when it
+        # became a delegation to `term.should_color` (IPD `z8ddk0` E-02/E-03; see that list for why the
+        # exemption is legitimate). It was 23 for the same reason one step earlier, when `_run_git`
+        # gained an optional `timeout` (IPD `zexed1` E-02), and 24 before that.
         # This assertion exists so such a move cannot happen silently, so the number is updated
         # together with the enumeration and never independently of it.
         self.assertEqual(
             len(clean),
-            23,
+            22,
             "the clean-move count must not drift silently",
         )
         self.assertEqual(
             len(SUPERSEDED_SINCE_MOVE),
-            2,
+            3,
             "a name added to SUPERSEDED_SINCE_MOVE must be accounted for in the clean count above",
         )
         for name in clean:
@@ -5664,6 +5687,138 @@ class PathSelectorKindTests(unittest.TestCase):
                         "orchestrator",
                         f"{name} must retain kind: orchestrator",
                     )
+
+
+class SharedColorDecisionTests(unittest.TestCase):
+    """`should_color` is a sanctioned DELEGATION to `term.should_color` (IPD `z8ddk0` E-02).
+
+    WHY THESE ASSERTIONS AND NOT A FINGERPRINT. This symbol is enumerated in
+    `SUPERSEDED_SINCE_MOVE` above, which exempts it from the byte-identical pre-move capture
+    (a delegation cannot fingerprint as the body it replaces). That exemption removes the
+    only coverage the harness gave it, so this class is the replacement: it pins the SHAPE
+    (one delegating statement, so the `def` is a binding and not a second body) and the
+    BEHAVIOR CHANGE that motivated the supersession.
+    """
+
+    class _TTYStream:
+        def isatty(self) -> bool:
+            return True
+
+    class _PipeStream:
+        def isatty(self) -> bool:
+            return False
+
+    def setUp(self):
+        import os
+
+        self._saved = {
+            k: os.environ.get(k) for k in ("NO_COLOR", "FORCE_COLOR", "TERM")
+        }
+
+    def tearDown(self):
+        import os
+
+        for key, value in self._saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    def _set_env(self, **values: str | None) -> None:
+        import os
+
+        for key, value in values.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    def test_it_is_a_single_delegating_statement(self):
+        """The shape that keeps three shipped guards green while removing the second body.
+
+        THE IMPORT IS SUBTRACTED AND MUST BE. This module may NOT import `term` at module
+        level: `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared`
+        allows only `render_stream` and `runner_profiles` there, because an import in this
+        file changes the import graph for BOTH host drivers, and its docstring names the
+        function-local import as this module's established route (which is how `ipd_lint`,
+        `ipd_lifecycle` and `worktree_lease` all arrive). So the delegation is necessarily
+        `import` + `return`, and only the `return` is the wrapper's logic.
+        """
+        node = next(
+            (
+                n
+                for n in ast.parse(module_source(runner_shared)).body
+                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and n.name == "should_color"
+            ),
+            None,
+        )
+        self.assertIsNotNone(
+            node,
+            "`runner_shared` must keep a `def should_color`: three guards assert this "
+            "module DEFINES the symbol, and an import fails all three",
+        )
+        assert node is not None
+        statements = [
+            s
+            for s in node.body
+            if not (isinstance(s, ast.Expr) and isinstance(s.value, ast.Constant))
+            and not isinstance(s, (ast.Import, ast.ImportFrom))
+        ]
+        self.assertEqual(
+            len(statements),
+            1,
+            f"should_color has {len(statements)} non-import statements; a wrapper that "
+            "grows logic is a re-fork with extra steps",
+        )
+        self.assertIn("should_color", ast.unparse(statements[0]))
+        self.assertIn("term", ast.unparse(statements[0]))
+        # The import that IS allowed must be the one that makes the delegation resolvable,
+        # so a stray unrelated import cannot hide here.
+        imports = [
+            ast.unparse(s)
+            for s in node.body
+            if isinstance(s, (ast.Import, ast.ImportFrom))
+        ]
+        self.assertEqual(imports, ["from agent_workflows import term"])
+
+    def test_it_reaches_the_single_originating_definition(self):
+        """Identity of the ANSWER, not of the function: a stale copy passes an AST check."""
+        from agent_workflows import term
+
+        self._set_env(NO_COLOR=None, FORCE_COLOR=None, TERM="xterm-256color")
+        for stream in (self._TTYStream(), self._PipeStream()):
+            with self.subTest(stream=type(stream).__name__):
+                self.assertEqual(
+                    runner_shared.should_color(stream),  # type: ignore[arg-type]
+                    term.should_color(stream),  # type: ignore[arg-type]
+                )
+
+    def test_term_dumb_is_now_honored(self):
+        """THE BEHAVIOR CHANGE (IPD `z8ddk0` E-02), and it FAILS before that item.
+
+        The previous body ignored `TERM` entirely, so `TERM=dumb aw oc run` emitted color
+        while `TERM=dumb aw attention` did not - measured by execution 2026-09-19. Nothing
+        in the suite read `TERM` against this symbol, which is why the divergence survived.
+        """
+        self._set_env(NO_COLOR=None, FORCE_COLOR=None, TERM="dumb")
+        self.assertFalse(
+            runner_shared.should_color(self._TTYStream()),  # type: ignore[arg-type]
+            "TERM=dumb must be plain; the runners are not consulting the shared decision",
+        )
+
+    def test_a_falsey_force_color_no_longer_forces_color_into_a_pipe(self):
+        """The OTHER behavior change: `"0"` is truthy in Python, so the previous body read
+        `FORCE_COLOR=0` - the value that plainly means "do not force" - as FORCE IT ON."""
+        self._set_env(NO_COLOR=None, FORCE_COLOR="0", TERM="xterm-256color")
+        self.assertFalse(
+            runner_shared.should_color(self._PipeStream()),  # type: ignore[arg-type]
+            "FORCE_COLOR=0 must not force color into a pipe",
+        )
+        self.assertTrue(
+            runner_shared.should_color(self._TTYStream()),  # type: ignore[arg-type]
+            "FORCE_COLOR=0 means 'do not force', not 'suppress'; a TTY still gets color",
+        )
 
 
 if __name__ == "__main__":

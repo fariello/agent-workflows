@@ -3522,6 +3522,12 @@ def edge_satisfied(
 ) -> tuple[bool, str]:
     """Is ONE typed edge satisfied? Returns ``(satisfied, reason)``; ``reason`` is "" when satisfied.
 
+    ``by_id`` IS DELIBERATELY UNREAD and is kept only so the two call sites and their tests need no
+    edit. It used to carry the IN-RUN status shortcut for an `executed:` edge, which the maintainer
+    removed on 2026-09-19 in favour of ONE authority: the plan's directory on disk. See the
+    `edge.kind == "executed"` branch for the measured incident that shortcut caused. Do not
+    reintroduce a read of it without that ruling being revisited.
+
     WHY THIS LIVES IN THE RUNNER AND NOT IN THE SHARED EVALUATOR (8guhs0 F7; spec 25kzda 2.9 vs
     2.10). Spec 2.10's "All surfaces call this evaluator; none reimplement the rules" governs the
     STATIC rules: malformed, dangling, ambiguous, cyclic, missing-at-phase. Those are delegated
@@ -3542,18 +3548,35 @@ def edge_satisfied(
     tok = edge.canonical()
 
     if edge.kind == "executed":
-        # spec 2.9: the target must be terminally executed with valid finalization evidence, or, if
-        # it is IN THIS RUN, its current outcome must be `verified`.
-        entry = by_id.get(edge.id6)
-        if entry is not None:
-            required_states = EXECUTION_SUCCESS_STATES if is_exec else SUCCESS_STATES
-            if entry.get("status") not in required_states:
-                return False, (
-                    f"{tok}: in-run target {edge.id6} is {entry.get('status')!r}, "
-                    f"needs one of {sorted(required_states)}"
-                )
-            return True, ""
-        # Outside the queue: evaluated from frozen repository state. There is no
+        # spec 2.9: the target must be terminally executed with valid finalization evidence.
+        #
+        # THE DISK IS THE ONLY AUTHORITY, AND THE IN-RUN SHORTCUT THAT USED TO SIT HERE IS GONE
+        # (maintainer ruling 2026-09-19: one check, not gates in depth). It read the dependency's
+        # IN-MEMORY run status and accepted any member of `EXECUTION_SUCCESS_STATES`, which admits
+        # `substantially-complete`. That status means finalize did NOT happen, so the plan is still in
+        # `pending/` and - measured - its lane was never merged. The shortcut therefore reported an
+        # edge SATISFIED at the same moment the runner recorded the dependency's work as unintegrated.
+        #
+        # MEASURED COST, run `run-20260919T194413Z-2056285`: `yaxr4i` finished
+        # `substantially-complete` with its two commits living only on `aw/lane/yaxr4i`. `n4xq3l`
+        # declares `executed:yaxr4i`, was told the edge was met, and was dispatched into a tree with
+        # NONE of that work (`grep -c -- '--color' agent_workflows/cli.py` -> 0 in its lane). It
+        # correctly refused and went `blocked`, cascading `dependency-blocked` to eight more items:
+        # 2h 10m and $55.02 for nothing integrated.
+        #
+        # WHY DELETING IT LOSES NOTHING: the branch below already answers this question for every
+        # target, in-queue or not, and its own reasoning is the one the ruling adopted - an execute
+        # turn consumes its prerequisite's WORK, so the terminal directory is the right authority,
+        # because `executed/` is exactly where `aw ipd finalize` puts a plan and a directory move is
+        # harder to forge than a status field. An in-run dependency that genuinely finalized reaches
+        # `executed/` on disk and satisfies the edge through that branch on the next dispatch check,
+        # which the runner performs per item rather than once at queue build.
+        #
+        # THE REVIEW RELAXATION IS UNAFFECTED because it lives in the branch below, not here: a
+        # review turn still accepts a `reviewed`/`approved` `- Status:` field, since reviewing plan B
+        # against plan A needs A's TEXT and not A's code.
+        #
+        # Evaluated from frozen repository state. There is no
         # `--with-dependencies` closure in this runner, so an unsatisfied external target simply
         # cannot be met in this run.
         try:

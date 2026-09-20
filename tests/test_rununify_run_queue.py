@@ -826,6 +826,14 @@ class RunQueueCase(unittest.TestCase):
                 on_turn(it)
             else:
                 it["status"] = "executed"
+                # AND FINALIZE IT ON DISK, because since 2026-09-19 an `executed:` edge is answered
+                # from the plan's DIRECTORY and not from its in-run status (the in-queue shortcut was
+                # deleted after it released a dependent against work that was never integrated). A
+                # stub that only sets the in-memory status models a run in which finalize never
+                # happened, so a dependent would correctly refuse and this harness would stop being
+                # able to test dispatch ORDER at all. Writing the plan into `executed/` is what a real
+                # verified turn does, so it is the faithful stub.
+                self._finalize_on_disk(str(it.get("id6")))
             module.save_state(rd, st)
 
         buf = io.StringIO()
@@ -838,6 +846,14 @@ class RunQueueCase(unittest.TestCase):
         return rc, state, buf.getvalue()
 
     # ---- reading ---------------------------------------------------------------------------
+    def _finalize_on_disk(self, id6: str) -> None:
+        """Write ``id6``'s plan into `executed/`, as a real verified turn's finalize would."""
+        executed = self.root / ".aw" / "records" / "plans" / "executed"
+        executed.mkdir(parents=True, exist_ok=True)
+        (executed / f"20260919-synth-01-{id6}-stub.ipd.md").write_text(
+            f"# IPD: stub\n\n- Id: {id6}\n- Status: executed\n", encoding="utf-8"
+        )
+
     def statuses(self, state: dict) -> dict[str, str]:
         return {it["id6"]: it["status"] for it in state["queue"]}
 

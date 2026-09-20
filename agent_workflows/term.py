@@ -87,20 +87,145 @@ _STATUS_LINE_LABELS = (
 _STATUS_WIDTH = max(len(_STATUS_STYLE[k][0]) for k in _STATUS_LINE_LABELS)
 
 
-def should_color(stream: Optional[TextIO] = None) -> bool:
+#: Values of `FORCE_COLOR` that mean "do NOT force", i.e. the user wrote the variable but wrote a
+#: falsey value in it. Compared case-insensitively against the stripped value.
+#:
+#: WHY THE VALUE IS INTERPRETED RATHER THAN MERELY TESTED FOR PRESENCE (maintainer ruling,
+#: 2026-09-19; plan `z8ddk0`). `FORCE_COLOR=0` is common in CI configuration and plainly means "do
+#: not force color". Reading it by TRUTHINESS in Python makes the string `"0"` true, so the value a
+#: user writes to mean "off" FORCED COLOR ON, even into a pipe. That is the one behavior here that is
+#: the exact opposite of what the user asked for, so it is the reading that changed.
+#:
+#: `NO_COLOR`, by contrast, stays PRESENCE-ONLY and interprets nothing: that is the published
+#: no-color.org convention ("when present, regardless of its value"), and a repo-local
+#: reinterpretation of an external accessibility convention would be worse than the inconsistency.
+_FORCE_COLOR_FALSEY = frozenset({"", "0", "false", "no", "off"})
+
+
+def _force_color_is_forcing() -> bool:
+    """Is `FORCE_COLOR` set to a value that genuinely FORCES color on?
+
+    THE SINGLE FORCING PREDICATE, and the reason it exists as a named helper rather than as an
+    inline test is that `should_color` must consult `FORCE_COLOR` TWICE: once to decide whether it
+    cancels `NO_COLOR`, and once to decide whether it forces color past TTY detection. Those two
+    readings were INDEPENDENT before plan `z8ddk0` (presence at one site, truthiness at the other),
+    which is what let a falsey `FORCE_COLOR` both fail to force AND still cancel `NO_COLOR`.
+
+    MEASURED AT EXECUTION 2026-09-19 (that plan's F-05): correcting only the forcing site leaves the
+    cancelling site a presence test, and SIX of the twelve `NO_COLOR`-set cells then colorize on a
+    TTY - every cell where `NO_COLOR` is set AND `FORCE_COLOR` is present-but-falsey, including
+    `NO_COLOR=1 FORCE_COLOR=0`. (The plan predicted twelve; the other six have `FORCE_COLOR` UNSET,
+    where the naive presence test is still correct and the cell stays plain. The defect is real and
+    the count is six, so it is recorded as six.) That silently voids the accessibility convention for
+    any user who sets both, which is strictly worse than the defect being fixed. Routing BOTH
+    readings through one predicate makes them move together by construction; a second independent
+    falsey check at each site would re-create the very split this closes.
+    """
+
+    value = os.environ.get("FORCE_COLOR")
+    if value is None:
+        return False
+    return value.strip().lower() not in _FORCE_COLOR_FALSEY
+
+
+#: The PROCESS-WIDE color-flag override, set once per CLI invocation from the parsed
+#: ``--color`` / ``--no-color`` pair and consulted by :func:`should_color` when no explicit
+#: ``override=`` argument is supplied.
+#:
+#: WHY A PROCESS-WIDE VALUE RATHER THAN THREADING AN ARGUMENT THROUGH EVERY CALL SITE: the
+#: package constructs ``Term`` and calls ``should_color`` from hundreds of places, most of
+#: which never see the parsed namespace (measured: 40+ ``Term(color=False if
+#: getattr(args, "no_color", False) else None)`` call sites alone). Threading a parameter to
+#: all of them is the change that gets half-applied, leaving ``--color`` silently inert on
+#: whichever renderer was missed - which is the exact per-command inconsistency this work
+#: exists to remove.
+#:
+#: WHY NOT ``os.environ``, which would be the obvious alternative: this package spawns nested
+#: ``aw`` invocations (both IPD runners, ``aw ipd finalize``, the commit helper), and an
+#: environment variable is INHERITED. A presentation choice about this terminal would restyle
+#: a child process's output too. A module-level value cannot leak across a process boundary.
+#:
+#: SET UNCONDITIONALLY, INCLUDING TO ``None``, once per ``cli._dispatch`` call, so an
+#: invocation that passes no flag RESETS it rather than inheriting a previous invocation's
+#: value. That is what keeps repeated in-process CLI calls (i.e. the test suite) independent.
+_COLOR_OVERRIDE: Optional[bool] = None
+
+
+def set_color_override(value: Optional[bool]) -> None:
+    """Set the process-wide ``--color``/``--no-color`` override (``None`` clears it)."""
+
+    global _COLOR_OVERRIDE
+    _COLOR_OVERRIDE = None if value is None else bool(value)
+
+
+def get_color_override() -> Optional[bool]:
+    """Return the process-wide color-flag override set by :func:`set_color_override`."""
+
+    return _COLOR_OVERRIDE
+
+
+def should_color(
+    stream: Optional[TextIO] = None, *, override: Optional[bool] = None
+) -> bool:
     """Decide whether to emit ANSI color for ``stream`` (default stdout).
 
-    Precedence: NO_COLOR (off) is only overridden by FORCE_COLOR (on). Otherwise color is
-    on only for a real TTY with a capable TERM.
+    THE SINGLE ORIGINATING DEFINITION of the color capability decision, package-wide (plan
+    `z8ddk0`, for spec `uonrjg` R9.3a.2). `runner_shared.should_color` is a sanctioned one-line
+    delegation to this function and `pwatch` calls it directly; both previously carried independent
+    implementations that DISAGREED with this one, measured 2026-09-19, so a caller must reach this
+    body rather than reimplement it. `tests/test_term.py::OneOriginatingDefinitionTests` fails if a
+    second ORIGINATING definition appears anywhere in the package.
+
+    Precedence: FLAG beats ENV beats DETECTION. Highest first:
+
+    1. ``override`` (the ``--color`` / ``--no-color`` flag layer): ``True`` forces color on,
+       ``False`` forces it off, and ``None`` falls back to the process-wide override set by
+       :func:`set_color_override` (also ``None`` when no flag was passed).
+    2. `NO_COLOR` PRESENT (any value, empty included) disables color, unless `FORCE_COLOR` is set
+       to a genuinely FORCING value (see :func:`_force_color_is_forcing`).
+    3. A forcing `FORCE_COLOR` enables color, overriding TTY detection (so a pipe gets color).
+    4. `TERM` of `dumb` or empty/absent disables color.
+    5. Otherwise color is on only for a real TTY.
+
+    A falsey `FORCE_COLOR` (`0`/`false`/`no`/`off`/empty) is NOT an instruction to suppress: it
+    means "do not force", so it falls through to ordinary detection. Suppressing is `NO_COLOR`'s
+    job.
+
+    ``override`` EXISTS SO A FLAG NEVER HAS TO MUTATE ``os.environ``. Setting ``FORCE_COLOR``
+    or ``NO_COLOR`` from a flag handler would be inherited by every subprocess this package
+    spawns (the two IPD runners launch nested ``aw`` invocations), so a presentation choice
+    about THIS terminal would silently restyle a child's output too. The override is passed
+    as an argument and therefore cannot leak.
+
+    THE TWO LAYERS ARE COMPLEMENTARY, NOT RIVALS, and that is why this merge keeps both: the
+    flag layer (plan `yaxr4i`) sits ABOVE the environment layer and answers "did the operator
+    say so on this command line", while the environment layer (plan `z8ddk0`) decides what the
+    environment means once no flag was given. Each was authored against a base lacking the
+    other, so the composition was performed at salvage-integration time on 2026-09-19 rather
+    than by either agent. The flag check must stay FIRST (an explicit instruction outranks
+    inference) and both `FORCE_COLOR` readings must stay routed through the one forcing
+    predicate (that shared routing is the property `z8ddk0` exists to establish).
+
+    The full precedence table is published in ``docs/cli-output-contract.md`` section 1.1 and
+    pinned by ``tests/test_term.py``.
     """
 
     stream = stream or sys.stdout
 
-    # NO_COLOR: any value (even empty) disables, UNLESS FORCE_COLOR is set.
-    if "NO_COLOR" in os.environ and "FORCE_COLOR" not in os.environ:
+    # The FLAG layer, above everything: an explicit --color/--no-color is the operator's
+    # direct instruction and beats both env detection and TTY detection. An explicit argument
+    # wins over the process-wide value so a caller can always decide locally.
+    effective = override if override is not None else _COLOR_OVERRIDE
+    if effective is not None:
+        return bool(effective)
+
+    # NO_COLOR: any value (even empty) disables, UNLESS FORCE_COLOR is genuinely FORCING.
+    # The forcing test is the shared predicate, NOT a bare presence check: a presence check here
+    # is exactly the half-fix `_force_color_is_forcing` records as colorizing six NO_COLOR cells.
+    if "NO_COLOR" in os.environ and not _force_color_is_forcing():
         return False
-    # FORCE_COLOR: any value forces color on (overrides TTY detection).
-    if os.environ.get("FORCE_COLOR"):
+    # FORCE_COLOR: a forcing value beats TTY detection. A falsey value falls through.
+    if _force_color_is_forcing():
         return True
 
     term = os.environ.get("TERM", "")
@@ -112,6 +237,28 @@ def should_color(stream: Optional[TextIO] = None) -> bool:
         return bool(isatty and isatty())
     except Exception:
         return False
+
+
+def color_override(args: Any = None) -> Optional[bool]:
+    """Read the ``--color`` / ``--no-color`` pair off a parsed namespace.
+
+    Returns ``True`` for ``--color``, ``False`` for ``--no-color``, and ``None`` when neither
+    was passed (the "fall through to env and detection" case).
+
+    THE ONE READER OF THAT FLAG PAIR, so the flag layer cannot be interpreted differently at
+    different call sites. Passing both flags is refused STRUCTURALLY by argparse's mutually
+    exclusive group in ``cli._build_parser``, so this function never has to arbitrate a
+    conflict; if a caller hand-builds a namespace carrying both, ``--no-color`` wins here,
+    which is the safe direction (never invent escapes the caller may not be able to render).
+    """
+
+    if args is None:
+        return None
+    if getattr(args, "no_color", False):
+        return False
+    if getattr(args, "color", False):
+        return True
+    return None
 
 
 STATUS_COLOR_256 = {

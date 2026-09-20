@@ -241,5 +241,117 @@ class TestPwatchCli(unittest.TestCase):
         self.assertIn("pwatch: agy", proc.stdout)
 
 
+class ColorDecisionOnARealTtyTests(unittest.TestCase):
+    """`--no-color` and the shared capability decision, measured on a REAL pty.
+
+    WHY A PTY IS REQUIRED AND A PIPE IS NOT SUFFICIENT (IPD `z8ddk0` E-06, F-07). `pwatch`
+    now consumes the shared `term.should_color` instead of reimplementing the decision, and
+    the `--no-color` FLAG has to stay layered ABOVE that call, because `should_color` reads
+    no argparse state and cannot honor a flag. The naive conversion - replacing the whole
+    expression with a bare `term.should_color(sys.stdout)` - SILENTLY DELETES the flag.
+    The two shipped tests that pass `--no-color` above run through a PIPE, where `isatty()`
+    is already False, so the output is colorless whether the flag works or has been removed
+    entirely: measured 2026-09-19, all 10 tests in this file still passed with the conjunct
+    dropped, while a pty showed color. Only a pty can tell the two apart, which is why this
+    class exists rather than another piped case.
+    """
+
+    @staticmethod
+    def _ansi_on_a_pty(argv: list[str], env_overrides: dict[str, str | None]) -> bool:
+        """Run the packaged pwatch on a pty; report whether it emitted any ANSI escape.
+
+        `pty.fork` rather than `subprocess`, because the child's stdout must BE a terminal;
+        a `subprocess` pipe is exactly the condition that cannot distinguish the cases.
+
+        THE `DeprecationWarning` THIS EMITS UNDER XDIST IS EXPECTED AND SAFE, recorded here
+        so nobody "fixes" it by deleting the coverage. CPython warns whenever `forkpty` runs
+        in a multi-threaded process, which a `pytest -n auto` worker is; the documented
+        hazard is a child that keeps running Python after the fork and deadlocks on a lock
+        another thread held. This child does NOT: it `execve`s immediately, which replaces
+        the whole process image and discards every inherited lock. Measured 2026-09-19:
+        `14 passed` on five consecutive runs under the configured parallel default.
+        """
+        import os
+        import pty
+
+        repo_root = Path(__file__).resolve().parent.parent
+        pid, fd = pty.fork()
+        if pid == 0:  # pragma: no cover - child process, replaced by execve
+            env = dict(os.environ)
+            env["PYTHONPATH"] = str(repo_root)
+            # Neutralize the AMBIENT environment: the suite may itself run under
+            # NO_COLOR, and an inherited value would decide the case instead of the flag.
+            env.pop("NO_COLOR", None)
+            env.pop("FORCE_COLOR", None)
+            env["TERM"] = "xterm-256color"
+            for key, value in env_overrides.items():
+                if value is None:
+                    env.pop(key, None)
+                else:
+                    env[key] = value
+            os.execve(
+                sys.executable,
+                [sys.executable, "-m", "agent_workflows.pwatch", *argv],
+                env,
+            )
+        captured = b""
+        try:
+            while True:
+                chunk = os.read(fd, 65536)
+                if not chunk:
+                    break
+                captured += chunk
+        except OSError:  # the pty closes with EIO when the child exits
+            pass
+        finally:
+            os.close(fd)
+            os.waitpid(pid, 0)
+        return b"\033[" in captured
+
+    def test_no_color_flag_still_suppresses_color_on_a_real_tty(self):
+        """THE REGRESSION THIS CLASS EXISTS FOR: dropping the flag conjunct fails HERE."""
+        self.assertFalse(
+            self._ansi_on_a_pty(["--once", "--no-color", "python"], {}),
+            "`pwatch --no-color` emitted ANSI on a TTY: the flag was dropped when the "
+            "shared color decision was adopted (it must stay layered ABOVE the call)",
+        )
+
+    def test_a_real_tty_gets_color_without_the_flag(self):
+        """The CONTROL. Without it the test above passes vacuously on a colorless build."""
+        self.assertTrue(
+            self._ansi_on_a_pty(["--once", "python"], {}),
+            "`pwatch` emitted no ANSI on a capable TTY, so the assertion above proves "
+            "nothing about the flag",
+        )
+
+    def test_term_dumb_is_plain_on_a_real_tty(self):
+        """A BEHAVIOR CHANGE this plan made: `pwatch` ignored `TERM` entirely before it."""
+        self.assertFalse(
+            self._ansi_on_a_pty(["--once", "python"], {"TERM": "dumb"}),
+            "`TERM=dumb` must be plain; pwatch is not consulting the shared decision",
+        )
+
+    def test_force_color_reaches_a_pipe(self):
+        """The other behavior change: `pwatch` ignored `FORCE_COLOR` completely before it,
+        so `FORCE_COLOR=1 aw pwatch | cat` was plain while every other command colorized."""
+        import os
+
+        env = dict(os.environ, FORCE_COLOR="1", TERM="xterm-256color")
+        env.pop("NO_COLOR", None)
+        proc = subprocess.run(
+            [sys.executable, "-m", "agent_workflows.pwatch", "--once", "python"],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=str(Path(__file__).resolve().parent.parent),
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn(
+            "\033[",
+            proc.stdout,
+            "FORCE_COLOR=1 must colorize a PIPE, matching every other command",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
