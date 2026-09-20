@@ -6,17 +6,17 @@
 - Scope: Make the predicate require review evidence in the plan's own history when the `- Readiness:` field is present, so field and history must AGREE. MECHANISM CORRECTED AT REVIEW: use the STRONGER discriminator already defined in this same module (`is_review_history_entry`), NOT `ipd_lint._REVIEW_EVIDENCE_RE`, because that pattern matches a bare MENTION anywhere in the history and therefore accepts three measured forgeries (PR-701); and do NOT import `ipd_lint`, whose dependency surface is far larger than this plan's F-5 claimed (PR-702). This adds no second definition of "attested" and no new import, so it is strictly better than either option the backlog item offered. Add the test the item calls the real deliverable: the predicate returns False for a forged field. Preserve every other decision this predicate makes (out-of-vocab refusal, absent-field prose fallback, the blocking-open-question refusal) and keep the module stdlib-cheap and driver-agnostic, since both host drivers import it.
 - Scope-Paths: agent_workflows/plan_readiness.py, tests/test_plan_readiness.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: rdattest
 - Order: 2
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 8v5pwa
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: 754txs
 
 ## Workflow history
+- 2026-09-20 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: 8v5pwa verified (set rdattest, attempt 1). [Scope reconciliation - out-of-scope tests/test_oc_runipd.py: changed by the plan's approved execution (auto-reconciled by aw oc run)]
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-701 (BLOCKER: chosen mechanism did not stop a forgery) through PR-706 all FIXED. Readiness go-pending-approval.
 
