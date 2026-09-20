@@ -10285,6 +10285,277 @@ def _findings_block_reason(repo: Path, dep: str) -> str | None:
     return "; ".join(b.describe() for b in blocks)
 
 
+# ==================================================================================================
+# THE INTEGRATION-REFUSAL ANSWER (gateanswer, defect 2 of the 2026-09-19 incident)
+#
+# WHY THIS EXISTS. A lane's trust signal is a FULL TEST SUITE run, and a single red test refuses
+# integration for that lane with no way to say anything about it. Measured in run
+# `run-20260919T194413Z-2056285`: one test unrelated to any lane's work went red, so THREE lanes were
+# refused, nothing merged, eight further items cascaded to `dependency-blocked`, and the run spent
+# 2h 10m and $55.02 producing no integrated work. Every one of those lanes had done its job.
+#
+# THE MAINTAINER'S RULING, 2026-09-19: keep the gate hard 100% of the time, and let the agent ANSWER
+# it in a CLOSED vocabulary. An agent that just spent an hour in that tree and read the failure is
+# the cheapest and best-placed judge of whether the failure is its own. Verifying its claim
+# mechanically was considered and REJECTED as more work and more fragile than asking: attributing a
+# test to the files that can break it is not reliable, and a per-item base-commit suite run would
+# double suite time to re-derive what the agent already knows.
+#
+# WHAT MAKES IT SAFE IS NOT VERIFICATION. It is that the answer is DURABLE, ATTRIBUTED and
+# REVIEWABLE, exactly like a `- Readiness:` field or a `V-*` evidence block. An agent claiming
+# `not-mine` about a test it broke leaves that claim in the run record under its own name, which this
+# repository already treats as the serious offense. No new enforcement machinery is required.
+# ==================================================================================================
+
+#: The outcome-JSON key the agent writes its answer into.
+GATE_ANSWER_KEY: str = "integration_gate_answer"
+
+#: NOT MINE: the failure is not attributable to this turn's work. The runner INTEGRATES.
+GATE_ANSWER_NOT_MINE: str = "not-mine"
+
+#: FIXED: the agent believes it has repaired the failure. The runner RE-RUNS the full test suite and
+#: believes the suite, never the claim.
+GATE_ANSWER_FIXED: str = "fixed"
+
+#: MINE: the failure is this turn's, and the agent is not repairing it. The runner REFUSES and
+#: PRESERVES the lane. There is no override for this answer, deliberately: an honest `mine` must not
+#: be weaker than silence.
+GATE_ANSWER_MINE: str = "mine"
+
+#: NEEDS-HUMAN: the failure is understood but the DECISION is not the agent's to make, so no repair
+#: should be attempted. The runner REFUSES and PRESERVES exactly as for `mine`, and records that a
+#: human decision is what the item is waiting on.
+#:
+#: WHY THIS IS A SEPARATE ANSWER FROM `mine` (maintainer, 2026-09-19). `mine` originally fused TWO
+#: claims: "this failure is mine" AND "I cannot fix it". An agent that broke something but needs a
+#: maintainer ruling to know WHICH fix is correct then had no honest answer available: it would either
+#: say `mine` and lose the distinction, or guess at a repair and claim `fixed`, which is the worse
+#: outcome because a guess that passes the suite still ships an unreviewed decision. The point is not
+#: politeness, it is that an agent must always have a TRUE answer it can give comfortably. Splitting
+#: the two keeps `mine` meaning "mine, not being fixed now" and gives the decision case its own name.
+#:
+#: IT IS NOT A SOFTER `mine`: both refuse, both preserve. The difference is what a human reads
+#: afterwards - "this needs a decision from you" versus "this needs work" - and those route to
+#: different people and different next actions.
+GATE_ANSWER_NEEDS_HUMAN: str = "needs-human"
+
+#: The closed vocabulary. A value outside it is treated as no answer at all (see
+#: `validate_gate_answer`), because guessing at an unrecognized answer is how a gate gets talked into
+#: passing.
+GATE_ANSWERS: tuple[str, ...] = (
+    GATE_ANSWER_NOT_MINE,
+    GATE_ANSWER_FIXED,
+    GATE_ANSWER_MINE,
+    GATE_ANSWER_NEEDS_HUMAN,
+)
+
+#: Answers that REFUSE integration and PRESERVE the lane. Grouped so a caller cannot accidentally
+#: treat one of them as a release, and so adding a fifth answer forces a decision about which side it
+#: falls on.
+GATE_ANSWERS_REFUSING: frozenset[str] = frozenset(
+    (GATE_ANSWER_MINE, GATE_ANSWER_NEEDS_HUMAN)
+)
+
+#: Answers that REQUIRE a non-empty reason. `mine` does not: "I broke it and cannot fix it" is
+#: complete on its own and refuses anyway, so demanding prose for it would only invite filler.
+GATE_ANSWERS_NEEDING_REASON: frozenset[str] = frozenset(
+    (GATE_ANSWER_NOT_MINE, GATE_ANSWER_FIXED, GATE_ANSWER_NEEDS_HUMAN)
+)
+
+
+class GateAnswerVerdict(NamedTuple):
+    """The validated answer. NEVER raises, mirroring `DefectReportVerdict`'s contract.
+
+    Fields:
+      * `answer`: a member of :data:`GATE_ANSWERS`, or "" when the agent gave no usable answer.
+      * `reason`: the agent's own words, normalized to a single line. "" when absent.
+      * `violation`: what was wrong with an unusable answer, fed back VERBATIM by the re-ask. "" when
+        the answer was usable.
+    """
+
+    answer: str
+    reason: str
+    violation: str
+
+    @property
+    def usable(self) -> bool:
+        """Whether the runner may act on this answer at all."""
+
+        return bool(self.answer)
+
+    @property
+    def integrates(self) -> bool:
+        """Whether this answer alone releases the lane, with NO further evidence required.
+
+        Only `not-mine` does. `fixed` does NOT: it earns a suite RE-RUN, and the re-run decides.
+        """
+
+        return self.answer == GATE_ANSWER_NOT_MINE
+
+    @property
+    def earns_recheck(self) -> bool:
+        """Whether this answer earns a fresh full-test-suite run."""
+
+        return self.answer == GATE_ANSWER_FIXED
+
+    @property
+    def refuses(self) -> bool:
+        """Whether this answer refuses integration and preserves the lane.
+
+        True for BOTH `mine` and `needs-human`. They differ in what a human reads afterwards, not in
+        what the runner does with the lane.
+        """
+
+        return self.answer in GATE_ANSWERS_REFUSING
+
+    @property
+    def awaits_human_decision(self) -> bool:
+        """Whether the item is waiting on a DECISION rather than on work.
+
+        Kept distinct from `refuses` so a report can route these two elsewhere: "decide this" goes to
+        the maintainer, "fix this" goes to a later turn.
+        """
+
+        return self.answer == GATE_ANSWER_NEEDS_HUMAN
+
+
+def validate_gate_answer(raw: Any) -> GateAnswerVerdict:
+    """Normalize whatever the agent wrote into a `GateAnswerVerdict`. NEVER raises.
+
+    FAIL-CLOSED ON ANYTHING UNRECOGNIZED, and the reason is asymmetric cost: a wrongly REFUSED lane
+    is loud, preserved and recoverable, while a wrongly INTEGRATED one merges work whose trust signal
+    nobody actually cleared. So an absent answer, an unknown token, and a `not-mine`/`fixed` with no
+    reason all yield an unusable verdict rather than a guess.
+
+    COERCION IS LIMITED TO SHAPE, NEVER TO MEANING: case and surrounding whitespace are folded, and
+    an answer given as a bare string rather than an object is accepted. A token that is merely
+    ADJACENT to the vocabulary (say "not mine", "notmine") is accepted on the same principle that
+    `_normalize_token` folds a verdict phrase, because the agent's intent is unambiguous and refusing
+    on punctuation teaches nothing. Anything genuinely outside the vocabulary is refused BY NAME, so
+    the re-ask can say which token it did not recognize.
+    """
+
+    answer_raw: Any = ""
+    reason_raw: Any = ""
+    if isinstance(raw, str):
+        answer_raw = raw
+    elif isinstance(raw, Mapping):
+        answer_raw = raw.get("answer", raw.get("state", ""))
+        reason_raw = raw.get("reason", raw.get("why", ""))
+    elif raw is not None:
+        return GateAnswerVerdict(
+            "",
+            "",
+            f"the answer must be a string or an object, got {type(raw).__name__}",
+        )
+
+    token = re.sub(r"[\s_]+", "-", str(answer_raw or "").strip().lower()).strip("-")
+    reason = re.sub(r"\s+", " ", str(reason_raw or "").strip())
+
+    if not token:
+        return GateAnswerVerdict(
+            "",
+            reason,
+            "no answer was given; an absent answer cannot be told apart from never having looked",
+        )
+    if token not in GATE_ANSWERS:
+        return GateAnswerVerdict(
+            "",
+            reason,
+            f"{token!r} is not one of {list(GATE_ANSWERS)}",
+        )
+    if token in GATE_ANSWERS_NEEDING_REASON and not reason:
+        return GateAnswerVerdict(
+            "",
+            "",
+            f"{token!r} requires a reason saying WHY, and none was given",
+        )
+    return GateAnswerVerdict(token, reason, "")
+
+
+def gate_answer_question(
+    *,
+    failing: str,
+    changed_files: Sequence[str] = (),
+    violation: str = "",
+) -> str:
+    """The question put to the agent when the suite refused its integration.
+
+    HOW THIS IS ASKED MATTERS AS MUCH AS WHAT IT ASKS (maintainer, 2026-09-19: "so long as we are
+    careful how we ask the agent"). Four properties are deliberate:
+
+    1. IT DOES NOT ACCUSE. The commonest true answer is `not-mine`, because a shared full-test-suite
+       run can go red for reasons a lane never touched. A question phrased as "what did you break"
+       pushes an honest agent toward `mine` or toward fixing something that was never its fault.
+    2. IT STATES THE CONSEQUENCE OF EACH ANSWER, so the agent is choosing an OUTCOME rather than a
+       label. An agent that does not know `fixed` triggers a real re-run may treat it as a promise.
+    3. IT NAMES THE EVIDENCE IT ALREADY HAS: the failing tests, and the files this turn changed. That
+       is exactly the comparison the answer turns on, so withholding it would be asking the agent to
+       guess at something the driver can simply show it.
+    4. IT MAKES `mine` SAFE TO SAY. An honest `mine` must never be worse for the agent than silence,
+       or the incentive is to stay quiet; silence already refuses, so `mine` costs nothing extra and
+       records the truth.
+    """
+
+    changed = "\n".join(f"  {p}" for p in changed_files) or "  (none recorded)"
+    preamble = (
+        f"YOUR PREVIOUS ANSWER COULD NOT BE USED: {violation}\n\n" if violation else ""
+    )
+    return f"""{preamble}Your work is committed on your lane, but integration is REFUSED because the full
+test suite did not pass. This is a question, not an accusation: the suite covers the WHOLE repository
+and other work lands in it, so a failure here is often nothing to do with your turn.
+
+THE FULL TEST SUITE REPORTED:
+
+{failing}
+
+THE FILES YOUR TURN CHANGED:
+
+{changed}
+
+Compare the two and answer by writing ONE object into the `{GATE_ANSWER_KEY}` key of the outcome JSON
+you already wrote. Change nothing else in that file unless you are answering `{GATE_ANSWER_FIXED}`.
+
+  "{GATE_ANSWER_KEY}": {{"answer": "<{'|'.join(GATE_ANSWERS)}>", "reason": "<why, one line>"}}
+
+WHAT EACH ANSWER DOES, so you are choosing an outcome and not a label:
+
+  {GATE_ANSWER_NOT_MINE}
+      The failure is not attributable to your work: it fails for a reason outside the files you
+      changed, or it was already failing before your turn. YOUR LANE IS THEN INTEGRATED. Say WHICH
+      of those two it is and what you checked. This is the commonest correct answer and it is not a
+      concession.
+
+  {GATE_ANSWER_FIXED}
+      You have repaired the failure in your lane. THE FULL TEST SUITE IS RE-RUN and the re-run
+      decides, not your claim. Commit the repair before answering. If the re-run still fails you will
+      be shown the new result and may try again, within this run's retry budget.
+
+  {GATE_ANSWER_MINE}
+      Your work caused the failure and you are not repairing it now. INTEGRATION IS REFUSED and your
+      lane and branch are PRESERVED for a human or a later turn; nothing is discarded. Answering
+      `{GATE_ANSWER_MINE}` honestly is strictly better than not answering, which refuses anyway and
+      records nothing a human can act on.
+
+  {GATE_ANSWER_NEEDS_HUMAN}
+      You understand the failure, but the DECISION is not yours to make: two repairs are both
+      defensible, or the fix would change a documented contract, or it turns on scope or risk the
+      maintainer owns. INTEGRATION IS REFUSED and your lane is PRESERVED, exactly as for
+      `{GATE_ANSWER_MINE}`, and the run records that this item is waiting on a DECISION rather than on
+      work. USE THIS FREELY AND WITHOUT HESITATION: it is a first-class answer, not an escalation and
+      not a failure. State the decision you need in one line and, where you can, the options you see.
+      DO NOT GUESS AT A REPAIR TO AVOID ASKING - a guess that happens to pass the suite ships an
+      unreviewed decision, which is the worse outcome.
+
+CHOOSE THE ANSWER THAT IS TRUE. One of these four always is: either the failure is not yours, or you
+fixed it, or it is yours and unfixed, or it needs a decision you do not own. There is no case where
+silence is the accurate answer, and silence refuses while telling a human nothing.
+
+Your answer is recorded on the run record under your name and is reviewable, exactly like a `V-*`
+evidence block. Claim `{GATE_ANSWER_NOT_MINE}` only if you believe it.
+"""
+
+
 def make_integration_validation_runner(
     state: dict[str, Any], run_dir: Path, item: dict[str, Any]
 ) -> Any:
