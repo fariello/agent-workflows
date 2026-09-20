@@ -8,60 +8,91 @@ from __future__ import annotations
 import io
 import re
 import unittest
+from agent_workflows import lifecycle_style as LS
 from agent_workflows import term as T
 
 _ANSI = re.compile(r"\033\[[0-9;]*m")
 
 
 class PaletteSingleSourceTests(unittest.TestCase):
-    """V-01: Exactly one palette exists (extended STATUS_COLOR_256) with documented roles."""
+    """ONE LIFECYCLE SOURCE plus ONE generic role table, each serving a different vocabulary.
 
-    def test_status_color_256_contains_all_roles(self):
-        palette = T.STATUS_COLOR_256
-        # Success / approved / implemented / executed -> 46
+    REWRITTEN, NOT DELETED (plan `qdd5jq` E-05, spec `uonrjg` R10.3, criterion A17). Its docstring
+    used to read "Exactly one palette exists (extended STATUS_COLOR_256)", and that premise is
+    exactly what this Set replaces: that single table mixed 32 LIFECYCLE statuses with 24 generic
+    command-outcome and formatting roles, and the lifecycle half is now owned by `lifecycle_style`.
+    Three of this class's assertions broke for that reason, each recorded at the assertion itself.
+
+    THE INVARIANT IT ASSERTS NOW is the one the spec actually wants, and it is STRICTLY STRONGER than
+    counting dicts: the generic roles still resolve here, the lifecycle statuses do NOT resolve here,
+    and no third table answers either question.
+    """
+
+    def test_role_palette_contains_the_generic_roles_and_no_lifecycle_status(self):
+        """The 24 retained GENERIC roles, and the negative half that makes the split real.
+
+        RE-POINTED FROM `STATUS_COLOR_256` TO `ROLE_COLOR_256`, and SHRUNK on purpose. Every
+        lifecycle assertion this test used to make (`approved` 46, `implemented` 46, `executed` 46,
+        `active` 39, `reusable` 39, `implementing` 51, `reviewed` 226, `to-review` 214, `blocked` 203,
+        `deferred` 208, `draft` 245, `done` 244) is now a claim about `lifecycle_style`, and two of
+        them CONTRADICT the spec outright (`approved` is 45 cyan at Section 5, not 46 green; `active`
+        is 220 amber, not 39). Asserting them here would have pinned the very collapse the spec
+        forbids, which is why they move rather than being restated.
+        """
+
+        palette = T.ROLE_COLOR_256
+        # Success / conformance outcomes -> 46
         self.assertEqual(palette["success"], 46)
-        self.assertEqual(palette["approved"], 46)
-        self.assertEqual(palette["implemented"], 46)
-        self.assertEqual(palette["executed"], 46)
         self.assertEqual(palette["conforms"], 46)
+        self.assertEqual(palette["conforming"], 46)
+        self.assertEqual(palette["ok"], 46)
+        self.assertEqual(palette["up to date"], 46)
+        self.assertEqual(palette["wrote"], 46)
+        self.assertEqual(palette["updated"], 46)
+        self.assertEqual(palette["current"], 46)
 
-        # Info / active / reusable -> 39
+        # Info / neutral
         self.assertEqual(palette["info"], 39)
-        self.assertEqual(palette["active"], 39)
-        self.assertEqual(palette["reusable"], 39)
+        self.assertEqual(palette["legacy"], 244)
+        self.assertEqual(palette["unchanged"], 245)
+        self.assertEqual(palette["secondary"], 245)
+        self.assertEqual(palette["ready"], 40)
 
-        # Implementing -> 51
-        self.assertEqual(palette["implementing"], 51)
-
-        # Warning / reviewed -> 226
+        # Advisory / attention -> 226 / 214
         self.assertEqual(palette["warning"], 226)
         self.assertEqual(palette["warn"], 226)
-        self.assertEqual(palette["reviewed"], 226)
-
-        # Action / to-review / preview -> 214
+        self.assertEqual(palette["advisory"], 214)
         self.assertEqual(palette["action"], 214)
-        self.assertEqual(palette["to-review"], 214)
         self.assertEqual(palette["preview"], 214)
+        self.assertEqual(palette["quarantined"], 214)
 
-        # Failure / error / fail -> 196
+        # Failure -> 196
         self.assertEqual(palette["failure"], 196)
-        self.assertEqual(palette["error"], 196)
         self.assertEqual(palette["fail"], 196)
+        self.assertEqual(palette["error"], 196)
 
-        # Blocked -> 203
-        self.assertEqual(palette["blocked"], 203)
-
-        # Deferred -> 208 (existing)
-        self.assertEqual(palette["deferred"], 208)
-
-        # Paths -> 33 (new role)
+        # Formatting roles -> 33
         self.assertEqual(palette["paths"], 33)
         self.assertEqual(palette["path"], 33)
 
-        # Secondary / draft -> 245, done -> 244
-        self.assertEqual(palette["secondary"], 245)
-        self.assertEqual(palette["draft"], 245)
-        self.assertEqual(palette["done"], 244)
+        # THE EXACT MEMBERSHIP, so a lifecycle key cannot creep back in unnoticed.
+        self.assertEqual(len(palette), 24, sorted(palette))
+
+        # THE NEGATIVE HALF (criterion A17): not one LIFECYCLE status resolves through this table.
+        # Driven from `lifecycle_style`'s own mappings rather than a hand-list, so a status added
+        # upstream is covered here with no edit.
+        native = {status for mapping in LS.NATIVE_MAPS.values() for status in mapping}
+        # `quarantined` is the one deliberate overlap: spec D15 makes it a CONDITION carried by a
+        # `- Quarantine:` field rather than a `- Status:` value, and `ipd_lint` keeps the other four
+        # words of its disposition column generic. Named explicitly so the overlap is a decision.
+        leaked = sorted((native & set(palette)) - {"quarantined"})
+        self.assertEqual(
+            leaked,
+            [],
+            f"lifecycle status(es) {leaked} resolve a color from the GENERIC role table. Spec "
+            "`uonrjg` criterion A17 requires lifecycle color to come only from `lifecycle_style`; "
+            "a key here is a second lifecycle table by another name.",
+        )
 
     def test_no_parallel_palette_defined(self):
         """Assert no secondary or parallel palette dict exists in term module.
@@ -77,6 +108,13 @@ class PaletteSingleSourceTests(unittest.TestCase):
         SO THE GUARD IS AN ALLOWLIST RATHER THAN A COUNT: a NEW palette still fails and must justify
         itself here, which keeps the protection, while the two tiers the spec mandates are named with
         the role each one serves.
+
+        THE ALLOWLIST CHANGED ONCE MORE (plan `qdd5jq` E-04): `STATUS_COLOR_256` became
+        `ROLE_COLOR_256` when its 32 LIFECYCLE keys left for `lifecycle_style` and its 24 GENERIC
+        command-outcome and formatting roles stayed. That is a RENAME PLUS A NARROWING of one table,
+        not a new rival, and the narrowing is what criterion A17 asked for. Both surviving entries are
+        now non-lifecycle by construction: one is the generic role palette, the other is the 16-color
+        tier keyed by SEMANTIC STAGE.
         """
         term_dicts = sorted(
             k
@@ -85,11 +123,19 @@ class PaletteSingleSourceTests(unittest.TestCase):
         )
         self.assertEqual(
             term_dicts,
-            ["STAGE_COLOR_16", "STATUS_COLOR_256"],
-            "a palette dict appeared in `term` that is neither the 256 status palette nor the "
+            ["ROLE_COLOR_256", "STAGE_COLOR_16"],
+            "a palette dict appeared in `term` that is neither the generic 256 role palette nor the "
             "authored 16-color stage tier. If it is a new RUNG of the documented ladder, add it "
             "here with its role; if it answers the same question as an existing table, it is the "
             "parallel palette this guard exists to refuse.",
+        )
+        # AND THE RETIRED NAME MUST NOT COME BACK, because re-adding `STATUS_COLOR_256` is the one
+        # edit that would silently restore the mixed lifecycle/generic table this Set dismantled.
+        self.assertFalse(
+            hasattr(T, "STATUS_COLOR_256"),
+            "`term.STATUS_COLOR_256` is back. It mixed 32 lifecycle statuses with 24 generic roles, "
+            "which is the second lifecycle table spec `uonrjg` criterion A17 forbids; lifecycle "
+            "color belongs to `lifecycle_style` and the generic roles to `ROLE_COLOR_256`.",
         )
 
 
