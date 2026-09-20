@@ -18,6 +18,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-20 executed (opencode its_direct/pt3-claude-opus-5-1m-us, lane `pow5sj` of run-20260920T181010Z-757518): E-01..E-05 performed, V-01..V-05 verified with pasted evidence. Suite BARE: `1 failed, 7500 passed, 3 skipped, 2 xfailed` (baseline was `8369 passed, 3 skipped, 2 xfailed`; totals are not comparable across these runs and node ids were compared instead, as this plan's Required-tests section directs). THE ONE FAILURE IS PRE-EXISTING AND UNRELATED, proven by stashing every change and re-running it red: `tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`, which asserts `OPENCODE_CONFIG_CONTENT` is absent from a non-isolated turn's environment and fails because this lane itself runs under that variable. OQ-02 IMPLEMENTED AS RULED (READING A): `FORCE_COLOR` keeps its override of `NO_COLOR`, the shipped `test_force_color_overrides_no_color` still passes UNCHANGED, no behavior changed, so NEITHER conditional spec amendment applied and no `.spec.md` was added to `- Scope-Paths:`. OQ-01 resolved to the DECLARATIVE route (`ConfigKeySpec.allowed_values`), proven general against a second key. ONE DEFECT CAUGHT BY THIS PLAN'S OWN NEW GUARD during execution: the palette's first draft merged `authority-queued` (135) onto `blocked`'s magenta (208), a merge R9.3a.3 names no collapse for and that none of the three required separations covers; fixed to bright magenta and now refused at import. TWO OUT-OF-SCOPE TEST EDITS, both narrowing a whole-set snapshot to the claim it exists to make, neither weakening a check: `tests/test_run_analytics_wizard.py` (pinned `_ALLOWED_TOP_KEYS` exactly, so any new config key failed an analytics test) and `tests/test_term_components.py` (pinned the `term` palette-dict list exactly, so the spec-REQUIRED second LADDER RUNG read as a rival palette); recorded as D-02/D-03 and filed as backlog `yzwfql` because the brittleness pattern outlives this instance. F-06's "38 call sites" figure corrected to 58 by measurement (it predated siblings `z8ddk0`/`yaxr4i`); the substance, that this child converts no consumer, holds and is shown by the diff.
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-19 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates at HEAD `f12390d7` and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False (the round-1 blocker OQ-02 is now `Status: resolved`); `review_findings.subject_gating_blocks` -> empty (the round-1 BLOCKER finding is now `FIXED` in the review record, with its resolution recorded there); and `plan_readiness.newest_verdict` polarity -> neutral, not negative. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-19 reviewed (aw set): plan-review round 1: REVIEWED - OPEN QUESTIONS. PR-302..PR-305 FIXED; PR-301 (BLOCKER) escalated as OQ-02 Blocking: yes (R9.3a.2's 'unconditional' NO_COLOR rung contradicts Section 9.3's preserve-current-FORCE_COLOR requirement; measured FORCE_COLOR currently wins). Readiness no-go.
@@ -36,41 +37,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: The depth resolver
 
-- [ ] E-01 Add a single color-depth resolver beside `should_color` in `agent_workflows/term.py`, implementing the R9.3a.2 precedence chain highest-first: `NO_COLOR`/`--no-color`/`TERM=dumb`/non-TTY yields none; then an explicit user depth setting; then detected capability via `COLORTERM`/`TERM`; then the default of 256. The top rung's exact treatment of `FORCE_COLOR` is OQ-02's blocking question; implement whatever it resolves rather than choosing.
+- [x] E-01 Add a single color-depth resolver beside `should_color` in `agent_workflows/term.py`, implementing the R9.3a.2 precedence chain highest-first: `NO_COLOR`/`--no-color`/`TERM=dumb`/non-TTY yields none; then an explicit user depth setting; then detected capability via `COLORTERM`/`TERM`; then the default of 256. The top rung's exact treatment of `FORCE_COLOR` is OQ-02's blocking question; implement whatever it resolves rather than choosing.
   - Depends on: none
   - Expected outcome: Exactly one definition of depth in the package. `NO_COLOR` with a pinned depth still yields none, because an accessibility convention outranks a preference. The default is 256, not the most conservative rung.
-  - Execution state: pending
+  - Execution state: performed
 
   TWO SEAM FACTS MEASURED AT REVIEW, because "beside `should_color`" is not by itself enough to place this correctly. FIRST, `term.should_color` CANNOT SEE `--no-color`: it reads only `NO_COLOR`, `FORCE_COLOR`, `TERM` and `isatty()` (`term.py:90-114`), and the FLAG is applied one layer up in `result_types.select_output`, which computes `color_enabled = should_color(out_stream)` only `if not getattr(args, "no_color", False)` (`result_types.py:158-160`). So a depth resolver living in `term.py` can implement three of the four top-rung inputs and MUST take the flag's effect as a parameter (or be called only after the flag has been applied) rather than reaching for `args`. Do not add argparse awareness to `term.py`; that is the layering `yaxr4i` E-03 settles by putting the flag layer ABOVE the env layer. SECOND, `should_color` has 38 call sites across 7 modules, so whatever signature the resolver takes must not force a change at any of them; this child converts no consumer.
 
 ### Task group 2: The authored 16-color tier
 
-- [ ] E-02 Add the AUTHORED 16-color palette required by R9.3a.3 as an explicit table covering all TWENTY stages, NOT a mechanical nearest-neighbour mapping of the 11 distinct 256 indices. It MUST preserve three separations: `ready` is not `done`, `blocked` is not `failed`, `waiting-input` is not `blocked`.
+- [x] E-02 Add the AUTHORED 16-color palette required by R9.3a.3 as an explicit table covering all TWENTY stages, NOT a mechanical nearest-neighbour mapping of the 11 distinct 256 indices. It MUST preserve three separations: `ready` is not `done`, `blocked` is not `failed`, `waiting-input` is not `blocked`.
   - Depends on: E-01
   - Expected outcome: A 16-color context renders from the authored table. The three separations hold, and the two EXPECTED collapses are present: the five active subtypes plus `active` to one yellow, and the six gray-family stages (`parked`, `superseded`, `abandoned`, `unknown`, `none`, `formative`) to one neutral.
-  - Execution state: pending
+  - Execution state: performed
 
   THE 256 TIER VERIFIED AT REVIEW, so the authored table is written against measured facts rather than the spec's prose. Parsing Section 5's table on 2026-09-19 gives exactly 11 distinct indices, which confirms R9.3a.3's own count: `39` review-queued; `45` ready; `46` done; `81` reusable; `135` authority-queued; `196` failed; `208` blocked; `214` waiting-input; `220` the five active subtypes plus `active` (already one color, so that collapse is free); `244` parked/superseded/abandoned/unknown/none; `245` formative.
   NOTE THE GRAY COUNT: R9.3a.3 says "the four grays" and then lists SIX names. The LIST is right and the WORD is wrong, which the measurement settles: five stages sit at 244 and `formative` sits at 245, so six stages collapse into the one neutral. Implement six. The three separations are all genuinely at risk under a mechanical mapping, since 208 versus 196 (blocked/failed) and 214 versus 208 (waiting-input/blocked) are adjacent-ish in the 256 cube while 45 versus 46 (ready/done) are adjacent by index and completely different in meaning; that adjacency is precisely why R9.3a.3 forbids deriving the tier.
 
 ### Task group 3: User configurability
 
-- [ ] E-03 Add an `aw config` key pinning the color depth, and make an invalid value REFUSED at validation with a message naming the accepted set. Note this needs a value-constraint mechanism that `ConfigKeySpec` does not currently have (see F-03), so decide and record whether to extend `ConfigKeySpec` declaratively or validate at the setter.
+- [x] E-03 Add an `aw config` key pinning the color depth, and make an invalid value REFUSED at validation with a message naming the accepted set. Note this needs a value-constraint mechanism that `ConfigKeySpec` does not currently have (see F-03), so decide and record whether to extend `ConfigKeySpec` declaratively or validate at the setter.
   - Depends on: E-01
   - Expected outcome: A user can pin the depth; an invalid value is refused with the accepted set named; a pinned depth does NOT defeat `NO_COLOR`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: The tier tests
 
-- [ ] E-04 Add the A12a and A12c tests: assert each rung of the precedence chain explicitly, including the `NO_COLOR`-beats-pinned-depth case the spec singles out as the one an implementation is most likely to get backwards, plus config refusal of an invalid value.
+- [x] E-04 Add the A12a and A12c tests: assert each rung of the precedence chain explicitly, including the `NO_COLOR`-beats-pinned-depth case the spec singles out as the one an implementation is most likely to get backwards, plus config refusal of an invalid value.
   - Depends on: E-03
   - Expected outcome: Each rung asserted separately rather than inferred from one composite case. The `NO_COLOR`-with-pin case is its own named test.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add the A12b and A12d tests: render one fixture at all three tiers and assert the three separations survive 16-color, the expected collapses are present, and at EVERY tier the glyph and native word are both present so no state is distinguishable by color alone.
+- [x] E-05 Add the A12b and A12d tests: render one fixture at all three tiers and assert the three separations survive 16-color, the expected collapses are present, and at EVERY tier the glyph and native word are both present so no state is distinguishable by color alone.
   - Depends on: E-02, E-04
   - Expected outcome: One fixture, three tiers, with the R9.3a.5 invariant asserted at each. The collapse assertions pin the 16-color table so a later change cannot quietly re-expand it into colors a 16-color terminal cannot show.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -161,30 +162,337 @@ TWO CONDITIONAL SPEC EDITS, recorded here because AGENTS.md requires a spec edit
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste `grep -c` proving exactly ONE depth-resolver definition exists in the package (R9.3a.2 requires one definition). Paste the resolver's output under each input condition of the precedence chain. ALSO paste the OQ-02 ruling being implemented and the resolver's output for the `NO_COLOR=1` PLUS `FORCE_COLOR=1` case, since that is the one input the two spec sections disagree about; an evidence block that omits it FAILS this item. Paste `python3 -m pytest tests/test_term.py -o addopts=""` showing `test_force_color_overrides_no_color` still passing, or, if the ruling deliberately changed it, the spec amendment and the test's replacement. Finally paste a grep proving `term.py` gained no `argparse`/`args` awareness (F-06), and that the 38 existing `should_color` call sites are unchanged.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ONE resolver definition (`term.py:358`) and no other module reading `COLORTERM`/`256color`; every rung measured by execution including `NO_COLOR=1`+`FORCE_COLOR=1` -> `256` (OQ-02 READING A); `test_force_color_overrides_no_color` still PASSES unchanged; `term.py` has zero `argparse`/`args.no_color` occurrences; every `should_color` line in the diff is an addition, so no call site changed. Full pastes below.
 
-- [ ] V-02 validates E-02
+    EXACTLY ONE DEFINITION, and no second depth-detection path anywhere in the package:
+
+    ```text
+    $ grep -rn "^def resolve_color_depth" --include=*.py agent_workflows/
+    agent_workflows/term.py:358:def resolve_color_depth(
+
+    $ grep -rc '^def resolve_color_depth' --include=*.py agent_workflows/ | grep -v ':0'
+    agent_workflows/term.py:1
+
+    $ grep -rln "COLORTERM\|256color" --include=*.py agent_workflows/
+    agent_workflows/term.py
+    ```
+
+    The second grep is the one that makes the first MEANINGFUL: a rival module quietly reading
+    `COLORTERM` would be a second depth decision even while the symbol stayed unique. Both
+    properties are pinned by `ColorDepthOneDefinitionTests` (AST-based, not substring, per the
+    file-local convention), so a regression fails rather than needing a re-grep.
+
+    EVERY RUNG OF THE CHAIN, by execution (`XDG_CONFIG_HOME` pointed at a temporary directory so
+    the maintainer's real config cannot influence the reading):
+
+    ```text
+    rung4 default (unknown TERM)      -> 256
+    rung3 detect TERM=xterm-256color  -> 256
+    rung3 detect TERM=xterm-16color   -> 16
+    rung3 detect COLORTERM=truecolor  -> 256
+    rung1 NO_COLOR=1                  -> none
+    rung1 non-TTY (pipe)              -> none
+    rung1 TERM=dumb                   -> none
+    rung1 override=False (--no-color) -> none
+    OQ-02 NO_COLOR=1 + FORCE_COLOR=1  -> 256
+    ```
+
+    And the PIN rung, including the case A12a singles out:
+
+    ```text
+    unpinned, TERM=xterm-256color     -> 256
+    pinned 16 (beats 256 detection)   -> 16
+    pinned 16 + NO_COLOR=1            -> none   <-- NO_COLOR beats the pin
+    pinned none on a 256 TTY          -> none
+    ```
+
+    THE OQ-02 RULING IMPLEMENTED IS READING A (maintainer, 2026-09-19): `FORCE_COLOR` KEEPS its
+    escape hatch over `NO_COLOR`, and R9.3a.2's "unconditional" is unconditional with respect to
+    the DEPTH PIN only. The `NO_COLOR=1` plus `FORCE_COLOR=1` row above shows `256`, i.e. the
+    hatch survives at the depth seam exactly as it does at the boolean one. NO behavior changed
+    and no spec amendment is owed, so `- Scope-Paths:` correctly still declares no `.spec.md`.
+    The shipped test the ruling turned on still passes, alongside the new depth-level twin:
+
+    ```text
+    $ python3 -m pytest "tests/test_term.py::ShouldColorTests::test_force_color_overrides_no_color" \
+        "tests/test_term.py::ColorDepthPrecedenceTests::test_force_color_still_overrides_no_color_at_the_depth_resolver" \
+        -o addopts="" -v
+    tests/test_term.py::ShouldColorTests::test_force_color_overrides_no_color PASSED [ 50%]
+    tests/test_term.py::ColorDepthPrecedenceTests::test_force_color_still_overrides_no_color_at_the_depth_resolver PASSED [100%]
+
+    ============================== 2 passed in 0.15s ===============================
+    ```
+
+    F-06 DISCHARGED, both halves. `term.py` gained no argparse awareness, and the resolver takes
+    the flag as `override=` (forwarded to `should_color`) rather than reaching for a namespace:
+
+    ```text
+    $ grep -cn "import argparse\|args\.no_color" agent_workflows/term.py
+    0
+    ```
+
+    THE 38 EXISTING `should_color` CALL SITES ARE UNCHANGED, verified by the stronger check of
+    reading the diff rather than re-counting: every `should_color` line in the diff is an ADDITION
+    (a `+`), so no existing call site or signature was edited.
+
+    ```text
+    $ git diff agent_workflows/term.py | grep -E "^[-+].*should_color"
+    +    1. COLOR IS OFF ENTIRELY -> ``'none'``. Delegated WHOLESALE to :func:`should_color`, which
+    +    WHY RUNG 1 DELEGATES TO ``should_color`` INSTEAD OF RE-READING THE ENVIRONMENT (this is the
+    +    when it unified three divergent ``should_color`` implementations, and which
+    +    ``override`` is forwarded to :func:`should_color` unchanged and carries the same meaning, so a
+    +    if not should_color(stream, override=override):
+    ```
+
+    CORRECTING THE PLAN'S OWN FIGURE, since honesty outranks matching the authored number: the
+    plan (and F-06) say "38 call sites", and the occurrence count at this HEAD is 58 across 9
+    modules, not 38. The 38 was measured before siblings `z8ddk0` and `yaxr4i` landed, both of
+    which added call sites and delegations. The SUBSTANCE of the requirement (this child converts
+    no consumer) holds and is proven by the diff above; only the count was stale.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the authored 16-color table and the resolved 16-color value for each of the TWENTY stages (20, not 21: the count is measured from Section 5's table and corroborated by the spec's own D13, which rejects "a new 21st stage"). A dump covering fewer than 20 stages, or asserting 21, FAILS this item. Explicitly show `ready` differing from `done`, `blocked` from `failed`, and `waiting-input` from `blocked`. Show the five active subtypes plus `active` sharing one yellow, and all SIX gray-family stages (`parked`, `superseded`, `abandoned`, `unknown`, `none`, `formative`) sharing one neutral.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All TWENTY stages dumped with their 256 index and authored 16-color code (`len(STAGE_ORDER)` = 20, palette entries = 20, coverage asserted against `lifecycle_style.ALL_STAGES` rather than a literal count). The three separations all differ (`ready` 96 / `done` 92; `blocked` 35 / `failed` 31; `waiting-input` 93 / `blocked` 35) and both collapses are single-colored (six active -> SGR 33, six grays -> SGR 90, so F-05(b)'s six-not-four is confirmed). One unnamed merge (`authority-queued` on `blocked`'s magenta) was caught by this item's own new guard and fixed. Full pastes below.
 
-- [ ] V-03 validates E-03
+    ALL TWENTY STAGES, in spec Section 5 order, with the 256 index beside the authored 16-color
+    SGR code so the authoring decisions can be checked against what they replace:
+
+    ```text
+    stage               256    16  name
+    ----------------------------------------------
+    formative           245    90  bright-black
+    review-queued        39    34  blue
+    authority-queued    135    95  bright-magenta
+    ready                45    96  bright-cyan
+    reviewing           220    33  yellow
+    executing           220    33  yellow
+    verifying           220    33  yellow
+    integrating         220    33  yellow
+    recovering          220    33  yellow
+    active              220    33  yellow
+    waiting-input       214    93  bright-yellow
+    blocked             208    35  magenta
+    failed              196    31  red
+    done                 46    92  bright-green
+    reusable             81    36  cyan
+    parked              244    90  bright-black
+    superseded          244    90  bright-black
+    abandoned           244    90  bright-black
+    unknown             244    90  bright-black
+    none                244    90  bright-black
+
+    stage count: 20 | palette entries: 20
+    ```
+
+    THE COUNT IS 20, NOT 21, and it is measured rather than asserted: `len(LS.STAGE_ORDER)` is 20
+    and the palette covers exactly that set (`test_the_palette_covers_every_semantic_stage`
+    compares against `lifecycle_style.ALL_STAGES`, so the coverage claim cannot rot the way a
+    literal count would). The 256 tier's 11 distinct indices are confirmed independently:
+    `[39, 45, 46, 81, 135, 196, 208, 214, 220, 244, 245]`.
+
+    THE THREE REQUIRED SEPARATIONS, each shown to differ:
+
+    ```text
+    SEPARATIONS (must differ):
+      ready           96 vs done            92  -> differ: True
+      blocked         35 vs failed          31  -> differ: True
+      waiting-input   93 vs blocked         35  -> differ: True
+    ```
+
+    THE TWO EXPECTED COLLAPSES, each one color, and note the gray group is SIX:
+
+    ```text
+    COLLAPSES (must be one color each):
+      6 stages -> SGR {33}  (reviewing, executing, verifying, integrating, recovering, active)
+      6 stages -> SGR {90}  (parked, superseded, abandoned, unknown, none, formative)
+    ```
+
+    F-05(b) CONFIRMED BY MEASUREMENT: R9.3a.3's prose says "the four grays" and lists SIX names.
+    The list is right and the word is wrong, because five of those stages sit at 244 and
+    `formative` at 245. Six are implemented and `test_the_six_gray_family_stages_collapse_to_one_neutral`
+    asserts `len(group) == 6` explicitly, so a future edit cannot quietly build the neutral for four.
+
+    THE TABLE IS AUTHORED, NOT DERIVED, and the evidence is the property a derivation cannot have:
+    at 256 `ready`(45) and `done`(46) are ADJACENT BY INDEX, yet they take different named colors
+    here. Any nearest-neighbour reduction merges that pair first.
+
+    ONE DEFECT THIS ITEM'S OWN GUARD CAUGHT DURING EXECUTION, recorded because a guard that never
+    fires is weak evidence. The first draft gave `authority-queued` PLAIN magenta, the same code as
+    `blocked`. Those stages are 135 (purple) and 208 (orange) at 256, so nothing suggested merging
+    them, and no REQUIRED separation names either stage, meaning every other assertion passed.
+    R9.3a.3 names the collapses it accepts, so an UNNAMED merge is an unreviewed loss of a
+    distinction; `authority-queued` is now bright magenta (95), and `validate_16_color_palette` plus
+    `test_the_palette_merges_no_pair_outside_a_named_collapse` now refuse ANY merge that no declared
+    collapse covers. Also asserted: every code is one of the sixteen named colors, so a 256 index
+    cannot leak into the tier.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the successful `aw config` set of a valid depth, then the REFUSAL of an invalid one with its message showing the accepted set. Paste the chosen mechanism (declarative field or setter check) and say which OQ-01 route was taken.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `config set color_depth 16` -> `OK` exit 0, read back as `16`, visible in `config show`; `config set color_depth tru3color` -> `FAIL Invalid value for 'color_depth': 'tru3color'. Accepted values: none, 16, 256.` exit 2, with the previous pin still intact afterwards. OQ-01 ROUTE: the DECLARATIVE one (`ConfigKeySpec.allowed_values`, enforced generically in `set_config_value`), proven general by constraining a second key in `DeclarativeAllowedValuesTests`. Full pastes and the reasoning below.
 
-- [ ] V-04 validates E-04
+    THE SUCCESSFUL SET, THE REFUSAL, AND THE MESSAGE NAMING THE ACCEPTED SET. Run against the
+    WORKING TREE (`python3 -m agent_workflows`, not the `aw` on PATH, which resolves to the
+    installed package and would have tested code this plan did not write), with
+    `XDG_CONFIG_HOME` pointed at a temporary directory:
+
+    ```text
+    $ python3 -m agent_workflows config set color_depth 16
+    OK       color_depth = 16 (saved to <tmpdir>/agent-workflows/config.json)
+    exit=0
+
+    $ python3 -m agent_workflows config get color_depth
+    16
+
+    $ python3 -m agent_workflows config set color_depth tru3color
+    FAIL     Invalid value for 'color_depth': 'tru3color'. Accepted values: none, 16, 256.
+    exit=2
+
+    $ python3 -m agent_workflows config get color_depth
+    16
+
+    $ python3 -m agent_workflows config show | grep -i color_depth
+      color_depth          = 16
+    ```
+
+    The refusal NAMES THE ACCEPTED SET (`none, 16, 256`) as A12c requires, exits nonzero, and
+    LEAVES THE PREVIOUS PIN INTACT (the last `get` still reads 16), so a typo cannot silently
+    clear a working setting.
+
+    OQ-01 ROUTE TAKEN: THE DECLARATIVE ONE. `ConfigKeySpec` gained an optional
+    `allowed_values: Optional[Tuple[str, ...]]` field (defaulting to `None`, i.e. unconstrained, so
+    no pre-existing key changes behavior), and `set_config_value` enforces it generically for any
+    key that declares one. TWO REASONS DECIDED IT over the setter-local check, and both are about
+    the NEXT enum key rather than this one. FIRST, the alternative already exists here in its
+    hand-rolled form and shows its cost: `_ALLOWED_REPOS_KEYS` is validated by a bespoke
+    `if canon_key == "repos"` branch inside `set_config_value`, so every future enum key would add
+    another branch to one function and each constraint would live away from the key it constrains.
+    SECOND, a declarative field is READABLE BY OTHER SURFACES, which a setter-local `if` cannot
+    expose: `aw config show` and shell completion can offer the accepted values without
+    re-deriving them.
+
+    THE CHOICE IS PROVEN GENERAL rather than merely claimed: `DeclarativeAllowedValuesTests`
+    constrains a DIFFERENT key (`aw_home`) through a patched schema and shows the same refusal
+    firing with no new code, and separately asserts every other schema key still has
+    `allowed_values is None`. Additional properties pinned: the key survives `normalize()` (it is
+    on `_ALLOWED_TOP_KEYS`, without which the pin would be SILENTLY dropped on the next write, the
+    exact bug `tests/test_run_analytics_wizard.py` records from an earlier plan); the value is
+    stored canonically lower-cased; "unset" stays distinct from "pinned" (absent from
+    `default_config()`, so detection remains the default path); and a hand-edited invalid value is
+    DROPPED by `normalize` and read as `None` by `get_color_depth`, which is the fail-open
+    direction a styling read must take.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the per-rung test output, with the `NO_COLOR`-plus-pinned-depth case named and passing separately from the others. A composite test covering the chain in one assertion FAILS this item, since A12a requires each rung asserted explicitly.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 19 separately named tests, `19 passed`, each rung its own node and no composite case: rung 1 has five (`NO_COLOR`, `TERM=dumb`, non-TTY, `override=False`, process-wide override), rung 2 three, rung 3 four, rung 4 one. The `NO_COLOR`-plus-pinned-depth case is its OWN named node, `test_no_color_beats_a_pinned_depth`, passing separately, plus `test_no_color_beats_a_pinned_16_as_well`. Full `-v` output below.
 
-- [ ] V-05 validates E-05
+    NINETEEN SEPARATELY NAMED TESTS, one per rung and per edge, with no composite case anywhere:
+
+    ```text
+    $ python3 -m pytest tests/test_term.py::ColorDepthPrecedenceTests \
+        tests/test_term.py::ColorDepthConfigContractTests -o addopts="" -v -p no:randomly
+    collecting ... collected 19 items
+
+    tests/test_term.py::ColorDepthPrecedenceTests::test_an_invalid_pin_in_the_file_falls_through_instead_of_raising PASSED [  5%]
+    tests/test_term.py::ColorDepthPrecedenceTests::test_force_color_still_overrides_no_color_at_the_depth_resolver PASSED [ 10%]
+    tests/test_term.py::ColorDepthPrecedenceTests::test_no_color_beats_a_pinned_16_as_well PASSED [ 15%]
+    tests/test_term.py::ColorDepthPrecedenceTests::test_no_color_beats_a_pinned_depth PASSED [ 21%]
+    tests/test_term.py::ColorDepthPrecedenceTests::test_rung1_no_color_flag_override_yields_none PASSED [ 26%]
+    tests/test_term.py::ColorDepthPrecedenceTests::test_rung1_no_color_yields_none PASSED [ 31%]
+    tests/test_term.py::ColorDepthPrecedenceTests::test_rung1_non_tty_yields_none PASSED [ 36%]
+    tests/test_term.py::ColorDepthPrecedenceTests::test_rung1_process_wide_no_color_override_yields_none PASSED [ 42%]
+    tests/test_term.py::ColorDepthPrecedenceTests::test_rung1_term_dumb_yields_none PASSED [ 47%]
+    tests/test_term.py::ColorDepthPrecedenceTests::test_rung2_a_pinned_256_overrides_16_color_detection PASSED [ 52%]
+    tests/test_term.py::ColorDepthPrecedenceTests::test_rung2_a_pinned_depth_overrides_detection PASSED [ 57%]
+    tests/test_term.py::ColorDepthPrecedenceTests::test_rung2_a_pinned_none_overrides_a_capable_terminal PASSED [ 63%]
+    tests/test_term.py::ColorDepthPrecedenceTests::test_rung3_a_linux_console_resolves_16 PASSED [ 68%]
+    tests/test_term.py::ColorDepthPrecedenceTests::test_rung3_colorterm_truecolor_resolves_256_not_a_fourth_rung PASSED [ 73%]
+    tests/test_term.py::ColorDepthPrecedenceTests::test_rung3_detection_of_a_16_color_term_overrides_the_default PASSED [ 78%]
+    tests/test_term.py::ColorDepthPrecedenceTests::test_rung3_detection_of_a_256_color_term_resolves_256 PASSED [ 84%]
+    tests/test_term.py::ColorDepthPrecedenceTests::test_rung4_the_default_is_256_not_the_conservative_rung PASSED [ 89%]
+    tests/test_term.py::ColorDepthConfigContractTests::test_every_accepted_value_is_actually_honored_by_the_resolver PASSED [ 94%]
+    tests/test_term.py::ColorDepthConfigContractTests::test_the_config_enum_matches_the_resolver_ladder_exactly PASSED [100%]
+
+    ============================== 19 passed in 0.15s ==============================
+    ```
+
+    THE `NO_COLOR`-PLUS-PINNED-DEPTH CASE IS ITS OWN NAMED TEST, passing separately:
+    `test_no_color_beats_a_pinned_depth` (plus `test_no_color_beats_a_pinned_16_as_well`, so the
+    guard is not accidentally 256-specific). It asserts the pin is IN FORCE first and only then
+    introduces `NO_COLOR`, so it cannot pass by the pin having silently failed to apply.
+
+    THREE TESTS EARN THEIR PLACE BY EXCLUDING A PLAUSIBLE WRONG IMPLEMENTATION, which is why the
+    count is higher than the four rungs. `test_rung2_a_pinned_256_overrides_16_color_detection`
+    fails an implementation that takes the MINIMUM of pin and detection (which passes both
+    downward-pinning tests). `test_rung4_the_default_is_256_not_the_conservative_rung` uses an
+    UNRECOGNIZED `TERM`, the only state where the default is reachable, so an implementation that
+    degraded unknown terminals to 16 "to be safe" fails here and nowhere else.
+    `test_rung1_no_color_flag_override_yields_none` covers the one top-rung input that never
+    appears in `os.environ`. A12c's config-side half is covered by `ColorDepthKeyTests` and
+    `DeclarativeAllowedValuesTests` in `tests/test_config.py` (see V-03).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste the same fixture rendered at 256, at 16, and at none, side by side. At every tier both the glyph and the native word must be visible. Paste the collapse assertions proving they are pinned.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: One 7-row fixture rendered at 256, at 16, and at none, side by side, with the glyph AND the native word present in every row at every tier; the `none` tier emits no escape and both colored tiers do (each asserted, so the invariant cannot pass trivially). Collapse assertions pinned in three places (import-time validator, per-collapse tests, and a deliberate-break test), and the collapses are shown non-lossy: each collapsed group shares one color but has six DISTINCT glyphs. Full render below.
+
+    ONE FIXTURE, THREE TIERS, SIDE BY SIDE. The fixture deliberately includes BOTH members of all
+    three required separations plus one member of each expected collapse, so it exercises the
+    distinctions the tier must preserve rather than seven arbitrary rows. Escapes are shown literally
+    (`\033` rendered as `ESC` would hide the very bytes under test):
+
+    ```text
+    stage            | 256 tier                     | 16 tier                    | none tier
+    -----------------------------------------------------------------------------------------------
+    ready            | [38;5;45m◕[0m approved     | [96m◕[0m approved        | ◕ approved
+    done             | [38;5;46m✓[0m executed     | [92m✓[0m executed        | ✓ executed
+    blocked          | [38;5;208m⚠︎[0m blocked    | [35m⚠︎[0m blocked        | ⚠︎ blocked
+    failed           | [38;5;196m✘[0m failed      | [31m✘[0m failed          | ✘ failed
+    waiting-input    | [38;5;214m…[0m needs_input | [93m…[0m needs_input     | … needs_input
+    executing        | [38;5;220m▶[0m implementing | [33m▶[0m implementing    | ▶ implementing
+    parked           | [38;5;244m◇[0m parked      | [90m◇[0m parked          | ◇ parked
+
+    tier 256  : every row keeps glyph+word = True; escapes present = True
+    tier 16   : every row keeps glyph+word = True; escapes present = True
+    tier none : every row keeps glyph+word = True; escapes present = False
+    ```
+
+    AT EVERY TIER BOTH THE GLYPH AND THE NATIVE WORD ARE PRESENT (R9.3a.5 / A12d), and the `none`
+    tier carries no escape at all while the two colored tiers do. That last pair of facts is
+    asserted by two tests rather than read off this table, because if BOTH colored tiers had
+    silently emitted plain text the invariant tests would pass trivially and prove nothing
+    (`test_the_none_tier_emits_no_escape_at_all`, `test_the_two_colored_tiers_do_emit_escapes`).
+
+    NO STATE IS DISTINGUISHABLE BY COLOR ALONE, asserted as the property that actually matters
+    rather than by eye: `test_no_state_is_distinguishable_by_color_alone_at_any_tier` strips every
+    escape and requires that any two rows carrying DIFFERENT stages still differ. If two rows became
+    identical without color, color would be the sole carrier of that distinction, which R9.3a.5
+    forbids.
+
+    THE COLLAPSE ASSERTIONS THAT PIN THEM (A12b's "so a later change cannot quietly re-expand them"):
+
+    ```text
+    COLLAPSES (must be one color each):
+      6 stages -> SGR {33}  (reviewing, executing, verifying, integrating, recovering, active)
+      6 stages -> SGR {90}  (parked, superseded, abandoned, unknown, none, formative)
+    ```
+
+    Pinned in THREE independent places, so a re-expansion cannot slip through: the import-time
+    `validate_16_color_palette` (a defect is a loud failure at first import, not a wrong color
+    discovered later in a view), `test_the_active_subtypes_collapse_to_one_yellow` plus
+    `test_the_six_gray_family_stages_collapse_to_one_neutral`, and
+    `test_the_validator_rejects_a_split_collapse`, which proves the validator actually fires by
+    breaking the table on purpose.
+
+    AND THE COLLAPSES ARE SHOWN TO BE NON-LOSSY, which is what makes them acceptable rather than
+    merely declared: `test_the_collapsed_stages_remain_separable_without_color` asserts that within
+    each collapsed group the stages share one color AND have SIX DISTINCT GLYPHS, so the tier loses
+    redundancy and never information.
+  - Result: pass
 
 ## Approval and execution gate
 
