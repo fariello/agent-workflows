@@ -35,10 +35,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: The stream renderer
 
-- [ ] E-01 Convert `render_stream.py` lifecycle rendering to the shared resolver, and SEPARATE it from the event glyphs and severity colors that module legitimately keeps. Remove `_STATUS_COLOR` (`render_stream.py:51`) once BOTH of its readers are converted. Also fix `_one_line`'s variation-selector-severing clip, which child `bn026f` assigned to this plan.
+- [x] E-01 Convert `render_stream.py` lifecycle rendering to the shared resolver, and SEPARATE it from the event glyphs and severity colors that module legitimately keeps. Remove `_STATUS_COLOR` (`render_stream.py:51`) once BOTH of its readers are converted. Also fix `_one_line`'s variation-selector-severing clip, which child `bn026f` assigned to this plan.
   - Depends on: none
   - Expected outcome: Lifecycle rows render through the shared resolver; event glyphs and severity colors are untouched and still pass their own tests (criterion A18). `approved` no longer shares a color with `executed`. Clipping a VS-bearing string no longer drops U+FE0E.
-  - Execution state: pending
+  - Execution state: performed
 
   THERE ARE TWO READERS IN THIS MODULE, NOT ONE, and the second is a PUBLIC method re-exported into both drivers (F-05). Measured: `render_stream.py:88` is `Palette.status()`, which does `_STATUS_COLOR.get(status)`, and it is called at `render_stream.py:2269` (`pal.status(st_val)`) in the item summary table. `Palette` itself is re-exported (`oc_runipd.py:106`, `__all__` at `:449`) and instantiated in the drivers (`oc_runipd.py:1324`, `:2018`, `:2057`), so removing the table without converting this method breaks a public surface. Convert `Palette.status()` or remove it deliberately; do not discover it when the import fails.
 
@@ -48,19 +48,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: The runner displays
 
-- [ ] E-02 Dismantle the `_STATUS_COLOR` re-export chain: remove the import at `oc_runipd.py:104` and its `__all__` entry at `:447`, the aliased import at `agy_runipd.py:104`, and the import at `runner_shared.py:168`, converting the consumption site at `runner_shared.py:14049` to the shared resolver.
+- [x] E-02 Dismantle the `_STATUS_COLOR` re-export chain: remove the import at `oc_runipd.py:104` and its `__all__` entry at `:447`, the aliased import at `agy_runipd.py:104`, and the import at `runner_shared.py:168`, converting the consumption site at `runner_shared.py:14049` to the shared resolver.
   - Depends on: E-01
   - Expected outcome: No module re-exports a lifecycle palette. The disposition styling in the run-finish line resolves through the shared module, including the Section 7.2 rows for `ran`, `unknown_outcome`, `needs_input`, and `awaiting-human`.
-  - Execution state: pending
+  - Execution state: performed
 
   THE CONSUMPTION SITE HAD DRIFTED BY +1260 LINES and is corrected above (`runner_shared.py:12789` -> `:14049`); the plan's other four numbers still hold. LOCATE EVERY SITE BY GREP, not by a number quoted here: `grep -rn "_STATUS_COLOR\b" agent_workflows/` is the durable locator and returns exactly eight matches today (the definition, a docstring mention at `render_stream.py:8`, two readers inside `render_stream.py`, three imports/aliases, one `__all__` entry, and the `runner_shared.py` consumption site). V-02 requires that grep as evidence.
 
   THE SITE ALSO HARDCODES A GLYPH AND A SUCCESS COLOR, which the item's wording did not cover. At `runner_shared.py:14047-14050` the finish line computes `glyph = "✓" if reached_success else "●"` and `glyph_color = "green" if reached_success else _STATUS_COLOR.get(disposition, "yellow")`. So even after the table lookup is converted, a literal `✓`/`●` pair and a literal `green` remain, and a `reached_success` item would bypass the resolver entirely. Route BOTH the glyph and the color through the shared resolver, or criterion A17 still fails here and the readiness-versus-completion collapse F-01 describes survives in the one line a user sees at the end of every run.
 
-- [ ] E-03 Convert the remaining lifecycle item and statusline rendering in both drivers to the shared resolver, applying the Section 7.1 action-aware activity rule. Derive each activity from the field that actually carries it, NOT from `action` alone, and fall back to generic `active` only where no signal exists.
+- [x] E-03 Convert the remaining lifecycle item and statusline rendering in both drivers to the shared resolver, applying the Section 7.1 action-aware activity rule. Derive each activity from the field that actually carries it, NOT from `action` alone, and fall back to generic `active` only where no signal exists.
   - Depends on: E-02
   - Expected outcome: A live runner view names the specific activity when a signal for it exists, and generic `active` otherwise. A plan being executed still displays its STORED status unchanged (criterion A7), because the runner must not mutate an artifact to produce a display.
-  - Execution state: pending
+  - Execution state: performed
 
   `action` CARRIES ONLY TWO OF THE FIVE ACTIVITIES, measured at review, so the item as originally worded was not implementable from the field it implied (F-07). `runner_shared.INTEGRATION_ACTION_KINDS` is exactly `('execute', 'review')`. The other three activities exist in the runner but on DIFFERENT fields:
 
@@ -78,10 +78,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: Delete the duplicates and prove it
 
-- [ ] E-04 SPLIT `term.py`'s `STATUS_COLOR_256`: move the LIFECYCLE keys out (they are now served by `lifecycle_style.py`) and RETAIN the generic command-outcome and formatting roles under a non-lifecycle name. Do NOT delete the symbol outright.
+- [x] E-04 SPLIT `term.py`'s `STATUS_COLOR_256`: move the LIFECYCLE keys out (they are now served by `lifecycle_style.py`) and RETAIN the generic command-outcome and formatting roles under a non-lifecycle name. Do NOT delete the symbol outright.
   - Depends on: E-03
   - Expected outcome: One LIFECYCLE table exists in the package, in `lifecycle_style.py`. A separate, clearly-named generic role table still serves `format_outcome`, `badge` and `format_path`, and those three keep working unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
   DELETING IT OUTRIGHT BREAKS THREE WORKING, IN-SPEC FEATURES, and the parent orchestrator already ruled on this (F-04). Measured: `term.py` reads `STATUS_COLOR_256` at four sites and only ONE is lifecycle.
 
@@ -108,10 +108,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
   TWO KEYS NEED A JUDGEMENT CALL rather than mechanical placement, recorded so the split is reproducible. `ready` is a spec STAGE NAME, not any tree's native status (verified: no tree's `CLASS_MAPS` contains a status matching `ready`), so as a `term.py` KEY it is a generic role word and belongs with the generic set. `quarantined` is a Section 8 CONDITION input carried by a `- Quarantine:` field rather than a `- Status:` value (spec D15), and child `9zvl2w` owns the decision about how the lint view renders it; keep the key generic here and let that child's decision govern the rendering. NOTE the parent's own count ("22 generic") was derived by substring-matching the spec text and is not reproducible; use the 32/24 split above, which is derived from the mapping-table rows.
 
-- [ ] E-05 Add the criterion A17 and A18 guard tests, and REPAIR the shipped palette test that E-04 necessarily breaks. The A17 guard must assert by CONTENT (no second table maps a lifecycle status to a color or glyph), not by the string `STATUS_COLOR_256`, because a name-based assertion both false-passes and false-fails after the split.
+- [x] E-05 Add the criterion A17 and A18 guard tests, and REPAIR the shipped palette test that E-04 necessarily breaks. The A17 guard must assert by CONTENT (no second table maps a lifecycle status to a color or glyph), not by the string `STATUS_COLOR_256`, because a name-based assertion both false-passes and false-fails after the split.
   - Depends on: E-04
   - Expected outcome: A test that FAILS if a future change reintroduces a local lifecycle palette, and that PASSES with the retained generic role table present. Severity and event visuals proven independent rather than assumed so. The whole suite green.
-  - Execution state: pending
+  - Execution state: performed
 
   A NAME-BASED A17 GUARD IS THE WRONG INSTRUMENT, for two measured reasons (F-08). FALSE PASS: the generic roles must survive E-04's split under some name, so `grep STATUS_COLOR_256` returning nothing proves only that a STRING is gone, while a renamed table could still map `approved` to a color. FALSE FAIL: `attention.py` also defines `_STATUS_COLOR_256` (removed by `f9t5hz`), so the grep's result depends on a sibling child rather than on this one. Assert the PROPERTY: for every native status in `lifecycle_style`'s mappings, no module other than `lifecycle_style` contains a dict mapping that status to a color index or a glyph.
 
@@ -210,30 +210,231 @@ No `.spec.md` edit in this child, so none is declared in `- Scope-Paths:`. The `
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: FOUR pastes. (1) `grep -n "_STATUS_COLOR" agent_workflows/render_stream.py` showing no table definition AND no remaining reader, which must account for BOTH `:51` and `Palette.status()` at `:88` (F-05); name what happened to `Palette.status()` (converted or removed) since it is re-exported into both drivers. (2) Rendered lifecycle rows showing `approved` and `executed` in DIFFERENT colors, with escapes visible. (3) The `_one_line` fix (F-06): clip a string at the ADVERSARIAL boundary (limit landing between U+26A0 and U+FE0E) and show U+FE0E still present, as a `[hex(ord(c)) for c in out]` dump; a clip asserted at a safe offset proves nothing. (4) The event-glyph and severity tests still passing, plus `grep -n "STATUS_GLYPHS" agent_workflows/render_stream.py` showing both tables and `_status_glyph_char` UNCHANGED (A18, F-03).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      (1) NO TABLE AND NO REMAINING READER. `grep -n "_STATUS_COLOR" agent_workflows/render_stream.py`
+      returns ONE line, and it is prose:
+          64:# THE TABLE THAT USED TO LIVE HERE WAS THE SPEC'S WORKED EXAMPLE OF THE DEFECT. `_STATUS_COLOR`
+      Both readers accounted for. The definition at the old `:51` is GONE. `Palette.status()` (the old
+      `:88`) was CONVERTED, not removed, because it is re-exported into both drivers and instantiated
+      there; its body is now:
+          def status(self, status: str, *, action: str | None = None) -> str:
+              return self.lifecycle(resolve_item_lifecycle(status, action=action), status)
 
-- [ ] V-02 validates E-02
+      (2) `approved` AND `executed` IN DIFFERENT COLORS. All four formerly-green statuses now differ:
+          approved                 '\x1b[1;38;5;45mapproved\x1b[0m'
+          reviewed                 '\x1b[38;5;135mreviewed\x1b[0m'
+          executed                 '\x1b[1;38;5;46mexecuted\x1b[0m'
+          substantially-complete   '\x1b[1;38;5;220msubstantially-complete\x1b[0m'
+      45 cyan = `ready`, 46 green = `done`, 135 = `authority-queued`, 220 amber = `recovering`. The
+      F-01 collapse (all four -> one green) is gone.
+
+      (3) `_one_line` AT THE ADVERSARIAL BOUNDARY. Input `xxx⚠︎tail` =
+      ['0x78','0x78','0x78','0x26a0','0xfe0e','0x74','0x61','0x69','0x6c']. The boundary that severs is
+      limit=5 (between U+26A0 and U+FE0E). Walked EVERY limit 1..8; the base is never kept without its
+      selector:
+          limit=4  out=['0x78','0x78','0x78','0x2026']                     base=False vs=False  OK
+          limit=5  out=['0x78','0x78','0x78','0x26a0','0xfe0e','0x2026']   base=True  vs=True   OK
+      GUARD THE GUARD: the OLD `collapsed[: limit - 1] + "…"` at that same limit=5 produced
+      ['0x78','0x78','0x78','0x26a0','0x2026'] -- base present, selector GONE, i.e. it shipped the
+      emoji form criterion A5 forbids. The fix consumes `term.truncate_visible`, not a second local
+      guess (Section 9.4).
+
+      (4) A18, EVENT GLYPHS AND SEVERITY UNCHANGED. `grep -n "STATUS_GLYPHS"` shows both tables still
+      defined at `:346`/`:352` and consumed at `:362`, with values byte-identical:
+          STATUS_GLYPHS       = {'completed': '✓', 'error': '✗', 'running': '…', 'other': '•'}
+          STATUS_GLYPHS_ASCII = {'completed': '+', 'error': 'x', 'running': '.', 'other': '-'}
+          _status_glyph_char('completed') = ('✓', 'green')   ('error') = ('✗', 'red')
+          _status_glyph_char('running')   = ('…', 'yellow')  ('other') = ('•', 'gray')
+      `tests/test_render_stream.py` 130 passed, which includes the event-glyph and severity tests.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste `grep -rn "_STATUS_COLOR\b" agent_workflows/` showing no import, alias, or `__all__` entry remains (it returns 8 matches today). Paste the converted consumption site (`runner_shared.py:14049` at review time; locate it by grep) and its resolved output for `ran`, `unknown_outcome`, `needs_input`, and `awaiting-human`. THEN paste the run-finish line proving the hardcoded pair is gone: the `glyph = "✓" if reached_success else "●"` and `glyph_color = "green" if reached_success` literals at `:14047-14050` must BOTH resolve through the shared module, or the F-01 collapse survives at the one line printed at the end of every run.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      (1) THE WHOLE-PACKAGE GREP. `grep -rn "_STATUS_COLOR\b" agent_workflows/ --include=*.py` returned
+      8 matches before this change and now returns TWO, both PROSE:
+          agent_workflows/render_stream.py:64:# THE TABLE THAT USED TO LIVE HERE ... `_STATUS_COLOR`
+          agent_workflows/runner_shared.py:171:    # `_STATUS_COLOR` table this module used to import.
+      Gone: the definition, the `oc_runipd.py:104` import, the `oc_runipd.py:447` `__all__` entry, the
+      `agy_runipd.py:104` alias, the `runner_shared.py:169` import, and both `render_stream` readers.
 
-- [ ] V-03 validates E-03
+      (2) THE CONVERTED CONSUMPTION SITE (`runner_shared.py:16384`, drifted from the plan's `:14049`):
+          finish_resolved = (
+              resolve_reached_success_lifecycle(disposition)
+              if reached_success
+              else resolve_item_lifecycle(disposition)
+          )
+          finish = (
+              pal.lifecycle_glyph(finish_resolved, width=2)
+              + pal(f"IPD {seq:02d}/{total} {item['id6']}", "bold")
+              + pal(f" ({action})", "dim")
+              + " -> "
+              + pal.lifecycle(finish_resolved, disposition)
+              + pal(f"  (exit {exit_code})", "dim")
+          )
+      Resolved output for the four Section 7.2 rows this item names:
+          ran              stage=recovering    glyph='\x1b[1;38;5;220m↩︎\x1b[0m'  word='...220mran'
+          unknown_outcome  stage=failed        glyph='\x1b[1;38;5;196m✘\x1b[0m'   word='...196munknown_outcome'
+          needs_input      stage=waiting-input glyph='\x1b[1;38;5;214m…\x1b[0m'   word='...214mneeds_input'
+          awaiting-human   stage=waiting-input glyph='\x1b[1;38;5;214m…\x1b[0m'   word='...214mawaiting-human'
+
+      (3) THE HARDCODED PAIR IS GONE. Neither `glyph = "✓" if reached_success` nor
+      `"green" if reached_success` appears as CODE anywhere in `runner_shared.py` (the only textual hit
+      is the comment at `:16371` recording what was removed). Both the glyph AND the color now resolve
+      through the shared module. Rendered finish lines:
+          success  : '\x1b[1;38;5;46m✓\x1b[0m \x1b[1mIPD 01/3 qdd5jq\x1b[0m... -> \x1b[1;38;5;46mexecuted\x1b[0m...(exit 0)'
+          ran      : '\x1b[1;38;5;220m↩︎\x1b[0m \x1b[1mIPD 01/3 qdd5jq\x1b[0m... -> \x1b[1;38;5;220mran\x1b[0m...(exit 1)'
+          unknown_o: '\x1b[1;38;5;196m✘\x1b[0m \x1b[1mIPD 01/3 qdd5jq\x1b[0m... -> \x1b[1;38;5;196munknown_outcome\x1b[0m...(exit 1)'
+      `reached_success` STILL decides the success case (the `zz5yxq` judgement an execute item ending
+      `reviewed` must not get a check); what is gone is the LITERAL, not the judgement.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste runner view output for each Section 7.1 activity the runner can signal, showing the correct glyph and the exact activity word (A3), and name the FIELD each was derived from (`action` for `reviewing`/`executing`; `verification_status`, `integration_signal`, and the retry state for the other three). If any of the five renders generic `active` because its signal is not reachable at the render site without a data-flow change, SAY SO explicitly and name the activity and the missing signal (F-07): Section 7.1 permits generic `active` when the subtype is genuinely unavailable, so an honest partial conforms, but claiming five when three were never wired does not. Paste evidence for A7: a plan displayed as `executing` whose on-disk `- Status:` is still `approved`, with the file content shown. Also paste the statusline with a VS-bearing activity glyph (`↩︎`) showing its cell measures the same rendered width as a non-VS one (OQ-01 half b).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      (1) ALL FIVE ACTIVITIES RENDER, each derived from the FIELD that carries it. Measured:
+          reviewing    OK  glyph='\x1b[1;38;5;220m◎\x1b[0m'  word='reviewing'    <- item["action"] == "review"
+          executing    OK  glyph='\x1b[1;38;5;220m▶\x1b[0m'  word='executing'    <- item["action"] == "execute"
+          verifying    OK  glyph='\x1b[1;38;5;220m◆\x1b[0m'  word='verifying'    <- item["verification_status"]
+          integrating  OK  glyph='\x1b[1;38;5;220m⇄\x1b[0m'  word='integrating'  <- item["integration_signal"]
+          recovering   OK  glyph='\x1b[1;38;5;220m↩︎\x1b[0m'  word='recovering'   <- the retry state (attempt["recovery"])
+      NOTHING RENDERS GENERIC `active` FOR WANT OF A SIGNAL, so there is no partial to report. The
+      plan's caution that three signals might be unreachable without a data-flow change did NOT hold:
+      all three are already written onto the queue entry the renderer receives
+      (`verification_status` at `runner_shared.py:15553`, `integration_signal` at `:15698`,
+      `attempt["recovery"]` at `:14915`). Recorded as DECISION 08-qdd5jq-D2.
+      The fallback still works where it SHOULD: a running `plan` action (a real `ACTION_CHOICES`
+      member with no activity mapping) resolves stage=active, glyph='\x1b[1;38;5;220m●\x1b[0m', not `?`.
 
-- [ ] V-04 validates E-04
+      (2) CRITERION A7. On-disk `- Status:` of THIS plan before rendering: `9:- Status: approved`.
+      Rendered display for the in-flight entry {"id6":"qdd5jq","action":"execute","status":"running",
+      "initial_status":"approved"}:
+          glyph='\x1b[1;38;5;220m▶\x1b[0m'  activity word='executing'  stage=executing
+      The resolver mutated nothing (entry unchanged after the call), and the on-disk status AFTER
+      rendering is still `9:- Status: approved`. A live executing plan displays `▶ executing` while
+      its stored status stays `approved`.
+
+      (3) OQ-01 HALF (b), THE VS CELL. A VS-bearing activity glyph measures the SAME rendered width as
+      a non-VS one:
+          activity=executing   cell=' ▶ Executng '  raw len()=12  VISIBLE=12
+          activity=recovering  cell=' ↩︎ Recovrng '  raw len()=13  VISIBLE=12
+          box visible widths, both cases: (130, 130, 130, 130)
+      Same visible width (12 == 12) while raw `len()` DIFFERS (13 vs 12), which is exactly why
+      `format_activity_cell` returns the measurement from `term.visible_width` instead of letting the
+      caller use `len()`. The selector is intact in the cell: ['0x21a9', '0xfe0e'].
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: THREE pastes, because a grep alone both false-passes and false-fails here (F-08). (1) The SPLIT: paste the new lifecycle-free `term.py` role table and its name, and show the 32 lifecycle keys are gone from it while the 24 generic keys remain. (2) THE RETAINED FEATURES STILL WORK (F-04): paste `format_outcome("ok","done")`, `badge("RULE","error")` and `format_path(".aw/x")` producing their current output with escapes visible. (3) `grep -rn "STATUS_COLOR_256" agent_workflows/` with its result INTERPRETED: state plainly that a zero result is necessary-but-not-sufficient for A17 and that the sufficient proof is V-05's content-based guard.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      (1) THE SPLIT. New table name `ROLE_COLOR_256`, 24 keys, all generic:
+          action 214, advisory 214, conforming 46, conforms 46, current 46, error 196, fail 196,
+          failure 196, info 39, legacy 244, ok 46, path 33, paths 33, preview 214, quarantined 214,
+          ready 40, secondary 245, success 46, unchanged 245, up to date 46, updated 46, warn 226,
+          warning 226, wrote 46
+      The 32 LIFECYCLE keys LEFT: `still present in ROLE_COLOR_256: []` (empty), and all 32 are
+      resolvable through `lifecycle_style` (32/32). `hasattr(term, "STATUS_COLOR_256")` is False.
 
-- [ ] V-05 validates E-05
+      (2) THE RETAINED FEATURES STILL WORK, byte-identical to the capture taken BEFORE the split:
+          format_outcome("ok","done")  IDENTICAL  '\x1b[1;38;5;46m✓ OK\x1b[0m  done'
+          badge("RULE","error")        IDENTICAL  '[\x1b[1;38;5;196mRULE\x1b[0m]'
+          format_path(".aw/x")         IDENTICAL  '\x1b[38;5;33m.aw/x\x1b[0m'
+      This is what F-04 required: deleting the symbol would have broken all three.
+
+      (3) `grep -rn "STATUS_COLOR_256" agent_workflows/` RETURNS 8 LINES, AND THE RESULT IS
+      INTERPRETED RATHER THAN PRESENTED AS PROOF. Tokenizing every match shows how many are CODE:
+          matches that are a NAME token (i.e. code): 0
+          all 8 are COMMENT or STRING tokens, i.e. prose recording the history
+      Four name the symbol as history ("the old", "used to"); two that had gone STALE
+      (`ipd_lint.py:1545`, `status_set.py:452`, which described a live lookup) were re-pointed to
+      `ROLE_COLOR_256`; two in `attention.py` refer to that module's own `_STATUS_COLOR_256`, removed
+      by sibling `f9t5hz`.
+      STATED PLAINLY: a zero-or-prose-only grep is NECESSARY BUT NOT SUFFICIENT for criterion A17,
+      because the retained generic table could have been renamed while still mapping a lifecycle
+      status, and because the `attention.py` half depends on a sibling child rather than on this one.
+      The SUFFICIENT proof is V-05's content-based guard.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste the BARE `python3 -m pytest` summary line and compare to the baseline `7468 passed, 3 skipped, 2 xfailed` at HEAD `67ac3495`, explaining any difference by node id. Paste the A17 guard FAILING against a deliberately reintroduced local lifecycle palette, then passing after removal: a guard that cannot fail is not evidence. The guard must assert by CONTENT (no module outside `lifecycle_style` maps a native status to a color or glyph), and paste proof it still passes WITH the retained generic role table present, since a name-based guard would fail on that table (F-08). Paste the A18 assertions showing severity, event, priority and gate visuals resolve independently. FINALLY paste the repaired `tests/test_term_components.py::PaletteSingleSourceTests` (F-09), stating which of its three broken assertions was rewritten to what, and confirm `tests/test_term.py` no longer references either removed symbol. ALSO DISCHARGE CRITERION A21 HERE, assigned at review 2026-09-19 because this is the last code child and a whole-tree gate is only meaningful once every conversion has landed: paste the BARE `python3 -m pytest` summary line AND `git diff --check` showing clean output. That pair IS A21.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      (1) THE BARE SUITE. `python3 -m pytest` (no added flags):
+          7600 passed, 3 skipped, 2 xfailed, 3 warnings in 97.66s (0:01:37)
+      RECONCILED BY NODE ID against the baseline I measured at the starting HEAD `54c7f5fb`, which was
+      `1 failed, 7587 passed, 3 skipped, 2 xfailed` = 7588 tests run. Delta = +12 passed, and every one
+      is a node I added:
+          +11  tests/test_lifecycle_palette_singleness.py (new file; 11 tests collected)
+          + 1  tests/test_refusal_surfacing.py::test_the_allowed_leaf_modules_really_cannot_reach_back
+      `skipped` (3) and `xfailed` (2) are UNCHANGED.
+      ON THE REVIEW'S QUOTED BASELINE OF 7468: the tree gained tests between that review (HEAD
+      `67ac3495`) and this execution (HEAD `54c7f5fb`, four `lifeglyph` children later), so 7468 is not
+      the count at MY starting HEAD. I reconcile against the baseline I measured myself, which is the
+      only one my change can be held to.
+      THE ONE BASELINE FAILURE WAS NOT MINE AND IS NOT A REGRESSION:
+      `tests/test_turn_bounds.py::test_the_permission_policy_by_contrast_IS_isolation_scoped` failed
+      BEFORE I edited anything, because `OPENCODE_CONFIG_CONTENT` is set in THIS runner turn's own
+      environment and the test asserts it is absent for a non-isolated turn. Proven at baseline:
+      `env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py` -> `43 passed`.
+      Every suite run above therefore uses `env -u OPENCODE_CONFIG_CONTENT`, which removes the
+      harness artifact and nothing else.
+
+      (2) THE A17 GUARD FAILING, THEN PASSING. Injected a deliberate local lifecycle palette into
+      `render_stream.py` and ran the guard:
+          FAILED tests/test_lifecycle_palette_singleness.py::...::test_no_module_holds_a_second_lifecycle_color_or_glyph_table
+          AssertionError: ['render_stream._REINTRODUCED_LIFECYCLE_PALETTE maps 5 lifecycle statuses to
+          a color index: ['approved', 'draft', 'executed', 'superseded', 'to-review']']
+          1 failed, 10 passed
+      Removed the injection; `11 passed`. The guard names the module, the symbol, and the statuses.
+      IT ASSERTS BY CONTENT, NOT BY NAME: for every native status `lifecycle_style` knows, no other
+      module may hold a dict mapping it to a color index or a Section 5 glyph. Three companion tests
+      keep that honest: a color-table probe, a GLYPH-table probe (which a color-only guard would miss),
+      and `test_the_retained_generic_role_table_PASSES`, which proves the guard does NOT false-fail on
+      `term.ROLE_COLOR_256` -- the exact false-fail a name-based guard would have suffered (F-08).
+
+      (3) A18 ASSERTIONS, 5 passed:
+          test_the_event_prefix_tables_are_untouched PASSED
+          test_the_tool_event_severity_colors_are_untouched PASSED
+          test_the_severity_labels_resolve_independently PASSED
+          test_the_tool_event_glyphs_are_untouched PASSED
+          test_the_generic_command_outcome_banner_still_works PASSED
+      Severity (196/226/46 via `severity_label`), tool-event glyphs, event prefixes (whose `write`
+      value IS `▶`, the spec's `executing` glyph, which is the coincidence that makes a careless remap
+      plausible) and the generic OK banner all resolve independently.
+
+      (4) THE REPAIRED SHIPPED TEST (F-09). `tests/test_term_components.py::PaletteSingleSourceTests`
+      had THREE broken assertions and all three were REWRITTEN, not deleted:
+        - `palette["approved"] == 46` and `palette["active"] == 39`: REMOVED from this file as claims,
+          because both CONTRADICT spec Section 5 (`approved` is 45 cyan; `active` is 220 amber).
+          Asserting them here would have pinned the very collapse the spec forbids. They are now
+          `lifecycle_style`'s to assert.
+        - the `COLOR`-dict allowlist `== ["STATUS_COLOR_256", "STAGE_COLOR_16"]`: REWRITTEN to
+          `["ROLE_COLOR_256", "STAGE_COLOR_16"]`, plus a NEW assertion that `term.STATUS_COLOR_256`
+          does not come back (re-adding it is the one edit that would silently restore the mixed
+          table).
+        - the class docstring's premise ("Exactly one palette exists") was replaced by the invariant
+          this Set establishes: one LIFECYCLE source plus one generic role table.
+      Also added a negative half driven from `lifecycle_style.NATIVE_MAPS` rather than a hand-list, so
+      a status added upstream is covered with no edit here.
+      `tests/test_term.py`'s parity test: verified it no longer references either removed symbol
+      (`f9t5hz` had already re-pointed it to assert `attention._STATUS_COLOR_256` is ABSENT, which
+      still holds). Its `test_status_256_styling_and_padding` DID still break, on `open` -> 40; `open`
+      is a backlog lifecycle status, so it was re-pointed to the generic word `updated` and given a
+      negative half proving five lifecycle statuses now fall through to neutral 244 there.
+
+      (5) CRITERION A21, DISCHARGED HERE as the last code child:
+          python3 -m pytest        -> 7600 passed, 3 skipped, 2 xfailed in 97.66s
+          git diff --check         -> (no output, exit 0)
+      `git diff --check` initially reported `render_stream.py:2916: new blank line at EOF` (an artifact
+      of removing the guard-failure injection); normalized, re-run, clean.
+
+      (6) A14, machine output. With color off (the `--agent`/`--json`/piped path) the run summary table
+      and the statusline contain ZERO ANSI escapes, while both status WORDS survive
+      (`executed`/`ran` present) and the activity word survives in the statusline (`Recovrng`),
+      which is criterion A11/R9.3a.5's glyph-plus-word invariant at the `none` tier. No schema field
+      changed: the conversion touches styling only.
+  - Result: pass
 
 ## Approval and execution gate
 
