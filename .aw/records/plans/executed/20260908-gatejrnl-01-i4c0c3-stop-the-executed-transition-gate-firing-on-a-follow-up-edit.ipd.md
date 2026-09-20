@@ -6,18 +6,18 @@
 - Scope: Fix the false positive only, in BOTH predicates, because fixing either one alone leaves the refusal firing through the other (MEASURED: see F-11). The single root fix is to read the HEAD blob at the path the file actually occupied (`old_path or new_path`) instead of only at a rename source, then derive both `was_in_executed_at_head` and `gained_executed` from it. Preserve every genuine refusal, including the in-place hand-edited `- Status: executed` flip, and BIND the exemption to the plan's `- Id:` so an already-executed path cannot be used as a shelter for substituted content. The merge case is NOT touched: it was owned by plan `29wvmj`, which is ALREADY EXECUTED and whose code is present in this file at HEAD.
 - Scope-Paths: agent_workflows/hooks/executed_transition_gate.py, tests/test_executed_transition_gate.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: gatejrnl
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: i4c0c3
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: gjadwm
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-20 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: i4c0c3 verified (set gatejrnl, attempt 1).
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-08 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; PR-801..PR-809. Readiness `go-pending-approval`. Reviewed at HEAD `f7962663`; `aw ipd lint --phase author` conformed clean before semantic review and `--phase review-finalize` after. THE REVIEW FOUND THE PLAN'S OWN FIX INSUFFICIENT AND UNSAFE, both by executing it rather than reading it. PR-801 (BLOCKER): E-01 as drafted does NOT fix the bug; patching only `moved_into_executed` leaves the case-2 edit refused at rc 1 with the reason merely changing to `gained '- Status: executed'`, because `head_text` is ALSO guarded on `old_path` and so `gained_executed` compares against nothing. E-01 now repairs both from one `head_path = old_path or new_path`. PR-802 (BLOCKER): the drafted fix OPENS A HOLE the current code lacks, letting a wholesale content substitution at an already-executed path commit at rc 0; new E-02 binds the exemption to `_plan_id_of(head_text) == plan_id`, measured rc 1 with it and rc 0 without. PR-803: the plan's F-5 asserted `gained_executed` evaluates False for case 2; it evaluates True, and that wrong measurement is exactly what hid PR-801. PR-804: `29wvmj` is EXECUTED, not approved-and-pending, and its code commit `bcd9755f` is an ancestor of the plan's own cited baseline `8b4e1570` by 16 commits, so every coordination and disjointness instruction was moot at authoring time; E-05 became E-06, which verifies against landed code and treats the 15 merge tests as a live regression surface. PR-805: the test fence is 27 tests in three classes, not ten, and every cited line number was stale. PR-806: the stated suite baseline (1 failed, 5648 passed, `test_orchestrator_retirement`) is wrong in count and in the named test; measured `1 failed, 5866 passed, 3 skipped, 2 xfailed` with the failure in `test_reporting_contract.py`. PR-807/808/809: added the uncovered in-`executed/` status-flip case, the `A`-into-`executed/` preservation proof, and the fixture rule that a test must COMMIT the executed state first or its setup is itself the transition. The full fix was applied to a scratch copy and measured: all 27 tests pass, case 2 returns rc 0, and the four preserved refusals return rc 1; the source tree was restored to HEAD. OQ-01 resolved: its in-scope half became E-02, its policy half stays deferred, and it is no longer left open.
