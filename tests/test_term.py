@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import io
 import os
 import re
 import unittest
 
+from agent_workflows import cli
 from agent_workflows import term as T
 
 _ANSI = re.compile(r"\033\[[0-9;]*m")
@@ -650,6 +652,147 @@ class StylingTests(unittest.TestCase):
                 code,
                 f"Mismatch for status '{status}': term has {T.STATUS_COLOR_256.get(status)}, attention has {code}",
             )
+
+
+class CliNeverLeaksTheColorOverrideTests(unittest.TestCase):
+    """No `cli.main` exit path may leave the process-wide color override set.
+
+    THE FLAKE THIS CLOSES, measured 2026-09-20. `cli._dispatch` sets the override from the parsed
+    flags part way through its body. `argparse`'s `--help` and its usage errors raise `SystemExit`
+    from inside that body, so `cli.main(["--no-color", "check", "--help"])` used to leave the
+    override at `False` for the rest of the process, after which `term.should_color(<a tty>)`
+    answered `False` for every later caller. Fifteen test files pass `--color`/`--no-color` to a CLI
+    entry point, so under `pytest-xdist` whichever color-detection test `pytest-randomly` happened
+    to schedule after one of them in the same worker FAILED, while that same test passed when its
+    file ran alone. Four runs in six passed by luck, which is why it read as an unrelated flake and
+    once cost a merge gate about two hours.
+
+    WHY THIS SHAPE. Each row drives a REAL `cli.main` on a path that leaves `_dispatch` early, then
+    asserts the override is back to what it was AND that `should_color` on a terminal still answers
+    True. Asserting the override alone would miss a restore that writes some other wrong value;
+    asserting `should_color` alone would not say which layer broke. The rows are exit PATHS, not
+    flags, because the flag was never the interesting variable: the leak needed an early exit.
+    """
+
+    def setUp(self):
+        self._saved = {
+            k: os.environ.get(k) for k in ("NO_COLOR", "FORCE_COLOR", "TERM")
+        }
+        self.addCleanup(self._restore)
+        self.addCleanup(T.set_color_override, None)
+        for k in ("NO_COLOR", "FORCE_COLOR"):
+            os.environ.pop(k, None)
+        os.environ["TERM"] = "xterm-256color"
+        T.set_color_override(None)
+
+    def _restore(self):
+        for k, v in self._saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+    #: (case, argv, why this row exists)
+    EARLY_EXIT_PATHS = (
+        (
+            "--no-color then a subcommand --help (argparse raises SystemExit)",
+            ["--no-color", "check", "--help"],
+            "THE MEASURED CASE. `--help` never reaches the end of `_dispatch`, so before the fix "
+            "the override stayed False for the whole process",
+        ),
+        (
+            "--color then a subcommand --help",
+            ["--color", "check", "--help"],
+            "the opposite polarity: a leaked True is just as wrong, and forces color into a pipe "
+            "for every later caller",
+        ),
+        (
+            "--no-color then top-level --help",
+            ["--no-color", "--help"],
+            "the top-level help path exits even earlier than the subcommand one",
+        ),
+        (
+            "--no-color then an unknown verb (argparse usage error)",
+            ["--no-color", "definitely-not-a-verb"],
+            "a usage error is the other SystemExit route out of the same body, and an operator "
+            "typo must not restyle the rest of the process",
+        ),
+        (
+            "--color with no verb at all",
+            ["--color"],
+            "the no-subcommand path prints help and returns; it must reset like every other",
+        ),
+    )
+
+    def test_no_early_exit_path_leaves_the_override_set(self):
+        class _TTY(io.StringIO):
+            def isatty(self):
+                return True
+
+        wrong = []
+        for case, argv, why in self.EARLY_EXIT_PATHS:
+            T.set_color_override(None)
+            buf = io.StringIO()
+            try:
+                with (
+                    contextlib.redirect_stdout(buf),
+                    contextlib.redirect_stderr(buf),
+                ):
+                    cli.main(list(argv))
+            except SystemExit:
+                pass  # argparse's own exit is one of the paths under test
+            problems = []
+            left = T.get_color_override()
+            if left is not None:
+                problems.append(
+                    f"the override was left at {left!r}; every later caller in this process "
+                    "now inherits a presentation choice made by an unrelated invocation"
+                )
+            if not T.should_color(_TTY()):
+                problems.append(
+                    "should_color() on a REAL TTY answered False, which is the observable "
+                    "symptom: any later color-detection test in this worker now fails"
+                )
+            if problems:
+                wrong.append(
+                    f"  {case}\n    argv: {argv!r}\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"{len(wrong)} of {len(self.EARLY_EXIT_PATHS)} `cli.main` exit paths leaked the "
+            "process-wide color override. THIS IS A SUITE-WIDE FLAKE, not a local failure: the "
+            "leak poisons every later `should_color` call in the same process, so under xdist an "
+            "unrelated color test in the same worker fails and the failing test moves run to run "
+            "with the random order. FIX: `cli.main` restores the override it INHERITED in a "
+            "`finally`, so the return path, the `SystemExit` path and the exception path are all "
+            f"covered. Do not move the reset in `_dispatch`; a verb may read it.\n"
+            + "\n".join(wrong),
+        )
+
+    def test_a_nested_invocation_preserves_an_outer_override(self):
+        """The restore must put back what it INHERITED, not blindly `None`.
+
+        Kept separate because it asserts the opposite direction from the table: the runners set an
+        override around a block of work and then launch nested `aw` invocations, so a reset to
+        `None` would silently discard a caller's deliberate choice. A fix that always cleared would
+        pass the table above and break this.
+        """
+        T.set_color_override(True)
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+                cli.main(["check", "--help"])
+        except SystemExit:
+            pass
+        self.assertIs(
+            T.get_color_override(),
+            True,
+            "a nested `aw` invocation cleared an override its caller had deliberately set; the "
+            "restore must return the INHERITED value, not None",
+        )
 
 
 if __name__ == "__main__":

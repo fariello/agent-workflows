@@ -12325,8 +12325,33 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     Returns the conventional 130 for a user interrupt instead of dumping a traceback.
     MUST return (not sys.exit) so in-process callers/tests reading the int keep working;
     ``__main__`` turns the return value into the process exit code.
+
+    THE COLOR OVERRIDE IS RESTORED IN A ``finally``, and that is a correctness fix rather than
+    tidiness. ``_dispatch`` sets the process-wide override from the parsed flags, deliberately
+    and unconditionally, so a later flagless invocation cannot inherit an earlier one's choice.
+    But it sets it PART WAY THROUGH its body, and several paths leave that body WITHOUT reaching
+    the end: ``argparse``'s ``--help`` and its usage errors both raise ``SystemExit``, and any
+    exception from a verb propagates. In a one-shot process that does not matter, because the
+    process is about to die and a module global dies with it.
+
+    IN A LONG-LIVED PROCESS IT MATTERS A GREAT DEAL, and the test suite is exactly that. MEASURED
+    2026-09-20: ``cli.main(["--no-color", "check", "--help"])`` raises ``SystemExit`` from inside
+    argparse, so the override is left at ``False`` for the remainder of the process, and
+    ``term.should_color(<a tty>)`` then answers ``False`` for every later caller. Fifteen test
+    files pass ``--color``/``--no-color`` to a CLI entry point, so under ``pytest-xdist`` whichever
+    color-detection test happened to be scheduled after one of them in the same worker failed,
+    while the same test passed when its file was run alone. That is the moving-target flake: the
+    failing test changed run to run because ``pytest-randomly`` changed which test landed after the
+    poisoning one, and four runs in six passed purely by luck.
+
+    Restoring here makes the leak IMPOSSIBLE rather than unlikely: ``main`` is the single entry
+    point every in-process caller and the console script both go through, and ``finally`` runs on
+    the return path, the ``SystemExit`` path, and the exception path alike. This is deliberately
+    NOT a ``try/except`` around the reset in ``_dispatch``: the reset there must keep happening
+    early, because a verb that inspects the override needs it already set.
     """
 
+    _entry_color_override = _term_mod.get_color_override()
     try:
         return _dispatch(argv)
     except KeyboardInterrupt:
@@ -12335,6 +12360,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     except EOFError:
         print("\nCancelled (end of input).", file=sys.stderr)
         return 130
+    finally:
+        # Restore the value this call INHERITED, not `None`: a caller that legitimately set an
+        # override around a block of work (the runners do) must still see it after a nested `aw`
+        # invocation returns.
+        _term_mod.set_color_override(_entry_color_override)
 
 
 if __name__ == "__main__":
