@@ -27,7 +27,10 @@ from __future__ import annotations
 import os
 import re
 import sys
+import unicodedata
 from typing import Any, Dict, List, Optional, Sequence, TextIO, Tuple, Union
+
+from . import lifecycle_style
 
 _ANSI_RE = re.compile(r"\033\[[0-9;]*m")
 
@@ -35,6 +38,166 @@ _ANSI_RE = re.compile(r"\033\[[0-9;]*m")
 def strip_ansi(text: str) -> str:
     """Remove ANSI escape sequences from ``text``."""
     return _ANSI_RE.sub("", text)
+
+
+# ======================================================================================
+# Visible width and grapheme-safe truncation (spec `uonrjg` Section 9.4)
+# ======================================================================================
+#
+# THE TWO PRIMITIVES SECTION 9.4 NEEDS, and the reason they live HERE rather than beside each
+# consumer is that the section says so in as many words: an implementation "MAY add a shared
+# display-width helper ... but MUST NOT create per-renderer width guesses". `term.py` is the one
+# module every renderer already imports, so this is the conforming home.
+#
+# WHAT THEY ARE NOT. They are NOT a wcwidth-style 0/1/2 table and deliberately make no attempt to
+# resolve East Asian AMBIGUOUS width. Section 9.4 states outright that "perfect alignment cannot be
+# guaranteed across every terminal's ambiguous-width policy", and two of this spec's own lifecycle
+# glyphs are Ambiguous (`▶` U+25B6 and `◇` U+25C7, measured), so no table here could make a
+# terminal's policy agree with ours. What these primitives DO fix is the ZERO-width case, which is
+# not a terminal-policy judgement at all but a deterministic Unicode property, and which Section
+# 9.4's other three contract bullets cannot be met without.
+#
+# THE DEFECT THEY CLOSE, measured by execution 2026-09-19 rather than read:
+#
+#   Term(color=False).status_256('\u26a0\ufe0e', width=4) -> 4 codepoints, 3 rendered columns
+#   Term(color=False).status_256('\u25d5',       width=4) -> 4 codepoints, 4 rendered columns
+#
+# i.e. a lifecycle column padded by `len()` comes out one column short for exactly the two glyphs
+# that carry U+FE0E (`blocked` and `recovering`). `strip_ansi` is NOT the missing piece: it already
+# preserves U+FE0E correctly. The defect is that a zero-width code point was then counted as one
+# column.
+
+#: Unicode general categories whose members occupy NO terminal column. ``Mn``/``Me`` are the
+#: non-spacing and enclosing marks (this is where the text-presentation variation selectors U+FE0E
+#: and U+FE0F live, and every combining accent); ``Cf`` is the format class (ZWJ, ZWSP, the
+#: bidi controls). Held as a frozenset of category names rather than as a codepoint list because the
+#: category is the PROPERTY that makes a code point zero-width, so this cannot rot as Unicode grows.
+_ZERO_WIDTH_CATEGORIES = frozenset(("Mn", "Me", "Cf"))
+
+
+def is_zero_width(ch: str) -> bool:
+    """Does ``ch`` occupy no terminal column?
+
+    Deterministic and data-driven: a combining or enclosing mark, or a format control. This is the
+    half of display width that IS knowable, as distinct from the ambiguous-width half that
+    Section 9.4 declines to guarantee.
+    """
+
+    return unicodedata.category(ch) in _ZERO_WIDTH_CATEGORIES
+
+
+def visible_width(text: str) -> int:
+    """Return the number of terminal columns ``text`` occupies, ignoring ANSI and zero-width marks.
+
+    THE SINGLE VISIBLE-COLUMN MEASUREMENT for lifecycle rendering, and the one Section 9.4's fourth
+    contract bullet demands in place of ``len(styled_text)``. Two properties callers rely on:
+
+    1. It is ANSI-AWARE, built on :func:`strip_ansi` rather than on a second stripping path, so the
+       styled and unstyled forms of the same text measure the SAME.
+    2. It counts a zero-width code point as ZERO, so `⚠︎` (U+26A0 U+FE0E) measures 1 and not 2.
+
+    It does NOT attempt double-width or ambiguous-width resolution; see the section note above.
+    """
+
+    return sum(0 if is_zero_width(ch) else 1 for ch in strip_ansi(text))
+
+
+def _pad_visible(text: str, width: int) -> str:
+    """Left-align ``text`` to ``width`` VISIBLE columns (the ``str.ljust`` a styled cell needs).
+
+    ``str.ljust`` and ``len()`` both count escape bytes and zero-width marks as columns, so either
+    one leaves a styled or VS-bearing cell short. This is the one padding path lifecycle rendering
+    uses, which is what Section 9.4's fourth contract bullet asks for.
+    """
+
+    pad = width - visible_width(text)
+    return text + (" " * pad) if pad > 0 else text
+
+
+def _tokenize_ansi(text: str) -> List[Tuple[bool, str]]:
+    """Split ``text`` into ``(is_escape, token)`` pairs, one CHARACTER per non-escape token.
+
+    Shares the one ``_ANSI_RE`` with :func:`strip_ansi` rather than re-deriving escape syntax, so
+    there is exactly one definition of "what an escape looks like" in this module.
+    """
+
+    tokens: List[Tuple[bool, str]] = []
+    pos = 0
+    for match in _ANSI_RE.finditer(text):
+        for ch in text[pos : match.start()]:
+            tokens.append((False, ch))
+        tokens.append((True, match.group(0)))
+        pos = match.end()
+    for ch in text[pos:]:
+        tokens.append((False, ch))
+    return tokens
+
+
+def truncate_visible(text: str, limit: int, *, ellipsis: str = "") -> str:
+    """Truncate ``text`` to ``limit`` visible columns WITHOUT severing a grapheme.
+
+    Section 9.4's first contract bullet ("no broken variation selector in every UTF-8 mode") is what
+    this exists for, and the failure it prevents is real rather than theoretical: a naive codepoint
+    clip that lands between U+26A0 and U+FE0E drops the selector and ships the EMOJI form of the
+    glyph, which criterion A5 forbids. Measured 2026-09-19 against `render_stream._one_line`, which
+    does exactly that at a boundary.
+
+    THE RULE: a zero-width code point is never separated from the base character it follows. Because
+    a zero-width code point costs no column, it is simply carried along with its base, so the
+    boundary can only ever fall BEFORE a base character and never inside a grapheme cluster.
+
+    ANSI escapes cost no columns and are preserved. When truncation actually occurs and the kept
+    text opened a style it no longer closes, a reset is appended so the truncation cannot leak
+    styling into the rest of the line; ``ellipsis`` is then appended UNSTYLED, because a marker that
+    inherited the truncated cell's lifecycle color would be a color with no referent.
+    """
+
+    if limit <= 0:
+        return ""
+    budget = limit - visible_width(ellipsis)
+    if budget < 0:
+        return ""
+
+    kept: List[str] = []
+    pending: List[str] = []
+    used = 0
+    truncated = False
+    style_open = False
+
+    def _flush() -> None:
+        nonlocal style_open
+        for escape in pending:
+            kept.append(escape)
+            style_open = escape != _RESET
+        pending.clear()
+
+    for is_escape, token in _tokenize_ansi(text):
+        if is_escape:
+            # HELD BACK until a visible or zero-width code point actually follows it. An escape
+            # flushed eagerly and then cut off by the budget would leave an empty `...m...m` pair
+            # styling nothing, which is valid but is noise in a snapshot and in a `repr` diff.
+            pending.append(token)
+            continue
+        if is_zero_width(token):
+            # Costs no column. A zero-width mark rides along with the base already kept, which is
+            # precisely what keeps a variation selector attached.
+            _flush()
+            kept.append(token)
+            continue
+        if used + 1 > budget:
+            truncated = True
+            break
+        _flush()
+        kept.append(token)
+        used += 1
+
+    if not truncated:
+        return text
+
+    out = "".join(kept)
+    if style_open:
+        out += _RESET
+    return out + ellipsis
 
 
 # SGR codes (16-color / attributes only; no truecolor, no blink, no load-bearing dim).
@@ -753,6 +916,72 @@ def should_unicode(stream: Optional[TextIO] = None) -> bool:
     return True
 
 
+# ======================================================================================
+# The lifecycle rendering boundary (spec `uonrjg` R10.2, Sections 9.1, 9.2, 9.4)
+# ======================================================================================
+#
+# RESOLUTION AND RENDERING ARE SEPARATE, which is the whole requirement R10.2 states and the one
+# property the previous lifecycle path did not have: `Term.status_256` resolved a color from a table
+# and emitted an escape on the NEXT LINE, so no test could check the resolution without also
+# checking the ANSI. Here :func:`resolve_lifecycle` returns immutable DATA and emits nothing, and
+# only the `Term` methods below produce a byte of styling.
+#
+# NO LIFECYCLE STAGE TABLE LIVES IN THIS MODULE. The vocabulary, the glyphs, the ASCII fallbacks,
+# the 256 indices and the bold flags are all `lifecycle_style`'s (R10.1), and the 16-color tier
+# above is keyed by the stages that module defines. A second table here is exactly the defect this
+# spec exists to remove.
+
+
+def resolve_lifecycle(
+    artifact_type: str,
+    native_status: Optional[str] = None,
+    *,
+    activity: Optional[str] = None,
+    integrity: lifecycle_style.IntegrityInput = None,
+    obstruction: Optional[str] = None,
+    condition: Optional[str] = None,
+) -> lifecycle_style.Resolved:
+    """Resolve one lifecycle presentation, returning ANSI-FREE data (R10.2, spec Section 8).
+
+    A THIN, DELIBERATE DELEGATION to :func:`lifecycle_style.resolve`, and the thinness is the point:
+    this is the name a renderer reaches for, so it exists to give consumers ONE import
+    (``term``) rather than two, while the semantics stay owned by the one canonical module. It adds
+    no policy, consults no terminal, and reads no environment, so a test can assert resolution
+    without a stream, a capability or an escape sequence anywhere in sight.
+
+    ``artifact_type`` is the record FAMILY (``"plans"``, ``"specs"``, ``"backlog"``, ...), named as
+    the spec names the parameter. An unknown family raises, because a silently-defaulted family
+    would render a plausible glyph for a status it never looked up.
+    """
+
+    return lifecycle_style.resolve(
+        artifact_type,
+        native_status,
+        activity=activity,
+        integrity=integrity,
+        obstruction=obstruction,
+        condition=condition,
+    )
+
+
+def lifecycle_word(resolved: lifecycle_style.Resolved) -> str:
+    """Return the WORD that must accompany the glyph (Section 11 item 1, R9.3a.5).
+
+    Precedence: the caller's own native status spelling, then the live activity, then the semantic
+    stage as a last resort. The native status comes FIRST because Section 0 makes it authoritative,
+    and it is echoed in the caller's ORIGINAL case for the same reason.
+
+    NEVER RETURNS EMPTY, because "glyph and color are redundant cues; either can be removed without
+    losing the state" (Section 11 item 2) is only true if a word is always there to carry it.
+    """
+
+    if resolved.native_status:
+        return str(resolved.native_status)
+    if resolved.activity:
+        return str(resolved.activity)
+    return resolved.stage
+
+
 class Term:
     """A small styling helper bound to a stream's color decision."""
 
@@ -761,10 +990,12 @@ class Term:
         stream: Optional[TextIO] = None,
         color: Optional[bool] = None,
         unicode: Optional[bool] = None,
+        depth: Optional[str] = None,
     ):
         self.stream = stream or sys.stdout
         self.color = should_color(self.stream) if color is None else color
         self.unicode = should_unicode(self.stream) if unicode is None else unicode
+        self._depth = depth if depth in COLOR_DEPTHS else None
 
     def glyph(self, name: str) -> str:
         """Return the Unicode glyph or its ASCII fallback depending on self.unicode."""
@@ -805,6 +1036,194 @@ class Term:
         if width > len(status):
             return styled + (" " * (width - len(status)))
         return styled
+
+    # ----------------------------------------------------------------------------------
+    # Lifecycle RENDERING (spec `uonrjg` R10.2, Sections 9.1 / 9.2 / 9.4)
+    # ----------------------------------------------------------------------------------
+
+    def lifecycle_depth(self) -> str:
+        """Return the color TIER this Term renders lifecycle elements at.
+
+        Asked ONCE per render rather than re-derived per element, which is R9.3a.2's requirement
+        ("the depth is a resolved value, not a guess at each call site"). An explicitly constructed
+        ``Term(color=False)`` resolves ``none`` without consulting the environment at all, so a test
+        that pins color off cannot be perturbed by the machine it runs on.
+        """
+
+        if self._depth is not None:
+            return self._depth
+        if not self.color:
+            return DEPTH_NONE
+        depth = resolve_color_depth(self.stream)
+        return DEPTH_16 if depth == DEPTH_16 else DEPTH_256
+
+    def style_lifecycle_text(
+        self, text: str, resolved: lifecycle_style.Resolved
+    ) -> str:
+        """Apply ``resolved``'s color and bold flag to ``text`` (R10.2, the third helper).
+
+        THE ONE PLACE A LIFECYCLE ESCAPE IS EMITTED, so every lifecycle element that must share a
+        color (Section 9.1: glyph, id6 and status word) shares it by CONSTRUCTION rather than by
+        three call sites agreeing. Returns ``text`` unchanged at the ``none`` tier, which is what
+        keeps `NO_COLOR`, a pipe and `TERM=dumb` free of escapes (criterion A11).
+
+        Both colored tiers are served here because the tier is a rendering decision and this is the
+        rendering boundary: 256 uses ``lifecycle_style``'s index, 16 uses the authored
+        :data:`STAGE_COLOR_16` palette. Neither table is defined in this method.
+        """
+
+        tier = self.lifecycle_depth()
+        if tier == DEPTH_NONE or not text:
+            return text
+        style = resolved.style
+        if tier == DEPTH_16:
+            code = color_16_for_stage(resolved.stage)
+            prefix = "1;" if style.bold else ""
+            return f"\033[{prefix}{code}m{text}{_RESET}"
+        n = max(0, min(255, int(style.color)))
+        prefix = "1;" if style.bold else ""
+        return f"\033[{prefix}38;5;{n}m{text}{_RESET}"
+
+    def format_lifecycle_marker(
+        self,
+        resolved: lifecycle_style.Resolved,
+        *,
+        width: int = 0,
+        style: bool = True,
+    ) -> str:
+        """Return the lifecycle GLYPH in this stream's tier, styled and optionally padded.
+
+        The Unicode grapheme or the exact Section 5 ASCII fallback is chosen by ``self.unicode``,
+        never by the semantic module: R10.2 assigns the capability decision to this boundary, which
+        is why ``lifecycle_style.glyph_for`` takes the choice as an argument instead of sniffing.
+
+        ``width`` PADS BY VISIBLE COLUMNS, not by code points (Section 9.4 bullets 2 and 4). That
+        distinction is the whole reason :func:`visible_width` exists: the two glyphs carrying U+FE0E
+        are 2 code points and 1 column, so a `len()`-based pad leaves their column one short of
+        every other row's. Measured before this landed, `status_256('⚠︎', width=4)` produced 3
+        rendered columns while `status_256('◕', width=4)` produced 4.
+        """
+
+        glyph = lifecycle_style.glyph_for(resolved.stage, unicode=self.unicode)
+        painted = self.style_lifecycle_text(glyph, resolved) if style else glyph
+        pad = width - visible_width(glyph)
+        if pad > 0:
+            return painted + (" " * pad)
+        return painted
+
+    def format_lifecycle_compact(
+        self,
+        id6: str,
+        resolved: lifecycle_style.Resolved,
+        *,
+        word: bool = False,
+    ) -> str:
+        """Return Section 9.2's compact ``GLYPH id6`` form, glyph and id6 styled TOGETHER.
+
+        STYLED AS ONE RUN rather than as two adjacent escape pairs, because Section 9.2 says "with
+        the glyph and id6 styled together" and because one run is what a terminal that mishandles a
+        reset mid-line renders correctly. Pass ``word=True`` to append the native word when it fits,
+        which the section invites ("If a status word fits, include it").
+        """
+
+        glyph = lifecycle_style.glyph_for(resolved.stage, unicode=self.unicode)
+        marker = self.style_lifecycle_text(f"{glyph} {id6}", resolved)
+        if word:
+            return f"{marker} {self.style_lifecycle_text(lifecycle_word(resolved), resolved)}"
+        return marker
+
+    def format_lifecycle_row(
+        self,
+        resolved: lifecycle_style.Resolved,
+        *,
+        id6: str = "",
+        artifact_type: str = "",
+        title: str = "",
+        path: str = "",
+        type_width: int = 0,
+        id6_width: int = 0,
+        status_width: int = 0,
+        marker_width: int = 0,
+    ) -> str:
+        """Render Section 9.1's full row: ONLY glyph, id6 and status word carry lifecycle color.
+
+        THE THREE LIFECYCLE CELLS TAKE ONE COLOR AND ONE WEIGHT and the rest take NONE (criterion
+        A10). That is enforced STRUCTURALLY rather than by convention, which is E-02's actual
+        requirement: the three styled cells all route through :meth:`style_lifecycle_text` with the
+        SAME ``resolved``, so they cannot diverge, and ``artifact_type``, ``title`` and ``path`` are
+        emitted as plain text with NO parameter existing by which a caller could ask for them to be
+        lifecycle-colored. Whole-row coloring is therefore unreachable through this API, not merely
+        discouraged (Section 9.1: "Whole-row coloring is forbidden because it destroys hierarchy").
+
+        The glyph is placed IMMEDIATELY BEFORE the id6 (or before the status word when no id6 is
+        given), which Section 9.1 requires so the glyph's referent is unambiguous.
+
+        Every column pads by VISIBLE columns (Section 9.4 bullet 4). No cell is measured with
+        ``len()``.
+        """
+
+        cells: List[str] = []
+
+        if artifact_type:
+            cells.append(_pad_visible(artifact_type, type_width))
+
+        cells.append(self.format_lifecycle_marker(resolved, width=marker_width))
+
+        if id6:
+            cells.append(
+                _pad_visible(self.style_lifecycle_text(id6, resolved), id6_width)
+            )
+
+        word = lifecycle_word(resolved)
+        cells.append(
+            _pad_visible(self.style_lifecycle_text(word, resolved), status_width)
+        )
+
+        if title:
+            cells.append(title)
+        if path:
+            cells.append(path)
+
+        return "  ".join(cell for cell in cells if cell != "")
+
+    def format_lifecycle_legend(
+        self,
+        *,
+        stages: Optional[Sequence[str]] = None,
+        both_forms: bool = True,
+    ) -> str:
+        """Render the Section 9.2 legend, GENERATED from ``lifecycle_style``'s table.
+
+        GENERATED, NEVER A LITERAL, which is the property that makes it impossible for the legend to
+        drift from the table it documents: it iterates :data:`lifecycle_style.STAGE_ORDER`, so a
+        stage added upstream appears here with no edit, and a stage removed cannot linger. A
+        hand-written legend shipped in this module is precisely the artifact a later drift guard
+        would have to retrofit.
+
+        ORDERED IN LIFECYCLE WORD ORDER, never by color name (Section 11 item 6), because
+        ``STAGE_ORDER`` is derived from the spec Section 5 rows in spec order.
+
+        WHERE the legend APPEARS is NOT this method's business and deliberately so: command help
+        placement and the "show once per view with three or more stages" rule belong to the
+        consumers, and this module holds no call counter or once-per-process latch. A latch would
+        make output depend on invocation order and would be untestable in a shared-process suite.
+        """
+
+        names = tuple(stages) if stages is not None else lifecycle_style.STAGE_ORDER
+        rows: List[str] = []
+        for stage in names:
+            style = lifecycle_style.style_for(stage)
+            resolved = lifecycle_style.Resolved(
+                stage=stage, style=style, family=lifecycle_style.FAMILY_PLANS
+            )
+            shown = style.unicode if self.unicode else style.ascii
+            marker = self.style_lifecycle_text(shown, resolved)
+            pad = " " * max(0, 2 - visible_width(shown))
+            if both_forms and self.unicode:
+                rows.append(f"{marker}{pad} {style.ascii}  {stage}")
+            else:
+                rows.append(f"{marker}{pad} {stage}")
+        return "\n".join(rows)
 
     def severity_label(self, kind: str) -> str:
         """Return the P14 bracketed, fixed-width, bold-colored severity label for ``kind``.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import inspect
 import io
 import os
 import re
@@ -1393,6 +1394,630 @@ class ColorDepthConfigContractTests(_DepthTestBase):
             with self.subTest(pin=value):
                 self._pin(value)
                 self.assertEqual(T.resolve_color_depth(_FakeTTY()), value)
+
+
+# ==========================================================================================
+# The lifecycle rendering boundary (spec `uonrjg` R10.2, Sections 9.1 / 9.2 / 9.4; plan bn026f)
+# ==========================================================================================
+
+#: The two Section 5 glyphs that carry U+FE0E, i.e. the two that are 2 CODE POINTS and 1 COLUMN.
+#: Every width and truncation assertion below is aimed at these, because every other glyph in the
+#: table passes a naive codepoint implementation and so proves nothing.
+_VS_BLOCKED = "\u26a0\ufe0e"  # blocked
+_VS_RECOVERING = "\u21a9\ufe0e"  # recovering
+_NO_VS_READY = "\u25d5"  # ready, 1 code point and 1 column
+
+
+class ResolutionIsSeparateFromRenderingTests(unittest.TestCase):
+    """R10.2: the seam. Resolution returns DATA; only the renderers emit escapes.
+
+    This is the property the previous lifecycle path did not have (`Term.status_256` resolved a
+    color and emitted an escape on the next line), so these tests assert the SEAM itself rather than
+    any particular color.
+    """
+
+    def test_resolve_lifecycle_returns_ansi_free_data(self):
+        resolved = T.resolve_lifecycle("backlog", "blocked")
+        self.assertNotIn("\033", repr(resolved))
+        self.assertEqual(resolved.stage, LS.BLOCKED)
+        self.assertEqual(resolved.native_status, "blocked")
+
+    def test_resolve_lifecycle_consults_no_terminal_and_no_environment(self):
+        """The resolve half must be answerable with no stream and no capability at all.
+
+        Asserted by resolving the same input under three hostile environments and requiring a
+        byte-identical answer: if resolution ever sniffed the terminal, one of these would differ.
+        """
+        saved = {k: os.environ.get(k) for k in ("NO_COLOR", "FORCE_COLOR", "TERM")}
+        try:
+            answers = []
+            for env in (
+                {"TERM": "xterm-256color"},
+                {"NO_COLOR": "1", "TERM": "dumb"},
+                {"FORCE_COLOR": "1", "TERM": ""},
+            ):
+                for k in ("NO_COLOR", "FORCE_COLOR", "TERM"):
+                    os.environ.pop(k, None)
+                os.environ.update(env)
+                answers.append(repr(T.resolve_lifecycle("plans", "approved")))
+            self.assertEqual(len(set(answers)), 1, answers)
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+
+    def test_term_defines_no_lifecycle_stage_table_of_its_own(self):
+        """R10.1: the stage vocabulary, glyphs and fallbacks live in ONE module.
+
+        The check is by BEHAVIOR rather than by grep: every glyph and fallback the renderer emits
+        must be the one `lifecycle_style` holds, for every stage, in both modes. A private copy in
+        `term.py` would have to agree with the table on all forty values to pass, at which point it
+        is no longer a divergent table.
+        """
+        for mode in (True, False):
+            term = T.Term(color=False, unicode=mode)
+            for stage in LS.STAGE_ORDER:
+                style = LS.style_for(stage)
+                resolved = LS.Resolved(stage=stage, style=style, family=LS.FAMILY_PLANS)
+                with self.subTest(stage=stage, unicode=mode):
+                    self.assertEqual(
+                        term.format_lifecycle_marker(resolved),
+                        style.unicode if mode else style.ascii,
+                    )
+
+    def test_the_word_is_always_present_so_the_glyph_is_never_the_sole_carrier(self):
+        """Section 11 items 1 and 2: a lifecycle display always carries a word."""
+        for resolved in (
+            T.resolve_lifecycle("plans", "approved"),
+            T.resolve_lifecycle("plans", "approved", activity="executing"),
+            T.resolve_lifecycle("releases", "planned"),
+        ):
+            with self.subTest(stage=resolved.stage):
+                self.assertTrue(T.lifecycle_word(resolved).strip())
+
+    def test_the_native_word_outranks_the_stage_name_and_keeps_its_case(self):
+        """Section 0: the native status is authoritative, so it is not rewritten for display."""
+        resolved = T.resolve_lifecycle("specs", "Implementing")
+        self.assertEqual(T.lifecycle_word(resolved), "Implementing")
+        self.assertEqual(resolved.stage, LS.EXECUTING)
+
+
+class FullRowStylingTests(unittest.TestCase):
+    """A10 / Section 9.1: glyph, id6 and status share ONE color and weight; the rest carry none."""
+
+    def setUp(self):
+        self.term = T.Term(color=True, unicode=True, depth=T.DEPTH_256)
+        self.resolved = T.resolve_lifecycle("backlog", "blocked")
+
+    def _row(self, **kwargs):
+        return self.term.format_lifecycle_row(self.resolved, **kwargs)
+
+    def test_the_three_lifecycle_cells_carry_the_same_code_and_weight(self):
+        row = self._row(
+            id6="abc123", artifact_type="BACKLOG", title="Short title", path="a/b.md"
+        )
+        codes = _ANSI.findall(row)
+        opens = [c for c in codes if c != "\033[0m"]
+        self.assertEqual(
+            len(opens),
+            3,
+            f"expected exactly three styled cells, got {opens!r} in {row!r}",
+        )
+        self.assertEqual(len(set(opens)), 1, f"the three cells disagree: {opens!r}")
+        expected = f"\033[1;38;5;{LS.style_for(LS.BLOCKED).color}m"
+        self.assertEqual(opens[0], expected)
+
+    def test_the_type_title_and_path_carry_no_escape_at_all(self):
+        row = self._row(
+            id6="abc123", artifact_type="BACKLOG", title="Short title", path="a/b.md"
+        )
+        for neutral in ("BACKLOG", "Short title", "a/b.md"):
+            with self.subTest(cell=neutral):
+                idx = row.index(neutral)
+                self.assertNotIn(
+                    "\033", row[idx : idx + len(neutral)], f"{neutral!r} was styled"
+                )
+
+    def test_whole_row_coloring_is_unreachable_through_the_api(self):
+        """THE NEGATIVE CASE. A10 asserted only positively cannot catch a regression to whole-row
+        coloring, so this asserts the API offers no parameter by which a caller could ask for it."""
+        params = set(inspect.signature(T.Term.format_lifecycle_row).parameters)
+        for forbidden in (
+            "style_title",
+            "style_type",
+            "style_path",
+            "style_row",
+            "whole_row",
+            "color_row",
+        ):
+            self.assertNotIn(forbidden, params)
+        # And the structural guarantee: the number of styled runs does not grow with the number of
+        # neutral cells supplied.
+        bare = _ANSI.findall(self._row(id6="abc123"))
+        full = _ANSI.findall(
+            self._row(
+                id6="abc123",
+                artifact_type="BACKLOG",
+                title="Short title",
+                path="a/b.md",
+            )
+        )
+        self.assertEqual(len(bare), len(full))
+
+    def test_an_unbolded_stage_is_rendered_without_the_bold_prefix(self):
+        """The bold flag is the TABLE's, not the renderer's (Section 11 item 4)."""
+        resolved = T.resolve_lifecycle("plans", "draft")  # formative, bold=False
+        self.assertFalse(resolved.style.bold)
+        row = self.term.format_lifecycle_row(resolved, id6="abc123")
+        self.assertIn(f"\033[38;5;{resolved.style.color}m", row)
+        self.assertNotIn("\033[1;", row)
+
+    def test_the_glyph_immediately_precedes_the_id6(self):
+        """Section 9.1: the glyph's referent must be unambiguous."""
+        plain = T.strip_ansi(self._row(id6="abc123", artifact_type="BACKLOG"))
+        self.assertRegex(plain, r"\u26a0\ufe0e\s+abc123")
+
+    def test_no_row_column_is_measured_in_code_points(self):
+        """Section 9.4 bullet 4, asserted through the row API: two rows whose only difference is a
+        VS-bearing versus a non-VS glyph must occupy the SAME visible width."""
+        blocked = self.term.format_lifecycle_row(
+            T.resolve_lifecycle("backlog", "blocked"),
+            id6="abc123",
+            status_width=12,
+            marker_width=3,
+        )
+        ready = self.term.format_lifecycle_row(
+            T.resolve_lifecycle("plans", "approved"),
+            id6="abc123",
+            status_width=12,
+            marker_width=3,
+        )
+        self.assertIn(_VS_BLOCKED, blocked)
+        self.assertEqual(
+            T.visible_width(blocked.split("abc123")[0]),
+            T.visible_width(ready.split("abc123")[0]),
+        )
+
+
+class CompactFormAndLegendTests(unittest.TestCase):
+    """Section 9.2: the compact `GLYPH id6` form and the GENERATED legend renderer."""
+
+    def setUp(self):
+        self.term = T.Term(color=True, unicode=True, depth=T.DEPTH_256)
+
+    def test_the_glyph_and_id6_are_styled_as_one_run_not_two(self):
+        resolved = T.resolve_lifecycle("backlog", "blocked")
+        out = self.term.format_lifecycle_compact("abc123", resolved)
+        self.assertEqual(out, f"\033[1;38;5;208m{_VS_BLOCKED} abc123\033[0m", repr(out))
+        self.assertEqual(len(_ANSI.findall(out)), 2, f"not one run: {out!r}")
+
+    def test_the_compact_form_communicates_the_stage_without_color(self):
+        """A compact id6-only view must still carry the state in monochrome."""
+        plain = T.Term(color=False, unicode=True)
+        seen = {
+            plain.format_lifecycle_compact("abc123", T.resolve_lifecycle(f, s))
+            for f, s in (
+                ("plans", "approved"),
+                ("plans", "executed"),
+                ("backlog", "blocked"),
+            )
+        }
+        self.assertEqual(len(seen), 3, seen)
+
+    def test_the_legend_covers_every_stage_and_is_generated_not_literal(self):
+        """The row COUNT is computed from the live table at runtime, so a stage added upstream
+        appears with no edit here and a hand-written literal legend could not pass."""
+        lines = self.term.format_lifecycle_legend().splitlines()
+        self.assertEqual(len(lines), len(LS.STAGE_ORDER))
+        for stage in LS.STAGE_ORDER:
+            self.assertTrue(
+                any(line.endswith(stage) for line in lines), f"{stage} missing"
+            )
+
+    def test_the_legend_uses_lifecycle_order_and_not_color_order(self):
+        """Section 11 item 6."""
+        lines = T.strip_ansi(
+            T.Term(color=False, unicode=True).format_lifecycle_legend()
+        ).splitlines()
+        self.assertEqual([line.split()[-1] for line in lines], list(LS.STAGE_ORDER))
+
+    def test_the_legend_shows_the_glyph_the_ascii_fallback_and_the_word(self):
+        lines = T.strip_ansi(self.term.format_lifecycle_legend()).splitlines()
+        for stage, line in zip(LS.STAGE_ORDER, lines):
+            style = LS.style_for(stage)
+            with self.subTest(stage=stage):
+                self.assertIn(style.unicode, line)
+                self.assertIn(style.ascii, line)
+                self.assertTrue(line.endswith(stage))
+
+    def test_the_legend_in_ascii_mode_uses_the_exact_section_5_fallbacks(self):
+        """A12: the exact Section 5 fallback, and NOTHING non-ASCII anywhere in the legend.
+
+        Asserted as "the whole line is ASCII" rather than as "the grapheme is absent", because two
+        stages (`unknown` and `parked`'s neighbours aside, concretely `unknown`) have a Unicode form
+        that IS an ASCII character (`?`), so an absence assertion would fail on a conforming render.
+        """
+        lines = (
+            T.Term(color=False, unicode=False).format_lifecycle_legend().splitlines()
+        )
+        self.assertEqual(len(lines), len(LS.STAGE_ORDER))
+        for stage, line in zip(LS.STAGE_ORDER, lines):
+            style = LS.style_for(stage)
+            with self.subTest(stage=stage):
+                self.assertTrue(line.startswith(style.ascii))
+                self.assertTrue(line.isascii(), repr(line))
+                self.assertTrue(line.endswith(stage))
+
+    def test_the_legend_holds_no_once_per_process_latch(self):
+        """The 'show once per view with 3+ stages' rule is each VIEW's judgement (child `7p3tt8`
+        and the converting children). A module-level latch here would make output depend on
+        invocation order and would be untestable in a shared-process suite, so calling the renderer
+        repeatedly must be idempotent."""
+        first = self.term.format_lifecycle_legend()
+        self.assertEqual(first, self.term.format_lifecycle_legend())
+        self.assertEqual(
+            first,
+            T.Term(
+                color=True, unicode=True, depth=T.DEPTH_256
+            ).format_lifecycle_legend(),
+        )
+
+
+class GraphemeSafetyTests(unittest.TestCase):
+    """Section 9.4 / A15: an opaque grapheme, in UTF-8 mode as well as ASCII mode."""
+
+    def test_a_variation_selector_costs_zero_columns(self):
+        """Bullet 4's precondition: `len()` says 2, the terminal shows 1."""
+        for glyph in (_VS_BLOCKED, _VS_RECOVERING):
+            with self.subTest(glyph=repr(glyph)):
+                self.assertEqual(len(glyph), 2)
+                self.assertEqual(T.visible_width(glyph), 1)
+        self.assertEqual(T.visible_width(_NO_VS_READY), 1)
+
+    def test_every_multi_codepoint_glyph_the_table_declares_measures_one_column(self):
+        """Asserted over `lifecycle_style.MULTI_CODEPOINT_GLYPHS` rather than over a local list, so
+        a third such glyph added upstream is covered automatically."""
+        for glyph in LS.MULTI_CODEPOINT_GLYPHS:
+            with self.subTest(glyph=repr(glyph)):
+                self.assertGreater(len(glyph), 1)
+                self.assertEqual(T.visible_width(glyph), 1)
+
+    def test_the_width_helper_is_ansi_aware(self):
+        term = T.Term(color=True, unicode=True, depth=T.DEPTH_256)
+        resolved = T.resolve_lifecycle("backlog", "blocked")
+        styled = term.style_lifecycle_text(_VS_BLOCKED, resolved)
+        self.assertIn("\033", styled)
+        self.assertEqual(T.visible_width(styled), T.visible_width(_VS_BLOCKED))
+
+    def test_a_padded_lifecycle_column_aligns_in_utf8_mode(self):
+        """SECTION 9.4 BULLET 2, which no lettered criterion covers.
+
+        The pre-change behavior this pins: `status_256('⚠︎', width=4)` produced 4 code points but 3
+        rendered columns, while `status_256('◕', width=4)` produced 4 and 4, so a lifecycle column
+        of mixed glyphs was ragged by exactly one column on the two VS-bearing rows.
+        """
+        term = T.Term(color=False, unicode=True)
+        widths = {
+            stage: T.visible_width(
+                term.format_lifecycle_marker(
+                    LS.Resolved(
+                        stage=stage, style=LS.style_for(stage), family=LS.FAMILY_PLANS
+                    ),
+                    width=4,
+                )
+            )
+            for stage in LS.STAGE_ORDER
+        }
+        self.assertEqual(set(widths.values()), {4}, widths)
+
+    def test_the_old_codepoint_padding_really_was_ragged(self):
+        """GUARD THE GUARD: if `status_256` had already been column-exact, the test above would pass
+        trivially and prove nothing. This measures the defect the new path avoids."""
+        legacy = T.Term(color=False)
+        self.assertEqual(T.visible_width(legacy.status_256(_VS_BLOCKED, width=4)), 3)
+        self.assertEqual(T.visible_width(legacy.status_256(_NO_VS_READY, width=4)), 4)
+
+    def test_truncation_never_severs_a_variation_selector(self):
+        """A15 / bullet 1, asserted AT THE ADVERSARIAL BOUNDARY.
+
+        A naive codepoint clip passes at every offset EXCEPT the one that lands between the base
+        character and its selector, so the test walks every boundary rather than picking a safe one.
+        """
+        text = "xxx" + _VS_BLOCKED + "tail"
+        for limit in range(1, T.visible_width(text) + 1):
+            out = T.truncate_visible(text, limit)
+            with self.subTest(limit=limit):
+                if "\u26a0" in out:
+                    self.assertIn(
+                        "\ufe0e",
+                        out,
+                        f"limit {limit} severed the selector: "
+                        f"{[hex(ord(c)) for c in out]}",
+                    )
+
+    def test_truncating_a_styled_row_keeps_the_selector_attached(self):
+        term = T.Term(color=True, unicode=True, depth=T.DEPTH_256)
+        row = term.format_lifecycle_row(
+            T.resolve_lifecycle("backlog", "blocked"),
+            id6="abc123",
+            artifact_type="BACKLOG",
+            title="Short title",
+        )
+        for limit in range(1, T.visible_width(row) + 1):
+            out = T.truncate_visible(row, limit)
+            with self.subTest(limit=limit):
+                if "\u26a0" in out:
+                    self.assertIn("\ufe0e", out)
+                self.assertLessEqual(T.visible_width(out), limit)
+
+    def test_truncation_closes_a_style_it_leaves_open(self):
+        """A clipped row must not leak its lifecycle color into the rest of the line."""
+        term = T.Term(color=True, unicode=True, depth=T.DEPTH_256)
+        row = term.format_lifecycle_row(
+            T.resolve_lifecycle("backlog", "blocked"), id6="abc123"
+        )
+        out = T.truncate_visible(row, 4)
+        self.assertTrue(out.endswith("\033[0m"), repr(out))
+
+    def test_truncation_returns_the_text_unchanged_when_it_fits(self):
+        term = T.Term(color=True, unicode=True, depth=T.DEPTH_256)
+        row = term.format_lifecycle_row(
+            T.resolve_lifecycle("backlog", "blocked"), id6="abc123"
+        )
+        self.assertEqual(T.truncate_visible(row, 500), row)
+
+    def test_an_ellipsis_is_counted_against_the_limit_and_left_unstyled(self):
+        term = T.Term(color=True, unicode=True, depth=T.DEPTH_256)
+        row = term.format_lifecycle_row(
+            T.resolve_lifecycle("backlog", "blocked"),
+            id6="abc123",
+            title="Long title here",
+        )
+        out = T.truncate_visible(row, 12, ellipsis="\u2026")
+        self.assertLessEqual(T.visible_width(out), 12)
+        self.assertTrue(out.endswith("\u2026"))
+        self.assertFalse(out.endswith("\u2026\033[0m"))
+
+    def test_ascii_mode_guarantees_single_byte_alignment(self):
+        """Bullet 3: in ASCII mode every fallback is exactly one byte, so a column cannot be ragged
+        at all. This is the bullet the substitution table alone satisfies."""
+        term = T.Term(color=False, unicode=False)
+        for stage in LS.STAGE_ORDER:
+            resolved = LS.Resolved(
+                stage=stage, style=LS.style_for(stage), family=LS.FAMILY_PLANS
+            )
+            rendered = term.format_lifecycle_marker(resolved)
+            with self.subTest(stage=stage):
+                self.assertTrue(rendered.isascii())
+                self.assertEqual(len(rendered.encode("ascii")), 1)
+
+    def test_no_lifecycle_render_uses_a_bare_len_for_a_visible_column(self):
+        """Bullet 4 asserted as a PROPERTY rather than by grepping the source: for every stage, in
+        both modes, a padded marker measures the requested number of VISIBLE columns. A `len()`-based
+        pad fails this for exactly the VS-bearing stages."""
+        for mode in (True, False):
+            term = T.Term(color=False, unicode=mode)
+            for stage in LS.STAGE_ORDER:
+                resolved = LS.Resolved(
+                    stage=stage, style=LS.style_for(stage), family=LS.FAMILY_PLANS
+                )
+                with self.subTest(stage=stage, unicode=mode):
+                    self.assertEqual(
+                        T.visible_width(
+                            term.format_lifecycle_marker(resolved, width=6)
+                        ),
+                        6,
+                    )
+
+    def test_strip_ansi_preserves_the_variation_selector(self):
+        """A15's stripping clause. Already true before this change; pinned so it stays true."""
+        term = T.Term(color=True, unicode=True, depth=T.DEPTH_256)
+        styled = term.format_lifecycle_marker(T.resolve_lifecycle("backlog", "blocked"))
+        self.assertIn("\ufe0e", T.strip_ansi(styled))
+
+    def test_the_emoji_presentation_forms_never_appear(self):
+        """A5: U+FE0F must not reach output, in any mode or tier."""
+        for tier in (T.DEPTH_256, T.DEPTH_16, T.DEPTH_NONE):
+            for mode in (True, False):
+                term = T.Term(color=tier != T.DEPTH_NONE, unicode=mode, depth=tier)
+                out = term.format_lifecycle_legend()
+                with self.subTest(tier=tier, unicode=mode):
+                    self.assertNotIn("\ufe0f", out)
+
+
+class _Utf8TTY(_FakeTTY):
+    """A 256-capable UTF-8 TTY double.
+
+    EXTENDS the shipped `_FakeTTY`/`_FakePipe` pattern rather than replacing it, for the one reason
+    those two cannot cover the ASCII rung: `io.StringIO` HAS an `encoding` attribute whose value is
+    `None`, and `should_unicode` treats `None` as "no information" and falls through to True. So an
+    ASCII-capability profile needs an EXPLICIT encoding.
+
+    DECLARED AS A CLASS ATTRIBUTE, not assigned in ``__init__``: ``encoding`` is read-only on an
+    ``io.StringIO`` INSTANCE (``AttributeError: attribute 'encoding' of '_io._TextIOBase' objects is
+    not writable``), and a class attribute on a Python subclass shadows it cleanly.
+    """
+
+    encoding = "utf-8"
+
+
+class _Utf8Pipe(_FakePipe):
+    encoding = "utf-8"
+
+
+class _AsciiPipe(_FakePipe):
+    """The rung `_FakePipe` alone cannot reach: a stream that genuinely cannot render the grapheme."""
+
+    encoding = "ascii"
+
+
+class CapabilityMatrixTests(unittest.TestCase):
+    """A16: the six named environment profiles, each a DISTINCT test rather than one composite.
+
+    Each case asserts BOTH axes, because they are independent resolvers and a profile that got one
+    right and the other wrong would otherwise pass: the glyph FORM (Unicode grapheme versus the
+    exact Section 5 ASCII fallback) and ANSI presence or absence.
+    """
+
+    #: One stage that is VS-bearing, so each profile also exercises the grapheme path.
+    FAMILY, NATIVE, STAGE = "backlog", "blocked", LS.BLOCKED
+
+    def setUp(self):
+        self._saved = {
+            k: os.environ.get(k)
+            for k in (
+                "NO_COLOR",
+                "FORCE_COLOR",
+                "TERM",
+                "COLORTERM",
+                "AW_ASCII_ONLY",
+                "FORCE_ASCII",
+                "XDG_CONFIG_HOME",
+            )
+        }
+        self._tmp = tempfile.TemporaryDirectory()
+        os.environ["XDG_CONFIG_HOME"] = self._tmp.name
+        self.addCleanup(self._tmp.cleanup)
+        self.addCleanup(self._restore)
+        self.addCleanup(T.set_color_override, None)
+        for k in (
+            "NO_COLOR",
+            "FORCE_COLOR",
+            "COLORTERM",
+            "AW_ASCII_ONLY",
+            "FORCE_ASCII",
+        ):
+            os.environ.pop(k, None)
+        os.environ["TERM"] = "xterm-256color"
+
+    def _restore(self):
+        for k, v in self._saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+    def _render(self, stream):
+        term = T.Term(stream)
+        resolved = T.resolve_lifecycle(self.FAMILY, self.NATIVE)
+        return term.format_lifecycle_row(
+            resolved, id6="abc123", artifact_type="BACKLOG"
+        )
+
+    def _assert_profile(self, out, *, ansi, unicode_form):
+        style = LS.style_for(self.STAGE)
+        if ansi:
+            self.assertIn("\033[", out, f"expected ANSI in {out!r}")
+        else:
+            self.assertNotIn("\033", out, f"expected NO ANSI in {out!r}")
+        plain = T.strip_ansi(out)
+        if unicode_form:
+            self.assertIn(style.unicode, plain, f"expected the grapheme in {plain!r}")
+        else:
+            self.assertNotIn(style.unicode, plain, f"grapheme leaked into {plain!r}")
+            self.assertIn(style.ascii, plain, f"expected the fallback in {plain!r}")
+        # The WORD survives every profile (Section 11 item 1, R9.3a.5).
+        self.assertIn(self.NATIVE, plain)
+
+    def test_profile_1_normal_utf8(self):
+        self._assert_profile(
+            self._render(_Utf8TTY()),
+            ansi=True,
+            unicode_form=True,
+        )
+
+    def test_profile_2_ascii_mode(self):
+        os.environ["AW_ASCII_ONLY"] = "1"
+        self._assert_profile(
+            self._render(_Utf8TTY()),
+            ansi=True,
+            unicode_form=False,
+        )
+
+    def test_profile_2b_force_ascii_is_the_same_rung(self):
+        os.environ["FORCE_ASCII"] = "1"
+        self._assert_profile(
+            self._render(_Utf8TTY()),
+            ansi=True,
+            unicode_form=False,
+        )
+
+    def test_profile_3_colored_tty(self):
+        os.environ["TERM"] = "xterm-256color"
+        out = self._render(_Utf8TTY())
+        self._assert_profile(out, ansi=True, unicode_form=True)
+        self.assertIn(f"38;5;{LS.style_for(self.STAGE).color}", out)
+
+    def test_profile_4_plain_tty(self):
+        """A TTY with color explicitly suppressed: glyph and word remain, no escape (A11)."""
+        os.environ["NO_COLOR"] = "1"
+        self._assert_profile(
+            self._render(_Utf8TTY()),
+            ansi=False,
+            unicode_form=True,
+        )
+
+    def test_profile_5_piped_output(self):
+        self._assert_profile(
+            self._render(_Utf8Pipe()),
+            ansi=False,
+            unicode_form=True,
+        )
+
+    def test_profile_6_term_dumb(self):
+        os.environ["TERM"] = "dumb"
+        self._assert_profile(
+            self._render(_Utf8TTY()),
+            ansi=False,
+            unicode_form=True,
+        )
+
+    def test_a13_force_color_enables_ansi_on_a_pipe(self):
+        """A13(a): `FORCE_COLOR=1` with no flag beats TTY detection."""
+        os.environ["FORCE_COLOR"] = "1"
+        self._assert_profile(
+            self._render(_Utf8Pipe()),
+            ansi=True,
+            unicode_form=True,
+        )
+
+    def test_a13_force_color_does_not_force_unicode_onto_an_ascii_stream(self):
+        """A13's ASCII half, as its OWN named case: ANSI present AND the fallback used.
+
+        A CHARACTERIZATION TEST of shipped behavior (`should_unicode` never reads `FORCE_COLOR`),
+        written so that a later change COUPLING the two resolvers fails here.
+        """
+        os.environ["FORCE_COLOR"] = "1"
+        out = self._render(_AsciiPipe())
+        self._assert_profile(out, ansi=True, unicode_form=False)
+
+    def test_a13_the_no_color_flag_beats_force_color(self):
+        """A13(b): the flag layer is above the environment."""
+        os.environ["FORCE_COLOR"] = "1"
+        T.set_color_override(False)
+        self._assert_profile(
+            self._render(_Utf8TTY()),
+            ansi=False,
+            unicode_form=True,
+        )
+
+    def test_a13_a_falsey_force_color_neither_forces_nor_suppresses(self):
+        """A13(c): `FORCE_COLOR=0` on a pipe stays monochrome."""
+        os.environ["FORCE_COLOR"] = "0"
+        self._assert_profile(
+            self._render(_Utf8Pipe()),
+            ansi=False,
+            unicode_form=True,
+        )
+
+    def test_the_sixteen_color_tier_renders_from_the_authored_palette(self):
+        """The depth ladder reaches the lifecycle renderer, not just the resolver."""
+        os.environ["TERM"] = "xterm-color"
+        out = self._render(_Utf8TTY())
+        self.assertIn(f"\033[1;{T.color_16_for_stage(self.STAGE)}m", out)
+        self.assertNotIn("38;5;", out)
 
 
 if __name__ == "__main__":
