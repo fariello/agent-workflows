@@ -5284,6 +5284,122 @@ def manifest_entry_needs_review(
     )
 
 
+#: The dispositions that mean a plan was DELIBERATELY RETIRED: its work was decided against and must
+#: not be performed. A selector may never queue one of these.
+#:
+#: `executed` IS DELIBERATELY ABSENT, and that omission is the whole subtlety of this predicate. An
+#: `executed` plan is a legitimate and NECESSARY queue member: `initial_queue_status` preserves the
+#: status verbatim (see `TERMINAL_QUEUE_STATUSES`) precisely so a dependent's `executed:<id6>` edge is
+#: satisfied by a prerequisite that ran earlier, and relabelling it once killed 9 parents, 6 children
+#: and 2 orchestrators in one run at queue build. Filtering `executed` out of selection would recreate
+#: that dead-prerequisite failure by a different route, so this set names ONLY the retired pair.
+#:
+#: `reusable` is likewise absent: a reusable plan is standing-by-design, meant to be run repeatedly.
+RETIRED_PLAN_STATUSES: frozenset[str] = frozenset({"superseded", "not-executed"})
+
+#: The terminal DIRECTORIES that mean the same thing as the statuses above. Consulted so a plan whose
+#: bullet disagrees with its location (mid-move, or hand-edited) is still refused: agreement between
+#: status and directory is not assumed.
+RETIRED_PLAN_DIRECTORY_SEGMENTS: tuple[str, ...] = ("/superseded/", "/not-executed/")
+
+
+def manifest_entry_is_selectable(entry: Mapping[str, Any] | None) -> bool:
+    """May a run ACT on this manifest plan entry? The ONE admission test, shared by both hosts.
+
+    EXTRACTED BECAUSE IT WAS APPLIED ON EXACTLY ONE SELECTOR BRANCH, which is backlog `7ap6ku`, a
+    release-blocking bug measured in production on 2026-09-20. `expand_selectors` built an admission
+    closure INSIDE its `all` branch, so `aw oc run all` filtered correctly while every other branch -
+    a Set id, a Set prefix, a bare id6, a filename, a file path - took its candidates VERBATIM. The
+    consequence was inverted from what an operator would assume: the broad `all` was the only SAFE
+    selector, and the narrow, deliberate act of naming the work you want was the one that skipped the
+    filter.
+
+    MEASURED COST, run `run-20260920T041130Z-2037265`: naming one Set queued FOUR plans, THREE of them
+    RETIRED on 2026-09-10 with `initial_status: superseded` and a live `execute`/`orchestrate` action,
+    whose own retirement headers say the work MUST NOT happen ("a migration sweep that must NOT
+    happen"; "implements a design the maintainer REVERSED"). Across the tree, naming a Set would have
+    queued a retired plan in 271 Sets. Nothing executed only because the orchestrator coverage probe -
+    a gate aimed at a DIFFERENT defect - happened to refuse, and its remedy then advised authoring a
+    new child for the retired parent's uncovered work, which would have recorded cancelled work as
+    live. That backstop fires only for an orchestrator carrying uncovered work.
+
+    WHAT THIS REFUSES IS NARROWER THAN "TERMINAL", AND THE NARROWING IS THE POINT. The first version of
+    this predicate refused every terminal status and every terminal directory, which broke two shipped
+    properties that both have their own regression tests, so the blunt reading is measurably wrong:
+
+      * AN `executed` PLAN MAY BE IN THE QUEUE. `initial_queue_status` preserves `executed` verbatim
+        (`TERMINAL_QUEUE_STATUSES`) so a dependent's `executed:<id6>` edge is satisfied by a
+        prerequisite that ran earlier in the same run. Spec `20260826-0718-01` 2.9 also forbids letting
+        queue membership decide that edge. Filtering `executed` out would restore the dead-prerequisite
+        bug that killed 9 parents, 6 children and 2 orchestrators at queue build in one measured run
+        (`tests/test_runner_item_dependencies.py::InRunExecutedDependencyTests`).
+      * A STATUS-LESS ENTRY IS LEGITIMATE. A hand-written or older static manifest
+        (`tools/ipdrunner/20260823-pending-ipds-driver-manifest.json`) carries NO `status` key at all,
+        and `initial_queue_status(None)` deliberately answers `reviewed` for exactly that case. An
+        absent status therefore means "this manifest does not track status", not "retired", so
+        refusing it would break manifest-driven runs
+        (`tests/test_oc_runipd.py::DriverTests::test_selector_deduplication_supports_interleaved_set_resume`).
+
+    So the rule is: REFUSE THE DELIBERATELY RETIRED (`superseded`, `not-executed`, by status or by
+    directory) AND NOTHING ELSE. That is precisely the population whose work a human decided must not
+    happen, which is the population the measured defect was dispatching.
+
+    THE DIRECTION OF DOUBT IS TOWARD ADMITTING, and that is a deliberate reversal of my first
+    instinct here. A wrongly REFUSED plan costs an operator one confused command and a clear error
+    message. A wrongly refused DEPENDENCY TARGET, by contrast, silently kills every dependent in the
+    queue for zero tokens, which is a worse and much quieter failure than the one being fixed. So
+    this predicate stays tight to the retired pair rather than guessing.
+    """
+
+    if not entry:
+        return False
+    status = str(entry.get("status", "") or "").lower().strip()
+    if status in RETIRED_PLAN_STATUSES:
+        return False
+    path = str(entry.get("file", "") or "").replace("\\", "/")
+    if path and not path.startswith("/"):
+        path = "/" + path
+    return not any(seg in path for seg in RETIRED_PLAN_DIRECTORY_SEGMENTS)
+
+
+#: The statuses the `all` SWEEP will pick up unasked. Narrower than `manifest_entry_is_selectable`'s
+#: rule on purpose: see :func:`manifest_entry_is_sweepable`.
+SWEEPABLE_PLAN_STATUSES: frozenset[str] = frozenset(
+    {"to-review", "draft", "reviewed", "approved", "auto-approved"}
+)
+
+
+def manifest_entry_is_sweepable(entry: Mapping[str, Any] | None) -> bool:
+    """Would the `all` selector pick this plan up UNASKED? Shared by both hosts.
+
+    THE DISTINCTION FROM :func:`manifest_entry_is_selectable` IS THE SUBTLE PART, and conflating the
+    two is a real defect in both directions, so both were measured:
+
+      * SWEEPING is opt-out: the operator said `all` and named nothing, so anything finished
+        (`executed`), standing (`reusable`), retired, or status-unknown must be left alone. This is
+        an ALLOWLIST of live work plus a terminal-directory exclusion.
+      * SELECTING is opt-in: the operator named a Set or a plan, so the only thing that may be
+        refused is work a human decided must NOT happen. An `executed` plan must still be admitted,
+        because a dependent's `executed:<id6>` edge is satisfied by a prerequisite in the same queue,
+        and a status-less entry must still be admitted, because hand-written manifests carry no
+        status at all.
+
+    This function is the `all` branch's original inline closure, hoisted VERBATIM in behavior so the
+    sweep's answers do not change, and shared so the two hosts cannot drift. It was a byte-identical
+    duplicate in `oc_runipd` and `agy_runipd`, which is exactly how the `7ap6ku` defect came to exist
+    on both hosts at once.
+    """
+
+    if not entry:
+        return False
+    status = str(entry.get("status", "") or "").lower().strip()
+    if status not in SWEEPABLE_PLAN_STATUSES:
+        return False
+    from agent_workflows import run_selection_policy as _policy
+
+    return not _policy.is_in_terminal_directory(entry.get("file", ""))
+
+
 def sweep_review_candidates(
     manifest: dict[str, Any],
     *,

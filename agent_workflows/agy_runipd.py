@@ -1838,29 +1838,15 @@ def expand_selectors(
     if len(selectors_list) == 1 and selectors_list[0].lower() == "all":
         expanded: list[str] = []
         seen: set[str] = set()
-        actionable_statuses = {
-            "to-review",
-            "draft",
-            "reviewed",
-            "approved",
-            "auto-approved",
-        }
-        terminal_statuses = {"executed", "superseded", "not-executed"}
-
-        def _is_actionable(p_info: dict[str, Any]) -> bool:
-            st = str(p_info.get("status", "")).lower().strip()
-            f_str = str(p_info.get("file", ""))
-            is_non_pending = (
-                "/executed/" in f_str
-                or "/superseded/" in f_str
-                or "/not-executed/" in f_str
-                or "/reusable/" in f_str
-            )
-            return (
-                st in actionable_statuses
-                and st not in terminal_statuses
-                and not is_non_pending
-            )
+        # setidsel (`7ap6ku`): `all` keeps its OWN, STRICTER test, and the difference from the
+        # selector admission test below is deliberate rather than an oversight. `all` means "sweep
+        # everything actionable", so it must additionally exclude a plan that is finished
+        # (`executed`) or standing (`reusable`) or status-less, none of which anyone asked for by
+        # name. A NAMED selector cannot use this stricter rule: an `executed` plan is a legitimate
+        # queue member when a dependent declares `executed:<id6>` on it, and a status-less entry is
+        # normal in a hand-written manifest. So the shared predicate refuses only the DELIBERATELY
+        # RETIRED, and this branch narrows further on its own behalf.
+        _is_actionable = runner_shared.manifest_entry_is_sweepable
 
         for _setid, group in sets.items():
             for id6 in group.get("order", []):
@@ -1882,6 +1868,9 @@ def expand_selectors(
 
     expanded = []
     seen = set()
+    # setidsel (`7ap6ku`): every candidate DROPPED as already-finished, so an empty result can say
+    # WHICH plans it skipped and why instead of claiming no selector was given.
+    filtered_out: list[str] = []
 
     for selector in selectors:
         sel_str = str(selector).strip()
@@ -1950,12 +1939,53 @@ def expand_selectors(
             raise DriverError(
                 f"Set '{matched_set}' has an empty order (no plans to run)"
             )
+        # setidsel (`7ap6ku`): EVERY branch above converges here, so the admission test belongs at
+        # this one point. Before this, only the `all` branch filtered, so naming a Set queued its
+        # RETIRED plans with a live `execute` action. THE WORDING AND THE TWO SHAPES ARE THE OC
+        # TWIN'S, deliberately: a Set member is dropped SILENTLY (a Set is a topic label that
+        # legitimately holds its own finished work forever), while an EXPLICITLY NAMED plan REFUSES
+        # LOUDLY (the operator typed that identifier, so a silent drop would send them hunting a
+        # typo that is not there). `tests/test_runipd_selector_admission.py` pins both hosts to the
+        # same answers; do not let this drift from the oc copy.
+        explicit_plan = matched_set is None and len(candidates) == 1
         for id6 in candidates:
-            if id6 not in seen:
-                expanded.append(id6)
-                seen.add(id6)
+            if id6 in seen:
+                continue
+            if not runner_shared.manifest_entry_is_selectable(plans.get(id6, {})):
+                if explicit_plan:
+                    info = plans.get(id6, {}) or {}
+                    raise DriverError(
+                        f"Plan {id6} is {str(info.get('status', '') or 'unknown')!r} and was "
+                        f"RETIRED, so it cannot be run: "
+                        f"{info.get('file', '(unknown path)')}. A retired plan "
+                        f"({sorted(runner_shared.RETIRED_PLAN_STATUSES)}) is one whose work was "
+                        f"deliberately decided against, so re-running it would implement a decision "
+                        f"that was reversed. If it should run again, transition it out of its "
+                        f"retired disposition first."
+                    )
+                filtered_out.append(id6)
+                continue
+            expanded.append(id6)
+            seen.add(id6)
 
     if not expanded:
+        # setidsel (`7ap6ku`): DISTINGUISH "you named nothing" from "everything you named is
+        # finished", because the fix above made the second case COMMON (263 Sets in this repository
+        # hold only terminal plans) and the old single message asserted the first, sending an
+        # operator to hunt a typo in a selector that resolved perfectly well. Naming the dropped
+        # plans is the whole point: it says the Set was found, what was in it, and why none of it ran.
+        if filtered_out:
+            detail = ", ".join(
+                f"{i} ({(plans.get(i) or {}).get('status', '') or 'unknown'})"
+                for i in filtered_out
+            )
+            raise DriverError(
+                f"Every plan the selector(s) matched was RETIRED, so there is nothing to run: "
+                f"{detail}. A retired plan "
+                f"({sorted(runner_shared.RETIRED_PLAN_STATUSES)}) is one whose work was "
+                f"deliberately decided against. This is not a selector typo: the plans were found "
+                f"and deliberately skipped."
+            )
         raise DriverError("At least one id6 or Set selector is required")
     return expanded
 
