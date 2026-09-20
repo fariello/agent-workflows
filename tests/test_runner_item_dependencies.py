@@ -568,26 +568,36 @@ class EdgeSatisfactionTests(unittest.TestCase):
             "must be held rather than declared dead (which is what the cascade does) or admitted",
         ),
         (
-            "executed: released by an in-queue target that reached `executed`",
+            "executed: an in-queue target reporting `executed` with NO plan on disk",
             "executed",
             None,
             ["executed:depaaa"],
-            True,
-            [],
-            "THE POSITIVE ROW for the in-queue path: once the prerequisite is verified in this run the "
-            "dependent RELEASES, with no disk read at all. Without it every unsatisfied row here is "
-            "vacuous, since a predicate that never releases satisfies all of them",
+            False,
+            ["executed:depaaa"],
+            "REVERSED 2026-09-19 when the in-queue shortcut was deleted (one authority: disk). This "
+            "row used to be THE POSITIVE ROW for that shortcut, releasing 'with no disk read at all'. "
+            "Its shape cannot occur after a real finalize: `aw ipd finalize` MOVES the plan into "
+            "`executed/`, so a target genuinely reporting `executed` HAS a plan there and releases "
+            "through the on-disk branch (proven by the `executed/` fixture row below). A run status of "
+            "`executed` with no plan on disk means the transition did not happen, so refusing is the "
+            "honest answer",
         ),
         (
-            "executed: released by an in-queue `substantially-complete` target",
+            "executed: an in-queue `substantially-complete` target (THE 2026-09-19 INCIDENT)",
             "substantially-complete",
             None,
             ["executed:depaaa"],
-            True,
-            [],
-            "`substantially-complete` is a SUCCESS for execution purposes, so it must release its "
-            "dependents exactly as `executed` does. Treating it as a non-success would strand the rest "
-            "of a Set behind an item that did its work",
+            False,
+            ["executed:depaaa"],
+            "REVERSED 2026-09-19, and this row IS the incident. It used to assert that "
+            "`substantially-complete` releases dependents 'exactly as `executed` does', on the "
+            "reasoning that refusing 'would strand the rest of a Set behind an item that did its "
+            "work'. MEASURED, THE OPPOSITE HAPPENED: that status means finalize did NOT run, so the "
+            "plan is still in `pending/` and its lane was never merged. Run "
+            "`run-20260919T194413Z-2056285` released `n4xq3l` against a tree holding NONE of "
+            "`yaxr4i`'s work, which then refused and cascaded `dependency-blocked` to eight more "
+            "items: 2h 10m and $55.02 for nothing integrated. Stranding a Set loudly is recoverable; "
+            "building against absent work is not",
         ),
         (
             "executed: whose EXTERNAL target sits in `executed/`",
@@ -768,6 +778,17 @@ class EdgeSatisfactionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             repo = Path(t) / "repo"
             (repo / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
+            # The prerequisite must be REALLY finalized on disk, because since 2026-09-19 the disk is
+            # the only authority for an `executed:` edge (the in-queue run-status shortcut was
+            # deleted). Without this fixture the dependent would refuse for the RIGHT reason - the
+            # work is not in `executed/` - and this test would stop discriminating the F8 hazard it
+            # exists to pin, which is about TOKEN PARSING rather than about readiness.
+            executed_dir = repo / ".aw" / "records" / "plans" / "executed"
+            executed_dir.mkdir(parents=True, exist_ok=True)
+            (executed_dir / "20260919-f8haz-01-depaaa-prerequisite.ipd.md").write_text(
+                "# IPD: prerequisite\n\n- Id: depaaa\n- Status: executed\n",
+                encoding="utf-8",
+            )
             state = {
                 "repo": str(repo),
                 "queue": [
@@ -1859,7 +1880,19 @@ class NoRegressionForUndeclaredEdgesTests(unittest.TestCase):
     """A Set with NO declared edges must gate exactly as it did pre-fix."""
 
     def test_existing_bare_id6_gating_semantics_are_preserved(self):
-        """The pre-8guhs0 tests' semantics (bare id6 == `executed:`) still hold."""
+        """A bare id6 still means `executed:`, now answered from DISK for every target.
+
+        UPDATED 2026-09-19 with the deletion of the in-queue shortcut (one authority: disk). The
+        expectations below are unchanged EXCEPT the `dep003` execute row, and the reason is that this
+        test deliberately passes `repo` as a path that does not exist: with the shortcut gone there is
+        no in-memory answer, and a nonexistent repository cannot show a plan in `executed/`, so the
+        edge refuses. That is the honest verdict for "the prerequisite's work is not on disk", which
+        is precisely the condition the shortcut used to paper over.
+
+        A REAL finalized dependency still releases: `ExternalTargetReadinessMatrixTests` covers it
+        with an actual `executed/` fixture, and the gating direction here is unchanged (an execute
+        dependent refuses a merely `reviewed`/`approved` prerequisite; a review dependent accepts it).
+        """
         state = {
             "repo": "/nonexistent",
             "queue": [
@@ -1871,8 +1904,15 @@ class NoRegressionForUndeclaredEdgesTests(unittest.TestCase):
         for dep, action, expected in (
             ("dep001", "execute", False),
             ("dep002", "execute", False),
-            ("dep003", "execute", True),
-            ("dep001", "review", True),
+            # No repository on disk, so no plan can be in `executed/`: refuse rather than trust a
+            # run-state claim that the work landed.
+            ("dep003", "execute", False),
+            # Same reason: a review dependent accepts a `reviewed`/`approved` prerequisite, but that
+            # answer is read from the plan's `- Status:` field ON DISK, and this state names no real
+            # repository. `ExternalTargetReadinessMatrixTests` proves the relaxation with a real
+            # fixture; verified 2026-09-19 that a review dependent whose prerequisite sits in
+            # `pending/` with `- Status: reviewed` is SATISFIED.
+            ("dep001", "review", False),
         ):
             with self.subTest(dep=dep, action=action):
                 item = {"id6": "tgt", "action": action, "dependencies": [dep]}
@@ -2199,14 +2239,25 @@ class ExternalTargetReadinessMatrixTests(unittest.TestCase):
                             f"(it was read {len(reads)} time(s)). {why}",
                         )
 
-    def test_the_in_queue_branch_still_reads_run_state_not_disk(self):
-        """The in-queue branch answers a DIFFERENT question and must stay untouched.
+    def test_queue_membership_does_not_change_an_edges_verdict(self):
+        """ONE authority: the plan on DISK, whether or not the target is in this run.
 
-        It asks "is this prerequisite verified IN THIS RUN yet", from run state, and its own docstring
-        warns it must not be consolidated with the static evaluator. Pinned here so a later refactor
-        cannot merge the two paths carelessly: an EXECUTE dependent against an in-queue prerequisite
-        whose derived RUN status is `reviewed` must still refuse, while a REVIEW dependent is
-        satisfied, which is the same action asymmetry one path over.
+        REWRITTEN 2026-09-19 on the maintainer's ruling. This test used to pin an IN-QUEUE branch that
+        answered an `executed:` edge from the target's in-memory RUN status, accepting any member of
+        `EXECUTION_SUCCESS_STATES` - which admits `substantially-complete`, i.e. finalize did NOT
+        happen and, measured, the lane was never merged. Run `run-20260919T194413Z-2056285` therefore
+        dispatched `n4xq3l` against a tree holding none of its prerequisite's work: 2h 10m, $55.02,
+        nothing integrated.
+
+        THE OLD TEST'S OWN `STATE_CONSTANTS` COMMENT ARGUED FOR THIS FIX while the test pinned the
+        opposite: it warns that if the two state sets drift "one edge's verdict starts depending on
+        QUEUE MEMBERSHIP - whether the target happens to be in this run - which the same spec
+        paragraph explicitly prohibits". The shortcut made the verdict depend on queue membership by
+        construction. It is gone, and this test now pins its absence.
+
+        The action asymmetry is UNCHANGED and still lives in the on-disk branch: an EXECUTE dependent
+        needs the prerequisite in `executed/`, a REVIEW dependent also accepts a `reviewed`/`approved`
+        `- Status:` field, because reviewing plan B against plan A needs A's TEXT and not A's code.
         """
         with tempfile.TemporaryDirectory() as t:
             # The target is in `pending/` with `- Status: reviewed` on DISK, so if the in-queue branch
@@ -2228,10 +2279,11 @@ class ExternalTargetReadinessMatrixTests(unittest.TestCase):
                     )
                     self.assertEqual(sat, expected, f"reasons={reasons!r}")
                     if not sat:
-                        self.assertIn(
+                        self.assertNotIn(
                             "in-run target",
                             reasons["executed:depaaa"],
-                            "the refusal must come from the IN-QUEUE branch, not from disk",
+                            "the deleted in-queue shortcut answered this edge; the refusal must now "
+                            "come from the plan on DISK, which is the single authority",
                         )
 
     #: (constant name, its exact expected value or None to assert cross-driver equality only, why)
@@ -3206,6 +3258,119 @@ class InRunExecutedDependencyTests(unittest.TestCase):
                         [b.get("id6") if isinstance(b, dict) else b for b in blocked],
                     )
                     self.assertEqual(it2["status"], "queued")
+
+
+class TheDiskIsTheOnlyAuthorityForAnExecutedEdgeTests(unittest.TestCase):
+    """REGRESSION GUARD for the 2026-09-19 incident: run `run-20260919T194413Z-2056285`.
+
+    `yaxr4i` finished `substantially-complete`, which means `aw ipd finalize` did NOT run, so the plan
+    stayed in `pending/` and its two commits lived only on `aw/lane/yaxr4i`. The deleted in-queue
+    shortcut accepted that status for an `executed:` edge, so `n4xq3l` was told its prerequisite was
+    done and was dispatched into a lane holding NONE of that work. It refused, went `blocked`, and
+    cascaded `dependency-blocked` to eight further items. Cost: 2h 10m and $55.02, nothing integrated.
+
+    The maintainer's ruling was ONE authority, not gates in depth: the plan's directory on disk.
+    """
+
+    def _state(self, repo: Path, dep_run_status: str) -> dict:
+        return {
+            "repo": str(repo),
+            "queue": [
+                {
+                    "id6": "depaaa",
+                    "status": dep_run_status,
+                    "action": "execute",
+                    "dependencies": [],
+                    "position": 1,
+                },
+                {
+                    "id6": "itemaa",
+                    "status": "queued",
+                    "action": "execute",
+                    "dependencies": ["executed:depaaa"],
+                    "position": 2,
+                },
+            ],
+        }
+
+    def _repo(self, temp: Path, bucket: str, status: str) -> Path:
+        repo = temp / "repo"
+        (repo / ".aw" / "records" / "plans" / "pending").mkdir(
+            parents=True, exist_ok=True
+        )
+        target = repo / ".aw" / "records" / "plans" / bucket
+        target.mkdir(parents=True, exist_ok=True)
+        (target / "20260919-inc-01-depaaa-prerequisite.ipd.md").write_text(
+            f"# IPD: prerequisite\n\n- Id: depaaa\n- Status: {status}\n",
+            encoding="utf-8",
+        )
+        return repo
+
+    def test_the_incident_shape_refuses(self):
+        """substantially-complete in the run + plan still in pending/ must NOT release a dependent."""
+        with tempfile.TemporaryDirectory() as t:
+            repo = self._repo(Path(t), "pending", "approved")
+            state = self._state(repo, "substantially-complete")
+            satisfied, missing, reasons = oc_runipd.dependency_status_detailed(
+                state["queue"][1], state
+            )
+            self.assertFalse(
+                satisfied,
+                "the 2026-09-19 incident: a dependent released against work that was never "
+                "integrated, because the run status said substantially-complete while the plan sat "
+                "in pending/",
+            )
+            self.assertEqual(missing, ["executed:depaaa"])
+            self.assertNotIn(
+                "in-run target",
+                reasons["executed:depaaa"],
+                "the refusal must come from the plan on DISK; the in-queue shortcut is deleted",
+            )
+
+    def test_a_genuinely_finalized_prerequisite_still_releases(self):
+        """The fix must not strand a Set whose prerequisite really did finalize."""
+        with tempfile.TemporaryDirectory() as t:
+            repo = self._repo(Path(t), "executed", "executed")
+            state = self._state(repo, "substantially-complete")
+            satisfied, missing, _reasons = oc_runipd.dependency_status_detailed(
+                state["queue"][1], state
+            )
+            self.assertTrue(
+                satisfied,
+                "a prerequisite in executed/ on disk satisfies the edge regardless of its in-run "
+                "status, which is the whole point of making the directory the authority",
+            )
+            self.assertEqual(missing, [])
+
+    def test_queue_membership_cannot_change_the_verdict(self):
+        """The same on-disk state must give the same answer in-queue and out-of-queue.
+
+        This is the property the OLD test file argued for in prose while pinning the opposite: it
+        warned that a drifting state set would make a verdict "depend on QUEUE MEMBERSHIP - whether
+        the target happens to be in this run - which the same spec paragraph explicitly prohibits".
+        """
+        for bucket, status, expected in (
+            ("executed", "executed", True),
+            ("pending", "approved", False),
+        ):
+            with self.subTest(bucket=bucket):
+                with tempfile.TemporaryDirectory() as t:
+                    repo = self._repo(Path(t), bucket, status)
+                    in_queue = self._state(repo, "substantially-complete")
+                    out_of_queue = {
+                        "repo": str(repo),
+                        "queue": [in_queue["queue"][1]],
+                    }
+                    a, _m = oc_runipd.dependency_status(in_queue["queue"][1], in_queue)
+                    b, _m2 = oc_runipd.dependency_status(
+                        out_of_queue["queue"][0], out_of_queue
+                    )
+                    self.assertEqual(a, expected)
+                    self.assertEqual(
+                        a,
+                        b,
+                        "queue membership changed the verdict for identical on-disk state",
+                    )
 
 
 if __name__ == "__main__":

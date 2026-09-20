@@ -1732,8 +1732,32 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
 
 class RunipdBugsFixesTests(unittest.TestCase):
     def test_dependency_status_execution_vs_review(self):
+        """UPDATED 2026-09-19: an `executed:` edge is answered from the plan on DISK.
+
+        The in-queue run-status shortcut was deleted (maintainer ruling: ONE authority, not gates in
+        depth), so this test now materializes the prerequisites it asserts about instead of naming a
+        repository that does not exist. `dep003` gets a real plan in `executed/`; `dep001` and
+        `dep002` sit in `pending/` with their non-terminal statuses, which is where a non-terminal
+        plan actually lives.
+        """
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        repo = Path(self._tmp.name) / "repo"
+        pending = repo / ".aw" / "records" / "plans" / "pending"
+        executed = repo / ".aw" / "records" / "plans" / "executed"
+        pending.mkdir(parents=True)
+        executed.mkdir(parents=True)
+        (pending / "20260919-dep-01-dep001-reviewed-plan.ipd.md").write_text(
+            "# IPD: d1\n\n- Id: dep001\n- Status: reviewed\n", encoding="utf-8"
+        )
+        (pending / "20260919-dep-02-dep002-approved-plan.ipd.md").write_text(
+            "# IPD: d2\n\n- Id: dep002\n- Status: approved\n", encoding="utf-8"
+        )
+        (executed / "20260919-dep-03-dep003-executed-plan.ipd.md").write_text(
+            "# IPD: d3\n\n- Id: dep003\n- Status: executed\n", encoding="utf-8"
+        )
         state = {
-            "repo": "/nonexistent",
+            "repo": str(repo),
             "queue": [
                 {
                     "id6": "dep001",
