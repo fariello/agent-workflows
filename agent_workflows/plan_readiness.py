@@ -29,7 +29,12 @@ bug the plan was written to fix.
 
 DECISION ORDER (field first, prose only as a bounded fallback):
 
-- ``- Readiness: go`` or ``go-pending-approval`` -> approvable. ``no-go`` -> refused.
+- ``- Readiness: go`` or ``go-pending-approval`` -> approvable, BUT ONLY IF the plan's own
+  ``## Workflow history`` contains a REVIEW RECORD that could have produced it
+  (:func:`history_has_review_record`). ``no-go`` -> refused. A valid field with NO review behind it
+  is refused too: it asserts a clearance that never happened (rdattest ``8v5pwa``; see
+  :func:`is_plan_review_approved` for the measured forgery). The field still decides WHAT the answer
+  is when it is attested, so prose is never consulted to overrule an attested field.
 - Field ABSENT -> fall back to the CORRECTED newest history record, accepting only verdict
   ``APPROVE`` / ``APPROVE WITH REVISIONS APPLIED`` with no negative readiness token and no
   unresolved blocking open question.
@@ -82,6 +87,7 @@ __all__ = [
     "approval_refusals",
     "classify_verdict",
     "extract_newest_history_entry",
+    "history_has_review_record",
     "history_verdict_approves",
     "has_unresolved_blocking_question",
     "is_plan_review_approved",
@@ -348,9 +354,27 @@ def has_unresolved_blocking_question(text: str) -> bool:
 def is_plan_review_approved(plan_path: Path) -> bool:
     """Whether REVIEW has cleared this plan for automated approval. FAILS CLOSED.
 
-    Decision order (see the module docstring): the structured ``- Readiness:`` field wins; when it is
-    absent or out-of-vocab, a bounded back-compat fallback reads the CORRECTED newest history record
-    and accepts only an approving verdict with no unresolved blocking open question.
+    Decision order (see the module docstring): a valid structured ``- Readiness:`` field decides WHAT
+    the answer is, but only once the plan's own ``## Workflow history`` shows a review PRODUCED it;
+    when the field is absent, a bounded back-compat fallback reads the CORRECTED newest history record
+    and accepts only an approving verdict with no unresolved blocking open question; when the field is
+    present but out-of-vocab, the plan is refused outright with no fallback.
+
+    THE FIELD IS NO LONGER BELIEVED ON ITS OWN (rdattest ``8v5pwa``). ``IPD-M107`` already refuses a
+    hand-written ``- Readiness:`` at LINT time, but this PREDICATE accepted one, and it is the
+    predicate that ``--full-auto`` consults to clear a `reviewed` plan to `auto-approved` (a shipped
+    READY-TO-EXECUTE tier) and flip its queue action to `execute`. MEASURED at `b83a6cd9`: a plan
+    carrying ``- Readiness: go`` whose whole history is one `to-review` record returned True, so a
+    field typed at authoring time was a route from unreviewed to executable. The field and the history
+    must now AGREE: :func:`history_has_review_record` must find a record whose own status/workflow
+    middle marks it a review, which a MENTION of `plan-review`/`APPROVE`/`REJECT` in a non-review
+    record does not satisfy.
+
+    WHAT THIS DELIBERATELY DOES NOT CHECK: that the review's verdict was POSITIVE. The question here
+    is PROVENANCE ("did a review write this field"), and the verdict question is already owned by
+    :func:`newest_verdict` / :func:`approval_refusals`; asking it twice gives one plan two verdict
+    gates that can disagree. So a plan whose review said NO-GO while its field says ``go`` is caught by
+    the field's own vocabulary, by ``approval_refusals``, and by human approval, not here.
 
     This function does NOT read ``- Status:``. The caller must independently require
     ``Status: reviewed`` before acting, which is what keeps this from widening the gate.
@@ -362,7 +386,10 @@ def is_plan_review_approved(plan_path: Path) -> bool:
 
     readiness = _schema.read_readiness(text)
     if readiness is not None:
-        # The STRUCTURED signal is authoritative and beats any prose in the history line.
+        # The STRUCTURED signal decides the ANSWER and beats any prose verdict in the history, but it
+        # must first be ATTESTED: a field no review produced asserts a clearance that never happened.
+        if not history_has_review_record(text):
+            return False
         return readiness in _schema.READINESS_APPROVABLE
     if _READINESS_FIELD_PRESENT_RE.search(text):
         # PRESENT but out-of-vocab (`read_readiness` normalizes that to None). Refuse OUTRIGHT: the
@@ -443,6 +470,46 @@ def is_review_history_entry(entry: str) -> bool:
     return False
 
 
+def history_has_review_record(text: str) -> bool:
+    """Whether ANY record in the plan's bounded ``## Workflow history`` is a REVIEW record.
+
+    THE PROVENANCE QUESTION, and it is deliberately a different question from
+    :func:`newest_verdict`'s. This answers "did a review ever run on this plan", not "what is the
+    current verdict"; the latter is already owned by :func:`newest_verdict` / :func:`approval_refusals`
+    and duplicating it here would give one plan two verdict gates that can disagree. Its sole consumer
+    is :func:`is_plan_review_approved`, which uses it to require that a PRESENT ``- Readiness:`` field
+    be accounted for by a review in the plan's own history (rdattest ``8v5pwa`` E-01).
+
+    ANY RECORD, NOT THE NEWEST, and that choice is measured rather than aesthetic. A plan's newest
+    record is routinely a LATER lifecycle transition (`approved`, `executed`, a maintainer note) that
+    legitimately post-dates the review which wrote the field, so a newest-record test would refuse a
+    correctly reviewed plan for having progressed. MEASURED over all 694 tracked plans on 2026-09-20:
+    the any-record rule flips ZERO auto-approve verdicts while a newest-record rule would flip 237 of
+    the 238 that answer True, i.e. it would disable the gate's positive half almost entirely. Refusing
+    a forgery does not need the stricter rule either, because a forged plan has NO review record
+    anywhere.
+
+    IT REUSES :func:`is_review_history_entry` RATHER THAN A MENTION-MATCHER, which is the whole point
+    of the fix. ``ipd_lint._REVIEW_EVIDENCE_RE`` scans the WHOLE history text for `/plan-review`,
+    `APPROVE`, `NO-GO` or `REJECT`, so it matches a bare MENTION in a non-review record: a `to-review`
+    line saying "I mention plan-review in passing", a `draft` line containing the word `APPROVE`, and a
+    successor narrating its predecessor's `REJECT` all satisfy it, and each is exactly the forged field
+    this gate must refuse. The discriminator instead requires a review token in the record's OWN
+    status/workflow middle, so it refuses all three. That is also why `plan_readiness` does NOT import
+    `ipd_lint` for this (`ipd_lint` reaches `attention`, `check_engine`, `renderers` and the CLI stack
+    through function-scoped imports, and both host drivers import this module).
+
+    Pure. False for text with no history section, which is the fail-closed answer.
+    """
+    for line in _history_section_lines(text or ""):
+        candidate = line.strip()
+        if not HISTORY_RECORD_RE.match(candidate):
+            continue
+        if is_review_history_entry(candidate):
+            return True
+    return False
+
+
 def newest_verdict(text: str) -> Tuple[Optional[str], str]:
     """The polarity of the NEWEST REVIEW record's own verdict, and the raw record it was read from.
 
@@ -465,9 +532,16 @@ def newest_verdict(text: str) -> Tuple[Optional[str], str]:
     THIS IS THE PROSE PATH ONLY. It deliberately does NOT read the structured ``- Readiness:`` field,
     so that the field-versus-prose decision order lives in exactly one place. :func:`approval_refusals`
     consults the field FIRST and reaches this function only as a fallback, matching the three-way rule
-    :func:`is_plan_review_approved` already implements (valid field is authoritative / absent field
-    falls back to prose / out-of-vocab field refuses outright). Two gates disagreeing about the same
-    plan is worse than either rule alone, which is why the ordering is stated in both docstrings.
+    :func:`is_plan_review_approved` also implements (valid field decides / absent field falls back to
+    prose / out-of-vocab field refuses outright). Two gates disagreeing about the same plan is worse
+    than either rule alone, which is why the ordering is stated in both docstrings.
+
+    ONE DIFFERENCE, AND IT IS DELIBERATE (rdattest ``8v5pwa``): :func:`is_plan_review_approved`
+    additionally requires the FIELD to be ATTESTED by a review record in the plan's history before
+    honoring it, and THIS gate does not. That is not drift. This half backs a HUMAN's approval and its
+    verdict refusal has NO override, so a false positive here is a lockout; the auto-approve predicate
+    gates UNATTENDED promotion to an executable tier, where a forged field is the worse risk. The
+    field-versus-prose ORDER is identical in both; only the provenance requirement differs.
 
     Pure; takes whole plan text.
     """
@@ -514,6 +588,10 @@ def approval_refusals(
        :func:`is_plan_review_approved` uses: a valid field is authoritative and prose is never read;
        an ABSENT field falls back to prose; an OUT-OF-VOCAB field refuses outright with no fallback,
        because absence means "no signal recorded" while a bad value means "the signal is corrupt".
+       THIS GATE DOES NOT ADD THE PROVENANCE REQUIREMENT the auto-approve predicate now applies
+       (rdattest ``8v5pwa``): an unattested field there refuses UNATTENDED promotion, which costs one
+       deferral, while refusing it here would be an un-overridable lockout on a human's own approval.
+       The ORDER is shared; only that extra requirement is not, and the difference is a risk choice.
     2. THE TYPED REVIEW ARTIFACT, via ``review_findings.subject_gating_blocks``, reused UNCHANGED so the
        one severity comparison (``review_findings.is_gating``) is not forked - there is an explicit
        anti-fork guard test at ``tests/test_review_findings_gate.py``. An ABSENT review artifact is

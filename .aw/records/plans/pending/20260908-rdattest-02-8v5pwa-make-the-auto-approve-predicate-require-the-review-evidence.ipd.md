@@ -41,45 +41,45 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: require agreement between field and history
 
-- [ ] E-01 Make `is_plan_review_approved` (re-locate BY SYMBOL) require review evidence in the plan's own `## Workflow history` even when the `- Readiness:` field is present and valid, so field and history must AGREE. The GOAL is unchanged from authoring; the MECHANISM is corrected below, twice, and both corrections are measured.
+- [x] E-01 Make `is_plan_review_approved` (re-locate BY SYMBOL) require review evidence in the plan's own `## Workflow history` even when the `- Readiness:` field is present and valid, so field and history must AGREE. The GOAL is unchanged from authoring; the MECHANISM is corrected below, twice, and both corrections are measured.
   DO NOT REUSE `ipd_lint._REVIEW_EVIDENCE_RE`. USE `plan_readiness.is_review_history_entry`, WHICH IS ALREADY IN THIS FILE (review PR-701). This is the single most important change to this plan, because the authored mechanism does not actually stop a forged field. `_REVIEW_EVIDENCE_RE` is `(?i)\b(?:/?plan-review(?:-long)?\b|APPROVE\b|NO-GO\b|REJECT\b)` applied to the WHOLE history text, so it matches a MENTION anywhere in any record. MEASURED at review, all three by running them: a plan whose only history line is `- 2026-09-08 to-review (a): authored. I mention plan-review in passing.` PASSES it; so does `- 2026-09-08 draft (a): created. The word APPROVE appears here.`; so does a line containing `REJECT`. Each of those is exactly the forged field this plan exists to refuse, and each would still return True. By contrast `is_review_history_entry` (`plan_readiness.py:355-375`) parses the record and requires a review token in the record's own STATUS/WORKFLOW MIDDLE (between the date and the `(actor)`), so it returns False for all three forgeries and True for a real `- 2026-09-08 /plan-review (m): APPROVE ...` record. Verified at review.
   SO THE ITEM'S OPTION 2 IS NOT ACTUALLY AVAILABLE AS WRITTEN, AND OPTION 1 IS NOT WHAT IT LOOKS LIKE EITHER. The item framed the choice as "call the lint rule" versus "re-implement the check", and warned that re-implementing creates a second definition of "attested". That framing is right about duplication and wrong about the facts: the STRONGER discriminator is ALREADY DEFINED IN THIS VERY MODULE and is already consumed by `newest_verdict` and `approval_refusals`, so using it creates NO new definition at all. There is nothing to duplicate and no import to add. This is strictly better than both options the item offered, which is why it is chosen over them.
   DO NOT IMPORT `ipd_lint` FROM `plan_readiness`; the plan's F-5 safety claim is FALSE (review PR-702). F-5 states `ipd_lint` "imports only `argparse`, `re`, `pathlib`, `typing`, `ipd_schema` and `term`". MEASURED by AST at review: `ipd_lint` also imports `agent_workflows.attention`, `agent_workflows.check_engine`, `agent_workflows.ipd_authoring`, `agent_workflows.record_producers`, `agent_workflows.renderers` and `agent_workflows.result_types`. Those are function-scoped rather than module-scoped, which is why a casual read missed them, but they are real: `check_engine` imports `engine`, and `attention` pulls in `artifact_core`, `backlog`, `plans`, `releases`, `research_index`, `run_viewer`, `selectors`, `specs` and `runner_shared`. `plan_readiness` is imported by BOTH drivers and by `status_set`/`ipd_schema`, and the item's own constraint is that whatever it imports "must stay stdlib-cheap and driver-agnostic". An `ipd_lint` edge would pull the CLI/renderer stack behind a predicate two drivers call in a hot loop. Since the chosen mechanism is already local, this trap is avoided entirely rather than mitigated; the correction is recorded so nobody restores the import later believing F-5.
   KEEP THE ABSENT-FIELD PATH UNTOUCHED. Only the FIELD-PRESENT branch gains the agreement requirement. The absent branch already goes through `history_verdict_approves`, and E-02 owns proving it unchanged.
   - Depends on: none
   - Expected outcome: a plan with a valid `- Readiness:` and no REVIEW RECORD in its history returns False, including when the history merely MENTIONS `plan-review`/`APPROVE`/`REJECT` in a non-review record; a plan with a real review record returns True; NO new definition of "attested" is added, NO new import is added to `plan_readiness`, and `ipd_lint` is not imported.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 PRESERVE THE OTHER THREE DECISIONS this predicate makes, each verified separately, because the risk here is widening or narrowing the gate by accident. (a) A PRESENT BUT OUT-OF-VOCAB value must still refuse OUTRIGHT and must NOT fall through to prose (`:316-320`); its comment explains why (falling back could approve a plan whose author meant `no-go`). (b) An ABSENT field must still fall back to the corrected newest history record via `history_verdict_approves(extract_newest_history_entry(text))` (`:323`), which is the back-compat path for plans reviewed before the field existed. (c) The unresolved-blocking-open-question refusal must still apply (`:325-326`). ALSO PRESERVE the documented boundary that this function does NOT read `- Status:` (`:304-305`): the caller independently requires `Status: reviewed`, and pulling that in here would widen the gate's meaning.
+- [x] E-02 PRESERVE THE OTHER THREE DECISIONS this predicate makes, each verified separately, because the risk here is widening or narrowing the gate by accident. (a) A PRESENT BUT OUT-OF-VOCAB value must still refuse OUTRIGHT and must NOT fall through to prose (`:316-320`); its comment explains why (falling back could approve a plan whose author meant `no-go`). (b) An ABSENT field must still fall back to the corrected newest history record via `history_verdict_approves(extract_newest_history_entry(text))` (`:323`), which is the back-compat path for plans reviewed before the field existed. (c) The unresolved-blocking-open-question refusal must still apply (`:325-326`). ALSO PRESERVE the documented boundary that this function does NOT read `- Status:` (`:304-305`): the caller independently requires `Status: reviewed`, and pulling that in here would widen the gate's meaning.
   - Depends on: E-01
   - Expected outcome: all four behaviors demonstrated individually against fixtures, unchanged from HEAD `8b4e1570`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Re-measure the CORPUS EFFECT at execution time and report it, because this is a behavior change to a shipped gate and the maintainer's decision rests on its cost. Evaluate, over every tracked plan file, how many carry a `Readiness` field and how many would have their auto-approve verdict FLIP from True to False.
+- [x] E-03 Re-measure the CORPUS EFFECT at execution time and report it, because this is a behavior change to a shipped gate and the maintainer's decision rests on its cost. Evaluate, over every tracked plan file, how many carry a `Readiness` field and how many would have their auto-approve verdict FLIP from True to False.
   THE AUTHORED NUMBERS ARE STALE AND THE COST IS NO LONGER ZERO (review PR-703). Re-measured at review HEAD `84258553`: 615 tracked plan files, **139** carry `Readiness` (not 65, more than double), and **127** return True today. Under the authored weak-pattern mechanism, 0 would flip, which is exactly why that mechanism is too weak to be worth shipping. Under the CORRECTED mechanism of E-01, **exactly 1** flips: `.aw/records/plans/pending/20260829-rununify-00-5e4sb6-unify-the-two-host-runners-onto-one-shared-runner-library-ph.ipd.md`.
   THAT ONE FLIP IS CLASSIFIED, so the executor is not left to judge it fresh: it is a GENUINE MISMATCH and refusing it is CORRECT. Its newest history record is `- 2026-09-03 approved (opencode ...)`, an APPROVAL record, not a review record, so nothing in its newest entry attests a readiness. Its review DID happen further down (`- 2026-08-30 reviewed (...): /plan-review: REVIEWED - OPEN QUESTIONS`), and note what that verdict says: OPEN QUESTIONS, whose own readiness would be NO-GO, while the plan carries `- Readiness: go`. So this is a plan whose field disagrees with its own review, which is precisely the class this plan exists to catch. It is already `Status: approved` by a human, so refusing AUTO-approval costs nothing operationally.
   DECIDE AND STATE WHETHER THE DISCRIMINATOR SCANS THE NEWEST RECORD ONLY OR ANY RECORD, because that choice is what produced the single flip and it is the one design question left in E-01. Scanning ANY record admits `5e4sb6` (it does contain a review record); scanning the NEWEST record only refuses it. RECOMMENDED: scan ANY record for the ATTESTATION question, because the question here is "did a review ever produce this field", not "what is the newest verdict" (which `newest_verdict`/`approval_refusals` already own and which would duplicate a second gate's job). Under that recommendation the corpus flip count is 0 and the forgeries are still refused, since a forged plan has NO review record anywhere. State which you implemented and re-measure accordingly; if you scan any-record, confirm the three measured forgeries still return False.
   If any OTHER plan flips, do not silently accept it: name it and say whether it is a genuine unattested field (correct to refuse) or a legitimate review the discriminator misses (a finding to report, not a reason to weaken the check).
   - Depends on: E-01
   - Expected outcome: a freshly measured count of Readiness-carrying plans and flipping plans, every flip individually classified, and the newest-record-versus-any-record choice stated with its measured flip count.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the test the item calls the real deliverable
 
-- [ ] E-04 Add the forged-field test, which the item names explicitly: "add a test asserting the predicate returns False for a forged field. That test is the real deliverable; the incident showed the predicate returning True four times in a row with nothing behind it." Put it in `tests/test_plan_readiness.py`, which already owns this surface (`PredicateTruthTableTests` at `:319` is the natural home; the readiness-reader fixtures are at `:279-311`). Cover, as separate assertions: a forged `go` with no review evidence (False); the same plan with a `/plan-review` line added (True); an out-of-vocab value (False, and NOT via the prose path); an absent field with an approving history (True, back-compat preserved); an absent field with a rejecting history (False).
+- [x] E-04 Add the forged-field test, which the item names explicitly: "add a test asserting the predicate returns False for a forged field. That test is the real deliverable; the incident showed the predicate returning True four times in a row with nothing behind it." Put it in `tests/test_plan_readiness.py`, which already owns this surface (`PredicateTruthTableTests` at `:319` is the natural home; the readiness-reader fixtures are at `:279-311`). Cover, as separate assertions: a forged `go` with no review evidence (False); the same plan with a `/plan-review` line added (True); an out-of-vocab value (False, and NOT via the prose path); an absent field with an approving history (True, back-compat preserved); an absent field with a rejecting history (False).
   ADD THE THREE MENTION-FORGERY CASES, WHICH ARE THE ONES THAT ACTUALLY DISCRIMINATE THE TWO MECHANISMS (review PR-701). Each of these PASSES the authored plan's `_REVIEW_EVIDENCE_RE` approach and therefore would have shipped a gate that still returns True; all three were run at review. (a) history whose only record is `- <date> to-review (a): authored. I mention plan-review in passing.` -> must be False. (b) `- <date> draft (a): created. The word APPROVE appears here.` -> must be False. (c) a non-review record containing `REJECT` -> must be False. Without these three, a passing suite would NOT prove the fix does what the plan claims, which is exactly the "test that restates current behavior" trap this E-item was written to avoid.
   PROVE THE TEST BITES, and be precise about which assertion proves what: assert the forged-field case FAILS against pre-change code (stash the fix and re-run). Note that the plain forged case would ALSO fail under the weak pattern, so it alone does not distinguish the mechanisms; the three mention-forgery cases are what prove the CHOSEN mechanism was necessary.
   - Depends on: E-01, E-02
   - Expected outcome: eight assertions covering the forged, attested, corrupt, back-compat-approve, back-compat-reject and THREE mention-forgery cases; the forged case fails before the fix and passes after; the mention-forgery cases demonstrably distinguish the chosen discriminator from the rejected pattern.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Confirm the four DRIVER call sites still behave, since the point of the change is to harden a decision those drivers make and a shared-module change reaches both hosts at once. Re-locate them BY SYMBOL (grep `is_plan_review_approved(`), because both files are the most heavily edited in the repository. THE PLAN'S LINE NUMBERS HAD ALREADY DRIFTED at review and are corrected here so a reader is not misled: they are `oc_runipd.py:2936` and `:6931` (not `:2968`/`:6718`), and `agy_runipd.py:1974` and `:3988` (not `:1988`).
+- [x] E-05 Confirm the four DRIVER call sites still behave, since the point of the change is to harden a decision those drivers make and a shared-module change reaches both hosts at once. Re-locate them BY SYMBOL (grep `is_plan_review_approved(`), because both files are the most heavily edited in the repository. THE PLAN'S LINE NUMBERS HAD ALREADY DRIFTED at review and are corrected here so a reader is not misled: they are `oc_runipd.py:2936` and `:6931` (not `:2968`/`:6718`), and `agy_runipd.py:1974` and `:3988` (not `:1988`).
   CORRECT THE PROMOTION THE PLAN DESCRIBES: IT IS `auto-approved`, NOT `approved` (review PR-704). This plan's Concern and Goal both say the predicate promotes `reviewed -> approved`, and the drivers do not do that. All four sites call `set_plan_approved`, whose docstring is explicit that it transitions to `auto-approved` and NOT to human `approved`, precisely so the machine never asserts the human-approval attestation (`oc_runipd.py:735-759`, fullauto `97df1z` OQ-02). `auto-approved` is a shipped sibling ready-to-execute tier (`ipd_schema.READY_TO_EXECUTE`) that the schema forbids from carrying the human `Approval:` field. The defect this plan fixes is REAL and unchanged (a forged field still licenses execution), but state it accurately: an unreviewed plan reaches an EXECUTABLE tier, without ever claiming a human approved it.
   FOR EACH SITE state what the call gates (the two `status == "reviewed" and full_auto` sites assign the queue status; the two `is_review and disposition in ("reviewed","approved")` sites also set `item["action"] = "execute"`) and confirm a newly-False verdict is SAFE: the plan is simply not auto-approved, with no exception and no mislabelled queue action. NOTE that two of the four wrap the call in `try/except Exception: pass`, so an exception there would be SILENTLY swallowed and the plan left un-promoted; that is fail-closed and therefore acceptable, but say so explicitly rather than relying on it, and confirm the other two are not similarly silent about a raise.
   DO NOT MODIFY THE DRIVERS: this is a read-and-report obligation, and the anti-divergence guard requires the shared rule to stay in the shared module.
   - Depends on: E-04
   - Expected outcome: a per-call-site account (symbol, line as found, what it gates, behavior on a False verdict, whether a raise is swallowed) confirming no driver edit is needed; the `auto-approved` versus `approved` distinction stated correctly; no driver file modified.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -133,7 +133,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Scope check
 
-- Over-scope: none. Two files, both required by E-01 and E-04. The drivers are deliberately NOT in `Scope-Paths` even though E-05 reads them, because E-05 is a read-and-report obligation and the anti-divergence guard requires the rule to stay shared.
+- Over-scope: ONE PATH BEYOND THE TWO DECLARED, added at execution and justified here rather than discovered later. `agent_workflows/plan_readiness.py` and `tests/test_plan_readiness.py` are as declared. The third is `tests/test_oc_runipd.py`, where `_repo_with_statuses`'s `reviewed` fixture gains ONE review history record. IT IS NOT OPTIONAL AND IT IS NOT SCOPE CREEP: without it this change silently makes `test_alias_refuses_a_reviewed_plan_even_with_full_auto_present` VACUOUS. That test pins an ORDERING (the `--action review is illegal` gate must fire BEFORE the auto-approval) via the assertion that the plan file still reads `- Status: reviewed`, and its own docstring calls that "the load-bearing one". The fixture carried a bare `- Readiness: go` over a history of only `approved`/`draft` records, so after this change the predicate can no longer clear it and the status survives whatever the ordering. MEASURED on the fixture: pre-change the predicate cleared it (True, assertion falsifiable), post-change it did not (False, assertion vacuous), and with the record prepended it clears it again (True). The edit is three lines of fixture plus a comment recording that measurement; it CHANGES NO ASSERTION and RELAXES NO GATE, it restores the reachability an existing assertion depends on. The alternative -- leaving it -- would ship a green suite hiding a disabled ordering check, which is precisely the "test that restates current behavior" trap E-04 was written to avoid, one layer out. A whole-suite scan for other affected fixtures found this one only; the other three approving-`Readiness:` fixtures in the suite are genuinely attested. The DRIVERS remain deliberately out of scope and unmodified: E-05 is read-and-report and the anti-divergence guard requires the rule to stay shared. `tests/test_oc_runipd.py` is a test fixture, not a driver.
 - Under-scope, EXPANDED AT REVIEW so the residual gaps are named rather than discovered later: the lint rule is unchanged, so the two layers now define "attested" differently (OQ-02); no plan file is audited or rewritten, so `5e4sb6` keeps a `- Readiness: go` that its own review's REVIEWED - OPEN QUESTIONS verdict does not support (it is already human-`approved`, so nothing automated depends on the field, and correcting a third party's plan is outside this fence); the typed review record, which is strictly stronger and already covers 137 of 139 Readiness-carrying plans, is NOT adopted (F-15); and no other `--full-auto` promotion input is examined. The chosen mechanism also does NOT verify that the review's verdict was POSITIVE, only that a review record exists: a plan whose review said NO-GO but whose field says `go` is refused only if `- Readiness:` is out-of-vocab or the newest-record variant is chosen. That asymmetry is acceptable because `IPD-M107`, `approval_refusals` and human approval all sit on that path, but state it rather than implying the field is now fully trustworthy.
 
 ## Required tests / validation
@@ -170,30 +170,312 @@ The `AGENTS.md` guidance already tells agents never to hand-write `- Readiness:`
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the forged-field reproduction BEFORE (True) and AFTER (False) using the same fixture, plus the same fixture with a `/plan-review` history line added showing True after the fix. PASTE THE THREE MENTION-FORGERY CASES (F-11) returning False after the fix, since those are what prove the chosen discriminator was necessary and the rejected pattern insufficient. Paste the `git diff` of the predicate. Paste a grep proving NO new definition of the evidence rule was added and that `plan_readiness` does NOT import `ipd_lint` (F-5 corrected, F-11). State which discriminator you called and, if you did not use `is_review_history_entry`, justify that against the three measured forgeries.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: DISCRIMINATOR USED: `plan_readiness.is_review_history_entry`, reached through a new in-module helper `history_has_review_record` that walks the BOUNDED history section and asks the existing discriminator of each record. `ipd_lint._REVIEW_EVIDENCE_RE` was NOT used and `ipd_lint` is NOT imported, per the review's PR-701/PR-702 corrections.
 
-- [ ] V-02 validates E-02
+    SAME FIXTURE, BEFORE (lane base HEAD `b83a6cd9`, fix stashed) then AFTER. One script, six cases, run twice:
+
+    BEFORE (pre-change code):
+    ```
+    A forged `go`, history has NO review at all                  -> True
+    MENTION FORGERY (a): to-review record MENTIONING plan-review -> True
+    MENTION FORGERY (b): draft record containing the word APPROVE -> True
+    MENTION FORGERY (c): non-review record containing REJECT     -> True
+    ATTESTED: same plan with a real /plan-review record added    -> True
+    ATTESTED via a `reviewed` record                             -> True
+    ```
+
+    AFTER (fix applied):
+    ```
+    A forged `go`, history has NO review at all                  -> False
+    MENTION FORGERY (a): to-review record MENTIONING plan-review -> False
+    MENTION FORGERY (b): draft record containing the word APPROVE -> False
+    MENTION FORGERY (c): non-review record containing REJECT     -> False
+    ATTESTED: same plan with a real /plan-review record added    -> True
+    ATTESTED via a `reviewed` record                             -> True
+    ```
+    All four forgeries flip True -> False while both attested shapes stay True, and the ONLY difference between row 1 and row 5 is one genuine `/plan-review` record. The three MENTION cases are what discriminate the mechanisms: each PASSES `_REVIEW_EVIDENCE_RE` (asserted mechanically by `test_the_rejected_mention_matcher_would_have_accepted_the_forgeries`), so the authored route would have shipped a gate still returning True for each.
+
+    GIT DIFF OF THE PREDICATE (the behavioral change; the docstring corrections are in the same commit):
+    ```
+    @@ -362,7 +386,10 @@ def is_plan_review_approved(plan_path: Path) -> bool:
+
+         readiness = _schema.read_readiness(text)
+         if readiness is not None:
+    -        # The STRUCTURED signal is authoritative and beats any prose in the history line.
+    +        # The STRUCTURED signal decides the ANSWER and beats any prose verdict in the history, but it
+    +        # must first be ATTESTED: a field no review produced asserts a clearance that never happened.
+    +        if not history_has_review_record(text):
+    +            return False
+             return readiness in _schema.READINESS_APPROVABLE
+         if _READINESS_FIELD_PRESENT_RE.search(text):
+    ```
+    plus the new `history_has_review_record`, whose body is seven lines over EXISTING primitives (`_history_section_lines`, `HISTORY_RECORD_RE`, `is_review_history_entry`):
+    ```
+        for line in _history_section_lines(text or ""):
+            candidate = line.strip()
+            if not HISTORY_RECORD_RE.match(candidate):
+                continue
+            if is_review_history_entry(candidate):
+                return True
+        return False
+    ```
+
+    NO NEW DEFINITION OF THE EVIDENCE RULE AND NO `ipd_lint` IMPORT. Every reference to the rejected pattern is PROSE; the only code references are the pre-existing primitives, and line 508 is the ONE new call:
+    ```
+    $ grep -n "ipd_lint\|_REVIEW_EVIDENCE_RE\|REVIEW_WORDS\|_REVIEW_PREFIX\|is_review_history_entry" agent_workflows/plan_readiness.py
+    94:    "is_review_history_entry",                                              <- __all__, pre-existing
+    325:    The test is the one the shipped pre-execution gate already uses (``ipd_lint.py``'s  <- prose, pre-existing
+    423:# parentheses did not match at all, so `is_review_history_entry` returned False,         <- comment, pre-existing
+    446:_REVIEW_WORDS = frozenset(("reviewed", "re-reviewed", "review", "re-review"))            <- pre-existing
+    447:_REVIEW_PREFIX = "/plan-review"                                                         <- pre-existing
+    450:def is_review_history_entry(entry: str) -> bool:                                        <- pre-existing
+    468:        if lowered in _REVIEW_WORDS or lowered.startswith(_REVIEW_PREFIX):              <- pre-existing
+    492:    IT REUSES :func:`is_review_history_entry` RATHER THAN A MENTION-MATCHER,             <- new prose
+    493:    of the fix. ``ipd_lint._REVIEW_EVIDENCE_RE`` scans the WHOLE history text             <- new prose
+    499:    `ipd_lint` for this (`ipd_lint` reaches `attention`, `check_engine`,                  <- new prose
+    508:        if is_review_history_entry(candidate):                                  <- THE ONE NEW CALL
+    523:    1. Only REVIEW records are consulted (:func:`is_review_history_entry`),               <- prose, pre-existing
+    552:        if not is_review_history_entry(candidate):                      <- pre-existing (newest_verdict)
+    601:       predicate rather than a third copy. Note it is STRICTER than ``ipd_lint``'s        <- prose, pre-existing
+    ```
+    An AST walk over the whole module (which catches FUNCTION-SCOPED imports, the shape that made F-5's claim false) shows the import set is unchanged and holds no `ipd_lint`:
+    ```
+    line 71   from __future__ import annotations
+    line 73   import re
+    line 74   from pathlib import Path
+    line 75   from typing import Dict, List, Optional, Sequence, Tuple
+    line 77   from agent_workflows import ipd_schema
+    line 78   from agent_workflows.attention import _history_section_lines
+    line 79   from agent_workflows.attention_contract import HISTORY_RECORD_RE
+    line 656  from agent_workflows import review_findings         <- pre-existing, inside approval_refusals
+    ```
+    `ReadinessFieldMustBeAttestedTests::test_plan_readiness_does_not_import_ipd_lint` re-runs that AST walk as an assertion, so the constraint is ENFORCED rather than merely observed here.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: four separate demonstrations with their inputs and returned values: (a) an out-of-vocab `Readiness` returns False AND is shown not to consult the prose path; (b) an absent field with an approving history returns True; (c) an unresolved blocking open question returns False; (d) proof the function still does not read `- Status:` (for example a plan whose `Status` is `draft` but whose review approved returns True from this function alone).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Four demonstrations, each over its own fixture, run as a separate script after the fix (the fifth is the unreadable-path case, kept because it is the other fail-closed boundary):
+    ```
+    (a) OUT-OF-VOCAB field over APPROVING prose (must be False, and must NOT use the prose path)
+          is_plan_review_approved            -> False
+          the prose path WOULD have approved  -> True (history_verdict_approves of the newest record)
+          so a True prose answer + a False verdict proves the prose path was NOT taken
+    (b) ABSENT field with an APPROVING history (must be True; back-compat preserved)
+          -> True
+          ABSENT field with a REJECTING history (must be False)
+          -> False
+    (c) unresolved BLOCKING open question under an approving verdict, NO field (must be False)
+          -> False
+          the same plan with the question RESOLVED (must be True)
+          -> True
+    (d) the function still does NOT read `- Status:`: a DRAFT plan with an ATTESTED go field
+          Status: draft, Readiness: go-pending-approval, real review record -> True
+          (True proves Status is still the CALLER's gate, not this predicate's)
+    (e) unreadable path still fails closed (no crash) -> False
+    ```
+    READ EACH ONE AS THE CLAIM IT MAKES. (a) is the row that could have been faked: a False here is only meaningful beside the SECOND line showing the prose WOULD have said True, so the refusal can only have come from the out-of-vocab branch and not from prose agreeing by accident. Note the new provenance check does NOT reach this branch at all: `read_readiness` normalizes a corrupt value to None, so control never enters the field-present-and-valid arm. (b) proves only the FIELD-PRESENT branch gained the requirement, in both directions, so back-compat is not shown by a path that says yes to everything. (c) shows the fallback is still a CONJUNCTION and that resolving a question still clears it. (d) is the no-widening claim: a `draft` plan answers True from this function alone, so `Status` remains the caller's gate.
 
-- [ ] V-03 validates E-03
+    ALSO PINNED BY THE SUITE, so these are regressions and not one-off observations: `PredicateTruthTableTests::test_the_whole_decision_order_answers_every_plan_shape` (16 rows, unchanged and still green), plus the new `test_the_corrupt_field_still_refuses_without_consulting_the_prose` and `test_the_predicate_still_does_not_read_status`, which assert (a) and (d) mechanically.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the freshly measured counts (plans carrying `Readiness`; plans returning True today; plans whose verdict flips) from a script run at execution time, not the authoring-time numbers and not review's (139/127/1 at `84258553`), since the corpus moves daily. State the newest-record-versus-any-record choice you implemented and its measured flip count. If any plan flips, paste its name and classify it. If `5e4sb6` flips, confirm the review classification (its newest record is an `approved` record, not a review, and its actual review verdict was REVIEWED - OPEN QUESTIONS against a `- Readiness: go` field, so refusing it is correct).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: CHOICE IMPLEMENTED: ANY RECORD, which is E-03's own recommendation. Measured at execution time over `git ls-files .aw/records/plans`, with the PRE-change decision order reimplemented locally in the same script so both answers come from one run rather than from two module versions:
+    ```
+    tracked plan files:                         694
+    carry a `- Readiness:` field:               244
+    PRE-change  is_plan_review_approved True:   238
+    POST-change is_plan_review_approved True:   238
+    FLIP True->False (newly refused):           0
+    FLIP False->True (newly approved, must be 0): 0
+    ```
+    The corpus has MOVED SUBSTANTIALLY since review, which is why re-measuring was required rather than optional: 694 tracked plans against review's 615, and 244 carrying the field against review's 139 (authoring said 65). So all three authored/reviewed numbers are stale, and the flip count had to be re-derived.
 
-- [ ] V-04 validates E-04
+    NOTHING FLIPS, AND THE ZERO IS NOT THE AUTHORED ZERO. The authored plan also predicted 0 flips, but under the WEAK mention-matcher, where 0 was a symptom of the mechanism not biting (PR-703). This 0 is under the STRICT discriminator, and it is measured alongside a second number that proves the mechanism does bite: a NEWEST-RECORD variant of the same rule flips 237 of the 238, because a reviewed plan's newest record is routinely a later `approved`/`executed`/maintainer record rather than the review. Both numbers from the same script:
+    ```
+    FLIP True->False, ANY-record:    0
+    FLIP True->False, NEWEST-record: 237
+    ```
+    That contrast is the whole justification for the any-record choice and is recorded in `history_has_review_record`'s docstring so the next reader does not "tighten" it into a 237-plan lockout.
+
+    `5e4sb6` DOES NOT FLIP, AND REVIEW'S CLASSIFICATION OF IT IS CONFIRMED-BUT-SUPERSEDED. Review predicted this one plan would flip, on the newest-record reading. Measured directly:
+    ```
+    plan: 20260829-rununify-00-5e4sb6-unify-the-two-host-runners-onto-one-shared-runner-library-ph.ipd.md
+    today: True
+      [0] review=False - 2026-09-16 approved (maintainer directive recorded by opencode/...): SET UNBLOCKED. All
+      [1] review=False - 2026-09-03 approved (opencode ...): CHILDREN 01 AND 02 AUTHORED from E-01's inventory,
+      [2] review=False - 2026-09-03 approved (opencode ...): SEQUENCING GATE RE-POINTED from `wtiso` to `lanectn
+      [3] review=False - 2026-09-03 approved (opencode ...): PARTIAL EXECUTION OF E-01 ONLY, deliberately bounde
+      [4] review=False - 2026-08-30 approved (aw set): status set to approved
+      [5] review=True  - 2026-08-30 reviewed (opencode (its_direct/...)): /plan-review: REVIEWED - OPEN QUESTIONS; PR-001..
+      any review record present: True
+    ```
+    Review's FACTS are exactly right: its newest record is an `approved` record and not a review, and its real review verdict was REVIEWED - OPEN QUESTIONS while its field says `go`. Its newest record has since become a 2026-09-16 maintainer `approved` record, which does not change that. What changed is the CHOSEN RULE: under any-record the plan is attested (record [5] is a genuine review), so it does not flip. THIS IS CORRECT FOR THIS PLAN'S SCOPE, and the residual is named honestly rather than quietly fixed: the gate now asks PROVENANCE ("did a review write this field"), not AGREEMENT WITH THE VERDICT, so a plan whose review said OPEN QUESTIONS while its field says `go` is still admitted here. That asymmetry is already recorded in the Scope check and is covered on the human path by `approval_refusals` and by the plan already being human-`approved`; closing it would be the verdict-agreement check this plan deliberately does not build (it would duplicate `newest_verdict`'s job and give one plan two verdict gates).
+
+    NO PLAN FLIPS IN THE OTHER DIRECTION EITHER (0 newly approved), which matters because a fail-closed change that accidentally widened the gate would be the worse defect and a flip count alone would not show it.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the EIGHT new assertions' source and names, their passing result, AND the forged-field assertion FAILING against pre-change code (stash the fix and re-run). Paste the three mention-forgery assertions specifically, since they are what distinguish the chosen mechanism from the rejected one; confirm each would have PASSED (wrongly) under `_REVIEW_EVIDENCE_RE`. Paste the `python3 -m pytest tests/test_plan_readiness.py` summary line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: NEW CLASS `ReadinessFieldMustBeAttestedTests` in `tests/test_plan_readiness.py`, seven test methods carrying NINE table rows plus the separate claims. The plan asked for eight assertions covering six named cases plus the three mention forgeries; the table carries all nine (the extra row is the not-newest attested case, which is what justifies the any-record choice), and the cases the plan wanted as standalone claims are standalone because they assert something a row cannot.
 
-- [ ] V-05 validates E-05
+    THE TABLE ROWS (`ATTESTATION_TABLE`, each row `(case, plan text, expected answer, why)`), by case and expectation:
+    ```
+    a FORGED `go` with no review evidence at all                          -> False
+    MENTION FORGERY: a `to-review` record MENTIONING plan-review          -> False
+    MENTION FORGERY: a `draft` record containing the word APPROVE         -> False
+    MENTION FORGERY: a non-review record narrating a predecessor's REJECT -> False
+    the SAME forged plan with a real `/plan-review` record added          -> True
+    an ATTESTED field whose review record is NOT the newest               -> True
+    a field PRESENT but OUT OF VOCAB, over approving prose                -> False
+    an ABSENT field with an approving history                             -> True
+    an ABSENT field with a REJECTING history                              -> False
+    ```
+    THE THREE MENTION-FORGERY FIXTURES, verbatim, since they are the discriminating ones:
+    ```
+    FORGED_MENTIONS_PLAN_REVIEW = "- 2026-09-08 to-review (a): authored. I mention plan-review in passing."
+    FORGED_MENTIONS_APPROVE     = "- 2026-09-08 draft (a): created. The word APPROVE appears here."
+    FORGED_MENTIONS_REJECT      = "- 2026-09-08 to-review (a): supersedes a plan whose review said REJECT - NEEDS REPLAN."
+    ```
+    THE SEVEN METHODS, all passing:
+    ```
+    $ python3 -m pytest tests/test_plan_readiness.py::ReadinessFieldMustBeAttestedTests -o addopts="" -v
+    test_the_corrupt_field_still_refuses_without_consulting_the_prose PASSED    [ 14%]
+    test_a_plan_with_no_history_section_has_no_review_evidence PASSED          [ 28%]
+    test_the_provenance_helper_reads_any_record_in_the_bounded_section PASSED  [ 42%]
+    test_the_predicate_still_does_not_read_status PASSED                       [ 57%]
+    test_plan_readiness_does_not_import_ipd_lint PASSED                        [ 71%]
+    test_the_rejected_mention_matcher_would_have_accepted_the_forgeries PASSED [ 85%]
+    test_a_readiness_field_is_honored_only_when_a_review_record_accounts_for_it PASSED [100%]
+    ============================== 7 passed in 0.19s ===============================
+    ```
+
+    THE TESTS BITE: run against PRE-CHANGE code (`git stash push -- agent_workflows/plan_readiness.py`, tests kept), FOUR of the seven fail and the failure names all four forged rows returning True:
+    ```
+    E       AssertionError: Lists differ: ["  a FORGED `go` with no review evidence [1620 chars]ion"] != []
+    E         a FORGED `go` with no review evidence at all:
+    E           expected False, got True
+    E         MENTION FORGERY: a `to-review` record MENTIONING plan-review:
+    E           expected False, got True
+    E         MENTION FORGERY: a `draft` record containing the word APPROVE:
+    E           expected False, got True
+    E         MENTION FORGERY: a non-review record narrating a predecessor's REJECT:
+    E           expected False, got True
+    FAILED ...::test_a_plan_with_no_history_section_has_no_review_evidence
+    FAILED ...::test_the_rejected_mention_matcher_would_have_accepted_the_forgeries
+    FAILED ...::test_the_provenance_helper_reads_any_record_in_the_bounded_section
+    FAILED ...::test_a_readiness_field_is_honored_only_when_a_review_record_accounts_for_it
+    4 failed, 3 passed in 0.50s
+    ```
+    Note WHICH assertion proves WHAT, as the plan required. The plain forged row fails pre-change, but it would ALSO have been fixed by the rejected mention-matcher, so it does not distinguish the mechanisms. The three MENTION rows do, and their claim is asserted directly rather than argued: `test_the_rejected_mention_matcher_would_have_accepted_the_forgeries` imports `ipd_lint` IN THE TEST and asserts, per forgery, that `_REVIEW_EVIDENCE_RE.search(history)` is NOT None (i.e. the rejected pattern ACCEPTS it) while `history_has_review_record` is False (the shipped mechanism refuses it). It passes, so all three would have PASSED WRONGLY under `_REVIEW_EVIDENCE_RE` and a suite carrying only the plain forged row would have gone green over an unfixed gate. That test also fails closed in the other direction: if `IPD-M107` is ever tightened to match (OQ-02 route (b)), it goes red and the divergence has been closed deliberately rather than drifting shut.
+
+    WHOLE-FILE SUMMARY LINE:
+    ```
+    $ python3 -m pytest tests/test_plan_readiness.py -o addopts="" -q
+    ........................................                                 [100%]
+    40 passed in 0.63s
+    ```
+    40 against 33 before the change, i.e. the 7 new methods with no pre-existing test disturbed.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: for each of the four call sites, paste the symbol name and surrounding lines AS FOUND at execution time (proving they were re-located, not copied from this plan, whose numbers had already drifted per F-13), state what the call gates, state the behavior on a False verdict, and state whether a raise is swallowed by a surrounding `try/except Exception: pass` (F-14). Confirm the promotion target is `auto-approved` and not human `approved` (F-12). Paste `git status --porcelain` showing neither driver file was modified. Paste the bare `python3 -m pytest` summary line and the `tests/test_runner_item_dependencies.py` result, comparing failing NODE IDS to the RE-MEASURED baseline (`2 failed, 5957 passed` at `84258553`, node ids in the required-tests section), not the wrong figure this plan was authored with; confirm any pre-existing failure is pre-existing and do not attempt to green it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE CALL SITES HAVE MOVED MODULE, NOT JUST LINE, AND THERE ARE NOW TWO RATHER THAN FOUR. This is exactly why E-05 said to re-locate BY SYMBOL, and it is a bigger drift than F-13 anticipated: the `rununify` Set has since split `initialize_run` and `execute_item` into shared cores, so BOTH former per-host pairs are now ONE shared call each in `runner_shared.py`, reached by both hosts. Neither `oc_runipd.py:2936`/`:6931` nor `agy_runipd.py:1974`/`:3988` exists as a call any more. Full symbol grep as found:
+    ```
+    $ grep -rn "is_plan_review_approved" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py agent_workflows/runner_shared.py
+    oc_runipd.py:95:    is_plan_review_approved,                       <- import from plan_readiness
+    oc_runipd.py:466:    "is_plan_review_approved",                     <- __all__ re-export
+    oc_runipd.py:3416:        is_plan_review_approved_fn=is_plan_review_approved,   <- INJECTION into the shared core
+    agy_runipd.py:141:from agent_workflows.plan_readiness import is_plan_review_approved
+    agy_runipd.py:2182:        is_plan_review_approved_fn=is_plan_review_approved,  <- INJECTION into the shared core
+    runner_shared.py:6091:        owner="plan_readiness.is_plan_review_approved",  <- RunPolicyFlag metadata for --full-auto
+    runner_shared.py:12989:    is_plan_review_approved_fn: Any = None,        <- shared initialize_run parameter
+    runner_shared.py:13198:                if is_plan_review_approved_fn(p_path):     <- CALL SITE 1
+    runner_shared.py:13930:    from agent_workflows.plan_readiness import is_plan_review_approved
+    runner_shared.py:13991:    is_plan_review_approved = getattr(driver_module, "is_plan_review_approved", is_plan_review_approved)
+    runner_shared.py:15241:        if is_plan_review_approved(plan_curr):                      <- CALL SITE 2
+    ```
+
+    CALL SITE 1, `runner_shared.py:13198`, inside the shared `initialize_run` queue build (the former `oc_runipd`/`agy_runipd` pair; both hosts inject the predicate at `oc_runipd.py:3416` and `agy_runipd.py:2182`). As found:
+    ```
+        if status == "reviewed" and full_auto and p_path:
+            try:
+                if is_plan_review_approved_fn(p_path):
+                    set_plan_approved_fn(repo, id6)
+                    status = "auto-approved"
+            except Exception:
+                pass
+    ```
+    WHAT IT GATES: the QUEUE STATUS at queue-build time. A True verdict clears the plan on disk and sets the local `status` to `auto-approved`, which then feeds `action_for(kind, status)` two lines later and so decides the item's queue ACTION. BEHAVIOR ON A NEWLY-FALSE VERDICT: the `if` is simply not taken, `status` stays `reviewed`, and `action_for` derives a review action. No exception, no mislabelled action, nothing else reads the verdict. RAISE SWALLOWED: YES, by `except Exception: pass`. That is fail-closed (the plan is left un-promoted) and therefore acceptable, but it is stated rather than relied on: a bug in the new code path would be INVISIBLE here rather than loud, which is why V-01's direct reproduction and the new unit tests, not the driver's behavior, are this change's evidence.
+
+    CALL SITE 2, `runner_shared.py:15241`, in the shared post-turn disposition handler. As found:
+    ```
+        full_auto = state.get("options", {}).get("full_auto", False)
+        auto_approved = False
+        if is_review and disposition in ("reviewed", "approved") and full_auto:
+            plan_curr = resolve_plan_path(repo, item.get("configured_file", ""), item["id6"])
+            if is_plan_review_approved(plan_curr):
+                try:
+                    set_plan_approved(repo, item["id6"])
+                    run_action = state.get("options", {}).get("action")
+                    if run_action != "review":
+                        item["action"] = "execute"
+                        item["status"] = "queued"
+                    item["auto_approved"] = True
+    ```
+    WHAT IT GATES: the review-to-execute BRIDGE after a review turn finishes. A True verdict clears the plan, flips `item["action"]` to `execute` and `item["status"]` to `queued` (unless the whole run's action is `review`), marks `auto_approved`, and appends an `ipd-auto-approved` event. BEHAVIOR ON A NEWLY-FALSE VERDICT: the branch is skipped entirely, so the item keeps its `reviewed` disposition and its review action, `auto_approved` stays False, and no event is written; a human then approves it in one command. RAISE SWALLOWED: NO, not for the predicate. Note the difference from site 1 carefully, because F-14 got this half right and the placement matters: the `try` here opens AFTER the predicate call, so it guards `set_plan_approved` and the state writes, and a raise from the PREDICATE would propagate out of this handler. That is louder than site 1, which is the safer of the two shapes for surfacing an implementation bug, and it is another reason the new code path is deliberately pure and exception-free (it only walks lines and matches regexes already used by `newest_verdict`).
+
+    PROMOTION TARGET CONFIRMED `auto-approved`, NOT HUMAN `approved` (F-12 upheld). Both sites call `set_plan_approved`, whose two host definitions (`oc_runipd.py:875`, `agy_runipd.py:972`) shell out to `aw set auto-approved <id6> --actor "aw oc run --full-auto" --yes --no-commit`, with no `--by-human` anywhere, and whose docstring records the OQ-02 resolution that the machine must not assert the human attestation. `auto-approved` is in `ipd_schema.READY_TO_EXECUTE` (`ipd_schema.py:267`), so the defect this plan fixes is REAL and precisely stateable: a forged field let an unreviewed plan reach an EXECUTABLE tier, without ever claiming a human approved it. The `--full-auto` flag's own help at `runner_shared.py:6091` names this predicate as its `owner`, which is the shipped statement that this predicate IS the gate.
+
+    NEITHER DRIVER MODIFIED (read-and-report honored; the anti-divergence guard keeps the rule shared):
+    ```
+    $ git status --porcelain
+     M .aw/records/plans/pending/20260908-rdattest-02-8v5pwa-make-the-auto-approve-predicate-require-the-review-evidence.ipd.md
+     M agent_workflows/plan_readiness.py
+     M tests/test_oc_runipd.py
+     M tests/test_plan_readiness.py
+    ```
+    `oc_runipd.py`, `agy_runipd.py` and `runner_shared.py` are all absent from that list, i.e. E-05 was read-and-report as required and the shared-module change reached both hosts with no per-host edit. `tests/test_oc_runipd.py` IS an out-of-fence path and is justified in the Scope check below; it is a TEST FIXTURE, not a driver.
+
+    ONE OUT-OF-FENCE EDIT WAS REQUIRED, AND FINDING IT IS WHY THIS V-ITEM IS NOT JUST A LINE COUNT. My first draft of this evidence asserted that the host driver fixtures "pass BECAUSE their histories carry a real `reviewed`/`/plan-review` record, so they are attested under the new rule". I then CHECKED that claim instead of shipping it, and it was FALSE for one fixture out of four, in a way a green suite could not reveal. `_repo_with_statuses` (`tests/test_oc_runipd.py:3966`) builds its `reviewed` plan from `_CONFORMING_PLAN` plus a bare `- Readiness: go`, and that template's history holds only `approved` and `draft` records, so the fixture was UNATTESTED under the new rule. Measured on that exact fixture:
+    ```
+    the revw01 fixture, if the --full-auto auto-approval were reached:
+      PRE-change  would clear it -> True   (Status would become auto-approved: the assertion COULD fail)
+      POST-change would clear it -> False  (Status stays reviewed regardless: the assertion is VACUOUS)
+    ```
+    THE CONSEQUENCE IS A SILENTLY VACUOUS TEST, not a red one, which is the worse failure mode. `test_alias_refuses_a_reviewed_plan_even_with_full_auto_present` exists to pin an ORDERING: that the `--action review is illegal` gate fires BEFORE the auto-approval, and its own docstring calls the status assertion "the load-bearing one: if the gate ran AFTER the auto-approval, the plan file would have been mutated to `auto-approved`". Once the predicate cannot clear the fixture at all, `- Status: reviewed` survives whether the gate runs first or not, so the test passes for the wrong reason and would no longer catch the ordering regression it was written for. FIXED by PREPENDING one review record to the helper's `reviewed` fixture (newest-first, as `aw set` writes), which restores reachability: `is_plan_review_approved` -> True on the rebuilt fixture, so the ordering claim is falsifiable again. `tests/test_oc_runipd.py` -> `212 passed`.
+
+    THE BLAST RADIUS WAS MEASURED RATHER THAN ASSUMED, by scanning every test source for a plan literal carrying an approving `- Readiness:` and asking the predicate about each: `_repo_with_statuses` was the ONLY unattested one. The other three are genuinely attested and needed no edit, which is what my original claim got right: `test_run_flag_surface._PROBE_PLAN` (`- 2026-09-05 reviewed (test): APPROVE`), `test_oc_runipd`'s `p_field` and `test_agy_runipd_cli`'s `clear` (both `reviewed (aw set)` records). The `--full-auto` end-to-end test's fake reviewer also writes a `/plan-review` record, so it stays attested by construction.
+
+    BARE SUITE, and the baseline comparison is by NODE ID as instructed:
+    ```
+    $ python3 -m pytest
+    1 failed, 7239 passed, 3 skipped, 2 xfailed, 3 warnings in 101.07s (0:01:41)
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    ```
+    THE AUTHORED AND REVIEWED BASELINES ARE BOTH STALE AND NEITHER FAILURE THEY NAME IS PRESENT. Review's baseline was `2 failed, 5957 passed` at `84258553` with node ids `test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose` and `test_runner_backlog_close.py::ShutdownReportOnInterrupt::test_sigint_produces_the_report_and_exits_130`; BOTH now PASS, and the suite has grown to 7240 tests. So the comparison is against a freshly established baseline, done the only way that settles it: by reverting my own change.
+
+    THE ONE FAILURE IS PRE-EXISTING, ENVIRONMENTAL, AND ALREADY FILED. Proven by reverting, not argued: with `agent_workflows/plan_readiness.py` and `tests/test_plan_readiness.py` stashed at base HEAD `b83a6cd9`, the same node id fails identically (`1 failed in 0.29s`). Its cause is the AMBIENT environment, not the code: the test asserts `OPENCODE_CONFIG_CONTENT not in main_env` while the env under inspection is built by merging `os.environ`, and this agent turn itself is launched with that variable exported, so the key is present for reasons unrelated to the code under test. Measured both directions:
+    ```
+    $ env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped -o addopts="" -q
+    1 passed in 0.27s
+
+    $ env -u OPENCODE_CONFIG_CONTENT python3 -m pytest
+    7240 passed, 3 skipped, 2 xfailed, 3 warnings in 103.14s (0:01:43)
+    ```
+    So the suite is FULLY GREEN with the ambient leak removed, and my delta is `+1 test file's 7 new tests, 0 new failures`. It was NOT greened in any other way: the test was not edited, skipped, or weakened. It is already carried by backlog item `to77re` (`Status: open`, `Work-Kind: bug`, `Blocks-Release: next`), filed on 2026-09-20 from another lane, whose text describes this exact assertion and this exact cause.
+
+    FOCUSED SURFACES, including the anti-divergence guard that constrains this change's SHAPE:
+    ```
+    $ python3 -m pytest tests/test_plan_readiness.py tests/test_ipd_lint.py tests/test_runner_item_dependencies.py -o addopts="" -q
+    ........................................................................ [ 59%]
+    ..................................................                       [100%]
+    122 passed in 8.03s
+    ```
+    `tests/test_runner_item_dependencies.py::AntiDivergenceGuardTests` passes, which is the mechanical confirmation that the rule stayed in the shared module and no driver was taught its own copy. Both host driver CLI surfaces were run too (`tests/test_run_flag_surface.py tests/test_agy_runipd_cli.py` -> `147 passed`), since they exercise the `--full-auto` auto-approve path end to end with a `Readiness: go` fixture, and `tests/test_oc_runipd.py` -> `212 passed` after the fixture repair above.
+  - Result: pass
 
 ## Approval and execution gate
 
