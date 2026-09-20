@@ -10,18 +10,18 @@
 - Scope: Make a refused finalize (a) visible in the run outcome instead of being counted as success, and (b) automatically re-dispatched ONCE PER REMAINING BUDGET UNIT to the same item in the same run, carrying the gate's own findings, with FAIL ITEM on exhaustion. Spend the existing frozen retry budget through the already-shipped helpers rather than inventing a second counter. EXCLUDES weakening or changing what any gate decides; excludes the verifier verdict fail-open (`wyw936`/`1bfppy`); excludes the retryable-class allowlist for host/exit failures (`xipfy1`); excludes any new CLI flag.
 - Scope-Paths: agent_workflows/render_stream.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_render_stream.py, tests/test_finalize_sendback.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: finalback
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: zzcrlo
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: rwibaz
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-20 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: zzcrlo verified (set finalback, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/runner_shared.py: changed by the plan's approved execution (auto-reconciled by aw oc run); in-scope-unmodified agent_workflows/agy_runipd.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/oc_runipd.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_render_stream.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-20 execution performed, awaiting the driver's finalize (opencode/its_direct/pt3-claude-opus-5-1m-us, run `run-20260920T041049Z-2017708` position 02, lane `aw/lane/zzcrlo`): THIS ENTRY DOES NOT CLAIM THE TERMINAL TRANSITION, which only `aw ipd finalize` may write and which this worker lane is correctly refused (`AW-LIFECYCLE-ROLE-001`). It records that the work is complete and verified. All six `E-*` performed and all six `V-*` verified with pasted evidence; `aw ipd lint --phase pre-transition` CONFORMING with 0 diagnostics; bare `python3 -m pytest` -> `7180 passed, 3 skipped, 2 xfailed` against a worktree baseline of `7134 passed, 3 skipped, 2 xfailed` measured here at HEAD `a36dbc1e` (delta exactly the 46 new tests; zero failing node ids before or after).
   TWO CHANGES OF SHAPE FROM WHAT THE PLAN ANTICIPATED, both because the tree moved under it, both recorded as decisions with evidence. FIRST, the plan's `Scope-Paths` expected TWIN refusal arms in `oc_runipd.py` and `agy_runipd.py`; at HEAD those twins no longer exist (`grep -rn "finalize_refus"` returns nothing in either driver) because the arm moved into the shared `execute_item_core`. The work therefore went to `agent_workflows/runner_shared.py`, which is where this plan's own text says to put shared logic, and BOTH declared driver paths went unmodified. That makes "both hosts behave identically" true by construction rather than by a pinned equality test. SECOND, E-02's in-run dependency defect was ALREADY FIXED by the maintainer's ruling of 2026-09-19, which deleted `edge_satisfied`'s in-run status shortcut after it cost run `run-20260919T194413Z-2056285` 2h10m and $55.02; re-introducing a read there is explicitly forbidden, so E-02 asserts the property as a regression guard and changes no gate.
   OQ-04 WAS HONORED, NOT WORKED AROUND: `r2i1b1` is `executed`, so E-01 consumes its shared `Refusal` record through `record_refusal`/`refusal_of_item` and added NO renderer branch of its own; the refusal renders through that plan's existing any-status diagnostics block. OQ-03 was resolved as "no" with fresh measurements and its divergence filed as backlog `eh91an`.
