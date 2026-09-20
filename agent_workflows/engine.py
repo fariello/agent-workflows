@@ -6639,7 +6639,21 @@ def run(args: argparse.Namespace) -> int:
             shim_members = generate_shim_members(
                 workflows, plan.source_root, target_layout=target_layout
             )
-            show_install_diffs(plan, body_members, shim_members)
+            # The PREVIEW must compose the same generated map the APPLY composes, or the dry
+            # run under-reports the files an apply would write (backlog bplplj, plan at61gc).
+            # MEASURED before this call existed: `--diff` printed 213 proposed-file headers
+            # with ZERO under `.agents/skills/`, while an apply wrote 92 files there. The apply
+            # composition is `install_into_repo` (`skill_members = _build_skill_members(...)`
+            # then `{**shim_members, **skill_members}`); this MIRRORS it with the same call, the
+            # same arguments and the same merge order rather than inventing a second answer -
+            # a second composition is exactly how the two paths drifted. Shim and skill keys
+            # have zero overlap, so the merge order cannot drop a member. `show_install_diffs`
+            # itself is unchanged: it unions body members with whatever generated map it is
+            # handed, so the defect was the argument and not the renderer.
+            skill_members = _build_skill_members(
+                workflows, plan.source_root, target_layout
+            )
+            show_install_diffs(plan, body_members, {**shim_members, **skill_members})
             continue
 
         try:

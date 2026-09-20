@@ -41,6 +41,7 @@ NONCONFORMANT = "check.name-nonconformant"
 ID6_COLLISION = "check.id6-collision"
 SETID_COLLISION = "check.setid-collision"
 IDENTITY_SLOT = "check.id6-identity-slot"
+IDENTITY_ABSENT = "check.identity-absent-from-name"
 TYPE_UNSUPPORTED = "check.type-unsupported"
 DRAFT_READY = "check.ipd-draft-ready-to-review"
 MISSING_STATUS = "attention.missing-status"
@@ -303,7 +304,7 @@ class CollisionTests(unittest.TestCase):
             "two SPECS conflicting under a setid a PLAN also uses",
             (
                 (
-                    f"{PLANS}/20260101-demo-01-aaa111-p.ipd.md",
+                    f"{PLANS}/20260101-topic-01-aaa111-p.ipd.md",
                     _plan_text("aaa111", setid="topic", desc="PlanDesc"),
                 ),
                 (
@@ -331,7 +332,7 @@ class CollisionTests(unittest.TestCase):
             "one setid used by a plan and a spec, no descriptives",
             (
                 (
-                    f"{PLANS}/20260101-demo-01-aaa111-p.ipd.md",
+                    f"{PLANS}/20260101-topic-01-aaa111-p.ipd.md",
                     _plan_text("aaa111", setid="topic"),
                 ),
                 (
@@ -353,11 +354,11 @@ class CollisionTests(unittest.TestCase):
             "one setid reused with a CONSISTENT descriptive",
             (
                 (
-                    f"{PLANS}/20260101-demo-01-aaa111-a.ipd.md",
+                    f"{PLANS}/20260101-topic-01-aaa111-a.ipd.md",
                     _plan_text("aaa111", setid="topic", desc="Alpha"),
                 ),
                 (
-                    f"{PLANS}/20260101-demo-02-bbb222-b.ipd.md",
+                    f"{PLANS}/20260101-topic-02-bbb222-b.ipd.md",
                     _plan_text("bbb222", setid="topic", desc="Alpha"),
                 ),
             ),
@@ -376,7 +377,7 @@ class CollisionTests(unittest.TestCase):
                     _plan_text("aaa111", desc="Demo"),
                 ),
                 (
-                    f"{SPECS}/20260101-demo-01-bbb222-b.spec.md",
+                    f"{SPECS}/20260101-other-01-bbb222-b.spec.md",
                     _spec_text("bbb222", setid="other"),
                 ),
             ),
@@ -456,14 +457,19 @@ class CollisionTests(unittest.TestCase):
                     _walk_text(),
                 ),
             ),
-            (DRAFT_READY,),
+            (DRAFT_READY, IDENTITY_ABSENT),
             (),
             (IDENTITY_SLOT,),
             "THE MASS-FLAGGING TRAP: in `YYYYMMDD-HHMM-NN-<slug>` the 4-digit HHMM occupies the "
             "setid segment and the slug's first word (`assess`) is six lowercase characters, so a "
             "naive slot parser reads `assess` as an id6 and flags every legacy file in the tree. "
             "Only a filename whose slot parses as a REAL id6 via the naming authority is checked, and "
-            "this row is what holds that line",
+            "this row is what holds that line. THE MUST-NOT COLUMN IS THE LOAD-BEARING HALF: findtier "
+            "`3i6rso` added `check.identity-absent-from-name`, which reports this record ON PURPOSE "
+            "(its declared `Id: wvlk84` is absent from its own filename, so `aw find` cannot locate "
+            "it by name), and the two rules must stay DISTINGUISHABLE - `check.id6-identity-slot` is "
+            "an `error` about a foreign id6 in a real slot, while the advisory is a `warning` about a "
+            "grandfathered name. This row passing with BOTH ids would mean the trap re-opened",
         ),
     )
 

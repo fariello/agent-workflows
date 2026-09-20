@@ -258,6 +258,70 @@ class SkillEmissionInstallTests(unittest.TestCase):
             "skill files remain after manifest-driven uninstall",
         )
 
+    def test_diff_preview_reports_skill_paths_and_apply_fileset_is_unchanged(self):
+        # E-03/V-03 of plan at61gc: the END-TO-END claim, through the real command surface
+        # (`python3 install-workflows.py --diff` -> `engine.run`), so the fix is shown as
+        # operator-visible output and not only as a captured map. NOTE the flag belongs to the
+        # STANDALONE installer: `aw install` has `--dry-run` and REJECTS `--diff`.
+        #
+        # COUNT PROPOSED-FILE HEADERS, DO NOT GREP FOR THE WORD "skills". Measured before the
+        # fix: a naive `grep skills` on this output matches content lines (host-adapter path
+        # templates such as ".agents/skills/{skill_name}/SKILL.md"), so a grep-based check
+        # reports the defect as already fixed. Only a `Diff: <path>` header is a previewed path.
+        import contextlib
+        import io
+
+        preview_repo = init_repo(self.base / "diff-preview")
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = INS.run(
+                INS.parse_args(
+                    [
+                        "--repo",
+                        str(preview_repo),
+                        "--diff",
+                        "--no-color",
+                        "--source",
+                        str(self.source),
+                    ]
+                )
+            )
+        self.assertEqual(rc, 0)
+        headers = [
+            line[len("Diff: ") :]
+            for line in buf.getvalue().splitlines()
+            if line.startswith("Diff: ")
+        ]
+        self.assertTrue(headers, "the preview proposed no files at all")
+        skill_headers = sorted(h for h in headers if h.startswith(".agents/skills/"))
+        # PROPERTY, NOT A COUNT: the corpus size moves whenever the manifest gains a row.
+        # Pre-fix this was ZERO out of 213 previewed paths; it must now be non-empty.
+        self.assertTrue(
+            skill_headers,
+            "the --diff preview reported no skill paths (it under-reports what an apply writes)",
+        )
+
+        # And the preview's skill paths are exactly what an APPLY writes there, which is the
+        # parity being claimed rather than merely "some skills appear".
+        apply_repo = init_repo(self.base / "diff-apply")
+        INS.install_into_repo(apply_repo, self.source, yes=True, no_color=True)
+        applied_skills = self._skill_files_on_disk(apply_repo)
+        self.assertEqual(
+            skill_headers,
+            applied_skills,
+            "previewed skill paths differ from the skill files an apply writes",
+        )
+
+        # THE SAFETY CLAIM OF THE WHOLE CHANGE: only the PREVIEW moved. The applied skill set
+        # must still be exactly what the generator produces, so a reader can see this plan did
+        # not alter what an install writes.
+        expected = sorted(
+            INS._build_skill_members(INS.parse_manifest(self.source), self.source, "aw")
+        )
+        self.assertEqual(
+            applied_skills, expected, "an apply's on-disk skill fileset changed"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
