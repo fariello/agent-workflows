@@ -7,18 +7,18 @@
 - Scope: IN: replace `attention.py`'s local `_STATUS_COLOR_256` lifecycle lookups with the shared `term.py` helpers, apply the Section 9.1 rule that glyph, id6 and status word receive the SAME treatment while artifact type, title and path receive none, handle the three statuses that currently fall through the lifecycle table, re-point the cross-module palette-parity test that reads the deleted symbol, and update the command's snapshots and the shipped hardcoded-escape assertions. OUT: deleting `_CLASS_COLOR_256` (it keys the attention CLASS vocabulary, which spec Section 3 excludes as a non-goal; see E-02), the other consumers (children `9zvl2w`, `qdd5jq`), any change to attention's class computation, and the `lanes` synthetic tree, which never becomes an `Item` and so never reaches a lifecycle site (see Deferred).
 - Scope-Paths: agent_workflows/attention.py, tests/test_attention.py, tests/test_attention_priority_blocker.py, tests/test_term.py
 - Item-Dependencies: executed:bn026f
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: lifeglyph
 - Order: 5
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: f9t5hz
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - From-Spec: uonrjg
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-20 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: f9t5hz verified (set lifeglyph, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_attention_priority_blocker.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-19 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED. PR-501..PR-508 all FIXED, none deferred, none open. Four under-scope gaps closed: the colored artifact TYPE column is a live A10 violation no plan in the Set owned; deleting attention._STATUS_COLOR_256 breaks tests/test_term.py which was undeclared; the hardcoded escape assertions span two test files with one holding priority colors that must not change; and a glyph column would misalign under this file's bare-len padding. Corrected the headline claim: class_of raises before any render site, so the unreachable ?-row is replaced by the three statuses that genuinely miss the table. OQ-01 resolved. Readiness go-pending-approval.
 
