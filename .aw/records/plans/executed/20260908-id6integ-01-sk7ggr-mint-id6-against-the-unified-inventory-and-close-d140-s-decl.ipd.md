@@ -12,18 +12,18 @@
 - Scope: Make a cross-type id6 collision impossible AT CREATION by minting against the unified inventory, and make the two DETECTION gaps this graduation measured impossible to reintroduce: a `- Id:` matched in prose rather than in front matter, and the identity-slot rule's blind spot for a file that both declares and slots a foreign id6. EXCLUDES the lookup-surface presentation half, which is Order 02's whole subject, and excludes setid uniqueness, which is `sjsoqq`.
 - Scope-Paths: agent_workflows/artifact_core.py, agent_workflows/check_engine.py, agent_workflows/backlog.py, agent_workflows/specs.py, agent_workflows/releases.py, agent_workflows/ipd_authoring.py, agent_workflows/artifact_rename.py, agent_workflows/research_cmd.py, agent_workflows/set_records.py, tests/test_id6_global_mint.py, tests/test_check_engine_collisions.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: id6integ
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: sk7ggr
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: wx95o4
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-20 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: sk7ggr verified (set id6integ, attempt 1). [Scope reconciliation - out-of-scope DECISIONS.md: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_check_engine.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_check_recipe.py: changed by the plan's approved execution (auto-reconciled by aw oc run)]
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 FIXED, zero deferred; OQ-02 left open as a maintainer cost decision; review record written
 - 2026-09-10 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 all FIXED, zero deferred. OQ-02 remains OPEN by design (a maintainer cost/silence tradeoff, non-blocking because every option removes the false clean).
