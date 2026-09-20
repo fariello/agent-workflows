@@ -11,18 +11,19 @@
 - Scope: Replace the whole-tree assertion with the named-id6 pattern its two siblings already use, using the existing `_find` helper and an honest `skipTest`, and add a corpus-property assertion that survives a legitimate REJECT if one is genuinely wanted. EXCLUDES editing `32ij2j` or any plan's review record; EXCLUDES a general guard against the whole "test asserts on live repo corpus" class (recorded as a decision with evidence, and a follow-up filed if wanted); EXCLUDES `tests/test_run_viewer.py`'s live-tree coupling, which `utwr6y` owns.
 - Scope-Paths: tests/test_plan_readiness.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: gatepin
 - Order: 1
 - Highest E allocated: 05
 - Readiness: go-pending-approval
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: h3bjue
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: yw6759
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-20 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: h3bjue verified (set gatepin, attempt 1).
+- 2026-09-20 validated (opencode its_direct/pt3-claude-opus-5-1m-us): E-01..E-05 performed and V-01..V-05 verified with pasted evidence; `aw ipd lint --phase pre-transition` conforms with ZERO diagnostics and `aw sanitize --agent` is clean. THE DEFECT WAS MITIGATED BETWEEN REVIEW AND EXECUTION AND THAT CHANGED THE WORK: commit `7b9f3ae2` (2026-09-19) marked the target assertion `@pytest.mark.livecorpus` and `pyproject.toml:170` deselects that marker by default, so the false-by-construction assertion was intact but no longer collected in a default run. It was therefore manufactured on a FIXTURE (symlinks to all 102 real pending plans plus one synthetic REJECTed plan, `PENDING_DIR` redirected, shipped test body called unmodified) and shown FAILING while naming the synthetic plan, with the current green also pasted; no real plan was created, moved or edited. E-02 replaced the whole-tree glob with four id6s pinned for NAMED parser hazards (`fn2l1u` a positive verdict whose prose contains REJECT, `8lfoum` an attestation narrating a cleared no-go and containing REJECT, `btot17` a positive verdict narrating a superseded no-go, `920qnm` a PARENTHESIZED actor, the fn2l1u fail-open shape), each polarity MEASURED positive, all four in `executed/`, resolved through the existing `_find`, with a checked counter and an honest skip both demonstrated. It asserts `assertEqual(polarity, POSITIVE)` rather than the sibling's `assertNotEqual(..., NEGATIVE)`, which passes trivially for `None`. E-03 built the property review specified and REJECTED the unfalsifiable token property in code comment, shown FAILING against a synthetic no-verdict-token plus negative-readiness record and PASSING over the real corpus (7 of 694 parse NEGATIVE, all 7 contain REJECT, including `32ij2j` itself). NET COVERAGE ROSE: 694 real review records parsed after versus 102 pending-only before, so F-14's coverage-loss hazard is closed rather than acknowledged. E-04 recorded the decision and filed backlog `jb0sc1`, resolving OQ-02: the `livecorpus` marker supplies the discriminator OQ-02 said did not exist, and a sweep found SIX unmarked live-corpus call sites in four modules. Bare `python3 -m pytest` BEFORE `1 failed, 7206 passed, 3 skipped, 2 xfailed` and AFTER `1 failed, 7207 passed, 3 skipped, 2 xfailed`; failure-set delta EMPTY, the single failure being the pre-existing `test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`, which asserts about a NON-isolated turn and fails because this lane is an isolated worktree. The plan's four recorded baselines are all stale; this is the fifth, measured here, and the named `test_reporting_contract.py` failure does not reproduce (no `opencode-recovery/` in this lane; nothing of another party's was deleted, moved or modified). ONE DEFECT FOUND AND REPORTED, NOT FIXED: the sibling `test_the_three_item_13_successors_are_not_refused` now passes VACUOUSLY, since all three pinned ids (`6lu3rq`, `m73aet`, `wlxkoz`) measure polarity `None` and `assertNotEqual(..., NEGATIVE)` passes for `None`; filed as backlog `nz5cl2` (`bug`, `Blocks-Release: next`) rather than repaired, because the cause is that their newest records state no verdict token, so no assertion tweak fixes it. Deviation stated plainly: the E-03 property carries `@pytest.mark.livecorpus`, which the plan could not have asked for, so it runs in `make test-all`/`-m ''` and not in a default bare run; the E-02 test is deliberately unmarked and does run by default. No gate code was touched.
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 all FIXED; review record written; Readiness go-pending-approval
 
@@ -40,18 +41,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: manufacture the latent failure before fixing it
 
-- [ ] E-01 REPRODUCE THE DEFECT DELIBERATELY, since it no longer reproduces on its own, and this is the step a careless executor will skip. The item's stated repro is stale: `32ij2j` left `pending/` in commit `32e4b74f`, so the test now passes (`67 passed`) while the defect is untouched. Demonstrate the assertion is false-by-construction rather than asserting that it is.
+- [x] E-01 REPRODUCE THE DEFECT DELIBERATELY, since it no longer reproduces on its own, and this is the step a careless executor will skip. The item's stated repro is stale: `32ij2j` left `pending/` in commit `32e4b74f`, so the test now passes (`67 passed`) while the defect is untouched. Demonstrate the assertion is false-by-construction rather than asserting that it is.
   DO IT ON A FIXTURE, NEVER ON THE LIVE TREE. Two ways are acceptable and both must avoid mutating the repository: point the assertion's logic at a temporary directory containing one synthetic plan whose newest review record is a REJECT, or parameterize the predicate and feed it a synthetic file list. Do NOT create, move, or edit any real plan to trigger it: 104 plans are pending (re-measured at review; the plan said 92), approved plans are executing in live runs, and other agents are graduating concurrently.
   A WORKED SYNTHETIC RECORD, verified at review to parse as `NEGATIVE`, so you need not discover the shape: a plan whose `## Workflow history` newest entry reads `- 2026-09-08 reviewed (opencode/m): /plan-review REJECT - NEEDS REPLAN; readiness NO-GO`. `newest_verdict` returns `negative` for that, which is what the assertion keys on. `classify_verdict` reads the FIRST verdict token in the record message, so keep the token near the front.
   PASTE THE FAILURE. The evidence required is the assertion failing with the synthetic REJECT present, naming it, exactly as it would have named `32ij2j`. A fix demonstrated only against the fixed code proves nothing about the defect.
   ALSO PASTE THE CURRENT GREEN, so the record is honest about the failure being LATENT. `python3 -m pytest tests/test_plan_readiness.py -o addopts=""` at HEAD, with its summary line. Re-measured at review: `67 passed`, and ZERO of the 104 pending plans parse `NEGATIVE`, so the assertion is currently VACUOUSLY true. Paste both facts; do not let a later reader believe this plan was written against a red suite.
   - Depends on: none
   - Expected outcome: the false-by-construction assertion shown FAILING against a synthetic REJECTed plan with output pasted, the current live-tree GREEN also pasted along with the count of pending plans currently parsing `NEGATIVE`, and no real plan created, moved or edited.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: apply the pattern the siblings already use
 
-- [ ] E-02 REPLACE THE WHOLE-TREE ASSERTION WITH THE NAMED-ID6 PATTERN, and copy the siblings rather than inventing a shape. `test_the_three_item_13_successors_are_not_refused` (`:781-787`) is the exact model: iterate a tuple of named id6s, resolve each with the existing `_find` helper (`:772-779`), and assert the polarity. `_find` already walks `pending`, `executed`, `superseded`, `not-executed`, `reusable` and already calls `skipTest` when a plan is absent, so no new helper is needed.
+- [x] E-02 REPLACE THE WHOLE-TREE ASSERTION WITH THE NAMED-ID6 PATTERN, and copy the siblings rather than inventing a shape. `test_the_three_item_13_successors_are_not_refused` (`:781-787`) is the exact model: iterate a tuple of named id6s, resolve each with the existing `_find` helper (`:772-779`), and assert the polarity. `_find` already walks `pending`, `executed`, `superseded`, `not-executed`, `reusable` and already calls `skipTest` when a plan is absent, so no new helper is needed.
   CHOOSE THE PINNED IDS FOR A STATED REASON, not by convenience. The property the test exists to catch is a FALSE refusal: a plan whose newest review record is APPROVING that the parser nonetheless reads as negative. So pin plans whose verdict polarity is KNOWN and POSITIVE, and record for each id6 why its polarity is known. Do not pin a plan merely because it is currently pending; pending is the mutable fact that caused the bug.
   KEEP THE HONEST-SKIP BEHAVIOR AND THE CHECKED COUNT. `test_the_incident_plans_are_refused` (`:800-818`) counts what it checked and skips with a reason when nothing remains, explicitly "so it says so rather than lying". A test that silently passes because its subjects vanished is the same class of defect in a new dress; carry the counter over.
   PRESERVE THE DOCSTRING'S INTENT, REWORDED. "A gate that refuses live, legitimately-reviewed plans is a lockout, not a safeguard" is still the point; it must now say that the check is against NAMED plans whose polarity is known, and say WHY the whole-tree version was wrong, so nobody restores it. State the reason precisely: a legitimately REJECTed plan sitting in `pending/` awaiting replan is a CORRECT state, so "no pending plan is refused" is false exactly when the gate is working.
@@ -60,9 +61,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THIS ITEM ALONE IS A COVERAGE REDUCTION, so it is not the whole fix. It trades 104 real review records for N. E-03 is what restores whole-corpus coverage with a property that can actually fail, and the two must land together; do not treat E-03 as optional (F-14).
   - Depends on: E-01
   - Expected outcome: the whole-tree glob replaced by named id6s resolved through the existing `_find`, each pinned id6's MEASURED polarity recorded as positive with its disposition, no `None`-polarity id pinned, the checked-count and honest-skip carried over, and the docstring stating why the tree-wide form was wrong.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 BUILD A WHOLE-CORPUS PROPERTY THAT IS BOTH FALSIFIABLE AND STABLE UNDER A LEGITIMATE REJECT. This item was a "decide whether" and is now a "build it", for two measured reasons (F-14, F-15): without it this plan is a net LOSS of coverage, dropping from 104 real review records to a handful of pinned ids; and the property the plan and the item proposed cannot fail.
+- [x] E-03 BUILD A WHOLE-CORPUS PROPERTY THAT IS BOTH FALSIFIABLE AND STABLE UNDER A LEGITIMATE REJECT. This item was a "decide whether" and is now a "build it", for two measured reasons (F-14, F-15): without it this plan is a net LOSS of coverage, dropping from 104 real review records to a handful of pinned ids; and the property the plan and the item proposed cannot fail.
   DO NOT BUILD THE PROPOSED PROPERTY. "No plan whose newest review record contains an APPROVING verdict token is refused" is UNFALSIFIABLE. Measured at review: `newest_verdict` computes its polarity as `_, polarity = classify_verdict(message)` and returns that value (`agent_workflows/plan_readiness.py:414-416`), so the antecedent and the consequent are the same line of code. It holds over all 608 corpus plans because it must, not because the gate is healthy. A test that cannot fail is worse than the one being removed.
   BUILD THIS INSTEAD, verified falsifiable at review: FOR EVERY PLAN IN THE CORPUS WHOSE NEWEST REVIEW RECORD PARSES AS `NEGATIVE`, THAT RECORD MUST LITERALLY CONTAIN THE `REJECT` TOKEN. It is falsifiable because `newest_verdict` has a SECOND route to `NEGATIVE`: when the record states NO verdict token at all, a negative READINESS token decides (`plan_readiness.py:417-420`). A record reaching `NEGATIVE` by that route contains no `REJECT`, so the assertion genuinely fails. Verified at review with a synthetic record (`readiness NO-GO, no verdict token stated` -> `polarity=negative`, no `REJECT` present, property violated).
   AND THAT FAILURE MODE IS THE REAL FALSE-REFUSAL CLASS, which is why this property serves the test's stated intent where the tautology does not: a reviewer who records a readiness but forgets the verdict token has their plan silently refused by the gate. That is precisely "a gate that refuses live, legitimately-reviewed plans is a lockout", detected across the whole corpus rather than for N pinned ids.
@@ -71,26 +72,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   SCOPE IT LIKE THE SIBLINGS: count what it checked and skip honestly if the corpus yields nothing to check, so it cannot pass vacuously if the tree is ever empty or unreadable.
   - Depends on: E-02
   - Expected outcome: a corpus-wide property asserting that every `NEGATIVE`-parsing newest review record contains `REJECT`, shown FAILING against a synthetic no-token/negative-readiness record and PASSING against the real corpus including a legitimately REJECTed plan, with a checked-count and honest skip; and a written statement that the originally proposed token property was rejected as unfalsifiable.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the class, and the proof
 
-- [ ] E-04 RECORD A DECISION ON GUARDING THE WHOLE DEFECT CLASS, and check the two neighbours before designing anything, because the item explicitly warns they may collide.
+- [x] E-04 RECORD A DECISION ON GUARDING THE WHOLE DEFECT CLASS, and check the two neighbours before designing anything, because the item explicitly warns they may collide.
   THE CLASS HAS NOW PRODUCED THREE KNOWN INSTANCES, which is the argument for a guard: this test; `test_runprofile_refuses_for_R2_and_NOT_for_unauthored_rows` in `tests/test_orchestrator_retirement.py`, which asserted `{"kgpptv": "reviewed"}` against the live corpus, was red for days, and was DELIBERATELY rewritten to `test_runprofile_is_not_refused_for_unauthored_rows` (`:890`) with a docstring (`:891-901`) reasoning that it "pinned a transient repository state rather than the behavior this test is named for"; and `tests/test_run_viewer.py`'s dependence on the gitignored runs tree.
   CHECK `utwr6y` FIRST, AS THE ITEM INSTRUCTS. Its E-03 adds a regression guard in a new `tests/test_run_viewer_isolation.py` and explicitly forbids implementing it as a grep over test source, because that "would pass while an implicit `dir='.'` still reached the live tree". Its E-04 SWEEPS for the same class in other tests reading gitignored box-local state and is scoped to REPORT, NOT FIX (its own words, "REPORT, DO NOT SILENTLY WIDEN"). So `utwr6y` contributes an INVENTORY, not a guard, and a guard built here must not duplicate its file or its sweep.
   THE HONEST DEFAULT IS TO RECORD AND FILE, NOT TO BUILD. A general "this test reads live repo state" detector is a new cross-cutting mechanism with its own false-positive risk, and some live-corpus tests are DELIBERATE and valuable (this very class exists because "a fixture-only suite can pass while the gate misjudges reality"). A blunt guard would forbid the good case along with the bad. So the deliverable is a written decision plus, if a guard is wanted, a follow-up backlog item or plan; not an in-scope build.
   - Depends on: E-03
   - Expected outcome: a recorded decision on a class-wide guard citing all three instances and `utwr6y`'s inventory scope, with a follow-up filed if wanted, and no duplication of `utwr6y`'s file or sweep.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE THE GATE'S REAL BEHAVIOR IS UNCHANGED IN BOTH DIRECTIONS, because the two sibling tests pin exactly that and are the reason this fix is safe.
+- [x] E-05 PROVE THE GATE'S REAL BEHAVIOR IS UNCHANGED IN BOTH DIRECTIONS, because the two sibling tests pin exactly that and are the reason this fix is safe.
   BOTH SIBLINGS MUST STAY GREEN AND NON-VACUOUS. `test_the_three_item_13_successors_are_not_refused` resolves `6lu3rq`, `m73aet`, `wlxkoz`, all currently in `executed/`; `test_the_incident_plans_are_refused` resolves `bmh754`, `a54m79`, `kaygwo`, `k7o7el`, `7f7782`, all currently in `superseded/`, and counts what it checked. Show they PASS and show the counter is nonzero, so neither passed vacuously.
   DO NOT EDIT `32ij2j` OR ANY REVIEW RECORD. Its REJECT verdict is correct and its status is correct. Changing a plan's review record to make a test pass would forge review evidence, which is the one thing the approval-gate machinery exists to prevent. Paste negative proof: `git status --porcelain .aw/records/plans/` clean.
   RUN THE SUITE BARE and judge on the DELTA. THREE DIFFERENT BASELINES HAVE NOW BEEN RECORDED FOR THIS PLAN AND ALL THREE ARE STALE, which is the reason the instruction is "state what you observe": the graduation briefing said `1 failed, 5648 passed` naming `test_orchestrator_retirement`; this plan said `5859 passed, 3 skipped, 2 xfailed` in a lane at `fac69fbd`; and at review HEAD `72d1b018` a bare run measures `1 failed, 5958 passed, 3 skipped, 2 xfailed`. The single failure is `tests/test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose`, which walks 189 files in a GITIGNORED `opencode-recovery/` directory (1746 files) belonging to ANOTHER PARTY. `test_orchestrator_retirement.py` reports `112 passed`, so the briefing's named failure still does not reproduce.
   DO NOT DELETE, MOVE, OR MODIFY `opencode-recovery/` TO GREEN THE SUITE. It is another party's uncommitted data in a shared checkout, and removing it is the un-owned-state destruction AGENTS.md forbids. That failure is pre-existing, is not yours, and must be reported as such. Report AFTER minus BEFORE as a set and do not add `-n0`, a second `-q`, or `-p no:randomly` to the bare run.
   - Depends on: E-04
   - Expected outcome: both sibling tests green with a nonzero checked-count, negative proof that no plan or review record was edited, and a bare-suite delta that is empty with the observed counts stated and the pre-existing failure identified as not this plan's.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -141,13 +142,20 @@ NOTE THE SHAPE OF THE FIX AFTER REVIEW: E-02 narrows the assertion to named ids 
 
 ## Deferred / out of scope (with reason)
 
-- EDITING `32ij2j` OR ANY REVIEW RECORD. Its REJECT is correct and its status is correct. Changing a review record to make a test pass would forge review evidence, which is precisely what the approval-gate machinery exists to prevent. The item says this in capitals and it is repeated here because it is the one tempting wrong fix.
-- DELETING THE TEST. Its intent is sound and stated in two docstrings; a fixture-only suite genuinely can pass while the gate misjudges reality. This plan repairs the proxy, not the purpose.
-- A GENERAL GUARD AGAINST "TEST ASSERTS ON LIVE REPO CORPUS". E-04 records the decision and may file a follow-up. Building it here is refused for two reasons: it is a new cross-cutting mechanism with its own false-positive risk, and some live-corpus coupling in this very class is DELIBERATE and valuable, so a blunt detector would forbid the good case with the bad.
-- `tests/test_run_viewer.py`'s LIVE-TREE COUPLING. `utwr6y` (`testiso-01`) owns it, on a different file with a different fixture axis. Its E-04 sweep may name further instances; that is an inventory for a future decision, not work for this plan.
-- THE AUTO-APPROVE PREDICATE AND THE FORGED-`Readiness` CASE. `8v5pwa` (`rdattest-02`) owns them in the same file but a different class.
-- CHANGING `plan_readiness.newest_verdict` OR ANY GATE CODE. The gate is working correctly; the item's whole finding is that the TEST is wrong. `Scope-Paths` is deliberately the test file alone, and an executor who finds themselves editing `agent_workflows/plan_readiness.py` has left this plan's scope and should stop and report.
-- FIXING `utwr6y`'s APPARENT PARTIAL COMPLETION (F-13). Reported to the maintainer; it belongs to another item and another agent may hold it.
+- EDITING `32ij2j` OR ANY REVIEW RECORD. Its REJECT is correct and its status is correct. Changing a review record to make a test pass would forge review evidence, which is precisely what the approval-gate machinery exists to prevent. The item says this in capitals and it is repeated here because it is the one tempting wrong fix. HONORED AT EXECUTION: `git status --porcelain .aw/records/plans/` was empty throughout, `32ij2j` is untouched in `superseded/` with its REJECT intact, and the new E-03 property counts it as a PASSING row; no carrier needed.
+  - Carrier-Declined: honored in full rather than deferred: `git status --porcelain .aw/records/plans/` was empty throughout, `32ij2j` is untouched in `superseded/` with its REJECT record intact, and the new E-03 property counts it as a PASSING row. Nothing outstanding remains to carry.
+- DELETING THE TEST. Its intent is sound and stated in two docstrings; a fixture-only suite genuinely can pass while the gate misjudges reality. This plan repairs the proxy, not the purpose. HONORED AT EXECUTION: the intent was preserved and STRENGTHENED (102 records parsed before, 694 after), and both docstrings carry the reasoning forward; no carrier needed.
+  - Carrier-Declined: honored in full rather than deferred: the test was repaired, not deleted, and its intent was strengthened from 102 parsed review records to 694. Nothing outstanding remains to carry.
+- A GENERAL GUARD AGAINST "TEST ASSERTS ON LIVE REPO CORPUS". E-04 records the decision and may file a follow-up. Building it here is refused for two reasons: it is a new cross-cutting mechanism with its own false-positive risk, and some live-corpus coupling in this very class is DELIBERATE and valuable, so a blunt detector would forbid the good case with the bad. CARRIER AT EXECUTION: backlog `jb0sc1` (`livecorpusguard`, `open`, `low`, `chore`), which carries the four instances, the measured six unmarked call sites, and the guard shape the `livecorpus` marker now makes checkable.
+  - Carrier: jb0sc1
+- `tests/test_run_viewer.py`'s LIVE-TREE COUPLING. `utwr6y` (`testiso-01`) owns it, on a different file with a different fixture axis. Its E-04 sweep may name further instances; that is an inventory for a future decision, not work for this plan. CARRIER AT EXECUTION: `utwr6y` is now `superseded` (its live-tree cases were converted by `xbwq8n`), and the surviving guard gap is carried by backlog `rcmbnb` (`testisoguard`, `open`, `low`, `chore`); nothing here touches that file.
+  - Carrier: rcmbnb
+- THE AUTO-APPROVE PREDICATE AND THE FORGED-`Readiness` CASE. `8v5pwa` (`rdattest-02`) owns them in the same file but a different class. CARRIER AT EXECUTION: plan `8v5pwa`, verified still `approved` and still declaring `tests/test_plan_readiness.py`; its anchors were re-located by NAME here and this change touches no symbol it names.
+  - Carrier: 8v5pwa
+- CHANGING `plan_readiness.newest_verdict` OR ANY GATE CODE. The gate is working correctly; the item's whole finding is that the TEST is wrong. `Scope-Paths` is deliberately the test file alone, and an executor who finds themselves editing `agent_workflows/plan_readiness.py` has left this plan's scope and should stop and report. HONORED AT EXECUTION: `git diff --stat` shows `tests/test_plan_readiness.py` as the only source file changed; no gate code was touched, so this obligation needs no carrier.
+  - Carrier-Declined: honored in full rather than deferred: `git diff --stat` shows `tests/test_plan_readiness.py` as the only source file changed and no gate code was touched, so there is no outstanding obligation to hand on.
+- FIXING `utwr6y`'s APPARENT PARTIAL COMPLETION (F-13). Reported to the maintainer; it belongs to another item and another agent may hold it. CARRIER AT EXECUTION: closed as an obligation, because `utwr6y` reached `superseded` on 2026-09-10 and its one live piece was carried forward to backlog `rcmbnb`; there is nothing left here to hand on.
+  - Carrier: rcmbnb
 
 ## Scope check
 
@@ -193,9 +201,11 @@ RECORD THE THIRD-INSTANCE ARGUMENT IN E-04's DECISION, not only in this plan. `t
 ### OQ-02: Does the class deserve a general guard?
 
 - Blocking: no
-- Status: open
-- Owner: maintainer
-- Resolution or deferral rationale: OPEN AND ASSIGNED TO E-04 AS A RECORDED DECISION, NOT A BUILD. The argument for is that the class has produced three known instances, one of them red for days. The arguments against are specific rather than lazy: a detector for "test reads live repo state" would flag the DELIBERATE and valuable cases in this very class, `utwr6y` E-03 already establishes that the obvious implementation (a grep over test source) is unsound because "it would pass while an implicit `dir='.'` still reached the live tree", and `utwr6y` E-04 is already producing an inventory scoped explicitly to REPORT and NOT FIX. So the cheapest correct next step is to let that inventory land and then decide with data. E-04 therefore records the decision and files a follow-up if wanted; non-blocking because this plan's fix stands either way.
+- Status: resolved
+- Owner: none
+- Carrier: jb0sc1
+- Resolution or deferral rationale: RESOLVED AT EXECUTION 2026-09-20: YES, IT DESERVES ONE, AND IT IS NOW BUILDABLE WHERE IT WAS NOT. This was left open on the judgement that a detector for "test reads live repo state" would forbid the DELIBERATE and valuable cases along with the bad, and that judgement was correct WHEN IT WAS MADE. It was overtaken by commit `7b9f3ae2` (2026-09-19), which added the `livecorpus` pytest marker; `pyproject.toml:170` deselects it by default and `:157` defines it as exactly this hazard. That supplies the discriminator the question lacked: a guard need not judge whether a live-corpus read is GOOD, only whether it is DECLARED, which is mechanically checkable. The deliberate cases declare themselves and pass; an undeclared one is flagged. THE ANSWER IS STILL NOT "BUILD IT HERE", for the plan's own reason (a cross-cutting mechanism is not this fence's work) and for one `utwr6y` established: a source-level grep is evadable through a helper, so the implementation choice (AST or import-time) is a real decision someone must make deliberately. FILED as backlog `jb0sc1` with the four known instances, the measured six unmarked call sites, the tractable guard shape, and that caveat. The prior rationale is preserved below because it records why the answer changed.
+  PRIOR RATIONALE, SUPERSEDED: OPEN AND ASSIGNED TO E-04 AS A RECORDED DECISION, NOT A BUILD. The argument for is that the class has produced three known instances, one of them red for days. The arguments against are specific rather than lazy: a detector for "test reads live repo state" would flag the DELIBERATE and valuable cases in this very class, `utwr6y` E-03 already establishes that the obvious implementation (a grep over test source) is unsound because "it would pass while an implicit `dir='.'` still reached the live tree", and `utwr6y` E-04 is already producing an inventory scoped explicitly to REPORT and NOT FIX. So the cheapest correct next step is to let that inventory land and then decide with data. E-04 therefore records the decision and files a follow-up if wanted; non-blocking because this plan's fix stands either way.
 
 ### OQ-03: Which plans should the rewritten test pin?
 
@@ -209,34 +219,291 @@ RECORD THE THIRD-INSTANCE ARGUMENT IN E-04's DECISION, not only in this plan. `t
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the ACTUAL failing output against the synthetic REJECTed plan, showing the assertion naming it. Paste the current live-tree run (`python3 -m pytest tests/test_plan_readiness.py -o addopts=""`) with its summary line, so the record states plainly that the failure is latent. Paste `git status --porcelain .aw/records/plans/` proving no real plan was created, moved or edited to manufacture it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. The defect was manufactured on a fixture and shown FAILING, the current live-tree green is pasted, and no real plan was created, moved or edited.
+    THE WORLD MOVED AGAIN BETWEEN REVIEW AND EXECUTION, AND THAT IS THE FIRST THING TO RECORD. The plan and its review both describe an UNMARKED whole-tree assertion. At execution HEAD `ad353b15` it carries `@pytest.mark.livecorpus` (added 2026-09-19 in commit `7b9f3ae2`, "test(livecorpus): stop a whole-corpus canary from blocking every lane's integration"), and `pyproject.toml:170` deselects that marker by default (`-m 'not slow and not livecorpus'`). So the defect was MITIGATED, not fixed: the false-by-construction assertion is byte-for-byte intact, it is simply no longer collected in a default run. The plan's fourth baseline (`1 failed, 5958 passed`, the failure being `test_reporting_contract.py` walking another party's `opencode-recovery/`) is therefore ALSO stale; see V-05 for the fifth, measured here. That mitigation is WHY the E-04 decision changed from "record and file" to "record, and file a follow-up naming the now-tractable guard shape": the marker is the discriminator the review's OQ-02 said did not exist.
+    THE DEFECT MANUFACTURED ON A FIXTURE, exactly as E-01 requires. Method: a temp directory of SYMLINKS to all 102 real pending plans plus ONE synthetic plan whose newest review record is a legitimate `/plan-review REJECT - NEEDS REPLAN; readiness NO-GO`, with the test module's `PENDING_DIR` pointed at it and the SHIPPED test body called unmodified. Nothing under `.aw/records/plans/` was created, moved, or edited.
 
-- [ ] V-02 validates E-02
+    ```
+    FAIL: test_the_shipped_assertion_fails_on_one_legitimately_rejected_pending_plan
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File ".../e01_repro.py", line 53, in test_the_shipped_assertion_fails_on_one_legitimately_rejected_pending_plan
+        case.test_no_pending_plan_is_refused_on_a_verdict_today()
+      File ".../tests/test_plan_readiness.py", line 1703, in test_no_pending_plan_is_refused_on_a_verdict_today
+        self.assertEqual(refused, [], "pending plans falsely refused on their verdict")
+    AssertionError: Lists differ: ['20260907-replanme-01-zzz999-a-legitimately-rejected-plan.ipd.md'] != []
+
+    First list contains 1 additional elements.
+    First extra element 0:
+    '20260907-replanme-01-zzz999-a-legitimately-rejected-plan.ipd.md'
+
+    - ['20260907-replanme-01-zzz999-a-legitimately-rejected-plan.ipd.md']
+    + [] : pending plans falsely refused on their verdict
+
+    Ran 1 test in 0.047s
+
+    FAILED (failures=1)
+    ```
+
+    It names the synthetic plan exactly as it would have named `32ij2j`. The defect is confirmed false-by-construction: the ONLY thing wrong with that plan is that it was legitimately rejected and is awaiting replan, which is a correct occupant of `pending/`.
+    THE CURRENT GREEN, so the record is honest that the failure is LATENT, both with the default marker filter and with it cleared:
+
+    ```
+    $ python3 -m pytest tests/test_plan_readiness.py -o addopts=""
+    32 passed in 0.61s
+
+    $ python3 -m pytest tests/test_plan_readiness.py -o addopts="-m ''"
+    32 passed in 0.46s
+    ```
+
+    THE MEASURED `NEGATIVE` CENSUS AT EXECUTION HEAD, which is why it is vacuous rather than merely passing: ZERO of the 102 pending plans parse `NEGATIVE` (`pending 102 {'neutral': 19, 'positive': 73, None: 10}`). Across all five dispositions, 694 plans, exactly 7 parse `NEGATIVE` and all 7 sit in `superseded/`, including `32ij2j` whose REJECT record is intact. Note the plan's counts also drifted: 102 pending not 104, and 10 `None`-polarity not 19.
+    NEGATIVE PROOF THAT NO REAL PLAN WAS TOUCHED TO MANUFACTURE IT:
+
+    ```
+    $ git status --porcelain .aw/records/plans/
+    $
+    ```
+
+    Empty at the time of manufacture and still empty until the lifecycle transition below.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the rewritten test in full. Quote the pinned id6 tuple and, for each id6, paste the polarity you MEASURED (not merely asserted to be known) together with the disposition directory it resolved from. Confirm NO pinned id has polarity `None`, since `assertNotEqual(polarity, NEGATIVE)` passes trivially for `None` and 19 of 104 pending plans parse that way (F-17). Show it calls the existing `_find` rather than a new helper. Paste the reworded docstring and confirm it states WHY the whole-tree form was wrong, not merely what the new form does.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. The whole-tree glob is gone, four terminal id6s are pinned with MEASURED positive polarity, `_find` is reused, and the docstring states why the old form was wrong.
+    THE REWRITTEN TEST IN FULL, `tests/test_plan_readiness.py`, replacing `test_no_pending_plan_is_refused_on_a_verdict_today`:
 
-- [ ] V-03 validates E-03
+    ```python
+    KNOWN_POSITIVE = (
+        ("fn2l1u", "executed", "an APPROVE whose prose contains `REJECT`"),
+        ("8lfoum", "executed", "an attestation narrating a CLEARED `no-go` and containing `REJECT`"),
+        ("btot17", "executed", "an APPROVE narrating a superseded `no-go`"),
+        ("920qnm", "executed", "a PARENTHESIZED actor, the fn2l1u fail-open shape"),
+    )
+
+    def test_named_plans_whose_verdict_is_known_positive_are_not_refused(self):
+        """A gate that refuses live, legitimately-reviewed plans is a lockout, not a safeguard.
+
+        THE CHECK IS AGAINST NAMED PLANS WHOSE VERDICT POLARITY IS KNOWN, and the reason is that the
+        form this replaced was FALSE BY CONSTRUCTION. It globbed the whole live `pending/` tree and
+        asserted that NO plan there carried a negative verdict. But a plan that `/plan-review`
+        legitimately REJECTED and that is awaiting its replan is a CORRECT thing for `pending/` to
+        contain, so "no pending plan is refused" is false exactly when the gate is WORKING. It could
+        not distinguish a FALSE refusal (the parser misreading an approval) from a TRUE one (a real
+        rejection), which is the only thing this test is named for. Measured: it went red on `32ij2j`
+        after that plan's own legitimate `REJECT - NEEDS REPLAN` verdict, and review records across
+        the tree spend paragraphs re-establishing that the red is nobody's fault. DO NOT RESTORE IT.
+
+        The ids and their measured polarities are in `KNOWN_POSITIVE` above, each with the hazard it
+        pins. `_find` resolves them across all five dispositions, and the counter below refuses to
+        pass vacuously if they are ever all deleted.
+        """
+        checked = 0
+        for id6, disposition, why in self.KNOWN_POSITIVE:
+            path = self._find(id6)
+            polarity, entry = PR.newest_verdict(path.read_text(encoding="utf-8"))
+            # assertEqual, NOT assertNotEqual(NEGATIVE): the looser form also passes for `None`
+            # (no readable verdict), so it would report coverage it does not have.
+            self.assertEqual(
+                polarity,
+                PR.POSITIVE,
+                f"{id6} ({why}, measured positive in {disposition}/) now reads {polarity!r}; "
+                f"record: {entry[:200]}",
+            )
+            checked += 1
+        if checked == 0:
+            self.skipTest("none of the pinned known-positive plans remain in any disposition")
+        self.assertEqual(checked, len(self.KNOWN_POSITIVE))
+    ```
+
+    (The in-file comment block above `KNOWN_POSITIVE`, not repeated here, records the measured `None`-polarity population and the reason every pin sits in a terminal disposition.)
+    THE PINNED TUPLE IS `("fn2l1u", "8lfoum", "btot17", "920qnm")`, AND EACH POLARITY WAS MEASURED ON 2026-09-20 BY CALLING `PR.newest_verdict` ON THE RESOLVED FILE, not assumed:
+
+    ```
+    pin fn2l1u: executed/ measured polarity=positive | an APPROVE whose prose contains `REJECT`
+    pin 8lfoum: executed/ measured polarity=positive | an attestation narrating a CLEARED `no-go` and containing `REJECT`
+    pin btot17: executed/ measured polarity=positive | an APPROVE narrating a superseded `no-go`
+    pin 920qnm: executed/ measured polarity=positive | a PARENTHESIZED actor, the fn2l1u fail-open shape
+    test_named_plans_whose_verdict_is_known_positive_are_not_refused checked counter = 4
+    ```
+
+    NO PINNED ID HAS POLARITY `None`: all four measure `positive`. The measured token content, which is what makes each a real hazard rather than a convenient pick: `fn2l1u` REJECT=True no-go=False; `8lfoum` REJECT=True no-go=True; `btot17` REJECT=False no-go=True; `920qnm` REJECT=False no-go=False with a parenthesized actor `trimmed scope) (opencode its_direct/pt3-claude-opus-4.8-1m-us`. Every one is a record that a naive negative-token scan would refuse and that the real parser correctly approves, which is precisely the FALSE-refusal direction.
+    F-17'S TRAP IS CLOSED MORE STRONGLY THAN THE PLAN ASKED. The plan required "do not pin a `None`"; the assertion is `assertEqual(polarity, PR.POSITIVE)`, not the sibling's `assertNotEqual(polarity, NEGATIVE)`, so a pin drifting to `None` FAILS instead of passing quietly. That matters because the sibling `test_the_three_item_13_successors_are_not_refused` is measurably in that weakened state right now: all three of its ids (`6lu3rq`, `m73aet`, `wlxkoz`) measure polarity `None`, so it currently asserts nothing (reported in V-05 and as a defect-report finding, NOT fixed here since it is outside this plan's fence).
+    IT CALLS THE EXISTING `_find`, adding no helper: `path = self._find(id6)`, resolving across `pending`/`executed`/`superseded`/`not-executed`/`reusable` and skipping honestly when absent.
+    THE DOCSTRING STATES WHY THE OLD FORM WAS WRONG, not merely what the new one does: "a plan that `/plan-review` legitimately REJECTED and that is awaiting its replan is a CORRECT thing for `pending/` to contain, so 'no pending plan is refused' is false exactly when the gate is WORKING", plus the explicit "DO NOT RESTORE IT".
+    THE HONEST-SKIP PATH IS DEMONSTRATED, not assumed, by resolving against an empty fixture tree: `[honest skip, E-02 pins] SkipTest: plan fn2l1u not present in any disposition`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the property's code, and paste it BOTH FAILING and PASSING. FAILING against a synthetic record that reaches `NEGATIVE` with no `REJECT` token (the no-verdict-token plus negative-readiness route, `plan_readiness.py:417-420`), which is what proves it is falsifiable at all. PASSING against the real corpus including at least one legitimately REJECTed plan, with the count of `NEGATIVE`-parsing plans you measured stated.
     STATE EXPLICITLY THAT THE ORIGINALLY PROPOSED TOKEN PROPERTY WAS REJECTED AND WHY, naming `plan_readiness.py:414-416` as the reason it cannot fail. A V-03 that pastes only a passing run, or that ships the token property, is a FAILED validation: the whole point of this item after review is that a green test is not evidence unless it could have been red.
     Confirm the property counts what it checked and skips honestly rather than passing vacuously on an empty or unreadable corpus.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. The falsifiable `NEGATIVE`-implies-`REJECT` property is shipped and shown FAILING then PASSING; the unfalsifiable token property was rejected and is recorded as such in the code.
+    THE PROPERTY'S CODE, `tests/test_plan_readiness.py`, marked `livecorpus` for the reason that marker now exists:
 
-- [ ] V-04 validates E-04
+    ```python
+    @pytest.mark.livecorpus
+    def test_every_negative_verdict_in_the_corpus_states_the_reject_token(self):
+        """Plan h3bjue E-03: the whole-corpus property, chosen because it CAN FAIL.
+
+        THE PROPERTY: every plan whose newest review record parses as `NEGATIVE` must have a record
+        that literally contains `REJECT`.
+        ...
+        """
+        plans_root = REPO_ROOT / ".aw" / "records" / "plans"
+        checked = 0
+        silent = []
+        for name in ("pending", "executed", "superseded", "not-executed", "reusable"):
+            directory = plans_root / name
+            if not directory.is_dir():
+                continue
+            for path in sorted(directory.glob("*.ipd.md")):
+                polarity, entry = PR.newest_verdict(path.read_text(encoding="utf-8"))
+                if polarity != PR.NEGATIVE:
+                    continue
+                checked += 1
+                if "REJECT" not in entry:
+                    silent.append(f"{name}/{path.name}: {entry[:200]}")
+        if checked == 0:
+            self.skipTest("no plan in any disposition currently parses as NEGATIVE")
+        self.assertEqual(
+            silent,
+            [],
+            f"{len(silent)} of {checked} refused plans state NO `REJECT` token, so each was refused "
+            "on its READINESS alone. That is a silent lockout: the gate's refusal has no override, "
+            "and the review record its author wrote states no rejection at all. FIX: read the named "
+            "records; either the reviewer omitted the verdict token they meant to state, or "
+            "`negative_readiness_asserted` is matching a token inside a clause that CLEARS it, which "
+            "is the 2026-09-19 incident returning.\n" + "\n".join(silent),
+        )
+    ```
+
+    DIRECTION 1, FAILING, which is what proves it falsifiable at all. A synthetic record taking the no-verdict-token plus asserted-negative-readiness route, symlinked into a temp copy of the full corpus. Precondition measured first, so the route is confirmed rather than hoped for:
+
+    ```
+    [precondition] synthetic polarity='negative'  'REJECT' in record=False
+
+    FAIL: test_a_negative_record_with_no_reject_token_fails_the_property
+    ----------------------------------------------------------------------
+      File ".../tests/test_plan_readiness.py", line 1787, in test_every_negative_verdict_in_the_corpus_states_the_reject_token
+        self.assertEqual(
+    AssertionError: Lists differ: ['pending/20260920-silent-01-yyy888-refuse[136 chars]ed.'] != []
+
+    First extra element 0:
+    'pending/20260920-silent-01-yyy888-refused-on-readiness-alone.ipd.md: - 2026-09-20 reviewed (opencode/m): round 1 complete; readiness no-go until the blocking question is answered.'
+    : 1 of 8 refused plans state NO `REJECT` token, so each was refused on its READINESS alone. ...
+    ```
+
+    The synthetic record is `- 2026-09-20 reviewed (opencode/m): round 1 complete; readiness no-go until the blocking question is answered.` It states NO verdict token, so `classify_verdict` returns `None` and the asserted-readiness branch decides, returning `negative` with no `REJECT` present. Confirmed directly: `PR.newest_verdict(txt)` -> `('negative', '- 2026-09-20 reviewed (opencode/m): round 1 complete; readiness no-go ...')`, `REJECT in entry: False`.
+    DIRECTION 2, PASSING against the real corpus, INCLUDING at least one legitimately REJECTed plan. 7 plans across the 694 in five dispositions parse `NEGATIVE`, all 7 in `superseded/`, and all 7 contain `REJECT`:
+
+    ```
+    superseded 20260823-ipdfidelity-01-39fz2x-...ipd.md REJECT-in-entry: True
+    superseded 20260830-detrun-01-bmh754-...ipd.md      REJECT-in-entry: True
+    superseded 20260830-detrun-02-a54m79-...ipd.md      REJECT-in-entry: True
+    superseded 20260830-detrun-03-kaygwo-...ipd.md      REJECT-in-entry: True
+    superseded 20260830-detrun-04-k7o7el-...ipd.md      REJECT-in-entry: True
+    superseded 20260830-detrun-05-7f7782-...ipd.md      REJECT-in-entry: True
+    superseded 20260906-integearn-01-32ij2j-...ipd.md   REJECT-in-entry: True
+    total negative 7
+
+    $ python3 -m pytest tests/test_plan_readiness.py::ApprovalGateRealCorpusTests -o addopts="-m ''" -v
+    tests/test_plan_readiness.py::ApprovalGateRealCorpusTests::test_named_plans_whose_verdict_is_known_positive_are_not_refused PASSED
+    tests/test_plan_readiness.py::ApprovalGateRealCorpusTests::test_every_negative_verdict_in_the_corpus_states_the_reject_token PASSED
+    tests/test_plan_readiness.py::ApprovalGateRealCorpusTests::test_the_incident_plans_are_refused PASSED
+    tests/test_plan_readiness.py::ApprovalGateRealCorpusTests::test_the_three_item_13_successors_are_not_refused PASSED
+    4 passed in 0.33s
+    ```
+
+    THAT COUNT MATCHES THE REVIEW'S MEASUREMENT EXACTLY (7 of 608 then, 7 of 694 now), so the property's baseline was reproduced rather than trusted. The seventh row IS `32ij2j`, the plan whose legitimate REJECT reddened the removed assertion. It now SATISFIES this property instead of violating it, which is the whole point.
+    THE ORIGINALLY PROPOSED TOKEN PROPERTY WAS REJECTED AS UNFALSIFIABLE AND WAS NOT SHIPPED. "No plan whose newest review record contains an APPROVING verdict token is refused" compares a function to its own internal call: `newest_verdict` computes `_, polarity = classify_verdict(message)` and returns that value (`agent_workflows/plan_readiness.py:482`, the `:414-416` of the review's HEAD), so the antecedent and the consequent are one line of code. It cannot fail for any input, and its clean pass over the corpus is a consequence of its FORM, not evidence about the gate. The rejection and its reason are recorded in the shipped docstring so nobody reintroduces it from backlog `yw6759`, which still recommends it.
+    IT COUNTS WHAT IT CHECKED AND SKIPS HONESTLY, demonstrated rather than asserted, by running it against an empty fixture tree: `[honest skip, E-03 property] SkipTest: no plan in any disposition currently parses as NEGATIVE`. On the real corpus its counter is 7.
+    ONE DEVIATION FROM THE PLAN'S LETTER, STATED PLAINLY: the property carries `@pytest.mark.livecorpus`, which the plan did not ask for because the marker did not exist when it was written. It is applied because the marker's own definition in `pyproject.toml:157` describes exactly this test ("asserts a property over EVERY artifact in this repository's own .aw/records/ tree, so ANY agent writing a plan can turn it red"), and omitting it would re-create the lane-blocking failure mode that commit `7b9f3ae2` was written to stop. Consequence, and the honest cost: the property runs in `make test-all`, in release-review, and under `-m ''`, NOT in a default bare run. The E-02 named-id6 test is deliberately UNMARKED and does run by default, since four pinned terminal plans cannot be reddened by a third party authoring a plan.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: state the recorded decision on a class-wide guard, citing all three known instances by test name and file. Confirm in one sentence that `utwr6y`'s E-03 file and E-04 sweep were checked and are not duplicated. If a follow-up was filed, paste its id and summary; if not, state why the inventory should land first.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. The decision is to file rather than build, and the follow-up `jb0sc1` is filed carrying all four instances and the now-tractable guard shape.
+    THE DECISION: DO NOT BUILD A GUARD HERE; FILE IT, AND FILE IT WITH THE SHAPE THAT IS NOW TRACTABLE. The plan's own default was "record and file, not build", and that holds. What CHANGED between review and execution is the reason a guard is worth filing at all: OQ-02 argued a guard was intractable because a detector for "test reads live repo state" would forbid the DELIBERATE and valuable cases along with the bad. Commit `7b9f3ae2` (2026-09-19) then added the `livecorpus` pytest marker and `pyproject.toml:170` deselects it by default. That supplies the missing discriminator: a guard no longer has to judge whether a live-corpus read is GOOD, only whether it is DECLARED. So the follow-up asks for "every live-corpus read is either marked `livecorpus` or allowlisted", which is checkable, rather than "no test reads the live corpus", which is wrong.
+    THE THREE KNOWN INSTANCES THE PLAN NAMED, all cited by test name and file, plus a fourth measured here:
+    (1) `tests/test_plan_readiness.py::ApprovalGateRealCorpusTests::test_no_pending_plan_is_refused_on_a_verdict_today` - the false-by-construction whole-tree assertion, REPLACED by this plan's E-02/E-03 pair.
+    (2) `tests/test_orchestrator_retirement.py::RealRepositorySets::test_runprofile_refuses_for_R2_and_NOT_for_unauthored_rows` - asserted `{"kgpptv": "reviewed"}` against the live corpus, red for days, DELIBERATELY rewritten to `test_runprofile_is_not_refused_for_unauthored_rows` in commit `31169afd`; verified still present at `tests/test_orchestrator_retirement.py` with the docstring reasoning the plan quotes ("pinned a transient repository state rather than the behavior this test is named for").
+    (3) `tests/test_run_viewer.py`'s dependence on the GITIGNORED `.aw/records/runs/` tree - fixed by plan `xbwq8n`; its missing guard is already tracked as backlog `rcmbnb`.
+    (4) FOUND HERE, by sweeping every `tests/test_*.py` for a `glob`/`rglob`/`iterdir` over the live records tree: SIX call sites in four modules read the live plan corpus and carry NO `livecorpus` marker - `tests/test_plan_readiness.py:350` `test_every_pending_plan_yields_a_real_history_record`, `tests/test_ipd_lint.py:730` `test_every_readiness_carrying_plan_in_the_tree_is_attested`, `tests/test_ipd_lint.py:1084` `test_real_executed_plan_at_post_transition`, `tests/test_ipd_schema.py:2978` `test_executed_conforming_corpus_low_overfire_rate`, `tests/test_cli_find.py:447` `test_a_setid_query_excludes_prefix_sharing_foreign_sets`, `tests/test_cli_find.py:474` `test_an_id6_query_returns_the_declaring_artifact_not_its_citers`. Each is legitimate and valuable; none is touched here.
+    `utwr6y` WAS CHECKED AND IS NOT DUPLICATED, AND ITS STATUS HAS CHANGED SINCE THE PLAN WAS WRITTEN: it is now `superseded` (retired 2026-09-10 because `xbwq8n` converted the 14 live-tree cases on 2026-09-08), its E-03 file `tests/test_run_viewer_isolation.py` still does not exist, and its E-04 sweep was completed by hand inside the retirement note; the surviving guard gap was carried forward as backlog `rcmbnb` (`open`, `low`, `chore`), which the new item cites rather than reimplementing, and nothing here touches `tests/test_run_viewer.py`.
+    THE FOLLOW-UP FILED: `jb0sc1` - "Six live-corpus tests carry no livecorpus marker, so a third party's artifact can still red a lane's suite" (`.aw/records/backlog/open/20260920-livecorpusguard-01-jb0sc1-livecorpus-marker-guard.backlog.md`, Set `livecorpusguard`, `open`, `low`, `chore`). It carries all four instances, the measured six-call-site sweep, the now-tractable guard shape, and `utwr6y` E-03's warning that a source-level grep is evadable via a helper, so the class-level knowledge is durable and is not re-derived a fifth time.
+    F-13 IS UPDATED RATHER THAN LEFT STALE: it noted `utwr6y` as `to-review` and apparently partly satisfied. It is now `superseded`, so the item it was reported against is closed; no action was taken on it here, as the plan directs.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `tests/test_plan_readiness.py`'s own summary line showing both siblings green, and paste evidence the incident-plans counter was NONZERO (so it did not pass vacuously). Paste the honest-skip path exercised at least once. Paste `git status --porcelain .aw/records/plans/` clean and `git diff --stat` showing only the test file changed.
     THEN paste the BARE `python3 -m pytest` summaries before and after and state the failure-set delta as a set, with the counts you actually observed rather than any quoted baseline (three have been recorded for this plan and all are stale, F-18). If the pre-existing `tests/test_reporting_contract.py` failure appears, report it as pre-existing and CONFIRM you did not delete, move, or modify `opencode-recovery/`.
     ALSO STATE THE NET COVERAGE POSITION IN ONE SENTENCE: how many real review records the module parses after this change versus the 104 it parsed before. That is the number a reader needs to judge whether this plan repaired the proxy or removed the value (F-14), and it is the single clearest summary of whether E-02 and E-03 together did their job.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Both siblings green with nonzero counters, honest skips demonstrated, no plan or review record edited, bare-suite failure delta EMPTY, and coverage rose from 102 records to 694.
+    THE MODULE'S OWN SUMMARY LINE, BOTH SIBLINGS GREEN, with the marker filter cleared so the new `livecorpus` property is collected too:
+
+    ```
+    $ python3 -m pytest tests/test_plan_readiness.py -o addopts="-m ''"
+    33 passed in 0.49s
+    ```
+
+    (32 before, 33 after: E-02 replaced one test in place and E-03 added one.)
+    THE INCIDENT-PLANS COUNTER IS NONZERO, recomputed directly rather than inferred from a green dot, so the sibling is proven non-vacuous:
+
+    ```
+      incident bmh754: polarity=negative REJECT_in_entry=True
+      incident a54m79: polarity=negative REJECT_in_entry=True
+      incident kaygwo: polarity=negative REJECT_in_entry=True
+      incident k7o7el: polarity=negative REJECT_in_entry=True
+      incident 7f7782: polarity=negative REJECT_in_entry=True
+    test_the_incident_plans_are_refused checked counter = 5
+    ```
+
+    All five still resolve from `superseded/`. The new tests' counters are likewise nonzero: E-02 `checked counter = 4` (all four pins resolved, no skip), E-03 `checked counter = 7`.
+    THE OTHER SIBLING IS GREEN BUT IS MEASURABLY VACUOUS, AND I AM REPORTING IT RATHER THAN FIXING IT. `test_the_three_item_13_successors_are_not_refused` resolves all three ids, so it does not skip, but every one now parses `None`:
+
+    ```
+      successor 6lu3rq: executed/ polarity=None
+      successor m73aet: executed/ polarity=None
+      successor wlxkoz: executed/ polarity=None
+    test_the_three_item_13_successors_are_not_refused resolved = 3
+    ```
+
+    Its assertion is `assertNotEqual(polarity, PR.NEGATIVE)`, which passes trivially for `None`, so it currently asserts nothing about three plans it names. That is F-17's exact defect in the test this plan was told to COPY. I did not change it: it is outside `Scope-Paths`' intent for this fence (the plan's under-scope statement is explicit that only the one method is rewritten) and tightening it to `assertEqual(POSITIVE)` would fail, since the cause is that all three records are `aw set`/split narrations stating no verdict token at all. It is filed as a defect-report finding and as backlog `nz5cl2` (`vacuouspin`, `bug`, `medium`, `Blocks-Release: next` under the all-bugs-block-release rule). The new E-02 test deliberately does NOT inherit the weakness: it asserts `assertEqual(polarity, PR.POSITIVE)`.
+    THE HONEST-SKIP PATH EXERCISED, both new tests, against an empty fixture tree:
+
+    ```
+    [honest skip, E-02 pins] SkipTest: plan fn2l1u not present in any disposition
+    [honest skip, E-03 property] SkipTest: no plan in any disposition currently parses as NEGATIVE
+    ```
+
+    NOTHING ELSE MOVED. `git status --porcelain .aw/records/plans/` was EMPTY throughout execution (checked before the baseline run, after the AFTER run, and before staging; it becomes non-empty only for THIS plan file at the lifecycle transition below), and no plan or review record was edited to make any test pass. `32ij2j` is untouched: it remains in `superseded/` with its `REJECT - NEEDS REPLAN` record intact, and the E-03 property now counts it as a PASSING row.
+
+    ```
+    $ git diff --stat
+     tests/test_plan_readiness.py | 143 +++++++++++++++++++++++++++++++++++--------
+     1 file changed, 118 insertions(+), 25 deletions(-)
+    ```
+
+    One source file changed, as declared. The only other new path is the E-04 follow-up backlog item `jb0sc1`, which E-04 required.
+    THE BARE SUITE, BEFORE AND AFTER, MEASURED HERE. The plan records three baselines and its review a fourth; ALL FOUR ARE STALE, so the BEFORE was measured in this lane by restoring `tests/test_plan_readiness.py` to `git show HEAD:` and parking the new backlog item outside the records tree, then restoring both. Both runs are bare `python3 -m pytest`, no added flags:
+
+    ```
+    BEFORE (HEAD ad353b15, my changes reverted):
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    1 failed, 7206 passed, 3 skipped, 2 xfailed, 3 warnings in 186.68s (0:03:06)
+
+    AFTER (my changes applied):
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    1 failed, 7207 passed, 3 skipped, 2 xfailed, 3 warnings in 169.40s (0:02:49)
+    ```
+
+    FAILURE-SET DELTA: AFTER minus BEFORE = {} (EMPTY). Both sets are the single node `tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`, which is PRE-EXISTING and not this plan's: it asserts a non-isolated turn gets no denial policy, and this lane IS an isolated worktree carrying `AW_PIN_KEEP_ROOT`, so the environment the test asserts about is the lane itself. It touches no file this plan changed. Passed count rises by exactly 1, which is the E-03 test.
+    THE PLAN'S NAMED PRE-EXISTING FAILURE DID NOT APPEAR: `tests/test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose` PASSES here, and there is no `opencode-recovery/` directory in this lane. I did NOT delete, move, or modify `opencode-recovery/` or any other party's data; nothing outside my two paths was touched. This is the FIFTH distinct baseline recorded for this plan, which is itself the argument for the plan's "state what you observe" instruction.
+    THE `livecorpus` SUBSET WAS RUN SEPARATELY, since a default bare run deselects it and would otherwise never execute the new property: `python3 -m pytest -o addopts="-q -n auto --dist=worksteal -m 'livecorpus'"` -> `1 passed in 16.36s`.
+    NET COVERAGE POSITION, IN ONE SENTENCE: the module now parses the newest review record of ALL 694 tracked plans across five dispositions (E-03) plus 4 named terminal plans asserted strictly positive (E-02), against the 102 pending-only records the removed assertion parsed, so coverage rose roughly 6.8x rather than falling to a handful, and F-14's coverage-loss hazard is closed rather than merely acknowledged.
+  - Result: pass
 
 ## Approval and execution gate
 
