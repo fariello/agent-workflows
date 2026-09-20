@@ -6,17 +6,19 @@
 - Scope: IN: at the seam where `integration_is_earned` refuses for a suite failure, ask the agent the question, validate the answer, and act on it: `not-mine` integrates, `fixed` re-runs the full test suite and the RE-RUN decides, `mine` and `needs-human` refuse and preserve. Record the answer durably on the run record and surface `needs-human` in the run report. A failed `fixed` retries within the run's existing `--retry-budget`. OUT: any change to `integration_is_earned`'s own verdict logic (the gate stays hard 100% of the time), any new retry knob, any mechanical verification of a `not-mine` claim, and the review path (a review turn has no suite result to refuse on).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, tests/test_gate_answer_wiring.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: gatewire
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: h5pyqa
+- Approval: 2026-09-20, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-20 approved (aw set): status set to approved
 - 2026-09-20 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH) and PR-002 fixed; OQ-01 resolved from evidence, OQ-02 by maintainer ruling; readiness go-pending-approval
 
 - 2026-09-20 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH) and PR-002 FIXED, none deferred, none open; readiness go-pending-approval. SELF-REVIEW DISCLOSED: I authored this plan, so the findings were kept mechanical and every claim was re-derived by executing code or reading a cited line. PR-001 is the one that mattered: the plan's central mechanism could not work, because it built the question from `suite_result.summary`, which `_SUITE_SUMMARY_RE` (oc_runipd.py:3845-3847) reduces to a COUNT LINE - measured, the `FAILED <nodeid>` lines are dropped and `stdout_excerpt` is discarded at :3907. The agent would have been asked to attribute a failure it was never shown. Split into E-02 (capture the names) and E-07 (ask, using them), with V-02 now failing a count-only field. PR-002 recorded the `needs-human` exit-code gap as a declined deferral rather than half-wiring an aggregator that has zero driver call sites (runner_shared.py:11267-11269). OQ-01 resolved FROM EVIDENCE (the `Diagnostics / Blocked Items:` block already exists at render_stream.py:2530-2533, is already conditional, and is where an operator looks), so no maintainer turn was spent on placement. OQ-02 was the maintainer's alone and they ruled 2026-09-20 that `not-mine` integrates in ANY run: attribution is the safeguard, and refusing unattended would preserve the measured 2026-09-19 loss exactly where it costs most. Five decisions recorded as D-1..D-5. Structural lint conforming at author AND review-finalize.
