@@ -36,10 +36,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: The record indexes
 
-- [ ] E-01 Do NOT route `plans_index.py` or `research_index.py` `status_256` calls through the lifecycle resolver. Instead: (a) record the measured determination that these two modules render NO lifecycle status in their terminal output, and (b) fix the live criterion A14 violation in their shared print path, where `aw index plans --agent` emits ANSI into machine output.
+- [x] E-01 Do NOT route `plans_index.py` or `research_index.py` `status_256` calls through the lifecycle resolver. Instead: (a) record the measured determination that these two modules render NO lifecycle status in their terminal output, and (b) fix the live criterion A14 violation in their shared print path, where `aw index plans --agent` emits ANSI into machine output.
   - Depends on: none
   - Expected outcome: The two index modules keep their generic outcome words unchanged in color, and `aw index plans --agent` and `aw index research --agent` emit ZERO ANSI bytes.
-  - Execution state: pending
+  - Execution state: performed
 
   THE ORIGINAL E-01 WOULD HAVE CAUSED A REGRESSION AND CALLED IT COMPLIANCE (F-04). Every one of the eight `status_256` calls in these two modules renders a GENERIC INDEX OUTCOME, not a lifecycle status. Measured at review:
 
@@ -57,19 +57,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: The status setters and lint views
 
-- [ ] E-02 Convert the TWO lifecycle `status_256` calls in `status_set.py` (the old and new status of a transition) to the shared helpers, and LEAVE the third call alone: it renders the literal word `unchanged`, which is a no-op outcome and not a lifecycle status.
+- [x] E-02 Convert the TWO lifecycle `status_256` calls in `status_set.py` (the old and new status of a transition) to the shared helpers, and LEAVE the third call alone: it renders the literal word `unchanged`, which is a no-op outcome and not a lifecycle status.
   - Depends on: none
   - Expected outcome: A status transition prints the same glyph and color for a given status as `aw find` and `aw attention` do. The `unchanged` no-op line is unchanged in color.
-  - Execution state: pending
+  - Execution state: performed
 
   THE THIRD CALL IS A TRAP OF THE SAME KIND AS E-01'S (F-04). Measured: `status_set.py:396` renders `term.status_256("unchanged")`, while `:402` and `:407` render `rec.status` and `norm_stat`, which ARE lifecycle. `unchanged` resolves to 245 in `term.STATUS_COLOR_256` today and is not a status in any spec Section 6 or 7 table, so routing it through the resolver sends it to A20's unknown path and prints `?` for a successful no-op. Convert by VALUE, not by call site.
 
   ALSO IN THIS MODULE, and it is the same violation flagged in `f9t5hz`: `status_set.py:453` colors the artifact TYPE word via `_att._TREE_COLOR_256` (33, bold), which spec Section 9.1 says must not carry lifecycle color and Section 11 item 5 limits to glyph, id6 and status. See F-05 for why the Section 11 "existing independent convention" exemption does not stretch to a bare type word.
 
-- [ ] E-03 Convert the ONE lifecycle `status_256` call in `ipd_lint.py` (the `- Status:` column at `:1477`). For the SECOND call, which renders the lint DISPOSITION column, decide and record whether `quarantined` moves to the spec's `parked` treatment while its generic siblings stay put, or whether the whole column stays generic. Do not convert the column wholesale.
+- [x] E-03 Convert the ONE lifecycle `status_256` call in `ipd_lint.py` (the `- Status:` column at `:1477`). For the SECOND call, which renders the lint DISPOSITION column, decide and record whether `quarantined` moves to the spec's `parked` treatment while its generic siblings stay put, or whether the whole column stays generic. Do not convert the column wholesale.
   - Depends on: none
   - Expected outcome: The `- Status:` column renders the shared marker. A recorded, justified decision for the disposition column that does not route generic outcomes through the lifecycle resolver and does not make a quarantined plan LESS distinguishable than it is today.
-  - Execution state: pending
+  - Execution state: performed
 
   THE ORIGINAL E-03 CONFLATED TWO DIFFERENT COLUMNS and the conflict it hides is genuine (F-06). `ipd_lint.py` has exactly two `status_256` calls: `:1477` styles the plan's `- Status:` value (lifecycle, convert it) and `:1520` styles `disp_word`, the lint DISPOSITION. The disposition vocabulary is `conforming`, `advisory`, `quarantined`, `legacy/not evaluated`, and `error` (`ipd_schema.py:1470-1472`), so ONE column mixes a value the spec claims with four generic command outcomes R10.3 keeps out.
 
@@ -79,10 +79,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: The run viewers
 
-- [ ] E-04 Convert `run_viewer.py`'s four `status_256` sites AND its HARDCODED lifecycle colors, plus the three `aw find` lifecycle sites in `cli.py` INCLUDING their id6 treatment, applying the Section 7.2 and 7.3 runner and ledger mappings and the five review-added rows.
+- [x] E-04 Convert `run_viewer.py`'s four `status_256` sites AND its HARDCODED lifecycle colors, plus the three `aw find` lifecycle sites in `cli.py` INCLUDING their id6 treatment, applying the Section 7.2 and 7.3 runner and ledger mappings and the five review-added rows.
   - Depends on: none
   - Expected outcome: Run views render ledger and item states through the shared vocabulary. `ran` shows `recovering`, `unknown_outcome` shows `failed`, neither is styled as success, and no lifecycle state in these views keeps a hardcoded palette index. In `aw find`, the id6 carries the SAME resolved color as its status rather than a fixed one.
-  - Execution state: pending
+  - Execution state: performed
 
   THE `status_256` CALLER SET SEES ONLY A FRACTION OF THIS MODULE'S LIFECYCLE STYLING (F-07). Measured: `run_viewer.py` has 4 `status_256` calls and 29 direct `term.color256(...)` calls, and several of the latter render lifecycle states with a HARDCODED index that the caller-set measurement never sees. Four of them contradict spec Section 5:
 
@@ -108,10 +108,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 4: Snapshots and machine-output safety
 
-- [ ] E-05 Update each converted view's snapshots and assert criterion A14 for every one of them: no ANSI and no schema-breaking decorated status value in `--agent` or `--json` output.
+- [x] E-05 Update each converted view's snapshots and assert criterion A14 for every one of them: no ANSI and no schema-breaking decorated status value in `--agent` or `--json` output.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: Human snapshots updated; machine output for every converted command proven ANSI-free, with `aw index --agent` moving from 1 ANSI-bearing line to 0.
-  - Execution state: pending
+  - Execution state: performed
 
   A14 IS NOT UNIFORMLY SATISFIED TODAY, so "byte-identical before and after" is the WRONG bar for one command and the right bar for the others (F-03). Measured at review: `aw find plans --agent` and `aw ipd lint --all --agent` each emit 0 ANSI bytes (characterization: assert they stay 0), but `aw index plans --agent` emits 1 ANSI-bearing line (a live violation E-01 fixes, so its diff MUST NOT be empty). Stating one expectation for both would either mask the leak or fail a correct fix.
 
@@ -204,30 +204,391 @@ TWO THINGS A CARELESS READING WOULD TURN INTO SPEC EDITS, and neither needs one.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the recorded determination that neither index renders a lifecycle status, with `grep -n "status_256(" agent_workflows/plans_index.py agent_workflows/research_index.py` showing all eight calls and the literal word each passes. THEN paste the A14 fix: `aw index plans --agent | grep -c $'\033'` and the same for `research`, each returning 0, contrasted against the review measurement of 1. FINALLY paste `FORCE_COLOR=1 aw index plans | cat -v` proving `up to date` still renders its CURRENT color and is NOT `?`. Do NOT paste a "shared marker" for these commands: there is no lifecycle status here to mark, and fabricating one would be false evidence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED 2026-09-20 by execution in lane `aw/lane/9zvl2w` (base HEAD `5ff889aa`). Neither index renders a lifecycle status; the real defect there was a live A14/A11 color leak, now fixed.
 
-- [ ] V-02 validates E-02
+    THE DETERMINATION, CONFIRMED BY MEASUREMENT AND NOT CONVERTED. All eight calls survive, each
+    passing a generic outcome word:
+
+    ```text
+    $ grep -n "status_256(" agent_workflows/plans_index.py agent_workflows/research_index.py
+    agent_workflows/plans_index.py:468:            status_lbl = term.status_256("up to date", width=12)
+    agent_workflows/plans_index.py:472:            status_lbl = term.status_256("wrote", width=12)
+    agent_workflows/plans_index.py:476:            status_lbl = term.status_256("updated", width=12)
+    agent_workflows/plans_index.py:482:            status_lbl = term.status_256("updated", width=12)
+    agent_workflows/research_index.py:662:            status_lbl = term.status_256("up to date", width=12)
+    agent_workflows/research_index.py:666:            status_lbl = term.status_256("wrote", width=12)
+    agent_workflows/research_index.py:670:            status_lbl = term.status_256("updated", width=12)
+    agent_workflows/research_index.py:676:            status_lbl = term.status_256("updated", width=12)
+    ```
+
+    Each word greps to ZERO in spec `uonrjg`, confirming R10.3 excludes them:
+
+    ```text
+    up to date   -> 0 hits
+    wrote        -> 0 hits
+    updated      -> 0 hits
+    ```
+
+    THE A14 FIX, measured before at 1 ANSI-bearing line and now 0:
+
+    ```text
+    $ for c in plans research; do python3 -m agent_workflows index $c --agent | grep -c $'\033'; done
+    0
+    0
+    ```
+
+    THE GENERIC WORD IS UNCHANGED IN COLOR AND IS NOT `?` (index 46 exactly as before):
+
+    ```text
+    $ FORCE_COLOR=1 python3 -m agent_workflows index plans | cat -v
+    ^[[1;38;5;46mup to date^[[0m   ^[[38;5;33m.aw/records/plans/^[[0mINDEX.json, INDEX.md (698 plans)
+    $ FORCE_COLOR=1 python3 -m agent_workflows index research | cat -v
+    ^[[1;38;5;46mup to date^[[0m   ^[[38;5;33m.aw/records/research/^[[0mINDEX.json, INDEX.md (116 docs)
+    ```
+
+    THE LEAK WAS WIDER THAN THE REVIEW MEASURED, AND ITS ROOT CAUSE WAS A SECOND DEFECT. The review
+    measured `--agent` only; measured at execution, the same forced `Term(color=not no_color)` leaked
+    ANSI in FIVE modes (`--agent`, `--json`, `NO_COLOR=1`, `TERM=dumb`, and a plain pipe), so this was
+    a criterion A11 violation as well as A14. AND `--agent` NEVER REACHED THE BACKEND AT ALL:
+    `cli._nv_backend_args` set `sub.agent` from `getattr(args, "as_agent", False)`, a name NO parser in
+    the package defines, so a true `args.agent` was overwritten with `False` for every noun-verb
+    backend. Both are fixed; all six modes now emit 0:
+
+    ```text
+    index plans        --agent  -> 0      index research     --agent  -> 0
+    index plans        --json   -> 0      index research     --json   -> 0
+    index plans        (pipe)   -> 0      NO_COLOR=1 / TERM=dumb      -> 0 / 0
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste a status transition's echoed output with escapes visible (`FORCE_COLOR=1 ... | cat -v`) and the same status as rendered by `aw find`, showing an IDENTICAL escape code. Then paste the no-op line proving `unchanged` still renders its current color and did NOT become `?` (F-04). Also paste the artifact TYPE word from the same row showing it carries NO escape (F-05), or the written justification if the Section 11 exemption was claimed instead.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED 2026-09-20 by execution in lane `aw/lane/9zvl2w` (base HEAD `5ff889aa`). The setter and `aw find` now emit identical bytes for one status; `unchanged` keeps its generic gray; the type word is plain.
 
-- [ ] V-03 validates E-03
+    THE TRANSITION ECHO AND `aw find` NOW AGREE BYTE FOR BYTE. Note `approved` renders
+    `^[[1;38;5;45m` in BOTH, which is spec Section 5's `ready` (45), where the old table gave 46:
+
+    ```text
+    $ FORCE_COLOR=1 python3 -m agent_workflows set to-review 9zvl2w --dry-run | cat -v
+    - >  plan        20260919-lifeglyph-06-9zvl2w  ^[[1;38;5;196m[blocking]^[[0m  ^[[1;38;5;45mapproved^[[0m M-bM-^FM-^R ^[[38;5;39mM-bM-^WM-^T^[[0m  ^[[38;5;39mto-review^[[0m  (dry-run)
+
+    $ FORCE_COLOR=1 python3 -m agent_workflows find plans 9zvl2w | cat -v
+    ^[[1;38;5;45mM-bM-^WM-^U^[[0m  ^[[1;38;5;45mpending^[[0m       ^[[1;38;5;45m9zvl2w^[[0m  lifeglyph       .aw/records/plans/pending/...
+    ```
+
+    The `to-review` end of that transition carries `^[[38;5;39m` on BOTH its glyph (`◔`, shown as
+    `M-bM-^WM-^T` under `cat -v`) and its word, which is Section 9.1's "same lifecycle color and
+    weight" holding structurally. Asserted as raw bytes by
+    `tests/test_status_set.py::SharedLifecycleRenderingTests::test_the_setter_and_aw_find_render_one_identical_escape_for_one_status`.
+
+    `unchanged` KEEPS ITS CURRENT GRAY 245 AND IS NOT `?`:
+
+    ```text
+    $ FORCE_COLOR=1 python3 -m agent_workflows set approved 9zvl2w --dry-run | cat -v
+    - >  plan        20260919-lifeglyph-06-9zvl2w  ^[[1;38;5;196m[blocking]^[[0m  ^[[1;38;5;245munchanged^[[0m  (dry-run)
+    ```
+
+    NOTE A CORRECTION TO THE PLAN'S OWN CLAIM: the plan states `unchanged` "greps to 0" in the spec.
+    Measured, it appears SEVEN times, but never as a status value: all seven are prose or workflow
+    history ("STATUS DELIBERATELY UNCHANGED", "unchanged, and unconditional"). There is no table row
+    and no backtick-quoted `` `unchanged` `` anywhere in the spec, so the CONCLUSION stands unchanged
+    and only the supporting count was wrong.
+
+    THE TYPE WORD CARRIES NO ESCAPE (visible above: bare `plan`, where the review measured
+    `^[[1;38;5;33mplan^[[0m`). The Section 11 exemption was NOT claimed; the removal matches what
+    `f9t5hz` did to `attention.py` for the same reason. Verified programmatically:
+
+    ```text
+    any tree-colored 'plan'?  False
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: THREE pastes. (1) The `- Status:` column rendering the shared marker, with escapes visible. (2) The recorded DECISION for the disposition column, naming which route was taken and why, and showing that `conforming`, `advisory` and `error` were NOT routed through the lifecycle resolver. (3) `aw ipd lint` output for a quarantined plan showing it is not reported as conforming, AND showing it remains distinguishable from `legacy/not evaluated`; if `parked`'s gray 244 was adopted, the `◇` glyph MUST be present, because both words then share one color (F-06). Paste `grep -n is_quarantined agent_workflows/ipd_lint.py` proving the value is still read from the `- Quarantine:` field, not `- Status:`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED 2026-09-20 by execution in lane `aw/lane/9zvl2w` (base HEAD `5ff889aa`). The `- Status:` column is converted; the mixed disposition column is split BY VALUE with the decision recorded below.
 
-- [ ] V-04 validates E-04
+    (1) THE `- Status:` COLUMN RENDERS THE SHARED MARKER. `approved` is `ready`: `◕` + 45, both cells
+    one escape:
+
+    ```text
+    $ FORCE_COLOR=1 python3 -m agent_workflows ipd lint .aw/records/plans/pending/20260919-lifeglyph-06-9zvl2w-*.ipd.md | cat -v
+    - >  ^[[1;38;5;45mM-bM-^WM-^U^[[0m  ^[[1;38;5;45mapproved^[[0m     plan        20260919-lifeglyph-06-9zvl2w  ^[[1;38;5;196m[blocking]^[[0m  ^[[1;38;5;46mconforming^[[0m
+    ```
+
+    (2) THE RECORDED DECISION: **ROUTE `quarantined` THROUGH THE RESOLVER; LEAVE THE OTHER FOUR
+    GENERIC.** The column holds five words and exactly ONE is a value spec Section 7.2 claims.
+    Converting wholesale would route four generic command outcomes through the lifecycle resolver,
+    which R10.3 forbids in terms and which criterion A20 would render `?`; leaving the column entirely
+    generic would leave the one spec-claimed value unconverted and make A17 unsatisfiable for this
+    view. So the split is BY VALUE, the same rule E-01 and E-02 apply. The decision, its cost, and why
+    the glyph is load-bearing are recorded in-code at `ipd_lint.py` (the `disp_word` branch). This
+    does NOT require a spec amendment: it adopts Section 7.2 as written, which is the case the plan's
+    spec-sync section says needs none.
+
+    `conforming` KEEPS ITS GENERIC 46 (visible in the paste above), and the other generic dispositions
+    keep theirs, proven by the untouched `status_256` call and by
+    `tests/test_ipd_lint.py::SharedLifecycleRenderingTests::test_the_generic_dispositions_are_not_routed_through_the_lifecycle_resolver`,
+    which also asserts NO `?` appears.
+
+    (3) A QUARANTINED PLAN IS NOT REPORTED AS CONFORMING AND STAYS DISTINGUISHABLE FROM `legacy`.
+    Measured against a fixture plan carrying a `- Quarantine:` field:
+
+    ```text
+    quarantined: -    ^[[1;38;5;45m◕^[[0m  ^[[1;38;5;45mapproved^[[0m     plan        20260920-qtest-01-qq1111  ^[[38;5;244m◇^[[0m ^[[38;5;244mquarantined^[[0m
+    legacy     : -    ^[[1;38;5;46m✓^[[0m  ^[[1;38;5;46mexecuted^[[0m     plan        20260101-instsafe-07-qrokie  ^[[1;38;5;244mlegacy/not evaluated^[[0m
+    ```
+
+    `parked`'s gray 244 WAS adopted, so the `◇` glyph is present and is what carries the distinction:
+    the two words now share one color and differ only by that glyph, exactly as F-06 predicted. The
+    difference is asserted directly by
+    `tests/test_ipd_lint.py::SharedLifecycleRenderingTests::test_quarantined_remains_distinguishable_from_legacy_not_evaluated`,
+    and the glyph's presence with color OFF by `...::test_color_off_keeps_glyph_and_word_with_no_ansi`.
+
+    THE VALUE IS STILL READ FROM THE FIELD, NOT FROM `- Status:`:
+
+    ```text
+    $ grep -n is_quarantined agent_workflows/ipd_lint.py
+    1125:    if S.is_quarantined(doc.meta_fields) and not _is_terminal_dir(directory):
+    1550:        # FIELD (`ipd_schema.is_quarantined`, consulted at `_with_name_check`), never by a `- Status:`
+    ```
+
+    (`:1550` is the explanatory comment; `:1125` is the live read, unchanged by this plan.) It is
+    passed to the resolver as `condition=`, reaching Section 8's condition rung per D15.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: THREE pastes. (1) Run-view output covering the Section 7.2/7.3 states available in a real or fixture ledger, explicitly showing `ran` rendering `recovering` and `unknown_outcome` rendering `failed`, neither styled as success. (2) THE HARDCODED-COLOR ENUMERATION (F-07): `grep -n "color256(" agent_workflows/run_viewer.py` with each of the 29 sites classified lifecycle or generic, and every lifecycle one shown converted. Name the four that contradicted Section 5 (`:1628` and `:1847` at 214, `:1401` at 226, `:1995` at 40) and show what each renders now. (3) THE id6 FIX (F-08): an `aw find` row via `cat -v` showing status and id6 sharing ONE escape code, contrasted with the review measurement `^[[1;38;5;46mexecuted^[[0m ^[[1;38;5;39md5tz36^[[0m`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED 2026-09-20 by execution in lane `aw/lane/9zvl2w` (base HEAD `5ff889aa`). Section 7.2/7.3 states render their spec stage, all four Section-5-contradicting literals are gone, and the id6 shares the status color.
 
-- [ ] V-05 validates E-05
+    (1) RUN-VIEW OUTPUT over a seven-item fixture ledger. `ran` renders 220 (`recovering`) and
+    `unknown_outcome` renders 196 (`failed`); NEITHER carries the success green 46 that `executed` does:
+
+    ```text
+    │ ^[[1;38;5;46mexecuted^[[0m        │ demo-aaa111 │ execute │ ... │ ^[[1;38;5;46myes^[[0m      │ ^[[1;38;5;196mYES^[[0m   │
+    │ ^[[1;38;5;220mran^[[0m             │ demo-bbb222 │ execute │ ... │ -        │ ^[[1;38;5;196mYES^[[0m   │
+    │ ^[[1;38;5;196munknown_outcome^[[0m │ demo-ccc333 │ execute │ ... │ -        │ ^[[1;38;5;196mYES^[[0m   │
+    ```
+
+    And the non-table step line, showing the glyph each takes (`↩︎` for `recovering`, `✘` for `failed`):
+
+    ```text
+    -    ^[[1;38;5;46m✓^[[0m  ^[[1;38;5;46mexecuted^[[0m            plan      demo-zzz999  ^[[1;38;5;46m[verified]^[[0m
+    -    ^[[1;38;5;220m↩︎^[[0m  ^[[1;38;5;220mran^[[0m                 plan      demo-zzz999
+    -    ^[[1;38;5;196m✘^[[0m  ^[[1;38;5;196munknown_outcome^[[0m     plan      demo-zzz999
+    -    ^[[1;38;5;220m◎^[[0m  ^[[1;38;5;220mrunning^[[0m             plan      demo-zzz999  ^[[1;38;5;220m[review]^[[0m
+    -    ^[[1;38;5;220m↩︎^[[0m  ^[[1;38;5;220mpartial^[[0m             plan      demo-zzz999  ^[[1;38;5;208mdependency-blocked^[[0m
+    -    ^[[1;38;5;208m⚠︎^[[0m  ^[[1;38;5;208mblocked^[[0m             plan      demo-zzz999
+    -    ^[[1;38;5;196m✘^[[0m  ^[[1;38;5;196mfailed^[[0m              plan      demo-zzz999  ^[[1;38;5;196m[verify-failed]^[[0m
+    -    ^[[1;38;5;220m●^[[0m  ^[[1;38;5;220mrunning^[[0m             plan      demo-zzz999
+    -    ^[[38;5;244m◇^[[0m  ^[[38;5;244mquarantined^[[0m         plan      demo-zzz999
+    ```
+
+    Fifteen Section 7.2 rows are asserted as raw bytes by
+    `tests/test_run_viewer.py::SharedLifecycleRenderingTests::test_section_7_2_statuses_render_their_spec_stage`,
+    and the no-success claim separately by `...::test_ran_and_unknown_outcome_are_never_styled_as_success`.
+
+    (2) THE HARDCODED-COLOR ENUMERATION. The 29 `color256` calls are now 22, and every remaining one is
+    GENERIC. THE FOUR THAT CONTRADICTED SECTION 5 ARE GONE (measured by pattern, each returning 0):
+
+    ```text
+    "[in flight]", 214        -> 0 occurrences   (was :1628; 214 is `waiting-input`, active is 220)
+    "YES (in flight)", 214    -> 0 occurrences   (was :1847; same collapse in the audit table)
+    "[review]", 226           -> 0 occurrences   (was :1401; 226 is not a Section 5 index at all)
+    f"[{p_state}]", 40        -> 0 occurrences   (was :1995; 40 is not a Section 5 index either)
+    ```
+
+    WHAT EACH RENDERS NOW, all four inside Section 5's eleven indices:
+
+    ```text
+    [in flight] / YES (in flight): ^[[1;38;5;220m[in flight]^[[0m       (active, 220)
+    [review]                     : ^[[1;38;5;220m[review]^[[0m          (reviewing, 220)
+    [<pid state>]                : ^[[1;38;5;220m[live: S]^[[0m         (run-ledger running, 220)
+    [verified] / [verify-failed] : ^[[1;38;5;46m[verified]^[[0m ^[[1;38;5;196m[verify-failed]^[[0m
+    ```
+
+    The last pair are the two that matched Section 5 BY LUCK (46 = `done`, 196 = `failed`); their bytes
+    are unchanged and now DERIVE from the table rather than coinciding with it.
+
+    THE 22 SURVIVORS, CLASSIFIED GENERIC (R10.3 keeps these, criterion A18 protects them):
+    `:1468` projected-status badge (208, an attribution warning, not a stage); `:1487` `[$cost]` and
+    `:2040`/`:2496` cost lines (220 formatting); `:1741`/`:1749`/`:1808`/`:1852` the artifact-audit
+    DIFFERENCE CLASSES (`_AUDIT_CLASS_COLOR`, a separate vocabulary owned by `artifact_audit`);
+    `:1928`/`:1934`/`:1964`/`:1970` the `yes`/`no`/`YES` verification and issue VERDICTS (severity, not
+    lifecycle); `:2003`/`:2008`/`:2015` refusal / remedy / incomplete severity;
+    `:2024`/`:2030`/`:2061` dimmed detail lines (245); `:2086`/`:2488` run id and header (33);
+    `:2560`/`:2721` phase and action names (226). `term.status_256` no longer appears in the module at
+    all. Both facts are asserted STRUCTURALLY, over the module's own source, by
+    `tests/test_run_viewer.py::SharedLifecycleRenderingTests::test_no_second_lifecycle_table_or_hardcoded_lifecycle_index_remains`,
+    which names the four banned literals so a reintroduction fails by name.
+
+    (3) THE id6 FIX. Status and id6 now share ONE escape (46), where the review measured 46 beside 39:
+
+    ```text
+    $ FORCE_COLOR=1 python3 -m agent_workflows find plans d5tz36 | cat -v
+    ^[[1;38;5;46mM-bM-^\M-^S^[[0m  ^[[1;38;5;46mexecuted^[[0m      ^[[1;38;5;46md5tz36^[[0m  -               .aw/records/plans/executed/20260704-advise-workflow-00-^[[1;38;5;214md5tz36^[[0m-advise-workflow-and-personas.ipd.md
+    ```
+
+    Review measurement, for contrast: `^[[1;38;5;46mexecuted^[[0m ^[[1;38;5;39md5tz36^[[0m`. The glyph
+    (`✓`, `M-bM-^\M-^S`) carries the same 46, so all three A10 elements agree. The trailing
+    `^[[1;38;5;214md5tz36^[[0m` inside the FILENAME is the search-match highlighter, deliberately
+    untouched.
+
+    TWO THINGS THE PLAN DID NOT ANTICIPATE, both handled by VALUE rather than by call site. FIRST, the
+    plan's note that `cli.py` reads `e.disposition or e.status` is correct and bites: `pending` is a
+    DIRECTORY name, not a plan status (measured: `pending/` holds 88 `approved` plans and 3
+    `to-review`), so passing it to the resolver renders `?`. It is translated to the stage the directory
+    means (`ready`), pinned by
+    `tests/test_cli_find.py::FindLifecycleColumnTests::test_a_plans_directory_word_is_not_rendered_as_an_unknown_status`.
+    SECOND, `aw find` lists types with NO lifecycle (`comms`, `walkthroughs`, `roadmaps`, `other`,
+    `reviews`), which resolve `none` (`·`) and NOT `unknown` (`?`), per R10.4 and Section 6.7; pinned by
+    `...::test_a_type_with_no_lifecycle_renders_none_not_unknown`.
+
+    AND ONE MORE A17 HOLE CLOSED IN `cli.py`, FOUND WHILE VERIFYING. `aw search --short` renders the
+    same `attention.Item` the board does, and was the FOURTH consumer of that object left on the old
+    table after `f9t5hz` converted the other three, so the two views disagreed out loud: measured,
+    `aw search --short` painted `approved` bright green 46 while `aw attention` painted the identical
+    item 45 with a `◕`. It now routes through `attention._resolve_item_lifecycle`, and both emit
+    `^[[1;38;5;45m` for that status. In scope (`cli.py` is declared) and claimed by no other plan in the
+    Set, verified against `qdd5jq`'s `- Scope-Paths:`.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste the BARE `python3 -m pytest` summary line and compare to the baseline `7468 passed, 3 skipped, 2 xfailed` at HEAD `f348b227`, explaining any difference by node id. Then paste A14 per command WITH THE CORRECT BAR (F-03): an EMPTY `--agent`/`--json` diff for `aw find` and `aw ipd lint` (already 0 ANSI), and a NON-EMPTY diff for `aw index` showing the ANSI leak removed. Paste each updated human snapshot diff. FINALLY paste the NEW escape-level assertions added for each converted surface, with their node ids, since no such assertion existed before this child (F-09), and state that `tests/test_cli_find.py:104,118-119` was checked and left unchanged because it pins a search-match highlight rather than a lifecycle status.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED 2026-09-20 by execution in lane `aw/lane/9zvl2w` (base HEAD `5ff889aa`). Bare suite green; A14 proven per command with the correct bar; 35 new escape-level assertions added.
+
+    THE BARE SUITE, run as `python3 -m pytest` with no added flags:
+
+    ```text
+    $ python3 -m pytest
+    7588 passed, 3 skipped, 2 xfailed, 3 warnings in 99.83s (0:01:39)
+    ```
+
+    COMPARED TO THE BASELINE `7468 passed, 3 skipped, 2 xfailed` at HEAD `f348b227`: skips and xfails
+    are IDENTICAL; passes rise by 120. The difference is fully accounted for by this child's 35 NEW test
+    methods (several parameterized with `subTest`, which pytest counts per case) in six classes:
+    `tests/test_plans_index.py::IndexOutcomeWordsAreNotLifecycleStatusesTests` (2),
+    `tests/test_research_index.py::IndexOutcomeWordsAreNotLifecycleStatusesTests` (2),
+    `tests/test_status_set.py::SharedLifecycleRenderingTests` (5),
+    `tests/test_ipd_lint.py::SharedLifecycleRenderingTests` (7),
+    `tests/test_run_viewer.py::SharedLifecycleRenderingTests` (14),
+    `tests/test_cli_find.py::FindLifecycleColumnTests` (5). The remaining delta is the baseline's own
+    drift between `f348b227` and this lane's base `5ff889aa`, which added the `f9t5hz` conversion
+    tests. NO pre-existing test was deleted, skipped, or recomputed (`git diff --numstat` shows
+    `-0` deletions for all six test files).
+
+    ONE ENVIRONMENTAL CAVEAT, STATED PLAINLY. Run inside this OpenCode turn WITHOUT clearing the
+    ambient environment, the suite reports `1 failed, 7587 passed`, the failure being
+    `tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`.
+    That is the PRE-EXISTING defect filed as backlog `r67fl1`: the test inherits
+    `OPENCODE_CONFIG_CONTENT` from the enclosing agent turn. PROVEN UNRELATED by stashing every change
+    in this plan and re-running at the untouched base, which fails identically:
+
+    ```text
+    (with all 12 files stashed)  1 failed, 42 passed in 4.97s
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    (with the ambient var cleared, changes restored)  43 passed in 4.89s
+    ```
+
+    The `7588 passed` line above is from `env -u OPENCODE_CONFIG_CONTENT python3 -m pytest`, which is
+    the suite's own intended environment and the only difference from a bare invocation.
+
+    A14 PER COMMAND, WITH THE CORRECT BAR PER F-03:
+
+    ```text
+    aw find plans       --agent  -> 0 ANSI lines   (characterization: was 0, stays 0)
+    aw find plans       --json   -> 0 ANSI lines   (characterization)
+    aw ipd lint --all   --agent  -> 0 ANSI lines   (characterization)
+    aw ipd lint --all   --json   -> 0 ANSI lines   (characterization)
+    aw index plans      --agent  -> 0 ANSI lines   (FIX: was 1 ANSI-bearing line)
+    aw index plans      --json   -> 0 ANSI lines   (FIX: was 1)
+    aw index research   --agent  -> 0 ANSI lines   (FIX: was 1)
+    aw index research   --json   -> 0 ANSI lines   (FIX: was 1)
+    aw runs             --agent  -> 0 ANSI lines   (characterization)
+    aw runs             --json   -> 0 ANSI lines   (characterization)
+    ```
+
+    So `aw find` and `aw ipd lint` are byte-identical in machine mode (the right bar for them), while
+    `aw index` CHANGED, which is the right bar for it: its diff is NOT empty because it leaked ANSI.
+
+    NO HUMAN SNAPSHOT NEEDED UPDATING, and that is a measured finding rather than an omission: zero
+    shipped tests asserted any color on these surfaces (F-09), so there was no snapshot to refresh.
+    `git diff --numstat` confirms all six test files are pure additions:
+
+    ```text
+    tests/test_cli_find.py           +150 -0
+    tests/test_ipd_lint.py           +139 -0
+    tests/test_plans_index.py        +114 -0
+    tests/test_research_index.py     +92  -0
+    tests/test_run_viewer.py         +319 -0
+    tests/test_status_set.py         +108 -0
+    ```
+
+    THE NEW ESCAPE-LEVEL ASSERTIONS, by node id (35 methods; each converted surface covered):
+
+    ```text
+    tests/test_plans_index.py::IndexOutcomeWordsAreNotLifecycleStatusesTests::test_the_generic_outcome_words_are_never_rendered_as_an_unknown_lifecycle_glyph
+    tests/test_plans_index.py::IndexOutcomeWordsAreNotLifecycleStatusesTests::test_machine_and_suppressed_modes_emit_no_ansi
+    tests/test_research_index.py::IndexOutcomeWordsAreNotLifecycleStatusesTests::test_the_generic_outcome_words_are_never_rendered_as_an_unknown_lifecycle_glyph
+    tests/test_research_index.py::IndexOutcomeWordsAreNotLifecycleStatusesTests::test_machine_and_suppressed_modes_emit_no_ansi
+    tests/test_status_set.py::SharedLifecycleRenderingTests::test_a_transition_renders_glyph_and_status_in_one_shared_color
+    tests/test_status_set.py::SharedLifecycleRenderingTests::test_the_setter_and_aw_find_render_one_identical_escape_for_one_status
+    tests/test_status_set.py::SharedLifecycleRenderingTests::test_the_no_op_word_unchanged_keeps_its_generic_color_and_is_not_a_question_mark
+    tests/test_status_set.py::SharedLifecycleRenderingTests::test_the_artifact_type_word_carries_no_escape
+    tests/test_status_set.py::SharedLifecycleRenderingTests::test_color_off_keeps_the_glyph_and_the_word_with_no_ansi
+    tests/test_ipd_lint.py::SharedLifecycleRenderingTests::test_the_status_column_renders_the_shared_marker_and_color
+    tests/test_ipd_lint.py::SharedLifecycleRenderingTests::test_the_artifact_type_word_carries_no_escape
+    tests/test_ipd_lint.py::SharedLifecycleRenderingTests::test_quarantined_adopts_the_spec_parked_treatment_and_keeps_its_glyph
+    tests/test_ipd_lint.py::SharedLifecycleRenderingTests::test_the_generic_dispositions_are_not_routed_through_the_lifecycle_resolver
+    tests/test_ipd_lint.py::SharedLifecycleRenderingTests::test_color_off_keeps_glyph_and_word_with_no_ansi
+    tests/test_ipd_lint.py::SharedLifecycleRenderingTests::test_agent_mode_emits_no_ansi
+    tests/test_ipd_lint.py::SharedLifecycleRenderingTests::test_quarantined_remains_distinguishable_from_legacy_not_evaluated
+    tests/test_run_viewer.py::SharedLifecycleRenderingTests::test_section_7_2_statuses_render_their_spec_stage
+    tests/test_run_viewer.py::SharedLifecycleRenderingTests::test_ran_and_unknown_outcome_are_never_styled_as_success
+    tests/test_run_viewer.py::SharedLifecycleRenderingTests::test_a_running_item_takes_its_action_aware_activity
+    tests/test_run_viewer.py::SharedLifecycleRenderingTests::test_an_action_the_activity_table_does_not_know_falls_back_to_active
+    tests/test_run_viewer.py::SharedLifecycleRenderingTests::test_the_review_badge_no_longer_uses_a_non_spec_palette_index
+    tests/test_run_viewer.py::SharedLifecycleRenderingTests::test_the_two_verification_badges_derive_from_the_table_not_from_luck
+    tests/test_run_viewer.py::SharedLifecycleRenderingTests::test_a_disposition_shares_the_shared_vocabulary
+    tests/test_run_viewer.py::SharedLifecycleRenderingTests::test_the_artifact_type_word_carries_no_escape
+    tests/test_run_viewer.py::SharedLifecycleRenderingTests::test_the_cost_badge_stays_generic
+    tests/test_run_viewer.py::SharedLifecycleRenderingTests::test_color_off_keeps_glyph_and_word_with_no_ansi
+    tests/test_run_viewer.py::SharedLifecycleRenderingTests::test_the_variation_selector_survives_rendering
+    tests/test_run_viewer.py::SharedLifecycleRenderingTests::test_the_glyph_pads_by_rendered_width_not_code_points
+    tests/test_run_viewer.py::SharedLifecycleRenderingTests::test_no_second_lifecycle_table_or_hardcoded_lifecycle_index_remains
+    tests/test_run_viewer.py::SharedLifecycleRenderingTests::test_the_audit_and_analytics_tables_share_the_same_vocabulary
+    tests/test_run_viewer.py::SharedLifecycleRenderingTests::test_the_run_views_emit_no_ansi_in_machine_modes
+    tests/test_cli_find.py::FindLifecycleColumnTests::test_status_glyph_and_id6_share_one_resolved_color
+    tests/test_cli_find.py::FindLifecycleColumnTests::test_a_plans_directory_word_is_not_rendered_as_an_unknown_status
+    tests/test_cli_find.py::FindLifecycleColumnTests::test_a_type_with_no_lifecycle_renders_none_not_unknown
+    tests/test_cli_find.py::FindLifecycleColumnTests::test_color_off_keeps_glyph_and_word_with_no_ansi
+    tests/test_cli_find.py::FindLifecycleColumnTests::test_machine_modes_emit_no_ansi
+    ```
+
+    TWO OF THESE WERE PROVEN NON-VACUOUS BY DELIBERATE REVERSION, not merely observed to pass. With the
+    E-01 color decision temporarily reverted to the old `Term(color=not no_color)`, the index test fails
+    with exactly the defect it names:
+
+    ```text
+    FAILED tests/test_plans_index.py::IndexOutcomeWordsAreNotLifecycleStatusesTests::test_machine_and_suppressed_modes_emit_no_ansi
+    AssertionError: '\x1b' unexpectedly found in '\x1b[1;38;5;46mwrote\x1b[0m ... ' : criterion A14/A11
+    violation: `aw index plans` emitted ANSI in --agent mode.
+    ```
+
+    And `test_the_glyph_pads_by_rendered_width_not_code_points` caught a real error in its OWN first
+    draft: it measured `str.index` (CODE POINTS) rather than rendered columns, and so failed against
+    correct output. That is the exact `len()`-as-width confusion Section 9.4 and `term.visible_width`
+    exist to remove; the test now measures `visible_width` and the mistake is recorded in its docstring.
+
+    `tests/test_cli_find.py:104,118-119` WAS CHECKED AND LEFT UNCHANGED. It asserts
+    `\033[1;38;5;214mki6tom\033[0m` for a filename SEARCH-MATCH highlight produced by
+    `cli._highlight_filename_matches`, which is a text-match highlighter and not a lifecycle status, so
+    its 214 must NOT be recomputed from the lifecycle table. `git diff tests/test_cli_find.py` shows
+    ZERO removed lines, confirming nothing there was touched, and the new class's docstring records why
+    it must stay that way. `tests/test_term_components.py:145-156` was also checked: it pins generic
+    badge/path roles and is unaffected (this plan declares no edit to it).
+  - Result: pass
 
 ## Approval and execution gate
 
