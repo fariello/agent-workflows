@@ -7,18 +7,18 @@
 - Scope: IN: route LIFECYCLE rendering in `status_set.py`, `ipd_lint.py`, `run_viewer.py`, and the `aw find` lifecycle call sites in `cli.py` through the shared helpers; apply Section 9.1 styling (including the id6, which three `cli.py` sites currently hardcode independent of status) and criterion A20 unknown handling at each; decide and record `quarantined`'s treatment in the mixed lint disposition column; convert the run views' HARDCODED lifecycle colors that `status_256` never touches; fix the live A14 ANSI leak in `aw index --agent`; and update each view's snapshots. OUT: both runners and `render_stream.py` (child `qdd5jq`), deleting the shared `term.py` table (also `qdd5jq`, after every consumer is off it), generic `Term` OK/WARN/FAIL outcomes which R10.3 keeps explicitly out of scope, and the generic index-outcome words (`up to date`, `wrote`, `updated`, `unchanged`) which are NOT lifecycle statuses and MUST NOT be routed through the resolver.
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/ipd_lint.py, agent_workflows/run_viewer.py, agent_workflows/cli.py, agent_workflows/plans_index.py, agent_workflows/research_index.py, tests/test_ipd_lint.py, tests/test_run_viewer.py, tests/test_status_set.py, tests/test_research_index.py, tests/test_plans_index.py
 - Item-Dependencies: executed:f9t5hz
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: lifeglyph
 - Order: 6
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 9zvl2w
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - From-Spec: uonrjg
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-20 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: 9zvl2w verified (set lifeglyph, attempt 1). [Scope reconciliation - out-of-scope tests/test_cli_find.py: changed by the plan's approved execution (auto-reconciled by aw oc run)]
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-19 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED. PR-601..PR-610 all FIXED, none deferred, none open. The scope basis was INVALID (PR-604, BLOCKER): scope was derived from status_256 callers, but that helper also styles generic outcome words R10.3 excludes, so E-01's two modules held ZERO lifecycle calls and converting them would print ? via A20 where users read 'up to date'. Three more gaps invisible to that grep: run_viewer.py has 29 direct color256 calls with four contradicting Section 5 (blocking A17), aw find hardcodes the id6 to 39 (breaking A10), and the colored type word from f9t5hz is replicated in three modules. E-03 conflated the lint status and disposition columns. No shipped test pins any color this child changes. OQ-01 resolved: aw index supports only plans and research. Readiness go-pending-approval.
 
