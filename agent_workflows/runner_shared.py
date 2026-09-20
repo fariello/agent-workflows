@@ -2693,6 +2693,404 @@ def integrate_lane_branch(
 
 
 # ==================================================================================================
+# finalback (`zzcrlo`): SEND A REFUSED FINALIZE BACK TO THE SAME AGENT, AND STOP CALLING IT SUCCESS
+# ==================================================================================================
+#
+# THE REFUSAL IS CORRECT AND NOTHING HERE WEAKENS IT. `aw ipd finalize` refuses when the plan's
+# `E-*`/`V-*` bookkeeping does not conform, and that verdict is untouched: this section acts on the
+# verdict rather than altering it. The defect is what happened NEXT, which was nothing at all.
+#
+# MEASURED, in `run-20260908T213552Z-3724920` (agy host, plan `xbwq8n`): the agent wrote correct code
+# and committed it to its lane, never ticked its `E-*`/`V-*` boxes, `aw ipd finalize` refused with
+# nine `IPD-S404` findings, and the run printed `Outcome: COMPLETED` at `Progress: 1/1 100%` while
+# two commits sat stranded on `aw/lane/xbwq8n`. Order 01 of a ten-plan Set had not landed and the
+# summary said it had. The refusal arm wrote its record, printed, and fell through.
+#
+# NOTE WHAT WAS **NOT** WRONG, because "fixing" it would be a real regression: the EXIT CODE was
+# already correct. It comes from `runner_stop.deliberate_stop_exit_code(success_states=...)` fed by
+# `item_reached_success`, whose bar for an execute action EXCLUDES `substantially-complete`, so that
+# run exited 1. Only the human-readable SUMMARY lied. Do not touch the exit code here.
+#
+# TWO INDEPENDENT HALVES, and the reporting half is the more urgent one:
+#
+#   1. HONEST REPORTING. `render_run_summary_table` labels a run `COMPLETED` when every item is in
+#      `("executed", "reviewed", "approved", "substantially-complete")`. A refused item sits at
+#      `substantially-complete`, so a run that landed nothing reads as success. The fix keys on the
+#      RECORDED REFUSAL, never on the disposition: `substantially-complete` is a legitimate
+#      success-ish state for an item that finished with no refused transition, and removing it from
+#      that tuple would recategorize runs this has nothing to do with.
+#
+#   2. THE SEND-BACK. A refused finalize is handed BACK to the same agent, in the same run, in
+#      recovery mode, carrying the gate's own findings - but ONLY for the retryable class, and only
+#      while frozen retry budget remains, and the item is FAILED when it runs out.
+#
+# AN APPROVED, RELEASE-GATING SPEC ALREADY MANDATES THE LOOP, so this is conformance and not a
+# proposal. Spec `25kzda` Section 4.6 assigns the action `RETRY, then FAIL ITEM` to exactly the three
+# checks that run failed (`IPD-EXEC-E-COMPLETE`, `IPD-EXEC-V-EVIDENCE`, `IPD-EXEC-PRE-TRANSITION`),
+# Section 4.1 defines RETRY as issuing a bounded correction packet while frozen budget remains, and
+# Section 5.5 permits the spend on "missing or stale validation evidence". Those three FINDING CODES
+# are unbound names (all 11 `IPD-EXEC-*` codes grep to zero files, which the spec itself concedes), so
+# per its own instruction this keys on the SHIPPED enforcer's real output instead of on the codes.
+#
+# THE FEEDBACK CHANNEL IS ALREADY BUILT AND IS NOT REINVENTED HERE. `finalize_refused` is already an
+# allowlisted prior-attempt key (`lane_containment._PRIOR_ATTEMPT_SAFE_KEYS`) and
+# `prior_attempt_summary` is already interpolated into the recovery prompt as
+# `Prior attempt: {json.dumps(prior)}`. So a re-dispatch with `recovery=True` hands the agent the
+# gate's exact findings with no new packet format; this section only sets the flag. The channel reads
+# `attempts[-1]`, so it works precisely because the refused attempt is still the LAST attempt when the
+# next turn builds its prompt - which is why a test asserts on the RENDERED PROMPT and not on a flag.
+
+#: The retryable pre-transition finding TEXTS, matched positively. Four strings, MEASURED from
+#: `ipd_lint`'s `pre-transition` checkpoint rather than transcribed from a spec.
+#:
+#: WHY NOT THE FINDING CODE, which is the obvious and WRONG trigger: `IPD-S404` is
+#: `ipd_lint.C_CHECKPOINT`, the code for EVERY checkpoint diagnostic, including the
+#: status/checkpoint-mismatch and the pre-execution blocking-question cases. And the code cannot be
+#: rescued by the exit status either, because `finalize_precheck` returns the SAME `(1, message)`
+#: shape for a MISSING begin receipt, a STALE begin receipt, and a scope-reconciliation refusal, while
+#: the driver keeps only `(fin_rc, fin_msg)` and treats every nonzero identically. A stale receipt is
+#: spec 5.5's "changed frozen requirements" and an out-of-scope mutation is the FIRST entry on its
+#: never-retry list, so a trigger keyed on the code or the exit status would retry two classes the
+#: spec explicitly forbids retrying.
+#:
+#: WHY PROSE AND NOT STRUCTURED DIAGNOSTICS: there is no structured path to consume.
+#: `finalize_precheck` does compute a `findings` tuple, but `driver_finalize` shells out to
+#: `aw ipd finalize` and keeps only the process's exit code and its combined output, so the structure
+#: is lost at the subprocess boundary. The strings are therefore PINNED BY A TEST, so a wording change
+#: in `ipd_lint` breaks that test loudly instead of silently widening or disabling the send-back.
+RETRYABLE_FINALIZE_FINDING_TEXTS: tuple[str, ...] = (
+    "not 'performed' at pre-transition",
+    "not 'pass' at pre-transition",
+    "empty Observed evidence at pre-transition",
+)
+
+#: The refusal SUMMARY that identifies the pre-transition gate. Required in addition to the findings,
+#: because it is what distinguishes "the E/V bookkeeping is incomplete" (retryable) from every other
+#: refusal `finalize_precheck` can return under the same exit code.
+RETRYABLE_FINALIZE_SUMMARY: str = "pre-transition gate did NOT conform"
+
+#: The stable refusal CODE recorded on a refused item, so the summary, `aw runs`, and any later reader
+#: key on one machine-readable token. Consumed through r2i1b1's `Refusal` record, NOT a second field.
+FINALIZE_REFUSAL_CODE: str = "finalize-refused"
+
+#: The per-item key counting how many times THIS item has been re-dispatched by the send-back. Counted
+#: separately from `attempts`, because an item accrues attempts for reasons that have nothing to do
+#: with a refusal (an interrupt, a `--retry-incomplete` requeue), and spending correction budget on
+#: those would be a different policy than the one spec 5.5 describes.
+FINALIZE_RETRY_COUNT_KEY: str = "finalize_retry_attempts"
+
+#: The terminal status an item reaches when its retry budget is EXHAUSTED. Spec 4.6's action is
+#: `RETRY, then FAIL ITEM`, and the FAIL half is what makes the loop safe: without it an exhausted
+#: retry would leave the item at `substantially-complete`, which is the very state that reported a
+#: non-landing as success. `failed-safely` is chosen because it ALREADY exists, is already in
+#: `TERMINAL_STATES`, is already rendered `FAILED` by the summary, and is already in
+#: `--retry-incomplete`'s set, so an operator keeps the manual route. It is deliberately NOT in any
+#: success bar, which is also what lets an orchestrator correctly declare the Set dead once the
+#: budget is gone (see `finalize_retry_decision`).
+FINALIZE_RETRY_EXHAUSTED_STATUS: str = "failed-safely"
+
+
+def finalize_refusal_is_retryable(fin_msg: str) -> bool:
+    """Is this finalize refusal in the RETRYABLE class a correction turn can safely fix?
+
+    A POSITIVE ALLOWLIST, requiring BOTH halves:
+
+      1. the refusal summary is the pre-transition gate's, and
+      2. EVERY finding line in the message is one of :data:`RETRYABLE_FINALIZE_FINDING_TEXTS`.
+
+    Anything else returns False and the caller keeps today's behavior (preserve and report). That
+    "every finding" requirement is the load-bearing half: a message mixing an incomplete `V-*` with
+    an out-of-scope path must NOT be retried, because spec 5.5 puts out-of-scope mutation first on its
+    never-retry list, and a rule matching ANY retryable finding would retry it.
+
+    FAIL-CLOSED IN BOTH DIRECTIONS. An empty or unparseable message is not retryable (no evidence of
+    a safe class), and a message whose findings cannot be located is not retryable either.
+    """
+
+    text = (fin_msg or "").strip()
+    if not text:
+        return False
+    if RETRYABLE_FINALIZE_SUMMARY not in text:
+        return False
+
+    # The finding lines `aw ipd finalize` prints are `  <RULE> <detail>`, one per diagnostic. Locate
+    # them by the rule prefix rather than by indentation, which a wrapper could reflow.
+    finding_lines = [
+        line.strip() for line in text.splitlines() if line.strip().startswith("IPD-")
+    ]
+    if not finding_lines:
+        # The summary alone, with no enumerated findings, tells us only that the gate refused and NOT
+        # which class it refused on. Refuse to guess.
+        return False
+    for line in finding_lines:
+        if not any(token in line for token in RETRYABLE_FINALIZE_FINDING_TEXTS):
+            return False
+    return True
+
+
+def finalize_retry_attempts(item: Mapping[str, Any]) -> int:
+    """How many send-back retries this item has already consumed. Never negative."""
+
+    raw = item.get(FINALIZE_RETRY_COUNT_KEY)
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        return 0
+    return max(0, raw)
+
+
+def frozen_retry_budget(state: Mapping[str, Any]) -> int:
+    """The run's FROZEN correction budget, read from state and never re-resolved from `args`.
+
+    `freeze_run_policy_flags` resolves `--retry-budget` to its effective integer at queue build
+    precisely so no later reader re-resolves a bare `None` (and re-resolves it DIFFERENTLY). This
+    reads that frozen value.
+
+    THE GUARD IS `is None`-SHAPED, NOT TRUTHY, and that is the whole point of stating it: `0` is a
+    LEGAL budget with a specific meaning (spec 5.5: "`0` means the first failed deterministic check
+    ... immediately fails the item; no correction packet is issued"), so a truthiness test would
+    silently convert a deliberate opt-out into the default of two retries.
+    """
+
+    raw = (state.get("options") or {}).get("retry_budget")
+    if raw is None:
+        return resolve_retry_budget(None)
+    try:
+        return max(0, int(raw))
+    except (TypeError, ValueError):
+        return resolve_retry_budget(None)
+
+
+class FinalizeRetryDecision(NamedTuple):
+    """What to do about ONE refused finalize. DECIDES ONLY: no state write, no print, no dispatch.
+
+    retry:     re-dispatch this item in recovery mode (budget remains and the class is retryable).
+    exhausted: the class was retryable but the budget is gone, so the item must be FAILED.
+    reason:    the human sentence, recorded as the `Refusal.reason`.
+    attempts:  send-back retries consumed BEFORE this decision.
+    budget:    the run's frozen budget, for the message and for tests.
+    """
+
+    retry: bool
+    exhausted: bool
+    reason: str
+    attempts: int
+    budget: int
+
+
+def finalize_retry_decision(
+    item: Mapping[str, Any], state: Mapping[str, Any], fin_msg: str
+) -> FinalizeRetryDecision:
+    """Decide RETRY / FAIL-ITEM / LEAVE-ALONE for one refused finalize (spec 25kzda 4.6, 5.5).
+
+    THREE OUTCOMES, and the third is today's behavior kept deliberately:
+
+      * RETRY      - the class is retryable AND budget remains. The caller returns the item to
+                     `queued` with `recovery_next`, spending one budget unit.
+      * EXHAUSTED  - the class is retryable but the budget is spent. Spec 4.6's action is `RETRY, then
+                     FAIL ITEM`, so the caller writes a FAILED status. A budget of 0 lands here on the
+                     FIRST refusal, which is exactly what spec 5.5 specifies, and is why a test pins
+                     the 0 case: an off-by-one here converts an opt-out into a silent retry.
+      * neither    - an unrecognized refusal class. Preserve and report, unchanged. This is the
+                     fail-closed direction and covers every entry on spec 5.5's never-retry list.
+
+    WHY THIS IS BOUNDED BY CONSTRUCTION, which matters more than it looks: NOTHING ELSE bounds it.
+    `max_items_per_session` rotates the SESSION, it does not cap dispatch, and the selection loop
+    re-picks any `queued` item whose dependencies are satisfied - so an item returned to `queued`
+    without a decrement would be dispatched forever. The in-tree precedent for how badly that goes is
+    a MEASURED 201-dispatch orchestrator spin. The counter is therefore incremented by the caller on
+    every send-back and compared against the frozen budget here, so the total dispatches for one item
+    can never exceed `budget + 1`.
+
+    THE INTERACTION WITH ORCHESTRATOR DISPATCH IS DELIBERATE (this plan's E-02 decision). While a
+    retry is pending the item is `queued`, which is NOT in `TERMINAL_STATES`, so
+    `decide_orchestrator_dispatch` classifies it ACTIONABLE and RECONSIDERS rather than declaring the
+    Set `dead-children`. Once the budget is exhausted the item becomes `failed-safely`, a non-success
+    terminal state, so the orchestrator then correctly TERMINATES instead of spinning. That ordering
+    is what makes it safe to leave the orchestrator's injected success bar alone.
+    """
+
+    used = finalize_retry_attempts(item)
+    budget = frozen_retry_budget(state)
+    if not finalize_refusal_is_retryable(fin_msg):
+        return FinalizeRetryDecision(
+            retry=False,
+            exhausted=False,
+            reason="",
+            attempts=used,
+            budget=budget,
+        )
+    if used >= budget:
+        return FinalizeRetryDecision(
+            retry=False,
+            exhausted=True,
+            reason=(
+                f"the finalize gate refused this plan's pre-transition checkpoint and the run's "
+                f"correction budget is exhausted ({used} of {budget} retr"
+                f"{'y' if budget == 1 else 'ies'} spent), so the item is FAILED rather than "
+                f"reported complete"
+            ),
+            attempts=used,
+            budget=budget,
+        )
+    return FinalizeRetryDecision(
+        retry=True,
+        exhausted=False,
+        reason=(
+            f"the finalize gate refused this plan's pre-transition checkpoint (incomplete `E-*`/"
+            f"`V-*` bookkeeping), so the item is being handed back to the same agent with the gate's "
+            f"findings; correction attempt {used + 1} of {budget}"
+        ),
+        attempts=used,
+        budget=budget,
+    )
+
+
+def handle_finalize_refusal(
+    *,
+    run_dir: Path,
+    state: MutableMapping[str, Any],
+    item: dict[str, Any],
+    attempt: MutableMapping[str, Any],
+    fin_rc: int,
+    fin_msg: str,
+    disposition: str,
+    host_labels: "HostLabels | None",
+    save_state: Callable[[Path, Any], Any],
+    append_jsonl: Callable[..., Any],
+) -> str:
+    """PERFORM the outcome of one refused finalize. Returns the item's disposition.
+
+    ONE implementation for BOTH refusal arms and BOTH hosts, which is what makes "the twins stay
+    twins" true by construction instead of by a pinned-equality test. `execute_item_core` is already
+    shared, so this needs no per-driver branch; the two arms differ only in whether the finalize ran in
+    a lane worktree, which does not affect the decision.
+
+    THE DECISION LIVES HERE, IN THE REFUSAL ARM, NOT IN A LATER SWEEP, and `requeue_interrupted`'s
+    docstring states the reason this placement is mandatory rather than merely tidy: a gate placed
+    anywhere other than the requeue itself "would simply be BYPASSED by the call that already ran".
+    The refusal arm is where the run knows a refusal happened.
+
+    WHAT IT ALWAYS DOES, unchanged from before: record `finalize_refused` on the attempt and
+    `finalize_refusal` on the item, emit the `ipd-finalize-refused` event, and print the refusal to
+    stderr. The full multi-finding message stays in that stderr line and in durable state.
+
+    WHAT IT ADDS: a `Refusal` record (so the run summary can no longer call this success and the
+    reader gets a remedy), and then one of the three `finalize_retry_decision` outcomes.
+    """
+
+    attempt["finalize_refused"] = fin_msg
+    item["finalize_refusal"] = fin_msg
+
+    decision = finalize_retry_decision(item, state, fin_msg)
+    pal = Palette(should_color(sys.stdout))
+
+    if decision.retry:
+        # SPEND ONE BUDGET UNIT AND HAND IT BACK. The counter is incremented BEFORE the state is
+        # saved, so a crash between here and the next dispatch cannot yield a free retry.
+        item[FINALIZE_RETRY_COUNT_KEY] = decision.attempts + 1
+        # `queued` + `recovery_next` is the ESTABLISHED re-dispatch pattern (`requeue_interrupted`),
+        # consumed by both hosts' `run_queue`. `recovery=True` is what makes the recovery prompt
+        # interpolate `Prior attempt:`, which already carries `finalize_refused`, so the agent receives
+        # the gate's own findings with no new packet format.
+        item["status"] = "queued"
+        item["recovery_next"] = True
+        item["requeue_from_status"] = disposition
+        outcome_disposition = "queued"
+    elif decision.exhausted:
+        # FAIL ITEM (spec 4.6's second half). Without this the run would still end up reporting a
+        # non-landing as success, which is the defect this whole section exists to fix.
+        item["status"] = FINALIZE_RETRY_EXHAUSTED_STATUS
+        item.pop("recovery_next", None)
+        outcome_disposition = FINALIZE_RETRY_EXHAUSTED_STATUS
+    else:
+        outcome_disposition = disposition
+
+    # The refusal RECORD, written through r2i1b1's ONE writer so the reader cannot drift from it. A
+    # non-retryable refusal gets the gate's own message as its reason, because that is the only
+    # accurate description available for a class this code deliberately does not classify.
+    record_refusal(
+        item,
+        code=FINALIZE_REFUSAL_CODE,
+        reason=(
+            decision.reason
+            or f"the finalize gate refused and the plan was left unmoved: {fin_msg}"
+        ),
+        remedy=finalize_retry_remedy(
+            host_labels, str(item.get("id6") or "?"), retry=decision.retry
+        ),
+    )
+
+    save_state(run_dir, state)
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "ipd-finalize-refused",
+            "id6": item["id6"],
+            "exit_code": fin_rc,
+            "detail": fin_msg,
+            # Additive: the three facts a later reader needs to tell a retried refusal from an
+            # abandoned one without re-deriving the classification.
+            "retryable": bool(decision.retry or decision.exhausted),
+            "retry_scheduled": decision.retry,
+            "retry_attempts_used": (
+                decision.attempts + 1 if decision.retry else decision.attempts
+            ),
+            "retry_budget": decision.budget,
+        },
+    )
+    print(
+        pal(
+            f"  ! IPD {item['id6']} finalize refused (left {outcome_disposition}, not forced): "
+            f"{fin_msg}",
+            "yellow",
+        ),
+        file=sys.stderr,
+    )
+    if decision.retry:
+        print(
+            pal(
+                f"  -> handing IPD {item['id6']} back to the same agent in this run with the gate's "
+                f"findings (correction attempt {decision.attempts + 1} of {decision.budget})",
+                "cyan",
+            ),
+            file=sys.stderr,
+        )
+    elif decision.exhausted:
+        print(
+            pal(
+                f"  ! IPD {item['id6']} FAILED: correction budget exhausted "
+                f"({decision.attempts} of {decision.budget} spent); the plan did NOT land",
+                "red",
+            ),
+            file=sys.stderr,
+        )
+    return outcome_disposition
+
+
+def finalize_retry_remedy(labels: "HostLabels | None", id6: str, retry: bool) -> str:
+    """What a reader should DO about a refused finalize. Required by the `Refusal` contract.
+
+    Two wordings, because the two situations need different actions: a PENDING retry needs the reader
+    to do nothing and wait, while an EXHAUSTED one needs a human to complete the bookkeeping. Saying
+    "re-run it" in the first case would invite a duplicate turn.
+    """
+
+    command = getattr(labels, "command", None) or "aw oc"
+    if retry:
+        return (
+            "no action needed yet: the run is handing this item back to the same agent in this run "
+            "with the gate's findings, so wait for that turn. Its work is preserved on its lane and "
+            "nothing was forced"
+        )
+    return (
+        f"complete the plan's `E-*`/`V-*` bookkeeping (tick each performed item and paste the real "
+        f"observed evidence), confirm with `aw ipd lint {id6} --phase pre-transition`, then finalize "
+        f"with `aw ipd finalize {id6}` or resume the run with `{command} run resume <run-id>`. Do NOT "
+        f"discard the lane: the work itself is preserved there and is what the bookkeeping describes"
+    )
+
+
+# ==================================================================================================
 # integpath-03 (`51vw4y`): THE INTEGRATION DEFERRAL LADDER
 # ==================================================================================================
 #
@@ -14301,26 +14699,19 @@ def execute_item_core(
             else:
                 attempt["ending_head"] = git_head(repo)
                 attempt["ending_status"] = git_status(repo)
-                attempt["finalize_refused"] = fin_msg
-                item["finalize_refusal"] = fin_msg
-                save_state(run_dir, state)
-                append_jsonl(
-                    run_dir / "events.jsonl",
-                    {
-                        "at": utc_now(),
-                        "event": "ipd-finalize-refused",
-                        "id6": item["id6"],
-                        "exit_code": fin_rc,
-                        "detail": fin_msg,
-                    },
-                )
-                print(
-                    pal(
-                        f"  ! IPD {item['id6']} finalize refused (left {disposition}, not forced): "
-                        f"{fin_msg}",
-                        "yellow",
-                    ),
-                    file=sys.stderr,
+                # finalback (`zzcrlo`): the refusal is CORRECT and unchanged; what changes is what
+                # happens next. Delegated so this arm and its twin below cannot drift.
+                disposition = handle_finalize_refusal(
+                    run_dir=run_dir,
+                    state=state,
+                    item=item,
+                    attempt=attempt,
+                    fin_rc=fin_rc,
+                    fin_msg=fin_msg,
+                    disposition=disposition,
+                    host_labels=host_labels,
+                    save_state=save_state,
+                    append_jsonl=append_jsonl,
                 )
         elif self_finalize and not work_dir and integration.earned:
             try:
@@ -14358,26 +14749,19 @@ def execute_item_core(
                 except DriverError:
                     pass
             else:
-                attempt["finalize_refused"] = fin_msg
-                item["finalize_refusal"] = fin_msg
-                save_state(run_dir, state)
-                append_jsonl(
-                    run_dir / "events.jsonl",
-                    {
-                        "at": utc_now(),
-                        "event": "ipd-finalize-refused",
-                        "id6": item["id6"],
-                        "exit_code": fin_rc,
-                        "detail": fin_msg,
-                    },
-                )
-                print(
-                    pal(
-                        f"  ! IPD {item['id6']} finalize refused (left {disposition}, not forced): "
-                        f"{fin_msg}",
-                        "yellow",
-                    ),
-                    file=sys.stderr,
+                # finalback (`zzcrlo`): the TWIN of the lane-worktree arm above, delegated to the same
+                # shared performer so the no-lane path cannot drift from the lane path.
+                disposition = handle_finalize_refusal(
+                    run_dir=run_dir,
+                    state=state,
+                    item=item,
+                    attempt=attempt,
+                    fin_rc=fin_rc,
+                    fin_msg=fin_msg,
+                    disposition=disposition,
+                    host_labels=host_labels,
+                    save_state=save_state,
+                    append_jsonl=append_jsonl,
                 )
         if disposition == "executed":
             if not (item.get("backlog_close") or {}).get("closed"):

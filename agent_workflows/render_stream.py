@@ -1928,10 +1928,43 @@ def refusal_of_item(item: dict[str, Any]) -> "Refusal | None":
 
     THE ONE READER every surface goes through, so no surface can look under a different key than the
     producers write (F-4's defect class). Consume this instead of indexing ``item[REFUSAL_KEY]``.
+
+    THE LEGACY `finalize_refusal` FALLBACK (finalback `zzcrlo` E-01) is a THIRD instance of the same
+    defect class as ``_interrupt_reason_of``, and it is read here rather than "fixed" at the producer
+    for a reason no producer change can address: the run directories ALREADY ON DISK. Both refusal arms
+    now record a proper :class:`Refusal`, but every run frozen before that - including
+    `run-20260908T213552Z-3724920`, the measured incident this fallback exists to render honestly -
+    carries ONLY the flat ``finalize_refusal`` string. Without this arm those runs would keep reporting
+    `COMPLETED` over a refused finalize forever, since the record they are judged by does not exist in
+    them. Ordered SECOND so a real record always wins and this never overrides a producer.
     """
     if not isinstance(item, dict):
         return None
-    return Refusal.from_obj(item.get(REFUSAL_KEY))
+    recorded = Refusal.from_obj(item.get(REFUSAL_KEY))
+    if recorded is not None:
+        return recorded
+    legacy = item.get("finalize_refusal")
+    if isinstance(legacy, str) and legacy.strip():
+        return Refusal(
+            code="finalize-refused",
+            # FLATTENED TO ONE LINE, because the gate's raw message is MULTI-LINE (a summary plus one
+            # indented line per finding) and the diagnostics block renders a reason inside a single
+            # `  • <id6>: <status> (<reason>)` line. Interpolating the raw text there pushes the
+            # remedy off its own line and breaks the block's alignment, which is the one thing that
+            # block exists to keep readable. The full untruncated message stays in durable state
+            # (`item["finalize_refusal"]`) and in the stderr line the refusal arm prints.
+            reason=(
+                "the finalize gate refused and the plan was left unmoved: "
+                + " ".join(legacy.split())
+            ),
+            remedy=(
+                "complete the plan's `E-*`/`V-*` bookkeeping (tick each performed item and paste the "
+                "real observed evidence), confirm with `aw ipd lint <id6> --phase pre-transition`, "
+                "then finalize. This run predates the structured refusal record, so its reason is the "
+                "gate's raw message; the work itself is preserved on the item's lane"
+            ),
+        )
+    return None
 
 
 def record_refusal(
@@ -2200,6 +2233,22 @@ def render_run_summary_table(
             for it in queue
         )
         and total_items > 0
+        # finalback (`zzcrlo`) E-01: A RUN WITH A REFUSED TRANSITION IS NOT `COMPLETED`.
+        #
+        # MEASURED, `run-20260908T213552Z-3724920`: a single-item agy run whose `aw ipd finalize` was
+        # refused with nine `IPD-S404` findings printed green `COMPLETED` at `100%` while its two
+        # commits sat stranded on `aw/lane/xbwq8n`. Order 01 of a ten-plan Set had not landed.
+        #
+        # DISCRIMINATE ON THE RECORDED REFUSAL, NOT ON THE DISPOSITION, and do NOT "fix" this by
+        # removing `substantially-complete` from the tuple above. That status legitimately describes an
+        # item that finished WITHOUT a refused transition, and dropping it would recategorize runs this
+        # has nothing to do with. The signal is the `Refusal` record itself.
+        #
+        # THE EXIT CODE IS NOT TOUCHED AND WAS NEVER WRONG: it comes from
+        # `runner_stop.deliberate_stop_exit_code` via `item_reached_success`, whose execute-action bar
+        # already excludes `substantially-complete`, so the measured run exited 1. Only this SUMMARY
+        # lied, and changing the exit code here would be a real regression.
+        and not any(refusal_of_item(it) is not None for it in queue)
     ):
         outcome_str = "COMPLETED"
     elif completed_count > 0:
