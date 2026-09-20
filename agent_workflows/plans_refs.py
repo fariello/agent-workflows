@@ -205,15 +205,44 @@ def _slug_of(old_name: str, id6: str) -> str:
     return _core.kebab("-".join(parts)) or "plan"
 
 
+def _preserved_order(name: str, text: str) -> int:
+    """The Order a plan ALREADY has: its front-matter ``- Order:``, else its filename's ``NN``, else 0.
+
+    e3hzyc: this is what a bare ``aw group plans ... --set X`` (no ``--order``) must write, so the
+    verb stops renumbering every named plan from zero and parking a ``Kind: child`` in the ``00``
+    slot the naming grammar reserves for an orchestrator. The tier order matches ``run_mv``'s
+    already-shipped fallback (vf03z3: "a bare rename must NOT clobber Order to 0"), which is
+    deliberately left byte-unchanged here rather than refactored into a shared helper.
+    """
+
+    om = _ORDER_LINE_RE.search(text)
+    if om:
+        return int(om.group(1))
+    parsed = _CLUSTERED_RE.match(name)
+    return int(parsed.group("nn")) if parsed else 0
+
+
 def plan_set_assign(
     plans_dir: Path,
     id6s: List[str],
     set_id: str,
     *,
-    start_order: int = 0,
+    start_order: Optional[int] = None,
     rename: bool = False,
 ) -> Tuple[Optional[List[RenamePlan]], Optional[str]]:
-    """Plan a Set (re)assignment for the given plans; with ``rename`` also plan clustering renames."""
+    """Plan a Set (re)assignment for the given plans; with ``rename`` also plan clustering renames.
+
+    ``start_order`` is the ``--order`` flag and its ABSENCE is now distinguishable from an explicit
+    zero (e3hzyc; the old ``int = 0`` default could not tell them apart):
+
+    * ``None`` (flag omitted) PRESERVES each plan's own Order, resolved per plan by
+      ``_preserved_order``. This is what a bare regroup must do, and it applies to BOTH branches
+      below, because the Order is resolved ABOVE the ``rename`` split: the clustering branch keeps
+      the plan's ``NN`` slot, and the metadata-only branch can no longer write an ``- Order:`` its
+      own filename contradicts.
+    * an INTEGER (including 0) renumbers the named plans SEQUENTIALLY from it (``start_order + i``),
+      which is the legitimate way an operator assembles a Set out of scattered plans.
+    """
 
     set_k = _core.kebab(set_id)
     if not set_k:
@@ -223,9 +252,13 @@ def plan_set_assign(
         src = _find_plan_by_id(plans_dir, id6)
         if src is None:
             return None, f"no plan has Id '{id6}'"
-        order = start_order + i
+        text = src.read_text(encoding="utf-8")
+        order = (
+            (start_order + i)
+            if start_order is not None
+            else _preserved_order(src.name, text)
+        )
         if rename:
-            text = src.read_text(encoding="utf-8")
             new_name = clustered_name(
                 date=_plan_date(text),
                 set_id=set_k,
@@ -315,8 +348,12 @@ def apply_renames(
     if not apply:
         for i, p in enumerate(plans):
             if p.old_path == p.new_path:
+                # e3hzyc: preview the Order that would ACTUALLY be written (the plan's own, when
+                # `--order` was omitted), not the loop index, or a dry run reports a renumber the
+                # apply no longer performs.
+                shown = p.order if p.order is not None else i
                 print(
-                    f"--- would set Set={_core.kebab(set_id)} Order={i:02d} on {p.old_path.name} ---"
+                    f"--- would set Set={_core.kebab(set_id)} Order={shown:02d} on {p.old_path.name} ---"
                 )
             else:
                 print(f"--- would rename {p.old_path.name} -> {p.new_path.name} ---")
@@ -417,12 +454,16 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
     if not ids:
         print("error: at least one <id6> is required")
         return MutationResult(2)
-    start = getattr(args, "order", None)
+    # e3hzyc: pass the flag THROUGH, including its absence. Collapsing None to 0 here was the
+    # defect: it renumbered every named plan from zero, so a bare `aw group plans <child> --set X`
+    # wrote `- Order: 0` onto a `Kind: child` (and, with --rename, moved it into the `00` filename
+    # slot the grammar reserves for an orchestrator). `plan_set_assign` now reads None as "preserve
+    # each plan's own Order", the same guarantee `run_mv` has carried since vf03z3.
     plans, err = plan_set_assign(
         plans_dir,
         ids,
         getattr(args, "set", "") or "",
-        start_order=start if start is not None else 0,
+        start_order=getattr(args, "order", None),
         rename=getattr(args, "rename", False),
     )
     if err:

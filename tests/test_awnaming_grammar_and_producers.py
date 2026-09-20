@@ -359,5 +359,282 @@ class PlansMvPreservesOrderAndDateTests(_RepoBackendCLIFixture):
         self.assertIn("- Date: 20260810", text)
 
 
+class PlansGroupPreservesOrderTests(_RepoBackendCLIFixture):
+    """Regression for e3hzyc: `aw group plans <id6> --set X [--rename] --apply` with NO `--order`
+    must PRESERVE each plan's own Order instead of renumbering every named plan from zero.
+
+    The sibling verb already guarantees this (`PlansMvPreservesOrderAndDateTests` above, vf03z3),
+    so the two verbs' guarantees now sit side by side. Both `group` branches are covered, because
+    the bug fires on BOTH: the `--rename` branch clobbered the front matter AND the filename `NN`
+    slot, while the metadata-only branch clobbered the front matter and left the filename, so the
+    file contradicted its own name. An EXPLICIT `--order` must still renumber sequentially, which
+    is the legitimate Set-assembly use the `+ i` arithmetic exists for.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.pending = self.repo / ".aw/records/plans/pending"
+        self._seed(
+            "20260908-probeset-00-aaa000-probe-orchestrator.ipd.md",
+            kind="orchestrator",
+            order=0,
+            id6="aaa000",
+        )
+        self._seed(
+            "20260908-probeset-01-bbb222-probe-child-one.ipd.md",
+            kind="child",
+            order=1,
+            id6="bbb222",
+        )
+        self._seed(
+            "20260908-probeset-02-ccc333-probe-child-two.ipd.md",
+            kind="child",
+            order=2,
+            id6="ccc333",
+        )
+        self._git_commit()
+
+    def _seed(
+        self,
+        name: str,
+        *,
+        kind: str,
+        order: object,
+        id6: str,
+        date: str = "20260908",
+    ) -> Path:
+        meta = [
+            f"- Date: {date}",
+            f"- Kind: {kind}",
+            "- Concern: x.",
+            "- Scope: x.",
+            "- Status: approved",
+            "- Set: probeset (probe)",
+        ]
+        if order is not None:
+            meta.append(f"- Order: {order}")
+        meta.append("- Author: t")
+        meta.append(f"- Id: {id6}")
+        path = self.pending / name
+        path.write_text(
+            "# IPD: probe\n\n" + "\n".join(meta) + "\n\n## Goal\n\nx\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def _git_commit(self) -> None:
+        subprocess.run(["git", "add", "-A"], cwd=str(self.repo), check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "commit",
+                "-qm",
+                "seed",
+            ],
+            cwd=str(self.repo),
+            check=True,
+        )
+
+    def _run_cli(self, args):
+        """Like the shared helper, but PINS the subprocess to THIS tree via ``PYTHONPATH``.
+
+        Measured while executing e3hzyc: the repository is installed editable, so that `.pth` names
+        an ABSOLUTE path to the main checkout. A `-m agent_workflows` subprocess launched from a
+        worktree therefore imports the MAIN checkout's modules and a CLI-level assertion silently
+        tests code the change never touched. Prepending ``REPO_ROOT`` (this test file's own tree)
+        makes the assertion measure the tree under test, and is a no-op when run from the main
+        checkout.
+        """
+
+        env = dict(os.environ)
+        env["AW_IPD_AUTHOR"] = "tester"
+        env["AW_HOME"] = str(self.aw_home)
+        env["PYTHONPATH"] = os.pathsep.join(
+            [str(REPO_ROOT), *([env["PYTHONPATH"]] if env.get("PYTHONPATH") else [])]
+        )
+        return subprocess.run(
+            [sys.executable, "-m", "agent_workflows", *args, "--dir", str(self.repo)],
+            cwd=str(self.repo),
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+
+    def _lint(self, path: Path):
+        """`aw ipd lint` on one plan, pinned to this tree the same way ``_run_cli`` is."""
+
+        env = dict(os.environ)
+        env["AW_IPD_AUTHOR"] = "tester"
+        env["AW_HOME"] = str(self.aw_home)
+        env["PYTHONPATH"] = os.pathsep.join(
+            [str(REPO_ROOT), *([env["PYTHONPATH"]] if env.get("PYTHONPATH") else [])]
+        )
+        return subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "agent_workflows",
+                "ipd",
+                "lint",
+                path.relative_to(self.repo).as_posix(),
+            ],
+            cwd=str(self.repo),
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+
+    def _only(self, id6: str) -> Path:
+        found = list(self.pending.glob(f"*-{id6}-*.md"))
+        self.assertEqual(len(found), 1, [p.name for p in found])
+        return found[0]
+
+    def test_bare_rename_regroup_preserves_a_child_order(self) -> None:
+        """E-01/E-04(a): the `--rename` branch. Front matter AND filename slot must both survive."""
+        r = self._run_cli(
+            ["group", "plans", "bbb222", "--set", "newset", "--rename", "--apply"]
+        )
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        moved = self._only("bbb222")
+        # (1) the front-matter Order is preserved...
+        self.assertIn("- Order: 1", moved.read_text(encoding="utf-8"))
+        # (2) ...and so is the filename's NN slot, which the naming grammar reserves 00 for an
+        # orchestrator. Asserted separately: a half fix keeps one and clobbers the other.
+        m = refs._CLUSTERED_RE.match(moved.name)
+        self.assertIsNotNone(m, moved.name)
+        self.assertEqual(m.group("nn"), "01", moved.name)
+        self.assertEqual(m.group("set"), "newset", moved.name)
+
+    def test_bare_metadata_only_regroup_preserves_a_child_order(self) -> None:
+        """E-01/E-04(b): the metadata-only branch, the worse half. The filename is untouched by
+        construction here, so a clobbered `- Order:` makes the file CONTRADICT ITS OWN NAME."""
+        r = self._run_cli(["group", "plans", "bbb222", "--set", "metaset", "--apply"])
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        kept = self._only("bbb222")
+        # The filename is unchanged (no --rename), still carrying the -01- slot.
+        self.assertEqual(
+            kept.name, "20260908-probeset-01-bbb222-probe-child-one.ipd.md", kept.name
+        )
+        text = kept.read_text(encoding="utf-8")
+        self.assertIn("- Set: metaset", text)
+        # ...so the front matter must AGREE with it rather than reading `- Order: 0`.
+        self.assertIn("- Order: 1", text)
+        m = refs._CLUSTERED_RE.match(kept.name)
+        self.assertIsNotNone(m, kept.name)
+        order_line = refs._ORDER_LINE_RE.search(text)
+        self.assertIsNotNone(order_line, text)
+        self.assertEqual(
+            int(order_line.group(1)),
+            int(m.group("nn")),
+            f"filename NN {m.group('nn')} disagrees with front matter {order_line.group(1)}",
+        )
+
+    def test_explicit_order_still_renumbers_sequentially(self) -> None:
+        """E-04(c): the one legitimate reason the `+ i` arithmetic exists. An EXPLICIT `--order`
+        assembles a Set out of scattered plans, so preserving unconditionally would BREAK it. This
+        is the behavior a careless fix destroys, so it stands alone."""
+        r = self._run_cli(
+            [
+                "group",
+                "plans",
+                "bbb222",
+                "ccc333",
+                "--set",
+                "asmset",
+                "--order",
+                "1",
+                "--rename",
+                "--apply",
+            ]
+        )
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        first = self._only("bbb222")
+        second = self._only("ccc333")
+        self.assertTrue(first.name.startswith("20260908-asmset-01-bbb222-"), first.name)
+        self.assertIn("- Order: 1", first.read_text(encoding="utf-8"))
+        self.assertTrue(
+            second.name.startswith("20260908-asmset-02-ccc333-"), second.name
+        )
+        self.assertIn("- Order: 2", second.read_text(encoding="utf-8"))
+
+    def test_bare_regroup_falls_back_to_the_filename_slot(self) -> None:
+        """E-04(d): with no `- Order:` line to read, the plan's own filename `NN` is the next tier,
+        mirroring `run_mv`'s three-tier fallback rather than dropping to zero."""
+        self._seed(
+            "20260908-probeset-04-ddd444-probe-no-order-line.ipd.md",
+            kind="child",
+            order=None,
+            id6="ddd444",
+        )
+        self._git_commit()
+        seeded = self._only("ddd444")
+        self.assertNotIn("- Order:", seeded.read_text(encoding="utf-8"))
+        r = self._run_cli(
+            ["group", "plans", "ddd444", "--set", "fbset", "--rename", "--apply"]
+        )
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        moved = self._only("ddd444")
+        self.assertTrue(moved.name.startswith("20260908-fbset-04-ddd444-"), moved.name)
+        self.assertIn("- Order: 4", moved.read_text(encoding="utf-8"))
+
+    def test_bare_regroup_keeps_an_orchestrator_at_zero(self) -> None:
+        """E-04(e): 0 is CORRECT for a `Kind: orchestrator`, so "preserve" must mean preserve and
+        not "move off zero"."""
+        r = self._run_cli(
+            ["group", "plans", "aaa000", "--set", "orchset", "--rename", "--apply"]
+        )
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        moved = self._only("aaa000")
+        self.assertTrue(
+            moved.name.startswith("20260908-orchset-00-aaa000-"), moved.name
+        )
+        self.assertIn("- Order: 0", moved.read_text(encoding="utf-8"))
+
+    def test_explicit_order_zero_is_still_reachable(self) -> None:
+        """E-04(f): the direct test of the sentinel change. `None` now means "preserve", so an
+        EXPLICIT `--order 0` must still land at 0 rather than becoming unreachable."""
+        r = self._run_cli(
+            [
+                "group",
+                "plans",
+                "ccc333",
+                "--set",
+                "zeroset",
+                "--order",
+                "0",
+                "--rename",
+                "--apply",
+            ]
+        )
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        moved = self._only("ccc333")
+        self.assertTrue(
+            moved.name.startswith("20260908-zeroset-00-ccc333-"), moved.name
+        )
+        self.assertIn("- Order: 0", moved.read_text(encoding="utf-8"))
+
+    def test_lint_no_longer_reports_ipd_m104_after_a_bare_regroup(self) -> None:
+        """The end-to-end proof: `aw ipd lint` reported `IPD-M104` ("child Order must be an integer
+        >= 1") on the regrouped child, while `aw check plans` saw nothing in the same tree. Assert on
+        the ABSENCE OF THAT CODE, not on a clean exit: a probe plan legitimately emits unrelated
+        `IPD-H2xx` structural codes, so an exit-0 assertion could never pass."""
+        before = self._lint(self._only("bbb222"))
+        self.assertNotIn("IPD-M104: Order:", before.stdout + before.stderr)
+        r = self._run_cli(
+            ["group", "plans", "bbb222", "--set", "lintset", "--rename", "--apply"]
+        )
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        after = self._lint(self._only("bbb222"))
+        out = after.stdout + after.stderr
+        self.assertNotIn("IPD-M104: Order:", out, out)
+        # ...and the probe file's unrelated structural findings are still reported, proving the
+        # linter actually ran rather than the assertion passing on empty output.
+        self.assertIn("IPD-H202", out, out)
+
+
 if __name__ == "__main__":
     unittest.main()
