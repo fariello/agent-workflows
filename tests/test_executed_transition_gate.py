@@ -282,6 +282,64 @@ class PreCommitExecutedGateTests(unittest.TestCase):
             "journal exists for this id' would let yesterday's finalize authorize today's hand-edit. "
             "Binding to `dest_path` is what makes the journal evidence for THIS transition",
         ),
+        # ---------------------------------------------------------------- gatejrnl i4c0c3
+        # FOUR ROWS ABOUT ONE DISCRIMINATION: "did this plan ENTER executed/ in this commit" versus
+        # "was it merely EDITED while already there". They belong in THIS table rather than in a class
+        # of their own precisely because the bug they pin was a bug IN the predicate every row above
+        # shares: an ALREADY-executed plan is a situation, and its verdict is the answer.
+        (
+            "a BODY-ONLY edit to a plan already committed in executed/",
+            lambda self: self._edit_already_executed_plan("body"),
+            None,
+            0,
+            (),
+            (),
+            "THE FALSE POSITIVE i4c0c3 FIXES, and the reason it was expensive rather than merely "
+            "annoying: a plan that has sat in executed/ for weeks was classified as TRANSITIONING by "
+            "every commit that touched it, no finalize journal can exist for a transition that is not "
+            "happening, so the only remedy an operator had was `--no-verify`. A gate that refuses "
+            "correct behavior teaches the bypass it exists to prevent, which is worse than no gate",
+        ),
+        (
+            "an edit to an already-executed plan's `## Workflow history`",
+            lambda self: self._edit_already_executed_plan("history"),
+            None,
+            0,
+            (),
+            (),
+            "THE SHAPE THE DEFECT ACTUALLY TOOK IN THE FIELD. A correction to a finalized plan "
+            "appends to its history rather than rewriting its body, and it is kept as a SEPARATE row "
+            "from the body edit because the history block is where the `- Status:` line's neighbours "
+            "live: an implementation discriminating on WHICH REGION of the plan changed would pass "
+            "the body row and fail here",
+        ),
+        (
+            "a WHOLESALE content substitution (different `- Id:`) at an already-executed path",
+            lambda self: self._substitute_plan_at_executed_path(),
+            None,
+            1,
+            ("zzz999", "aw ipd finalize", REASON_MOVED),
+            (MERGE_WORDING,),
+            "THE HOLE THE PATH-ONLY FIX WOULD HAVE OPENED (MEASURED: rc 0 without the id binding, rc "
+            "1 with it). Exempting an edit because THE PATH held an executed plan makes an executed "
+            "FILENAME a shelter: overwrite it with a different plan and a raw plan->executed "
+            "transition commits unchallenged. The exemption is therefore bound to the plan's IDENTITY, "
+            "and this row is what stops a future simplification dropping that clause as redundant",
+        ),
+        (
+            "a plan ALREADY IN executed/ at HEAD but NOT yet executed, flipped in place",
+            lambda self: self._flip_status_inside_executed(),
+            None,
+            1,
+            ("abc123", "aw ipd finalize", REASON_STATUS_FLIP),
+            (MERGE_WORDING,),
+            "THE ROW THAT PROVES THE EXEMPTION IS ABOUT THE TRANSITION AND NOT ABOUT THE DIRECTORY. "
+            "Being in executed/ is not being EXECUTED, so the status flip must still refuse here, and "
+            "it refuses through `gained_executed` rather than the path predicate. That only works "
+            "because i4c0c3 also repaired `head_text`: while it was read at the rename SOURCE alone "
+            "it was None for every `M`, so `gained_executed` compared against NOTHING and was "
+            "vacuously true for every executed plan, which IS the false positive above",
+        ),
     )
 
     def setUp(self) -> None:
@@ -350,6 +408,78 @@ class PreCommitExecutedGateTests(unittest.TestCase):
         p.unlink()
         _stage(self.root)
         self._staged_plan_name = p.name
+        self._staged_plan_id = plan_id
+
+    def _commit_plan_already_executed(self, plan_id: str = "abc123") -> Path:
+        """A plan COMMITTED in executed/ with `- Status: executed`, i.e. a finished transition at HEAD.
+
+        The commit is the point. `LT._completed_plan_text` yields `- Status: approved`, so a fixture
+        that wrote the plan into executed/ and staged it WITHOUT committing would make its own setup
+        the transition under test, and a row built on it would prove nothing about a FOLLOW-UP edit.
+        """
+        p = self._write_plan(plan_id)
+        dest = self._executed_dir() / p.name
+        dest.write_text(
+            p.read_text().replace("- Status: approved", "- Status: executed"),
+            encoding="utf-8",
+        )
+        p.unlink()
+        _commit_all(self.root, f"plan {plan_id} already finalized in executed/")
+        self._staged_plan_name = dest.name
+        self._staged_plan_id = plan_id
+        return dest
+
+    def _edit_already_executed_plan(self, where: str) -> None:
+        dest = self._commit_plan_already_executed()
+        text = dest.read_text(encoding="utf-8")
+        if where == "history":
+            self.assertIn(
+                "## Workflow history",
+                text,
+                "fixture precondition: the shared plan text must carry a history section to append to",
+            )
+            text = text.replace(
+                "## Workflow history\n",
+                "## Workflow history\n- 2026-09-09 note (test): a correction after execution.\n",
+                1,
+            )
+        else:
+            text = text + "\nan ordinary follow-up edit to the body\n"
+        dest.write_text(text, encoding="utf-8")
+        _stage(self.root)
+
+    def _substitute_plan_at_executed_path(self) -> None:
+        """Overwrite an already-executed plan's file with a DIFFERENT plan, still claiming executed."""
+        dest = self._commit_plan_already_executed()
+        dest.write_text(
+            LT._completed_plan_text(
+                plan_id="zzz999", scope_paths="grandfathered"
+            ).replace("- Status: approved", "- Status: executed"),
+            encoding="utf-8",
+        )
+        _stage(self.root)
+        self._staged_plan_id = "zzz999"
+
+    def _flip_status_inside_executed(self, plan_id: str = "abc123") -> None:
+        """A plan sitting IN executed/ at HEAD with a NON-executed status, flipped in place."""
+        p = self._write_plan(plan_id)
+        dest = self._executed_dir() / p.name
+        dest.write_text(p.read_text(), encoding="utf-8")  # keeps `- Status: approved`
+        p.unlink()
+        _commit_all(self.root, f"plan {plan_id} in executed/ but NOT yet executed")
+        self.assertIn(
+            "- Status: approved",
+            dest.read_text(encoding="utf-8"),
+            "fixture precondition: HEAD must NOT already carry the executed status here",
+        )
+        dest.write_text(
+            dest.read_text(encoding="utf-8").replace(
+                "- Status: approved", "- Status: executed"
+            ),
+            encoding="utf-8",
+        )
+        _stage(self.root)
+        self._staged_plan_name = dest.name
         self._staged_plan_id = plan_id
 
     def _write_journal(self, phase: str, dest: str) -> None:

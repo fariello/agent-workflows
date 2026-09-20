@@ -6,9 +6,20 @@ cover the path where an agent NEVER touches the CLI: hand-editing a plan's `- St
 no finalize - no receipt, no scope check, no attribution - the exact p7dqwz-class bypass via the editor.
 
 This LOCAL pre-commit hook inspects the STAGED change and, for each PLAN that in this commit either
-gained a `- Status: executed`/`done` line it did not have at HEAD, OR was renamed into an `executed/`
+gained a `- Status: executed`/`done` line it did not have at HEAD, OR ARRIVED in an `executed/`
 directory, REQUIRES durable evidence that `aw ipd finalize` performed THIS transition. Missing/stale
 evidence -> the commit is REFUSED with an actionable `aw ipd finalize <plan>` message.
+
+WHAT IS *NOT* A TRANSITION (gatejrnl i4c0c3): a plan that was ALREADY in `executed/` at HEAD under the
+SAME `- Id:` and is merely EDITED - a body correction, an appended `## Workflow history` line. Nothing
+transitions in such a commit, so demanding finalize evidence for it is a FALSE POSITIVE whose only
+remedy is `--no-verify`, which trains away the very habit this gate exists to build. The exemption is
+narrow in two ways that are load-bearing rather than defensive: it requires the path to have EXISTED
+at HEAD (so a plan ADDED straight into `executed/` is still gated, being an arrival), and it requires
+the HEAD content's `- Id:` to MATCH the staged one (so replacing an already-executed plan's file with a
+DIFFERENT plan is still gated, being a raw transition wearing an existing filename). Both the
+`moved_into_executed` and `gained_executed` predicates read the HEAD blob at the path the file actually
+occupied, since reading it at a rename source alone left BOTH firing on any edit to an executed plan.
 
 Honest limits (never oversold): git hooks are LOCAL, not cloned by default, and skippable with
 `--no-verify`. This is a PREVENTION layer, not an absolute gate; the deterministic local backstop is the
@@ -112,10 +123,16 @@ def _staged_plan_executed_transitions(
 ) -> List[Tuple[str, Optional[str], str]]:
     """Return (staged_path, plan_id, reason) for each plan gaining executed status / moved to executed/.
 
-    Detection compares the STAGED index (`:0:`) against HEAD:
+    Detection compares the STAGED index (`:0:`) against the HEAD blob AT THE PATH THE FILE OCCUPIED
+    AT HEAD (the rename source for an `R`, the unchanged path for an `A`/`M`/`C`):
       * a plan whose staged content has `- Status: executed`/`done` that its HEAD content did NOT
         (a hand-edited status flip), OR
-      * a plan renamed INTO an `executed/` directory in this commit (git mv).
+      * a plan ARRIVING in an `executed/` directory in this commit, meaning it was not ALREADY there
+        at HEAD under the SAME `- Id:` (a `git mv`, an `A` straight into `executed/`, or a wholesale
+        content substitution at an already-executed path).
+
+    An ORDINARY EDIT to a plan already in `executed/` under the same `- Id:` is NOT a transition and
+    is NOT reported (i4c0c3): nothing is transitioning, so there is no finalize to demand evidence of.
     """
     rc, out, _err = _git(
         repo_root, ["diff", "--cached", "--name-status", "-M", "--", _PLANS_PREFIX]
@@ -143,11 +160,33 @@ def _staged_plan_executed_transitions(
         staged_text = _blob_at(repo_root, ":0:", new_path)
         plan_id = _plan_id_of(staged_text)
 
-        moved_into_executed = _EXECUTED_SEGMENT in ("/" + new_path) and (
-            old_path is None or _EXECUTED_SEGMENT not in ("/" + old_path)
+        # THE PATH THE FILE ACTUALLY OCCUPIED AT HEAD (i4c0c3): the rename SOURCE for an `R`, and the
+        # unchanged path itself for an `A`/`M`/`C`, where git reports ONE path and `old_path` is None
+        # because there is no rename source. `old_path is None` is a true statement about a rename
+        # source and was WRONG as a proxy for "this file was not previously here"; used as that proxy
+        # it made every ordinary edit to a plan already in `executed/` look like an arrival.
+        head_path = old_path or new_path
+        head_text = _blob_at(repo_root, "HEAD", head_path)
+        # TWO DISTINCT CONCERNS, kept apart deliberately; do not collapse one back into the other:
+        #   (1) did this file ENTER `executed/` IN THIS COMMIT  -> `moved_into_executed`
+        #   (2) was it merely EDITED while ALREADY there        -> exempt, nothing is transitioning
+        # `head_text is None` means the path did not exist at HEAD (git code `A`), so a plan ADDED
+        # straight into `executed/` is NOT exempt: it is arriving now and is still gated.
+        was_in_executed_at_head = head_text is not None and _EXECUTED_SEGMENT in (
+            "/" + head_path
         )
-        # A status flip: staged content is executed but the HEAD content at the OLD path was not.
-        head_text = _blob_at(repo_root, "HEAD", old_path) if old_path else None
+        # The exemption is bound to the plan's IDENTITY, not merely to its path: overwriting an
+        # already-executed plan's file with a DIFFERENT plan is a raw plan->executed transition
+        # wearing an existing filename, so identity must match for the edit to be exempt. An
+        # unreadable id on either side fails this clause (fail closed) - `None == None` must never be
+        # read as an identity match, and a staged plan with no `- Id:` is refused below anyway.
+        same_plan_at_head = plan_id is not None and _plan_id_of(head_text) == plan_id
+        moved_into_executed = _EXECUTED_SEGMENT in ("/" + new_path) and not (
+            was_in_executed_at_head and same_plan_at_head
+        )
+        # A status flip: staged content is executed but the HEAD content AT THE SAME PATH was not.
+        # This compares against the real HEAD blob; while `head_text` was guarded on `old_path` it
+        # compared against NOTHING for an `A`/`M`/`C` and so fired on every already-executed plan.
         gained_executed = _has_executed_status(
             staged_text
         ) and not _has_executed_status(head_text)
