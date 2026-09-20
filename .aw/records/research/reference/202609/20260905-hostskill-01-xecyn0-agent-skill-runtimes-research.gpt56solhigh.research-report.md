@@ -1,12 +1,12 @@
 ---
 id: xecyn0
-created: 20260920
+created: 20260905
 set: hostskill
-order: 00
+order: 01
 topic: []
 model: gpt56solhigh
 kind: research-report
-status: todo
+status: reference
 outcome: none-yet
 summary: what agent “skill” runtimes actually discover, and what makes a `skill.md` reliable?
 consumed-by: []

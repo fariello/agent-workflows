@@ -84,6 +84,6 @@ it.
 
 ## Blocked work
 
-`.aw/records/research/20260920-hostskill-02-i5gj61-agent-skill-runtimes-research.research-report.md`
+`.aw/records/research/20260905-hostskill-03-i5gj61-agent-skill-runtimes-research.gemini31prodeepthink.research-report.md`
 carries an empty `model:` that should read `gemini31prodeepthink`. Fix it when this lands. The
 interim unblock (adding the single token under the existing mechanism) is tracked separately.

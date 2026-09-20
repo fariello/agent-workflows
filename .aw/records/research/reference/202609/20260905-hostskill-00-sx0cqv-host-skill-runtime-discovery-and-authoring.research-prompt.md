@@ -1,12 +1,12 @@
 ---
 id: sx0cqv
 created: 20260905
-set: host-skill-runtime-discovery-and-authoring
+set: hostskill
 order: 00
 topic: [skills, hosts, discovery]
 model:
 kind: research-prompt
-status: todo
+status: reference
 outcome: none-yet
 summary: What do real agent/IDE skill runtimes actually discover and reward: does any host require .agents/skills, and what makes a SKILL.md reliable
 consumed-by: []

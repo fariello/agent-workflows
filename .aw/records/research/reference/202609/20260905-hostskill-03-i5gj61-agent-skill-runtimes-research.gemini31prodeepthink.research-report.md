@@ -1,12 +1,12 @@
 ---
 id: i5gj61
-created: 20260920
+created: 20260905
 set: hostskill
-order: 02
+order: 03
 topic: []
-model:
+model: gemini31prodeepthink
 kind: research-report
-status: todo
+status: reference
 outcome: none-yet
 summary: research report: ai agent skill discovery and skill.md reliability
 consumed-by: []

@@ -1,12 +1,12 @@
 ---
 id: wknvyw
-created: 20260920
+created: 20260905
 set: hostskill
-order: 01
+order: 02
 topic: []
 model: sonnet5high
 kind: research-report
-status: todo
+status: reference
 outcome: none-yet
 summary: what agent "skill" runtimes actually discover, and what makes a skill.md reliable
 consumed-by: []
