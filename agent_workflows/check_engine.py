@@ -401,6 +401,35 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.ipd-uncarried-obligation": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
+    # findtier Order 02 (`3i6rso`) E-04: a record whose declared `- Id:` or `- Set:` is ABSENT from
+    # its own filename. This is the EXCEPTION SET that forces `aw find`'s content fallback, and the
+    # rule exists so the set is COUNTABLE (and provably not growing) rather than invisible.
+    #
+    # `warning`, NOT `error`, and the reason is a measured policy constraint rather than caution.
+    # Every member on this tree today is grandfathered BY DECISION: eight are pre-id6-grammar names,
+    # five of them `executed/` plans whose bodies must not be re-committed (AGENTS.md, enforced by
+    # the `ipd-executed-gate` hook), and the rest are pre-cutover specs that `SPEC_ID6_CUTOVER_DATE`
+    # above deliberately grandfathers. An `error` would therefore fail the tree for states the
+    # maintainer CHOSE, and a future tightening pass must not promote it without first renaming the
+    # corpus. The in-tree precedents for exactly this posture are `check.review-dangling` and
+    # `check.orphaned-live-blocker`; this rule follows `check.review-dangling` (advisory, whole-tree,
+    # deterministic, consumed by no lifecycle gate).
+    #
+    # DO NOT READ `warning` AS "cannot fail anything": `artifact_core.drift_exit_code` exempts only
+    # `info`, so a `warning` does drive a nonzero findings exit. What the severity buys here is that
+    # NO error-severity finding is added, so the advisory can never turn an otherwise-green tree red,
+    # and that no lifecycle gate (`aw ipd lint`, begin/finalize, dependency resolution) consumes it.
+    # It is deliberately not `info` either: an unlocatable-by-name record is a real obligation to
+    # watch, not a nudge.
+    #
+    # I-09, matching the naming-grammar family (`check.name-nonconformant`, `check.id6-collision`,
+    # `check.id6-identity-slot`): the finding is about a filename failing to carry the identity that
+    # locates it. It SITS BESIDE `check.id6-identity-slot` rather than extending it, and covers the
+    # population that rule exempts by construction (a name with no id6 slot at all); see
+    # `check_name_identity` for the recorded extend-versus-add decision.
+    "check.identity-absent-from-name": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-09"
+    ),
 }
 
 # Conservative default for an unregistered rule id: treat it as an error-severity, repository-class,
@@ -1080,6 +1109,405 @@ def _check_identity_slots(records: List[tuple]) -> List[_core.Drift]:
                     )
                 )
     return drift
+
+
+# ======================================================================================
+# findtier Order 02 (`3i6rso`): the declared-identity-absent-from-filename ADVISORY.
+#
+# WHY THIS EXISTS. `aw find` cannot trust a filename to carry a record's identity, so it keeps a
+# mandatory CONTENT fallback that opens every record. That fallback can only ever be retired on
+# EVIDENCE that the set of records whose filename omits their declared identity is small and not
+# growing - and nothing counted that set. This report is that count. It is ADVISORY by design and
+# renames NOTHING: every rename here is a maintainer call per record (see the RuleSpec comment).
+#
+# THE EXTEND-VERSUS-ADD DECISION (E-06), recorded here because a second identity comparator is the
+# defect `check.id6-identity-slot` was written to avoid. That rule ALREADY enforces this rule's
+# modern case - "if the file declares a frontmatter `- Id:`, its slot id6 must equal it" - but only
+# for a filename whose slot PARSES as a real id6, so a legacy `YYYYMMDD-HHMM-NN-<slug>` name with no
+# slot at all is exempt BY CONSTRUCTION. Measured at authoring on this tree: that rule produced ZERO
+# findings and covered ZERO of the ten records this report names. DECISION: ADD A SIBLING rather than
+# extend it, for two reasons. (1) SEVERITY: `check.id6-identity-slot` is `error` and must stay so (a
+# foreign id6 in an id6-bearing slot is a real defect); this population is grandfathered and must be
+# `warning`, and one rule id cannot carry two severities without lying to every consumer keyed on it.
+# (2) SUBJECT: that rule compares a filename SLOT against a declaration; this one reports a
+# declaration that appears NOWHERE in the filename, including names that have no slot. The
+# discriminator is REUSED, not reimplemented: `_classify_identity_record` calls the shared
+# `_is_real_id6` for exactly the reason F-13 names - `parse_clustered` reports the legacy name
+# `20260817-1357-01-assess-...` as conformant with `id6='assess'` and `_ID6_RE` accepts `assess`, so a
+# comparator trusting the parsed slot would mis-bucket a real member as modern drift.
+#
+# FOUR BUCKETS, because the remedies differ completely and a single count would be actively
+# misleading on its first run:
+#
+#   * LEGACY      - a pre-id6-grammar or grandfathered name. Rename is OPTIONAL, a maintainer call.
+#   * ARTIFACT    - the declaration is a QUOTED EXAMPLE in the body, not this file's own metadata.
+#                   The FILENAME IS CORRECT and no rename is ever suggested; the fix is in the
+#                   reader (`cqytxf`/`76w6mq`). Detected BY POSITION, never by record type or field:
+#                   measured members span research prompts, a research report, AND a spec, and reach
+#                   both the `Id` and `Set` fields, so a type- or field-keyed test would miss them
+#                   and send a maintainer to rename an `implemented` spec.
+#   * NON-ID      - the declared value is not an identifier at all (measured: a spec declaring the
+#                   literal `set: <terse-id>` inside an illustrative code block). No rename can
+#                   satisfy it, so none is offered.
+#   * DRIFT       - a MODERN clustered name whose metadata simply disagrees with it. This is a real
+#                   defect rather than a grandfathering question, so it is reported distinctly.
+# ======================================================================================
+
+_IDENTITY_RULE = "check.identity-absent-from-name"
+
+#: The report's stated purpose, emitted on every finding so a count with no purpose is not ignored.
+_IDENTITY_PURPOSE = "this is the exception set that forces `aw find`'s content fallback; it is expected to shrink"
+
+# BOTH front-matter dialects, because the corpus uses both: the bullet form on plans/specs/backlog
+# and the YAML form on research records. Reading only one silently under-counts.
+_IDENT_ID_BULLET_RE = _re.compile(r"(?m)^- Id:[ \t]*(\S+)[ \t]*$")
+_IDENT_ID_YAML_RE = _re.compile(r"(?m)^id:[ \t]*(\S+)[ \t]*$")
+_IDENT_SET_BULLET_RE = _re.compile(r"(?m)^- Set:[ \t]*(.+?)[ \t]*$")
+_IDENT_SET_YAML_RE = _re.compile(r"(?m)^set:[ \t]*(.+?)[ \t]*$")
+
+# The metadata region's terminators for a BULLET-dialect record: the first fenced block or the first
+# `##` heading, whichever comes first. A YAML-dialect record's region is its `---` envelope.
+_IDENT_FENCE_RE = _re.compile(r"(?m)^[ \t]{0,3}(?:```|~~~)")
+_IDENT_H2_RE = _re.compile(r"(?m)^##[ \t]")
+
+# A legal identifier token: kebab lowercase alphanumerics. Anything else (a placeholder like
+# `<terse-id>`, whitespace, punctuation) is NOT an identifier and can never be satisfied by a rename.
+_IDENT_TOKEN_RE = _re.compile(r"\A[a-z0-9][a-z0-9-]*\Z")
+
+#: `aw rename` takes a plural TYPE, and the suggested command must name the right one or it is worse
+#: than no suggestion at all (the plan's F-10). Verified by running each suggested form at authoring.
+#: `roadmaps` maps to `research`, NOT to itself: a `.roadmap.md` lives in the research tree and `aw
+#: rename roadmaps <id6>` reports "no roadmaps artifact matched" while `aw rename research <id6>`
+#: resolves it. The `comms`/`other` types are absent because no `aw rename` route exists for them.
+_IDENT_RENAME_TYPE = {
+    "plans": "plans",
+    "specs": "specs",
+    "backlog": "backlog",
+    "prompts": "prompts",
+    "walkthroughs": "walkthroughs",
+    "roadmaps": "research",
+    "releases": "releases",
+    "research": "research",
+}
+
+
+def _identity_metadata_region(text: str) -> str:
+    """Return the leading METADATA REGION of a record's text: the part in which a `- Id:`/`set:`
+    line is this file's OWN declaration rather than a quoted example.
+
+    Two dialects, one rule. A record opening with a `---` line is YAML-envelope dialect and its
+    region is that envelope (a record whose envelope never closes has NO metadata region, so nothing
+    in it is read as a declaration). Otherwise the region runs from the start of the file to the
+    first fenced code block or the first `##` heading, whichever comes first.
+
+    THIS IS THE POSITIONAL TEST that makes the ARTIFACT bucket a class rather than a hardcoded list
+    of filenames. Verified over the whole corpus at authoring: bounding the read this way preserves
+    the declaration of 1171 of 1173 `Id`-declaring records and 1141 of 1146 `Set`-declaring ones,
+    and the handful it drops are EXACTLY the quoted-example members - which is the point.
+
+    NOTE the duplication this deliberately accepts: `76w6mq` (pending at authoring) owns a bounded
+    identity reader for the RESOLVER. When it lands, this helper should DELEGATE to it rather than
+    keep its own bound; until then a report that read whole files would carry a known-false finding
+    on five records, which is worse than a bound that will be consolidated.
+    """
+
+    lines = text.splitlines(keepends=True)
+    if lines and lines[0].strip() == "---":
+        offset = len(lines[0])
+        for line in lines[1:]:
+            if line.strip() == "---":
+                return text[: offset + len(line)]
+            offset += len(line)
+        return ""  # unterminated envelope: no trustworthy metadata region
+    ends = [len(text)]
+    for rx in (_IDENT_FENCE_RE, _IDENT_H2_RE):
+        m = rx.search(text)
+        if m is not None:
+            ends.append(m.start())
+    return text[: min(ends)]
+
+
+def _identity_declared_values(text: str):
+    """Return ((id_value, id_in_region), (set_value, set_in_region)) for one record's text.
+
+    Each value is the STRIPPED declared token (or None when the field is absent anywhere), and the
+    flag says whether the declaration was found inside the metadata region. A value present in the
+    full body but NOT in the region is a QUOTED EXAMPLE, which is what the ARTIFACT bucket reports.
+
+    QUOTING IS NORMALIZED HERE, and the case is live rather than hypothetical: one tracked record
+    declares ``- Set: `awoptimize` `` with backticks, so an un-normalized comparison invents drift on
+    a correctly-named file. Values are compared STRIPPED of backticks and quotes.
+    """
+
+    region = _identity_metadata_region(text)
+    out = []
+    for bullet_re, yaml_re, is_set in (
+        (_IDENT_ID_BULLET_RE, _IDENT_ID_YAML_RE, False),
+        (_IDENT_SET_BULLET_RE, _IDENT_SET_YAML_RE, True),
+    ):
+        # THE REGION IS SEARCHED FIRST, ACROSS BOTH DIALECTS, BEFORE THE FULL BODY IS CONSULTED, and
+        # the ordering is a fix rather than a preference. A research record declares `set:` in its
+        # YAML envelope but QUOTES a plan's `- Set:` bullet later in its body; searching by dialect
+        # first meant the quoted BULLET shadowed the file's own YAML declaration, so a record whose
+        # real Set is correct was read as an artifact. Region-first means a file's OWN declaration
+        # always wins, and the full-body pass exists only to catch a field the record does not
+        # actually declare - which is exactly the artifact bucket's definition.
+        value = None
+        in_region = False
+        for haystack, is_region in ((region, True), (text, False)):
+            for rx in (bullet_re, yaml_re):
+                m = rx.search(haystack)
+                if m is None:
+                    continue
+                raw = m.group(1).strip()
+                if is_set:
+                    # `- Set: <terse> (<descriptive>)`: the setid is the first token before any '('.
+                    head = raw.split("(")[0].strip()
+                    raw = head.split()[0] if head.split() else ""
+                value = raw.strip("`\"'") or None
+                in_region = is_region
+                break
+            if value is not None:
+                break
+        out.append((value, in_region))
+    return out[0], out[1]
+
+
+def _identity_name_is_modern(
+    filename: str, declared_ids: set, own_id: "str | None"
+) -> bool:
+    """True iff ``filename`` carries a REAL id6 in its clustered identity slot.
+
+    Reuses the shared `_is_real_id6` discriminator rather than trusting the parsed slot, which is
+    load-bearing and not tidiness: `artifact_naming.parse_clustered` reports the LEGACY name
+    `20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md` as conformant with `id6='assess'`
+    (six lowercase alphanumerics), so a comparator trusting the parse would call that legacy record
+    MODERN and bucket it as genuine drift. The permissive parse is used so a research record's
+    `.<model>.<kind>` facet (a closed-enum miss for `parse_clustered`) is still recognized as modern.
+
+    ``own_id`` IS CONSULTED, and the case that forced it is measured rather than hypothetical. The
+    shared discriminator answers "is this token some file's id6?", which is FALSE for a token that is
+    nobody's - so a MODERN name carrying a typo'd slot (`...-01-slotaa-a.ipd.md` declaring
+    `- Id: fmbbb1`) would be classified LEGACY and reported as a grandfathered name, when it is in
+    fact the exact condition `check.id6-identity-slot` already reports as an ERROR. A file that
+    DECLARES an id6 asserts a clustered identity, so its slot is trusted as an identity slot
+    unconditionally - the same reasoning `_check_identity_slots`' rule (a) states for itself.
+    """
+
+    m = _naming.parse_uniform_permissive(filename)
+    if m is None:
+        return False
+    if _HHMM_RE.match(m.group("set")):
+        return False  # legacy YYYYMMDD-HHMM-NN-<slug>, whose HHMM mimics a setid
+    if own_id is not None:
+        return True
+    return _is_real_id6(m.group("id6"), declared_ids)
+
+
+def _identity_rename_hint(
+    record_type: str, selector: str, field: str, modern: bool
+) -> str:
+    """The exact `aw rename` a maintainer would run for one record, or "" when none applies.
+
+    THE SELECTOR IS THE DECLARED id6 WHEREVER ONE EXISTS, not the filename, and that is the whole
+    reason this helper exists rather than an f-string at the call site. Verified at authoring: `aw
+    rename plans <legacy-filename> --to-id6` REFUSES with "no plan has Id '<filename>'" (the plans
+    resolver is id-directed), while `aw rename plans <id6> --to-id6` resolves and prints the exact
+    target name. A suggested command that refuses is worse than no suggestion (the plan's F-10), so a
+    filename is only ever used when the record declares no id6 at all.
+
+    `--to-id6` is the legacy-grammar conversion (it mints an id6 and injects it, reusing an existing
+    `- Id:`); a MODERN name whose Set segment disagrees is re-clustered with `aw group ... --rename`
+    instead, since the identity slot is already correct and only the cluster key is wrong.
+    """
+
+    rename_type = _IDENT_RENAME_TYPE.get(record_type)
+    if rename_type is None or not selector:
+        return ""
+    if not modern:
+        return f"aw rename {rename_type} {selector} --to-id6 --apply"
+    if field == "Set":
+        return f"aw group {rename_type} {selector} --set <setid> --rename --apply"
+    return f"aw rename {rename_type} {selector} --slug <slug> --apply"
+
+
+def check_name_identity(
+    repo_root: Path,
+    include_untracked: bool = False,
+    include_retired: bool = False,
+) -> List[_core.Drift]:
+    """Report every record whose declared `- Id:` or `- Set:` is ABSENT from its own filename.
+
+    ADVISORY (`warning`) and never a rename: see the block comment above for the four buckets, the
+    positional artifact test, and the recorded extend-versus-add decision against
+    `check.id6-identity-slot`.
+
+    ``include_retired`` HONORS THE ENGINE'S ONE SCOPE CONTRACT rather than overriding it, and the
+    consequence is important enough to state: most of this exception set is RETIRED (`executed/`
+    plans and terminal specs), so the DEFAULT scope reports the LIVE members only - measured on this
+    repository, 4 of 17 - and the FULL historical count needs `aw check --all` (or this function with
+    ``include_retired=True``). Overriding the flag here was tried first and is WRONG: retirement
+    filters visibility for the whole engine because AGENTS.md forbids editing a plan already in
+    `executed/`, so a rule that ignored the flag would report findings whose remedy is not permitted
+    on a scope the caller explicitly narrowed. THE COUNT IS STILL AVAILABLE, on one documented flag,
+    which is a better trade than one rule with private scope semantics.
+    """
+
+    repo_root = Path(repo_root)
+    types = list(SUPPORTED.keys())
+    if "research" not in types:
+        types.append("research")
+
+    # Pass 1: read every record once (full body AND bounded region), so the discriminator below has
+    # the global set of declared ids the shared `_is_real_id6` needs.
+    scanned: List[tuple] = []
+    seen: set = set()
+    for record_type in types:
+        for p in _iter_type_files(
+            repo_root,
+            record_type,
+            include_untracked=include_untracked,
+            include_retired=include_retired,
+        ):
+            try:
+                key = str(p.resolve())
+            except OSError:
+                continue
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                text = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            id_decl, set_decl = _identity_declared_values(text)
+            scanned.append((record_type, p, id_decl, set_decl))
+
+    declared_ids = {
+        id_decl[0]
+        for _t, _p, id_decl, _s in scanned
+        if id_decl[0] and id_decl[1] and _ID6_RE.match(id_decl[0])
+    }
+
+    # A name that matches NO grammar at all is already reported by `check.name-nonconformant`, whose
+    # remedy (rename it to the grammar) SUBSUMES this advisory's. Reporting it here too would
+    # double-report one authoring mistake under a second rule id, which is exactly what
+    # `check.review-dangling` documents refusing for the same reason. This rule's population is
+    # names that are legitimately SHAPED but pre-id6 (grandfathered), not junk.
+    junk_names = {
+        Path(d.location).name
+        for record_type in types
+        for d in check_names(
+            repo_root,
+            record_type,
+            include_untracked=include_untracked,
+            include_retired=include_retired,
+        )
+        if d.rule == "check.name-nonconformant"
+    }
+
+    drift: List[_core.Drift] = []
+    for record_type, p, id_decl, set_decl in scanned:
+        if p.name in junk_names:
+            continue
+        # The selector `aw rename` actually resolves: the record's OWN declared id6 when it has one
+        # (and only when it was declared in the metadata region, so a quoted example never becomes a
+        # suggested target), else the filename.
+        own_id = (
+            id_decl[0] if (id_decl[1] and _ID6_RE.match(id_decl[0] or "")) else None
+        )
+        selector = own_id or p.name
+        modern = _identity_name_is_modern(p.name, declared_ids, own_id)
+        for field, (value, in_region) in (("Id", id_decl), ("Set", set_decl)):
+            if not value or value in p.name:
+                continue
+            # The `Id` half of a MODERN name is `check.id6-identity-slot`'s subject already, and it
+            # reports it at ERROR severity naming both ids AND the file that owns the foreign id6.
+            # Re-reporting it here would double-report one mistake under a weaker rule id; this
+            # rule's contribution is the population that rule EXEMPTS (a name with no id6 slot) plus
+            # the `Set` segment, which no rule checked at all.
+            if modern and field == "Id":
+                continue
+            drift.append(
+                _identity_finding(
+                    record_type, p, field, value, in_region, modern, selector
+                )
+            )
+    return drift
+
+
+def _identity_finding(
+    record_type: str,
+    path: Path,
+    field: str,
+    value: str,
+    in_region: bool,
+    modern: bool,
+    selector: str,
+) -> _core.Drift:
+    """Build the one advisory finding for a (record, field) pair, bucketed and with its remedy."""
+
+    # BUCKET PRECEDENCE, which is a decision rather than an accident of ordering. NON-IDENTIFIER is
+    # tested FIRST because it is the strongest statement available about the remedy - NO filename
+    # could ever satisfy the value - and it holds wherever the declaration sits, so it must not be
+    # masked by the positional test. A record can legitimately be BOTH (the measured member is a
+    # `<terse-id>` placeholder that also sits inside a fenced schema example), so the positional fact
+    # is APPENDED to that finding rather than being allowed to replace it.
+    quoted_note = (
+        " (the declaration also sits outside the metadata region, in a quoted example)"
+        if not in_region
+        else ""
+    )
+    if not _IDENT_TOKEN_RE.match(value):
+        bucket = "non-identifier"
+        detail = (
+            f"declared `{field}: {value}` is not an identifier (a documentation placeholder or "
+            f"illustrative value), so no filename can satisfy it{quoted_note}"
+        )
+        recovery = (
+            "no rename is possible: the declared value is not an identifier. If it is a schema "
+            "example, move it inside a fenced block so it is not read as a declaration"
+        )
+    elif not in_region:
+        bucket = "artifact"
+        detail = (
+            f"declared `{field}: {value}` is absent from the filename, but the declaration is a "
+            f"QUOTED EXAMPLE in the body rather than this file's own metadata: THE FILENAME IS "
+            f"CORRECT and must not be renamed"
+        )
+        recovery = (
+            "no rename: fix the READER that harvests identity from a quoted block (see `cqytxf` / "
+            "`76w6mq`), not this document"
+        )
+    elif modern:
+        bucket = "drift"
+        detail = (
+            f"declared `{field}: {value}` is absent from an otherwise MODERN id6-clustered filename, "
+            f"so the name and the metadata genuinely disagree"
+        )
+        recovery = _identity_rename_hint(record_type, selector, field, True) or (
+            "reconcile the filename with the declared metadata"
+        )
+    else:
+        bucket = "legacy"
+        detail = (
+            f"declared `{field}: {value}` is absent from this pre-id6-grammar filename, so the "
+            f"record cannot be located by name; the rename is OPTIONAL and a maintainer call "
+            f"(grandfathered, not overdue)"
+        )
+        recovery = _identity_rename_hint(record_type, selector, field, False) or (
+            "converting this name to the id6 grammar is optional and a maintainer call"
+        )
+    return enrich_drift(
+        _core.Drift(
+            str(path),
+            _IDENTITY_RULE,
+            f"[{bucket}] {detail} ({_IDENTITY_PURPOSE})",
+        ),
+        observed=f"{field}: {value} (filename: {path.name})",
+        required=f"the declared {field} appears in the filename, so the record is locatable by name",
+        recovery=recovery,
+    )
 
 
 _STATUS_META_RE = _re.compile(r"(?m)^- Status:\s*(\S+)\s*$")
@@ -1931,6 +2359,24 @@ def check_types(
         # failure here cannot suppress any other rule.
         try:
             drift.extend(check_system_layout(repo_root))
+        except Exception:
+            pass
+        # findtier Order 02 (`3i6rso`) E-04: the declared-identity-absent-from-filename advisory.
+        # Rides THIS once-per-full-sweep seam, beside its naming-family neighbours, and the placement
+        # is the plan's OQ-01 decision on a measured count rather than a default: 18 findings against
+        # a tree already reporting 323, so a sweep rule is not a flood, and the sweep is the surface
+        # agents and CI already run, which is what lets the count be WATCHED over time (a flag nobody
+        # runs would be close to not shipping it). It is CROSS-TREE (every record type at once), so
+        # fanning it out over `check_type` would emit each finding once per type. Own try/except, per
+        # the established pattern here, so a failure cannot suppress any other rule.
+        try:
+            drift.extend(
+                check_name_identity(
+                    repo_root,
+                    include_untracked=include_untracked,
+                    include_retired=include_retired,
+                )
+            )
         except Exception:
             pass
     return drift
