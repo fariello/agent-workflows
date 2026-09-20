@@ -57,6 +57,51 @@ _SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}
 #   4. status    - an exact `- Status:` token (exact)
 #   5. stem      - an exact filename stem parsed via the Order 01 naming authority (exact)
 #   6. substring - a filename substring, the explicit LAST-RESORT only (non-exact)
+#
+# THE PER-KIND SEMANTICS ARE A CONTRACT, pinned by `tests/test_cli_find.py`
+# (`ArtifactsNotReferencesTests`, `PerKindSemanticsTests`, plan 826o13 E-01): `setid` is
+# deliberately MULTI-target (a Set is a group), `path`/`id6`/`stem` are `UNIQUE_KINDS` whose
+# multi-match is a DATA BUG that `--force` may not override, and `substring` is the explicit last
+# resort. The overarching property is ARTIFACTS, NOT REFERENCES: `find` returns the record that IS
+# the selector, never one that merely mentions it, and never a differently-named Set that shares a
+# prefix.
+#
+# A FILENAME-FIRST CANDIDATE FILTER WAS MEASURED AND DECLINED HERE (maintainer, 2026-09-11, plan
+# 826o13 OQ-03). Recorded so the next reader does not re-derive a dead end. The idea was to skip
+# the bounded header read for candidates whose FILENAME cannot match. Decomposition of a ~450ms
+# `aw find plans <id6>`: interpreter start plus `import agent_workflows.cli` ~115ms; this resolver
+# TOTAL ~42.5ms, of which TRAVERSAL is ~29.5ms and is IRREDUCIBLE by any filename filter, leaving
+# ~13.4ms of header reads; the display layer's `plans_index.scan_plans` ~113.6ms, RE-READING the
+# same records this resolver just read. Net saving after the filter's own `parse_clustered`
+# overhead: ~12.8ms, about 3% of what an operator waits for, against a display layer 8.9x larger
+# and an interpreter start 9x larger. It was declined on that basis: `resolve()` is the ONE
+# resolver every verb and all ten record types route through, so the corpus-wide differential
+# needed to prove such a change safe is expensive precisely BECAUSE the change is dangerous.
+#
+# WHERE THE REAL COST IS, so a future reader optimizes the right layer: the DISPLAY layer re-reads
+# what this resolver already read (measured 1240 opens end to end against 620 here, i.e. every
+# record opened about twice). That is carried by backlog `59t9x5`. Note it is not a free win
+# either: `plans_index` and this module DELIBERATELY disagree on 24 records, for the reason the
+# `_STATUS_RE` parity note below states at length.
+#
+# ONLY `id6` COULD EVER HAVE BENEFITED FROM SUCH A FILTER, which the original design missed and a
+# measurement caught. Because `setid` (3) and `status` (4) are evaluated BEFORE `stem` (5) and
+# `substring` (6), and both read front matter, a stem or substring query has ALREADY paid the full
+# header read by the time its own rule runs. Instrumented: every kind read all candidate headers,
+# `stem` and `substring` included. Filtering those kinds therefore saves nothing and costs a parse.
+# Do not extend a filename filter to them.
+#
+# `_PRECEDENCE` IS FROZEN AS SEMANTICS, NOT AS INERTIA. A token can legitimately be BOTH a Set id
+# and a filename fragment, so the order decides which record WINS an existing query; reordering it
+# silently changes matching. Pinned by
+# `tests/test_selector_zero_open.py::PrecedenceForcesFrontMatterReadsTests`, which also proves the
+# corollary that a stem or substring query cannot be made read-free while the order stands.
+#
+# THE PARSED FILENAME `id6` SLOT IS NOT A SAFE DISCRIMINATOR, a live trap independent of any
+# filter: `parse_clustered("20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md")` returns
+# CONFORMANT with `id6='assess'`, and `artifact_core.ID6_RE.match('assess')` is True, while that
+# record's real declared Id is `wvlk84`. Any future filename-based matching must test the WHOLE
+# filename rather than trusting the parsed slot.
 MATCH_PATH = "path"
 MATCH_ID6 = "id6"
 MATCH_SETID = "setid"
@@ -307,6 +352,16 @@ def read_front_matter_status(text: str) -> str | None:
     return m.group(1) if m else None
 
 
+# THIS READER RETURNS THE `- Set:` TOKEN VERBATIM, INCLUDING ANY QUOTING CHARACTERS, AND THAT IS
+# PINNED RATHER THAN AN OVERSIGHT (plan 826o13 E-04,
+# `tests/test_cli_find.py::BacktickSetValueIsPinnedTests`). A record whose front matter reads
+# `- Set: `awoptimize`` yields the BACKTICK-BEARING string, so it does NOT match the `setid` rule
+# and is reached by `substring` instead. Stripping the backticks here would make it newly match
+# `setid`, and `setid` (precedence 3) OUTRANKS `substring` (6), so the winning KIND flips and the
+# answer SHRINKS: measured, `aw find research awoptimize` returns FOUR files by substring today and
+# ONE by setid after such a normalization. That is a MATCHING-BEHAVIOR change of the same class as
+# the `_STATUS_RE` parity constraint above, so the fix belongs at plan `3i6rso`'s report-only
+# comparison site, where it changes no selector answer, and NOT here.
 def _read_setid(text: str) -> str | None:
     m = _SET_RE.search(text)
     if not m:
