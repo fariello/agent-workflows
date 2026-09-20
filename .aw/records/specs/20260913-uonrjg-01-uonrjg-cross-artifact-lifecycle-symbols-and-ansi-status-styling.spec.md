@@ -333,6 +333,7 @@ only when the subtype is genuinely unavailable.
 | `needs_input`, `awaiting-human` | waiting-input |
 | `ran` | recovering |
 | `unknown_outcome` | failed |
+| `integration-deferred` | recovering |
 | stale projected `abandoned?` or another inference | unknown |
 
 THE FOUR ROWS ABOVE WERE ADDED AT REVIEW (2026-09-13) and each closes a word this spec's own Section 6
@@ -367,6 +368,31 @@ judgement calls:
   (quarantine is a decision, not a failure). Note it is carried by a `- Quarantine:` FIELD rather than a
   `- Status:` value, so a resolver reads it as an integrity/condition input per Section 8, not as a
   native status; it is listed in this table because the lint view must show it without calling it a pass.
+
+A SIXTH ROW WAS ADDED LATER, 2026-09-19, BY PLAN `udgilu`, and it is called out separately because the
+paragraph above says "THE FOUR ROWS ABOVE" and must not be read as covering it. `integration-deferred`
+was MISSED BY THE 2026-09-13 REVIEW FOR A STRUCTURAL REASON rather than an oversight: the plan that
+introduced the status (`integpath-03`/`51vw4y`) landed AFTER that review, so the review's own five-orphan
+sweep could not have seen it. Measured 2026-09-19 by importing the enum and counting occurrences in this
+file: it was the ONLY one of the fifteen `runner_shutdown.KNOWN_ITEM_STATUSES` members that appeared ZERO
+times here, which made a faithful criterion A2 assertion over that owner enum FAIL.
+
+IT MAPS TO `recovering`, AND THAT WAS RESOLVED FROM CODE EVIDENCE RATHER THAN PREFERENCE, which is why no
+maintainer turn was spent on a sixth presentation ruling. Three independent in-code statements settle it.
+`runner_shutdown.py` files the status under "in-flight / recoverable", explicitly NOT terminal, and says
+in its own comment that the item "is awaiting a re-attempt". `oc_runipd.py` records that it is
+"DELIBERATELY absent from `TERMINAL_STATES`" and that "absence is what makes a re-attempt possible". And
+`retry_deferred_integrations` ACTUALLY SCHEDULES that re-attempt, automatically, on the next loop
+iteration, with "Zero waiting, zero tokens, no agent turn".
+
+So WORK HERE ADVANCES BY ITSELF, which is precisely this spec's definition of `recovering` ("Retry,
+correction, resume, or recovery is active or required") and precisely NOT its definition of `blocked`
+("Work cannot advance until a named condition clears"). The neighbouring rows confirm the placement:
+every row mapped to `blocked` (`dependency-blocked`, `integration-blocked`, `merge-conflict`) leaves the
+item NOT integrated with NO scheduled retry, while `interrupted`, `partial`, `correction_required` and
+`ran` already share `recovering`. REJECTED: `blocked`, on the reading that the dirty-path overlap is a
+named condition (it is, but it clears without anyone acting, so nothing is obstructed in this spec's
+sense); and `unknown`, which Section 6's preamble already calls a defect for a KNOWN status.
 
 An item that is presently verifying displays `verifying`, even if its last durable ledger event is
 `performed`. Once verification completes, it displays `done`. Unverified completion MUST NOT be styled
