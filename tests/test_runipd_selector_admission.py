@@ -78,14 +78,21 @@ class TheAdmissionPredicateTests(unittest.TestCase):
                     )
                 )
 
-    def test_an_EXECUTED_plan_is_still_selectable_as_a_dependency_target(self):
+    def test_an_EXECUTED_plan_is_still_selectable_because_it_is_not_retired(self):
         """The narrowing that a blunt "refuse everything terminal" rule gets WRONG.
 
-        `initial_queue_status` preserves `executed` verbatim so a dependent's `executed:<id6>` edge is
-        satisfied by a prerequisite that ran earlier in the same run, and spec `20260826-0718-01` 2.9
-        forbids letting queue membership decide that edge. Filtering `executed` out of selection would
-        restore the dead-prerequisite failure that killed 9 parents, 6 children and 2 orchestrators at
-        queue build in one measured run.
+        An `executed` plan's work was PERFORMED, not decided against, so it is not a member of the
+        retired population this predicate exists to refuse. `initial_queue_status` preserves the status
+        verbatim so the queue shows it as the executed prerequisite it is, and
+        `tests/test_runner_item_dependencies.py::InRunExecutedDependencyTests` pins that queue row.
+
+        THIS TEST ONCE CARRIED A STRONGER AND FALSE REASON, corrected 2026-09-20 and recorded here so
+        it is not reintroduced: that filtering `executed` would strand dependents by restoring the
+        2026-09-17 dead-prerequisite failure. That failure is FIXED by the maintainer's 2026-09-19
+        "one authority: the disk" ruling, and measurement on BOTH hosts with the prerequisite absent
+        from the queue shows the edge still resolves `True` from disk, the cascade returns `[]`, and the
+        dependent stays `queued`. `TheDiskIsTheOnlyAuthorityForAnExecutedEdgeTests` in that same module
+        is the guard for the real fix. So the reason here is classification, not correctness.
         """
 
         self.assertTrue(
@@ -95,6 +102,46 @@ class TheAdmissionPredicateTests(unittest.TestCase):
         )
         self.assertIn("executed", runner_shared.TERMINAL_QUEUE_STATUSES)
         self.assertNotIn("executed", runner_shared.RETIRED_PLAN_STATUSES)
+
+    def test_an_executed_edge_does_NOT_depend_on_queue_membership(self):
+        """The measurement that corrected this file's own stale rationale on 2026-09-20.
+
+        Pinned as a TEST rather than left as a comment, because the false claim it replaces was
+        plausible enough to be written into two docstrings and a commit message: that `executed` had to
+        stay selectable or dependents would be stranded. If a future change reintroduces a queue-
+        membership read into `edge_satisfied`, this fails and the reasoning above stops being true.
+
+        Both hosts, prerequisite ABSENT from the queue map entirely.
+        """
+
+        with TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            _write(
+                repo,
+                "executed",
+                "20260908-demo-01-aaaaaa-first.ipd.md",
+                "- Id: aaaaaa\n- Set: demo\n- Order: 1\n- Kind: child\n"
+                "- Status: executed\n# First\n",
+            )
+            item = {
+                "id6": "bbbbbb",
+                "action": "execute",
+                "dependencies": ["executed:aaaaaa"],
+                "status": "queued",
+            }
+            state = {"repo": str(repo), "queue": [item]}
+            for label, driver in HOSTS:
+                with self.subTest(host=label):
+                    edge = driver.parse_dependency_token("executed:aaaaaa")
+                    satisfied, reason = driver.edge_satisfied(edge, item, state, {})
+                    self.assertTrue(
+                        satisfied,
+                        msg=(
+                            f"{label}: an executed: edge must resolve from the plan's DIRECTORY even "
+                            f"when the target is not in the queue; got {reason!r}"
+                        ),
+                    )
+                    self.assertEqual(reason, "")
 
     def test_a_status_less_entry_is_still_selectable(self):
         """A hand-written static manifest carries no `status` key at all.
@@ -356,7 +403,7 @@ class TheTwoHostsShareOnePredicateTests(unittest.TestCase):
     def test_neither_driver_defines_its_own_admission_closure(self):
         for label, driver in HOSTS:
             with self.subTest(host=label):
-                source = Path(driver.__file__).read_text(encoding="utf-8")
+                source = Path(str(driver.__file__)).read_text(encoding="utf-8")
                 self.assertNotIn(
                     "actionable_statuses = {",
                     source,

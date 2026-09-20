@@ -5287,12 +5287,19 @@ def manifest_entry_needs_review(
 #: The dispositions that mean a plan was DELIBERATELY RETIRED: its work was decided against and must
 #: not be performed. A selector may never queue one of these.
 #:
-#: `executed` IS DELIBERATELY ABSENT, and that omission is the whole subtlety of this predicate. An
-#: `executed` plan is a legitimate and NECESSARY queue member: `initial_queue_status` preserves the
-#: status verbatim (see `TERMINAL_QUEUE_STATUSES`) precisely so a dependent's `executed:<id6>` edge is
-#: satisfied by a prerequisite that ran earlier, and relabelling it once killed 9 parents, 6 children
-#: and 2 orchestrators in one run at queue build. Filtering `executed` out of selection would recreate
-#: that dead-prerequisite failure by a different route, so this set names ONLY the retired pair.
+#: `executed` IS DELIBERATELY ABSENT, because an `executed` plan is not RETIRED: its work was done,
+#: not decided against. It is a legitimate queue member, and `initial_queue_status` preserves the
+#: status verbatim (see `TERMINAL_QUEUE_STATUSES`) so the queue shows it as the executed prerequisite
+#: it is, which `tests/test_runner_item_dependencies.py::InRunExecutedDependencyTests` pins.
+#:
+#: DO NOT justify this omission by the 2026-09-17 dead-prerequisite incident, which is a stale reason
+#: that this comment carried until 2026-09-20 and which MEASUREMENT DISPROVED. That incident is fixed,
+#: and the maintainer's 2026-09-19 "one authority: the disk" ruling is what fixed it: `edge_satisfied`
+#: no longer reads queue membership at all (`by_id` is documented UNREAD, and a code-only scan finds 0
+#: read sites in BOTH hosts). Verified on both hosts with the prerequisite ABSENT from the queue
+#: entirely: the edge still resolves `True` from `executed/` on disk, `cascade_dependency_blocked`
+#: returns `[]`, and the dependent stays `queued`. So filtering `executed` out of SELECTION would NOT
+#: strand a dependent; the surviving reason is the narrower one stated above.
 #:
 #: `reusable` is likewise absent: a reusable plan is standing-by-design, meant to be run repeatedly.
 RETIRED_PLAN_STATUSES: frozenset[str] = frozenset({"superseded", "not-executed"})
@@ -5327,12 +5334,22 @@ def manifest_entry_is_selectable(entry: Mapping[str, Any] | None) -> bool:
     this predicate refused every terminal status and every terminal directory, which broke two shipped
     properties that both have their own regression tests, so the blunt reading is measurably wrong:
 
-      * AN `executed` PLAN MAY BE IN THE QUEUE. `initial_queue_status` preserves `executed` verbatim
-        (`TERMINAL_QUEUE_STATUSES`) so a dependent's `executed:<id6>` edge is satisfied by a
-        prerequisite that ran earlier in the same run. Spec `20260826-0718-01` 2.9 also forbids letting
-        queue membership decide that edge. Filtering `executed` out would restore the dead-prerequisite
-        bug that killed 9 parents, 6 children and 2 orchestrators at queue build in one measured run
-        (`tests/test_runner_item_dependencies.py::InRunExecutedDependencyTests`).
+      * AN `executed` PLAN MAY BE IN THE QUEUE, because it is not RETIRED: its work was performed, not
+        decided against. `initial_queue_status` preserves `executed` verbatim
+        (`TERMINAL_QUEUE_STATUSES`) so the queue shows it as the executed prerequisite it is, which
+        `tests/test_runner_item_dependencies.py::InRunExecutedDependencyTests` pins by asserting the
+        entry is PRESENT with that status.
+        THE REASON IS QUEUE VISIBILITY, NOT EDGE CORRECTNESS, and the distinction is recorded because
+        this docstring claimed the stronger version until 2026-09-20 and measurement disproved it. The
+        stronger claim was that filtering `executed` would strand dependents by restoring the
+        2026-09-17 dead-prerequisite failure. That failure is FIXED, by the maintainer's 2026-09-19
+        "one authority: the disk" ruling: `edge_satisfied` no longer consults queue membership (`by_id`
+        is documented UNREAD; a code-only scan finds 0 read sites in BOTH hosts), and spec
+        `20260826-0718-01` 2.9 independently forbids membership deciding that edge. Measured on both
+        hosts with the prerequisite ABSENT from the queue: the edge resolves `True` from disk,
+        `cascade_dependency_blocked` returns `[]`, and the dependent stays `queued`. So the honest
+        reason `executed` stays selectable is that it is not retired and a shipped test pins its queue
+        row, NOT that correctness depends on it.
       * A STATUS-LESS ENTRY IS LEGITIMATE. A hand-written or older static manifest
         (`tools/ipdrunner/20260823-pending-ipds-driver-manifest.json`) carries NO `status` key at all,
         and `initial_queue_status(None)` deliberately answers `reviewed` for exactly that case. An
@@ -10632,7 +10649,7 @@ THE FILES YOUR TURN CHANGED:
 Compare the two and answer by writing ONE object into the `{GATE_ANSWER_KEY}` key of the outcome JSON
 you already wrote. Change nothing else in that file unless you are answering `{GATE_ANSWER_FIXED}`.
 
-  "{GATE_ANSWER_KEY}": {{"answer": "<{'|'.join(GATE_ANSWERS)}>", "reason": "<why, one line>"}}
+  "{GATE_ANSWER_KEY}": {{"answer": "<{"|".join(GATE_ANSWERS)}>", "reason": "<why, one line>"}}
 
 WHAT EACH ANSWER DOES, so you are choosing an outcome and not a label:
 
