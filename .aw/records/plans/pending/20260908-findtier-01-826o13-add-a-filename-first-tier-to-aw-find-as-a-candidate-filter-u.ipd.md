@@ -44,27 +44,30 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the matching contract
 
-- [ ] E-01 PIN THE ARTIFACTS-NOT-REFERENCES CONTRACT AS TESTS. It was authored as a guard to place BEFORE a resolver change; with the filter declined it is the plan's PRIMARY deliverable, because the contract is a real property of `aw find` that nothing currently pins.
+- [x] E-01 PIN THE ARTIFACTS-NOT-REFERENCES CONTRACT AS TESTS. It was authored as a guard to place BEFORE a resolver change; with the filter declined it is the plan's PRIMARY deliverable, because the contract is a real property of `aw find` that nothing currently pins.
   THE MEASURED CASES TO PIN: `aw find plans wtiso` must return the three `wtiso` Set plans and must NOT return `wtisoland` or `wtisodebt`; `aw find plans <id6>` must return only the artifact that IS that id6, never one that merely mentions it. The item's example is that `y6mfgo` resolves to one record while six plans mention it.
   PIN THE PER-KIND SEMANTICS TOO: `setid` is deliberately MULTI-target, `id6`/`path`/`stem` are UNIQUE_KINDS whose multi-match is a data bug, and `substring` is the explicit last resort. Those are documented at `selectors.py:52-58` and are the rules any future optimization must not blur.
   THESE TESTS MUST PASS UNCHANGED AT HEAD, and that is the whole point rather than a precondition: this plan changes no matching behavior, so a red test here means the test is wrong, NOT the resolver. Do not "fix" `selectors.py` to make one pass; report it as a genuine defect with its own carrier.
   - Depends on: none
   - Expected outcome: tests pinning the artifacts-not-references contract and the per-kind semantics, green at HEAD with no product change.
-  - Execution state: pending
+  - Execution note: Added to `tests/test_cli_find.py`: `ArtifactsNotReferencesTests` (setid excludes prefix-sharing foreign Sets; id6 returns the declaring artifact and not its citers; the filename sweep's answer is provably LARGER), `PerKindSemanticsTests` (setid multi-target acts on all members with no `--force`; an id6 COLLISION refuses and `--force` does not override; substring refuses without `--force` and fans out with it; an earlier kind wins outright) and `RealRepoContractTests` (the same properties on the live tree, plus the F-16 slot hazard end to end). 15 tests added, all green at HEAD, no product change.
+    ONE AUTHORED NUMBER WAS STALE AND THE PIN WAS WRITTEN AROUND IT RATHER THAN AGAINST IT, which the EXECUTION CONTRACT anticipates ("a red test means either the test is wrong or something changed under you"). The plan requires `aw find plans wtiso` to return THREE plans; at HEAD it returns EIGHT, and EIGHT IS CORRECT. Commit `ecdd348f` (2026-09-19, after review round 2) replaced the resolver's 4096-byte hard cap with a structural bound, and the five previously-missing members declare `- Set: wtiso` at byte offsets 4177, 4241, 5153, 5581 and 7281, i.e. exactly the five the old cap could not see; the three the plan names are exactly the three at 2507, 2954 and 3894. So the CONTRACT is unchanged and only the corpus-visible answer moved. `selectors.py` was NOT touched to make the authored number true. Consequence for the design of the pins: tight COUNT assertions live on a synthetic fixture (`_SyntheticCorpus`, which reproduces the measured shapes) and the live tree carries only corpus-independent PROPERTY assertions, so these tests cannot rot as the corpus grows. Recorded as DECISION 03-826o13-D1 and filed as backlog `kx9md1`.
+  - Execution state: performed
 
 ### Task group 2: pin today's quoting behavior rather than changing it
 
-- [ ] E-04 DO NOT NORMALIZE QUOTING IN THIS PLAN; PIN THE CURRENT BEHAVIOR AND HAND THE CHANGE TO ORDER 02. THE ORIGINAL E-04 CONTRADICTED THE THEN-PRESENT E-05 AND REVIEW MEASURED THE CONTRADICTION (F-15), so this item was inverted rather than deleted; it now stands on its own as one of the two test pins this plan exists to land.
+- [x] E-04 DO NOT NORMALIZE QUOTING IN THIS PLAN; PIN THE CURRENT BEHAVIOR AND HAND THE CHANGE TO ORDER 02. THE ORIGINAL E-04 CONTRADICTED THE THEN-PRESENT E-05 AND REVIEW MEASURED THE CONTRADICTION (F-15), so this item was inverted rather than deleted; it now stands on its own as one of the two test pins this plan exists to land.
   WHAT WAS MEASURED. The record is `.aw/records/research/reference/202608/20260821-awoptimize-03-effzzi-...roadmap.md`, whose front matter reads `` - Set: `awoptimize` `` with backticks, so `_read_setid` returns `` '`awoptimize`' `` today. Normalizing it makes that record newly match the `setid` rule. Because `setid` (precedence 3) OUTRANKS `substring` (precedence 6), the winning KIND for the token flips and the answer changes: `aw find research awoptimize` returns FOUR files by substring today, and ONE file by setid after normalization. Run at review, before and after a simulated normalization.
   WHY THAT FORBIDS IT HERE, AND THE REASON OUTLIVED THE DESCOPE. It was originally forbidden because the then-present E-05 required identical corpus-wide before/after resolved path sets. That E-item is gone, but the Scope's own prohibition on changing which record wins any query remains and is now the plan's DEFINING constraint, so the conclusion is unchanged and is in fact stronger: a quoting normalization is a MATCHING-BEHAVIOR change, in the same family as the `_STATUS_RE` parity constraint documented at `selectors.py:112-120` ("do not harmonize the two patterns without owning that contract change").
   WHAT TO DO INSTEAD: add a CHARACTERIZATION test asserting the CURRENT behavior, that `_read_setid` returns the backtick-bearing value verbatim and that `aw find research awoptimize` resolves by `substring` to four files. Cite this item in the test so a future reader knows the behavior is pinned deliberately and where the fix belongs. Order 02 (`3i6rso`) already owns quote normalization at ITS comparison site, where it is a report-only concern that changes no selector answer.
   - Depends on: none
   - Expected outcome: a characterization test pinning today's backtick behavior and the four-file substring resolution, and NO change to `_read_setid`.
-  - Execution state: pending
+  - Execution note: Added `BacktickSetValueIsPinnedTests` to `tests/test_cli_find.py`: `_read_setid` returns `` '`awoptimize`' `` VERBATIM (with an explicit `assertNotEqual` against the normalized `'awoptimize'`, so the test fails if anyone normalizes it), the unquoted contrast case still reads as the bare setid (so the pin is about QUOTING and not about the reader being broken), and a fixture reproducing the four `awoptimize` records resolves by `MATCH_SUBSTRING` to FOUR paths. `_read_setid`'s BODY is unchanged; the only edit at that symbol is the comment block above it (E-07). Re-verified on the live tree during execution: `aw find research awoptimize` still resolves `kind: substring` to the same 4 files, and `_read_setid` on the real `effzzi` record returns `` '`awoptimize`' ``. The end-to-end assertion is placed on the FIXTURE rather than the live tree for the same corpus-rot reason recorded under E-01.
+  - Execution state: performed
 
 ### Task group 3: record why the filter was declined, where the next reader will look
 
-- [ ] E-07 WRITE THE DECLINED-OPTIMIZATION RATIONALE AND THE id6-SLOT HAZARD INTO THE COMMENT BLOCK THAT ALREADY OWNS THIS PROSE (`selectors.py:52-58`), so the next reader does not re-derive a dead end. This is the plan's only non-test edit and it changes no behavior.
+- [x] E-07 WRITE THE DECLINED-OPTIMIZATION RATIONALE AND THE id6-SLOT HAZARD INTO THE COMMENT BLOCK THAT ALREADY OWNS THIS PROSE (`selectors.py:52-58`), so the next reader does not re-derive a dead end. This is the plan's only non-test edit and it changes no behavior.
   RECORD THE MEASUREMENT, NOT AN OPINION: a filename candidate filter on the `id6` rule was measured at ~12.8ms net of a ~450ms `aw find plans <id6>` (~3%), while interpreter start plus `import cli` is ~115ms and the display layer's `plans_index.scan_plans` re-read is ~113.6ms. State that it was DECLINED on that basis by the maintainer on 2026-09-11, and state where the real cost is, so a future reader optimizes the right thing.
   RECORD WHY ONLY `id6` COULD EVER BENEFIT (F-13): `setid` and `status` precede the filename rules, so a `stem` or `substring` query has already paid the full header read before its own rule runs. Without this, someone will extend a filter to kinds where it is pure overhead.
   RECORD THE F-16 HAZARD, which is a live trap independent of any filter: `parse_clustered("20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md")` returns conformant with `id6='assess'` and `ID6_RE.match('assess')` is True, so the PARSED FILENAME SLOT IS NOT A SAFE id6 DISCRIMINATOR; that record's real declared Id is `wvlk84`. Any future filename-based matching must test the WHOLE filename.
@@ -72,7 +75,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   NOTE AT `_read_setid` that its backtick-bearing return value is PINNED by E-04's characterization test and that the fix belongs at Order 02's report-only comparison site (F-15).
   - Depends on: E-01
   - Expected outcome: comment prose recording the declined optimization with its measured numbers, the id6-only limitation, the F-16 slot hazard, the frozen-precedence rationale, and the `_read_setid` pin, with NO executable change.
-  - Execution state: pending
+  - Execution note: 55 inserted lines in `agent_workflows/selectors.py`, EVERY ONE a `#` comment: 45 lines extending the precedence comment block that already owns this prose, and 10 lines above `_read_setid`. All five required records are present (the declined optimization with ~12.8ms/~3% against ~115ms interpreter and ~113.6ms display; the id6-only limitation with its precedence reason; the F-16 slot hazard naming `assess`/`wvlk84`; the frozen-precedence rationale citing `PrecedenceForcesFrontMatterReadsTests`; the `_read_setid` pin routing the fix to Order 02 `3i6rso`), plus the per-kind contract naming the tests that now pin it and a pointer to backlog `59t9x5` for the real cost.
+    THE `_read_setid` NOTE IS A `#` COMMENT AND NOT A DOCSTRING, DELIBERATELY. A docstring is an executable statement (it compiles to the function's `__doc__`), so adding one would have changed an executable line and FAILED this plan's central prohibition on a technicality. The prose sits immediately above the `def` instead, which is inert.
+    NO TIMING MEASUREMENT WAS TAKEN OR CLAIMED, per `Required tests`. The numbers in the prose are attributed to the review that measured them, not re-measured here, because this plan ships no optimization.
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -214,20 +220,247 @@ No spec change is expected: `aw find`'s behavior is defined by its own help text
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the ACTUAL passing output of the contract tests. Quote the `wtiso` assertion showing `wtisoland` and `wtisodebt` are EXCLUDED, and the id6 assertion showing a mentioning plan is excluded. Paste the per-kind semantics assertions (setid multi-target, id6 unique, substring last resort). ALSO paste `git diff --stat -- agent_workflows/selectors.py` proving the pins required NO product change; a diff containing anything but comment prose is a FAILED validation, since this plan may not change matching behavior to make its own tests pass.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. 24 passed in `tests/test_cli_find.py` (15 of them new); the `wtiso` and id6 exclusion assertions and the per-kind assertions are quoted below; `git diff --stat -- agent_workflows/selectors.py` is 55 insertions, ALL comments, and all 58 compiled code objects are instruction-identical to HEAD. Full evidence:
 
-- [ ] V-04 validates E-04
+    ```
+    $ python3 -m pytest tests/test_cli_find.py -o addopts="" -v
+    tests/test_cli_find.py::RealRepoContractTests::test_an_id6_query_returns_the_declaring_artifact_not_its_citers PASSED [ 41%]
+    tests/test_cli_find.py::RealRepoContractTests::test_a_setid_query_returns_only_genuine_members PASSED [ 45%]
+    tests/test_cli_find.py::RealRepoContractTests::test_a_setid_query_excludes_prefix_sharing_foreign_sets PASSED [ 50%]
+    tests/test_cli_find.py::RealRepoContractTests::test_find_verb_end_to_end_excludes_foreign_sets PASSED [ 54%]
+    tests/test_cli_find.py::RealRepoContractTests::test_the_parsed_filename_id6_slot_is_not_a_safe_discriminator PASSED [ 58%]
+    tests/test_cli_find.py::ArtifactsNotReferencesTests::test_the_filename_shortcut_would_get_this_wrong PASSED [ 62%]
+    tests/test_cli_find.py::ArtifactsNotReferencesTests::test_an_id6_matches_the_artifact_that_IS_it_never_one_that_mentions_it PASSED [ 66%]
+    tests/test_cli_find.py::ArtifactsNotReferencesTests::test_a_setid_matches_its_members_and_not_a_longer_set_name PASSED [ 70%]
+    tests/test_cli_find.py::PerKindSemanticsTests::test_an_earlier_kind_wins_outright PASSED [ 75%]
+    tests/test_cli_find.py::PerKindSemanticsTests::test_setid_is_deliberately_multi_target PASSED [ 79%]
+    tests/test_cli_find.py::PerKindSemanticsTests::test_substring_is_the_explicit_last_resort PASSED [ 83%]
+    tests/test_cli_find.py::PerKindSemanticsTests::test_id6_and_stem_are_unique_kinds_whose_multi_match_is_a_data_bug PASSED [ 87%]
+    tests/test_cli_find.py::BacktickSetValueIsPinnedTests::test_read_setid_returns_a_backticked_value_verbatim PASSED [ 91%]
+    tests/test_cli_find.py::BacktickSetValueIsPinnedTests::test_an_unquoted_value_is_read_as_the_bare_setid PASSED [ 95%]
+    tests/test_cli_find.py::BacktickSetValueIsPinnedTests::test_a_backticked_set_resolves_by_substring_not_setid PASSED [100%]
+    ============================= 24 passed in 12.58s ==============================
+    ```
+
+    THE `wtiso` EXCLUSION ASSERTION, on the fixture (tight, because the corpus moves) and on the live tree (property, so it cannot rot):
+
+    ```python
+    names = {p.name for p in got.paths}
+    self.assertNotIn(self.land.name, names, "`wtisoland` is a DIFFERENT Set")
+    self.assertNotIn(self.debt.name, names, "`wtisodebt` is a DIFFERENT Set")
+    ```
+    ```python
+    self.assertEqual(resolved & foreign, set(),
+        "a differently-named Set must never be returned for `wtiso`")
+    self.assertLess(len(resolved), len(by_filename),
+        "the resolver's answer must be SMALLER than the filename sweep's")
+    ```
+
+    THE id6 ASSERTION EXCLUDING A MENTIONING PLAN:
+
+    ```python
+    self.assertNotIn(self.mentioner.name, [p.name for p in got.paths],
+        "a plan that CITES 8zgybk is not the artifact 8zgybk")
+    ```
+    ```python
+    self.assertEqual({p.resolve() for p in got.paths} & {p.resolve() for p in citers}, set(),
+        "records that merely CITE the id6 must not be returned")
+    ```
+    Live-tree counterexample confirmed during execution: `y6mfgo` resolves by `id6` to ONE record while nine other plans contain the token.
+
+    THE PER-KIND ASSERTIONS: setid MULTI-target acts on all members with no `--force` (`resolve_for_mutation` returns `err is None` and 3 paths); an id6 COLLISION refuses with `"collision"` and `"not overridable by --force"` and STILL refuses under `force=True`; substring refuses with `"ambiguous"` and fans out only under `force=True`; `UNIQUE_KINDS == {path, id6, stem}` with `setid` provably absent.
+
+    THE DIFF PROVING NO PRODUCT CHANGE:
+
+    ```
+    $ git diff --stat -- agent_workflows/selectors.py
+     agent_workflows/selectors.py | 55 ++++++++++++++++++++++++++++++++++++++++++++
+     1 file changed, 55 insertions(+)
+
+    $ git diff -- agent_workflows/selectors.py | grep -E "^[+-]" | grep -v "^[+-][+-]" \
+        | grep -vE "^[+-]\s*#" | grep -vE "^[+-]\s*$"
+    (no output: zero added or removed lines that are not comments or blank)
+    ```
+
+    AND A STRONGER PROOF THAN THE DIFF, because a diff is a claim about TEXT while the prohibition is about BEHAVIOR. Compiling HEAD's `selectors.py` and the working copy's and comparing all 58 code objects' INSTRUCTION STREAMS (opnames plus argreprs, with line numbers and memory addresses normalized out, recursing into every nested code object) reports them IDENTICAL:
+
+    ```
+    code objects: 58 58
+    NORMALIZED INSTRUCTION STREAMS IDENTICAL: True
+    ```
+    The only raw differences before normalization were `line N` fields inside code-object reprs, which is precisely what inserting comment lines above a `def` must shift.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the ACTUAL passing output of the characterization test, showing `_read_setid` returns the backtick-bearing value VERBATIM and `aw find research awoptimize` resolves by `substring` to FOUR files. Paste a diff proving `_read_setid` is UNCHANGED. A passing test that normalized the value is a FAILED validation, since the whole point is that this plan does not change that answer.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. The 3 `BacktickSetValueIsPinnedTests` pass; `_read_setid` returns `` '`awoptimize`' `` VERBATIM (asserted, plus an explicit `assertNotEqual` against the normalized form) and a backticked `- Set:` resolves by `MATCH_SUBSTRING` to FOUR paths; `_read_setid`'s body is UNCHANGED (comment lines above the `def` only, and bytecode-identical). Full evidence:
 
-- [ ] V-07 validates E-07
+    ```
+    $ python3 -m pytest tests/test_cli_find.py::BacktickSetValueIsPinnedTests -o addopts="" -v
+    tests/test_cli_find.py::BacktickSetValueIsPinnedTests::test_read_setid_returns_a_backticked_value_verbatim PASSED [ 91%]
+    tests/test_cli_find.py::BacktickSetValueIsPinnedTests::test_an_unquoted_value_is_read_as_the_bare_setid PASSED [ 95%]
+    tests/test_cli_find.py::BacktickSetValueIsPinnedTests::test_a_backticked_set_resolves_by_substring_not_setid PASSED [100%]
+    ```
+
+    THE TEST ASSERTS THE VERBATIM VALUE AND EXPLICITLY REFUSES THE NORMALIZED ONE, which is what makes it a pin rather than a restatement:
+
+    ```python
+    self.assertEqual(selectors._read_setid(text), "`awoptimize`")
+    self.assertNotEqual(selectors._read_setid(text), "awoptimize",
+        "normalizing here would flip a real query from 4 substring hits to 1 setid hit")
+    ```
+
+    THE FOUR-FILE SUBSTRING RESOLUTION:
+
+    ```python
+    self.assertEqual(got.kind, selectors.MATCH_SUBSTRING,
+        "the backticked `- Set:` must NOT match the setid rule")
+    self.assertEqual(len(got.paths), 4)
+    ```
+
+    RE-VERIFIED ON THE LIVE TREE during execution, so the fixture is not asserting a shape the repo no longer has:
+
+    ```
+    $ python3 -c "... selectors.resolve(Path('.'),'research','awoptimize') ..."
+    awoptimize kind= substring n= 4
+       .aw/records/research/reference/202608/20260821-awoptimize-00-yq6aub-...research-prompt.md
+       .aw/records/research/reference/202608/20260821-awoptimize-01-y1eb0q-...research-report.md
+       .aw/records/research/reference/202608/20260821-awoptimize-02-f6i3z2-...reference-research.md
+       .aw/records/research/reference/202608/20260821-awoptimize-03-effzzi-...roadmap.md
+
+    $ python3 -c "... selectors._read_setid(selectors._read_header(effzzi_path)) ..."
+    _read_setid -> '`awoptimize`'
+    raw line: ['- Set: `awoptimize`']
+    ```
+
+    `_read_setid` IS UNCHANGED. The full diff hunk at that symbol adds only comment lines ABOVE the `def`; the three-statement body is untouched (no `+`/`-` line falls inside it):
+
+    ```
+    @@ -307,6 +352,16 @@ def read_front_matter_status(text: str) -> str | None:
+    +# THIS READER RETURNS THE `- Set:` TOKEN VERBATIM, INCLUDING ANY QUOTING CHARACTERS, AND THAT IS
+    +# PINNED RATHER THAN AN OVERSIGHT (plan 826o13 E-04,
+    ... (10 comment lines total) ...
+     def _read_setid(text: str) -> str | None:
+         m = _SET_RE.search(text)
+    ```
+    The 58-code-object instruction-stream comparison recorded under V-01 covers this symbol too, so `_read_setid` is proven identical at the bytecode level and not merely by reading the diff.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the ADDED COMMENT PROSE verbatim and confirm each of the five required records is present: the declined optimization WITH its measured numbers (~12.8ms net, ~3%, against ~115ms interpreter and ~113.6ms display), the id6-only limitation and why (`setid`/`status` precede the filename rules), the F-16 slot hazard naming `assess`/`wvlk84`, the frozen-precedence rationale citing `PrecedenceForcesFrontMatterReadsTests`, and the `_read_setid` pin routing the fix to Order 02. THEN paste `git diff -- agent_workflows/selectors.py` and confirm every changed line is a COMMENT: a single changed executable line is a FAILED validation. THEN paste the BARE `python3 -m pytest` summary line and state the failure-SET delta against a freshly measured BEFORE (not a recorded baseline); criterion is an EMPTY delta.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All five required records are present in the added prose (quoted verbatim below); every one of the 55 changed lines is a `#` comment and all 58 compiled code objects are instruction-identical to HEAD; the BARE suite went `7093 passed, 3 skipped, 2 xfailed` BEFORE to `7108 passed, 3 skipped, 2 xfailed` AFTER, both with an EMPTY failure set, so the failure-set delta is EMPTY; `PrecedenceForcesFrontMatterReadsTests` is green (3 passed) and `aw sanitize --agent` is clean. Full evidence:
+
+    THE ADDED COMMENT PROSE, verbatim from `git diff -- agent_workflows/selectors.py` (45 lines in the precedence block, then 10 above `_read_setid`; every line a `#` comment):
+
+    ```
+    +#
+    +# THE PER-KIND SEMANTICS ARE A CONTRACT, pinned by `tests/test_cli_find.py`
+    +# (`ArtifactsNotReferencesTests`, `PerKindSemanticsTests`, plan 826o13 E-01): `setid` is
+    +# deliberately MULTI-target (a Set is a group), `path`/`id6`/`stem` are `UNIQUE_KINDS` whose
+    +# multi-match is a DATA BUG that `--force` may not override, and `substring` is the explicit last
+    +# resort. The overarching property is ARTIFACTS, NOT REFERENCES: `find` returns the record that IS
+    +# the selector, never one that merely mentions it, and never a differently-named Set that shares a
+    +# prefix.
+    +#
+    +# A FILENAME-FIRST CANDIDATE FILTER WAS MEASURED AND DECLINED HERE (maintainer, 2026-09-11, plan
+    +# 826o13 OQ-03). Recorded so the next reader does not re-derive a dead end. The idea was to skip
+    +# the bounded header read for candidates whose FILENAME cannot match. Decomposition of a ~450ms
+    +# `aw find plans <id6>`: interpreter start plus `import agent_workflows.cli` ~115ms; this resolver
+    +# TOTAL ~42.5ms, of which TRAVERSAL is ~29.5ms and is IRREDUCIBLE by any filename filter, leaving
+    +# ~13.4ms of header reads; the display layer's `plans_index.scan_plans` ~113.6ms, RE-READING the
+    +# same records this resolver just read. Net saving after the filter's own `parse_clustered`
+    +# overhead: ~12.8ms, about 3% of what an operator waits for, against a display layer 8.9x larger
+    +# and an interpreter start 9x larger. It was declined on that basis: `resolve()` is the ONE
+    +# resolver every verb and all ten record types route through, so the corpus-wide differential
+    +# needed to prove such a change safe is expensive precisely BECAUSE the change is dangerous.
+    +#
+    +# WHERE THE REAL COST IS, so a future reader optimizes the right layer: the DISPLAY layer re-reads
+    +# what this resolver already read (measured 1240 opens end to end against 620 here, i.e. every
+    +# record opened about twice). That is carried by backlog `59t9x5`. Note it is not a free win
+    +# either: `plans_index` and this module DELIBERATELY disagree on 24 records, for the reason the
+    +# `_STATUS_RE` parity note below states at length.
+    +#
+    +# ONLY `id6` COULD EVER HAVE BENEFITED FROM SUCH A FILTER, which the original design missed and a
+    +# measurement caught. Because `setid` (3) and `status` (4) are evaluated BEFORE `stem` (5) and
+    +# `substring` (6), and both read front matter, a stem or substring query has ALREADY paid the full
+    +# header read by the time its own rule runs. Instrumented: every kind read all candidate headers,
+    +# `stem` and `substring` included. Filtering those kinds therefore saves nothing and costs a parse.
+    +# Do not extend a filename filter to them.
+    +#
+    +# `_PRECEDENCE` IS FROZEN AS SEMANTICS, NOT AS INERTIA. A token can legitimately be BOTH a Set id
+    +# and a filename fragment, so the order decides which record WINS an existing query; reordering it
+    +# silently changes matching. Pinned by
+    +# `tests/test_selector_zero_open.py::PrecedenceForcesFrontMatterReadsTests`, which also proves the
+    +# corollary that a stem or substring query cannot be made read-free while the order stands.
+    +#
+    +# THE PARSED FILENAME `id6` SLOT IS NOT A SAFE DISCRIMINATOR, a live trap independent of any
+    +# filter: `parse_clustered("20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md")` returns
+    +# CONFORMANT with `id6='assess'`, and `artifact_core.ID6_RE.match('assess')` is True, while that
+    +# record's real declared Id is `wvlk84`. Any future filename-based matching must test the WHOLE
+    +# filename rather than trusting the parsed slot.
+     MATCH_PATH = "path"
+    ```
+    ```
+    +# THIS READER RETURNS THE `- Set:` TOKEN VERBATIM, INCLUDING ANY QUOTING CHARACTERS, AND THAT IS
+    +# PINNED RATHER THAN AN OVERSIGHT (plan 826o13 E-04,
+    +# `tests/test_cli_find.py::BacktickSetValueIsPinnedTests`). A record whose front matter reads
+    +# `- Set: `awoptimize`` yields the BACKTICK-BEARING string, so it does NOT match the `setid` rule
+    +# and is reached by `substring` instead. Stripping the backticks here would make it newly match
+    +# `setid`, and `setid` (precedence 3) OUTRANKS `substring` (6), so the winning KIND flips and the
+    +# answer SHRINKS: measured, `aw find research awoptimize` returns FOUR files by substring today and
+    +# ONE by setid after such a normalization. That is a MATCHING-BEHAVIOR change of the same class as
+    +# the `_STATUS_RE` parity constraint above, so the fix belongs at plan `3i6rso`'s report-only
+    +# comparison site, where it changes no selector answer, and NOT here.
+     def _read_setid(text: str) -> str | None:
+    ```
+
+    ALL FIVE REQUIRED RECORDS CONFIRMED PRESENT: (1) the DECLINED OPTIMIZATION with ~12.8ms net, ~3%, ~115ms interpreter, ~113.6ms display, ~42.5ms resolver total and ~29.5ms irreducible traversal, attributed to the maintainer on 2026-09-11; (2) the id6-ONLY LIMITATION with its mechanism (`setid` 3 and `status` 4 precede `stem` 5 and `substring` 6, so the read is already paid); (3) the F-16 SLOT HAZARD naming `assess` and `wvlk84` and the `ID6_RE` shape match; (4) the FROZEN-PRECEDENCE rationale citing `PrecedenceForcesFrontMatterReadsTests` by name; (5) the `_read_setid` PIN routing the fix to Order 02 `3i6rso`'s report-only comparison site. Two extras beyond the five, both required by the plan's spec-sync section: the per-kind contract naming its new pins, and backlog `59t9x5` named as the carrier of the real cost.
+
+    EVERY CHANGED LINE IS A COMMENT (the filter below removes comment and blank lines from the diff's added/removed set and prints nothing), corroborated by the bytecode identity recorded under V-01:
+
+    ```
+    $ git diff --stat -- agent_workflows/selectors.py
+     agent_workflows/selectors.py | 55 ++++++++++++++++++++++++++++++++++++++++++++
+     1 file changed, 55 insertions(+)
+
+    $ git diff -- agent_workflows/selectors.py | grep -E "^[+-]" | grep -v "^[+-][+-]" \
+        | grep -vE "^[+-]\s*#" | grep -vE "^[+-]\s*$"
+    === EXIT: 1 (1 = no non-comment lines) ===
+
+    NORMALIZED INSTRUCTION STREAMS IDENTICAL: True   (all 58 code objects)
+    ```
+
+    THE BARE SUITE, BEFORE AND AFTER, both measured in this worktree at HEAD `881607b6` in this turn (not a recorded baseline):
+
+    ```
+    BEFORE  $ python3 -m pytest
+    7093 passed, 3 skipped, 2 xfailed, 3 warnings in 182.01s (0:03:02)
+
+    AFTER   $ python3 -m pytest
+    7108 passed, 3 skipped, 2 xfailed, 3 warnings in 154.52s (0:02:34)
+    ```
+    FAILURE-SET DELTA IS EMPTY, and it is empty in the strongest possible way: BOTH runs have an EMPTY failure set (zero failed, zero errors), so AFTER minus BEFORE is empty by construction. `+15` passed is exactly the 15 tests E-01 and E-04 added (12 in the three new fixture classes plus... precisely: 3 `ArtifactsNotReferencesTests`, 4 `PerKindSemanticsTests`, 3 `BacktickSetValueIsPinnedTests`, 5 `RealRepoContractTests`, i.e. 15). Note the authored baseline's expected environmental failure (`test_reporting_contract.py::ParityTests`) did NOT occur here, because this lane worktree carries no untracked `opencode-recovery/` tree; that is a cleaner baseline than the plan anticipated, not a discrepancy to explain away.
+
+    `PrecedenceForcesFrontMatterReadsTests` GREEN with its own summary line, since E-07's prose cites it as the proof that precedence is frozen:
+
+    ```
+    $ python3 -m pytest tests/test_selector_zero_open.py::PrecedenceForcesFrontMatterReadsTests -o addopts="" -v
+    tests/test_selector_zero_open.py::PrecedenceForcesFrontMatterReadsTests::test_a_filename_query_still_reads_because_earlier_rules_must_lose_first PASSED [ 33%]
+    tests/test_selector_zero_open.py::PrecedenceForcesFrontMatterReadsTests::test_precedence_places_filename_rules_last PASSED [ 66%]
+    tests/test_selector_zero_open.py::PrecedenceForcesFrontMatterReadsTests::test_a_token_can_be_both_a_setid_and_a_filename_fragment PASSED [100%]
+    ============================== 3 passed in 0.27s ===============================
+    ```
+
+    `aw sanitize --agent` CLEAN:
+
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+
+    NO TIMING CLAIM IS MADE, as `Required tests` requires: no before/after timing of `aw find` was measured, because this plan ships no optimization.
+  - Result: pass
 
 ## Approval and execution gate
 
