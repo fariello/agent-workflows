@@ -238,8 +238,20 @@ class ScanTests(unittest.TestCase):
         stripped = re.sub(r"\033\[[0-9;]*m", "", board)
         # No machine bracket and no trailing tree tag in the human view.
         self.assertNotIn("[research]", board)
-        # Status is 256-colored + bold.
-        self.assertIn("\033[1;38;5;39mactive\033[0m", board)  # active azure
+        # Status is 256-colored + bold, from the SHARED resolver.
+        #
+        # RECOMPUTED AGAINST SPEC `uonrjg` SECTION 5 (plan `f9t5hz` E-04). This read 39 ("active
+        # azure") before the conversion, which was `attention.py`'s own index; the spec's `active`
+        # stage is 220 bold, and research `active` maps to `active` (Section 6.4). The GLYPH carries
+        # the identical escape, which is criterion A10 on this board.
+        self.assertIn("\033[1;38;5;220mactive\033[0m", board)
+        self.assertIn("\033[1;38;5;220m●\033[0m \033[1;38;5;220mactive\033[0m", board)
+        # A blocked stage carries the TEXT-presentation `⚠︎` (U+26A0 U+FE0E), never the emoji form
+        # (criterion A5), and `deferred` maps to `blocked` at 208 (Sections 5 and 6.2).
+        self.assertIn("\033[1;38;5;208m\u26a0\ufe0e\033[0m", board)
+        self.assertNotIn("\u26a0\ufe0f", board)
+        # A10, the negative half: the artifact TYPE word carries no escape at all.
+        self.assertIn("active\033[0m   research ", board)
         # Default colored board shows the compact identity stem (not the folded prefix / full path);
         # a non-clustered name like `r.md` falls back to `r`.
         self.assertNotIn(".agents/docs/research/r.md (active)", stripped)
@@ -873,10 +885,22 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         term = att.T.Term(color=True)
         colored_out = att.render_board(items, [], show_all=True, term=term)
         stripped = re.sub(r"\033\[[0-9;]*m", "", colored_out)
-        # Date, SetID, and ID6 receive the Status color
-        self.assertIn("\033[1;38;5;40m20260903\033[0m", colored_out)
-        self.assertIn("\033[1;38;5;40mrunnerlayer\033[0m", colored_out)
-        self.assertIn("\033[1;38;5;40mcnwy8g\033[0m", colored_out)
+        # Date, SetID, and ID6 receive the Status color.
+        #
+        # RECOMPUTED AGAINST SPEC `uonrjg` SECTION 5 (plan `f9t5hz` E-04). These read 40 before the
+        # conversion, which was `attention.py`'s own index for `open`; the spec's `ready` stage is 45
+        # bold, and `open` maps to `ready` (Section 6.3). The change of number here is the expected
+        # human-snapshot churn Section 12 sanctions, not a regression.
+        self.assertIn("\033[1;38;5;45m20260903\033[0m", colored_out)
+        self.assertIn("\033[1;38;5;45mrunnerlayer\033[0m", colored_out)
+        self.assertIn("\033[1;38;5;45mcnwy8g\033[0m", colored_out)
+        # A10: the glyph, the id6 and the status word share ONE escape. `open` -> `ready` -> `◕`, 45
+        # bold. Asserted on the raw escape, never on stripped text, or the assertion cannot fail.
+        self.assertIn("\033[1;38;5;45m◕\033[0m \033[1;38;5;45mopen\033[0m", colored_out)
+        # A10, the negative half: the artifact TYPE word carries NO escape (it emitted
+        # `\033[1;38;5;33mbacklog\033[0m` before this conversion).
+        self.assertIn("open\033[0m     backlog   ", colored_out)
+        self.assertNotIn("\033[1;38;5;33m", colored_out)
 
         # Plain output
         plain_out = att.render_table(
@@ -885,42 +909,48 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         self.assertEqual(stripped, plain_out)
 
         lines = [line for line in stripped.splitlines() if line.strip()]
+        # THE COLUMN ORDER AND COUNT ARE UNCHANGED (Section 12): the lifecycle glyph is carried INSIDE
+        # the existing Status column, ahead of the word, which is where Section 9.1 requires it ("glyph
+        # MUST immediately precede either id6 or status"). Only that column's width grows, from 8 to
+        # 10, so the header gains exactly two leading spaces and no column moves relative to another.
         self.assertEqual(
             lines[0],
-            "Status   Type     Blocks Priority Readiness OQs Exec Valid Date     SetID       N  ID6    Deps",
+            "  Status   Type     Blocks Priority Readiness OQs Exec Valid Date     SetID       N  ID6    Deps",
         )
 
-        # Verify exact sorted lines:
+        # Verify exact sorted lines. Each leading glyph is the spec Section 5 grapheme for the stage
+        # the status maps to: `open`/`approved` -> ready `◕`, `reviewed` -> authority-queued `◑`,
+        # `to-review` -> review-queued `◔`, `implementing` -> executing `▶`.
         # 1. Type: backlog (medium, 2.0.0)
         self.assertEqual(
             lines[1],
-            "open     backlog   2.0.0 medium   -           -    -     - 20260903 runnerlayer 01 cnwy8g -",
+            "◕ open     backlog   2.0.0 medium   -           -    -     - 20260903 runnerlayer 01 cnwy8g -",
         )
         self.assertEqual(
             lines[2],
-            "open     backlog   2.0.0 medium   -           -    -     - 20260904 rununbound  01 d07nz2 -",
+            "◕ open     backlog   2.0.0 medium   -           -    -     - 20260904 rununbound  01 d07nz2 -",
         )
         # 2. Type: plan (non-blocking first, then blocking)
         self.assertEqual(
             lines[3],
-            "reviewed plan          - -        -           -    -     - 20260829 runprofile  02 p0l1to -",
+            "◑ reviewed plan          - -        -           -    -     - 20260829 runprofile  02 p0l1to -",
         )
         self.assertEqual(
             lines[4],
-            "approved plan      2.0.0 -        -           -    -     - 20260829 rununify    00 5e4sb6 -",
+            "◕ approved plan      2.0.0 -        -           -    -     - 20260829 rununify    00 5e4sb6 -",
         )
         self.assertEqual(
             lines[5],
-            "reviewed plan      2.0.0 -        go-pendin   -    -     - 20260830 runcodes    01 wlxkoz -",
+            "◑ reviewed plan      2.0.0 -        go-pendin   -    -     - 20260830 runcodes    01 wlxkoz -",
         )
         self.assertEqual(
             lines[6],
-            "to-revie plan      2.0.0 -        -           -    -     - 20260904 revsweep    01 76gsmv -",
+            "◔ to-revie plan      2.0.0 -        -           -    -     - 20260904 revsweep    01 76gsmv -",
         )
         # 3. Type: spec
         self.assertEqual(
             lines[7],
-            "implemen spec      2.0.0 -        -           -    -     - 20260829 c4gd2h      01 c4gd2h -",
+            "▶ implemen spec      2.0.0 -        -           -    -     - 20260829 c4gd2h      01 c4gd2h -",
         )
         # 4. Legend
         self.assertEqual(
@@ -965,10 +995,10 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         lines = [line for line in out.splitlines() if line.strip()]
         self.assertEqual(
             lines[0],
-            "Status   Type     Blocks Priority Readiness OQs Exec Valid Date     SetID N  ID6    Deps",
+            "  Status   Type     Blocks Priority Readiness OQs Exec Valid Date     SetID N  ID6    Deps",
         )
         self.assertIn(
-            "to-revie plan          - -        -         2/3    -     - -        p     -  1      -",
+            "◔ to-revie plan          - -        -         2/3    -     - -        p     -  1      -",
             lines[1],
         )
 
@@ -1714,14 +1744,23 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         self.assertIn("\033[1;38;5;214m1/2\033[0m", colored)
         # 2/2 is styled in bold green (color 40)
         self.assertIn("\033[1;38;5;40m2/2\033[0m", colored)
-        # Executed dep 29wvmj is styled in bold green (color 46) matching executed status
+        # A DEPENDENCY id6 CARRIES ITS TARGET'S LIFECYCLE COLOR (spec Section 9.2's compact id6
+        # reference), and every index here is RECOMPUTED against spec Section 5 (plan `f9t5hz` E-04).
+        # THE HEADLINE PROPERTY THIS BLOCK NOW PROVES, which the old numbers could not: `executed` and
+        # `approved` are DIFFERENT STAGES (done versus ready) and must therefore be DIFFERENT COLORS.
+        # They both read 46 before the conversion, i.e. the board painted a merged plan and a
+        # not-yet-run plan identically, which is exactly Section 1's "green currently means both ready
+        # and complete in several views".
+        # Executed dep 29wvmj -> done -> 46 bold (unchanged).
         self.assertIn("\033[1;38;5;46m29wvmj\033[0m", colored)
-        # Approved dep 51vw4y is styled in bold green (color 46) matching approved status
-        self.assertIn("\033[1;38;5;46m51vw4y\033[0m", colored)
-        # To-review dep 6sb3yu is styled in bold orange (color 214) matching to-review status
-        self.assertIn("\033[1;38;5;214m6sb3yu\033[0m", colored)
-        # Backlog dep bk1111 is styled in bold green (color 40) matching open status
-        self.assertIn("\033[1;38;5;40mbk1111\033[0m", colored)
+        # Approved dep 51vw4y -> ready -> 45 bold (was 46, indistinguishable from done).
+        self.assertIn("\033[1;38;5;45m51vw4y\033[0m", colored)
+        # To-review dep 6sb3yu -> review-queued -> 39, NOT bold (Section 5 bolds only ready, the
+        # active family, waiting, blocked, failed and done).
+        self.assertIn("\033[38;5;39m6sb3yu\033[0m", colored)
+        # Backlog dep bk1111 -> `open` -> ready -> 45 bold, the SAME escape as the approved plan
+        # above, because one stage is one presentation regardless of artifact type.
+        self.assertIn("\033[1;38;5;45mbk1111\033[0m", colored)
         # Legend column names are bolded
         self.assertIn("\033[1mOQs\033[0m = Open Questions", colored)
         self.assertIn("\033[1mExec\033[0m = Executed items", colored)
@@ -1792,7 +1831,10 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         )
         lines_on = plain_on.splitlines()
         header_on = lines_on[0]
-        self.assertTrue(header_on.startswith("Status   Run     Type"))
+        # The two leading spaces are the lifecycle GLYPH cell, which lives inside the Status column
+        # ahead of the word (Section 9.1). The column ORDER is unchanged: Run still sits immediately
+        # after Status.
+        self.assertTrue(header_on.startswith("  Status   Run     Type"))
         self.assertIn("Run = Active runner state", plain_on)
 
         # Check values
@@ -2754,6 +2796,157 @@ class LaneRemedyHintTests(unittest.TestCase):
                 drift = att.stranded_lane_drift(root)
             self.assertEqual(len(drift), 1)
             self.assertIn("aw oc integrate lane01", drift[0].detail)
+
+
+class SharedLifecycleResolverTests(unittest.TestCase):
+    """The board renders lifecycle state through the SHARED resolver (spec `uonrjg` R10.3).
+
+    Added by plan `f9t5hz`. These assert the PROPERTIES of the conversion rather than a snapshot, so
+    they survive a future palette amendment in the spec while still failing if this module reacquires
+    a lifecycle table of its own or breaks criterion A10.
+    """
+
+    from agent_workflows import lifecycle_style as _LS
+    from agent_workflows import term as _T
+
+    def _row(self, item, *, colored=True):
+        out = att.render_board(
+            [item],
+            [],
+            show_all=True,
+            term=self._T.Term(stream=io.StringIO(), color=colored),
+        )
+        return [ln for ln in out.splitlines() if item.id in ln][0]
+
+    def _item(self, tree, status, path, *, id6="aaa111"):
+        return att.Item(
+            id6, path, tree, status, A.class_of(tree, status), None, "2026-05-01"
+        )
+
+    def test_no_local_lifecycle_palette_remains(self):
+        """Criterion A17 / R10.3: the local `_STATUS_COLOR_256` table is GONE, not merely unused.
+
+        `_CLASS_COLOR_256` deliberately SURVIVES: its keys are the five cross-tree attention CLASS
+        constants, which spec Section 3 lists as an explicit NON-GOAL, and it colors only the
+        section headers of the non-columnar board.
+        """
+
+        self.assertFalse(hasattr(att, "_STATUS_COLOR_256"))
+        self.assertEqual(
+            set(att._CLASS_COLOR_256),
+            {A.ACTIVE, A.READY, A.BLOCKED, A.DONE, A.PARKED},
+        )
+
+    def test_a10_glyph_id6_and_status_share_one_escape_and_type_has_none(self):
+        """Criterion A10, asserted on RAW escapes, in both directions.
+
+        The positive half (glyph, id6 and status word carry the SAME code) and the negative half (the
+        artifact TYPE carries NONE) are both required, and the negative half is the one that
+        regressed silently before this conversion: the type word was painted 33 bold.
+        """
+
+        item = self._item("plans", "approved", ".aw/records/plans/pending/p.ipd.md")
+        row = self._row(item)
+        resolved = self._LS.resolve(self._LS.FAMILY_PLANS, "approved")
+        code = resolved.style.color
+        prefix = f"\033[1;38;5;{code}m"
+        glyph = self._LS.style_for(resolved.stage).unicode
+        self.assertIn(f"{prefix}{glyph}\033[0m", row)
+        self.assertIn(f"{prefix}approved\033[0m", row)
+        self.assertIn(f"{prefix}aaa111\033[0m", row)
+        # The type word is present and PLAIN. Asserted as an adjacency so a bare `assertNotIn` on the
+        # escape cannot pass merely because the column vanished.
+        self.assertIn("approved\033[0m plan ", row)
+        self.assertNotIn(f"\033[1;38;5;{att._TREE_COLOR_256}mplan", row)
+
+    def test_the_three_statuses_that_used_to_borrow_a_class_color(self):
+        """The wrong-color defect this child closes, per spec Section 6.
+
+        These three pass `attention_contract.class_of` yet were ABSENT from the old local table, so
+        each fell through to the attention CLASS palette (or gray) instead of its own stage. They are
+        the only reachable fallthroughs: `class_of` is total and RAISES for anything unmapped, so an
+        unrecognized status never reaches a render site at all.
+        """
+
+        expected = {
+            ("plans", "auto-approved"): self._LS.READY,
+            ("backlog", "graduated"): self._LS.ACTIVE,
+            ("research", "archive"): self._LS.PARKED,
+        }
+        for (tree, status), stage in expected.items():
+            with self.subTest(tree=tree, status=status):
+                resolved = self._LS.resolve(att._LIFECYCLE_FAMILY_BY_TREE[tree], status)
+                self.assertEqual(resolved.stage, stage)
+                item = self._item(tree, status, f".aw/records/{tree}/x.md")
+                row = self._row(item)
+                style = resolved.style
+                bold = "1;" if style.bold else ""
+                self.assertIn(
+                    f"\033[{bold}38;5;{style.color}m{style.unicode}\033[0m", row
+                )
+
+    def test_class_of_raises_rather_than_reaching_a_render_site(self):
+        """Why criterion A20's `?`-row is unreachable HERE, pinned so nobody tests for one.
+
+        The resolver owes A20 and views that can receive an unmapped value owe its rendering. This
+        board cannot: an unmapped status becomes an `attention.unknown-status` violation upstream.
+        """
+
+        with self.assertRaises(A.UnknownNativeStatus):
+            A.class_of("plans", "bogus-status")
+
+    def test_the_glyph_column_pads_by_rendered_width_not_codepoints(self):
+        """Section 9.4: a variation-selector-bearing glyph occupies the same COLUMNS as a plain one.
+
+        `⚠︎` is U+26A0 U+FE0E, i.e. 2 code points and 1 rendered column, so a `len()`-based pad would
+        leave its cell one column short of every other row's. Measured here on real rendered rows.
+        """
+
+        blocked = self._item(
+            "specs", "deferred", ".aw/records/specs/s.spec.md", id6="bbb222"
+        )
+        ready = self._item(
+            "plans", "approved", ".aw/records/plans/pending/p.ipd.md", id6="ccc333"
+        )
+        blocked_glyph = self._LS.style_for(self._LS.BLOCKED).unicode
+        ready_glyph = self._LS.style_for(self._LS.READY).unicode
+        # The premise: one is a 2-codepoint grapheme, the other is not.
+        self.assertEqual(len(blocked_glyph), 2)
+        self.assertEqual(self._T.visible_width(blocked_glyph), 1)
+        self.assertEqual(len(ready_glyph), 1)
+        # The consequence: the status WORD starts at the same rendered column in both rows.
+        # `render_table` directly, because the UNCOLORED `render_board` deliberately emits the stable
+        # machine `- [tree] path (status)` form instead of the columnar table.
+        plain = att.render_table(
+            [blocked, ready], [], show_all=True, term=self._T.Term(color=False)
+        )
+        rows = {
+            "deferred": [ln for ln in plain.splitlines() if "bbb222" in ln][0],
+            "approved": [ln for ln in plain.splitlines() if "ccc333" in ln][0],
+        }
+        self.assertEqual(
+            self._T.visible_width(rows["deferred"].split("deferred")[0]),
+            self._T.visible_width(rows["approved"].split("approved")[0]),
+        )
+        # And the VS is intact in the rendered cell, not severed (criterion A15 / A5).
+        self.assertIn(blocked_glyph, rows["deferred"])
+        self.assertNotIn("\u26a0\ufe0f", plain)
+
+    def test_machine_output_carries_no_ansi(self):
+        """Criterion A14 as a characterization test: `--agent`/`--json` were already ANSI-free.
+
+        Pinned so this conversion cannot leak an escape into machine output. The plain human board is
+        included because it is the form an agent greps (`- [tree] path (status)`).
+        """
+
+        item = self._item("plans", "approved", ".aw/records/plans/pending/p.ipd.md")
+        payload = att.render_json([item], [])
+        self.assertNotIn("\033", payload)
+        plain = att.render_board(
+            [item], [], show_all=True, term=self._T.Term(color=False)
+        )
+        self.assertNotIn("\033", plain)
+        self.assertIn("- [plans] .aw/records/plans/pending/p.ipd.md (approved)", plain)
 
 
 def core_Drift(*args, **kw):

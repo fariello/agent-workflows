@@ -647,16 +647,69 @@ class StylingTests(unittest.TestCase):
         out_plain = t_plain.status_256("open", width=12)
         self.assertEqual(out_plain, "open        ")
 
-    def test_status_palette_consistency_with_attention(self):
-        from agent_workflows import attention as att
+    def test_attention_holds_no_lifecycle_palette_of_its_own(self):
+        """`attention.py` owns NO lifecycle color table; it consumes the shared resolver.
 
-        for status, code in att._STATUS_COLOR_256.items():
-            self.assertIn(status, T.STATUS_COLOR_256)
-            self.assertEqual(
-                T.STATUS_COLOR_256[status],
-                code,
-                f"Mismatch for status '{status}': term has {T.STATUS_COLOR_256.get(status)}, attention has {code}",
-            )
+        RE-POINTED, NOT DELETED (plan `f9t5hz` E-01 / V-01). This test used to iterate
+        `attention._STATUS_COLOR_256` and assert every entry matched `term.STATUS_COLOR_256`, i.e. it
+        was a DRIFT GUARD between two live lifecycle tables. `f9t5hz` removed the second table, so
+        the old assertion could not survive in any form: the symbol it imported is gone and the test
+        would have failed as an `AttributeError` rather than as a palette mismatch.
+
+        THE PURPOSE IS PRESERVED AND STRENGTHENED rather than dropped, which is why this is a
+        re-point. The old test could only catch two tables DISAGREEING; this one catches a second
+        table EXISTING at all, which is the condition spec `uonrjg` R10.3 and criterion A17 actually
+        require ("Local `_STATUS_COLOR_256` lifecycle tables MUST be removed"). Deleting the test
+        outright would have left nothing asserting that the module stayed converted.
+        """
+
+        from agent_workflows import attention as att
+        from agent_workflows import attention_contract as A
+
+        self.assertFalse(
+            hasattr(att, "_STATUS_COLOR_256"),
+            "attention.py must hold no local lifecycle status palette (spec uonrjg R10.3); "
+            "lifecycle color comes from lifecycle_style via term.",
+        )
+        # `_CLASS_COLOR_256` SURVIVES ON PURPOSE and is NOT a lifecycle table: its keys are the
+        # five cross-tree ATTENTION CLASS constants, which spec Section 3 lists as an explicit
+        # NON-GOAL, and it colors only the board's section headers.
+        self.assertTrue(hasattr(att, "_CLASS_COLOR_256"))
+        self.assertEqual(
+            set(att._CLASS_COLOR_256),
+            {A.ACTIVE, A.READY, A.BLOCKED, A.DONE, A.PARKED},
+        )
+
+    def test_attention_lifecycle_color_comes_from_the_shared_table(self):
+        """A rendered attention status word carries `lifecycle_style`'s color, not a local one.
+
+        The companion to the test above: that one proves no second TABLE exists, this one proves the
+        rendered bytes actually come from the FIRST one. Together they are what the retired
+        cross-module drift guard was reaching for.
+        """
+
+        from agent_workflows import attention as att
+        from agent_workflows import attention_contract as A
+
+        item = att.Item(
+            "aaa111",
+            ".aw/records/backlog/open/x.backlog.md",
+            "backlog",
+            "open",
+            A.READY,
+            None,
+            "2026-05-01",
+        )
+        out = att.render_board(
+            [item], [], show_all=True, term=T.Term(stream=io.StringIO(), color=True)
+        )
+        expected = LS.resolve(LS.FAMILY_BACKLOG, "open")
+        self.assertEqual(expected.stage, LS.READY)
+        self.assertIn(
+            f"\033[1;38;5;{expected.style.color}mopen\033[0m",
+            out,
+            "the status word must be painted with lifecycle_style's index for its stage",
+        )
 
 
 class CliNeverLeaksTheColorOverrideTests(unittest.TestCase):

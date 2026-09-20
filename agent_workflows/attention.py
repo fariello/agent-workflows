@@ -25,6 +25,7 @@ from typing import Collection, Dict, List, NamedTuple, Optional, Sequence, Tuple
 from agent_workflows import artifact_core as core
 from agent_workflows import attention_contract as A
 from agent_workflows import ipd_schema as _schema
+from agent_workflows import lifecycle_style as LS
 from agent_workflows import plans as plans_mod
 from agent_workflows import research_contract
 from agent_workflows import specs as specs_mod
@@ -1421,10 +1422,25 @@ def render_json(items: List[Item], drift: List[core.Drift]) -> str:
     return json.dumps(obj, indent=2, ensure_ascii=True) + "\n"
 
 
-# xterm-256 palette indices for native statuses. Chosen for legibility on both light and
-# dark backgrounds; a status not listed falls back to the class color. Color is decorative
-# only: the status WORD is always printed, so meaning survives NO_COLOR / piping / a screen
-# reader (the readiness class name in the section header carries the same meaning too).
+# xterm-256 palette indices for the five ATTENTION CLASSES. This is NOT a lifecycle status table
+# and it is deliberately RETAINED (plan `f9t5hz` E-02): its keys are the `A.*` cross-tree attention
+# class constants, and spec `uonrjg` Section 3 lists "attention classes" as an explicit NON-GOAL,
+# so R10.3's "local `_STATUS_COLOR_256` lifecycle tables MUST be removed" does not reach it. It
+# colors the section HEADERS (`## ready (12)`) by class and nothing else.
+#
+# THE OBVIOUS CHECK ON THIS TABLE IS A TRAP, recorded because an agent reading only the keys draws
+# the wrong conclusion. All five `A.*` constants are BARE STRINGS whose values (`'active'`,
+# `'ready'`, `'blocked'`, `'done'`, `'parked'`) are ALSO native status words in several trees, so a
+# "do the keys look like statuses?" test answers YES for all five and deletes a vocabulary the spec
+# protects. Trace the keys to the `A.*` constants, never pattern-match them.
+#
+# NO LIFECYCLE SITE CONSULTS THIS TABLE ANY MORE (E-02). It used to sit as the second rung of every
+# lifecycle fallback chain (`_STATUS_COLOR_256.get(status, _CLASS_COLOR_256.get(cls, 244))`), which
+# was invisible while the two palettes agreed and became a silent re-introduction of the class
+# palette into lifecycle rendering the moment they diverged - which spec Section 5 makes them do
+# (`active` moves to 220, `blocked` to 208, `done` to 46). The shared resolver now owns every
+# lifecycle color, and an unrecognized status resolves `unknown` with a diagnostic (R10.4) rather
+# than borrowing a class color.
 _CLASS_COLOR_256 = {
     A.ACTIVE: 39,  # bright azure
     A.READY: 40,  # green
@@ -1432,32 +1448,62 @@ _CLASS_COLOR_256 = {
     A.DONE: 244,  # gray
     A.PARKED: 244,  # gray
 }
-_STATUS_COLOR_256 = {
-    "active": 39,
-    "todo": 44,  # teal (research not-yet-active; rstodo p3o9je, renamed from `intake`)
-    "open": 40,
-    "ready": 40,
-    "pending": 40,
-    "approved": 46,  # bright green (cleared to go)
-    "reviewed": 226,  # yellow (progressed, awaiting approval)
-    "to-review": 214,  # orange (needs a review pass)
-    "draft": 245,  # gray (not ready)
-    "implementing": 51,  # cyan
-    "implemented": 46,
-    "executed": 46,  # bright green (implemented and verified)
-    "reusable": 39,  # bright azure
-    "planned": 40,
-    "shipped": 46,
-    "reference": 244,
-    "archived": 240,
-    "blocked": 203,
-    "deferred": 208,  # orange-red (gated)
-    "done": 244,
-    "parked": 244,
-    "superseded": 240,
-    "not-executed": 240,
-}
+
+#: Bold blue for the tree-name SEGMENT OF A PATH. This is the "existing independent convention"
+#: spec `uonrjg` Section 11 item 5 exempts, and the exemption is scoped to a PATH: coloring one
+#: directory segment inside `.aw/records/backlog/open/x.md` adds no width and identifies the tree
+#: within a longer string. It is NOT a licence to color a bare artifact TYPE word in a row, which
+#: Section 9.1 says does not inherit lifecycle color and criterion A10 tests for directly; see
+#: `_render_item_row` / `_render_table_row`, where the type column is now plain (E-03).
 _TREE_COLOR_256 = 33  # bold blue for the tree-name path segment
+
+#: The `lifecycle_style` FAMILY for each attention tree. The names already coincide (both vocabularies
+#: use `plans`/`specs`/`backlog`/`research`/`releases`), so this is an explicit identity map rather
+#: than a translation: naming it makes the coincidence a CHECKED fact instead of an assumption, and
+#: gives a tree that is not a lifecycle family somewhere to be absent from.
+_LIFECYCLE_FAMILY_BY_TREE = {
+    # The five TRACKED trees (`A.TRACKED_TREES`), i.e. every tree that actually builds an `Item`.
+    "plans": LS.FAMILY_PLANS,
+    "specs": LS.FAMILY_SPECS,
+    "backlog": LS.FAMILY_BACKLOG,
+    "research": LS.FAMILY_RESEARCH,
+    "releases": LS.FAMILY_RELEASES,
+    # Trees `TREE_POLICY` EXCLUDES today, mapped anyway so that if one is ever tracked it resolves
+    # through the shared table rather than through this module's unknown branch. `walkthroughs` and
+    # `roadmaps` are `lifecycle_style`'s NO-LIFECYCLE families and therefore resolve `none` (`·`),
+    # which is the spec Section 6.7 answer and NOT the same thing as `unknown` (R10.4).
+    "prompts": LS.FAMILY_PROMPTS,
+    "walkthroughs": LS.FAMILY_WALKTHROUGHS,
+    "roadmaps": LS.FAMILY_ROADMAPS,
+}
+
+
+def _resolve_item_lifecycle(tree: str, native_status: str) -> LS.Resolved:
+    """Resolve one item's lifecycle presentation through the SHARED resolver (spec R10.3).
+
+    THE ONE LIFECYCLE RESOLUTION PATH IN THIS MODULE. Every rendered status word, id6, date, SetID
+    and Order number takes its color from the `Resolved` this returns, so Section 9.1's "the glyph,
+    id6, and status word use the same lifecycle color and weight" holds by CONSTRUCTION rather than
+    by three call sites agreeing on a lookup.
+
+    A TREE THAT IS NOT A LIFECYCLE FAMILY RESOLVES `unknown`, NOT A BORROWED CLASS COLOR. R10.4 makes
+    that distinction load-bearing, and `term.resolve_lifecycle` RAISES `UnknownFamily` for a family it
+    has no policy for, which would be a crash in a read-only view. So an unmapped tree is translated
+    into the `unknown` stage here (`?`, gray 244, plus the resolver's own diagnostic shape) instead of
+    propagating: a view that cannot classify a row must say so, not fail.
+    """
+
+    family = _LIFECYCLE_FAMILY_BY_TREE.get(tree)
+    if family is None:
+        return LS.Resolved(
+            stage=LS.UNKNOWN,
+            style=LS.style_for(LS.UNKNOWN),
+            family=tree,
+            native_status=native_status or None,
+            diagnostic="attention tree {0!r} is not a lifecycle family".format(tree),
+        )
+    return T.resolve_lifecycle(family, native_status)
+
 
 _SINGULAR_TYPE = {
     "plans": "plan",
@@ -1881,9 +1927,14 @@ def _render_item_row(
     """
     status_word = it.native_status
     if colored:
-        code = _STATUS_COLOR_256.get(it.native_status, _CLASS_COLOR_256.get(cls, 244))
-        status_txt = term.color256(status_word, code, bold=True)
-        status_padded = status_txt + (" " * max(0, 12 - len(status_word)))
+        # THE SHARED RESOLVER, not a local table (spec `uonrjg` R10.3). The lifecycle marker, the
+        # status word and (below) the identity columns all take their color and weight from this ONE
+        # `Resolved`, which is what makes Section 9.1's "same lifecycle color and weight" structural.
+        resolved = _resolve_item_lifecycle(it.tree, it.native_status)
+        marker = term.format_lifecycle_marker(resolved, width=2)
+        status_txt = term.style_lifecycle_text(status_word, resolved)
+        # PADDED BY VISIBLE COLUMNS (Section 9.4), never by `len()` on styled text.
+        status_padded = status_txt + (" " * max(0, 12 - T.visible_width(status_word)))
         age = _age_marker(it.last_history_at, it.tree)
         gate_glyph = "#" if it.gate else ""
         rb_glyph = ">" if it.blocks_release else ""
@@ -1895,8 +1946,12 @@ def _render_item_row(
         else:
             path_txt = _identity_stem(it.path)
             type_word = _SINGULAR_TYPE.get(it.tree, it.tree)
-            type_txt = term.color256(type_word, _TREE_COLOR_256, bold=True)
-            type_prefix = type_txt + (" " * max(0, 10 - len(type_word))) + "  "
+            # THE ARTIFACT TYPE CARRIES NO COLOR (criterion A10; Section 9.1 "The artifact type and
+            # title do not inherit lifecycle color"). It used to be painted `_TREE_COLOR_256` bold,
+            # and Section 11 item 5's "existing independent convention" exemption does NOT stretch to
+            # cover it: that convention is for the tree SEGMENT OF A PATH (`_colorize_tree_segment`),
+            # and a bare type word in a row is not a path. Coloring it made A10 untestable here.
+            type_prefix = type_word + (" " * max(0, 10 - len(type_word))) + "  "
         inline_gate = ""
         if it.gate and not gate_in_header:
             g = it.gate
@@ -1922,7 +1977,11 @@ def _render_item_row(
         blocking = ""
         if it.blocks_release:
             blocking = "  " + term.color256("[blocking]", 196, bold=True)
-        line = f"- {lead}{status_padded}  {type_prefix}{path_txt}{run_txt}{prio}{blocking}{inline_gate}"
+        # The GLYPH IMMEDIATELY PRECEDES THE STATUS WORD (Section 9.1: "glyph MUST immediately
+        # precede either id6 or status so its referent is obvious"), and it is padded by RENDERED
+        # width by `format_lifecycle_marker`, so the two glyphs carrying U+FE0E (`⚠︎`, `↩︎`) occupy
+        # the same column count as the single-codepoint ones.
+        line = f"- {lead}{marker} {status_padded}  {type_prefix}{path_txt}{run_txt}{prio}{blocking}{inline_gate}"
         if details and it.detail_text:
             tag = it.detail_kind or "summary"
             tag_txt = term.color256(f"{tag}:", 244)
@@ -2019,17 +2078,23 @@ def _item_run_status(it: Item, run_map: Optional[Dict[str, str]]) -> Optional[st
 
 
 def _color_dep_id(dep: str, target: Optional[Item], term: T.Term, colored: bool) -> str:
-    """Color a dependency id6 to match the color of its target's Status.
-    Unknown/unmatched dependencies are colored neutral gray (244).
+    """Color a dependency id6 to match the lifecycle color of its TARGET's status.
+
+    THIS IS A COMPACT id6 REFERENCE (spec Section 9.2): an id6 standing alone, carrying its
+    artifact's lifecycle stage, and it takes the SAME treatment the target's own row gives its
+    status word, through the shared resolver (R10.3).
+
+    An UNMATCHED dependency stays neutral gray, and that is deliberately NOT the `unknown` stage:
+    `unknown` means "this artifact has a lifecycle I could not read", whereas an unmatched id6 means
+    no artifact was found at all, so there is no lifecycle to report and painting `?` here would
+    claim there is.
     """
     if not colored:
         return dep
     if target is None:
         return term.color256(dep, 244)
-    code = _STATUS_COLOR_256.get(
-        target.native_status, _CLASS_COLOR_256.get(target.attention_class, 244)
-    )
-    return term.color256(dep, code, bold=True)
+    resolved = _resolve_item_lifecycle(target.tree, target.native_status)
+    return term.style_lifecycle_text(dep, resolved)
 
 
 def _extract_dependency_id6s(it: Item) -> List[str]:
@@ -2188,14 +2253,22 @@ def _render_table_row(
     run_state: Optional[str] = None,
 ) -> str:
     st_raw = it.native_status[:8]
+    # ONE resolution per row, from the shared resolver (R10.3). Computed even when `colored` is
+    # False so the uncolored path takes the SAME glyph, which keeps the plain table a
+    # character-for-character strip of the colored one (a property `test_attention` asserts).
+    resolved = _resolve_item_lifecycle(it.tree, it.native_status)
     if colored:
-        code = _STATUS_COLOR_256.get(
-            it.native_status, _CLASS_COLOR_256.get(it.attention_class, 244)
-        )
-        st_styled = term.color256(st_raw, code, bold=True)
+        st_styled = term.style_lifecycle_text(st_raw, resolved)
     else:
         st_styled = st_raw
-    st_col = st_styled + (" " * (8 - len(st_raw)))
+    # THE GLYPH LIVES INSIDE THE STATUS COLUMN, immediately preceding the status word (Section 9.1:
+    # "glyph MUST immediately precede either id6 or status so its referent is obvious"). Folded into
+    # the existing column rather than added as a new one so Section 12's "existing column order MUST
+    # be preserved" holds literally: the column COUNT and their order are unchanged, and only the
+    # Status column's width grows from 8 to 10. `format_lifecycle_marker` pads by RENDERED width, so
+    # `⚠︎` (2 code points, 1 column) occupies the same 2 columns as `◕` (1 and 1).
+    st_marker = term.format_lifecycle_marker(resolved, width=2, style=colored)
+    st_col = st_marker + st_styled + (" " * (8 - T.visible_width(st_raw)))
 
     if runs_mode:
         run_raw = (run_state or "-")[:7]
@@ -2223,10 +2296,11 @@ def _render_table_row(
 
     type_word = _SINGULAR_TYPE.get(it.tree, it.tree)
     tp_raw = type_word[:8]
-    if colored:
-        tp_styled = term.color256(tp_raw, _TREE_COLOR_256, bold=True)
-    else:
-        tp_styled = tp_raw
+    # THE TYPE COLUMN CARRIES NO COLOR (criterion A10). See `_render_item_row` for the full reasoning:
+    # Section 9.1 says the artifact type does not inherit lifecycle color, and Section 11 item 5's
+    # "existing independent convention" exemption covers `_TREE_COLOR_256` on a PATH SEGMENT, not a
+    # bare type word in a row.
+    tp_styled = tp_raw
     tp_col = tp_styled + (" " * (8 - len(tp_raw)))
 
     blk_ver = _resolve_release_version(repo_root, it.blocks_release)
@@ -2326,11 +2400,26 @@ def _render_table_row(
 
     date, set_id, num, id6 = _extract_identity_parts(it)
 
+    # THE FOUR IDENTITY COLUMNS TAKE THE SAME `resolved` AS THE STATUS WORD AND THE GLYPH, which is
+    # what makes criterion A10's "glyph, id6, and status use the same resolved color and bold flag"
+    # true by construction here: all three route through the one `style_lifecycle_text` call shape
+    # with the one `Resolved`, so they cannot diverge.
+    #
+    # DATE, SetID AND N ARE KEPT ON THAT TREATMENT rather than being neutralized with the type column,
+    # and the distinction is the spec's own. Section 9.1 and criterion A10 name the artifact TYPE,
+    # TITLE and PATH as the cells that must NOT be lifecycle-colored, and these three are none of
+    # those: they are FACETS OF THE ARTIFACT'S IDENTITY parsed out of the same filename the id6 comes
+    # from (`_extract_identity_parts`), displayed as separate columns only because this table splits
+    # the identity. Coloring them with the id6 is the "existing independent convention" Section 11
+    # item 5 permits, it is a shipped contract (`tests/test_attention.py` asserts Date, SetID and ID6
+    # all carry the status color), and Section 12 requires an existing stable contract be preserved
+    # absent a separately reviewed interface change. The `-` sentinel stays neutral gray because an
+    # absent facet has no lifecycle to report.
     date_raw = date[:8]
     if colored and date_raw == "-":
         date_styled = term.color256("-", 244)
     elif colored:
-        date_styled = term.color256(date_raw, code, bold=True)
+        date_styled = term.style_lifecycle_text(date_raw, resolved)
     else:
         date_styled = date_raw
     date_pad = " " * (8 - len(date_raw))
@@ -2338,11 +2427,13 @@ def _render_table_row(
 
     set_val = it.path if long else set_id
     if colored and long:
+        # Under `--long` this column holds the PATH, which A10 says is not lifecycle-colored; the
+        # tree SEGMENT keeps its own independent convention (Section 11 item 5).
         set_styled = _colorize_tree_segment(term, it.path, it.tree)
     elif colored and set_val == "-":
         set_styled = term.color256("-", 244)
     elif colored:
-        set_styled = term.color256(set_val, code, bold=True)
+        set_styled = term.style_lifecycle_text(set_val, resolved)
     else:
         set_styled = set_val
     set_pad = " " * max(0, set_w - len(set_val))
@@ -2352,7 +2443,7 @@ def _render_table_row(
     if colored and num_raw == "-":
         num_styled = term.color256("-", 244)
     elif colored:
-        num_styled = term.color256(num_raw, code, bold=True)
+        num_styled = term.style_lifecycle_text(num_raw, resolved)
     else:
         num_styled = num_raw
     num_pad = " " * max(0, num_w - len(num_raw))
@@ -2362,7 +2453,7 @@ def _render_table_row(
     if colored and id6_raw == "-":
         id6_styled = term.color256("-", 244)
     elif colored:
-        id6_styled = term.color256(id6_raw, code, bold=True)
+        id6_styled = term.style_lifecycle_text(id6_raw, resolved)
     else:
         id6_styled = id6_raw
     id6_pad = " " * (6 - len(id6_raw))
@@ -2539,7 +2630,11 @@ def render_table(
     exec_w = max(len("Exec"), max(visible_exec_lens, default=1))
     valid_w = max(len("Valid"), max(visible_valid_lens, default=1))
 
-    st_hdr = "Status".ljust(8)
+    # WIDENED FROM 8 TO 10 to match `_render_table_row`'s Status column, which now carries the
+    # lifecycle glyph in its first two columns ahead of the status word. Two leading spaces rather
+    # than a `ljust(10)` so the word `Status` still sits above the WORD it labels rather than above
+    # the glyph. The column ORDER and COUNT are unchanged (Section 12).
+    st_hdr = "  " + "Status".ljust(8)
     tp_hdr = "Type".ljust(8)
     blk_hdr = "Blocks"
     prio_hdr = "Priority"
