@@ -6,19 +6,19 @@
 - Scope: IN: one shared `should_color` with one definition, carrying the maintainer's 2026-09-19 semantics (`NO_COLOR` presence-only; `FORCE_COLOR` interprets falsey values); `runner_shared.py` and `pwatch.py` consuming it instead of reimplementing; and a test pinning every cell of the two measured tables, none of which is pinned today. OUT: the depth ladder and the 16-color tier (child `pow5sj`, which sits ON this seam), the `--color`/`--no-color` FLAG surface (plan `yaxr4i`), and any lifecycle glyph or palette work.
 - Scope-Paths: agent_workflows/term.py, agent_workflows/runner_shared.py, agent_workflows/pwatch.py, tests/test_term.py, tests/test_runner_shared.py, tests/test_runner_refork_guard.py, tests/test_rununify_run_queue.py, tests/fixtures/runner_shared_premove_fingerprints.json, tests/test_pwatch.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: lifeglyph
 - Order: 9
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: z8ddk0
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - From-Backlog: nyz8dt
 - Blocks-Release: next
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-20 executed (opencode its_direct/pt3-claude-opus-5-1m-us): SALVAGED from run-20260919T194413Z-2056285, which recorded this item substantially-complete and integrated nothing. The downgrade was not this plan's fault: the agent's own outcome reported disposition executed with all 7 E-items performed and all 7 V-items evidenced, and the driver downgraded it on integration_signal=suite-failed, a whole-corpus canary reddened by an unrelated plan-history phrase (since fixed in a03b4c5b and 7b9f3ae2). Lane aw/lane/z8ddk0 merged to main in e4c3e57f with its three commits intact. The term.py conflict against sibling yaxr4i was resolved by COMPOSITION rather than by choosing: the flag layer sits above this plan's environment engine, both FORCE_COLOR read sites still route through the single forcing predicate, and both sides' test classes were kept whole. Verified on the merged tree: FORCE_COLOR=0 into a pipe is False, NO_COLOR=1 FORCE_COLOR=0 on a TTY is False, TERM=dumb on a TTY is False, and the yaxr4i flag cases all hold. Suite green: 7131 passed, 3 skipped, 2 xfailed. [Scope reconciliation - in-scope-unmodified tests/fixtures/runner_shared_premove_fingerprints.json: intentionally unmodified: E-03 declared the supersession in code via SUPERSEDED_SINCE_MOVE (tests/test_runner_shared.py:220) rather than rewriting the captured fingerprint, which the plan explicitly forbids as destroying the pure-move evidence.; in-scope-unmodified tests/test_runner_refork_guard.py: intentionally unmodified: E-02 chose the sanctioned delegating-wrapper shape precisely so this guard keeps PASSING without edit, and the plan forbids touching it (editing it would destroy anti-re-fork evidence). Verified passing: 67 passed with tests/test_rununify_run_queue.py.]
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-19 reviewed (aw set): /plan-review round 1 complete (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901..PR-907 all FIXED, none deferred, none open; readiness go-pending-approval. Review record at .aw/records/reviews/20260919-lifeglyph-09-z8ddk0-unify-the-three-divergent-should-color-implementations-and-s.review.md. Human approval is still required and was NOT given.
 
