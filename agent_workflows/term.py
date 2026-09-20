@@ -261,6 +261,375 @@ def color_override(args: Any = None) -> Optional[bool]:
     return None
 
 
+# ======================================================================================
+# Color DEPTH: the 256 -> 16 -> none ladder (spec `uonrjg` R9.3a.1, R9.3a.2)
+# ======================================================================================
+
+#: The three rungs of the DECISIONS D42 ladder, as named constants so no caller spells a tier
+#: as a bare literal. ``DEPTH_NONE`` is a tier like the others rather than a separate "color is
+#: off" concept: R9.3a.1 makes "plain text with the glyph and word intact" the BOTTOM RUNG of one
+#: ladder, so a renderer asks one question ("which tier?") instead of two.
+DEPTH_NONE = "none"
+DEPTH_16 = "16"
+DEPTH_256 = "256"
+
+#: The tiers a user may PIN, in ladder order, and the set an invalid value is refused against
+#: (R9.3a.4, criterion A12c: the refusal MUST name the accepted set). Held as a tuple rather than
+#: a set so the message lists them in a stable, meaningful order instead of a hash order.
+COLOR_DEPTHS: Tuple[str, ...] = (DEPTH_NONE, DEPTH_16, DEPTH_256)
+
+#: The DEFAULT tier when nothing is pinned and detection is inconclusive but color is on.
+#:
+#: 256 AND NOT THE MOST CONSERVATIVE RUNG, which is the entire point of D42 and is stated in
+#: R9.3a.2 ("the default is 256 rather than the most conservative rung... the conservative default
+#: is what produced a decade of monochrome tooling"). Virtually every terminal of the last two
+#: decades renders SGR 38;5;N, so defaulting to 16 would degrade the common case to protect a rare
+#: one that `COLORTERM`/`TERM` detection and the depth pin both already cover.
+DEFAULT_COLOR_DEPTH = DEPTH_256
+
+#: ``TERM`` substrings that prove only 16-color capability. Matched as substrings because the
+#: terminfo namespace is open-ended (`xterm`, `screen`, `rxvt`, `tmux`, each with many suffixes),
+#: so an exhaustive equality list would silently mis-tier the next terminal to appear.
+_TERM_16_MARKERS: Tuple[str, ...] = (
+    "16color",
+    "-color",
+    "ansi",
+    "linux",
+    "vt100",
+    "vt220",
+)
+
+#: ``TERM`` substrings that prove 256-color (or better) capability.
+_TERM_256_MARKERS: Tuple[str, ...] = (
+    "256color",
+    "direct",
+    "truecolor",
+    "kitty",
+    "alacritty",
+)
+
+
+def _depth_from_environment() -> Optional[str]:
+    """Detect the tier from ``COLORTERM``/``TERM``, or ``None`` when detection is inconclusive.
+
+    THE DETECTION RUNG of R9.3a.2, and it deliberately returns ``None`` rather than guessing a
+    tier when it cannot tell. That distinction is load-bearing: ``None`` means "fall through to
+    the default of 256", while returning 16 on an unrecognized ``TERM`` would make every unknown
+    terminal a 16-color terminal, which is the conservative-default failure D42 rejects.
+
+    ``COLORTERM`` IS CONSULTED FIRST because it is the variable that exists specifically to
+    ANSWER this question: a terminal setting `truecolor`/`24bit` is asserting capability beyond
+    256, which this ladder tops out at, so it resolves 256 rather than a fourth rung (D42 names
+    three rungs and this module adds none).
+    """
+
+    colorterm = os.environ.get("COLORTERM", "").strip().lower()
+    if colorterm in ("truecolor", "24bit", "24bits"):
+        return DEPTH_256
+    if colorterm:
+        # Any other non-empty COLORTERM asserts color capability without naming a depth. It is
+        # evidence of color, not of 256, so it is NOT treated as conclusive here; TERM decides.
+        pass
+
+    term = os.environ.get("TERM", "").strip().lower()
+    if not term:
+        return None
+    for marker in _TERM_256_MARKERS:
+        if marker in term:
+            return DEPTH_256
+    for marker in _TERM_16_MARKERS:
+        if marker in term:
+            return DEPTH_16
+    return None
+
+
+def _configured_color_depth() -> Optional[str]:
+    """Read the user's PINNED tier from the ``aw config`` store, or ``None`` when unset.
+
+    IMPORTED LAZILY AND FAILING OPEN, both deliberately. ``config`` reads the user's config file,
+    so importing it at module scope would put filesystem I/O on the import path of the single
+    module every renderer in the package imports, and would risk an import cycle. And a
+    presentation decision must never be the thing that crashes a command: an unreadable or
+    malformed config file yields ``None`` here, which falls through to detection, rather than
+    raising out of a styling call.
+
+    An INVALID pinned value is likewise ignored here rather than raised, because the REFUSAL
+    belongs at the setter where the user can still fix their typo (``config.set_config_value``,
+    criterion A12c). A value that reached the file by hand-editing past that refusal must not
+    make every subsequent command fail.
+    """
+
+    try:
+        from . import config as _config
+
+        value = _config.get_color_depth()
+    except Exception:
+        return None
+    return value if value in COLOR_DEPTHS else None
+
+
+def resolve_color_depth(
+    stream: Optional[TextIO] = None, *, override: Optional[bool] = None
+) -> str:
+    """Resolve the ONE color tier in force for ``stream``: ``'256'``, ``'16'`` or ``'none'``.
+
+    THE SINGLE DEFINITION of color DEPTH, package-wide (spec `uonrjg` R9.3a.2: "the depth is a
+    resolved value, not a guess at each call site... it MUST have exactly one definition"). A
+    renderer asks this once and selects a palette; it must never re-derive a tier from
+    ``COLORTERM``, ``TERM`` or a config read of its own.
+
+    Precedence, highest first, exactly as R9.3a.2 specifies it:
+
+    1. COLOR IS OFF ENTIRELY -> ``'none'``. Delegated WHOLESALE to :func:`should_color`, which
+       already owns the ``--color``/``--no-color`` flag layer, ``NO_COLOR``, ``FORCE_COLOR``,
+       ``TERM=dumb`` and the TTY test. See the note below on why this rung delegates rather than
+       re-implements.
+    2. AN EXPLICIT USER DEPTH PIN -> that tier (``aw config`` key ``color_depth``).
+    3. DETECTED CAPABILITY via ``COLORTERM``/``TERM`` -> that tier.
+    4. The DEFAULT -> ``'256'``.
+
+    ``NO_COLOR`` OUTRANKS A PINNED DEPTH, which R9.3a.2 singles out as the rung "a well-meaning
+    implementation is most likely to get backwards" and criterion A12a requires be asserted on its
+    own. It holds STRUCTURALLY here rather than by a written-out rule: rung 1 returns before rung 2
+    is ever consulted, so a pin cannot be reached when color is off. The reason is that `NO_COLOR`
+    is an accessibility convention while a pinned depth is a preference, and a preference may not
+    defeat a convention.
+
+    WHY RUNG 1 DELEGATES TO ``should_color`` INSTEAD OF RE-READING THE ENVIRONMENT (this is the
+    one design decision in this function and it was ruled, not chosen). R9.3a.2 words its top rung
+    as ``NO_COLOR``/``--no-color``/``TERM=dumb``/non-TTY, which reads like four env/stream tests to
+    perform here. Performing them here would be WRONG twice over. FIRST, it would create a SECOND
+    originating definition of the color decision, which is the exact defect plan `z8ddk0` closed
+    when it unified three divergent ``should_color`` implementations, and which
+    ``tests/test_term.py::OneOriginatingDefinitionTests`` now guards. SECOND, this function CANNOT
+    see ``--no-color``: the flag never reaches ``os.environ`` (by design, because nested ``aw``
+    processes inherit the environment and would be silently restyled), so it arrives only as the
+    ``override=`` argument or through ``term.set_color_override``. Delegating gets all four inputs
+    right for free, and keeps the ``FORCE_COLOR`` escape hatch that the maintainer's 2026-09-19
+    ruling (plan `pow5sj` OQ-02, READING A) preserved: ``FORCE_COLOR`` still overrides
+    ``NO_COLOR``, and R9.3a.2's "unconditional" is unconditional with respect to the DEPTH PIN
+    only.
+
+    ``override`` is forwarded to :func:`should_color` unchanged and carries the same meaning, so a
+    caller that already holds a flag decision passes it here rather than mutating the environment.
+    """
+
+    if not should_color(stream, override=override):
+        return DEPTH_NONE
+
+    pinned = _configured_color_depth()
+    if pinned is not None:
+        return pinned
+
+    detected = _depth_from_environment()
+    if detected is not None:
+        return detected
+
+    return DEFAULT_COLOR_DEPTH
+
+
+# ======================================================================================
+# The AUTHORED 16-color tier (spec `uonrjg` R9.3a.3)
+# ======================================================================================
+
+#: The SGR foreground codes of the sixteen named colors this tier is allowed to use. Written as
+#: the raw codes rather than reusing ``_CODES`` because that map is the small decoration palette
+#: (it carries `bold` and omits magenta/white), while this tier needs the color axis alone.
+_SGR_RED = 31
+_SGR_GREEN = 32
+_SGR_YELLOW = 33
+_SGR_BLUE = 34
+_SGR_MAGENTA = 35
+_SGR_CYAN = 36
+_SGR_WHITE = 37
+_SGR_BRIGHT_BLACK = 90  # the one neutral; see the gray collapse below
+_SGR_BRIGHT_GREEN = 92
+_SGR_BRIGHT_YELLOW = 93
+_SGR_BRIGHT_MAGENTA = 95
+_SGR_BRIGHT_CYAN = 96
+
+#: THE AUTHORED 16-COLOR PALETTE for the twenty semantic lifecycle stages (R9.3a.3).
+#:
+#: AUTHORED, NOT DERIVED, and that is a hard requirement rather than a stylistic preference.
+#: Section 5's 256 table uses 11 distinct indices and this tier has far fewer usable colors, so a
+#: mechanical nearest-neighbour mapping of those indices would merge stages that MUST stay
+#: distinguishable. The risk is concrete and measured, not theoretical: `blocked` is 208 and
+#: `waiting-input` is 214 (an adjacent orange pair), `blocked` is 208 and `failed` is 196 (both
+#: warm reds), and `ready` is 45 while `done` is 46 (ADJACENT BY INDEX and completely opposite in
+#: meaning - one says "start this", the other says "this is finished"). Every one of those pairs
+#: is what a nearest-neighbour reduction would collapse first.
+#:
+#: THE THREE SEPARATIONS THIS TABLE MUST PRESERVE, which are the ones Section 5 exists to protect
+#: and which criterion A12b asserts: `ready` is not `done`; `blocked` is not `failed`;
+#: `waiting-input` is not `blocked`. They are held here by giving each member of each pair a
+#: different named color, and `tests/test_term.py` asserts all three rather than trusting review.
+#:
+#: THE TWO COLLAPSES THAT ARE EXPECTED AND ACCEPTABLE, both named by R9.3a.3, and acceptable for
+#: the SAME stated reason in each case: the glyph and the native word still separate the states, so
+#: no information is lost, only redundancy (R9.3a.5).
+#:   1. THE SIX ACTIVE STAGES -> ONE YELLOW. The five subtypes (`reviewing`, `executing`,
+#:      `verifying`, `integrating`, `recovering`) plus generic `active` already share ONE index at
+#:      256 (all six are 220), so this collapse is FREE: the tier loses nothing that 256 had.
+#:      Their glyphs differ (`◎ ▶ ◆ ⇄ ↩︎ ●`), which is the design, not a compromise.
+#:   2. THE SIX GRAY-FAMILY STAGES -> ONE NEUTRAL. `parked`, `superseded`, `abandoned`, `unknown`,
+#:      `none` and `formative`. NOTE THE COUNT: R9.3a.3's prose says "the four grays" and then lists
+#:      SIX names; the LIST is right and the WORD is wrong, confirmed by measuring the stage table
+#:      (five stages sit at 244 and `formative` at 245, so six collapse). They differ by at most one
+#:      index at 256, so this tier loses almost nothing.
+#:
+#: KEYED BY SEMANTIC STAGE, never by a native status word, so this table cannot become a second
+#: lifecycle vocabulary. `lifecycle_style` owns the vocabulary and the native-status mappings; this
+#: is purely the 16-color rendering of the stages that module defines, and
+#: ``validate_16_color_palette`` refuses at import if the two ever disagree.
+STAGE_COLOR_16: Dict[str, int] = {
+    # --- The formative / queued / ready progression -----------------------------------
+    "formative": _SGR_BRIGHT_BLACK,  # gray collapse member (245 at 256)
+    "review-queued": _SGR_BLUE,  # 39 at 256, the cool "awaiting review" color
+    # 135 at 256 is a purple, so bright magenta is its 16-color kin. NOT plain magenta, which
+    # `blocked` takes below: these two stages are 135 and 208 at 256 (a purple and an orange, nowhere
+    # near each other), so collapsing them into one color would be an UNNAMED merge, and R9.3a.3
+    # names every collapse it considers acceptable. `test_the_palette_merges_no_unnamed_pair` refuses
+    # any such merge, which is what caught this one.
+    "authority-queued": _SGR_BRIGHT_MAGENTA,
+    # SEPARATION 1 of 3: `ready` is CYAN and `done` is GREEN. At 256 these are 45 and 46, adjacent
+    # by index, so this is the separation a derived table would lose first and the one whose loss
+    # would hurt most (a board would stop distinguishing "start this" from "finished").
+    "ready": _SGR_BRIGHT_CYAN,
+    # --- The six active stages: ONE yellow, by design (collapse 1) ---------------------
+    "reviewing": _SGR_YELLOW,
+    "executing": _SGR_YELLOW,
+    "verifying": _SGR_YELLOW,
+    "integrating": _SGR_YELLOW,
+    "recovering": _SGR_YELLOW,
+    "active": _SGR_YELLOW,
+    # --- The obstruction band, held apart in three colors ------------------------------
+    # SEPARATION 3 of 3: `waiting-input` is BRIGHT YELLOW and `blocked` is MAGENTA. At 256 they are
+    # 214 and 208, the adjacent orange pair R9.3a.4 names as the concrete accessibility hazard, so
+    # they are pushed to different HUES here rather than two shades of one. Note `waiting-input`
+    # differs from the active yellow above by BRIGHTNESS only; that is acceptable because waiting
+    # for input IS a non-failure, non-terminal state adjacent to activity, and its `…` glyph and
+    # its word both separate it.
+    "waiting-input": _SGR_BRIGHT_YELLOW,
+    # SEPARATION 2 of 3: `blocked` is MAGENTA and `failed` is RED. At 256 they are 208 and 196,
+    # both warm, which is exactly the pair a nearest-neighbour reduction merges. Magenta is chosen
+    # over "some other red" deliberately: only a different hue survives a 16-color terminal's
+    # limited palette AND remains distinguishable under the most common color-vision deficiencies.
+    "blocked": _SGR_MAGENTA,
+    "failed": _SGR_RED,
+    # --- Terminal success and the standing state ---------------------------------------
+    "done": _SGR_BRIGHT_GREEN,
+    "reusable": _SGR_CYAN,  # 81 at 256; a non-bright cyan keeps it apart from `ready`
+    # --- The six gray-family stages: ONE neutral, by design (collapse 2) ---------------
+    "parked": _SGR_BRIGHT_BLACK,
+    "superseded": _SGR_BRIGHT_BLACK,
+    "abandoned": _SGR_BRIGHT_BLACK,
+    "unknown": _SGR_BRIGHT_BLACK,
+    "none": _SGR_BRIGHT_BLACK,
+}
+
+#: The separations R9.3a.3 requires this tier to preserve, as DATA so the accessibility test asserts
+#: the rule rather than re-listing it, and so a future edit to the palette above is checked against
+#: the requirement instead of against a reviewer's memory.
+REQUIRED_16_COLOR_SEPARATIONS: Tuple[Tuple[str, str], ...] = (
+    ("ready", "done"),
+    ("blocked", "failed"),
+    ("waiting-input", "blocked"),
+)
+
+#: The two collapses R9.3a.3 declares EXPECTED, also as data. Pinning them is what stops a later
+#: change quietly re-expanding these groups into colors a 16-color terminal cannot show.
+EXPECTED_16_COLOR_COLLAPSES: Tuple[Tuple[str, ...], ...] = (
+    ("reviewing", "executing", "verifying", "integrating", "recovering", "active"),
+    ("parked", "superseded", "abandoned", "unknown", "none", "formative"),
+)
+
+
+def validate_16_color_palette() -> None:
+    """Raise unless the authored 16-color table conforms to R9.3a.3. Called at import.
+
+    FAILS CLOSED AT IMPORT, for the same reason ``lifecycle_style.validate`` does: a palette defect
+    must be a loud failure at the first import rather than a wrong color discovered later in a view,
+    and the two most likely defects here (a stage added upstream with no 16-color entry, and a
+    well-meaning edit that merges a required separation) are both invisible to the eye.
+
+    THE COVERAGE CHECK READS ``lifecycle_style`` RATHER THAN A LITERAL COUNT, deliberately. A
+    hard-coded "there must be 20 entries" is itself a second table that rots the moment the stage
+    vocabulary changes; asserting COVERAGE of the real vocabulary cannot rot. It also means a stage
+    added to ``lifecycle_style`` without a color here fails immediately and by name.
+    """
+
+    from .lifecycle_style import ALL_STAGES
+
+    missing = sorted(ALL_STAGES - set(STAGE_COLOR_16))
+    if missing:
+        raise ValueError(
+            "the authored 16-color palette covers no color for semantic stage(s): {0}; "
+            "R9.3a.3 requires an explicit entry for every stage".format(
+                ", ".join(missing)
+            )
+        )
+    unknown = sorted(set(STAGE_COLOR_16) - ALL_STAGES)
+    if unknown:
+        raise ValueError(
+            "the authored 16-color palette colors non-stage key(s): {0}; this table is keyed by "
+            "SEMANTIC STAGE and must never become a second lifecycle vocabulary".format(
+                ", ".join(unknown)
+            )
+        )
+
+    for left, right in REQUIRED_16_COLOR_SEPARATIONS:
+        if STAGE_COLOR_16[left] == STAGE_COLOR_16[right]:
+            raise ValueError(
+                "16-color palette merges {0!r} and {1!r} (both SGR {2}); R9.3a.3 requires this "
+                "separation survive the tier".format(left, right, STAGE_COLOR_16[left])
+            )
+
+    for group in EXPECTED_16_COLOR_COLLAPSES:
+        codes = {STAGE_COLOR_16[stage] for stage in group}
+        if len(codes) != 1:
+            raise ValueError(
+                "16-color palette splits the expected collapse {0} across SGR codes {1}; "
+                "R9.3a.3 declares this group renders as ONE color".format(
+                    ", ".join(group), sorted(codes)
+                )
+            )
+
+    # EVERY MERGE MUST BE A NAMED ONE. R9.3a.3 lists the collapses it considers acceptable, which
+    # means a merge it does NOT list is an unreviewed loss of a distinction, not a free one. This
+    # check is what makes the requirement total rather than spot-checked, and it earned its place
+    # immediately: it caught `authority-queued` (135, a purple) sharing plain magenta with `blocked`
+    # (208, an orange) in this table's first draft, a pair no requirement permits merging and one
+    # that the three REQUIRED_16_COLOR_SEPARATIONS do not cover.
+    _collapse_members = {
+        stage for group in EXPECTED_16_COLOR_COLLAPSES for stage in group
+    }
+    _by_code: Dict[int, List[str]] = {}
+    for stage, code in STAGE_COLOR_16.items():
+        _by_code.setdefault(code, []).append(stage)
+    for code, stages in sorted(_by_code.items()):
+        outside = sorted(stage for stage in stages if stage not in _collapse_members)
+        if len(outside) > 1:
+            raise ValueError(
+                "16-color palette merges {0} onto SGR {1}, and R9.3a.3 names no collapse covering "
+                "them; either give them distinct colors or declare the collapse "
+                "explicitly".format(", ".join(outside), code)
+            )
+
+
+validate_16_color_palette()
+
+
+def color_16_for_stage(stage: str) -> int:
+    """Return the authored 16-color SGR foreground code for a semantic ``stage``.
+
+    Raises ``KeyError`` on an undefined stage rather than returning a neutral, because
+    ``validate_16_color_palette`` guarantees total coverage of the real vocabulary at import: a
+    miss here therefore means the caller invented a stage name, which a silent gray would hide.
+    """
+
+    return STAGE_COLOR_16[stage]
+
+
 STATUS_COLOR_256 = {
     # Lifecycle & status states
     "active": 39,

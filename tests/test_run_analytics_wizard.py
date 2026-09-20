@@ -30,12 +30,15 @@ def test_the_xdg_user_config_would_have_dropped_the_setting():
 
     from agent_workflows import config
 
-    assert set(config._ALLOWED_TOP_KEYS) == {
-        "aw_home",
-        "config_version",
-        "defaults",
-        "repos",
-    }
+    # ASSERTS THE CLAIM, NOT A SNAPSHOT OF THE WHOLE ALLOWLIST (narrowed 2026-09-20, plan
+    # `pow5sj`). This read `== {"aw_home", "config_version", "defaults", "repos"}`, which made every
+    # legitimate new config key a failure of an ANALYTICS test: the exact set is incidental to what
+    # this test demonstrates, which is that a key NOT on the allowlist is silently dropped by
+    # `normalize()`. Pinning the whole set asserted "these four keys are the only keys this toolkit
+    # will ever have", a claim this test never needed and which no analytics behavior depends on.
+    # `color_depth` (spec `uonrjg` R9.3a.4) was the first legitimate addition to trip it.
+    # The substantive claim is preserved and is now stated directly.
+    assert "analytics_endpoint" not in config._ALLOWED_TOP_KEYS
     payload = config.default_config()
     payload["analytics_endpoint"] = {"url": "https://analytics.example.org/submit"}
     normalized = config.normalize(payload)

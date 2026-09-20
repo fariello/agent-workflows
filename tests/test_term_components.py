@@ -64,13 +64,33 @@ class PaletteSingleSourceTests(unittest.TestCase):
         self.assertEqual(palette["done"], 244)
 
     def test_no_parallel_palette_defined(self):
-        """Assert no secondary or parallel palette dict exists in term module."""
-        term_dicts = [
+        """Assert no secondary or parallel palette dict exists in term module.
+
+        WHAT "PARALLEL" MEANS HERE, stated because the list grew legitimately (2026-09-20, plan
+        `pow5sj`, spec `uonrjg` R9.3a.3). The defect this guard exists to catch is a RIVAL table for
+        the SAME decision: two maps that both answer "what color is this status at this depth",
+        which is how four disagreeing lifecycle palettes shipped before spec `uonrjg`.
+        `STAGE_COLOR_16` is NOT that. It is a different RUNG of the one 256/16/none ladder, it is
+        keyed by SEMANTIC STAGE rather than by status word, and R9.3a.3 REQUIRES it to be an authored
+        table precisely because deriving it from `STATUS_COLOR_256` would merge stages that must stay
+        distinguishable.
+        SO THE GUARD IS AN ALLOWLIST RATHER THAN A COUNT: a NEW palette still fails and must justify
+        itself here, which keeps the protection, while the two tiers the spec mandates are named with
+        the role each one serves.
+        """
+        term_dicts = sorted(
             k
             for k, v in T.__dict__.items()
             if isinstance(v, dict) and "COLOR" in k.upper()
-        ]
-        self.assertEqual(term_dicts, ["STATUS_COLOR_256"])
+        )
+        self.assertEqual(
+            term_dicts,
+            ["STAGE_COLOR_16", "STATUS_COLOR_256"],
+            "a palette dict appeared in `term` that is neither the 256 status palette nor the "
+            "authored 16-color stage tier. If it is a new RUNG of the documented ladder, add it "
+            "here with its role; if it answers the same question as an existing table, it is the "
+            "parallel palette this guard exists to refuse.",
+        )
 
 
 class TermComponentsTests(unittest.TestCase):

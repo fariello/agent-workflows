@@ -60,10 +60,22 @@ _ALLOWED_TOP_KEYS = frozenset(
         "repos",
         "defaults",
         "aw_home",
+        "color_depth",
     }
 )
 _ALLOWED_REPOS_KEYS = frozenset({"search", "installed", "exclude", "ignore"})
 _ALLOWED_DEFAULT_KEYS = frozenset({"backup", "prune"})
+
+#: The tiers a user may pin ``color_depth`` to, in ladder order (spec `uonrjg` R9.3a.1/R9.3a.4).
+#:
+#: DUPLICATED AS LITERALS RATHER THAN IMPORTED FROM ``term``, and that is the one deliberate
+#: duplication here. ``term`` resolves the depth and therefore reads this config store
+#: (``term._configured_color_depth``), so importing ``term`` here would close an import cycle
+#: between the two modules. The direction chosen keeps the DEPENDENCY one-way (term -> config) and
+#: is the direction that cannot deadlock at import. The duplication is made SAFE rather than merely
+#: accepted: ``tests/test_term.py`` asserts this tuple equals ``term.COLOR_DEPTHS`` exactly, so the
+#: two cannot drift silently, which is the only real cost of duplicating a three-element enum.
+COLOR_DEPTH_VALUES: Tuple[str, ...] = ("none", "16", "256")
 
 # The v1 flat keys and the v2 nested subkeys they migrate into (E-02). Kept as an explicit
 # mapping so the migration is data, not scattered conditionals.
@@ -81,10 +93,26 @@ class ConfigError(Exception):
 
 @dataclass(frozen=True)
 class ConfigKeySpec:
+    """One declarative config key: its name, type, help text, and value constraint.
+
+    ``allowed_values`` CONSTRAINS AN ENUM-VALUED KEY, and it is declarative rather than a check
+    hand-written at the setter (plan `pow5sj` OQ-01, route chosen at execution). Two reasons decided
+    it. FIRST, the alternative already exists here in its hand-rolled form and shows the cost:
+    ``_ALLOWED_REPOS_KEYS`` is validated by a bespoke ``if canon_key == "repos"`` branch inside
+    ``set_config_value``, so every future enum key would add another branch to one function and the
+    constraint would live away from the key it constrains. SECOND, a declarative field is READABLE BY
+    OTHER SURFACES: ``aw config show`` and shell completion can offer the accepted values without
+    re-deriving them, which a setter-local ``if`` cannot expose.
+
+    ``None`` means unconstrained, which is every pre-existing key, so no existing entry changes
+    behavior. An empty tuple would mean "no value is acceptable" and is refused as a schema defect.
+    """
+
     key: str
     type_name: str
     description: str
     read_only: bool = False
+    allowed_values: Optional[Tuple[str, ...]] = None
 
 
 CONFIG_SCHEMA: Dict[str, ConfigKeySpec] = {
@@ -138,6 +166,15 @@ CONFIG_SCHEMA: Dict[str, ConfigKeySpec] = {
         key="aw_home",
         type_name="path",
         description="Configured toolkit home directory",
+    ),
+    "color_depth": ConfigKeySpec(
+        key="color_depth",
+        type_name="str",
+        description=(
+            "Pin the terminal color depth (256, 16, or none) instead of detecting it. "
+            "NO_COLOR still disables color regardless of this setting."
+        ),
+        allowed_values=COLOR_DEPTH_VALUES,
     ),
 }
 
@@ -646,6 +683,22 @@ def set_config_value(
     else:
         parsed_value = raw_value
 
+    # The DECLARATIVE value constraint (`ConfigKeySpec.allowed_values`). Applied to every key that
+    # declares one, so an enum key is constrained by its own schema entry rather than by a branch
+    # added here. The message NAMES THE ACCEPTED SET because a bare "invalid value" leaves the user
+    # guessing, and criterion A12c of spec `uonrjg` requires the set be named.
+    allowed_values = spec.allowed_values
+    if allowed_values is not None:
+        candidate = (
+            str(parsed_value if parsed_value is not None else "").strip().lower()
+        )
+        if candidate not in allowed_values:
+            allowed = ", ".join(allowed_values)
+            raise ConfigError(
+                f"Invalid value for '{canon_key}': '{raw_value}'. Accepted values: {allowed}."
+            )
+        parsed_value = candidate
+
     if canon_key == "repos":
         unknown = sorted(set(parsed_value) - _ALLOWED_REPOS_KEYS)
         if unknown:
@@ -793,6 +846,16 @@ def normalize(config: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(aw_home_val, str) and aw_home_val.strip():
         out["aw_home"] = _preserve_home(aw_home_val.strip())
 
+    # `color_depth` survives normalization ONLY when it is one of the accepted tiers. An
+    # out-of-enum value (reachable only by hand-editing past `set_config_value`'s refusal) is
+    # DROPPED rather than kept or raised, which is the same fail-open direction
+    # `term._configured_color_depth` takes: a presentation preference must never be the reason a
+    # command cannot load its config. It is absent from `default_config()` on purpose, so "unset"
+    # is a real state distinct from "pinned", and detection stays the default path.
+    depth_val = config.get("color_depth")
+    if isinstance(depth_val, str) and depth_val.strip().lower() in COLOR_DEPTH_VALUES:
+        out["color_depth"] = depth_val.strip().lower()
+
     # config_version is managed by migrate(); keep the current version on write.
     out["config_version"] = CONFIG_VERSION
 
@@ -801,6 +864,33 @@ def normalize(config: Dict[str, Any]) -> Dict[str, Any]:
     # slip through, but this keeps that guarantee true if a future edit adds a key to
     # `default_config()` without allowlisting it. Not an assert, which `-O` would strip.
     return {key: value for key, value in out.items() if key in _ALLOWED_TOP_KEYS}
+
+
+def get_color_depth(cfg: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    """Return the user's PINNED color depth, or ``None`` when unset or unreadable.
+
+    THE ONE READER of the ``color_depth`` pin, called by ``term.resolve_color_depth``'s pin rung.
+    It returns ``None`` (never raises, never a default tier) for every failure mode, because the
+    caller is a STYLING decision: the correct response to an unreadable config is to fall through
+    to detection, not to crash a command or to force a tier the user did not ask for.
+
+    Note what this function deliberately does NOT do: it does not consult ``NO_COLOR`` and it does
+    not decide whether color is on at all. Those sit ABOVE the pin in R9.3a.2's precedence chain and
+    belong to ``term``; a config reader that second-guessed them would be a second definition of the
+    color decision.
+    """
+
+    try:
+        source = load() if cfg is None else cfg
+    except Exception:
+        return None
+    if not isinstance(source, dict):
+        return None
+    value = source.get("color_depth")
+    if not isinstance(value, str):
+        return None
+    token = value.strip().lower()
+    return token if token in COLOR_DEPTH_VALUES else None
 
 
 def get_aw_home(explicit_flag: Optional[str] = None) -> Tuple[Path, str]:

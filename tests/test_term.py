@@ -6,9 +6,13 @@ import contextlib
 import io
 import os
 import re
+import tempfile
+import textwrap
 import unittest
 
 from agent_workflows import cli
+from agent_workflows import config as CFG
+from agent_workflows import lifecycle_style as LS
 from agent_workflows import term as T
 
 _ANSI = re.compile(r"\033\[[0-9;]*m")
@@ -793,6 +797,602 @@ class CliNeverLeaksTheColorOverrideTests(unittest.TestCase):
             "a nested `aw` invocation cleared an override its caller had deliberately set; the "
             "restore must return the INHERITED value, not None",
         )
+
+
+# ======================================================================================
+# THE COLOR-DEPTH LADDER (spec `uonrjg` R9.3a.1-R9.3a.5; criteria A12a-A12d; plan `pow5sj`)
+# ======================================================================================
+
+
+class _DepthTestBase(unittest.TestCase):
+    """Shared env/config isolation for the depth tests.
+
+    REUSES THE SHIPPED HARNESS above (`_FakeTTY`, `_FakePipe`, and the save/restore `setUp`
+    pattern) rather than introducing a second stream-double convention, which the plan's
+    Required-tests section requires explicitly.
+
+    THE CONFIG STORE IS REDIRECTED TO A TEMPORARY DIRECTORY for every test in this group, because
+    the depth resolver's pin rung READS THE USER'S CONFIG FILE. Without this, a maintainer who had
+    actually pinned a depth would see these tests fail on their machine and pass in CI, and worse,
+    a test that WROTE a pin would edit the developer's real config.
+    """
+
+    def setUp(self):
+        self._saved = {
+            k: os.environ.get(k)
+            for k in ("NO_COLOR", "FORCE_COLOR", "TERM", "COLORTERM", "XDG_CONFIG_HOME")
+        }
+        self._tmp = tempfile.TemporaryDirectory()
+        os.environ["XDG_CONFIG_HOME"] = self._tmp.name
+        self.addCleanup(self._tmp.cleanup)
+        self.addCleanup(self._restore_env)
+        self.addCleanup(T.set_color_override, None)
+
+    def _restore_env(self):
+        for k, v in self._saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+    def _capable_tty(self):
+        """A 256-capable TTY environment: the baseline every rung is measured against."""
+        for k in ("NO_COLOR", "FORCE_COLOR", "COLORTERM"):
+            os.environ.pop(k, None)
+        os.environ["TERM"] = "xterm-256color"
+
+    def _pin(self, value):
+        CFG.set_config_value("color_depth", value)
+
+
+class ColorDepthPrecedenceTests(_DepthTestBase):
+    """A12a: every rung of the R9.3a.2 chain, each asserted SEPARATELY.
+
+    ONE TEST PER RUNG, never one composite case, because A12a requires it in as many words
+    ("Assert each rung explicitly") and because a composite assertion cannot say WHICH rung broke.
+    """
+
+    # --- Rung 1: color is off entirely -> `none` --------------------------------------
+    def test_rung1_no_color_yields_none(self):
+        self._capable_tty()
+        os.environ["NO_COLOR"] = "1"
+        self.assertEqual(T.resolve_color_depth(_FakeTTY()), T.DEPTH_NONE)
+
+    def test_rung1_term_dumb_yields_none(self):
+        self._capable_tty()
+        os.environ["TERM"] = "dumb"
+        self.assertEqual(T.resolve_color_depth(_FakeTTY()), T.DEPTH_NONE)
+
+    def test_rung1_non_tty_yields_none(self):
+        self._capable_tty()
+        self.assertEqual(T.resolve_color_depth(_FakePipe()), T.DEPTH_NONE)
+
+    def test_rung1_no_color_flag_override_yields_none(self):
+        """`--no-color` reaches the resolver as `override=False`, never through os.environ.
+
+        Asserted because the flag is the ONE top-rung input the resolver cannot see in the
+        environment: `term` never reads argparse (a nested `aw` process would inherit an env var and
+        be silently restyled), so a resolver that only consulted the environment would drop
+        `--no-color` from R9.3a.2's top rung entirely.
+        """
+        self._capable_tty()
+        self.assertEqual(
+            T.resolve_color_depth(_FakeTTY(), override=False), T.DEPTH_NONE
+        )
+
+    def test_rung1_process_wide_no_color_override_yields_none(self):
+        self._capable_tty()
+        T.set_color_override(False)
+        self.assertEqual(T.resolve_color_depth(_FakeTTY()), T.DEPTH_NONE)
+
+    # --- THE CASE THE SPEC SINGLES OUT ------------------------------------------------
+    def test_no_color_beats_a_pinned_depth(self):
+        """A12a's named case: `NO_COLOR` with a pinned depth STILL yields plain text.
+
+        ITS OWN TEST, not a cell in a grid, because R9.3a.2 calls this "the one an implementation is
+        most likely to get backwards" and the reason is a real design tension: a pin is the user
+        asking for color, and honoring the more specific instruction is normally right. Here it is
+        wrong, because `NO_COLOR` is an ACCESSIBILITY CONVENTION and a preference may not defeat a
+        convention. A user who wants color pins a depth AND does not set `NO_COLOR`.
+        """
+        self._capable_tty()
+        self._pin("256")
+        self.assertEqual(
+            T.resolve_color_depth(_FakeTTY()),
+            T.DEPTH_256,
+            "sanity: the pin must be in force before NO_COLOR is introduced",
+        )
+        os.environ["NO_COLOR"] = "1"
+        self.assertEqual(
+            T.resolve_color_depth(_FakeTTY()),
+            T.DEPTH_NONE,
+            "a pinned depth DEFEATED NO_COLOR; R9.3a.2 forbids a preference overriding an "
+            "accessibility convention",
+        )
+
+    def test_no_color_beats_a_pinned_16_as_well(self):
+        """The same rule at the middle tier, so the guard is not accidentally 256-specific."""
+        self._capable_tty()
+        self._pin("16")
+        os.environ["NO_COLOR"] = "1"
+        self.assertEqual(T.resolve_color_depth(_FakeTTY()), T.DEPTH_NONE)
+
+    def test_force_color_still_overrides_no_color_at_the_depth_resolver(self):
+        """OQ-02, ruled READING A by the maintainer 2026-09-19: the escape hatch SURVIVES.
+
+        The spec specifies this rung twice and incompatibly (R9.3a.2 calls `NO_COLOR` "unconditional"
+        while Section 9.3 requires preserving current `FORCE_COLOR` behavior, under which
+        `FORCE_COLOR` wins). The ruling: `FORCE_COLOR` keeps its override, and "unconditional" is
+        unconditional with respect to the DEPTH PIN only. This test pins the ruled behavior at the
+        DEPTH seam, exactly as `test_force_color_overrides_no_color` pins it at the boolean seam.
+        """
+        self._capable_tty()
+        os.environ["NO_COLOR"] = "1"
+        os.environ["FORCE_COLOR"] = "1"
+        self.assertEqual(T.resolve_color_depth(_FakePipe()), T.DEPTH_256)
+
+    # --- Rung 2: an explicit pin beats detection --------------------------------------
+    def test_rung2_a_pinned_depth_overrides_detection(self):
+        self._capable_tty()  # detection would say 256
+        self._pin("16")
+        self.assertEqual(
+            T.resolve_color_depth(_FakeTTY()),
+            T.DEPTH_16,
+            "a pinned 16 was overruled by 256-color detection; the pin outranks detection",
+        )
+
+    def test_rung2_a_pinned_none_overrides_a_capable_terminal(self):
+        self._capable_tty()
+        self._pin("none")
+        self.assertEqual(T.resolve_color_depth(_FakeTTY()), T.DEPTH_NONE)
+
+    def test_rung2_a_pinned_256_overrides_16_color_detection(self):
+        """The pin must win in BOTH directions, not only downward.
+
+        A plausible wrong implementation takes the MINIMUM of the pin and detection, which passes
+        the two tests above (both pin downward) and fails here. A pin is the user's statement about
+        their own terminal, so it replaces detection rather than capping it.
+        """
+        self._capable_tty()
+        os.environ["TERM"] = "xterm-16color"
+        self._pin("256")
+        self.assertEqual(T.resolve_color_depth(_FakeTTY()), T.DEPTH_256)
+
+    # --- Rung 3: detection beats the default ------------------------------------------
+    def test_rung3_detection_of_a_16_color_term_overrides_the_default(self):
+        self._capable_tty()
+        os.environ["TERM"] = "xterm-16color"
+        self.assertEqual(
+            T.resolve_color_depth(_FakeTTY()),
+            T.DEPTH_16,
+            "a 16-color TERM fell through to the 256 default; detection outranks the default",
+        )
+
+    def test_rung3_detection_of_a_256_color_term_resolves_256(self):
+        self._capable_tty()
+        self.assertEqual(T.resolve_color_depth(_FakeTTY()), T.DEPTH_256)
+
+    def test_rung3_colorterm_truecolor_resolves_256_not_a_fourth_rung(self):
+        """D42's ladder has THREE rungs, so a truecolor terminal tops out at 256."""
+        self._capable_tty()
+        os.environ["TERM"] = "sometermnobodyknows"
+        os.environ["COLORTERM"] = "truecolor"
+        self.assertEqual(T.resolve_color_depth(_FakeTTY()), T.DEPTH_256)
+
+    def test_rung3_a_linux_console_resolves_16(self):
+        self._capable_tty()
+        os.environ["TERM"] = "linux"
+        self.assertEqual(T.resolve_color_depth(_FakeTTY()), T.DEPTH_16)
+
+    # --- Rung 4: the default ----------------------------------------------------------
+    def test_rung4_the_default_is_256_not_the_conservative_rung(self):
+        """R9.3a.2: "the default is 256 rather than the most conservative rung".
+
+        Asserted with an UNRECOGNIZED `TERM`, which is the only state where the default is actually
+        reachable. An implementation that degraded an unknown terminal to 16 "to be safe" would be
+        the conservative default D42 exists to reject, and it would pass every other test here.
+        """
+        self._capable_tty()
+        os.environ["TERM"] = "sometermnobodyknows"
+        self.assertEqual(T.resolve_color_depth(_FakeTTY()), T.DEPTH_256)
+        self.assertEqual(T.DEFAULT_COLOR_DEPTH, T.DEPTH_256)
+
+    def test_an_invalid_pin_in_the_file_falls_through_instead_of_raising(self):
+        """A hand-edited bad value must not make every styled command crash.
+
+        The REFUSAL belongs at the setter (see the config tests), where the user can fix the typo.
+        Here, fail-open to detection is the only safe behavior: a presentation preference must never
+        be the reason a command cannot render.
+        """
+        self._capable_tty()
+        cfg = CFG.load()
+        cfg["color_depth"] = "tru3color"
+        CFG.save(cfg)
+        self.assertEqual(T.resolve_color_depth(_FakeTTY()), T.DEPTH_256)
+
+
+class ColorDepthOneDefinitionTests(unittest.TestCase):
+    """A12a: the depth resolver has EXACTLY ONE definition (R9.3a.2).
+
+    Modeled on `OneOriginatingDefinitionTests` above and AST-based for the same recorded reason: a
+    substring guard in this repository has twice been evaded by whitespace or satisfied by a mere
+    comment.
+    """
+
+    SYMBOL = "resolve_color_depth"
+
+    @staticmethod
+    def _package_dir():
+        import pathlib
+
+        return pathlib.Path(str(T.__file__)).parent
+
+    def test_exactly_one_definition_of_the_depth_resolver_in_the_package(self):
+        import ast
+
+        sites = []
+        for path in sorted(self._package_dir().glob("*.py")):
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8"))
+            except SyntaxError:  # pragma: no cover - a broken module is another failure
+                continue
+            for node in ast.walk(tree):
+                if (
+                    isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and node.name == self.SYMBOL
+                ):
+                    sites.append(f"{path.name}:{node.lineno}")
+        self.assertEqual(
+            len(sites),
+            1,
+            "R9.3a.2 requires exactly ONE definition of the color-depth resolver; found: "
+            + ", ".join(sites),
+        )
+        self.assertTrue(sites[0].startswith("term.py"), sites)
+
+    def test_no_second_depth_detection_path_exists_in_the_package(self):
+        """`COLORTERM`/`256color` may be read by the ONE resolver's module and nowhere else.
+
+        This is the guard that keeps the single definition MEANINGFUL. A second module quietly
+        grepping `COLORTERM` would be a rival depth decision even while `resolve_color_depth`
+        remained unique, which is exactly the fragmentation plan `z8ddk0` had to undo for the
+        boolean decision.
+        """
+        offenders = []
+        for path in sorted(self._package_dir().glob("*.py")):
+            if path.name == "term.py":
+                continue
+            text = path.read_text(encoding="utf-8")
+            for marker in ("COLORTERM", "256color"):
+                if marker in text:
+                    offenders.append(f"{path.name} reads {marker}")
+        self.assertEqual(
+            offenders,
+            [],
+            "depth detection leaked out of term.py: " + ", ".join(offenders),
+        )
+
+    def test_the_resolver_does_not_reimplement_the_color_decision(self):
+        """The top rung must DELEGATE to `should_color`, not re-read the environment.
+
+        Measured structurally: `resolve_color_depth`'s own body calls `should_color` and contains no
+        `NO_COLOR`/`FORCE_COLOR`/`isatty` test of its own. Re-implementing those would create the
+        second originating definition of the COLOR decision that `OneOriginatingDefinitionTests`
+        exists to prevent, and would silently drop `--no-color` (which never reaches os.environ).
+        """
+        import ast
+        import inspect
+
+        source = inspect.getsource(T.resolve_color_depth)
+        tree = ast.parse(textwrap.dedent(source))
+        calls = {
+            node.func.id
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        }
+        self.assertIn(
+            "should_color",
+            calls,
+            "the depth resolver must delegate its top rung to should_color",
+        )
+        body = source.split('"""', 2)[-1]
+        for forbidden in ("NO_COLOR", "FORCE_COLOR", "isatty"):
+            self.assertNotIn(
+                forbidden,
+                body,
+                f"the depth resolver re-implements {forbidden} instead of delegating to "
+                "should_color; that is a second originating definition of the color decision",
+            )
+
+    def test_term_gained_no_argparse_awareness(self):
+        """F-06: the flag arrives as `override=`, so `term` must not reach for a namespace."""
+        text = (self._package_dir() / "term.py").read_text(encoding="utf-8")
+        self.assertNotIn("import argparse", text)
+        self.assertNotIn("args.no_color", text)
+
+
+class AuthoredSixteenColorPaletteTests(unittest.TestCase):
+    """A12b: the 16-color tier is AUTHORED, and its separations and collapses are pinned."""
+
+    def test_the_palette_covers_every_semantic_stage(self):
+        self.assertEqual(
+            set(T.STAGE_COLOR_16),
+            set(LS.ALL_STAGES),
+            "the 16-color palette must cover exactly the semantic stage vocabulary",
+        )
+        self.assertEqual(len(T.STAGE_COLOR_16), 20)
+
+    def test_the_palette_uses_only_the_sixteen_named_colors(self):
+        """A 256-index leaking into this table would defeat the tier's entire purpose."""
+        named = set(range(30, 38)) | set(range(90, 98))
+        wrong = {
+            stage: code for stage, code in T.STAGE_COLOR_16.items() if code not in named
+        }
+        self.assertEqual(
+            wrong, {}, f"non-16-color SGR codes in the 16-color palette: {wrong}"
+        )
+
+    def test_ready_is_distinguishable_from_done(self):
+        """Separation 1 of 3. Adjacent at 256 (45 versus 46) and opposite in meaning."""
+        self.assertNotEqual(T.color_16_for_stage("ready"), T.color_16_for_stage("done"))
+
+    def test_blocked_is_distinguishable_from_failed(self):
+        """Separation 2 of 3. Both warm at 256 (208 versus 196)."""
+        self.assertNotEqual(
+            T.color_16_for_stage("blocked"), T.color_16_for_stage("failed")
+        )
+
+    def test_waiting_input_is_distinguishable_from_blocked(self):
+        """Separation 3 of 3. The adjacent orange pair R9.3a.4 names as the concrete hazard."""
+        self.assertNotEqual(
+            T.color_16_for_stage("waiting-input"), T.color_16_for_stage("blocked")
+        )
+
+    def test_the_active_subtypes_collapse_to_one_yellow(self):
+        """Expected collapse 1: five subtypes plus generic `active`, already one color at 256."""
+        group = (
+            "reviewing",
+            "executing",
+            "verifying",
+            "integrating",
+            "recovering",
+            "active",
+        )
+        codes = {T.color_16_for_stage(stage) for stage in group}
+        self.assertEqual(
+            len(codes), 1, f"the six active stages must share ONE color; got {codes}"
+        )
+
+    def test_the_six_gray_family_stages_collapse_to_one_neutral(self):
+        """Expected collapse 2, and note the count is SIX.
+
+        R9.3a.3's prose says "the four grays" and then lists six names. The list is right and the
+        word is wrong, which the 256 table settles: five of these sit at 244 and `formative` at 245.
+        An implementation that built the neutral for four would leave two stages uncollapsed.
+        """
+        group = ("parked", "superseded", "abandoned", "unknown", "none", "formative")
+        self.assertEqual(len(group), 6)
+        codes = {T.color_16_for_stage(stage) for stage in group}
+        self.assertEqual(
+            len(codes),
+            1,
+            f"the six gray-family stages must share ONE neutral; got {codes}",
+        )
+
+    def test_the_palette_is_not_a_mechanical_reduction_of_the_256_tier(self):
+        """R9.3a.3 forbids DERIVING the tier, so prove it is not derived.
+
+        The property that distinguishes authored from derived: at 256 `ready`(45) and `done`(46) are
+        adjacent, as are `blocked`(208) and `waiting-input`(214) relative to `failed`(196). Any
+        nearest-neighbour reduction merges at least one such pair. This table merges none of them,
+        which a derivation cannot achieve.
+        """
+        for left, right in T.REQUIRED_16_COLOR_SEPARATIONS:
+            self.assertNotEqual(
+                T.color_16_for_stage(left),
+                T.color_16_for_stage(right),
+                f"{left} and {right} merged at 16-color",
+            )
+
+    def test_the_palette_merges_no_pair_outside_a_named_collapse(self):
+        """R9.3a.3 names the collapses it accepts, so an UNNAMED merge is an unreviewed loss.
+
+        THIS TEST FOUND A REAL DEFECT rather than merely documenting a rule (recorded because a guard
+        that never fired is weak evidence): the palette's first draft gave `authority-queued` plain
+        magenta, the same code as `blocked`. Those are 135 (a purple) and 208 (an orange) at 256, so
+        nothing about the 256 tier suggests merging them, and none of the three required separations
+        mentions either stage - meaning every other assertion in this class passed. `authority-queued`
+        is now bright magenta.
+        """
+        collapse_members = {
+            stage for group in T.EXPECTED_16_COLOR_COLLAPSES for stage in group
+        }
+        by_code = {}
+        for stage, code in T.STAGE_COLOR_16.items():
+            by_code.setdefault(code, []).append(stage)
+        offenders = {
+            code: sorted(s for s in stages if s not in collapse_members)
+            for code, stages in by_code.items()
+            if len([s for s in stages if s not in collapse_members]) > 1
+        }
+        self.assertEqual(
+            offenders,
+            {},
+            f"stages merged onto one color with no collapse declared for them: {offenders}",
+        )
+
+    def test_the_validator_rejects_an_unnamed_merge(self):
+        from unittest import mock
+
+        broken = dict(T.STAGE_COLOR_16)
+        broken["authority-queued"] = broken["blocked"]
+        with mock.patch.object(T, "STAGE_COLOR_16", broken):
+            with self.assertRaises(ValueError) as ctx:
+                T.validate_16_color_palette()
+        self.assertIn("authority-queued", str(ctx.exception))
+
+    def test_the_validator_rejects_a_merged_separation(self):
+        """Guard the guard: the import-time validator must actually catch a regression."""
+        from unittest import mock
+
+        broken = dict(T.STAGE_COLOR_16)
+        broken["blocked"] = broken["failed"]
+        with mock.patch.object(T, "STAGE_COLOR_16", broken):
+            with self.assertRaises(ValueError) as ctx:
+                T.validate_16_color_palette()
+        self.assertIn("blocked", str(ctx.exception))
+
+    def test_the_validator_rejects_a_missing_stage(self):
+        from unittest import mock
+
+        broken = dict(T.STAGE_COLOR_16)
+        broken.pop("ready")
+        with mock.patch.object(T, "STAGE_COLOR_16", broken):
+            with self.assertRaises(ValueError) as ctx:
+                T.validate_16_color_palette()
+        self.assertIn("ready", str(ctx.exception))
+
+    def test_the_validator_rejects_a_split_collapse(self):
+        """The collapses are pinned so a later change cannot quietly re-expand them."""
+        from unittest import mock
+
+        broken = dict(T.STAGE_COLOR_16)
+        broken["verifying"] = (
+            34  # blue: a color a 16-color terminal shows, but a split group
+        )
+        with mock.patch.object(T, "STAGE_COLOR_16", broken):
+            with self.assertRaises(ValueError) as ctx:
+                T.validate_16_color_palette()
+        self.assertIn("collapse", str(ctx.exception))
+
+
+class EveryTierKeepsTheInvariantTests(_DepthTestBase):
+    """A12d / R9.3a.5: at 256, at 16, and at none, the glyph AND the native word are present.
+
+    ONE FIXTURE RENDERED AT ALL THREE TIERS, as A12d requires, so the invariant is asserted against
+    the same input rather than against three hand-written expectations that could each be wrong in a
+    compensating way.
+    """
+
+    #: One row per fixture entry: (family, native status). Chosen to include both members of all
+    #: three required separations plus one member of each expected collapse, so the fixture actually
+    #: exercises the distinctions the tier is required to preserve.
+    FIXTURE = (
+        ("plans", "approved"),  # -> ready
+        ("plans", "executed"),  # -> done
+        ("backlog", "blocked"),  # -> blocked
+        ("runner-item", "failed"),  # -> failed
+        ("runner-item", "needs_input"),  # -> waiting-input
+        ("specs", "implementing"),  # -> executing (active collapse)
+        ("specs", "parked"),  # -> parked (gray collapse)
+    )
+
+    def _render(self, tier):
+        """Render the fixture at ``tier``, returning ``[(stage, native_word, line)]``.
+
+        The renderer here is deliberately MINIMAL and local: the shared rendering helpers are
+        sibling `bn026f`'s work, so this test must not presume them. What it asserts is the
+        INVARIANT (glyph plus word at every tier), which does not depend on which helper draws them.
+        """
+        rows = []
+        for family, native in self.FIXTURE:
+            resolved = LS.resolve(family, native)
+            glyph = resolved.style.unicode
+            if tier == T.DEPTH_256:
+                painted = f"\033[38;5;{resolved.style.color}m{glyph}\033[0m"
+            elif tier == T.DEPTH_16:
+                painted = f"\033[{T.color_16_for_stage(resolved.stage)}m{glyph}\033[0m"
+            else:
+                painted = glyph
+            rows.append((resolved.stage, native, f"{painted} {native}"))
+        return rows
+
+    def test_the_glyph_and_the_word_are_present_at_every_tier(self):
+        for tier in (T.DEPTH_256, T.DEPTH_16, T.DEPTH_NONE):
+            for stage, native, line in self._render(tier):
+                plain = T.strip_ansi(line)
+                with self.subTest(tier=tier, stage=stage):
+                    self.assertIn(
+                        native,
+                        plain,
+                        f"the native word vanished at tier {tier}",
+                    )
+                    self.assertIn(
+                        LS.STAGES[stage].unicode,
+                        plain,
+                        f"the glyph vanished at tier {tier}",
+                    )
+
+    def test_no_state_is_distinguishable_by_color_alone_at_any_tier(self):
+        """The invariant stated as the property that matters: strip color, keep the meaning.
+
+        For every pair of fixture rows that CARRY DIFFERENT STAGES, the rows must still differ once
+        every escape is stripped. If two rows became identical without color, then at that tier
+        color would be the sole carrier of the distinction, which R9.3a.5 forbids.
+        """
+        for tier in (T.DEPTH_256, T.DEPTH_16, T.DEPTH_NONE):
+            rows = self._render(tier)
+            for i, (stage_a, _native_a, line_a) in enumerate(rows):
+                for stage_b, _native_b, line_b in rows[i + 1 :]:
+                    if stage_a == stage_b:
+                        continue
+                    with self.subTest(tier=tier, a=stage_a, b=stage_b):
+                        self.assertNotEqual(
+                            T.strip_ansi(line_a),
+                            T.strip_ansi(line_b),
+                            f"{stage_a} and {stage_b} are distinguishable only by color at "
+                            f"tier {tier}",
+                        )
+
+    def test_the_none_tier_emits_no_escape_at_all(self):
+        for _stage, _native, line in self._render(T.DEPTH_NONE):
+            self.assertEqual(line, T.strip_ansi(line))
+
+    def test_the_two_colored_tiers_do_emit_escapes(self):
+        """Guard the guard: if both colored tiers silently emitted plain text, the invariant
+        tests above would pass trivially and prove nothing."""
+        for tier in (T.DEPTH_256, T.DEPTH_16):
+            for _stage, _native, line in self._render(tier):
+                self.assertNotEqual(line, T.strip_ansi(line), f"tier {tier} was plain")
+
+    def test_the_collapsed_stages_remain_separable_without_color(self):
+        """The collapses are only ACCEPTABLE because the glyph still separates them (R9.3a.5).
+
+        This is the test that justifies the collapses rather than merely recording them: at 16-color
+        the six active stages share one code, so if their glyphs also matched, the tier really would
+        lose information.
+        """
+        for group in T.EXPECTED_16_COLOR_COLLAPSES:
+            glyphs = {LS.STAGES[stage].unicode for stage in group}
+            shared_color = {T.color_16_for_stage(stage) for stage in group}
+            self.assertEqual(len(shared_color), 1)
+            self.assertEqual(
+                len(glyphs),
+                len(group),
+                f"stages {group} share a 16-color code AND a glyph, so the collapse loses "
+                f"information; glyphs were {glyphs}",
+            )
+
+
+class ColorDepthConfigContractTests(_DepthTestBase):
+    """A12c, from the `term` side: the config enum and the resolver cannot drift apart."""
+
+    def test_the_config_enum_matches_the_resolver_ladder_exactly(self):
+        """`config` duplicates the three tier literals to avoid an import cycle (term -> config).
+
+        This assertion is what makes that duplication safe: the two lists must be identical, in the
+        same order, so a fourth tier added to one is a loud failure rather than a key the user can
+        set but the resolver ignores.
+        """
+        self.assertEqual(tuple(CFG.COLOR_DEPTH_VALUES), tuple(T.COLOR_DEPTHS))
+
+    def test_every_accepted_value_is_actually_honored_by_the_resolver(self):
+        """Totality: each value `aw config` accepts must resolve to that same tier."""
+        self._capable_tty()
+        for value in CFG.COLOR_DEPTH_VALUES:
+            with self.subTest(pin=value):
+                self._pin(value)
+                self.assertEqual(T.resolve_color_depth(_FakeTTY()), value)
 
 
 if __name__ == "__main__":

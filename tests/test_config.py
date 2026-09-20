@@ -960,5 +960,182 @@ class ConfigCliCommandTests(unittest.TestCase):
         self.assertEqual(on_disk["repos"]["ignore"], ["*/vendor/*"])
 
 
+class ColorDepthKeyTests(unittest.TestCase):
+    """A12c (spec `uonrjg` R9.3a.4): the user can PIN the color depth, and a bad value is REFUSED.
+
+    THE REFUSAL IS THE CRITERION, not merely the setting. A12c requires an invalid value be "REFUSED
+    at validation with a message naming the accepted set", so these tests assert the MESSAGE CONTENT
+    and not only that an exception was raised: a bare type error tells a user nothing about what to
+    write instead, and is the failure mode the criterion is worded to exclude.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self._saved = os.environ.get("XDG_CONFIG_HOME")
+        os.environ["XDG_CONFIG_HOME"] = self._tmp.name
+        self.addCleanup(self._restore)
+
+    def _restore(self):
+        if self._saved is None:
+            os.environ.pop("XDG_CONFIG_HOME", None)
+        else:
+            os.environ["XDG_CONFIG_HOME"] = self._saved
+
+    def test_the_key_is_registered_in_the_schema(self):
+        self.assertIn("color_depth", CFG.CONFIG_SCHEMA)
+        spec = CFG.CONFIG_SCHEMA["color_depth"]
+        self.assertFalse(spec.read_only)
+        self.assertEqual(spec.allowed_values, CFG.COLOR_DEPTH_VALUES)
+
+    def test_the_key_survives_normalization(self):
+        """Registration alone is not enough: `normalize()` drops any key not allowlisted.
+
+        Asserted explicitly because that drop is SILENT (no error, no warning, setting gone), which
+        `tests/test_run_analytics_wizard.py` records as a shipped bug in an earlier plan. A pin that
+        vanished on the next write would look like it worked and then stop working.
+        """
+        self.assertIn("color_depth", CFG._ALLOWED_TOP_KEYS)
+        out = CFG.normalize({"color_depth": "16"})
+        self.assertEqual(out["color_depth"], "16")
+
+    def test_each_accepted_value_round_trips_to_disk(self):
+        for value in CFG.COLOR_DEPTH_VALUES:
+            with self.subTest(value=value):
+                CFG.set_config_value("color_depth", value)
+                self.assertEqual(CFG.load()["color_depth"], value)
+                self.assertEqual(CFG.get_color_depth(), value)
+
+    def test_an_invalid_value_is_refused_and_the_message_names_the_accepted_set(self):
+        with self.assertRaises(CFG.ConfigError) as ctx:
+            CFG.set_config_value("color_depth", "tru3color")
+        message = str(ctx.exception)
+        self.assertIn("tru3color", message)
+        for value in CFG.COLOR_DEPTH_VALUES:
+            self.assertIn(
+                value,
+                message,
+                f"the refusal message omits the accepted value {value!r}; A12c requires the "
+                f"accepted set be named. Message was: {message}",
+            )
+
+    def test_a_refused_value_is_not_written_to_disk(self):
+        CFG.set_config_value("color_depth", "16")
+        with self.assertRaises(CFG.ConfigError):
+            CFG.set_config_value("color_depth", "nope")
+        self.assertEqual(
+            CFG.get_color_depth(), "16", "a refused value clobbered the previous pin"
+        )
+
+    def test_a_plausible_near_miss_is_refused(self):
+        """`8`, `true`, `yes` and `full` are what a user actually guesses; each must be refused."""
+        for bad in ("8", "true", "yes", "full", "truecolor", "24bit", ""):
+            with self.subTest(bad=bad):
+                with self.assertRaises(CFG.ConfigError):
+                    CFG.set_config_value("color_depth", bad)
+
+    def test_the_value_is_case_insensitive_and_stored_canonically(self):
+        CFG.set_config_value("color_depth", "NONE")
+        self.assertEqual(CFG.get_color_depth(), "none")
+
+    def test_unset_reads_as_none_rather_than_a_default_tier(self):
+        """ "Unset" must be a distinct state from "pinned", or detection is unreachable."""
+        self.assertIsNone(CFG.get_color_depth())
+        self.assertNotIn("color_depth", CFG.default_config())
+
+    def test_a_hand_edited_invalid_value_is_dropped_rather_than_honored(self):
+        cfg = CFG.load()
+        cfg["color_depth"] = "tru3color"
+        CFG.save(cfg)
+        self.assertIsNone(CFG.get_color_depth())
+
+    def test_get_color_depth_survives_a_corrupt_config_file(self):
+        """A styling read must never be the reason a command cannot start."""
+        path = CFG.config_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{not json at all", encoding="utf-8")
+        self.assertIsNone(CFG.get_color_depth())
+
+    def test_the_cli_can_set_and_show_the_pin(self):
+        import io
+        from agent_workflows import cli
+        from contextlib import redirect_stdout
+
+        rc = cli.main(["config", "set", "color_depth", "16"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(CFG.get_color_depth(), "16")
+
+        out = io.StringIO()
+        with redirect_stdout(out):
+            rc = cli.main(["config", "show"])
+        self.assertEqual(rc, 0)
+        self.assertIn("color_depth", out.getvalue())
+
+    def test_the_cli_refusal_is_visible_to_the_user(self):
+        import io
+        from agent_workflows import cli
+        from contextlib import redirect_stderr, redirect_stdout
+
+        out = io.StringIO()
+        err = io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            rc = cli.main(["config", "set", "color_depth", "tru3color"])
+        self.assertNotEqual(rc, 0)
+        combined = out.getvalue() + err.getvalue()
+        self.assertIn("256", combined)
+        self.assertIn("16", combined)
+
+
+class DeclarativeAllowedValuesTests(unittest.TestCase):
+    """The MECHANISM behind A12c's refusal (plan `pow5sj` OQ-01, declarative route).
+
+    Tested on its own because it is a general schema capability rather than a `color_depth` detail:
+    the whole reason for choosing the declarative route over a setter-local `if` was that the next
+    enum key should need no new branch, and that claim is only credible if the mechanism is proven
+    independent of its first user.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self._saved = os.environ.get("XDG_CONFIG_HOME")
+        os.environ["XDG_CONFIG_HOME"] = self._tmp.name
+        self.addCleanup(self._restore)
+
+    def _restore(self):
+        if self._saved is None:
+            os.environ.pop("XDG_CONFIG_HOME", None)
+        else:
+            os.environ["XDG_CONFIG_HOME"] = self._saved
+
+    def test_allowed_values_defaults_to_unconstrained(self):
+        """Every pre-existing key must be unaffected, or this field changed shipped behavior."""
+        for key, spec in CFG.CONFIG_SCHEMA.items():
+            if key == "color_depth":
+                continue
+            with self.subTest(key=key):
+                self.assertIsNone(spec.allowed_values)
+
+    def test_an_unconstrained_key_still_accepts_an_arbitrary_value(self):
+        CFG.set_config_value("aw_home", "~/somewhere")
+        self.assertEqual(CFG.load()["aw_home"], "~/somewhere")
+
+    def test_the_constraint_is_enforced_generically_for_any_declaring_key(self):
+        from unittest import mock
+
+        fake = dict(CFG.CONFIG_SCHEMA)
+        fake["aw_home"] = CFG.ConfigKeySpec(
+            key="aw_home",
+            type_name="path",
+            description="temporarily constrained for this test",
+            allowed_values=("~/allowed",),
+        )
+        with mock.patch.object(CFG, "CONFIG_SCHEMA", fake):
+            CFG.set_config_value("aw_home", "~/allowed")
+            with self.assertRaises(CFG.ConfigError) as ctx:
+                CFG.set_config_value("aw_home", "~/forbidden")
+        self.assertIn("~/allowed", str(ctx.exception))
+
+
 if __name__ == "__main__":
     unittest.main()
