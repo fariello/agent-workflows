@@ -10317,9 +10317,27 @@ GATE_ANSWER_NOT_MINE: str = "not-mine"
 #: believes the suite, never the claim.
 GATE_ANSWER_FIXED: str = "fixed"
 
-#: MINE: the agent broke it and cannot repair it. The runner REFUSES. There is no override for this
-#: answer, deliberately: an honest `mine` must not be weaker than silence.
+#: MINE: the failure is this turn's, and the agent is not repairing it. The runner REFUSES and
+#: PRESERVES the lane. There is no override for this answer, deliberately: an honest `mine` must not
+#: be weaker than silence.
 GATE_ANSWER_MINE: str = "mine"
+
+#: NEEDS-HUMAN: the failure is understood but the DECISION is not the agent's to make, so no repair
+#: should be attempted. The runner REFUSES and PRESERVES exactly as for `mine`, and records that a
+#: human decision is what the item is waiting on.
+#:
+#: WHY THIS IS A SEPARATE ANSWER FROM `mine` (maintainer, 2026-09-19). `mine` originally fused TWO
+#: claims: "this failure is mine" AND "I cannot fix it". An agent that broke something but needs a
+#: maintainer ruling to know WHICH fix is correct then had no honest answer available: it would either
+#: say `mine` and lose the distinction, or guess at a repair and claim `fixed`, which is the worse
+#: outcome because a guess that passes the suite still ships an unreviewed decision. The point is not
+#: politeness, it is that an agent must always have a TRUE answer it can give comfortably. Splitting
+#: the two keeps `mine` meaning "mine, not being fixed now" and gives the decision case its own name.
+#:
+#: IT IS NOT A SOFTER `mine`: both refuse, both preserve. The difference is what a human reads
+#: afterwards - "this needs a decision from you" versus "this needs work" - and those route to
+#: different people and different next actions.
+GATE_ANSWER_NEEDS_HUMAN: str = "needs-human"
 
 #: The closed vocabulary. A value outside it is treated as no answer at all (see
 #: `validate_gate_answer`), because guessing at an unrecognized answer is how a gate gets talked into
@@ -10328,12 +10346,20 @@ GATE_ANSWERS: tuple[str, ...] = (
     GATE_ANSWER_NOT_MINE,
     GATE_ANSWER_FIXED,
     GATE_ANSWER_MINE,
+    GATE_ANSWER_NEEDS_HUMAN,
+)
+
+#: Answers that REFUSE integration and PRESERVE the lane. Grouped so a caller cannot accidentally
+#: treat one of them as a release, and so adding a fifth answer forces a decision about which side it
+#: falls on.
+GATE_ANSWERS_REFUSING: frozenset[str] = frozenset(
+    (GATE_ANSWER_MINE, GATE_ANSWER_NEEDS_HUMAN)
 )
 
 #: Answers that REQUIRE a non-empty reason. `mine` does not: "I broke it and cannot fix it" is
 #: complete on its own and refuses anyway, so demanding prose for it would only invite filler.
 GATE_ANSWERS_NEEDING_REASON: frozenset[str] = frozenset(
-    (GATE_ANSWER_NOT_MINE, GATE_ANSWER_FIXED)
+    (GATE_ANSWER_NOT_MINE, GATE_ANSWER_FIXED, GATE_ANSWER_NEEDS_HUMAN)
 )
 
 
@@ -10371,6 +10397,26 @@ class GateAnswerVerdict(NamedTuple):
         """Whether this answer earns a fresh full-test-suite run."""
 
         return self.answer == GATE_ANSWER_FIXED
+
+    @property
+    def refuses(self) -> bool:
+        """Whether this answer refuses integration and preserves the lane.
+
+        True for BOTH `mine` and `needs-human`. They differ in what a human reads afterwards, not in
+        what the runner does with the lane.
+        """
+
+        return self.answer in GATE_ANSWERS_REFUSING
+
+    @property
+    def awaits_human_decision(self) -> bool:
+        """Whether the item is waiting on a DECISION rather than on work.
+
+        Kept distinct from `refuses` so a report can route these two elsewhere: "decide this" goes to
+        the maintainer, "fix this" goes to a later turn.
+        """
+
+        return self.answer == GATE_ANSWER_NEEDS_HUMAN
 
 
 def validate_gate_answer(raw: Any) -> GateAnswerVerdict:
@@ -10486,10 +10532,24 @@ WHAT EACH ANSWER DOES, so you are choosing an outcome and not a label:
       be shown the new result and may try again, within this run's retry budget.
 
   {GATE_ANSWER_MINE}
-      Your work caused the failure and you cannot repair it now. INTEGRATION IS REFUSED and your
+      Your work caused the failure and you are not repairing it now. INTEGRATION IS REFUSED and your
       lane and branch are PRESERVED for a human or a later turn; nothing is discarded. Answering
       `{GATE_ANSWER_MINE}` honestly is strictly better than not answering, which refuses anyway and
       records nothing a human can act on.
+
+  {GATE_ANSWER_NEEDS_HUMAN}
+      You understand the failure, but the DECISION is not yours to make: two repairs are both
+      defensible, or the fix would change a documented contract, or it turns on scope or risk the
+      maintainer owns. INTEGRATION IS REFUSED and your lane is PRESERVED, exactly as for
+      `{GATE_ANSWER_MINE}`, and the run records that this item is waiting on a DECISION rather than on
+      work. USE THIS FREELY AND WITHOUT HESITATION: it is a first-class answer, not an escalation and
+      not a failure. State the decision you need in one line and, where you can, the options you see.
+      DO NOT GUESS AT A REPAIR TO AVOID ASKING - a guess that happens to pass the suite ships an
+      unreviewed decision, which is the worse outcome.
+
+CHOOSE THE ANSWER THAT IS TRUE. One of these four always is: either the failure is not yours, or you
+fixed it, or it is yours and unfixed, or it needs a decision you do not own. There is no case where
+silence is the accurate answer, and silence refuses while telling a human nothing.
 
 Your answer is recorded on the run record under your name and is reviewable, exactly like a `V-*`
 evidence block. Claim `{GATE_ANSWER_NOT_MINE}` only if you believe it.

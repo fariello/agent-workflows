@@ -5868,6 +5868,68 @@ class GateAnswerVocabularyTests(unittest.TestCase):
             runner_shared.GATE_ANSWER_MINE, runner_shared.GATE_ANSWERS_NEEDING_REASON
         )
 
+    def test_needs_human_is_usable_refuses_and_is_distinguishable_from_mine(self):
+        """ADDED on the maintainer's observation that `mine` fused TWO claims.
+
+        `mine` used to mean "this is mine AND I cannot fix it". An agent that broke something but
+        needs a maintainer RULING to know which fix is correct then had no true answer: it would say
+        `mine` and lose the distinction, or guess at a repair and claim `fixed`. A guess that passes
+        the suite is the worse outcome, because it ships an unreviewed decision.
+        """
+        v = runner_shared.validate_gate_answer(
+            {
+                "answer": "needs-human",
+                "reason": "two defensible fixes; which contract wins is a maintainer call",
+            }
+        )
+        self.assertTrue(v.usable)
+        self.assertTrue(
+            v.refuses, "it must refuse and preserve, exactly as `mine` does"
+        )
+        self.assertTrue(v.awaits_human_decision)
+        self.assertFalse(v.integrates)
+        self.assertFalse(v.earns_recheck)
+
+        mine = runner_shared.validate_gate_answer("mine")
+        self.assertTrue(mine.refuses)
+        self.assertFalse(
+            mine.awaits_human_decision,
+            "`mine` means needs WORK; `needs-human` means needs a DECISION. A report routes those "
+            "to different people, so they must be distinguishable",
+        )
+
+    def test_needs_human_requires_the_decision_it_needs(self):
+        """The whole value of the answer is telling a human WHAT to decide."""
+        v = runner_shared.validate_gate_answer({"answer": "needs-human"})
+        self.assertFalse(v.usable)
+        self.assertIn("requires a reason", v.violation)
+
+    def test_every_answer_either_releases_recheck_or_refuses(self):
+        """EXHAUSTIVENESS: no answer may fall through to no handling at all.
+
+        This is what guarantees the prompt's claim that one of the answers is always true. Adding a
+        fifth answer without deciding its disposition fails here rather than at runtime.
+        """
+        for token in runner_shared.GATE_ANSWERS:
+            with self.subTest(token):
+                reason = (
+                    "because"
+                    if token in runner_shared.GATE_ANSWERS_NEEDING_REASON
+                    else ""
+                )
+                v = runner_shared.validate_gate_answer(
+                    {"answer": token, "reason": reason}
+                )
+                self.assertTrue(v.usable, f"{token} must validate")
+                dispositions = [v.integrates, v.earns_recheck, v.refuses]
+                self.assertEqual(
+                    sum(1 for d in dispositions if d),
+                    1,
+                    f"{token} must map to EXACTLY one disposition, got "
+                    f"integrates={v.integrates} earns_recheck={v.earns_recheck} "
+                    f"refuses={v.refuses}",
+                )
+
     def test_an_answer_needing_a_reason_is_refused_without_one(self):
         for token in sorted(runner_shared.GATE_ANSWERS_NEEDING_REASON):
             with self.subTest(token):
@@ -5957,6 +6019,22 @@ class GateAnswerQuestionWordingTests(unittest.TestCase):
 
     def test_it_says_mine_is_better_than_silence(self):
         self.assertIn("strictly better than not answering", self._q())
+
+    def test_it_tells_the_agent_needs_human_is_a_first_class_answer(self):
+        """The maintainer's point: an agent must be able to use this COMFORTABLY.
+
+        Not for the agent's feelings, but because an agent that believes asking is a failure will
+        guess at a repair instead, and a guess that passes the suite ships an unreviewed decision.
+        """
+        q = " ".join(self._q().split())
+        self.assertIn("USE THIS FREELY AND WITHOUT HESITATION", q)
+        self.assertIn("not an escalation and not a failure", q)
+        self.assertIn("DO NOT GUESS AT A REPAIR TO AVOID ASKING", q)
+
+    def test_it_states_that_one_answer_is_always_true(self):
+        q = " ".join(self._q().split())
+        self.assertIn("CHOOSE THE ANSWER THAT IS TRUE", q)
+        self.assertIn("no case where silence is the accurate answer", q)
 
     def test_every_vocabulary_member_appears(self):
         q = self._q()
