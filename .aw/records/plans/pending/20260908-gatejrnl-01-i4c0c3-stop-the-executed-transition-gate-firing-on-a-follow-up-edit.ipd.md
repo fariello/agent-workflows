@@ -34,37 +34,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: fix the over-broad transition detector
 
-- [ ] E-01 Fix the SHARED root cause in `_staged_plan_executed_transitions` (`agent_workflows/hooks/executed_transition_gate.py:110-162`): read the HEAD blob at the path the file ACTUALLY occupied at HEAD, and derive BOTH firing conditions from it. Today `head_text = _blob_at(repo_root, "HEAD", old_path) if old_path else None` (`:150`), so for a plain `M` (where `:133-138` sets `old_path = None`) the HEAD side is never read at all. Replace that with `head_path = old_path or new_path` and `head_text = _blob_at(repo_root, "HEAD", head_path)`, which is correct for BOTH branches: for an `R` git gives the rename source, and for an `A`/`M`/`C` the path is unchanged, so `new_path` IS where it was. Then express the path test as its actual question: `was_in_executed_at_head = head_text is not None and _EXECUTED_SEGMENT in ("/" + head_path)` and `moved_into_executed = _EXECUTED_SEGMENT in ("/" + new_path) and not was_in_executed_at_head`. THIS IS ONE FIX, NOT TWO, and it must be done as one: fixing only the path test leaves `gained_executed` firing on the identical input, so the refusal merely changes its message (MEASURED, F-11). Note what the `head_text is not None` clause preserves: a brand-new file ADDED directly at an `executed/` path (git code `A`, no HEAD blob) still has `was_in_executed_at_head` False and so still REFUSES (MEASURED, F-13).
+- [x] E-01 Fix the SHARED root cause in `_staged_plan_executed_transitions` (`agent_workflows/hooks/executed_transition_gate.py:110-162`): read the HEAD blob at the path the file ACTUALLY occupied at HEAD, and derive BOTH firing conditions from it. Today `head_text = _blob_at(repo_root, "HEAD", old_path) if old_path else None` (`:150`), so for a plain `M` (where `:133-138` sets `old_path = None`) the HEAD side is never read at all. Replace that with `head_path = old_path or new_path` and `head_text = _blob_at(repo_root, "HEAD", head_path)`, which is correct for BOTH branches: for an `R` git gives the rename source, and for an `A`/`M`/`C` the path is unchanged, so `new_path` IS where it was. Then express the path test as its actual question: `was_in_executed_at_head = head_text is not None and _EXECUTED_SEGMENT in ("/" + head_path)` and `moved_into_executed = _EXECUTED_SEGMENT in ("/" + new_path) and not was_in_executed_at_head`. THIS IS ONE FIX, NOT TWO, and it must be done as one: fixing only the path test leaves `gained_executed` firing on the identical input, so the refusal merely changes its message (MEASURED, F-11). Note what the `head_text is not None` clause preserves: a brand-new file ADDED directly at an `executed/` path (git code `A`, no HEAD blob) still has `was_in_executed_at_head` False and so still REFUSES (MEASURED, F-13).
   - Depends on: none
   - Expected outcome: the case-2 reproduction (a body-only edit to a plan committed in `executed/`) returns rc 0 with no messages; a `git mv` from `pending/` into `executed/` still returns rc 1 with "moved into executed/"; a plan ADDED straight into `executed/` still returns rc 1.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 BIND THE NEW EXEMPTION TO THE PLAN'S `- Id:`, so being at an already-executed path does not become a shelter for arbitrary content. E-01 makes "this path held an executed plan at HEAD" sufficient to skip the gate, which introduces a hole the current code does not have: REPLACE the whole file at that path with a DIFFERENT plan (a different `- Id:`, `- Status: executed`) and it commits unchallenged, which is a raw plan->executed transition wearing an existing filename. MEASURED at HEAD: the substitution passes with rc 0 under the E-01-only fix, and refuses with rc 1 once the id is bound (F-12). Add the third clause: `and _plan_id_of(head_text) == plan_id`, where `plan_id` is the already-computed staged id (`:144`). A plan whose HEAD content had no readable id also fails this clause and is therefore gated, which is the correct fail-closed direction and consistent with the hook's existing no-`- Id:` refusal (`:302-306`).
+- [x] E-02 BIND THE NEW EXEMPTION TO THE PLAN'S `- Id:`, so being at an already-executed path does not become a shelter for arbitrary content. E-01 makes "this path held an executed plan at HEAD" sufficient to skip the gate, which introduces a hole the current code does not have: REPLACE the whole file at that path with a DIFFERENT plan (a different `- Id:`, `- Status: executed`) and it commits unchallenged, which is a raw plan->executed transition wearing an existing filename. MEASURED at HEAD: the substitution passes with rc 0 under the E-01-only fix, and refuses with rc 1 once the id is bound (F-12). Add the third clause: `and _plan_id_of(head_text) == plan_id`, where `plan_id` is the already-computed staged id (`:144`). A plan whose HEAD content had no readable id also fails this clause and is therefore gated, which is the correct fail-closed direction and consistent with the hook's existing no-`- Id:` refusal (`:302-306`).
   - Depends on: E-01
   - Expected outcome: a wholesale content substitution at an already-executed path returns rc 1, while the case-2 body edit still returns rc 0; both measured in the same session.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 PROVE THE IN-PLACE STATUS FLIP STILL REFUSES, and note that the mechanism is NOT the one the pre-review draft of this plan assumed. A hand-edit rewriting `- Status: approved` to `- Status: executed` WITHOUT moving the file is reported as `M` with `old_path = None`, so it is removed from `moved_into_executed` by E-01 and must refuse through `gained_executed` instead. That works only BECAUSE E-01 also repairs `head_text`: with the old `if old_path else None` expression, `gained_executed` compared against nothing and was vacuously True for every executed plan (which is precisely the case-2 bug), whereas after E-01 it compares the staged content against the real HEAD content at the same path and is True exactly when the status genuinely changed. Verify the two conditions remain OR'd (`if moved_into_executed or gained_executed`, `:155`), then run `test_hand_edited_status_executed_without_receipt_refused` (`tests/test_executed_transition_gate.py:103-114`) and `test_hand_edit_outside_a_merge_still_refused` (`:424`), both of which pin this and must pass UNMODIFIED. ALSO cover the case neither existing test reaches: a plan sitting IN `executed/` at HEAD carrying a NON-executed status, flipped in place to executed. That must still refuse (MEASURED rc 1, F-14), and it is the case that proves the exemption is about the transition and not about the directory.
+- [x] E-03 PROVE THE IN-PLACE STATUS FLIP STILL REFUSES, and note that the mechanism is NOT the one the pre-review draft of this plan assumed. A hand-edit rewriting `- Status: approved` to `- Status: executed` WITHOUT moving the file is reported as `M` with `old_path = None`, so it is removed from `moved_into_executed` by E-01 and must refuse through `gained_executed` instead. That works only BECAUSE E-01 also repairs `head_text`: with the old `if old_path else None` expression, `gained_executed` compared against nothing and was vacuously True for every executed plan (which is precisely the case-2 bug), whereas after E-01 it compares the staged content against the real HEAD content at the same path and is True exactly when the status genuinely changed. Verify the two conditions remain OR'd (`if moved_into_executed or gained_executed`, `:155`), then run `test_hand_edited_status_executed_without_receipt_refused` (`tests/test_executed_transition_gate.py:103-114`) and `test_hand_edit_outside_a_merge_still_refused` (`:424`), both of which pin this and must pass UNMODIFIED. ALSO cover the case neither existing test reaches: a plan sitting IN `executed/` at HEAD carrying a NON-executed status, flipped in place to executed. That must still refuse (MEASURED rc 1, F-14), and it is the case that proves the exemption is about the transition and not about the directory.
   - Depends on: E-01, E-02
   - Expected outcome: both existing hand-edit tests pass unmodified; the in-`executed/`-but-not-yet-executed status flip is demonstrated to return rc 1; the refusal is shown to originate from `gained_executed`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Preserve every OTHER genuine refusal and the hook's no-op cases, checked case by case against the existing suite rather than by assertion. `tests/test_executed_transition_gate.py` holds TWENTY-SEVEN tests in three classes, not ten (the pre-review draft of this plan counted only `PreCommitExecutedGateTests` and predated `29wvmj` landing; MEASURED: `27 passed`, F-15), and ALL must still pass unmodified. In `PreCommitExecutedGateTests` (10): the three no-op/negative cases (`test_ordinary_commit_no_plan_transition_is_noop` `:75`, `test_nonterminal_plan_change_not_gated` `:82`, `test_prompt_executed_transition_not_gated` `:91`), the two refusals (`:103`, `test_git_mv_into_executed_without_receipt_refused` `:116`), the three journal-binding cases (`:129`, `:151`, `:170`), the installed-hook end-to-end case (`:190`), and `test_grandfathered_plan_without_finalize_is_refused` (`:208`). In `MergeAwareInTreeEvidenceTests` (15) THE WHOLE MERGE SURFACE IS NOW A LIVE REGRESSION SURFACE FOR THIS CHANGE, not a sibling's future work: those tests drive real `git merge` calls in which a plan arrives from a lane, and this plan alters the very predicate that decides whether that arrival is a transition, so they are the strongest evidence that the fix did not disarm the merge path. And in `PreCommitConfigStageRegistrationTests` (2) the config assertions. ALSO preserve the no-readable-`- Id:` refusal (`:461`). Do NOT change the refusal MESSAGE wording for any case that still refuses: operators and agents have learned it, and the merge-case tests assert on its exact substrings (`:444`, `:500`).
+- [x] E-04 Preserve every OTHER genuine refusal and the hook's no-op cases, checked case by case against the existing suite rather than by assertion. `tests/test_executed_transition_gate.py` holds TWENTY-SEVEN tests in three classes, not ten (the pre-review draft of this plan counted only `PreCommitExecutedGateTests` and predated `29wvmj` landing; MEASURED: `27 passed`, F-15), and ALL must still pass unmodified. In `PreCommitExecutedGateTests` (10): the three no-op/negative cases (`test_ordinary_commit_no_plan_transition_is_noop` `:75`, `test_nonterminal_plan_change_not_gated` `:82`, `test_prompt_executed_transition_not_gated` `:91`), the two refusals (`:103`, `test_git_mv_into_executed_without_receipt_refused` `:116`), the three journal-binding cases (`:129`, `:151`, `:170`), the installed-hook end-to-end case (`:190`), and `test_grandfathered_plan_without_finalize_is_refused` (`:208`). In `MergeAwareInTreeEvidenceTests` (15) THE WHOLE MERGE SURFACE IS NOW A LIVE REGRESSION SURFACE FOR THIS CHANGE, not a sibling's future work: those tests drive real `git merge` calls in which a plan arrives from a lane, and this plan alters the very predicate that decides whether that arrival is a transition, so they are the strongest evidence that the fix did not disarm the merge path. And in `PreCommitConfigStageRegistrationTests` (2) the config assertions. ALSO preserve the no-readable-`- Id:` refusal (`:461`). Do NOT change the refusal MESSAGE wording for any case that still refuses: operators and agents have learned it, and the merge-case tests assert on its exact substrings (`:444`, `:500`).
   - Depends on: E-01, E-02
   - Expected outcome: all 27 existing tests pass with NO edits to the test file's existing cases, demonstrated by a pasted run that shows the count.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the fix and keep the merge path intact
 
-- [ ] E-05 Add the regression tests, built the way the existing suite builds fixtures so they compose rather than inventing a second harness. Use `PreCommitExecutedGateTests`' own helpers: `_write_plan(plan_id, ...)` (`tests/test_executed_transition_gate.py:56-67`), `_executed_dir()` (`:69-72`), `_commit_all` and `_stage` (`:36-42`). Note the fixture detail that decides whether these tests are honest: `LT._completed_plan_text` yields `- Status: approved`, so a test must write the plan INTO `executed/` with the status already replaced by `executed` and COMMIT that state first, otherwise the very first commit is itself the transition. Add FOUR tests: (a) a BODY-ONLY edit to an already-executed plan, asserting rc 0 and no messages; (b) an edit to that plan's `## Workflow history`, which is what a correction to a finalized plan actually touches and was case 2 in the field; (c) the E-02 hole, a wholesale content substitution with a DIFFERENT `- Id:` at an already-executed path, asserting rc 1; (d) the E-03 case, a plan already in `executed/` at HEAD whose non-executed status is flipped in place, asserting rc 1. Prove (a) and (b) FAIL against the pre-change code, and that they fail for the RIGHT reason (the message must contain "moved into executed/"), so a test that merely errors in setup is not mistaken for a reproduction.
+- [x] E-05 Add the regression tests, built the way the existing suite builds fixtures so they compose rather than inventing a second harness. Use `PreCommitExecutedGateTests`' own helpers: `_write_plan(plan_id, ...)` (`tests/test_executed_transition_gate.py:56-67`), `_executed_dir()` (`:69-72`), `_commit_all` and `_stage` (`:36-42`). Note the fixture detail that decides whether these tests are honest: `LT._completed_plan_text` yields `- Status: approved`, so a test must write the plan INTO `executed/` with the status already replaced by `executed` and COMMIT that state first, otherwise the very first commit is itself the transition. Add FOUR tests: (a) a BODY-ONLY edit to an already-executed plan, asserting rc 0 and no messages; (b) an edit to that plan's `## Workflow history`, which is what a correction to a finalized plan actually touches and was case 2 in the field; (c) the E-02 hole, a wholesale content substitution with a DIFFERENT `- Id:` at an already-executed path, asserting rc 1; (d) the E-03 case, a plan already in `executed/` at HEAD whose non-executed status is flipped in place, asserting rc 1. Prove (a) and (b) FAIL against the pre-change code, and that they fail for the RIGHT reason (the message must contain "moved into executed/"), so a test that merely errors in setup is not mistaken for a reproduction.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: four new tests; (a) and (b) fail before the change with the "moved into executed/" refusal and pass after; (c) and (d) pass after and are demonstrated to be genuine refusals rather than vacuous passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Verify against the ALREADY-LANDED `29wvmj` rather than planning around it as future work, and comment the fixed predicate. `29wvmj` is NOT approved-and-pending: it is EXECUTED, its plan sits at `.aw/records/plans/executed/20260906-integpath-01-29wvmj-...ipd.md` with `- Status: executed`, and its code commit `bcd9755f` ("fix(hooks): accept a finalized lane merge in the executed-transition gate (29wvmj)") is an ancestor of HEAD (F-16). Two consequences the executor must act on. FIRST, there is no coordination question and no possibility of a collision with a sibling in flight; the merge-context detector (`_merge_incoming_commits` `:206`), the in-tree predicate (`_intree_finalize_evidence_ok` `:261`), and the merge-case refusal (`:314-326`) are all present in the file you are editing, and its 15 merge tests are part of the run E-04 requires. SECOND, the interaction to check is real and specific rather than a formality: `check()` computes merge state and evidence only for transitions the detector RETURNED (`:292-298`), so narrowing the detector narrows what the merge path ever sees. Confirm by running the merge tests that a lane legitimately carrying a plan into `executed/` is still DETECTED as a transition (it must be, since at HEAD the plan was in `pending/`, so `was_in_executed_at_head` is False), and that the accepted case is accepted via evidence rather than via the new exemption. Add a code comment at the predicate stating the two distinct concerns it now separates (did this file ENTER executed/ in this commit, versus was it merely EDITED there) so a future reader does not collapse one back into the other.
+- [x] E-06 Verify against the ALREADY-LANDED `29wvmj` rather than planning around it as future work, and comment the fixed predicate. `29wvmj` is NOT approved-and-pending: it is EXECUTED, its plan sits at `.aw/records/plans/executed/20260906-integpath-01-29wvmj-...ipd.md` with `- Status: executed`, and its code commit `bcd9755f` ("fix(hooks): accept a finalized lane merge in the executed-transition gate (29wvmj)") is an ancestor of HEAD (F-16). Two consequences the executor must act on. FIRST, there is no coordination question and no possibility of a collision with a sibling in flight; the merge-context detector (`_merge_incoming_commits` `:206`), the in-tree predicate (`_intree_finalize_evidence_ok` `:261`), and the merge-case refusal (`:314-326`) are all present in the file you are editing, and its 15 merge tests are part of the run E-04 requires. SECOND, the interaction to check is real and specific rather than a formality: `check()` computes merge state and evidence only for transitions the detector RETURNED (`:292-298`), so narrowing the detector narrows what the merge path ever sees. Confirm by running the merge tests that a lane legitimately carrying a plan into `executed/` is still DETECTED as a transition (it must be, since at HEAD the plan was in `pending/`, so `was_in_executed_at_head` is False), and that the accepted case is accepted via evidence rather than via the new exemption. Add a code comment at the predicate stating the two distinct concerns it now separates (did this file ENTER executed/ in this commit, versus was it merely EDITED there) so a future reader does not collapse one back into the other.
   - Depends on: E-05
   - Expected outcome: a stated account, with pasted `git log`/`git merge-base` evidence, that `29wvmj` has already landed; the 15 merge tests pass; a demonstration that a lane-carried plan is still detected as a transition and accepted only on evidence; the comment is in place.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -144,35 +144,311 @@ No `.spec.md` file governs this hook's detection logic, so none is edited and no
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git diff` of the changed lines, which MUST show BOTH the `head_path = old_path or new_path` / `head_text` repair and the rewritten `moved_into_executed`; a diff touching only the path predicate means E-01 was done as originally drafted and is INCOMPLETE (F-11). Paste a hand-run reproduction in a throwaway repo showing BEFORE (rc 1 with the "moved into executed/" message) and AFTER (rc 0, no messages) for a body-only edit to a plan committed in `executed/`. In the SAME session paste (a) a `git mv` from `pending/` into `executed/` still returning rc 1, and (b) a plan ADDED straight into `executed/` still returning rc 1, so the fix is shown to be narrow rather than a blanket exemption.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BOTH halves of the repair are in the diff (`git diff -- agent_workflows/hooks/executed_transition_gate.py`), so this is not the drafted path-only patch:
 
-- [ ] V-02 validates E-02
+    ```diff
+    -        moved_into_executed = _EXECUTED_SEGMENT in ("/" + new_path) and (
+    -            old_path is None or _EXECUTED_SEGMENT not in ("/" + old_path)
+    +        head_path = old_path or new_path
+    +        head_text = _blob_at(repo_root, "HEAD", head_path)
+    +        was_in_executed_at_head = head_text is not None and _EXECUTED_SEGMENT in (
+    +            "/" + head_path
+    +        )
+    +        same_plan_at_head = plan_id is not None and _plan_id_of(head_text) == plan_id
+    +        moved_into_executed = _EXECUTED_SEGMENT in ("/" + new_path) and not (
+    +            was_in_executed_at_head and same_plan_at_head
+         )
+    -        # A status flip: staged content is executed but the HEAD content at the OLD path was not.
+    -        head_text = _blob_at(repo_root, "HEAD", old_path) if old_path else None
+    ```
+
+    Hand reproduction, one harness run against two pinned module copies (the harness prints WHICH module it imported, because a bare `python3 script.py` silently picks up an installed copy from another checkout; see DECISION 03-i4c0c3-D1). BEFORE = the HEAD copy extracted with `git archive HEAD agent_workflows`, AFTER = this lane's working tree:
+
+    ```text
+    ############ BEFORE  gate module under test: .../attempt-1/head-pkg/agent_workflows/hooks/executed_transition_gate.py
+    --- CASE a body-only edit to an already-executed plan
+        git diff --cached --name-status -M:  M  .aw/records/plans/executed/20260908-demo-01-abc123-demo.ipd.md
+        _staged_plan_executed_transitions -> [('....ipd.md', 'abc123', 'moved into executed/')]
+        check() rc=1 messages=['... (abc123): raw plan->executed transition (moved into executed/) with NO matching finalize evidence in .aw/state/. ...']
+    --- CASE mv git mv pending/ -> executed/ (must still REFUSE)
+        git diff --cached --name-status -M:  R092  .aw/records/plans/pending/...  .aw/records/plans/executed/...
+        check() rc=1 messages=['... (moved into executed/) ...']
+    --- CASE add plan ADDED straight into executed/ (must still REFUSE)
+        git diff --cached --name-status -M:  A  .aw/records/plans/executed/20260908-demo-01-abc123-demo.ipd.md
+        check() rc=1 messages=['... (moved into executed/) ...']
+
+    ############ AFTER   gate module under test: .../.aw/worktrees/i4c0c3/agent_workflows/hooks/executed_transition_gate.py
+    --- CASE a body-only edit to an already-executed plan
+        _staged_plan_executed_transitions -> []
+        check() rc=0 messages=[]
+    --- CASE b workflow-history edit to an already-executed plan
+        _staged_plan_executed_transitions -> []
+        check() rc=0 messages=[]
+    --- CASE mv git mv pending/ -> executed/ (must still REFUSE)
+        _staged_plan_executed_transitions -> [('....ipd.md', 'abc123', 'moved into executed/')]
+        check() rc=1 messages=['... (moved into executed/) ...']
+    --- CASE add plan ADDED straight into executed/ (must still REFUSE)
+        git diff --cached --name-status -M:  A  .aw/records/plans/executed/20260908-demo-01-abc123-demo.ipd.md
+        _staged_plan_executed_transitions -> [('....ipd.md', 'abc123', 'moved into executed/')]
+        check() rc=1 messages=['... (moved into executed/) ...']
+    ```
+
+    F-11 INDEPENDENTLY RE-MEASURED, because it is the finding that decides whether E-01 is complete. A third module copy was patched with the DRAFT's path-only fix (the path predicate repaired, `head_text` left guarded on `old_path`) and the case-2 edit is STILL REFUSED, the reason merely changing:
+
+    ```text
+    gate module under test: .../attempt-1/draftE01-pkg/agent_workflows/hooks/executed_transition_gate.py
+    --- CASE a body-only edit to an already-executed plan
+        _staged_plan_executed_transitions -> [('....ipd.md', 'abc123', "gained '- Status: executed'")]
+        check() rc=1 messages=["... raw plan->executed transition (gained '- Status: executed') with NO matching finalize evidence ..."]
+    ```
+
+    F-13 holds: the `A`-into-`executed/` case above refuses under the FULL fix, so the exemption is not a blanket one. Harness and captured transcripts: `.aw/state/lane-submissions/run-20260920T041049Z-2017708/03-i4c0c3/attempt-1/repro_i4c0c3.py` (untracked lane submission).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the id-binding clause as it appears in the code, and paste a measured demonstration of the hole and its closure: the same content-substitution fixture (an already-executed path overwritten with a different `- Id:` and `- Status: executed`) returning rc 0 WITHOUT the clause and rc 1 WITH it, alongside the case-2 body edit returning rc 0 in both. Both numbers from one session. Asserting the clause is present without the rc-0 half does not validate this item, because the rc-0 half is the proof the hole was real.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the clause as shipped, in `_staged_plan_executed_transitions`:
 
-- [ ] V-03 validates E-03
+    ```python
+    same_plan_at_head = plan_id is not None and _plan_id_of(head_text) == plan_id
+    moved_into_executed = _EXECUTED_SEGMENT in ("/" + new_path) and not (
+        was_in_executed_at_head and same_plan_at_head
+    )
+    ```
+
+    Note the `plan_id is not None` guard: without it, a staged plan with no readable id and a HEAD blob with none either would make `None == None` an identity MATCH and exempt the very case the hook refuses at `:314-319`. The hole and its closure, measured in ONE session by running the same harness against two module copies differing ONLY in that clause (the variant is the shipped file with the clause deleted):
+
+    ```text
+    === E-01 ONLY (no id binding): substitution + case-a
+    gate module under test: .../attempt-1/e01only-pkg/agent_workflows/hooks/executed_transition_gate.py
+    --- CASE sub content substitution (different - Id:) at an executed path (must REFUSE)
+        check() rc=0 messages=[]          <-- THE HOLE: a raw plan->executed transition commits unchallenged
+    --- CASE a body-only edit to an already-executed plan
+        check() rc=0 messages=[]
+
+    === WITH THE ID BINDING (shipped)
+    gate module under test: .../.aw/worktrees/i4c0c3/agent_workflows/hooks/executed_transition_gate.py
+    --- CASE sub content substitution (different - Id:) at an executed path (must REFUSE)
+        _staged_plan_executed_transitions -> [('....ipd.md', 'zzz999', 'moved into executed/')]
+        check() rc=1 messages=['... (zzz999): raw plan->executed transition (moved into executed/) with NO matching finalize evidence in .aw/state/. ...']
+    --- CASE a body-only edit to an already-executed plan
+        check() rc=0 messages=[]          <-- the false positive stays fixed
+    ```
+
+    The refusal names `zzz999`, the SUBSTITUTED plan's id, which is the actionable identification: it tells the operator which plan is arriving without a finalize. F-12 is therefore confirmed as measured rather than accepted on the review's word.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the passing results of `test_hand_edited_status_executed_without_receipt_refused` and `test_hand_edit_outside_a_merge_still_refused`, AND `git diff -- tests/test_executed_transition_gate.py` proving neither was modified. Paste the evaluated values of `moved_into_executed` and `gained_executed` for the hand-edit fixture, showing the refusal originates from `gained_executed`. Paste the in-`executed/`-but-not-yet-executed flip returning rc 1 with its message.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE TWO NAMED TESTS NO LONGER EXIST AS FUNCTIONS, and the substance they pinned does. Commit `75b90271` ("test: tabulate eleven more suites (385 -> 160 tests)") landed AFTER this plan's review and converted both into ROWS of the two decision tables; see DECISION 03-i4c0c3-D2. Their successors are the row `"a hand-edited `- Status: executed` in place, no journal"` (`PreCommitExecutedGateTests.SITUATIONS`, asserting `REASON_STATUS_FLIP` and forbidding the merge wording) and the row `"a hand-edited status flip OUTSIDE any merge"` (`MergeAwareInTreeEvidenceTests.MERGE_DECISIONS`). Both pass, named individually:
 
-- [ ] V-04 validates E-04
+    ```text
+    === MergeAwareInTreeEvidenceTests.MERGE_DECISIONS (`check` given merge state)
+      [PASS] a hand-edited status flip OUTSIDE any merge
+               want_rc=1 got_rc=1 missing=[] leaked=[]
+      [PASS] a `git mv` into executed/ OUTSIDE any merge
+               want_rc=1 got_rc=1 missing=[] leaked=[]
+    ```
+
+    `PreCommitExecutedGateTests`' whole table (which contains the in-place hand-edit row) passes: `1 passed, 5 deselected` for `-k test_each_staged_situation`, and the full file is `6 passed` (V-04). NEITHER PRE-EXISTING CASE WAS MODIFIED: `git diff -- tests/test_executed_transition_gate.py | grep -cE '^-[^-]'` returns `0`, i.e. the diff REMOVES no line at all and is additions-only.
+
+    The two predicates evaluated by hand from the same git evidence the gate reads, for both flip fixtures:
+
+    ```text
+    gate module: .../.aw/worktrees/i4c0c3/agent_workflows/hooks/executed_transition_gate.py
+      hand-edit flip in PENDING (the `_flip_status_in_place` fixture)
+        git code=M old=None new='.aw/records/plans/pending/20260824-demo-01-abc123-demo.ipd.md'
+        was_in_executed_at_head=False same_plan_at_head=True
+        moved_into_executed=False  gained_executed=True
+        check() rc=1
+        message: ... (abc123): raw plan->executed transition (gained '- Status: executed') with NO matching finalize evidence in .aw/state/. ...
+
+      flip of a plan ALREADY IN executed/ but not yet executed (new row d)
+        git code=M old=None new='.aw/records/plans/executed/20260824-demo-01-abc123-demo.ipd.md'
+        was_in_executed_at_head=True same_plan_at_head=True
+        moved_into_executed=False  gained_executed=True
+        check() rc=1
+        message: ... (abc123): raw plan->executed transition (gained '- Status: executed') with NO matching finalize evidence in .aw/state/. ...
+    ```
+
+    So the refusal originates from `gained_executed` in BOTH, with `moved_into_executed` now False, exactly as E-03 predicts; the second row is the case that proves the exemption is about the TRANSITION and not the directory (`was_in_executed_at_head=True` yet still refused). The two conditions remain OR'd (`if moved_into_executed or gained_executed:`, unchanged by this plan). NO WORDING CHANGED for either: the pending flip reported `gained '- Status: executed'` at HEAD too, verified by loading the HEAD module copy under a distinct name and running the same fixture (`HEAD gate, pending hand-edit flip -> [(..., 'abc123', "gained '- Status: executed'")]`, and `HEAD gate, git mv into executed/ -> [(..., 'abc123', 'moved into executed/')]`).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the `python3 -m pytest tests/test_executed_transition_gate.py -v` output listing every pre-existing test name as passing and showing a total of 31 (27 existing plus 4 new); a count below 31 means tests were lost or not collected. Paste a diff of the test file showing only ADDITIONS, with no edits to existing cases. Separately demonstrate the no-readable-`- Id:` refusal still refuses.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE EXPECTED COUNT OF 31 IS UNREACHABLE AND ITS PURPOSE IS SERVED A DIFFERENT WAY; see DECISION 03-i4c0c3-D2. Commit `75b90271` re-tabulated this file after review, so the 27 tests are now 29 TABLE ROWS plus one non-row test inside 6 pytest test functions, and a row is not separately collectable. The check the item wants (nothing lost, nothing uncollected) is therefore made on ROWS, counted from the data rather than asserted: 11 + 4 + 7 + 4 + 3 = 29 rows at HEAD, 33 after this plan adds 4, with 30 -> 34 behaviours counting the non-row test.
 
-- [ ] V-05 validates E-05
+    ```text
+    $ python3 -m pytest tests/test_executed_transition_gate.py -o addopts="" -v
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: <repo>/.aw/worktrees/i4c0c3
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collected 6 items
+
+    tests/test_executed_transition_gate.py::PreCommitConfigStageRegistrationTests::test_both_git_stages_are_registered_with_only_the_gate_at_merge_time PASSED [ 16%]
+    tests/test_executed_transition_gate.py::PreCommitExecutedGateTests::test_each_staged_situation_gets_its_own_verdict_and_reason PASSED [ 33%]
+    tests/test_executed_transition_gate.py::PreCommitExecutedGateTests::test_real_finalize_own_commit_passes_via_installed_hook PASSED [ 50%]
+    tests/test_executed_transition_gate.py::MergeAwareInTreeEvidenceTests::test_the_merge_detector_reports_the_incoming_side_in_every_state PASSED [ 66%]
+    tests/test_executed_transition_gate.py::MergeAwareInTreeEvidenceTests::test_merge_state_never_becomes_a_blanket_exemption PASSED [ 83%]
+    tests/test_executed_transition_gate.py::MergeAwareInTreeEvidenceTests::test_git_itself_enforces_the_gate_at_both_merge_stages PASSED [100%]
+
+    ============================== 6 passed in 5.17s ===============================
+    ```
+
+    ROW COUNT, read off the tables themselves so it cannot drift from the file:
+
+    ```text
+    PreCommitExecutedGateTests.SITUATIONS:                 15   (11 at HEAD + 4 added here)
+    MergeAwareInTreeEvidenceTests.DETECTOR_STATES:          4
+    MergeAwareInTreeEvidenceTests.MERGE_DECISIONS:          7
+    MergeAwareInTreeEvidenceTests.INSTALLED_HOOK_RUNS:      4
+    PreCommitConfigStageRegistrationTests.REGISTRATIONS:    3
+    total rows: 33  (+1 non-row test) = 34 behaviours pinned; HEAD was 29 rows / 30 behaviours
+    ```
+
+    Every pre-existing row passes individually and by name; all 15 merge rows are enumerated under V-06, and the 11 pre-existing `SITUATIONS` rows pass inside the table run above (a failing row would be NAMED in the assertion message, as demonstrated in V-05 where exactly the intended rows failed and no other). ADDITIONS ONLY: `git diff -- tests/test_executed_transition_gate.py | grep -cE '^-[^-]'` -> `0`, so no existing case was edited or deleted.
+
+    The no-readable-`- Id:` refusal still refuses, in BOTH directions:
+
+    ```text
+    row 'a plan with no readable `- Id:`, during a merge' -> rc=1
+      message: ....ipd.md: this plan is being moved to executed (moved into executed/) but has no readable '- Id:' handle to verify a finalize receipt against; run `aw ipd finalize` instead.
+
+    edit to an already-executed plan that has NO `- Id:` on EITHER side (not a merge) -> rc=1
+      message: ....ipd.md: this plan is being moved to executed (moved into executed/) but has no readable '- Id:' handle ...
+    ```
+
+    That second case is the one the `plan_id is not None` guard exists for: without it `_plan_id_of(None-ish) == None` would read as an identity match and EXEMPT an id-less plan, which is the fail-open direction. No refusal message wording changed for any case that still refuses (verified against the HEAD module copy under V-03).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste all four new tests' source and names, their passing result, AND for (a) and (b) their FAILING output when run against pre-change code (stash the source fix and re-run), including the assertion text showing the failure was the "moved into executed/" refusal rather than a setup error. For (c) and (d) show the assertion is on rc 1 with a real refusal message. A test that passes both before and after validates nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the four cases are ROWS of `PreCommitExecutedGateTests.SITUATIONS` (D-2), added with their `why` prose and their fixtures. Names and assertions as written:
 
-- [ ] V-06 validates E-06
+    ```python
+    ("a BODY-ONLY edit to a plan already committed in executed/",
+     lambda self: self._edit_already_executed_plan("body"), None, 0, (), (), ...),
+    ("an edit to an already-executed plan's `## Workflow history`",
+     lambda self: self._edit_already_executed_plan("history"), None, 0, (), (), ...),
+    ("a WHOLESALE content substitution (different `- Id:`) at an already-executed path",
+     lambda self: self._substitute_plan_at_executed_path(), None, 1,
+     ("zzz999", "aw ipd finalize", REASON_MOVED), (MERGE_WORDING,), ...),
+    ("a plan ALREADY IN executed/ at HEAD but NOT yet executed, flipped in place",
+     lambda self: self._flip_status_inside_executed(), None, 1,
+     ("abc123", "aw ipd finalize", REASON_STATUS_FLIP), (MERGE_WORDING,), ...),
+    ```
+
+    So (c) and (d) assert rc 1 AND a real refusal message: (c) must name the substituted id `zzz999`, the remedy, and the `moved into executed/` reason; (d) must name `abc123`, the remedy, and the `gained '- Status: executed'` reason; both forbid the merge wording, since neither is a merge. The fixtures COMMIT the executed state first (`_commit_plan_already_executed`), whose docstring records why: `LT._completed_plan_text` yields `- Status: approved`, so a fixture that staged without committing would make its own setup the transition and prove nothing about a follow-up edit. `_flip_status_inside_executed` additionally asserts its precondition (`- Status: approved` present at HEAD) so a fixture drift cannot turn it into a vacuous pass.
+
+    ALL FOUR PASS after the change (the table run in V-04: `6 passed`). AGAINST PRE-CHANGE CODE, with the module restored to HEAD and the test file kept, rows (a), (b) and (d) FAIL, each for the right reason and none in setup:
+
+    ```text
+    $ python3 -m pytest tests/test_executed_transition_gate.py -o addopts="" -q -k test_each_staged_situation
+    E   AssertionError: ... the gate misjudged 3 of 15 staged situations.
+    E     a BODY-ONLY edit to a plan already committed in executed/:
+    E       - expected exit code 0, got 1 with messages ['.aw/records/plans/executed/20260824-demo-01-abc123-demo.ipd.md (abc123): raw plan->executed transition (moved into executed/) with NO matching finalize evidence in .aw/state/. ...']
+    E       - an accepted situation must report NOTHING, got [... (moved into executed/) ...]
+    E     an edit to an already-executed plan's `## Workflow history`:
+    E       - expected exit code 0, got 1 with messages [... raw plan->executed transition (moved into executed/) ...]
+    E     a plan ALREADY IN executed/ at HEAD but NOT yet executed, flipped in place:
+    E       - the refusal must state ["gained '- Status: executed'"]; it said '... raw plan->executed transition (moved into executed/) ...'
+    1 failed, 5 deselected in 1.11s
+    ```
+
+    (a) and (b) fail with exactly the `moved into executed/` refusal the item requires, which is the field defect, not a setup error. (d) fails on the REASON: pre-change it refused through the wrong predicate, which is the F-5/F-11 conflation.
+
+    ROW (c) IS PROVEN AGAINST THE RIGHT BASELINE, and it is a different one, which matters: pre-change code refuses the substitution too (no false negative to expose there), so its guard is the E-01-ONLY variant, i.e. the shipped fix with the id binding deleted. Run with that variant in place:
+
+    ```text
+    id binding present? False
+    E   AssertionError: ... the gate misjudged 1 of 15 staged situations.
+    E     a WHOLESALE content substitution (different `- Id:`) at an already-executed path:
+    E       - expected exit code 1, got 0 with messages []
+    E       - the refusal must state ['zzz999', 'aw ipd finalize', 'moved into executed/']; it said ''
+    1 failed, 5 deselected in 1.26s
+    ```
+
+    Exactly ONE row fails in that run, so the row is specific to the clause it guards. The source module was restored from the saved copy afterwards and re-verified (`id binding present? True`, `6 passed`).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste `git merge-base --is-ancestor bcd9755f HEAD` (with its exit status), `git log --oneline -- agent_workflows/hooks/executed_transition_gate.py`, and the `- Status:` line of `29wvmj`'s plan file, establishing it is EXECUTED and in-tree. Paste the 15 `MergeAwareInTreeEvidenceTests` passing by name. Paste evidence that a lane-carried plan is still DETECTED (the `_staged_plan_executed_transitions` tuple during a real merge) and accepted via `_intree_finalize_evidence_ok` rather than via the new exemption. Paste the added comment. Paste the bare `python3 -m pytest` summary line and compare it to the F-17 baseline.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `29wvmj` is EXECUTED and its code is in the file this plan edits (F-16 confirmed):
+
+    ```text
+    $ git merge-base --is-ancestor bcd9755f HEAD; echo "is-ancestor rc=$?"
+    is-ancestor rc=0
+    $ git log --oneline -1 bcd9755f
+    bcd9755f fix(hooks): accept a finalized lane merge in the executed-transition gate (29wvmj)
+    $ git log --oneline -- agent_workflows/hooks/executed_transition_gate.py
+    70792b53 feat(run_viewer): classify an artifact difference by direction on read git evidence (zexed1)
+    bcd9755f fix(hooks): accept a finalized lane merge in the executed-transition gate (29wvmj)
+    f7a3702e feat(ipdgates-08): local pre-commit gate on raw plan->executed commits (dulzpy)
+    $ grep -n '^- Status:' .aw/records/plans/executed/*29wvmj*.ipd.md
+    12:- Status: executed
+    ```
+
+    ALL 15 MERGE ROWS PASS, BY NAME. `unittest -v` prints only the 3 enclosing functions (a passing `subTest` is silent), so each row was driven individually:
+
+    ```text
+    gate module under test: .../.aw/worktrees/i4c0c3/agent_workflows/hooks/executed_transition_gate.py
+    === MergeAwareInTreeEvidenceTests.DETECTOR_STATES (`_merge_incoming_commits`)
+      [PASS] no merge in progress at all                                   expected=[] actual=[]
+      [PASS] a lane exists but no merge has been started                   expected=[] actual=[]
+      [PASS] a hand merge (`git merge --no-commit`) in progress            expected=['153aaa54...'] actual=['153aaa54...']
+      [PASS] a merge inside a WORKTREE, where `.git` is a FILE             expected=['153aaa54...'] actual=['153aaa54...']
+    === MergeAwareInTreeEvidenceTests.MERGE_DECISIONS (`check` given merge state)
+      [PASS] a merge whose incoming side carries the matching finalize commit   want_rc=0 got_rc=0 missing=[] leaked=[]
+      [PASS] a merge whose incoming side has NO finalize commit                 want_rc=1 got_rc=1 missing=[] leaked=[]
+      [PASS] a merge carrying a finalize commit for a DIFFERENT id6             want_rc=1 got_rc=1 missing=[] leaked=[]
+      [PASS] a finalize commit already reachable from HEAD                      want_rc=1 got_rc=1 missing=[] leaked=[]
+      [PASS] a plan with no readable `- Id:`, during a merge                    want_rc=1 got_rc=1 missing=[] leaked=[]
+      [PASS] a hand-edited status flip OUTSIDE any merge                        want_rc=1 got_rc=1 missing=[] leaked=[]
+      [PASS] a `git mv` into executed/ OUTSIDE any merge                        want_rc=1 got_rc=1 missing=[] leaked=[]
+    === MergeAwareInTreeEvidenceTests.INSTALLED_HOOK_RUNS (real git, real hook)
+      [PASS] hand merge of an evidenced lane, gated at `pre-commit`             want_rc=0 got_rc=0 missing=[]
+      [PASS] automated merge of an UNEVIDENCED lane, at `pre-merge-commit`      want_rc=1 got_rc=1 missing=[]
+      [PASS] automated merge of an EVIDENCED lane, at `pre-merge-commit`        want_rc=0 got_rc=0 missing=[]
+      [PASS] an OCTOPUS merge of two evidenced lanes                            want_rc=0 got_rc=0 missing=[]
+    === 15 merge rows exercised; failures: 0
+    ```
+
+    THE SUBSTANTIVE INTERACTION, measured rather than argued. During a real `git merge --no-ff --no-commit` of an evidenced lane, the arrival is STILL DETECTED as a transition, and acceptance comes from in-tree evidence and NOT from the new exemption:
+
+    ```text
+    transitions DETECTED           : [('.aw/records/plans/executed/20260824-demo-01-abc123-demo.ipd.md', 'abc123', 'moved into executed/')]
+    incoming merge side(s)         : ['3cd4b7535e89']
+    journal evidence (must be False, `.aw/state/` cannot travel): [False]
+    IN-TREE evidence (must be True, this is the accepting path): [True]
+    check() rc=0 messages=[]
+    [PASS] DETECTED as a transition (at HEAD the plan was in pending/, so `was_in_executed_at_head` is
+           False) and accepted ONLY via in-tree evidence
+    ```
+
+    That is the narrowing risk closed: `check()` consults merge state only for transitions the detector RETURNED, and the detector still returns this one, so the `29wvmj` path is reached exactly as before.
+
+    THE COMMENT E-06 REQUIRES is at the predicate, naming the two concerns:
+
+    ```python
+    # TWO DISTINCT CONCERNS, kept apart deliberately; do not collapse one back into the other:
+    #   (1) did this file ENTER `executed/` IN THIS COMMIT  -> `moved_into_executed`
+    #   (2) was it merely EDITED while ALREADY there        -> exempt, nothing is transitioning
+    ```
+
+    The module docstring gained a matching `WHAT IS *NOT* A TRANSITION (gatejrnl i4c0c3)` paragraph, so the code no longer describes the over-broad rule it stopped implementing (the obligation in this plan's spec-sync section).
+
+    BARE SUITE (`python3 -m pytest`, per the repository contract):
+
+    ```text
+    1 failed, 7206 passed, 3 skipped, 2 xfailed, 3 warnings in 207.94s (0:03:27)
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    ```
+
+    COMPARED TO THE F-17 BASELINE: the shape matches (one failure, unrelated to this change) but BOTH the count and the failing test differ, because the tree has moved on (5866 -> 7206 passed) and the lane environment differs. The failure is ENVIRONMENTAL, not a delta from this plan, proven two ways rather than asserted: (1) it disappears when the ambient variable is removed, `env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py -o addopts="" -q` -> `43 passed`; and (2) it REPRODUCES with this plan's change fully reverted under the same environment -> `1 failed, 42 passed`. The test asserts `OPENCODE_CONFIG_CONTENT` is absent for a non-isolated turn, and this runner turn exports it into the lane, which is precisely the "additional environmental failures inside a lane worktree from tests that read live repo state" the plan's own validation section anticipated. Filed as backlog `to77re`. F-17's own named failure (`test_reporting_contract.py`) does NOT occur here.
+  - Result: pass
 
 ## Approval and execution gate
 
