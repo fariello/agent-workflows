@@ -6,17 +6,20 @@
 - Scope: IN: at the seam where `integration_is_earned` refuses for a suite failure, ask the agent the question, validate the answer, and act on it: `not-mine` integrates, `fixed` re-runs the full test suite and the RE-RUN decides, `mine` and `needs-human` refuse and preserve. Record the answer durably on the run record and surface `needs-human` in the run report. A failed `fixed` retries within the run's existing `--retry-budget`. OUT: any change to `integration_is_earned`'s own verdict logic (the gate stays hard 100% of the time), any new retry knob, any mechanical verification of a `not-mine` claim, and the review path (a review turn has no suite result to refuse on).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, tests/test_gate_answer_wiring.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Set: gatewire
 - Order: 1
-- Highest E allocated: 06
+- Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: h5pyqa
 - Blocks-Release: next
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-20 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH) and PR-002 fixed; OQ-01 resolved from evidence, OQ-02 by maintainer ruling; readiness go-pending-approval
 
+- 2026-09-20 /plan-review (opencode/its_direct-pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH) and PR-002 FIXED, none deferred, none open; readiness go-pending-approval. SELF-REVIEW DISCLOSED: I authored this plan, so the findings were kept mechanical and every claim was re-derived by executing code or reading a cited line. PR-001 is the one that mattered: the plan's central mechanism could not work, because it built the question from `suite_result.summary`, which `_SUITE_SUMMARY_RE` (oc_runipd.py:3845-3847) reduces to a COUNT LINE - measured, the `FAILED <nodeid>` lines are dropped and `stdout_excerpt` is discarded at :3907. The agent would have been asked to attribute a failure it was never shown. Split into E-02 (capture the names) and E-07 (ask, using them), with V-02 now failing a count-only field. PR-002 recorded the `needs-human` exit-code gap as a declined deferral rather than half-wiring an aggregator that has zero driver call sites (runner_shared.py:11267-11269). OQ-01 resolved FROM EVIDENCE (the `Diagnostics / Blocked Items:` block already exists at render_stream.py:2530-2533, is already conditional, and is where an operator looks), so no maintainer turn was spent on placement. OQ-02 was the maintainer's alone and they ruled 2026-09-20 that `not-mine` integrates in ANY run: attribution is the safeguard, and refusing unattended would preserve the measured 2026-09-19 loss exactly where it costs most. Five decisions recorded as D-1..D-5. Structural lint conforming at author AND review-finalize.
 - 2026-09-20 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored as part 2 of defect 2 from the 2026-09-19 incident. Part 1 (vocabulary, validator, question) merged at `395fc06b` and is inert. Carries `Blocks-Release: next` because the defect it closes cost a full run.
 
 ## Goal
@@ -34,15 +37,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: A suite-failure refusal reaches the ask. `verifier-declined` and `no-trust-signal` do NOT: a verifier that explicitly declined is a stronger and more specific signal than a red suite, and "no trust signal at all" has nothing for an agent to attribute. Both keep refusing exactly as today.
   - Execution state: pending
 
-- [ ] E-02 Build the question with `gate_answer_question`, passing the failing-test text from `suite_result.summary` and this turn's changed files, then spend ONE follow-up turn in the SAME session and re-read the outcome file. MIRROR the shipped `perform_defect_reask` call site (`runner_shared.py:13884`) rather than inventing a second mechanism: bind each host's own resume primitive by name, re-collect the outcome file for an isolated lane, and count the turn against the session budget.
+- [ ] E-02 CAPTURE THE FAILING TEST NAMES, which are NOT available today. FOUND AT REVIEW and this item exists because the plan's original E-02 was unsatisfiable as written: it said to pass "the failing-test text from `suite_result.summary`", but `_SUITE_SUMMARY_RE` (`oc_runipd.py:3845-3847`) captures ONLY the count line. Measured by running that regex over real pytest output: it yields `'1 failed, 7080 passed, 3 skipped, 2 xfailed in 98.49s'` and the `FAILED tests/...::test_name` lines are absent. The full text exists as `stdout_excerpt` at `oc_runipd.py:3907` and is DISCARDED after the regex, and `attempt["suite_check"]` (`runner_shared.py:13987-13994`) persists only the summary. So add a field to `SuiteCheckResult` carrying the failing-test lines, populate it in `run_suite_check`, and persist it on `attempt["suite_check"]`.
   - Depends on: E-01
+  - Expected outcome: A suite failure yields the actual `FAILED <nodeid>` lines, available both to the question in E-03 and to a human reading the run record. A count line alone is NOT sufficient: "1 failed" tells an agent nothing it can attribute, which is the whole judgement the answer turns on.
+  - Execution state: pending
+
+- [ ] E-07 Build the question with `gate_answer_question`, passing the failing-test lines from E-02 and this turn's changed files, then spend ONE follow-up turn in the SAME session and re-read the outcome file. MIRROR the shipped `perform_defect_reask` call site (`runner_shared.py:13884`) rather than inventing a second mechanism: bind each host's own resume primitive by name, re-collect the outcome file for an isolated lane, and count the turn against the session budget.
+  - Depends on: E-02
   - Expected outcome: The agent is asked once per attempt, on both hosts, with the failing tests and its own changed files in front of it. The turn is charged to the session exactly as a defect re-ask is.
   - Execution state: pending
 
 ### Task group 2: Act on each answer
 
 - [ ] E-03 Act on a usable answer. `not-mine` sets `integration.earned` true for this attempt so self-finalize and integration proceed. `mine` and `needs-human` leave the refusal standing and the lane preserved. An UNUSABLE answer (absent, unknown token, missing reason) leaves the refusal standing too.
-  - Depends on: E-02
+  - Depends on: E-07
   - Expected outcome: Only `not-mine` releases. Silence and every malformed answer refuse, which is the fail-closed direction: a wrongly refused lane is preserved and recoverable, a wrongly integrated one merges work no trust signal cleared.
   - Execution state: pending
 
@@ -100,6 +108,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: EXPLICITLY OUT OF SCOPE by the same ruling: the gate stays hard 100% of the time, and the agent answers it. Softening the gate would trade a recoverable refusal for an unnoticed bad merge.
 - Making the whole-repository suite stop being every lane's trust signal.
   - Carrier: 7pntcb
+- Giving a `needs-human` answer its own run EXIT CODE. FOUND AT REVIEW: `needs-human` is semantically the same "a human is required" condition that `NEEDS_INPUT_TOKEN` represents, and `run_evidence.aggregate_run_exit` already maps that to spec `25kzda` 5.6's exit 3 and already outranks a plain item failure. So the mapping exists and is correct.
+  - Carrier-Declined: DELIBERATELY NOT REACHED, because the blocker is not this plan's. `runner_shared.py:11267-11269` records that the aggregator has ZERO call sites in either driver, so reaching exit 3 at all means wiring both drivers to it, which changes EVERY run's exit classification. That is a far larger and riskier change than adding a refusal answer, it was already fenced out of an earlier Set (that comment's own `zz5yxq` OQ-02), and doing it here would smuggle a run-wide behavior change into a per-item feature. This plan therefore leaves the exit code exactly as a refusal produces today and says so, rather than half-wiring it. Recorded so a later reader does not mistake the omission for an oversight.
 
 ## Scope check
 
@@ -119,16 +129,23 @@ No `.spec.md` edit, so none is declared in `- Scope-Paths:`. The behavior this a
 ### OQ-01: Where exactly should a `needs-human` item appear in the run summary?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
+- Resolution: RESOLVED AT REVIEW 2026-09-20 FROM REPOSITORY EVIDENCE, so no maintainer turn is spent on it. An operator-facing section for exactly this purpose already exists: `render_stream.py:2530-2533` emits a `Diagnostics / Blocked Items:` block, conditionally (only when there is something to say, so an empty run gains no spurious line) and after the summary table where an operator already looks for why an item did not finish. A `needs-human` answer belongs there, as its own bullet naming the item and the decision the agent asked for.
+  WHY THIS IS NOT MERELY A PREFERENCE: the maintainer's stated requirement was that the answer be where the operator actually looks rather than buried in a per-item table, and this is the one section that already satisfies that and is already conditional. Inventing a second location would fragment the place an operator checks. E-06 is therefore narrowed to "add a distinct bullet to the existing block", which is smaller and lower-risk than the open question implied.
+  WHAT REMAINS THE MAINTAINER'S: nothing about placement. If they prefer a different location on sight, that is a one-line change to E-06 and not a redesign.
 - Carrier-Declined: A PLACEMENT DECISION RESOLVED INSIDE THIS PLAN'S OWN EXECUTION, carrying no work beyond E-06. The requirement is fixed (it must be where the operator actually looks, not buried in a per-item table), and only the exact location is open. The maintainer asked to see this before it ships, which E-06 satisfies by proposing a placement for confirmation rather than deciding silently.
 - Resolution or deferral rationale: NOT BLOCKING because E-06 is satisfiable at several placements and any of them beats today's behavior, which surfaces nothing. Recorded because the maintainer named it as one of three things to look at, and because a `needs-human` answer is worthless if the human never sees it: the answer exists precisely to route a decision, so its visibility IS its value.
 
 ### OQ-02: Should a `not-mine` release be permitted in a fully unattended run?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
+- Resolution: RESOLVED BY THE MAINTAINER 2026-09-20: YES, allow it in any run, attended or not. ATTRIBUTION IS THE SAFEGUARD, not supervision. A `not-mine` answer therefore integrates unconditionally, and E-03 needs no attended/unattended branch.
+  THE REASONING, recorded because this is the one place in the system where an agent's assertion substitutes for a green test suite. The alternative was measured on 2026-09-19: three lanes whose work was correct were refused over one unrelated red test, nothing integrated, 2h 10m and $55.02 were spent, and a human had to hand-merge afterwards anyway. Refusing unattended would preserve exactly that loss for the runs where it costs most, since an unattended overnight run is precisely when nobody is there to release a correct lane.
+  IT IS CONSISTENT WITH HOW THIS REPOSITORY ALREADY TREATS A FALSE CLAIM. A forged `- Readiness:` field and an unobserved `V-*` evidence block are both prevented by being durable, attributed and reviewable rather than by machine verification. A false `not-mine` is the same class of offense and gets the same treatment, which is why E-05 (record the answer, its reason and its session) is not optional bookkeeping but the safeguard itself.
+  THE ACCEPTED COST, stated plainly rather than argued away: a false `not-mine` in an unattended run merges work whose trust signal nobody cleared, and the record is not read until morning. The maintainer accepted that in exchange for not re-incurring the measured loss.
 - Carrier-Declined: A POLICY QUESTION THE CURRENT DESIGN ALREADY ANSWERS CONSERVATIVELY, with nothing outstanding. As specified, `not-mine` releases in any run, and the safeguard is attribution rather than supervision. Recorded because the maintainer flagged this exact item as the one to scrutinize, and because if the answer is "no", the remedy is a refusal plus a recorded request rather than new machinery, which E-03 could express without redesign.
 - Resolution or deferral rationale: NOT BLOCKING because the wiring is identical either way; only the disposition of one branch changes. The case FOR allowing it: the alternative is tonight's outcome, where a correct lane is lost to an unrelated test and a human must hand-merge it anyway. The case AGAINST: an unattended run can integrate on an agent's unverified assertion, and nobody reads the record until morning.
 
@@ -142,7 +159,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: Paste the rendered question from a real refusal, showing the failing test names and the turn's changed files both present. Paste evidence the follow-up ran in the SAME session on BOTH hosts and that the session turn count was bumped once.
+  - Required evidence: Paste a real suite failure's captured failing-test lines, showing at least one `FAILED <nodeid>` line PRESENT in the new field and in the persisted `attempt["suite_check"]`. Then paste the OLD behavior for contrast: `_SUITE_SUMMARY_RE` run over the same output, yielding only the count line. A field containing just "N failed" FAILS this item, because a count tells an agent nothing it can attribute.
   - Observed evidence:
   - Result: pending
 
@@ -165,6 +182,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: Paste the run summary for a run containing a `needs-human` answer, showing the item and the requested decision in the operator-facing output. Paste the same summary for a run with none, showing no spurious line.
   - Observed evidence:
   - Result: pending
+- [ ] V-07 validates E-07
+  - Required evidence: Paste the rendered question from a real refusal, showing the failing test names (from E-02) and the turn's changed files both present. Paste evidence the follow-up ran in the SAME session on BOTH hosts and that the session turn count was bumped exactly once.
+  - Observed evidence:
+  - Result: pending
+
 
 ## Approval and execution gate
 
