@@ -19,6 +19,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-20 executed (opencode its_direct/pt3-claude-opus-5-1m-us, aw oc run run-20260920T181010Z-757518 lane bn026f): all five E-items performed and all five V-items verified with pasted measured evidence at lane HEAD `e72eba8d`. Added the three R10.2 helpers (`resolve_lifecycle` module-level, `format_lifecycle_marker`/`style_lifecycle_text` as `Term` methods, per D1), the Section 9.1 row renderer whose neutral cells are unstylable by construction, the Section 9.2 compact form and the table-GENERATED legend renderer, and the two Section 9.4 primitives (`visible_width`, `truncate_visible`, plus `_pad_visible`). 44 new tests in `tests/test_term.py` (7501 -> 7545 passed at the same HEAD, delta fully accounted for). `aw ipd lint --phase pre-transition` conforming. Both dependency edges (`executed:udgilu`, `executed:pow5sj`) were satisfied on disk at dispatch. One environment-induced suite failure diagnosed as pre-existing and NOT this change (the turn's own `OPENCODE_CONFIG_CONTENT` leaks into `test_turn_bounds`); filed as backlog `r67fl1`.
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-19 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED. PR-401..PR-407 all FIXED, none deferred, none open. Two HIGH scope-understatements fixed: E-04 delegated all of spec Section 9.4 to an ASCII table satisfying one of its four contract bullets (three fail by measurement in UTF-8 mode), and E-03 claimed legend placement obligations this child structurally cannot meet. Readiness go-pending-approval; dispatch still gated by udgilu PR-203 and pow5sj PR-301.
 
@@ -36,20 +37,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: The rendering API
 
-- [ ] E-01 Add the R10.2 helpers to `agent_workflows/term.py`: a resolve entry point delegating to `lifecycle_style` (no semantic data duplicated into `term.py`), a marker formatter returning the glyph in the active tier's form, and a text styler applying the resolved color and bold to a given string.
+- [x] E-01 Add the R10.2 helpers to `agent_workflows/term.py`: a resolve entry point delegating to `lifecycle_style` (no semantic data duplicated into `term.py`), a marker formatter returning the glyph in the active tier's form, and a text styler applying the resolved color and bold to a given string.
   - Depends on: none
   - Expected outcome: Three callable helpers. Resolution returns data with no ANSI; only the rendering helpers emit escapes. `term.py` gains no lifecycle stage table of its own.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Implement the Section 9.1 full-row rule: glyph, id6, and status word take the SAME resolved color and bold flag, while artifact type, title, and path take none. Whole-row coloring must be impossible through this API rather than merely discouraged.
+- [x] E-02 Implement the Section 9.1 full-row rule: glyph, id6, and status word take the SAME resolved color and bold flag, while artifact type, title, and path take none. Whole-row coloring must be impossible through this API rather than merely discouraged.
   - Depends on: E-01
   - Expected outcome: A caller styling a full row gets the three lifecycle elements colored identically and the rest neutral. Criterion A10 holds.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Implement the Section 9.2 compact form `GLYPH id6` with glyph and id6 styled together. Also add the legend RENDERER: one function that emits every stage's glyph, ASCII fallback, and word, GENERATED from `lifecycle_style`'s table rather than from a literal list, ordered in lifecycle word order and not by color name (Section 11 item 6).
+- [x] E-03 Implement the Section 9.2 compact form `GLYPH id6` with glyph and id6 styled together. Also add the legend RENDERER: one function that emits every stage's glyph, ASCII fallback, and word, GENERATED from `lifecycle_style`'s table rather than from a literal list, ordered in lifecycle word order and not by color name (Section 11 item 6).
   - Depends on: E-01
   - Expected outcome: A compact id6-only view communicates the stage. A legend renderer exists, is generated from the shared table so it cannot drift, and orders stages as Section 5 does.
-  - Execution state: pending
+  - Execution state: performed
 
   THE BOUNDARY WITH `7p3tt8`, tightened at review (F-06) because the original wording claimed Section 9.2's PLACEMENT obligations that this child cannot discharge. Section 9.2 requires a legend to be "available in the command help" and "SHOWN ONCE in a view that contains three or more semantic stages". Neither is achievable here: this child's `- Scope-Paths:` is `term.py` and `tests/test_term.py`, so it touches no argparse help and no view, and it is ordered BEFORE every consumer conversion, so no converted view exists yet to show a legend in. `7p3tt8` E-03/E-04 own both (help placement, documentation reference, and the generated-not-hand-maintained drift guard), and `grep` confirms this plan was the ONLY file in the Set mentioning the "three or more" rule, so claiming it here was the one place it could have been lost between the two children. This child owns the RENDERER; `7p3tt8` owns where it appears. The GENERATED-FROM-THE-TABLE property is stated here rather than left to `7p3tt8` because a hand-written literal legend shipped in `term.py` is what `7p3tt8` E-04's drift guard would then have to retrofit.
 
@@ -57,10 +58,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Grapheme safety and the capability matrix
 
-- [ ] E-04 Enforce the Section 9.4 rule that a lifecycle symbol is an opaque grapheme, in UTF-8 mode as well as ASCII mode. Add TWO small shared primitives in `term.py` and route this child's own marker/row/compact rendering through them: (a) a visible-width measurement that strips ANSI AND counts a zero-width code point as 0 columns, and (b) a truncation that never severs a base character from its following variation selector. The ASCII substitution table (`render_stream`'s proven pattern) remains the ASCII-mode answer and is necessary but NOT sufficient, for the measured reason below.
+- [x] E-04 Enforce the Section 9.4 rule that a lifecycle symbol is an opaque grapheme, in UTF-8 mode as well as ASCII mode. Add TWO small shared primitives in `term.py` and route this child's own marker/row/compact rendering through them: (a) a visible-width measurement that strips ANSI AND counts a zero-width code point as 0 columns, and (b) a truncation that never severs a base character from its following variation selector. The ASCII substitution table (`render_stream`'s proven pattern) remains the ASCII-mode answer and is necessary but NOT sufficient, for the measured reason below.
   - Depends on: E-01
   - Expected outcome: `⚠︎` and `↩︎` measure 1 visible column rather than 2, so a padded lifecycle column aligns in UTF-8 mode; truncating a styled row at any boundary leaves U+FE0E attached to its base (criterion A15); and no visible column in the new code is computed with a bare `len()` on styled or VS-bearing text.
-  - Execution state: pending
+  - Execution state: performed
 
   WHY THE ASCII TABLE ALONE DOES NOT SATISFY SECTION 9.4, added at review (F-05) after measuring all four of the section's contract bullets. The ASCII table delivers exactly ONE of them (bullet 3, "guaranteed single-byte alignment in ASCII mode"). Bullets 1, 2 and 4 are UTF-8-MODE obligations and an ASCII substitution table is inert in UTF-8 mode by construction, because the substitution never happens there. All three currently FAIL, measured by execution on 2026-09-19 rather than read:
 
@@ -80,10 +81,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
   SCOPE LIMIT, so this does not become a repository-wide refactor: this child routes ITS OWN new lifecycle rendering through the two primitives and leaves the existing generic call sites alone. Repairing `status_256`'s and `format_table`'s codepoint padding for non-lifecycle callers is not this child's work, and `render_stream._one_line` belongs to `qdd5jq`; both are recorded in Deferred with carriers.
 
-- [ ] E-05 Add the criterion A16 capability matrix tests covering the normal UTF-8 profile, ASCII mode, colored TTY, plain TTY, piped output, and `TERM=dumb`, plus A13 (`FORCE_COLOR` enables ANSI per existing precedence but does not force Unicode onto an incompatible stream).
+- [x] E-05 Add the criterion A16 capability matrix tests covering the normal UTF-8 profile, ASCII mode, colored TTY, plain TTY, piped output, and `TERM=dumb`, plus A13 (`FORCE_COLOR` enables ANSI per existing precedence but does not force Unicode onto an incompatible stream).
   - Depends on: E-02, E-03, E-04
   - Expected outcome: Six named environment profiles asserted, each showing the expected glyph form and ANSI presence. `FORCE_COLOR` does not override ASCII stream capability.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -172,35 +173,431 @@ NO SPEC AMENDMENT IS OWED, checked at review rather than assumed. E-04 adds a sh
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the three helper signatures as `inspect.signature` output. Paste the resolve entry point's raw `repr` and show it contains no `\x1b`, proving it returns ANSI-free data. Paste `grep -n "STATUS_COLOR_256\|_STAGE\|GLYPH" agent_workflows/term.py` proving `term.py` gained no lifecycle stage table of its own and that the helpers import their data from `lifecycle_style`. ALSO paste proof the three EXCLUDED generic reads are untouched: `grep -n STATUS_COLOR_256 agent_workflows/term.py` must still show reads inside `format_outcome`, `badge` and `format_path` (F-04).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED 2026-09-20 by execution at lane HEAD `e72eba8d` (branch `aw/lane/bn026f`).
 
-- [ ] V-02 validates E-02
+    THE THREE SIGNATURES, as `inspect.signature` output. The spec's three example names were kept
+    (OQ-01's recorded resolution), with the two rendering helpers as `Term` methods because rendering
+    is bound to a stream's resolved capability while resolution is not:
+
+    ```text
+    resolve_lifecycle(artifact_type: 'str', native_status: 'Optional[str]' = None, *, activity: 'Optional[str]' = None, integrity: 'lifecycle_style.IntegrityInput' = None, obstruction: 'Optional[str]' = None, condition: 'Optional[str]' = None) -> 'lifecycle_style.Resolved'
+    Term.format_lifecycle_marker(self, resolved: 'lifecycle_style.Resolved', *, width: 'int' = 0, style: 'bool' = True) -> 'str'
+    Term.style_lifecycle_text(self, text: 'str', resolved: 'lifecycle_style.Resolved') -> 'str'
+    ```
+
+    THE RESOLVE ENTRY POINT RETURNS ANSI-FREE DATA, raw `repr` of `resolve_lifecycle("backlog", "blocked")`:
+
+    ```text
+    Resolved(stage='blocked', style=StageStyle(stage='blocked', unicode='⚠︎', ascii='!', color=208, bold=True, meaning='Work cannot advance until a named condition clears'), family='backlog', native_status='blocked', activity=None, obstruction=None, integrity=None, diagnostic=None)
+    contains \x1b: False
+    ```
+
+    `term.py` GAINED NO LIFECYCLE STAGE TABLE OF ITS OWN. `grep -n "STATUS_COLOR_256\|_STAGE\|GLYPH" agent_workflows/term.py`:
+
+    ```text
+    724:    from .lifecycle_style import ALL_STAGES
+    726:    missing = sorted(ALL_STAGES - set(STAGE_COLOR_16))
+    734:    unknown = sorted(set(STAGE_COLOR_16) - ALL_STAGES)
+    796:STATUS_COLOR_256 = {
+    858:GLYPHS = {
+    878:ASCII_GLYPHS = {
+    1004:            return GLYPHS.get(k, k)
+    1005:        return ASCII_GLYPHS.get(k, k)
+    1034:        code = STATUS_COLOR_256.get(status.lower(), 244)
+    1094:        """Return the lifecycle GLYPH in this stream's tier, styled and optionally padded.
+    1121:        """Return Section 9.2's compact ``GLYPH id6`` form, glyph and id6 styled TOGETHER.
+    1331:        code = STATUS_COLOR_256.get(s_norm, 244)
+    1406:            code = STATUS_COLOR_256.get(str(role_or_code).lower(), 244)
+    1414:        code = STATUS_COLOR_256.get("paths", 33)
+    ```
+
+    Every pre-existing symbol is at its prior position (`STATUS_COLOR_256` def plus the four reads;
+    `GLYPHS`/`ASCII_GLYPHS` are the GENERIC command-outcome tables R10.3 keeps, read only by
+    `Term.glyph` at 1004-1005, not by any lifecycle helper). The two matches at 1094 and 1121 are
+    DOCSTRING text in the new methods, not table definitions. And the new helpers read the shared
+    module rather than any local table, measured per function by source inspection:
+
+    ```text
+    resolve_lifecycle:               reads STATUS_COLOR_256 = False | reads lifecycle_style/STAGE_COLOR_16 = True
+    Term.format_lifecycle_marker:    reads STATUS_COLOR_256 = False | reads lifecycle_style/STAGE_COLOR_16 = True
+    Term.style_lifecycle_text:       reads STATUS_COLOR_256 = False | reads lifecycle_style/STAGE_COLOR_16 = True
+    Term.format_lifecycle_legend:    reads STATUS_COLOR_256 = False | reads lifecycle_style/STAGE_COLOR_16 = True
+    Term.format_lifecycle_compact:   reads STATUS_COLOR_256 = False | reads lifecycle_style/STAGE_COLOR_16 = True
+    Term.format_lifecycle_row:       reads STATUS_COLOR_256 = False | reads lifecycle_style/STAGE_COLOR_16 = True
+    ```
+
+    THE THREE EXCLUDED GENERIC READS ARE UNTOUCHED (F-04), each still inside its own function:
+
+    ```text
+    Term.format_outcome: ['code = STATUS_COLOR_256.get(s_norm, 244)']
+    Term.badge:          ['code = STATUS_COLOR_256.get(str(role_or_code).lower(), 244)']
+    Term.format_path:    ['code = STATUS_COLOR_256.get("paths", 33)']
+    ```
+
+    BEYOND THE REQUIRED EVIDENCE, the seam is now pinned by test rather than by this paste:
+    `ResolutionIsSeparateFromRenderingTests::test_resolve_lifecycle_consults_no_terminal_and_no_environment`
+    resolves the same input under three hostile environments (`TERM=xterm-256color`; `NO_COLOR=1` plus
+    `TERM=dumb`; `FORCE_COLOR=1` plus empty `TERM`) and requires a byte-identical answer, and
+    `test_term_defines_no_lifecycle_stage_table_of_its_own` asserts all 20 stages x 2 modes render the
+    exact `lifecycle_style` value, so a private copy could only pass by agreeing on all forty.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste a rendered full row via `repr` so the escapes are visible, showing the SAME `38;5;N` code and the same bold prefix on glyph, id6 and status word, and NO escape at all around type, title or path. Criterion A10. Then paste the NEGATIVE case that proves the API cannot whole-row color: show that the row helper leaves the neutral cells unstyled even when asked to style the row, or paste the signature proving no parameter exists that would color them. An A10 test that only asserts the positive case cannot catch a regression to whole-row coloring.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED 2026-09-20 by execution at lane HEAD `e72eba8d`.
 
-- [ ] V-03 validates E-03
+    THE POSITIVE CASE, a full row rendered at the 256 tier via `repr` so the escapes are visible
+    (`Term(color=True, unicode=True, depth=DEPTH_256)`, `resolve_lifecycle("backlog","blocked")`):
+
+    ```text
+    'BACKLOG  \x1b[1;38;5;208m⚠︎\x1b[0m  \x1b[1;38;5;208mabc123\x1b[0m  \x1b[1;38;5;208mblocked\x1b[0m  Short title  a/b.md'
+
+    opening escapes: ['\x1b[1;38;5;208m', '\x1b[1;38;5;208m', '\x1b[1;38;5;208m'] -> distinct: {'\x1b[1;38;5;208m'} count: 3
+    ```
+
+    Exactly THREE opening escapes, all IDENTICAL, all carrying the same `1;` bold prefix and the same
+    `38;5;208` code, which is the Section 5 color of `blocked`. Criterion A10's first half holds.
+
+    NO ESCAPE AROUND TYPE, TITLE OR PATH, measured by slicing the row at each neutral cell:
+
+    ```text
+    'BACKLOG':     slice='BACKLOG'     has_escape=False
+    'Short title': slice='Short title' has_escape=False
+    'a/b.md':      slice='a/b.md'      has_escape=False
+    ```
+
+    THE NEGATIVE CASE, both halves, because A10 asserted only positively cannot catch a regression to
+    whole-row coloring. FIRST, no parameter exists by which a caller could ask for it:
+
+    ```text
+    format_lifecycle_row(self, resolved: 'lifecycle_style.Resolved', *, id6: 'str' = '', artifact_type: 'str' = '', title: 'str' = '', path: 'str' = '', type_width: 'int' = 0, id6_width: 'int' = 0, status_width: 'int' = 0, marker_width: 'int' = 0) -> 'str'
+    ```
+
+    The neutral cells are plain `str` inputs and there is no `style_title`, `style_type`, `style_path`,
+    `style_row`, `whole_row` or `color_row` parameter, which
+    `FullRowStylingTests::test_whole_row_coloring_is_unreachable_through_the_api` asserts by name.
+    SECOND, the structural property: the escape count does NOT grow as neutral cells are supplied:
+
+    ```text
+    escape count with id6 only:          6
+    escape count with type+title+path:   6   -> adding neutral cells adds NO escapes: True
+    ```
+
+    THE BOLD FLAG IS THE TABLE'S, NOT THE RENDERER'S (Section 11 item 4), which matters because A10
+    says "the same resolved color AND BOLD FLAG" and a renderer that hardcoded bold would pass the
+    colour half while silently violating the restraint rule. An unbolded stage renders with no bold
+    prefix at all:
+
+    ```text
+    resolve_lifecycle("plans","draft") -> stage 'formative', style.bold = False
+    '\x1b[38;5;245m○\x1b[0m  \x1b[38;5;245mabc123\x1b[0m  \x1b[38;5;245mdraft\x1b[0m'
+    ```
+
+    GLYPH IMMEDIATELY PRECEDES THE ID6 (Section 9.1's referent rule), asserted on the stripped row by
+    `test_the_glyph_immediately_precedes_the_id6` against `r"\u26a0\ufe0e\s+abc123"`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste a compact `GLYPH id6` render (via `repr`) showing glyph and id6 inside ONE escape pair rather than two adjacent pairs. Paste the legend renderer's full output showing every stage with its glyph, ASCII fallback and word, in Section 5's lifecycle order. Paste proof the legend is GENERATED: show that it iterates `lifecycle_style`'s table (paste the source lines) and that its row count equals the stage table's length computed at runtime, not a literal. Paste `grep` showing `term.py` contains no once-per-process legend latch (F-06).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED 2026-09-20 by execution at lane HEAD `e72eba8d`.
 
-- [ ] V-04 validates E-04
+    THE COMPACT FORM, glyph and id6 inside ONE escape pair rather than two adjacent pairs:
+
+    ```text
+    format_lifecycle_compact("abc123", resolve_lifecycle("backlog","blocked"))
+      -> '\x1b[1;38;5;208m⚠︎ abc123\x1b[0m'
+      escape count: 2   (one open + one reset == ONE run, not two runs of two)
+    with word=True:
+      -> '\x1b[1;38;5;208m⚠︎ abc123\x1b[0m \x1b[1;38;5;208mblocked\x1b[0m'
+    ```
+
+    THE LEGEND RENDERER'S FULL OUTPUT, every stage with its glyph, ASCII fallback and word, in Section
+    5 lifecycle order (shown with the escapes stripped for legibility; the raw form carries one styled
+    run per glyph, and the un-stripped rendering is what the tests assert on):
+
+    ```text
+    ○  D  formative
+    ◔  Q  review-queued
+    ◑  A  authority-queued
+    ◕  >  ready
+    ◎  R  reviewing
+    ▶  E  executing
+    ◆  V  verifying
+    ⇄  M  integrating
+    ↩︎  T  recovering
+    ●  *  active
+    …  .  waiting-input
+    ⚠︎  !  blocked
+    ✘  X  failed
+    ✓  +  done
+    ↻  ~  reusable
+    ◇  P  parked
+    ↪  S  superseded
+    ∅  N  abandoned
+    ?  ?  unknown
+    ·  -  none
+    ```
+
+    IT IS GENERATED, NOT A LITERAL. The source iterates the shared table:
+
+    ```text
+    names = tuple(stages) if stages is not None else lifecycle_style.STAGE_ORDER
+    for stage in names:
+        style = lifecycle_style.style_for(stage)
+    ```
+
+    and the row count equals the stage table's length computed AT RUNTIME rather than a literal:
+
+    ```text
+    legend row count: 20  ==  len(LS.STAGE_ORDER) computed at runtime: 20  -> True
+    order == LS.STAGE_ORDER (lifecycle order, not color order): True
+    ```
+
+    `CompactFormAndLegendTests::test_the_legend_covers_every_stage_and_is_generated_not_literal`
+    asserts that equality, so a 21st stage added to `lifecycle_style` fails here until the legend
+    covers it, and `test_the_legend_uses_lifecycle_order_and_not_color_order` pins Section 11 item 6 by
+    comparing the emitted word sequence to `STAGE_ORDER` element for element.
+
+    NO ONCE-PER-PROCESS LATCH (F-06).
+    `grep -nE "_legend_shown|_legend_emitted|legend_once|_shown_once|nonlocal .*legend|global .*legend" agent_workflows/term.py`
+    returns no matches, and `test_the_legend_holds_no_once_per_process_latch` asserts idempotence
+    across repeated calls AND across two separate `Term` instances, so the showing rule stays each
+    converting view's judgement as E-03's note requires.
+
+    ASCII MODE USES THE EXACT SECTION 5 FALLBACKS (A12), asserted per stage by
+    `test_the_legend_in_ascii_mode_uses_the_exact_section_5_fallbacks`. NOTE ONE THING THE TEST HAD TO
+    BE WRITTEN AROUND, recorded because the obvious assertion is wrong: `unknown`'s Unicode form IS
+    the ASCII character `?`, so asserting "the grapheme is absent from the ASCII line" FAILS on a
+    conforming render (measured: `AssertionError: '?' unexpectedly found in '?  unknown'`). The test
+    asserts `line.isascii()` instead, which is the property actually wanted.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: FOUR separate pastes, one per Section 9.4 contract bullet, because a single round trip passes while three bullets fail (F-05).
     1. WIDTH: paste the visible-width helper's output for `⚠︎` (U+26A0 U+FE0E), `↩︎` (U+21A9 U+FE0E) and `◕`, showing `1` for all three while `len()` reports `2, 2, 1`. Show the same helper returns the same value for the styled and unstyled forms of one of them, proving it is ANSI-aware.
     2. ALIGNMENT (bullet 2): paste a two-row padded lifecycle column, one row VS-bearing and one not, and show both rows measure the SAME rendered width by the new helper. Contrast with the pre-change behavior measured at review (`status_256('⚠︎', width=4)` -> 3 rendered columns versus `status_256('◕', width=4)` -> 4).
     3. TRUNCATION (bullet 1): truncate a styled `⚠︎` row AT THE ADVERSARIAL BOUNDARY (a limit that lands between U+26A0 and U+FE0E) and show U+FE0E is still present in the resulting code points, as a `[hex(ord(c)) for c in out]` dump. A truncation asserted only at a safe offset proves nothing.
     4. NO BARE `len()` (bullet 4): paste `grep -n` over the lines E-04 adds showing no `len(` computing a visible column on styled or VS-bearing text, and showing the new width helper is the single measurement path (F-07: do NOT add a second `strip_ansi` path).
     Criterion A15 is satisfied by items 1, 3 and 4 together; item 2 is the Section 9.4 bullet no lettered criterion covers.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED 2026-09-20 by execution at lane HEAD `e72eba8d`. FOUR SEPARATE
+    MEASURED PASTES, one per Section 9.4 contract bullet, as required.
 
-- [ ] V-05 validates E-05
+    **1. WIDTH.**
+
+    ```text
+    blocked     U+26A0 U+FE0E: visible_width=1  len()=2
+    recovering  U+21A9 U+FE0E: visible_width=1  len()=2
+    ready       U+25D5:        visible_width=1  len()=1
+    ```
+
+    ANSI-AWARE, the same helper on the styled and unstyled forms of one of them:
+
+    ```text
+    styled   '\x1b[1;38;5;208m⚠︎\x1b[0m' -> visible_width = 1
+    unstyled '\u26a0\ufe0e'              -> visible_width = 1
+    same: True
+    ```
+
+    **2. ALIGNMENT (bullet 2, the one no lettered criterion covers).** A two-row padded lifecycle
+    column at `width=4`, one row VS-bearing and one not:
+
+    ```text
+    NEW PATH (format_lifecycle_marker):
+      blocked   '⚠︎   '  codepoints=5  rendered_cols=4
+      approved  '◕   '  codepoints=4  rendered_cols=4
+      -> both rows measure the SAME rendered width: {4}
+      -> ALL 20 STAGES at width=4 measure: {4}
+    ```
+
+    Contrast with the pre-change behavior, re-measured here rather than quoted (`status_256` is
+    deliberately unchanged, being the generic path deferred to `9zvl2w`):
+
+    ```text
+    PRE-CHANGE (status_256, still present and still ragged):
+      blocked '⚠︎': '⚠︎  '  codepoints=4  rendered_cols=3
+      ready   '◕': '◕   '  codepoints=4  rendered_cols=4
+    ```
+
+    Note the codepoint counts INVERT between the two paths (5 vs 4 for the VS row), which is the whole
+    point: the new path spends a code point to buy a column, where the old path spent a column to keep
+    the code point count level. `GraphemeSafetyTests::test_the_old_codepoint_padding_really_was_ragged`
+    pins the 3-versus-4 measurement so the alignment test above cannot pass trivially.
+
+    **3. TRUNCATION (bullet 1) AT THE ADVERSARIAL BOUNDARY.** The styled row is
+    `'BACKLOG  \x1b[1;38;5;208m⚠︎\x1b[0m  \x1b[1;38;5;208mabc123\x1b[0m  \x1b[1;38;5;208mblocked\x1b[0m  Short title'`,
+    whose adversarial limit is 10, the offset that lands between U+26A0 and U+FE0E:
+
+    ```text
+    limit=9:  visible=9  U+FE0E present=False
+      ['0x42','0x41','0x43','0x4b','0x4c','0x4f','0x47','0x20','0x20']
+    limit=10: visible=10 U+FE0E present=True
+      ['0x42','0x41','0x43','0x4b','0x4c','0x4f','0x47','0x20','0x20','0x1b','0x5b','0x31','0x3b','0x33','0x38','0x3b','0x35','0x3b','0x32','0x30','0x38','0x6d','0x26a0','0xfe0e','0x1b','0x5b','0x30','0x6d']
+    limit=11: visible=11 U+FE0E present=True
+      ['0x42','0x41','0x43','0x4b','0x4c','0x4f','0x47','0x20','0x20','0x1b','0x5b','0x31','0x3b','0x33','0x38','0x3b','0x35','0x3b','0x32','0x30','0x38','0x6d','0x26a0','0xfe0e','0x1b','0x5b','0x30','0x6d','0x20']
+    ```
+
+    At limit 10 the base `0x26a0` is kept and `0xfe0e` is kept WITH it; at limit 9 neither is present,
+    which is the correct behavior (the boundary falls before the base, never inside the cluster).
+    Asserted at EVERY boundary rather than at one, since a naive clip passes at all the others:
+
+    ```text
+    limits (1..41) that severed the selector: []  -> NONE
+    ```
+
+    MEASURED CONTRAST in the module this child may NOT touch, confirming the defect is real and that
+    its carrier is correctly assigned:
+
+    ```text
+    render_stream._one_line('x'*198 + '\u26a0\ufe0e' + 'tail', limit=200): VS15 in input True -> in output False
+    ```
+
+    **4. NO BARE `len()` COMPUTING A VISIBLE COLUMN.** Every `len(` occurrence across all thirteen new
+    functions/methods, printed with its real line number:
+
+    ```text
+    term.py:93:    contract bullet demands in place of ``len(styled_text)``. Two properties callers rely on:
+    term.py:108:   ``str.ljust`` and ``len()`` both count escape bytes and zero-width marks as columns, so either
+    term.py:1102:  are 2 code points and 1 column, so a `len()`-based pad leaves their column one short of
+    term.py:1164:  ``len()``.
+    ```
+
+    All four are DOCSTRING or COMMENT text. No new line computes a visible column with `len()`. And
+    `visible_width` is the SINGLE measurement path, with no second `strip_ansi` path added (F-07) --
+    `grep -n strip_ansi agent_workflows/term.py`:
+
+    ```text
+    38:def strip_ansi(text: str) -> str:
+    66:# that carry U+FE0E (`blocked` and `recovering`). `strip_ansi` is NOT the missing piece: it already
+    95:    1. It is ANSI-AWARE, built on :func:`strip_ansi` rather than on a second stripping path, so the
+    102:    return sum(0 if is_zero_width(ch) else 1 for ch in strip_ansi(text))
+    120:    Shares the one ``_ANSI_RE`` with :func:`strip_ansi` rather than re-deriving escape syntax, so
+    1361:        col_widths = [len(strip_ansi(h)) for h in padded_headers]
+    1365:                    col_widths[idx] = max(col_widths[idx], len(strip_ansi(c)))
+    1377:                plain_len = len(strip_ansi(val))
+    ```
+
+    Line 102 is the one new consumer, inside `visible_width` itself. The three at 1361-1377 are
+    `format_table`'s PRE-EXISTING generic padding, untouched by this child and carried by `9zvl2w` per
+    Deferred; they are the sites that make a VS-bearing table row one column short today, which is a
+    real defect this child is scoped not to fix.
+
+    Criterion A15 is satisfied by items 1, 3 and 4 together; item 2 is the Section 9.4 bullet no
+    lettered criterion covers. Pinned by
+    `GraphemeSafetyTests::test_no_lifecycle_render_uses_a_bare_len_for_a_visible_column`, which asserts
+    the PROPERTY (20 stages x 2 modes all measure the requested width) rather than grepping, so it
+    fails for a future `len()`-based pad no matter how the line is spelled.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste the BARE `python3 -m pytest` summary line and compare it to the baseline `8369 passed, 3 skipped, 2 xfailed` (HEAD `a25fe45d`); explain any difference by node id. Then paste all SIX capability profiles, each with its asserted output and each showing both the glyph FORM (Unicode grapheme versus the exact Section 5 ASCII fallback) and ANSI presence or absence: normal UTF-8, ASCII mode (`AW_ASCII_ONLY=1`), colored TTY, plain TTY, piped, `TERM=dumb`. Paste the `FORCE_COLOR`-does-not-force-Unicode case as its OWN named case (A13): a stream with `encoding="ascii"` under `FORCE_COLOR=1`, showing ANSI present AND the ASCII fallback used. Paste the test node ids so each profile is a distinct named test rather than one composite assertion.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED 2026-09-20 by execution at lane HEAD `e72eba8d`.
+
+    THE BARE SUITE, `python3 -m pytest` with no added flags:
+
+    ```text
+    7545 passed, 3 skipped, 2 xfailed, 3 warnings in 98.44s (0:01:38)
+    ```
+
+    THE DIFFERENCE FROM THE REVIEW BASELINE IS EXPLAINED BY NODE ID, NOT BY THE COUNT, as required.
+    The review baseline was `8369 passed, 3 skipped, 2 xfailed` at HEAD `a25fe45d`; this lane's HEAD is
+    `e72eba8d`, a DIFFERENT and later commit (it carries `lifecycle(pow5sj): finalize pow5sj ->
+    executed`), so the two numbers are not comparable directly. The comparison that IS meaningful is
+    against this same HEAD with my two files reverted, measured by stashing them and re-running:
+
+    ```text
+    pre-change at e72eba8d:   7501 passed, 3 skipped, 2 xfailed
+    post-change at e72eba8d:  7545 passed, 3 skipped, 2 xfailed
+    delta:                    +44 passed, 0 skipped delta, 0 xfailed delta
+    ```
+
+    and 44 is exactly the number of tests the five new classes collect
+    (`pytest --collect-only` over `ResolutionIsSeparateFromRendering|FullRowStyling|CompactFormAndLegend|GraphemeSafety|CapabilityMatrix`
+    returns 44; `tests/test_term.py` goes from 77 to 121 collected). So the delta is fully accounted
+    for by added tests and NOTHING regressed: skipped and xfailed are unchanged and no node moved from
+    passed to failed.
+
+    ONE ENVIRONMENT-INDUCED FAILURE, DIAGNOSED AND NOT CAUSED BY THIS CHANGE, reported rather than
+    hidden. A first bare run reported `1 failed, 7544 passed`, the failure being
+    `tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`.
+    It is PRE-EXISTING and unrelated, proved two ways: it fails identically with my two files stashed,
+    and it fails because the test asserts `OPENCODE_CONFIG_CONTENT not in env` while THIS RUNNER TURN
+    exports that variable into my shell, so the subprocess inherits it. Confirmed by re-running under
+    `env -u OPENCODE_CONFIG_CONTENT`, where `tests/test_turn_bounds.py` reports `43 passed` and the
+    full suite reports the `7545 passed` line above. Every count in this V-item is from a run with that
+    one inherited variable unset; it is an artifact of being executed inside an OpenCode turn, not a
+    repository defect, and it is filed as a backlog item rather than left as scrollback.
+
+    THE SIX CAPABILITY PROFILES, each with its asserted output, each showing BOTH the glyph form and
+    ANSI presence. Fixture is `backlog`/`blocked` throughout, chosen because it is VS-bearing so every
+    profile also exercises the grapheme path:
+
+    ```text
+    1. normal UTF-8 (tty, encoding='utf-8')
+       ANSI present: True    glyph form: UNICODE grapheme    word present: True
+       'BACKLOG  \x1b[1;38;5;208m⚠︎\x1b[0m  \x1b[1;38;5;208mabc123\x1b[0m  \x1b[1;38;5;208mblocked\x1b[0m'
+    2. ASCII mode (AW_ASCII_ONLY=1)
+       ANSI present: True    glyph form: ASCII fallback '!'  word present: True
+       'BACKLOG  \x1b[1;38;5;208m!\x1b[0m  \x1b[1;38;5;208mabc123\x1b[0m  \x1b[1;38;5;208mblocked\x1b[0m'
+    3. colored TTY (TERM=xterm-256color)
+       ANSI present: True    glyph form: UNICODE grapheme    word present: True
+       'BACKLOG  \x1b[1;38;5;208m⚠︎\x1b[0m  \x1b[1;38;5;208mabc123\x1b[0m  \x1b[1;38;5;208mblocked\x1b[0m'
+    4. plain TTY (NO_COLOR=1)
+       ANSI present: False   glyph form: UNICODE grapheme    word present: True
+       'BACKLOG  ⚠︎  abc123  blocked'
+    5. piped output (isatty False)
+       ANSI present: False   glyph form: UNICODE grapheme    word present: True
+       'BACKLOG  ⚠︎  abc123  blocked'
+    6. TERM=dumb
+       ANSI present: False   glyph form: UNICODE grapheme    word present: True
+       'BACKLOG  ⚠︎  abc123  blocked'
+    ```
+
+    Profiles 4, 5 and 6 carry NO escape while keeping the grapheme and the word, which is criterion
+    A11; profile 2 substitutes the exact Section 5 fallback `!` while keeping ANSI, which is A12.
+
+    THE A13 CASE AS ITS OWN NAMED CASE: a stream with `encoding="ascii"` under `FORCE_COLOR=1`, showing
+    ANSI PRESENT and the ASCII fallback USED:
+
+    ```text
+    A13: FORCE_COLOR=1 on an encoding='ascii' pipe
+       ANSI present: True    glyph form: ASCII fallback '!'  word present: True
+       'BACKLOG  \x1b[1;38;5;208m!\x1b[0m  \x1b[1;38;5;208mabc123\x1b[0m  \x1b[1;38;5;208mblocked\x1b[0m'
+    ```
+
+    THE NODE IDS, proving each profile is a DISTINCT named test rather than one composite assertion:
+
+    ```text
+    tests/test_term.py::CapabilityMatrixTests::test_profile_1_normal_utf8
+    tests/test_term.py::CapabilityMatrixTests::test_profile_2_ascii_mode
+    tests/test_term.py::CapabilityMatrixTests::test_profile_2b_force_ascii_is_the_same_rung
+    tests/test_term.py::CapabilityMatrixTests::test_profile_3_colored_tty
+    tests/test_term.py::CapabilityMatrixTests::test_profile_4_plain_tty
+    tests/test_term.py::CapabilityMatrixTests::test_profile_5_piped_output
+    tests/test_term.py::CapabilityMatrixTests::test_profile_6_term_dumb
+    tests/test_term.py::CapabilityMatrixTests::test_a13_force_color_enables_ansi_on_a_pipe
+    tests/test_term.py::CapabilityMatrixTests::test_a13_force_color_does_not_force_unicode_onto_an_ascii_stream
+    tests/test_term.py::CapabilityMatrixTests::test_a13_the_no_color_flag_beats_force_color
+    tests/test_term.py::CapabilityMatrixTests::test_a13_a_falsey_force_color_neither_forces_nor_suppresses
+    tests/test_term.py::CapabilityMatrixTests::test_the_sixteen_color_tier_renders_from_the_authored_palette
+    ```
+
+    Three A13 rungs beyond the required one are asserted because the criterion's 2026-09-19 amendment
+    names them: the `--no-color` flag beats `FORCE_COLOR` (rung b) and a falsey `FORCE_COLOR` neither
+    forces nor suppresses (rung c). The last node proves the depth ladder reaches the RENDERER and not
+    only the resolver: with `TERM=xterm-color` the row carries `\x1b[1;35m` from the authored 16-color
+    palette and no `38;5;` sequence at all.
+
+    HARNESS REUSE, as the plan's Required-tests section demands. The doubles extend the shipped
+    `_FakeTTY`/`_FakePipe` (`tests/test_term.py:22-33`) rather than introducing a second convention.
+    ONE MEASURED CORRECTION to the plan's Step 0 note, which said to "give the double an explicit
+    `encoding` class attribute": a class attribute is not merely preferable but REQUIRED, because
+    assigning `self.encoding` on an `io.StringIO` instance raises
+    `AttributeError: attribute 'encoding' of '_io._TextIOBase' objects is not writable`. The first
+    draft did exactly that and 13 tests errored; the shipped doubles (`_Utf8TTY`, `_Utf8Pipe`,
+    `_AsciiPipe`) declare it at class level.
+  - Result: pass
 
 ## Approval and execution gate
 
