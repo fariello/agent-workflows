@@ -12,18 +12,18 @@
 - Scope: Build `--with-dependencies` for real: a transitive closure over declared `Item-Dependencies` computed after selection and before the mixed-type gate, rebinding the selection, admitting targets the manifest does not yet carry, re-triggering the mixed-type gate on any newly introduced type, and flipping the flag row to `implemented=True` with its help text. EXCLUDES `--follow-generated` ENTIRELY, which shares the source item but is a different and much larger problem with no detection mechanism in existence (see Deferred and OQ-01); EXCLUDES changing satisfaction semantics, which spec `:295` fixes as unchanged; EXCLUDES registering `--type` or making a live mixed selection reachable.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_run_flag_surface.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: depclosure
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: dhycim
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: x8diyb
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-20 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: dhycim verified (set depclosure, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_agy_runipd_cli.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_oc_runipd.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-09 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. PR-001..PR-008, ALL EIGHT FIXED, no open findings. `aw ipd lint --phase author` CONFORMING before semantic review and `--phase review-finalize` CONFORMING after every revision, so nothing here is structural. DISCLOSURE: same agent/model authored this plan, so this is a SELF-REVIEW, and its value rests on RE-MEASURING rather than re-reading; every cited symbol was re-located, every spec line read verbatim, `action_for` was CALLED for all seven statuses, and every pending plan's dependency edges were scanned against their targets' disposition.
