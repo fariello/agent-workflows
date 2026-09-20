@@ -6344,5 +6344,234 @@ class SharedColorDecisionTests(unittest.TestCase):
         )
 
 
+class GateAnswerVocabularyTests(unittest.TestCase):
+    """The closed vocabulary an agent answers a refused integration with.
+
+    CONTEXT, because these tests exist for a measured incident rather than a hypothetical. Run
+    `run-20260919T194413Z-2056285`: one test unrelated to any lane's work went red, the full test
+    suite is a lane's trust signal, so THREE lanes were refused with no way to say anything about it.
+    Nothing merged, eight further items cascaded to `dependency-blocked`, and the run spent 2h 10m and
+    $55.02 producing no integrated work. The maintainer's ruling was to keep the gate hard and let the
+    agent ANSWER it.
+    """
+
+    def test_not_mine_with_a_reason_integrates(self):
+        v = runner_shared.validate_gate_answer(
+            {
+                "answer": "not-mine",
+                "reason": "fails in records/, which this turn never touched",
+            }
+        )
+        self.assertTrue(v.usable)
+        self.assertTrue(v.integrates)
+        self.assertFalse(v.earns_recheck)
+        self.assertEqual(v.violation, "")
+
+    def test_fixed_earns_a_recheck_and_does_not_integrate_on_the_claim(self):
+        """The suite decides, never the claim. This is the property that keeps `fixed` honest."""
+        v = runner_shared.validate_gate_answer(
+            {"answer": "fixed", "reason": "repaired the assertion"}
+        )
+        self.assertTrue(v.usable)
+        self.assertTrue(v.earns_recheck)
+        self.assertFalse(
+            v.integrates,
+            "a `fixed` CLAIM must not release a lane; only a passing re-run may",
+        )
+
+    def test_mine_is_usable_and_refuses(self):
+        """An honest `mine` must be usable, so it is never worse for the agent than silence."""
+        v = runner_shared.validate_gate_answer("mine")
+        self.assertTrue(v.usable)
+        self.assertFalse(v.integrates)
+        self.assertFalse(v.earns_recheck)
+
+    def test_mine_needs_no_reason(self):
+        self.assertNotIn(
+            runner_shared.GATE_ANSWER_MINE, runner_shared.GATE_ANSWERS_NEEDING_REASON
+        )
+
+    def test_needs_human_is_usable_refuses_and_is_distinguishable_from_mine(self):
+        """ADDED on the maintainer's observation that `mine` fused TWO claims.
+
+        `mine` used to mean "this is mine AND I cannot fix it". An agent that broke something but
+        needs a maintainer RULING to know which fix is correct then had no true answer: it would say
+        `mine` and lose the distinction, or guess at a repair and claim `fixed`. A guess that passes
+        the suite is the worse outcome, because it ships an unreviewed decision.
+        """
+        v = runner_shared.validate_gate_answer(
+            {
+                "answer": "needs-human",
+                "reason": "two defensible fixes; which contract wins is a maintainer call",
+            }
+        )
+        self.assertTrue(v.usable)
+        self.assertTrue(
+            v.refuses, "it must refuse and preserve, exactly as `mine` does"
+        )
+        self.assertTrue(v.awaits_human_decision)
+        self.assertFalse(v.integrates)
+        self.assertFalse(v.earns_recheck)
+
+        mine = runner_shared.validate_gate_answer("mine")
+        self.assertTrue(mine.refuses)
+        self.assertFalse(
+            mine.awaits_human_decision,
+            "`mine` means needs WORK; `needs-human` means needs a DECISION. A report routes those "
+            "to different people, so they must be distinguishable",
+        )
+
+    def test_needs_human_requires_the_decision_it_needs(self):
+        """The whole value of the answer is telling a human WHAT to decide."""
+        v = runner_shared.validate_gate_answer({"answer": "needs-human"})
+        self.assertFalse(v.usable)
+        self.assertIn("requires a reason", v.violation)
+
+    def test_every_answer_either_releases_recheck_or_refuses(self):
+        """EXHAUSTIVENESS: no answer may fall through to no handling at all.
+
+        This is what guarantees the prompt's claim that one of the answers is always true. Adding a
+        fifth answer without deciding its disposition fails here rather than at runtime.
+        """
+        for token in runner_shared.GATE_ANSWERS:
+            with self.subTest(token):
+                reason = (
+                    "because"
+                    if token in runner_shared.GATE_ANSWERS_NEEDING_REASON
+                    else ""
+                )
+                v = runner_shared.validate_gate_answer(
+                    {"answer": token, "reason": reason}
+                )
+                self.assertTrue(v.usable, f"{token} must validate")
+                dispositions = [v.integrates, v.earns_recheck, v.refuses]
+                self.assertEqual(
+                    sum(1 for d in dispositions if d),
+                    1,
+                    f"{token} must map to EXACTLY one disposition, got "
+                    f"integrates={v.integrates} earns_recheck={v.earns_recheck} "
+                    f"refuses={v.refuses}",
+                )
+
+    def test_an_answer_needing_a_reason_is_refused_without_one(self):
+        for token in sorted(runner_shared.GATE_ANSWERS_NEEDING_REASON):
+            with self.subTest(token):
+                v = runner_shared.validate_gate_answer({"answer": token})
+                self.assertFalse(
+                    v.usable, "a bare claim with no reason is not an answer"
+                )
+                self.assertIn("requires a reason", v.violation)
+
+    def test_shape_is_coerced_but_meaning_is_not(self):
+        for raw in ("NOT MINE", "not_mine", "  Not-Mine  "):
+            with self.subTest(raw):
+                v = runner_shared.validate_gate_answer({"answer": raw, "reason": "x"})
+                self.assertEqual(v.answer, runner_shared.GATE_ANSWER_NOT_MINE)
+
+    def test_an_unrecognized_token_is_refused_BY_NAME(self):
+        v = runner_shared.validate_gate_answer(
+            {"answer": "probably-fine", "reason": "x"}
+        )
+        self.assertFalse(v.usable)
+        self.assertIn("probably-fine", v.violation)
+        self.assertIn("not one of", v.violation)
+
+    def test_absent_and_wrong_typed_answers_fail_closed(self):
+        for raw in (None, "", {}, 42, [], {"answer": ""}):
+            with self.subTest(repr(raw)):
+                v = runner_shared.validate_gate_answer(raw)
+                self.assertFalse(
+                    v.usable,
+                    "fail closed: a wrongly REFUSED lane is preserved and recoverable, a wrongly "
+                    "INTEGRATED one merges work no trust signal cleared",
+                )
+                self.assertTrue(
+                    v.violation, "an unusable answer must say what was wrong"
+                )
+
+    def test_validate_never_raises(self):
+        class Hostile:
+            def __str__(self):
+                raise RuntimeError("no")
+
+        for raw in (object(), Hostile(), {"answer": object()}):
+            with self.subTest(repr(type(raw))):
+                try:
+                    v = runner_shared.validate_gate_answer(raw)
+                except (
+                    Exception
+                ) as exc:  # pragma: no cover - the assertion is the point
+                    self.fail(
+                        f"validate_gate_answer raised {exc!r}; it must never raise"
+                    )
+                self.assertFalse(v.usable)
+
+
+class GateAnswerQuestionWordingTests(unittest.TestCase):
+    """The wording is load-bearing, so it is pinned (maintainer: "be careful how we ask")."""
+
+    def _q(self, **kw):
+        return runner_shared.gate_answer_question(
+            failing="FAILED tests/test_example.py::T::t_something", **kw
+        )
+
+    def test_it_names_the_failing_tests_and_the_changed_files(self):
+        q = self._q(changed_files=["agent_workflows/term.py"])
+        self.assertIn("tests/test_example.py::T::t_something", q)
+        self.assertIn("agent_workflows/term.py", q)
+
+    def test_it_records_no_changed_files_honestly(self):
+        self.assertIn("(none recorded)", self._q())
+
+    def test_it_states_the_consequence_of_every_answer(self):
+        q = self._q()
+        self.assertIn("YOUR LANE IS THEN INTEGRATED", q)
+        self.assertIn("RE-RUN", q)
+        self.assertIn("PRESERVED", q)
+
+    def test_it_does_not_accuse(self):
+        """A question that presumes fault pushes an honest agent toward the wrong answer.
+
+        Asserted against WHITESPACE-COLLAPSED text, because the prompt is hard-wrapped and a phrase
+        that straddles a line break is still the phrase the agent reads.
+        """
+        q = " ".join(self._q().split())
+        self.assertIn("This is a question, not an accusation", q)
+        self.assertIn("not a concession", q)
+        self.assertIn("commonest correct answer", q)
+
+    def test_it_says_mine_is_better_than_silence(self):
+        self.assertIn("strictly better than not answering", self._q())
+
+    def test_it_tells_the_agent_needs_human_is_a_first_class_answer(self):
+        """The maintainer's point: an agent must be able to use this COMFORTABLY.
+
+        Not for the agent's feelings, but because an agent that believes asking is a failure will
+        guess at a repair instead, and a guess that passes the suite ships an unreviewed decision.
+        """
+        q = " ".join(self._q().split())
+        self.assertIn("USE THIS FREELY AND WITHOUT HESITATION", q)
+        self.assertIn("not an escalation and not a failure", q)
+        self.assertIn("DO NOT GUESS AT A REPAIR TO AVOID ASKING", q)
+
+    def test_it_states_that_one_answer_is_always_true(self):
+        q = " ".join(self._q().split())
+        self.assertIn("CHOOSE THE ANSWER THAT IS TRUE", q)
+        self.assertIn("no case where silence is the accurate answer", q)
+
+    def test_every_vocabulary_member_appears(self):
+        q = self._q()
+        for token in runner_shared.GATE_ANSWERS:
+            with self.subTest(token):
+                self.assertIn(token, q)
+
+    def test_a_reask_leads_with_the_previous_violation(self):
+        q = self._q(
+            violation="'probably-fine' is not one of ['not-mine', 'fixed', 'mine']"
+        )
+        self.assertTrue(q.startswith("YOUR PREVIOUS ANSWER COULD NOT BE USED:"))
+        self.assertIn("probably-fine", q)
+
+
 if __name__ == "__main__":
     unittest.main()
