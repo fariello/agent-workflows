@@ -4167,9 +4167,36 @@ class SourceAuditTests(unittest.TestCase):
         # argv, environment, an executable, a prompt, or a credential, so it does not widen the
         # injection surface this test exists to fence. An INLINE verifier model would have, which
         # is exactly why the field takes a reference.
+        #
+        # `execution_profile` was ADDED by `hardreach` Order 01 (`n5qca5`) and is listed here
+        # deliberately, WITH THE REASON IT DOES NOT WIDEN THIS FENCE, because it sits nearer the
+        # boundary than any field before it: `permission` and `permissions` are refused BY NAME in
+        # `FORBIDDEN_PROFILE_KEYS` a few lines below the allowed set, and a sandbox request is that
+        # family's neighbour. Three properties keep it on the safe side, and all three are asserted
+        # by `ExecutionProfileFieldTests` rather than merely claimed here:
+        #
+        #   1. ITS VALUE SPACE IS A CLOSED TWO-MEMBER ENUM (`EXECUTION_PROFILE_NAMES`), so it is a
+        #      NAME this module owns, exactly as `verify_with` is a name. A path, a root, an argv
+        #      fragment and a permission expression are all refused by not being one of two strings,
+        #      rather than by a denylist a novel shape could slip past.
+        #   2. IT CANNOT DESCRIBE A PERMISSION. It says WHETHER to request the jail, never WHICH paths
+        #      are writable; the sandbox plan derives that from the lane the DRIVER allocated. So no
+        #      stored value can widen what the sandbox permits, which is what a `permissions` field
+        #      would have done and is why that one is forbidden.
+        #   3. IT IS A REQUEST, NOT A CAPABILITY CLAIM. The host's EXECUTED probe stays the authority
+        #      on whether it can be honored and RAISES rather than degrading, so a stored value cannot
+        #      cause an unsandboxed run to be believed sandboxed.
         self.assertEqual(
             sorted(RP.ALLOWED_PROFILE_KEYS),
-            ["agent", "model", "runner", "validate", "variant", "verify_with"],
+            [
+                "agent",
+                "execution_profile",
+                "model",
+                "runner",
+                "validate",
+                "variant",
+                "verify_with",
+            ],
         )
         # `roles` was ADDED by `actmodel` Order 01 (`btot17`) and is listed here deliberately: every
         # VALUE in it is a profile NAME (a reference to an already-validated profile), so it stores no

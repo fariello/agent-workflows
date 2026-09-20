@@ -10,7 +10,10 @@ dispatch `ygzq71`) CONSUME this module; none of them may re-parse or re-store pr
 WHAT A PROFILE DELIBERATELY IS NOT, because this is the security boundary of the feature:
 it is NOT a command, NOT an argv fragment, NOT a shell string, NOT an environment mapping,
 NOT an executable path, NOT a prompt, NOT a permission set, and NOT a place for a token or
-API key. Every one of those is refused by name (:data:`FORBIDDEN_PROFILE_KEYS`) with an
+API key. `execution_profile` does not breach that last one: it REQUESTS one of two named
+sandbox profiles and cannot express which paths are writable, so it is a reference to an
+already-validated concept rather than a permission set. Every one of those is refused by
+name (:data:`FORBIDDEN_PROFILE_KEYS`) with an
 explicit message, and any OTHER unrecognized key is refused too. A raw `args` string would
 turn `aw run as gem` into a quoting-and-injection surface; a credential field would turn a
 convenience file into a secret store. This module never invokes a process: it returns typed
@@ -38,11 +41,36 @@ Schema version 2 document (version 1 is still READ unchanged; see :data:`SCHEMA_
           "model": "google/gemini-3.7-flash", # required; EXACT provider/model, never guessed
           "variant": "high",                  # optional
           "agent": "build",                   # optional
-          "validate": true,                   # optional TRI-STATE verification default
-          "verify_with": "opus"               # optional; verify THIS profile's work with 'opus'
+          "validate": true,                    # optional TRI-STATE verification default
+          "verify_with": "opus",              # optional; verify THIS profile's work with 'opus'
+          "execution_profile": "hardened"     # optional; REQUEST the OS sandbox (Linux only)
         }
       }
     }
+
+`execution_profile` IS THE ONLY WAY TO ASK FOR THE OS SANDBOX, and it is a per-profile field rather
+than a CLI flag DELIBERATELY (`hardreach` Order 01, `n5qca5`; maintainer decision recorded as that
+plan's OQ-01). The hardened profile binds a worker's writes to its own lane using Landlock, which is
+LINUX ONLY, against a platform bar of macOS 100% and Windows 95%. A documented `--hardened` flag on a
+cross-platform tool reads as a cross-platform GUARANTEE and would be typed on macOS, where
+`select_execution_profile` can only REFUSE; a field the user writes into their own local config makes
+the honest, much weaker claim "I asked for this, on this machine".
+
+IT IS A REQUEST, NEVER A CAPABILITY CLAIM, and the difference is the whole safety argument. The
+authority on whether hardened mode can be honored is the HOST's EXECUTED probe, and when that probe
+says no the run RAISES (`HardModeUnavailableError`) rather than quietly running unsandboxed, because a
+user who believes a jail exists when it does not is strictly worse off than one who got an error. This
+field cannot influence that probe, cannot widen what the sandbox permits, and cannot name a path: it
+selects one of two names this module owns.
+
+THE DEFAULT IS UNCHANGED ON EVERY PLATFORM. Omitting the key means `default` (no OS confinement),
+which is what every store written before this field resolves to.
+
+OPENCODE ONLY, BY CONSTRUCTION AND NOT BY OVERSIGHT. `agy_runipd` reads no launch-profile identity at
+all, so a stored request is INERT on that host: an agy run IGNORES it rather than refusing it. That is
+degradation-by-omission and is stated here and in `docs/runner-profiles.md` rather than left for a
+user to discover; making agy REFUSE instead would be a change to that host, not a side effect of this
+field.
 
 `validate` IS A TRI-STATE (present-true / present-false / ABSENT) at both levels, and absent
 MUST NOT be read as `false`. It records the per-model verification default: the maintainer
@@ -292,9 +320,42 @@ ALLOWED_DEFAULTS_KEYS: frozenset = frozenset(("profiles", "validate", "verify_wi
 
 #: Keys inside one profile object. ``verify_with`` is a PROFILE NAME (a reference), never an
 #: inline model, which is why it is safe to store: see the module docstring.
+#:
+#: ``execution_profile`` is a CLOSED ENUM naming an already-validated sandbox concept
+#: (:data:`EXECUTION_PROFILE_NAMES`), added by `hardreach` Order 01 (`n5qca5`). It is safe to store
+#: for `verify_with`'s reason, restated because the neighbouring refusals make the boundary sharp:
+#: it is a NAME drawn from a two-member vocabulary this module owns, never a path, a root, an argv
+#: fragment, or a permission expression. ``permission``/``permissions`` are refused BY NAME right
+#: below, and a sandbox REQUEST sits next to that boundary without crossing it: the request does not
+#: describe WHICH paths are writable (the sandbox plan decides that, from the lane the driver
+#: allocated), it only says WHETHER to ask for the jail at all. The authority on whether the request
+#: can be honored stays the host's EXECUTED probe, which this field cannot influence.
 ALLOWED_PROFILE_KEYS: frozenset = frozenset(
-    ("runner", "model", "variant", "agent", "validate", "verify_with")
+    (
+        "runner",
+        "model",
+        "variant",
+        "agent",
+        "validate",
+        "verify_with",
+        "execution_profile",
+    )
 )
+
+#: The CLOSED execution-profile vocabulary, mirroring what
+#: :func:`agent_workflows.host_sandbox_profile.select_execution_profile` accepts (`hardreach` Order
+#: 01, `n5qca5`).
+#:
+#: DUPLICATED AS A LITERAL RATHER THAN IMPORTED, deliberately. `host_sandbox_profile` executes real
+#: sandbox probes (subprocesses) at import-adjacent call sites, and this module's own contract is
+#: "no subprocess, no network, pure stdlib" (D138/D139), so importing it here to reach two strings
+#: would couple the storable-surface validator to a module that runs processes. The two-member set is
+#: pinned against the resolver by a test, which is what keeps the copy from drifting.
+#:
+#: ``default`` IS THE ONLY DEFAULT and stays so on every platform: the hardened enforcement is
+#: Linux/Landlock-only, and an unsupported host REFUSES rather than degrading, so a hardened default
+#: would make every macOS and Windows run fail outright.
+EXECUTION_PROFILE_NAMES: Tuple[str, ...] = ("default", "hardened")
 
 #: Keys refused BY NAME with an explicit reason. Unknown keys are refused anyway; this set
 #: exists so the error explains WHY the field will never be added, rather than reading as an
@@ -459,6 +520,11 @@ class LaunchProfile:
     ``verify_with`` is a PROFILE NAME (a reference into the same document), or ``None`` meaning
     "not specified at this level", which ultimately means the verifier reuses the executor's own
     launch. It is never an inline model.
+
+    ``execution_profile`` is one of :data:`EXECUTION_PROFILE_NAMES`, or ``None`` meaning "not
+    specified", which resolves to the unprotected ``default`` exactly as it does today. It is a
+    REQUEST, not a capability claim: the host's executed probe remains the authority on whether
+    ``hardened`` can be honored, and refuses rather than degrading when it cannot.
     """
 
     runner: str
@@ -467,6 +533,7 @@ class LaunchProfile:
     agent: Optional[str] = None
     validate: Optional[bool] = None
     verify_with: Optional[str] = None
+    execution_profile: Optional[str] = None
 
     def to_document(self) -> Dict[str, Any]:
         """Return the JSON object for this profile, omitting absent optional fields."""
@@ -480,6 +547,8 @@ class LaunchProfile:
             out["validate"] = self.validate
         if self.verify_with is not None:
             out["verify_with"] = self.verify_with
+        if self.execution_profile is not None:
+            out["execution_profile"] = self.execution_profile
         return out
 
 
@@ -607,6 +676,14 @@ class ResolvedLaunch(NamedTuple):
     #: (`runprofile` Order 06, `kgpptv`). ``None`` is today's behavior and is not an error. A
     #: DEFAULTED field so every existing construction site keeps working unchanged.
     verify_with: Optional[str] = None
+    #: The requested EXECUTION PROFILE name, or ``None`` meaning "nothing asked", which the driver
+    #: resolves to the unprotected ``default`` exactly as it does today (`hardreach` Order 01,
+    #: `n5qca5`). ``None`` is not an error and is what every existing store resolves to. A DEFAULTED
+    #: field, so every existing construction site keeps working unchanged.
+    #:
+    #: THIS IS A REQUEST, NOT A GUARANTEE. Whether it can be honored is decided by the HOST's
+    #: executed sandbox probe at launch time, which raises rather than degrading when it cannot.
+    execution_profile: Optional[str] = None
 
 
 #: Provenance vocabulary, one value per resolved field. Closed set so a report can render it.
@@ -754,6 +831,36 @@ def _validate_field(kind: str, value: Any) -> str:
     return value
 
 
+def validate_execution_profile_name(value: Any) -> str:
+    """Validate an execution-profile REQUEST against the closed vocabulary, or raise.
+
+    `hardreach` Order 01 (`n5qca5`). The value space is CLOSED
+    (:data:`EXECUTION_PROFILE_NAMES`), which is what keeps this field on the safe side of the
+    ``permission``/``permissions`` boundary: a path, a root, an argv fragment and a permission
+    expression are all refused here by simply not being one of two names, rather than by a
+    denylist that a new shape could slip past.
+
+    A non-string is refused with the same reason, so a mapping or a list cannot smuggle structure
+    into a field the driver reads as a name.
+    """
+
+    if not isinstance(value, str):
+        raise ProfileSchemaError(
+            f"'execution_profile' must be one of {list(EXECUTION_PROFILE_NAMES)} (a NAME from a "
+            f"closed vocabulary), got {type(value).__name__}. It is deliberately not a path, a "
+            "root, an argv fragment, or a permission expression: this field REQUESTS an "
+            "already-validated sandbox profile, it does not describe one."
+        )
+    if value not in EXECUTION_PROFILE_NAMES:
+        raise ProfileSchemaError(
+            f"unknown execution profile {value!r}; expected one of "
+            f"{list(EXECUTION_PROFILE_NAMES)}. 'hardened' is enforced by the OPERATING SYSTEM and "
+            "is Linux/Landlock only, so a host whose executed probe cannot enforce it REFUSES the "
+            "run rather than silently running unsandboxed."
+        )
+    return value
+
+
 def _validate_tristate(kind: str, value: Any) -> Optional[bool]:
     """Validate a tri-state boolean. ``None``/absent stays ``None`` (it is NOT ``False``)."""
 
@@ -834,6 +941,17 @@ def parse_profile(name: str, raw: Any) -> LaunchProfile:
                 "inline model: a reference reuses a whole validated profile."
             )
         verify_with = validate_profile_name(verify_with)
+    execution_profile = raw.get("execution_profile")
+    if execution_profile is not None:
+        # A NAME from the closed vocabulary, validated the same way every other reference in this
+        # module is. OPENCODE ONLY by construction: `agy_runipd` reads no profile launch identity at
+        # all, so a stored request is INERT there rather than refused. That asymmetry is documented
+        # in `docs/runner-profiles.md` rather than papered over, because a user who believes a
+        # boundary exists when it does not is the precise harm the refuse-rather-than-degrade rule
+        # protects against. It is NOT refused at write time, because a profile is a launch identity a
+        # user may legitimately share across hosts, and refusing the key for the whole store would
+        # make the opencode request unwritable for anyone who also runs agy.
+        execution_profile = validate_execution_profile_name(execution_profile)
     return LaunchProfile(
         runner=runner,
         model=model,
@@ -841,6 +959,7 @@ def parse_profile(name: str, raw: Any) -> LaunchProfile:
         agent=agent,
         validate=validate,
         verify_with=verify_with,
+        execution_profile=execution_profile,
     )
 
 
@@ -1395,6 +1514,22 @@ def resolve(
         explicit flag > profile's `validate` > `defaults.validate` >
         the RESOLVED RUNNER's `validate_default` row value
 
+    Precedence for ``execution_profile``, which has NO EXPLICIT TIER TODAY, highest first
+    (`hardreach` Order 01, `n5qca5`)::
+
+        [no CLI flag exists] > profile's `execution_profile` > per-runner default profile's >
+        ABSENT (None), which the driver resolves to the unprotected "default"
+
+    THE MISSING TIER 1 IS DELIBERATE AND IS SAID RATHER THAN LEFT TO INFERENCE. This module's rule is
+    that AN EXPLICIT FLAG ALWAYS WINS, because a stored default overriding a flag "would make the flag
+    a lie". No `--hardened` / `--execution-profile` flag exists, so there is nothing for tier 1 to
+    carry and this function takes no such argument: adding an unreachable parameter would recreate, in
+    this module, exactly the dead request path `n5qca5` exists to remove. The reason a flag was NOT
+    added is a recorded maintainer decision (`n5qca5` OQ-01): a documented flag on a cross-platform
+    tool reads as a cross-platform GUARANTEE, while this enforcement is Linux/Landlock only. If a flag
+    is ever added, it enters ABOVE the profile field here, and the field must not be re-read anywhere
+    else.
+
     Precedence for ``verify_with``, on the SAME tri-state discipline, highest first::
 
         explicit --verify-with > profile's `verify_with` > `defaults.verify_with` >
@@ -1571,6 +1706,32 @@ def resolve(
     if resolved_verify_with is not None:
         _validate_verify_reference("verify_with", resolved_verify_with, cfg.profiles)
 
+    # ---- execution_profile: the SANDBOX REQUEST, from the applied profile only ----------------
+    #
+    # `hardreach` Order 01 (`n5qca5`). Read off whichever profile APPLIED (named, else the per-runner
+    # default), so the field behaves exactly like every other launch field for the tiers that exist.
+    # There is no explicit tier because no flag exists (see this function's docstring), and no
+    # `defaults`-level tier because a store-wide sandbox default would make every run on that machine
+    # request a Linux-only jail, which is the "default changed to hardened" outcome the plan excludes
+    # under every branch. ABSENT stays None and the driver resolves it to the unprotected "default",
+    # which is what keeps every existing store's resolution byte-identical.
+    #
+    # THE PROVENANCE ENTRY IS CONDITIONAL, matching `kgpptv`'s treatment of the frozen `verify_*`
+    # keys: it appears only when a profile actually requested something. An unconditional entry
+    # would change the provenance MAP of every resolution ever performed, including every run
+    # already recorded, for a field that said nothing; the shipped tests assert that map's exact
+    # key set precisely so such a change cannot happen unnoticed.
+    resolved_execution_profile = (
+        applied.execution_profile if applied is not None else None
+    )
+    if resolved_execution_profile is not None:
+        # Re-validated here as well as at load, exactly as the verifier reference is, so a
+        # hand-built `ProfileConfig` cannot put an unknown name into a resolved launch.
+        resolved_execution_profile = validate_execution_profile_name(
+            resolved_execution_profile
+        )
+        provenance["execution_profile"] = applied_provenance
+
     return ResolvedLaunch(
         runner=resolved_runner,
         model=resolved_model,
@@ -1584,4 +1745,5 @@ def resolve(
         config_digest=cfg.digest,
         provenance=MappingProxyType(dict(provenance)),
         verify_with=resolved_verify_with,
+        execution_profile=resolved_execution_profile,
     )

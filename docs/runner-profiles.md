@@ -248,6 +248,52 @@ before and is never rewritten unless you save a change, but a store this version
 declared as version 2 and an older `aw` will refuse it and tell you to upgrade rather than treat it
 as empty.
 
+## Asking for the OS sandbox (Linux only, and it refuses elsewhere)
+
+A profile can request the HARDENED execution profile, in which the operating system, not a prompt
+and not a git hook, denies the agent any write outside its own lane worktree. THIS ENFORCEMENT IS
+LINUX ONLY: it is built on Landlock, so on macOS, on Windows, and on any Linux host where the
+sandbox probe cannot actually build a jail, requesting it REFUSES the run rather than running
+without protection.
+
+```json
+{
+  "schema_version": 2,
+  "profiles": {
+    "jail": {"runner": "oc", "model": "vendor/deep-9", "execution_profile": "hardened"}
+  }
+}
+```
+
+Then `aw oc run as jail <selector>` runs the agent turn inside the sandbox. Omitting the field, or
+writing `"default"`, is the normal state and means no OS confinement, which is what every store
+written before this field does.
+
+- THE PLATFORM LIMIT AND THE CAPABILITY ARE ONE FACT, not a caveat you read afterwards. What you get
+  is a Linux/Landlock write boundary, and nothing at all on a host that cannot enforce it.
+- AN UNSUPPORTED HOST REFUSES; it never quietly downgrades. `aw` fails the run with a message naming
+  your platform and what the probe found. That is deliberate: if you asked for a jail and silently
+  got none, you would proceed believing a boundary existed, which is worse than an error.
+- SUPPORT IS DECIDED BY AN EXECUTED PROBE, not by inspecting your kernel version or looking for a
+  binary. `aw` actually builds a jail and checks that the kernel actually refused a write outside the
+  allowed root. Inspection was measured to report "available" on a host that could not enforce
+  anything, and reporting that would have handed out a guarantee that did not exist.
+- IT REQUIRES AN ISOLATED LANE, which is the default for `aw oc run`. A turn running directly in your
+  main checkout has no lane boundary to enforce, so requesting hardened mode there refuses too.
+- IT IS A REQUEST, NOT A SETTING THAT WIDENS ANYTHING. The field chooses between two names; it cannot
+  name a path, a root, or a permission. What is writable is derived from the lane `aw` allocated for
+  that turn.
+- IT IS OPENCODE ONLY, AND ANTIGRAVITY IGNORES IT RATHER THAN REFUSING. `aw agy run` reads no launch
+  profile at all, so a `jail` profile shared with that host runs UNSANDBOXED AND SILENT there. That is
+  the one place in this feature where a request is dropped instead of refused, and it is stated here
+  because believing in a boundary you do not have is exactly the harm the refusal above prevents. If
+  you need the sandbox, run the profile on `oc`.
+- THERE IS NO COMMAND-LINE FLAG, on purpose. A `--hardened` flag on a cross-platform tool reads as a
+  cross-platform promise, and this one is Linux only. A field you write into your own local
+  configuration says something weaker and true: you asked for it, on this machine.
+- THE DEFAULT DOES NOT CHANGE, on any platform. Hardened mode is opt in per profile, and nothing you
+  configure makes it the default for runs that did not ask.
+
 ### Which host runs it
 
 `aw run as <profile>` asks the PROFILE, which names exactly one runner. `aw run ipd` has no
@@ -296,9 +342,11 @@ The file is `runner-profiles.json` in your user configuration directory
   An interrupted or invalid write leaves your previous file byte for byte unchanged.
 
 A profile holds only structured launch fields: `runner`, `model`, `variant`, `agent`, `validate`,
-and `verify_with`. It is NOT a command, an argv fragment, a shell string, an environment mapping, an
-executable path, a prompt, a permission set, or a place for a token or an API key. Every one of
-those keys is refused by name, and any unrecognized key is refused too. A raw arguments field
+`verify_with`, and `execution_profile`. It is NOT a command, an argv fragment, a shell string, an
+environment mapping, an executable path, a prompt, a permission set, or a place for a token or an API
+key. Every one of those keys is refused by name, and any unrecognized key is refused too.
+`execution_profile` is not an exception to the permission rule: it chooses between two fixed names
+and cannot express which paths are writable. A raw arguments field
 would turn `aw run as gem` into a quoting and injection surface; a credential field would turn a
 convenience file into a secret store. There is no field through which a secret could be stored,
 so there is none to leak.
@@ -364,6 +412,7 @@ can still repair by hand is never written over.
 | Run naming OpenCode explicitly | `aw oc run as gem <selector>` |
 | Override one field for one run | `aw run as gem <selector> --variant max` |
 | Verify with a different model | Add `"verify_with": "strong"` to the profile, or `--verify-with strong` |
+| Ask for the OS sandbox (Linux only) | Add `"execution_profile": "hardened"` to the profile |
 | See the resolved launch without running | `aw oc run as gem <selector> --prepare-only` |
 | See what you have | `aw oc profile list` |
 | Set or clear the default profile | `aw oc profile default gem` / `--clear` |
