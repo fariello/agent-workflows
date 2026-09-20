@@ -42,17 +42,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the refusal and the seam
 
-- [ ] E-01 CHARACTERIZE THE REFUSAL AND THE SEAM BEFORE CHANGING EITHER, so the change is measured. Capture the current refusal for `--with-dependencies` on BOTH hosts with its exit code, and record that it happens before the run directory exists (`refuse_unimplemented_run_flags` is called at `oc_runipd.py:2781` and `agy_runipd.py:1836`, ahead of run-dir creation at `oc_runipd.py:2891`), because that no-durable-state property must survive. Note a SHIPPED test already pins that property structurally (`tests/test_run_flag_surface.py::test_both_runners_refuse_before_any_durable_state`, which splits `initialize_run`'s source on `run_dir = state_root` and asserts the refusal appears in the prefix); do not write a second one, extend or cite that.
+- [x] E-01 CHARACTERIZE THE REFUSAL AND THE SEAM BEFORE CHANGING EITHER, so the change is measured. Capture the current refusal for `--with-dependencies` on BOTH hosts with its exit code, and record that it happens before the run directory exists (`refuse_unimplemented_run_flags` is called at `oc_runipd.py:2781` and `agy_runipd.py:1836`, ahead of run-dir creation at `oc_runipd.py:2891`), because that no-durable-state property must survive. Note a SHIPPED test already pins that property structurally (`tests/test_run_flag_surface.py::test_both_runners_refuse_before_any_durable_state`, which splits `initialize_run`'s source on `run_dir = state_root` and asserts the refusal appears in the prefix); do not write a second one, extend or cite that.
   THEN PIN THE SEAM ORDER as a test or an asserted trace: `expand_selectors` -> draft gate rebinding `queue_ids` -> dependency preflight -> mixed-type gate -> run dir -> queue build -> `state.json`. Spec `:936` requires closure BEFORE mixed-type confirmation and freezing, so the order is a contract, not an implementation detail.
   PIN ONE MORE THING THE PLAN ORIGINALLY MISSED, BECAUSE E-03 AND E-05 BOTH DEPEND ON IT: the gate does NOT receive `queue_ids`. It receives `selected_plan_paths`, built by the loop at `oc_runipd.py:2836-2843` (agy `:1875-1882`) which resolves each id6 through `manifest["plans"][id6]` inside `except (DriverError, KeyError): continue`. Capture that loop verbatim, because it is the mechanism that would silently swallow a non-plan closure target before the gate ever classifies it (F-16).
   ALSO CAPTURE THE THREE ERROR MESSAGES that recommend the flag (`IPD-DEP-SATISFIED`, `IPD-DEP-CASCADE`, `IPD-EXEC-READY`), because they are the operator-facing promise this plan makes true, and a reviewer should be able to see the before state.
   - Depends on: none
   - Expected outcome: both hosts' current refusal captured with exit codes and the no-durable-state property recorded (citing the shipped test rather than duplicating it), the seam order pinned, the `selected_plan_paths` swallow-loop captured verbatim, and the three recommending error messages captured.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: compute the closure
 
-- [ ] E-02 BUILD THE TRANSITIVE CLOSURE AS ONE HOST-NEUTRAL FUNCTION IN `runner_shared.py`, and do NOT extend `dependency_depth`. That function (`oc_runipd.py:3803`) deliberately skips targets not already in the queue (`:3820`, `edge.id6 not in by_id: continue`), which is correct for ORDERING and exactly wrong for EXPANSION; overloading it would break sorting for every run.
+- [x] E-02 BUILD THE TRANSITIVE CLOSURE AS ONE HOST-NEUTRAL FUNCTION IN `runner_shared.py`, and do NOT extend `dependency_depth`. That function (`oc_runipd.py:3803`) deliberately skips targets not already in the queue (`:3820`, `edge.id6 not in by_id: continue`), which is correct for ORDERING and exactly wrong for EXPANSION; overloading it would break sorting for every run.
   PUT IT IN THE SHARED MODULE, NOT IN EITHER RUNNER. The flag row already lives in `runner_shared.RUN_POLICY_FLAGS` and both hosts call `register_run_policy_flags`; a closure implemented in `oc_runipd.py` and mirrored in `agy_runipd.py` would be the class-(d) re-fork the `rununify` Set exists to eliminate. One function, called from both `initialize_run`s.
   PARSE WITH THE EXISTING PARSER. `ipd_schema.parse_item_dependencies` (`:722`) via `_read_item_dependencies` (`oc_runipd.py:2062`) is the single definition of an edge. Do not re-parse `- Item-Dependencies:` by regex.
   HANDLE THE GRAPH HAZARDS EXPLICITLY, because a closure walk is where they bite: a CYCLE must terminate (visited set), a DIAMOND must not enqueue a target twice, a SELF-EDGE must not loop, and DEPTH must be bounded or at least explained. A closure that hangs or double-enqueues on a malformed graph is worse than a refusal. There is a shipped cycle detector to consult rather than re-derive: `ipd_schema.item_dependency_cycles` (`:817`) does a colored DFS over the IPD-to-IPD graph and is already deterministic; reuse it or state why a visited-set walk is sufficient here.
@@ -60,20 +60,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DECIDE WHAT AN UNRESOLVABLE TARGET DOES, and make it loud. An edge naming an id6 that resolves to nothing cannot be enqueued; refusing the run is defensible and so is proceeding with a stated warning, but SILENTLY DROPPING IT is not, because the operator passed a flag precisely to be sure prerequisites were queued. Record the decision. Note `f6idxs` (`depverb-01`) is separately making a dangling dependency target refuse pre-write; it is `- Status: to-review` and its `Scope-Paths` are `status_set.py`/`cli.py`/`tests/test_dependency_verb.py`, so there is NO file overlap and no ordering dependency, only a consistency obligation.
   - Depends on: E-01
   - Expected outcome: one host-neutral closure function in `runner_shared.py` using the existing edge parser, terminating on cycles, self-edges and diamonds without duplicate enqueue; a stated skip rule for already-satisfied and terminal-disposition targets that does NOT lean on the incidental `status: "reviewed"` filter and reuses `edge_satisfied`; and a recorded, loud decision for an unresolvable target consistent with `f6idxs`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 ADMIT A CLOSURE TARGET THAT THE MANIFEST DOES NOT CARRY, which is the hidden cost the backlog item did not know about. `discover_plans` (`runner_shared.py:1244`) walks only the two plans trees, so a dependency target that is a `spec` or a `backlog` item has NO manifest entry, and a queue entry is built from manifest data (`oc_runipd.py:2912-2983`, entry fields at `:2954` onward including `configured_file`, `dependencies`, `order`). The parser genuinely admits those types: `ipd_schema.ITEM_DEP_TYPES` (`:594`) is `("ipd", "spec", "backlog")`, so an `exists:spec:<id6>` or `state:backlog:<status>:<id6>` edge is legal grammar today.
+- [x] E-03 ADMIT A CLOSURE TARGET THAT THE MANIFEST DOES NOT CARRY, which is the hidden cost the backlog item did not know about. `discover_plans` (`runner_shared.py:1244`) walks only the two plans trees, so a dependency target that is a `spec` or a `backlog` item has NO manifest entry, and a queue entry is built from manifest data (`oc_runipd.py:2912-2983`, entry fields at `:2954` onward including `configured_file`, `dependencies`, `order`). The parser genuinely admits those types: `ipd_schema.ITEM_DEP_TYPES` (`:594`) is `("ipd", "spec", "backlog")`, so an `exists:spec:<id6>` or `state:backlog:<status>:<id6>` edge is legal grammar today.
   A NON-PLAN TARGET WOULD NOT MERELY BE ABSENT, IT WOULD CRASH AFTER THE RUN DIRECTORY EXISTS, and this is the sharpest reason the refuse-or-decide choice cannot be deferred (F-18). The queue builder's very first statement per item is an UNGUARDED `plan = manifest["plans"][id6]` (`oc_runipd.py:2913`, agy `:1990`), unlike the preflight loop above it which catches `KeyError`. Measured by character offset within `initialize_run`: the run directory `mkdir` precedes that unguarded access. So a closure that rebinds `queue_ids` with a non-plan id6 raises a bare `KeyError` AFTER creating a run directory, which breaks the no-durable-state property E-01 exists to protect and produces a traceback rather than a message. Any option other than "refuse before the seam" must therefore ALSO make that access safe.
   DECIDE AND RECORD WHAT HAPPENS FOR EACH TARGET TYPE. A plan target outside the selection is straightforward: it is in the manifest already (subject to E-02's terminal-status skip). A non-plan target is not, and there are only a few honest options: extend discovery for the closure's benefit, construct a minimal entry, or REFUSE with a message naming the type. Choose one and write the reason; do not let a non-plan target silently vanish, since that recreates the falsehood the refusal exists to prevent. REFUSING AT THE SEAM IS THE ONLY OPTION THAT NEEDS NO OTHER CHANGE, and the reviewer's reading is that it is the right default (see OQ-03), because it is loud, it precedes the run directory, and it leaves the spec's wider intent available to a later plan.
   THIS IS ALSO WHY THE MIXED-TYPE RE-TRIGGER IS CURRENTLY UNTESTABLE ON A LIVE INVOCATION, a fact already recorded in `enforce_mixed_type_gate`'s docstring (`runner_shared.py:2231-2239`, "NO REAL `aw <host> run` INVOCATION CAN YET PRODUCE A MIXED SELECTION"). Read that note before designing, and if this plan makes a live mixed selection REACHABLE for the first time, say so explicitly, because that is a meaningful change in what the gate can actually gate.
   DO NOT REGISTER `--type`. Spec 2.2/2.3 declares it and neither host registers it; that is another plan's scope and pulling it in would widen this one unreviewably.
   - Depends on: E-02
   - Expected outcome: a recorded per-type admission decision for closure targets absent from the manifest, with no silent drop and no path that reaches the unguarded `manifest["plans"][id6]` with a non-plan id6 after the run directory exists; the gate's own untestability note consulted; and `--type` untouched.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: wire it at the seam and keep the gate honest
 
-- [ ] E-04 REBIND THE SELECTION AT THE SEAM ON BOTH HOSTS, between `expand_selectors` (`oc_runipd.py:2785`, agy `:1840`) and the mixed-type gate (`oc_runipd.py:2881`, `agy_runipd.py:1917`), following the draft-admission gate's existing precedent of rebinding `queue_ids` rather than raising (`oc_runipd.py:2801`).
+- [x] E-04 REBIND THE SELECTION AT THE SEAM ON BOTH HOSTS, between `expand_selectors` (`oc_runipd.py:2785`, agy `:1840`) and the mixed-type gate (`oc_runipd.py:2881`, `agy_runipd.py:1917`), following the draft-admission gate's existing precedent of rebinding `queue_ids` rather than raising (`oc_runipd.py:2801`).
   PLACE IT BEFORE THE `selected_plan_paths` LOOP, NOT MERELY BEFORE THE GATE, since that loop (`oc_runipd.py:2836-2843`, agy `:1875-1882`) is what feeds BOTH `enforce_dependency_preflight` and `enforce_mixed_type_gate`. A closure that rebinds after it would leave the preflight and the gate reasoning about the pre-expansion selection, which is the failure E-05 is written to catch.
   MIND ONE ASYMMETRY THE DRAFT-GATE PRECEDENT CARRIES AND THIS CLOSURE MUST NOT COPY: the draft gate is wrapped in `if runner_shared.is_status_selector(args.selectors)`, because spec 2.5a scopes it to status sweeps. `--with-dependencies` has no such scoping in the spec, so the closure runs for ANY selector when the flag is passed. Do not inherit the conditional along with the shape.
   THE ORDER IS A SPEC CONTRACT, not a preference: `:936` requires the closure BEFORE mixed-type confirmation and freezing, and `:398` says "`--with-dependencies` may add the target and its transitive dependencies before freezing; without it, an unsatisfied external target cannot be met in this run."
@@ -81,36 +81,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT TOUCH SATISFACTION SEMANTICS. Spec `:295` is explicit: "`--with-dependencies` changes selection, not satisfaction semantics. Every declared dependency is enforced whether or not its target was selected." So `enforce_dependency_preflight` (`oc_runipd.py:2568`) and `dependency_status` (`:3482`) keep their rules; only the SET being run changes. Also update or remove the now-false comment at `oc_runipd.py:3385` ("There is no `--with-dependencies` closure in this runner, so an unsatisfied external target simply cannot be met in this run"), because leaving it would misdirect the next reader.
   - Depends on: E-03
   - Expected outcome: the closure rebinds the selection before the mixed-type gate on both hosts with identical call shape, satisfaction semantics unchanged, and the stale `:3385` comment corrected.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE THE MIXED-TYPE GATE RE-TRIGGERS ON A NEWLY INTRODUCED TYPE, which spec `:160` and `:1103` both require ("any new type triggers mixed confirmation"; and on resume "Requires original `--with-dependencies` and `--allow-mixed` when expansion mixes types").
+- [x] E-05 PROVE THE MIXED-TYPE GATE RE-TRIGGERS ON A NEWLY INTRODUCED TYPE, which spec `:160` and `:1103` both require ("any new type triggers mixed confirmation"; and on resume "Requires original `--with-dependencies` and `--allow-mixed` when expansion mixes types").
   THE AUTHORED PREMISE "THE GATE NEEDS NO RESTRUCTURING" IS FALSE AS STATED, AND REVIEW MEASURED WHY (F-16), so treat this as the item's real work rather than a formality. What is true: `run_selection_policy.decide` (`:712`) is pure, `RUN_MIXED_TYPES` is `:294`, `enforce_mixed_type_gate` (`runner_shared.py:2209`) sits after selection, and it classifies via `run_selection_policy.classify_paths` (`:341`) which types each path through `status_set.detect_artifact_type` and maps it through `SPEC_TYPE_BY_RESOLVER_TYPE` (`:51`) - so the machinery genuinely can name `spec` and `backlog` types. What is FALSE: the gate is not handed `queue_ids`, it is handed `selected_plan_paths`, and that list comes from a loop that resolves through `manifest["plans"][id6]` inside `except (DriverError, KeyError): continue`. A non-plan closure target has no manifest entry, so it is DROPPED BEFORE CLASSIFICATION and the gate sees a single-type selection. Expanding `queue_ids` alone is therefore sufficient ONLY for plan targets, which introduce no new type by definition. So this item must either establish that E-03 refuses non-plan targets at the seam (in which case say plainly that the new-type arm remains UNREACHABLE and is proven only at the `decide`/`classify_paths` level, not end-to-end), or, if E-03 admits them, prove the path they take reaches the classifier.
   DO NOT PASTE A UNIT-LEVEL `decide` CALL AND CALL IT AN END-TO-END RE-TRIGGER. That conflation is exactly what `enforce_mixed_type_gate`'s own docstring warns against ("Wiring proven; a live mixed selection being gated is NOT proven and must not be reported as such"), and a plan that repeats it would be claiming a behavior nobody can reach.
   TEST THE CONFIRMATION PATH, NOT ONLY THE CLASSIFICATION. The gate refuses non-interactively and confirms interactively; an expansion that mixes types must reach the same behavior an explicitly mixed selection would. Assert the refusal code and message identity at whatever level is HONESTLY reachable, and name that level.
   AND ASSERT THE NEGATIVE: an expansion that introduces NO new type must NOT trigger the gate. A gate that fires on correct behavior trains operators to pass `--allow-mixed` reflexively, which is the failure mode backlog `gjadwm` records.
   - Depends on: E-04
   - Expected outcome: the `selected_plan_paths` swallow-loop confronted rather than assumed away; an expansion introducing a new type reaching the same `RUN-MIXED-TYPES` behavior as an explicit mixed selection AT A NAMED level of reachability, with any remaining unreachability stated in the same words the gate's docstring uses; and an expansion introducing no new type not triggering it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: flip the flag honestly and prove it
 
-- [ ] E-06 FLIP THE FLAG ROW AND ITS HELP TEXT IN THE SAME CHANGE, or a shipped contract test fails. Re-located at review: `tests/test_run_flag_surface.py::HelpHonestyTests::test_an_unimplemented_flags_help_says_so` (`:280-286`) requires `NOT YET IMPLEMENTED` and `x8diyb` in the help of any row with `implemented=False`, and `::test_there_are_exactly_two_and_they_are_the_expected_two` (`:680-684`) asserts the unimplemented set is exactly `["--follow-generated", "--with-dependencies"]`.
+- [x] E-06 FLIP THE FLAG ROW AND ITS HELP TEXT IN THE SAME CHANGE, or a shipped contract test fails. Re-located at review: `tests/test_run_flag_surface.py::HelpHonestyTests::test_an_unimplemented_flags_help_says_so` (`:280-286`) requires `NOT YET IMPLEMENTED` and `x8diyb` in the help of any row with `implemented=False`, and `::test_there_are_exactly_two_and_they_are_the_expected_two` (`:680-684`) asserts the unimplemented set is exactly `["--follow-generated", "--with-dependencies"]`.
   A THIRD ASSERTION IN THAT SAME CLASS ALSO NARROWS, and the plan named only two (F-19). `test_each_refuses_when_passed` (`:686-697`) iterates the unimplemented rows and asserts each refusal message contains the flag, "not yet implemented", and `x8diyb`; after the flip it iterates ONE row instead of two. It needs no edit, but V-06 must show it still green, because a passing one-row loop is weaker evidence than a passing two-row loop and a reader should see that the coverage narrowed deliberately.
   SET `implemented=True` AND NAME THE REAL OWNER on the `--with-dependencies` row (`runner_shared.py:1975-1985`), replacing `owner="backlog x8diyb (rundepflags-01)"` with the symbol that now owns the behavior, matching how every implemented row names its owner (for example `--unverifiable-ok` names `run_evidence.aggregate_run_exit`).
   UPDATE THE EXACTLY-TWO ASSERTION TO EXACTLY ONE, and leave `--follow-generated` as the remaining unimplemented row with its `x8diyb` ownership intact, since that half is deliberately not built here. Do NOT flip `--follow-generated`. Note the flip also silently changes which rows `test_an_unimplemented_flags_help_says_so` and `test_not_passing_them_is_silent` iterate; that is expected, and it is why the flip and the test edit are ONE change.
   REWRITE THE HELP TEXT to describe what it now DOES, not what it would do. The current text is subjunctive ("Would expand the selection ..."), which is correct today and wrong after. IF E-03 REFUSED NON-PLAN TARGETS, THE HELP MUST SAY SO, because an operator reading "expands the selection to the transitive declared dependency closure" would reasonably expect a `spec` target to be included; a narrowing that appears only in a plan record leaves `--help` lying, which is precisely the defect `HelpHonestyTests` exists to catch.
   - Depends on: E-05
   - Expected outcome: `--with-dependencies` marked implemented with a real owner symbol and indicative help text that states any plans-only narrowing; the exactly-two assertion updated to exactly one; the third refusal-loop assertion shown still green on its now-single row; and `--follow-generated` untouched and still refusing with its `x8diyb` ownership.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 PROVE THE WHOLE PATH ON FIXTURES, INCLUDING THE CASES THAT MUST NOT CHANGE. Minimum cases: (a) a selection whose plan declares an out-of-selection plan dependency gains it, transitively, with the flag; (b) WITHOUT the flag the same selection is unchanged and the external target is still merely state-checked (spec `:160`, and the behavior at `oc_runipd.py:3384-3450`); (c) a cycle terminates; (d) a diamond enqueues each target once; (e) a new type triggers the gate, no new type does not (E-05's pair, at E-05's named level of reachability); (f) an unresolvable target behaves as E-02 decided, loudly; (g) BOTH HOSTS behave identically.
+- [x] E-07 PROVE THE WHOLE PATH ON FIXTURES, INCLUDING THE CASES THAT MUST NOT CHANGE. Minimum cases: (a) a selection whose plan declares an out-of-selection plan dependency gains it, transitively, with the flag; (b) WITHOUT the flag the same selection is unchanged and the external target is still merely state-checked (spec `:160`, and the behavior at `oc_runipd.py:3384-3450`); (c) a cycle terminates; (d) a diamond enqueues each target once; (e) a new type triggers the gate, no new type does not (E-05's pair, at E-05's named level of reachability); (f) an unresolvable target behaves as E-02 decided, loudly; (g) BOTH HOSTS behave identically.
   TWO MORE CASES ARE MANDATORY, EACH FROM A REVIEW MEASUREMENT, and (h) is the one that would otherwise ship a re-execution bug. (h) A TERMINAL TARGET IS NOT ENQUEUED: a selection whose plan carries `executed:<id6>` pointing at an already-executed plan must not gain that plan, proving E-02's skip rule fires in the closure rather than relying on the queue builder's incidental `status: "reviewed"` assignment. This case is real, not hypothetical: 10 of the 47 `executed:` edges in pending plans point at an executed target today. (i) A NON-PLAN TARGET TAKES E-03's DECIDED PATH AND LEAVES NO RUN DIRECTORY: assert whatever E-03 chose, and assert the run root is unchanged afterwards, because the unguarded `manifest["plans"][id6]` in the queue builder sits AFTER the run directory `mkdir` and a bare `KeyError` there would break the no-durable-state property.
   CASE (b) IS THE REGRESSION GUARD. The flag's whole contract is that it CHANGES nothing when absent; an implementation that expands unconditionally would silently enqueue prerequisites for every run, which is the opposite falsehood.
   ASSERT HOST PARITY BY IDENTITY WHERE POSSIBLE, the way sibling plans do: if both hosts call the same shared function, assert the object identity rather than duplicating behavioral tests. `tests/test_runner_refork_guard.py` already pins that no runner redefines an extracted symbol, so cite it rather than writing a third parity mechanism.
   FIXTURES ONLY, AND NEVER A LIVE RUN. Do not invoke a real `aw oc run` or `aw agy run` against this repository: measured at review, 104 plans are pending (18 `approved`, 25 `reviewed`, 61 `to-review`) and 45 run directories carry a `driver.lock`, so a real dispatch could start work on another agent's plan. Build synthetic manifests and plan trees in throwaway repos, as `tests/test_oc_runipd.py` and `tests/test_agy_runipd_cli.py` already do.
   - Depends on: E-06
   - Expected outcome: NINE fixture cases passing, with the flag-absent case asserted as an unchanged selection, the terminal-target case proving the closure's own skip rule, the non-plan case proving no run directory is left behind, host parity shown by identity where the code is shared, and no live run dispatched.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -217,6 +217,18 @@ TWO OPERATOR-FACING TEXTS CHANGE. The `--with-dependencies` help must become ind
 
 `--follow-generated`'s help and ownership must remain UNCHANGED, still naming `x8diyb`, because that half is deliberately not built. A reader must not be able to conclude from the code that both halves shipped.
 
+### Execution outcome of this section (2026-09-20)
+
+NO SPEC AMENDMENT WAS MADE, and none was needed: the implementation honors spec `25kzda` as written for every PLAN target, so no `.spec.md` path was touched and none is declared. The spec's line numbers have DRIFTED since authoring (`:160`->`:166`, `:295`->`:351`, `:398`->`:454`, `:936`->`:1007`, `:1103`->`:1195`) but every sentence reads verbatim as quoted, and the spec is still `- Status: approved`.
+
+THE SPEC-IMPLEMENTATION GAP THIS SECTION ANTICIPATED DID MATERIALIZE, and it is written down in THREE places rather than one, because this section warned that a silent plans-only narrowing is a finding. E-03 concluded a non-plan dependency target is NOT enqueueable today and REFUSES it (decision D2 in the run's decisions register, OQ-03's third option). So: (1) `closure_target_admission`'s code comment states the narrowing and cites `:166`; (2) the flag's own `--help` states it, so `--help` does not overstate to an operator who never reads an IPD; and (3) backlog item `isjodh` carries it as tracked work, enumerating the three changes a fixing plan must make TOGETHER. The plan record is this note.
+
+TWO MORE CODE COMMENTS BECAME FALSE and were corrected in the same change, one of which this plan did not name: `enforce_mixed_type_gate`'s honest-limit docstring now records that the closure shipping did NOT make a live mixed selection reachable (and names the `selected_plan_paths` swallow loop a future plan must also fix), and `queue_sort_key`'s type-rank note no longer rests on the closure not existing.
+
+THE THREE ERROR CATALOGUE MESSAGES ARE NOW TRUE FOR PLAN TARGETS, which is the operator-facing point of the whole plan. Their wording was re-read and still reads correctly: each says "Satisfy or include the prerequisite" / "Resolve the chain" / "Repair the item or dependencies, then run: aw <host> run <id6> --with-dependencies", and the remedy now works. One HONEST LIMIT for a reader: if the unmet edge names a `spec` or `backlog` target, the recommended flag REFUSES with a message naming the type rather than expanding, which is the `isjodh` gap. No message wording change was made, because the remedy is correct for the case that overwhelmingly occurs (all 43 edges declared across the pending plans today resolve to plans).
+
+`--follow-generated` IS UNCHANGED, still `implemented=False`, still owned by `backlog x8diyb`, still carrying `NOT YET IMPLEMENTED` and `x8diyb` in its help, and its refusal was re-measured firing with exit 2 on both hosts AFTER the change.
+
 ## Open questions
 
 ### OQ-01: What must a future `--follow-generated` plan answer first?
@@ -246,40 +258,164 @@ TWO OPERATOR-FACING TEXTS CHANGE. The `--with-dependencies` help must become ind
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste both hosts' current `--with-dependencies` refusal with UNPIPED exit codes, and paste a directory listing proving no run directory was created. Paste the pinned seam order (closure point, `selected_plan_paths` build, preflight, mixed gate, run dir, queue build, freeze) as a test or asserted trace, and cite the SHIPPED `test_both_runners_refuse_before_any_durable_state` rather than a duplicate of it. Paste the `selected_plan_paths` loop VERBATIM from both hosts, showing the `except (DriverError, KeyError): continue`, since E-03 and E-05 both turn on it. Paste the three error catalogue messages that recommend the flag, with their spec line numbers.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Executed at HEAD `bb714fd8`. Full capture: `.aw/state/lane-submissions/run-20260920T041049Z-2017708/01-dhycim/attempt-1/evidence/e01-before-refusal.txt`, `.aw/state/lane-submissions/run-20260920T041049Z-2017708/01-dhycim/attempt-1/evidence/e01-seam.txt`, `.aw/state/lane-submissions/run-20260920T041049Z-2017708/01-dhycim/attempt-1/evidence/e01-spec-promises.txt`, `.aw/state/lane-submissions/run-20260920T041049Z-2017708/01-dhycim/attempt-1/evidence/e01-f17-remeasured.txt`.
+    BOTH HOSTS' REFUSAL, exit codes measured UNPIPED (`cmd >/dev/null 2>&1; echo $?`):
+    ```
+    runipd: --with-dependencies is not yet implemented: backlog x8diyb (rundepflags-01) owns the behavior. The flag is registered so it fails HERE, loudly, rather than parsing and silently doing nothing
+    exit=2
+    runagy: --with-dependencies is not yet implemented: backlog x8diyb (rundepflags-01) owns the behavior. The flag is registered so it fails HERE, loudly, rather than parsing and silently doing nothing
+    exit=2
+    ```
+    NO DURABLE STATE after those refusals: `run root exists: no` / `run-* count: 0`. The SHIPPED property test is CITED, not duplicated - and the plan's named test NO LONGER EXISTS: `test_both_runners_refuse_before_any_durable_state` was DELETED as a source-text pin (its removal note is inline in `tests/test_run_flag_surface.py`, explaining it split `initialize_run`'s source on the literal `run_dir = state_root` and asserted a BYTE-OFFSET claim a comment could satisfy). Its replacement is `FullAutoEndToEndBehaviorTests::test_every_refused_invocation_leaves_no_durable_run_state`, which drives `initialize_run` on both hosts and asserts the OBSERVED absence of a `run-*` directory. I extended that table rather than adding a second test.
+    THE SEAM, AND THE BIGGEST CHANGE SINCE REVIEW: both hosts' `initialize_run` are now thin wrappers that `return runner_shared.initialize_run_core(...)` (`oc_runipd.py:3360`, `agy_runipd.py:2137`), so the seam the plan describes per host exists ONCE. Pinned order inside it, by position: flag refusal -> selector expansion -> draft gate -> `selected_plan_paths` -> preflight -> mixed gate -> run dir -> queue build -> `state.json`.
+    THE SWALLOW LOOP, VERBATIM (one shared copy, feeding BOTH the preflight and the mixed gate):
+    ```
+    selected_plan_paths: list[Path] = []
+    for id6 in queue_ids:
+        try:
+            selected_plan_paths.append(
+                resolve_plan_path(repo, manifest["plans"][id6].get("file", ""), id6)
+            )
+        except (DriverError, KeyError):
+            continue
+    enforce_dependency_preflight_fn(repo, selected_plan_paths)
+    ```
+    THE UNGUARDED ACCESS (F-18) confirmed still present and still AFTER the run-dir mkdir: `run_dir = state_root(repo) / run_id` + the `sessions`/`outcomes`/`prompts` mkdirs precede `plan = manifest["plans"][id6]`. FILED as backlog `ghff0p` (`Work-Kind: bug`, `Blocks-Release: next`).
+    THE THREE RECOMMENDING MESSAGES read verbatim as the plan quotes them, at DRIFTED spec lines (`:723` `IPD-DEP-SATISFIED`, `:724` `IPD-DEP-CASCADE`, `:764` `IPD-EXEC-READY`; the plan cites `:667`/`:668`/`:708`). The five requirement sentences likewise moved `:160`->`:166`, `:295`->`:351`, `:398`->`:454`, `:936`->`:1007`, `:1103`->`:1195`, content unchanged. Spec `25kzda` is still `- Status: approved`.
+    F-17 RE-MEASURED at execution: 694 discoverable plans, 547 `- Status: executed`; 43 declared edges across pending plans, of which 12 `executed:` edges point at an already-terminal target and ZERO dangle. `action_for("child","executed") == "execute"`, verified in-process.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the closure function's signature, docstring and body. Show it uses `ipd_schema.parse_item_dependencies` (via `_read_item_dependencies`) rather than a new regex, and show it does NOT extend `dependency_depth`. Paste passing cases for a cycle, a self-edge and a diamond, proving termination and single enqueue, and state whether `ipd_schema.item_dependency_cycles` was reused or why a visited-set walk suffices. PASTE THE TERMINAL-TARGET SKIP RULE and show it calls `edge_satisfied` rather than a second satisfaction test; then paste a case where an `executed:<id6>` edge names an already-executed plan and show the closure did NOT add it. That case must fail if the skip rule is removed: prove it by removing the rule, pasting the failure, and restoring it. State the unresolvable-target decision with its reason and confirm consistency with `f6idxs`'s rule.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Full capture: `.aw/state/lane-submissions/run-20260920T041049Z-2017708/01-dhycim/attempt-1/evidence/e02-closure-source.txt`, `.aw/state/lane-submissions/run-20260920T041049Z-2017708/01-dhycim/attempt-1/evidence/e02-provenance-ast.txt`, `.aw/state/lane-submissions/run-20260920T041049Z-2017708/01-dhycim/attempt-1/evidence/e02-e03-refusals.txt`.
+    SIGNATURES:
+    ```
+    expand_dependency_closure(repo: Path, manifest: dict, queue_ids: Any, *, with_dependencies: bool, edge_satisfied_fn: Any = None) -> tuple[list[str], dict]
+    closure_target_admission(repo: Path, edge: Any, *, manifest: dict, edge_satisfied_fn: Any = None) -> tuple[str, str]
+    CLOSURE_TERMINAL_BUCKETS = ('executed', 'superseded', 'not-executed', 'reusable')
+    ```
+    Body pasted in full in the capture. PROVENANCE MEASURED BY AST, not by text, because my first text probe gave two FALSE POSITIVES (`re.` matched the word "returns" in a comment; `runipd` matched the comment forbidding a runner import) and a comment cannot produce an AST node:
+    ```
+    --- expand_dependency_closure ---     imports (AST): ['agent_workflows.ipd_schema']
+      calls _read_item_dependencies     : True      calls _parse_item_dependency_edge : True
+      calls dependency_depth            : False     imports a runner                  : False
+    --- closure_target_admission ---      imports (AST): ['agent_workflows.ipd_schema']
+      calls edge_satisfied_fn           : True      calls plan_bucket                 : True
+    ```
+    So the edge grammar is `ipd_schema.parse_item_dependencies` via `_read_item_dependencies` (which already lives in `runner_shared`), there is no new regex, and `dependency_depth` is untouched.
+    CYCLE / SELF-EDGE / DIAMOND: `ipd_schema.item_dependency_cycles` was NOT reused, and the reason is recorded in the docstring: this walk answers "which ids are reachable", not "is the graph acyclic", so a cycle, a self-edge and a diamond all reduce to "already visited"; DETECTING and REPORTING a cycle is a lint/`aw check` concern that function already owns, and re-deciding it here would refuse a run for a defect another surface is responsible for naming. Proven at BOTH levels by `test_a_cycle_terminates_and_a_diamond_enqueues_each_target_once`: the walk RETURNS with each id visited once, and END TO END the pre-existing preflight refuses with `check.ipd-dependency-cycle` / `check.ipd-dependency-malformed` (see the note in the decisions register: this is a place the evidence does not look like the plan's prose predicted).
+    THE SKIP RULE USES THE SHIPPED PREDICATE, and has TWO independent halves. First `edge_satisfied` (the host's own, INJECTED as `edge_satisfied_fn` because `runner_shared` must import neither runner - two shipped guards enforce that, and a lazy in-function import FAILED both, measured). Observed skip reason for an already-executed target: `executed:bbb222: already satisfied against current repository state (oc_runipd.edge_satisfied), so enqueuing bbb222 cannot help`. Second, the disposition check, which is independently load-bearing: for a `superseded`/`not-executed`/`reusable` target `edge_satisfied` correctly says UNMET, so only the disposition half keeps it out - asserted by `test_a_retired_target_is_skipped_by_the_DISPOSITION_rule_not_the_satisfaction_one`, which first requires `assertFalse(met)`.
+    THE COUNTERFACTUAL, as required: `test_the_skip_rule_is_what_keeps_the_terminal_target_out` patches `closure_target_admission` so every resolvable target returns `add`, and REQUIRES the already-executed plan to appear in the queue. It does, so the green in `test_an_already_terminal_target_is_not_enqueued` is not vacuous. That test also asserts WHICH rule fired (`edge_satisfied` in the reason), not merely that some rule did.
+    THE UNRESOLVABLE-TARGET DECISION: REFUSE. Recorded as D1 in the decisions register with its reasoning and its measured cost (zero: all 43 declared edges resolve today). Observed message: `executed:zzz999: --with-dependencies cannot resolve dependency target zzz999, so the closure would be incomplete and the run would not be the one you asked for (...). Fix the dangling edge, or re-run without --with-dependencies (the edge is still enforced either way).` CONSISTENT WITH `f6idxs` (`depverb-01`), which refuses a dangling target at WRITE time: one rule across two surfaces. `f6idxs` is still `- Status: to-review` and declares `status_set.py`/`cli.py`/`tests/test_dependency_verb.py`, so there is no file overlap and no ordering edge.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: state the admission decision PER target type with its reason, and show no code path silently drops a target. Confirm you read `enforce_mixed_type_gate`'s honest-limit docstring and state whether this change makes a live mixed selection reachable for the first time. PASTE PROOF THAT NO NON-PLAN id6 CAN REACH THE UNGUARDED `manifest["plans"][id6]` IN THE QUEUE BUILDER: either the seam refusal that precedes it, or the guard you added, plus a fixture showing the run root unchanged after the attempt. If the decision narrows the flag to plan targets only, paste the written spec-implementation gap note AND the help text carrying the same narrowing, since spec `:160` presupposes otherwise and `--help` must not overstate.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Full capture: `.aw/state/lane-submissions/run-20260920T041049Z-2017708/01-dhycim/attempt-1/evidence/e02-e03-refusals.txt`, `.aw/state/lane-submissions/run-20260920T041049Z-2017708/01-dhycim/attempt-1/evidence/e06-help.txt`.
+    ADMISSION DECISION PER TARGET TYPE, all four outcomes, none of them silent:
+    * `ipd`, non-terminal, in the manifest -> ADD.
+    * `ipd`, already satisfied or in a terminal disposition -> SKIP, recorded in the ledger's `skipped` list with the edge and the reason.
+    * `ipd`, unresolvable -> REFUSE (D1).
+    * `spec` / `backlog` -> REFUSE, naming the type (D2, OQ-03's third option).
+    * `ipd` resolvable but absent from an EXPLICIT `--manifest` -> REFUSE rather than fabricating an entry, since `configured_file`/`set`/`order` come from the manifest and inventing them would queue an item whose Set membership nobody declared.
+    The function returns a three-way verdict (`add`/`skip`/`refuse`) precisely so a fourth, silent outcome has nowhere to live; every `skip` is written to the ledger and every `refuse` raises.
+    OBSERVED NON-PLAN REFUSAL, both hosts, run root EMPTY afterwards:
+    ```
+    oc:  ClosureRefusal: exists:spec:sss999: --with-dependencies cannot enqueue a spec target. The run manifest is built from the plans trees only, so a specs record has no queue entry to build. This is NARROWER than spec 25kzda :166, which subjects any newly introduced type to the mixed-type gate; the gap is recorded in `closure_target_admission` and stated in --with-dependencies's own --help. ...
+    oc:  run directories left behind: []  (must be [])
+    agy: (identical message)
+    agy: run directories left behind: []  (must be [])
+    ```
+    NO NON-PLAN id6 CAN REACH THE UNGUARDED `manifest["plans"][id6]`: the refusal fires at the seam, which the V-04 position evidence shows precedes the run directory, so the queue builder is never entered. Asserted by `test_a_non_plan_target_refuses_and_leaves_no_run_directory` (message AND empty run root) on both hosts. I did NOT add a guard to the queue builder, because nothing in this change can reach it; the latent defect is FILED as backlog `ghff0p` instead of half-fixed here.
+    I READ `enforce_mixed_type_gate`'s HONEST-LIMIT DOCSTRING, and this change does NOT make a live mixed selection reachable for the first time. I extended that docstring to say so and to name the SECOND reason a future plan must also fix (the gate receives `selected_plan_paths`, not `queue_ids`, so a manifest-absent target is dropped before `classify_paths` types it).
+    THE SPEC-IMPLEMENTATION GAP IS WRITTEN DOWN IN THREE PLACES, not one: in `closure_target_admission`'s comment, in the flag's `--help` (`PLAN TARGETS ONLY: a spec or backlog dependency target REFUSES ... (this is narrower than spec 25kzda, which subjects any newly introduced type to the mixed-type gate)`), and as backlog item `isjodh`, which enumerates all three changes a fixing plan must make together.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the rebinding call from BOTH hosts and show the call shapes are identical. Paste evidence the closure runs BEFORE the `selected_plan_paths` loop (not merely before the gate call), before `enforce_mixed_type_gate`, and before the run directory is created. Show the closure is NOT wrapped in `is_status_selector` the way the draft gate is, and say why. Paste `git diff` over `enforce_dependency_preflight` and `dependency_status` proving satisfaction semantics are byte-unchanged. Paste the corrected `oc_runipd.py:3385` comment.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Full capture: `.aw/state/lane-submissions/run-20260920T041049Z-2017708/01-dhycim/attempt-1/evidence/e04-seam-after.txt`, `.aw/state/lane-submissions/run-20260920T041049Z-2017708/01-dhycim/attempt-1/evidence/e04-satisfaction-unchanged.txt`.
+    ONE REBINDING CALL, NOT TWO, and this is D3 in the decisions register: both hosts now delegate to `runner_shared.initialize_run_core`, so wiring it there satisfies "identical call shape on both hosts" unbreakably rather than by inspection. Proven by identity:
+    ```
+    both hosts reach the SAME core object: True
+    both inject the SAME predicate object: True
+    agent_workflows/oc_runipd.py:3372:        edge_satisfied_fn=edge_satisfied,
+    agent_workflows/agy_runipd.py:2149:        edge_satisfied_fn=edge_satisfied,
+    ```
+    POSITION, measured inside `initialize_run_core`: flag refusal -> selector expansion -> draft gate -> **THE CLOSURE** -> `selected_plan_paths` -> preflight -> mixed gate -> run dir -> queue build -> `state.json`. Contract checks: closure precedes the `selected_plan_paths` build `True`, the dependency preflight `True`, the mixed-type gate `True`, the run directory `True`, the queue freeze `True`; and follows selector expansion `True`. So it is before the LIST, not merely before the gate call, which is what E-05's failure mode required.
+    NOT WRAPPED IN `is_status_selector`, measured BY AST because the token appears in my own explanatory comment and a text probe would have passed for the wrong reason: compound statements enclosing the closure call = `[]`, i.e. unconditional. Why: spec 2.5a scopes the DRAFT gate to status sweeps; `--with-dependencies` carries no such scoping, so the flag means expand whatever the selector.
+    SATISFACTION SEMANTICS UNCHANGED, and proven more strongly than byte-identity would: comparing AST-unparsed EXECUTABLE bodies against HEAD (docstrings and comments excluded), `edge_satisfied`, `dependency_status`, `dependency_status_detailed`, `enforce_dependency_preflight` and `dependency_depth` are ALL `identical to HEAD: True`. The entire `oc_runipd.py` diff is 20 insertions / 6 deletions, all comment or docstring text plus the one `edge_satisfied_fn=` injection line.
+    THE STALE COMMENT IS CORRECTED. It is at `oc_runipd.py:3579` now, not `:3385`. Before: "There is no `--with-dependencies` closure in this runner, so an unsatisfied external target simply cannot be met in this run." After: "Evaluated from frozen repository state, and that is UNCHANGED by the arrival of `--with-dependencies` ... spec 25kzda :351 is explicit that it 'changes selection, not satisfaction semantics' ... Without the flag an unsatisfied external target still simply cannot be met in this run." A SECOND comment the plan did not name also became false and is corrected: `queue_sort_key`'s type-rank note rested on the closure not existing (`oc_runipd.py:4065`); it now explains that queue homogeneity SURVIVED the closure shipping because a non-plan target refuses.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: FIRST state, in one sentence, what LEVEL the new-type arm is reachable at and why, having read the `selected_plan_paths` loop. Then paste the ACTUAL output for an expansion that introduces a new type, showing the same `RUN-MIXED-TYPES` code and message an explicit mixed selection produces, with the interactive and non-interactive paths distinguished. If that arm is only reachable at the `decide`/`classify_paths` level, say so IN THE GATE DOCSTRING'S OWN WORDS ("wiring proven; a live mixed selection being gated is NOT proven") and do not present the unit call as end-to-end. Paste the NEGATIVE case: an expansion introducing no new type not triggering the gate. Quote both assertions.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Full capture: `.aw/state/lane-submissions/run-20260920T041049Z-2017708/01-dhycim/attempt-1/evidence/e05-e07-live.txt`, `.aw/state/lane-submissions/run-20260920T041049Z-2017708/01-dhycim/attempt-1/evidence/e07-cases.txt`.
+    THE LEVEL, IN ONE SENTENCE: the new-type arm is reachable ONLY at the `classify_paths`/`decide` level, because the closure REFUSES a non-plan target (the only edge that could introduce a type) and because `enforce_mixed_type_gate` is handed `selected_plan_paths` - built by a loop that resolves `manifest["plans"][id6]` inside `except (DriverError, KeyError): continue` - rather than `queue_ids`, so a manifest-absent target would be dropped before classification even if it were admitted.
+    SO, IN THE GATE DOCSTRING'S OWN WORDS: the wiring is proven correct; a live mixed selection being gated is NOT proven, and must not be reported as if it were. I have NOT presented the unit call as an end-to-end re-trigger; `test_a_new_type_reaches_the_same_refusal_at_the_level_it_is_reachable_at` asserts BOTH halves in one test - the unit-level `RUN-MIXED-TYPES` refusal over a classification built by the REAL `classify_paths` over real files (not a hand-constructed `Classification`, which could assert a shape that function never produces), AND the `ClosureRefusal` an operator actually meets instead. Non-interactive path asserted (`interactive=False` -> `gate_applied=True`, `proceed=False`, message contains `RUN-MIXED-TYPES`); the interactive exact-phrase path is untouched by this change and remains covered by `MixedTypeGateWiringTests`.
+    THE NEGATIVE CASE, end to end and on both hosts: an expansion that adds two plan targets leaves the classification single-type and the gate does NOT apply. Frozen ledger for all eight live runs:
+    ```
+    queue=['aaa111','bbb222','ccc333'] flag=True  closure=added ['bbb222','ccc333']       mixed: applied=False proceed=True types={'ipd': 3}
+    queue=['aaa111']                   flag=False closure=NO EVENT                        mixed: applied=False proceed=True types={'ipd': 1}
+    ```
+    (both rows appear twice per host). Assertions quoted: `self.assertFalse(gate["gate_applied"])`, `self.assertTrue(gate["proceed"])`, `self.assertEqual(gate["type_counts"], {"ipd": 2})` for the fixture case; and `self.assertTrue(verdict.gate_applied)`, `self.assertFalse(verdict.proceed)`, `self.assertIn("RUN-MIXED-TYPES", verdict.message or "")` for the unit-level arm. A gate that fired on a correct same-type expansion would train operators to pass `--allow-mixed` reflexively, which is why the negative is asserted at all.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the changed `--with-dependencies` row showing `implemented=True`, a real owner symbol, and indicative help text that states any plans-only narrowing E-03 chose. Paste `tests/test_run_flag_surface.py`'s own summary line green, quote the updated exactly-one-unimplemented assertion, and show `test_each_refuses_when_passed` still green while noting it now iterates ONE row rather than two. Paste `--follow-generated`'s row UNCHANGED and its refusal still firing, proving the other half was not enabled.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Full capture: `.aw/state/lane-submissions/run-20260920T041049Z-2017708/01-dhycim/attempt-1/evidence/e06-help.txt`, `.aw/state/lane-submissions/run-20260920T041049Z-2017708/01-dhycim/attempt-1/evidence/e06-after-flag-surface.txt`.
+    THE FLIPPED ROW:
+    ```
+    implemented : True
+    owner       : runner_shared.expand_dependency_closure
+    freeze      : True   resume_rule: none-default
+    help        : Expand the selection to the transitive declared dependency closure BEFORE the queue is
+                  frozen ... PLAN TARGETS ONLY: a spec or backlog dependency target REFUSES, because the run
+                  manifest is built from the plans trees and has no queue entry for one (this is narrower than
+                  spec 25kzda, which subjects any newly introduced type to the mixed-type gate). A target
+                  already in a terminal disposition (executed, superseded, not-executed, reusable) is SKIPPED,
+                  since its work is done; an unresolvable target refuses rather than expanding partially.
+                  Changes selection only: every declared dependency is enforced either way
+    ```
+    Indicative, not subjunctive, and it carries E-03's plans-only narrowing, so `--help` does not overstate. The help-honesty suite asserts the table's text EQUALS `action.help` on both hosts' real parsers, so this text is what an operator sees.
+    `tests/test_run_flag_surface.py` SUMMARY LINE: `63 passed in 19.56s` (was 51 at HEAD; +12 new closure tests).
+    THE MEMBERSHIP ASSERTION, updated to exactly one: `expected_names = ["--follow-generated"]`, and the unimplemented set measured in-process is `['--follow-generated']`. Its docstring now records that the narrowing was deliberate, that this class iterates ONE row where it iterated two, and that `--follow-generated` must not be flipped alongside its former twin because no mechanism detects a generated IPD.
+    THE THIRD, NARROWING ASSERTION: the plan expected `test_each_refuses_when_passed`, which NO LONGER EXISTS - it was merged into `test_the_predicate_refuses_exactly_the_unimplemented_flags_and_nothing_else`, a four-quadrant truth table (membership, refusing cells, silent cells, must-never-refuse cells). That merged test is GREEN and now iterates ONE refusing row instead of two; the halved coverage is stated in its docstring rather than left for a reader to infer. I ALSO had to remove `--with-dependencies`'s row from `FullAutoEndToEndBehaviorTests.REFUSALS`, which demanded the words "not yet implemented" from it - keeping it would demand the defect back. Its no-durable-state guarantee MOVED rather than being dropped: `DependencyClosureTests::test_a_closure_refusal_leaves_no_durable_run_state` asserts the same property for the flag's two remaining refusals, and the deleted row's comment points at it.
+    `--follow-generated` UNCHANGED and STILL REFUSING on both hosts: `implemented: False`, `owner: backlog x8diyb (rundepflags-01)`, help still carrying `NOT YET IMPLEMENTED` and `x8diyb`, and the live refusal re-measured after the change with `exit=2` on both hosts.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste the ACTUAL passing output of all NINE cases. QUOTE the flag-absent case separately as the regression guard, stating why an unconditional expansion would be the opposite falsehood. QUOTE the terminal-target case separately too, and show the evidence proves the CLOSURE skipped it rather than the queue builder's `status: "reviewed"` default preventing dispatch. Paste the non-plan case with the run root unchanged. Paste the host-parity proof (object identity where shared, citing `tests/test_runner_refork_guard.py`). Paste negative proof that no real run was dispatched (no new run directory, `git status --porcelain` clean of unexpected paths). THEN paste the BARE `python3 -m pytest` summaries before and after with the failure-set delta as a set and the counts you observed, expecting the environmental `test_reporting_contract` failure in both.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Full capture: `.aw/state/lane-submissions/run-20260920T041049Z-2017708/01-dhycim/attempt-1/evidence/e07-cases.txt`, `.aw/state/lane-submissions/run-20260920T041049Z-2017708/01-dhycim/attempt-1/evidence/e05-e07-live.txt`, `.aw/state/lane-submissions/run-20260920T041049Z-2017708/01-dhycim/attempt-1/evidence/pytest-before.txt`, `.aw/state/lane-submissions/run-20260920T041049Z-2017708/01-dhycim/attempt-1/evidence/pytest-after.txt`.
+    ALL TWELVE TESTS PASSING (the plan asked for nine cases; the extra three are the counterfactual, the disposition-versus-satisfaction separation, and the host-parity proof):
+    ```
+    test_the_flag_absent_case_changes_nothing PASSED
+    test_an_already_terminal_target_is_not_enqueued PASSED
+    test_an_expansion_introducing_no_new_type_does_not_trigger_the_gate PASSED
+    test_a_non_plan_target_refuses_and_leaves_no_run_directory PASSED
+    test_a_new_type_reaches_the_same_refusal_at_the_level_it_is_reachable_at PASSED
+    test_the_closure_has_ONE_definition_and_both_hosts_reach_THAT_one PASSED
+    test_the_skip_rule_is_what_keeps_the_terminal_target_out PASSED
+    test_a_retired_target_is_skipped_by_the_DISPOSITION_rule_not_the_satisfaction_one PASSED
+    test_a_transitive_closure_is_enqueued_on_both_hosts PASSED
+    test_an_unresolvable_target_refuses_loudly PASSED
+    test_a_cycle_terminates_and_a_diamond_enqueues_each_target_once PASSED
+    test_a_closure_refusal_leaves_no_durable_run_state PASSED
+    ============================== 12 passed in 2.50s ==============================
+    ```
+    THE FLAG-ABSENT CASE, QUOTED SEPARATELY AS THE REGRESSION GUARD. Same graph, only the flag differs: `queue=['aaa111'] flag=False closure=NO EVENT (never asked to expand)` versus `queue=['aaa111','bbb222','ccc333'] flag=True`. An unconditional expansion would silently enqueue prerequisites for EVERY run, which is the exact MIRROR of the falsehood the old refusal prevented and strictly harder to notice because the run SUCCEEDS. The test also asserts the ledger event is ABSENT rather than merely `applied: False`, so a reader of `events.jsonl` can tell a no-op expansion from one never asked for.
+    THE TERMINAL-TARGET CASE, QUOTED SEPARATELY, AND IT PROVES THE CLOSURE SKIPPED. The assertion is `self.assertEqual(ids, ["aaa111"])` - the finished plan is ABSENT FROM THE QUEUE, which only the closure's own rule can achieve. I did NOT paste a run in which the executed plan appears in the queue and was never dispatched; that would prove only the queue builder's `status: "reviewed"` default plus the dispatch loop's `queued` filter. The recorded skip reason names the rule: `already satisfied against current repository state (oc_runipd.edge_satisfied)`. And the counterfactual test removes the rule and REQUIRES the finished plan to appear, so the green is not vacuous.
+    THE NON-PLAN CASE with the run root unchanged: both hosts raise `ClosureRefusal` and `run directories left behind: []`.
+    HOST PARITY BY IDENTITY: `oc_runipd.runner_shared.initialize_run_core is agy_runipd.runner_shared.initialize_run_core` -> True, and `oc_runipd.edge_satisfied is agy_runipd.edge_satisfied` -> True. `tests/test_runner_refork_guard.py` is CITED rather than extended, and the reason is recorded in the parity test's docstring: that guard's contract is that a runner EXPOSES the owner's object at a name its own call sites use, and the closure has no such call site (it is invoked from inside the shared core), so a row there would force the runners to import a symbol they never use. The honest claim is one level up - one core, reached by both - plus an AST check that neither runner defines its own `expand_dependency_closure`/`closure_target_admission`. Both architecture guards that forbid `runner_shared` importing a runner are green (`NoRunnerImportTests`, `TheSharedModuleStaysCleanTests`, 5 passed).
+    NO REAL RUN DISPATCHED: every measurement used `--prepare-only` against throwaway repos under gitignored `.aw/state/dhycim-scratch/`, or `tempfile` fixtures. No directory was created under THIS repository's run root (`.aw/records/runs` does not exist here: `ls | wc -l` -> 0), and `git status --porcelain` shows only my three source/test files plus my own submission and backlog artifacts.
+    BARE `python3 -m pytest`, BEFORE AND AFTER, no flags added:
+    ```
+    BEFORE: 7093 passed, 3 skipped, 2 xfailed, 3 warnings in 132.25s (0:02:12)     exit=0
+    AFTER : 7105 passed, 3 skipped, 2 xfailed, 3 warnings in 148.35s (0:02:28)     exit=0
+    ```
+    FAILURE-SET DELTA AS A SET: BEFORE = {} (empty), AFTER = {} (empty), so AFTER minus BEFORE = {} - EMPTY, which is the criterion. NOTE the plan expected an environmental `tests/test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose` failure in both runs, caused at review by 189 untracked `opencode-recovery/*.md` files belonging to another party. Those files are NOT present in this lane worktree, so the baseline is fully green and nothing had to cancel in the delta. The count grew by exactly 12, which is the new test class.
+  - Result: pass
 
 ## Approval and execution gate
 
