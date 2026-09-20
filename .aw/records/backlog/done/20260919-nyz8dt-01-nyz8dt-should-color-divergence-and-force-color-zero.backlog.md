@@ -1,5 +1,5 @@
 - Id: nyz8dt
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Set: nyz8dt
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: Unify the three divergent should_color implementations and stop FORCE_COLOR=0 forcing color on
 
 ## Workflow history
+- 2026-09-20 done (aw set): CLOSED 2026-09-19 by salvage of run-20260919T194413Z-2056285. The gate is preserved by HANDOFF: plan z8ddk0 carries - From-Backlog: nyz8dt and inherited - Blocks-Release: next, and it is now executed (lane merged to main in e4c3e57f, finalized at 50ea59a0ac2e). All FOUR measured defects re-verified by execution on the merged tree, not by reading code: (1) FORCE_COLOR=0 to a pipe is now False in BOTH term and runner_shared; (2) TERM=dumb now agrees across term and runner_shared, both False, where runner_shared previously ignored TERM; (3) FORCE_COLOR=1 through the pwatch path is now True; (4) FORCE_COLOR='' no longer cancels NO_COLOR, so NO_COLOR=1 FORCE_COLOR='' is False. term.should_color is the single ORIGINATING definition with runner_shared delegating and pwatch consuming. Suite green: 7131 passed, 3 skipped, 2 xfailed.
 - 2026-09-19 graduated (aw set): Converted into lifeglyph child z8ddk0 on the maintainer's instruction 2026-09-19, after the three reasons for keeping it standalone were re-examined and two were found false. The gate travels with the plan, which carries Blocks-Release: next and Work-Kind: bug.
 - 2026-09-19 created (aw backlog): Filed from the lifeglyph pow5sj OQ-02 investigation; carries the maintainer's 2026-09-19 ruling on NO_COLOR/FORCE_COLOR semantics.
 
