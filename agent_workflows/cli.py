@@ -3626,7 +3626,13 @@ def _build_parser() -> argparse.ArgumentParser:
         # mutation flags (rename/group)
         _p.add_argument("--slug", default=None, help="New slug (rename).")
         _p.add_argument(
-            "--order", type=int, default=None, help="Order NN (rename/group)."
+            "--order",
+            type=int,
+            default=None,
+            help=(
+                "Order NN (rename/group). Omit it to PRESERVE each artifact's existing Order; "
+                "give it to renumber the named artifacts sequentially from NN."
+            ),
         )
         _p.add_argument(
             "--rename",
