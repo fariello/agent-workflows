@@ -9,17 +9,17 @@
 - Scope: Make the `--diff` preview build the same generated-member map the apply path builds, by calling `_build_skill_members` on the `--diff` branch and passing the merged map to `show_install_diffs`. Add a test that pins preview/apply parity so the two paths cannot diverge again. EXCLUDES any change to skill generation, to `host_adapters`, to the skills-dir resolution, to prune or uninstall behavior, and to what an apply writes: this plan changes only what the PREVIEW reports. Excludes the cosmetic `shim_members` parameter rename discussed in OQ-01.
 - Scope-Paths: agent_workflows/engine.py, tests/test_installer_diff_parity.py, tests/test_installer_skill_emission.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: instdiff
 - Order: 1
 - Highest E allocated: 03
 - Readiness: go-pending-approval
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: at61gc
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: bplplj
 
 ## Workflow history
+- 2026-09-20 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: at61gc verified (set instdiff, attempt 1).
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED; review record written; Readiness go-pending-approval
 
