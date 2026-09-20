@@ -6159,10 +6159,13 @@ RUN_POLICY_FLAGS: tuple = (
         owner="run_recovery.validate_retry_budget",
         help=(
             "Automatic correction attempts after the initial attempt, an integer 0..10 inclusive "
-            "(0 means no retries). The CLI value overrides the default of 2. NOTE: spec 2.1's "
-            "MIDDLE precedence tier (repository policy) is NOT IMPLEMENTED - no repository-policy "
-            "home exists yet (backlog dh3us4) - so precedence today is CLI over default. Cannot be "
-            "changed on --resume: the frozen value stands"
+            "(0 means no retries). Precedence is THREE-TIER: this CLI value overrides repository "
+            "policy, and repository policy overrides the default of 2. Repository policy is the "
+            "integer at run.retry_budget in .aw/config/project.json, so a repo wanting a standing "
+            'override writes {"run": {"retry_budget": 4}} there. A malformed or out-of-range '
+            "POLICY value does NOT refuse: it warns, names the key and the value, and the default "
+            "applies, because that file is shared; an out-of-range value passed HERE does refuse. "
+            "Cannot be changed on --resume: the frozen value stands"
         ),
         resume_rule=RESUME_REFUSE,
     ),
@@ -6355,28 +6358,71 @@ def register_run_policy_flags(
             )
 
 
-def resolve_retry_budget(cli_value: Any) -> int:
+def resolve_retry_budget(
+    cli_value: Any,
+    *,
+    repo: Any = None,
+    warn: Any = None,
+) -> int:
     """Spec 2.1's retry-budget precedence, and the ONE place the range bound is reached.
 
-    Precedence per spec 2.1 is CLI > repository policy > default 2. The MIDDLE TIER IS NOT
-    IMPLEMENTED and is not faked here: no repository-policy home exists (backlog `dh3us4` tracks it),
-    so this resolves CLI-over-default and the gap is stated in `--retry-budget`'s own `--help` rather
-    than left for an operator to discover.
+    ALL THREE TIERS SHIP: per spec 2.1 and 5.5 the precedence is CLI over repository policy over the
+    default of 2. The middle tier is `config.policy_retry_budget`, reading spec 5.5's
+    `run.retry_budget` from the committed `.aw/config/project.json`.
 
-    The 0..10 bound is `run_recovery.validate_retry_budget`'s, CALLED and never re-checked here:
-    executed plan `sq61qd` made that the single definition of the bound precisely so the flag layer
-    could reach it at PARSE time, when no `RunEngine` and no step exist. A second comparison here is
-    the off-by-one that gets fixed in one place.
+    `repo` IS OPTIONAL BY DESIGN AND ITS ABSENCE MEANS "NO REPOSITORY KNOWN, THEREFORE NO POLICY
+    TIER" (plan `y4adch` OQ-04). The function must stay callable at PARSE time, where a repo may not
+    be resolved yet, and the pure CLI-over-default path remains a real code path with its own
+    assertions. THE HONEST COST is that a production caller which FORGETS `repo` silently falls back
+    to CLI-over-default with every unit test still green, so a contract test asserts the production
+    call sites pass it.
+
+    THE MIDDLE TIER IS ONLY CONSULTED WHEN NO CLI VALUE WAS PASSED, which is what makes `--retry-budget
+    0` mean zero rather than "unset": the guard is `is None`-shaped, never truthy, because `0` is a
+    legal budget (spec 5.5).
+
+    THE TWO FAILURE POSTURES ARE DIFFERENT ON PURPOSE (maintainer decision, 2026-09-10). A bad CLI
+    value RAISES `RunFlagRefusal` and stops the one invocation that typed it. A bad POLICY value falls
+    back to the default AND WARNS, naming the key and the value, because `.aw/config/project.json` is
+    tracked and shared, so refusing would break every run in the checkout over one typo. Do not
+    "fix" that asymmetry into symmetry: it is the decision, not an oversight.
+
+    The 0..10 bound is `run_recovery.validate_retry_budget`'s, CALLED and never re-checked here -
+    including for the policy value, which is validated through the same single definition so the
+    bound cannot differ between a flag and a config key. Executed plan `sq61qd` made that the single
+    definition precisely so the flag layer could reach it at PARSE time, when no `RunEngine` and no
+    step exist. A second comparison here is the off-by-one that gets fixed in one place.
     """
 
     from agent_workflows import run_recovery
 
-    if cli_value is None:
-        return run_recovery.DEFAULT_RETRY_LIMIT
-    try:
-        return run_recovery.validate_retry_budget(cli_value)
-    except run_recovery.InvalidRetryBudgetError as exc:
-        raise RunFlagRefusal(f"--retry-budget: {exc}") from exc
+    if cli_value is not None:
+        try:
+            return run_recovery.validate_retry_budget(cli_value)
+        except run_recovery.InvalidRetryBudgetError as exc:
+            raise RunFlagRefusal(f"--retry-budget: {exc}") from exc
+
+    if repo is not None:
+        from agent_workflows import config as _config
+
+        policy_value = _config.policy_retry_budget(repo, warn=warn)
+        if policy_value is not None:
+            try:
+                return run_recovery.validate_retry_budget(policy_value)
+            except run_recovery.InvalidRetryBudgetError as exc:
+                message = (
+                    f"WARNING: {_config.RUN_POLICY_KEY}.{_config.RUN_RETRY_BUDGET_MEMBER} in "
+                    f"{Path(repo) / '.aw' / 'config' / 'project.json'} is out of range: {exc}. "
+                    f"Ignoring it and using the default retry budget "
+                    f"({run_recovery.DEFAULT_RETRY_LIMIT}) instead. Fix the value in that file to "
+                    f"make the repository policy take effect."
+                )
+                if warn is None:
+                    print(message, file=sys.stderr)
+                else:
+                    warn(message)
+
+    return run_recovery.DEFAULT_RETRY_LIMIT
 
 
 def refuse_unimplemented_run_flags(args: Any) -> None:
@@ -7145,7 +7191,7 @@ def refuse_frozen_flags_on_resume(args: Any) -> None:
             )
 
 
-def freeze_run_policy_flags(args: Any) -> dict:
+def freeze_run_policy_flags(args: Any, *, repo: Any = None) -> dict:
     """The spec 2.1 flag values to FREEZE into run state at queue build, as `{dest: value}`.
 
     Frozen because spec 2.1 makes resume use "the original host, queue, and options": a policy read
@@ -7159,6 +7205,14 @@ def freeze_run_policy_flags(args: Any) -> dict:
       * `--retry-budget` is resolved to its EFFECTIVE integer through
         :func:`resolve_retry_budget`, so the frozen state holds the value that will actually be used
         (never a bare `None` that a later reader has to re-resolve, and re-resolve differently).
+
+    `repo` IS THE ONE THING THAT MAKES THE REPOSITORY-POLICY TIER REACH DURABLE STATE, which is why
+    it is documented here and not only at the resolver. THIS IS THE ONLY CALL WHOSE RESULT IS KEPT:
+    the two early `resolve_retry_budget` calls in `initialize_run_core` DISCARD their value and exist
+    solely for the early refusal, so the number a run actually spends is the one frozen here. Omitting
+    `repo` therefore does not merely skip a nicety; it freezes the DEFAULT while a repository believes
+    its policy is in force. It stays OPTIONAL so a caller with no repository (the contract tests build
+    a bare namespace) keeps working, and a contract test asserts the production site passes it.
     """
 
     def _supplied(dest: str) -> Any:
@@ -7184,7 +7238,9 @@ def freeze_run_policy_flags(args: Any) -> dict:
         if not row.freeze:
             continue
         if row.dest == "retry_budget":
-            frozen[row.dest] = resolve_retry_budget(getattr(args, row.dest, None))
+            frozen[row.dest] = resolve_retry_budget(
+                getattr(args, row.dest, None), repo=repo
+            )
         elif row.dest == "integration_retry_limit":
             # integpath-03 (`51vw4y`) E-02: resolved to its EFFECTIVE integer here, exactly as
             # `retry_budget` is, so no later reader has to re-resolve a bare `None` (and re-resolve it
@@ -13037,6 +13093,14 @@ def initialize_run_core(
 
     refuse_unimplemented_run_flags(args)
     evaluate_unverifiable_admission(args)
+    # Refuse an unhonorable flag BEFORE resolution, and note what this call is NOT: its return value
+    # is DISCARDED, so it decides nothing. It exists only for the `RunFlagRefusal` side effect, which
+    # fires here so a bad CLI value is refused before any run directory exists.
+    # `repo` IS DELIBERATELY NOT PASSED, and that is a consequence of OQ-01's answer rather than an
+    # omission. A malformed repository-POLICY value never refuses (it falls back and warns, because
+    # `.aw/config/project.json` is tracked and shared), so handing this call a root could not make it
+    # refuse anything; it could only emit the same warning a SECOND time, since the call that keeps
+    # the value (`freeze_run_policy_flags`, below) already warns. One bad value, one warning.
     resolve_retry_budget(getattr(args, "retry_budget", None))
     resolve_integration_retry_limit(getattr(args, "integration_retry_limit", None))
     resolve_on_integration_blocked(getattr(args, "on_integration_blocked", None))
@@ -13261,7 +13325,12 @@ def initialize_run_core(
             "isolate_worktree": getattr(args, "isolate_worktree", True),
             "max_items_per_session": getattr(args, "max_items_per_session", 4),
             "action": requested_action,
-            **freeze_run_policy_flags(args),
+            # `repo=repo` is load-bearing: this is the ONLY `resolve_retry_budget` call whose RESULT
+            # is kept, so it is the only one that can put spec 5.5's repository-policy tier into
+            # durable run state. Drop it and a repository's `run.retry_budget` is silently ignored
+            # while every unit test stays green, which is what `test_the_production_call_sites_pass_a_repo_root`
+            # exists to catch.
+            **freeze_run_policy_flags(args, repo=repo),
             **host_options,
         },
         "driver": {
@@ -13372,7 +13441,14 @@ def initialize_run_core(
         interactive=is_interactive_run(args),
         write_report_fn=write_report_fn,
         override_justification=getattr(args, "allow_uncovered_orchestrator_work", None),
-        retry_budget=resolve_retry_budget(getattr(args, "retry_budget", None)),
+        # `repo=repo` for the same reason the freeze call gets it: this result is USED (it is the
+        # probe's own correction budget), so a repository policy of `0` must reach the probe rather
+        # than the probe silently spending the default of 2. `warn=lambda _m: None` suppresses a
+        # SECOND warning for one bad value: the freeze call above has already emitted it, and
+        # repeating it here would print the same complaint twice per run.
+        retry_budget=resolve_retry_budget(
+            getattr(args, "retry_budget", None), repo=repo, warn=lambda _message: None
+        ),
     )
     if not probe_decision.proceed:
         raise DriverError(probe_decision.message)

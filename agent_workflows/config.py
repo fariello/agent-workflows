@@ -1143,3 +1143,123 @@ def findings_gate_threshold(repo_root: "os.PathLike[str] | str") -> str:
         return REVIEW_GATE_DEFAULT
     token = value.strip().lower()
     return token if token in REVIEW_GATE_THRESHOLDS else REVIEW_GATE_DEFAULT
+
+
+# --------------------------------------------------------------------------------------
+# retrytier Order 01 (y4adch) E-01/E-02: the ONE repository-policy retry budget.
+#
+# Spec 25kzda 2.1/5.5 declares a THREE-TIER precedence for the correction budget - CLI over
+# repository policy over the default of 2 - and this key is the MIDDLE tier's home. Spec 5.5 names
+# it `run.retry_budget`, so it is read as the `retry_budget` member of a `run` object rather than as
+# a bare top-level key: the spec is `approved` and names a nested path, so honoring it is not a
+# style choice. A bare top-level integer is ALSO tolerated for convenience, exactly as both
+# precedents below tolerate a bare string, so a repository that writes the obvious flat form is not
+# silently ignored.
+#
+# Recorded in the COMMITTED, portable project policy (`.aw/config/project.json`), read HERE and not
+# via the XDG user config (which drops unknown keys). Deliberately NOT registered in `CONFIG_SCHEMA`,
+# for the same documented reason the two precedents above are not: `project_schema.parse_portable_policy`
+# preserves unrecognized keys in `unknown_fields` and writes them BACK on serialization, so the key
+# round-trips safely without a schema change.
+#
+# THE FAILURE POSTURE IS A THIRD ONE, AND IT IS WRITTEN DOWN HERE SO THE NEXT KEY FOLLOWS IT RATHER
+# THAN RE-DERIVING THE QUESTION (maintainer decision, 2026-09-10, recorded verbatim in plan `y4adch`
+# OQ-01): "FALL BACK TO THE DEFAULT AND EMIT A VISIBLE WARNING NAMING THE KEY AND THE BAD VALUE."
+# The cutover marker is fail-OPEN and silent; `review_findings_gate` falls back to a SAFE default and
+# is also silent; NEITHER refuses and neither warns. This key falls back AND WARNS, because a retry
+# budget has no safe side (a higher and a lower budget are merely different, not safer), so a silent
+# fallback would override a repository that believes it set a policy with no signal anywhere.
+#
+# IT MUST NOT REFUSE, and the asymmetry with the CLI is DELIBERATE rather than an inconsistency to
+# be tidied later: an out-of-range `--retry-budget` raises `RunFlagRefusal` and stops ONE invocation
+# that typed it, whereas `.aw/config/project.json` is TRACKED and SHARED, so one typo refusing would
+# break EVERY run for every human and agent in the checkout until someone fixed and committed it.
+# A per-invocation mistake refuses; a shared-file mistake warns and continues.
+#
+# THE BOUND IS NOT DEFINED HERE. It is `run_recovery.validate_retry_budget`'s single definition
+# (0..10 inclusive, executed plan `sq61qd`), reached by the caller
+# (`runner_shared.resolve_retry_budget`). This accessor deliberately returns the RAW value and never
+# range-checks it, so the bound cannot acquire a second copy in this file.
+# --------------------------------------------------------------------------------------
+
+RUN_POLICY_KEY = "run"
+
+#: The member of the `run` object holding spec 5.5's repository-policy correction budget.
+RUN_RETRY_BUDGET_MEMBER = "retry_budget"
+
+
+def read_run_policy(
+    repo_root: "os.PathLike[str] | str",
+) -> Optional[Dict[str, Any]]:
+    """Return the `run` policy object from `.aw/config/project.json`, or None if unset.
+
+    Never raises: a missing file, unparseable JSON, a non-object document, or a missing key returns
+    None (the caller then applies its own default). Pure read; never writes.
+    """
+    project_file = Path(repo_root) / ".aw" / "config" / "project.json"
+    try:
+        data = json.loads(project_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    raw = data.get(RUN_POLICY_KEY)
+    return raw if isinstance(raw, dict) else None
+
+
+def policy_retry_budget(
+    repo_root: "os.PathLike[str] | str",
+    *,
+    warn: Any = None,
+) -> Optional[int]:
+    """Spec 5.5's repository-policy retry budget, or None when this repository sets no policy.
+
+    Returns the RAW integer as written. The 0..10 bound is NOT applied here: it has a single
+    definition in `run_recovery.validate_retry_budget` and the caller
+    (`runner_shared.resolve_retry_budget`) reaches it, so this layer cannot grow a second copy of it.
+
+    READ FROM `run.retry_budget`, which is the path spec 25kzda 5.5 names. A BARE top-level integer
+    under the same member name is also accepted, because a repository owner writing the obvious flat
+    form should not be silently ignored; both precedents in this file tolerate a convenience shape
+    the same way.
+
+    FALLS BACK AND WARNS ON A MALFORMED VALUE, never raising (maintainer decision, 2026-09-10; see
+    the section comment above for the full reasoning and for why the asymmetry with the refusing CLI
+    flag is deliberate). A non-integer, a `bool`, or an unparseable value returns None, so the caller
+    applies the default, AND emits one warning naming the key, the offending value, and the file, so
+    the override is visible rather than silent. `warn` exists for tests and defaults to stderr.
+    """
+    import sys as _sys
+
+    def _emit(message: str) -> None:
+        if warn is None:
+            print(message, file=_sys.stderr)
+        else:
+            warn(message)
+
+    project_file = Path(repo_root) / ".aw" / "config" / "project.json"
+    run_policy = read_run_policy(repo_root)
+    if run_policy is not None and RUN_RETRY_BUDGET_MEMBER in run_policy:
+        raw = run_policy.get(RUN_RETRY_BUDGET_MEMBER)
+        where = f"{RUN_POLICY_KEY}.{RUN_RETRY_BUDGET_MEMBER}"
+    else:
+        try:
+            data = json.loads(project_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if not isinstance(data, dict) or RUN_RETRY_BUDGET_MEMBER not in data:
+            return None
+        raw = data.get(RUN_RETRY_BUDGET_MEMBER)
+        where = RUN_RETRY_BUDGET_MEMBER
+
+    if raw is None:
+        # An explicit null is "no policy set", which is a normal way to clear a key, not an error.
+        return None
+    if isinstance(raw, int) and not isinstance(raw, bool):
+        return raw
+    _emit(
+        f"WARNING: {where} in {project_file} is {raw!r}, which is not an integer. "
+        f"Ignoring it and using the default retry budget instead. "
+        f"Fix the value in that file to make the repository policy take effect."
+    )
+    return None

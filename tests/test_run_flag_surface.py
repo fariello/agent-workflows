@@ -469,16 +469,24 @@ class HelpHonestyTests(unittest.TestCase):
     HELP_TOKENS = (
         (
             "--retry-budget",
-            "NOT IMPLEMENTED",
-            "spec 2.1 declares THREE precedence tiers (CLI > repository policy > default) and the "
-            "MIDDLE one does not exist. An operator who believes a repo-level retry policy is being "
-            "honored would read a run's retry count as policy-driven when it is the bare default",
+            "run.retry_budget",
+            "spec 2.1/5.5 declares THREE precedence tiers (CLI > repository policy > default) and "
+            "ALL THREE now ship (`y4adch`), so the help must NAME the config key the middle tier "
+            "reads. This REPLACES the former `NOT IMPLEMENTED`/`dh3us4` gap-disclosure rows: while "
+            "the tier was missing an operator needed the backlog id to find who owned it, and now "
+            "that it exists they need the key itself, because `--help` is the ONLY surface telling "
+            "a repository owner what to write and where. A row asserting the old disclosure would "
+            "now demand the shipped behavior be reported as absent",
         ),
         (
             "--retry-budget",
-            "dh3us4",
-            "the backlog id owning the missing tier. Without it the `--help` text states a gap and "
-            "gives the reader nowhere to go; with it the gap is a tracked item they can find",
+            "does NOT refuse",
+            "the two failure postures DIFFER on purpose (maintainer decision, 2026-09-10): a bad "
+            "value passed on the CLI refuses that invocation, while a bad value in the SHARED "
+            "tracked `project.json` warns and falls back. An operator who assumes symmetry either "
+            "expects a typo in a committed file to break every run in the checkout, or expects a "
+            "bad CLI value to be quietly ignored; both readings are wrong and only the help "
+            "corrects them",
         ),
         (
             "--unverifiable-ok",
@@ -1406,6 +1414,456 @@ class RetryBudgetTests(unittest.TestCase):
     # `RefusalBehaviorTests.test_every_refused_invocation_leaves_no_durable_run_state` drives
     # `initialize_run` on a real repository and asserts BOTH that it refuses AND that no `run-*`
     # directory survives. That pair is the property; the pin was a proxy for it.
+
+
+class RepositoryPolicyRetryTierTests(unittest.TestCase):
+    """`y4adch` E-05: spec 2.1/5.5's MIDDLE precedence tier, CLI over repository policy over 2.
+
+    WHY THIS IS A SEPARATE CLASS FROM `RetryBudgetTests` RATHER THAN A COLUMN IN ITS TABLE. That
+    table's rows are PURE: each feeds one integer to the resolver with no repository in sight, and
+    that purity is the point (the resolver must stay callable at parse time, where no repo may be
+    resolved). Every row here needs a REPOSITORY ON DISK, because the value under test is read from
+    `.aw/config/project.json`. Adding a fixture repo to those rows would make ten pure assertions pay
+    for a filesystem they do not use, and would blur which tier a failure came from.
+
+    THE FIXTURES ARE THROWAWAY REPOS, NEVER THIS ONE. `.aw/config/project.json` is TRACKED and other
+    agents work in this checkout, so a test that wrote to the real file would change every other run's
+    behavior in the tree. `tests.support.REPO_ROOT` is imported by this module for READING the spec
+    and is deliberately not used here.
+    """
+
+    #: Only the key path spec 5.5 names, plus the flat convenience form both precedents in
+    #: `config.py` also tolerate. Written as DATA so a case states its document rather than
+    #: constructing one inline.
+    def write_policy(self, root, document) -> "object":
+        """A repo directory holding `document` as `.aw/config/project.json` (or none if None)."""
+        repo = root / "repo"
+        (repo / ".aw" / "config").mkdir(parents=True, exist_ok=True)
+        if document is not None:
+            import json as _json
+
+            (repo / ".aw" / "config" / "project.json").write_text(
+                _json.dumps(document), encoding="utf-8"
+            )
+        return repo
+
+    #: (case, config document or None for "no file at all", CLI value, expected effective budget,
+    #: whether a WARNING must be emitted, why this row exists)
+    #:
+    #: THE EXPECTED VALUES ARE LITERAL where they are policy values and DERIVED where they are the
+    #: default, which is the opposite of `RetryBudgetTests`' choice and deliberately so: there the
+    #: literals pin an operator-facing RANGE that must fail on a widening, whereas here `2` is the
+    #: DEFAULT tier and its single definition is `run_recovery.DEFAULT_RETRY_LIMIT`. Writing `2` in
+    #: these rows would put a second copy of the default in the test file, which is exactly what
+    #: `sq61qd` collapsed.
+    CASES = (
+        (
+            "CLI value alongside a set policy",
+            {"run": {"retry_budget": 9}},
+            4,
+            4,
+            False,
+            "CASE (a), THE PRECEDENCE GUARD. The CLI is the HIGHEST tier, so a policy must not win "
+            "when a flag was passed. A resolver that consults config first, or that treats the "
+            "policy as an override, inverts spec 2.1's chain and makes an explicit operator "
+            "instruction lose to a committed file",
+        ),
+        (
+            "set policy with no CLI value",
+            {"run": {"retry_budget": 9}},
+            None,
+            9,
+            False,
+            "CASE (b), the tier this plan EXISTS to add. Before it, this row returned the default "
+            "and the code said so in its own docstring",
+        ),
+        (
+            "a policy of zero with no CLI value",
+            {"run": {"retry_budget": 0}},
+            None,
+            0,
+            False,
+            "`0` IS A LEGAL POLICY meaning no retries (spec 5.5), so the middle tier's guard must be "
+            "`is None`-shaped like the CLI tier's. A truthiness test silently converts a "
+            "repository's deliberate no-retry policy into two retries, which is the same defect "
+            "`RetryBudgetTests`' zero rows guard on the CLI side",
+        ),
+        (
+            "a file with no run key",
+            {"schema_version": 2},
+            None,
+            None,
+            False,
+            "CASE (c). A project config that simply does not set the key is the COMMON case, and "
+            "must reach the default silently - no warning, because nothing is wrong",
+        ),
+        (
+            "no config file at all",
+            None,
+            None,
+            None,
+            False,
+            "CASE (d). A fresh repository has no `.aw/config/project.json`, so an absent file must "
+            "never be an error and must never warn",
+        ),
+        (
+            "an explicit null policy",
+            {"run": {"retry_budget": None}},
+            None,
+            None,
+            False,
+            "an explicit null is how a key is CLEARED, which is a normal edit and not a malformed "
+            "value, so it must fall through silently rather than warning",
+        ),
+        (
+            "a policy out of the 0..10 range",
+            {"run": {"retry_budget": 11}},
+            None,
+            None,
+            True,
+            "CASE (e). The bound is `sq61qd`'s single definition and the POLICY value must be "
+            "routed through it too, so a flag and a config key cannot disagree about what is legal. "
+            "It FALLS BACK AND WARNS rather than refusing (maintainer decision, 2026-09-10): the "
+            "identical value on the CLI refuses, and the asymmetry is deliberate because this file "
+            "is shared and tracked",
+        ),
+        (
+            "a malformed policy (string)",
+            {"run": {"retry_budget": "lots"}},
+            None,
+            None,
+            True,
+            "CASE (f). A wrong TYPE is the likeliest hand-edit mistake, and the one that would be "
+            "most damaging to swallow: a repository that believes it set a policy would be silently "
+            "overridden, which is precisely why the maintainer chose a warning over silence",
+        ),
+        (
+            "a malformed policy (bool)",
+            {"run": {"retry_budget": True}},
+            None,
+            None,
+            True,
+            "`bool` is an `int` subclass in Python, so `True` would smuggle in `1` if the type check "
+            "were a bare `isinstance(int)`. `run_recovery.validate_retry_budget` excludes bools for "
+            "the same reason; this row keeps the config path from being the loophole",
+        ),
+        (
+            "the flat convenience form",
+            {"retry_budget": 6},
+            None,
+            6,
+            False,
+            "spec 5.5 names `run.retry_budget`, which is what the nested rows above assert. A "
+            "repository owner writing the obvious FLAT key is making an understandable mistake, and "
+            "both precedents in `config.py` tolerate a convenience shape, so honoring it costs "
+            "nothing and silently ignoring it would be the worst outcome",
+        ),
+    )
+
+    def test_every_policy_document_resolves_to_the_right_tier(self):
+        """Cases (a) to (f) in one table, with the WARNING as a column.
+
+        The warning is a column and not a separate test because the maintainer's OQ-01 answer makes
+        the fallback and the warning ONE behavior: "fall back to the default AND emit a visible
+        warning". A table that asserted only the returned integer would pass against a silent
+        fallback, which is the option the maintainer explicitly declined.
+        """
+        import tempfile
+        from pathlib import Path as _P
+
+        from agent_workflows import run_recovery
+
+        wrong = []
+        for case, document, cli, expected, warns, why in self.CASES:
+            want = run_recovery.DEFAULT_RETRY_LIMIT if expected is None else expected
+            problems = []
+            with tempfile.TemporaryDirectory() as td:
+                repo = self.write_policy(_P(td), document)
+                warnings: list = []
+                got = runner_shared.resolve_retry_budget(
+                    cli, repo=repo, warn=warnings.append
+                )
+            if got != want:
+                problems.append(
+                    f"resolved to {got!r}, expected {want!r}"
+                    + ("" if expected is not None else " (the DEFAULT tier)")
+                )
+            if warns and not warnings:
+                problems.append(
+                    "no WARNING was emitted. A silent fallback overrides a repository that believes "
+                    "it set a policy with no signal anywhere, which is the option the maintainer "
+                    "DECLINED on 2026-09-10"
+                )
+            if not warns and warnings:
+                problems.append(
+                    f"an unexpected warning was emitted: {warnings!r}. Warning on a NORMAL absence "
+                    "trains operators to ignore the warning that matters"
+                )
+            for emitted in warnings:
+                if "retry_budget" not in emitted:
+                    problems.append(
+                        f"the warning does not name the KEY: {emitted!r}. A warning that says only "
+                        "'invalid config' reproduces the silent-override problem one step removed"
+                    )
+                if "project.json" not in emitted:
+                    problems.append(
+                        f"the warning does not name the FILE: {emitted!r}. In a shared checkout the "
+                        "operator needs to know WHICH file to fix"
+                    )
+            if problems:
+                wrong.append(
+                    f"  {case} (config={document!r}, cli={cli!r}):\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the repository-policy tier is wrong for {len(wrong)} of {len(self.CASES)} documents. "
+            "READ THEM TOGETHER: if the CLI row fails ALONE, precedence is inverted and an explicit "
+            "flag loses to a committed file. If every ABSENT row fails, the accessor is treating a "
+            "missing file or key as an error instead of as 'no policy set', which breaks every fresh "
+            "repository. If the out-of-range row RESOLVES to 11 instead of falling back, the policy "
+            "value is bypassing `run_recovery.validate_retry_budget` and the bound now has two "
+            "definitions. If only the WARNING halves fail, the fallback is silent, which is the "
+            "posture the maintainer declined.\n" + "\n".join(wrong),
+        )
+
+    def test_the_policy_value_is_validated_by_sq61qds_single_definition(self):
+        """The bound is CALLED for the POLICY value too, proven with a sentinel rather than a grep.
+
+        The same technique `test_the_bound_is_sq61qds_and_is_not_re_checked_here` uses for the CLI
+        tier, applied to the tier this plan added: patch the shared validator and require THIS
+        layer's answer to change. A private range check in the config path keeps returning the real
+        value, so the sentinel never appears - and a config path that validated the value itself
+        would be a SECOND copy of a bound whose whole design (`sq61qd`) is that it has one.
+        """
+        import tempfile
+        from pathlib import Path as _P
+
+        from agent_workflows import run_recovery
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = self.write_policy(_P(td), {"run": {"retry_budget": 5}})
+            with mock.patch.object(
+                run_recovery, "validate_retry_budget", lambda value: 99
+            ):
+                self.assertEqual(
+                    runner_shared.resolve_retry_budget(None, repo=repo),
+                    99,
+                    "patching `run_recovery.validate_retry_budget` must change the POLICY tier's "
+                    "answer too. Getting 5 back means the config path accepted the value without "
+                    "reaching the shared bound, so a repository could set a budget the CLI would "
+                    "refuse",
+                )
+
+    def test_an_absent_repo_argument_means_no_policy_tier_and_never_reads_a_file(self):
+        """OQ-04's optional parameter, asserted as a PROPERTY rather than as a signature.
+
+        `repo=None` must mean "no repository known, therefore no policy tier", not "look somewhere
+        sensible". This is what keeps the resolver callable at parse time and what makes the pure
+        rows in `RetryBudgetTests` a real code path rather than an accident. Asserted by patching
+        the accessor and requiring it NOT to be called: a signature check would pass against an
+        implementation that defaulted the root to the current working directory, which would make a
+        run's budget depend on where it was invoked from.
+        """
+        from agent_workflows import config as _config
+        from agent_workflows import run_recovery
+
+        calls: list = []
+
+        def _spy(repo_root, **kwargs):
+            calls.append(repo_root)
+            return 9
+
+        with mock.patch.object(_config, "policy_retry_budget", _spy):
+            self.assertEqual(
+                runner_shared.resolve_retry_budget(None),
+                run_recovery.DEFAULT_RETRY_LIMIT,
+                "with no `repo`, the resolver must fall straight through to the DEFAULT tier",
+            )
+        self.assertEqual(
+            calls,
+            [],
+            "the policy accessor was consulted with NO repository argument, so the resolver invented "
+            f"a root ({calls!r}). A budget that depends on the invocation's working directory is "
+            "worse than a missing tier, because it is unpredictable rather than merely absent",
+        )
+
+    def test_a_changed_policy_cannot_move_the_frozen_value_on_resume(self):
+        """CASE (g), THE FREEZE GUARD, asserted as an existing structural property.
+
+        Stated honestly: this asserts a property the resume path ALREADY had, and says why it is
+        still worth a test. `--retry-budget` carries `resume_rule=RESUME_REFUSE`, and
+        `apply_run_policy_flags_on_resume` SKIPS every such row and never re-resolves, so a resume
+        reads the frozen integer and has no code path that can consult config. The risk this plan
+        introduced is that ADDING a config read could tempt a later change to re-resolve on resume,
+        which spec `:162` forbids ("The frozen value cannot change on resume").
+
+        Driven rather than reasoned: the frozen state says 3, the repository's policy then changes to
+        9, and the resume must still report 3.
+        """
+        import tempfile
+        from pathlib import Path as _P
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = self.write_policy(_P(td), {"run": {"retry_budget": 3}})
+            args = argparse.Namespace(
+                **{row.dest: None for row in runner_shared.RUN_POLICY_FLAGS}
+            )
+            frozen = runner_shared.freeze_run_policy_flags(args, repo=repo)
+            self.assertEqual(
+                frozen["retry_budget"],
+                3,
+                "precondition: the run froze the repository's policy value",
+            )
+            state = {"options": dict(frozen)}
+            self.write_policy(_P(td), {"run": {"retry_budget": 9}})
+            resume_args = argparse.Namespace(
+                **{row.dest: None for row in runner_shared.RUN_POLICY_FLAGS}
+            )
+            runner_shared.apply_run_policy_flags_on_resume(state, resume_args)
+            self.assertEqual(
+                state["options"]["retry_budget"],
+                3,
+                "the FROZEN budget must stand even though the repository's policy changed to 9 "
+                "since the run started (spec `:162`). A 9 here means a resume re-resolved from "
+                "config, so a run's retry budget could change under it between its first turn and "
+                "its last",
+            )
+            self.assertEqual(
+                runner_shared.frozen_retry_budget(state),
+                3,
+                "and the reader every consumer uses must agree, since that is the value a retry is "
+                "actually spent against",
+            )
+
+    def test_the_frozen_value_that_reaches_run_state_is_the_policy_value(self):
+        """CASE (h): the tier reaches DURABLE STATE, not merely the resolver's return.
+
+        THE ONE CASE WITHOUT WHICH THIS WHOLE CLASS PROVES NOTHING OBSERVABLE. Cases (a) to (g) can
+        all pass against a resolver whose answer never reaches the freeze path, because the two early
+        `resolve_retry_budget` calls in `initialize_run_core` DISCARD their result and exist only for
+        the early refusal. `freeze_run_policy_flags` is the only call whose value is kept, so a change
+        that resolves correctly and freezes the default is indistinguishable from doing nothing.
+        """
+        import tempfile
+        from pathlib import Path as _P
+
+        from agent_workflows import run_recovery
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = self.write_policy(_P(td), {"run": {"retry_budget": 7}})
+            args = argparse.Namespace(
+                **{row.dest: None for row in runner_shared.RUN_POLICY_FLAGS}
+            )
+            frozen = runner_shared.freeze_run_policy_flags(args, repo=repo)
+        self.assertEqual(
+            frozen["retry_budget"],
+            7,
+            "the FROZEN budget must be the repository's policy value. Getting "
+            f"{run_recovery.DEFAULT_RETRY_LIMIT} means `freeze_run_policy_flags` was not given the "
+            "repo root, so the middle tier resolves correctly somewhere and never reaches the run "
+            "state anything spends the budget from",
+        )
+        self.assertNotEqual(
+            frozen["retry_budget"],
+            run_recovery.DEFAULT_RETRY_LIMIT,
+            "the fixture's policy is deliberately NOT the default, so this row cannot pass by "
+            "coincidence",
+        )
+
+    def test_the_production_call_sites_pass_a_repo_root(self):
+        """OQ-04's mandatory guard: an optional parameter that production forgets is an inert tier.
+
+        KEPT AS AN AST GUARD, and this file's own rules are why. Source-text pins were deleted from
+        this module because a comment satisfies them; `ast.walk` looking for a real `ast.Call` whose
+        keywords include `repo` cannot be satisfied by a comment or a docstring, which matters
+        especially here because the call sites now carry long comments ABOUT the repo argument.
+
+        WHY IT IS LOAD-BEARING RATHER THAN TIDY: with `repo` optional, a production call that omits it
+        silently falls back to CLI-over-default and the middle tier does not exist, while every test
+        above stays green because they call the resolver directly with a root. That failure is
+        invisible to exactly the tests this plan adds, which is why OQ-04 made the guard a condition
+        of recommending the optional form.
+
+        SCOPED TO THE FREEZE CALL, deliberately, and the distinction is the plan's F-14. The two
+        early `resolve_retry_budget` calls DISCARD their result, so they cannot carry the tier and are
+        not required to take a root; demanding one there would assert a shape that does nothing.
+        """
+        wrong = []
+        for runner in BOTH:
+            source = _effective_init_source(runner)
+            freeze_calls = [
+                node
+                for node in ast.walk(ast.parse(source))
+                if isinstance(node, ast.Call)
+                and ast.unparse(node.func).endswith("freeze_run_policy_flags")
+            ]
+            if not freeze_calls:
+                wrong.append(
+                    f"  {runner}: no `freeze_run_policy_flags` call was found in the effective "
+                    "`initialize_run` source at all, so this guard is VACUOUS on this host. Either "
+                    "the freeze moved (update this walk) or the run no longer freezes its policy "
+                    "flags, which would let every option be re-read from `args` on each resume"
+                )
+                continue
+            for call in freeze_calls:
+                if not any(kw.arg == "repo" for kw in call.keywords):
+                    wrong.append(
+                        f"  {runner}: `{ast.unparse(call)}` does NOT pass `repo=`, so spec 5.5's "
+                        "repository-policy tier is silently skipped and the DEFAULT is frozen while "
+                        "a repository believes its `run.retry_budget` is in force"
+                    )
+        self.assertEqual(
+            wrong,
+            [],
+            f"{len(wrong)} production freeze call(s) cannot reach the repository-policy tier. This "
+            "is the ONE failure mode OQ-04 accepted when it chose an optional parameter over a "
+            "required one: every unit test in this class passes a root explicitly, so only this "
+            "guard sees an omission. FIX: pass `repo=repo` at the freeze call in "
+            "`runner_shared.initialize_run_core`; do NOT make the parameter required, which would "
+            "break the pure-resolver assertions that are correct as written.\n"
+            + "\n".join(wrong),
+        )
+
+    def test_the_frozen_options_shape_is_unchanged(self):
+        """The consumption premise `xipfy1` (`retrywire-01`) depends on: one integer, same key.
+
+        That plan reads the FROZEN budget from `state["options"]` and explicitly does not re-resolve
+        ("Do NOT call `resolve_retry_budget` again in the loop"). It was `Status: to-review` when this
+        plan was reviewed, so this asserts the property in a form that holds whether or not it has
+        landed: adding a tier must not change the KEY or the TYPE, only which number appears.
+        """
+        import tempfile
+        from pathlib import Path as _P
+
+        with tempfile.TemporaryDirectory() as td:
+            args = argparse.Namespace(
+                **{row.dest: None for row in runner_shared.RUN_POLICY_FLAGS}
+            )
+            without = runner_shared.freeze_run_policy_flags(args)
+            repo = self.write_policy(_P(td), {"run": {"retry_budget": 7}})
+            with_policy = runner_shared.freeze_run_policy_flags(args, repo=repo)
+        self.assertEqual(
+            set(without),
+            set(with_policy),
+            "the frozen options' KEY SET must not change when a repository policy is in force. A new "
+            "key here would mean a consumer reading `retry_budget` is no longer reading the whole "
+            "policy, and an absent one would break every reader",
+        )
+        self.assertIsInstance(
+            with_policy["retry_budget"],
+            int,
+            "`retry_budget` must remain a bare integer. A dict or a string recording WHICH tier won "
+            "would be a more informative value and would break every existing consumer, including "
+            "`frozen_retry_budget`",
+        )
+        self.assertNotIsInstance(
+            with_policy["retry_budget"],
+            bool,
+            "and not a bool, which `int` would otherwise admit",
+        )
 
 
 class UnimplementedFlagRefusalTests(unittest.TestCase):
