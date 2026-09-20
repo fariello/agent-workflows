@@ -230,6 +230,22 @@ class TheInRunPromptIsUnchanged(unittest.TestCase):
 class TheAuditCannotTouchTheFinishedPlan(unittest.TestCase):
     """OQ-05: fixing code is authorized; editing the finished plan document never is."""
 
+    @classmethod
+    def setUpClass(cls):
+        cls._temp_dir = TemporaryDirectory()
+        cls.repo = Path(cls._temp_dir.name)
+        pending_dir = cls.repo / ".aw" / "records" / "plans" / "pending"
+        pending_dir.mkdir(parents=True)
+        plan = pending_dir / "20260101-demo-01-pen001-pending-plan.ipd.md"
+        plan.write_text(
+            "- Id: pen001\n- Set: demo\n- Order: 1\n- Status: to-review\n",
+            encoding="utf-8",
+        )
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._temp_dir.cleanup()
+
     def test_the_prohibition_reaches_the_agent(self):
         audit = runner_shared.build_verifier_prompt(
             _item(),
@@ -256,20 +272,20 @@ class TheAuditCannotTouchTheFinishedPlan(unittest.TestCase):
         immutable": a pending plan already has `/plan-review` and a run.
         """
 
-        target = runner_shared.plan_audit_target(REPO_ROOT, "mp289j")
+        target = runner_shared.plan_audit_target(self.repo, "pen001")
         self.assertEqual(target.refusal, runner_shared.AUDIT_PLAN_NOT_EXECUTED)
         self.assertIn("not executed/", target.reason)
 
     def test_an_unknown_id6_is_refused_with_its_own_code(self):
-        target = runner_shared.plan_audit_target(REPO_ROOT, "zzzzzz")
+        target = runner_shared.plan_audit_target(self.repo, "zzzzzz")
         self.assertEqual(target.refusal, runner_shared.AUDIT_PLAN_NOT_FOUND)
 
     def test_refusals_are_returned_and_never_raised(self):
         """An out-of-band verb must exit nonzero with a sentence, not a traceback."""
 
-        for id6 in ("zzzzzz", "mp289j"):
+        for id6 in ("zzzzzz", "pen001"):
             with self.subTest(id6=id6):
-                target = runner_shared.plan_audit_target(REPO_ROOT, id6)
+                target = runner_shared.plan_audit_target(self.repo, id6)
                 self.assertTrue(target.refusal)
                 self.assertTrue(target.reason.strip())
 
