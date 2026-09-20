@@ -52,6 +52,7 @@ the top-level `fcntl` imports are GONE and that `platform_lock` owns the one gua
 
 from __future__ import annotations
 
+import ast
 import fcntl
 import json
 import os
@@ -59,16 +60,18 @@ import signal
 import subprocess
 import sys
 import tempfile
+import textwrap
 import time
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest import mock
 
 import pytest
 
 from agent_workflows import agy_runipd as agy
 from agent_workflows import oc_runipd as oc
-from agent_workflows import platform_lock, runner_shutdown, runner_stop
+from agent_workflows import platform_lock, runner_shared, runner_shutdown, runner_stop
 from tests.support import REPO_ROOT
 
 _DRIVER_ENV = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}
@@ -842,16 +845,176 @@ class PreExistingInterruptContractTests(_InvariantAssertions):
             self.assert_phase0_invariants(run, tree_before)
 
     def test_the_item_level_bookkeeping_path_is_still_wired(self):
-        # The STRUCTURAL half, because the behavioral half above can be satisfied by either route and
-        # this phase promised not to STRAND the pre-existing one. Both `except KeyboardInterrupt`
-        # handlers and the `ipd-interrupted` event must still exist in both drivers.
-        for name in ("oc_runipd.py", "agy_runipd.py"):
-            source = (REPO_ROOT / "agent_workflows" / name).read_text(encoding="utf-8")
-            self.assertIn("except KeyboardInterrupt:", source, name)
-            self.assertIn('"event": "ipd-interrupted"', source, name)
-            self.assertIn("reclaim_lanes_on_interrupt(", source, name)
-            # And the terminal rung must raise it, which is what keeps those handlers reachable.
-            self.assertIn("raise KeyboardInterrupt(", source, name)
+        """The item-level interrupt bookkeeping is REACHED, proved by spying its real entry point.
+
+        WHAT THIS REPLACES, AND THE DEFECT THE REPLACEMENT FOUND. The pin searched both drivers'
+        source text for four literals: `"except KeyboardInterrupt:"`,
+        `'"event": "ipd-interrupted"'`, `"reclaim_lanes_on_interrupt("` and
+        `"raise KeyboardInterrupt("`. Rewriting it BEHAVIORALLY established that its central claim is
+        FALSE at HEAD, which the text search could not see:
+
+        * `'"event": "ipd-interrupted"'` is in NEITHER driver. The commit that deduplicated
+          `execute_item` into `runner_shared.execute_item_core` (2026-09-18, "refactor(runner):
+          deduplicate execute_item into runner_shared.execute_item_core") moved the event's emitter
+          into `runner_shared.reconcile_item_on_interrupt` and then did NOT call it from the
+          extracted core: `reconcile_item_on_interrupt` was invoked at `oc_runipd.py:6717` in that
+          commit's PARENT and is invoked from NOWHERE in `agent_workflows/` after it. Only
+          `tests/test_interrupt_menu.py` calls it now.
+        * So the item-level bookkeeping this test is named for really IS stranded, which is exactly
+          what the plan promised not to do. The sibling test
+          `test_the_terminal_rung_still_records_the_item_interrupted` fails at HEAD for the same
+          reason (the in-flight item is left `running`), as does
+          `SigtermTests::test_a_real_sigterm_records_level_3_and_stops_at_a_checkpoint`.
+
+        THE PIN WAS GREEN THROUGHOUT, because `"ipd-interrupted"` still appears in both drivers -
+        inside the `install_stop_triggers` DOCSTRING that explains the very contract that was broken.
+        That is failure mode 2 from this repo's own list (a comment satisfies a substring search),
+        and it hid a live regression in the interrupt path of both runners.
+
+        WHAT IS ASSERTED NOW. The reconciliation entry point is a real, importable function, and it
+        must be REACHED from the drivers' interrupt path - spied, so an indirect call counts and a
+        comment does not. The assertion is deliberately written as the CONTRACT (it must be called),
+        so it FAILS while the regression is live rather than pinning the broken state as correct.
+        Fixing it is outside this change's scope - `agent_workflows/` may not be edited here - so the
+        failure is the report.
+
+        The remaining structural claims are kept but moved onto the API, where a comment cannot
+        satisfy them: the emitter exists and is callable, and the terminal rung really does raise.
+        """
+
+        import ast
+        import inspect
+        import textwrap
+
+        # 1. The reconciliation entry point EXISTS as a real symbol (not a grep hit in prose).
+        self.assertTrue(
+            callable(getattr(runner_shared, "reconcile_item_on_interrupt", None)),
+            "runner_shared.reconcile_item_on_interrupt is the item-level interrupt bookkeeping; "
+            "it must exist for either driver to reach it",
+        )
+        # And it is the thing that appends the `ipd-interrupted` event, asserted on its AST rather
+        # than on any file's text.
+        # Counted per `"event":` KEY, not as a set membership test, and this distinction was MEASURED
+        # rather than reasoned. The function emits from THREE arms, and a set-based
+        # `assertIn("ipd-interrupted", ...)` stayed GREEN under a mutation that renamed ONE arm's
+        # event, because another arm still supplied the name. So the exact multiset is pinned.
+        #
+        # AND THE EXPECTATION HERE WAS WRONG ON FIRST WRITING, which is worth recording: it was
+        # authored as two `ipd-interrupted` events on the assumption of two arms. The real function
+        # emits THREE, one of which is legitimately named `ipd-cleaned-up-no-changes` - the arm where
+        # nothing was changed, so the lane is torn down and there is no interrupted WORK to report.
+        # The values below are what the code actually does, read off the AST, not what it was
+        # assumed to do.
+        emitter = ast.parse(
+            textwrap.dedent(
+                inspect.getsource(runner_shared.reconcile_item_on_interrupt)
+            )
+        )
+        emitted = []
+        for node in ast.walk(emitter):
+            if not isinstance(node, ast.Dict):
+                continue
+            for key, value in zip(node.keys, node.values):
+                if (
+                    isinstance(key, ast.Constant)
+                    and key.value == "event"
+                    and isinstance(value, ast.Constant)
+                ):
+                    emitted.append(value.value)
+        self.assertEqual(
+            sorted(emitted),
+            ["ipd-cleaned-up-no-changes", "ipd-interrupted", "ipd-interrupted"],
+            f"reconcile_item_on_interrupt's emitted event names changed: it emits "
+            f"{sorted(emitted)}. The contract is `ipd-interrupted` from the no-cleanup arm and the "
+            f"work-preserved arm, plus `ipd-cleaned-up-no-changes` from the nothing-changed arm. A "
+            f"renamed or extra name forks the channel every downstream reader watches; if the "
+            f"change is intended, update this expectation AND whatever consumes the event.",
+        )
+
+        # 2. The TERMINAL rung really raises, which is what keeps that path reachable at all.
+        for module in (oc, agy):
+            raised = [
+                ast.unparse(node)
+                for node in ast.walk(
+                    ast.parse(
+                        textwrap.dedent(inspect.getsource(module.install_stop_triggers))
+                    )
+                )
+                if isinstance(node, ast.Raise)
+                and "KeyboardInterrupt" in ast.unparse(node)
+            ]
+            self.assertTrue(
+                raised,
+                f"{module.__name__}.install_stop_triggers must RAISE KeyboardInterrupt at the "
+                f"terminal rung; without it `execute_item`'s bookkeeping is unreachable by signal",
+            )
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "PRE-EXISTING REGRESSION at HEAD: the 2026-09-18 `execute_item_core` deduplication "
+            "stopped calling `runner_shared.reconcile_item_on_interrupt`, so an interrupted item is "
+            "left `running` and no `ipd-interrupted` event is appended. Fixing it means editing "
+            "`agent_workflows/`, which is out of scope for the test-quality change that FOUND it."
+        ),
+    )
+    def test_the_item_level_bookkeeping_is_reached_by_a_real_interrupt(self):
+        """THE CONTRACT: a real 3x-SIGINT interrupt must REACH the item-level bookkeeping.
+
+        SPLIT FROM its structural sibling deliberately, following this repo's own documented
+        convention (see `tests/test_wtiso_adversarial.py`'s header): a single function holding both a
+        passing half and a known-failing half reports only `1 xfailed`, which makes the PASSING
+        assertions invisible and lets a regression in them hide behind the expected failure. Split,
+        the pair reports `1 passed, 1 xfailed` and a break in the structural half is visible.
+
+        `strict=True` so that when the drivers are fixed this reports `XPASS(strict)` and forces
+        somebody to remove the marker, rather than silently staying "expected to fail" forever.
+
+        THE DEFECT, as measured: `reconcile_item_on_interrupt` was invoked at `oc_runipd.py:6717`
+        before the deduplication commit and is invoked from NOWHERE in `agent_workflows/` after it -
+        only `tests/test_interrupt_menu.py` calls it. The old source-text pin stayed green because
+        `ipd-interrupted` still appears in each driver's `install_stop_triggers` DOCSTRING.
+        """
+
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = _make_repo(root, [("wka", "wk0001")])
+            fake = _write_fake_child(root)
+            run = _spawn_driver(
+                repo,
+                fake,
+                ["wka"],
+                env_extra={"CHILD_MODE": "ready", "STOP_AFTER": "wk0001"},
+                run_tag="wired",
+            )
+            try:
+                run.wait_for_child_ready("wk0001")
+                run.escalate_to_terminal()
+            finally:
+                run.wait(timeout=180.0)
+
+            item = run.item("wk0001")
+            interrupted_events = run.events_named("ipd-interrupted")
+            self.assertTrue(
+                interrupted_events,
+                "REGRESSION (pre-existing at HEAD, NOT introduced by this test): a real 3x-SIGINT "
+                "interrupt appended NO `ipd-interrupted` event, so the item-level bookkeeping the "
+                "stop ladder promised to preserve is STRANDED. Root cause: the 2026-09-18 "
+                "`execute_item_core` deduplication moved the emitter into "
+                "`runner_shared.reconcile_item_on_interrupt` and stopped calling it - it was invoked "
+                "at `oc_runipd.py:6717` before that commit and is invoked nowhere in "
+                "`agent_workflows/` after it. The old source-text pin stayed GREEN because "
+                "`ipd-interrupted` still appears in each driver's `install_stop_triggers` DOCSTRING. "
+                f"FIX: call `runner_shared.reconcile_item_on_interrupt` from `execute_item_core`'s "
+                f"`except KeyboardInterrupt` path. Item as recorded: {item}; events: "
+                f"{[e.get('event') for e in run.events()]}",
+            )
+            self.assertEqual(
+                item["status"],
+                "interrupted",
+                f"the in-flight item must be recorded `interrupted` by that bookkeeping, got "
+                f"{item['status']!r}",
+            )
 
 
 @pytest.mark.slow
@@ -914,38 +1077,91 @@ class SigtermTests(_InvariantAssertions):
             self.assert_phase0_invariants(run, tree_before)
 
     def test_the_old_kill_and_orphan_behavior_is_consciously_replaced(self):
-        # THE CHARACTERIZATION UPDATE, recorded rather than silently dropped. Phase 0's
-        # `CharacterizationTests` pinned the OLD residue of an unrequested driver death, and one of
-        # those tests explicitly says a later phase making driver death reap the tree MUST UPDATE it.
-        #
-        # This phase does NOT change that: it changes what SIGTERM MEANS (a level-3 REQUEST rather
-        # than a death), so the pinned behavior - what happens when a driver dies WITHOUT running the
-        # shared routine - is untouched and those tests still hold as written. What IS replaced is the
-        # SIGTERM->`KeyboardInterrupt`->exit-143 mapping, and that replacement is asserted here so the
-        # change is visible in this suite rather than only in a diff.
-        source = (REPO_ROOT / "agent_workflows" / "render_stream.py").read_text(
-            encoding="utf-8"
+        """For a run IN FLIGHT, SIGTERM means level 3 - it no longer kills the driver.
+
+        THE CHARACTERIZATION UPDATE, recorded rather than silently dropped. Phase 0's
+        `CharacterizationTests` pinned the OLD residue of an unrequested driver death, and this phase
+        does NOT change that: it changes what SIGTERM MEANS (a level-3 REQUEST rather than a death), so
+        those tests still hold as written. What IS replaced is the SIGTERM ->
+        `KeyboardInterrupt("Terminated by SIGTERM")` -> exit-143 mapping.
+
+        WHAT THIS REPLACES. Three text searches: `assertIn("install_exit_signal_handler",
+        render_stream_source)`, `assertIn("install_stop_triggers(run_dir)", driver_source)`, and a
+        comparison of their `.index()` OFFSETS to assert install ORDER. The offset comparison is the
+        worst of the three: it measured the first TEXTUAL occurrence of each name in a 7000-line file,
+        so a docstring or comment mentioning either name earlier silently changed what was being
+        compared, and two calls in unrelated functions would compare as "ordered" while never running
+        in that sequence.
+
+        REPLACED BY THE OBSERVABLE CONSEQUENCE, which is what "installed AFTER" actually means: after
+        both installers run in the drivers' own order, the handler that OWNS SIGTERM must be the stop
+        ladder's, and a real SIGTERM must record level 3 rather than raising. That is driven here with
+        a real signal. If the order were reversed, the generic exit handler would win and SIGTERM would
+        raise `KeyboardInterrupt` instead of recording - the exact defect (spec section 0.1: the driver
+        died and left its child reparented to init, still writing the tree).
+        """
+
+        # The pre-existing helper must still EXIST, for the out-of-band commands that have no run to
+        # wind down. Asserted on the API rather than on file text.
+        from agent_workflows import render_stream
+
+        self.assertTrue(
+            callable(getattr(render_stream, "install_exit_signal_handler", None)),
+            "the pre-existing SIGTERM helper must remain for `stop`/`status`/`report`, which have no "
+            "run to wind down",
         )
-        self.assertIn(
-            "install_exit_signal_handler",
-            source,
-            "the pre-existing SIGTERM helper is still present for the out-of-band commands "
-            "(`stop`/`status`/`report`), which have no run to wind down",
-        )
-        for name in ("oc_runipd.py", "agy_runipd.py"):
-            driver_src = (REPO_ROOT / "agent_workflows" / name).read_text(
-                encoding="utf-8"
-            )
-            # A run in flight installs the STOP triggers, which OVERRIDE that helper's SIGTERM.
-            self.assertIn("install_stop_triggers(run_dir)", driver_src, name)
-            install_at = driver_src.index("install_exit_signal_handler()")
-            triggers_at = driver_src.index("install_stop_triggers(run_dir)")
-            self.assertLess(
-                install_at,
-                triggers_at,
-                f"{name}: the per-run stop triggers must be installed AFTER the generic exit "
-                f"handler, so the run's SIGTERM means level 3 (spec R13) rather than an exit",
-            )
+
+        for module in (oc, agy):
+            with self.subTest(driver=module.__name__):
+                run_dir = Path(self.enterContext(TemporaryDirectory()))
+                previous = {
+                    signal.SIGINT: signal.getsignal(signal.SIGINT),
+                    signal.SIGTERM: signal.getsignal(signal.SIGTERM),
+                }
+                presses_before = runner_stop._SIGINT_PRESSES
+                try:
+                    runner_stop._SIGINT_PRESSES = 0
+                    runner_stop.reset_deferred_request()
+                    # THE DRIVERS' OWN ORDER: the generic exit handler first, then the per-run stop
+                    # triggers, exactly as `main` does it.
+                    render_stream.install_exit_signal_handler()
+                    status = module.install_stop_triggers(run_dir)
+                    self.assertEqual(
+                        status.get("SIGTERM"),
+                        "installed",
+                        f"{module.__name__}: this host must support SIGTERM for R13 to hold; got "
+                        f"{status}",
+                    )
+                    # WHO OWNS SIGTERM NOW: the stop ladder's handler, not the generic exit one.
+                    handler = signal.getsignal(signal.SIGTERM)
+                    self.assertEqual(
+                        getattr(handler, "__module__", None),
+                        runner_stop.__name__,
+                        f"{module.__name__}: SIGTERM is owned by {handler!r}, not the stop ladder. "
+                        f"The per-run triggers must be installed AFTER the generic exit handler or a "
+                        f"SIGTERM kills the driver and orphans its child (spec section 0.1).",
+                    )
+                    # AND THE CONSEQUENCE: a real SIGTERM RECORDS level 3 and returns; it does not
+                    # raise the way the replaced exit-143 mapping did.
+                    os.kill(os.getpid(), signal.SIGTERM)
+                    recorded = runner_stop.read_stop_request(run_dir)
+                    self.assertIsNotNone(
+                        recorded,
+                        f"{module.__name__}: a real SIGTERM recorded no stop request, so the R13 "
+                        f"mapping is not in force",
+                    )
+                    assert recorded is not None
+                    self.assertEqual(
+                        recorded.level,
+                        runner_stop.SIGTERM_LEVEL,
+                        f"{module.__name__}: SIGTERM must request level "
+                        f"{runner_stop.SIGTERM_LEVEL} (spec R13), got {recorded.level}",
+                    )
+                finally:
+                    for sig, handler in previous.items():
+                        signal.signal(sig, handler)
+                    runner_stop._SIGINT_PRESSES = presses_before
+                    runner_stop.reset_deferred_request()
 
 
 # =============================================================================================
@@ -991,22 +1207,94 @@ class ImplicitStartShimTests(unittest.TestCase):
     def test_agy_does_not_rewrite_a_bare_stop_into_start(self):
         self._stop_is_not_rewritten(agy)
 
-    def test_stop_is_listed_in_both_shims_subcommand_sets(self):
-        # The structural companion: the behavioral test above can only observe the CONSEQUENCE, and a
-        # future edit could reintroduce the omission in one driver while the other kept passing.
-        import re
+    @staticmethod
+    def _shim_set(module) -> set:
+        """The shim's subcommand set, read off `main`'s OWN AST rather than by regexing the file.
 
-        for name in ("oc_runipd.py", "agy_runipd.py"):
-            source = (REPO_ROOT / "agent_workflows" / name).read_text(encoding="utf-8")
-            block = re.search(r"subcommands = \{(.*?)\}", source, re.S)
-            self.assertIsNotNone(block, name)
-            assert block is not None
-            self.assertIn(
-                '"stop"',
-                block.group(1),
-                f"{name}: `stop` is missing from the implicit-start shim's subcommand set, so "
-                f"`stop <run-id> --now` would be rewritten to `start stop <run-id> --now`",
-            )
+        WHY THE SET IS READ RATHER THAN IMPORTED. It is deliberately an INLINE SET LITERAL inside
+        `main()`, not a module constant - both drivers carry a KEEP-THIS-INLINE comment saying so -
+        because the shim lives in `main()` and not in `build_parser()`. So there is nothing to import,
+        and it must be extracted.
+
+        REPLACES `re.search(r"subcommands = \\{(.*?)\\}", source, re.S)`, which the three tests that
+        used it shared. The regex is non-greedy to the FIRST closing brace, so it silently truncates
+        if the set ever contains a nested brace, and `assertIsNotNone(block)` is the only thing
+        standing between a reformat and a vacuous pass - its own failure mode, recorded in this file,
+        was `"unexpectedly None"`. Reading the ASSIGNMENT NODE inside `main` keeps the
+        hoisting-is-forbidden property (a module constant is not an assignment in `main`, so this
+        still fails, which is the point of the KEEP-THIS-INLINE comment) while being immune to
+        formatting, comments, and nesting.
+        """
+
+        import inspect
+
+        tree = ast.parse(textwrap.dedent(inspect.getsource(module.main)))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign) and any(
+                isinstance(target, ast.Name) and target.id == "subcommands"
+                for target in node.targets
+            ):
+                return set(ast.literal_eval(node.value))
+        raise AssertionError(
+            f"{module.__name__}.main has no inline `subcommands = {{...}}` assignment. It must stay "
+            f"an inline set literal INSIDE `main` (see the KEEP-THIS-INLINE comment in both "
+            f"drivers): the implicit-start shim lives in `main()`, not `build_parser()`, so a token "
+            f"missing from it is rewritten into `start <token>` and LAUNCHES A RUN."
+        )
+
+    #: (the verb, what an operator typing it bare would get if the shim did not know it, why it must
+    #: be in the set). Both hazardous verbs, in one table: they differ only in DATA, and the rule each
+    #: encodes is identical.
+    SHIM_REQUIRED_VERBS = (
+        (
+            "stop",
+            "start stop <run-id> --now",
+            "an operator asking to STOP a run would LAUNCH one instead, with the literal selector "
+            "`stop` - a silent misfire in the exact opposite direction of their intent",
+        ),
+        (
+            "integrate",
+            "start integrate <id6>",
+            "integpath-04 (`rl67b0`) E-02: `integrate <id6>` would MINT A RUN with `integrate` as a "
+            "selector. Declaring the subparser alone does NOT cover it, because the shim lives in "
+            "`main()` rather than `build_parser()`",
+        ),
+    )
+
+    def test_the_hazardous_verbs_are_listed_in_both_shims_subcommand_sets(self):
+        """ONE table for both verbs and both drivers, asserted on `main`'s AST.
+
+        CONSOLIDATES `test_stop_is_listed_in_both_shims_subcommand_sets` and
+        `test_integrate_is_listed_in_both_shims_subcommand_sets`, which were the same test with one
+        token changed - a textbook single-case pair. MODE (the driver) is a column, not a class.
+
+        The behavioral pair (`test_oc_does_not_rewrite_a_bare_stop_into_start` and its three siblings)
+        observes the CONSEQUENCE and is kept: a future edit could drop a token from ONE driver, and
+        this table is what names WHICH driver and WHICH verb rather than leaving one behavioral test
+        red with no diagnosis.
+        """
+
+        failures = []
+        for module in (oc, agy):
+            shim = self._shim_set(module)
+            for verb, would_become, why in self.SHIM_REQUIRED_VERBS:
+                if verb not in shim:
+                    failures.append(
+                        f"  {module.__name__} / {verb!r}:\n"
+                        f"    - missing from the shim set, so `{verb} ...` is rewritten to "
+                        f"`{would_become}`\n"
+                        f"    this row exists because: {why}"
+                    )
+        self.assertEqual(
+            failures,
+            [],
+            f"{len(failures)} of {len(self.SHIM_REQUIRED_VERBS) * 2} (verb x driver) shim "
+            f"memberships are missing. Every one of them turns an out-of-band command into a RUN "
+            f"LAUNCH, silently. If rows for BOTH drivers failed for one verb, the verb was never "
+            f"added to the shim; if only ONE driver failed, the two shims have forked and that host "
+            f"alone misfires. FIX: add the token to the inline `subcommands` set in that driver's "
+            f"`main()`.\n" + "\n".join(failures),
+        )
 
     def _integrate_is_not_rewritten(self, module) -> None:
         """integpath-04 (`rl67b0`) E-02/E-05: the SAME hazard for the new `integrate` verb.
@@ -1034,27 +1322,11 @@ class ImplicitStartShimTests(unittest.TestCase):
     def test_agy_does_not_rewrite_a_bare_integrate_into_start(self):
         self._integrate_is_not_rewritten(agy)
 
-    def test_integrate_is_listed_in_both_shims_subcommand_sets(self):
-        """integpath-04 (`rl67b0`) E-02: the structural companion for `integrate`.
-
-        The behavioral pair above observes only the CONSEQUENCE, so a future edit could drop the token
-        from ONE driver and that driver's behavioral test alone would fail; this pins the membership in
-        both, using the same regex `test_the_inline_copy_matches_both_drivers` uses, which is what makes
-        hoisting the set into a module constant unmatchable (see the KEEP-THIS-INLINE comments).
-        """
-        import re
-
-        for name in ("oc_runipd.py", "agy_runipd.py"):
-            source = (REPO_ROOT / "agent_workflows" / name).read_text(encoding="utf-8")
-            block = re.search(r"subcommands = \{(.*?)\}", source, re.S)
-            self.assertIsNotNone(block, name)
-            assert block is not None
-            self.assertIn(
-                '"integrate"',
-                block.group(1),
-                f"{name}: `integrate` is missing from the implicit-start shim's subcommand set, so "
-                f"`integrate <id6>` would be rewritten to `start integrate <id6>` and LAUNCH a run",
-            )
+    # MERGED INTO `test_the_hazardous_verbs_are_listed_in_both_shims_subcommand_sets` above:
+    # `test_integrate_is_listed_in_both_shims_subcommand_sets` was byte-for-byte the `stop` test with
+    # one token changed, so the two are now rows of one table with the driver as a column. Its
+    # behavioral pair (`test_oc_does_not_rewrite_a_bare_integrate_into_start` and the agy twin) is
+    # UNTOUCHED: those drive `main` and observe the consequence, which the table does not.
 
     #: The shim's subcommand set, RE-DECLARED here so the control test below can evaluate the shim
     #: the way `main` does without importing a module constant that deliberately does not exist (see
@@ -1096,30 +1368,31 @@ class ImplicitStartShimTests(unittest.TestCase):
     def test_the_inline_copy_matches_both_drivers(self):
         """streamfmt (mm6wuz) E-12: this file's copy of the set must DESCRIBE the drivers' sets.
 
-        Without this, the copy above can drift from the code and every assertion built on it keeps
-        passing while testing a set that no longer exists. Both drivers are parsed with the SAME
-        regex `test_stop_is_listed_in_both_shims_subcommand_sets` uses, so the guard cannot be
-        satisfied by hoisting the set into a constant.
-        """
-        import ast
-        import re
+        Without this, the copy above drifts from the code and every assertion built on it keeps
+        passing while testing a set that no longer exists.
 
-        parsed = {}
-        for name in ("oc_runipd.py", "agy_runipd.py"):
-            source = (REPO_ROOT / "agent_workflows" / name).read_text(encoding="utf-8")
-            block = re.search(r"subcommands = (\{.*?\})", source, re.S)
-            self.assertIsNotNone(block, name)
-            assert block is not None
-            parsed[name] = ast.literal_eval(block.group(1))
+        Now reads both sets through `_shim_set`, i.e. off `main`'s AST rather than by regexing the
+        file. Same property, and it still cannot be satisfied by hoisting the set into a module
+        constant (there would then be no `subcommands` assignment inside `main`, which `_shim_set`
+        reports as a failure naming the KEEP-THIS-INLINE requirement).
+        """
+
+        parsed = {module.__name__: self._shim_set(module) for module in (oc, agy)}
         self.assertEqual(
-            parsed["oc_runipd.py"],
-            parsed["agy_runipd.py"],
-            "the two drivers' implicit-start subcommand sets have DIVERGED",
+            parsed[oc.__name__],
+            parsed[agy.__name__],
+            f"the two drivers' implicit-start subcommand sets have DIVERGED:\n"
+            f"  oc only:  {sorted(parsed[oc.__name__] - parsed[agy.__name__])}\n"
+            f"  agy only: {sorted(parsed[agy.__name__] - parsed[oc.__name__])}",
         )
-        self.assertEqual(parsed["oc_runipd.py"], self.SHIM_SUBCOMMANDS)
-        # `stop` is still there (the property the sibling structural test owns), restated as a
-        # positive so a set that lost it fails HERE too rather than only there.
-        self.assertIn("stop", parsed["oc_runipd.py"])
+        self.assertEqual(
+            parsed[oc.__name__],
+            self.SHIM_SUBCOMMANDS,
+            f"this file's copy of the shim set no longer describes the drivers'. Every assertion "
+            f"built on `SHIM_SUBCOMMANDS` would keep passing while testing a set the code does not "
+            f"have. Drivers: {sorted(parsed[oc.__name__])}; this copy: "
+            f"{sorted(self.SHIM_SUBCOMMANDS)}",
+        )
 
     def test_a_leading_verbose_flag_is_now_prefixed_with_start(self):
         """streamfmt (mm6wuz) E-05/E-12 / OQ-02: the behavior the `-v` removal changes.
@@ -1467,19 +1740,123 @@ class LivenessProbeTests(unittest.TestCase):
             )
             print(f"finished-run path: exit {result.exit_code}: {result.message}")
 
-    def test_the_probe_is_not_implemented_as_a_file_existence_check(self):
-        # The STRUCTURAL guard for the same thing, so a future "simplification" is caught by name.
-        # `run_liveness` must go through the shared acquirability helper.
-        import inspect
+    #: (case, does `driver.lock` EXIST?, what the shared acquirability probe answers, the liveness
+    #: the probe must report, why this row exists)
+    #:
+    #: THE TABLE IS THE WHOLE POINT. An existence check maps EXISTENCE to the answer, so the rows
+    #: that break it are the ones where existence and the answer DISAGREE. Rows 1 and 2 are exactly
+    #: that pair - present-but-free must read FINISHED, absent must read FINISHED - and an
+    #: implementation keyed on `.exists()` gets row 1 backwards. Row 3 is the positive control
+    #: (present AND held -> LIVE) without which a probe hardcoded to FINISHED would pass rows 1-2.
+    #: Row 4 is the answer that an existence check cannot even express.
+    LIVENESS_CASES = (
+        (
+            "present but UNHELD",
+            True,
+            True,
+            "LIVENESS_FINISHED",
+            "THE ROW THAT KILLS AN EXISTENCE CHECK. The `2ouj70` review MEASURED a stale lock file "
+            "outliving its holder while the `flock` was already free, so a `Path.exists()` probe "
+            "reports LIVE for a run with no driver - and `stop` then writes a request nothing will "
+            "ever read, telling the operator their stop was accepted when it was not",
+        ),
+        (
+            "absent entirely",
+            False,
+            True,
+            "LIVENESS_FINISHED",
+            "a lock cannot be held on a file that does not exist. Same verdict as row 1 from the "
+            "OPPOSITE existence value, which is what proves the answer is not keyed on existence",
+        ),
+        (
+            "present and HELD",
+            True,
+            False,
+            "LIVENESS_LIVE",
+            "THE POSITIVE CONTROL. Without it a probe hardcoded to FINISHED would satisfy rows 1-2 "
+            "while making every `stop` refuse a genuinely live run",
+        ),
+        (
+            "unanswerable (platform or OS error)",
+            True,
+            None,
+            "LIVENESS_UNDETERMINED",
+            "`None` is a REAL answer and must not collapse into either side: failing to prove a "
+            "holder is alive is not proof it is dead. An existence check has no way to express "
+            "this third state at all, so a `.exists()` implementation cannot satisfy this row",
+        ),
+    )
 
-        source = inspect.getsource(runner_stop.run_liveness)
-        self.assertIn("lock_is_free", source)
-        for forbidden in (".exists()", ".is_file()"):
-            self.assertNotIn(
-                forbidden,
-                source,
-                f"liveness must be probed by lock acquirability, not by {forbidden}",
-            )
+    def test_the_probe_is_not_implemented_as_a_file_existence_check(self):
+        """Liveness is decided by lock ACQUIRABILITY. Driven, so an existence check FAILS here.
+
+        WHAT THIS REPLACES. The pin was `assertIn("lock_is_free", source)` plus
+        `assertNotIn(".exists()"/".is_file()", source)` over `inspect.getsource(run_liveness)`. It
+        is a change-detector three ways: the name `lock_is_free` appearing in a COMMENT satisfies
+        the positive half; the function's own docstring says "never by file existence", so any
+        rewording toward `.exists()` in prose fails the negative half; and an existence check
+        written as `if target.stat():` or `os.path.exists(...)` passes both while being the exact
+        defect. It also asserted a MECHANISM (call this helper) where the contract is an ANSWER.
+
+        REPLACED BY THE DISCRIMINATING STATES, table-driven. The probe's answer is FORCED for each
+        row by substituting the shared acquirability helper's verdict, so the rows are exactly the
+        four (existence, acquirability) combinations that matter - including the two where existence
+        and the correct answer DISAGREE, which is what an existence-check implementation gets wrong.
+
+        This is the UNIT half. The end-to-end proof against a REAL killed holder (a genuinely stale
+        file on disk, with a live-then-dead process) is
+        `test_a_stale_lock_file_reads_as_FINISHED_not_live` below, which cannot be a row here
+        because it spawns and kills a process.
+        """
+
+        failures = []
+        for case, exists, free, expected_name, why in self.LIVENESS_CASES:
+            expected = getattr(runner_stop, expected_name)
+            with TemporaryDirectory() as temp:
+                run_dir = Path(temp) / "run"
+                run_dir.mkdir(parents=True)
+                lock = run_dir / "driver.lock"
+                if exists:
+                    lock.write_text("pid=999999 started=old\n", encoding="utf-8")
+                probed: list[Path] = []
+
+                def fake_lock_is_free(path: Path, _free=free, _seen=probed):
+                    _seen.append(Path(path))
+                    return _free
+
+                with mock.patch.object(
+                    runner_shutdown, "lock_is_free", fake_lock_is_free
+                ):
+                    actual = runner_stop.run_liveness(run_dir)
+                if actual != expected:
+                    failures.append(
+                        f"  {case} (file exists={exists}, lock free={free}):\n"
+                        f"    - reported {actual!r}, expected {expected!r} ({expected_name})\n"
+                        f"    this row exists because: {why}"
+                    )
+                elif probed != [lock]:
+                    # The answer was right, but it was not obtained by PROBING the lock - so it
+                    # cannot have been obtained by acquirability, and the next row's disagreement
+                    # between existence and truth would be decided by luck.
+                    failures.append(
+                        f"  {case} (file exists={exists}, lock free={free}):\n"
+                        f"    - reported {actual!r} correctly, but probed {probed!r} instead of "
+                        f"[{lock}]: the verdict did not come from the acquirability probe\n"
+                        f"    this row exists because: {why}"
+                    )
+        self.assertEqual(
+            failures,
+            [],
+            f"liveness is not decided by lock ACQUIRABILITY: {len(failures)} of "
+            f"{len(self.LIVENESS_CASES)} states are wrong. Every row forces the shared probe's "
+            f"answer, so a `Path.exists()`/`.is_file()` implementation fails the two rows where "
+            f"existence and the truth DISAGREE (a stale file present but free, and an absent file), "
+            f"and cannot express UNDETERMINED at all. If ONLY the 'present but UNHELD' row failed, "
+            f"the probe has been simplified into an existence check and a `stop` against a finished "
+            f"run now reports success while writing a request nothing reads. FIX: route the verdict "
+            f"through `runner_shutdown.lock_is_free`, which never creates the file.\n"
+            + "\n".join(failures),
+        )
 
 
 class AlreadyStoppingTests(unittest.TestCase):
@@ -2160,6 +2537,18 @@ class PlatformHonestyTests(unittest.TestCase):
         unconditionally, which is exactly what `y6mfgo` did. So it is inverted here rather than
         deleted, and it is now a STRONGER statement of the same property: no module may reintroduce a
         POSIX-only top-level import, and the one guarded import lives in exactly one place.
+
+        CONVERTED FROM TEXT TO AST. It searched for the exact string `"\\nimport fcntl\\n"`, which is
+        three ways weaker than the claim: `import fcntl, os` and `from fcntl import flock` both pass
+        it; a leading-whitespace INDENTED import (i.e. a legitimately guarded one) would also pass,
+        so the check could not distinguish the shape it forbids from the shape it requires; and a
+        commented-out or docstring occurrence at column 0 fails it. The companion
+        `assertIn("except ImportError:", platform_lock_source)` is satisfied by a comment.
+
+        Asserted on MODULE-LEVEL import nodes, which is exactly "top-level import", plus the real
+        import machinery for the guard. Behavior cannot replace this: the failure mode is that the
+        package becomes unimportable ON A NON-POSIX HOST, which this POSIX test machine cannot
+        reproduce, and the claim is a universal absence over seven modules.
         """
 
         for name in (
@@ -2171,23 +2560,104 @@ class PlatformHonestyTests(unittest.TestCase):
             "project_registry.py",
             "run_ledger_store.py",
         ):
-            source = (REPO_ROOT / "agent_workflows" / name).read_text(encoding="utf-8")
-            self.assertNotIn(
-                "\nimport fcntl\n",
-                source,
-                f"{name}: a top-level `import fcntl` is back, which makes the whole package "
-                f"unimportable on a non-POSIX host again (IPD `y6mfgo`). Route the lock through "
-                f"`platform_lock` instead.",
+            tree = ast.parse(
+                (REPO_ROOT / "agent_workflows" / name).read_text(encoding="utf-8")
             )
-        # The primitive is owned in ONE place, behind a guard, so there is exactly one thing to reason
-        # about on a non-POSIX host (GUIDING_PRINCIPLES P8).
-        lock_src = (REPO_ROOT / "agent_workflows" / "platform_lock.py").read_text(
-            encoding="utf-8"
+            # MODULE BODY only: a top-level import is one that runs at import time. A guarded import
+            # nested in a `try`/function is fine and is what `platform_lock` legitimately does.
+            offenders = []
+            for node in tree.body:
+                if isinstance(node, ast.Import):
+                    offenders.extend(
+                        alias.name for alias in node.names if alias.name == "fcntl"
+                    )
+                if isinstance(node, ast.ImportFrom) and node.module == "fcntl":
+                    offenders.append("from fcntl import ...")
+            self.assertEqual(
+                offenders,
+                [],
+                f"{name}: a top-level fcntl import is back ({offenders}), which makes the whole "
+                f"package unimportable on a non-POSIX host again (IPD `y6mfgo`). Route the lock "
+                f"through `platform_lock` instead. Asserted on module-level import NODES, so "
+                f"`import fcntl, os` and `from fcntl import flock` are caught too.",
+            )
+
+        # The primitive is owned in ONE place, behind a real guard, so there is exactly one thing to
+        # reason about on a non-POSIX host (GUIDING_PRINCIPLES P8). Asserted on the module's actual
+        # BEHAVIOR and structure, not on the presence of the words `except ImportError:`.
+        from agent_workflows import platform_lock as lock_module
+
+        self.assertTrue(
+            callable(getattr(lock_module, "posix_primitive", None)),
+            "platform_lock must expose the single guarded accessor the rest of the package uses",
         )
-        self.assertIn("except ImportError:", lock_src)
+        lock_tree = ast.parse(
+            (REPO_ROOT / "agent_workflows" / "platform_lock.py").read_text(
+                encoding="utf-8"
+            )
+        )
+        guarded = [
+            node
+            for node in ast.walk(lock_tree)
+            if isinstance(node, ast.Try)
+            and any(
+                isinstance(statement, (ast.Import, ast.ImportFrom))
+                and "fcntl" in ast.unparse(statement)
+                for statement in node.body
+            )
+            and any(
+                handler.type is not None and "ImportError" in ast.unparse(handler.type)
+                for handler in node.handlers
+            )
+        ]
+        self.assertTrue(
+            guarded,
+            "platform_lock must import fcntl inside a `try`/`except ImportError`, which is what "
+            "makes the package LOAD on a host without it. Asserted on the Try node, so a comment "
+            "mentioning ImportError cannot satisfy it.",
+        )
+        # And the accessor really answers on this host, so the guard is wired rather than decorative.
+        self.assertIsNotNone(
+            lock_module.posix_primitive(),
+            "on this POSIX host the guarded accessor must return the real module; returning None "
+            "here would mean every lock silently degrades to `undetermined`",
+        )
+        # The package must be importable with `fcntl` ABSENT, which is the property the whole barrier
+        # exists for. Proved by importing it in a child interpreter with `fcntl` blocked.
+        probe = (
+            "import sys\n"
+            "class _Block:\n"
+            "    def find_module(self, name, path=None):\n"
+            "        return self if name == 'fcntl' else None\n"
+            "    def load_module(self, name):\n"
+            "        raise ImportError('fcntl blocked for this probe')\n"
+            "    def find_spec(self, name, path=None, target=None):\n"
+            "        if name == 'fcntl':\n"
+            "            raise ImportError('fcntl blocked for this probe')\n"
+            "        return None\n"
+            "sys.meta_path.insert(0, _Block())\n"
+            "sys.modules.pop('fcntl', None)\n"
+            "from agent_workflows import platform_lock, runner_stop, runner_shutdown\n"
+            "print('imported without fcntl:', platform_lock.posix_primitive() is None)\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", probe],
+            env=_DRIVER_ENV,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=120,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            f"the package must IMPORT with `fcntl` unavailable (that is the entire point of the "
+            f"barrier's removal, IPD `y6mfgo`). Child output:\n{result.stdout[-2000:]}",
+        )
+        self.assertIn("imported without fcntl: True", result.stdout)
         print(
-            "fcntl import barrier: no top-level `import fcntl` in any of the 7 affected modules; "
-            "platform_lock owns the single guarded import"
+            "fcntl import barrier: no top-level fcntl import in any of the 7 affected modules; "
+            "platform_lock owns the single guarded import; the package imports with fcntl blocked"
         )
 
 
@@ -2202,15 +2672,66 @@ class ScopeFenceTests(unittest.TestCase):
     def _source(self, name: str) -> str:
         return (REPO_ROOT / "agent_workflows" / name).read_text(encoding="utf-8")
 
+    #: (the shared surface each level's behavior lives on, which level it serves, why it must be THE
+    #: shared one). Every level from every phase, because this phase only REQUESTS levels: a phase
+    #: that quietly re-implemented one would give an operator two different meanings for one flag.
+    LEVEL_SURFACES = (
+        ("WindDown", "levels 1-2, the between-turn wind-down"),
+        ("StopAtCheckpoint", "level 3, the observed-safe-checkpoint stop"),
+        ("StopNowForce", "level 4, the immediate force cut"),
+        (
+            "ForceStopWatch",
+            "level 4's out-of-band watch, for a child that has gone silent",
+        ),
+        ("CheckpointObserver", "the level-3 detector's control flow"),
+    )
+
     def test_no_level_behavior_was_changed(self):
-        # This phase only REQUESTS levels (and enforces the escalation Phase 3 deferred). Each level's
-        # behavior stays where its own phase put it, so those surfaces must still be the ones in use.
-        for name in ("oc_runipd.py", "agy_runipd.py"):
-            source = self._source(name)
-            self.assertIn("runner_stop.WindDown", source, name)  # levels 1-2
-            self.assertIn("runner_stop.StopAtCheckpoint", source, name)  # level 3
-            self.assertIn("runner_stop.StopNowForce", source, name)  # level 4
-            self.assertIn("runner_stop.ForceStopWatch(", source, name)
+        """Every level's behavior is still the SHARED surface, asserted by IDENTITY.
+
+        REPLACES four `assertIn("runner_stop.<Name>", driver_source)` searches, each satisfiable by a
+        comment - and these drivers comment on every one of these classes by name. Worse, a substring
+        search cannot tell "this driver USES the shared class" from "this driver defines a local class
+        of the same name and mentions the shared one in a note", which is precisely the
+        re-implementation the fence exists to forbid.
+
+        `assertIs` is the honest form of "both hosts use ONE definition", so that is what is used, on
+        the attribute each driver actually reaches through.
+        """
+
+        missing = []
+        for module in (oc, agy):
+            for surface, why in self.LEVEL_SURFACES:
+                shared = getattr(runner_stop, surface, None)
+                if shared is None:
+                    missing.append(
+                        f"  runner_stop.{surface}: the SHARED surface itself is gone\n"
+                        f"    this surface exists for: {why}"
+                    )
+                    continue
+                reached = getattr(module.runner_stop, surface, None)
+                if reached is not shared:
+                    missing.append(
+                        f"  {module.__name__} -> {surface}:\n"
+                        f"    - reaches {reached!r}, not the shared {shared!r}\n"
+                        f"    this surface exists for: {why}"
+                    )
+                # A LOCAL definition of the same name is the re-implementation this forbids.
+                local = getattr(module, surface, None)
+                if local is not None and local is not shared:
+                    missing.append(
+                        f"  {module.__name__} defines its OWN `{surface}` ({local!r}), shadowing the "
+                        f"shared one\n    this surface exists for: {why}"
+                    )
+        self.assertEqual(
+            missing,
+            [],
+            f"{len(missing)} level surface(s) are no longer the shared definition. This phase only "
+            f"REQUESTS levels; each level's BEHAVIOR stays where its own phase put it, so a local "
+            f"re-implementation would give an operator two different meanings for the same flag "
+            f"depending on host. Asserted by identity, so a comment naming the class cannot satisfy "
+            f"it.\n" + "\n".join(missing),
+        )
 
     def test_no_second_lock_abstraction_was_added(self):
         # Orchestrator CID-5 / GUIDING_PRINCIPLES P8: there must be exactly ONE lock abstraction, and
@@ -2315,33 +2836,239 @@ class ScopeFenceTests(unittest.TestCase):
             )
             self.assertNotIn("--all", result.stdout, driver)
 
-    def test_the_handler_uses_only_the_handler_safe_writer(self):
-        # The scope fence the plan states as a hard MUST: a durable stop record must never be written
-        # from inside a signal handler by any path other than Phase 1's handler-safe entry, because
-        # Phase 1 MEASURED a blocking acquire deadlocking a handler outright.
-        import inspect
+    #: Every call a signal handler may make, and the reason each one is allowed. This is a
+    #: WHITELIST, so a call added to a handler must be justified HERE before the test goes green -
+    #: which is the point, since "is this safe from a signal handler?" is a judgement a diff should
+    #: force somebody to make rather than a question a test can answer automatically.
+    #:
+    #: The three handler-safety rules a candidate must satisfy: it must not take a BLOCKING lock
+    #: (measured deadlock, exit 124), it must not do teardown (spec R7: the handler records and
+    #: returns, the POLL acts), and it must not depend on the interpreter being in a consistent
+    #: state, since the handler can interrupt the main thread anywhere.
+    HANDLER_CALL_ALLOWLIST = {
+        # The handler-SAFE writer. One non-blocking attempt, then a single store to a
+        # process-local slot. This is the ONLY durable-write entry a handler may use.
+        "request_stop_nowait": "Phase 1's handler-safe writer: one non-blocking attempt, never waits",
+        # Records the operator's press so it is never silent. Reaches `print`, which is NOT
+        # async-signal-safe in the strict sense; see the docstring, where that bounded exception
+        # is stated rather than hidden.
+        "report_request": "the operator's press must not be silent; bounded, suppressed write",
+        # The TTY/consent predicate and the interactive menu it guards. Both are reached ONLY when
+        # `interrupt_menu_is_safe` returns True, i.e. only when a human is provably watching and
+        # can answer. `interrupt_menu_is_safe` is itself the guard that keeps the blocking
+        # `readline()` out of the non-interactive case (the `ttywedge` incident).
+        "interrupt_menu_is_safe": "the consent guard that keeps the blocking prompt out of CI",
+        "handle_interactive_interrupt": "reached only behind that guard, i.e. only with a human present",
+        # The TERMINAL rung's unwind, which is how the pre-existing `KeyboardInterrupt` contract
+        # (item marked `interrupted`, exit 130) stays reachable. Raising from a handler is safe:
+        # it unwinds the main thread rather than re-entering anything.
+        "KeyboardInterrupt": "the terminal rung's unwind; preserves the pre-existing exit-130 path",
+        "on_terminal": "the driver's terminal-rung callback, which raises KeyboardInterrupt",
+        # Pure, allocation-free ladder arithmetic.
+        "len": "ladder index arithmetic",
+        "min": "ladder index arithmetic",
+        "_record": "the handler's own recording helper, walked separately below",
+        "Path": "pure path construction",
+    }
 
-        source = inspect.getsource(runner_stop.install_stop_signal_handlers)
-        self.assertIn("request_stop_nowait(", source)
-        self.assertNotIn(
-            "request_stop(",
-            source.replace("request_stop_nowait(", ""),
-            "a signal handler must not call the BLOCKING-retry writer (Phase 1 measured the deadlock)",
+    def test_the_handler_uses_only_the_handler_safe_writer(self):
+        """AST: the set of calls each handler makes is a SUBSET of an explicit allowlist.
+
+        WHAT THIS REPLACES. The pin here was `assertIn("request_stop_nowait(", installer_source)`
+        plus `assertNotIn("request_stop(", installer_source.replace("request_stop_nowait(", ""))`.
+        Both halves are text searches over `inspect.getsource`, and both fail in the ways this
+        repository has already measured: the `.replace()` trick means any COMMENT mentioning
+        `request_stop(` fails the test, while a blocking write reached indirectly satisfies it.
+
+        WHY THIS ONE IS AST AND NOT BEHAVIORAL, stated because the brief's default is behavioral.
+        The claim is a UNIVERSAL ABSENCE over a function no test can fully cover. A signal handler
+        can interrupt the main thread at ANY instruction, so re-entering a LOCKED stream or a
+        BLOCKING acquire from it deadlocks the process - a HANG, not a crash. A behavioral test can
+        only prove that the paths it drives are safe; it cannot prove that the interactive-menu
+        branch, the terminal rung, or a platform fallback contains no unsafe call, because each is
+        reachable only under conditions one run does not reproduce. A comment cannot add a Call
+        node, so the allowlist cannot be satisfied by prose.
+
+        The BEHAVIORAL half of this invariant is not omitted, it is owned elsewhere and deliberately
+        not duplicated: `tests/test_runner_stop.py::PollWiringTests` drives real signals with a spy
+        that fails if the blocking writer is reached, `test_runner_stop_level3.py` drives the
+        CONTENDED path, and `tests/test_runner_stop.py::SignalHandlerSafetyTests` turns the HANG
+        into a failure under a hard subprocess timeout in a child process.
+
+        THE HONEST LIMIT. `report_request` reaches `print`, so this handler is NOT
+        async-signal-safe in the strict C sense. That is a deliberate, bounded trade (the write is
+        `contextlib.suppress`ed, and an operator's press must never be silent) and it is recorded in
+        the allowlist rather than papered over. This test's guarantee is therefore the one that was
+        MEASURED: no blocking lock acquire, and no call that has not been justified in the
+        allowlist above.
+        """
+
+        import ast
+        import inspect
+        import textwrap
+
+        tree = ast.parse(textwrap.dedent(inspect.getsource(runner_stop)))
+        top_level = {
+            node.name: node
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        installer = top_level["install_stop_signal_handlers"]
+        nested = {
+            node.name: node
+            for node in installer.body
+            if isinstance(node, ast.FunctionDef)
+        }
+        self.assertEqual(
+            sorted(nested),
+            ["_record", "_sigint", "_sigterm"],
+            "the installer's nested-function set changed; re-audit each handler before widening "
+            f"the allowlist. Found {sorted(nested)}.",
+        )
+
+        for handler_name in ("_sigint", "_sigterm"):
+            # `_record` is walked as part of each handler: it IS handler code, reached on every
+            # press, so its calls are the handler's calls.
+            bodies = [nested[handler_name], nested["_record"]]
+            made = {
+                ast.unparse(call.func)
+                for body in bodies
+                for call in ast.walk(body)
+                if isinstance(call, ast.Call)
+            }
+            unjustified = sorted(made - set(self.HANDLER_CALL_ALLOWLIST))
+            self.assertEqual(
+                unjustified,
+                [],
+                f"`{handler_name}` (plus `_record`) makes {len(unjustified)} call(s) with no "
+                f"handler-safety justification: {unjustified}. A signal handler may not take a "
+                f"BLOCKING lock (Phase 1 measured that hanging the process, exit 124 at a 10s "
+                f"timeout), may not tear down (spec R7: it RECORDS and returns; the POLL acts), and "
+                f"may not assume the interpreter is in a consistent state. FIX: if the call really "
+                f"is handler-safe, add it to `HANDLER_CALL_ALLOWLIST` WITH the reason; if it is not, "
+                f"move the work to the poll.",
+            )
+            # And the blocking writer specifically, named so the failure message is unambiguous.
+            self.assertNotIn(
+                "request_stop",
+                made,
+                f"`{handler_name}` calls the BLOCKING-retry writer `request_stop`; a handler may "
+                f"only use `request_stop_nowait` (Phase 1 measured the deadlock)",
+            )
+        self.assertIn(
+            "request_stop_nowait",
+            {
+                ast.unparse(call.func)
+                for call in ast.walk(nested["_record"])
+                if isinstance(call, ast.Call)
+            },
+            "the handler no longer reaches the handler-safe writer at all, so a press records "
+            "nothing durably",
         )
 
     def test_the_shared_verb_is_declared_once_not_copied(self):
-        # Orchestrator CID-3: `aw oc run stop` and `aw agy run stop` must be the SAME verb, not two
-        # that happen to agree. Both drivers call the shared declaration; neither re-declares flags.
-        for name in ("oc_runipd.py", "agy_runipd.py"):
-            source = self._source(name)
-            self.assertIn("runner_stop.add_stop_parser(", source, name)
-            self.assertNotIn(
-                '"--now-force"', source, f"{name}: flags re-declared locally"
-            )
+        """The two hosts' `stop` verbs are the SAME verb, proved by comparing their RENDERED help.
+
+        REPLACES `assertIn("runner_stop.add_stop_parser(", source)` plus
+        `assertNotIn('"--now-force"', source)`. The first is satisfied by a comment; the second is a
+        false-positive magnet, because any prose mentioning the flag fails it - and both drivers
+        comment on this verb at length. Neither compares the two verbs TO EACH OTHER, which is the
+        actual CID-3 claim: not "each driver mentions the helper" but "an operator gets the same verb
+        on both hosts".
+
+        COMPARED BYTE FOR BYTE. Both parsers are BUILT and their `stop` help rendered, then the two
+        host-specific substitutions are normalized away (the program name, and `aw oc run` versus
+        `aw agy run` in the examples), which are SUPPOSED to differ. What remains must be identical.
+        That catches a divergence in any flag, any help string, any default, and the
+        mutually-exclusive grouping - none of which a substring search sees.
+        """
+
+        import argparse
+        import difflib
+
+        rendered = {}
+        flag_sets = {}
         for module in (oc, agy):
-            self.assertTrue(hasattr(module, "handle_stop_command"), module)
-            self.assertTrue(hasattr(module, "install_stop_triggers"), module)
-            self.assertIs(module.runner_stop, runner_stop)
+            parser = module.build_parser()
+            subparsers = [
+                action
+                for action in parser._actions
+                if isinstance(action, argparse._SubParsersAction)
+            ]
+            self.assertTrue(subparsers, f"{module.__name__} declares no subcommands")
+            self.assertIn(
+                "stop",
+                subparsers[0].choices,
+                f"{module.__name__} does not declare the `stop` verb at all",
+            )
+            stop_parser = subparsers[0].choices["stop"]
+            rendered[module.__name__] = stop_parser.format_help()
+            flag_sets[module.__name__] = sorted(
+                option
+                for action in stop_parser._actions
+                for option in action.option_strings
+            )
+
+        oc_flags, agy_flags = flag_sets[oc.__name__], flag_sets[agy.__name__]
+        self.assertEqual(
+            oc_flags,
+            agy_flags,
+            f"the two hosts' `stop` flags have DIVERGED:\n  oc: {oc_flags}\n  agy: {agy_flags}",
+        )
+        for flag in ("--after-call", "--after-set", "--now", "--now-force"):
+            self.assertIn(
+                flag,
+                oc_flags,
+                f"the `stop` verb lost {flag}: spec R14 requires all four levels out-of-band",
+            )
+
+        # The two intended host substitutions are the ONLY differences allowed; naming them here is
+        # what makes everything else strict.
+        def normalize(text: str) -> str:
+            for host_specific, placeholder in (
+                ("runagy", "<prog>"),
+                ("runipd", "<prog>"),
+                ("aw agy run", "aw <host> run"),
+                ("aw oc run", "aw <host> run"),
+            ):
+                text = text.replace(host_specific, placeholder)
+            return text
+
+        oc_help = normalize(rendered[oc.__name__])
+        agy_help = normalize(rendered[agy.__name__])
+        if oc_help != agy_help:
+            diff = "\n".join(
+                difflib.unified_diff(
+                    oc_help.splitlines(),
+                    agy_help.splitlines(),
+                    fromfile="oc stop --help",
+                    tofile="agy stop --help",
+                    lineterm="",
+                )
+            )
+            self.fail(
+                "the two hosts' `stop` verbs are NOT the same verb (orchestrator CID-3). Only the "
+                "program name and the `aw oc run`/`aw agy run` example prefix may differ; "
+                "everything else is declared ONCE in `runner_stop.add_stop_parser` and must render "
+                f"identically. Divergence:\n{diff}"
+            )
+
+        # And both hosts reach the shared DECISION, by identity rather than by name.
+        for module in (oc, agy):
+            self.assertIs(module.runner_stop, runner_stop, module.__name__)
+            self.assertIs(
+                module.runner_stop.add_stop_parser,
+                runner_stop.add_stop_parser,
+                f"{module.__name__} must declare `stop` through THE shared declaration",
+            )
+            self.assertIs(
+                module.runner_stop.stop_command,
+                runner_stop.stop_command,
+                f"{module.__name__} must apply THE shared stop decision, so the two hosts cannot "
+                f"diverge on the exit contract",
+            )
+            self.assertTrue(callable(getattr(module, "handle_stop_command", None)))
+            self.assertTrue(callable(getattr(module, "install_stop_triggers", None)))
 
 
 if __name__ == "__main__":  # pragma: no cover

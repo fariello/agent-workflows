@@ -18,9 +18,13 @@ leaves the guarantee UNVERIFIED on that machine.
 
 from __future__ import annotations
 
+import json
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -54,6 +58,11 @@ CONTRACT_FIELDS = (
     "supports_deny_push",
     "supports_fresh_verifier_session",
 )
+
+
+#: The environment keys the bwrap stub is driven through. Saved and restored around every use so a
+#: failing row cannot leak a mode into a later test in the same process.
+_STUB_ENV = ("AW_STUB_BWRAP_MODE", "AW_STUB_BWRAP_RECORD")
 
 
 def _linux_userns_available() -> bool:
@@ -264,22 +273,193 @@ class ProbeMustProveDenialTests(unittest.TestCase):
                         f"the {mechanism} launcher must name the writable lane",
                     )
 
+    #: (case, the stub launcher's mode, the verdict the probe MUST return, why this row exists)
+    #:
+    #: THE STUB IS THE LOAD-BEARING PATH, DELIBERATELY. The real `bwrap` cannot create a user
+    #: namespace on most CI machines and on the host this was written on ("setting up uid map:
+    #: Permission denied"), so a test that drove only the real binary would SKIP everywhere and
+    #: guard nothing. Each row instead puts a launcher named `bwrap` on PATH that EXISTS, parses
+    #: the probe's real argv, and `execv`s the real checker child exactly as the genuine launcher
+    #: does - differing ONLY in whether it actually enforces the boundary it was asked for.
+    BWRAP_STUB_MODES = (
+        (
+            "the helper EXISTS and launches cleanly but enforces NOTHING",
+            "permissive",
+            False,
+            "THE FAIL-OPEN DIRECTION, AND THE WHOLE REASON THIS TEST EXISTS. A `--bind / /` jail "
+            "launches exactly as cleanly as a `--ro-bind / /` one, so any probe keyed on the "
+            "helper being installed, or on the launcher merely exiting 0, reports `supported` "
+            "for a host with no boundary at all - and every hardened-mode guarantee downstream "
+            "is then published over nothing. An implementation that inspects presence fails HERE",
+        ),
+        (
+            "the helper EXISTS and the outside write is genuinely REFUSED",
+            "enforcing",
+            True,
+            "THE INVERSE, which is what stops the row above from being satisfiable by a probe "
+            "that answers `unsupported` unconditionally. Same binary, same argv, same child: "
+            "ONLY the observed denial differs, so the pair isolates the denial as the "
+            "discriminator rather than anything about the environment",
+        ),
+    )
+
+    #: A fake `bwrap` that is indistinguishable from the real one up to ENFORCEMENT. It records what
+    #: it was asked to bind (so a probe that stopped passing a real bind set is caught), then either
+    #: makes every sibling of the writable root unwritable (`enforcing`) or leaves the filesystem
+    #: wide open (`permissive`), and `execv`s the probe's own checker script either way.
+    _BWRAP_STUB = textwrap.dedent(
+        '''\
+        #!/usr/bin/env python3
+        """A test double for `bwrap`: launches identically, enforces only on request."""
+        import json, os, stat, sys
+
+        argv = sys.argv[1:]
+        mode = os.environ["AW_STUB_BWRAP_MODE"]
+        bound = [argv[i + 1] for i, a in enumerate(argv) if a == "--bind" and i + 1 < len(argv)]
+        child = None
+        for index, a in enumerate(argv):
+            if os.path.basename(a).startswith("python") and os.access(a, os.X_OK):
+                child = argv[index:]
+                break
+        with open(os.environ["AW_STUB_BWRAP_RECORD"], "w") as fh:
+            json.dump({"mode": mode, "bound": bound, "launched": child is not None}, fh)
+        if child is None or not bound:
+            sys.stderr.write("stub bwrap could not parse its argv\\n")
+            raise SystemExit(64)
+        if mode == "enforcing":
+            allowed = os.path.realpath(bound[0])
+            parent = os.path.dirname(allowed)
+            for name in sorted(os.listdir(parent)):
+                target = os.path.join(parent, name)
+                if os.path.isdir(target) and os.path.realpath(target) != allowed:
+                    os.chmod(target, stat.S_IRUSR | stat.S_IXUSR)
+        os.execv(child[0], child)
+        '''
+    )
+
+    def _probe_bwrap_against_stub(self, mode: str):
+        """Run the REAL `_probe_bwrap` with a stub `bwrap` first on PATH. Returns (ok, note, record)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            stub_dir = Path(tmp) / "bin"
+            stub_dir.mkdir()
+            stub = stub_dir / "bwrap"
+            stub.write_text(self._BWRAP_STUB, encoding="utf-8")
+            stub.chmod(0o755)
+            record = Path(tmp) / "record.json"
+            saved = {k: os.environ.get(k) for k in ("PATH", *_STUB_ENV)}
+            os.environ["PATH"] = str(stub_dir) + os.pathsep + os.environ.get("PATH", "")
+            os.environ["AW_STUB_BWRAP_MODE"] = mode
+            os.environ["AW_STUB_BWRAP_RECORD"] = str(record)
+            try:
+                ok, note = hsp._probe_bwrap()
+            finally:
+                for key, value in saved.items():
+                    if value is None:
+                        os.environ.pop(key, None)
+                    else:
+                        os.environ[key] = value
+            observed = (
+                json.loads(record.read_text(encoding="utf-8"))
+                if record.exists()
+                else None
+            )
+            return ok, note, observed
+
     def test_bwrap_probe_requires_an_observed_denial(self):
-        """The bwrap probe must not pass on launch-exit-0 alone.
+        """The bwrap verdict must come from an OBSERVED DENIAL, never from the helper existing.
 
-        A jail built with `--bind / /` (fully writable) launches exactly as cleanly as one
-        built with `--ro-bind / /`, so the probe must assert the kernel REFUSED the outside
-        write. Proven structurally: the probe runs a checker script rather than `true`.
+        REPLACES A SOURCE-TEXT PIN, and the pin's own weakness is the point: it read
+        `inspect.getsource(hsp._probe_bwrap)` and asserted `"_denial_checker_source" in src`
+        plus `'"true"' not in src`. A comment naming either token satisfied it, a rename broke
+        it, and - decisively for a SECURITY property - it could not tell an enforcing probe from
+        a permissive one, because both spell their source identically up to the argv they build.
+
+        This drives the real probe against a stub launcher that EXISTS in both rows and enforces
+        in only one, so presence and enforcement are separated and the fail-open answer fails.
         """
-        import inspect
-
-        src = inspect.getsource(hsp._probe_bwrap)
-        self.assertIn("_denial_checker_source", src)
-        self.assertNotIn(
-            '"true"',
-            src,
-            "probing with `true` proves only that the launcher started",
+        wrong = []
+        for case, mode, expected, why in self.BWRAP_STUB_MODES:
+            ok, note, record = self._probe_bwrap_against_stub(mode)
+            problems = []
+            if record is None:
+                problems.append(
+                    "the probe never launched the stub at all, so this row proved nothing about "
+                    "enforcement (did `_probe_bwrap` stop invoking `bwrap`?)"
+                )
+            else:
+                if not record.get("bound"):
+                    problems.append(
+                        "the probe passed NO `--bind` writable root, so it cannot be asking for a "
+                        "partition; a launch-only criterion is exactly the fail-open defect"
+                    )
+                if not record.get("launched"):
+                    problems.append(
+                        "the stub found no child to exec: the probe is no longer running a checker "
+                        "inside the jail, so nothing could observe a denial"
+                    )
+            if ok is not expected:
+                problems.append(
+                    f"reported supported={ok!r}, expected {expected!r} (note: {note[:160]!r})"
+                )
+            if problems:
+                wrong.append(
+                    f"  {case} [mode={mode}]\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the bwrap probe was wrong for {len(wrong)} of {len(self.BWRAP_STUB_MODES)} stub "
+            "modes. ONE criterion decides the verdict (the checker child's exit status), so read "
+            "the grouping: the PERMISSIVE row alone failing means the probe now reports supported "
+            "for a jail that contains nothing, which is the fail-OPEN direction x03wgn Section 8 "
+            "Phase 6.3 forbids and the more dangerous of the two; the ENFORCING row alone failing "
+            "means the probe can no longer recognize a real boundary and hardened mode is "
+            "unreachable everywhere; BOTH failing means the probe stopped launching the checker. "
+            "FIX: the verdict must be the observed refusal of the outside write and nothing else - "
+            "not `shutil.which('bwrap')`, not the launcher's own exit code, not a sysctl.\n"
+            + "\n".join(wrong),
         )
+
+    def test_bwrap_probe_answers_unsupported_when_the_helper_is_absent(self):
+        """Kept separate: the subject is the ABSENCE of the helper, so no stub can be installed.
+
+        The conservative default is its own claim and it is the one branch the stub rows above
+        cannot reach, since each of them puts a `bwrap` on PATH by construction.
+        """
+        with tempfile.TemporaryDirectory() as empty:
+            saved = os.environ.get("PATH")
+            os.environ["PATH"] = empty
+            try:
+                ok, note = hsp._probe_bwrap()
+            finally:
+                if saved is None:
+                    os.environ.pop("PATH", None)
+                else:
+                    os.environ["PATH"] = saved
+        self.assertFalse(ok, "no launcher at all cannot enforce a partition")
+        self.assertIn("not installed", note)
+
+    @unittest.skipUnless(
+        shutil.which("bwrap") is not None,
+        "the real `bwrap` launcher is not installed here",
+    )
+    def test_the_real_bwrap_probe_agrees_with_its_own_note(self):
+        """The REAL binary, when present: a True verdict must cite the refusal it observed.
+
+        Deliberately NOT the load-bearing row. On the machine this was written on the real
+        launcher cannot create a user namespace at all ("setting up uid map: Permission
+        denied"), and on such a host the only honest assertion is that the probe reports
+        not-supported with a reason rather than claiming a boundary. The stub rows above carry
+        the actual guarantee precisely so it is never silently skipped.
+        """
+        ok, note = hsp._probe_bwrap()
+        self.assertTrue(note.strip(), "every verdict must publish its evidence")
+        if ok:
+            self.assertIn("refused", note)
+        else:
+            self.assertIn("bwrap", note)
 
 
 class SandboxPlanTests(unittest.TestCase):

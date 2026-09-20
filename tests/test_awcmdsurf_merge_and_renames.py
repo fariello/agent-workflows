@@ -22,6 +22,18 @@ def _run(argv):
     return rc, out.getvalue() + err.getvalue()
 
 
+def _attention_fixture(root: Path) -> Path:
+    """A minimal repo the attention view can read, so no test here touches the live checkout.
+
+    The live tree is a MOVING TARGET in this shared checkout (a concurrent agent committing a plan
+    changes the board between two calls), which is the race the docstring below records.
+    """
+    (root / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
+    (root / ".aw" / "config").mkdir(parents=True)
+    (root / ".aw" / "config" / "project.json").write_text("{}", encoding="utf-8")
+    return root
+
+
 class MergeAndRenamesTests(unittest.TestCase):
     def test_ipd_board_shows_board(self):
         # awcmdsurf Order 05 removed the old `plans` verb; `ipd board` is the board now.
@@ -68,15 +80,20 @@ class MergeAndRenamesTests(unittest.TestCase):
         merely absent: the earlier arrangement let `todo` carry a NARROWER option set (it
         accepted only `--all`, so `aw todo --format json` failed outright) while both dispatch
         bodies still matched, which is exactly the defect that passed under the old assertion.
+
+        THE REMAINING SOURCE-TEXT PIN IS NOW GONE TOO, and it was the weakest link here. It read
+        `inspect.getsource(cli._dispatch)` and asserted the literal branch
+        `'if args.command in ("next", "attention", "att", "todo")'` appeared in it, plus that
+        `'if args.command == "todo":'` did not. Both are change-detectors over one function's
+        formatting: reordering the tuple, splitting the line as a formatter would, or moving the
+        branch into a helper all break it while the behavior is untouched, and a comment carrying
+        either string satisfies it while the routing is broken. It is replaced by a DISPATCH
+        OBSERVATION: `attention.run` is patched to a recorder and each of the four spellings is
+        driven through the REAL `cli.main`, so what is asserted is that every spelling actually
+        reaches that one handler and hands it the identical namespace. That is the property the
+        literal was standing in for, and it survives any rewriting of the branch.
         """
-        import inspect
-
-        src = inspect.getsource(cli._dispatch)
         parser = cli._build_parser()
-
-        # ONE dispatch branch now covers every spelling, and it delegates to `attention.run`.
-        self.assertIn('if args.command in ("next", "attention", "att", "todo")', src)
-        self.assertNotIn('if args.command == "todo":', src)
 
         # Every alias resolves to the SAME parser object as the canonical `next`, so they
         # cannot diverge in options, defaults, or help.
@@ -99,17 +116,52 @@ class MergeAndRenamesTests(unittest.TestCase):
             self.assertEqual(ns.format, "json")
             self.assertTrue(ns.check)
 
+        # EVERY SPELLING MUST REACH `attention.run`, observed rather than read off the source.
+        # A recorder replaces the handler, so a spelling routed anywhere else records nothing and
+        # a spelling routed there with different arguments records a different namespace.
+        with tempfile.TemporaryDirectory() as td:
+            root = _attention_fixture(Path(td))
+            real_run = attention.run
+            seen = {}
+
+            def recorder(ns):
+                seen[ns.command] = {
+                    key: value
+                    for key, value in sorted(vars(ns).items())
+                    # `command` IS the invoked spelling by design, and `func`/`dir` are set per
+                    # call, so comparing them would assert the inputs rather than the routing.
+                    if key not in ("command", "func", "dir")
+                }
+                return 0
+
+            attention.run = recorder  # type: ignore[assignment]
+            try:
+                for spelling in ("next", "attention", "att", "todo"):
+                    rc, _ = _run([spelling, "--dir", str(root), "--no-color"])
+                    self.assertEqual(rc, 0, f"`aw {spelling}` did not dispatch cleanly")
+            finally:
+                attention.run = real_run  # type: ignore[assignment]
+
+            self.assertEqual(
+                sorted(seen),
+                ["att", "attention", "next", "todo"],
+                "a spelling never reached `attention.run` at all, so it is routed elsewhere "
+                f"(recorded: {sorted(seen)})",
+            )
+            for spelling in ("attention", "att", "todo"):
+                self.assertEqual(
+                    seen[spelling],
+                    seen["next"],
+                    f"`aw {spelling}` handed `attention.run` a different namespace than `aw next`; "
+                    "the aliases must be indistinguishable to the handler",
+                )
+
         # Output-level check WITHOUT a second live read: render ONE snapshot through both
         # argument namespaces. Any difference here is a dispatch difference, not a
         # repository change, because `attention.run` is called once per namespace against
         # the same immutable temp fixture.
         with tempfile.TemporaryDirectory() as td:
-            root = Path(td)
-            (root / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
-            (root / ".aw" / "config").mkdir(parents=True)
-            (root / ".aw" / "config" / "project.json").write_text(
-                "{}", encoding="utf-8"
-            )
+            root = _attention_fixture(Path(td))
 
             rendered = []
             for argv in (["todo"], ["attention"]):

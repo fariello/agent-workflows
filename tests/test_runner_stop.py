@@ -73,11 +73,13 @@ that level, which is the sibling files' subject.
 
 from __future__ import annotations
 
+import ast
 import datetime as dt
 import errno
 import fcntl
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -1250,24 +1252,63 @@ class PathResolutionTests(unittest.TestCase):
             )
 
     def test_module_constructs_no_state_root_of_its_own(self):
-        """Kept separate: SOURCE INSPECTION of the module's own text, not a resolved path.
+        """Kept separate: an ABSENCE claim about the module, not a resolved path.
 
-        Orchestrator CID-2 / `wtiso` Phase 3 guard. The subject is the module source, so it shares no
-        input with any resolution row: the table proves the accessor is FOLLOWED, this proves no second
-        root is CONSTRUCTED, and a module could do both.
+        Orchestrator CID-2 / `wtiso` Phase 3 guard. It shares no input with any resolution row: the
+        table proves the accessor is FOLLOWED, this proves no second root is CONSTRUCTED, and a module
+        could do both.
+
+        CONVERTED FROM TEXT TO AST. The pin filtered out `#` comment LINES and then searched the
+        remainder for `'".aw"'`, `"'.aw'"`, `'".aw/state"'` and `"'.aw/state'"`. Three weaknesses, all
+        of which this repo has measured on other guards: the filter removes `#` comments but NOT
+        DOCSTRINGS, and this module's docstrings discuss the state root at length, so the guard was one
+        docstring edit away from a false failure; it is defeated by any other spelling (`".aw" + ""`,
+        `".a" "w"`, an f-string, `Path(".aw")` written as `Path(*(".aw",))`); and it matches the
+        substring `".aw"` inside unrelated longer literals.
+
+        AST over STRING CONSTANTS, excluding docstring nodes explicitly rather than by line shape. The
+        claim is the NON-EXISTENCE of a construct, which the brief names as a legitimate AST case, and
+        no behavioral test can establish it: `test_resolution_follows_a_monkeypatched_state_root`
+        already proves the accessor is honored on the path it drives, but a hardcoded fallback on a
+        branch that fires only when the accessor is absent would pass that and still pin the flag
+        under the repo.
         """
-        source = (REPO_ROOT / "agent_workflows" / "runner_stop.py").read_text(
-            encoding="utf-8"
-        )
-        code_lines = [
-            line for line in source.splitlines() if not line.strip().startswith("#")
-        ]
-        for needle in ('".aw"', "'.aw'", '".aw/state"', "'.aw/state'"):
-            self.assertNotIn(
-                needle,
-                "\n".join(code_lines),
-                f"runner_stop must not construct a state root itself (found {needle})",
+
+        tree = ast.parse(
+            (REPO_ROOT / "agent_workflows" / "runner_stop.py").read_text(
+                encoding="utf-8"
             )
+        )
+        docstrings = set()
+        for node in ast.walk(tree):
+            if isinstance(
+                node,
+                (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef),
+            ):
+                first = node.body[0] if node.body else None
+                if (
+                    isinstance(first, ast.Expr)
+                    and isinstance(first.value, ast.Constant)
+                    and isinstance(first.value.value, str)
+                ):
+                    docstrings.add(id(first.value))
+        offenders = [
+            (node.lineno, node.value)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and id(node) not in docstrings
+            and ".aw" in node.value
+        ]
+        self.assertEqual(
+            offenders,
+            [],
+            f"runner_stop constructs a state root of its own: {offenders}. The root moved out of the "
+            f"repo once already (`wtiso` Phase 4) and the stop flag must MOVE WITH IT, so the path "
+            f"must come from the driver's own accessor and never from a literal here. Asserted on "
+            f"string CONSTANTS with docstrings excluded, so prose about the state root is fine and "
+            f"only real code fails.",
+        )
 
 
 class PollTests(_RunDirCase):
@@ -1402,60 +1443,250 @@ class CrossProcessPollTests(unittest.TestCase):
 class PollWiringTests(unittest.TestCase):
     """E-04: the poll is wired at BOTH checkpoints in BOTH drivers (four sites).
 
-    NOT MERGED: every test here reads DRIVER SOURCE TEXT and asserts a structural fact about it (a
-    call count, the ORDER of two statements, a window between two anchors). They share no fixture, no
-    run dir and no level with anything else in this file, and their assertions are positional rather
-    than value comparisons.
+    CONVERTED FROM CHARACTER-OFFSET SOURCE TEXT TO THE AST, and the three replaced tests are the
+    clearest change-detectors this file had. Each measured `.index()` / `.rindex()` offsets into the
+    driver source:
+
+    * `test_each_driver_polls_at_exactly_two_sites` did `source.count("runner_stop.poll_stop(run_dir)")
+      == 2`, which counts occurrences in COMMENTS and docstrings as poll sites, and which breaks if
+      the argument is ever renamed from `run_dir` though the wiring is identical;
+    * `test_in_turn_poll_sits_with_the_watchdog_touch` asserted the poll appeared within a
+      1200-CHARACTER WINDOW after the last `watchdog.touch()`. Its own comment records that the
+      window had already been widened from 700 to 1200 because COMMENT GROWTH pushed the two
+      statements apart - i.e. the test was being edited to track prose, which is the definition of a
+      change-detector. It also records `.index()` having silently begun measuring from an unrelated
+      callback site that a later plan added;
+    * `test_between_item_poll_is_in_the_dequeue_loop` compared `.index()` offsets of `"while True:"`,
+      `'item["status"] == "queued"'` and the poll, so a `while True:` in any earlier comment, or a
+      reordering that preserved the structure, changed the answer.
+
+    WHY AST AND NOT BEHAVIOR (the brief's default). The claim is STRUCTURAL and POSITIONAL: the poll
+    must be INSIDE the per-line stream loop and INSIDE the dequeue loop BEFORE item selection. A
+    behavioral test can show a poll happened, but not WHERE - and "where" is the whole property,
+    because a poll after item selection would let one more item start after the operator asked to
+    stop, and a poll outside the per-line loop would only notice a stop between turns. The sibling
+    suites already drive the CONSEQUENCES end to end (`test_runner_stop_levels12.py` for the
+    between-item boundary, `test_runner_stop_level3.py` for the in-turn one), so what is missing and
+    what this class supplies is the structural claim, stated where a comment cannot satisfy it.
+
+    NOT MERGED with anything else in this file: these share no fixture, no run dir and no level, and
+    they assert POSITION rather than a value.
     """
 
-    def _source(self, module_name: str) -> str:
-        return (REPO_ROOT / "agent_workflows" / module_name).read_text(encoding="utf-8")
+    def _tree(self, module_name: str) -> ast.Module:
+        return ast.parse(
+            (REPO_ROOT / "agent_workflows" / module_name).read_text(encoding="utf-8")
+        )
 
-    def test_each_driver_polls_at_exactly_two_sites(self):
-        for module_name in ("oc_runipd.py", "agy_runipd.py"):
-            source = self._source(module_name)
-            count = source.count("runner_stop.poll_stop(run_dir)")
-            self.assertEqual(
-                count, 2, f"{module_name} should poll at 2 checkpoints, found {count}"
-            )
+    @staticmethod
+    def _functions(tree: ast.Module) -> dict[str, ast.FunctionDef]:
+        """Every function definition by name, nested ones included (the loops live inside them)."""
 
-    def test_in_turn_poll_sits_with_the_watchdog_touch(self):
-        # The per-line in-turn checkpoint: beside the existing watchdog heartbeat, which is the
-        # established precedent that the driver may act on stream observation alone.
-        for module_name in ("oc_runipd.py", "agy_runipd.py"):
-            source = self._source(module_name)
-            # Anchor on the LAST watchdog.touch(), not the first. stallfp (kaga7s) added an
-            # EARLIER touch site (the `_subagent_progress` callback, oc_runipd only) after this
-            # test was written, so `.index()` began measuring from a site that is not the
-            # per-line stream checkpoint at all. `.rindex()` finds the in-turn touch in both
-            # drivers regardless of how many earlier callback sites exist.
-            idx = source.rindex("watchdog.touch()")
-            # 1200, not 700: the window must survive COMMENT growth between the touch and the
-            # poll. After merging lanetruth-01 (af7i6p, the parent-session-id learning block) and
-            # this plan's own explanatory comment, the gap in oc_runipd is 825 chars of which
-            # almost all is comment; the two statements are still only a few lines apart. The
-            # window exists to prove the poll sits at the per-line stream checkpoint, not to
-            # police comment length.
-            window = source[idx : idx + 1200]
-            self.assertIn(
-                "runner_stop.poll_stop(run_dir)",
-                window,
-                f"{module_name}: in-turn poll should follow watchdog.touch()",
-            )
+        found: dict[str, ast.FunctionDef] = {}
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                found[node.name] = node  # type: ignore[assignment]
+        return found
 
-    def test_between_item_poll_is_in_the_dequeue_loop(self):
-        # The between-item checkpoint: inside run_queue's dequeue loop, BEFORE the next item is
-        # selected, which is where levels 1-2 will branch.
+    @staticmethod
+    def _poll_calls(node: ast.AST) -> list[ast.Call]:
+        return [
+            call
+            for call in ast.walk(node)
+            if isinstance(call, ast.Call)
+            and ast.unparse(call.func) == "runner_stop.poll_stop"
+        ]
+
+    #: (driver module, the function each poll site must live in, why this site exists)
+    POLL_SITES = (
+        (
+            "oc_runipd.py",
+            "run_opencode",
+            "the IN-TURN checkpoint, in the per-line stream loop. It must be INSIDE that loop or a "
+            "stop requested mid-turn is not noticed until the turn ends, which is what makes level 3 "
+            "possible at all",
+        ),
+        (
+            "oc_runipd.py",
+            "run_queue",
+            "the BETWEEN-ITEM checkpoint, in the dequeue loop. It must precede item SELECTION or one "
+            "more item starts after the operator asked to stop (levels 1-2 branch here)",
+        ),
+        (
+            "agy_runipd.py",
+            "run_agy_turn",
+            "the agy driver's in-turn checkpoint. Both drivers need a row because a level that "
+            "existed on one host only is exactly what orchestrator CID-3 forbids",
+        ),
+        (
+            "agy_runipd.py",
+            "run_queue",
+            "the agy driver's between-item checkpoint, same contract as the oc one",
+        ),
+    )
+
+    def test_the_poll_is_wired_at_exactly_the_four_intended_sites(self):
+        """Each driver polls in exactly TWO functions, the in-turn one and the dequeue one."""
+
+        wrong = []
+        by_module: dict[str, list[str]] = {}
         for module_name in ("oc_runipd.py", "agy_runipd.py"):
-            source = self._source(module_name)
-            body = source[source.index("def run_queue(") :]
-            loop = body.index("while True:")
-            select = body.index('item["status"] == "queued"')
-            poll = body.index("runner_stop.poll_stop(run_dir)")
-            self.assertLess(loop, poll, f"{module_name}: poll must be inside the loop")
-            self.assertLess(
-                poll, select, f"{module_name}: poll must precede item selection"
+            tree = self._tree(module_name)
+            functions = self._functions(tree)
+            # Attribute each poll CALL to its innermost enclosing function, so a call is counted
+            # once and in the right place.
+            owners: list[str] = []
+            for name, func in functions.items():
+                for call in self._poll_calls(func):
+                    inner = [
+                        other.name
+                        for other in ast.walk(func)
+                        if isinstance(other, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        and other is not func
+                        and any(c is call for c in self._poll_calls(other))
+                    ]
+                    if not inner:
+                        owners.append(name)
+            by_module[module_name] = sorted(owners)
+
+        for module_name, function_name, why in self.POLL_SITES:
+            if function_name not in by_module[module_name]:
+                wrong.append(
+                    f"  {module_name}::{function_name}:\n"
+                    f"    - no `runner_stop.poll_stop(...)` CALL in this function "
+                    f"(polls found in: {by_module[module_name] or 'nowhere'})\n"
+                    f"    this site exists because: {why}"
+                )
+        expected_per_module = {
+            module_name: sorted(
+                fn for mod, fn, _ in self.POLL_SITES if mod == module_name
             )
+            for module_name in ("oc_runipd.py", "agy_runipd.py")
+        }
+        for module_name, expected in expected_per_module.items():
+            if by_module[module_name] != expected:
+                extra = sorted(set(by_module[module_name]) - set(expected))
+                if extra:
+                    wrong.append(
+                        f"  {module_name}: polls in UNEXPECTED function(s) {extra}\n"
+                        f"    this matters because: a third poll site is a third place the stop "
+                        f"semantics are decided, and the four sites are the whole design"
+                    )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the cooperative poll is not wired at the four intended sites: {len(wrong)} problem(s) "
+            f"of {len(self.POLL_SITES)} sites. Asserted on CALL nodes, so a comment mentioning the "
+            f"poll cannot satisfy it and renaming the `run_dir` argument cannot break it. Found: "
+            f"{by_module}.\n" + "\n".join(wrong),
+        )
+
+    def test_the_in_turn_poll_is_inside_the_per_line_stream_loop(self):
+        """The in-turn poll sits in the loop that READS the child's stream, not beside it.
+
+        This is what the old 1200-character window was approximating. Asserted as CONTAINMENT in the
+        `for`/`while` node that iterates the child's stdout, which is immune to comment growth
+        entirely - the property is "inside this loop", and prose between two statements does not
+        change that.
+        """
+
+        for module_name, function_name in (
+            ("oc_runipd.py", "run_opencode"),
+            ("agy_runipd.py", "run_agy_turn"),
+        ):
+            with self.subTest(driver=module_name):
+                func = self._functions(self._tree(module_name))[function_name]
+                polls = self._poll_calls(func)
+                self.assertTrue(polls, f"{module_name}: no poll in {function_name}")
+                containing_loops = [
+                    loop
+                    for loop in ast.walk(func)
+                    if isinstance(loop, (ast.For, ast.While))
+                    and any(
+                        call is poll
+                        for poll in polls
+                        for call in self._poll_calls(loop)
+                    )
+                ]
+                self.assertTrue(
+                    containing_loops,
+                    f"{module_name}: the in-turn poll is NOT inside any loop, so a stop requested "
+                    f"mid-turn is not observed until the turn ends (spec R7's per-line checkpoint)",
+                )
+                # The loop it sits in must be the one reading the child's stream, and the watchdog
+                # heartbeat is the in-repo marker of that loop (it is the established precedent that
+                # the driver may act on stream observation alone).
+                touches = [
+                    loop
+                    for loop in containing_loops
+                    if any(
+                        isinstance(call, ast.Call)
+                        and ast.unparse(call.func).endswith("watchdog.touch")
+                        for call in ast.walk(loop)
+                    )
+                ]
+                self.assertTrue(
+                    touches,
+                    f"{module_name}: the in-turn poll is in a loop that does NOT touch the stall "
+                    f"watchdog, so it is probably not the per-line stream loop. The poll belongs "
+                    f"beside the heartbeat, at the point the driver already observes each event.",
+                )
+
+    def test_the_between_item_poll_precedes_item_selection(self):
+        """In the dequeue loop, and BEFORE the next item is chosen.
+
+        Replaces a comparison of three `.index()` offsets. Asserted on LINE NUMBERS of the actual
+        nodes inside the dequeue loop, so a `while True:` or a `status == "queued"` appearing in any
+        comment is irrelevant, and the claim is about the code rather than about the file's text.
+        """
+
+        for module_name in ("oc_runipd.py", "agy_runipd.py"):
+            with self.subTest(driver=module_name):
+                func = self._functions(self._tree(module_name))["run_queue"]
+                polls = self._poll_calls(func)
+                self.assertTrue(polls, f"{module_name}: run_queue does not poll at all")
+                loops = [
+                    loop
+                    for loop in ast.walk(func)
+                    if isinstance(loop, (ast.For, ast.While))
+                    and any(
+                        call is poll
+                        for poll in polls
+                        for call in self._poll_calls(loop)
+                    )
+                ]
+                self.assertTrue(
+                    loops,
+                    f"{module_name}: the between-item poll is outside the dequeue loop, so it runs "
+                    f"once instead of before every item",
+                )
+                loop = min(loops, key=lambda node: node.lineno)
+                poll_line = min(call.lineno for call in self._poll_calls(loop))
+                # Item SELECTION: the comparison that picks a `queued` item out of the queue.
+                selections = [
+                    node.lineno
+                    for node in ast.walk(loop)
+                    if isinstance(node, ast.Compare)
+                    and "queued"
+                    in {
+                        comparator.value
+                        for comparator in node.comparators
+                        if isinstance(comparator, ast.Constant)
+                    }
+                ]
+                self.assertTrue(
+                    selections,
+                    f"{module_name}: no `queued` comparison found inside the dequeue loop, so this "
+                    f"test can no longer locate item selection and needs rethinking rather than "
+                    f"relaxing",
+                )
+                self.assertLess(
+                    poll_line,
+                    min(selections),
+                    f"{module_name}: the poll (line {poll_line}) must run BEFORE item selection "
+                    f"(line {min(selections)}); polling after it means one more item is started "
+                    f"after the operator asked to stop",
+                )
 
     def test_both_drivers_share_the_one_stop_mechanism(self):
         from agent_workflows import agy_runipd, oc_runipd
@@ -1464,37 +1695,238 @@ class PollWiringTests(unittest.TestCase):
         self.assertIs(agy_runipd.runner_stop, runner_stop)
 
     def test_the_handler_safe_writer_is_the_only_writer_a_signal_handler_uses(self):
-        # Scope fence, NARROWED TWICE now, each time by the phase it was reserving room for.
-        #
-        # Phase 1 (`gq6m2u`) authored it as "no level behavior exists yet", forbidding both any
-        # consumption of the poll's return value and any signal handler. Phase 2 (`1qxuke`) removed the
-        # first half, because levels 1-2 must consume that return value at the between-item checkpoint.
-        # Phase 5 (`71vjbn`) now removes the second half, because the trigger UX is precisely the
-        # SIGINT/SIGTERM registration this line was holding open.
-        #
-        # It is NOT simply deleted, and equally NOT left as written: Phase 5 registers from the SHARED
-        # `runner_stop` module, so `assertNotIn("signal.signal(", driver_source)` would now pass
-        # VACUOUSLY - green while asserting nothing. The invariant that was always the real point is
-        # kept and asserted directly on the installer: a handler may only use the handler-SAFE writer
-        # (`request_stop_nowait`), because Phase 1 MEASURED that a blocking sidecar-lock acquire reached
-        # from a handler hangs the process outright (entered, hung, killed at a 10s timeout, exit 124).
-        import inspect
+        """The handler's durable write goes ONLY through the NON-BLOCKING writer (measured deadlock).
 
-        installer = inspect.getsource(runner_stop.install_stop_signal_handlers)
-        self.assertIn("request_stop_nowait(", installer)
-        self.assertNotIn(
-            "request_stop(",
-            installer.replace("request_stop_nowait(", ""),
-            "a signal handler must never take the blocking-retry writer (measured deadlock)",
-        )
-        # The drivers must go through that installer rather than registering handlers of their own,
-        # which is how two phases' handlers would silently race for the same signal.
-        for module_name in ("oc_runipd.py", "agy_runipd.py"):
-            source = self._source(module_name)
-            self.assertIn(
-                "runner_stop.install_stop_signal_handlers(", source, module_name
+        WHY THIS IS A SAFETY TEST AND NOT A STYLE TEST. A signal lands on the MAIN THREAD, which may
+        already hold the sidecar lock. Phase 1 MEASURED what happens when a handler then takes a
+        BLOCKING acquire: the handler entered and never returned, and the process was killed at a 10s
+        timeout (exit 124). That is a HANG, not a crash - the worst failure mode a runner can have,
+        because the operator's own escape path is what wedges.
+
+        THE PIN THIS REPLACES, and why the replacement is not the same claim spelled differently.
+        Phase 1 authored a fence forbidding any `signal.signal(` in either driver, reserving the
+        registration for Phase 5. Phase 5 landed it in the SHARED `runner_stop` module, which left
+        `assertNotIn("signal.signal(", driver_source)` passing VACUOUSLY - green while asserting
+        nothing. It was then rewritten as `assertIn("request_stop_nowait(", installer_source)` plus
+        `assertNotIn("request_stop(", ...)` over the installer TEXT, which is a change-detector: a
+        comment mentioning `request_stop(` fails it, and a real blocking write reached INDIRECTLY
+        (through a helper, on a branch, via an alias) passes it. Both halves are replaced below.
+
+        BOTH TECHNIQUES ARE USED, because neither alone is sufficient:
+
+        * BEHAVIORAL (1-3) installs the REAL handlers, delivers REAL signals, and proves the level
+          was recorded while the BLOCKING writer was never reached - `runner_stop.request_stop` is
+          replaced by a recorder that FAILS this test if it is ever called.
+        * AST (4-5) is the only way to state "no blocking write exists ANYWHERE reachable from the
+          handler, including on branches no test enters". Behavior cannot establish a universal
+          absence: the interactive-menu branch, the terminal rung, and the platform fallbacks are
+          each reachable only under conditions a single run does not cover. A comment cannot add a
+          Call node, so this is not a text search - and it walks the TRANSITIVE closure, so a
+          blocking write moved one call deeper still fails.
+
+        WHAT THIS TEST DOES *NOT* CLAIM, stated so it is not over-read. The handler is NOT
+        async-signal-safe in the strict C sense: `report_request` reaches `print`, so the handler can
+        re-enter a buffered stream. That is a DELIBERATE, bounded choice (the write is wrapped in
+        `contextlib.suppress`, and an operator's press must never be silent), and it is not what the
+        measured incident was about. The invariant asserted here is the one that was measured: no
+        BLOCKING LOCK ACQUIRE on the handler's path. The bounded-subprocess proof that the
+        handler-safe path survives a signal delivered WHILE THE LOCK IS HELD lives in
+        `SignalHandlerSafetyTests`, which is the right place for it because a hang can only be
+        asserted by a hard timeout in another process.
+        """
+
+        import ast
+        import inspect
+        import io
+        import textwrap
+
+        run_dir = Path(tempfile.mkdtemp())
+        blocking_writer_calls: list[tuple] = []
+
+        def forbidden_blocking_writer(*args, **kwargs):
+            blocking_writer_calls.append((args, kwargs))
+            raise AssertionError(
+                "a signal handler reached the BLOCKING-retry writer `request_stop`; Phase 1 "
+                "measured that deadlocking the process outright (exit 124 at a 10s timeout)"
             )
-            self.assertNotIn("signal.signal(", source, module_name)
+
+        real_request_stop = runner_stop.request_stop
+        previous = {
+            signal.SIGINT: signal.getsignal(signal.SIGINT),
+            signal.SIGTERM: signal.getsignal(signal.SIGTERM),
+        }
+        presses_before = runner_stop._SIGINT_PRESSES
+        stream = io.StringIO()
+        try:
+            runner_stop.request_stop = forbidden_blocking_writer  # type: ignore[assignment]
+            runner_stop._SIGINT_PRESSES = 0
+            runner_stop.reset_deferred_request()
+            # AW_NONINTERACTIVE keeps the handler on the LADDER rather than the interactive menu,
+            # which would otherwise try to read an answer from a stdin nobody is driving.
+            with mock.patch.dict(os.environ, {"AW_NONINTERACTIVE": "1"}):
+                status = runner_stop.install_stop_signal_handlers(
+                    run_dir, requester="handler-safety-probe", stream=stream
+                )
+                self.assertEqual(
+                    {name: why for name, why in status.items() if why != "installed"},
+                    {},
+                    f"the probe needs both triggers installed on this host; got {status}",
+                )
+                # 1. The handler is the SHARED module's, not a driver-local registration.
+                for sig in (signal.SIGINT, signal.SIGTERM):
+                    handler = signal.getsignal(sig)
+                    self.assertEqual(
+                        getattr(handler, "__module__", None),
+                        runner_stop.__name__,
+                        f"{sig!r} must be handled by the shared installer, not a local handler",
+                    )
+                # 2. A REAL signal records the level THROUGH the handler-safe writer.
+                os.kill(os.getpid(), signal.SIGINT)
+                recorded = runner_stop.read_stop_request(run_dir)
+                self.assertIsNotNone(
+                    recorded, "the first SIGINT recorded no stop request at all"
+                )
+                assert recorded is not None
+                self.assertEqual(
+                    recorded.level,
+                    runner_stop.SIGINT_LADDER[0],
+                    f"the first SIGINT must request the ladder's first rung; got {recorded.level}",
+                )
+                os.kill(os.getpid(), signal.SIGTERM)
+                escalated = runner_stop.read_stop_request(run_dir)
+                assert escalated is not None
+                self.assertEqual(
+                    escalated.level,
+                    max(runner_stop.SIGTERM_LEVEL, runner_stop.SIGINT_LADDER[0]),
+                    "SIGTERM must record its own level through the same safe writer",
+                )
+                # 3. And the blocking writer was NEVER reached by either handler.
+                self.assertEqual(
+                    blocking_writer_calls,
+                    [],
+                    f"the blocking writer was called {len(blocking_writer_calls)} time(s) from a "
+                    f"signal handler: {blocking_writer_calls!r}",
+                )
+        finally:
+            for sig, handler in previous.items():
+                signal.signal(sig, handler)
+            runner_stop.request_stop = real_request_stop  # type: ignore[assignment]
+            runner_stop._SIGINT_PRESSES = presses_before
+            runner_stop.reset_deferred_request()
+
+        # 4/5. AST: the TRANSITIVE call closure of each handler.
+        module_src = inspect.getsource(runner_stop)
+        module_tree = ast.parse(module_src)
+        top_level = {
+            node.name: node
+            for node in module_tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        installer = top_level["install_stop_signal_handlers"]
+        nested = {
+            node.name: node
+            for node in installer.body
+            if isinstance(node, ast.FunctionDef)
+        }
+
+        def calls_of(node: ast.AST) -> list[ast.Call]:
+            return [n for n in ast.walk(node) if isinstance(n, ast.Call)]
+
+        def closure(entry: str) -> tuple[set[str], list[ast.Call]]:
+            """Every function reachable from `entry` within this module, and every Call in them."""
+
+            seen: set[str] = set()
+            found: list[ast.Call] = []
+            frontier = [entry]
+            while frontier:
+                name = frontier.pop()
+                if name in seen:
+                    continue
+                seen.add(name)
+                node = nested.get(name) or top_level.get(name)
+                if node is None:  # not defined in this module; not ours to walk
+                    continue
+                for call in calls_of(node):
+                    found.append(call)
+                    target = ast.unparse(call.func)
+                    if target in nested or target in top_level:
+                        frontier.append(target)
+            return seen, found
+
+        for handler_name in ("_sigint", "_sigterm"):
+            reachable, reachable_calls = closure(handler_name)
+            rendered = {ast.unparse(call.func) for call in reachable_calls}
+            # 4. The blocking writer is not reachable AT ALL, however indirectly.
+            self.assertNotIn(
+                "request_stop",
+                rendered,
+                f"`{handler_name}` can reach the BLOCKING writer `request_stop` (via "
+                f"{sorted(reachable)}); a handler may only use `request_stop_nowait`",
+            )
+            self.assertIn(
+                "request_stop_nowait",
+                rendered,
+                f"`{handler_name}` no longer reaches the handler-SAFE writer at all, so it "
+                f"records nothing durably",
+            )
+            # 5. And EVERY sidecar acquire it can reach is non-blocking (`timeout=0.0`), which is
+            # the precise property the measured deadlock turned on. A positive timeout here is the
+            # defect, whatever it is spelled.
+            for call in reachable_calls:
+                if ast.unparse(call.func) != "_sidecar_lock":
+                    continue
+                timeouts = [kw for kw in call.keywords if kw.arg == "timeout"]
+                self.assertEqual(
+                    [ast.unparse(kw.value) for kw in timeouts],
+                    ["0.0"],
+                    f"`{handler_name}` reaches `{ast.unparse(call)}`: a sidecar acquire on a "
+                    f"handler's path must be a SINGLE non-blocking attempt (`timeout=0.0`)",
+                )
+
+        # The drivers must reach signals only THROUGH that shared installer. Asserted by IDENTITY
+        # and by AST, not by `assertNotIn("signal.signal(", driver_source)`, which the drivers'
+        # own explanatory comments about the registration would defeat.
+        from agent_workflows import agy_runipd, oc_runipd
+
+        for module in (oc_runipd, agy_runipd):
+            self.assertIs(
+                module.runner_stop.install_stop_signal_handlers,
+                runner_stop.install_stop_signal_handlers,
+                f"{module.__name__} must use THE shared installer",
+            )
+            installers = [
+                ast.unparse(call.func)
+                for call in calls_of(
+                    ast.parse(
+                        textwrap.dedent(inspect.getsource(module.install_stop_triggers))
+                    )
+                )
+            ]
+            self.assertIn(
+                "runner_stop.install_stop_signal_handlers",
+                installers,
+                f"{module.__name__}.install_stop_triggers must call the shared installer",
+            )
+            driver_tree = ast.parse(inspect.getsource(module))
+            # Matched on the CALLED ATTRIBUTE's own name rather than on the rendered text
+            # `signal.signal`, which is defeated by an alias. Measured while mutation-testing this
+            # assertion: a mutation spelling the registration `import signal as _mut_signal;
+            # _mut_signal.signal(...)` passed an `== "signal.signal"` comparison outright. The last
+            # dotted component is what identifies the call whatever the module is bound as, and a
+            # bare `signal(handler, sig)` from `from signal import signal` is caught by the Name arm.
+            direct = [
+                ast.unparse(call)
+                for call in calls_of(driver_tree)
+                if (isinstance(call.func, ast.Attribute) and call.func.attr == "signal")
+                or (isinstance(call.func, ast.Name) and call.func.id == "signal")
+            ]
+            self.assertEqual(
+                direct,
+                [],
+                f"{module.__name__} registers its own handler(s) {direct}; two registrations race "
+                f"for the same signal and the last one silently wins. Register through "
+                f"`runner_stop.install_stop_signal_handlers` instead.",
+            )
 
 
 @pytest.mark.slow

@@ -179,6 +179,22 @@ def _effective_init_source(runner: str) -> str:
     return source
 
 
+def _record(order: list, label: str, real):
+    """`real`, but appending `label` to `order` FIRST, for call-ORDER assertions.
+
+    The same shape `tests/test_dirty_base_gate.py::_OrderRecorder` uses, and for the same reason:
+    a claim about where a gate sits in a sequence is only testable by recording the sequence. Both
+    `order` and `label` are PARAMETERS rather than closed-over loop variables, which is the
+    late-binding trap that silently makes one host's run assert about another's.
+    """
+
+    def _wrapped(*args, **kwargs):
+        order.append(label)
+        return real(*args, **kwargs)
+
+    return _wrapped
+
+
 class SpecFlagListTests(unittest.TestCase):
     """The drift guard: the SPEC FILE is the input, not a transcription of it."""
 
@@ -2572,14 +2588,26 @@ Real gate prose.
         or when `ruff format` rewraps a call, it is satisfied by a comment mentioning either name in
         the right order, and it says nothing about what the gate actually SEES.
 
-        Now both halves are observed by intercepting the gate mid-run:
+        Now the seam is observed on a REAL run, following the approach
+        `tests/test_dirty_base_gate.py::test_the_report_is_ordered_between_the_preflight_refusals_and_queue_resolution`
+        established for the analogous ordering claim rather than re-inventing one. THREE points, three
+        measurements:
 
-        * AFTER RESOLUTION: the ids handed to the gate are the RESOLVED selection (`drf001` and
-          `rev003` from the `reviews` selector), not the raw selector string. A gate running before
-          resolution could not name them.
+        * THE RECORDED CALL ORDER. All THREE collaborators are spied and the ORDER LOG is asserted to be
+          exactly `["expand", "gate", "preflight"]`. This is the half a "what did the gate receive"
+          assertion alone CANNOT make, MEASURED while writing this: a mutation that inserted an EXTRA
+          gate call BEFORE `expand_selectors` (on the raw selector) and left the real call in place was
+          NOT CAUGHT by the received-ids check, because the later real call still reported resolved ids.
+          The order log catches it, because a second entry appears before `expand`.
+        * AFTER RESOLUTION, in what it SEES: the ids handed to the gate are the RESOLVED selection
+          (`drf001` and `rev003` from the `reviews` selector), not the raw selector string. Kept
+          alongside the order log because the two fail for different reasons: a gate called in the right
+          POSITION but handed `args.selectors` would satisfy the order and still be deciding about a
+          string.
         * BEFORE DURABLE STATE: no `run-*` directory exists AT THE MOMENT the gate is called, so an
           exclusion leaves nothing for an operator to reconcile - the same guarantee the dependency
-          preflight beside it provides.
+          preflight beside it provides, and it is asserted by LOOKING at the filesystem from inside the
+          gate call, which a byte-offset scan cannot do at all.
         """
         import contextlib
         import io
@@ -2589,13 +2617,17 @@ Real gate prose.
         wrong = []
         real = runner_shared.enforce_draft_admission_gate
 
-        def make_spy(repo, observed):
-            # Both captured values are PARAMETERS, not loop variables, so each host observes its own
-            # repository; a closure over the loop would have every host read the last one's tree.
+        def make_spy(repo, observed, order):
+            # Every captured value is a PARAMETER, not a loop variable, so each host observes its own
+            # repository and its own order log; a closure over the loop is the late-binding trap that
+            # silently makes one host assert about another's run.
             def spy(manifest, ids, **kwargs):
+                order.append("gate")
                 runs = repo / ".aw" / "records" / "runs"
-                observed["ids"] = sorted(ids)
-                observed["runs"] = (
+                # RECORDED PER CALL, in a list, so an EXTRA gate call is visible rather than being
+                # overwritten by the last one's (correct) values.
+                observed.setdefault("ids", []).append(sorted(ids))
+                observed.setdefault("runs", []).append(
                     sorted(p.name for p in runs.glob("run-*")) if runs.exists() else []
                 )
                 return real(manifest, ids, **kwargs)
@@ -2604,32 +2636,58 @@ Real gate prose.
 
         for runner in BOTH:
             observed: dict = {}
+            order: list = []
+            module = _MODULES[runner]
 
             with tempfile.TemporaryDirectory() as td:
                 repo = self.make_repo(_P(td))
                 args = _parse(runner, ["start", "reviews", "--repo", str(repo)])
                 args.prepare_only = True
-                with mock.patch.object(
-                    runner_shared,
-                    "enforce_draft_admission_gate",
-                    make_spy(repo, observed),
+                with (
+                    mock.patch.object(
+                        runner_shared,
+                        "enforce_draft_admission_gate",
+                        make_spy(repo, observed, order),
+                    ),
+                    mock.patch.object(
+                        module,
+                        "expand_selectors",
+                        _record(order, "expand", module.expand_selectors),
+                    ),
+                    mock.patch.object(
+                        module,
+                        "enforce_dependency_preflight",
+                        _record(
+                            order, "preflight", module.enforce_dependency_preflight
+                        ),
+                    ),
+                    contextlib.redirect_stderr(io.StringIO()),
                 ):
-                    with contextlib.redirect_stderr(io.StringIO()):
-                        _MODULES[runner].initialize_run(args)
+                    module.initialize_run(args)
 
             if "ids" not in observed:
                 wrong.append(
-                    f"  {runner}: the gate was never called on a real `reviews` run, so neither half "
+                    f"  {runner}: the gate was never called on a real `reviews` run, so no half "
                     "of the seam can be observed"
                 )
                 continue
-            if observed["ids"] != ["drf001", "rev003"]:
+            if order != ["expand", "gate", "preflight"]:
+                wrong.append(
+                    f"  {runner}: the recorded call order was {order!r}, expected "
+                    "['expand', 'gate', 'preflight']. `gate` appearing BEFORE `expand` means the "
+                    "gate decides about an unresolved selector; appearing AFTER `preflight` means "
+                    "the dependency preflight already refused (or passed) on items the gate may yet "
+                    "exclude; and appearing TWICE means one decision is taken twice, which for this "
+                    "gate writes two ledger records and, interactively, prompts twice"
+                )
+            if observed["ids"] != [["drf001", "rev003"]]:
                 wrong.append(
                     f"  {runner}: the gate received {observed['ids']} but the RESOLVED `reviews` "
-                    "selection is ['drf001', 'rev003']. It must run AFTER resolution, because its "
-                    "whole job is to decide about the concrete items the selector produced"
+                    "selection is ['drf001', 'rev003'], exactly once. It must run AFTER resolution, "
+                    "because its whole job is to decide about the concrete items the selector "
+                    "produced"
                 )
-            if observed["runs"]:
+            if any(observed["runs"]):
                 wrong.append(
                     f"  {runner}: run director(ies) {observed['runs']} already existed when the gate "
                     "ran. Spec 2.5a puts the gate BEFORE any lease or session precisely so an "
@@ -2638,13 +2696,14 @@ Real gate prose.
         self.assertEqual(
             wrong,
             [],
-            f"{len(wrong)} of {len(BOTH)} host(s) place the draft gate at the wrong seam. The two "
-            "halves fail for opposite reasons and need opposite fixes: receiving a raw selector "
-            "instead of resolved ids means the gate moved too EARLY and cannot decide about real "
-            "items, while an existing run directory means it moved too LATE and an exclusion now "
-            "leaves a run directory, a report, and a ledger behind for work that never started. FIX: "
-            f"the call belongs between `expand_selectors` and the run-directory allocation.\n"
-            + "\n".join(wrong),
+            f"{len(wrong)} of {len(BOTH)} host(s) place the draft gate at the wrong seam. The three "
+            "halves fail for different reasons and need different fixes: a wrong ORDER LOG means the "
+            "call site itself moved (or was duplicated); receiving a raw selector instead of resolved "
+            "ids means the gate is in the right place but deciding about a string rather than about "
+            "items; and an existing run directory means it moved too LATE and an exclusion now leaves "
+            "a run directory, a report, and a ledger behind for work that never started. FIX: exactly "
+            "ONE call, between `expand_selectors` and the dependency preflight, and before the "
+            f"run-directory allocation.\n" + "\n".join(wrong),
         )
 
     def test_an_ungated_complete_draft_is_excluded_and_the_rest_proceeds(self):

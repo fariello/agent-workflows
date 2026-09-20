@@ -1157,11 +1157,83 @@ class TheSweepLaneRefreshPolicy(unittest.TestCase):
         self.assertEqual(runner_shared.lane_records_including_sweep(state), [])
 
     def test_both_drivers_read_lanes_through_the_SWEEP_AWARE_composer(self):
-        """A one-driver-only fix must FAIL: a leaked lane on one host is still a leaked lane."""
+        """A one-driver-only fix must FAIL: a leaked lane on one host is still a leaked lane.
+
+        DRIVEN, NOT GREPPED, and the three halves are deliberate because each catches a distinct way
+        the claim can be false. A previous version asserted `"lane_records_including_sweep" in
+        inspect.getsource(driver.reclaim_lanes_on_interrupt)`, which a COMMENT satisfies: the real
+        function carries a five-line comment naming that very symbol, so the pin would have stayed
+        green with the call itself deleted.
+
+          (a) IDENTITY - both hosts resolve the composer to ONE object, so a re-fork fails here.
+          (b) CALLED - a REAL `reclaim_lanes_on_interrupt` on each host invokes it, with a spy that
+              returns a lane record the per-item reader does NOT produce. Binding the shared name
+              and never reaching it fails here.
+          (c) THE ANSWER IS SURFACED - the spied record's lane id comes back in the returned lane
+              list and the lane really is reclaimed, so a host that calls the composer and then
+              rebuilds the lane set from somewhere else fails here too.
+
+        THE FIXTURE IS THE INTERRUPT CASE THE COMPOSER EXISTS FOR (E-11): a sweep lane recorded at
+        RUN level with NO attempt naming it. `_lane_records_from_state` is asserted to return `[]`
+        for that state first, so "the reclaimer found the lane" cannot be satisfied by the per-item
+        reader and can only come from the sweep-aware composer.
+        """
         for name, driver in _DRIVERS:
-            with self.subTest(driver=name):
-                src = inspect.getsource(driver.reclaim_lanes_on_interrupt)
-                self.assertIn("lane_records_including_sweep", src)
+            with self.subTest(driver=name), tempfile.TemporaryDirectory() as tmp:
+                # (a) ONE DEFINITION, reached identically by both hosts.
+                self.assertIs(
+                    driver.runner_shared.lane_records_including_sweep,
+                    runner_shared.lane_records_including_sweep,
+                    f"{name} must reach the SHARED composer, not a per-host copy",
+                )
+
+                fx = _Fixture(Path(tmp) / "repo", plans=1)
+                run_dir = _mk_run_dir(fx.root)
+                handle = runner_shared.allocate_review_sweep_worktree(
+                    fx.root, f"run-{name}"
+                )
+                state = {
+                    "queue": [],
+                    "run_id": f"run-{name}",
+                    "repo": str(fx.root),
+                    runner_shared.REVIEW_SWEEP_LANE_KEY: {
+                        "lane_id": handle.lane_id,
+                        "branch": handle.branch,
+                        "worktree": str(handle.path),
+                        "base_commit": handle.base_commit,
+                    },
+                }
+                # THE PER-ITEM READER IS BLIND TO IT, which is what makes the rest non-vacuous.
+                self.assertEqual(runner_shared._lane_records_from_state(state), [])
+
+                calls: list[dict] = []
+                real = runner_shared.lane_records_including_sweep
+
+                def spy(st, _calls=calls, _real=real):
+                    _calls.append(st)
+                    return _real(st)
+
+                with mock.patch.object(
+                    runner_shared, "lane_records_including_sweep", spy
+                ):
+                    lanes = driver.reclaim_lanes_on_interrupt(
+                        fx.root, run_dir, state, interactive=False
+                    )
+
+                # (b) the shared composer was actually REACHED during a real invocation.
+                self.assertEqual(
+                    len(calls),
+                    1,
+                    f"{name} never called the sweep-aware composer during a real reclaim",
+                )
+                # (c) and its answer is what the reclaimer acted on and returned.
+                self.assertEqual(
+                    [lane["lane_id"] for lane in lanes],
+                    [handle.lane_id],
+                    f"{name} did not surface the composer's sweep lane; got {lanes!r}",
+                )
+                self.assertEqual(lanes[0]["action"], "reclaimed")
+                self.assertNotIn("review-sweep", fx.worktrees())
 
 
 class TheSharedDefinitionsAreShared(unittest.TestCase):
@@ -1191,9 +1263,73 @@ class TheSharedDefinitionsAreShared(unittest.TestCase):
                     )
 
     def test_the_teardown_gate_is_the_EXISTING_shared_one(self):
-        """No second classifier: `teardown_review_sweep_lane` delegates to the spec-R5.5 gate."""
-        src = inspect.getsource(lane_containment.teardown_review_sweep_lane)
-        self.assertIn("teardown_lane_if_classified", src)
+        """No second classifier: `teardown_review_sweep_lane` delegates to the spec-R5.5 gate.
+
+        DRIVEN, NOT GREPPED. A source search for `teardown_lane_if_classified` is satisfied by the
+        function's own docstring, which names that gate twice in prose ("delegates to the EXISTING
+        `teardown_lane_if_classified` gate (spec R5.5)"), so the pin would have stayed green with the
+        delegation replaced by a second inline classifier.
+
+        SPY PLUS SENTINEL, because the gate RETURNS the verdict the caller surfaces: patch it to
+        return a decision no real inventory of this empty lane could produce (a refusal naming
+        `SENTINEL.txt`) and assert that exact object comes back. A caller that reached the gate and
+        then recomputed its own answer fails on the sentinel; one that never reached it fails on the
+        call count.
+
+        THE `items=None` PATH IS THE DELEGATING ONE and is what this asserts. With `items` supplied,
+        the function legitimately runs the SAME `inventory_lane` per item and then removes directly
+        (the union rule in its docstring), so it does not call the single-item gate at all; that
+        branch's refusal behavior is covered by `TheSweepRunsInOneLaneAndMainIsUntouched` and by
+        `tests/test_lane_retention.py`.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            lane = Path(tmp) / "lane"
+            lane.mkdir()
+            run_dir = Path(tmp) / "run"
+            run_dir.mkdir()
+            handle = SimpleNamespace(
+                path=lane,
+                branch="aw/lane/review-sweep-run-test",
+                lane_id="review-sweep-run-test",
+                base_commit="0" * 40,
+                disposition="created",
+            )
+            sentinel = lane_containment.LaneTeardownDecision(
+                torn_down=False,
+                inventory=lane_containment.LaneInventory(
+                    lane_root=str(lane),
+                    readable=True,
+                    unknown_untracked=("SENTINEL.txt",),
+                ),
+            )
+            calls: list[dict] = []
+
+            def spy(**kwargs):
+                calls.append(kwargs)
+                return sentinel
+
+            with mock.patch.object(
+                lane_containment, "teardown_lane_if_classified", spy
+            ):
+                decision = lane_containment.teardown_review_sweep_lane(
+                    repo=Path(tmp), handle=handle, run_dir=run_dir
+                )
+
+            self.assertEqual(
+                len(calls),
+                1,
+                "the sweep teardown must consult the ONE shared R5.5 gate, exactly once",
+            )
+            self.assertIs(
+                decision,
+                sentinel,
+                "the gate's verdict must be the answer, not recomputed by a second classifier",
+            )
+            self.assertIn("SENTINEL.txt", decision.reason)
+            # The lane it was asked about is the one handed in, so the delegation is not to some
+            # other lane's gate call.
+            self.assertIs(calls[0]["handle"], handle)
+            self.assertEqual(calls[0]["run_dir"], run_dir)
 
 
 if __name__ == "__main__":

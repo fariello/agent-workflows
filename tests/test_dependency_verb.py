@@ -41,6 +41,7 @@ verb's doing); a whole-file assertion would fail on that unrelated churn.
 
 from __future__ import annotations
 
+import ast
 import io
 import re
 import tempfile
@@ -633,92 +634,289 @@ class AntiDivergenceGuardTests(unittest.TestCase):
     and asserts what is actually true of these two modules.
     """
 
-    #: The same shape as the runner guard's hint: a `re.compile(...)` whose pattern text mentions a
-    #: dependency field name. Bounded by a NEWLINE rather than `[^)]*` on purpose: a real pattern
-    #: contains `)` (e.g. a `(?m)` flag group), so a `[^)]*` bound could not reach the field name and
-    #: the guard would be vacuous.
-    _DEP_REGEX_HINT = re.compile(
-        r"re\.compile\([^\n]*(?:Item-Dependencies|Dependencies|Depends-on)"
-    )
-
     #: The modules this plan touches. `status_set.py` holds both verbs; `cli.py` registers them.
     _TOUCHED_SOURCES = (
         ("status_set", REPO_ROOT / "agent_workflows" / "status_set.py"),
         ("cli", REPO_ROOT / "agent_workflows" / "cli.py"),
     )
 
-    def _source(self, path: Path) -> str:
-        """Raw source with `#` comments dropped.
+    #: The dependency field names a private regex would have to mention to be one.
+    _DEP_FIELD_NAMES = ("Item-Dependencies", "Dependencies", "Depends-on")
 
-        Comments are prose and may legitimately NAME a forbidden construct in order to warn against
-        it. String LITERALS are kept, because a dependency regex IS a string literal and stripping
-        them would make this guard unfalsifiable.
-        """
-        return "\n".join(
-            ln
-            for ln in path.read_text(encoding="utf-8").splitlines()
-            if not ln.lstrip().startswith("#")
-        )
+    def _module_tree(self, path: Path) -> ast.AST:
+        return ast.parse(path.read_text(encoding="utf-8"))
 
     def test_neither_touched_module_defines_a_dependency_regex(self):
+        """CONVERTED FROM TEXT TO AST: no `re.compile` in either module names a dependency field.
+
+        The text form matched a hand-written regex hint (a `re.compile` call followed on the SAME
+        LINE by a dependency field name) against the comment-stripped file. That is fragile in both
+        directions: a real pattern split across lines by the formatter escaped the
+        one-line bound entirely, and any STRING LITERAL happening
+        to contain both fragments matched without a regex existing.
+
+        KEPT STRUCTURAL rather than made behavioral, and the reason is the same one the AST exception
+        exists for: the claim is that a construct does NOT EXIST anywhere in a large module. A
+        private regex that agrees with the shared grammar today behaves identically until one of them
+        is edited, which is the drift this guards and which no test can observe before it happens.
+        Counting the arguments of REAL `re.compile` calls means a comment cannot satisfy it and a
+        reflow cannot break it.
+        """
+        offenders = []
         for name, path in self._TOUCHED_SOURCES:
-            with self.subTest(module=name):
-                self.assertIsNone(
-                    self._DEP_REGEX_HINT.search(self._source(path)),
-                    f"{name} introduced a private dependency regex; the field NAME must come from "
-                    "ipd_schema and the GRAMMAR from parse_item_dependencies",
+            for node in ast.walk(self._module_tree(path)):
+                if not isinstance(node, ast.Call):
+                    continue
+                func = node.func
+                called = (
+                    func.attr
+                    if isinstance(func, ast.Attribute)
+                    else func.id
+                    if isinstance(func, ast.Name)
+                    else ""
                 )
+                if called != "compile" or not node.args:
+                    continue
+                first = node.args[0]
+                if isinstance(first, ast.Constant) and isinstance(first.value, str):
+                    if any(field in first.value for field in self._DEP_FIELD_NAMES):
+                        offenders.append(f"{name}:{node.lineno}: {first.value!r}")
+        self.assertEqual(
+            offenders,
+            [],
+            f"{len(offenders)} private dependency regex(es) were compiled in the touched modules: "
+            f"{offenders!r}. The field NAME must come from `ipd_schema` and the GRAMMAR from "
+            "`parse_item_dependencies`; a second pattern is how the setter and `aw check` start "
+            "disagreeing about what a valid edge looks like.",
+        )
 
     def test_neither_touched_module_reimplements_the_edge_resolver(self):
-        """The verdict vocabulary must come from the checker, not be re-derived locally."""
+        """CONVERTED FROM TEXT TO AST: neither module DEFINES the checker's two shared functions.
+
+        The text form asserted the substrings `"def _resolve_edge"` and
+        `"def build_dependency_index"` were absent from the comment-stripped source. A docstring
+        quoting either phrase broke it, and a definition written with different spacing, as an
+        `async def`, or assigned from a locally-built lambda satisfied it. An `ast` scan for
+        `FunctionDef` NAMES is exact: a definition is a node or it is not.
+
+        KEPT STRUCTURAL for the same reason as the row above - the claim is a non-existence over a
+        whole module - and the companion
+        `test_the_setter_does_not_resolve_edges_through_the_selector` supplies the behavioral half,
+        proving the shared resolver is the one whose verdict actually reaches the caller.
+        """
+        forbidden = {"_resolve_edge", "build_dependency_index"}
+        offenders = []
         for name, path in self._TOUCHED_SOURCES:
-            with self.subTest(module=name):
-                code = self._source(path)
-                self.assertNotIn(
-                    "def _resolve_edge",
-                    code,
-                    f"{name} must CALL check_engine._resolve_edge, never define its own",
-                )
-                self.assertNotIn(
-                    "def build_dependency_index",
-                    code,
-                    f"{name} must CALL check_engine.build_dependency_index",
-                )
+            for node in ast.walk(self._module_tree(path)):
+                if (
+                    isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and node.name in forbidden
+                ):
+                    offenders.append(f"{name}:{node.lineno}: def {node.name}")
+        self.assertEqual(
+            offenders,
+            [],
+            f"{offenders!r} - a touched module DEFINES one of the checker's shared functions rather "
+            "than calling `check_engine`'s. Spec 25kzda section 2.10 is explicit ('All surfaces call "
+            "this evaluator; none reimplements it'), and a second copy means the setter can accept an "
+            "edge `aw check` later rejects.",
+        )
 
     def test_the_setter_module_consumes_the_two_shared_authorities(self):
-        code = self._source(REPO_ROOT / "agent_workflows" / "status_set.py")
-        self.assertIn("build_dependency_index", code)
-        self.assertIn("_resolve_edge", code)
-        self.assertIn("parse_item_dependencies", code)
+        """The setter's answers must come FROM the shared grammar and the shared index, observed.
+
+        REPLACES A SOURCE-TEXT PIN that asserted the three names `build_dependency_index`,
+        `_resolve_edge` and `parse_item_dependencies` appeared in `status_set.py`'s
+        comment-stripped source. A docstring mentioning any of them satisfied it (and this module's
+        docstrings mention all three), and the names appearing proved nothing about the value being
+        used - the pin's own sibling defect, a call whose result is discarded, was invisible to it.
+
+        Replaced by patching each authority to a SENTINEL and requiring the sentinel's answer to
+        come out: an index with no owners must make a real target read DANGLING, and a grammar that
+        rejects everything must make a well-formed statement refuse. A private copy of either is
+        unaffected by the patch and produces the original answer, which fails.
+        """
+        ce = check_engine
+        edges, _ready, err = S.parse_item_dependencies("executed:bbbbbb")
+        self.assertIsNone(err, err)
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            pending = root / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            (root / ".aw" / "config").mkdir(parents=True)
+            for id6, order in (("aaaaaa", 1), ("bbbbbb", 2)):
+                (pending / f"20260908-fix-{order:02d}-{id6}-p.ipd.md").write_text(
+                    _plan_text(id6, order=order, deps="none"), encoding="utf-8"
+                )
+
+            # SANITY: unpatched, the real target resolves cleanly, so the sentinel results below are
+            # a change rather than the status quo.
+            self.assertEqual(
+                status_set.resolve_dependency_edge_targets(root, edges), ([], [])
+            )
+
+            # (1) THE SHARED INDEX is the identity authority. Emptied, a real target must read
+            # DANGLING; a private walk would still find the plan on disk.
+            real_index = ce.build_dependency_index
+            ce.build_dependency_index = lambda repo_root: ce._DepIndex({})  # type: ignore[assignment]
+            try:
+                dangling, ambiguous = status_set.resolve_dependency_edge_targets(
+                    root, edges
+                )
+            finally:
+                ce.build_dependency_index = real_index  # type: ignore[assignment]
+            self.assertEqual(
+                [edge for edge, _detail in dangling],
+                ["executed:bbbbbb"],
+                "with the shared identity index emptied, a target still resolved: the setter is "
+                "reading identities from somewhere else, so it and `aw check` can disagree about "
+                "whether an id6 exists",
+            )
+            self.assertEqual(ambiguous, [])
+
+        # (2) THE SHARED GRAMMAR decides what a valid statement is. Patched to reject, the `set`
+        # verb must refuse and write nothing.
+        real_canonical = S.canonical_item_dependencies
+        S.canonical_item_dependencies = lambda value: (  # type: ignore[assignment]
+            None,
+            "sentinel: the shared grammar rejected this statement",
+        )
+        try:
+            fx = _FixtureRepo()
+            try:
+                before = fx.dep_line()
+                buf = io.StringIO()
+                with patch("sys.stdout", buf):
+                    rc = cli.main(
+                        [
+                            "ipd",
+                            "dependencies",
+                            "set",
+                            "aaaaaa",
+                            "executed:bbbbbb",
+                            "--yes",
+                            "--dir",
+                            str(fx.root),
+                        ]
+                    )
+                self.assertNotEqual(
+                    rc,
+                    0,
+                    "the shared grammar rejected the statement and the setter accepted it anyway: "
+                    "it is validating against its own parser",
+                )
+                self.assertEqual(
+                    before,
+                    fx.dep_line(),
+                    "a statement the shared grammar refused was still written to disk",
+                )
+            finally:
+                fx.cleanup()
+        finally:
+            S.canonical_item_dependencies = real_canonical  # type: ignore[assignment]
 
     def test_the_setter_does_not_resolve_edges_through_the_selector(self):
-        """The measured divergence this plan's review caught (F-11).
+        """The measured divergence this plan's review caught (F-11), asserted by OBSERVATION.
 
         `match_selector` has no edge-TYPE enforcement and no `ambiguous` verdict, and the divergence
         is real rather than theoretical: an id6 can be owned by one `plans` record and two `research`
         records in this repository, so a selector-based existence check and the shared evaluator can
-        reach different conclusions about the same id6. The resolver function must therefore not
-        reach for the selector at all.
+        reach different conclusions about the same id6. The resolver must therefore take its verdict
+        from the checker's `_resolve_edge` and never from the selector.
 
-        Asserted against the function's CODE, with docstrings and comments stripped by the real
-        tokenizer: the docstring legitimately NAMES `match_selector` in order to record why it is
-        the wrong tool, and prose warning against a construct must not be indistinguishable from
-        the construct.
+        REPLACES A SOURCE-TEXT PIN. That pin was the best of its kind here - it tokenized the
+        function and stripped comments and strings before asserting `"match_selector"` absent and
+        `"_resolve_edge"` present - and it is still a change-detector. It breaks on a rename or on
+        the call moving into a helper, and it cannot see the two failures that matter: a
+        `_resolve_edge` call whose verdict is DISCARDED (present in the text, dead in effect), and a
+        selector reached indirectly through another module (absent from the text, live in effect).
+
+        Replaced with three observations:
+          1. a SPY: the checker's `_resolve_edge` must actually be CALLED, once per edge;
+          2. a SENTINEL: forced to report `ambiguous`, the resolver's answer must change, so the
+             verdict is taken FROM the checker rather than merely produced beside it; and
+          3. a POISON: `match_selector` is replaced with a function that RAISES, and resolution must
+             still succeed - which no text scan can establish, since the selector could always be
+             reached through a name this function never spells.
         """
-        import inspect
-        import io as _io
-        import token as _token
-        import tokenize as _tokenize
+        ce = check_engine
 
-        src = inspect.getsource(status_set.resolve_dependency_edge_targets)
-        kept: list[str] = []
-        for tok in _tokenize.generate_tokens(_io.StringIO(src).readline):
-            if tok.type in (_token.COMMENT, _token.STRING):
-                continue
-            kept.append(tok.string)
-        code = "\n".join(kept)
-        self.assertNotIn("match_selector", code)
-        self.assertIn("_resolve_edge", code)
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            pending = root / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            (root / ".aw" / "config").mkdir(parents=True)
+            for id6, order in (("aaaaaa", 1), ("bbbbbb", 2)):
+                (pending / f"20260908-fix-{order:02d}-{id6}-p.ipd.md").write_text(
+                    _plan_text(id6, order=order, deps="none"), encoding="utf-8"
+                )
+            edges, _ready, err = S.parse_item_dependencies("executed:bbbbbb")
+            self.assertIsNone(err, err)
+
+            # (1) THE CHECKER'S RESOLVER IS CALLED, once per edge.
+            real_resolve = ce._resolve_edge
+            seen = []
+
+            def spy(edge, index, _real=real_resolve):
+                seen.append(edge.canonical())
+                return _real(edge, index)
+
+            ce._resolve_edge = spy  # type: ignore[assignment]
+            try:
+                dangling, ambiguous = status_set.resolve_dependency_edge_targets(
+                    root, edges
+                )
+            finally:
+                ce._resolve_edge = real_resolve  # type: ignore[assignment]
+            self.assertEqual(
+                seen,
+                ["executed:bbbbbb"],
+                "the shared `_resolve_edge` was not called once per edge, so the setter is "
+                f"resolving edges some other way (it resolved: {seen!r})",
+            )
+            self.assertEqual((dangling, ambiguous), ([], []))
+
+            # (2) ITS VERDICT IS THE ANSWER. Forced to report `ambiguous`, the resolver must report
+            # ambiguous too; a `_resolve_edge` call whose result is discarded fails here while
+            # satisfying any source scan.
+            def forced_ambiguous(edge, index):
+                return "ambiguous", f"{edge.canonical()}: forced by the test"
+
+            ce._resolve_edge = forced_ambiguous  # type: ignore[assignment]
+            try:
+                dangling, ambiguous = status_set.resolve_dependency_edge_targets(
+                    root, edges
+                )
+            finally:
+                ce._resolve_edge = real_resolve  # type: ignore[assignment]
+            self.assertEqual(
+                [edge for edge, _detail in ambiguous],
+                ["executed:bbbbbb"],
+                "the checker's forced `ambiguous` verdict did not reach the caller: the setter is "
+                "not taking its answer from the shared evaluator (and `match_selector` has no "
+                "`ambiguous` verdict to give, which is the whole divergence F-11 recorded)",
+            )
+            self.assertEqual(dangling, [])
+
+            # (3) THE SELECTOR IS NOT ON THE PATH AT ALL. Poisoned to raise, resolution must still
+            # succeed. This covers the indirect reach a text scan is blind to by construction.
+            real_selector = status_set.match_selector
+
+            def poisoned(*args, **kwargs):
+                raise AssertionError(
+                    "edge resolution reached `match_selector`, which has no edge-type "
+                    "enforcement and no `ambiguous` verdict (F-11)"
+                )
+
+            status_set.match_selector = poisoned  # type: ignore[assignment]
+            try:
+                dangling, ambiguous = status_set.resolve_dependency_edge_targets(
+                    root, edges
+                )
+            finally:
+                status_set.match_selector = real_selector  # type: ignore[assignment]
+            self.assertEqual((dangling, ambiguous), ([], []))
 
     def test_the_shared_modules_did_not_learn_about_the_cli(self):
         """The dependency direction: the CLI consumes the checker, never the reverse."""

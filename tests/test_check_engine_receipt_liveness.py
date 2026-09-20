@@ -82,6 +82,12 @@ class ReceiptLivenessTests(unittest.TestCase):
         )
         return rpath
 
+    def _receipt_dict(self) -> dict:
+        """The receipt this fixture wrote, as the dict `_receipt_is_live` is handed."""
+        return json.loads(
+            life.receipt_path_for(self.root, PLAN_ID).read_text(encoding="utf-8")
+        )
+
     def _commit_all(self, msg: str) -> None:
         subprocess.run(["git", "add", "-A"], cwd=self.root, check=True)
         subprocess.run(["git", "commit", "-q", "-m", msg], cwd=self.root, check=True)
@@ -221,14 +227,109 @@ class ReceiptLivenessTests(unittest.TestCase):
                 )
 
     def test_d_terminal_vocabulary_is_the_shared_one(self):
-        """(d) The predicate reuses `plans.TERMINAL`, not a fourth hardcoded copy of the names."""
-        import inspect
+        """(d) The predicate's terminal set IS `plans.TERMINAL`, compared as live SETS both ways.
 
-        src = inspect.getsource(ce._receipt_is_live)
-        self.assertIn("TERMINAL", src)
-        self.assertNotIn('"executed"', src)
-        self.assertNotIn("'executed'", src)
-        self.assertEqual(plans_mod.TERMINAL, ("executed", "superseded", "not-executed"))
+        REPLACES A SOURCE-TEXT PIN that read `inspect.getsource(ce._receipt_is_live)` and asserted
+        `"TERMINAL" in src` with `'"executed"' not in src`. It was a change-detector in both
+        directions: a COMMENT mentioning `TERMINAL` satisfied the presence half (so a predicate
+        that hardcoded `("done",)` and merely talked about the shared tuple passed), while an
+        accurate comment naming `executed` broke the absence half. Neither half could detect the
+        defect that matters, a set that has DRIFTED from the shared one.
+
+        Replaced with a BIDIRECTIONAL agreement check on live values. `plans.TERMINAL` is patched
+        to a SENTINEL vocabulary and every member is then driven through the real predicate, which
+        proves the predicate READS the shared tuple rather than a private copy; and the sentinel
+        replaces the real names, which proves it does NOT still honor a hardcoded `executed`. Then
+        the unpatched directions: every real terminal name is refused and every non-terminal one is
+        accepted. Drift in either direction fails, so neither side can move silently.
+        """
+        # (i) DERIVED, NOT COPIED, asserted against `_receipt_is_live` DIRECTLY. With the shared
+        # tuple replaced wholesale, a `sentinel-terminal/` plan must be judged NOT live (the
+        # predicate read the patched value) AND a plan in the real `executed/` must be judged LIVE
+        # (no hardcoded copy of the old names survives inside it).
+        #
+        # WHY THE PREDICATE AND NOT THE END-TO-END RULE, which is a real finding this replacement
+        # turned up rather than a convenience. `check_scope_drift` reaches its plans through
+        # `_iter_type_files(..., include_retired=False)`, and `is_retired` carries its OWN
+        # `_RETIRED_PATH_SEGMENTS` set that ALSO contains `executed`/`superseded`/`not-executed`. So
+        # a plan in `executed/` is dropped by that pre-filter BEFORE liveness is ever consulted, and
+        # driving the aggregate surface therefore cannot observe the predicate's vocabulary at all:
+        # it reports "not enforced" for `executed/` no matter what `plans.TERMINAL` says. That
+        # double gate is defence in depth and is not a defect, but it means claim (d)'s subject must
+        # be the predicate itself. Part (ii) below covers the end-to-end direction, where the two
+        # gates agree.
+        sentinel_dir = "sentinel-terminal"
+        real_terminal = plans_mod.TERMINAL
+        plans_mod.TERMINAL = (sentinel_dir,)  # type: ignore[assignment]
+        try:
+            self.setUp()
+            self._arrange(sentinel_dir)
+            sentinel_live = ce._receipt_is_live(
+                self.root,
+                self.plans / sentinel_dir / PLAN_NAME,
+                self._receipt_dict(),
+            )
+            self.setUp()
+            self._arrange("executed")
+            executed_live = ce._receipt_is_live(
+                self.root,
+                self.plans / "executed" / PLAN_NAME,
+                self._receipt_dict(),
+            )
+        finally:
+            plans_mod.TERMINAL = real_terminal  # type: ignore[assignment]
+        self.assertFalse(
+            sentinel_live,
+            "with `plans.TERMINAL` patched to a sentinel, a plan in that sentinel directory was "
+            "still judged LIVE: the predicate is not reading the shared tuple at all",
+        )
+        self.assertTrue(
+            executed_live,
+            "with `executed` REMOVED from the shared tuple, a plan in `executed/` was still judged "
+            "terminal: the predicate carries its own hardcoded copy of the vocabulary",
+        )
+
+        # (ii) THE AGREEMENT, BOTH WAYS, as SET EQUALITY on live values. The predicate's effective
+        # terminal set is MEASURED (every disposition driven through it, terminal and not) and
+        # compared to `plans.TERMINAL` with `assertEqual` on sets, so BOTH drift directions fail: a
+        # name only the predicate honors silently disables the advisory for that directory, and a
+        # name only the vocabulary carries silently keeps enforcing against a finished plan.
+        #
+        # MEASURED AGAINST THE PREDICATE, not `check_scope_drift`, for the reason part (i) records
+        # and this mutation proved: `is_retired`'s independent path-segment set ALSO drops
+        # `executed`/`superseded`/`not-executed`, so removing one name from `plans.TERMINAL` leaves
+        # the aggregate answer unchanged and a NARROWING is invisible there. Driven through
+        # `_receipt_is_live` the same mutation fails immediately.
+        effective_terminal = set()
+        for rel_dir in (*plans_mod.TERMINAL, "pending", "reusable"):
+            self.setUp()
+            self._arrange(rel_dir)
+            if not ce._receipt_is_live(
+                self.root, self.plans / rel_dir / PLAN_NAME, self._receipt_dict()
+            ):
+                effective_terminal.add(rel_dir)
+        self.assertEqual(
+            effective_terminal,
+            set(plans_mod.TERMINAL),
+            f"the predicate treats {sorted(effective_terminal)} as terminal while the shared "
+            f"vocabulary is {sorted(plans_mod.TERMINAL)}; the two must be the same SET, in both "
+            "directions.",
+        )
+
+        # (iii) AND THE END-TO-END DIRECTION STILL HOLDS, so (ii) is not a claim about an unwired
+        # helper: every terminal disposition is unenforced by the real rule and every non-terminal
+        # one is enforced. This is the weaker of the two (see the masking noted above), which is
+        # exactly why it is an addition rather than the measurement.
+        for rel_dir in plans_mod.TERMINAL:
+            with self.subTest(directory=rel_dir, surface="check_scope_drift"):
+                self.setUp()
+                self._arrange(rel_dir)
+                self.assertEqual([d.detail for d in self._scope_hits()], [])
+        for rel_dir in ("pending", "reusable"):
+            with self.subTest(directory=rel_dir, surface="check_scope_drift"):
+                self.setUp()
+                self._arrange(rel_dir)
+                self.assertTrue(self._scope_hits())
 
     # -- (e) fail safe, not fail open --------------------------------------------------
 

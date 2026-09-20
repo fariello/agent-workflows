@@ -45,8 +45,10 @@ does not have.
 
 from __future__ import annotations
 
+import ast
 import fcntl
 import inspect
+import io
 import json
 import os
 import subprocess
@@ -55,6 +57,7 @@ import time
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest import mock
 
 import pytest
 
@@ -583,21 +586,140 @@ class SafeCheckpointDefinitionTests(unittest.TestCase):
         self.assertFalse(runner_stop.is_oc_safe_checkpoint(agy_completed))
 
     def test_the_checkpoint_condition_is_not_defined_by_elapsed_time(self):
-        # Spec R10 forbids a time-based CHECKPOINT definition. Asserted on the actual source of the
-        # predicates and of the observer's decision method, so a later "simplification" into a
-        # timeout fails here.
-        for func in (
-            runner_stop.is_oc_safe_checkpoint,
-            runner_stop.is_agy_safe_checkpoint,
-            runner_stop.CheckpointObserver.observe,
-        ):
-            source = inspect.getsource(func)
-            for forbidden in ("time.", "sleep", "monotonic", "deadline", "budget"):
-                self.assertNotIn(
-                    forbidden,
-                    source,
-                    f"{func.__qualname__} must not define the checkpoint by time",
+        """Spec R10: the checkpoint is defined by an OBSERVED step boundary, NEVER by elapsed time.
+
+        WHAT THIS REPLACES. The pin was `assertNotIn` of `("time.", "sleep", "monotonic",
+        "deadline", "budget")` over `inspect.getsource` of the two predicates and
+        `CheckpointObserver.observe`. Three failure modes, all of which this file's own history
+        shows: a DOCSTRING mentioning the rejected timeout fails it (and these functions'
+        docstrings exist precisely to explain why time is the wrong definition); `"budget"` is a
+        legitimate neighbouring concept - level 3 HAS a budget, the checkpoint just is not defined
+        by it - so the word appearing in a comment is not the defect; and a time-based
+        implementation spelled without any of those five substrings (`perf_counter`, a passed-in
+        clock, an `elapsed` parameter) passes it outright.
+
+        REPLACED BEHAVIORALLY, IN BOTH DIRECTIONS, which is the honest form of the claim:
+
+        POSITIVE - the checkpoint fires on the real condition. A completed-step line makes the
+        observer stop, with NO time having passed at all (the clock is frozen, so a
+        time-conditioned implementation could not fire).
+
+        NEGATIVE - TIME ALONE never fires it. A monotonic clock under the test's control is advanced
+        past every plausible budget (a full hour, well past level 3's real budget) while the observer
+        is fed only NON-checkpoint lines. The observer must still not stop. An implementation that
+        cut the turn on a timeout fails exactly here.
+
+        THE CLOCK IS FROZEN, NOT MOCKED-BY-NAME, and that distinction is what makes this stronger
+        than the pin: `time.monotonic`, `time.time`, `time.perf_counter` and `time.sleep` are ALL
+        replaced on the `time` module the code under test imports, so the substitution catches an
+        implementation using any of them, INCLUDING spellings the old substring list did not name.
+        A clock that never advances also means a real timeout could not fire even if one existed;
+        the ADVANCING arm then proves the converse.
+        """
+
+        import time as time_module
+
+        non_checkpoints = [
+            json.dumps({"type": "step_start", "part": {}}),
+            json.dumps({"type": "text", "part": {"text": "thinking"}}),
+            json.dumps(
+                {
+                    "type": "tool_use",
+                    "part": {"tool": "bash", "state": {"status": "running"}},
+                }
+            ),
+        ]
+        completed = json.dumps(
+            {
+                "type": "tool_use",
+                "part": {"tool": "read", "state": {"status": "completed"}},
+            }
+        )
+
+        fake_now = [1000.0]
+
+        def frozen() -> float:
+            return fake_now[0]
+
+        def refuse_to_sleep(_seconds: float) -> None:
+            raise AssertionError(
+                "the checkpoint path slept: the stop instant must be defined by an OBSERVED step "
+                "boundary, never by waiting (spec R10)"
+            )
+
+        patches = [
+            mock.patch.object(time_module, name, frozen)
+            for name in ("monotonic", "time", "perf_counter")
+        ]
+        patches.append(mock.patch.object(time_module, "sleep", refuse_to_sleep))
+        for patch in patches:
+            self.enterContext(patch)
+
+        # NEGATIVE: an hour of wall clock, and only non-checkpoint lines. Nothing may fire.
+        observer = runner_stop.CheckpointObserver(
+            detector=runner_stop.is_oc_safe_checkpoint
+        )
+        observer.request(runner_stop.LEVEL_NOW, "operator")
+        fired_on_time = []
+        for minute in range(60):
+            fake_now[0] += 60.0
+            for line in non_checkpoints:
+                if observer.observe(line):
+                    fired_on_time.append((minute, line))
+        self.assertEqual(
+            fired_on_time,
+            [],
+            f"the observer stopped after TIME passed rather than at an observed step boundary "
+            f"({len(fired_on_time)} firing(s), first at minute {fired_on_time[0][0] if fired_on_time else None}). "
+            f"Spec R10 forbids defining the stop instant by elapsed time: with a level-3 stop in "
+            f"force and {len(non_checkpoints) * 60} non-checkpoint events over a simulated hour, "
+            f"the answer must still be 'no safe checkpoint observed yet'.",
+        )
+        self.assertFalse(observer.stop_at_checkpoint)
+        self.assertIsNone(
+            observer.last_checkpoint_index,
+            "no completed event was ever fed, so no checkpoint position may have been recorded",
+        )
+
+        # POSITIVE: the real condition fires with the clock STILL frozen.
+        self.assertTrue(
+            observer.observe(completed),
+            "a COMPLETED step event must be the checkpoint, and must fire with no time having "
+            "passed at all - a time-conditioned implementation could not",
+        )
+        self.assertTrue(observer.stop_at_checkpoint)
+        self.assertEqual(observer.last_checkpoint_label, "tool_use:read")
+
+        # And the same in both directions for the agy schema, whose completion shape differs.
+        agy_observer = runner_stop.CheckpointObserver(
+            detector=runner_stop.is_agy_safe_checkpoint
+        )
+        agy_observer.request(runner_stop.LEVEL_NOW, "operator")
+        for minute in range(60):
+            fake_now[0] += 60.0
+            self.assertFalse(
+                agy_observer.observe(
+                    json.dumps(
+                        {"type": "step_update", "step_update": {"state": "ACTIVE"}}
+                    )
+                ),
+                f"agy: an ACTIVE step at simulated minute {minute} is not a checkpoint, however "
+                f"long the turn has run",
+            )
+        self.assertTrue(
+            agy_observer.observe(
+                json.dumps(
+                    {
+                        "type": "step_update",
+                        "step_update": {
+                            "state": "DONE",
+                            "tool_info": {"name": "run_command"},
+                        },
+                    }
                 )
+            ),
+            "agy: a DONE step is the checkpoint",
+        )
 
     def test_the_detector_matches_the_real_session_vocabulary(self):
         # Guard against drift from the vocabulary the spec's OQ-01 resolution was verified against.
@@ -711,92 +833,372 @@ class BothDriversWireLevel3Tests(unittest.TestCase):
         return (REPO_ROOT / "agent_workflows" / name).read_text(encoding="utf-8")
 
     def test_both_drivers_use_the_shared_observer_and_their_own_detector(self):
-        oc_src = self._source("oc_runipd.py")
-        agy_src = self._source("agy_runipd.py")
-        for source in (oc_src, agy_src):
-            self.assertIn("runner_stop.CheckpointObserver(", source)
-            self.assertIn("runner_stop.StopAtCheckpoint", source)
-        self.assertIn("runner_stop.is_oc_safe_checkpoint", oc_src)
-        self.assertIn("runner_stop.is_agy_safe_checkpoint", agy_src)
+        """ONE shared observer class, each driver's OWN detector, proved by IDENTITY not by substring.
+
+        REPLACES four `assertIn` searches over driver source text
+        (`"runner_stop.CheckpointObserver("`, `"runner_stop.StopAtCheckpoint"`,
+        `"runner_stop.is_oc_safe_checkpoint"`, `"runner_stop.is_agy_safe_checkpoint"`). Each is
+        satisfied by a COMMENT - and these two modules comment heavily on exactly these symbols, so
+        the searches were close to guaranteed to pass whatever the wiring did.
+
+        ASSERTED BY IDENTITY AND BY CONSTRUCTION INSTEAD. `assertIs` is the honest form of "both
+        drivers use ONE definition", and the detector claim is driven: each driver's observer is built
+        and fed the OTHER driver's completion line, which it must REJECT. That is the failure the
+        comment describes as silent - a single-schema implementation would appear to work on one host
+        and never fire on the other - and only a cross-schema drive catches it.
+        """
+
+        import ast
+        import inspect
+        import textwrap
+
         for module in (oc, agy):
+            # ONE shared module, so every shared symbol below is THE shared one.
+            self.assertIs(module.runner_stop, runner_stop, module.__name__)
             self.assertTrue(hasattr(module, "_record_checkpoint_stop"), module)
             self.assertTrue(hasattr(module, "_budget_breach_recorder"), module)
-            self.assertIs(module.runner_stop, runner_stop)
 
-    def test_checkpoint_detection_is_not_routed_through_the_clean_only_renderer(self):
-        # NOTE the variable is `checkpoint_observer`, not `observer`: stallfp (kaga7s) already owns a
-        # DIFFERENT `observer` in this same scope (`stall_progress.SubagentProgressObserver`, which
-        # feeds the stall watchdog), so this plan's CheckpointObserver was renamed at merge time to
-        # keep the two distinguishable. Same object, same wiring, unambiguous name.
-        # The defect this forbids: `render_event` is called ONLY in the `clean` output branch, so a
-        # checkpoint built on it would silently never fire under `raw`/`quiet`. Asserted structurally
-        # here and BEHAVIORALLY in `AllOutputModesTests`.
-        oc_src = self._source("oc_runipd.py")
-        observe_line = next(
-            line
-            for line in oc_src.splitlines()
-            if "checkpoint_observer.observe(" in line
-        )
-        self.assertNotIn("render_event", observe_line)
-        # The observe call must precede the output-mode branch in the loop.
-        #
-        # streamfmt (mm6wuz) E-05: the render call gained keyword arguments (`verbosity=`,
-        # `repo_root=`) and is now written across several lines, so the old exact-string index on
-        # `rendered = render_event(line, pal, tracker=tracker)` no longer matched and this test failed
-        # with `ValueError: substring not found`. Anchored on the assignment PREFIX instead, which is
-        # what the ordering claim actually depends on and which does not re-break every time an
-        # argument is added.
-        observe_at = oc_src.index("if checkpoint_observer.observe(line)")
-        render_at = oc_src.index("rendered = render_event(")
-        self.assertLess(
-            observe_at,
-            render_at,
-            "the checkpoint parse must run before (and independently of) the clean-mode render",
-        )
-
-    def test_the_signal_handler_uses_only_the_handler_safe_writer(self):
-        # CONSCIOUSLY REPLACED by runstop Phase 5 (`71vjbn`), not deleted.
-        #
-        # As authored by Phase 3 this asserted `signal.signal(` appeared in NEITHER driver, reserving
-        # SIGINT/SIGTERM registration for Phase 5. Phase 5 has now landed it, so the absence check is
-        # superseded by the phase it was holding room for. It must not merely be dropped, and it must
-        # ALSO not be left as-is: Phase 5 installs its handler from the SHARED `runner_stop` module, so
-        # the original assertion would now pass VACUOUSLY (both drivers still contain no literal
-        # `signal.signal(`) while asserting nothing at all - the worst outcome, a green test with no
-        # meaning.
-        #
-        # The live invariant underneath was never really "no handler"; it was "no handler that takes the
-        # BLOCKING writer", because Phase 1 MEASURED a blocking sidecar-lock acquire deadlocking a
-        # handler outright (it entered, hung, and was killed at a 10s timeout). So that is what is
-        # asserted now, on the real installer.
-        import inspect
-
-        source = inspect.getsource(runner_stop.install_stop_signal_handlers)
-        self.assertIn(
-            "request_stop_nowait(",
-            source,
-            "a signal handler must use the handler-SAFE writer (Phase 1's E-06)",
-        )
-        self.assertNotIn(
-            "request_stop(",
-            source.replace("request_stop_nowait(", ""),
-            "a signal handler must never call the blocking-retry writer: Phase 1 measured that "
-            "deadlocking the process outright",
-        )
-        # And the drivers must reach signals only through that shared installer, never by registering
-        # their own handler beside it (which is how two phases' handlers would silently race).
-        for name in ("oc_runipd.py", "agy_runipd.py"):
-            driver_src = self._source(name)
-            self.assertIn("runner_stop.install_stop_signal_handlers(", driver_src, name)
-            self.assertNotIn(
-                "signal.signal(",
-                driver_src,
-                f"{name}: register signals through the shared installer, not directly",
+        # Each driver CONSTRUCTS the shared observer with ITS OWN detector. Read off the AST of the
+        # real construction site, so the pairing is the code's rather than this test's assumption.
+        turn_functions = {
+            oc: "run_opencode",
+            agy: "run_agy_turn",
+        }
+        expected_detectors = {
+            oc: runner_stop.is_oc_safe_checkpoint,
+            agy: runner_stop.is_agy_safe_checkpoint,
+        }
+        for module, function_name in turn_functions.items():
+            source = textwrap.dedent(inspect.getsource(getattr(module, function_name)))
+            constructions = [
+                node
+                for node in ast.walk(ast.parse(source))
+                if isinstance(node, ast.Call)
+                and ast.unparse(node.func) == "runner_stop.CheckpointObserver"
+            ]
+            self.assertEqual(
+                len(constructions),
+                1,
+                f"{module.__name__}.{function_name} must build exactly ONE shared "
+                f"CheckpointObserver; found {len(constructions)}",
+            )
+            detectors = [
+                ast.unparse(kw.value)
+                for kw in constructions[0].keywords
+                if kw.arg == "detector"
+            ]
+            self.assertEqual(
+                detectors,
+                [f"runner_stop.{expected_detectors[module].__name__}"],
+                f"{module.__name__} must inject its OWN schema detector "
+                f"(`{expected_detectors[module].__name__}`), not the other driver's and not a local "
+                f"copy; it injects {detectors}",
             )
 
+        # And the detectors really are per-schema: each REJECTS the other's completion line. This is
+        # the silent failure the wiring exists to prevent.
+        oc_completed = json.dumps(
+            {"type": "tool_use", "part": {"state": {"status": "completed"}}}
+        )
+        agy_completed = json.dumps(
+            {"type": "step_update", "step_update": {"state": "DONE"}}
+        )
+        for module, own_line, foreign_line in (
+            (oc, oc_completed, agy_completed),
+            (agy, agy_completed, oc_completed),
+        ):
+            detector = expected_detectors[module]
+            observer = runner_stop.CheckpointObserver(detector=detector)
+            observer.request(runner_stop.LEVEL_NOW, "operator")
+            self.assertFalse(
+                observer.observe(foreign_line),
+                f"{module.__name__}'s detector accepted the OTHER driver's completion line, so a "
+                f"single-schema implementation would pass while never firing on one host",
+            )
+            self.assertTrue(
+                observer.observe(own_line),
+                f"{module.__name__}'s detector rejected its OWN completion line, so level 3 could "
+                f"never fire on this host",
+            )
+
+        # The level-3 unwind class is the SHARED one on both hosts (assertIs, not a name search).
+        self.assertIs(oc.runner_stop.StopAtCheckpoint, runner_stop.StopAtCheckpoint)
+        self.assertIs(agy.runner_stop.StopAtCheckpoint, runner_stop.StopAtCheckpoint)
+
+    def test_checkpoint_detection_is_not_routed_through_the_clean_only_renderer(self):
+        """The checkpoint parse is NOT nested inside any output-mode branch. Asserted on the AST.
+
+        THE DEFECT THIS FORBIDS, which is why it is worth a structural test at all: `render_event` is
+        called ONLY in the `clean` output branch, so a checkpoint built on the renderer's output would
+        silently never fire under `--raw` or `--quiet`. The feature would then depend on an unrelated
+        DISPLAY flag - green in every clean-mode test, dead for an operator streaming raw JSON.
+
+        CONVERTED FROM TWO CHARACTER-OFFSET SEARCHES, both of which had already broken once. The
+        first took the single source LINE containing `checkpoint_observer.observe(` and asserted
+        `render_event` was not on it - which says nothing about the enclosing BRANCH, the thing that
+        actually matters. The second compared `.index()` offsets of
+        `"if checkpoint_observer.observe(line)"` and `"rendered = render_event("`; its own comment
+        records that it had already failed with `ValueError: substring not found` when the render call
+        grew keyword arguments and wrapped across lines, and it was repaired by shortening the anchor
+        rather than by fixing the technique.
+
+        WHY AST RATHER THAN BEHAVIOR HERE. `AllOutputModesTests` in this file already drives all three
+        modes end to end, which is the behavioral proof and is deliberately not duplicated. What
+        behavior cannot state is the CONTAINMENT claim: "this call is not inside an output-mode
+        conditional" is a property of the code's shape, and an implementation could pass all three
+        mode tests today while sitting one branch away from silently breaking under a fourth mode
+        added later. Ancestry in the AST is exactly that claim, and prose cannot satisfy it.
+        """
+
+        import ast
+        import inspect
+        import textwrap
+
+        for module, function_name in ((oc, "run_opencode"), (agy, "run_agy_turn")):
+            with self.subTest(driver=module.__name__):
+                tree = ast.parse(
+                    textwrap.dedent(inspect.getsource(getattr(module, function_name)))
+                )
+                # Parent links, so the enclosing branch of a call can be walked upward.
+                parents: dict[int, ast.AST] = {}
+                for node in ast.walk(tree):
+                    for child in ast.iter_child_nodes(node):
+                        parents[id(child)] = node
+
+                observes = [
+                    node
+                    for node in ast.walk(tree)
+                    if isinstance(node, ast.Call)
+                    and ast.unparse(node.func).endswith("checkpoint_observer.observe")
+                ]
+                self.assertEqual(
+                    len(observes),
+                    1,
+                    f"{module.__name__}.{function_name} must consume the stream through exactly ONE "
+                    f"checkpoint parse; found {len(observes)}",
+                )
+
+                # Walk up from the call, collecting every condition that GATES it. None may mention
+                # the output mode or the renderer.
+                #
+                # TWO shapes, and the second was found by mutation testing this very assertion.
+                # First, an enclosing `if` whose BODY contains the call. Second - and this is the one
+                # an ancestry-only check misses - the call appearing inside a `BoolOp` as the
+                # right-hand side of an `and`, e.g.
+                # `if output_mode == "clean" and checkpoint_observer.observe(line):`. That is not an
+                # enclosing branch at all (the call is IN the test), yet it short-circuits the parse
+                # away in every other mode, which is precisely the defect. Measured: a mutation of
+                # exactly that shape passed until the BoolOp arm was added.
+                node: ast.AST | None = observes[0]
+                guarding_tests = []
+                while node is not None:
+                    parent = parents.get(id(node))
+                    if isinstance(parent, ast.If) and any(
+                        child is node for child in parent.body + parent.orelse
+                    ):
+                        guarding_tests.append(ast.unparse(parent.test))
+                    if isinstance(parent, ast.BoolOp):
+                        # Every OTHER operand of the boolean can gate this call by short-circuit.
+                        guarding_tests.extend(
+                            ast.unparse(operand)
+                            for operand in parent.values
+                            if operand is not node
+                        )
+                    node = parent
+                offenders = [
+                    test
+                    for test in guarding_tests
+                    if "output_mode" in test or "render" in test
+                ]
+                self.assertEqual(
+                    offenders,
+                    [],
+                    f"{module.__name__}: the checkpoint parse is nested inside output-mode "
+                    f"conditional(s) {offenders}, so level 3 would silently never fire in the other "
+                    f"modes - the feature would depend on an unrelated DISPLAY flag. It must run "
+                    f"unconditionally, once per line, before any rendering decision.",
+                )
+
+                # And it must not be fed the RENDERER's output, which is the same defect by another
+                # route: the parse takes the RAW line.
+                consumed = [ast.unparse(arg) for arg in observes[0].args]
+                self.assertEqual(
+                    consumed,
+                    ["line"] if module is oc else ["raw_line"],
+                    f"{module.__name__}: the checkpoint parse must consume the RAW stream line, not "
+                    f"a rendered string; it consumes {consumed}",
+                )
+
+    def test_the_signal_handler_uses_only_the_handler_safe_writer(self):
+        """A SIGTERM arriving WHILE THE SIDECAR LOCK IS HELD must RETURN, and must not lose level 3.
+
+        WHAT THIS REPLACES, and why the replacement is a different test rather than the same one
+        reworded. Phase 3 authored this as `assertNotIn("signal.signal(", driver_source)`, reserving
+        the registration for Phase 5; Phase 5 landed it in the SHARED module, which left that check
+        green while asserting nothing. It was then rewritten as
+        `assertIn("request_stop_nowait(", installer_source)` plus `assertNotIn("request_stop(", ...)`
+        over the installer's TEXT, which is a change-detector in both directions: a COMMENT
+        containing `request_stop(` fails it, while a genuinely blocking write reached one call deeper
+        passes it.
+
+        THE UNIVERSAL CLAIM IS NOT ASSERTED HERE. The full proof - real signals, a spy on the
+        blocking writer, and an AST walk of the handlers' transitive call closure including the
+        branches no run enters - lives in
+        `tests/test_runner_stop.py::PollWiringTests::test_the_handler_safe_writer_is_the_only_writer_a_signal_handler_uses`,
+        which is where Phase 1 owns the record and the writer. Restating it here would duplicate it.
+
+        WHAT THIS ASSERTS INSTEAD IS THE LEVEL-3-SPECIFIC HALF, which that test does not cover: the
+        CONTENDED path, exercised in-process. Spec R13 maps SIGTERM to level 3, so level 3 is the
+        level an operator reaches by signal; Phase 1 measured that a BLOCKING acquire from a handler
+        while the main thread holds the sidecar lock hangs the process outright (entered, hung,
+        killed at a 10s timeout, exit 124). So the signal is delivered here with the lock genuinely
+        HELD, and three things are asserted: the handler RETURNS (a blocking implementation could not
+        reach the next line), the level is NOT LOST (it lands in the process-local deferred slot),
+        and the POLL performs the durable write at its next checkpoint. Non-blocking-and-lost and
+        blocking-and-safe are both defects, and only asserting all three separates them.
+
+        This runs IN-PROCESS and is therefore NOT a hang detector: a regression to a blocking acquire
+        would wedge the suite here rather than failing it. That is deliberate and bounded - the
+        HANG is asserted under a hard subprocess timeout in
+        `tests/test_runner_stop.py::SignalHandlerSafetyTests`, which is the only place a hang can be
+        turned into a failure. What this test adds is that the DEFERRED level is not silently dropped,
+        which a timeout cannot observe.
+        """
+
+        import signal
+
+        run_dir = Path(self.enterContext(TemporaryDirectory()))
+        previous = {
+            signal.SIGINT: signal.getsignal(signal.SIGINT),
+            signal.SIGTERM: signal.getsignal(signal.SIGTERM),
+        }
+        presses_before = runner_stop._SIGINT_PRESSES
+        try:
+            runner_stop._SIGINT_PRESSES = 0
+            runner_stop.reset_deferred_request()
+            status = runner_stop.install_stop_signal_handlers(
+                run_dir, requester="level3-contended-probe", stream=io.StringIO()
+            )
+            self.assertEqual(
+                status.get("SIGTERM"),
+                "installed",
+                f"the probe needs SIGTERM installed on this host; got {status}",
+            )
+            # THE CONTENDED DELIVERY. `_sidecar_lock` is deliberately NOT re-entrant, so a handler
+            # re-entering on this same thread is REFUSED rather than allowed to walk into the
+            # monotonic read-modify-write mid-update.
+            with runner_stop._sidecar_lock(run_dir, timeout=1.0):
+                os.kill(os.getpid(), signal.SIGTERM)
+                # 1. REACHED THIS LINE AT ALL: the handler returned rather than hanging.
+                # 2. And the level was not dropped on the floor.
+                self.assertEqual(
+                    runner_stop.pending_deferred_request(),
+                    (runner_stop.SIGTERM_LEVEL, "level3-contended-probe"),
+                    "a SIGTERM that could not take the contended lock must park level 3 in the "
+                    "process-local slot, not discard it",
+                )
+                self.assertIsNone(
+                    runner_stop.read_stop_request(run_dir),
+                    "nothing may be written durably while the lock is held by someone else",
+                )
+            # 3. The poll is the documented durable-write point, and it drains the slot.
+            self.assertEqual(
+                runner_stop.poll_stop(run_dir),
+                runner_stop.SIGTERM_LEVEL,
+                "the poll must durably write the level the handler deferred (spec R7)",
+            )
+            self.assertIsNone(
+                runner_stop.pending_deferred_request(),
+                "a drained deferral must be cleared, or the poll would rewrite it forever",
+            )
+            written = runner_stop.read_stop_request(run_dir)
+            assert written is not None
+            self.assertEqual(written.level, runner_stop.SIGTERM_LEVEL)
+            self.assertEqual(written.requester, "level3-contended-probe")
+        finally:
+            for sig, handler in previous.items():
+                signal.signal(sig, handler)
+            runner_stop._SIGINT_PRESSES = presses_before
+            runner_stop.reset_deferred_request()
+
     def test_no_new_ledger_substrate_was_introduced(self):
-        for name in ("oc_runipd.py", "agy_runipd.py"):
-            self.assertNotIn("run_ledger_store", self._source(name))
+        """The level-3 record rides the EXISTING `events.jsonl` channel; no second ledger appears.
+
+        REPLACES `assertNotIn("run_ledger_store", driver_source)`, which was weak in both directions:
+        a comment explaining why that module is not used would FAIL it, and a second ledger written
+        under any other name (a new `.jsonl`, a sidecar JSON, a SQLite file) would PASS it. The real
+        claim is about what the stop path WRITES, so that is what is driven.
+
+        DRIVEN: the run directory is snapshotted before and after a real level-3 record, and the ONLY
+        file that may appear or change is `events.jsonl`.
+        """
+
+        for module in (oc, agy):
+            with self.subTest(driver=module.__name__):
+                with TemporaryDirectory() as temp:
+                    root = Path(temp)
+                    repo = root / "repo"
+                    repo.mkdir()
+                    subprocess.run(
+                        ["git", "init", "-q"], cwd=repo, check=True, capture_output=True
+                    )
+                    run_dir = root / "run"
+                    run_dir.mkdir()
+                    # A pre-existing events file, so "appended to" is distinguishable from "created".
+                    (run_dir / "events.jsonl").write_text("", encoding="utf-8")
+                    before = {
+                        path.name: path.read_bytes()
+                        for path in run_dir.iterdir()
+                        if path.is_file()
+                    }
+
+                    state = {
+                        "repo": str(repo),
+                        "queue": [{"id6": "ls0001", "status": "interrupted"}],
+                    }
+                    observer = runner_stop.CheckpointObserver(
+                        detector=runner_stop.is_oc_safe_checkpoint
+                    )
+                    observer.request(runner_stop.LEVEL_NOW, "operator")
+                    observer.observe(
+                        json.dumps(
+                            {
+                                "type": "tool_use",
+                                "part": {
+                                    "tool": "read",
+                                    "state": {"status": "completed"},
+                                },
+                            }
+                        )
+                    )
+                    module._record_checkpoint_stop(
+                        run_dir, state, state["queue"][0], observer
+                    )
+
+                    after = {
+                        path.name: path.read_bytes()
+                        for path in run_dir.iterdir()
+                        if path.is_file()
+                    }
+                    created = sorted(set(after) - set(before))
+                    changed = sorted(
+                        name
+                        for name in set(after) & set(before)
+                        if after[name] != before[name]
+                    )
+                    self.assertEqual(
+                        created,
+                        [],
+                        f"{module.__name__}: the level-3 stop CREATED {created} in the run dir; it "
+                        f"must ride the established append-only `events.jsonl` channel and add no "
+                        f"new ledger substrate (spec R5's single-source discipline)",
+                    )
+                    self.assertEqual(
+                        changed,
+                        ["events.jsonl"],
+                        f"{module.__name__}: the level-3 stop wrote to {changed}; only "
+                        f"`events.jsonl` may change",
+                    )
 
 
 # =============================================================================================
@@ -1452,14 +1854,47 @@ class ScopeFenceTests(unittest.TestCase):
         #
         # The live invariant is that the verb exists ONCE and both drivers use that one (orchestrator
         # CID-3: the same verb on both hosts, not two that happen to agree today).
+        # REPLACES `assertIn("runner_stop.add_stop_parser(", source)` and
+        # `assertNotIn('add_parser("stop"', source)`. The first is satisfied by a comment; the second
+        # forbids a STRING that the shared declaration itself legitimately contains, so it only
+        # happens to pass because that declaration lives in a third file. Asserted on the BUILT
+        # parsers instead: each driver really declares the verb, and its DECLARATION is the shared
+        # object rather than a namesake. The byte-for-byte help comparison that proves the two hosts
+        # get the SAME verb lives in
+        # `tests/test_runner_stop_triggers.py::ScopeFenceTests::test_the_shared_verb_is_declared_once_not_copied`
+        # and is deliberately not duplicated here.
+        import argparse
+
         self.assertTrue(callable(runner_stop.add_stop_parser))
-        for name in ("oc_runipd.py", "agy_runipd.py"):
-            source = (REPO_ROOT / "agent_workflows" / name).read_text(encoding="utf-8")
-            self.assertIn("runner_stop.add_stop_parser(", source, name)
-            self.assertNotIn(
-                'add_parser("stop"',
-                source,
-                f"{name}: the `stop` verb must come from the shared declaration, not a local copy",
+        for module in (oc, agy):
+            self.assertIs(
+                module.runner_stop.add_stop_parser,
+                runner_stop.add_stop_parser,
+                f"{module.__name__} must declare `stop` through THE shared declaration",
+            )
+            parser = module.build_parser()
+            subparsers = [
+                action
+                for action in parser._actions
+                if isinstance(action, argparse._SubParsersAction)
+            ]
+            self.assertTrue(subparsers, module.__name__)
+            self.assertIn(
+                "stop",
+                subparsers[0].choices,
+                f"{module.__name__} does not expose the `stop` verb",
+            )
+            levels = sorted(
+                option
+                for action in subparsers[0].choices["stop"]._actions
+                for option in action.option_strings
+                if option.startswith("--") and option not in ("--help", "--repo")
+            )
+            self.assertEqual(
+                levels,
+                ["--after-call", "--after-set", "--now", "--now-force"],
+                f"{module.__name__}: the `stop` verb must expose exactly the four level flags "
+                f"(spec R14); it exposes {levels}",
             )
 
     def test_no_agent_prompt_or_handshake_change(self):
@@ -1491,13 +1926,55 @@ class ScopeFenceTests(unittest.TestCase):
             self.assertEqual(params, ["line"], f"{func.__name__}{params}")
 
     def test_the_drivers_send_the_child_nothing(self):
-        # The honest mechanism check: the child is a one-shot subprocess with NO stop channel, so the
-        # drivers must never try to WRITE to it. `stdin` is never wired for writing and no
-        # `process.stdin.write` / `communicate(` appears in either driver.
+        """No driver ever WRITES to the child: there is no cooperative stop channel to write on.
+
+        REPLACES `assertNotIn("process.stdin.write", source)` and
+        `assertNotIn("process.communicate(", source)`. Spec OQ-01's resolution REJECTED agent
+        cooperation, and these modules DISCUSS that rejection in prose, so a text search forbidding
+        the words is the failure mode this repo has measured twice: the comment that prevents the
+        defect is what fails the guard. It is also incomplete - `process.stdin.writelines`,
+        `os.write(process.stdin.fileno(), ...)`, or a locally aliased handle all pass it.
+
+        CONVERTED TO AST over every driver function, asserting the absence of a CALL that writes to a
+        child's stdin, however spelled. A universal absence over two 4000-line modules cannot be
+        established behaviorally: no test can drive every path, and the claim is precisely that no
+        such path exists anywhere. A comment cannot add a Call node.
+        """
+
+        import ast
+
         for name in ("oc_runipd.py", "agy_runipd.py"):
-            source = (REPO_ROOT / "agent_workflows" / name).read_text(encoding="utf-8")
-            self.assertNotIn("process.stdin.write", source, name)
-            self.assertNotIn("process.communicate(", source, name)
+            with self.subTest(driver=name):
+                tree = ast.parse(
+                    (REPO_ROOT / "agent_workflows" / name).read_text(encoding="utf-8")
+                )
+                offenders = []
+                for node in ast.walk(tree):
+                    if not isinstance(node, ast.Call):
+                        continue
+                    target = ast.unparse(node.func)
+                    # Any write onto something's stdin, and `communicate`, which writes AND closes.
+                    if ".stdin." in target and target.rsplit(".", 1)[-1] in (
+                        "write",
+                        "writelines",
+                        "flush",
+                    ):
+                        offenders.append(ast.unparse(node))
+                    if target.endswith(".communicate"):
+                        offenders.append(ast.unparse(node))
+                    # `os.write(<...>.stdin.fileno(), ...)`: the same act one level lower.
+                    if target in ("os.write", "os.writev") and any(
+                        ".stdin" in ast.unparse(arg) for arg in node.args
+                    ):
+                        offenders.append(ast.unparse(node))
+                self.assertEqual(
+                    offenders,
+                    [],
+                    f"{name} WRITES to the child: {offenders}. The child is a one-shot "
+                    f"`opencode run`/`agy` subprocess with NO cooperative stop channel (spec OQ-01 "
+                    f"rejected adding one), so 'stopping the turn' IS termination at an observed "
+                    f"instant. A write here would be a second, undocumented control path.",
+                )
 
 
 if __name__ == "__main__":  # pragma: no cover
@@ -1505,7 +1982,7 @@ if __name__ == "__main__":  # pragma: no cover
 
 
 class ObserverBindingRegressionTests(unittest.TestCase):
-    """The two observers in the stream loop must never be confused for each other.
+    r"""The two observers in the stream loop must never be confused for each other.
 
     REGRESSION GUARD for a defect this suite did NOT catch. `stall_progress.SubagentProgressObserver`
     (watchdog progress) and `runner_stop.CheckpointObserver` (safe checkpoints) both live in
@@ -1519,9 +1996,18 @@ class ObserverBindingRegressionTests(unittest.TestCase):
     stream loop with a stop requested; the mistake was only reachable at runtime. In `agy_runipd`
     there is no plain `observer` variable at all, so the same misuses were latent NameErrors.
 
-    Asserted on SOURCE rather than behavior deliberately: the failure mode is a name binding, the
-    attribute sets of the two classes are disjoint and known, and a source check costs nothing and
-    cannot be defeated by a test double.
+    ASSERTED ON THE AST, NOT ON BEHAVIOR AND NOT ON SOURCE TEXT. Behavior is genuinely unable to
+    establish this: the defect was only reachable at runtime WITH A STOP REQUESTED mid-stream, the
+    misuses sat on branches no test entered, and in `agy_runipd` they were latent `NameError`s that
+    only a parse can see without executing the branch. The claim is also a NON-EXISTENCE ("no
+    attribute of one class is read off the other"), which the brief names as a legitimate AST case.
+
+    CONVERTED FROM REGEX-OVER-SOURCE, which the two tests below previously used
+    (`(?<!checkpoint_)\bobserver\.%s\b` and `StopAtCheckpoint\((?!checkpoint_observer)\w`). Both
+    matched TEXT, so both fired on any COMMENT or docstring discussing the mix-up - including this
+    class's own explanation had it lived in the driver - and the second silently passed for
+    `StopAtCheckpoint()` with no argument at all, because `\w` requires a character. On the AST, an
+    `ast.Attribute` node whose `value` is the name `observer` is unambiguous and prose is invisible.
     """
 
     _CHECKPOINT_ONLY = (
@@ -1535,38 +2021,57 @@ class ObserverBindingRegressionTests(unittest.TestCase):
         "requester",
     )
 
-    def _sources(self):
+    def _trees(self):
         import inspect
 
         from agent_workflows import agy_runipd, oc_runipd
 
         return (
-            ("oc_runipd", inspect.getsource(oc_runipd)),
-            ("agy_runipd", inspect.getsource(agy_runipd)),
+            ("oc_runipd", ast.parse(inspect.getsource(oc_runipd))),
+            ("agy_runipd", ast.parse(inspect.getsource(agy_runipd))),
         )
 
     def test_checkpoint_attributes_are_never_read_off_the_progress_observer(self):
-        import re
-
-        for name, src in self._sources():
-            for attr in self._CHECKPOINT_ONLY:
-                hits = re.findall(r"(?<!checkpoint_)\bobserver\.%s\b" % attr, src)
-                self.assertEqual(
-                    hits,
-                    [],
-                    f"{name}: `observer.{attr}` reads a CheckpointObserver attribute off the "
-                    f"subagent progress observer; use `checkpoint_observer`",
-                )
+        for name, tree in self._trees():
+            misuses = [
+                f"{ast.unparse(node)} (line {node.lineno})"
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Attribute)
+                and isinstance(node.value, ast.Name)
+                and node.value.id == "observer"
+                and node.attr in self._CHECKPOINT_ONLY
+            ]
+            self.assertEqual(
+                misuses,
+                [],
+                f"{name}: {misuses} read CheckpointObserver attribute(s) off the SUBAGENT PROGRESS "
+                f"observer. This crashed a real run with `AttributeError: "
+                f"'SubagentProgressObserver' object has no attribute 'observe'` at the per-line "
+                f"checkpoint parse, and in agy_runipd the same misuse is a latent NameError. FIX: "
+                f"use `checkpoint_observer`.",
+            )
 
     def test_stop_at_checkpoint_is_raised_with_the_checkpoint_observer(self):
-        import re
-
-        for name, src in self._sources():
-            wrong = re.findall(r"StopAtCheckpoint\((?!checkpoint_observer)\w", src)
+        for name, tree in self._trees():
+            wrong = []
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                if not ast.unparse(node.func).endswith("StopAtCheckpoint"):
+                    continue
+                arguments = [ast.unparse(arg) for arg in node.args]
+                # The regex this replaces required a WORD character after the paren, so
+                # `StopAtCheckpoint()` - which would raise TypeError at the worst possible moment -
+                # slipped through it entirely. An empty argument list is checked explicitly.
+                if arguments != ["checkpoint_observer"]:
+                    wrong.append(f"{ast.unparse(node)} (line {node.lineno})")
             self.assertEqual(
                 wrong,
                 [],
-                f"{name}: StopAtCheckpoint must carry the CheckpointObserver, not another object",
+                f"{name}: {wrong} must carry the CheckpointObserver (`checkpoint_observer`) and "
+                f"nothing else. The exception's own constructor reads the observer's checkpoint "
+                f"position, so another object here fails at the instant the stop is honored - the "
+                f"worst possible moment.",
             )
 
     def test_the_two_observer_classes_have_disjoint_attributes(self):

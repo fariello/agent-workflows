@@ -35,8 +35,13 @@ safety net is gone.
 from __future__ import annotations
 
 import inspect
+import json
+import os
 import re
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -53,6 +58,108 @@ def _commit_base(repo: Path) -> str:
     git(repo, "add", "tracked.py")
     git(repo, "commit", "-q", "-m", "base")
     return git(repo, "rev-parse", "HEAD").stdout.strip()
+
+
+def _pid_alive(pid: int) -> bool:
+    """Is `pid` still running? `os.kill(pid, 0)` sends NO signal; it is a liveness probe."""
+
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def _captured_oc_launch(case: unittest.TestCase, *, isolated: bool):
+    """Drive ONE real `oc_runipd.run_opencode` turn; return `(argv, env)` of the agent launch.
+
+    THE MEASUREMENT SURFACE FOR BOTH GUARDS BELOW, shared because both need the same fact: what the
+    driver actually hands the child. Source text cannot answer that, which is the lesson both guards
+    record in their own docstrings.
+
+    Records every `lane_containment.TurnBoundWatch` construction on `case.bound_constructions`, so a
+    caller can assert WHICH bounds a real turn arms without reading the driver's source.
+
+    THE AGENT LAUNCH IS THE LAST `Popen`: a turn may first spawn host sandbox capability probes,
+    whose argv and env carry neither the policy nor the role marking, so taking the first would
+    measure the wrong process.
+    """
+
+    from unittest import mock
+
+    from agent_workflows import lane_containment
+
+    launches: list[tuple[list[str], dict]] = []
+    case.bound_constructions = []
+    real_watch = lane_containment.TurnBoundWatch
+
+    class _Proc:
+        def __init__(self, argv, *a, **kw):
+            launches.append(([str(x) for x in argv], dict(kw.get("env") or {})))
+            self.stdout = iter(())
+            self.stderr = None
+            self.stdin = None
+
+        def poll(self):
+            return 0
+
+        def wait(self, *a, **k):
+            return 0
+
+    def spy_watch(**kwargs):
+        case.bound_constructions.append(dict(kwargs))
+        return real_watch(**kwargs)
+
+    with tempfile.TemporaryDirectory() as temp:
+        root = Path(temp)
+        repo = root / "repo"
+        repo.mkdir()
+        run_dir = root / "run"
+        (run_dir / "sessions").mkdir(parents=True)
+        (run_dir / "prompts").mkdir(parents=True)
+        lane = root / "lane"
+        lane.mkdir()
+        plan = repo / "p.ipd.md"
+        plan.write_text("# p\n", encoding="utf-8")
+        prompt = run_dir / "prompts" / "p.md"
+        prompt.write_text("do the thing\n", encoding="utf-8")
+        item = {
+            "id6": "8zgybk",
+            "setid": "wtiso",
+            "position": 1,
+            "attempts": [{"number": 1}],
+            "action": "execute",
+        }
+        state = {
+            "run_id": "run-adv",
+            "repo": str(repo),
+            "options": {"opencode": "opencode"},
+            "queue": [item],
+        }
+        with (
+            mock.patch.object(oc_runipd.subprocess, "Popen", _Proc),
+            mock.patch.object(lane_containment, "TurnBoundWatch", spy_watch),
+            # The R4.2 policy probe would spawn a real host; it is proven separately in
+            # `tests/test_lane_permission_posture.py`.
+            mock.patch.object(
+                oc_runipd,
+                "observe_opencode_policy",
+                lambda *a, **k: lane_containment.evaluate_policy_observation(
+                    None, {}, failure_reason="probe skipped in this test"
+                ),
+            ),
+        ):
+            oc_runipd.run_opencode(
+                state,
+                run_dir,
+                item,
+                plan,
+                prompt,
+                1,
+                work_dir=str(lane) if isolated else None,
+            )
+    case.assertTrue(launches, "run_opencode spawned no child at all")
+    return launches[-1]
 
 
 # ---- Guard 1: the forgetful agent (x03wgn Section 7 row "Agent forgets every custom AW tool") ----
@@ -128,61 +235,98 @@ class MissingInputTests(unittest.TestCase):
     TOKEN_RE = re.compile(r"^AW_MISSING_INPUT:(?P<path>[^:]+):(?P<why>.+)$")
 
     def test_missing_input_token_format_now(self):
-        """OBSERVABILITY (passes today): the token format parses, AND the launch reality that
-        motivates qyaime is real.
+        """OBSERVABILITY: the token format parses, and the launch reality is asserted AS IT IS NOW.
 
-        Two facts, both true now:
+        THE CHARACTERIZATION CONTRACT WAS OWED AN INVERSION AND NEVER GOT ONE, which is why this
+        test's second half changed direction rather than being deleted. As authored (`8zgybk` E-07a)
+        it pinned the qyaime root cause: `oc_runipd` launches OpenCode with a BARE `--auto` and ships
+        NO permission configuration, so an `external_directory` ask in a headless turn has nothing to
+        deny it and waits forever. That defect is FIXED. Executed plan `lanectn` Order 03 (`lhmrhx`,
+        in `.aw/records/plans/executed/`) landed spec `7ckptx` R4.1: an isolated turn's child env now
+        carries `OPENCODE_CONFIG_CONTENT` with `external_directory=deny` and `question=deny`.
 
-        1. the `AW_MISSING_INPUT:<path>:<why>` shape is unambiguously parseable, so Phase 1 can
-           build the classifier on it; and
-        2. the runner launches OpenCode with a BARE `--auto` (agent_workflows/oc_runipd.py:1719)
-           and ships NO permission configuration, which is the root cause of qyaime: an
-           `external_directory` ask in a headless `--auto` turn has nothing to deny it, so the
-           turn waits forever.
+        THE PIN DID NOT NOTICE, and the reason is the failure mode this whole cleanup exists for. It
+        asserted `assertNotIn("OPENCODE_CONFIG_CONTENT", module_src)` and
+        `assertNotIn('"permission"', module_src)` over the driver's SOURCE TEXT. The fix supplies both
+        through NAMED shared symbols (`lane_containment.OPENCODE_RUNTIME_CONFIG_ENV`, whose value IS
+        `"OPENCODE_CONFIG_CONTENT"`, and `LANE_PERMISSION_POLICY`), so neither literal appears in
+        `oc_runipd.py` and both assertions stayed GREEN while asserting the opposite of reality.
+        Measured here: the policy reaches the child, and `"OPENCODE_CONFIG_CONTENT" in
+        Path(inspect.getfile(oc_runipd)).read_text()` is still False. A green test asserting a
+        defect that is fixed is worse than no test: it reads as a standing claim the fix never landed.
 
-        NOTE ON WHAT IS DELIBERATELY *NOT* ASSERTED: an earlier draft asserted the literal string
-        `external_directory` is absent from the runner source. That string appears NOWHERE in the
-        package, so the assertion would be VACUOUSLY true and would keep passing even after the
-        deadlock is fixed or the runner deleted. It proves nothing, so it is not used. The
-        assertion below targets the actual root cause instead: `--auto` is appended with no
-        accompanying permission config.
+        SO BOTH HALVES ARE NOW DRIVEN, not grepped:
+
+          1. THE TOKEN, through the shipped `wtiso_gate` surfaces rather than a regex this file owns,
+             so the format is asserted against the code that actually produces and consumes it.
+          2. THE LAUNCH, by capturing the real argv and env handed to `Popen`. `--auto` IS still
+             appended (that half was and remains true, and it is the reason a host-side denial is
+             load-bearing), and the denial policy IS now supplied alongside it.
+
+        NOTHING IS PINNED ABSENT HERE ANY MORE, so nothing is owed an owner. The missing-input cycle
+        itself is asserted present by `test_missing_input_driver_denial_now_exists` below.
         """
 
-        m = self.TOKEN_RE.match("AW_MISSING_INPUT:config/local.ini:absent from lane")
-        self.assertIsNotNone(m)
-        assert m is not None  # narrow for type checkers
-        self.assertEqual(m.group("path"), "config/local.ini")
-        self.assertEqual(m.group("why"), "absent from lane")
+        from agent_workflows import lane_containment, wtiso_gate
 
+        # 1. THE TOKEN, through the shipped surfaces. Round trip first, so the format is defined by
+        # the code and not by this file's own regex.
+        self.assertEqual(
+            wtiso_gate.format_missing_input("config/local.ini", "absent from lane"),
+            "AW_MISSING_INPUT:config/local.ini:absent from lane",
+        )
+        self.assertEqual(
+            wtiso_gate.parse_missing_input(
+                "AW_MISSING_INPUT:config/local.ini:absent from lane"
+            ),
+            ("config/local.ini", "absent from lane"),
+        )
         # A `why` containing colons still parses (the path is the first field only).
-        m2 = self.TOKEN_RE.match("AW_MISSING_INPUT:a/b.txt:denied: outside lane")
-        self.assertIsNotNone(m2)
-        assert m2 is not None
-        self.assertEqual(m2.group("path"), "a/b.txt")
+        self.assertEqual(
+            wtiso_gate.parse_missing_input(
+                "AW_MISSING_INPUT:a/b.txt:denied: outside lane"
+            ),
+            ("a/b.txt", "denied: outside lane"),
+        )
+        # Non-tokens must not parse, or the classifier would fire on ordinary prose.
+        self.assertIsNone(
+            wtiso_gate.parse_missing_input("I think AW_MISSING_INPUT would be nice")
+        )
+        # This module's own regex agrees with the shipped parser, so the two cannot drift.
+        match = self.TOKEN_RE.match(
+            wtiso_gate.format_missing_input("config/local.ini", "absent from lane")
+        )
+        self.assertIsNotNone(match)
+        assert match is not None  # narrow for type checkers
+        self.assertEqual(match.group("path"), "config/local.ini")
+        self.assertEqual(match.group("why"), "absent from lane")
 
-        # Non-tokens must not match, or the classifier would fire on ordinary prose.
-        self.assertIsNone(self.TOKEN_RE.match("I think AW_MISSING_INPUT would be nice"))
-
-        # CURRENT LAUNCH REALITY: the argv builder appends a bare `--auto`.
-        launch_src = inspect.getsource(oc_runipd.run_opencode)
+        # 2. THE LAUNCH, measured from the real child rather than from source text.
+        argv, env = _captured_oc_launch(self, isolated=True)
         self.assertIn(
-            'argv.append("--auto")',
-            launch_src,
-            "run_opencode should still append a bare --auto today",
+            "--auto",
+            argv,
+            "the headless auto-accept launch is still what makes a host-side denial load-bearing",
         )
-
-        # ...and the module ships no permission configuration alongside it. If a later phase adds
-        # one, THIS assertion fails loudly and must be updated with the fix, which is the point.
-        module_src = Path(inspect.getfile(oc_runipd)).read_text(encoding="utf-8")
-        self.assertNotIn(
-            "OPENCODE_CONFIG_CONTENT",
-            module_src,
-            "no runner-local OpenCode permission config exists yet",
+        policy_key = lane_containment.OPENCODE_RUNTIME_CONFIG_ENV
+        self.assertIn(
+            policy_key,
+            env,
+            "INVERTED from the original pin: a runner-supplied permission config now EXISTS "
+            "(`lhmrhx`, spec 7ckptx R4.1)",
         )
+        policy = json.loads(env[policy_key])["permission"]
+        self.assertEqual(policy["external_directory"], "deny")
+        self.assertEqual(policy["question"], "deny")
+        # WHY THE ORIGINAL PIN COULD NOT SEE THIS, asserted so the lesson is not re-learned: the
+        # literal it searched for is genuinely absent from the driver's source, because the value
+        # arrives through a named shared constant.
+        self.assertEqual(policy_key, "OPENCODE_CONFIG_CONTENT")
         self.assertNotIn(
-            '"permission"',
-            module_src,
-            "no permission policy key is passed to the host yet",
+            policy_key,
+            Path(inspect.getfile(oc_runipd)).read_text(encoding="utf-8"),
+            "the driver supplies the policy by NAMED constant, which is exactly why a source-text "
+            "pin on this literal stayed green after the fix landed",
         )
 
     def test_missing_input_driver_denial_now_exists(self):
@@ -373,46 +517,122 @@ class NestedPermissionDeadlockTests(unittest.TestCase):
     events with a short permission deadline plus a full process-tree kill."""
 
     def test_nested_permission_only_stall_watchdog_now(self):
-        """OBSERVABILITY (passes today): the ONLY bound is the coarse 600s stall watchdog.
+        """CHARACTERIZATION, STILL LIVE: no permission-EVENT bound is armed on a real turn.
 
-        This pins the exact shape of the gap. A stall watchdog fires on NO OUTPUT, but a session
-        blocked on an unanswered permission ask may still emit keepalive events, and even when it
-        does not, 600 seconds of a wedged unattended run is the qyaime symptom. There is no
-        sub-second, permission-EVENT-driven deadline. Process-group cleanup does exist, so the kill
-        mechanism is available to Phase 1; only the trigger is missing.
+        THE PINNED GAP IS STILL REAL, which is why this test keeps its characterization intent
+        instead of being deleted or inverted. `lane_containment.PERMISSION_TIMEOUT` ships at `0`
+        (DISABLED), so a turn blocked on an unanswered nested permission ask is covered only by the
+        coarse no-progress watchdog and by `MAX_TURN_TIMEOUT`. A stall watchdog fires on NO OUTPUT,
+        and a session blocked on an ask may still emit keepalives, which is the qyaime symptom.
+
+        WHO OWNS INVERTING IT, so this pin is not orphaned the way the deleted
+        `test_wtiso_characterization.py` was. It is NOT a stale pointer at a retired plan: the owner
+        is APPROVED SPEC `7ckptx` requirement R4.4b (`.aw/records/specs/`, `- Status: approved`),
+        which states the default stays `0` and names exactly what closes it - "the implementing plan
+        MUST either (i) provoke a real permission ask, capture the stream, and paste the matched
+        line, after which the default may be set to 30 seconds; or (ii) record that detection is not
+        possible on stdout". Whichever plan does (i) MUST come back and invert the
+        `PERMISSION_TIMEOUT == 0` assertion below. Option (ii) was taken as an INTERIM by executed
+        plan `lanectn` Order 03 (`lhmrhx`), which is why the consequence is written down in the
+        product (`TestPermissionDetectorIsUnproven` in `tests/test_turn_bounds.py` asserts that).
+
+        WHAT CHANGED HERE, and why the change was not optional. Two of the original assertions were
+        SOURCE-TEXT searches over `oc_runipd.py` for `permission_deadline` / `permission_timeout` /
+        `PERMISSION_DEADLINE`, on the theory that arming a bound would make one appear. That theory
+        is now false: the bound arrived under a DIFFERENT name in a DIFFERENT module
+        (`lane_containment.PERMISSION_TIMEOUT`, passed to `TurnBoundWatch`), so the pin would keep
+        passing with the bound fully armed - and it very nearly did, since the driver's source does
+        already contain the string `PERMISSION_TIMEOUT` inside a comment. The replacement asserts the
+        ARMED STATE of a REAL turn's bound instead, which no renaming can evade.
         """
 
-        # The coarse bound, agent_workflows/oc_runipd.py:1629.
+        from agent_workflows import lane_containment
+
+        # THE COARSE BOUND is what a wedged turn is left with, and it is unchanged.
         self.assertEqual(oc_runipd.DEFAULT_STALL_TIMEOUT, 600.0)
 
-        module_src = Path(inspect.getfile(oc_runipd)).read_text(encoding="utf-8")
-
-        # Process-tree kill exists. CONSCIOUS UPDATE (runstop Phase 0, `2ouj70`): the escalation
-        # MOVED into the single shared reaper `runner_shutdown.terminate_process` (spec `c4gd2h`
-        # R5 forbids the two byte-identical per-driver copies this used to grep for). The
-        # capability is unchanged, so this guard now asserts it where it actually lives and that
-        # the driver still reaches it. It is deliberately NOT weakened: `killpg`/`getpgid` are
-        # still required to exist, and the driver must still delegate to them.
-        reaper_src = inspect.getsource(runner_shutdown)
-        self.assertIn("killpg", reaper_src)
-        self.assertIn("getpgid", reaper_src)
-        self.assertIn(
-            "runner_shutdown.terminate_process",
-            inspect.getsource(oc_runipd.terminate_process),
+        # THE PROCESS-TREE KILL WORKS, driven rather than grepped. The original asserted `killpg` and
+        # `getpgid` appear in the reaper's source; a comment satisfies that. Instead: a child that
+        # IGNORES SIGINT and SIGTERM, with a grandchild that ignores them too, is reaped through the
+        # ONE shared routine, and BOTH die. That is the capability the missing trigger would use.
+        self.assertIs(
+            oc_runipd.runner_shutdown.terminate_process,
+            runner_shutdown.terminate_process,
+            "the driver must reach the ONE shared reaper (spec `c4gd2h` R5)",
         )
-
-        # But NO permission-deadline trigger exists. When Phase 1 adds one, this fails loudly and
-        # must be updated together with the fix.
-        for symbol in (
-            "permission_deadline",
-            "permission_timeout",
-            "PERMISSION_DEADLINE",
-        ):
-            self.assertNotIn(
-                symbol,
-                module_src,
-                "{0} should not exist before qcqhj7/Phase 1".format(symbol),
+        ignore_signals = (
+            "import signal, subprocess, sys, time\n"
+            "signal.signal(signal.SIGINT, signal.SIG_IGN)\n"
+            "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        )
+        grandchild_code = ignore_signals + "time.sleep(120)\n"
+        child = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                ignore_signals
+                + "g = subprocess.Popen([sys.executable, '-c', {0!r}])\n".format(
+                    grandchild_code
+                )
+                + "print(g.pid, flush=True)\ntime.sleep(120)\n",
+            ],
+            stdout=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
+        )
+        try:
+            assert child.stdout is not None
+            grandchild_pid = int(child.stdout.readline().strip())
+            # Short graces so the SIGKILL-to-the-group escalation is what ends this quickly.
+            oc_runipd.runner_shutdown.terminate_process(
+                child, sigint_grace=0.3, sigterm_grace=0.3
             )
+            self.assertIsNotNone(child.poll(), "the child survived the shared reaper")
+            deadline = time.monotonic() + 10.0
+            while time.monotonic() < deadline and _pid_alive(grandchild_pid):
+                time.sleep(0.05)
+            self.assertFalse(
+                _pid_alive(grandchild_pid),
+                "the GRANDCHILD survived: the process-group kill the missing permission trigger "
+                "would rely on is not working",
+            )
+        finally:
+            if child.poll() is None:  # pragma: no cover - defensive
+                child.kill()
+                child.wait(timeout=5)
+
+        # THE GAP ITSELF, asserted as the ARMED STATE of a real turn's bound rather than as the
+        # absence of an identifier. INVERT THIS when spec `7ckptx` R4.4b option (i) is delivered.
+        self.assertEqual(
+            lane_containment.PERMISSION_TIMEOUT,
+            0.0,
+            "spec 7ckptx R4.4b keeps the permission bound DISABLED until a real provoked ask is "
+            "captured; the plan that captures it must invert this assertion",
+        )
+        watch = lane_containment.TurnBoundWatch(
+            reap=lambda bound, timeout: self.fail(
+                "an unarmed permission bound fired: " + bound
+            ),
+            max_turn_timeout=0,
+        )
+        with watch:
+            # An observed ask CANNOT arm it while the default is 0, which is the whole gap: this is
+            # the qyaime shape (the ask arrives, nothing answers, and nothing bounds the wait).
+            watch.note_permission_request()
+            time.sleep(0.3)
+        self.assertIsNone(
+            watch.fired,
+            "with PERMISSION_TIMEOUT at 0 an observed ask must not arm any bound",
+        )
+        # ...and MAX_TURN_TIMEOUT is therefore the only bound a real turn arms against a deadlock.
+        _argv, _env = _captured_oc_launch(self, isolated=True)
+        self.assertEqual(
+            [kwargs.get("permission_timeout") for kwargs in self.bound_constructions],
+            [None],
+            "a real turn must construct exactly ONE bound watch and must not arm a permission "
+            "bound; constructions were {0!r}".format(self.bound_constructions),
+        )
+        self.assertGreater(self.bound_constructions[0]["max_turn_timeout"], 0.0)
 
     def test_nested_permission_detection_now_exists_but_is_not_armed(self):
         """CONVERTED FROM A PIN (`lanectn` `604wra`): the DETECTOR exists; the live bound does NOT.

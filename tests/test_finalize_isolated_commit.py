@@ -37,6 +37,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from agent_workflows import ipd_lifecycle as LC
 
@@ -508,36 +509,143 @@ class IsolatedFinalizeCommittedHalfIsLaneLocalTests(unittest.TestCase):
     def test_finalize_consumes_no_isolated_baseline_and_no_lane_branch_diff(
         self,
     ) -> None:
-        """The NEGATIVE half of E-01, asserted in code rather than left to review.
+        """The NEGATIVE half of E-01: finalize READS neither input, measured rather than grepped.
 
-        ``isolated_baseline`` must stay a ``begin``-only concept and the receipt must not grow a
-        field for it, because F-12 shows finalize needs no such discriminator. Reading the source is
-        the honest way to pin "a mechanism was NOT introduced"; a behavioral test cannot show the
-        absence of a code path.
+        WHY THE SOURCE-TEXT VERSION WAS BOTH WEAK AND WRONG-SHAPED. It searched
+        ``inspect.getsource`` of ``finalize`` / ``finalize_precheck`` for ``isolated_baseline`` and
+        ``aw/lane/``. That is satisfied - or falsely tripped - by PROSE, since these functions'
+        docstrings legitimately discuss both concepts; and it cannot see an INDIRECT read, which is
+        the real hazard: ``finalize_precheck`` reaches git and the receipt through helpers
+        (``_changed_path_sources``, ``_execution_cohesive_committed_paths``, ``read_receipt``), so a
+        lane-branch diff or a receipt discriminator introduced one call down would leave both
+        functions' own text clean.
+
+        SPY THE TWO INPUTS AND COUNT ZERO READS during a REAL in-lane finalize:
+
+          * THE RECEIPT - ``read_receipt`` is wrapped so every key lookup is recorded, and an
+            ``isolated_baseline`` key is INJECTED into the dict finalize receives. If finalize (or
+            anything it calls) consults that discriminator, the read is recorded and this fails. The
+            injection is what makes the assertion meaningful: against a receipt lacking the key, a
+            read would be indistinguishable from an absence.
+          * THE LANE BRANCH - the ONE git wrapper (``ipd_lifecycle._git``, which delegates to the
+            single ``git_commit_helper._git``) is wrapped so every argv reaches a list. No argv may
+            name ``aw/lane/`` or the lane branch, at any depth.
+
+        The receipt SCHEMA half is kept and still asserted from a real ``begin``: ``begin`` must not
+        persist the field at all, so there is nothing for a future finalize to start reading.
         """
-        import inspect
-
-        for fn in (LC.finalize_precheck, LC.finalize):
-            src = inspect.getsource(fn)
-            self.assertNotIn(
-                "isolated_baseline",
-                src,
-                f"{fn.__name__} must not consume isolated_baseline (F-12)",
-            )
-            self.assertNotIn(
-                "aw/lane/",
-                src,
-                f"{fn.__name__} must not diff against a lane branch (F-15: it is deleted at teardown)",
-            )
-
-        # The receipt schema is unchanged: no isolated_baseline persisted for finalize to read.
         plan = self._plan(plan_id="lan002")
-        res = LC.begin(self.root, plan, ACTOR, timestamp="t")
-        self.assertEqual(res.exit_code, LC.EXIT_OK, res.message)
-        receipt = LC.read_receipt(self.root, "lan002")
-        assert receipt is not None
-        self.assertNotIn("isolated_baseline", receipt)
-        self.assertIn("base_head", receipt)
+        lane = self.root.parent / (self.root.name + "-lane-neg")
+        branch = "aw/lane/lan002"
+        subprocess.run(
+            ["git", "worktree", "add", "-q", "-b", branch, str(lane), "HEAD"],
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+        )
+        try:
+            lane_plan = lane / plan.relative_to(self.root)
+            res = LC.begin(lane, lane_plan, ACTOR, timestamp="t")
+            self.assertEqual(res.exit_code, LC.EXIT_OK, res.message)
+
+            # THE SCHEMA HALF: `begin` persists no such field, so finalize has nothing to read.
+            written = LC.read_receipt(lane, "lan002")
+            assert written is not None
+            self.assertNotIn("isolated_baseline", written)
+            self.assertIn("base_head", written)
+
+            (lane / "agent_workflows").mkdir(exist_ok=True)
+            (lane / "tests").mkdir(exist_ok=True)
+            (lane / "agent_workflows/demo.py").write_text("lane\n", encoding="utf-8")
+            (lane / "tests/test_demo.py").write_text("lane\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "add", "--", "agent_workflows/demo.py", "tests/test_demo.py"],
+                cwd=lane,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-q", "-m", "lane in-scope work"],
+                cwd=lane,
+                check=True,
+                capture_output=True,
+            )
+
+            reads: list[str] = []
+            argvs: list[list[str]] = []
+            real_read = LC.read_receipt
+            real_git = LC._git
+
+            class _WatchedReceipt(dict):
+                """A receipt that RECORDS every key lookup made against it."""
+
+                def get(self, key, default=None):  # type: ignore[override]
+                    reads.append(key)
+                    return super().get(key, default)
+
+                def __getitem__(self, key):
+                    reads.append(key)
+                    return super().__getitem__(key)
+
+                def __contains__(self, key) -> bool:  # type: ignore[override]
+                    reads.append(key)
+                    return super().__contains__(key)
+
+            def spy_read(repo_root, plan_id):
+                raw = real_read(repo_root, plan_id)
+                if raw is None:
+                    return None
+                watched = _WatchedReceipt(raw)
+                # INJECTED so a read is DISTINGUISHABLE from an absence.
+                dict.__setitem__(
+                    watched, "isolated_baseline", "SENTINEL-must-not-be-consumed"
+                )
+                return watched
+
+            def spy_git(repo_root, args):
+                argvs.append([str(a) for a in args])
+                return real_git(repo_root, args)
+
+            with (
+                mock.patch.object(LC, "read_receipt", spy_read),
+                mock.patch.object(LC, "_git", spy_git),
+            ):
+                result = LC.finalize(lane, lane_plan, ACTOR, "lane work", apply=True)
+
+            self.assertEqual(
+                result.exit_code,
+                LC.EXIT_OK,
+                f"{result.message} / {result.findings}",
+            )
+            # The spies really were exercised, so zero reads means "not consumed" rather than
+            # "finalize never ran".
+            self.assertTrue(reads, "the receipt spy recorded no lookups at all")
+            self.assertTrue(argvs, "the git spy recorded no commands at all")
+            self.assertIn("base_head", reads)
+
+            self.assertEqual(
+                [key for key in reads if key == "isolated_baseline"],
+                [],
+                "finalize consumed isolated_baseline (F-12: it is a begin-only concept); "
+                f"receipt keys read were {sorted(set(reads))}",
+            )
+            lane_refs = [
+                argv
+                for argv in argvs
+                if any("aw/lane/" in part or part == branch for part in argv)
+            ]
+            self.assertEqual(
+                lane_refs,
+                [],
+                "finalize diffed against a lane branch (F-15: the branch is DELETED at teardown, "
+                f"so the range would be unresolvable): {lane_refs}",
+            )
+        finally:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(lane)],
+                cwd=self.root,
+                check=False,
+            )
 
 
 if __name__ == "__main__":

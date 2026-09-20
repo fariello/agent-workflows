@@ -55,12 +55,13 @@ import time
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest import mock
 
 import pytest
 
 from agent_workflows import agy_runipd as agy
 from agent_workflows import oc_runipd as oc
-from agent_workflows import runner_shutdown, runner_stop
+from agent_workflows import run_recovery, runner_shared, runner_shutdown, runner_stop
 from tests.support import REPO_ROOT
 
 _DRIVER_ENV = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}
@@ -743,62 +744,226 @@ class AgyDriverParityTests(_InvariantAssertions):
 class BothDriversWireLevel4Tests(unittest.TestCase):
     """Orchestrator CID-3, asserted structurally as well as behaviorally."""
 
-    def _source(self, name: str) -> str:
-        return (REPO_ROOT / "agent_workflows" / name).read_text(encoding="utf-8")
+    #: (the level-4 surface, why it must be THE shared one rather than a same-named local copy)
+    LEVEL_4_SURFACES = (
+        (
+            "StopNowForce",
+            "the unwind that cuts the turn immediately, with no checkpoint wait",
+        ),
+        (
+            "ForceStopWatch",
+            "the out-of-band watch, the only way to cut a child that has gone SILENT",
+        ),
+        (
+            "is_indeterminate",
+            "the predicate every promotion and requeue gate consults; a local copy would let one "
+            "host promote an item the other refuses",
+        ),
+        (
+            "forced_disposition",
+            "the INDETERMINATE record builder, so there is one schema not two",
+        ),
+    )
 
     def test_both_drivers_use_the_shared_level_4_surface(self):
-        for name in ("oc_runipd.py", "agy_runipd.py"):
-            source = self._source(name)
-            self.assertIn("runner_stop.StopNowForce", source, name)
-            self.assertIn("runner_stop.ForceStopWatch(", source, name)
-            self.assertIn("runner_stop.is_indeterminate(", source, name)
-        for module in (oc, agy):
-            self.assertTrue(hasattr(module, "_record_forced_stop"), module)
-            self.assertIs(module.runner_stop, runner_stop)
+        """Every level-4 surface is THE shared object on both hosts. `assertIs`, not a substring.
 
-    def test_neither_driver_reaps_level_4_with_a_bare_kill(self):
-        # Spec R5: no second reaper and no raw kill. The force path must reach the shared routine.
-        for name in ("oc_runipd.py", "agy_runipd.py"):
-            source = self._source(name)
-            for forbidden in ("os.kill(", "process.kill()", "SIGKILL"):
-                self.assertNotIn(
-                    forbidden,
-                    source,
-                    f"{name}: level 4 must not reap with {forbidden}; "
-                    f"runner_shutdown owns the escalation",
+        REPLACES three `assertIn("runner_stop.<name>", driver_source)` searches. Each is satisfied by
+        a COMMENT, and these drivers comment on all three by name; worse, none can distinguish "uses
+        the shared surface" from "defines a local one of the same name", which is the duplication
+        orchestrator CID-3 exists to forbid. `assertIs` states the claim exactly.
+        """
+
+        wrong = []
+        for module in (oc, agy):
+            if module.runner_stop is not runner_stop:
+                wrong.append(
+                    f"  {module.__name__} does not use the shared runner_stop at all"
                 )
+                continue
+            for surface, why in self.LEVEL_4_SURFACES:
+                shared = getattr(runner_stop, surface, None)
+                if shared is None:
+                    wrong.append(
+                        f"  runner_stop.{surface} no longer exists\n    needed for: {why}"
+                    )
+                    continue
+                if getattr(module.runner_stop, surface, None) is not shared:
+                    wrong.append(
+                        f"  {module.__name__} -> {surface} is not the shared object\n"
+                        f"    needed for: {why}"
+                    )
+                local = getattr(module, surface, None)
+                if local is not None and local is not shared:
+                    wrong.append(
+                        f"  {module.__name__} defines its OWN `{surface}` ({local!r})\n"
+                        f"    needed for: {why}"
+                    )
+            if not callable(getattr(module, "_record_forced_stop", None)):
+                wrong.append(
+                    f"  {module.__name__} has no `_record_forced_stop`, so it cannot record a "
+                    f"level-4 stop at all"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"{len(wrong)} level-4 surface problem(s). Level 4 may not exist on one host only, and a "
+            f"same-named local copy is the duplication CID-3 forbids: the two hosts would then "
+            f"disagree about what `--now-force` means. Asserted by identity, so a comment naming a "
+            f"class cannot satisfy it.\n" + "\n".join(wrong),
+        )
+
+    # DELETED: `test_neither_driver_reaps_level_4_with_a_bare_kill`.
+    #
+    # It searched both drivers' source text for `"os.kill("`, `"process.kill()"` and `"SIGKILL"`. The
+    # last is the exact failure mode this repository has measured: these modules DELIBERATELY discuss
+    # the rejected bare kill in prose ("do not optimize level 4 into a bare kill/SIGKILL"; the
+    # escalation hint explains that a SIGKILL bypasses the protocol), so the guard fails on the very
+    # comment that prevents the defect - and passes for `killpg`, `send_signal`, an aliased import, or
+    # any other spelling.
+    #
+    # ALREADY COVERED, STRICTLY MORE STRONGLY, by
+    # `tests/test_runner_stop_triggers.py::ScopeFenceTests::test_no_second_process_reaper_was_added`,
+    # which asserts the same fence on the AST of `oc_runipd`, `agy_runipd` AND `runner_stop`: no
+    # `os.kill`/`signal.SIGKILL` CALL, no bare `<x>.kill()`, and no SIGKILL referenced as a VALUE. A
+    # comment cannot add a Call node, so it cannot be satisfied by prose.
+    # `tests/test_runner_shutdown.py::SingleReaperTests::test_both_drivers_delegate_to_the_shared_reaper`
+    # additionally proves BEHAVIORALLY that the one shared reaper is what actually runs.
 
     def test_the_signal_trigger_is_installed_through_the_shared_handler_safe_installer(
         self,
     ):
-        # CONSCIOUSLY REPLACED by runstop Phase 5 (`71vjbn`), not deleted.
-        #
-        # Phase 4 asserted `signal.signal(` appeared in NEITHER driver, reserving SIGINT/SIGTERM for
-        # Phase 5. Phase 5 has landed them, from the SHARED `runner_stop` module - which means the
-        # original assertion would now pass VACUOUSLY (still no literal in either driver) while
-        # asserting nothing. A green test with no meaning is worse than a deleted one, so it is
-        # replaced by the invariant that was actually load-bearing: a handler must take the
-        # handler-SAFE writer, because Phase 1 measured the blocking one deadlocking a handler.
-        for name in ("oc_runipd.py", "agy_runipd.py"):
-            source = self._source(name)
-            self.assertIn("runner_stop.install_stop_signal_handlers(", source, name)
-            self.assertNotIn("signal.signal(", source, name)
-        import inspect
+        """LEVEL 4 is reachable by SIGNAL, from BOTH drivers, through the ONE shared installer.
 
-        installer = inspect.getsource(runner_stop.install_stop_signal_handlers)
-        self.assertIn("request_stop_nowait(", installer)
+        WHAT THIS REPLACES. Phase 4 authored `assertNotIn("signal.signal(", driver_source)` to
+        reserve the registration for Phase 5; Phase 5 landed it in the SHARED module, leaving the
+        check green while asserting nothing. It was then rewritten as
+        `assertIn("runner_stop.install_stop_signal_handlers(", driver_source)` plus
+        `assertIn("request_stop_nowait(", installer_source)` - two text searches, each satisfiable by
+        a comment, neither of which drives anything.
+
+        WHY THE LEVEL-4 CLAIM IS ITS OWN TEST. The ladder's TERMINAL rung is the only one that does
+        more than record: it must also raise `KeyboardInterrupt`, which is what keeps
+        `execute_item`'s `interrupted` bookkeeping and `main`'s exit-130 path reachable (Phases 3
+        and 4 both depend on that item being recorded `interrupted`). So the level-4-specific
+        property is a CONJUNCTION - the terminal press records level 4 AND unwinds - and a test that
+        asserted only the record would pass against a handler that silently swallowed the unwind,
+        stranding the pre-existing bookkeeping.
+
+        DRIVEN, not inspected. Each driver's OWN `install_stop_triggers` is called, then real SIGINTs
+        walk the whole ladder in this process, and the terminal press is asserted to raise. The
+        registration is additionally asserted by IDENTITY, which is what "the ONE shared installer"
+        actually means and which no substring can establish.
+
+        The UNIVERSAL handler-safety claim (no blocking writer anywhere on the handler's path,
+        including branches no run enters) is owned by
+        `tests/test_runner_stop_triggers.py::ScopeFenceTests::test_the_handler_uses_only_the_handler_safe_writer`
+        as an AST allowlist and is deliberately not restated here.
+        """
+
+        import signal
+
+        for module in (oc, agy):
+            with self.subTest(driver=module.__name__):
+                # IDENTITY: the same installer object, not a namesake.
+                self.assertIs(
+                    module.runner_stop.install_stop_signal_handlers,
+                    runner_stop.install_stop_signal_handlers,
+                    f"{module.__name__} must install through THE shared installer",
+                )
+                run_dir = Path(self.enterContext(TemporaryDirectory()))
+                previous = {
+                    signal.SIGINT: signal.getsignal(signal.SIGINT),
+                    signal.SIGTERM: signal.getsignal(signal.SIGTERM),
+                }
+                presses_before = runner_stop._SIGINT_PRESSES
+                try:
+                    runner_stop._SIGINT_PRESSES = 0
+                    runner_stop.reset_deferred_request()
+                    with mock.patch.dict(os.environ, {"AW_NONINTERACTIVE": "1"}):
+                        status = module.install_stop_triggers(run_dir)
+                        self.assertEqual(
+                            status.get("SIGINT"),
+                            "installed",
+                            f"{module.__name__}: this host must support SIGINT for the level-4 "
+                            f"trigger to exist at all; got {status}",
+                        )
+                        # Walk the ladder for real. Every rung but the last RECORDS and RETURNS.
+                        ladder = runner_stop.SIGINT_LADDER
+                        for index, expected in enumerate(ladder[:-1], start=1):
+                            os.kill(os.getpid(), signal.SIGINT)
+                            record = runner_stop.read_stop_request(run_dir)
+                            assert record is not None
+                            self.assertEqual(
+                                record.level,
+                                expected,
+                                f"{module.__name__}: press {index} must record level "
+                                f"{expected}, got {record.level}",
+                            )
+                        # THE TERMINAL RUNG: records level 4 AND unwinds, which is what preserves
+                        # the pre-existing `interrupted` bookkeeping and the exit-130 path.
+                        with self.assertRaises(KeyboardInterrupt) as caught:
+                            os.kill(os.getpid(), signal.SIGINT)
+                        final = runner_stop.read_stop_request(run_dir)
+                        assert final is not None
+                        self.assertEqual(
+                            final.level,
+                            runner_stop.LEVEL_NOW_FORCE,
+                            f"{module.__name__}: the terminal rung must record level 4",
+                        )
+                        self.assertEqual(final.level, ladder[-1])
+                        self.assertIn(
+                            str(runner_stop.LEVEL_NOW_FORCE),
+                            str(caught.exception),
+                            f"{module.__name__}: the unwind must name the level it is honoring, "
+                            f"so an operator's terminal press is not silent; got "
+                            f"{str(caught.exception)!r}",
+                        )
+                finally:
+                    for sig, handler in previous.items():
+                        signal.signal(sig, handler)
+                    runner_stop._SIGINT_PRESSES = presses_before
+                    runner_stop.reset_deferred_request()
 
     def test_level_4_is_reachable_by_its_own_cli_flag(self):
-        # CONSCIOUSLY REPLACED by runstop Phase 5, not deleted. Phase 4 asserted the `stop` verb did
-        # not exist yet, and requested level 4 by writing the Phase-1 record directly. Phase 5 has now
-        # made it REACHABLE, which is the whole point of that phase, so the positive form is asserted
-        # here: level 4 has an out-of-band flag, and it maps to level 4.
+        """`--now-force` is REACHABLE on both hosts and PARSES to level 4.
+
+        CONSCIOUSLY REPLACED by runstop Phase 5, not deleted. Phase 4 asserted the `stop` verb did not
+        exist yet; Phase 5 made it reachable, so the positive form is asserted.
+
+        The final `assertIn("runner_stop.add_stop_parser(", source)` is replaced: it is satisfied by a
+        comment, and it asserts a MECHANISM where the contract is that an operator typing
+        `--now-force` gets level 4. So the real parser is driven and the parsed result is checked -
+        which also covers the flag being registered at all, being spelled correctly, and mapping to
+        the right level, none of which the substring saw.
+        """
+
         self.assertEqual(
             runner_stop.LEVEL_FLAGS["now_force"], runner_stop.LEVEL_NOW_FORCE
         )
         self.assertIn("--now-force", runner_stop.STOP_LEVEL_FLAG_HELP)
-        for name in ("oc_runipd.py", "agy_runipd.py"):
-            self.assertIn("runner_stop.add_stop_parser(", self._source(name), name)
+        for module in (oc, agy):
+            with self.subTest(driver=module.__name__):
+                parser = module.build_parser()
+                args = parser.parse_args(["stop", "run-x", "--now-force"])
+                self.assertEqual(args.command, "stop", module.__name__)
+                level = runner_stop.LEVEL_FLAGS.get(args.level_flag or "")
+                self.assertEqual(
+                    level,
+                    runner_stop.LEVEL_NOW_FORCE,
+                    f"{module.__name__}: `stop <run-id> --now-force` must parse to level "
+                    f"{runner_stop.LEVEL_NOW_FORCE}, got {level!r} from "
+                    f"level_flag={args.level_flag!r}",
+                )
+                # And it is mutually exclusive with the other levels: two levels at once is
+                # ambiguous about how much in-flight work may finish.
+                with self.assertRaises(SystemExit):
+                    parser.parse_args(["stop", "run-x", "--now-force", "--after-call"])
+                self.assertIs(
+                    module.runner_stop.add_stop_parser,
+                    runner_stop.add_stop_parser,
+                    f"{module.__name__} must declare the verb through THE shared declaration",
+                )
 
 
 # =============================================================================================
@@ -1075,9 +1240,84 @@ class ForcedStopEventTests(unittest.TestCase):
         self.assertNotEqual(runner_stop.FORCED_STOP_EVENT, "deliberate-stop")
 
     def test_it_rides_the_established_channel_and_adds_no_new_substrate(self):
-        for name in ("oc_runipd.py", "agy_runipd.py"):
-            source = (REPO_ROOT / "agent_workflows" / name).read_text(encoding="utf-8")
-            self.assertNotIn("run_ledger_store", source, name)
+        """The level-4 event goes to `events.jsonl` and NOWHERE else. Observed on the filesystem.
+
+        REPLACES `assertNotIn("run_ledger_store", driver_source)`, which forbids one MODULE NAME: a
+        comment explaining why that module is unused fails it, and a second ledger under any other
+        name passes it. What the fence protects is what the stop path WRITES, so the run directory is
+        snapshotted around a real level-4 record and only `events.jsonl` may change.
+        """
+
+        for module in (oc, agy):
+            with self.subTest(driver=module.__name__):
+                with TemporaryDirectory() as temp:
+                    root = Path(temp)
+                    repo = root / "repo"
+                    repo.mkdir()
+                    subprocess.run(
+                        ["git", "init", "-q"], cwd=repo, check=True, capture_output=True
+                    )
+                    run_dir = root / "run"
+                    run_dir.mkdir()
+                    (run_dir / "events.jsonl").write_text("", encoding="utf-8")
+                    before = {
+                        path.name: path.read_bytes()
+                        for path in run_dir.iterdir()
+                        if path.is_file()
+                    }
+
+                    state = {
+                        "repo": str(repo),
+                        "queue": [{"id6": "sb0001", "status": "interrupted"}],
+                    }
+                    module._record_forced_stop(
+                        run_dir,
+                        state,
+                        state["queue"][0],
+                        runner_stop.StopNowForce(
+                            level=runner_stop.LEVEL_NOW_FORCE,
+                            requester="operator",
+                            events_seen=2,
+                        ),
+                    )
+
+                    after = {
+                        path.name: path.read_bytes()
+                        for path in run_dir.iterdir()
+                        if path.is_file()
+                    }
+                    created = sorted(set(after) - set(before))
+                    changed = sorted(
+                        name
+                        for name in set(after) & set(before)
+                        if after[name] != before[name]
+                    )
+                    self.assertEqual(
+                        created,
+                        [],
+                        f"{module.__name__}: the level-4 stop CREATED {created}; it must ride the "
+                        f"established append-only `events.jsonl` channel (spec R5)",
+                    )
+                    self.assertEqual(
+                        changed,
+                        ["events.jsonl"],
+                        f"{module.__name__}: the level-4 stop wrote {changed}; only `events.jsonl` "
+                        f"may change",
+                    )
+                    # And the event really landed on that channel, with the level-4 name.
+                    events = [
+                        json.loads(line)
+                        for line in (run_dir / "events.jsonl")
+                        .read_text(encoding="utf-8")
+                        .splitlines()
+                        if line.strip()
+                    ]
+                    self.assertEqual(
+                        [event["event"] for event in events],
+                        [runner_stop.FORCED_STOP_EVENT],
+                        f"{module.__name__}: expected exactly the level-4 event on the shared "
+                        f"channel, got {[e.get('event') for e in events]}",
+                    )
 
 
 @pytest.mark.slow
@@ -1639,14 +1879,219 @@ class ScopeFenceTests(unittest.TestCase):
             "spec A7: this Set does not perform the escalation until Phase 5",
         )
 
-    def test_no_automatic_reconciliation_happens_in_the_stop_path(self):
-        # OQ-01 (this plan) resolved to RECORD and defer: reconciliation inside the stop path would run
-        # while the tree is least trustworthy. So the stop path must not auto-heal.
-        import inspect
+    #: Every git subcommand the stop path is ALLOWED to run, and why. `status` is the ONE entry:
+    #: the record must carry the git state OBSERVED at stop time, because after a force cut the tree
+    #: may hold a partial edit and an assumed state would be worthless to the reconciliation a
+    #: resume must perform. Everything else MUTATES the tree.
+    _READ_ONLY_GIT_SUBCOMMANDS = frozenset({"status"})
 
-        source = inspect.getsource(runner_stop.forced_disposition)
-        for forbidden in ("git checkout", "git reset", "git stash", "restore"):
-            self.assertNotIn(forbidden, source, forbidden)
+    #: The mutating subcommands that ARE the defect, named so a failure says which one ran. Each
+    #: would destroy the very evidence the record exists to preserve.
+    _TREE_MUTATING_GIT_SUBCOMMANDS = (
+        "checkout",
+        "reset",
+        "stash",
+        "restore",
+        "clean",
+        "revert",
+        "apply",
+        "commit",
+    )
+
+    def test_no_automatic_reconciliation_happens_in_the_stop_path(self):
+        """ZERO reconciliation calls across a REAL stop, at EVERY level. Spied, not grepped.
+
+        WHAT THIS REPLACES. The pin was `assertNotIn` of `("git checkout", "git reset",
+        "git stash", "restore")` over `inspect.getsource(runner_stop.forced_disposition)`. It was
+        weak three ways. It inspected the wrong function - `forced_disposition` is a pure dict
+        BUILDER that runs no subprocess at all, so the assertion was vacuous by construction and
+        could never have failed. It could not see an INDIRECT call: reconciliation invoked through a
+        helper, or via `run_recovery`, satisfies every substring. And `"restore"` is a
+        false-positive magnet, since the word appears in legitimate prose about what a RESUME must
+        later do.
+
+        REPLACED BY A NEGATIVE BEHAVIORAL ASSERTION, which is what a "does not happen" claim needs.
+        A real stop is recorded at EVERY level, on BOTH drivers, against a REAL git repository with
+        a REAL uncommitted edit, while three entry points are spied:
+
+        1. `runner_shared.run_checked`, through which BOTH drivers' `git_status` runs - so EVERY git
+           subcommand the stop path issues is recorded as ARGV, and any subcommand outside the
+           read-only allowlist fails, whatever spells it;
+        2. `run_recovery.reconcile_unknown_outcome`, the reconciliation entry point the record's own
+           `resume_action` names - it must be called ZERO times; and
+        3. each driver's own `reconcile_interrupted`, the pre-existing promotion path.
+
+        WHY THIS MATTERS RATHER THAN BEING PEDANTRY (plan OQ-01). Reconciliation inside the stop path
+        would run at the moment the tree is LEAST trustworthy: the turn was cut at a point nobody
+        observed, so any automatic `checkout`/`reset`/`stash` would destroy the partial state that IS
+        the evidence. The record must therefore capture and DEFER, which is why `git status` is
+        allowed and nothing else is.
+
+        AND THE TREE IS ASSERTED UNCHANGED, byte for byte, before and after. That is the claim in
+        its most direct observable form: whatever the stop path did, it did not touch the work.
+        """
+
+        for module in (oc, agy):
+            with self.subTest(driver=module.__name__):
+                with TemporaryDirectory() as temp:
+                    root = Path(temp)
+                    repo = _make_repo(root, [("rca", "rc0001")])
+                    # A REAL uncommitted edit: the partial state a reconciliation would destroy.
+                    (repo / "README").write_text("cut mid-edit\n", encoding="utf-8")
+                    (repo / "untracked-scratch.txt").write_text(
+                        "half written\n", encoding="utf-8"
+                    )
+                    before_status = _git(repo, "status", "--porcelain")
+                    before_readme = (repo / "README").read_text(encoding="utf-8")
+                    self.assertTrue(
+                        before_status.strip(),
+                        "the premise of this test is a DIRTY tree; the fixture produced a clean one",
+                    )
+
+                    run_dir = root / "run"
+                    run_dir.mkdir()
+                    state = {
+                        "repo": str(repo),
+                        "queue": [{"id6": "rc0001", "status": "interrupted"}],
+                    }
+                    item = state["queue"][0]
+
+                    git_argv: list[list[str]] = []
+                    reconcile_calls: list[tuple] = []
+                    real_run_checked = runner_shared.run_checked
+
+                    def recording_run_checked(argv, cwd=None, env=None, **kwargs):
+                        git_argv.append(list(argv))
+                        return real_run_checked(argv, cwd, env, **kwargs)
+
+                    def refuse_reconcile(*args, **kwargs):
+                        reconcile_calls.append((args, kwargs))
+                        raise AssertionError(
+                            "the stop path called a reconciliation routine; plan OQ-01 resolved to "
+                            "RECORD and DEFER, because reconciling inside the stop path runs while "
+                            "the tree is least trustworthy"
+                        )
+
+                    with mock.patch.object(
+                        runner_shared, "run_checked", recording_run_checked
+                    ):
+                        with mock.patch.object(
+                            run_recovery,
+                            "reconcile_unknown_outcome",
+                            refuse_reconcile,
+                        ):
+                            with mock.patch.object(
+                                module, "reconcile_interrupted", refuse_reconcile
+                            ):
+                                # LEVEL 4: the force cut, the level whose record exists precisely
+                                # because the outcome is indeterminate.
+                                forced = module._record_forced_stop(
+                                    run_dir,
+                                    state,
+                                    item,
+                                    runner_stop.StopNowForce(
+                                        level=runner_stop.LEVEL_NOW_FORCE,
+                                        requester="operator",
+                                        events_seen=3,
+                                    ),
+                                )
+                                # LEVEL 3: the checkpoint stop, which also observes git state.
+                                observer = runner_stop.CheckpointObserver(
+                                    detector=runner_stop.is_oc_safe_checkpoint
+                                )
+                                observer.request(runner_stop.LEVEL_NOW, "operator")
+                                observer.observe(
+                                    json.dumps(
+                                        {
+                                            "type": "tool_use",
+                                            "part": {
+                                                "tool": "read",
+                                                "state": {"status": "completed"},
+                                            },
+                                        }
+                                    )
+                                )
+                                module._record_checkpoint_stop(
+                                    run_dir, state, item, observer
+                                )
+                                # LEVELS 1-2: the between-turn wind-down.
+                                for level in runner_stop.BETWEEN_TURN_LEVELS:
+                                    module._record_deliberate_stop(
+                                        run_dir,
+                                        state,
+                                        runner_stop.WindDown(
+                                            level=level,
+                                            requester="operator",
+                                            setid="rca",
+                                        ),
+                                    )
+
+                    # 1. ZERO reconciliation calls, at every level.
+                    self.assertEqual(
+                        reconcile_calls,
+                        [],
+                        f"{module.__name__}: the stop path reached a reconciliation routine "
+                        f"{len(reconcile_calls)} time(s): {reconcile_calls!r}",
+                    )
+                    # 2. Every git subcommand it DID run is read-only.
+                    subcommands = [
+                        argv[1]
+                        for argv in git_argv
+                        if len(argv) > 1 and argv[0] == "git"
+                    ]
+                    mutating = [
+                        sub
+                        for sub in subcommands
+                        if sub in self._TREE_MUTATING_GIT_SUBCOMMANDS
+                    ]
+                    self.assertEqual(
+                        mutating,
+                        [],
+                        f"{module.__name__}: the stop path ran tree-MUTATING git {mutating}; it may "
+                        f"only OBSERVE (full argv: {git_argv!r})",
+                    )
+                    self.assertEqual(
+                        set(subcommands) - self._READ_ONLY_GIT_SUBCOMMANDS,
+                        set(),
+                        f"{module.__name__}: the stop path ran git subcommand(s) "
+                        f"{sorted(set(subcommands) - self._READ_ONLY_GIT_SUBCOMMANDS)} that are not "
+                        f"on the read-only allowlist "
+                        f"{sorted(self._READ_ONLY_GIT_SUBCOMMANDS)}. If the new one really is "
+                        f"read-only, add it WITH the reason; if it mutates the tree it destroys the "
+                        f"very evidence the level-4 record exists to preserve (full argv: "
+                        f"{git_argv!r})",
+                    )
+                    # 3. It DID observe: the record carries a real git state, not an assumed one.
+                    self.assertIn(
+                        "status",
+                        subcommands,
+                        f"{module.__name__}: the stop path never observed git state at all, so the "
+                        f"level-4 record's `git_state` cannot be the tree as it actually was",
+                    )
+                    self.assertEqual(
+                        forced["git_state"].strip(),
+                        before_status.strip(),
+                        f"{module.__name__}: the recorded git state is not the tree that was "
+                        f"actually there",
+                    )
+                    self.assertTrue(forced["requires_reconciliation"])
+                    # 4. And the tree is UNCHANGED, which is the claim at its most observable.
+                    self.assertEqual(
+                        _git(repo, "status", "--porcelain"),
+                        before_status,
+                        f"{module.__name__}: the stop path CHANGED the working tree",
+                    )
+                    self.assertEqual(
+                        (repo / "README").read_text(encoding="utf-8"),
+                        before_readme,
+                        f"{module.__name__}: the stop path reverted a partial edit, destroying the "
+                        f"evidence a resume must reconcile against",
+                    )
+                    self.assertTrue(
+                        (repo / "untracked-scratch.txt").is_file(),
+                        f"{module.__name__}: the stop path removed an untracked file (a `git clean` "
+                        f"by any name)",
+                    )
 
     def test_unknown_outcome_is_not_introduced_as_a_new_item_status(self):
         # The scope fence the plan states explicitly: do NOT add `unknown_outcome` to TERMINAL_STATES.

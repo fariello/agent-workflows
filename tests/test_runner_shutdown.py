@@ -146,29 +146,133 @@ def _take_lock(run_dir: Path) -> rs.RunLockHandle:
 class SingleReaperTests(unittest.TestCase):
     """Spec R5: exactly ONE reaper implementation, which both drivers delegate to."""
 
+    #: The ONLY calls a driver's `terminate_process` may make. Anything else is either a second
+    #: reaper or a second teardown path, both forbidden by spec R5 / orchestrator CID-1.
+    _DELEGATION_ALLOWLIST = frozenset({"runner_shutdown.terminate_process"})
+
     def test_both_drivers_delegate_to_the_shared_reaper(self):
         """CID-1, repo-wide: neither driver may carry its own escalation loop.
 
-        Asserted structurally on PURPOSE here (this is the anti-duplication invariant), by
-        checking each driver's `terminate_process` body calls into `runner_shutdown` and does
-        not itself signal. The behavioral proof that the reaper works lives in the R1 tests.
+        THREE assertions, because no one of them alone establishes the claim (a text search for
+        `runner_shutdown.terminate_process` establishes NONE of them - a comment satisfies it).
+
+        1. IDENTITY. Each driver's `runner_shutdown` is THIS module, so "delegates" cannot be
+           satisfied by a local shim that merely shares the name.
+        2. BEHAVIOR, in both directions, driven against a REAL signal-ignoring child:
+           a. the shared reaper is REACHED - a spy records exactly one call carrying that child and
+              the driver's own grace constants; and
+           b. the driver's body does NO SIGNALLING ITSELF - the spy is a NO-OP, so if the driver
+              had its own escalation the child would be dead when it returns. It must be ALIVE.
+              That is what the old `assertNotIn("killpg"/"SIGKILL"/"send_signal")` was reaching
+              for, and it is strictly stronger: a driver signalling through any spelling
+              (`os.killpg`, an aliased import, a helper) fails here, and a driver merely
+              DISCUSSING SIGKILL in a comment does not.
+        3. AST, over each driver's `terminate_process` body: the set of calls it makes must be a
+           SUBSET of one explicit allowlist. Behavior alone cannot establish this, because a
+           second reaper hidden on a branch no test enters (a platform fallback, an
+           `if process.poll() is None:` arm) would still satisfy 2. A comment cannot add a Call
+           node, so this is not a text search.
+
+        WHICH ARMS THE MUTATION TESTING ACTUALLY KILLED, recorded so the next reader does not
+        overrate 2b. A `killpg(SIGKILL)` inserted before the delegation was caught by 3; hardcoded
+        grace values were caught by 2a; replacing the delegation with a local
+        `send_signal`/`terminate` ladder was caught by 2a AND 3. No mutation was found that 2b
+        catches ALONE, because in Python a kill needs a Call node and arm 3 sees every one of them
+        (including through an alias, whose unparsed name is simply not on the allowlist). 2b is
+        therefore DEFENSE IN DEPTH against a future widening of the allowlist, kept because it
+        costs one `poll()` and states the invariant in observable terms.
         """
 
+        import ast
         import inspect
+        import textwrap
 
+        # 1. IDENTITY.
         for mod in (oc, agy):
-            src = inspect.getsource(mod.terminate_process)
-            self.assertIn(
-                "runner_shutdown.terminate_process",
-                src,
-                f"{mod.__name__}.terminate_process must delegate to the shared reaper",
+            self.assertIs(
+                mod.runner_shutdown,
+                rs,
+                f"{mod.__name__} must delegate to THE shared runner_shutdown, not a namesake",
             )
-            for banned in ("killpg", "SIGKILL", "send_signal"):
-                self.assertNotIn(
-                    banned,
-                    src,
-                    f"{mod.__name__}.terminate_process must not re-implement signalling",
+
+        # 2. BEHAVIOR.
+        for mod in (oc, agy):
+            with self.subTest(driver=mod.__name__):
+                calls: list[tuple[subprocess.Popen, float | None, float | None]] = []
+
+                def noop_spy(process, *, sigint_grace=None, sigterm_grace=None):
+                    calls.append((process, sigint_grace, sigterm_grace))
+
+                proc = subprocess.Popen(
+                    [sys.executable, "-c", _STUBBORN_CHILD],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    start_new_session=True,
                 )
+                assert proc.stdout is not None
+                self.assertEqual(proc.stdout.readline().strip(), "up")
+                real = rs.terminate_process
+                rs.terminate_process = noop_spy  # type: ignore[assignment]
+                try:
+                    mod.terminate_process(proc)
+                finally:
+                    rs.terminate_process = real  # type: ignore[assignment]
+
+                try:
+                    # 2a: the shared reaper was reached, exactly once, with THIS child and this
+                    # driver's own grace constants (so the delegation is real, not decorative).
+                    self.assertEqual(
+                        [(p is proc, si, st) for p, si, st in calls],
+                        [
+                            (
+                                True,
+                                mod._SIGINT_GRACE_SECONDS,
+                                mod._SIGTERM_GRACE_SECONDS,
+                            )
+                        ],
+                        f"{mod.__name__}.terminate_process must call the shared reaper exactly "
+                        f"once, passing the child and its own grace constants; recorded {calls!r}",
+                    )
+                    # 2b: with the reaper stubbed out, NOTHING reaped the child - so the driver
+                    # performs no signalling of its own.
+                    #
+                    # `poll()`, NOT `_pid_alive()`: measured while mutation-testing this very
+                    # assertion. A driver mutated to `os.killpg(..., SIGKILL)` before delegating
+                    # DID kill the child, yet `_pid_alive` still returned True, because the corpse
+                    # is a ZOMBIE until its parent waits and `os.kill(pid, 0)` succeeds on a
+                    # zombie. `poll()` reaps and reports the exit status, so it distinguishes
+                    # "running" from "dead but unreaped", which is the distinction this arm needs.
+                    time.sleep(0.3)
+                    self.assertIsNone(
+                        proc.poll(),
+                        f"{mod.__name__}.terminate_process terminated pid {proc.pid} (exit "
+                        f"{proc.returncode}) with the shared reaper stubbed out: it carries its "
+                        f"own escalation (spec R5 forbids a second reaper)",
+                    )
+                finally:
+                    with contextlib.suppress(Exception):
+                        rs.terminate_process(proc, sigint_grace=0.2, sigterm_grace=0.2)
+                    _wait_gone(proc.pid)
+
+        # 3. AST.
+        for mod in (oc, agy):
+            body = ast.parse(
+                textwrap.dedent(inspect.getsource(mod.terminate_process))
+            ).body[0]
+            made = {
+                ast.unparse(node.func)
+                for node in ast.walk(body)
+                if isinstance(node, ast.Call)
+            }
+            self.assertEqual(
+                made - self._DELEGATION_ALLOWLIST,
+                set(),
+                f"{mod.__name__}.terminate_process calls "
+                f"{sorted(made - self._DELEGATION_ALLOWLIST)}, which is outside the allowlist "
+                f"{sorted(self._DELEGATION_ALLOWLIST)}. It must ONLY delegate; the escalation "
+                f"ladder lives once, in runner_shutdown.terminate_process (spec R5).",
+            )
 
     def test_driver_grace_constants_are_honored_through_the_delegation(self):
         """A test tuning the driver's module constants must still affect the shared reaper."""

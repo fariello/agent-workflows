@@ -41,8 +41,9 @@ before/after co-update PAIR whose whole content is that the answer CHANGES betwe
 
 from __future__ import annotations
 
+import ast
 import collections
-import inspect
+import contextlib
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -722,14 +723,100 @@ class MismatchNarrowingTests(unittest.TestCase):
         )
 
     def test_narrowing_uses_the_shipped_terminal_predicate(self):
-        """Kept separate: the subject is the FUNCTION'S SOURCE, not a repository state.
+        """The narrowing's terminal verdict must COME FROM the shipped `is_retired`, observed.
 
-        Per the ruling, terminal classification must reuse the shipped `is_retired` rather than a
-        fresh path test. No fixture row can state that, since every fixture would pass against a
-        hand-rolled duplicate.
+        REPLACES A SOURCE-TEXT PIN that asserted `"is_retired("` appeared in
+        `check_release_gate_consistency`'s source. Its own docstring claimed no fixture row could
+        state the property "since every fixture would pass against a hand-rolled duplicate", and
+        that reasoning is what was wrong: a fixture cannot distinguish the two, but a SPY can. The
+        pin meanwhile matched a comment mentioning the name and broke on a rename, and could not
+        tell a real call from a dead one.
+
+        Three observations, none of which a duplicate predicate can satisfy:
+          1. `is_retired` is patched to a SPY and must actually be CALLED with the carrier's path;
+          2. forced to answer True, a LIVE `pending/to-review` carrier must stop being flagged, so
+             the verdict is genuinely taken FROM the predicate; and
+          3. forced to answer False, an `executed/` carrier must START being flagged, so no private
+             path test is quietly shadowing it.
+        Rows (2) and (3) are inverses on purpose: together they pin the verdict's SOURCE rather than
+        its value, which is the actual content of the ruling.
         """
-        src = inspect.getsource(check_engine.check_release_gate_consistency)
-        self.assertIn("is_retired(", src)
+        real_is_retired = check_engine.is_retired
+        seen_paths = []
+
+        def spy(path, record_type="", _real=real_is_retired):
+            seen_paths.append(Path(path))
+            return _real(path, record_type)
+
+        def always_terminal(path, record_type=""):
+            return True
+
+        def never_terminal(path, record_type=""):
+            return False
+
+        try:
+            # (1) CALLED, with the carrier's own path.
+            check_engine.is_retired = spy  # type: ignore[assignment]
+            with TemporaryDirectory() as td:
+                root = Path(td)
+                _item(root, "narr01", status="graduated", work_kind="bug", gate="next")
+                carrier = _plan(
+                    root, "pnar01", "narr01", gate=None, disposition="pending"
+                )
+                self.assertEqual(
+                    _rules(check_engine.check_release_gate_consistency(root)),
+                    [MISMATCH],
+                    "sanity: an ungated live carrier under a gated item must be flagged",
+                )
+            self.assertIn(
+                carrier,
+                seen_paths,
+                "the shipped `is_retired` was never asked about the carrier, so the narrowing is "
+                f"deciding terminality some other way (it asked about: {seen_paths!r})",
+            )
+
+            # (2) FORCED TERMINAL: the SAME live carrier must stop being flagged.
+            check_engine.is_retired = always_terminal  # type: ignore[assignment]
+            with TemporaryDirectory() as td:
+                root = Path(td)
+                _item(root, "narr02", status="graduated", work_kind="bug", gate="next")
+                _plan(root, "pnar02", "narr02", gate=None, disposition="pending")
+                forced_terminal = _rules(
+                    check_engine.check_release_gate_consistency(root)
+                )
+            self.assertEqual(
+                forced_terminal,
+                [],
+                "with the shipped predicate forced to report TERMINAL, a `pending/` carrier was "
+                "still flagged: the narrowing is not taking its verdict from `is_retired` (a "
+                "hand-rolled path test would behave exactly like this, which is what the ruling "
+                "forbids)",
+            )
+
+            # (3) FORCED LIVE: an `executed/` carrier must START being flagged, proving no private
+            # path test survives beside the shared predicate.
+            check_engine.is_retired = never_terminal  # type: ignore[assignment]
+            with TemporaryDirectory() as td:
+                root = Path(td)
+                _item(root, "narr03", status="graduated", work_kind="bug", gate="next")
+                _plan(
+                    root,
+                    "pnar03",
+                    "narr03",
+                    gate=None,
+                    disposition="executed",
+                    status="executed",
+                )
+                forced_live = _rules(check_engine.check_release_gate_consistency(root))
+            self.assertEqual(
+                forced_live,
+                [MISMATCH],
+                "with the shipped predicate forced to report LIVE, an `executed/` carrier was still "
+                "skipped: something OTHER than `is_retired` is also classifying terminality, so the "
+                "two can drift and the ruling's single owner is not single",
+            )
+        finally:
+            check_engine.is_retired = real_is_retired  # type: ignore[assignment]
 
 
 class LiveBugGateSeamTests(unittest.TestCase):
@@ -1020,80 +1107,232 @@ class LiveBugGateReuseTests(unittest.TestCase):
     the wrong design in place. These assert the reuse that actually matters.
     """
 
-    #: (the function, tokens whose PRESENCE is required, tokens whose ABSENCE is required, why this
-    #: row exists)
+    #: (case, the consumer under test, the shared definition it must consume, how to SABOTAGE that
+    #: definition, the fixture to build, the rules the consumer must report while sabotaged, why
+    #: this row exists)
+    #:
+    #: REPLACES A SOURCE-TEXT TABLE that asserted each consumer's source CONTAINED tokens like
+    #: `"_from_backlog_carrier_index"`, `"_backlog.STATUSES"` and `"GATE_DEFAULT_KINDS"` and did NOT
+    #: contain `"_iter_plan_ipds"`. Both halves were unsound. The presence half was satisfied by a
+    #: COMMENT or a docstring naming the helper - and this module's docstrings name every one of
+    #: those symbols in order to explain the design - so a consumer that mentioned the shared index
+    #: and then walked the tree itself passed. The absence half was a claim about ONE spelling: a
+    #: private walk written with `rglob`, with `_iter_type_files`, or through a local alias contained
+    #: none of the forbidden tokens. And a rename of any shared symbol broke every row while the
+    #: behavior was untouched.
+    #:
+    #: Replaced by SABOTAGE. Each row replaces the shared definition with a sentinel that would give
+    #: a DIFFERENT answer, then drives the real consumer and demands the sentinel's answer come out.
+    #: A consumer holding a private copy is unaffected by the sabotage and therefore reports the
+    #: ORIGINAL answer, which fails the row. That is the sharing claim stated as behavior: not "the
+    #: name appears" but "the definition is load-bearing".
     REUSE = (
         (
-            check_engine.check_live_bug_gate,
-            (
-                "_from_backlog_carrier_index",
-                "_backlog.STATUSES",
-                "_GATE_DEFAULT_SKIP_STATUSES",
-                "GATE_DEFAULT_KINDS",
-            ),
-            ("_iter_plan_ipds", "_iter_spec_records"),
-            "THE NEW PREDICATE, which must fork NEITHER definition. The carrier index owns what "
-            "counts as a handoff; `STATUSES` minus `_GATE_DEFAULT_SKIP_STATUSES` owns what counts "
-            "as LIVE, and deriving it that way is what keeps the CHECKER and the creation DEFAULT "
-            "teaching one rule instead of two. A fourth hardcoded status list here is how the "
-            "setter and the checker silently disagree",
+            "the live-bug predicate's CARRIER definition",
+            "check_live_bug_gate",
+            "_from_backlog_carrier_index",
+            "index",
+            ("ungated-live-bug",),
+            (),
+            "THE HANDOFF EXEMPTION, and the row that shows the index is genuinely consulted: the "
+            "sentinel index claims a GATED carrier for this item, so a consumer that reads the "
+            "shared index must fall silent. One that walks the tree itself finds no carrier and "
+            "flags the item, which is how a forked notion of `what counts as a carrier` makes a "
+            "correctly-handed-off bug get flagged forever until people learn to ignore the rule",
         ),
         (
-            check_engine.check_release_gate_consistency,
-            ("_from_backlog_carrier_index",),
-            ("_iter_plan_ipds", "_iter_spec_records"),
-            "THE OTHER CONSUMER, and the row that makes this a SHARING claim rather than a spelling "
-            "check: with only the row above, both functions could each own a private walk and the "
-            "test would pass. This one does not assert the status vocabulary, because the mismatch "
-            "rule legitimately has no live-status opinion; it compares gate VALUES",
+            "the mismatch rule's CARRIER definition",
+            "check_release_gate_consistency",
+            "_from_backlog_carrier_index",
+            "index",
+            ("gated-item-with-ungated-live-carrier",),
+            (),
+            "THE OTHER CONSUMER, and the row that makes this a SHARING claim rather than a "
+            "one-function claim: with only the row above, each function could own a private walk "
+            "and both rows would still pass. The sentinel index here reports a carrier whose gate "
+            "MATCHES, so the mismatch rule must stop firing; a private walk still sees the real "
+            "ungated carrier and still flags it",
+        ),
+        (
+            "the live-bug predicate's LIVE-STATUS vocabulary",
+            "check_live_bug_gate",
+            "backlog._GATE_DEFAULT_SKIP_STATUSES",
+            "skip-statuses",
+            ("ungated-live-bug",),
+            (),
+            "LIVE IS DERIVED (`STATUSES` minus the skip set) rather than hardcoded, and this is "
+            "the subtler fork of the two: the CHECKER and `aw backlog new`'s gate DEFAULT read the "
+            "same set, so a fourth private status list makes them teach different rules while "
+            "neither looks wrong on its own. With `graduated` added to the skip set, a graduated "
+            "item must stop being flagged",
+        ),
+        (
+            "the live-bug predicate's GATING WORK-KIND set",
+            "check_live_bug_gate",
+            "backlog.GATE_DEFAULT_KINDS",
+            "kinds",
+            ("ungated-live-bug",),
+            (),
+            "`bug` is the only gating kind TODAY and widening that set is designed but unbuilt "
+            "(backlog `0htqmm`), so the set must be read rather than spelled. Sabotaged to "
+            "`{'chore'}`, a `bug` item must stop being flagged - and a consumer comparing against "
+            'a literal `"bug"` would keep flagging it and silently ignore the configured set',
         ),
     )
 
+    #: The fixtures the rows above name. Each returns the id6 of the item under test, so a row's
+    #: sentinel can be keyed to it.
+    @staticmethod
+    def _build_fixture(root: Path, kind: str, id6: str) -> None:
+        if kind == "ungated-live-bug":
+            _item(root, id6, status="graduated", work_kind="bug", gate=None)
+        elif kind == "gated-item-with-ungated-live-carrier":
+            _item(root, id6, status="graduated", work_kind="bug", gate="next")
+            _plan(root, "p" + id6[1:], id6, gate=None, disposition="pending")
+        else:  # pragma: no cover - a typo in the table, not a product state
+            raise AssertionError(f"unknown fixture {kind!r}")
+
     def test_neither_consumer_forks_the_shared_definitions(self):
         wrong = []
-        for fn, required, forbidden, why in self.REUSE:
-            src = inspect.getsource(fn)
+        for case, consumer, definition, sabotage, fixtures, expected, why in self.REUSE:
+            id6 = "s%05d" % self.REUSE.index(
+                (case, consumer, definition, sabotage, fixtures, expected, why)
+            )
+            fn = getattr(check_engine, consumer)
             problems = []
-            missing = [t for t in required if t not in src]
-            if missing:
+
+            # BASELINE FIRST, unsabotaged: the row must be a state the consumer actually reacts to,
+            # or the sabotaged result below proves nothing (a consumer that reports nothing under
+            # every condition would otherwise satisfy every row).
+            with TemporaryDirectory() as td:
+                root = Path(td)
+                for fixture in fixtures:
+                    self._build_fixture(root, fixture, id6)
+                baseline = _rules(fn(root))
+            if not baseline:
                 problems.append(
-                    f"does not consume {missing!r}, so it has forked a definition that must have "
-                    "exactly one owner"
+                    "the UNSABOTAGED fixture produced no finding at all, so this row cannot "
+                    "distinguish a shared definition from a private one; the fixture no longer "
+                    "describes a state the consumer reacts to"
                 )
-            present = [t for t in forbidden if t in src]
-            if present:
+
+            with self._sabotage(sabotage, id6):
+                with TemporaryDirectory() as td:
+                    root = Path(td)
+                    for fixture in fixtures:
+                        self._build_fixture(root, fixture, id6)
+                    sabotaged = _rules(fn(root))
+            if sabotaged != list(expected):
                 problems.append(
-                    f"re-derives the carrier set with {present!r} instead of using the shared "
-                    "index, so the two consumers can now disagree about what a carrier is"
+                    f"with `{definition}` replaced by a sentinel, {consumer} reported "
+                    f"{sabotaged!r} where the sentinel's answer is {list(expected)!r}; the "
+                    "sabotage had no effect, so this consumer is NOT reading the shared definition"
                 )
+
             if problems:
                 wrong.append(
-                    f"  {fn.__name__}:\n"
+                    f"  {case} ({consumer} vs {definition})\n"
                     + "".join(f"    - {p}\n" for p in problems)
                     + f"    this row exists because: {why}"
                 )
         self.assertEqual(
             wrong,
             [],
-            f"{len(wrong)} of {len(self.REUSE)} consumers forked a shared definition. The claim is "
-            "that `_from_backlog_carrier_index` is the ONE definition of a handoff carrier and that "
-            "the live-status set is DERIVED, so read the grouping: BOTH rows losing the index means "
-            "it was inlined or renamed (update the tokens if renamed), while ONE row losing it "
-            "means that consumer grew a private walk and the two rules will drift on what counts as "
-            "a carrier. FIX: a forked LIVE-status list is the subtler half, because the checker and "
-            "`aw backlog new`'s gate default would then teach different rules and neither would "
-            f"look wrong on its own.\n" + "\n".join(wrong),
+            f"{len(wrong)} of {len(self.REUSE)} consumers failed to consume a shared definition. The "
+            "claim is that `_from_backlog_carrier_index` is the ONE definition of a handoff carrier "
+            "and that the live-status and gating-kind sets are DERIVED from `backlog`, so read the "
+            "grouping: BOTH carrier rows failing means the index was inlined or bypassed and the two "
+            "rules can now disagree about what a handoff is; ONE failing means that consumer alone "
+            "grew a private walk; and a VOCABULARY row failing means the checker and `aw backlog "
+            "new`'s gate default now teach different rules, which is the fork neither side looks "
+            "wrong for. FIX: a row reporting its fixture produced NO baseline finding is a broken "
+            "TEST rather than a broken product - repair the fixture before reading the rest.\n"
+            + "\n".join(wrong),
         )
 
-    def test_no_second_copy_of_the_blocks_release_regex(self):
-        """Kept separate: the subject is the whole MODULE FILE and the claim is a COUNT.
+    @contextlib.contextmanager
+    def _sabotage(self, which: str, id6: str):
+        """Replace ONE shared definition with a sentinel that answers differently, then restore.
 
-        Every row above reads ONE function's source and asks about containment. This asks how many
-        times the compiled `- Blocks-Release:` pattern is written anywhere in the module, which no
-        per-function containment row can express.
+        The sentinel is always a value the consumer CANNOT have hardcoded (a carrier at a path that
+        does not exist, a status set including `graduated`, a kind set without `bug`), so a consumer
+        that is genuinely reading the definition produces a visibly different answer while one
+        holding a private copy produces the original.
         """
-        src = Path(check_engine.__file__).read_text(encoding="utf-8")
-        self.assertEqual(src.count('r"(?m)^- Blocks-Release:'), 1)
+        from agent_workflows import backlog as _backlog
+
+        if which == "index":
+            real = check_engine._from_backlog_carrier_index
+            check_engine._from_backlog_carrier_index = lambda root: {  # type: ignore[assignment]
+                id6: [(Path(root) / "sentinel" / "carrier.ipd.md", "next")]
+            }
+            try:
+                yield
+            finally:
+                check_engine._from_backlog_carrier_index = real  # type: ignore[assignment]
+        elif which == "skip-statuses":
+            real_skip = _backlog._GATE_DEFAULT_SKIP_STATUSES
+            _backlog._GATE_DEFAULT_SKIP_STATUSES = frozenset(  # type: ignore[assignment]
+                {*real_skip, "graduated"}
+            )
+            try:
+                yield
+            finally:
+                _backlog._GATE_DEFAULT_SKIP_STATUSES = real_skip  # type: ignore[assignment]
+        elif which == "kinds":
+            real_kinds = _backlog.GATE_DEFAULT_KINDS
+            _backlog.GATE_DEFAULT_KINDS = frozenset({"chore"})  # type: ignore[assignment]
+            try:
+                yield
+            finally:
+                _backlog.GATE_DEFAULT_KINDS = real_kinds  # type: ignore[assignment]
+        else:  # pragma: no cover - a typo in the table, not a product state
+            raise AssertionError(f"unknown sabotage {which!r}")
+
+    def test_no_second_copy_of_the_blocks_release_regex(self):
+        """Exactly ONE compiled `- Blocks-Release:` pattern exists in the module (AST, not text).
+
+        KEPT AS A STRUCTURAL CHECK AND CONVERTED FROM TEXT TO AST. The claim is the NON-EXISTENCE of
+        a second definition anywhere in a 6000-line module, so there is no behavior to drive: two
+        identical patterns behave identically until one of them is edited, which is precisely the
+        drift this guards and precisely what no test can observe before it happens.
+
+        The TEXT form it replaces counted the literal `'r"(?m)^- Blocks-Release:'` in the file and
+        demanded exactly 1. That is satisfiable and breakable by prose: a comment or docstring
+        quoting the pattern (this module documents its metadata grammar) pushed the count to 2 with
+        nothing duplicated, while a genuine second copy written with different flags, a different
+        quote style, or an f-string contributed 0 and passed. The AST form counts the ARGUMENTS OF
+        REAL `re.compile` CALLS, so a comment cannot contribute one and a rewriting cannot hide one.
+        """
+        tree = ast.parse(Path(check_engine.__file__).read_text(encoding="utf-8"))
+        compiled = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            name = (
+                func.attr
+                if isinstance(func, ast.Attribute)
+                else func.id
+                if isinstance(func, ast.Name)
+                else ""
+            )
+            if name != "compile" or not node.args:
+                continue
+            first = node.args[0]
+            if isinstance(first, ast.Constant) and isinstance(first.value, str):
+                if "- Blocks-Release:" in first.value:
+                    compiled.append((node.lineno, first.value))
+        self.assertEqual(
+            len(compiled),
+            1,
+            f"expected exactly 1 compiled `- Blocks-Release:` pattern in check_engine, found "
+            f"{len(compiled)}: {compiled!r}. MORE than one is the fork itself - two copies of a "
+            "metadata grammar drift the moment one is edited, and the rules reading them then "
+            "disagree about whether an artifact carries a gate at all. ZERO means the shared "
+            "pattern was renamed, moved, or built some other way; find it and update this check "
+            "rather than deleting it.",
+        )
 
     def test_the_live_set_agrees_with_the_creation_default(self):
         """Kept separate: asserts over shared VOCABULARY SETS, with no repository and no rule.

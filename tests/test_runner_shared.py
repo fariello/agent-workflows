@@ -39,6 +39,8 @@ from __future__ import annotations
 
 import ast
 import builtins
+import contextlib
+import io
 import json
 import pathlib
 import re
@@ -3714,25 +3716,105 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
                 )
 
     def test_the_prompt_predicate_is_the_SHIPPED_one_not_a_second_TTY_test(self):
-        """`is_interactive_run` already encodes both halves (a real TTY AND no `--unattended`)."""
-        import argparse
-        import inspect
+        """`is_interactive_run` already encodes both halves (a real TTY AND no `--unattended`).
 
-        source = inspect.getsource(oc_runipd.retry_deferred_integrations)
-        self.assertIn("is_interactive_run", source)
-        self.assertIn(
-            "is_interactive_run",
-            inspect.getsource(agy_runipd.retry_deferred_integrations),
-        )
+        REPLACES A SOURCE-TEXT PIN. It read `inspect.getsource(retry_deferred_integrations)` on each
+        host and asserted the substring `"is_interactive_run"` appeared. That is a change-detector in
+        both directions: this adapter's own DOCSTRING and the comment above the call both name the
+        predicate (the comment exists precisely to explain that the shared ladder resolves it), so the
+        pin was satisfied by prose and would have stayed green with the call deleted; and a host that
+        reached the predicate through an alias or a local re-export would have failed it while
+        behaving correctly.
+
+        WHAT REPLACES IT IS A SENTINEL THAT MUST TRAVEL. `is_interactive_run` is replaced by one
+        returning a unique OBJECT, and the shared ladder is replaced by a spy recording the
+        `interactive=` keyword it receives. Driving each host's real adapter must then deliver THAT
+        OBJECT to the ladder. A second TTY test cannot produce it (it would deliver a plain bool), a
+        comment cannot produce it, and neither can a host that computes interactivity itself.
+
+        The `--unattended` half is asserted on the shipped predicate directly, because that is the
+        property the hosts are DELEGATING to: a real TTY is not enough when the operator declared
+        nobody is watching.
+        """
+        import argparse
 
         class _TTY:
             def isatty(self):
                 return True
 
+        # The shipped predicate's own contract: a real terminal does NOT make an `--unattended` run
+        # interactive. This is what a host-local `stream.isatty()` test would get wrong.
         self.assertFalse(
             runner_shared.is_interactive_run(
                 argparse.Namespace(unattended=True, full_auto=False), stream=_TTY()
             )
+        )
+        # THE POSITIVE ROW, without which the assertion above is satisfied by a predicate that always
+        # refuses. `sys.stdin` must be patched too: the predicate requires BOTH streams to be terminals,
+        # and under pytest stdin is captured, so the negative row alone would pass for the wrong reason.
+        with mock.patch.object(runner_shared.sys, "stdin", _TTY()):
+            self.assertTrue(
+                runner_shared.is_interactive_run(
+                    argparse.Namespace(unattended=False, full_auto=False), stream=_TTY()
+                ),
+                "with both streams real terminals and no policy flag, the predicate must permit a "
+                "prompt; a gate that can never prompt is indistinguishable from one that always "
+                "refuses",
+            )
+            self.assertFalse(
+                runner_shared.is_interactive_run(
+                    argparse.Namespace(unattended=True, full_auto=False), stream=_TTY()
+                ),
+                "and `--unattended` must still win over TWO real terminals, which is the half a "
+                "host-local `stream.isatty()` test gets wrong",
+            )
+
+        sentinel = object()
+        wrong = []
+        for module in (oc_runipd, agy_runipd):
+            seen: dict = {}
+
+            # `seen` is bound as a DEFAULT, not closed over: the loop variable would late-bind and
+            # make each host assert about the last one's call.
+            def _spy(_sink=seen, **kwargs):
+                _sink.update(kwargs)
+                return []
+
+            with (
+                mock.patch.object(
+                    runner_shared, "is_interactive_run", lambda *a, **k: sentinel
+                ),
+                mock.patch.object(
+                    runner_shared, "reattempt_deferred_integrations", _spy
+                ),
+                tempfile.TemporaryDirectory() as td,
+            ):
+                module.retry_deferred_integrations(
+                    pathlib.Path(td) / "run",
+                    {"repo": td, "queue": [], "options": {"unattended": True}},
+                )
+            if "interactive" not in seen:
+                wrong.append(
+                    f"  {module.__name__}: the shared ladder was never reached, so this host cannot "
+                    "be delegating the interactive decision to it at all"
+                )
+            elif seen["interactive"] is not sentinel:
+                wrong.append(
+                    f"  {module.__name__}: the ladder received interactive="
+                    f"{seen['interactive']!r}, not the patched predicate's sentinel. This host "
+                    "computes interactivity ITSELF rather than calling the shipped "
+                    "`is_interactive_run`, so it carries a SECOND TTY test that is free to forget "
+                    "`--unattended` and stop an overnight run on a question nobody will see"
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"{len(wrong)} of 2 hosts do not delegate the prompt predicate. A failure on ONE host is "
+            "the asymmetry this class exists for: the two adapters are separate code and only the "
+            "ladder is shared, so one host can grow its own TTY test while the other stays correct. "
+            "FIX: pass `interactive=runner_shared.is_interactive_run(...)` into "
+            "`reattempt_deferred_integrations` rather than testing a stream locally.\n"
+            + "\n".join(wrong),
         )
 
     # ---- OQ-03: a run must not END on a non-terminal status ---------------------------------------
@@ -3929,16 +4011,154 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
                     set(),
                 )
 
-    def test_retry_incomplete_re_queues_a_deferred_item_on_both_hosts(self):
-        """A deferral can outlive its run (an interrupt between deferring and the next iteration)."""
-        import inspect
+    # ---- driving a REAL `run_queue`, which is what the two pins below replaced text with ----------
 
+    @staticmethod
+    def _dispatch_repo(root: pathlib.Path) -> pathlib.Path:
+        """A throwaway git repo. FIXTURES ONLY: `run_queue` reads `state["repo"]` and runs git in it."""
+        import subprocess
+
+        repo = root / "repo"
+        repo.mkdir(parents=True)
+        for cmd in (
+            ["git", "init", "-q", "-b", "main"],
+            ["git", "config", "user.email", "test@example.invalid"],
+            ["git", "config", "user.name", "Test"],
+        ):
+            subprocess.run(cmd, cwd=repo, check=True)
+        (repo / "a.txt").write_text("a\n", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+        return repo
+
+    @classmethod
+    def _dispatch_run(
+        cls, root: pathlib.Path, repo: pathlib.Path, statuses: tuple[str, ...]
+    ) -> pathlib.Path:
+        run_dir = root / "run-dispatch"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "state.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "run_id": "run-dispatch",
+                    "repo": str(repo),
+                    "created_at": "2026-01-01T00:00:00+00:00",
+                    "updated_at": "2026-01-01T00:00:00+00:00",
+                    "selectors": ["s"],
+                    "options": {},
+                    "set_sessions": {},
+                    "queue": [
+                        {
+                            "position": index + 1,
+                            "id6": "aaa{0}".format(111 * (index + 1)),
+                            "setid": "s",
+                            "action": "execute",
+                            "kind": "child",
+                            "status": status,
+                            "dependencies": [],
+                            "attempts": [{}],
+                            "configured_file": "",
+                        }
+                        for index, status in enumerate(statuses)
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return run_dir
+
+    def test_retry_incomplete_re_queues_a_deferred_item_on_both_hosts(self):
+        """A deferral can outlive its run (an interrupt between deferring and the next iteration).
+
+        REPLACES A SOURCE-TEXT PIN. It read `inspect.getsource(module.run_queue)` and asserted the
+        literal `'"integration-deferred"'` appeared somewhere in it. That is a change-detector in both
+        directions: `run_queue` carries a long COMMENT explaining exactly this rule (it names the
+        status in prose so a later reader does not delete it from the requeue set), so the pin was
+        satisfied by that comment and would have stayed green with the status removed from the set;
+        and it said nothing about the requeue actually HAPPENING, since the same literal appears in
+        `reconcile_disposition`'s neighbourhood and in the event vocabulary.
+
+        WHAT REPLACES IT DRIVES THE REQUEUE. A real `run_queue(retry_incomplete=True)` is driven over
+        a queue holding ONE `integration-deferred` item with the agent turn stubbed, and the item must
+        actually be dispatched (so the flip to `queued` happened) and must carry
+        `requeue_from_status == "integration-deferred"` (so the prior disposition was REMEMBERED, which
+        is what the integration pass and E-04's hold-back read). A comment cannot dispatch an item.
+
+        THE CONTROL ROW IS LOAD-BEARING: the same fixture with `retry_incomplete=False` must dispatch
+        NOTHING, so this cannot pass by the loop having started admitting deferred items unconditionally.
+        """
+        wrong = []
         for module in (oc_runipd, agy_runipd):
-            with self.subTest(host=module.__name__):
-                self.assertIn(
-                    '"integration-deferred"',
-                    inspect.getsource(module.run_queue),
-                )
+            for retry, expect_turn in ((True, True), (False, False)):
+                turns: list = []
+
+                # Both `turns` and `module` are bound as DEFAULTS rather than closed over: a closure
+                # over these loop variables late-binds, and every iteration would then record into the
+                # LAST cell's list through the LAST host's `save_state`.
+                def _fake_execute(
+                    run_dir, state, item, *_a, _log=turns, _host=module, **_k
+                ):
+                    _log.append((item.get("id6"), item.get("requeue_from_status")))
+                    item["status"] = "executed"
+                    _host.save_state(run_dir, state)
+
+                with tempfile.TemporaryDirectory() as td:
+                    root = pathlib.Path(td)
+                    repo = self._dispatch_repo(root)
+                    run_dir = self._dispatch_run(
+                        root, repo, (runner_shared.INTEGRATION_DEFERRED_STATUS,)
+                    )
+                    with (
+                        mock.patch.object(module, "execute_item", _fake_execute),
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()),
+                    ):
+                        module.run_queue(run_dir, retry_incomplete=retry)
+                    final = runner_shared.load_state(run_dir)["queue"][0]
+
+                if bool(turns) is not expect_turn:
+                    wrong.append(
+                        f"  {module.__name__} with retry_incomplete={retry}: dispatched "
+                        f"{len(turns)} turn(s), expected {'one' if expect_turn else 'none'}\n"
+                        "    this row exists because: "
+                        + (
+                            "a deferral that outlived its run must be pickable up by a resume, or "
+                            "verified work is stranded for good; the ladder only runs inside a LIVE "
+                            "dispatch loop, so a resume needs this requeue"
+                            if expect_turn
+                            else "without `--retry-incomplete` a deferred item must be left alone, "
+                            "or the flag means nothing and every resume silently re-runs work whose "
+                            "integration was refused"
+                        )
+                    )
+                elif expect_turn and turns[0][1] != (
+                    runner_shared.INTEGRATION_DEFERRED_STATUS
+                ):
+                    wrong.append(
+                        f"  {module.__name__}: the requeued item reached its turn with "
+                        f"requeue_from_status={turns[0][1]!r}, expected "
+                        f"{runner_shared.INTEGRATION_DEFERRED_STATUS!r}\n"
+                        "    this row exists because: the flip to `queued` OVERWRITES the prior "
+                        "disposition, and the integration pass plus E-04's hold-back select on this "
+                        "recorded value; losing it makes the pass unable to tell a deferred lane from "
+                        "an ordinary retry"
+                    )
+                elif expect_turn and final["status"] != "executed":
+                    wrong.append(
+                        f"  {module.__name__}: the requeued item ended {final['status']!r} rather "
+                        "than reaching a real turn's outcome"
+                    )
+        self.assertEqual(
+            wrong,
+            [],
+            f"{len(wrong)} of {2 * 2} (host, flag) cells mishandle a deferral surviving its run. A "
+            "failure on ONE host is the asymmetry this class exists for: the two `run_queue` bodies "
+            "are separate code and only the ladder is shared. FIX: `integration-deferred` belongs in "
+            "the `retry_incomplete` requeue status set in each host's `run_queue`, and the flip must "
+            f"record `requeue_from_status` before overwriting `status`.\n"
+            + "\n".join(wrong),
+        )
 
     # ---- the ladder is ONE implementation, not two -----------------------------------------------
 
@@ -3968,17 +4188,113 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
                     self.assertNotIn(name, defined)
 
     def test_both_hosts_reach_the_ladder_from_their_dispatch_loop(self):
-        """A shared ladder nothing CALLS is the dead-gate failure this repository has already paid for."""
-        import inspect
+        """A shared ladder nothing CALLS is the dead-gate failure this repository has already paid for.
 
+        REPLACES FOUR SOURCE-TEXT PINS. It read `inspect.getsource(module.run_queue)` and asserted the
+        substrings `"retry_deferred_integrations"`, `"deferred_integration_items"`,
+        `"runnable is None"` and `"poll=True"` appeared. Every one is a change-detector: `run_queue`
+        carries a ten-line COMMENT block that names the ladder, names the trigger, and explains why
+        `poll=True` is passed exactly where it is, so all four were satisfied by prose alone and the
+        whole ladder could have been deleted while this test stayed green. That is the dead-gate
+        failure the docstring names, reproduced in the very test written to prevent it. The
+        `"runnable is None"` pin is the worst of the four: it asserts a SPELLING of a condition, so
+        rewriting it as `if not runnable:` would fail a test about behavior.
+
+        WHAT REPLACES THEM IS AN OBSERVED CALL SEQUENCE, on both hosts. Each host's
+        `retry_deferred_integrations` adapter is replaced by a spy that records the `poll`/`ask`
+        keywords it receives, and a real `run_queue` is driven over a queue of THREE deferred items.
+        The claim is then the full shape the four pins were approximating:
+
+        * RUNG 1 IS REACHED, and reached FIRST, with `poll=False`: the top-of-loop re-attempt that
+          costs nothing.
+        * RUNG 2/3 IS REACHED with `poll=True, ask=True`, which is what makes the ladder more than its
+          first rung.
+        * THE TRIGGER IS "NOTHING ELSE IS DISPATCHABLE", NOT "THIS IS THE LAST ITEM", asserted by the
+          fixture holding THREE deferred items and no queued one. A last-item test would never poll
+          here, so this fixture distinguishes the two conditions the `"runnable is None"` text pin
+          could only spell.
+
+        A comment cannot record a keyword argument, and the assertion survives any rewrite of the
+        condition or any renaming of the adapter.
+        """
+        wrong = []
         for module in (oc_runipd, agy_runipd):
-            with self.subTest(host=module.__name__):
-                loop = inspect.getsource(module.run_queue)
-                self.assertIn("retry_deferred_integrations", loop)
-                self.assertIn("deferred_integration_items", loop)
-                # Rung 2's trigger is the loop's OWN `runnable is None`, not a last-item test.
-                self.assertIn("runnable is None", loop)
-                self.assertIn("poll=True", loop)
+            calls: list = []
+
+            # `calls` and `module` are bound as DEFAULTS rather than closed over, so each host records
+            # into its OWN log through its OWN `save_state`; a closure over the loop late-binds both.
+            def _spy(
+                run_dir, state, *, poll=False, ask=False, _log=calls, _host=module
+            ):
+                _log.append({"poll": poll, "ask": ask})
+                if poll:
+                    # Resolve the deferrals so the loop terminates; the real rung 3 does the same
+                    # through `resolve_exhausted_deferrals`, and leaving them would spin.
+                    for entry in state["queue"]:
+                        if entry["status"] == runner_shared.INTEGRATION_DEFERRED_STATUS:
+                            entry["status"] = runner_shared.INTEGRATION_BLOCKED_STATUS
+                    _host.save_state(run_dir, state)
+                return []
+
+            with tempfile.TemporaryDirectory() as td:
+                root = pathlib.Path(td)
+                repo = self._dispatch_repo(root)
+                run_dir = self._dispatch_run(
+                    root, repo, (runner_shared.INTEGRATION_DEFERRED_STATUS,) * 3
+                )
+                with (
+                    mock.patch.object(module, "retry_deferred_integrations", _spy),
+                    mock.patch.object(
+                        module,
+                        "execute_item",
+                        lambda *a, **k: self.fail(
+                            "no item was dispatchable, so no agent turn may be spent"
+                        ),
+                    ),
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
+                    module.run_queue(run_dir, retry_incomplete=False)
+
+            problems = []
+            if not calls:
+                problems.append(
+                    "the ladder was NEVER reached from the dispatch loop: this is the dead-gate "
+                    "failure exactly, a fully built and fully tested ladder with no caller"
+                )
+            else:
+                if calls[0] != {"poll": False, "ask": False}:
+                    problems.append(
+                        f"the FIRST call was {calls[0]!r}, expected rung 1's "
+                        "{'poll': False, 'ask': False}. Rung 1 is the free one (the loop already "
+                        "reloads state each iteration); polling on the first attempt spends waiting "
+                        "before trying the cheap thing"
+                    )
+                if not any(c["poll"] and c["ask"] for c in calls):
+                    problems.append(
+                        f"no call ever carried poll=True with ask=True; calls seen: {calls!r}. Rungs "
+                        "2 and 3 are unreachable, so a deferral that rung 1 cannot clear goes "
+                        "straight to terminal with the lane stranded, which is the loss this ladder "
+                        "exists to prevent. Note the fixture holds THREE deferred items and NO "
+                        "queued one, so a trigger written as a LAST-ITEM test rather than as "
+                        "`nothing else is dispatchable` fails here"
+                    )
+            if problems:
+                wrong.append(
+                    f"  {module.__name__}:\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                )
+        self.assertEqual(
+            wrong,
+            [],
+            f"{len(wrong)} of 2 hosts do not reach the shared ladder from their dispatch loop. A "
+            "failure on ONE host is the asymmetry this class exists for: the ladder is shared but the "
+            "two `run_queue` bodies are not, so a wiring that is correct on one host proves nothing "
+            "about the other. FIX: call `retry_deferred_integrations(run_dir, state)` at the TOP of "
+            "the loop whenever `deferred_integration_items(state)` is non-empty, and again with "
+            f"`poll=True, ask=True` when the loop's own selection finds nothing dispatchable.\n"
+            + "\n".join(wrong),
+        )
 
 
 # --------------------------------------------------------------------------------------------------
@@ -4320,19 +4636,175 @@ class StrandedLanePredicateTests(unittest.TestCase):
             self.assertIsNone(runner_shared.lane_worktree_display(repo, None))
 
     def test_the_predicate_has_exactly_ONE_definition(self):
-        """ONE READER (the `nuanaw` hard constraint): `attention` must CALL it, never reimplement it."""
-        import inspect
+        """ONE READER (the `nuanaw` hard constraint): `attention` must CALL it, never reimplement it.
+
+        THE INCIDENT BEHIND THIS CLAIM, which is why it is not simply deleted: `agy_runipd` re-forked
+        FOUR `render_stream` symbols while a one-sided guard stayed green (the orchestrator's F10). A
+        second definition of a landing question is not a cosmetic duplicate here - the two copies drift,
+        and the direction that drifts wrong reports a STRANDED lane as landed, which is unrecoverable
+        loss of unintegrated work.
+
+        THREE OF THE FOUR ASSERTIONS WERE SOURCE-TEXT PINS AND ARE NOW SPY-BASED OR AST-BASED.
+        `assertIn("rs.stranded_lane_records(", source)` pinned a CALL SPELLING through a module alias,
+        so renaming the `rs` alias would have failed a test about behavior, while a comment containing
+        that exact text would have satisfied it with the call deleted. `assertNotIn("merge-base",
+        source)` and `assertNotIn("--is-ancestor", source)` are worse: both tokens appear in ordinary
+        EXPLANATORY PROSE in this package (`runner_shared:1064` and `:1115` both name
+        `git merge-base --is-ancestor` in a comment precisely to document the reading), so any comment
+        in `attention` explaining WHY it must not ask the landing question itself would have failed a
+        test asserting it does not ask it.
+
+        WHAT REPLACES THEM:
+
+        * THE DELEGATION HALF IS A SENTINEL. `stranded_lane_records` is replaced by one returning a
+          record for a lane that DOES NOT EXIST in the fixture repository, and `attention`'s real
+          surface must report THAT lane. A reimplementation reads the filesystem and reports the real
+          lane instead, so it cannot produce the sentinel; a comment cannot either.
+        * THE NON-REIMPLEMENTATION HALF IS AN AST SCAN, not a text search. Every `ast.Constant` string
+          in `attention` is checked for the two git tokens, which a COMMENT cannot satisfy because a
+          comment is not a node. WHY THIS CANNOT BE BEHAVIORAL: the claim is the NON-EXISTENCE of a
+          construct anywhere in the module, including on error branches no test drives, and a second
+          copy that happened to AGREE with the shared one on every fixture would pass every behavioral
+          test while still being the fork that drifts later. Non-existence of a construct is precisely
+          the case the brief keeps as AST.
+        * THE SINGLE-DEFINITION HALF IS A PACKAGE-WIDE AST COUNT, strictly stronger than the
+          `__module__` check it replaces. `__module__` is satisfied by a SECOND definition sitting in
+          another module unused, which is exactly the shape the `render_stream` re-fork took; counting
+          `FunctionDef` nodes named that, across every module in the package, is not.
+        """
+        import pathlib as _pl
 
         from agent_workflows import attention
 
-        source = inspect.getsource(attention)
-        self.assertIn("rs.stranded_lane_records(", source)
-        # The landing question exists in exactly one module.
-        self.assertNotIn("merge-base", source)
-        self.assertNotIn("--is-ancestor", source)
+        wrong = []
+
+        # ---- (1) exactly ONE definition of each landing symbol, package-wide, as AST -------------
+        pkg = _pl.Path(runner_shared.__file__).parent
+        for name in (
+            "lane_work_has_landed",
+            "lane_work_landed_by_content",
+            "stranded_lane_records",
+            "classify_lane_integration",
+        ):
+            sites = []
+            for path in sorted(pkg.glob("*.py")):
+                try:
+                    tree = ast.parse(path.read_text(encoding="utf-8"))
+                except (
+                    SyntaxError
+                ):  # pragma: no cover - a broken module is another failure
+                    continue
+                for node in ast.walk(tree):
+                    if (
+                        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        and node.name == name
+                    ):
+                        sites.append(f"{path.name}:{node.lineno}")
+            if (
+                sites != [s for s in sites if s.startswith("runner_shared.py:")]
+                or len(sites) != 1
+            ):
+                wrong.append(
+                    f"  `{name}` is defined at {sites}, expected exactly one site in "
+                    "runner_shared.py\n"
+                    "    this row exists because: `agy_runipd` re-forked FOUR `render_stream` symbols "
+                    "while a one-sided guard stayed green. Two copies of a LANDING question drift, "
+                    "and the wrong direction reports a stranded lane as landed, which loses "
+                    "unintegrated work permanently"
+                )
+        # And the objects the package actually binds are those single definitions.
+        if (
+            runner_shared.lane_work_has_landed.__module__
+            != "agent_workflows.runner_shared"
+        ):
+            wrong.append(
+                f"  the bound `lane_work_has_landed` lives in "
+                f"{runner_shared.lane_work_has_landed.__module__}, not `runner_shared`\n"
+                "    this row exists because: a single `def` on disk still proves nothing if the "
+                "name is rebound at import time to something else"
+            )
+
+        # ---- (2) `attention` asks the landing question NOWHERE of its own, as AST ----------------
+        # STRING CONSTANTS ONLY. `_run_git`-style calls pass these tokens as literals, so a real
+        # reimplementation MUST put them in an `ast.Constant`; a comment explaining the reading (which
+        # this package has, twice, in `runner_shared`) is not a node and cannot satisfy this.
+        atree = ast.parse(_pl.Path(str(attention.__file__)).read_text(encoding="utf-8"))
+        literals = [
+            node.value
+            for node in ast.walk(atree)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        ]
+        for token in ("merge-base", "--is-ancestor"):
+            offenders = [text for text in literals if token in text and len(text) < 200]
+            if offenders:
+                wrong.append(
+                    f"  `attention` carries the git token {token!r} in a STRING LITERAL "
+                    f"({offenders!r})\n"
+                    "    this row exists because: the landing question belongs to exactly one "
+                    "module. `attention` asking git directly is a SECOND reader, free to answer "
+                    "differently from the one the runners use"
+                )
+
+        # ---- (3) and it really does CALL the shared predicate, proven by a sentinel --------------
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo = _make_lane_fixture_repo(root)
+            lane = _add_lane(repo, root / "lane01", "lane01")
+            _advance_main(repo)
+            run_dir = runner_shared.state_root(repo) / "run-fixture"
+            run_dir.mkdir(parents=True)
+            (run_dir / "state.json").write_text(
+                json.dumps(_state_for(repo, [lane])), encoding="utf-8"
+            )
+
+            # BASELINE: the real predicate reports the real lane, so the surface is wired at all.
+            real = attention.stranded_lane_drift(repo)
+            if [rec.location for rec in real] != [lane["branch"]]:
+                wrong.append(
+                    f"  `attention.stranded_lane_drift` reported "
+                    f"{[rec.location for rec in real]!r} for a genuinely stranded lane, expected "
+                    f"[{lane['branch']!r}]\n"
+                    "    this row exists because: the sentinel row below is vacuous if the surface "
+                    "reports nothing at all"
+                )
+
+            # THE SENTINEL: a lane that does not exist in this repository. Only a caller of the
+            # shared predicate can report it; a reimplementation reads git and reports `lane01`.
+            sentinel_branch = "aw/lane/" + "SENTINEL" + "-not-a-real-lane"
+            with mock.patch.object(
+                runner_shared,
+                "stranded_lane_records",
+                lambda *a, **k: [
+                    {
+                        "branch": sentinel_branch,
+                        "lane_state": runner_shared.LANE_STRANDED,
+                        "id6": "sent01",
+                        "commits_ahead": 7,
+                        "dirty": False,
+                    }
+                ],
+            ):
+                observed = [rec.location for rec in attention.stranded_lane_drift(repo)]
+            if observed != [sentinel_branch]:
+                wrong.append(
+                    f"  with `runner_shared.stranded_lane_records` patched to a sentinel, "
+                    f"`attention` reported {observed!r}, expected [{sentinel_branch!r}]\n"
+                    "    this row exists because: `attention` must CALL the one predicate, never "
+                    "reimplement it. Reporting the REAL lane here means it derived the answer itself "
+                    "and the patch was invisible to it, which is the second reader this test forbids"
+                )
+
         self.assertEqual(
-            runner_shared.lane_work_has_landed.__module__,
-            "agent_workflows.runner_shared",
+            wrong,
+            [],
+            f"{len(wrong)} single-reader violation(s) for the lane landing question. READ THE SHAPE: "
+            "a DEFINITION count above one is a re-fork on disk and drifts on the next edit; a git "
+            "token in `attention`'s literals is a second reader already asking git itself; and the "
+            "sentinel failing while the baseline passes is the worst case, because it means the "
+            "surface works today by answering the question TWICE and the two answers merely happen to "
+            "agree. FIX: `attention` calls `runner_shared.stranded_lane_records` and renders what it "
+            f"returns; the git reading lives only in `runner_shared`.\n"
+            + "\n".join(wrong),
         )
 
 
@@ -4561,12 +5033,26 @@ class ContentLandedReadingTests(unittest.TestCase):
             self.assertEqual(rec["lane_state"], runner_shared.LANE_STRANDED)
             self.assertIsNone(rec["landed_by"])
 
-    def test_the_content_reading_is_gated_on_NOT_DIRTY_in_the_source(self):
-        """Pins the gate itself, so removing it fails here rather than silently in production."""
-        import inspect
-
-        source = inspect.getsource(runner_shared.classify_lane_integration)
-        self.assertIn('if not described.get("dirty")', source)
+    # A SOURCE-TEXT PIN WAS DELETED HERE, NOT REPLACED, because a behavioral sibling in this class
+    # ALREADY PROVES THE SAME PROPERTY AND PROVES IT BETTER.
+    #
+    # `test_the_content_reading_is_gated_on_NOT_DIRTY_in_the_source` read
+    # `inspect.getsource(classify_lane_integration)` and asserted the literal
+    # `'if not described.get("dirty")'` appeared. That is a change-detector three times over: the
+    # twenty-line comment block directly above that gate spells the condition out in prose (it exists
+    # to stop a later reader deleting the guard), so the pin was satisfiable by the comment with the
+    # gate gone; it asserts one SPELLING, so rewriting the same condition as
+    # `if described.get("dirty") is not True` fails a test about behavior; and it says nothing about
+    # what the gate DOES.
+    #
+    # `test_a_cherry_picked_DIRTY_lane_STAYS_REPORTABLE_so_uncommitted_work_is_not_lost` above drives
+    # the real predicate over a real repository where the lane's commits ALL landed by patch id while
+    # its tree still holds an uncommitted file, and asserts the lane is still reported. MEASURED by
+    # mutation while removing this pin: deleting the `if not described.get("dirty")` gate from
+    # `runner_shared.classify_lane_integration` makes that sibling FAIL with
+    # `AssertionError: False is not true` on `rec["needs_attention"]`. So the removal is caught, and it
+    # is caught by the consequence (an uncommitted file silently dropped from the report) rather than by
+    # a spelling.
 
     def test_an_ancestor_landed_lane_records_landed_by_ancestor(self):
         import subprocess
@@ -4694,22 +5180,59 @@ class LaneWorktreeDisplayExistenceTests(unittest.TestCase):
         `Path.resolve()` does not require the path to exist, so `relative_to(root)` SUCCEEDS for a
         long-gone directory and the value is returned by the NORMAL path. Measured over the live record
         set: every record carrying a worktree took the success path and none took the except branch.
-        """
-        import inspect
 
+        A SOURCE-TEXT PIN WAS REMOVED FROM THIS TEST. Its last line read
+        `inspect.getsource(runner_shared.lane_worktree_display)` and asserted the literal
+        `"if not _exists(resolved):"` appeared. That was residue: the function's own DOCSTRING devotes
+        a paragraph to why the guard sits on the success return rather than on the reconstruction, so
+        the pin was satisfied by that prose with the guard deleted; and it pinned one spelling, so
+        hoisting the check into a helper or inverting it would fail a test about behavior.
+
+        THE BEHAVIORAL ASSERTIONS THAT REMAIN ARE STRICTLY STRONGER AND ARE WHAT CATCHES THE REMOVAL.
+        MEASURED by mutation: deleting `if not _exists(resolved): return None` from
+        `runner_shared.lane_worktree_display` makes this test fail with
+        `AssertionError: '.aw/worktrees/reclaimed' is not None`. The third case below is what makes the
+        claim specifically about the SUCCESS return rather than about omission in general: its parent
+        directory is NOT named `worktrees`, so the reconstruction branch could not have produced a
+        value for it even if it ran, which means only a guard on the normal path can omit it.
+        """
         with tempfile.TemporaryDirectory() as d:
             root = pathlib.Path(d)
             repo = _make_lane_fixture_repo(root)
             gone = repo / ".aw" / "worktrees" / "reclaimed"
-            # The success path really is the one taken: `relative_to` does not raise for an absent path.
+            # The success path really is the one taken: `relative_to` does not raise for an absent path,
+            # so control never reaches the `except` branch for this input.
             self.assertEqual(
                 gone.resolve().relative_to(repo.resolve()).as_posix(),
                 ".aw/worktrees/reclaimed",
             )
             self.assertIsNone(runner_shared.lane_worktree_display(repo, str(gone)))
 
-        source = inspect.getsource(runner_shared.lane_worktree_display)
-        self.assertIn("if not _exists(resolved):", source)
+            # THE DISCRIMINATING CASE: absent, INSIDE the repository, and its parent is not
+            # `worktrees`, so the reconstruction branch is structurally incapable of returning it.
+            # Omitting it can only be the success return's own guard.
+            not_a_lane_shape = repo / ".aw" / "someplace" / "reclaimed"
+            self.assertEqual(
+                not_a_lane_shape.resolve().relative_to(repo.resolve()).as_posix(),
+                ".aw/someplace/reclaimed",
+                "fixture check: this path must still take the success path, or the assertion below "
+                "would prove something about the except branch instead",
+            )
+            self.assertIsNone(
+                runner_shared.lane_worktree_display(repo, str(not_a_lane_shape)),
+                "an absent directory reached through the SUCCESS return must be omitted. A value here "
+                "means the existence guard sits only on the reconstruction, so every real record (all "
+                "of which took the success path, measured over the live set) still asserts a tree that "
+                "was reclaimed months ago and sends its reader to inspect nothing",
+            )
+
+            # AND THE POSITIVE CONTROL, so the two assertions above cannot be satisfied by a function
+            # that omits everything: the same shape, existing, still renders.
+            not_a_lane_shape.mkdir(parents=True)
+            self.assertEqual(
+                runner_shared.lane_worktree_display(repo, str(not_a_lane_shape)),
+                ".aw/someplace/reclaimed",
+            )
 
     def test_an_absent_worktree_OUTSIDE_the_repository_is_still_omitted(self):
         with tempfile.TemporaryDirectory() as d:

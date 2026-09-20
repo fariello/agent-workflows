@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -388,15 +389,106 @@ class RoutingAndCollisionTests(_RepoFixture):
         self.assertIn("run-20260901T020000Z-3333333", out)
 
     def test_the_escape_path_forces_runs_command_to_none_at_dispatch(self):
-        """The dispatch-level guarantee, asserted directly rather than as a behavioral coincidence.
+        """Whatever the viewer receives after `--`, its `runs_command` is None and the token is a TARGET.
 
-        `_dispatch` handles `--` PRE-PARSE and forces `runs_command = None` before calling the viewer,
-        so an escaped token structurally cannot reach a leaf. That is a code property; observing one
-        successful viewer render would not distinguish it from a lucky resolution order.
+        REPLACES A SOURCE-TEXT PIN that asserted the literal
+        `"setattr(args_ns, 'runs_command', None)"` appeared in `cli.py`'s comment-stripped source.
+        That form pins one exact spelling of one statement: `args_ns.runs_command = None` does the
+        identical thing and would have failed it, while the statement being moved somewhere
+        UNREACHABLE would have passed it.
+
+        The pin's docstring argued a behavioral test "would not distinguish it from a lucky
+        resolution order", and that is only true of an END-TO-END observation. Intercepting the
+        VIEWER SEAM removes the ambiguity: the namespace the viewer is actually handed is recorded,
+        so `runs_command is None` is read off the real dispatch rather than inferred from a render.
+        Every colliding leaf name is driven, so the guarantee is a property of the escape hatch
+        rather than of one token.
         """
+        from agent_workflows import run_viewer
 
-        code = _code_only(Path(cli.__file__).read_text(encoding="utf-8"))
-        self.assertIn("setattr(args_ns, 'runs_command', None)", code)
+        real_viewer = run_viewer.run_viewer_cli
+        received = {}
+
+        def recorder(args_ns):
+            received["runs_command"] = getattr(args_ns, "runs_command", "<absent>")
+            received["targets"] = list(getattr(args_ns, "targets", None) or [])
+            return 0
+
+        #: (the argv before `--`, the escaped target, why this row exists)
+        #:
+        #: THE THIRD AND FOURTH ROWS ARE THE LOAD-BEARING ONES, and they were found by mutation
+        #: rather than reasoned about: with the `setattr` deleted, the first two rows still reported
+        #: `runs_command is None` (nothing before `--` named a leaf, so argparse never set it) and
+        #: the test passed against a broken dispatch. A row whose PRE-`--` argv contains a leaf
+        #: token is what makes the clear observable at all.
+        escapes = (
+            (
+                ["runs"],
+                "analyze",
+                "the documented form: nothing but the noun precedes the escape, so the token after "
+                "`--` is unambiguously a viewer target",
+            ),
+            (
+                ["runs"],
+                "query",
+                "the second colliding leaf name, kept as its own row because the collision set is "
+                "data and a guard written for one member can miss another",
+            ),
+            (
+                ["runs", "analyze"],
+                "analyze",
+                "THE ROW THE CLEAR EXISTS FOR: a LEAF token precedes the escape, so argparse has "
+                "already set `runs_command='analyze'` by the time the hatch runs. Without the "
+                "explicit clear the viewer is handed a live leaf name and the escape means nothing - "
+                "and this is the only shape in which that failure is visible",
+            ),
+            (
+                ["runs", "query"],
+                "analyze",
+                "the CROSS pairing, which separates 'the clear happened' from 'the target happened "
+                "to equal the leaf': the leaf before `--` and the target after it differ, so a "
+                "dispatch that confused the two cannot pass by coincidence",
+            ),
+        )
+
+        wrong = []
+        run_viewer.run_viewer_cli = recorder  # type: ignore[assignment]
+        try:
+            for prefix, target, why in escapes:
+                received.clear()
+                out, err, rc = _run([*prefix, *self._dir(), "--", target])
+                problems = []
+                if rc != 0:
+                    problems.append(f"exit {rc} rather than 0: {(out + err)[:200]!r}")
+                if received.get("runs_command") is not None:
+                    problems.append(
+                        f"the viewer was handed runs_command={received.get('runs_command')!r}; an "
+                        "escaped token must never arrive as a leaf"
+                    )
+                if target not in received.get("targets", []):
+                    problems.append(
+                        f"the escaped token never arrived as a viewer TARGET: {received!r}"
+                    )
+                if problems:
+                    wrong.append(
+                        f"  `aw {' '.join(prefix)} -- {target}`\n"
+                        + "".join(f"    - {p}\n" for p in problems)
+                        + f"    this row exists because: {why}"
+                    )
+        finally:
+            run_viewer.run_viewer_cli = real_viewer  # type: ignore[assignment]
+
+        self.assertEqual(
+            wrong,
+            [],
+            f"the `--` escape hatch was wrong for {len(wrong)} of {len(escapes)} forms. ONE pre-parse "
+            "branch implements it, so read the grouping: only the rows WITH a leaf token before `--` "
+            "failing means the explicit `runs_command` clear was removed (the other rows cannot see "
+            "that, which is why they are not the measurement); every row failing means the hatch is "
+            "not being taken at all and `--` has stopped being honored. FIX: whatever follows `--` "
+            "is a viewer TARGET by definition, so the dispatch must clear any leaf argparse already "
+            "resolved rather than trusting resolution order.\n" + "\n".join(wrong),
+        )
 
     def test_the_collision_fixture_is_load_bearing(self):
         """PROOF THE COLLISION TESTS ARE NOT VACUOUS.
@@ -1121,12 +1213,65 @@ class TheReportIsRenderedByTheSpaNotAStub(unittest.TestCase):
     """
 
     def test_the_renderer_is_reachable_from_this_module(self):
-        """The stub had zero callers; a grep-proof assertion is cheaper than reading the HTML."""
-        import inspect
+        """The published document must be produced BY the SPA renderer, proven with a sentinel.
 
-        source = inspect.getsource(analytics_cli._render_report_html)
-        self.assertIn("render_document", source)
-        self.assertIn("build_view_model", source)
+        REPLACES A SOURCE-TEXT PIN that read `inspect.getsource(analytics_cli._render_report_html)`
+        and asserted the strings `"render_document"` and `"build_view_model"` appeared in it. Both
+        names appear in that function's own DOCSTRING (it explains at length that Order 08 failed
+        to call the renderer), so the pin matched prose and would have stayed GREEN for the exact
+        194-byte stub it was written to catch. That is failure mode 2 from the brief, measured on
+        the very defect the guard names.
+
+        Replaced with a SENTINEL: the shared renderer is patched to return a marker and the
+        view-model builder is spied on. The marker must reach the function's return value and the
+        builder must have been called exactly once with the model the renderer received. A stub
+        that composes its own HTML cannot pass, whatever its source says, and a refactor that
+        renames or relocates the call still passes as long as the renderer is what renders.
+        """
+        from agent_workflows import run_analytics_spa as spa_mod
+
+        marker = "<!DOCTYPE html><!-- SENTINEL from the shared SPA renderer -->"
+        real_render, real_build = spa_mod.render_document, spa_mod.build_view_model
+        built, rendered = [], []
+
+        def spy_build(**kwargs):
+            model = real_build(**kwargs)
+            built.append(kwargs)
+            return model
+
+        def sentinel_render(model, **kwargs):
+            rendered.append(model)
+            return marker
+
+        spa_mod.build_view_model = spy_build  # type: ignore[assignment]
+        spa_mod.render_document = sentinel_render  # type: ignore[assignment]
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                html = analytics_cli._render_report_html(
+                    Path(tmp), generated_label="sentinel-probe"
+                )
+        finally:
+            spa_mod.build_view_model = real_build  # type: ignore[assignment]
+            spa_mod.render_document = real_render  # type: ignore[assignment]
+
+        self.assertEqual(
+            html,
+            marker,
+            "the published document is not the shared renderer's output; something else composed "
+            "it (this is the zero-caller stub defect, and a source scan for the renderer's NAME "
+            "matched only this function's docstring)",
+        )
+        self.assertEqual(
+            len(built),
+            1,
+            f"build_view_model was called {len(built)} times, expected exactly 1",
+        )
+        self.assertEqual(len(rendered), 1)
+        self.assertEqual(
+            built[0].get("generated_label"),
+            "sentinel-probe",
+            "the caller's label must reach the view model, or the document cannot say what it is",
+        )
 
     def test_the_rendered_document_carries_the_panels_and_is_not_a_stub(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1154,14 +1299,83 @@ class TheReportIsRenderedByTheSpaNotAStub(unittest.TestCase):
             self.assertIn('id="overview"', html)
 
     def test_the_raw_table_is_not_truncated_to_the_terminal_page_size(self):
-        """`run_query`'s default limit is 20 rows; a report showing 20 of N is a silent truncation."""
-        import inspect
+        """A corpus LARGER than every page size must be embedded in full, run for run.
 
-        source = inspect.getsource(analytics_cli._render_report_html)
-        # The limit must be read from the grammar's own ceiling, not left at the default and not
-        # hardcoded to a number that can drift from `max_limit`.
-        self.assertIn("max_limit", source)
-        self.assertIn("limit=row_limit", source)
+        REPLACES A SOURCE-TEXT PIN that searched `_render_report_html`'s source for `"max_limit"`
+        and `"limit=row_limit"`. Both appear in that function's own explanatory COMMENT block, and
+        neither says anything about how many rows actually reach the document: leaving
+        `row_limit = 20` while still spelling `limit=row_limit` would have kept the pin green and
+        truncated the corpus to a terminal page.
+
+        This builds a corpus exceeding BOTH thresholds - `run_query`'s 20-row terminal default and
+        the SPA's 100-row view page - renders the real document, decodes its embedded payload, and
+        demands EVERY run id. The run-by-run set difference is deliberate rather than a count
+        comparison, because a truncation reports a plausible number and the missing members are the
+        evidence a reader needs.
+
+        The page size is NOT the defect: the raw view paginates by design, so 100-at-a-time in the
+        BROWSER is correct. What must not be truncated is the DATA embedded in the file, since a
+        page the reader can never reach is a corpus member that silently does not exist.
+        """
+        from agent_workflows import run_analytics_cache as cache_mod
+        from agent_workflows import run_analytics
+        from agent_workflows import run_analytics_spa as spa_mod
+
+        # Bigger than the larger of the two thresholds, derived from the shipped constants rather
+        # than hardcoded, so raising either one re-tightens this test instead of silently relaxing it.
+        total = max(query_mod.DEFAULT_ROW_LIMIT, spa_mod.RAW_VIEW_PAGE_SIZE) + 7
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _make_repo(Path(tmp))
+            expected = set()
+            for index in range(total):
+                run_id = f"run-20260901T{index:04d}00Z-{index:07d}"
+                expected.add(run_id)
+                _write_run(repo, run_id, setid="runanalytics")
+
+            # Populate the cache DIRECTLY (the query views read the cache, and this is the same
+            # call `aw runs analyze` makes) rather than through the CLI, which would also publish a
+            # snapshot bundle this test has no use for.
+            run_dirs = sorted((repo / ".aw" / "records" / "runs").iterdir())
+            cache_mod.update_cache(
+                run_dirs, build_facts=run_analytics.build_cache_facts, repo=repo
+            )
+
+            html = analytics_cli._render_report_html(
+                repo, generated_label="truncation-probe"
+            )
+
+        encoded = re.search(r'id="embedded-data">([^<]*)</script>', html)
+        self.assertIsNotNone(
+            encoded, "the document carries no embedded data payload at all"
+        )
+        assert encoded is not None
+        payload = spa_mod.decode_embedded_payload(encoded.group(1))
+
+        self.assertEqual(
+            payload.get("row_count"),
+            total,
+            f"the embedded payload declares {payload.get('row_count')!r} rows for a {total}-run "
+            f"corpus; {query_mod.DEFAULT_ROW_LIMIT} would mean the report inherited the TERMINAL "
+            f"page size and {spa_mod.RAW_VIEW_PAGE_SIZE} would mean it inherited the browser's",
+        )
+        embedded = set(payload.get("data", {}).get("run_id") or ())
+        missing = sorted(expected - embedded)
+        self.assertEqual(
+            missing,
+            [],
+            f"{len(missing)} of {total} runs are absent from the embedded corpus (first few: "
+            f"{missing[:5]}). A raw table is the panel an operator sorts and filters, so a run that "
+            "never reaches the file is a corpus member that silently does not exist. FIX: the row "
+            "limit must come from the query grammar's own ceiling (`MAX_ROW_LIMIT`), never from "
+            "`DEFAULT_ROW_LIMIT` and never from a number hardcoded here.",
+        )
+        # The browser-side page size is still PUBLISHED, so pagination is a UI affordance rather
+        # than a data loss; asserted here so this test cannot be "fixed" by removing pagination.
+        self.assertIn(
+            f'"raw_view_page_size":{spa_mod.RAW_VIEW_PAGE_SIZE}',
+            html,
+            "the document must still declare its page size; the corpus is complete AND paginated",
+        )
 
 
 if __name__ == "__main__":

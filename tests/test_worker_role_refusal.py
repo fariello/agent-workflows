@@ -18,13 +18,13 @@ unset it; hard enforcement is an OS sandbox / separate principal (x03wgn Phase 6
 
 from __future__ import annotations
 
-import inspect
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from agent_workflows import agy_runipd
 from agent_workflows import ipd_authoring as A
@@ -182,31 +182,149 @@ class ChildEnvWorkerRoleTests(unittest.TestCase):
     def test_both_drivers_mark_only_an_isolated_turn(self):
         """The marking is WIRED into both turn functions, keyed on the lane, and strips a stale value.
 
-        Asserted against the driver SOURCE rather than a helper, because the thing that must be true
-        is that the running turn marks the child. `rchpms` originally carried this through a
-        `build_child_env` helper introduced by its Phase-1 prerequisite (`qcqhj7`); that phase is NOT
-        landed here (its prompt-isolation design collides with main's own), so the same behavior is
-        wired directly onto the shared `pinned_child_env`. This test pins the BEHAVIOR so a later
-        refactor cannot quietly drop the marking or the strip.
+        DRIVEN THROUGH A REAL TURN ON EACH HOST, capturing the env actually handed to `Popen`. The
+        previous version searched each turn function's SOURCE for `pinned_child_env()`,
+        `popen_kwargs["env"] = child_env`, `if work_dir:` and
+        `child_env.pop(ipd_lifecycle.EXECUTION_ROLE_ENV, None)`. Every one of those strings appears
+        in each driver's explanatory COMMENT block as well as its code (`oc_runipd` spends fourteen
+        comment lines naming `pinned_child_env`, `work_dir` and the strip), so the pin could stay
+        green with the assignment deleted. This repository measured that exact failure on the
+        neighbouring policy injection in the SAME construction: sabotaging it to `pass` left a
+        source-text assertion green, and only capturing the child env failed
+        (`tests/test_lane_permission_posture.py`).
+
+        FOUR HALVES, each a distinct failure the marking must not have:
+
+          (a) INHERITED ENV IS CARRIED - `AW_PIN_KEEP_ROOT` and `PATH` survive, so the marking rides
+              on the SHARED `pinned_child_env` construction rather than a second, minimal one.
+          (b) MARKED IN A LANE - `AW_EXECUTION_ROLE=worker` reaches the child of an isolated turn,
+              which is what makes an in-lane `aw ipd begin/finalize` hit AW-LIFECYCLE-ROLE-001.
+          (c) NOT MARKED OTHERWISE - a non-isolated turn's child carries no marking at all.
+          (d) A STALE VALUE IS STRIPPED - with `AW_EXECUTION_ROLE=worker` already in the DRIVER's own
+              environment, a non-isolated turn's child still gets none, so a coordinator turn can
+              never inherit a marking and refuse its own lifecycle verbs. (c) alone would pass on a
+              driver that merely never SETS it.
+
+        The value's round trip through the refusal predicate is asserted by
+        `test_the_marking_predicate_round_trips`; this test asserts the drivers really emit it.
         """
-        for module, func in (
+        for module, launcher in (
             (oc_runipd, "run_opencode"),
             (agy_runipd, "run_agy_turn"),
         ):
-            src = inspect.getsource(getattr(module, func))
             with self.subTest(driver=module.__name__):
-                # The child env is built EXPLICITLY and handed to Popen (it used to be inherited
-                # implicitly, so there was nowhere to put the marking at all).
-                self.assertIn("pinned_child_env()", src)
-                self.assertIn('popen_kwargs["env"] = child_env', src)
-                # Marked only when the turn runs in a lane...
-                self.assertIn("if work_dir:", src)
-                self.assertIn("ipd_lifecycle.ROLE_WORKER", src)
-                # ...and a stale inherited marking is STRIPPED otherwise, so a coordinator turn can
-                # never accidentally refuse its own lifecycle verbs.
-                self.assertIn(
-                    "child_env.pop(ipd_lifecycle.EXECUTION_ROLE_ENV, None)", src
-                )
+                for stale in (False, True):
+                    with (
+                        self.subTest(stale_inherited_marking=stale),
+                        mock.patch.dict(
+                            os.environ,
+                            {LC.EXECUTION_ROLE_ENV: LC.ROLE_WORKER} if stale else {},
+                            clear=False,
+                        ),
+                    ):
+                        if not stale:
+                            os.environ.pop(LC.EXECUTION_ROLE_ENV, None)
+                        iso_env = self._child_env(module, launcher, isolated=True)
+                        main_env = self._child_env(module, launcher, isolated=False)
+
+                        # (a) the SHARED construction's inherited content is intact.
+                        self.assertEqual(
+                            iso_env.get("AW_PIN_KEEP_ROOT"),
+                            oc_runipd.runner_package_root(),
+                            "the marking must ride on the shared pinned child env",
+                        )
+                        self.assertTrue(iso_env.get("PATH"))
+                        # (b) an isolated turn's child IS the managed worker.
+                        self.assertEqual(
+                            iso_env.get(LC.EXECUTION_ROLE_ENV), LC.ROLE_WORKER
+                        )
+                        self.assertTrue(LC.worker_role_active(iso_env))
+                        # (c)/(d) a non-isolated turn's child is never marked, even when the
+                        # driver's own environment carries a stale marking.
+                        self.assertNotIn(LC.EXECUTION_ROLE_ENV, main_env)
+                        self.assertFalse(LC.worker_role_active(main_env))
+                        if stale:
+                            # Prove the stale value really was present to be stripped, so this
+                            # subTest is not a repeat of the clean one.
+                            self.assertEqual(
+                                os.environ.get(LC.EXECUTION_ROLE_ENV), LC.ROLE_WORKER
+                            )
+
+    def _child_env(self, module, launcher: str, *, isolated: bool) -> dict:
+        """The env handed to `Popen` for ONE real turn on `module`'s host.
+
+        The AGENT launch is the LAST `Popen`: a turn may first spawn host capability probes, whose
+        env carries neither the marking nor the policy, so taking the first would assert the wrong
+        process.
+        """
+        from unittest import mock
+
+        from agent_workflows import lane_containment
+
+        envs: list[dict] = []
+
+        class _Proc:
+            def __init__(self, *a, **kw):
+                envs.append(dict(kw.get("env") or {}))
+                self.stdout = iter(())
+                self.stderr = None
+                self.stdin = None
+
+            def poll(self):
+                return 0
+
+            def wait(self, *a, **k):
+                return 0
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = root / "repo"
+            repo.mkdir()
+            run_dir = root / "run"
+            (run_dir / "sessions").mkdir(parents=True)
+            (run_dir / "prompts").mkdir(parents=True)
+            lane = root / "lane"
+            lane.mkdir()
+            plan = repo / "p.ipd.md"
+            plan.write_text("# p\n", encoding="utf-8")
+            prompt = run_dir / "prompts" / "p.md"
+            prompt.write_text("do the thing\n", encoding="utf-8")
+            item = {
+                "id6": "rchpms",
+                "setid": "wtiso",
+                "position": 1,
+                "attempts": [{"number": 1}],
+                "action": "execute",
+            }
+            state = {
+                "run_id": "run-1",
+                "repo": str(repo),
+                "options": {"opencode": "opencode", "agy": "/bin/true"},
+                "queue": [item],
+            }
+            work_dir = str(lane) if isolated else None
+            with (
+                mock.patch.object(module.subprocess, "Popen", _Proc),
+                # The oc host's R4.2 policy probe would spawn a real host; proven separately in
+                # `tests/test_lane_permission_posture.py`.
+                mock.patch.object(
+                    oc_runipd,
+                    "observe_opencode_policy",
+                    lambda *a, **k: lane_containment.evaluate_policy_observation(
+                        None, {}, failure_reason="probe skipped in this test"
+                    ),
+                ),
+            ):
+                if module is oc_runipd:
+                    module.run_opencode(
+                        state, run_dir, item, plan, prompt, 1, work_dir=work_dir
+                    )
+                else:
+                    module.run_agy_turn(
+                        state, run_dir, item, prompt, 1, None, False, work_dir=work_dir
+                    )
+        self.assertTrue(envs, f"{module.__name__}.{launcher} spawned no child")
+        return envs[-1]
 
     def test_the_marking_predicate_round_trips(self):
         """The value the drivers write is exactly the value the refusal predicate recognizes."""

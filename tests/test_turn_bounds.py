@@ -33,6 +33,7 @@ import json
 import subprocess
 import time
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
@@ -196,21 +197,131 @@ class TestArmedForEveryUnattendedTurn:
             tree
         ), "the bounds are gated on isolation; R4.4a requires them armed for every unattended turn"
 
-    def test_the_permission_policy_by_contrast_IS_isolation_scoped(self):
+    def test_the_permission_policy_by_contrast_IS_isolation_scoped(self, tmp_path):
         """The two scopes differ DELIBERATELY, and confusing them would be a real defect.
 
         R4.1 scopes the POSTURE to an unattended ISOLATED turn, because a non-isolated turn works in
         the main checkout where an external-directory denial would refuse its ordinary work. R4.4a
-        scopes the BOUNDS to every turn. So the policy injection must be inside a work_dir branch and
-        the bounds must not be.
+        scopes the BOUNDS to every turn.
+
+        BOTH SIDES OF THE CONTRAST ARE DRIVEN, so the contrast is a measurement rather than prose.
+        Two REAL `run_opencode` turns are launched, one with `work_dir=<lane>` and one with
+        `work_dir=None`, capturing the env handed to `Popen` and spying the `TurnBoundWatch`
+        construction. Then:
+
+          * THE POLICY DIFFERS - `OPENCODE_CONFIG_CONTENT` carries `external_directory=deny` and
+            `question=deny` on the isolated turn and is ABSENT on the non-isolated one. (The
+            worker-role marking is asserted alongside it because it is isolation-scoped for the same
+            reason and is built in the SAME child-env construction.)
+          * THE BOUNDS DO NOT - exactly one `TurnBoundWatch` is constructed on EACH turn, with the
+            SAME armed `max_turn_timeout`. That is the half the source-offset version could not
+            check at all.
+
+        WHY THE SOURCE-TEXT VERSION WAS UNSOUND, beyond being a change detector: it compared
+        `.index("build_permission_policy_env")` against the nearest preceding `if work_dir:` and
+        required the gap be under 400 characters. That passes on a helper called inside a
+        conditional that is NOT the isolation branch, passes on a mention inside a comment, and
+        fails on a pure reformat that widens the intervening comment block. A sibling file records
+        the same lesson measured on this exact symbol: sabotaging the assignment to `pass` left the
+        source-text assertion GREEN (`tests/test_lane_permission_posture.py`,
+        `test_the_policy_actually_reaches_the_env_handed_to_the_child`).
         """
 
-        src = inspect.getsource(oc_runipd.run_opencode)
-        policy_at = src.index("build_permission_policy_env")
-        guard_at = src.rindex("if work_dir:", 0, policy_at)
+        captured: dict[str, list[dict[str, str]]] = {"envs": []}
+        bounds: dict[str, list[dict[str, object]]] = {"kwargs": []}
+        real_watch = lane_containment.TurnBoundWatch
+
+        class _Proc:
+            def __init__(self, *a, **kw):
+                captured["envs"].append(dict(kw.get("env") or {}))
+                self.stdout = iter(())
+                self.stderr = None
+                self.stdin = None
+
+            def poll(self):
+                return 0
+
+            def wait(self, *a, **k):
+                return 0
+
+        def spy_watch(**kwargs):
+            bounds["kwargs"].append(dict(kwargs))
+            return real_watch(**kwargs)
+
+        def drive(work_dir):
+            captured["envs"].clear()
+            bounds["kwargs"].clear()
+            repo = tmp_path / ("iso" if work_dir else "main") / "repo"
+            run_dir = tmp_path / ("iso" if work_dir else "main") / "run"
+            (run_dir / "sessions").mkdir(parents=True)
+            (run_dir / "prompts").mkdir(parents=True)
+            repo.mkdir(parents=True)
+            plan = repo / "p.ipd.md"
+            plan.write_text("# p\n", encoding="utf-8")
+            prompt = run_dir / "prompts" / "p.md"
+            prompt.write_text("do the thing\n", encoding="utf-8")
+            item = {
+                "id6": "lhmrhx",
+                "setid": "lanectn",
+                "position": 1,
+                "attempts": [{"number": 1}],
+                "action": "execute",
+            }
+            state = {
+                "run_id": "run-1",
+                "repo": str(repo),
+                "options": {"opencode": "opencode"},
+                "queue": [item],
+            }
+            with (
+                mock.patch.object(oc_runipd.subprocess, "Popen", _Proc),
+                mock.patch.object(lane_containment, "TurnBoundWatch", spy_watch),
+                # The R4.2 probe would spawn a real host; it is proven separately.
+                mock.patch.object(
+                    oc_runipd,
+                    "observe_opencode_policy",
+                    lambda *a, **k: lane_containment.evaluate_policy_observation(
+                        None, {}, failure_reason="probe skipped in this test"
+                    ),
+                ),
+            ):
+                oc_runipd.run_opencode(
+                    state, run_dir, item, plan, prompt, 1, work_dir=work_dir
+                )
+            # The AGENT launch is the LAST Popen: `run_opencode` may first spawn sandbox
+            # capability probes, whose env carries neither the policy nor the role marking.
+            return captured["envs"][-1], list(bounds["kwargs"])
+
+        lane = tmp_path / "lane"
+        lane.mkdir()
+        iso_env, iso_bounds = drive(str(lane))
+        main_env, main_bounds = drive(None)
+
+        policy_key = lane_containment.OPENCODE_RUNTIME_CONFIG_ENV
+
+        # THE POLICY IS ISOLATION-SCOPED (R4.1): present and DENYING when isolated...
+        assert policy_key in iso_env, "an isolated turn must carry the denial policy"
+        policy = json.loads(iso_env[policy_key])["permission"]
+        assert policy["external_directory"] == "deny"
+        assert policy["question"] == "deny"
+        assert iso_env["AW_EXECUTION_ROLE"] == "worker"
+        # ...and ABSENT when not, because a non-isolated turn works in the main checkout where an
+        # external-directory denial would refuse its ordinary work.
+        assert policy_key not in main_env, (
+            "a non-isolated turn must get NO denial policy; it works in the main checkout "
+            "where external-directory denial would refuse its ordinary work (R4.1)"
+        )
+        assert "AW_EXECUTION_ROLE" not in main_env
+
+        # THE THING IT IS CONTRASTED WITH DOES *NOT* DIFFER (R4.4a): one armed bound per turn,
+        # identically, whether isolated or not. Asserted here so the contrast is real rather than
+        # only claimed in this docstring.
+        assert len(iso_bounds) == 1, iso_bounds
+        assert len(main_bounds) == 1, main_bounds
         assert (
-            policy_at - guard_at < 400
-        ), "the permission policy must stay inside the isolation branch (R4.1)"
+            iso_bounds[0]["max_turn_timeout"] == main_bounds[0]["max_turn_timeout"]
+        ), "the bounds must be armed identically for an isolated and a non-isolated turn (R4.4a)"
+        assert iso_bounds[0]["max_turn_timeout"] > 0
 
     @DRIVERS
     def test_the_non_isolated_prompt_is_still_byte_identical(self, driver, tmp_path):
@@ -269,24 +380,73 @@ class TestPermissionDetectorIsUnproven:
     def test_no_stdout_detector_was_shipped_armed(self):
         """No product code arms the bound from a stdout pattern.
 
+        CONVERTED TO AN AST SCAN, and the claim is a NON-EXISTENCE one, which is the case the house
+        rule says a structural check answers and a behavioral test cannot: you cannot drive a code
+        path that must not exist. A text search for `note_permission_request` was the wrong tool in
+        BOTH directions - it would be satisfied by a comment mentioning the method (and both drivers
+        DO discuss the permission bound in prose, so the pin was one comment away from being
+        vacuous), and it would trip on a docstring naming the method it is forbidden to call, which
+        is exactly how a sibling guard in this file was measured to fail for prose rather than for
+        code. Walking for a CALL node cannot be fooled by either.
+
         This is the assertion that would fail if someone later wires a regex-based detector and turns
         the bound on in the same change: shipping it armed on an unproven detector is non-conforming,
         because a false positive kills a healthy turn.
         """
 
         for driver in (oc_runipd, agy_runipd):
-            src = Path(inspect.getfile(driver)).read_text(encoding="utf-8")
-            assert "note_permission_request" not in src, (
-                "a stdout permission detector was wired; R4.4b requires a captured stream from a "
-                "REAL provoked ask before the bound may be armed"
+            tree = ast.parse(Path(inspect.getfile(driver)).read_text(encoding="utf-8"))
+            armed = [
+                node.lineno
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Call)
+                and (
+                    getattr(node.func, "attr", None) == "note_permission_request"
+                    or getattr(node.func, "id", None) == "note_permission_request"
+                )
+            ]
+            assert not armed, (
+                f"{driver.__name__} arms the permission bound at lines {armed}; R4.4b requires a "
+                "captured stream from a REAL provoked ask before the bound may be armed"
+            )
+            # And POSITIVELY, so this is not passing because the driver arms no bound at all: the
+            # no-progress side of the SAME watch IS called, which is what makes the permission bound
+            # resettable the day it is armed.
+            progress = [
+                node.lineno
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Call)
+                and getattr(node.func, "attr", None) == "note_progress"
+            ]
+            assert progress, (
+                f"{driver.__name__} never notes progress, so the bound watch is not wired into its "
+                "read loop at all and the absence above proves nothing"
             )
 
     def test_the_artifact_states_max_turn_is_the_only_covering_bound(self):
-        """A10c requires the CONSEQUENCE be written down, not inferred."""
+        """A10c requires the CONSEQUENCE be written down, not inferred.
+
+        DELIBERATELY KEPT AS A TEXT ASSERTION, because the REQUIREMENT IS ABOUT PROSE. A10c's spec
+        option (ii) obliges the implementing plan to "record that detection is not possible on stdout
+        ... and state that `MAX_TURN_TIMEOUT` is therefore the only bound covering a permission
+        deadlock". The artifact under test IS the sentence: there is no behavior to drive, because the
+        deliverable is a human-readable statement that a post-mortem reader will find beside the
+        constant. Replacing it with a behavioral test would assert a DIFFERENT property (the bound's
+        armed state), which `test_the_default_remains_zero` and the R4.4b assertions in
+        `tests/test_wtiso_adversarial.py` already cover.
+
+        The pairing is what keeps it honest: the STATE is asserted behaviorally elsewhere, and this
+        asserts only that the state is documented. A comment satisfying this check is the POINT here,
+        where everywhere else in this file it is the defect.
+        """
 
         src = Path(inspect.getfile(lane_containment)).read_text(encoding="utf-8")
         assert "ONLY bound covering" in src
         assert "MAX_TURN_TIMEOUT` is currently the ONLY bound" in src
+        # ...and the documented claim is TRUE right now, so the prose and the code cannot drift into
+        # a statement that is merely still written down.
+        assert lane_containment.PERMISSION_TIMEOUT == 0.0
+        assert lane_containment.MAX_TURN_TIMEOUT > 0.0
 
     def test_the_mechanism_still_works_when_explicitly_armed(self):
         """OFF BY DEFAULT IS NOT UNIMPLEMENTED. The bound must work the day detection is proven.
@@ -355,17 +515,46 @@ class TestAntigravityCeilingOverlap:
         )
 
     def test_the_overlap_is_documented_in_the_code_naming_which_fires_first(self):
-        """A10d: STATED, NOT DISCOVERED, in both the shared home and the host that has the overlap."""
+        """A10d: STATED, NOT DISCOVERED, in both the shared home and the host that has the overlap.
+
+        DELIBERATELY KEPT AS A TEXT ASSERTION, for the same reason as
+        `test_the_artifact_states_max_turn_is_the_only_covering_bound`: A10d's deliverable IS the
+        prose. Two timers with the same numeric value and different owners is the duplication the
+        requirement guards against, and what it demands is that a post-mortem reader find the overlap
+        WRITTEN DOWN rather than having to derive it. There is no behavior to drive for "somebody
+        wrote this down".
+
+        THE BEHAVIOR IS ASSERTED SEPARATELY AND IS WHAT MAKES THIS SAFE. The ORDERING claim (the
+        driver bound fires FIRST, so a termination is attributable) is driven by
+        `test_the_driver_bound_fires_first_on_a_host_with_its_own_ceiling` and by
+        `test_no_config_file_entry_was_added`, which now asserts the agy host's ARMED bound equals
+        `driver_bound_for_host(parse_host_ceiling_seconds(DEFAULT_TIMEOUT))`. So prose alone can never
+        satisfy the property; this test adds only "and it is documented".
+
+        The brittle half WAS removed: the original matched the literal
+        `"EXPECTED\\n        # TO WIN"`, i.e. a specific comment WRAP COLUMN, which any reflow breaks
+        while changing nothing. The phrase is now matched with its whitespace collapsed.
+        """
 
         shared = Path(inspect.getfile(lane_containment)).read_text(encoding="utf-8")
         assert "print-timeout" in shared
         assert "240m" in shared
         assert "fire FIRST" in shared or "fires FIRST" in shared
 
-        agy_src = inspect.getsource(agy_runipd.run_agy_turn)
+        # Whitespace-collapsed, so a comment REFLOW cannot fail this while changing nothing.
+        agy_src = " ".join(inspect.getsource(agy_runipd.run_agy_turn).split())
+        agy_src = agy_src.replace("# ", "")
         assert "print-timeout" in agy_src
-        assert "EXPECTED\n        # TO WIN" in agy_src or "EXPECTED TO WIN" in agy_src
+        assert "EXPECTED TO WIN" in agy_src
         assert "BACKSTOP" in agy_src
+
+        # AND THE DOCUMENTED NUMBER IS THE REAL ONE, so the note cannot go stale: the host ceiling the
+        # prose names must still be what this host passes to the child.
+        assert agy_runipd.DEFAULT_TIMEOUT == "240m"
+        assert (
+            lane_containment.parse_host_ceiling_seconds(agy_runipd.DEFAULT_TIMEOUT)
+            == 4 * 60 * 60
+        )
 
     def test_a_termination_is_attributable_to_one_bound_by_name(self):
         record = lane_containment.bound_expiry_record(
@@ -391,27 +580,147 @@ class TestNoNewConfigurationSurface:
 
     @DRIVERS
     def test_no_cli_flag_was_added_for_either_bound(self, driver):
-        parser = driver.build_parser()
-        rendered = parser.format_help()
-        for flag in (
+        """R4.4c, asserted over the PARSER rather than over source text.
+
+        THE SUBPARSER HALF USED TO BE A SOURCE-TEXT PIN (`assert flag not in
+        Path(inspect.getfile(driver)).read_text()`), which is both weak and wrong-shaped: the literal
+        `--permission-timeout` inside a COMMENT or a docstring would fail it for prose, while a flag
+        registered by a computed string (`"--" + name`) would slip past it entirely. The parser itself
+        is the authority on which flags exist, so every parser - top level AND every subcommand - is
+        interrogated directly. That also covers the flags argparse accepts by unambiguous PREFIX,
+        which a text search cannot see at all.
+        """
+
+        import argparse
+
+        forbidden = (
             "--permission-timeout",
             "--max-turn-timeout",
             "--permission-deadline",
             "--absolute-timeout",
-        ):
-            assert flag not in rendered
+        )
 
-        # And no subparser carries one either.
-        src = Path(inspect.getfile(driver)).read_text(encoding="utf-8")
-        for flag in ("--permission-timeout", "--max-turn-timeout"):
-            assert flag not in src
+        def option_strings(parser) -> set[str]:
+            found: set[str] = set()
+            for action in parser._actions:
+                found.update(action.option_strings)
+                if isinstance(action, argparse._SubParsersAction):
+                    for sub in action.choices.values():
+                        found |= option_strings(sub)
+            return found
+
+        parser = driver.build_parser()
+        registered = option_strings(parser)
+        for flag in forbidden:
+            assert (
+                flag not in registered
+            ), f"{flag} was registered on this host's parser"
+            assert flag not in parser.format_help()
+            # And argparse does not accept it as an abbreviation of some other flag either, which is
+            # a real way a knob can become reachable without its literal name existing anywhere.
+            with pytest.raises(SystemExit):
+                parser.parse_args(["start", flag, "1"])
 
     def test_no_config_file_entry_was_added(self):
-        for name in ("permission_timeout", "max_turn_timeout"):
-            for driver in (oc_runipd, agy_runipd):
-                src = Path(inspect.getfile(driver)).read_text(encoding="utf-8")
-                assert f'options.get("{name}"' not in src
-                assert f'"{name}":' not in src
+        """R4.4c: neither bound is readable from frozen run options, DRIVEN rather than grepped.
+
+        The source-text version searched each driver for `options.get("permission_timeout"` and
+        `"permission_timeout":`, which misses a read spelled any other way (`options["..."]`, a key
+        built from a variable, a `.get(name)` in a loop). Instead: run a real turn with BOTH keys set
+        to values that would be unmistakable if honored, and assert the bound the driver actually
+        arms is the CONSTANT-derived one, unchanged. A driver that learned to read either key would
+        arm `1.5` and fail here.
+        """
+
+        for driver, launcher in (
+            (oc_runipd, "run_opencode"),
+            (agy_runipd, "run_agy_turn"),
+        ):
+            bounds: list[dict[str, object]] = []
+            real_watch = lane_containment.TurnBoundWatch
+
+            class _Proc:
+                def __init__(self, *a, **kw):
+                    self.stdout = iter(())
+                    self.stderr = None
+                    self.stdin = None
+
+                def poll(self):
+                    return 0
+
+                def wait(self, *a, **k):
+                    return 0
+
+            def spy_watch(**kwargs):
+                bounds.append(dict(kwargs))
+                return real_watch(**kwargs)
+
+            import tempfile
+
+            with tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                repo = root / "repo"
+                repo.mkdir()
+                run_dir = root / "run"
+                (run_dir / "sessions").mkdir(parents=True)
+                (run_dir / "prompts").mkdir(parents=True)
+                plan = repo / "p.ipd.md"
+                plan.write_text("# p\n", encoding="utf-8")
+                prompt = run_dir / "prompts" / "p.md"
+                prompt.write_text("do the thing\n", encoding="utf-8")
+                item = {
+                    "id6": "lhmrhx",
+                    "setid": "lanectn",
+                    "position": 1,
+                    "attempts": [{"number": 1}],
+                    "action": "execute",
+                }
+                state = {
+                    "run_id": "run-1",
+                    "repo": str(repo),
+                    "options": {
+                        "opencode": "opencode",
+                        "agy": "/bin/true",
+                        # THE KNOBS THAT MUST NOT EXIST, set to values no constant could produce.
+                        "permission_timeout": 1.5,
+                        "max_turn_timeout": 1.5,
+                        "permission_deadline": 1.5,
+                    },
+                    "queue": [item],
+                }
+                with (
+                    mock.patch.object(driver.subprocess, "Popen", _Proc),
+                    mock.patch.object(lane_containment, "TurnBoundWatch", spy_watch),
+                ):
+                    if driver is oc_runipd:
+                        driver.run_opencode(
+                            state, run_dir, item, plan, prompt, 1, work_dir=None
+                        )
+                    else:
+                        driver.run_agy_turn(
+                            state, run_dir, item, prompt, 1, None, False, work_dir=None
+                        )
+
+            assert len(bounds) == 1, f"{launcher}: {bounds!r}"
+            armed = bounds[0]
+            assert armed["max_turn_timeout"] != 1.5, (
+                f"{launcher} read a `max_turn_timeout` run option; R4.4c adds no config surface "
+                "until a real need appears"
+            )
+            assert armed.get("permission_timeout") in (None, 0, 0.0), (
+                f"{launcher} armed a permission bound from a run option; R4.4b keeps it disabled "
+                "until detection is proven"
+            )
+            # POSITIVELY: the armed value is the one the CONSTANTS derive, so this is not passing
+            # because nothing was armed at all.
+            host_ceiling = (
+                lane_containment.parse_host_ceiling_seconds(agy_runipd.DEFAULT_TIMEOUT)
+                if driver is agy_runipd
+                else None
+            )
+            assert armed["max_turn_timeout"] == lane_containment.driver_bound_for_host(
+                host_ceiling
+            )
 
     def test_both_bounds_remain_disable_able_in_code(self):
         """Declining a flag must not remove the operator's ability to turn one off (R4.4c)."""
@@ -832,10 +1141,21 @@ class TestExecutionRoleSelector:
     def test_the_honest_limit_is_stated_in_the_code(self, driver):
         """OVERSTATING A GUARANTEE IS THE FAILURE (spec Goal 5), so the limit must be written down.
 
+        DELIBERATELY KEPT AS A TEXT ASSERTION, because the deliverable IS the sentence. Goal 5's
+        requirement is that the code not overstate what the selector achieves, and the only way to
+        satisfy that is prose a reader encounters beside the mechanism. There is no behavior to drive:
+        the LIMIT is precisely that the mechanism can be bypassed, and a test that bypassed it would
+        assert the weakness rather than the honesty about it.
+
         Both drivers must state it, but they may state it differently and that is CORRECT rather than
         a drift: the oc twin carries the full note and the agy twin cites it, which is the shipped
         convention for a rule whose rationale lives in one place. What is asserted is the PROPERTY
         (each driver's code says this is a selector and not a boundary), not identical wording.
+
+        THE LIMIT IS ALSO SHOWN TO BE REAL, which is what stops this being prose asserting prose: the
+        selector is UNSET below and the same verb then succeeds, so the documented bypass is
+        demonstrated rather than merely claimed. The refusal half is driven by
+        `test_an_in_lane_lifecycle_verb_refuses_and_transitions_nothing` above.
         """
 
         src = Path(inspect.getfile(driver)).read_text(encoding="utf-8").lower()
@@ -848,6 +1168,18 @@ class TestExecutionRoleSelector:
         shared = Path(inspect.getfile(lane_containment)).read_text(encoding="utf-8")
         assert "HONEST LIMIT" in shared
         assert "not a boundary" in shared
+
+        # THE DOCUMENTED LIMIT IS REAL: the predicate keys on the selector ALONE, so unsetting it
+        # restores authority. That is the bypass the prose admits to, asserted rather than asserted-in-
+        # prose, and it is why "selector" is the honest word and "boundary" would not be.
+        from agent_workflows import ipd_lifecycle
+
+        marked = {"PATH": "/usr/bin", ipd_lifecycle.EXECUTION_ROLE_ENV: "worker"}
+        assert ipd_lifecycle.worker_role_active(marked) is True
+        bypassed = {
+            k: v for k, v in marked.items() if k != ipd_lifecycle.EXECUTION_ROLE_ENV
+        }
+        assert ipd_lifecycle.worker_role_active(bypassed) is False
 
 
 class TestTheAgentIsToldNotToOutliveItsOwnCommands:

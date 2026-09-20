@@ -24,7 +24,7 @@ import argparse
 import io
 import json
 import unittest
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stdout
 
 from agent_workflows import host_cmd
 from agent_workflows import host_sandbox_profile as hsp
@@ -60,6 +60,48 @@ SPEC_MESSAGE = (
     "action <action>. No work started for this item. Choose a capable host or enable and "
     "re-probe that capability, then run: aw <host> run <selector>"
 )
+
+
+@contextmanager
+def _unarranged():
+    """The null arrangement: run the probe exactly as production does.
+
+    A row that needs no defect injected still goes through a context manager, so the table's
+    `arrange` column is uniform and a reader cannot mistake "no arrangement" for "no probe".
+    """
+    yield
+
+
+@contextmanager
+def _fresh_verifier_never_refuses():
+    """Make `run_fresh_verifier` ACCEPT a reused session identity, enforcing no separation.
+
+    This is the fail-OPEN defect in its exact shape: the enforcement mechanism still exists and
+    still runs (so a presence-based probe sees everything it would look for), but the collision
+    it is supposed to refuse goes through. Restored in a `finally` because the patch is
+    process-global.
+    """
+    from agent_workflows import agy_verifier as agy
+
+    real = agy.run_fresh_verifier
+
+    def never_refuses(packet, **kwargs):
+        kwargs.pop("execution_session", None)
+        verifier = kwargs.pop("verifier_session")
+        return real(
+            packet,
+            execution_session=agy.SessionIdentity(
+                session_id="distinct-executor", role="executor"
+            ),
+            verifier_session=verifier,
+            **kwargs,
+        )
+
+    agy.run_fresh_verifier = never_refuses  # type: ignore[assignment]
+    try:
+        yield
+    finally:
+        agy.run_fresh_verifier = real  # type: ignore[assignment]
 
 
 def _fully_capable() -> HostSandboxCapabilities:
@@ -196,19 +238,185 @@ class RunnerSafetyProbeTests(unittest.TestCase):
                 self.assertFalse(verdicts[name])
                 self.assertIn("DECLARED, NOT PROBED", notes[name])
 
-    def test_no_runner_safety_probe_infers_support_from_helper_presence(self):
-        """Structural: the probe module must not reach for the driver-side commit helper."""
-        import inspect
+    #: (case, capability, the arrangement that makes containment UNOBSERVED, the verdict the prober
+    #: MUST return, why this row exists)
+    #:
+    #: ONE CLAIM, ONE ROW PER PROBE: no runner-safety capability may be decided by a HELPER EXISTING.
+    #: Every row therefore arranges the fail-open shape precisely - the helper that could be
+    #: inspected IS importable and IS callable, while the containment it is supposed to evidence is
+    #: NOT observed - and demands `False`. `_helper_exists` is asserted per row, so a row can never
+    #: pass because the helper quietly disappeared.
+    PRESENCE_VS_OBSERVATION = (
+        (
+            "commit-gateway, with the driver-side commit helper installed and importable",
+            CAP_COMMIT_GATEWAY,
+            ("agent_workflows.git_commit_helper", "offer_commit"),
+            _unarranged,
+            False,
+            "`git_commit_helper.offer_commit` / `aw commit` is a helper the DRIVER CHOOSES to call, "
+            "not a boundary an agent cannot evade, so its presence evidences nothing about host "
+            "enforcement. Spec 25kzda 5.2 guarantee 2 is that the agent CANNOT commit except "
+            "through the gateway; reporting supported here would publish that guarantee on every "
+            "host in the world while nothing intercepts a single `git commit`",
+        ),
+        (
+            "deny-push, with the same helper installed and importable",
+            CAP_DENY_PUSH,
+            ("agent_workflows.git_commit_helper", "offer_commit"),
+            _unarranged,
+            False,
+            "the SECOND capability an inspection-based probe would infer from the SAME helper, which "
+            "is why it is a row rather than a duplicate: the driver not pushing is a driver "
+            "behavior, and guarantee 1 asks for a host-enforced DENIAL of push-capable routes. Two "
+            "capabilities sharing one inferred witness is exactly how one fail-open shortcut "
+            "silently satisfies two contract fields",
+        ),
+        (
+            "fresh-verifier separation, with the contract present but REFUSING NOTHING",
+            CAP_FRESH_VERIFIER_SESSION,
+            ("agent_workflows.agy_verifier", "run_fresh_verifier"),
+            _fresh_verifier_never_refuses,
+            False,
+            "THE ROW THAT GENERALIZES THE RULE BEYOND AN ABSENT ENFORCEMENT. Here the enforcement "
+            "mechanism really does exist and really does run, so `the symbol imports` is at its "
+            "most tempting - and a contract that ACCEPTS a reused session identity separates "
+            "execution from verification not at all, while a caller believes the two were "
+            "independent. The observed REFUSAL is the evidence, never the symbol",
+        ),
+        (
+            "fresh-verifier separation, with the reused identity genuinely REFUSED",
+            CAP_FRESH_VERIFIER_SESSION,
+            ("agent_workflows.agy_verifier", "run_fresh_verifier"),
+            _unarranged,
+            True,
+            "THE POSITIVE ROW, and the anti-vacuity half of the whole table: without it every "
+            "negative row above is satisfied by a prober that answers `False` unconditionally, "
+            "which would gate every capable host out of every action class. Same probe, same "
+            "helper, same process - ONLY the observed refusal differs",
+        ),
+    )
 
-        src = inspect.getsource(hsp)
-        for forbidden in ("offer_commit", "git_commit_helper"):
-            # Mentioned in the fail-OPEN explanation prose, but never as code that decides a
-            # verdict: no probe may import or call it.
-            self.assertNotIn(
-                f"import {forbidden}",
-                src,
-                "a presence-based probe over the driver-side helper is forbidden",
+    def test_no_runner_safety_probe_infers_support_from_helper_presence(self):
+        """No runner-safety verdict may be inferred from a HELPER EXISTING (fail-open).
+
+        REPLACES A SOURCE-TEXT PIN whose weakness was structural, not stylistic: it read
+        `inspect.getsource(hsp)` and asserted `"import offer_commit"` and
+        `"import git_commit_helper"` were absent. Neither string is how Python spells that
+        import (`from agent_workflows import git_commit_helper` contains neither), so the pin
+        could not have failed even for a module that imported and called the helper on every
+        line - while an accurate COMMENT about the forbidden pattern would have broken it.
+
+        Replaced in three behavioral parts, all against the live prober:
+          1. a TABLE: per probe, the inspectable helper is importable and callable while
+             containment is NOT observed, and the verdict must be not-supported (plus a positive
+             row where the containment IS observed, so the table cannot pass vacuously);
+          2. a SPY on `git_commit_helper.offer_commit` asserting a full sweep never CALLS it
+             (the spy is shown to record, so the zero-call claim is not vacuous); and
+          3. an IMPORT observation: with the helper module evicted from `sys.modules`, a full
+             sweep must not put it back, which is the real form of "no probe imports it".
+        """
+        import importlib
+        import sys
+
+        wrong = []
+        for (
+            case,
+            capability,
+            helper,
+            arrange,
+            expected,
+            why,
+        ) in self.PRESENCE_VS_OBSERVATION:
+            module_name, attribute = helper
+            problems = []
+            module = importlib.import_module(module_name)
+            if not callable(getattr(module, attribute, None)):
+                problems.append(
+                    f"{module_name}.{attribute} is not importable+callable here, so this row "
+                    "no longer arranges the fail-open shape it exists to reject"
+                )
+            with arrange():
+                verdicts, notes = probe_runner_safety_capabilities()
+            if verdicts.get(capability) is not expected:
+                problems.append(
+                    f"reported {capability}={verdicts.get(capability)!r}, expected {expected!r} "
+                    f"(note: {notes.get(capability, '')[:160]!r})"
+                )
+            if problems:
+                wrong.append(
+                    f"  {case}\n"
+                    + "".join(f"    - {p}\n" for p in problems)
+                    + f"    this row exists because: {why}"
+                )
+
+        # (2) THE SWEEP MUST NOT CALL THE DRIVER-SIDE HELPER. A spy rather than a source scan,
+        # because a call reached through an alias, a getattr, or another module is invisible to text.
+        from agent_workflows import git_commit_helper as gch
+
+        real_offer = gch.offer_commit
+        calls = []
+
+        def spy(*args, **kwargs):
+            calls.append((args, kwargs))
+            raise AssertionError(
+                "a runner-safety probe called the driver-side commit helper"
             )
+
+        gch.offer_commit = spy  # type: ignore[assignment]
+        try:
+            probe_runner_safety_capabilities()
+            spy_records = False
+            try:
+                gch.offer_commit()
+            except AssertionError:
+                spy_records = True
+            # The spy fired ONCE, from this test's own deliberate call, never from the sweep.
+            if not (spy_records and len(calls) == 1):
+                wrong.append(
+                    "  the sweep's relationship to `git_commit_helper.offer_commit`\n"
+                    f"    - the spy recorded {len(calls)} call(s) and self-check "
+                    f"records={spy_records!r}; exactly 1 (this test's own) is required\n"
+                    "    this row exists because: a probe that CALLS the driver-side helper is "
+                    "inferring a host guarantee from a driver behavior, and a text scan cannot see "
+                    "a call reached through an alias or a getattr"
+                )
+        finally:
+            gch.offer_commit = real_offer  # type: ignore[assignment]
+
+        # (3) THE SWEEP MUST NOT IMPORT IT EITHER. Evict the module and observe `sys.modules`: an
+        # import of any spelling repopulates the key, which no substring search can establish.
+        saved_module = sys.modules.pop("agent_workflows.git_commit_helper", None)
+        try:
+            probe_runner_safety_capabilities()
+            if "agent_workflows.git_commit_helper" in sys.modules:
+                wrong.append(
+                    "  the sweep's import footprint\n"
+                    "    - a full sweep imported `agent_workflows.git_commit_helper`\n"
+                    "    this row exists because: a presence-based probe's first move is to import "
+                    "the helper it intends to inspect, so the import itself is the fingerprint"
+                )
+        finally:
+            # Restore the ORIGINAL module object (never a fresh import), so no other test in this
+            # process can end up holding a second copy of it.
+            if saved_module is not None:
+                sys.modules["agent_workflows.git_commit_helper"] = saved_module
+
+        self.assertEqual(
+            wrong,
+            [],
+            f"{len(wrong)} runner-safety presence-vs-observation claim(s) failed of "
+            f"{len(self.PRESENCE_VS_OBSERVATION)} probe rows plus the two sweep-wide checks. Every "
+            "row states ONE rule - a capability is decided by an OBSERVED containment, never by a "
+            "helper existing - so read the grouping: all three NEGATIVE rows failing together "
+            "means the prober started inferring support (fail OPEN: every gated action would "
+            "proceed on a host that enforces nothing); the POSITIVE row alone failing means it now "
+            "refuses everything and no host can run a gated action; and a SWEEP-WIDE check failing "
+            "means a probe has begun reaching for the driver-side commit helper, which is the "
+            "specific shortcut `_DECLARED_UNENFORCED` exists to forbid. FIX: `commit_gateway` and "
+            "`deny_push` have NOTHING to attempt in this package, so their honest verdict is "
+            "declared-and-not-probed False; do not invent a witness for them.\n"
+            + "\n".join(wrong),
+        )
 
     def test_detect_host_capabilities_records_the_probe_notes(self):
         caps = detect_host_capabilities("opencode")

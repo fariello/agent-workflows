@@ -32,10 +32,13 @@ own configuration: the subprocess boundary and the store are injected.
 
 from __future__ import annotations
 
+import ast
+import inspect
 import json
 import os
 import subprocess
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 from typing import List, Optional, Sequence
@@ -2370,120 +2373,222 @@ class NoCredentialLeakTests(unittest.TestCase):
         self.assertNotIn(SENTINEL_SECRET, haystack)
         self.assertNotIn("apiKey", haystack)
 
-    #: (forbidden token, the capability it would grant, why this row exists)
+    #: (the forbidden capability, the call names that grant it, the modules whose import grants it,
+    #: why this row exists)
     #:
-    #: Each row was one of three tests that read the wizard's source and looped its own short list of
-    #: tokens, reporting only the FIRST hit and stopping. Nine tokens now report together.
-    FORBIDDEN_SOURCE_TOKENS = (
+    #: WHY AST AND NOT BEHAVIOR, stated because the brief's default is to replace a pin with a
+    #: behavioral test and this is the documented exception. The claim is an ABSENCE over an ENTIRE
+    #: MODULE: no code path anywhere in it evaluates text, shells out, or reads the environment. No
+    #: test can drive that, because driving covers only the branches a test enters, and the hazard is
+    #: precisely the branch nobody thought to enter (an error path, a rarely-taken retry). So the
+    #: subject here really is the module's STRUCTURE.
+    #:
+    #: WHY AST AND NOT A TEXT SCAN, which is what this replaced: the previous version read
+    #: `inspect.getsource(W)` and asserted nine substrings absent. That form is broken in BOTH
+    #: directions at once. It FIRES on prose: this module's own docstring says "Nothing here calls
+    #: `input()`, `print()`, `subprocess`, or `store_path()` directly", so an accurate explanation of
+    #: the boundary was indistinguishable from a breach of it, and the check could only survive by
+    #: forbidding the documentation. And it MISSES code: `os.environ` written as
+    #: `environ["KEY"]` after `from os import environ`, or `getattr(os, "environ")`, contains none of
+    #: the forbidden substrings. An AST resolves the CALL and the IMPORT rather than the spelling, so
+    #: a comment cannot satisfy it and a rewording cannot break it.
+    FORBIDDEN_CAPABILITIES = (
         (
-            "shell=True",
-            "shell interpretation",
-            "a shell would make any interpolated value (a model id, a variant, a profile name the "
-            "user typed) executable, turning a text field into command injection",
-        ),
-        (
-            "os.system",
-            "shell interpretation",
-            "the same hazard by a different route, and one that is easy to reach for when adding a "
-            "single innocuous-looking command",
-        ),
-        (
-            "eval(",
             "evaluating text as code",
-            "every string here is USER INPUT from a prompt; evaluating any of it is arbitrary code "
-            "execution",
+            ("eval", "exec", "compile", "__import__"),
+            (),
+            "every string this module handles is USER INPUT typed into a prompt (a model id, a "
+            "variant, a profile name), so evaluating any of it is arbitrary code execution. `exec` "
+            "is the statement-level twin and `compile`/`__import__` are the routes to the same "
+            "capability that a scan for `eval(` alone would walk straight past",
         ),
         (
-            "exec(",
-            "evaluating text as code",
-            "the statement-level twin of eval, forbidden for the same reason",
+            "shell interpretation",
+            (
+                "system",
+                "popen",
+                "spawn",
+                "spawnl",
+                "spawnv",
+                "call",
+                "check_output",
+                "run",
+            ),
+            ("subprocess", "os.popen", "pty", "commands"),
+            "a shell makes every interpolated value executable, turning a text field into command "
+            "injection. The MODULE import is forbidden as well as the call, because importing "
+            "`subprocess` here is the precondition for the hazard and is the thing a reviewer can "
+            "see at a glance. V-01 also requires discovery to be READ-ONLY, and the wizard reaches "
+            "the probe exclusively through its injected `discover` seam",
         ),
         (
-            "os.environ",
             "reading the environment",
-            "CREDENTIALS LIVE IN THE ENVIRONMENT. A wizard that never reads it cannot leak a key "
-            "into a preview, a prompt, or a stored profile, which is a structural guarantee rather "
-            "than a promise that no current code path happens to print one",
+            ("getenv", "environ", "putenv", "expandvars"),
+            ("os.environ",),
+            "CREDENTIALS LIVE IN THE ENVIRONMENT, and this module renders nearly everything it "
+            "touches to a terminal, so a module that never reads it cannot leak a key into a "
+            "preview, a prompt, or a stored profile. That is a structural guarantee rather than a "
+            "promise that no CURRENT path happens to print one - which is exactly the claim a "
+            "behavioral test cannot make, since it only ever covers the paths it drives",
         ),
         (
-            "getenv",
-            "reading the environment",
-            "the other spelling of the same read; checking only `os.environ` would miss "
-            "`os.getenv(...)` entirely",
-        ),
-        (
-            "write_config",
             "writing OpenCode's own configuration",
-            "the wizard writes the RUNNER PROFILE store and nothing else. Touching the user's "
-            "`opencode.json` would put it in the business of editing a file it only ever reads ids "
-            "from",
-        ),
-        (
-            "opencode.json",
-            "writing OpenCode's own configuration",
-            "naming the file at all is the precondition for writing it, so the NAME is forbidden "
-            "here rather than just the write call",
-        ),
-        (
-            "--refresh",
-            "mutating OpenCode state",
-            "V-01: discovery is READ-ONLY. `--refresh` is the flag that would make the probe mutate "
-            "the user's cached provider state, and the wizard must not carry it even as a string",
+            ("write_config", "write_text", "write_bytes", "open"),
+            (),
+            "the wizard writes the RUNNER PROFILE store through its injected `save` seam and nothing "
+            "else. Any direct write from this module would put it in the business of editing files "
+            "it only ever reads ids from, and `open(...)` is the generic route to that, which a "
+            "scan for the literal name `opencode.json` would not catch",
         ),
     )
 
-    def test_the_wizard_source_contains_no_forbidden_capability(self):
-        """One table over the wizard's forbidden source tokens, replacing three tests.
+    #: A planted violation, used to prove the scan is NOT VACUOUS. Every forbidden capability above
+    #: appears here in a form the OLD TEXT SCAN would have missed: `eval` reached through an alias,
+    #: `subprocess.run` imported under a different name, `environ` imported bare, and `open` inside a
+    #: nested function. If the scanner reports these clean, it is not scanning.
+    PLANTED_VIOLATION = textwrap.dedent(
+        """\
+        from os import environ
+        from subprocess import run as launch
+        import builtins
 
-        Each of the three read `inspect.getsource(W)` and looped a short list of tokens with
-        `assertNotIn`, so each was already a hand-inlined table that stopped at its FIRST hit.
-
-        Why one table rather than three, given the tokens guard three different capabilities: they are
-        three facets of ONE claim, that this module is a pure question-and-answer layer over injected
-        seams, and the `capability` column keeps the grouping legible in the failure. The merged
-        message can say which CAPABILITIES appeared rather than which tokens, which is what a reader
-        needs: two tokens from the same capability appearing together is one change, while tokens from
-        three capabilities appearing at once means the module's whole role has shifted.
-
-        HONEST LIMIT, stated because a source scan invites overconfidence: this is a TEXTUAL check
-        and is trivially evaded (`getattr(os, "environ")`, a helper in another module). It is a
-        tripwire against the ordinary case of someone adding a convenient line, not a proof. The
-        credential guarantee is enforced for real by `test_no_wizard_output_contains_a_sentinel_
-        credential`, which checks actual output, and by the AST-based check on the discovery path.
+        def leak(profile_name):
+            "A docstring that innocently mentions eval, subprocess and os.environ."
+            evaluator = builtins.eval
+            secret = environ["OPENAI_API_KEY"]
+            launch(["echo", secret])
+            with open("/tmp/leak", "w") as handle:
+                handle.write(secret)
+            return evaluator(profile_name)
         """
-        import inspect
+    )
 
-        src = inspect.getsource(W)
+    @staticmethod
+    def _forbidden_findings(source: str, forbidden_calls, forbidden_modules):
+        """Resolve the module's CALLS and IMPORTS, returning findings for the forbidden ones.
+
+        Reports a `Call` whose target resolves to a forbidden NAME, whether it is spelled bare
+        (`eval(x)`), as an attribute (`os.system(x)`), or through a local alias bound from a
+        forbidden name (`f = eval` then `f(x)`); and an `Import`/`ImportFrom` of a forbidden
+        module, including `from subprocess import run as launch`, where the surviving local name
+        says nothing at all.
+        """
+        tree = ast.parse(source)
+        findings = []
+
+        aliases = {}
+        for node in ast.walk(tree):
+            # `f = eval` / `f = os.system`: bind the local name to the forbidden target it names, so
+            # a later `f(...)` is attributed to the capability rather than read as an unknown call.
+            if isinstance(node, ast.Assign) and len(node.targets) == 1:
+                target, value = node.targets[0], node.value
+                resolved = None
+                if isinstance(value, ast.Name):
+                    resolved = value.id
+                elif isinstance(value, ast.Attribute):
+                    resolved = value.attr
+                if isinstance(target, ast.Name) and resolved in forbidden_calls:
+                    aliases[target.id] = resolved
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                func = node.func
+                name = None
+                if isinstance(func, ast.Name):
+                    name = aliases.get(func.id, func.id)
+                elif isinstance(func, ast.Attribute):
+                    name = func.attr
+                if name in forbidden_calls:
+                    findings.append(
+                        f"line {getattr(node, 'lineno', '?')}: calls {name!r}"
+                    )
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if (
+                        alias.name.split(".")[0] in forbidden_modules
+                        or alias.name in forbidden_modules
+                    ):
+                        findings.append(
+                            f"line {node.lineno}: imports module {alias.name!r}"
+                        )
+            elif isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                if (
+                    module.split(".")[0] in forbidden_modules
+                    or module in forbidden_modules
+                ):
+                    findings.append(f"line {node.lineno}: imports from {module!r}")
+                for alias in node.names:
+                    # `from os import environ` leaves only `environ` behind, so the imported NAME is
+                    # checked against the forbidden call set too.
+                    if alias.name in forbidden_calls:
+                        findings.append(
+                            f"line {node.lineno}: imports name {alias.name!r} from {module!r}"
+                        )
+        return findings
+
+    def test_the_wizard_source_contains_no_forbidden_capability(self):
+        """The wizard module must resolve NO forbidden call and import NO forbidden module (AST).
+
+        CONVERTED FROM A TEXT PIN rather than replaced behaviorally, and the class docstring above
+        records why at length: the claim is the NON-EXISTENCE of a construct anywhere in the module,
+        including branches no test enters, so there is no behavior to drive. An AST check is not a
+        grep - a comment cannot add a `Call` node and a rename cannot remove one.
+
+        THE SCAN IS PROVEN NON-VACUOUS IN THIS SAME TEST against `PLANTED_VIOLATION`, whose every
+        line is written in a form the OLD SUBSTRING VERSION would have passed. A scanner that
+        reports the wizard clean but the planted source clean too is reporting nothing, and that
+        possibility is the one an absence claim is most exposed to.
+        """
+        source = inspect.getsource(W)
         wrong = []
         capabilities = set()
-        for token, capability, why in self.FORBIDDEN_SOURCE_TOKENS:
-            if token in src:
+        for capability, calls, modules, why in self.FORBIDDEN_CAPABILITIES:
+            problems = []
+
+            found = self._forbidden_findings(
+                source, frozenset(calls), frozenset(modules)
+            )
+            if found:
                 capabilities.add(capability)
-                lines = [
-                    f"{number}: {line.strip()}"
-                    for number, line in enumerate(src.splitlines(), start=1)
-                    if token in line
-                ]
+                problems.append(
+                    f"the wizard module grants {capability} at: " + "; ".join(found[:5])
+                )
+
+            # ANTI-VACUITY, per capability rather than once for the table: a scanner that silently
+            # stopped resolving (say, an `ast` API change, or a typo'd node type) would otherwise
+            # report every row clean and read as a green suite.
+            planted = self._forbidden_findings(
+                self.PLANTED_VIOLATION, frozenset(calls), frozenset(modules)
+            )
+            if not planted:
+                problems.append(
+                    "THE SCAN IS VACUOUS for this capability: it reported no finding against the "
+                    "planted violation, which grants it explicitly. Nothing this row says about the "
+                    "wizard can be believed"
+                )
+
+            if problems:
                 wrong.append(
-                    f"  {token!r} grants {capability} and appears at:\n"
-                    + "".join(f"      {location}\n" for location in lines[:5])
+                    f"  {capability}\n"
+                    + "".join(f"    - {p}\n" for p in problems)
                     + f"    this row exists because: {why}"
                 )
+
         self.assertEqual(
             wrong,
             [],
-            f"the wizard's source contains {len(wrong)} of "
-            f"{len(self.FORBIDDEN_SOURCE_TOKENS)} forbidden tokens, across "
-            f"{len(capabilities)} capability group(s): {', '.join(sorted(capabilities))}. The module "
-            "is meant to be a pure question-and-answer layer over INJECTED seams (`ask`, `emit`, "
-            "`discover`, `load`, `save`), so read the grouping: several tokens from ONE capability "
-            "is a single change, while tokens from several at once means the module has taken on a "
-            "role it should not have. FIX: an environment read is the one to treat as urgent, since "
-            "credentials live there and this module renders everything it touches to a terminal. A "
-            "shell or eval token is the injection hazard, because every string here came from a "
-            "prompt the user typed into. NOTE THE LIMIT: this check is TEXTUAL and easy to evade, so "
-            "it is a tripwire rather than a proof; the real credential guarantee is the "
-            f"sentinel-output test above.\n" + "\n".join(wrong),
+            f"{len(wrong)} of {len(self.FORBIDDEN_CAPABILITIES)} forbidden-capability claims failed"
+            + (f", across: {', '.join(sorted(capabilities))}" if capabilities else "")
+            + ". The module is meant to be a pure question-and-answer layer over INJECTED seams "
+            "(`ask`, `emit`, `discover`, `load`, `save`), so read the grouping: findings in ONE "
+            "capability is a single change someone made deliberately, while findings in several at "
+            "once means the module has taken on a role it should not have. FIX: an ENVIRONMENT READ "
+            "is the one to treat as urgent, since credentials live there and this module renders "
+            "what it touches to a terminal; a shell or eval finding is the injection hazard, because "
+            "every string here came from a prompt the user typed into. A VACUOUS row is worse than "
+            "either: it means this test proves nothing at all, so repair the scanner before "
+            "believing any other row.\n" + "\n".join(wrong),
         )
 
 

@@ -1031,13 +1031,82 @@ class Order04MigrationSafetyTests(unittest.TestCase):
     # --- E-05: atomic rollback config write ------------------------------------------------------
 
     def test_rollback_config_write_is_atomic(self):
-        """rollback_migration writes config.json via a temp file + os.replace (no truncate risk)."""
-        import inspect
+        """A rollback that DIES between writing the temp file and renaming it leaves config.json intact.
+
+        REPLACES A SOURCE-TEXT PIN that searched `rollback_migration`'s source for `"os.replace"`
+        and for the absence of `'open(config_file, "w"'`. Neither assertion can establish
+        atomicity: a COMMENT mentioning `os.replace` satisfied the first, and the second is a
+        claim about one exact spelling of one truncating call, so `config_file.open("w")` or
+        `config_file.write_text(...)` would have destroyed the file with the pin still green.
+
+        Atomicity is a statement about the CRASH WINDOW, so this test creates one. `os.replace` is
+        patched to raise AFTER the temp file exists and BEFORE the rename lands, which is exactly
+        the instant a kill would fall in, and the assertion is the one an operator actually cares
+        about: the original config is still there and still BYTE-IDENTICAL. A truncate-in-place
+        implementation fails this, because by the time the rename is reached the original bytes are
+        already gone.
+        """
         from agent_workflows import layout_migration
 
-        src = inspect.getsource(layout_migration.MigrationManager.rollback_migration)
-        self.assertIn("os.replace", src)
-        self.assertNotIn('open(config_file, "w"', src)
+        mgr = MigrationManager(target_repo=str(self.repo), aw_home=self.aw_home)
+        mgr.config_dir.mkdir(parents=True, exist_ok=True)
+        config_file = mgr.config_dir / "config.json"
+        # A config whose backend is the POST-switch value, so rollback has a real edit to make. The
+        # trailing junk key and the odd indentation are deliberate: they make the file's exact bytes
+        # distinguishable from anything the rollback would legitimately write.
+        original_bytes = b'{\n      "records_backend": "repository",\n  "canary": "must survive a crash"\n}\n'
+        config_file.write_bytes(original_bytes)
+        mgr._save_transaction({"status": "completed", "timestamps": {}})
+
+        real_replace = layout_migration.os.replace
+        window = {}
+
+        def die_in_the_rename_window(src, dst):
+            """Stand in for a crash: the temp file exists, the rename has not happened."""
+            window["temp_existed"] = Path(src).exists()
+            window["temp_bytes"] = Path(src).read_bytes() if Path(src).exists() else b""
+            raise OSError("simulated crash between the temp write and the rename")
+
+        layout_migration.os.replace = die_in_the_rename_window
+        try:
+            with self.assertRaises(OSError):
+                mgr.rollback_migration()
+        finally:
+            layout_migration.os.replace = real_replace
+
+        self.assertTrue(
+            window.get("temp_existed"),
+            "the crash window was never entered: the write did not stage a temp file first, so "
+            "there is no atomicity to speak of (an in-place truncate has no such window)",
+        )
+        self.assertIn(
+            b"legacy",
+            window.get("temp_bytes", b""),
+            "the staged temp file must already hold the NEW content, or the rename is not what "
+            "publishes the change",
+        )
+        self.assertTrue(
+            config_file.exists(), "config.json was destroyed by a mid-write crash"
+        )
+        self.assertEqual(
+            config_file.read_bytes(),
+            original_bytes,
+            "config.json changed despite the write never completing; an interrupted rollback must "
+            "leave the previous config byte-identical rather than truncated or half-written",
+        )
+        # And the HAPPY path still publishes the rollback, so the guarantee above is not achieved by
+        # simply never writing anything.
+        result = mgr.rollback_migration()
+        self.assertEqual(result["authority"], "legacy")
+        self.assertEqual(
+            json.loads(config_file.read_text(encoding="utf-8"))["records_backend"],
+            "legacy",
+        )
+        self.assertEqual(
+            json.loads(config_file.read_text(encoding="utf-8"))["canary"],
+            "must survive a crash",
+            "the rollback must EDIT the config, not replace it with a fresh one",
+        )
 
 
 class StaleToolLitterSweepTests(unittest.TestCase):
@@ -1326,8 +1395,9 @@ class StaleToolLitterSweepTests(unittest.TestCase):
         os.chdir(self.repo)
         buf = io.StringIO()
         try:
-            with mock.patch("sys.stdin", io.StringIO("1\n1\ny\n")), mock.patch(
-                "sys.stdout", buf
+            with (
+                mock.patch("sys.stdin", io.StringIO("1\n1\ny\n")),
+                mock.patch("sys.stdout", buf),
             ):
                 code = cli.main(["migrate-layout"])
         finally:
@@ -1355,8 +1425,9 @@ class StaleToolLitterSweepTests(unittest.TestCase):
         os.chdir(self.repo)
         buf = io.StringIO()
         try:
-            with mock.patch("sys.stdin", io.StringIO("1\n3\ny\n")), mock.patch(
-                "sys.stdout", buf
+            with (
+                mock.patch("sys.stdin", io.StringIO("1\n3\ny\n")),
+                mock.patch("sys.stdout", buf),
             ):
                 code = cli.main(["migrate-layout"])
         finally:

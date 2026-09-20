@@ -343,8 +343,6 @@ class IgnoredEnumerationTests(_FixtureCase):
         self.fx.add_ignored()
         self.fx.add_untracked()
 
-        from agent_workflows import runner_shared
-
         def runner_without_ignored(repo: Path, args: list[str]):
             stripped = [a for a in args if not a.startswith("--ignored")]
             return runner_shared._run_git(repo, stripped)
@@ -969,29 +967,135 @@ class TwinParityTests(unittest.TestCase):
                 self.assertEqual(defined & set(self.OWNED), set())
 
     def test_both_drivers_route_teardown_through_the_shared_gate(self):
+        """DRIVEN, NOT GREPPED: each host's real teardown path reaches the ONE shared gate.
+
+        WHY THE SOURCE-TEXT VERSION WAS UNSOUND. It asserted the literal
+        `"lane_containment.teardown_lane_if_classified("` appeared in each driver's source. Both
+        drivers discuss that gate at length in prose (`oc_runipd.py` names it inside a comment
+        explaining why an uncommitted change is refused), so a comment satisfies the search while the
+        real call is replaced by a bare `teardown_isolation_worktree`, which is exactly the
+        lane-destroying bypass this property exists to forbid.
+
+        WHAT IS ASSERTED NOW, three halves, each catching a different failure:
+
+          (a) IDENTITY - both hosts resolve `lane_containment` to ONE module object, so neither can
+              have re-forked the gate or the emitter under the same attribute name.
+          (b) CALLED - `retry_deferred_integrations` is driven for real on each host with one
+              `integration-deferred` item whose integration succeeds, and SPIES prove the gate and
+              the preservation emitter were each reached exactly once on that path.
+          (c) SENTINEL SURFACED - the gate is patched to REFUSE with an inventory naming
+              `SENTINEL.txt`, a verdict no real inventory of this lane could produce, and the
+              refusal's reason plus reason codes are asserted to land on the item's durable
+              `preserved_*` fields. A host that calls the gate and then ignores its verdict fails
+              here, which a call-count assertion alone would miss.
+
+        R5.6a (the shared renderer names a preserved lane in the summary) is NOT re-asserted here by
+        source text: it is driven end to end by `SummaryVisibilityTests`, which renders each host's
+        report and reads the section, and by
+        `test_a_renderer_that_returns_nothing_makes_every_driver_report_silent`, which sabotages the
+        renderer and shows both hosts fall silent.
+        """
+        from unittest import mock
+
         for label, module in DRIVERS:
-            with self.subTest(driver=label):
-                source = inspect.getsource(module)
-                self.assertIn(
-                    "lane_containment.teardown_lane_if_classified(",
-                    source,
-                    f"{label} must consult the retention gate before destroying a lane",
+            with self.subTest(driver=label), TemporaryDirectory() as tmp:
+                # (a) ONE shared home, reached identically by both hosts.
+                self.assertIs(module.lane_containment, LC)
+
+                lane = Path(tmp) / "lane"
+                lane.mkdir(parents=True, exist_ok=True)
+                repo = Path(tmp) / "repo"
+                repo.mkdir(parents=True, exist_ok=True)
+                _git(repo, "init", "-q", "-b", "main", ".")
+                _git(repo, "config", "user.email", "driver@example.invalid")
+                _git(repo, "config", "user.name", "driver")
+                (repo / "base.txt").write_text("base\n", encoding="utf-8")
+                _git(repo, "add", "-A")
+                _git(repo, "commit", "-qm", "base")
+                base = _git(repo, "rev-parse", "HEAD").strip()
+                _git(repo, "branch", f"aw/lane/def-{label}")
+                run_dir = Path(tmp) / "run"
+                (run_dir / "outcomes").mkdir(parents=True, exist_ok=True)
+
+                item: dict[str, Any] = {
+                    "position": 1,
+                    "id6": f"def{label}",
+                    "setid": "lanectn",
+                    "status": "integration-deferred",
+                    "action": "execute",
+                    "configured_file": "absent.ipd.md",
+                    "attempts": [{"number": 1}],
+                    # The durable fields the shared preservation emitter writes, which is how a
+                    # re-attempt finds the lane again in a LATER dispatch-loop iteration.
+                    "preserved_branch": f"aw/lane/def-{label}",
+                    "preserved_worktree": str(lane),
+                    "preserved_lane_id": f"def-{label}",
+                    "preserved_base": base,
+                }
+                state: dict[str, Any] = {
+                    "run_id": f"run-{label}",
+                    "repo": str(repo),
+                    "selectors": [item["id6"]],
+                    "queue": [item],
+                    "options": {},
+                }
+
+                gate_calls: list[dict[str, Any]] = []
+                emitter_calls: list[dict[str, Any]] = []
+                refusal = LC.LaneTeardownDecision(
+                    torn_down=False,
+                    inventory=LC.LaneInventory(
+                        lane_root=str(lane),
+                        readable=True,
+                        unknown_untracked=("SENTINEL.txt",),
+                    ),
                 )
-                self.assertIn(
-                    "lane_containment.record_lane_preserved(",
-                    source,
-                    f"{label} must record a refusal through the one shared emitter",
+                real_emitter = LC.record_lane_preserved
+
+                def gate_spy(**kwargs: Any) -> LC.LaneTeardownDecision:
+                    gate_calls.append(kwargs)
+                    return refusal
+
+                def emitter_spy(**kwargs: Any) -> dict[str, Any]:
+                    emitter_calls.append(kwargs)
+                    return real_emitter(**kwargs)
+
+                with (
+                    mock.patch.object(
+                        module,
+                        "integrate_lane_branch",
+                        return_value=(True, "fast-forward", "integrated"),
+                    ),
+                    mock.patch.object(LC, "teardown_lane_if_classified", gate_spy),
+                    mock.patch.object(LC, "record_lane_preserved", emitter_spy),
+                ):
+                    records = module.retry_deferred_integrations(run_dir, state)
+
+                self.assertEqual(
+                    [r["outcome"] for r in records], ["integrated"], records
                 )
-                # RE-BASED by rununify Order 04 (`tx6q0h`): `write_report` was de-duplicated into
-                # `runner_shared`, so the ONE call that renders the preserved-lane block now lives
-                # there and each host reaches it through its wrapper. The R5.6a property is
-                # unchanged (a preserved lane is still named in the summary a human reads), and it is
-                # now impossible for one host to render the block while the other silently does not.
-                self.assertIn(
-                    "lane_containment.format_preserved_lanes(",
-                    inspect.getsource(runner_shared),
-                    "the shared report renderer must name preserved lanes in the summary (R5.6a)",
+                # (b) the gate and the emitter were each reached on the REAL teardown path.
+                self.assertEqual(
+                    len(gate_calls),
+                    1,
+                    f"{label} did not consult the retention gate before destroying a lane",
                 )
+                self.assertEqual(
+                    len(emitter_calls),
+                    1,
+                    f"{label} did not record the refusal through the one shared emitter",
+                )
+                self.assertEqual(gate_calls[0]["item"], item)
+                # (c) the gate's verdict is what the host acted on, not a recomputed one.
+                self.assertEqual(
+                    item["preserved_retention_reasons"],
+                    [LC.RETENTION_UNKNOWN_UNTRACKED],
+                )
+                self.assertIn("SENTINEL.txt", item["preserved_reason"])
+                self.assertIn("SENTINEL.txt", emitter_calls[0]["reason"])
+                event_text = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+                self.assertIn(LC.LANE_PRESERVED_EVENT, event_text)
+                self.assertIn("SENTINEL.txt", event_text)
 
     def test_no_driver_calls_the_destructive_teardown_directly(self):
         """STRUCTURE, NOT GREP: a direct call would bypass the inventory entirely.
