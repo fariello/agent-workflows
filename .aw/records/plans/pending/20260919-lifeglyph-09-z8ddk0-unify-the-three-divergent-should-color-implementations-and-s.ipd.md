@@ -144,7 +144,7 @@ THE TWO ROWS THAT CARRY THE WHOLE FINDING SET. Row `unset` / column `'0'` is the
 ## Deferred / out of scope (with reason)
 
 - The `--color` / `--no-color` FLAG surface and their mutual exclusivity: owned by plan `yaxr4i` E-02, which the maintainer ruled on 2026-09-19 (two flags, mutually exclusive). This plan fixes the ENGINE those flags will sit on.
-  - Carrier: yaxr4i
+  - Carrier-Declined: DELIVERED, not deferred: `yaxr4i` reached `executed` on 2026-09-19 in the same salvage that integrated this plan, so the exclusion names work that is now DONE rather than work awaiting a future artifact. Verified on the merged tree: the mutually exclusive pair exits 2 on both flags together (`cli.py` refuses with "argument --color: not allowed with argument --no-color"), and the flag layer sits ABOVE this plan's engine as the first rung of `should_color`. A carrier here would now resolve only to a terminal artifact, which `check.ipd-uncarried-obligation` correctly reports as an obligation nothing revisits.
 - The depth ladder, the authored 16-color tier, and `aw config` depth pinning: child `pow5sj`, which declares `executed:z8ddk0` so it builds on the unified seam.
   - Carrier: pow5sj
 - Amending spec `uonrjg` Section 9.3a.2, whose "unchanged, and unconditional" wording is false as written (`FORCE_COLOR` does currently defeat `NO_COLOR`), and Section 9.3, which says "preserve current behavior" where three behaviors exist.
@@ -179,10 +179,10 @@ THE USER-FACING DOCUMENTATION THIS PLAN FALSIFIES IS ALSO `7p3tt8`'s, checked at
 ### OQ-01: Should `--no-color` route through the unified `should_color` rather than bypassing it?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: none
-- Carrier: yaxr4i
-- Resolution or deferral rationale: NOT BLOCKING because this plan's own deliverable is complete without it: unifying three implementations and fixing the falsey-value inversion neither needs nor prevents the flag routing change. Recorded because the measurement that found the three divergent engines also found that `--no-color` does not reach any of them (`cli.py:832` sets `Term(color=False)` directly), which means the top rung of the precedence chain is split across two layers, and `pow5sj` F-06 already notes the same thing. The flag layer is `yaxr4i`'s, which is why the carrier points there rather than at this plan.
+- Carrier-Declined: DISCHARGED BY THE CARRIER ACTUALLY LANDING, so nothing is pending on a future artifact and a carrier pointing at a now-terminal plan would be a dangling obligation rather than a live one. `yaxr4i` reached `executed` on 2026-09-19 in the same salvage that integrated this plan, and it BUILT the routing this question asked for, verified on the merged tree rather than assumed: `grep -n "Term(color=False)" agent_workflows/cli.py` now returns NOTHING (that bypass at `cli.py:832` is gone), and the flag pair is published process-wide through one call, `_term_mod.set_color_override(_presentation.override)` in `cli._dispatch`, which `should_color` consults as its FIRST rung. So the top rung of the precedence chain is no longer split across two layers, which was the entire substance of the question.
+- Resolution or deferral rationale: RESOLVED 2026-09-19: YES, AND IT NOW DOES. Answered by `yaxr4i` landing rather than by a decision here, which is exactly what the carrier predicted would happen. ORIGINALLY NOT BLOCKING because this plan's own deliverable is complete without it: unifying three implementations and fixing the falsey-value inversion neither needs nor prevents the flag routing change. Recorded because the measurement that found the three divergent engines also found that `--no-color` does not reach any of them (`cli.py:832` sets `Term(color=False)` directly), which means the top rung of the precedence chain is split across two layers, and `pow5sj` F-06 already notes the same thing. The flag layer is `yaxr4i`'s, which is why the carrier points there rather than at this plan.
 
 ## Validation and cross-check (verify before reporting done)
 
