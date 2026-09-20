@@ -9,11 +9,12 @@
 - Scope: A single accessible glyph and ANSI vocabulary for artifact statuses, artifact id6s, and live runner activity across human terminal views.
 
 ## Workflow history
+
+- 2026-09-19 note (aw specs): Section 12a re-review round 2 (opencode its_direct/pt3-claude-opus-5-1m-us, plan n4xq3l) at HEAD 8fd2658a, a HEAD where yaxr4i is executed (.aw/records/plans/executed/, finalize commit 878f6152). STATUS DELIBERATELY UNCHANGED at approved: this is a documentary re-read, /spec-review was NOT invoked (it refuses an approved spec, and its transition step would de-approve this release-gating spec), and no .review.md was filed (filing one arms an approval gate with no override). PER-CRITERION VERDICT: A11 NEEDED AMENDMENT and was amended; A12 HOLDS in substance but NEEDED A RE-POINTED CITATION and got one; A13 NEEDED AMENDMENT and was amended; Section 9.3 NEEDED RE-POINTING and was re-pointed. A11: its 'UNCONDITIONAL' claim is no longer true as written, because yaxr4i added the flag layer this spec asked for and placed it ABOVE the environment; measured on a non-TTY stream, --color returns True against all three of A11's conditions (NO_COLOR=1, TERM=dumb, non-TTY), each of which returns False without the flag. Restated to hold for an invocation passing neither --color nor --no-color; the glyph-plus-word half stays unconditional. The documentation hazard A11 warned about is RESOLVED: docs/cli-output-contract.md section 9 is now headed 'RETRACTED 2026-09-19' and the 'adopts aw.agent/v1 immediately upon release' promise survives only as explicitly-quoted retracted text, so the ruling and the document finally agree. A12: substance holds (AW_ASCII_ONLY and FORCE_ASCII are both read in term.should_unicode, gated on exactly '1', untouched by yaxr4i, and there is no --ascii flag, so the new flag layer is color-only), but its citation term.py:224-227 had rotted onto should_color's NO_COLOR block; now cited BY SYMBOL, since a line number in a spec rots on the next unrelated edit and a wrong line is worse than none. A13: 'according to existing precedence' was a deliberately deferred reference and the referent has shipped, so the chain is now written out (--color/--no-color > NO_COLOR/FORCE_COLOR > TERM > isatty) with three rungs named for assertion; FORCE_COLOR=1 with --no-color now yields NO color, so an implementation treating FORCE_COLOR as the top of the chain is wrong. Section 9.3: 'current behavior' re-pointed at the one originating definition (term.should_color), the published chain, the override= argument rule (a flag must never reach the resolver via os.environ, because nested aw processes inherit it), and the measured flag surface (200 leaf subcommands, 229 nodes including 29 intermediate groups; 29 leaves declare neither flag and all 29 are accounted for: 28 host-driver leaves that forward argv verbatim and honor the flags by CONSUMPTION in cli._dispatch, plus the hidden __complete callback, verified separately). TWO DEFECTS FOUND AND FILED AGAINST OTHER ARTIFACTS, NOT THIS SPEC: (1) docs/cli-output-contract.md section 1.1 row 2 says NO_COLOR disables unless FORCE_COLOR 'is set' and that any non-empty FORCE_COLOR enables, which makes FORCE_COLOR=0 both cancel NO_COLOR and enable color; the shipped code does neither (measured FORCE_COLOR=0 -> False, NO_COLOR=1 FORCE_COLOR=0 -> False). The code is right on accessibility grounds and A13 adopts it; the document wording is stale. (2) aw specs note and aw specs set DESTROY tracked inline workflow history (they keep only the latest record, per maintainer-resolved OQ-2 of spec 20260818-1525-02, on the premise that the full log lives in .aw/records/history.jsonl) while that sidecar is GITIGNORED since commit 0c82cbdb, so the dropped rounds have no tracked home; this round's own five predecessor rounds were restored by hand in the same commit to avoid destroying a --by-human approval attestation. APPROVAL NOTE for the maintainer (plan OQ-01 fired): A11 and A13 are acceptance criteria and were NARROWED, on a spec carrying Blocks-Release: next, so the acceptance bar moved and the executing agent is surfacing that rather than deciding it. No aw specs set was run on this spec in either direction.
 - 2026-09-13 approved (aw set, --by-human): status set to approved
 - 2026-09-13 reviewed (aw set): spec-review round 1 (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-401..SR-409, all nine FIXED, none deferred, none open. THE DESIGN IS SOUND; the findings are about COVERAGE and about relationships to other specs. OVERRIDE AUTHORITY recorded (new 0.5) on the maintainer's ruling, scoped to DISPLAY only, superseding 25kzda 5.6's five-color runner scheme (itself approved and release-gating) and requiring the implementing plan to amend that spec rather than leave two live tables. FIVE ORPHAN STATUS WORDS were in no mapping table and would each have rendered a gray '?', violating the spec's own A2: needs_input and awaiting-human -> waiting-input (satisfying 6kwd2e R4a.6, since 214 differs from blocked's 208), ran -> recovering, unknown_outcome -> failed, quarantined -> parked. OQ-01's PREMISE WAS WRONG and that was the session's most useful finding: the accessibility lens was STALE, not in conflict. DECISIONS D42 already required 'degrade through 256/16/none' and the lens still said 'prefer the 16 named colors', which is why D133 had to be an exception to a superseded rule. The lens is corrected (it ships to every managed repo) and this spec now carries the full ladder in 9.3a with one depth resolver, an AUTHORED 16-color palette with named collapses, and USER CONFIGURABILITY of depth and scheme. TWO FINDINGS RECORD MY OWN ERRORS: I proposed ran -> done (refuted twice over: 25kzda makes a ran item exit 1 and 7.2 already forbids styling unverified completion as success) and I proposed deferring configurability (no advantage, since configured and detected depth are one decision at one seam, and detection cannot see a colorblind user). SEQUENCING: implementing after yaxr4i is safe and recommended; 12a requires a declared executed:yaxr4i edge and a RE-REVIEW of this spec once yaxr4i lands, since it moves the flag surface A11-A13 rest on.
 - 2026-09-13 to-review (aw set): Maintainer direction 2026-09-13: priority high, gates the next release (2.0.0). Recorded during /spec-review, before the review's own transition.
 - 2026-09-13 to-review (aw set): Lifecycle glyph, active overlay, accessibility, mapping, architecture, and verification contracts finalized for review.
-
 - 2026-09-13 created (aw specs): A single accessible glyph and ANSI vocabulary for artifact statuses, artifact id6s, and live runner activity across human terminal views.
 
 ## 0. Decision summary
@@ -442,6 +443,41 @@ The system MUST preserve current `NO_COLOR`, `FORCE_COLOR`, `TERM=dumb`, TTY, st
 redirection behavior. `FORCE_COLOR` affects ANSI only and MUST NOT force Unicode onto an incompatible
 stream.
 
+RE-POINTED 2026-09-19 BY THE SECTION 12a RE-REVIEW (plan `n4xq3l`). "CURRENT" WAS A MOVING TARGET when
+this section was written on 2026-09-13, and Section 12a obligation 2 required it to be re-pointed once
+`yaxr4i` landed. It has, so "current" now means EXACTLY the following, and the word is replaced by
+citations an implementer can check:
+
+- THE ORIGINATING DEFINITION is `agent_workflows.term.should_color`, and there is only one. It is
+  package-wide, `runner_shared.should_color` is a sanctioned one-line delegation to it, and
+  `tests/test_term.py` asserts the single-originating-definition property. That property is what
+  R9.3a.2 demands of the DEPTH resolver, and it is already true of the boolean one, so a depth resolver
+  MUST extend this function rather than introduce a rival seam.
+- THE PRECEDENCE CHAIN is `--color`/`--no-color` > `NO_COLOR`/`FORCE_COLOR` > `TERM` > `isatty()`,
+  published in `docs/cli-output-contract.md` section 1.1 and pinned by `tests/test_term.py` and
+  `tests/test_flag_surface_uniformity.py`. See A13 for the three rungs that must be asserted by name,
+  and for the one place that published table's wording is stale relative to the code.
+- THE FLAG LAYER IS NEW AND SITS ON TOP, which is the change this re-pointing exists to absorb. A
+  `--color`/`--no-color` flag is an explicit operator instruction for one invocation and outranks the
+  environment, so R9.3a.2's top rung ("`NO_COLOR` / `--no-color` / `TERM=dumb` / non-TTY -> none,
+  unchanged, and unconditional") remains correct about `--no-color` and about `NO_COLOR` beating a
+  PINNED DEPTH, but `--color` can now produce color in the other three of those four conditions. A11
+  carries the restatement.
+- THE FLAG MUST NOT REACH THE RESOLVER THROUGH `os.environ`. It is passed as the `override=` argument
+  (or set once per invocation via `term.set_color_override`), because this package spawns nested `aw`
+  processes and an environment variable is INHERITED, which would silently restyle a child's output. A
+  depth resolver added for R9.3a.2 MUST follow the same rule for the same reason.
+- THE FLAG SURFACE IS UNIFORM, so a renderer may assume the flags exist everywhere. Measured 2026-09-19
+  by walking `cli._build_parser()`: 200 LEAF subcommands (229 subcommand nodes in total, of which 29 are
+  intermediate groups that dispatch no action of their own). Exactly 29 leaves DECLARE neither flag, and
+  all 29 are accounted for: 28 are host-driver leaves whose argv is intercepted and forwarded VERBATIM
+  (the `oc`/`opencode`/`agy`/`antigravity` families plus `run as`/`run ipd`), and they honor the flags by
+  CONSUMPTION in `cli._dispatch` before any interception runs; the 29th is the hidden `__complete` shell
+  callback, which likewise accepts the flag and emits unstyled candidates. Zero leaves are unexplained.
+  STATE THE DENOMINATOR WHENEVER THIS IS RE-MEASURED: 200 and 229 are both true of this tree and count
+  different things, and the leaf-miss count (29) coincides numerically with the group count (29), so a
+  bare "29 of 229" reads as self-consistent while being the wrong ratio.
+
 ### 9.3a Color depth: the 256 -> 16 -> none ladder, and the user's override
 
 ADDED AT REVIEW, 2026-09-13, on the maintainer's ruling. Section 5's table is the 256-COLOR tier. It is
@@ -679,6 +715,28 @@ TWO OBLIGATIONS FOLLOW, both on the implementing plan rather than on `yaxr4i`:
    then means. Run `/spec-review` on this spec again at that point; a re-review appends a new round and
    keeps the status `reviewed`, so it costs one cheap turn and prevents building against a stale contract.
 
+   DISCHARGED 2026-09-19 by plan `n4xq3l`, at a HEAD where `yaxr4i` is `executed`. The round is recorded in
+   this spec's `## Workflow history`; A11 and A13 were AMENDED, A12's citation was RE-POINTED, and Section
+   9.3's "current" was replaced by checkable citations. THE RESOLVER MAY NOW BE BUILT against those amended
+   criteria.
+   TWO CORRECTIONS TO THIS OBLIGATION'S OWN WORDING, recorded so the next reader is not misled by it.
+   FIRST, `/spec-review` IS THE WRONG VERB HERE and was not used: that workflow's Step 0.1 classifies a
+   spec at `approved` as NOT REVIEWED with its status as the reason, so a conforming run would have
+   discharged nothing; worse, its transition step runs `aw specs set reviewed`, and `approved -> reviewed`
+   is a legal BACKWARD transition, so it would have DE-APPROVED this release-gating spec, and the typed
+   `.review.md` it files ARMS an approval gate whose refusal has no override. A documentary re-read
+   recorded with `aw specs note` is the correct mechanism at `approved`, and it is what was done.
+   SECOND, "keeps the status `reviewed`" ASSUMED A SPEC SITTING AT `reviewed`. This spec was already
+   `approved` when that sentence was written (both happened in the 2026-09-13 round), so the PREMISE never
+   held for it, though the CONCLUSION (append a round, do not re-open approval) is exactly right and was
+   followed: the status remained `approved` and no `aw specs set` was run in either direction.
+   A11's "UNCONDITIONAL" ABOVE IS NOW SUPERSEDED BY A11 ITSELF. Point 3 of the preceding subsection and
+   this paragraph both assert it without qualification, which was true of the pre-`yaxr4i` surface; the
+   flag layer that plan shipped sits ABOVE the environment, so `--color` overrides all three of A11's
+   conditions. A11 carries the restatement and is the authority; read it rather than the sentences above.
+   THE DOCUMENTATION LAG IS ALSO CLOSED: `docs/cli-output-contract.md` section 9 is now explicitly headed
+   RETRACTED, so validating A11 from that document no longer reaches the wrong conclusion.
+
 WHAT IS NOT A REASON TO WAIT, so the dependency is not overstated: file overlap with the four
 `render_stream.py` plans is NOT a hazard, because each execute turn gets an isolated worktree and returns
 through the merge-and-revalidate gate. Those four are ordinary rebase friction and impose no ordering.
@@ -713,8 +771,45 @@ through the merge-and-revalidate gate. Those four are ordinary rebase friction a
   different reasons, and `docs/cli-output-contract.md` still carries the unretracted promise until
   `yaxr4i` E-05 lands. An implementer reading that document instead of this line would conclude A11 is
   conditional. It is not.
+  AMENDED 2026-09-19 BY THE SECTION 12a RE-REVIEW (plan `n4xq3l`), at a HEAD where `yaxr4i` is
+  `executed`. TWO CORRECTIONS: the first retires a warning, the second genuinely NARROWS this criterion.
+  FIRST, THE DOCUMENTATION HAZARD IS GONE, so the paragraph immediately above is now history rather than
+  a live warning. `docs/cli-output-contract.md` section 9 is headed "Automatic Non-TTY Migration Policy:
+  RETRACTED 2026-09-19" and states "Piping or redirecting `aw` emits HUMAN-READABLE TEXT. `--agent` is
+  the explicit and only way to obtain `aw.agent/v1` JSONL". The retracted sentence survives there only
+  as explicitly-quoted retracted text (`docs/cli-output-contract.md:225`), and section 1 now says outright
+  that "THE TTY-NESS OF STDOUT DOES NOT AFFECT THE MODE". So the document and the ruling agree, and an
+  implementer may now read either.
+  SECOND, AND SUBSTANTIVE: "UNCONDITIONAL" IS NO LONGER TRUE AS WRITTEN, because `yaxr4i` added the very
+  flag layer this spec asked for and placed it ABOVE the environment. `--color` now OVERRIDES all three
+  of this criterion's conditions. Measured 2026-09-19 against `term.should_color` on a non-TTY stream,
+  each case returning False without the flag and True with it: `NO_COLOR=1` plus `--color` -> True,
+  `TERM=dumb` plus `--color` -> True, plain non-TTY plus `--color` -> True. That is DELIBERATE and
+  correct (`docs/cli-output-contract.md` section 1.1: "`--color` forces ANSI on", flag beats env), so
+  this criterion is RESTATED rather than contradicted: A11 HOLDS FOR AN INVOCATION THAT PASSES NEITHER
+  `--color` NOR `--no-color`. With `--color` passed, ANSI is EXPECTED and its absence would be the
+  defect. The glyph-plus-word half remains unconditional at every tier (R9.3a.5); only the no-ANSI half
+  acquires this qualifier.
+  WHY THIS NARROWING DOES NOT WEAKEN THE ACCESSIBILITY GUARANTEE: `NO_COLOR` still outranks every
+  IMPLICIT input and still outranks a user's pinned DEPTH (R9.3a.2), so no preference, capability
+  detection, or configuration setting can defeat it. Only an explicit flag on the command line can, and a
+  flag is the operator stating an intent for one invocation. That is the standard
+  `docs/cli-output-contract.md` publishes and the one an implementation must satisfy.
 - **A12** `AW_ASCII_ONLY=1` and `FORCE_ASCII=1` use the exact fallbacks in section 5 and retain words. Both
-  variables are already implemented (`term.py:224-227`), so this criterion tests existing behavior.
+  variables are already implemented, so this criterion tests existing behavior.
+  RE-POINTED 2026-09-19 BY THE SECTION 12a RE-REVIEW (plan `n4xq3l`). THE CRITERION HOLDS UNCHANGED IN
+  SUBSTANCE: both variables are read in `term.should_unicode`, gated on the exact value `"1"`, and
+  `yaxr4i` touched neither (it adds no ASCII flag, and `should_unicode` takes no `override` parameter,
+  unlike `should_color`). Only the CITATION was stale. This line read `term.py:224-227`, and at this HEAD
+  those lines sit inside `should_color`'s `NO_COLOR`/`FORCE_COLOR` block rather than the ASCII test,
+  which lives in `term.should_unicode` (`agent_workflows/term.py:374` at this HEAD). CITED BY SYMBOL
+  RATHER THAN BY LINE FROM HERE ON, deliberately: a line number in a spec rots on the next unrelated
+  edit to the file above it, and a wrong line is worse than no line, because it sends a reader to code
+  that looks relevant.
+  ONE CONSEQUENCE FOR THE IMPLEMENTER, now that `--color` exists: there is NO `--ascii` flag, so the
+  flag-beats-env layer `yaxr4i` introduced is COLOR-ONLY. Section 9.3's rule that `FORCE_COLOR` "MUST NOT
+  force Unicode onto an incompatible stream" therefore extends to `--color` unchanged, and A12's env-only
+  reasoning stays correct.
 - **A12a** (R9.3a.1, R9.3a.2) One depth resolver exists, with exactly one definition, and the precedence
   chain of R9.3a.2 holds at every rung. Assert each rung explicitly: `NO_COLOR` with a pinned depth still
   yields plain text; a pinned depth overrides detection; detection overrides the default; the default is
@@ -731,6 +826,42 @@ through the merge-and-revalidate gate. Those four are ordinary rebase friction a
   256, at 16, and at none, and assert no state is distinguishable by color alone at any tier.
 - **A13** `FORCE_COLOR=1` enables ANSI according to existing precedence but does not override ASCII stream
   capability.
+  AMENDED 2026-09-19 BY THE SECTION 12a RE-REVIEW (plan `n4xq3l`), because "existing precedence" was a
+  DELIBERATELY DEFERRED REFERENCE and the thing it deferred to has now shipped. This criterion was written
+  pointing at whatever precedence `yaxr4i` would settle; that is settled and published, so the reference
+  is replaced by the SHIPPED chain, highest first, which an implementation must satisfy at every rung:
+
+  ```text
+  --color / --no-color   >   NO_COLOR / FORCE_COLOR   >   TERM capability   >   stdout.isatty()
+  ```
+
+  THREE RUNGS MUST BE ASSERTED BY NAME, each measured 2026-09-19 against `term.should_color` on a non-TTY
+  stream, and each one a case a plausible implementation gets wrong:
+  (a) `FORCE_COLOR=1` with NO flag enables ANSI on a pipe (measured True). This is the original A13 and
+  it still holds.
+  (b) `FORCE_COLOR=1` with `--no-color` yields NO ANSI (measured False). THE FLAG WINS, so an
+  implementation that treats `FORCE_COLOR` as the top of the chain is now wrong.
+  (c) A FALSEY `FORCE_COLOR` neither forces NOR suppresses. `FORCE_COLOR` in `{"", "0", "false", "no",
+  "off"}` (case-insensitive, stripped) falls through to ordinary detection, so `FORCE_COLOR=0` on a pipe
+  is monochrome (measured False) and `NO_COLOR=1 FORCE_COLOR=0` stays monochrome on a pipe AND on a TTY
+  (both measured False), because a falsey value does not cancel `NO_COLOR`. That falsey set is
+  `term._FORCE_COLOR_FALSEY` and both `FORCE_COLOR` readings route through the single
+  `term._force_color_is_forcing` predicate; splitting them re-creates a measured defect in which six
+  `NO_COLOR`-set cells colorized.
+  NOTE THE FALSEY RULE IS NARROWER THAN THE PUBLISHED TABLE, recorded here rather than resolved because
+  it is not this spec's to decide. `docs/cli-output-contract.md` section 1.1 row 2 reads "`NO_COLOR` ...
+  disables, UNLESS `FORCE_COLOR` is set; `FORCE_COLOR` (any non-empty value) enables", which by its own
+  words makes `FORCE_COLOR=0` both cancel `NO_COLOR` and enable color. The SHIPPED code does NEITHER
+  (measured above). The code's behavior is the better one on accessibility grounds and is the one this
+  criterion ADOPTS; the document's wording is the stale artifact. AN IMPLEMENTER MUST FOLLOW THE CODE AND
+  THIS CRITERION, NOT THAT ROW. Filed as a defect against the document, not against this spec.
+  MUTUAL EXCLUSION IS A USAGE ERROR, NOT A PRECEDENCE QUESTION. Passing `--color` and `--no-color`
+  together exits 2 on both the ordinary and the verbatim-forwarding paths (measured 2026-09-19, exit 2
+  with `argument --color: not allowed with argument --no-color`), so no implementation needs a tie-break
+  rule between them and none may invent one.
+  THE ASCII HALF IS UNCHANGED AND NOW COVERS THE FLAG TOO: neither `FORCE_COLOR` nor `--color` may force
+  Unicode onto an incompatible stream, because the color decision and the Unicode decision are separate
+  resolvers (`should_color` versus `should_unicode`) and no flag reaches the second.
 - **A14** `--agent` and `--json` output contains no ANSI and no schema-breaking decorated status value.
 - **A15** Variation selectors survive ANSI stripping, truncation, snapshots, and copyable output.
 - **A16** Tests cover the normal UTF-8 profile, ASCII mode, colored TTY, plain TTY, piped output, and
