@@ -1435,8 +1435,20 @@ class UnimplementedFlagRefusalTests(unittest.TestCase):
         THE MEMBERSHIP IS PINNED EXPLICITLY, deliberately, even though every other check derives from
         `row.implemented`. A derived-only suite would go green the instant a flag's `implemented` flag
         was flipped without its behavior being built - the refusal would simply stop being expected -
-        which is exactly the silent no-op this class exists to forbid. So the two flags are NAMED, and
-        landing a third (or shipping one of these two) is required to touch this list on purpose.
+        which is exactly the silent no-op this class exists to forbid. So the remaining flag is NAMED,
+        and landing another (or shipping this one) is required to touch this list on purpose.
+
+        IT IS NOW A LIST OF ONE, AND THE NARROWING WAS DELIBERATE. `--with-dependencies` LEFT this set
+        when depclosure 01 (`dhycim`) built its behavior in `runner_shared.expand_dependency_closure`,
+        so this class now iterates ONE row where it used to iterate two and its coverage is genuinely
+        half what it was. That is the correct direction (a refusal was replaced by a behavior, not by a
+        shrug), and it is stated here rather than left for a reader to infer from a shorter list. The
+        refusal cells, the silent cells and the implemented cells below are unchanged in KIND.
+
+        `--follow-generated` STAYS, and must not be flipped alongside its former twin: no mechanism in
+        this package detects that an agent turn generated a new IPD, so there is nothing to flip to.
+        It keeps its `x8diyb` ownership, which is what makes the remaining gap tracked rather than
+        forgotten.
 
         THE SILENT AND REFUSING CELLS ARE IN THE SAME TABLE for the usual reason: a predicate that
         raised unconditionally would satisfy every refusal row on its own, and the `implemented` rows
@@ -1444,7 +1456,7 @@ class UnimplementedFlagRefusalTests(unittest.TestCase):
         """
         wrong = []
 
-        expected_names = ["--follow-generated", "--with-dependencies"]
+        expected_names = ["--follow-generated"]
         actual_names = sorted(row.flag for row in self.unimplemented())
         if actual_names != expected_names:
             wrong.append(
@@ -2223,21 +2235,23 @@ class FullAutoEndToEndBehaviorTests(unittest.TestCase):
                     self.assertEqual(record["type_counts"], {"ipd": 1})
 
     #: (case, argv tail, needle the refusal must contain, why this refusal must reach the operator)
+    #:
+    #: `--with-dependencies` HAD A ROW HERE AND NO LONGER DOES, because depclosure 01 (`dhycim`) built
+    #: its behavior: it now EXPANDS rather than refusing, so a row demanding "not yet implemented" out
+    #: of it would demand the defect back. Its replacement coverage is
+    #: `DependencyClosureTests.test_a_closure_refusal_leaves_no_durable_run_state`, which asserts the
+    #: SAME no-durable-state property on this flag's remaining refusals (an unresolvable target and a
+    #: non-plan target), so the guarantee moved with the behavior instead of being dropped.
     REFUSALS = (
-        (
-            "--with-dependencies (unimplemented)",
-            ["--with-dependencies"],
-            "not yet implemented",
-            "E-05: an operator who passes this and gets no dependency-closure expansion has been told "
-            "a falsehood about what the run enforced. A flag that parses and no-ops is strictly worse "
-            "than no flag",
-        ),
         (
             "--follow-generated (unimplemented)",
             ["--follow-generated"],
             "not yet implemented",
-            "the second unimplemented flag, asserted separately because the refusal is driven by the "
-            "`implemented` column and a per-flag omission is the realistic failure",
+            "the LAST unimplemented flag, and the reason this row must keep passing after "
+            "`--with-dependencies` left this table: no mechanism in this package detects that an agent "
+            "turn generated a new IPD, so there is nothing to flip `implemented` to. A refusal that "
+            "stopped firing here would mean both halves of backlog x8diyb were reported as shipped "
+            "when only one was",
         ),
         (
             "--retry-budget 11 (out of range)",
@@ -3276,3 +3290,686 @@ Real gate prose.
                     self.assertEqual(rc, 0, err.getvalue())
                     self.assertIn("Nothing awaiting review", out.getvalue())
                     self.assertFalse((repo / ".aw" / "records" / "runs").exists())
+
+
+class DependencyClosureTests(unittest.TestCase):
+    """depclosure 01 (`dhycim`): `--with-dependencies` EXPANDS, and the cases it must NOT expand.
+
+    WHAT CHANGED AND WHY IT IS HERE. This flag used to be a row in
+    :class:`FullAutoEndToEndBehaviorTests.REFUSALS` demanding the words "not yet implemented", because
+    spec 25kzda declared the behavior and nobody had built it - while THREE error catalogue messages
+    (`IPD-DEP-SATISFIED`, `IPD-DEP-CASCADE`, `IPD-EXEC-READY`) each ended "then run: aw <host> run
+    <id6> --with-dependencies". So the tool recommended a flag that refused. The behavior now ships in
+    `runner_shared.expand_dependency_closure` and that row is gone; this class is what replaces it, and
+    it carries the SAME no-durable-state guarantee the row did, for the flag's remaining refusals.
+
+    THE MOST IMPORTANT TEST IN THIS CLASS IS THE NEGATIVE ONE
+    (:meth:`test_the_flag_absent_case_changes_nothing`). Spec :166 and :1007 both state the flag's
+    contract from the negative side: without it, "dependencies outside the selection are checked
+    against current repository state but are not silently enqueued". An implementation that expanded
+    unconditionally would silently enqueue prerequisites for EVERY run, which is the exact mirror of
+    the falsehood the old refusal prevented and is strictly harder to notice, because the run succeeds.
+
+    THE SECOND MOST IMPORTANT IS THE TERMINAL-TARGET SKIP, and it guards a re-execution bug rather than
+    untidiness. `discover_plans` recurses every disposition directory, so the manifest carries FINISHED
+    plans (measured in this repository: 694 discoverable, 547 `executed`), and 12 of the 43 `executed:`
+    edges declared across the pending plans point at a target that is already terminal.
+    `action_for(kind, "executed")` returns `"execute"`. What prevents DISPATCH today is incidental (the
+    queue builder defaults an unrecognized status to `reviewed` and the dispatch loop only takes
+    `queued`), so the closure must skip for itself - and the test proves the CLOSURE skipped, by
+    asserting the id is absent from the QUEUE rather than merely never dispatched.
+
+    ON BOTH HOSTS BY IDENTITY WHERE THE CODE IS SHARED. Both runners' `initialize_run` now delegate to
+    `runner_shared.initialize_run_core`, so the closure has ONE call site; the behavioral cases below
+    still run through each host's own `initialize_run` because the property under test is what an
+    operator gets from `aw oc run` and `aw agy run`, and `tests/test_runner_refork_guard.py` is what
+    forbids a host from re-defining a shared symbol rather than a third parity mechanism here.
+    """
+
+    #: A plan template whose `- Item-Dependencies:` is a parameter, which is the whole point: every
+    #: case below differs only in the edges declared and in where the targets live.
+    PLAN = """# IPD: closure probe {id6}
+
+- Date: 2026-09-05
+- Kind: child
+- Concern: closure probe.
+- Scope: closure probe.
+- Scope-Paths: src/
+- Item-Dependencies: {deps}
+- Status: approved
+- Set: {setid}
+- Order: {order}
+- Highest E allocated: 01
+- Author: test
+- Id: {id6}
+
+## Workflow history
+- 2026-09-05 approved (test): probe.
+"""
+
+    def make_repo(self, root, plans, *, spec_id6: str | None = None):
+        """A committed repo holding `plans` as ``{id6: (deps, disposition)}``.
+
+        ``disposition`` is the plans-tree subdirectory, so a case can place a target in `executed/`
+        exactly as a finished plan really sits, rather than simulating terminality with a status field.
+        """
+        import subprocess
+
+        repo = root / "repo"
+        repo.mkdir(parents=True)
+        for cmd in (
+            ["git", "init", "-q"],
+            ["git", "config", "user.email", "test@example.invalid"],
+            ["git", "config", "user.name", "Test"],
+        ):
+            subprocess.run(cmd, cwd=repo, check=True)
+        (repo / ".gitignore").write_text(".aw/records/runs/\n", encoding="utf-8")
+        order = 0
+        for id6, (deps, disposition) in plans.items():
+            order += 1
+            target_dir = repo / ".aw" / "records" / "plans" / disposition
+            target_dir.mkdir(parents=True, exist_ok=True)
+            text = self.PLAN.format(id6=id6, deps=deps, setid="probe", order=order)
+            if disposition != "pending":
+                text = text.replace("- Status: approved", f"- Status: {disposition}")
+            (target_dir / f"20260905-probe-{order:02d}-{id6}-probe.ipd.md").write_text(
+                text, encoding="utf-8"
+            )
+        if spec_id6:
+            specs = repo / ".aw" / "records" / "specs"
+            specs.mkdir(parents=True, exist_ok=True)
+            (specs / f"20260905-{spec_id6}-01-{spec_id6}-probe.spec.md").write_text(
+                "# Spec: probe\n\n"
+                "- Date: 2026-09-05\n"
+                f"- Id: {spec_id6}\n"
+                "- Status: approved\n\n"
+                "## Summary\n\nprobe\n",
+                encoding="utf-8",
+            )
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+        return repo
+
+    def initialize(self, runner, repo, argv):
+        """`initialize_run`; returns (queue ids, closure ledger record or None, stderr)."""
+        import contextlib
+        import io
+        import json
+
+        args = _parse(runner, ["start", *argv, "--repo", str(repo)])
+        args.prepare_only = True
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            run_dir = _MODULES[runner].initialize_run(args)
+        state = runner_shared.load_state(run_dir)
+        events = [
+            json.loads(line)
+            for line in (run_dir / "events.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        closure = [e for e in events if e.get("event") == "dependency-closure"]
+        return (
+            [item["id6"] for item in state["queue"]],
+            closure[0] if closure else None,
+            err.getvalue(),
+        )
+
+    def run_case(self, runner, plans, argv, *, spec_id6=None):
+        import tempfile
+        from pathlib import Path as _P
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = self.make_repo(_P(td), plans, spec_id6=spec_id6)
+            return self.initialize(runner, repo, argv)
+
+    # ---- the expansion itself -------------------------------------------------------------------
+
+    def test_a_transitive_closure_is_enqueued_on_both_hosts(self):
+        """CASE (a): A depends on B depends on C; selecting A alone enqueues all three.
+
+        TRANSITIVE, not one hop, which is the word spec :166 uses. A one-hop implementation passes an
+        A->B test and silently leaves C out, and the operator's whole reason for the flag (be certain
+        the prerequisites are queued) fails for exactly the graph that needed it most.
+        """
+        plans = {
+            "aaa111": ("executed:bbb222", "pending"),
+            "bbb222": ("executed:ccc333", "pending"),
+            "ccc333": ("none", "pending"),
+        }
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                ids, closure, err = self.run_case(
+                    runner, plans, ["aaa111", "--with-dependencies"]
+                )
+                self.assertEqual(sorted(ids), ["aaa111", "bbb222", "ccc333"], err)
+                assert closure is not None
+                self.assertTrue(closure["applied"])
+                self.assertEqual(
+                    sorted(row["id6"] for row in closure["added"]),
+                    ["bbb222", "ccc333"],
+                )
+                self.assertIn("--with-dependencies expanded the selection", err)
+
+    def test_the_flag_absent_case_changes_nothing(self):
+        """CASE (b), THE REGRESSION GUARD. Spec :166: without the flag, an outside dependency is
+        "checked against current repository state but not silently enqueued".
+
+        Asserted on the SAME graph the expansion case uses, so the only difference between the two
+        observations is the flag. An unconditional expansion would pass every other test in this class
+        and fail only here, which is why this case is quoted separately in the plan's validation.
+
+        The ledger record is asserted ABSENT too, not merely `applied: False`: a run that did not
+        expand should not carry a closure event at all, or a reader of `events.jsonl` cannot tell a
+        no-op expansion from one that was never asked for.
+        """
+        plans = {
+            "aaa111": ("executed:bbb222", "pending"),
+            "bbb222": ("executed:ccc333", "pending"),
+            "ccc333": ("none", "pending"),
+        }
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                ids, closure, err = self.run_case(runner, plans, ["aaa111"])
+                self.assertEqual(ids, ["aaa111"], err)
+                self.assertIsNone(
+                    closure,
+                    "a run that was never asked to expand must not record a closure event",
+                )
+                self.assertNotIn("expanded the selection", err)
+
+    def test_a_cycle_terminates_and_a_diamond_enqueues_each_target_once(self):
+        """CASES (c) and (d) together, because both are the SAME property of the walk: a visited set.
+
+        Merged deliberately rather than split: a cycle and a diamond are one claim (each id is expanded
+        at most once, each target enqueued at most once) observed on two graph shapes, and they fail
+        together the moment the visited set is dropped. A cycle without it HANGS - so a regression here
+        is a test-suite timeout rather than a failure, which is worth knowing when reading a red run.
+
+        THE SELF-EDGE IS THE THIRD SHAPE and is in the cycle row: `A -> A` is a cycle of length one and
+        must neither loop nor duplicate A in the queue.
+
+        THE CYCLE ROW IS ASSERTED AT THE CLOSURE's OWN LEVEL, deliberately, because end to end a cycle
+        is REFUSED by the pre-existing dependency preflight with the shared evaluator's
+        `check.ipd-dependency-cycle` finding - and that is the correct division of labour, not an
+        obstacle: the closure's job is to TERMINATE, and naming a cycle belongs to the evaluator that
+        every surface consults. So the row drives `expand_dependency_closure` directly (proving the walk
+        returns rather than hanging) and then asserts the END-TO-END outcome is the evaluator's refusal,
+        which is what proves the closure neither hung nor quietly adjudicated a cycle it does not own.
+        """
+        cycle = {
+            "aaa111": ("executed:bbb222", "pending"),
+            "bbb222": ("executed:aaa111", "pending"),
+        }
+        import tempfile
+        from pathlib import Path as _P
+
+        selfedge = {"aaa111": ("executed:aaa111", "pending")}
+        diamond = {
+            "aaa111": ("executed:bbb222, executed:ccc333", "pending"),
+            "bbb222": ("executed:ddd444", "pending"),
+            "ccc333": ("executed:ddd444", "pending"),
+            "ddd444": ("none", "pending"),
+        }
+        for shape, plans, expected in (
+            ("cycle", cycle, ["aaa111", "bbb222"]),
+            ("self-edge", selfedge, ["aaa111"]),
+        ):
+            with self.subTest(shape=shape, level="the closure walk itself"):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = self.make_repo(_P(td), plans)
+                    manifest = runner_shared.build_dynamic_manifest(
+                        repo,
+                        runner_shared.discover_plans(
+                            repo, parse_plan_file=runner_shared.parse_plan_file
+                        ),
+                    )
+                    # RETURNS rather than hanging; that is the property, and each id is visited once.
+                    ids, record = runner_shared.expand_dependency_closure(
+                        repo,
+                        manifest,
+                        ["aaa111"],
+                        with_dependencies=True,
+                        # The HOST's predicate, supplied exactly as `initialize_run_core` supplies it;
+                        # omitting it would silently skip the satisfaction half of the rule and make
+                        # this a test of the disposition half alone by accident rather than by design.
+                        edge_satisfied_fn=oc_runipd.edge_satisfied,
+                    )
+                    self.assertEqual(sorted(ids), expected)
+                    self.assertEqual(sorted(record["visited"]), expected)
+        for runner in BOTH:
+            with self.subTest(runner=runner, shape="cycle", level="end to end"):
+                with self.assertRaises(runner_shared.DriverError) as caught:
+                    self.run_case(runner, cycle, ["aaa111", "--with-dependencies"])
+                self.assertIn("ipd-dependency-cycle", str(caught.exception))
+            with self.subTest(runner=runner, shape="self-edge", level="end to end"):
+                # Same division of labour as the cycle: the shared evaluator names a self-dependency
+                # (`check.ipd-dependency-malformed`), and the closure's obligation is only that it
+                # reached that refusal instead of looping forever on the way there.
+                with self.assertRaises(runner_shared.DriverError) as caught:
+                    self.run_case(runner, selfedge, ["aaa111", "--with-dependencies"])
+                self.assertIn("self-dependency", str(caught.exception))
+            with self.subTest(runner=runner, shape="diamond"):
+                ids, closure, err = self.run_case(
+                    runner, diamond, ["aaa111", "--with-dependencies"]
+                )
+                self.assertEqual(
+                    sorted(ids), ["aaa111", "bbb222", "ccc333", "ddd444"], err
+                )
+                self.assertEqual(
+                    len([i for i in ids if i == "ddd444"]),
+                    1,
+                    "the diamond's shared target must be enqueued ONCE",
+                )
+                assert closure is not None
+                self.assertEqual(
+                    len([r for r in closure["added"] if r["id6"] == "ddd444"]), 1
+                )
+
+    # ---- the cases it must NOT expand ------------------------------------------------------------
+
+    def test_an_already_terminal_target_is_not_enqueued(self):
+        """CASE (h), THE RE-EXECUTION GUARD, and the assertion is about the QUEUE, not about dispatch.
+
+        A selection whose plan declares `executed:<id6>` against a plan sitting in `executed/` must NOT
+        gain that plan. Pasting a run in which the finished plan APPEARS in the queue but was never
+        dispatched would prove only the queue builder's incidental `status: "reviewed"` default plus the
+        dispatch loop's `queued` filter - not this plan's skip rule. So the id6 is asserted ABSENT from
+        the queue, which only the closure's own rule can achieve.
+
+        THE SKIP IS RECORDED, not silent: the ledger's `skipped` list names the edge and the reason, so
+        an operator who expected a target and did not get one can see why without reading the source.
+        """
+        plans = {
+            "aaa111": ("executed:bbb222", "pending"),
+            "bbb222": ("none", "executed"),
+        }
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                ids, closure, err = self.run_case(
+                    runner, plans, ["aaa111", "--with-dependencies"]
+                )
+                self.assertEqual(
+                    ids,
+                    ["aaa111"],
+                    "a plan already in `executed/` must NOT be pulled into the queue; "
+                    f"`action_for` would give it an `execute` action. queue={ids} err={err}",
+                )
+                assert closure is not None
+                self.assertEqual(closure["added"], [])
+                self.assertEqual(len(closure["skipped"]), 1)
+                reason = closure["skipped"][0]["reason"]
+                # WHICH rule fired is asserted, not merely that SOME rule did. For an already-executed
+                # target BOTH apply, and the SHIPPED satisfaction predicate is the one that should
+                # answer first, because that is the same question dispatch will ask later; a reason
+                # naming only the disposition would mean the closure had derived satisfaction itself.
+                self.assertIn("edge_satisfied", reason)
+                self.assertIn("bbb222", reason)
+
+    def test_a_retired_target_is_skipped_by_the_DISPOSITION_rule_not_the_satisfaction_one(
+        self,
+    ):
+        """The skip rule has TWO independent halves, and this proves the second one is load-bearing.
+
+        An `executed/` target is skipped by BOTH halves, so a suite testing only that case cannot tell
+        whether the disposition check does any work. A `superseded/`, `not-executed/` or `reusable/`
+        target separates them: `edge_satisfied` correctly reports such an edge UNMET (retiring a plan is
+        not executing it), so the FIRST half says "add" and only the disposition half keeps it out.
+
+        WHY KEEPING IT OUT IS RIGHT even though the edge is unmet: the target is retired work. Running
+        it is not how the edge gets met, and `reusable` in particular is a standing plan that an
+        operator runs on purpose, so pulling one in as a side effect of another selection would execute
+        recurring work nobody asked for in this run. The dependent's own edge is still enforced by the
+        preflight and the dispatch-time re-check, which is what refuses it on its merits.
+        """
+        import tempfile
+        from pathlib import Path as _P
+
+        for disposition in ("superseded", "not-executed", "reusable"):
+            with self.subTest(disposition=disposition):
+                plans = {
+                    "aaa111": ("executed:bbb222", "pending"),
+                    "bbb222": ("none", disposition),
+                }
+                with tempfile.TemporaryDirectory() as td:
+                    repo = self.make_repo(_P(td), plans)
+                    manifest = runner_shared.build_dynamic_manifest(
+                        repo,
+                        runner_shared.discover_plans(
+                            repo, parse_plan_file=runner_shared.parse_plan_file
+                        ),
+                    )
+                    from agent_workflows import ipd_schema
+
+                    edge, _err = ipd_schema._parse_item_dependency_edge(
+                        "executed:bbb222"
+                    )
+                    # The FIRST half genuinely says this edge is NOT satisfied ...
+                    met, _why = oc_runipd.edge_satisfied(
+                        edge, {"action": "execute"}, {"repo": str(repo)}, {}
+                    )
+                    self.assertFalse(
+                        met,
+                        f"a {disposition} target must NOT satisfy an `executed:` edge, or this test "
+                        "is not separating the two halves of the skip rule",
+                    )
+                    # ... and the SECOND half is what keeps it out of the queue anyway.
+                    ids, record = runner_shared.expand_dependency_closure(
+                        repo,
+                        manifest,
+                        ["aaa111"],
+                        with_dependencies=True,
+                        # The HOST's predicate, supplied exactly as `initialize_run_core` supplies it;
+                        # omitting it would silently skip the satisfaction half of the rule and make
+                        # this a test of the disposition half alone by accident rather than by design.
+                        edge_satisfied_fn=oc_runipd.edge_satisfied,
+                    )
+                    self.assertEqual(ids, ["aaa111"])
+                    self.assertEqual(len(record["skipped"]), 1)
+                    self.assertIn(disposition, record["skipped"][0]["reason"])
+
+    def test_the_skip_rule_is_what_keeps_the_terminal_target_out(self):
+        """The counterfactual for the case above: REMOVE the rule and the finished plan IS enqueued.
+
+        WHY THIS EXISTS AS A SEPARATE TEST. "The queue does not contain B" is satisfied by an
+        implementation that never expands at all, and by one whose expansion happens to fail; neither
+        would be the skip rule working. This patches `closure_target_admission` to the naive behavior
+        (`add` for everything resolvable) and requires the terminal plan to appear, which is what makes
+        the previous test's green meaningful rather than vacuous.
+        """
+        plans = {
+            "aaa111": ("executed:bbb222", "pending"),
+            "bbb222": ("none", "executed"),
+        }
+        real = runner_shared.closure_target_admission
+
+        def naive(repo, edge, *, manifest, edge_satisfied_fn=None):
+            verdict, reason = real(
+                repo, edge, manifest=manifest, edge_satisfied_fn=edge_satisfied_fn
+            )
+            return ("add", "") if verdict == "skip" else (verdict, reason)
+
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                with mock.patch.object(
+                    runner_shared, "closure_target_admission", naive
+                ):
+                    ids, _c, err = self.run_case(
+                        runner, plans, ["aaa111", "--with-dependencies"]
+                    )
+                self.assertIn(
+                    "bbb222",
+                    ids,
+                    "with the skip rule removed the already-executed plan MUST appear, or this "
+                    f"counterfactual proves nothing about the rule. queue={ids} err={err}",
+                )
+
+    def test_a_non_plan_target_refuses_and_leaves_no_run_directory(self):
+        """CASE (i): an `exists:spec:<id6>` edge REFUSES, before any durable state exists.
+
+        THE REFUSAL IS A DELIBERATE NARROWING OF AN APPROVED SPEC, and it is asserted here so the
+        narrowing is a tested fact rather than a plan note. Spec :166 says "any newly introduced type
+        is subject to the same mixed-type gate", which presupposes a `spec` target can join the queue,
+        and `ipd_schema.ITEM_DEP_TYPES` admits the edge as legal grammar. The manifest is plans-only, so
+        there is no queue entry to build, and the queue builder's unguarded `manifest["plans"][id6]`
+        runs AFTER the run directory is created - a permissive path would therefore raise a bare
+        `KeyError` with durable state already written.
+
+        THE RUN ROOT IS ASSERTED ABSENT, which is the half that makes this more than a message test.
+        """
+        import tempfile
+        from pathlib import Path as _P
+
+        plans = {"aaa111": ("exists:spec:sss999", "pending")}
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = self.make_repo(_P(td), plans, spec_id6="sss999")
+                    with self.assertRaises(runner_shared.ClosureRefusal) as caught:
+                        self.initialize(runner, repo, ["aaa111", "--with-dependencies"])
+                    message = str(caught.exception)
+                    self.assertIn("spec", message)
+                    self.assertIn("sss999", message)
+                    runs = repo / ".aw" / "records" / "runs"
+                    self.assertEqual(
+                        sorted(
+                            p.name
+                            for p in (runs.glob("run-*") if runs.exists() else [])
+                        ),
+                        [],
+                        "a closure refusal must leave NO run directory: it fires at the seam, "
+                        "ahead of run-directory creation, exactly as the unimplemented-flag "
+                        "refusal used to",
+                    )
+
+    def test_an_unresolvable_target_refuses_loudly(self):
+        """CASE (f): OQ-02's decision, observed. A dangling target REFUSES rather than warning past.
+
+        The alternative (proceed with a warning) was rejected because a partially expanded closure is
+        neither the selection the operator asked for nor the one they would have got without the flag,
+        and they cannot tell which from the outside. Measured cost of the strict choice in this
+        repository: zero, all 43 declared edges resolve today.
+
+        WITHOUT the flag the same repo must still RUN, which is asserted in the same test: the strict
+        choice constrains the EXPANSION only, and the edge's own enforcement is unchanged.
+        """
+        plans = {"aaa111": ("executed:zzz999", "pending")}
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                with self.assertRaises(runner_shared.ClosureRefusal) as caught:
+                    self.run_case(runner, plans, ["aaa111", "--with-dependencies"])
+                self.assertIn("zzz999", str(caught.exception))
+                self.assertIn("--with-dependencies", str(caught.exception))
+
+    def test_a_closure_refusal_leaves_no_durable_run_state(self):
+        """The guarantee INHERITED from the `REFUSALS` row this flag no longer has.
+
+        `--with-dependencies` used to be a row in
+        :class:`FullAutoEndToEndBehaviorTests.test_every_refused_invocation_leaves_no_durable_run_state`,
+        which asserted both that it refused and that no `run-*` directory survived. It refuses for
+        different reasons now, so this re-asserts the SECOND half for each remaining refusal, and the
+        guarantee moves with the behavior rather than being quietly dropped when the row was deleted.
+        """
+        import tempfile
+        from pathlib import Path as _P
+
+        cases = (
+            (
+                "an unresolvable target",
+                {"aaa111": ("executed:zzz999", "pending")},
+                None,
+            ),
+            (
+                "a non-plan target",
+                {"aaa111": ("exists:spec:sss999", "pending")},
+                "sss999",
+            ),
+        )
+        for case, plans, spec_id6 in cases:
+            for runner in BOTH:
+                with self.subTest(case=case, runner=runner):
+                    with tempfile.TemporaryDirectory() as td:
+                        repo = self.make_repo(_P(td), plans, spec_id6=spec_id6)
+                        with self.assertRaises(runner_shared.ClosureRefusal):
+                            self.initialize(
+                                runner, repo, ["aaa111", "--with-dependencies"]
+                            )
+                        runs = repo / ".aw" / "records" / "runs"
+                        self.assertEqual(
+                            sorted(
+                                p.name
+                                for p in (runs.glob("run-*") if runs.exists() else [])
+                            ),
+                            [],
+                        )
+
+    # ---- the mixed-type gate, at its HONEST level of reachability --------------------------------
+
+    def test_an_expansion_introducing_no_new_type_does_not_trigger_the_gate(self):
+        """CASE (e), the NEGATIVE half, and it is the half that is end-to-end reachable.
+
+        A gate that fired on correct behavior would train operators to pass `--allow-mixed` reflexively,
+        which is the failure mode backlog `gjadwm` records. Every id a closure can add is an IPD (a
+        non-plan target refuses), so a real expansion must leave the classification single-type and the
+        gate must NOT apply.
+        """
+        plans = {
+            "aaa111": ("executed:bbb222", "pending"),
+            "bbb222": ("none", "pending"),
+        }
+        import json
+        import tempfile
+        from pathlib import Path as _P
+
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = self.make_repo(_P(td), plans)
+                    args = _parse(
+                        runner,
+                        [
+                            "start",
+                            "aaa111",
+                            "--with-dependencies",
+                            "--repo",
+                            str(repo),
+                        ],
+                    )
+                    args.prepare_only = True
+                    import contextlib
+                    import io
+
+                    with contextlib.redirect_stderr(io.StringIO()):
+                        run_dir = _MODULES[runner].initialize_run(args)
+                    events = [
+                        json.loads(line)
+                        for line in (run_dir / "events.jsonl")
+                        .read_text(encoding="utf-8")
+                        .splitlines()
+                        if line.strip()
+                    ]
+                    gate = next(e for e in events if e["event"] == "mixed-type-gate")
+                    self.assertFalse(gate["gate_applied"])
+                    self.assertTrue(gate["proceed"])
+                    self.assertEqual(gate["type_counts"], {"ipd": 2})
+
+    def test_a_new_type_reaches_the_same_refusal_at_the_level_it_is_reachable_at(self):
+        """CASE (e), the POSITIVE half, AND THE STATEMENT OF ITS LIMIT, which is the honest part.
+
+        THE LEVEL: a new type is reachable only at the `classify_paths`/`decide` level, NOT end to end,
+        because the closure REFUSES a non-plan target and because `enforce_mixed_type_gate` is handed
+        `selected_plan_paths` - built by a loop that resolves `manifest["plans"][id6]` inside
+        `except (DriverError, KeyError): continue` - rather than `queue_ids`, so a manifest-absent
+        target is dropped before classification.
+
+        SO, IN THE GATE DOCSTRING'S OWN WORDS: the wiring is proven correct; a live mixed selection
+        being gated is NOT proven, and must not be reported as if it were. This test therefore proves
+        (1) that a genuinely mixed classification still produces the verbatim `RUN-MIXED-TYPES`
+        refusal unattended, and (2) that the closure is the reason the live arm is unreachable - by
+        asserting the refusal for the non-plan target, which is what an operator actually gets.
+
+        A UNIT-LEVEL `decide` CALL IS NOT PRESENTED AS AN END-TO-END RE-TRIGGER. That conflation is
+        what the gate's docstring warns against and is why both halves are asserted in one test.
+        """
+        import tempfile
+        from pathlib import Path as _P
+
+        from agent_workflows import run_selection_policy
+
+        # A REAL multi-type classification, produced by the shipped `classify_paths` over real files
+        # rather than hand-constructed: a hand-built `Classification` could assert a shape
+        # `classify_paths` never produces, which would make this half of the test vacuous.
+        with tempfile.TemporaryDirectory() as td:
+            root = _P(td)
+            plans = root / ".aw" / "records" / "plans" / "pending"
+            specs = root / ".aw" / "records" / "specs"
+            plans.mkdir(parents=True)
+            specs.mkdir(parents=True)
+            ipd = plans / "20260905-demo-01-aaa111-demo.ipd.md"
+            ipd.write_text("- Status: approved\n- Id: aaa111\n", encoding="utf-8")
+            spec = specs / "20260905-bbb222-01-bbb222-demo.spec.md"
+            spec.write_text("- Status: approved\n- Id: bbb222\n", encoding="utf-8")
+            classification = run_selection_policy.classify_paths(root, [ipd, spec])
+            self.assertTrue(
+                classification.is_mixed,
+                f"the fixture is not multi-type: {classification.spec_types}",
+            )
+            verdict = run_selection_policy.decide(
+                classification,
+                interactive=False,
+                allow_mixed=False,
+                response=None,
+                host="oc",
+                selector="aaa111 --with-dependencies",
+            )
+        self.assertTrue(verdict.gate_applied)
+        self.assertFalse(verdict.proceed)
+        self.assertIn("RUN-MIXED-TYPES", verdict.message or "")
+
+        # And the reason that arm is not reachable through a real invocation: the closure refuses the
+        # only edge that could introduce the type, so the operator meets THIS message instead.
+        plans = {"aaa111": ("exists:spec:sss999", "pending")}
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                with self.assertRaises(runner_shared.ClosureRefusal) as caught:
+                    self.run_case(
+                        runner,
+                        plans,
+                        ["aaa111", "--with-dependencies"],
+                        spec_id6="sss999",
+                    )
+                self.assertIn("mixed-type gate", str(caught.exception))
+
+    def test_the_closure_has_ONE_definition_and_both_hosts_reach_THAT_one(self):
+        """HOST PARITY BY IDENTITY, at the level the code is actually shared.
+
+        NOT A ROW IN `tests/test_runner_refork_guard.py`, and the reason is worth stating so nobody
+        "fixes" it by adding one. That guard's contract is that each runner EXPOSES the owner's object
+        at an attribute name the runner's own call sites use; `expand_dependency_closure` has no such
+        call site, because it is invoked from inside `runner_shared.initialize_run_core`, which both
+        hosts delegate to. Adding a row would require the runners to import a symbol they never use, so
+        the guard's own precondition is absent and the honest parity claim is one level up: ONE core,
+        reached by both, therefore one closure.
+
+        BOTH HALVES ARE ASSERTED for the same reason that guard asserts both of its: the identity half
+        alone passes while a stale duplicate definition sits in a runner being shadowed by an import,
+        and the AST half alone passes while a name is rebound at runtime.
+        """
+        import ast
+        import inspect
+        import pathlib
+
+        self.assertIs(
+            oc_runipd.runner_shared.initialize_run_core,
+            agy_runipd.runner_shared.initialize_run_core,
+        )
+        core = inspect.getsource(runner_shared.initialize_run_core)
+        self.assertIn("expand_dependency_closure(", core)
+        for runner in BOTH:
+            module = _MODULES[runner]
+            with self.subTest(runner=runner):
+                self.assertIn(
+                    "initialize_run_core",
+                    inspect.getsource(module.initialize_run),
+                    f"{runner}.initialize_run must delegate to the shared core, or the closure has "
+                    "two call sites and this class proves parity for only one of them",
+                )
+                tree = ast.parse(
+                    pathlib.Path(inspect.getfile(module)).read_text(encoding="utf-8")
+                )
+                defined = {
+                    node.name
+                    for node in tree.body
+                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                }
+                for name in (
+                    "expand_dependency_closure",
+                    "closure_target_admission",
+                ):
+                    self.assertNotIn(
+                        name,
+                        defined,
+                        f"{runner} defines its own {name}; the closure must have exactly one "
+                        "definition, in the shared module",
+                    )
