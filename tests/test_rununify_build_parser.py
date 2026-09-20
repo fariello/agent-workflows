@@ -111,7 +111,13 @@ LITERAL_PARTITION = {"shared": 17, "oc_only": 7, "agy_only": 10}
 #: `--allow-uncovered-orchestrator-work` through the SHARED `RUN_POLICY_FLAGS` table. A rise in the
 #: SHARED count for that reason is the direction this suite wants: the flag reaches both hosts because
 #: one table declares it, so it could not have landed on one host only.
-LIVE_PARTITION = {"shared": 53, "oc_only": 8, "agy_only": 8}
+#: RE-MEASURED 2026-09-20 (53 -> 55 shared) by reverify-01 (`mp289j`), which declared the `audit`
+#: subcommand on BOTH hosts through the ONE shared `runner_shared.add_audit_parser`. The new entries are
+#: `--base` and the `BooleanOptionalAction` pair `--isolate-worktree` / `--no-isolate-worktree`, counted
+#: as two because argparse generates the negative form as a real option string; `--repo`, `-h`, `--help`
+#: and the positional `id6` were already shared with `integrate`. SYMMETRIC again, for the same reason:
+#: the declaration is shared, so neither host-only set could move.
+LIVE_PARTITION = {"shared": 55, "oc_only": 8, "agy_only": 8}
 
 #: E-03: the residual de-duplication payoff, as a NUMBER rather than an impression. Identical
 #: normalized code lines between the two `build_parser` bodies. THIS IS THE CEILING on what
@@ -420,6 +426,22 @@ VERIFICATION_FLAGS = (
 #: suppressed it on one host would be an operator-visible change this plan must catch.
 EXPECTED_OPTION_STRINGS: dict[str, dict[str, frozenset[str]]] = {
     "oc": {
+        # reverify-01 (`mp289j`): the `audit` verb, declared through the ONE shared
+        # `runner_shared.add_audit_parser`, so BOTH hosts carry the identical row even though the verb
+        # is IMPLEMENTED on oc only (the agy binding refuses and names the oc spelling). The row being
+        # identical is the point: an operator meets the same command line on both hosts, and a verb
+        # declared on one host only is the surface fork `rununify` exists to prevent.
+        "audit": frozenset(
+            {
+                "--base",
+                "--help",
+                "--isolate-worktree",
+                "--no-isolate-worktree",
+                "--repo",
+                "-h",
+                "id6",
+            }
+        ),
         # integpath-04 (`rl67b0`): the `integrate` verb, declared through the ONE shared
         # `runner_shared.add_integrate_parser`, so BOTH hosts carry the identical row.
         "integrate": frozenset({"--help", "--repo", "--run-id", "-h", "id6"}),
@@ -542,6 +564,20 @@ EXPECTED_OPTION_STRINGS: dict[str, dict[str, frozenset[str]]] = {
         ),
     },
     "agy": {
+        # reverify-01 (`mp289j`): the `audit` verb. IDENTICAL to the oc row above, deliberately: the
+        # declaration is shared, and this host's difference is in the BINDING (it refuses, naming the
+        # oc spelling) rather than in the command line.
+        "audit": frozenset(
+            {
+                "--base",
+                "--help",
+                "--isolate-worktree",
+                "--no-isolate-worktree",
+                "--repo",
+                "-h",
+                "id6",
+            }
+        ),
         # integpath-04 (`rl67b0`): the `integrate` verb, declared through the ONE shared
         # `runner_shared.add_integrate_parser`, so BOTH hosts carry the identical row.
         "integrate": frozenset({"--help", "--repo", "--run-id", "-h", "id6"}),
@@ -715,16 +751,35 @@ class EachHostRegistersExactlyItsOwnFlagSet(unittest.TestCase):
     option strings live on these parsers against 12 policy rows).
     """
 
-    def test_the_two_hosts_register_the_same_six_subparsers(self):
+    def test_the_two_hosts_register_the_same_subparsers(self):
         # SIX since 2026-09-17: integpath-04 (`rl67b0`) added `integrate`, declared on BOTH hosts through
         # the ONE shared `runner_shared.add_integrate_parser`, exactly as `stop` is. What this test is
         # actually about is that the two hosts register the SAME set, and they still do.
+        #
+        # SEVEN since 2026-09-20: reverify-01 (`mp289j`) added `audit` through the ONE shared
+        # `runner_shared.add_audit_parser`. NOTE that `audit` is IMPLEMENTED on oc only and this test
+        # still requires it on BOTH, which is not a contradiction: the pinned property is the declared
+        # SURFACE, and the agy binding is a refusal that names the oc spelling. A verb that parsed on one
+        # host and reported "unknown command" on the other, while `--help` documented it, would be the
+        # drift this class exists to catch.
+        #
+        # THE NAME NO LONGER COUNTS, deliberately. It read `..._same_six_subparsers` and the count went
+        # stale the first time a verb was added, which is the same failure mode the `aw runs` help text
+        # hit twice by counting its exceptions instead of naming them.
         for host in HOSTS:
             with self.subTest(host=host):
                 self.assertEqual(
                     sorted(subparsers(host)),
-                    ["integrate", "report", "resume", "start", "status", "stop"],
-                    f"{host} no longer registers exactly the six expected subparsers",
+                    [
+                        "audit",
+                        "integrate",
+                        "report",
+                        "resume",
+                        "start",
+                        "status",
+                        "stop",
+                    ],
+                    f"{host} no longer registers exactly the expected subparsers",
                 )
 
     def test_every_subparser_registers_exactly_the_measured_option_strings(self):
@@ -809,9 +864,13 @@ class EachHostRegistersExactlyItsOwnFlagSet(unittest.TestCase):
             ],
             "the agy-only flag set changed",
         )
+        # 53 -> 55 on 2026-09-20 (reverify-01 `mp289j`): the shared `audit` declaration added `--base`
+        # and the `--isolate-worktree` / `--no-isolate-worktree` pair. Read from LIVE_PARTITION rather
+        # than re-hardcoded, because two copies of this number in one file is how one of them goes
+        # stale; the docstring above LIVE_PARTITION carries the measurement history.
         self.assertEqual(
             len(oc_all & agy_all),
-            53,
+            LIVE_PARTITION["shared"],
             "the number of SHARED option strings changed; a flag became host-specific or stopped "
             "being so",
         )

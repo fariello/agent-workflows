@@ -5059,9 +5059,25 @@ def build_verifier_prompt(
     state: dict[str, Any],
     run_dir: Path,
     plan_path: Path,
+    *,
+    audit: bool = False,
+    diff_basis: str = "",
 ) -> str:
+    """This host's binding of the ONE shared verifier-prompt composer.
+
+    ``audit`` / ``diff_basis`` are FORWARDED, not re-interpreted (reverify-01 `mp289j` E-06): the
+    audit rendering is decided once, in `runner_shared.build_verifier_prompt`, so the standalone
+    `audit` verb and the in-run turn 2 cannot drift. Both default to the in-run values, so every
+    existing call site's output is byte-identical.
+    """
     return runner_shared.build_verifier_prompt(
-        item, state, run_dir, plan_path, labels=runner_shared.OC_HOST_LABELS
+        item,
+        state,
+        run_dir,
+        plan_path,
+        labels=runner_shared.OC_HOST_LABELS,
+        audit=audit,
+        diff_basis=diff_basis,
     )
 
 
@@ -7515,6 +7531,14 @@ LAUNCH IDENTITY (model / variant / agent):
     # nothing else.
     runner_shared.add_integrate_parser(sub, command=_detect_driver_command())
 
+    # reverify-01 (`mp289j`) E-05: the OUT-OF-BAND `audit` verb, declared through the SHARED helper
+    # for the same reason `stop` and `integrate` are (a verb must not exist on one host only, and its
+    # help text must not drift between them), and on THIS parser because `aw oc run` forwards
+    # `argparse.REMAINDER` verbatim to this `main`. Like those two it MUST also appear in the
+    # implicit-start shim's subcommand set below, or `audit <id6>` launches a RUN with `audit` as a
+    # selector.
+    runner_shared.add_audit_parser(sub, command=_detect_driver_command())
+
     return parser
 
 
@@ -7544,6 +7568,270 @@ def handle_integrate_command(args: argparse.Namespace) -> int:
     message = runner_shared.render_reintegration_result(outcome, id6=id6)
     print(message, file=sys.stdout if outcome.integrated else sys.stderr)
     return 0 if outcome.integrated else 1
+
+
+def handle_audit_command(args: argparse.Namespace) -> int:
+    """Execute the `audit` verb: ONE fresh-session independent opinion on an already-executed plan.
+
+    reverify-01 (`mp289j`) E-05. This is the host binding; the two DECISIONS that are not
+    host-specific live in `runner_shared` and are shared by construction: which plan is auditable and
+    what it can be diffed against (`plan_audit_target`), and the prompt itself
+    (`build_verifier_prompt(..., audit=True)`).
+
+    NO SECOND VERIFIER, which is backlog `7u9kbm`'s hard constraint and `wlxkoz`'s argument against a
+    second completion checker. This function composes NO prompt text of its own: it calls the SAME
+    `build_verifier_prompt` the in-run turn calls, with `audit=True`, and launches it through the SAME
+    `run_opencode` with the SAME `use_verifier_launch=True` the in-run verifier uses, so the verifier's
+    configured model/variant/agent profile applies here too without a second resolution path.
+
+    WHAT IT DELIBERATELY DOES NOT DO, since each omission is a design decision rather than a gap:
+
+      * It mints a run directory but builds NO QUEUE and takes NO run lock. There is exactly one turn
+        and no ordering to own, so `initialize_run` (selector expansion, dependency preflight, the
+        mixed-type gate, the orchestrator coverage gate) would be machinery with nothing to decide.
+        `stop` and `integrate` are the precedent for an out-of-band verb that touches no queue.
+      * It performs NO LIFECYCLE TRANSITION and calls neither `aw ipd begin` nor `aw ipd finalize`.
+        The subject plan is already terminal; a transition is exactly what OQ-05 forbids.
+      * It does NOT INTEGRATE the lane. An audit's job is to form an opinion, and any CODE fix it makes
+        is a fix behind a finished plan, which must be reviewed on its own merits rather than
+        auto-merged by the verb that asked for it. The lane and its commits are reported by path so an
+        operator can inspect, then `aw oc run integrate <id6>` or merge by hand.
+
+    EXIT CONTRACT, matching `integrate`: 0 when the audit turn ran and wrote a verdict, 1 when the
+    request was refused (no plan, not executed) or the turn produced no verdict, 2 for a driver error.
+    """
+
+    repo = Path(getattr(args, "repo", ".") or ".").resolve()
+    id6 = str(getattr(args, "id6", "") or "")
+    pal = Palette(should_color(sys.stdout))
+
+    target = runner_shared.plan_audit_target(
+        repo, id6, base=getattr(args, "base", None)
+    )
+    if target.refusal:
+        print(f"audit refused ({target.refusal}): {target.reason}", file=sys.stderr)
+        return 1
+
+    run_id, run_dir = _fresh_audit_run_dir(repo)
+    # ALL THREE, and `sessions/` is not optional decoration: `run_opencode` opens the attempt log with
+    # `log_path.open("w")` and does NOT create its parent, so omitting it raises FileNotFoundError at
+    # the moment of launch, after the prompt has been written and (with isolation on) after a lane has
+    # been allocated. Measured while wiring this verb end to end.
+    for sub in ("outcomes", "prompts", "sessions"):
+        (run_dir / sub).mkdir(parents=True, exist_ok=True)
+
+    # A MINIMAL STATE, written for the same reason a queued run writes one: the verdict must be
+    # readable afterwards by somebody who did not watch the terminal. `action` is `audit` so
+    # `aw runs` and the analytics reader can tell this apart from an execute or review turn rather
+    # than mis-attributing its cost to an execution.
+    item: dict[str, Any] = {
+        "position": 1,
+        "id6": target.id6,
+        "setid": target.setid or "audit",
+        "file": str(target.plan_path.relative_to(repo))
+        if target.plan_path.is_relative_to(repo)
+        else str(target.plan_path),
+        "configured_file": "",
+        "action": "audit",
+        "status": "pending",
+        "attempts": [],
+    }
+    state: dict[str, Any] = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "repo": str(repo),
+        "created_at": runner_shared.utc_now(),
+        "kind": "audit",
+        "queue": [item],
+        "options": {
+            "opencode": getattr(args, "opencode", "opencode") or "opencode",
+            "auto": True,
+            # The audit reuses the VERIFIER launch profile when one is configured, which is the
+            # point: the operator who configured a stronger checker for turn 2 wants it here too.
+            **_audit_launch_options(args),
+        },
+        "audit": {
+            "plan": item["file"],
+            "diff_basis": target.basis,
+            "diff_basis_detail": target.basis_detail,
+        },
+    }
+    runner_shared.atomic_write_json(run_dir / "state.json", state)
+
+    prompt = build_verifier_prompt(
+        item,
+        state,
+        run_dir,
+        target.plan_path,
+        audit=True,
+        diff_basis=target.basis_detail,
+    )
+
+    handle = None
+    work_dir: str | None = None
+    if getattr(args, "isolate_worktree", True):
+        # THE SAME `worktree_lease` EVERY EXECUTE TURN USES, not a second isolation path. OQ-04 is
+        # recorded resolved as "do NOT run it in the shared primary checkout", and isolation is
+        # already the default for execute turns on both hosts, so a lane here is the consistent
+        # choice rather than a novel one.
+        try:
+            handle = runner_shared.allocate_isolation_worktree(repo, f"audit-{id6}")
+            work_dir = str(handle.path)
+        except Exception as exc:
+            print(
+                f"audit: could not allocate an isolated worktree ({exc}); refusing rather than "
+                f"running in the shared checkout, which other agents may be using. Pass "
+                f"--no-isolate-worktree to override deliberately.",
+                file=sys.stderr,
+            )
+            return 1
+
+    prompt_path = runner_shared.write_prompt(run_dir, item, prompt, 1, suffix="audit")
+    print(pal(f"Audit run: {run_id}", "cyan"))
+    print(f"  plan:  {item['file']}")
+    print(f"  basis: {target.basis}")
+    print(
+        f"  tree:  {work_dir or 'the shared primary checkout (--no-isolate-worktree)'}"
+    )
+
+    verdict_path = run_dir / "outcomes" / f"01-{target.id6}-verification.json"
+    try:
+        rc, _session, log_path, _argv = run_opencode(
+            state,
+            run_dir,
+            item,
+            target.plan_path,
+            prompt_path,
+            1,
+            fresh_session=True,
+            log_suffix="audit",
+            label_suffix="audit",
+            work_dir=work_dir,
+            use_verifier_launch=True,
+            telemetry_phase=runner_shared.TELEMETRY_PHASE_VALIDATE,
+        )
+    finally:
+        # THE LANE IS NEVER TORN DOWN HERE, even on an exception, and that is deliberate:
+        # `teardown_isolation_worktree` is documented as destructive and safe only on a lane holding
+        # NO work, and an audit that fixed code in scope holds exactly that work. Preserving it is the
+        # same choice `reclaim_lanes_on_interrupt` makes for an interrupted execute lane.
+        if handle is not None:
+            print(f"  lane preserved: {handle.branch} at {handle.path}")
+
+    verdict: dict[str, Any] | None = None
+    for candidate in (
+        verdict_path,
+        (Path(work_dir) / verdict_path.relative_to(repo))
+        if work_dir and verdict_path.is_relative_to(repo)
+        else None,
+    ):
+        if candidate is not None and candidate.is_file():
+            try:
+                verdict = json.loads(candidate.read_text(encoding="utf-8"))
+                break
+            except (OSError, json.JSONDecodeError):
+                continue
+
+    item["attempts"].append(
+        {
+            "attempt": 1,
+            "exit_code": rc,
+            "log": str(log_path),
+            "verdict": (verdict or {}).get("verdict", ""),
+        }
+    )
+    item["status"] = "audited" if verdict else "no-verdict"
+    state["audit"]["verdict"] = verdict or {}
+    state["audit"]["lane"] = (
+        {"branch": handle.branch, "path": str(handle.path)} if handle else None
+    )
+    runner_shared.atomic_write_json(run_dir / "state.json", state)
+
+    if not verdict:
+        print(
+            f"audit: the turn exited {rc} but wrote no verdict to {verdict_path}. The session log is "
+            f"at {log_path}; nothing about the audited plan changed.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(pal(f"  verdict: {verdict.get('verdict', '?')}", "cyan"))
+    print(f"  summary: {verdict.get('summary', '')}")
+    filed = verdict.get("findings_filed") or []
+    if filed:
+        print(f"  findings filed: {', '.join(str(f) for f in filed)}")
+    print(f"  full verdict: {verdict_path}")
+    return 0
+
+
+def _fresh_audit_run_dir(repo: Path) -> tuple[str, Path]:
+    """A run directory that does NOT already exist, returned as ``(run_id, path)``.
+
+    reverify-01 (`mp289j`) E-03. THIS EXISTS BECAUSE `new_run_id` ALONE IS NOT ENOUGH, which was
+    measured while writing this verb's own tests rather than assumed: the id is
+    `run-<UTC seconds>-<pid>`, so two invocations from ONE shell inside the SAME second produce the
+    IDENTICAL id (`{new_run_id(), new_run_id()}` had length 1). For a queued run that is harmless,
+    because a run is long-lived and one process owns it. For an on-demand audit it is not: the whole
+    append-versus-overwrite answer in E-03 is that a second opinion cannot erase the first, and two
+    verdicts sharing a directory would overwrite exactly that.
+
+    SO THE GUARANTEE IS MADE STRUCTURAL rather than probabilistic: the base id is suffixed `-2`, `-3`
+    ... until the path is free, using `mkdir` itself as the test via `exist_ok=False`, which is atomic
+    against a concurrent audit rather than a check-then-create race.
+
+    A DELIBERATELY NARROW FIX. `new_run_id` is shared by both drivers and every queued run, so changing
+    ITS format here would alter run ids repository-wide for a hazard only this verb has; the collision
+    in the shared helper is reported as a finding with its own backlog carrier instead.
+    """
+
+    root = runner_shared.state_root(repo)
+    base = runner_shared.new_run_id()
+    for suffix in range(1, 100):
+        run_id = base if suffix == 1 else f"{base}-{suffix}"
+        candidate = root / run_id
+        try:
+            candidate.mkdir(parents=True, exist_ok=False)
+            return run_id, candidate
+        except FileExistsError:
+            continue
+    raise runner_shared.DriverError(
+        f"could not mint a free audit run directory under {root} after 99 attempts; something is "
+        f"creating run directories faster than this verb can name them"
+    )
+
+
+def _audit_launch_options(args: argparse.Namespace) -> dict[str, Any]:
+    """The launch identity for an audit turn, resolved from the runner-profile store.
+
+    SEPARATE FROM `handle_audit_command` so the resolution is testable without launching anything.
+
+    It asks for the VERIFIER launch (`resolve_launch_pair`'s second element) and falls back to the
+    ordinary one, because an audit IS a verification turn: an operator who configured
+    `--verify-with opus` did so precisely to have a stronger checker read finished work, and this verb
+    is that same request made after the fact. When no verifier profile is configured the keys are
+    absent entirely, which is the same shape a run created without one has, so `run_opencode`'s argv is
+    byte-identical to an ordinary turn's.
+    """
+
+    try:
+        resolved_launch, resolved_verify = resolve_launch_pair(args)
+    except Exception:
+        return {}
+    options: dict[str, Any] = {
+        "model": resolved_launch.model,
+        "variant": resolved_launch.variant,
+        "agent": resolved_launch.agent,
+    }
+    if resolved_verify is not None:
+        options.update(
+            {
+                "verify_model": resolved_verify.model,
+                "verify_variant": resolved_verify.variant,
+                "verify_agent": resolved_verify.agent,
+                "verify_launch_profile": launch_profile_record(resolved_verify),
+            }
+        )
+    return options
 
 
 def handle_stop_command(args: argparse.Namespace) -> int:
@@ -7722,6 +8010,11 @@ def main(argv: list[str] | None = None) -> int:
     # the operator's intent and is silent. A test asserts the bare form is not rewritten, in both
     # drivers, and a third assertion pins this set against the agy copy AND against the inline copy in
     # `tests/test_runner_stop_triggers.py`; all three must change together.
+    # reverify-01 (`mp289j`) E-05: `"audit"` MUST be listed here for the SAME measured reason `stop`
+    # and `integrate` must. An unregistered first token is rewritten into `start <token>`, so
+    # `audit <id6>` would LAUNCH A RUN with `audit` as a selector - which for this verb is worse than
+    # for the other two, because an operator asking for a cheap second opinion on FINISHED work would
+    # instead pay for a full execution attempt against an already-executed plan.
     subcommands = {
         "start",
         "resume",
@@ -7729,6 +8022,7 @@ def main(argv: list[str] | None = None) -> int:
         "report",
         "stop",
         "integrate",
+        "audit",
         "-h",
         "--help",
     }
@@ -7808,6 +8102,12 @@ def main(argv: list[str] | None = None) -> int:
             # or state mutation. It creates no run directory and spends no agent turn; it refuses a
             # lane a LIVE process owns precisely because it holds no run lock.
             return handle_integrate_command(args)
+        if args.command == "audit":
+            # reverify-01 (`mp289j`) E-05: out-of-band like `stop` and `integrate`, and dispatched here
+            # BEFORE any queue is built or run lock taken. Unlike those two it DOES spend one agent
+            # turn (that is the product), and unlike `start` it builds no queue, takes no lock, and
+            # performs no lifecycle transition on the plan it audits.
+            return handle_audit_command(args)
         if args.command == "start":
             run_dir = initialize_run(args)
             print(f"Run ID: {run_dir.name}")

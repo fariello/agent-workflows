@@ -5959,8 +5959,20 @@ class VerifierTurnArgvRoutingTests(unittest.TestCase):
             f"turn {self._launch_of(argv)}, which this suite catches"
         )
 
-    def test_one_argv_builder_serves_both_call_sites(self):
-        """No second builder: `run_opencode` is still the only launcher, with exactly two callers."""
+    def test_one_argv_builder_serves_every_call_site(self):
+        """No second builder: `run_opencode` is still the only launcher on this host.
+
+        THE INVARIANT IS ONE BUILDER, NOT A CALLER COUNT, and the two were conflated here until
+        reverify-01 (`mp289j`) added a legitimate third caller (the standalone `audit` verb, which
+        launches the verifier prompt on demand). The hazard this test exists to catch is a SECOND argv
+        BUILDER, because that is how the two hosts' flag surfaces diverged in the first place; a new
+        caller of the one builder is the opposite of that hazard, since it means the new surface
+        inherits every launch rule rather than re-deriving them.
+
+        So the count is REPORTED and the definition count is ASSERTED. Adding a caller is allowed;
+        adding a `def run_opencode(` is not. The three callers are named in the printed output so a
+        reviewer can see which they are rather than trusting a number.
+        """
 
         source = Path(driver.__file__).read_text(encoding="utf-8")
         call_sites = [
@@ -5968,14 +5980,18 @@ class VerifierTurnArgvRoutingTests(unittest.TestCase):
             for line in source.splitlines()
             if "run_opencode(" in line and "def run_opencode" not in line
         ]
-        # Two real call sites; any other occurrence is a test double, not a builder.
-        self.assertEqual(
-            len([c for c in call_sites if c.endswith("run_opencode(")]),
+        real_calls = [c for c in call_sites if c.endswith("run_opencode(")]
+        self.assertGreaterEqual(
+            len(real_calls),
             2,
-            call_sites,
+            f"the executor and verifier call sites must both still exist: {call_sites}",
         )
-        self.assertEqual(source.count("def run_opencode("), 1)
-        print(f"one builder, two call sites: {call_sites}")
+        self.assertEqual(
+            source.count("def run_opencode("),
+            1,
+            "a SECOND launcher was defined on this host, which is the divergence this test guards",
+        )
+        print(f"one builder, {len(real_calls)} call sites: {real_calls}")
 
     def test_the_verifier_still_forces_a_fresh_session_and_stays_in_the_worktree(self):
         """A model swap must not disturb session freshness or the directory the turn runs in."""
@@ -6280,9 +6296,21 @@ class OcTelemetryWiringTests(unittest.TestCase):
             source.count("subprocess.run("), 3, "the helper sites still exist"
         )
 
-    def test_both_callers_reach_the_instrumented_launcher_and_the_verifier_names_its_phase(
+    def test_every_caller_reaches_the_instrumented_launcher_and_names_its_phase(
         self,
     ):
+        """Every launch is instrumented, and a VERIFYING launch says so explicitly.
+
+        RESTATED AS AN INVARIANT rather than a census by reverify-01 (`mp289j`), which added a THIRD
+        legitimate caller: the standalone `audit` verb, which launches the verifier prompt on demand.
+
+        The property telemetry actually needs is that no launch escapes instrumentation and that a
+        non-execute phase is STATED by its call site rather than inferred (the original reason this test
+        exists: phase used to be recoverable only from a log FILENAME, which couples a data field to a
+        presentation detail). Both hold with three callers exactly as with two. Pinning the NUMBER
+        instead would make adding an instrumented launch look like a telemetry regression.
+        """
+
         tree = ast.parse(self._source())
         calls = [
             node
@@ -6291,19 +6319,28 @@ class OcTelemetryWiringTests(unittest.TestCase):
             and isinstance(node.func, ast.Name)
             and node.func.id == "run_opencode"
         ]
-        self.assertEqual(
-            len(calls), 2, "the executor and the verifier, and nothing else"
+        self.assertGreaterEqual(
+            len(calls), 2, "the executor and the verifier must both still be here"
         )
         phases = [
-            keyword.value
+            keyword.value.attr
             for call in calls
             for keyword in call.keywords
             if keyword.arg == "telemetry_phase"
+            and isinstance(keyword.value, ast.Attribute)
         ]
+        # Exactly one caller is the EXECUTOR (it states no phase and takes the `execute` default);
+        # every other caller is a verifying launch and must NAME the validate phase.
         self.assertEqual(
-            len(phases), 1, "exactly one caller states a non-default phase"
+            len(calls) - len(phases),
+            1,
+            f"exactly one caller may rely on the default execute phase; phases stated: {phases}",
         )
-        self.assertEqual(self._source().count("TELEMETRY_PHASE_VALIDATE"), 1)
+        self.assertEqual(
+            set(phases),
+            {"TELEMETRY_PHASE_VALIDATE"},
+            "a caller stated a phase other than validate",
+        )
 
     def test_a_turn_emits_a_start_and_an_end_event_keyed_on_the_invocation(self):
         """End to end through the REAL `run_opencode`, with no real child process."""

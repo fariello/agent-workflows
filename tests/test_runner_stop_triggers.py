@@ -1342,6 +1342,11 @@ class ImplicitStartShimTests(unittest.TestCase):
     #: `start <token>`, so `integrate <id6>` would LAUNCH A RUN with `integrate` as a selector. Adding
     #: the subparser alone does not cover it, because the shim lives in `main()` rather than
     #: `build_parser()`.
+    #:
+    #: reverify-01 (`mp289j`) E-05: `"audit"` was ADDED to this copy in lockstep with both drivers, for
+    #: the identical reason, and with a sharper cost. `audit <id6>` rewritten to `start audit <id6>` does
+    #: not merely misfire: an operator asking for a cheap read-only second opinion on an ALREADY-FINISHED
+    #: plan would instead pay for a full execution attempt.
     SHIM_SUBCOMMANDS = {
         "start",
         "resume",
@@ -1349,6 +1354,7 @@ class ImplicitStartShimTests(unittest.TestCase):
         "report",
         "stop",
         "integrate",
+        "audit",
         "-h",
         "--help",
     }

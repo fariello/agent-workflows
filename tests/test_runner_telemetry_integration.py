@@ -500,8 +500,22 @@ class HostWiringTests(unittest.TestCase):
         self.assertIn("runner_shared.turn_telemetry(", body)
         self.assertNotIn("subprocess.run(", body)
 
-    def test_both_callers_are_covered_and_the_verifier_declares_its_phase(self) -> None:
-        """Executor and verifier BOTH reach the instrumented launcher; only one says `validate`."""
+    def test_every_caller_is_covered_and_each_verifying_launch_declares_its_phase(
+        self,
+    ) -> None:
+        """Every launch reaches the instrumented launcher, and a non-execute phase is STATED.
+
+        RESTATED FROM A CENSUS TO AN INVARIANT by reverify-01 (`mp289j`). It asserted exactly TWO
+        callers per host, and the OpenCode host now legitimately has THREE: the executor, the in-run
+        verifier, and the standalone `audit` verb, which launches the verifier prompt on demand.
+
+        WHAT TELEMETRY ACTUALLY NEEDS, and what is asserted instead of the count: no launch escapes
+        instrumentation (there is one launcher, and it is wrapped, which the sibling test above pins),
+        and every launch that is NOT the executor NAMES its phase rather than leaving it to be inferred
+        from a log filename. So exactly one call site per host may rely on the `execute` default, and
+        every other must declare `TELEMETRY_PHASE_VALIDATE`. A hard count would have made adding an
+        instrumented launch read as a telemetry regression, which is the opposite of the truth.
+        """
 
         for name, launcher in (
             ("oc_runipd.py", "run_opencode"),
@@ -519,19 +533,32 @@ class HostWiringTests(unittest.TestCase):
                 and isinstance(node.func, ast.Name)
                 and node.func.id == launcher
             ]
+            declared = [
+                keyword
+                for call in calls
+                for keyword in call.keywords
+                if keyword.arg == "telemetry_phase"
+            ]
             source = _source(name)
             with self.subTest(module=name):
-                self.assertEqual(
+                self.assertGreaterEqual(
                     len(calls),
                     2,
-                    f"{name}: expected exactly two callers of {launcher}, found {len(calls)}",
+                    f"{name}: the executor and verifier callers of {launcher} must both exist, "
+                    f"found {len(calls)}",
+                )
+                self.assertEqual(
+                    len(calls) - len(declared),
+                    1,
+                    f"{name}: exactly one call site may take the default execute phase; "
+                    f"{len(calls)} callers declared {len(declared)} phases",
                 )
                 self.assertEqual(
                     source.count(
                         "telemetry_phase=runner_shared.TELEMETRY_PHASE_VALIDATE"
                     ),
-                    1,
-                    f"{name}: exactly the verifier call site declares the validate phase",
+                    len(declared),
+                    f"{name}: a call site declares a phase that is not the validate phase",
                 )
 
     def test_phase_defaults_so_no_existing_call_site_changed(self) -> None:
