@@ -42,6 +42,7 @@ from .project_schema import DeliveryMode, Preset, RecordsBackend
 from .result_types import ConflictingFlagsError, select_output
 from .term import Term
 from . import term as _term_mod
+from . import lifecycle_style as _LS
 
 # --------------------------------------------------------------------------------------
 # Argument parsing
@@ -9327,7 +9328,16 @@ def _nv_backend_args(args, artifact_type):
 
     sub = argparse.Namespace(**vars(args))
     sub.dir = getattr(args, "dir", None) or os.getcwd()
-    sub.agent = bool(getattr(args, "as_agent", False))
+    # THE `--agent` FLAG IS NAMED `agent`, and reading it as `as_agent` SILENTLY DROPPED IT
+    # (plan `9zvl2w` E-01). `cli._build_parser` registers the flag as `dest="agent"` and NO parser
+    # anywhere in the package defines `as_agent`, so `getattr(args, "as_agent", False)` was always
+    # the default `False` and this line OVERWROTE a true `args.agent` with it. Measured 2026-09-20:
+    # `aw index plans --agent` reached `plans_index.run_index` with `agent=False`, which is why that
+    # command emitted human ANSI into machine output (a criterion A14 violation) instead of the
+    # machine form. Both spellings are read here because `as_agent` is a real alias elsewhere in the
+    # package (`doctor`, `plans_archive`, `run_cli` all accept either), so honoring it costs nothing
+    # and the OR can never resurrect the bug the way the bare `as_agent` read did.
+    sub.agent = bool(getattr(args, "agent", False) or getattr(args, "as_agent", False))
     sub.resolved_type = artifact_type
     # Map a positional selector onto the backend's expected --id (rename/group take an id6 positional).
     sel = list(getattr(args, "selector", None) or [])
@@ -9445,6 +9455,103 @@ def _run_noun_verb(
     return rc
 
 
+# ======================================================================================
+# The `aw find` lifecycle column (spec `uonrjg` R10.3, Sections 9.1 / 9.2, criterion A10)
+# ======================================================================================
+#
+#: The `lifecycle_style` FAMILY for each artifact type `aw find` can list. A type ABSENT here has no
+#: lifecycle in this view and renders no marker, which is Section 6.7's answer ("prefer omitting the
+#: lifecycle column"): `comms`, `walkthroughs` and `roadmaps` all print `-` in the status column
+#: today because no status is read from them at all, and `other` is a catch-all bucket spanning the
+#: prompt-library and anything unclassified, so it is not a family either.
+_FIND_LIFECYCLE_FAMILY: dict[str, str] = {
+    "plans": _LS.FAMILY_PLANS,
+    "specs": _LS.FAMILY_SPECS,
+    "prompts": _LS.FAMILY_PROMPTS,
+    "research": _LS.FAMILY_RESEARCH,
+    "backlog": _LS.FAMILY_BACKLOG,
+    "releases": _LS.FAMILY_RELEASES,
+    "reviews": _LS.FAMILY_REVIEWS,
+}
+
+#: The plans tree's DIRECTORY names that are NOT plan statuses. `aw find plans` renders
+#: `e.disposition or e.status`, and `disposition` is the top-level DIRECTORY (`plans_index.PlanEntry`),
+#: so this column can legitimately hold a word no `- Status:` value ever takes. Measured 2026-09-20:
+#: `pending/` holds 88 `approved` plans and 3 `to-review` ones, so `pending` is a LOCATION, not a
+#: state, and `lifecycle_style` correctly refuses it (`unrecognized native status 'pending' for family
+#: 'plans'`). Rendering `?` there would be a REGRESSION dressed as compliance - the exact F-04 mistake
+#: this plan's E-01 exists to avoid - so the location words are translated to the stage the directory
+#: means. `executed`, `superseded` and `not-executed` are omitted deliberately: those three ARE plan
+#: statuses and resolve correctly through the ordinary map.
+_PLANS_DISPOSITION_STAGE: dict[str, str] = {
+    "pending": _LS.READY,
+    "reusable": _LS.REUSABLE,
+}
+
+
+def _find_resolve_lifecycle(artifact_type: str, value: str) -> Any:
+    """Resolve one `aw find` row's lifecycle presentation through the SHARED resolver (R10.3).
+
+    Returns a ``lifecycle_style.Resolved`` for every row, including the rows that have no lifecycle,
+    so a caller never has to branch on the type before styling. Two cases are NOT the ordinary native
+    lookup and both are deliberate:
+
+    - A TYPE WITH NO LIFECYCLE FAMILY resolves `none` (`·`), which R10.4 makes distinct from
+      `unknown` (`?`): `unknown` claims "this family HAS a lifecycle and I could not read it", while
+      these types genuinely have none here. The placeholder `-` these rows print today is preserved.
+    - A PLANS DIRECTORY WORD is translated first (see :data:`_PLANS_DISPOSITION_STAGE`).
+
+    The placeholder `-` (no status found in the file) also resolves `none`, not `unknown`, because it
+    reports the ABSENCE of a status line rather than a value that failed to map.
+    """
+
+    family = _FIND_LIFECYCLE_FAMILY.get(artifact_type)
+    token = (value or "").strip().lower()
+    if family is None or token in ("", "-"):
+        return _LS.Resolved(
+            stage=_LS.NONE,
+            style=_LS.style_for(_LS.NONE),
+            family=family or artifact_type,
+            native_status=value if token not in ("", "-") else None,
+        )
+    if artifact_type == "plans":
+        stage = _PLANS_DISPOSITION_STAGE.get(token)
+        if stage is not None:
+            return _LS.Resolved(
+                stage=stage,
+                style=_LS.style_for(stage),
+                family=family,
+                native_status=value,
+            )
+    return _term_mod.resolve_lifecycle(family, value)
+
+
+def _find_status_and_id6(
+    artifact_type: str, value: str, id6: str, term: Term, *, width: int = 12
+) -> tuple[str, str]:
+    """Render one row's (status cell, id6 cell) sharing ONE resolved lifecycle color (criterion A10).
+
+    THE id6 USED TO BE HARDCODED TO 39 at all three call sites, regardless of status, which broke A10
+    outright ("glyph, id6, and status use the same resolved color and bold flag"). Measured before
+    this landed, an `executed` row emitted `\\033[1;38;5;46mexecuted\\033[0m` beside
+    `\\033[1;38;5;39md5tz36\\033[0m`: two different colors for one artifact's one state. Both cells are
+    produced HERE, from one ``Resolved``, so they cannot diverge again.
+
+    The status cell pads by RENDERED width (Section 9.4), never by ``len()`` on styled text.
+    """
+
+    resolved = _find_resolve_lifecycle(artifact_type, value)
+    marker = term.format_lifecycle_marker(resolved, width=2)
+    status_cell = (
+        marker
+        + " "
+        + term.style_lifecycle_text(value, resolved)
+        + (" " * max(0, width - _term_mod.visible_width(value)))
+    )
+    id6_cell = term.style_lifecycle_text(id6, resolved)
+    return status_cell, id6_cell
+
+
 def _find_type_records(
     repo_root: Path,
     artifact_type: str,
@@ -9505,11 +9612,8 @@ def _find_type_records(
         paths = []
         for e in results:
             status = e.disposition or e.status or "-"
-            status_txt = term.status_256(status, width=12)
-            id6_txt = (
-                term.color256(e.plan_id or "??????", 39, bold=True)
-                if term.color
-                else (e.plan_id or "??????")
+            status_txt, id6_txt = _find_status_and_id6(
+                "plans", status, e.plan_id or "??????", term
             )
             set_txt = f"{e.set_id or '-':<14}"
             full_p = (plans_dir / e.path).resolve()
@@ -9566,11 +9670,8 @@ def _find_type_records(
         paths = []
         for e in results:
             status = e.status or "-"
-            status_txt = term.status_256(status, width=12)
-            id6_txt = (
-                term.color256(e.id6 or "??????", 39, bold=True)
-                if term.color
-                else (e.id6 or "??????")
+            status_txt, id6_txt = _find_status_and_id6(
+                "research", status, e.id6 or "??????", term
             )
             summary = f"  {e.summary}" if e.summary else ""
             full_p = (research_root / e.path).resolve()
@@ -9604,8 +9705,7 @@ def _find_type_records(
             rel = str(p.resolve().relative_to(repo_root.resolve()))
         except Exception:
             rel = str(p)
-        status_txt = term.status_256(status, width=12)
-        id6_txt = term.color256(id6, 39, bold=True) if term.color else id6
+        status_txt, id6_txt = _find_status_and_id6(artifact_type, status, id6, term)
         disp_p = _highlight_filename_matches(rel, highlight_tokens, term)
         lines.append(f"{status_txt}  {id6_txt}  {disp_p}")
         paths.append(rel)
@@ -9906,24 +10006,42 @@ def _run_search(
 
                             it = item_map.get(p.resolve()) if item_map else None
                             if it:
+                                # `aw search --short` RENDERS THE SAME `attention.Item` THE BOARD
+                                # DOES, so it must render it the same way (criterion A17). Plan
+                                # `f9t5hz` converted `attention.py`'s three row builders and this
+                                # FOURTH consumer of the same object was left on the old table,
+                                # which made the two views disagree out loud: measured 2026-09-20,
+                                # `aw search --short` painted `approved` bright green 46 while `aw
+                                # attention` painted the identical item 45 with a `◕`, i.e. this
+                                # view showed a not-yet-run plan in the color the board uses for a
+                                # merged one. It routes through `attention`'s own resolution seam
+                                # rather than a local copy so the two cannot drift again.
                                 status_word = it.native_status
-                                status_padded = term.status_256(status_word, width=12)
+                                _res = att._resolve_item_lifecycle(
+                                    it.tree, it.native_status
+                                )
+                                status_padded = (
+                                    term.format_lifecycle_marker(_res, width=2)
+                                    + " "
+                                    + term.style_lifecycle_text(status_word, _res)
+                                    + (
+                                        " "
+                                        * max(
+                                            0,
+                                            12 - _term_mod.visible_width(status_word),
+                                        )
+                                    )
+                                )
                                 age = att._age_marker(it.last_history_at, it.tree)
                                 gate_glyph = "#" if it.gate else ""
                                 rb_glyph = ">" if it.blocks_release else ""
                                 blk = (age + gate_glyph + rb_glyph).strip()
                                 lead = f"{blk:<3}" if blk else "   "
                                 path_txt = att._identity_stem(it.path)
+                                # PLAIN TYPE WORD (criterion A10), matching the board after `f9t5hz`.
                                 type_word = att._SINGULAR_TYPE.get(it.tree, it.tree)
-                                type_txt = (
-                                    term.color256(
-                                        type_word, att._TREE_COLOR_256, bold=True
-                                    )
-                                    if term.color
-                                    else type_word
-                                )
                                 type_prefix = (
-                                    type_txt
+                                    type_word
                                     + (" " * max(0, 10 - len(type_word)))
                                     + "  "
                                 )
@@ -9963,18 +10081,24 @@ def _run_search(
                                 except ValueError:
                                     rel = str(p)
                                 stem = att._identity_stem(rel)
+                                # THE NO-ATTENTION-ITEM FALLBACK ROW, converted through the SAME
+                                # helper `aw find` uses (criterion A17: these two commands render
+                                # the same artifact types and must agree). The helper is the right
+                                # seam rather than a bare `resolve_lifecycle` call for a measured
+                                # reason: `_artifact_status` above falls back to a DIRECTORY BUCKET
+                                # when a file carries no `- Status:` line, and several buckets
+                                # (`pending/` for plans, notably) are not statuses of their type at
+                                # all, so passing one straight to the resolver would render
+                                # criterion A20's `?` where a user reads a word today. That
+                                # translation lives in `_find_status_and_id6`.
                                 status_word = _artifact_status(p, text)
-                                status_padded = term.status_256(status_word, width=12)
-                                type_word = att._SINGULAR_TYPE.get(t, t)
-                                type_txt = (
-                                    term.color256(
-                                        type_word, att._TREE_COLOR_256, bold=True
-                                    )
-                                    if term.color
-                                    else type_word
+                                status_padded, _unused_id6 = _find_status_and_id6(
+                                    t, status_word, "", term
                                 )
+                                # PLAIN TYPE WORD (criterion A10).
+                                type_word = att._SINGULAR_TYPE.get(t, t)
                                 type_prefix = (
-                                    type_txt
+                                    type_word
                                     + (" " * max(0, 10 - len(type_word)))
                                     + "  "
                                 )

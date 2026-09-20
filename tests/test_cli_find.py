@@ -533,3 +533,156 @@ class RealRepoContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FindLifecycleColumnTests(unittest.TestCase):
+    """Spec `uonrjg` R10.3, Sections 9.1 / 9.2 / 6.7, criteria A10/A11/A14/A20.
+
+    Plan `9zvl2w` E-04 and E-05. FIXTURE-BASED, not read from the live repository, so the assertions
+    hold in a fresh clone and in an isolated lane worktree.
+
+    THE DEFECT THIS PINS WAS INVISIBLE TO EVERY EXISTING TEST. All three `aw find` row builders paired
+    a resolved status color with an id6 HARDCODED to 39, regardless of state, so criterion A10 ("glyph,
+    id6, and status use the same resolved color and bold flag") was measurably false on the very first
+    surface a user reads. Measured before the fix, an `executed` plan row emitted
+    `\\033[1;38;5;46mexecuted\\033[0m` beside `\\033[1;38;5;39md5tz36\\033[0m`: two colors, one state.
+
+    NOTE WHAT IS DELIBERATELY NOT ASSERTED HERE. `TestCliFindMatching` above pins a 214 escape for the
+    filename SEARCH-MATCH HIGHLIGHT (`cli._highlight_filename_matches`). That is a text-match
+    highlighter, not a lifecycle status, and it is outside this spec: its color must NOT be recomputed
+    from the lifecycle table, which is why these tests never touch it.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self._plan("executed", "20260901-demo-01-aaa111-x.ipd.md", "aaa111", "executed")
+        self._plan("pending", "20260901-demo-02-bbb222-x.ipd.md", "bbb222", "approved")
+        self._spec("20260901-ccc333-01-ccc333-x.spec.md", "ccc333", "implementing")
+        self._walkthrough("20260901-ddd444-01-ddd444-x.walkthrough.md", "ddd444")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _plan(self, disposition, name, id6, status):
+        d = self.root / ".aw" / "records" / "plans" / disposition
+        d.mkdir(parents=True, exist_ok=True)
+        (d / name).write_text(
+            f"# IPD: x\n\n- Date: 2026-09-01\n- Status: {status}\n- Set: demo\n"
+            f"- Order: 1\n- Id: {id6}\n",
+            encoding="utf-8",
+        )
+
+    def _spec(self, name, id6, status):
+        d = self.root / ".aw" / "records" / "specs"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / name).write_text(
+            f"# Spec: x\n\n- Date: 2026-09-01\n- Status: {status}\n- Id: {id6}\n",
+            encoding="utf-8",
+        )
+
+    def _walkthrough(self, name, id6):
+        d = self.root / ".aw" / "records" / "walkthroughs"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / name).write_text(
+            f"# Walkthrough: x\n\n- Date: 2026-09-01\n- Id: {id6}\n", encoding="utf-8"
+        )
+
+    def _find(self, argv, *, force_color=True):
+        old = os.environ.get("FORCE_COLOR")
+        try:
+            if force_color:
+                os.environ["FORCE_COLOR"] = "1"
+            else:
+                os.environ.pop("FORCE_COLOR", None)
+            return _run_cli(argv + ["--dir", str(self.root)])
+        finally:
+            if old is None:
+                os.environ.pop("FORCE_COLOR", None)
+            else:
+                os.environ["FORCE_COLOR"] = old
+
+    def test_status_glyph_and_id6_share_one_resolved_color(self):
+        """Criterion A10, on RAW escapes, for each of the three row builders."""
+        cases = (
+            ("plans", "aaa111", "executed", "\u2713", "1;38;5;46", "done"),
+            ("specs", "ccc333", "implementing", "\u25b6", "1;38;5;220", "executing"),
+        )
+        for artifact_type, id6, word, glyph, sgr, stage in cases:
+            with self.subTest(type=artifact_type):
+                _rc, out, _err = self._find(["find", artifact_type, id6])
+                for element, label in (
+                    (glyph, "glyph"),
+                    (word, "status word"),
+                    (id6, "id6"),
+                ):
+                    self.assertIn(
+                        f"\033[{sgr}m{element}\033[0m",
+                        out,
+                        f"criterion A10: the {label} must carry the SAME resolved escape for "
+                        f"spec stage {stage!r}. The id6 used to be hardcoded to 39 regardless "
+                        f"of status: {out!r}",
+                    )
+                self.assertNotIn(
+                    f"\033[1;38;5;39m{id6}\033[0m",
+                    out,
+                    "the id6 still carries the hardcoded 39 independent of its status (A10).",
+                )
+
+    def test_a_plans_directory_word_is_not_rendered_as_an_unknown_status(self):
+        """`aw find plans` shows `e.disposition or e.status`, and `pending` is a DIRECTORY.
+
+        Measured: `pending/` holds 88 `approved` plans and 3 `to-review` ones, so `pending` is a
+        LOCATION rather than a state and `lifecycle_style` correctly refuses it as a plan status.
+        Rendering criterion A20's `?` there would replace a word a user reads with a shrug, which is
+        the same mistake as routing an index outcome word through the resolver.
+        """
+        _rc, out, _err = self._find(["find", "plans", "bbb222"])
+        self.assertIn("pending", out, f"the directory word vanished: {out!r}")
+        self.assertNotIn(
+            "?",
+            out,
+            "the plans disposition directory word rendered the unknown glyph. Translate a "
+            f"directory name to the stage it means; do not pass it as a native status: {out!r}",
+        )
+        # `pending/` means actionable, i.e. spec `ready` (index 45, bold, `◕`).
+        self.assertIn("\033[1;38;5;45m\u25d5\033[0m", out, f"{out!r}")
+
+    def test_a_type_with_no_lifecycle_renders_none_not_unknown(self):
+        """R10.4 and Section 6.7: `·` (none), never `?` (unknown). The distinction is load-bearing."""
+        _rc, out, _err = self._find(["find", "walkthroughs"])
+        self.assertIn(
+            "\u00b7",
+            out,
+            "a walkthrough has no lifecycle here, so Section 6.7 requires `none` (`·`): "
+            f"{out!r}",
+        )
+        self.assertNotIn(
+            "?",
+            out,
+            "a no-lifecycle type rendered `unknown`. R10.4: `unknown` claims a lifecycle exists "
+            "and could not be read, which would be a false claim here.",
+        )
+
+    def test_color_off_keeps_glyph_and_word_with_no_ansi(self):
+        _rc, out, _err = self._find(["find", "plans", "aaa111"], force_color=False)
+        self.assertNotIn(
+            "\033", out, f"criterion A11: ANSI leaked with color off: {out!r}"
+        )
+        self.assertIn("\u2713", out, f"the glyph vanished with color off: {out!r}")
+        self.assertIn("executed", out, f"the native word vanished: {out!r}")
+
+    def test_machine_modes_emit_no_ansi(self):
+        """Criterion A14, as a characterization: `aw find` already emitted zero and stays at zero."""
+        for flag in ("--agent", "--json"):
+            with self.subTest(mode=flag):
+                _rc, out, _err = self._find(["find", "plans", flag])
+                self.assertNotIn(
+                    "\033",
+                    out,
+                    f"criterion A14 violation: `aw find plans {flag}` emitted ANSI.",
+                )
+
+
+if __name__ == "__main__":
+    unittest.main()

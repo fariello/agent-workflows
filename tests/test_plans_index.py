@@ -312,5 +312,119 @@ class DefaultLimitTests(unittest.TestCase):
         self.assertEqual(I.DEFAULT_INDEX_LIMIT, 40)
 
 
+class IndexOutcomeWordsAreNotLifecycleStatusesTests(unittest.TestCase):
+    """Spec `uonrjg` R10.3 / criteria A14 and A20, via plan `9zvl2w` E-01 and E-05.
+
+    THESE ASSERTIONS EXIST BECAUSE THE OBVIOUS READING OF R10.3 WOULD BREAK THIS COMMAND. R10.3 names
+    "plan/spec/research/backlog indexes" among the surfaces that MUST consume the shared lifecycle
+    resolver, and this module is the plan index, so a mechanical conversion looks correct. It is not:
+    every status-shaped word this command prints is a generic command OUTCOME (`up to date`, `wrote`,
+    `updated`), which R10.3 explicitly keeps valid and outside the spec, and which the lifecycle
+    resolver would send to criterion A20's UNKNOWN path and render as `?`. So the first test pins the
+    words against exactly that "fix", and its failure message says what to do instead.
+
+    THE SECOND TEST PINS THE REAL DEFECT E-01 FIXED, a live criterion A14 violation. This print path
+    used `Term(color=not no_color)`, which forced color ON for every caller that did not pass
+    `--no-color`, bypassing `should_color` entirely. Measured before the fix: `aw index plans --agent`
+    emitted a styled line, as did `--json`, `NO_COLOR=1`, `TERM=dumb`, and a plain pipe.
+
+    NO SHIPPED TEST PINNED ANY OF THIS BEFORE (measured: zero `38;5;` assertions in this file), so
+    these are ADDED coverage, not a refreshed snapshot.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _plan(
+            self.root,
+            "executed",
+            "20260701-set-a-00-aaaaaa-x.md",
+            plan_id="aaaaaa",
+            set_id="set-a",
+            order=0,
+        )
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _run(self, **overrides):
+        import argparse
+        import io
+        from contextlib import redirect_stdout
+
+        ns = dict(
+            dir=str(self.root),
+            limit=None,
+            check=False,
+            quiet=False,
+            no_color=False,
+            color=False,
+            agent=False,
+            json=False,
+        )
+        ns.update(overrides)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = I.run_index(argparse.Namespace(**ns))
+        return rc, buf.getvalue()
+
+    def test_the_generic_outcome_words_are_never_rendered_as_an_unknown_lifecycle_glyph(
+        self,
+    ):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, {"FORCE_COLOR": "1"}, clear=False):
+            _rc, out = self._run()
+        self.assertIn(
+            "wrote",
+            out,
+            "the index's generic outcome word vanished from its own output",
+        )
+        self.assertNotIn(
+            "?",
+            out,
+            "AN OUTCOME WORD WAS ROUTED THROUGH THE LIFECYCLE RESOLVER. `wrote`/`updated`/`up to "
+            "date` are generic command outcomes that spec `uonrjg` R10.3 keeps OUTSIDE its scope "
+            "('Generic Term outcomes such as command-level OK, WARN, and FAIL remain valid'), and "
+            "none of them appears anywhere in that spec. Sent through `resolve_lifecycle` each "
+            "lands on criterion A20's unknown path and prints `?`, replacing a word a user reads "
+            "today with a shrug. FIX: leave this print path on `Term.status_256`; the index has no "
+            "lifecycle terminal view to convert (a plan's status reaches a human through `aw find`, "
+            "`aw ipd lint`, `aw set` and `aw attention`, all of which ARE converted).",
+        )
+        # The word keeps its CURRENT palette index (46, bright green), asserted on raw escapes.
+        self.assertIn("\033[1;38;5;46mwrote\033[0m", out)
+
+    def test_machine_and_suppressed_modes_emit_no_ansi(self):
+        import os
+        from unittest import mock
+
+        cases = (
+            ("--agent", {"agent": True}, {}),
+            ("--json", {"json": True}, {}),
+            ("--no-color", {"no_color": True}, {}),
+            ("NO_COLOR=1", {}, {"NO_COLOR": "1"}),
+            ("TERM=dumb", {}, {"TERM": "dumb"}),
+            ("piped stdout (not a tty)", {}, {}),
+        )
+        for label, overrides, env in cases:
+            with self.subTest(mode=label):
+                patched = dict(env)
+                with mock.patch.dict(os.environ, patched, clear=False):
+                    if "NO_COLOR" not in patched:
+                        os.environ.pop("NO_COLOR", None)
+                    os.environ.pop("FORCE_COLOR", None)
+                    _rc, out = self._run(**overrides)
+                self.assertNotIn(
+                    "\033",
+                    out,
+                    f"criterion A14/A11 violation: `aw index plans` emitted ANSI in {label} mode. "
+                    "This print path must resolve color through `should_color` (via "
+                    "`result_types.select_output`), never force it on with "
+                    "`Term(color=not no_color)`.",
+                )
+
+
 if __name__ == "__main__":
     unittest.main()

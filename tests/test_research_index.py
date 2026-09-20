@@ -678,5 +678,97 @@ class DefaultLimitTests(unittest.TestCase):
         self.assertEqual(I.DEFAULT_INDEX_LIMIT, 40)
 
 
+class IndexOutcomeWordsAreNotLifecycleStatusesTests(unittest.TestCase):
+    """The research twin of `test_plans_index.IndexOutcomeWordsAreNotLifecycleStatusesTests`.
+
+    Both index modules print the SAME four generic outcome words through the SAME forced-color
+    `Term`, so they carried the same criterion A14 leak and are exposed to the same mistaken
+    conversion. Asserted separately rather than parameterized across modules because each command is
+    a distinct public surface, and a reader of this file should not have to open another to learn
+    that this one is pinned. See the long docstring there for the full reasoning (plan `9zvl2w`
+    E-01/E-05, spec `uonrjg` R10.3, criteria A14 and A20).
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _write(
+            self.root,
+            set_id="alpha",
+            order=0,
+            id6="aaaaaa",
+            slug="a",
+            status="todo",
+            created="20260701",
+        )
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _run(self, **overrides):
+        import argparse
+        import io
+        from contextlib import redirect_stdout
+
+        ns = dict(
+            dir=str(self.root),
+            limit=None,
+            check=False,
+            quiet=False,
+            no_color=False,
+            color=False,
+            agent=False,
+            json=False,
+        )
+        ns.update(overrides)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = I.run_index(argparse.Namespace(**ns))
+        return rc, buf.getvalue()
+
+    def test_the_generic_outcome_words_are_never_rendered_as_an_unknown_lifecycle_glyph(
+        self,
+    ):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, {"FORCE_COLOR": "1"}, clear=False):
+            _rc, out = self._run()
+        self.assertIn("wrote", out)
+        self.assertNotIn(
+            "?",
+            out,
+            "AN OUTCOME WORD WAS ROUTED THROUGH THE LIFECYCLE RESOLVER; see the twin test in "
+            "tests/test_plans_index.py for why `wrote`/`updated`/`up to date` must NOT be.",
+        )
+        self.assertIn("\033[1;38;5;46mwrote\033[0m", out)
+
+    def test_machine_and_suppressed_modes_emit_no_ansi(self):
+        import os
+        from unittest import mock
+
+        cases = (
+            ("--agent", {"agent": True}, {}),
+            ("--json", {"json": True}, {}),
+            ("--no-color", {"no_color": True}, {}),
+            ("NO_COLOR=1", {}, {"NO_COLOR": "1"}),
+            ("TERM=dumb", {}, {"TERM": "dumb"}),
+            ("piped stdout (not a tty)", {}, {}),
+        )
+        for label, overrides, env in cases:
+            with self.subTest(mode=label):
+                patched = dict(env)
+                with mock.patch.dict(os.environ, patched, clear=False):
+                    if "NO_COLOR" not in patched:
+                        os.environ.pop("NO_COLOR", None)
+                    os.environ.pop("FORCE_COLOR", None)
+                    _rc, out = self._run(**overrides)
+                self.assertNotIn(
+                    "\033",
+                    out,
+                    f"criterion A14/A11 violation: `aw index research` emitted ANSI in {label} mode.",
+                )
+
+
 if __name__ == "__main__":
     unittest.main()

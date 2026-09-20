@@ -636,9 +636,21 @@ def run_index(args: argparse.Namespace) -> int:
         md_path.write_text(new_md, encoding="utf-8")
 
     if not getattr(args, "quiet", False):
+        # NOT CONVERTED TO THE LIFECYCLE RESOLVER, for the same measured reason as its twin in
+        # `plans_index.run_index`; see the long note there (plan `9zvl2w` E-01). All four
+        # `status_256` calls below render `up to date`/`wrote`/`updated`, which spec `uonrjg` R10.3
+        # keeps OUTSIDE its scope and which criterion A20 would turn into `?`. The real defect here
+        # was the same forced `color=not no_color`, which leaked ANSI into `--agent`, `--json`,
+        # `NO_COLOR`, `TERM=dumb` and pipes (criteria A14/A11).
+        from agent_workflows.result_types import select_output
         from agent_workflows.term import Term
 
-        term = Term(color=not getattr(args, "no_color", False))
+        try:
+            _ctx = select_output(args)
+            _color = _ctx.color
+        except Exception:
+            _color = None if not getattr(args, "no_color", False) else False
+        term = Term(color=_color)
         try:
             rel_dir = research_root.relative_to(repo_root).as_posix()
         except ValueError:

@@ -2456,5 +2456,152 @@ class GateContractLintTests(unittest.TestCase):
         self.assertNotIn("`git mv` to the terminal directory, set `Status:`", text)
 
 
+class SharedLifecycleRenderingTests(unittest.TestCase):
+    """Spec `uonrjg` R10.3, Sections 9.1 / 9.4, criteria A10/A11/A14/A17 (plan `9zvl2w` E-03/E-05).
+
+    KEPT SEPARATE from every table in this file because the subject is the CLI's RENDERED BYTES, not
+    a `LintResult`: each assertion is over raw escape sequences in the human line, which no row in a
+    `LintResult` table can express.
+
+    THE ONE DESIGN DECISION THIS PINS, and the reason it needs pinning: `ipd_lint` prints TWO
+    status-shaped columns, and only ONE of them is lifecycle. The `- Status:` column holds plan
+    statuses (spec Section 6.1) and converts. The DISPOSITION column holds
+    `conforming`/`advisory`/`quarantined`/`legacy not evaluated`/`error`, of which only `quarantined`
+    is a value the spec claims (Section 7.2, D15) - the other four are generic command outcomes R10.3
+    keeps explicitly out of scope. So the column converts BY VALUE, and both halves of that split are
+    asserted below, because either one alone would let the other regress silently.
+
+    WHY THE GLYPH IS LOAD-BEARING FOR `quarantined` SPECIFICALLY: the spec maps it to `parked`, which
+    is gray 244 - the SAME color `legacy/not evaluated` already falls back to. Adopting the spec color
+    therefore costs the color distinction those two words used to have (`quarantined` was orange 214),
+    and `◇` is what pays for it. A change that keeps the color but drops the glyph would make a
+    quarantined plan indistinguishable from an unevaluated one, defeating Section 7.2's stated reason
+    for listing the value at all ("the lint view must show it without calling it a pass").
+    """
+
+    _QUARANTINED = _conforming_child().replace(
+        "- Author: tester",
+        "- Quarantine: re-author later\n- Quarantine owner: maintainer\n"
+        "- Quarantine follow-up: after the Set\n- Author: tester",
+    )
+
+    def _render(self, text, *, force_color=True, agent=False):
+        import os
+        import tempfile
+        from pathlib import Path as _Path
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as td:
+            d = _Path(td) / ".aw" / "records" / "plans" / "pending"
+            d.mkdir(parents=True)
+            p = d / "20260803-x-01-abc123-sample.ipd.md"
+            p.write_text(text, encoding="utf-8")
+            ns = argparse.Namespace(
+                phase="author", all=False, legacy=False, agent=agent, path=str(p)
+            )
+            env = {"FORCE_COLOR": "1"} if force_color else {}
+            buf = io.StringIO()
+            with mock.patch.dict(os.environ, env, clear=False):
+                if not force_color:
+                    os.environ.pop("FORCE_COLOR", None)
+                with redirect_stdout(buf):
+                    L.run_lint(ns)
+            return buf.getvalue()
+
+    def test_the_status_column_renders_the_shared_marker_and_color(self):
+        out = self._render(_conforming_child())
+        # `to-review` is spec Section 6.1 `review-queued`: `◔`, index 39, not bold. The glyph and the
+        # word must carry the SAME escape (Section 9.1).
+        self.assertIn("\033[38;5;39m\u25d4\033[0m", out, f"glyph missing: {out!r}")
+        self.assertIn("\033[38;5;39mto-review\033[0m", out, f"status color: {out!r}")
+
+    def test_the_artifact_type_word_carries_no_escape(self):
+        out = self._render(_conforming_child())
+        self.assertIn("plan", out)
+        for escape in ("\033[1;38;5;33mplan", "\033[38;5;33mplan"):
+            self.assertNotIn(
+                escape,
+                out,
+                "criterion A10: the artifact TYPE word must not be lifecycle/tree-colored. "
+                f"Section 11 item 5's exemption is for a path SEGMENT, not a bare word: {out!r}",
+            )
+
+    def test_quarantined_adopts_the_spec_parked_treatment_and_keeps_its_glyph(self):
+        out = self._render(self._QUARANTINED)
+        self.assertIn(
+            "\033[38;5;244m\u25c7\033[0m",
+            out,
+            "the `◇` glyph is LOAD-BEARING for `quarantined`: the spec's `parked` gray (244) is the "
+            "same color `legacy/not evaluated` already uses, so dropping the glyph makes the two "
+            f"indistinguishable and defeats spec Section 7.2's reason for the row: {out!r}",
+        )
+        self.assertIn(
+            "\033[38;5;244mquarantined\033[0m",
+            out,
+            f"`quarantined` must render spec Section 7.2's `parked` color: {out!r}",
+        )
+        self.assertNotIn(
+            "\033[1;38;5;214mquarantined",
+            out,
+            "`quarantined` still carries the OLD generic 214, so the one spec-claimed value in the "
+            "disposition column was not converted (criterion A17).",
+        )
+
+    def test_the_generic_dispositions_are_not_routed_through_the_lifecycle_resolver(
+        self,
+    ):
+        """R10.3: the other four disposition words are generic outcomes and stay generic."""
+        out = self._render(_conforming_child())
+        self.assertIn(
+            "\033[1;38;5;46mconforming\033[0m",
+            out,
+            "`conforming` lost its generic bright green. It is a command-level OK that spec "
+            "`uonrjg` R10.3 keeps OUTSIDE this spec, so it must stay on `Term.status_256` and must "
+            f"NOT be resolved (criterion A20 would render it `?`): {out!r}",
+        )
+        self.assertNotIn(
+            "?",
+            out,
+            "a generic disposition was routed through the lifecycle resolver and rendered "
+            "criterion A20's unknown glyph.",
+        )
+
+    def test_color_off_keeps_glyph_and_word_with_no_ansi(self):
+        out = self._render(self._QUARANTINED, force_color=False)
+        self.assertNotIn(
+            "\033", out, f"criterion A11: ANSI leaked with color off: {out!r}"
+        )
+        self.assertIn("\u25c7", out, f"the glyph vanished with color off: {out!r}")
+        self.assertIn("quarantined", out, f"the native word vanished: {out!r}")
+
+    def test_agent_mode_emits_no_ansi(self):
+        """Criterion A14, as a CHARACTERIZATION: this command already emitted zero and must stay at zero."""
+        for label, text in (
+            ("conforming", _conforming_child()),
+            ("quarantined", self._QUARANTINED),
+        ):
+            with self.subTest(plan=label):
+                out = self._render(text, agent=True)
+                self.assertNotIn(
+                    "\033", out, f"criterion A14 violation in --agent: {out!r}"
+                )
+
+    def test_quarantined_remains_distinguishable_from_legacy_not_evaluated(self):
+        """The property the `parked` color costs and the glyph restores, asserted as a DIFFERENCE."""
+        quarantined = self._render(self._QUARANTINED)
+        legacy_ns_out = self._render(_executed_child())
+        q_line = [ln for ln in quarantined.splitlines() if ln.startswith("- ")]
+        l_line = [ln for ln in legacy_ns_out.splitlines() if ln.startswith("- ")]
+        self.assertTrue(
+            q_line and l_line, "expected one rendered row from each fixture"
+        )
+        self.assertNotEqual(
+            q_line[0],
+            l_line[0],
+            "a quarantined plan and a legacy/not-evaluated one render identically, so the lint view "
+            "can no longer tell an intentionally parked plan from an unevaluated one.",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

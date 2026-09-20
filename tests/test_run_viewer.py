@@ -2430,3 +2430,347 @@ class AnalyticsIsolationTests(TestCase):
         self.assertIsNone(
             resolve_ledger_path(f"analytics/snapshots/{self.snap_run.name}", self.root)
         )
+
+
+class SharedLifecycleRenderingTests(TestCase):
+    """Spec `uonrjg` R10.3, Sections 7.2 / 7.3 / 9.1 / 9.4, criteria A10/A11/A14/A17/A18.
+
+    Plan `9zvl2w` E-04 and E-05. NO SHIPPED TEST PINNED ANY COLOR IN THIS MODULE BEFORE (measured:
+    zero `38;5;` assertions in this file), even though this viewer had the LARGEST divergent lifecycle
+    surface in the package: four `Term.status_256` calls and 29 direct `term.color256` calls, several
+    of the latter painting a lifecycle state with a HARDCODED palette index that bypassed every table.
+
+    FOUR OF THOSE LITERALS CONTRADICTED SPEC SECTION 5, and the class of error is worth stating
+    because it is invisible to a grep for status helpers:
+
+      `[in flight]` and `YES (in flight)` used 214, which Section 5 reserves for `waiting-input`
+      ONLY - so a row whose work was merely RUNNING wore the color that means "a human is being
+      asked a question". `[review]` used 226 and the live pid state used 40, neither of which is one
+      of Section 5's eleven indices at all.
+
+    TWO MORE MATCHED THE SPEC BY LUCK (`[verified]` 46 = `done`, `[verify-failed]` 196 = `failed`).
+    Those are pinned too, and the reason is the point of the whole exercise: agreeing by coincidence
+    is not a property. Nothing held them to the table, so the next palette change would have broken
+    them silently. After the conversion their bytes are unchanged and now derive from the table.
+
+    THE GENERIC CALLS ARE ASSERTED TO STAY GENERIC (criterion A18, R10.3's "do not mechanically
+    replace every checkmark"): cost, run ids, dimmed detail lines, audit difference classes, and the
+    plain `YES`/`no` issue verdicts are formatting and severity, NOT artifact lifecycle.
+    """
+
+    @staticmethod
+    def _step(status, *, action="execute", disposition=None, verification=None):
+        return run_viewer.StepSummary(
+            position=1,
+            id6="zzz999",
+            setid="demo",
+            action=action,
+            status=status,
+            configured_file=".aw/records/plans/pending/x.ipd.md",
+            stem="demo-zzz999",
+            disposition=disposition,
+            verification_status=verification,
+        )
+
+    @staticmethod
+    def _term(color=True):
+        return Term(color=color, unicode=True, depth="256" if color else None)
+
+    def test_section_7_2_statuses_render_their_spec_stage(self):
+        """The mapping table, asserted as RENDERED BYTES rather than as a resolver call.
+
+        `ran` and `unknown_outcome` are the two rows that matter most and the two the old path got
+        wrong: neither had a `STATUS_COLOR_256` entry, so both fell back to neutral gray 244. Spec
+        Section 7.2 maps `ran` to `recovering` (NOT done: a `ran` item contributes non-success and
+        exits 1, so green would paint an exit-1 item as success) and `unknown_outcome` to `failed`
+        (NOT this spec's generic `unknown`: it is a real named terminal disposition owned by spec
+        `c4gd2h`, and collapsing it into the lookup-failure glyph erases that distinction).
+        """
+        cases = (
+            ("executed", "\u2713", "1;38;5;46", "done"),
+            ("verified", "\u2713", "1;38;5;46", "done"),
+            ("ran", "\u21a9\ufe0e", "1;38;5;220", "recovering, NOT done"),
+            ("unknown_outcome", "\u2718", "1;38;5;196", "failed, NOT generic unknown"),
+            ("partial", "\u21a9\ufe0e", "1;38;5;220", "recovering"),
+            ("interrupted", "\u21a9\ufe0e", "1;38;5;220", "recovering"),
+            ("blocked", "\u26a0\ufe0e", "1;38;5;208", "blocked"),
+            ("dependency-blocked", "\u26a0\ufe0e", "1;38;5;208", "blocked"),
+            ("failed", "\u2718", "1;38;5;196", "failed"),
+            ("failed-safely", "\u2718", "1;38;5;196", "failed"),
+            ("queued", "\u25d5", "1;38;5;45", "ready"),
+            ("needs_input", "\u2026", "1;38;5;214", "waiting-input"),
+            ("not-attempted", "\u2205", "38;5;244", "abandoned"),
+            ("quarantined", "\u25c7", "38;5;244", "parked"),
+            ("integration-deferred", "\u21a9\ufe0e", "1;38;5;220", "recovering"),
+        )
+        term = self._term()
+        for status, glyph, sgr, why in cases:
+            with self.subTest(status=status):
+                line = run_viewer.format_step_line(self._step(status), term)
+                self.assertIn(
+                    f"\033[{sgr}m{glyph}\033[0m",
+                    line,
+                    f"{status} must render spec Section 7.2's {why}: {line!r}",
+                )
+                self.assertIn(
+                    f"\033[{sgr}m{status}\033[0m",
+                    line,
+                    f"the native word must share the glyph's exact escape (Section 9.1): {line!r}",
+                )
+
+    def test_ran_and_unknown_outcome_are_never_styled_as_success(self):
+        """The single most consequential claim in Section 7.2, stated as its own test."""
+        term = self._term()
+        success = "38;5;46"
+        for status in ("ran", "unknown_outcome"):
+            with self.subTest(status=status):
+                line = run_viewer.format_step_line(self._step(status), term)
+                self.assertNotIn(
+                    success,
+                    line,
+                    f"{status!r} is styled as verified success (green 46). Spec Section 7.2 forbids "
+                    "it: 'Unverified completion MUST NOT be styled as verified success merely "
+                    f"because work was performed.' {line!r}",
+                )
+
+    def test_a_running_item_takes_its_action_aware_activity(self):
+        """Section 7.2's `running` row: 'action-aware activity from 7.1, otherwise active'."""
+        term = self._term()
+        review = run_viewer.format_step_line(
+            self._step("running", action="review"), term
+        )
+        self.assertIn("\033[1;38;5;220m\u25ce\033[0m", review, f"reviewing: {review!r}")
+        execute = run_viewer.format_step_line(
+            self._step("running", action="execute"), term
+        )
+        self.assertIn(
+            "\033[1;38;5;220m\u25b6\033[0m", execute, f"executing: {execute!r}"
+        )
+
+    def test_an_action_the_activity_table_does_not_know_falls_back_to_active(self):
+        """`plan` is a real `runner_shared.ACTION_CHOICES` member with NO activity mapping.
+
+        Passed through unguarded it resolves `unknown` and prints `?` for an item whose own `running`
+        status already earns generic `active`. Section 7.2 says 'otherwise active', so the fallback is
+        the spec's answer, and this test is what keeps a future widening of the action set honest.
+        """
+        line = run_viewer.format_step_line(
+            self._step("running", action="plan"), self._term()
+        )
+        self.assertIn(
+            "\033[1;38;5;220m\u25cf\033[0m", line, f"generic active: {line!r}"
+        )
+        self.assertNotIn(
+            "?", line, f"a known action rendered the unknown glyph: {line!r}"
+        )
+
+    def test_the_review_badge_no_longer_uses_a_non_spec_palette_index(self):
+        line = run_viewer.format_step_line(
+            self._step("executed", action="review"), self._term()
+        )
+        self.assertIn(
+            "\033[1;38;5;220m[review]\033[0m",
+            line,
+            f"`[review]` must resolve `reviewing` (220), not the hardcoded 226: {line!r}",
+        )
+        self.assertNotIn("38;5;226m[review]", line, "the hardcoded 226 survived")
+
+    def test_the_two_verification_badges_derive_from_the_table_not_from_luck(self):
+        term = self._term()
+        ok = run_viewer.format_step_line(
+            self._step("executed", verification="verified"), term
+        )
+        self.assertIn("\033[1;38;5;46m[verified]\033[0m", ok, f"{ok!r}")
+        bad = run_viewer.format_step_line(
+            self._step("failed", verification="failed"), term
+        )
+        self.assertIn("\033[1;38;5;196m[verify-failed]\033[0m", bad, f"{bad!r}")
+
+    def test_a_disposition_shares_the_shared_vocabulary(self):
+        line = run_viewer.format_step_line(
+            self._step("partial", disposition="dependency-blocked"), self._term()
+        )
+        self.assertIn(
+            "\033[1;38;5;208mdependency-blocked\033[0m",
+            line,
+            f"a run item disposition is Section 7.2 vocabulary and converts wholesale: {line!r}",
+        )
+
+    def test_the_artifact_type_word_carries_no_escape(self):
+        line = run_viewer.format_step_line(self._step("executed"), self._term())
+        self.assertIn("plan", line)
+        for escape in ("\033[1;38;5;33mplan", "\033[38;5;33mplan"):
+            self.assertNotIn(
+                escape,
+                line,
+                f"criterion A10: the artifact TYPE must not be lifecycle-colored: {line!r}",
+            )
+
+    def test_the_cost_badge_stays_generic(self):
+        """Criterion A18: a cost is formatting, not lifecycle, and must not be remapped."""
+        step = self._step("executed")
+        step.cost = 1.25
+        line = run_viewer.format_step_line(step, self._term())
+        self.assertIn("\033[38;5;220m[$1.25]\033[0m", line, f"{line!r}")
+
+    def test_color_off_keeps_glyph_and_word_with_no_ansi(self):
+        term = self._term(color=False)
+        for status in ("executed", "ran", "blocked", "unknown_outcome"):
+            with self.subTest(status=status):
+                line = run_viewer.format_step_line(self._step(status), term)
+                self.assertNotIn(
+                    "\033", line, f"criterion A11: ANSI with color off: {line!r}"
+                )
+                self.assertIn(status, line, f"the native word vanished: {line!r}")
+
+    def test_the_variation_selector_survives_rendering(self):
+        """Criterion A15 / A5: the blocked and recovering glyphs keep U+FE0E and are never emoji."""
+        term = self._term()
+        for status, grapheme in (("blocked", "\u26a0\ufe0e"), ("ran", "\u21a9\ufe0e")):
+            with self.subTest(status=status):
+                line = run_viewer.format_step_line(self._step(status), term)
+                self.assertIn(
+                    grapheme, line, f"the text-presentation form is required: {line!r}"
+                )
+                self.assertNotIn(
+                    "\u26a0\ufe0f", line, "emoji presentation form is forbidden (A5)"
+                )
+                self.assertNotIn(
+                    "\u21a9\ufe0f", line, "emoji presentation form is forbidden (A5)"
+                )
+
+    def test_the_glyph_pads_by_rendered_width_not_code_points(self):
+        """Section 9.4: `⚠︎` is 2 code points and 1 COLUMN, so a `len()` pad misaligns it.
+
+        MEASURED IN RENDERED COLUMNS, NOT IN CHARACTER OFFSETS, and the difference is the entire
+        subject: `str.index` counts CODE POINTS, so the two U+FE0E-bearing glyphs legitimately sit one
+        code point further along while occupying the same terminal column. An earlier draft of this
+        test asserted on `line.index("plan")` and failed against correct output, which is exactly the
+        `len()`-as-width confusion `term.visible_width` exists to remove.
+        """
+        from agent_workflows.term import visible_width
+
+        term = self._term(color=False)
+        columns = {}
+        for status in ("blocked", "ran", "executed", "queued", "needs_input"):
+            line = run_viewer.format_step_line(self._step(status), term)
+            columns[status] = visible_width(line[: line.index("plan")])
+        self.assertEqual(
+            len(set(columns.values())),
+            1,
+            "the type column begins at a different rendered COLUMN per status, so the status column "
+            "is padded by code points rather than by rendered width (Section 9.4). The two glyphs "
+            f"carrying U+FE0E are the ones this breaks: {columns}",
+        )
+
+    def test_no_second_lifecycle_table_or_hardcoded_lifecycle_index_remains(self):
+        """Criterion A17, asserted STRUCTURALLY over this module's own source.
+
+        The four literals this plan removed are named explicitly, because a substring scan for
+        `38;5;` would match every legitimate generic call and prove nothing. What is asserted is that
+        no LIFECYCLE call site passes a bare index, i.e. that `status_256` is gone from this module
+        and the four contradicting `color256` literals are gone with it.
+        """
+        import re as _re
+        from pathlib import Path as _P
+
+        src = _P(run_viewer.__file__).read_text(encoding="utf-8")
+        code = "\n".join(
+            ln for ln in src.splitlines() if not ln.lstrip().startswith("#")
+        )
+        self.assertNotIn(
+            "term.status_256(",
+            code,
+            "a `status_256` call survives in run_viewer.py, so this module still resolves lifecycle "
+            "color from `term.STATUS_COLOR_256` instead of the shared resolver (criterion A17).",
+        )
+        for banned, why in (
+            (
+                r'color256\(\s*"\[in flight\]"\s*,\s*214',
+                "214 is `waiting-input`, not `active`",
+            ),
+            (r'color256\(\s*"YES \(in flight\)"\s*,\s*214', "214 is `waiting-input`"),
+            (
+                r'color256\(\s*"\[review\]"\s*,\s*226',
+                "226 is not a spec Section 5 index",
+            ),
+            (
+                r'color256\(f"\[\{p_state\}\]"\s*,\s*40',
+                "40 is not a spec Section 5 index",
+            ),
+        ):
+            self.assertIsNone(
+                _re.search(banned, code),
+                f"a hardcoded lifecycle color survives ({why}); criterion A17 requires it to "
+                "resolve through the shared module.",
+            )
+        self.assertNotIn(
+            "_TREE_COLOR_256",
+            code,
+            "run_viewer.py still imports attention's private tree color to paint a type word, which "
+            "criterion A10 forbids.",
+        )
+
+    def test_the_audit_and_analytics_tables_share_the_same_vocabulary(self):
+        """A17 across the THREE tables in this module, not just the step line."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            rd = root / ".aw" / "records" / "runs" / "run-20260920T120000Z-4242"
+            rd.mkdir(parents=True)
+            queue = [
+                {
+                    "position": 1,
+                    "id6": "aaa111",
+                    "setid": "demo",
+                    "action": "execute",
+                    "status": "ran",
+                },
+                {
+                    "position": 2,
+                    "id6": "bbb222",
+                    "setid": "demo",
+                    "action": "execute",
+                    "status": "unknown_outcome",
+                },
+            ]
+            (rd / "state.json").write_text(
+                json.dumps(
+                    {
+                        "run_id": rd.name,
+                        "created_at": "2026-09-20T12:00:00+00:00",
+                        "updated_at": "2026-09-20T12:30:00+00:00",
+                        "driver": {"path": "agent_workflows/oc_runipd.py"},
+                        "queue": queue,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            summary = run_viewer.load_run_summary(rd, root)
+            self.assertIsNotNone(summary)
+            out = run_viewer.format_run_human(
+                summary, self._term(), short=True, repo_root=root
+            )
+            self.assertIn(
+                "\033[1;38;5;220mran\033[0m", out, f"audit table `ran`: {out!r}"
+            )
+            self.assertIn(
+                "\033[1;38;5;196munknown_outcome\033[0m",
+                out,
+                f"audit table `unknown_outcome`: {out!r}",
+            )
+
+    def test_the_run_views_emit_no_ansi_in_machine_modes(self):
+        """Criterion A14, as a characterization for both machine renderers."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            _build_viewer_fixture(root)
+            for flag in ("--agent", "--json"):
+                with self.subTest(mode=flag):
+                    buf = io.StringIO()
+                    with redirect_stdout(buf):
+                        cli.main(["runs", "--dir", str(root), flag])
+                    self.assertNotIn(
+                        "\033",
+                        buf.getvalue(),
+                        f"criterion A14 violation: `aw runs {flag}` emitted ANSI.",
+                    )

@@ -20,7 +20,13 @@ from typing import Any
 from agent_workflows import agent_schema as _agent_schema
 from agent_workflows import platform_lock
 from agent_workflows import artifact_audit as _audit
-from agent_workflows.attention import _TREE_COLOR_256, _identity_stem
+from agent_workflows import lifecycle_style as _LS
+from agent_workflows import term as _T
+
+# `_TREE_COLOR_256` IS DELIBERATELY NO LONGER IMPORTED (plan `9zvl2w` E-04). Its only use here was
+# painting the artifact TYPE word in `format_step_line`, which criterion A10 forbids; see the note at
+# that call site. `attention.py` keeps the constant for the legitimate path-SEGMENT case.
+from agent_workflows.attention import _identity_stem
 from agent_workflows.render_stream import (
     format_tokens,
     # orchprobe (r2i1b1) E-03/E-04: the SHARED refusal record and its reader. This viewer never
@@ -1334,6 +1340,85 @@ def _clean_timestamp(ts: str | None) -> str:
     return clean[:19]
 
 
+# ======================================================================================
+# The lifecycle resolution seam (spec `uonrjg` R10.3, Sections 7.2 and 7.3)
+# ======================================================================================
+#
+# EVERY LIFECYCLE COLOR AND GLYPH IN THIS MODULE COMES THROUGH THE TWO HELPERS BELOW, and that is
+# the property criterion A17 asserts. Before plan `9zvl2w` E-04 this module resolved lifecycle
+# presentation TWO ways: four `Term.status_256` calls (which read `term.STATUS_COLOR_256`) and a
+# handful of DIRECT `term.color256(..., <literal>)` calls that bypassed every table. Four of those
+# literals CONTRADICTED spec Section 5, measured 2026-09-19:
+#
+#   :1628  "[in flight]"     214  ->  the spec's `active` is 220; 214 is `waiting-input` ONLY
+#   :1847  "YES (in flight)" 214  ->  same collapse, in the audit table
+#   :1401  "[review]"        226  ->  226 is not one of Section 5's eleven indices at all
+#   :1995  "[<pid state>]"    40  ->  40 is not one of them either; live/`ready` is 45
+#
+# So the run views painted IN-FLIGHT WORK the exact color the spec reserves for "a human is being
+# asked a question", which is the confusion Section 5's fixed palette exists to prevent. Two of the
+# literals happened to be right (`[verified]` 46 = `done`, `[verify-failed]` 196 = `failed`) and
+# that is worse than wrong, not better: they agreed by luck, nothing held them to the table, and the
+# next palette change would have silently broken them.
+#
+# THE GENERIC CALLS ARE DELIBERATELY LEFT ALONE, because R10.3 says so in terms and criterion A18
+# tests for it. Cost (`220`), run ids and headers (`33`), elapsed/summary/token dimming (`245`),
+# audit DIFFERENCE CLASSES (`_AUDIT_CLASS_COLOR`, an independent vocabulary owned by
+# `artifact_audit`), refusal/remedy severity, phase names, and the `yes`/`no`/`YES` ISSUE column are
+# formatting and severity, NOT artifact lifecycle state. Remapping them would be exactly the
+# "mechanically replace every checkmark" mistake R10.3 warns against.
+
+
+def _resolve_item_status(
+    native_status: str | None, *, action: str | None = None
+) -> _LS.Resolved:
+    """Resolve a RUNNER ITEM status (spec Section 7.2) through the shared resolver.
+
+    ``action`` is passed as the ACTIVITY only for a genuinely running item, which is what Section
+    7.2's `running` row asks for ("action-aware activity from 7.1, otherwise active"): a `review`
+    action in flight displays `reviewing` (`◎`) rather than generic `active` (`●`). It is NOT passed
+    for a settled item, because the activity overlay OUTRANKS the native mapping in Section 8's
+    precedence, so handing it an action unconditionally would paint every finished row as though its
+    work were still running - the stale-runtime-field failure criterion A8 exists to catch.
+
+    AN ACTION THE ACTIVITY TABLE DOES NOT KNOW IS DROPPED RATHER THAN PASSED, and that guard is not
+    hypothetical: `runner_shared.ACTION_CHOICES` is `('review', 'plan', 'execute')`, and measured
+    2026-09-20 `lifecycle_style.ACTIVITY_FROM_ACTION` maps `review` and `execute` but NOT `plan`. An
+    unrecognized activity resolves `unknown` WITH a diagnostic (Section 8 rung 4), which is correct
+    for a validation boundary and wrong for this view: a running `plan` item would have printed `?`
+    instead of the generic `active` its native `running` status already earns. Section 7.2's own
+    wording is "action-aware activity from 7.1, OTHERWISE active", so falling back is what the spec
+    asks for. This is a RENDERING fallback only; it neither widens the activity table nor hides the
+    gap, which stays visible in the resolver's diagnostic for any caller that asks for it.
+    """
+
+    token = (native_status or "").strip().lower()
+    activity = None
+    if token in ("running", "in-flight", "in_flight") and action:
+        action_token = str(action).strip().lower()
+        if (
+            action_token in _LS.ACTIVITY_FROM_ACTION
+            or action_token in _LS.ACTIVITY_STAGES
+        ):
+            activity = action_token
+    return _T.resolve_lifecycle(
+        _LS.FAMILY_RUNNER_ITEM, native_status, activity=activity
+    )
+
+
+def _resolve_ledger_status(native_status: str | None) -> _LS.Resolved:
+    """Resolve a RUN LEDGER or SET state (spec Section 7.3) through the shared resolver.
+
+    Kept separate from :func:`_resolve_item_status` because Section 7.3 is a DIFFERENT owner enum with
+    a different key set (`run_state` owns the bare words, `set_state` prefixes its own), and one
+    function taking a family argument would invite a caller to guess. `performed` resolving to
+    `verifying` rather than `done` is the distinction that matters most here: unverified completion
+    MUST NOT be styled as verified success.
+    """
+
+    return _T.resolve_lifecycle(_LS.FAMILY_RUN_LEDGER, native_status)
+
+
 def format_step_line(
     step: StepSummary,
     term: Term,
@@ -1346,20 +1431,27 @@ def format_step_line(
     if status_word == "substantially-complete":
         status_word = "complete"
 
+    # THE RUNNER ITEM STATUS THROUGH THE SHARED RESOLVER (plan `9zvl2w` E-04, spec `uonrjg` Section
+    # 7.2, R10.3). This is what makes `ran` render `recovering` (`↩︎`, amber) rather than a success
+    # green, and `unknown_outcome` render `failed` rather than the lookup-failure `?`: both were
+    # decided in Section 7.2 and neither is reachable through the old `STATUS_COLOR_256` table, which
+    # has no entry for either word and so painted both neutral gray.
+    status_resolved = _resolve_item_status(step.status, action=step.action)
+    status_marker = term.format_lifecycle_marker(status_resolved, width=2)
     status_padded = (
-        term.status_256(status_word, width=status_width)
-        if getattr(term, "color", False)
-        else status_word.ljust(status_width)
+        status_marker
+        + " "
+        + term.style_lifecycle_text(status_word, status_resolved)
+        # PADDED BY VISIBLE COLUMNS (Section 9.4), never `len()` on styled text.
+        + (" " * max(0, status_width - _T.visible_width(status_word)))
     )
 
     lead = "   "
+    # PLAIN TYPE WORD (criterion A10, Section 9.1: "The artifact type and title do not inherit
+    # lifecycle color"). It was `attention._TREE_COLOR_256` bold, the same violation `f9t5hz` removed
+    # from the attention rows; Section 11 item 5's exemption covers a path SEGMENT, not a bare word.
     type_word = "plan"
-    type_txt = (
-        term.color256(type_word, _TREE_COLOR_256, bold=True)
-        if getattr(term, "color", False)
-        else type_word
-    )
-    type_prefix = type_txt + (" " * max(0, 8 - len(type_word))) + "  "
+    type_prefix = type_word + (" " * max(0, 8 - len(type_word))) + "  "
 
     stem = step.stem
     if not stem:
@@ -1377,17 +1469,17 @@ def format_step_line(
             if getattr(term, "color", False)
             else badge
         )
+    # THE TWO VERIFICATION BADGES ARE LIFECYCLE STATE and were the pair that matched Section 5 BY
+    # LUCK (`46` = `done`, `196` = `failed`). Agreeing by coincidence is not a property, it is an
+    # unheld invariant, so both are resolved through the shared table: the rendered bytes are
+    # unchanged today and can no longer drift from the spec tomorrow.
     if step.verification_status == "verified":
         badges.append(
-            term.color256("[verified]", 46, bold=True)
-            if getattr(term, "color", False)
-            else "[verified]"
+            term.style_lifecycle_text("[verified]", _resolve_item_status("verified"))
         )
     elif step.verification_status == "failed":
         badges.append(
-            term.color256("[verify-failed]", 196, bold=True)
-            if getattr(term, "color", False)
-            else "[verify-failed]"
+            term.style_lifecycle_text("[verify-failed]", _resolve_item_status("failed"))
         )
     if step.cost is not None:
         cost_str = f"${step.cost:.2f}"
@@ -1397,21 +1489,26 @@ def format_step_line(
             else f"[{cost_str}]"
         )
     if step.action == "review":
-        badges.append(
-            term.color256("[review]", 226)
-            if getattr(term, "color", False)
-            else "[review]"
+        # THE `[review]` BADGE NAMES A LIFECYCLE ACTIVITY and took a HARDCODED 226 that is not one of
+        # spec Section 5's eleven indices at all (F-07). The spec's `reviewing` stage is 220, and it
+        # is resolved here through the shared ACTIVITY overlay (Section 7.1) rather than by looking up
+        # the word, because `review` is an ACTION this run performed and not a stored status.
+        review_resolved = _T.resolve_lifecycle(
+            _LS.FAMILY_RUNNER_ITEM, None, activity="review"
         )
+        badges.append(term.style_lifecycle_text("[review]", review_resolved))
 
     badge_txt = ("  " + "  ".join(badges)) if badges else ""
 
     disp_txt = ""
     if step.disposition and step.disposition not in (step.status, status_word):
-        disp_styled = (
-            term.status_256(step.disposition)
-            if getattr(term, "color", False)
-            else step.disposition
-        )
+        # A RUN ITEM DISPOSITION IS SECTION 7.2 VOCABULARY, not a generic outcome word, which is the
+        # difference between this column and `ipd_lint`'s same-named one. Every value it holds
+        # (`executed`, `partial`, `dependency-blocked`, `failed-safely`, `unknown_outcome`, ...) is a
+        # row in that table, so the WHOLE column converts. `unknown_outcome` in particular now renders
+        # `failed` per Section 7.2 rather than the neutral gray the old table's missing key gave it.
+        disp_resolved = _resolve_item_status(step.disposition)
+        disp_styled = term.style_lifecycle_text(step.disposition, disp_resolved)
         disp_txt = f"  {disp_styled}"
 
     stem_padded = (
@@ -1624,10 +1721,12 @@ def format_artifact_audit_summary(
     for a in discrepancies:
         raw_item_id = a.stem or a.id6
         if a.is_live:
-            flag_txt = (
-                term.color256("[in flight]", 214)
-                if getattr(term, "color", False)
-                else "[in flight]"
+            # `[in flight]` MEANS WORK IS RUNNING, and it took a hardcoded 214 - which in spec Section
+            # 5 means `waiting-input` ONLY, i.e. "a human is being asked". The spec's stage for live
+            # work whose subtype is unavailable is `active` (220). This row knows the item is live but
+            # not WHAT it is doing, so generic `active` is the honest resolution.
+            flag_txt = term.style_lifecycle_text(
+                "[in flight]", _resolve_item_status("running")
             )
             item_id = f"{raw_item_id} {flag_txt}"
         else:
@@ -1802,9 +1901,14 @@ def render_steps_table(
     for step in steps:
         audit = audit_step_artifact(step, repo_root)
         st_disp = "complete" if step.status == "substantially-complete" else step.status
-        st_styled = (
-            term.status_256(st_disp) if getattr(term, "color", False) else st_disp
-        )
+        # THE AUDIT TABLE'S Status COLUMN, through the shared resolver (R10.3). Deliberately WITHOUT a
+        # glyph: `render_box_table` measures every cell with `len(strip_ansi(cell))`, not by rendered
+        # width, so a 2-code-point / 1-column grapheme (`⚠︎`, `↩︎`) would over-count its column by one
+        # and skew the box art. Section 11 item 2 makes that trade safe - glyph and color are
+        # REDUNDANT cues, either may be dropped - and the native word, which Section 0 makes the
+        # authority, is present in the cell either way.
+        st_resolved = _resolve_item_status(step.status, action=step.action)
+        st_styled = term.style_lifecycle_text(st_disp, st_resolved)
 
         item_disp = step.stem or (
             f"{step.setid}-{step.id6}" if step.setid else step.id6
@@ -1843,10 +1947,17 @@ def render_steps_table(
         has_issue = step_has_issue(audit, step)
         if has_issue:
             if audit.is_live:
-                issue_disp = (
-                    term.color256("YES (in flight)", 214, bold=True)
-                    if getattr(term, "color", False)
-                    else "YES (in flight)"
+                # THE LIVE VARIANT IS STYLED AS LIFECYCLE `active`, NOT AS SEVERITY, and that keeps the
+                # column's existing intent while removing its palette collision. The whole cell took a
+                # hardcoded 214, which spec Section 5 reserves for `waiting-input` ("a human is being
+                # asked") - so a row that merely had work RUNNING wore the color that means a question
+                # is outstanding. The deliberate design here is that a live row is DE-ESCALATED (amber,
+                # not the red the settled `YES` gets) because the discrepancy is expected while work is
+                # in flight; `active` (220) preserves exactly that and is the spec's stage for it.
+                # The plain `YES`/`no` verdicts below stay GENERIC severity, per R10.3 and criterion
+                # A18: an issue verdict is not an artifact lifecycle state.
+                issue_disp = term.style_lifecycle_text(
+                    "YES (in flight)", _resolve_item_status("running")
                 )
             else:
                 issue_disp = (
@@ -1991,8 +2102,16 @@ def format_run_human(
     meta_parts = []
     if run.pid is not None:
         p_state = run.pid_state or "unknown"
-        if getattr(term, "color", False) and run.is_live:
-            p_state_txt = term.color256(f"[{p_state}]", 40, bold=True)
+        if run.is_live:
+            # A LIVE DRIVER PROCESS IS THE RUN'S LIFECYCLE STATE, and this cell took a hardcoded 40,
+            # which is not one of spec Section 5's eleven indices at all. It resolves through the RUN
+            # LEDGER family (Section 7.3) rather than the item family, because the subject is the RUN,
+            # and `running` there is the row this cell means. A NON-live run keeps its plain rendering:
+            # `exited` is not a ledger state and inventing one would assert an outcome this line does
+            # not know (the run may have completed, failed, or been killed).
+            p_state_txt = term.style_lifecycle_text(
+                f"[{p_state}]", _resolve_ledger_status("running")
+            )
         else:
             p_state_txt = f"[{p_state}]"
         meta_parts.append(f"pid: {run.pid} {p_state_txt}")
@@ -2531,9 +2650,11 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
         ):
             c_cnt = data["steps_with_cost"]
             st_disp = "complete" if st == "substantially-complete" else st
-            st_styled = (
-                term.status_256(st_disp) if getattr(term, "color", False) else st_disp
-            )
+            # THE ANALYTICS Status COLUMN, through the shared resolver (R10.3). Its keys are runner
+            # ITEM statuses (the same words `by_status` is aggregated from), so it uses the same family
+            # as the item rows above and renders one vocabulary with them. Glyph omitted for the box
+            # table's width reason recorded at the audit table.
+            st_styled = term.style_lifecycle_text(st_disp, _resolve_item_status(st))
             td = data.get("tokens", {})
             avg_td = data.get("avg_tokens_per_step", {})
 

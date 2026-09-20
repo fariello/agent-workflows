@@ -25,6 +25,8 @@ from pathlib import Path
 from typing import Dict, FrozenSet, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import ipd_schema as S
+from agent_workflows import lifecycle_style as _LS
+from agent_workflows import term as _T
 from agent_workflows.term import Term
 
 # --------------------------------------------------------------------------------------
@@ -1471,12 +1473,23 @@ def run_lint(args: argparse.Namespace) -> int:
         except OSError:
             pass
 
+        # THE `- Status:` COLUMN IS LIFECYCLE and routes through the SHARED resolver (plan `9zvl2w`
+        # E-03, spec `uonrjg` R10.3). This is the only lifecycle `status_256` call in this module; the
+        # DISPOSITION column below is a different vocabulary and is handled separately.
         m_stat = re.search(r"(?m)^-\s*Status:\s*(\S+)", raw_text)
         status_word = m_stat.group(1).lower() if m_stat else "draft"
+        status_resolved = _T.resolve_lifecycle(_LS.FAMILY_PLANS, status_word)
+        # PADDED BY VISIBLE COLUMNS (Section 9.4), never by `len()` on styled text. The glyph is
+        # carried inside this column ahead of the word, as `attention.py` does, so the column ORDER
+        # and COUNT are unchanged and only this column widens 12 -> 15.
+        status_marker = term.format_lifecycle_marker(status_resolved, width=2)
         status_padded = (
-            term.status_256(status_word, width=12)
-            if getattr(term, "color", False)
-            else status_word.ljust(12)
+            status_marker
+            + " "
+            + (
+                term.style_lifecycle_text(status_word, status_resolved)
+                + (" " * max(0, 12 - _T.visible_width(status_word)))
+            )
         )
 
         m_prio = re.search(r"(?m)^-\s*Priority:\s*(\S+)", raw_text)
@@ -1503,22 +1516,59 @@ def run_lint(args: argparse.Namespace) -> int:
             )
 
         lead = ">  " if blocks_release else "   "
+        # PLAIN TYPE WORD (criterion A10, Section 9.1) - same removal as `status_set.py` and
+        # `attention.py`; see the note there for why Section 11 item 5's path-segment exemption does
+        # not cover a bare type word.
         type_word = "plan"
-        type_txt = (
-            term.color256(type_word, _att._TREE_COLOR_256, bold=True)
-            if getattr(term, "color", False)
-            else type_word
-        )
-        type_prefix = type_txt + (" " * max(0, 10 - len(type_word))) + "  "
+        type_prefix = type_word + (" " * max(0, 10 - len(type_word))) + "  "
         stem = _att._identity_stem(str(path))
         disp_word = (
             "advisory"
             if (disp == S.DISPOSITION_CONFORMING and has_advisories)
             else disp
         )
-        disp_styled = (
-            term.status_256(disp_word) if getattr(term, "color", False) else disp_word
-        )
+        # THE DISPOSITION COLUMN IS A MIXED VOCABULARY AND IS CONVERTED BY VALUE, NOT WHOLESALE
+        # (plan `9zvl2w` E-03, recorded decision; spec `uonrjg` Section 7.2 and D15).
+        #
+        # THE DECISION: route ONLY `quarantined` through the shared resolver and leave `conforming`,
+        # `advisory`, `legacy/not evaluated` and `error` on the generic `status_256` palette they use
+        # today. The column holds FIVE words (`ipd_schema.DISPOSITIONS` plus the derived `advisory`),
+        # of which exactly ONE is a value spec Section 7.2 claims. Converting the column WHOLESALE
+        # would route four generic command outcomes through the lifecycle resolver, which R10.3
+        # forbids in terms ("Generic `Term` outcomes such as command-level OK, WARN, and FAIL remain
+        # valid and are outside this spec"), and would render each as `?` via criterion A20's unknown
+        # path. Leaving the column ENTIRELY generic would leave a spec-claimed value unconverted and
+        # make criterion A17 unsatisfiable for this view. So the split is by VALUE.
+        #
+        # THE COST IS REAL AND THE GLYPH IS WHAT PAYS IT. `quarantined` renders 214 (orange) today,
+        # and the spec's `parked` stage is gray 244 - which is ALSO where `legacy/not evaluated`
+        # already lands (it has no `STATUS_COLOR_256` entry and falls back to 244). So adopting the
+        # spec color alone would make a quarantined plan nearly indistinguishable from an unevaluated
+        # one, cutting against Section 7.2's own stated reason for listing it ("the lint view must
+        # show it without calling it a pass"). The `◇` glyph is therefore LOAD-BEARING here, not
+        # decorative: it is the cue that survives the shared color, and it is emitted unconditionally
+        # for this value. Criterion A11 keeps it present with color off, and Section 11 item 2's
+        # redundancy rule is what makes that sufficient.
+        #
+        # READ AS A CONDITION, NOT AS A STATUS (D15). `quarantined` is carried by the `- Quarantine:`
+        # FIELD (`ipd_schema.is_quarantined`, consulted at `_with_name_check`), never by a `- Status:`
+        # value, so it is passed as `condition=` and reaches Section 8's condition rung. Do NOT start
+        # reading it from `- Status:`: no plan's status can hold it.
+        if disp_word == S.DISPOSITION_QUARANTINED:
+            disp_resolved = _T.resolve_lifecycle(
+                _LS.FAMILY_PLANS, None, condition=S.DISPOSITION_QUARANTINED
+            )
+            disp_styled = (
+                term.format_lifecycle_marker(disp_resolved)
+                + " "
+                + term.style_lifecycle_text(disp_word, disp_resolved)
+            )
+        else:
+            disp_styled = (
+                term.status_256(disp_word)
+                if getattr(term, "color", False)
+                else disp_word
+            )
 
         return f"- {lead}{status_padded} {type_prefix}{stem}{prio_txt}{blocking_txt}  {disp_styled}"
 

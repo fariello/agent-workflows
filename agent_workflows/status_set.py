@@ -29,6 +29,7 @@ from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
 from agent_workflows import backlog as _backlog_mod
 from agent_workflows import ipd_schema as _ipd_schema
+from agent_workflows import lifecycle_style as _LS
 from agent_workflows import plans as _plans_mod
 from agent_workflows import selectors as _sel
 from agent_workflows.result_types import Change
@@ -376,6 +377,56 @@ def match_selector(
     return out
 
 
+#: The `lifecycle_style` FAMILY for each record type this setter writes (spec `uonrjg` Sections 6.1
+#: to 6.6, R10.3). Named as an explicit map rather than passed through, because the two vocabularies
+#: are NOT everywhere identical and a bare pass-through would raise `UnknownFamily` from a read-only
+#: echo line: `other` is this module's catch-all bucket and is not a lifecycle family at all, and
+#: `comms`/`walkthroughs`/`roadmaps` reach `detect_artifact_type` without owning a plan-style
+#: lifecycle. A type ABSENT here renders no lifecycle marker, which is Section 6.7's answer, and is
+#: deliberately NOT the same thing as `unknown`.
+_LIFECYCLE_FAMILY_BY_TYPE: dict[str, str] = {
+    "plans": _LS.FAMILY_PLANS,
+    "specs": _LS.FAMILY_SPECS,
+    "prompts": _LS.FAMILY_PROMPTS,
+    "backlog": _LS.FAMILY_BACKLOG,
+    "research": _LS.FAMILY_RESEARCH,
+    "releases": _LS.FAMILY_RELEASES,
+    "walkthroughs": _LS.FAMILY_WALKTHROUGHS,
+    "roadmaps": _LS.FAMILY_ROADMAPS,
+}
+
+
+def _resolve_record_lifecycle(record_type: str, native_status: str) -> _LS.Resolved:
+    """Resolve one record's lifecycle presentation through the SHARED resolver (spec R10.3).
+
+    THE ONE LIFECYCLE RESOLUTION PATH IN THIS MODULE, mirroring `attention._resolve_item_lifecycle`
+    deliberately: the same status must render identically in `aw set`, `aw find` and `aw attention`,
+    and the cheapest guarantee of that is one resolver reached the same way from each.
+
+    A RECORD TYPE WITH NO LIFECYCLE FAMILY RESOLVES `unknown` RATHER THAN RAISING.
+    `term.resolve_lifecycle` raises `UnknownFamily` for a family it has no policy for, and this is an
+    echo line printed AFTER a successful write, so a raise here would turn a completed transition
+    into a traceback. R10.4 makes the `unknown`-versus-`none` distinction load-bearing, so this
+    returns `unknown` plus a diagnostic (a status this view could not classify) and never a silent
+    parked gray.
+    """
+
+    family = _LIFECYCLE_FAMILY_BY_TYPE.get(record_type)
+    if family is None:
+        return _LS.Resolved(
+            stage=_LS.UNKNOWN,
+            style=_LS.style_for(_LS.UNKNOWN),
+            family=record_type,
+            native_status=native_status or None,
+            diagnostic="record type {0!r} is not a lifecycle family".format(
+                record_type
+            ),
+        )
+    from agent_workflows import term as _T
+
+    return _T.resolve_lifecycle(family, native_status)
+
+
 def _format_status_transition_line(
     rec: ArtifactRecord,
     dest_path: Path,
@@ -392,21 +443,28 @@ def _format_status_transition_line(
     arrow = term.glyph("arrow")
 
     if not changed or old_status == norm_stat_clean:
+        # `unchanged` IS NOT A LIFECYCLE STATUS AND MUST NOT BE ROUTED THROUGH THE RESOLVER
+        # (plan `9zvl2w` E-02, spec `uonrjg` R10.3). It is a no-op OUTCOME word: it appears in no
+        # Section 6 or 7 table, it greps to zero in the spec, and it is not a value any artifact's
+        # `- Status:` can hold. Sent through `resolve_lifecycle` it would land on criterion A20's
+        # unknown path and print `?` for a SUCCESSFUL no-op. Convert by VALUE, not by call site: the
+        # two calls below render `rec.status` and `norm_stat`, which ARE lifecycle, and this one does
+        # not. Its current gray (245 via `term.STATUS_COLOR_256`) is deliberately kept.
         status_part = (
             term.status_256("unchanged")
             if getattr(term, "color", False)
             else "unchanged"
         )
     else:
-        old_styled = (
-            term.status_256(rec.status or "draft")
-            if getattr(term, "color", False)
-            else (rec.status or "draft")
-        )
-        new_styled = (
-            term.status_256(norm_stat) if getattr(term, "color", False) else norm_stat
-        )
-        status_part = f"{old_styled} {arrow} {new_styled}"
+        # THE SHARED RESOLVER, for both ends of the transition (R10.3). The glyph precedes the
+        # transition pair so its referent is the NEW state, which is what the line reports; Section
+        # 9.1 requires the glyph to immediately precede either the id6 or the status word.
+        old_resolved = _resolve_record_lifecycle(rec.record_type, rec.status or "draft")
+        new_resolved = _resolve_record_lifecycle(rec.record_type, norm_stat)
+        old_styled = term.style_lifecycle_text(rec.status or "draft", old_resolved)
+        new_styled = term.style_lifecycle_text(norm_stat, new_resolved)
+        new_marker = term.format_lifecycle_marker(new_resolved, width=2)
+        status_part = f"{old_styled} {arrow} {new_marker} {new_styled}"
 
     m_prio = re.search(r"(?m)^-\s*Priority:\s*(\S+)", rec.raw_text)
     priority = m_prio.group(1).lower() if m_prio else None
@@ -448,13 +506,16 @@ def _format_status_transition_line(
         )
 
     lead = ">  " if blocks_release else "   "
+    # THE ARTIFACT TYPE CARRIES NO COLOR (criterion A10; Section 9.1: "The artifact type and title do
+    # not inherit lifecycle color"; Section 11 item 5 limits color to glyph, id6 and status). It was
+    # painted `attention._TREE_COLOR_256` bold, the SAME violation plan `f9t5hz` removed from
+    # `attention.py`'s rows, replicated here. Section 11 item 5's "existing independent convention"
+    # exemption does NOT stretch to cover it: that convention is for the tree SEGMENT OF A PATH
+    # (`attention._colorize_tree_segment`), where one colored directory component identifies the tree
+    # inside a longer string; a bare type word in a row is not a path, and coloring it made A10
+    # untestable on this view.
     type_word = _att._SINGULAR_TYPE.get(rec.record_type, rec.record_type)
-    type_txt = (
-        term.color256(type_word, _att._TREE_COLOR_256, bold=True)
-        if getattr(term, "color", False)
-        else type_word
-    )
-    type_prefix = type_txt + (" " * max(0, 10 - len(type_word))) + "  "
+    type_prefix = type_word + (" " * max(0, 10 - len(type_word))) + "  "
     stem = _att._identity_stem(str(dest_path))
     dry_suffix = "  (dry-run)" if dry_run else ""
 

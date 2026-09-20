@@ -1538,5 +1538,117 @@ class ApprovalGateTests(StatusSetTestBase):
         self.assertIn("status.invalid_transition", payload)
 
 
+class SharedLifecycleRenderingTests(StatusSetTestBase):
+    """Spec `uonrjg` R10.3, Sections 9.1 / 9.4, criteria A10, A11 and A20 (plan `9zvl2w` E-02/E-05).
+
+    WHAT THIS PINS THAT NOTHING PINNED BEFORE: measured at authoring, this file contained ZERO
+    `38;5;` assertions, so the setter's echo line could have been restyled arbitrarily without a
+    single test noticing. The four properties below are the ones the conversion can plausibly break.
+
+    THE `unchanged` CASE IS THE TRAP, and it is the same class of mistake as the index modules'. The
+    setter's THIRD `status_256` call renders the literal word `unchanged`, which is a no-op OUTCOME
+    and not a lifecycle status: it appears in no spec Section 6 or 7 table and is not a value any
+    `- Status:` line can hold. Converting BY CALL SITE rather than BY VALUE would send it to criterion
+    A20's unknown path and print `?` for a SUCCESSFUL no-op.
+    """
+
+    def _echo(self, argv, *, force_color=True, confirm=True):
+        import os
+        from unittest.mock import patch as _patch
+
+        buf = io.StringIO()
+        env = {"FORCE_COLOR": "1"} if force_color else {}
+        tail = (["--yes"] if confirm else []) + ["--dir", str(self.repo_root)]
+        with _patch.dict(os.environ, env, clear=False):
+            if not force_color:
+                os.environ.pop("FORCE_COLOR", None)
+            with _patch("sys.stdout", buf):
+                rc = cli.main(argv + tail)
+        return rc, buf.getvalue()
+
+    def test_a_transition_renders_glyph_and_status_in_one_shared_color(self):
+        self.create_plan("20260822-setalpha-01-aaa111-x.ipd.md", "aaa111", "setalpha")
+        _rc, out = self._echo(["set", "to-review", "aaa111"])
+        # `to-review` is spec Section 6.1 `review-queued`: glyph `◔`, index 39, NOT bold.
+        self.assertIn(
+            "\033[38;5;39m\u25d4\033[0m", out, f"glyph missing/miscolored: {out!r}"
+        )
+        self.assertIn(
+            "\033[38;5;39mto-review\033[0m", out, f"status miscolored: {out!r}"
+        )
+
+    def test_the_setter_and_aw_find_render_one_identical_escape_for_one_status(self):
+        """Criterion A17's whole point: two views, one vocabulary. Compared as RAW BYTES.
+
+        USES A SPEC AND `implemented` RATHER THAN A PLAN AND `executed`, deliberately: a plan's
+        `executed` transition delegates into the gated `aw ipd finalize` and refuses without an
+        attributed `--actor`, so it never reaches the echo line this test is about. `implemented` is
+        the SAME shared stage (`done`, index 46), so the cross-view identity claim is unweakened.
+        """
+        self.create_spec(
+            "20260822-setbeta-01-bbb222-x.spec.md",
+            "bbb222",
+            "setbeta",
+            status="implementing",
+        )
+        _rc, set_out = self._echo(["set", "implemented", "bbb222"])
+        _rc2, find_out = self._echo(["find", "specs", "bbb222"], confirm=False)
+        needle = "\033[1;38;5;46mimplemented\033[0m"
+        self.assertIn(needle, set_out, f"aw set did not render {needle!r}: {set_out!r}")
+        self.assertIn(
+            needle,
+            find_out,
+            "aw set and aw find disagree about one status's rendered bytes, which is exactly the "
+            f"drift criterion A17 forbids: {find_out!r}",
+        )
+
+    def test_the_no_op_word_unchanged_keeps_its_generic_color_and_is_not_a_question_mark(
+        self,
+    ):
+        self.create_plan(
+            "20260822-setgamma-01-ccc333-x.ipd.md",
+            "ccc333",
+            "setgamma",
+            status="approved",
+        )
+        _rc, out = self._echo(["set", "approved", "ccc333"])
+        self.assertIn(
+            "\033[1;38;5;245munchanged\033[0m",
+            out,
+            "`unchanged` lost its generic gray. It is a no-op OUTCOME word, not a lifecycle status "
+            "(spec `uonrjg` R10.3 keeps generic outcomes out of scope), so it must stay on "
+            f"`Term.status_256` and must NOT be resolved: {out!r}",
+        )
+        self.assertNotIn(
+            "?",
+            out,
+            "`unchanged` was routed through the lifecycle resolver and rendered criterion A20's "
+            "unknown glyph for a SUCCESSFUL no-op. Convert by VALUE, not by call site.",
+        )
+
+    def test_the_artifact_type_word_carries_no_escape(self):
+        """Criterion A10: only glyph, id6 and status are colored; the type is not."""
+        self.create_plan("20260822-setdelta-01-ddd444-x.ipd.md", "ddd444", "setdelta")
+        _rc, out = self._echo(["set", "to-review", "ddd444"])
+        self.assertIn("plan", out)
+        for escape in ("\033[1;38;5;33mplan", "\033[38;5;33mplan"):
+            self.assertNotIn(
+                escape,
+                out,
+                "the artifact TYPE word is lifecycle/tree-colored, which criterion A10 forbids "
+                "('Titles and paths are not lifecycle-colored') and Section 11 item 5 limits to "
+                "glyph, id6 and status. The `_TREE_COLOR_256` exemption covers a path SEGMENT, not "
+                f"a bare type word: {out!r}",
+            )
+
+    def test_color_off_keeps_the_glyph_and_the_word_with_no_ansi(self):
+        """Criterion A11: no escapes, but the state survives via glyph plus word."""
+        self.create_plan("20260822-seteps-01-eee555-x.ipd.md", "eee555", "seteps")
+        _rc, out = self._echo(["set", "to-review", "eee555"], force_color=False)
+        self.assertNotIn("\033", out, f"ANSI leaked with color off: {out!r}")
+        self.assertIn("\u25d4", out, f"the glyph vanished with color off: {out!r}")
+        self.assertIn("to-review", out, f"the native word vanished: {out!r}")
+
+
 if __name__ == "__main__":
     unittest.main()
