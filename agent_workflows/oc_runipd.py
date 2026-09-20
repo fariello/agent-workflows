@@ -3898,6 +3898,50 @@ _SUITE_SUMMARY_RE = re.compile(
     r"^(?:=+\s*)?(\d+ (?:passed|failed).*?)(?:\s*=+)?$", re.MULTILINE
 )
 
+#: gatewire-01 (`h5pyqa`) E-02: the lines naming WHICH tests failed, which `_SUITE_SUMMARY_RE`
+#: deliberately does not capture.
+#:
+#: WHY A SECOND PATTERN RATHER THAN WIDENING THE FIRST. `_SUITE_SUMMARY_RE` answers "did it pass and
+#: by how much", and its single capture group feeds `SuiteCheckResult.summary`, which the integration
+#: refusal reason embeds. Widening it to also span the failure list would change that one-line reason
+#: into a paragraph on every refusal. These are two different questions with two different readers, so
+#: they get two patterns.
+#:
+#: BOTH `FAILED` AND `ERROR` ARE MATCHED, and the second is not padding. MEASURED on 2026-09-20 with a
+#: deliberately broken import under this repository's own `-n auto --dist=worksteal` addopts: a module
+#: that cannot be collected yields `ERROR test_broken.py` and NO `FAILED` line at all, while the count
+#: line reads `1 failed, 1 passed, 1 error`. Matching only `FAILED` would therefore show an agent
+#: nothing for the whole collection-error class, which is exactly the class most likely to be somebody
+#: else's fault and so most likely to be a true `not-mine`.
+_SUITE_FAILURE_LINE_RE = re.compile(r"^(?:FAILED|ERROR)\s+\S.*$", re.MULTILINE)
+
+#: How many failing-test lines are carried. A pathological run can redden hundreds of tests, and this
+#: text goes into a PROMPT; the cap keeps one bad suite from crowding out the rest of the question.
+#: Generous on purpose: attribution gets harder, not easier, as the list is truncated.
+SUITE_FAILURE_LINE_LIMIT: int = 40
+
+
+def extract_suite_failures(stdout: str, stderr: str = "") -> tuple[str, ...]:
+    """The `FAILED`/`ERROR` lines from a suite run, deduplicated, in first-seen order.
+
+    gatewire-01 (`h5pyqa`) E-02. SEPARATE FROM THE COUNT LINE BY DESIGN: a count ("1 failed") tells an
+    agent nothing it can attribute to its own diff, and attribution is the entire judgement the
+    integration-refusal answer turns on.
+
+    Deduplicated because xdist can report the same node twice across the short summary and a rerun
+    section, and a question that lists one failure three times reads as three failures.
+    """
+
+    seen: dict[str, None] = {}
+    for haystack in (stdout or "", stderr or ""):
+        for match in _SUITE_FAILURE_LINE_RE.finditer(haystack):
+            line = match.group(0).strip()
+            if line and line not in seen:
+                seen[line] = None
+            if len(seen) >= SUITE_FAILURE_LINE_LIMIT:
+                return tuple(seen)
+    return tuple(seen)
+
 
 class SuiteCheckResult(NamedTuple):
     """What the DRIVER observed when it ran the suite itself.
@@ -3905,6 +3949,11 @@ class SuiteCheckResult(NamedTuple):
     novalnomerge-01 (evgi9n) E-01/E-02. This is an OBSERVED FACT, not a claim: the executor's outcome
     JSON has a ``"tests"`` field, but nothing reads it, so it is the agent's own prose about work it
     says it did. `passing` is True only on an observed exit 0.
+
+    `failures` ADDED BY gatewire-01 (`h5pyqa`) E-02, and it is DEFAULTED so that every existing
+    construction site and every test double that builds this tuple positionally keeps working. It
+    carries the `FAILED`/`ERROR` lines naming WHICH tests failed, because `summary` carries only the
+    count line and a count cannot be attributed to a diff.
     """
 
     passing: bool
@@ -3914,6 +3963,30 @@ class SuiteCheckResult(NamedTuple):
     cwd: str
     timeout_seconds: float
     elapsed_seconds: float
+    failures: tuple[str, ...] = ()
+
+    @property
+    def failing_text(self) -> str:
+        """The failing tests as the QUESTION should show them, or an honest statement of absence.
+
+        NEVER RETURNS AN EMPTY STRING, because this lands in a prompt: an empty section reads as "no
+        failures" and would invite a false `not-mine`. When the names could not be recovered the agent
+        is told so, and given the count line instead, so it can answer from the evidence that exists
+        rather than from a blank.
+        """
+
+        if self.failures:
+            return "\n".join(self.failures)
+        if self.summary:
+            return (
+                f"{self.summary}\n"
+                "(the individual failing test names could not be recovered from this run's output; "
+                "re-run the suite yourself if you need them to answer)"
+            )
+        return (
+            "the suite did not pass and produced no parseable summary "
+            f"(exit {self.exit_code}): {self.reason}"
+        )
 
 
 def run_suite_check(
@@ -3941,6 +4014,16 @@ def run_suite_check(
     `run_evidence.capture_command` already converts a timeout into exit 124 and any other exception
     into exit 127 instead of raising, so this is an honest reading of a nonzero exit rather than new
     machinery. Neither code is special-cased into a pass.
+
+    THE OUTPUT READ HERE ONLY STARTED WORKING AT gatewire-01 (`h5pyqa`), and the repair is in
+    `run_evidence.capture_command` rather than here. This function read
+    `tool_event["stdout_excerpt"]`, and `build_tool_event` NEVER WROTE THAT KEY: a `tool_event` is a
+    LEDGER record carrying `stdout_sha256`/`stdout_len` and deliberately not the text. Measured
+    2026-09-20 by calling `capture_command` directly - `sorted(tool_event)` contained no
+    `stdout_excerpt` - so this read yielded `""`, `summary` was ALWAYS empty, and every refusal reason
+    said `no summary line parsed`. The existing tests could not see it because every one of them mocks
+    `capture_command` and fabricates the key production never produced. `capture_command` now returns
+    the text on the mapping it hands back, so this read means what it always claimed to.
     """
     from agent_workflows import run_evidence
 
@@ -3978,6 +4061,9 @@ def run_suite_check(
     elapsed = time.monotonic() - started
     m = _SUITE_SUMMARY_RE.search(stdout) or _SUITE_SUMMARY_RE.search(stderr)
     summary = m.group(1).strip() if m else ""
+    # gatewire-01 (`h5pyqa`) E-02: capture WHICH tests failed, not merely how many. `stdout` is
+    # discarded after this function returns, so a failure name not taken here is gone for good.
+    failures = extract_suite_failures(stdout, stderr)
     if exit_code == 0:
         reason = f"suite passed in {repo_dir} ({summary or 'no summary line parsed'})"
     elif exit_code == 124:
@@ -4003,6 +4089,7 @@ def run_suite_check(
         cwd=str(repo_dir),
         timeout_seconds=timeout,
         elapsed_seconds=elapsed,
+        failures=failures,
     )
 
 
@@ -4010,11 +4097,24 @@ def run_suite_check(
 #: `verify_disp` alone conflates "no verifier ran" (None, because validation is off) with "the
 #: verifier declined" ("unverified"), and both previously landed the item in `substantially-complete`
 #: with no way to tell them apart. These name the actual signal.
-INTEGRATION_EARNED_BY_VERIFIER = "verifier"
-INTEGRATION_EARNED_BY_SUITE = "driver-run-suite"
-INTEGRATION_REFUSED_VERIFIER_DECLINED = "verifier-declined"
-INTEGRATION_REFUSED_SUITE_FAILED = "suite-failed"
-INTEGRATION_REFUSED_NO_SIGNAL = "no-trust-signal"
+#:
+#: RE-EXPORTS SINCE gatewire-01 (`h5pyqa`): the five signal names are now DEFINED ONCE, in
+#: `runner_shared`, and bound here under their original names so every existing reader
+#: (`oc_runipd.INTEGRATION_REFUSED_SUITE_FAILED`, the agy re-export, and the tests that read them off
+#: this module) is unchanged. THEY HAD TO MOVE, and the reason is mechanical rather than stylistic:
+#: `gate_answer_is_warranted` must compare against `INTEGRATION_REFUSED_SUITE_FAILED` to ask about the
+#: suite refusal AND NOTHING ELSE, it lives in `runner_shared`, and `runner_shared` cannot import
+#: `oc_runipd` (that is the import direction, and reversing it is a cycle). The alternative was to
+#: spell the literal `"suite-failed"` a second time in the shared layer, which is precisely the
+#: producer/reader drift this package has already paid for twice (render_stream F-4: a renderer read
+#: `driver_error` while the producer wrote `integration_deferral`).
+INTEGRATION_EARNED_BY_VERIFIER = runner_shared.INTEGRATION_EARNED_BY_VERIFIER
+INTEGRATION_EARNED_BY_SUITE = runner_shared.INTEGRATION_EARNED_BY_SUITE
+INTEGRATION_REFUSED_VERIFIER_DECLINED = (
+    runner_shared.INTEGRATION_REFUSED_VERIFIER_DECLINED
+)
+INTEGRATION_REFUSED_SUITE_FAILED = runner_shared.INTEGRATION_REFUSED_SUITE_FAILED
+INTEGRATION_REFUSED_NO_SIGNAL = runner_shared.INTEGRATION_REFUSED_NO_SIGNAL
 
 
 class IntegrationVerdict(NamedTuple):

@@ -163,6 +163,7 @@ from typing import (
 
 from agent_workflows import runner_profiles
 from agent_workflows.render_stream import (
+    GATE_ANSWER_NEEDS_HUMAN_CODE as _render_gate_answer_needs_human_code,
     Palette,
     StreamTracker,
     _STATUS_COLOR,
@@ -11479,6 +11480,26 @@ def _findings_block_reason(repo: Path, dep: str) -> str | None:
     return "; ".join(b.describe() for b in blocks)
 
 
+# ---- the integration SIGNAL names -----------------------------------------------------------------
+#
+# Why an item did NOT reach the integration gate, or how it did. Introduced by novalnomerge-01
+# (evgi9n) E-05 in `oc_runipd`, MOVED HERE by gatewire-01 (`h5pyqa`) so the shared layer can compare
+# against them, and re-exported under their original names from BOTH runners so no existing reader
+# changes.
+#
+# WHY THEY MOVED, since a constant relocation should always carry its reason: `gate_answer_is_warranted`
+# asks the agent about the SUITE refusal and deliberately about nothing else, so it must name
+# `INTEGRATION_REFUSED_SUITE_FAILED`. It lives here, and this module cannot import `oc_runipd` (the
+# import runs the other way; reversing it is a cycle). The only alternative was to spell `"suite-failed"`
+# a second time in this file, and a literal spelled at N sites is exactly how a producer and a reader
+# drift apart - measured twice in this package already (render_stream F-4).
+INTEGRATION_EARNED_BY_VERIFIER = "verifier"
+INTEGRATION_EARNED_BY_SUITE = "driver-run-suite"
+INTEGRATION_REFUSED_VERIFIER_DECLINED = "verifier-declined"
+INTEGRATION_REFUSED_SUITE_FAILED = "suite-failed"
+INTEGRATION_REFUSED_NO_SIGNAL = "no-trust-signal"
+
+
 # ==================================================================================================
 # THE INTEGRATION-REFUSAL ANSWER (gateanswer, defect 2 of the 2026-09-19 incident)
 #
@@ -11748,6 +11769,334 @@ silence is the accurate answer, and silence refuses while telling a human nothin
 Your answer is recorded on the run record under your name and is reviewable, exactly like a `V-*`
 evidence block. Claim `{GATE_ANSWER_NOT_MINE}` only if you believe it.
 """
+
+
+# ---- gatewire-01 (`h5pyqa`): the WIRING that makes the vocabulary above do something --------------
+#
+# Everything above this line shipped inert at `395fc06b`: a closed vocabulary, a validator and a
+# question, with no consumer. Everything below is the consumer.
+#
+# THE SEAM IS `execute_item_core`'s integration verdict, and the four answers map onto it like this:
+#   not-mine     -> RELEASE this attempt's `integration.earned`, so self-finalize and integration run.
+#   fixed        -> RE-RUN the suite and believe the RE-RUN. Bounded by the run's existing budget.
+#   mine         -> refuse, preserve the lane. No override, deliberately.
+#   needs-human  -> refuse, preserve the lane, and say in the run summary that a DECISION is awaited.
+#   anything else-> refuse. Silence and malformed answers are the fail-closed direction.
+
+#: The key the per-item answer record is stored under on a queue item, mirroring `DEFECT_REPORT_KEY`'s
+#: role. ONE name, so the writer and every reader cannot drift apart (render_stream's F-4 defect
+#: class: a renderer read `driver_error` while the producer wrote `integration_deferral`).
+GATE_ANSWER_RECORD_KEY: str = "integration_gate_answer"
+
+#: The `Refusal.code` recorded for an item whose agent answered `needs-human`. DISTINCT from an
+#: ordinary integration refusal because it routes to a different person: "decide this" goes to the
+#: maintainer, "fix this" goes to a later turn.
+#:
+#: IMPORTED, NOT RE-SPELLED: the renderer must recognize this exact code to give it its own line, and
+#: this module already imports `render_stream` (the reverse edge would be circular), so the ONE
+#: definition lives there and this is a binding. Spelling the literal in both places is the F-4 drift.
+GATE_ANSWER_NEEDS_HUMAN_CODE: str = _render_gate_answer_needs_human_code
+
+
+def gate_answer_needs_human_remedy(id6: str, reason: str) -> str:
+    """WHAT TO DO about an item whose agent asked for a decision. THE WORDING IS THE DELIVERABLE.
+
+    Phrased as a DECISION REQUEST and never as a failure, for the same measured reason
+    `probe_refusal_remedy` is phrased constructively: a message that reads as "this item failed" gets
+    handled by re-running it, and re-running an item that is waiting on a human ruling just spends
+    another turn arriving at the same question.
+    """
+
+    detail = (reason or "").strip() or "no decision detail was recorded"
+    return (
+        f"DECIDE, then re-run: the agent for {id6} understood the test failure but says the fix turns "
+        f"on a decision it does not own. It asked: {detail} Its work is PRESERVED on its lane and "
+        f"main is untouched, so answer the question (in the plan, a spec, or by ruling directly) and "
+        f"re-run the item; do NOT simply re-run it unanswered, which spends another turn reaching the "
+        f"same question, and do NOT discard the lane."
+    )
+
+
+def gate_answer_is_warranted(
+    *,
+    integration_gate_relevant: bool,
+    earned: bool,
+    integration_signal: str,
+    session_id: str | None,
+    already_asked: bool = False,
+) -> tuple[bool, str]:
+    """Decide whether to ASK the agent about a refused integration. Returns `(warranted, reason)`.
+
+    THE PARAMETER IS `integration_signal` AND NOT `signal`, DELIBERATELY, for the reason
+    `_lane_record_informativeness` already records above: an AST guard in
+    `tests/test_runner_telemetry_integration.py` asserts this module contains NO `ast.Name` called
+    `signal`, proving the seam installs no signal handler. A parameter of that name trips it (measured
+    while writing this, exactly as the earlier note predicts). Keep the name qualified.
+
+    gatewire-01 (`h5pyqa`) E-01. ONLY the suite-failure signal is askable, and the two exclusions are
+    the substance of this predicate rather than defensive padding:
+
+      * `verifier-declined` is NOT asked. A verifier that explicitly declined is a STRONGER and more
+        specific judgement than a red suite, and `integration_is_earned`'s own comment records the
+        governing rule ("a green suite deliberately does NOT override an explicit verifier verdict").
+        Letting the judged agent answer that verdict away would make `--validate` weaker than the
+        default, which is absurd.
+      * `no-trust-signal` is NOT asked. There is nothing for the agent to attribute: no suite ran, so
+        the question would have an empty evidence section and could only elicit a guess.
+
+    A SESSION IS REQUIRED, for the reason `defect_reask_is_warranted` records at length: an isolated
+    lane turn is ALWAYS a fresh session by deliberate design, so there may be no session to resume,
+    and resuming the wrong one would run the follow-up in a different worktree. No session, no ask,
+    and the refusal simply stands as it does today.
+
+    BOUNDED AT ONE ASK PER ATTEMPT by `already_asked`, structurally rather than by a counter.
+    """
+
+    if not integration_gate_relevant:
+        return False, "the integration gate was not relevant to this turn"
+    if earned:
+        return False, "integration was earned; there is nothing to answer"
+    if integration_signal != INTEGRATION_REFUSED_SUITE_FAILED:
+        return (
+            False,
+            f"the refusal signal is {integration_signal!r}, and only "
+            f"{INTEGRATION_REFUSED_SUITE_FAILED!r} is answerable by the agent",
+        )
+    if already_asked:
+        return False, "the single permitted gate-answer ask has already been spent"
+    if not session_id:
+        return (
+            False,
+            "no resumable session was observed for this turn, so the same-session ask is "
+            "impossible (an isolated turn is always a fresh session by design)",
+        )
+    return (
+        True,
+        "the driver-run suite refused integration and the turn's session is resumable",
+    )
+
+
+def read_gate_answer_outcome(outcome_path: Path | str | None) -> Any:
+    """Re-read an agent-written outcome file for its gate answer. NEVER raises.
+
+    Shares `read_defect_report_outcome`'s contract and reason: absence, invalid JSON and an unreadable
+    file are all legitimate OBSERVATIONS here (each ends up an unusable verdict, which refuses), so
+    none may propagate as an exception and kill the turn.
+    """
+
+    return read_defect_report_outcome(outcome_path)
+
+
+def gate_answer_record(
+    verdict: GateAnswerVerdict,
+    *,
+    asked: bool,
+    ask_reason: str,
+    session_id: str | None = None,
+    integration_signal: str = "",
+    failures: Sequence[str] = (),
+    recheck_attempts: int = 0,
+    recheck_budget: int = 0,
+    recheck_passed: bool | None = None,
+    recheck_summary: str = "",
+) -> dict[str, Any]:
+    """The NORMALIZED record persisted on the run record, beside the integration signal.
+
+    gatewire-01 (`h5pyqa`) E-05, and this record IS THE SAFEGUARD rather than bookkeeping. `not-mine`
+    releases a lane on the agent's assertion, which is the one place in this system where a claim
+    substitutes for a green suite; the maintainer ruled (2026-09-20, OQ-02) that ATTRIBUTION is what
+    makes that safe, exactly as a `- Readiness:` field and a `V-*` evidence block are made safe by
+    being durable, attributed and reviewable rather than by machine verification. So a false
+    `not-mine` must be legible afterwards, which requires all of: WHAT was answered, WHY, by WHICH
+    session, and whether a re-run followed and what it found.
+
+    LOCATION AND SHAPE, stated as the contract a consumer codes against (mirroring
+    `defect_report_record`): `state["queue"][i]["integration_gate_answer"]` in
+    `<run_dir>/state.json`, written at the same per-item seam as `item["integration_signal"]`, by BOTH
+    host drivers. `<run_dir>` is gitignored, so a test must build its own records in a tmp_path.
+    """
+
+    return {
+        "answer": verdict.answer,
+        "reason": verdict.reason,
+        "violation": verdict.violation,
+        "usable": bool(verdict.usable),
+        "integrates": bool(verdict.integrates),
+        "refuses": bool(verdict.refuses),
+        "awaits_human_decision": bool(verdict.awaits_human_decision),
+        "asked": bool(asked),
+        "ask_reason": ask_reason,
+        "session_id": session_id or None,
+        "signal": integration_signal,
+        "failing_tests": [str(line) for line in failures],
+        "recheck_attempts": int(recheck_attempts),
+        "recheck_budget": int(recheck_budget),
+        "recheck_passed": recheck_passed,
+        "recheck_summary": recheck_summary,
+    }
+
+
+class GateAnswerOutcome(NamedTuple):
+    """What asking produced, and whether the lane is released.
+
+    `release` is the ONLY field the integration decision reads, so a caller cannot accidentally treat
+    a `fixed` claim (which earns a suite RE-RUN) as a release the way it may treat `not-mine`.
+    """
+
+    #: True when integration must now proceed for this attempt.
+    release: bool
+    #: The normalized record to persist (see :func:`gate_answer_record`).
+    record: dict[str, Any]
+    #: The suite result the re-run observed, when a `fixed` claim earned one. None otherwise.
+    suite_result: Any = None
+    #: The validated verdict, for a caller that needs the tri-state rather than the record.
+    verdict: GateAnswerVerdict | None = None
+
+
+def perform_gate_answer(
+    *,
+    suite_result: Any,
+    changed_files: Sequence[str] = (),
+    ask: Callable[[str], Any],
+    outcome_path: Path | str | None,
+    recollect: Callable[[], Any] | None = None,
+    rerun_suite: Callable[[], Any] | None = None,
+    retry_budget: int = 0,
+    session_turn_counts: dict[str, int] | None = None,
+    session_id: str | None = None,
+    integration_signal: str = INTEGRATION_REFUSED_SUITE_FAILED,
+    ask_reason: str = "",
+) -> GateAnswerOutcome:
+    """Ask the question, read the answer, and act on it. Returns a :class:`GateAnswerOutcome`.
+
+    gatewire-01 (`h5pyqa`) E-03/E-04/E-07. MODELLED ON `perform_defect_reask` DELIBERATELY rather than
+    inventing a second follow-up mechanism: `ask` is the host's OWN resume primitive injected as a
+    NAME (so no launcher call-site count moves), `recollect` re-collects an isolated lane's outcome
+    file before it is re-read, and `session_turn_counts` makes the follow-up turn COUNT against
+    `max_items_per_session` in one place instead of being an unstated live-run behavior.
+
+    THE FOUR ANSWERS, and why only one of them releases:
+
+      * `not-mine`    -> RELEASE. The maintainer ruled 2026-09-20 that this holds in ANY run, attended
+        or not, because refusing unattended would preserve the measured 2026-09-19 loss (three correct
+        lanes refused over one unrelated red test, $55.02 and 2h 10m for nothing) exactly where it
+        costs most. Attribution, recorded by `gate_answer_record`, is the safeguard.
+      * `fixed`       -> RE-RUN THE SUITE AND BELIEVE THE RE-RUN, never the claim. A passing re-run
+        releases; a failing one hands the NEW failure back and allows another bounded attempt.
+      * `mine`        -> REFUSE. There is no override, so an honest `mine` is never weaker than silence.
+      * `needs-human` -> REFUSE, and record that the item awaits a DECISION rather than work.
+
+    THE `fixed` LOOP IS BOUNDED BY `retry_budget`, THE RUN'S OWN EXISTING `--retry-budget` (maintainer
+    ruling 2026-09-20: share it, add no second knob). `retry_budget` re-runs means at most
+    `retry_budget` suite runs and at most `retry_budget` further asks after the first, so a budget of
+    0 means a `fixed` claim is never verified and simply refuses - which is the correct reading of an
+    operator who asked for no corrections.
+
+    NEVER RAISES ON THE AGENT'S BEHALF: an unusable answer, a missing outcome file and a re-run that
+    cannot be performed all land on REFUSE, which is the fail-closed direction (a wrongly refused lane
+    is preserved and recoverable; a wrongly integrated one merges work no trust signal cleared).
+    """
+
+    failures = tuple(getattr(suite_result, "failures", ()) or ())
+    failing_text = str(
+        getattr(suite_result, "failing_text", "")
+        or getattr(suite_result, "summary", "")
+        or "the driver-run suite did not pass"
+    )
+    budget = max(0, int(retry_budget))
+    attempts = 0
+    latest_suite = suite_result
+    verdict = GateAnswerVerdict("", "", "no answer was requested")
+    violation = ""
+    unverified_repair = ""
+
+    while True:
+        prompt = gate_answer_question(
+            failing=failing_text,
+            changed_files=changed_files,
+            violation=violation,
+        )
+        ask(prompt)
+        if session_turn_counts is not None and session_id:
+            session_turn_counts[session_id] = session_turn_counts.get(session_id, 0) + 1
+        if recollect is not None:
+            # A failed collection must not discard the turn: the re-read below finds the older copy
+            # and the answer stays unusable, which REFUSES. That is the honest observation.
+            with contextlib.suppress(Exception):
+                recollect()
+        outcome = read_gate_answer_outcome(outcome_path)
+        verdict = validate_gate_answer(
+            outcome.get(GATE_ANSWER_KEY) if isinstance(outcome, Mapping) else None
+        )
+
+        if not verdict.earns_recheck:
+            break
+        if rerun_suite is None or attempts >= budget:
+            # A `fixed` claim THIS RUN CANNOT VERIFY is not a release, and the reason is recorded
+            # SEPARATELY from `violation`: the answer itself was well formed, so calling it a
+            # violation would misattribute a budget exhaustion to the agent.
+            unverified_repair = (
+                f"{GATE_ANSWER_FIXED} was claimed but the repair was NOT verified: "
+                + (
+                    "no suite re-run was available to this run"
+                    if rerun_suite is None
+                    else f"the run's retry budget of {budget} is spent after {attempts} re-run(s)"
+                )
+            )
+            break
+        attempts += 1
+        latest_suite = rerun_suite()
+        if getattr(latest_suite, "passing", False):
+            break
+        # The RE-RUN decides, so hand the agent its NEW failure and let it try again within budget.
+        failures = tuple(getattr(latest_suite, "failures", ()) or ())
+        failing_text = str(
+            getattr(latest_suite, "failing_text", "")
+            or getattr(latest_suite, "summary", "")
+            or "the re-run of the suite did not pass"
+        )
+        violation = (
+            f"you answered {GATE_ANSWER_FIXED!r}, but the FULL TEST SUITE WAS RE-RUN AND STILL DID "
+            f"NOT PASS (re-run {attempts} of {budget} permitted). The re-run decides, not the claim. "
+            f"Its result is shown below; answer again for it."
+        )
+
+    recheck_passed: bool | None = None
+    recheck_summary = ""
+    if attempts:
+        recheck_passed = bool(getattr(latest_suite, "passing", False))
+        recheck_summary = str(getattr(latest_suite, "summary", "") or "")
+    if unverified_repair:
+        recheck_summary = (
+            f"{recheck_summary}; {unverified_repair}"
+            if recheck_summary
+            else unverified_repair
+        )
+
+    # ONLY `not-mine` releases on the answer alone; `fixed` releases only on an OBSERVED passing
+    # re-run. Written as an explicit conjunction rather than `verdict.integrates or recheck_passed`
+    # because a truthy `recheck_passed` must never release an answer that did not earn a re-check.
+    release = bool(verdict.integrates) or (
+        bool(verdict.earns_recheck) and recheck_passed is True
+    )
+    record = gate_answer_record(
+        verdict,
+        asked=True,
+        ask_reason=ask_reason,
+        session_id=session_id,
+        integration_signal=integration_signal,
+        failures=failures,
+        recheck_attempts=attempts,
+        recheck_budget=budget,
+        recheck_passed=recheck_passed,
+        recheck_summary=recheck_summary,
+    )
+    return GateAnswerOutcome(
+        release=release,
+        record=record,
+        suite_result=latest_suite,
+        verdict=verdict,
+    )
 
 
 def make_integration_validation_runner(
@@ -14475,6 +14824,22 @@ def execute_item_core(
         "make_integration_validation_runner",
         globals().get("make_integration_validation_runner"),
     )
+    # gatewire-01 (`h5pyqa`): bound from the DRIVER MODULE, whose one-line wrapper supplies the
+    # keyword-only `run_checked` this shared body cannot resolve (integpath-02 `6sb3yu`'s injection
+    # rule, the same reason `git_head`/`git_status` are bound here).
+    #
+    # THIS ALSO REPAIRS AN ADJACENT DEFECT FOUND WHILE WIRING, disclosed rather than absorbed. The
+    # pre-existing call below (`item["integration_changed_files"] = ... build_lane_outcome(repo,
+    # wt_handle, item["id6"])`) resolved the SHARED definition, which requires `run_checked` as a
+    # keyword-only argument, so it raised `TypeError: build_lane_outcome() missing 1 required
+    # keyword-only argument: 'run_checked'` on EVERY integration refusal - swallowed whole by the
+    # `contextlib.suppress(Exception)` around it. Measured 2026-09-20 by calling it the same way.
+    # The consequence was silent: `integration_changed_files` was never written, so a human reading a
+    # refused item's record saw no file list. Binding the wrapper here fixes that call and this
+    # plan's own use of it with one line, rather than leaving a second broken copy behind.
+    build_lane_outcome = getattr(
+        driver_module, "build_lane_outcome", globals().get("build_lane_outcome")
+    )
     set_plan_approved = getattr(driver_module, "set_plan_approved", None)
     is_plan_review_approved = getattr(
         driver_module, "is_plan_review_approved", is_plan_review_approved
@@ -15319,6 +15684,10 @@ def execute_item_core(
             "cwd": suite_result.cwd,
             "timeout_seconds": suite_result.timeout_seconds,
             "elapsed_seconds": round(suite_result.elapsed_seconds, 3),
+            # gatewire-01 (`h5pyqa`) E-02: WHICH tests failed, not merely how many. Persisted beside
+            # the count line because `summary` alone ("1 failed") is not attributable to a diff, so a
+            # human reading this record afterwards could not check the agent's answer either.
+            "failures": list(getattr(suite_result, "failures", ()) or ()),
         }
     integration = integration_is_earned(
         validate=validate, verify_disp=verify_disp, suite_result=suite_result
@@ -15329,6 +15698,235 @@ def execute_item_core(
         item["integration_signal"] = integration.signal
         item["verifier_ran"] = bool(validate)
     save_state(run_dir, state)
+
+    # ---- gatewire-01 (`h5pyqa`): ASK about a suite-failure refusal, and act on the answer ---------
+    #
+    # SITED HERE, immediately after the verdict and BEFORE anything reads `integration.earned`, which
+    # is what makes one wiring serve BOTH lane shapes: the isolated-lane self-finalize arm and the
+    # non-isolated arm each test `integration.earned` further down, so releasing the verdict at its
+    # source reaches both. A fix applied at one of those arms would be a fix on neither (plan V-03).
+    #
+    # ONLY the suite-failure signal is asked about; `gate_answer_is_warranted` owns that rule and the
+    # two exclusions behind it.
+    gate_answer_asked, gate_answer_reason = gate_answer_is_warranted(
+        integration_gate_relevant=integration_gate_relevant,
+        earned=integration.earned,
+        integration_signal=integration.signal,
+        session_id=attempt.get("session_id"),
+        already_asked=bool(attempt.get("gate_answer_asked")),
+    )
+    if gate_answer_asked:
+        attempt["gate_answer_asked"] = True
+        gate_session = attempt.get("session_id")
+        item_outcome_path = (
+            run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
+        )
+        # THE TURN'S OWN CHANGED FILES, which is half the comparison the answer turns on. Only an
+        # ISOLATED lane has a branch to diff; a non-isolated turn commits onto the working branch, so
+        # there is no lane base to measure from and the question degrades honestly to "(none
+        # recorded)" rather than showing the agent somebody else's diff.
+        gate_changed_files: list[str] = list(
+            item.get("integration_changed_files") or ()
+        )
+        if wt_handle is not None:
+            try:
+                gate_changed_files = list(
+                    build_lane_outcome(repo, wt_handle, item["id6"]).changed_files
+                )
+            except Exception:
+                # Showing the failing tests without the file list is worse than showing both and far
+                # better than refusing with no question asked at all.
+                pass
+        try:
+            gate_outcome = perform_gate_answer(
+                suite_result=suite_result,
+                changed_files=gate_changed_files,
+                ask=(
+                    lambda gate_prompt_text: resume_via_launcher(
+                        raw_launcher,
+                        (
+                            state,
+                            run_dir,
+                            item,
+                            plan_path,
+                            write_prompt(
+                                run_dir,
+                                item,
+                                gate_prompt_text,
+                                attempt_no,
+                                suffix="gate-answer",
+                            ),
+                            attempt_no,
+                        ),
+                        {
+                            "log_suffix": "gate-answer",
+                            "label_suffix": "gate-answer",
+                            "tracker": tracker,
+                            "work_dir": work_dir,
+                            "resume_session": gate_session,
+                        },
+                    )
+                    if host_labels == OC_HOST_LABELS
+                    else resume_via_launcher(
+                        raw_launcher,
+                        (
+                            state,
+                            run_dir,
+                            item,
+                            write_prompt(
+                                run_dir,
+                                item,
+                                gate_prompt_text,
+                                attempt_no,
+                                suffix="gate-answer",
+                            ),
+                            attempt_no,
+                        ),
+                        {
+                            "session_id": gate_session,
+                            "use_continue": False,
+                            "log_suffix": "gate-answer",
+                            "label_suffix": "gate-answer",
+                            "work_dir": work_dir,
+                            "tracker": tracker,
+                        },
+                    )
+                ),
+                outcome_path=item_outcome_path,
+                recollect=(
+                    functools.partial(
+                        lane_containment.collect_lane_submissions,
+                        run_dir=run_dir,
+                        item=item,
+                        run_id=state["run_id"],
+                        lane_root=Path(work_dir),
+                        plan_path=plan_path,
+                        attempt=attempt_no,
+                    )
+                    if work_dir
+                    else None
+                ),
+                # A `fixed` claim is verified by RE-RUNNING the real suite in the PRIMARY checkout,
+                # exactly as the first run was (`run_suite_check`'s docstring: a lane-run suite is
+                # permanently red for reasons unrelated to the plan).
+                rerun_suite=lambda: run_suite_check(
+                    repo, str(state.get("run_id") or "")
+                ),
+                retry_budget=frozen_retry_budget(state),
+                session_turn_counts=(
+                    None if work_dir else state.setdefault("session_turn_counts", {})
+                ),
+                session_id=gate_session,
+                integration_signal=integration.signal,
+                ask_reason=gate_answer_reason,
+            )
+        except (KeyboardInterrupt, StallTimeout):
+            # An interrupted follow-up leaves the refusal STANDING, which is the fail-closed
+            # direction, and is recorded as asked-but-unanswered rather than silently dropped.
+            gate_outcome = GateAnswerOutcome(
+                release=False,
+                record=gate_answer_record(
+                    GateAnswerVerdict(
+                        "", "", "the follow-up turn was interrupted before it answered"
+                    ),
+                    asked=True,
+                    ask_reason=gate_answer_reason,
+                    session_id=gate_session,
+                    integration_signal=integration.signal,
+                    failures=getattr(suite_result, "failures", ()) or (),
+                ),
+            )
+        attempt[GATE_ANSWER_RECORD_KEY] = gate_outcome.record
+        item[GATE_ANSWER_RECORD_KEY] = gate_outcome.record
+        if gate_outcome.suite_result is not None and gate_outcome.record.get(
+            "recheck_attempts"
+        ):
+            # A verified repair REPLACES the suite evidence on the attempt, so the record shows the
+            # run that actually decided rather than the stale first failure.
+            attempt["suite_check_recheck"] = {
+                "passing": bool(gate_outcome.suite_result.passing),
+                "exit_code": int(gate_outcome.suite_result.exit_code),
+                "summary": str(gate_outcome.suite_result.summary),
+                "failures": list(
+                    getattr(gate_outcome.suite_result, "failures", ()) or ()
+                ),
+            }
+        if gate_outcome.release:
+            integration = integration.__class__(
+                True,
+                integration.signal,
+                f"{integration.detail}; RELEASED by the agent's gate answer "
+                f"({gate_outcome.record.get('answer')}): "
+                f"{gate_outcome.record.get('reason') or 'no reason recorded'}",
+            )
+            attempt["integration_detail"] = integration.detail
+            attempt["integration_released_by_answer"] = gate_outcome.record.get(
+                "answer"
+            )
+            item["integration_released_by_answer"] = gate_outcome.record.get("answer")
+        elif (
+            gate_outcome.verdict is not None
+            and gate_outcome.verdict.awaits_human_decision
+        ):
+            # E-06: `needs-human` means the item waits on a DECISION rather than on work, and those
+            # route to different people. Recorded through the ONE refusal writer so the existing
+            # `Diagnostics / Blocked Items:` block renders it (it renders a `Refusal` for ANY status).
+            record_refusal(
+                item,
+                code=GATE_ANSWER_NEEDS_HUMAN_CODE,
+                reason=(
+                    f"the agent answered {GATE_ANSWER_NEEDS_HUMAN!r} about the failing test suite: "
+                    f"{gate_outcome.record.get('reason') or 'no reason recorded'}"
+                ),
+                remedy=gate_answer_needs_human_remedy(
+                    item["id6"], str(gate_outcome.record.get("reason") or "")
+                ),
+            )
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": (
+                    "integration-gate-answer-released"
+                    if gate_outcome.release
+                    else "integration-gate-answer-refused"
+                ),
+                "id6": item["id6"],
+                "attempt": attempt_no,
+                "answer": gate_outcome.record.get("answer"),
+                "reason": gate_outcome.record.get("reason"),
+                "usable": gate_outcome.record.get("usable"),
+                "signal": integration.signal,
+                "recheck_attempts": gate_outcome.record.get("recheck_attempts"),
+                "recheck_passed": gate_outcome.record.get("recheck_passed"),
+                "session_id": gate_session,
+            },
+        )
+        if gate_outcome.release:
+            print(
+                pal(
+                    f"  \u2713 IPD {item['id6']} integration RELEASED by the agent's answer "
+                    f"({gate_outcome.record.get('answer')}): "
+                    f"{gate_outcome.record.get('reason')}",
+                    "cyan",
+                )
+            )
+        else:
+            print(
+                pal(
+                    f"  ! IPD {item['id6']} integration still REFUSED after asking "
+                    f"({gate_outcome.record.get('answer') or 'no usable answer'}): "
+                    f"{gate_outcome.record.get('reason') or gate_outcome.record.get('violation')}",
+                    "yellow",
+                ),
+                file=sys.stderr,
+            )
+        save_state(run_dir, state)
+    elif integration_gate_relevant and not integration.earned:
+        # Recorded even when NOT asked, because "nobody asked" and "asked and refused" are materially
+        # different facts for a human reading the record, exactly as they are for the defect report.
+        attempt["gate_answer_skipped_reason"] = gate_answer_reason
+        save_state(run_dir, state)
 
     if is_review and wt_handle is not None:
         review_commit, review_committed_paths = commit_review_lane_output(
