@@ -272,7 +272,10 @@ def promote_question_to_backlog(
         if pid:
             existing_ids.add(pid)
     item = _backlog.BacklogItem()
-    item.id = _core.generate_id6(existing_ids)
+    # IPD sk7ggr E-01: repository-wide mint (see artifact_core.mint_id6). This site was absent from
+    # the plan's original call-site list and mints a BACKLOG id6, so it needs the global set exactly
+    # as `backlog.run_new` does.
+    item.id = _core.mint_id6(repo_root, existing_ids)
     item.status = "blocked"
     item.set = set_id or item.id
     item.priority = "high"

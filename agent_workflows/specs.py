@@ -959,7 +959,9 @@ def run_new(args) -> int:
         return 2
     slug = core.kebab(slug_arg or title)[:60] or "spec"
 
-    id6 = core.generate_id6(_existing_spec_ids(repo_root))
+    # IPD sk7ggr E-01: repository-wide mint (see artifact_core.mint_id6), unioned with the spec
+    # tree's own ids rather than replacing them.
+    id6 = core.mint_id6(repo_root, _existing_spec_ids(repo_root))
     date_iso = getattr(args, "date", None) or _today()
     date_compact = date_iso.replace("-", "")
 

@@ -191,7 +191,20 @@ def build_skeleton(
     ``--author`` can no longer put an unparseable record into a brand-new plan.
     """
     if plan_id is None:
-        plan_id = _core.generate_id6(set())
+        # IPD sk7ggr E-02. REACHABILITY, MEASURED: no PRODUCTION path reaches this branch today.
+        # `build_skeleton` is the only holder of the old `generate_id6(set())`, and its single
+        # production caller (`run_scaffold`, below) always passes `plan_id=plan_id` explicitly; every
+        # other caller is under `tests/`. So this was a LATENT TRAP, not a live minting bug.
+        #
+        # It is fixed rather than merely documented because unreachability is exactly the property a
+        # future caller can change silently, and the failure mode is invisible: `generate_id6(set())`
+        # checks a candidate against NOTHING, so any id6 it returns is "unique" by vacuous truth and a
+        # duplicate is only discovered once the plan is written and cited. Minting against the
+        # repository-wide set costs one scan on a path that writes a file anyway.
+        #
+        # A caller that wants determinism must PIN `plan_id` (the documented contract above); it must
+        # not rely on this default being unchecked.
+        plan_id = _core.mint_id6(_core.repo_root_of(Path.cwd()))
     author = normalize_author(author)
     order_seq = S.H2_ORDER_BY_KIND[kind]
     lines: List[str] = []
@@ -365,7 +378,10 @@ def run_scaffold(args: argparse.Namespace) -> int:
             if m and m.group("type") == "ipd":
                 plan_id = m.group("id6")
             else:
-                plan_id = _core.generate_id6(_existing_plan_ids(path))
+                # IPD sk7ggr E-01: repository-wide mint, unioned with the plans tree's own ids.
+                plan_id = _core.mint_id6(
+                    _core.repo_root_of(path), _existing_plan_ids(path)
+                )
     else:
         from agent_workflows import plans_refs as _refs
         from agent_workflows import project_context as _ctx
@@ -377,7 +393,10 @@ def run_scaffold(args: argparse.Namespace) -> int:
         if repo_root is None:
             repo_root = Path.cwd()
         pending = repo_root / ".aw" / "records" / "plans" / "pending"
-        plan_id = _core.generate_id6(_existing_plan_ids(pending))
+        # IPD sk7ggr E-01: repository-wide mint. NOTE the previous per-tree set was `pending` ONLY, so
+        # it did not even cover `executed/`; a fresh plan id6 could equal an executed plan's, which is
+        # the exact shape of the measured `uyeko5` case.
+        plan_id = _core.mint_id6(repo_root, _existing_plan_ids(pending))
         slug = _refs._core.kebab(title)[:60] or "ipd"
         name = _refs.clustered_name(
             date=date.today().strftime("%Y%m%d"),
@@ -636,7 +655,12 @@ def run_sync(args: argparse.Namespace) -> int:
     try:
         text = path.read_text(encoding="utf-8")
         # Backfill a missing stable `Id` first (plans-adopter Order 02), then sync E/V leaves.
-        text_after_id, backfilled_id = _backfill_id(text, _existing_plan_ids(path))
+        # IPD sk7ggr E-01: a BACKFILLED id6 is a mint like any other, so it is collision-checked
+        # against the repository-wide set (unioned with the plans tree's ids), not the plans tree alone.
+        text_after_id, backfilled_id = _backfill_id(
+            text,
+            _existing_plan_ids(path) | _core.global_id6s(_core.repo_root_of(path)),
+        )
         res = compute_sync(text_after_id, directory=LINT._dir_of(path))
     except Exception as exc:
         print(f"error: sync failed to run: {exc}")

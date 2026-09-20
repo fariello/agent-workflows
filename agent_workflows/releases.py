@@ -59,7 +59,9 @@ def plan_release(
         raise ValueError(
             f"release status must be one of {RELEASE_STATUSES}, got {status!r}"
         )
-    id6 = _core.generate_id6(_existing_ids(repo_root))
+    # IPD sk7ggr E-01: repository-wide mint (see artifact_core.mint_id6), unioned with the release
+    # tree's own ids rather than replacing them.
+    id6 = _core.mint_id6(repo_root, _existing_ids(repo_root))
     slug = _core.kebab(version) or "release"
     today = date.today().strftime("%Y%m%d")
     name = f"{today}-{id6}-01-{id6}-{slug}.release.md"

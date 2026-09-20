@@ -115,7 +115,20 @@ class CheckRecipeUnitTests(unittest.TestCase):
         self.assertEqual(rec["schema"], "aw.agent/v1")
         self.assertEqual(rec["cmd"], "check")
         self.assertEqual(rec["exit"], 0)
-        self.assertEqual(rec["findings"], 0)
+        # IPD sk7ggr E-06: a per-type run does NOT perform the cross-tree collision scan, and it now
+        # SAYS so with one `info`-severity `check.collisions-not-checked` finding. The CLEAN contract
+        # this test guards is the EXIT CODE and the `conforms` outcome, both asserted above/below and
+        # both unchanged: `drift_exit_code` ignores `info`. Asserting `findings == 0` here would be
+        # asserting the SILENCE that was the measured defect (`aw check research` reported
+        # `errors 0 warnings 0` and exited 0 over a tree holding a real id6 collision), so the
+        # assertion is tightened to name the one advisory rather than loosened to a bare count.
+        self.assertEqual(rec["findings"], 1)
+        self.assertEqual(
+            [d["rule"] for d in rec["diagnostics"]],
+            ["check.collisions-not-checked"],
+            "the only finding on a clean per-type run must be the advisory naming the collision scan "
+            "this run did not perform",
+        )
         self.assertEqual(rec["outcome"], "conforms")
 
     def test_check_valid_plan_clean_state(self):
@@ -175,7 +188,16 @@ Verify clean check.
         self.assertEqual(rc_agent, 0)
         rec = json.loads(out_agent.strip())
         self.assertEqual(rec["exit"], 0)
-        self.assertEqual(rec["findings"], 0)
+        # IPD sk7ggr E-06, same reasoning as in the empty-tree test above: the conformant plan trips
+        # nothing, and the single finding is the `info` advisory stating that this per-type run did not
+        # run the cross-tree collision scan. Exit 0 is the clean contract and is asserted directly
+        # above.
+        self.assertEqual(rec["findings"], 1)
+        self.assertEqual(
+            [d["rule"] for d in rec["diagnostics"]],
+            ["check.collisions-not-checked"],
+            "a conformant plan must trip no real rule; the one advisory names the skipped scan",
+        )
 
     def test_check_findings_state_exit_1(self):
         # Plant a non-conformant plan (bad filename / invalid naming grammar)
