@@ -758,6 +758,355 @@ class PredicateTruthTableTests(unittest.TestCase):
         self.assertFalse(PR.is_plan_review_approved(Path("/nonexistent/plan.ipd.md")))
 
 
+# rdattest 8v5pwa: the histories that separate an ATTESTED `- Readiness:` from a FORGED one.
+#
+# Each FORGED_* record below is a NON-REVIEW record that nonetheless contains a word the lint rule's
+# mention-matcher accepts, which is why they are named for the mechanism they discriminate rather than
+# for their prose.
+FORGED_NO_EVIDENCE = (
+    "- 2026-09-08 to-review (someone): authored, NO review ever happened."
+)
+FORGED_MENTIONS_PLAN_REVIEW = (
+    "- 2026-09-08 to-review (a): authored. I mention plan-review in passing."
+)
+FORGED_MENTIONS_APPROVE = (
+    "- 2026-09-08 draft (a): created. The word APPROVE appears here."
+)
+FORGED_MENTIONS_REJECT = "- 2026-09-08 to-review (a): supersedes a plan whose review said REJECT - NEEDS REPLAN."
+#: The same forged plan with a REAL review record PREPENDED, i.e. the attested counterpart.
+ATTESTED_OVER_FORGERY = APPROVE_REVISIONS + "\n" + FORGED_NO_EVIDENCE
+
+
+class ReadinessFieldMustBeAttestedTests(unittest.TestCase):
+    """E-01/E-04 / V-01/V-04: a `- Readiness:` field no review produced must not auto-approve.
+
+    THE DEFECT, measured at `b83a6cd9` by running it and not by reading it: a plan carrying
+    `- Readiness: go` whose entire history is one `to-review` record returned True from
+    `is_plan_review_approved`. `IPD-M107` already made that plan a BLOCKING lint finding (and
+    `aw ipd begin` refuses it), so the ARTIFACT was caught while the DECISION stayed credulous - and
+    the decision is the half `--full-auto` consumes to clear a `reviewed` plan to `auto-approved`, a
+    shipped READY-TO-EXECUTE tier, and to flip its queue action to `execute`. An unreviewed plan
+    therefore reached an executable tier. The originating incident (2026-09-06) was an agent writing
+    the field into four freshly authored plans having run no review, and the predicate returning True
+    for every one.
+
+    WHY THE ROWS ARE A TABLE AND WHY THREE OF THEM LOOK REDUNDANT. The three `FORGED_MENTIONS_*` rows
+    are the only ones that DISCRIMINATE THE TWO CANDIDATE MECHANISMS, and they are here because the
+    obvious implementation ships a gate that still returns True. Reusing `ipd_lint._REVIEW_EVIDENCE_RE`
+    (the lint rule's own pattern) looks like the single-definition choice, but that pattern scans the
+    WHOLE history text for `/plan-review`, `APPROVE`, `NO-GO` or `REJECT`, so a bare MENTION in a
+    non-review record satisfies it: all three rows PASS it, so a suite carrying only the plain forged
+    row would have gone green over an unfixed gate and the backlog item would have been closed. The
+    shipped mechanism is `plan_readiness.is_review_history_entry`, which requires a review token in the
+    record's OWN status/workflow middle. `test_the_rejected_mention_matcher_would_have_accepted_the_
+    forgeries` states that contrast as an assertion rather than leaving it in this docstring.
+
+    THE ATTESTED ROWS ARE NOT DECORATION. This predicate fails closed, so an implementation returning
+    False unconditionally satisfies every refusing row; only the attested and back-compat rows make the
+    refusals mean anything. The failure message says so when one of them is what broke.
+    """
+
+    def _write(self, text: str) -> Path:
+        import tempfile
+
+        d = Path(tempfile.mkdtemp())
+        p = d / "plan.ipd.md"
+        p.write_text(text, encoding="utf-8")
+        self.addCleanup(lambda: (p.unlink(missing_ok=True), d.rmdir()))
+        return p
+
+    #: (case, whole plan text, expected `is_plan_review_approved` answer, why this row exists)
+    ATTESTATION_TABLE = (
+        (
+            "a FORGED `go` with no review evidence at all",
+            _plan(readiness="go", history=FORGED_NO_EVIDENCE),
+            False,
+            "THE BACKLOG ITEM'S NAMED DELIVERABLE, and the exact shape measured returning True at "
+            "`b83a6cd9`: a valid, well-spelled field over a history in which no review ever ran. It "
+            "alone does NOT distinguish the two candidate mechanisms (the rejected mention-matcher "
+            "also refuses it), which is why the three rows below exist",
+        ),
+        (
+            "MENTION FORGERY: a `to-review` record MENTIONING plan-review",
+            _plan(readiness="go", history=FORGED_MENTIONS_PLAN_REVIEW),
+            False,
+            "THE ROW THAT DECIDES THE MECHANISM. `_REVIEW_EVIDENCE_RE` matches `plan-review` "
+            "ANYWHERE in the history, so this forgery PASSES it and the gate would still return "
+            "True. `is_review_history_entry` reads the record's own middle (`to-review`, which is "
+            "three characters from `reviewed` and must classify OPPOSITELY) and refuses it",
+        ),
+        (
+            "MENTION FORGERY: a `draft` record containing the word APPROVE",
+            _plan(readiness="go", history=FORGED_MENTIONS_APPROVE),
+            False,
+            "the same hole through a different token: `APPROVE` is in the mention-matcher's "
+            "alternation, so an authoring record that merely uses the word attests a review. A "
+            "`draft` middle states no verdict of its own",
+        ),
+        (
+            "MENTION FORGERY: a non-review record narrating a predecessor's REJECT",
+            _plan(readiness="go", history=FORGED_MENTIONS_REJECT),
+            False,
+            "the third token, and the one with real precedent: every pending plan matching "
+            "`REJECT - NEEDS REPLAN` is a SUCCESSOR narrating its RETIRED predecessor's rejection "
+            "(d7bnhc F-5). The mention-matcher reads that narration as this plan's own review "
+            "evidence, which is the same class of false read in the opposite direction",
+        ),
+        (
+            "the SAME forged plan with a real `/plan-review` record added",
+            _plan(readiness="go", history=ATTESTED_OVER_FORGERY),
+            True,
+            "THE PAIRED POSITIVE, and the row that keeps the four above from being satisfied by a "
+            "gate that refuses every field. The ONLY difference from the first row is one genuine "
+            "review record, so this pair isolates the new requirement from everything else the "
+            "predicate does",
+        ),
+        (
+            "an ATTESTED field whose review record is NOT the newest",
+            _plan(
+                readiness="go-pending-approval",
+                history=(
+                    "- 2026-09-13 approved (aw set): status set to approved\n"
+                    + APPROVE_REVISIONS
+                ),
+            ),
+            True,
+            "WHY THE RULE SCANS ANY RECORD AND NOT THE NEWEST ONE. A reviewed plan routinely "
+            "acquires LATER lifecycle records (`approved`, `executed`, a maintainer note) that "
+            "legitimately post-date the review which wrote the field. MEASURED over all 694 tracked "
+            "plans on 2026-09-20: the any-record rule flips ZERO verdicts, while a newest-record "
+            "rule would flip 237 of the 238 plans that answer True, i.e. it would disable the gate's "
+            "positive half. Refusing a forgery needs no such strictness, since a forged plan has no "
+            "review record ANYWHERE",
+        ),
+        (
+            "a field PRESENT but OUT OF VOCAB, over approving prose",
+            _plan(readiness="bogus", history=APPROVE_REVISIONS),
+            False,
+            "PRESERVED, NOT NEWLY CAUSED (E-02a): a corrupt value must still refuse OUTRIGHT and "
+            "must NOT fall back to the prose, which here WOULD have approved. This row would also "
+            "pass if the new provenance check swallowed the corrupt branch, which is why the "
+            "companion test below proves the prose path was not taken",
+        ),
+        (
+            "an ABSENT field with an approving history",
+            _plan(history=APPROVE_REVISIONS),
+            True,
+            "BACK-COMPAT PRESERVED (E-02b): the fallback for a plan reviewed before the field "
+            "existed is untouched, and only the FIELD-PRESENT branch gained the requirement. Without "
+            "this row the whole change could have been implemented as `return False`",
+        ),
+        (
+            "an ABSENT field with a REJECTING history",
+            _plan(
+                history="- 2026-08-30 /plan-review (opencode/test): REJECT - NEEDS REPLAN; unsound."
+            ),
+            False,
+            "the other half of that fallback, so preserving back-compat is not shown by a path that "
+            "says yes to everything",
+        ),
+    )
+
+    def test_a_readiness_field_is_honored_only_when_a_review_record_accounts_for_it(
+        self,
+    ):
+        wrong = []
+        attested_rows_broken = 0
+        for case, text, expected, why in self.ATTESTATION_TABLE:
+            got = PR.is_plan_review_approved(self._write(text))
+            if got is not expected:
+                if expected:
+                    attested_rows_broken += 1
+                wrong.append(
+                    f"  {case}:\n    expected {expected}, got {got}\n"
+                    f"    this row exists because: {why}"
+                )
+        vacuity = ""
+        if attested_rows_broken:
+            vacuity = (
+                f" NOTE: {attested_rows_broken} of the failing rows are ATTESTED/BACK-COMPAT rows "
+                "that must answer True, and while any of those is broken every refusing row here is "
+                "VACUOUS: this predicate fails closed, so `return False` satisfies all of them."
+            )
+        self.assertEqual(
+            wrong,
+            [],
+            f"is_plan_review_approved answered {len(wrong)} of {len(self.ATTESTATION_TABLE)} "
+            f"attestation shapes wrongly.{vacuity} One rule produces every row (a PRESENT "
+            "`- Readiness:` is honored only when `history_has_review_record` finds a record whose own "
+            "middle marks it a review), so read the grouping. ALL FOUR forged rows approving means "
+            "the provenance check is gone entirely and the 2026-09-06 regression is back. The three "
+            "MENTION rows approving while the plain forged row refuses is the specific signature of "
+            "reverting to `ipd_lint._REVIEW_EVIDENCE_RE`, which matches a mention anywhere and does "
+            "not stop a forgery. FIX: the direction decides the severity. A forged row that now "
+            "approves is a route from unreviewed to an EXECUTABLE tier under `--full-auto`; an "
+            "attested row that now refuses only defers that plan to a human.\n"
+            + "\n".join(wrong),
+        )
+
+    def test_the_rejected_mention_matcher_would_have_accepted_the_forgeries(self):
+        """Kept separate: its subject is the REJECTED mechanism, not this module's behavior.
+
+        This is the assertion that makes the three MENTION rows above non-arbitrary. It states, as a
+        check rather than as a comment, that `ipd_lint._REVIEW_EVIDENCE_RE` ACCEPTS all three forged
+        histories while `plan_readiness.history_has_review_record` refuses them. If the lint pattern
+        is ever tightened to match (OQ-02's route (b)), this test goes red and the divergence it
+        documents has been closed deliberately rather than drifting shut.
+
+        The import of `ipd_lint` lives HERE, in a test, and deliberately NOT in `plan_readiness`: see
+        `test_plan_readiness_does_not_import_ipd_lint`.
+        """
+        from agent_workflows import ipd_lint as L
+
+        for label, history in (
+            ("mentions plan-review", FORGED_MENTIONS_PLAN_REVIEW),
+            ("contains APPROVE", FORGED_MENTIONS_APPROVE),
+            ("contains REJECT", FORGED_MENTIONS_REJECT),
+        ):
+            with self.subTest(label):
+                self.assertIsNotNone(
+                    L._REVIEW_EVIDENCE_RE.search(history),
+                    "the lint rule's mention-matcher no longer accepts this forgery, so the three "
+                    "MENTION rows no longer discriminate the two mechanisms and this test's whole "
+                    "premise has changed: " + history,
+                )
+                self.assertFalse(
+                    PR.history_has_review_record(
+                        _plan(readiness="go", history=history)
+                    ),
+                    "history_has_review_record accepted a history whose only record is NOT a review "
+                    "record, which is the forgery the gate exists to refuse: "
+                    + history,
+                )
+
+    def test_plan_readiness_does_not_import_ipd_lint(self):
+        """Kept separate: asserts a property of the MODULE'S SOURCE, not of any input.
+
+        `plan_readiness` is imported by BOTH host drivers and called in their queue loops, and the
+        originating item's constraint is that whatever it imports stays stdlib-cheap and
+        driver-agnostic. `ipd_lint`'s module header looks cheap but it imports `attention`,
+        `check_engine`, `ipd_authoring`, `record_producers`, `renderers` and `result_types` inside
+        FUNCTION BODIES, reaching `engine`, `artifact_core`, `plans`, `selectors` and `runner_shared`;
+        an edge from here would put the CLI/renderer stack behind a hot predicate. The chosen
+        mechanism needs no import at all, so this pins that no future reader adds one believing the
+        plan's original (and false) F-5 claim that the module was cheap.
+        """
+        import ast
+
+        source = Path(PR.__file__).read_text(encoding="utf-8")
+        offenders = []
+        for node in ast.walk(ast.parse(source)):
+            if isinstance(node, ast.Import):
+                offenders += [a.name for a in node.names if a.name.endswith("ipd_lint")]
+            elif isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                if module.endswith("ipd_lint"):
+                    offenders.append(module)
+                elif module.endswith("agent_workflows"):
+                    offenders += [a.name for a in node.names if a.name == "ipd_lint"]
+        self.assertEqual(
+            offenders,
+            [],
+            "plan_readiness now imports ipd_lint, which both host drivers pull in transitively: "
+            f"{offenders}. The evidence rule it would import is also a MENTION-matcher that does not "
+            "stop a forgery (see the test above), so this edge costs the import AND fails the check.",
+        )
+
+    def test_the_corrupt_field_still_refuses_without_consulting_the_prose(self):
+        """Kept separate: the claim is which CODE PATH ran, shown by a second function's answer.
+
+        E-02a. A table row can only show that the corrupt field refuses; it cannot show that the
+        refusal was not simply the prose path agreeing. The fixture's prose APPROVES (asserted here
+        directly), so a False verdict can only have come from the out-of-vocab branch. This matters
+        because absence means "no signal was recorded" and may fall back, while a bad value means
+        "the signal is corrupt" and must not: falling back could approve a plan whose author meant
+        `no-go`.
+        """
+        text = _plan(readiness="bogus", history=APPROVE_REVISIONS)
+        self.assertTrue(
+            PR.history_verdict_approves(PR.extract_newest_history_entry(text)),
+            "the fixture's prose no longer approves, so this test can no longer tell the two paths "
+            "apart and its premise must be rebuilt",
+        )
+        self.assertFalse(PR.is_plan_review_approved(self._write(text)))
+
+    def test_the_predicate_still_does_not_read_status(self):
+        """Kept separate: varies `- Status:` alone, a column of the OTHER table's fixture.
+
+        E-02's fourth preserved behavior. The predicate answers only "has review cleared this plan";
+        gating on `Status: reviewed` stays with the caller, so this module cannot widen what
+        `--full-auto` may approve. A `draft` plan whose field IS attested must therefore still answer
+        True from this function alone.
+        """
+        self.assertTrue(
+            PR.is_plan_review_approved(
+                self._write(
+                    _plan(
+                        readiness="go-pending-approval",
+                        history=APPROVE_REVISIONS,
+                        status="draft",
+                    )
+                )
+            )
+        )
+
+    #: (case, history body, whether ANY record in it is a review record, why this row exists)
+    PROVENANCE_HISTORIES = (
+        ("a real `/plan-review` record", APPROVE_REVISIONS, True),
+        (
+            "a `reviewed` record written by `aw set`",
+            "- 2026-09-10 reviewed (aw set): plan-review complete: APPROVE.",
+            True,
+        ),
+        (
+            "a review record BELOW later lifecycle records",
+            "- 2026-09-13 approved (aw set): status set to approved\n"
+            + APPROVE_REVISIONS,
+            True,
+        ),
+        ("a bare `to-review` record", FORGED_NO_EVIDENCE, False),
+        (
+            "a `to-review` record MENTIONING plan-review",
+            FORGED_MENTIONS_PLAN_REVIEW,
+            False,
+        ),
+        ("a `draft` record containing APPROVE", FORGED_MENTIONS_APPROVE, False),
+        ("a narration containing REJECT", FORGED_MENTIONS_REJECT, False),
+        (
+            "an `approved` record alone, since an approval is a review's CONSEQUENCE",
+            "- 2026-09-13 approved (aw set): status set to approved",
+            False,
+        ),
+    )
+
+    def test_the_provenance_helper_reads_any_record_in_the_bounded_section(self):
+        """The helper directly, so a failure names the rule rather than the whole predicate."""
+        wrong = []
+        for case, history, expected in self.PROVENANCE_HISTORIES:
+            got = PR.history_has_review_record(_plan(readiness="go", history=history))
+            if got is not expected:
+                wrong.append(f"  {case}: expected {expected}, got {got}")
+        self.assertEqual(
+            wrong,
+            [],
+            f"history_has_review_record misread {len(wrong)} of {len(self.PROVENANCE_HISTORIES)} "
+            "histories. It walks the BOUNDED history section and asks `is_review_history_entry` of "
+            "each record, so all the False rows turning True means the discriminator was replaced by "
+            "a looser test (a mention-matcher), and all the True rows turning False means either the "
+            "section bounding or the record grammar broke and every attested plan is now refused.\n"
+            + "\n".join(wrong),
+        )
+
+    def test_a_plan_with_no_history_section_has_no_review_evidence(self):
+        """Kept separate: the input has NO `## Workflow history` section, which no row can express.
+
+        Every row above is built by `_plan(history=...)`, which always emits the section. Fail-closed
+        is the required answer: a plan carrying a field and no history at all has nothing attesting it.
+        """
+        self.assertFalse(PR.history_has_review_record("# IPD: bare\n\n## Goal\n"))
+        self.assertFalse(PR.history_has_review_record(""))
+
+
 class RealPlanIntegrationTests(unittest.TestCase):
     """V-02's REAL-PLAN rows: a fixture-only suite can pass while the gate stays broken.
 

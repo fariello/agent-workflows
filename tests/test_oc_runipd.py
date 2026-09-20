@@ -3984,6 +3984,23 @@ def _repo_with_statuses(root: Path, statuses: dict) -> Path:
         if status == "reviewed":
             # The `--full-auto` danger path needs an APPROVING readiness to be auto-cleared.
             text = text.replace("- Author: test", "- Author: test\n- Readiness: go", 1)
+            # rdattest 8v5pwa: AND IT NEEDS A REVIEW RECORD, or the danger path is not reachable and
+            # `test_alias_refuses_a_reviewed_plan_even_with_full_auto_present` goes VACUOUS. That test's
+            # load-bearing assertion is that the plan file still reads `- Status: reviewed`, which only
+            # means anything while `is_plan_review_approved` WOULD have cleared this fixture had the
+            # action gate not refused first. That predicate now requires the `- Readiness:` field to be
+            # ATTESTED by a review record in the plan's own history, and `_CONFORMING_PLAN`'s history
+            # holds only `approved` and `draft` records (an approval is a review's CONSEQUENCE, not
+            # review evidence). MEASURED both ways on this exact fixture: pre-change the predicate
+            # cleared it (True), so the assertion could fail; without this record it cannot clear it
+            # (False), so the assertion passes whatever the ordering. The record is what keeps the
+            # ordering claim falsifiable. PREPENDED, because `aw set` writes history newest-first.
+            text = text.replace(
+                "## Workflow history\n",
+                "## Workflow history\n\n"
+                "- 2026-08-28 reviewed (test): /plan-review: APPROVE; no defects.\n",
+                1,
+            )
         (pending / f"20260828-demo-{order:02d}-{id6}-demo.ipd.md").write_text(
             text, encoding="utf-8"
         )
