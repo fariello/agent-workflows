@@ -498,6 +498,43 @@ def capture_command(
         actor=actor,
         parent=parent,
     )
+    # gatewire-01 (`h5pyqa`): RETURN THE OUTPUT TEXT to the caller, which repairs a measured defect in
+    # every consumer of this function.
+    #
+    # THE DEFECT, measured 2026-09-20 by calling this function directly: `oc_runipd.run_suite_check`
+    # read `tool_event["stdout_excerpt"]` and `host_runner.run_raw_worker` reads
+    # `tool_event["stdout"]`, and `build_tool_event` writes NEITHER - a `tool_event` is a LEDGER record
+    # carrying `stdout_sha256`/`stdout_len` and deliberately not the text. So both reads silently
+    # yielded `""`, and the integration gate's `summary` has always been empty (its refusal reason read
+    # `no summary line parsed` on every failure). The existing tests could not see it because each one
+    # mocks this function and fabricates the very key production never produces.
+    #
+    # WHY IT IS ADDED TO THE RETURNED MAPPING AND NOT TO THE LEDGER RECORD SHAPE. `build_tool_event` is
+    # the ledger's own constructor and its records are persisted and schema-checked
+    # (`run_ledger_schema._KIND_FIELDS["tool_event"]`); writing unbounded command output into a durable
+    # ledger is a far larger decision than repairing these reads, and this plan does not own it. These
+    # keys are therefore attached HERE, on the in-memory value this function hands back, so a caller can
+    # read the output it just asked for while the record's own shape is untouched. `build_tool_event`
+    # remains byte-for-byte what it was for every other caller.
+    #
+    # BOTH SPELLINGS ARE SUPPLIED, and that is a deliberate acceptance of an existing inconsistency
+    # rather than a new one: two consumers already read two different key names, and inventing a third
+    # correct name would leave both of them broken. Widening is the fix that reaches every existing
+    # reader without touching either call site.
+    stdout_text = (
+        stdout_raw.decode("utf-8", "replace")
+        if isinstance(stdout_raw, bytes)
+        else str(stdout_raw)
+    )
+    stderr_text = (
+        stderr_raw.decode("utf-8", "replace")
+        if isinstance(stderr_raw, bytes)
+        else str(stderr_raw)
+    )
+    tool_event["stdout"] = stdout_text
+    tool_event["stderr"] = stderr_text
+    tool_event["stdout_excerpt"] = stdout_text
+    tool_event["stderr_excerpt"] = stderr_text
 
     bound_ids = list(binds) if binds else []
     envelope = build_evidence_envelope(

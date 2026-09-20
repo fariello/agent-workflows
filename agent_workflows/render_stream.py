@@ -1825,6 +1825,20 @@ def _parse_iso_timestamp(ts_str: str | None) -> float | None:
 #: N sites is exactly how a reader and a writer drift apart.
 REFUSAL_KEY = "refusal"
 
+#: The `Refusal.code` for an item whose agent answered `needs-human` about a failing test suite
+#: (gatewire-01 `h5pyqa` E-06).
+#:
+#: DEFINED HERE, AND THE DIRECTION IS FORCED rather than chosen: `runner_shared` already imports this
+#: module at module level, so the edge a RENDERER needs to recognize this code cannot run the other
+#: way without a circular import. That is the identical reason `Refusal` itself lives here (see its
+#: docstring). `runner_shared` imports this name and is the only writer.
+#:
+#: IT EXISTS AS A CONSTANT rather than as a string compared in two places because the diagnostics
+#: block must render this refusal DIFFERENTLY from every other one, and a literal spelled at both the
+#: writing and the reading site is exactly how this module's F-4 defect happened (a renderer read
+#: `driver_error` while the producer wrote `integration_deferral`).
+GATE_ANSWER_NEEDS_HUMAN_CODE = "awaiting-human-decision"
+
 
 @dataclass(frozen=True)
 class Refusal:
@@ -2546,7 +2560,23 @@ def render_run_summary_table(
         st = it.get("status")
         id6 = it.get("id6")
         refusal = refusal_of_item(it)
-        if refusal is not None:
+        if refusal is not None and refusal.code == GATE_ANSWER_NEEDS_HUMAN_CODE:
+            # gatewire-01 (`h5pyqa`) E-06: a `needs-human` answer is NOT an ordinary refusal and must
+            # not read like one. It means the item is waiting on a DECISION rather than on work, and
+            # those two route to different people: "decide this" goes to the maintainer, "fix this"
+            # goes to a later turn. So it is LABELLED as a decision request and stated FIRST in the
+            # block, because a reader scanning refusals for something to re-run would otherwise
+            # re-dispatch an item that will arrive at the same unanswered question.
+            #
+            # RENDERED THROUGH THE SAME `Refusal` RECORD as every other entry, deliberately: only the
+            # PRESENTATION differs, so nothing here can disagree with the durable record about whether
+            # the item was refused.
+            diag_lines.insert(0, f"    → decision needed: {refusal.remedy}")
+            diag_lines.insert(
+                0,
+                f"  • {id6}: AWAITING HUMAN DECISION ({st}) - {refusal.reason}",
+            )
+        elif refusal is not None:
             # The remedy is on its own line so it survives the `head`/`tail` pipelines agents use, and
             # so a long reason cannot push it off the reader's screen.
             diag_lines.append(f"  • {id6}: {st} ({refusal.reason})")
