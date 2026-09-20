@@ -166,8 +166,13 @@ from agent_workflows.render_stream import (
     GATE_ANSWER_NEEDS_HUMAN_CODE as _render_gate_answer_needs_human_code,
     Palette,
     StreamTracker,
-    _STATUS_COLOR,
     execution_index,
+    # lifeglyph (`qdd5jq`) E-02, spec `uonrjg` R10.3: the LIFECYCLE resolution seam, replacing the
+    # `_STATUS_COLOR` table this module used to import. Resolution lives in `lifecycle_style` and
+    # rendering in `term`; `render_stream` exposes the runner-item shaped entry point so this module
+    # keeps its single module-level first-party import.
+    resolve_item_lifecycle,
+    resolve_reached_success_lifecycle,
     # orchprobe-03 (`m7gvuz`) E-06: the probe gate records its refusal through child 01's ONE writer
     # rather than assigning the key itself, which is the whole point of that record existing: a
     # literal spelled at N sites is how a reader and a writer drift apart (r2i1b1 F-4).
@@ -16361,16 +16366,32 @@ def execute_item_core(
     reached_success = item_reached_success(
         {"action": item.get("action", action), "status": disposition}
     )
-    glyph = "\u2713" if reached_success else "\u25cf"
-    glyph_color = (
-        "green" if reached_success else (_STATUS_COLOR.get(disposition, "yellow"))
+    # BOTH THE GLYPH AND THE COLOR NOW RESOLVE THROUGH THE SHARED MODULE (lifeglyph `qdd5jq` E-02,
+    # spec `uonrjg` R10.3 and Section 7.2). They were a hardcoded pair, `"✓" if reached_success else
+    # "●"` beside `"green" if reached_success`, and that literal `green` is where the F-01
+    # readiness/completion collapse SURVIVED the table conversion: this is the one line printed at
+    # the end of every item, so an `approved` disposition that met its bar was painted the same green
+    # as a verified `executed` one. Resolving the DISPOSITION means `ran` now renders `recovering`
+    # (`↩︎`) rather than a neutral fallback and `unknown_outcome` renders `failed` (`✘`), both of
+    # which Section 7.2 decided and neither of which the old table could express.
+    #
+    # `reached_success` STILL DECIDES THE SUCCESS CASE, deliberately, because it answers a question
+    # the status alone cannot: an EXECUTE item that ended `reviewed` did no work and must not show a
+    # completion glyph, which is the `zz5yxq` finding recorded above. So a met bar resolves the
+    # `done` STAGE explicitly (spec Section 5's `✓`, green 46) instead of trusting the disposition's
+    # own mapping, and everything else resolves from the disposition. The distinction that is gone is
+    # the LITERAL, not the judgement.
+    finish_resolved = (
+        resolve_reached_success_lifecycle(disposition)
+        if reached_success
+        else resolve_item_lifecycle(disposition)
     )
     finish = (
-        pal(f"{glyph} ", glyph_color)
+        pal.lifecycle_glyph(finish_resolved, width=2)
         + pal(f"IPD {seq:02d}/{total} {item['id6']}", "bold")
         + pal(f" ({action})", "dim")
         + " -> "
-        + pal(disposition, glyph_color)
+        + pal.lifecycle(finish_resolved, disposition)
         + pal(f"  (exit {exit_code})", "dim")
     )
     print(finish)

@@ -95,13 +95,14 @@ from agent_workflows.plan_readiness import (
     is_plan_review_approved,
 )
 from agent_workflows.render_stream import (
+    activity_for_item,
+    resolve_item_lifecycle,
     format_spec_impact_announcement,
     format_spec_impact_failure,
     format_spec_edit_report,
     _ANSI_CODES,
     _ANSI_RESET,
     _ANSI_STRIP_RE,
-    _STATUS_COLOR,
     Heartbeat,
     Palette,
     # orchprobe (r2i1b1) E-01/E-02: the ONE refusal record, carrying a reason AND a remedy, defined in
@@ -444,7 +445,8 @@ __all__ = [
     "_ANSI_CODES",
     "_ANSI_RESET",
     "_ANSI_STRIP_RE",
-    "_STATUS_COLOR",
+    "activity_for_item",
+    "resolve_item_lifecycle",
     "Heartbeat",
     "Palette",
     "Statusline",
@@ -5958,6 +5960,11 @@ def run_opencode(
             run_start_mono=run_start_mono,
             action=statusline_action_for_item(item),
             artifact_kind=item.get("kind", item.get("type", "ipd")),
+            # lifeglyph (`qdd5jq`) E-03, spec Section 7.1: the live activity, derived from the
+            # field that CARRIES it (`verification_status`, `integration_signal`, the retry state)
+            # rather than from `action` alone, which only knows `review`/`execute`. `None` when the
+            # entry signals nothing, which renders no activity cell rather than a guessed one.
+            activity=activity_for_item(item),
         )
         watchdog = StallWatchdog(process, timeout=stall_timeout)
         # The countdown the operator sees must come from the watchdog that kills, so the
