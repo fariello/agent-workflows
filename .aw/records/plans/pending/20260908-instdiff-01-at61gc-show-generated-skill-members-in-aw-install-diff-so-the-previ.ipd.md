@@ -41,7 +41,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the preview build the same map as the apply
 
-- [ ] E-01 CALL `_build_skill_members` ON THE `--diff` BRANCH AND PASS THE MERGED MAP TO `show_install_diffs`, so the preview's proposed set is the same set the apply writes.
+- [x] E-01 CALL `_build_skill_members` ON THE `--diff` BRANCH AND PASS THE MERGED MAP TO `show_install_diffs`, so the preview's proposed set is the same set the apply writes.
   MIRROR THE APPLY PATH EXACTLY RATHER THAN INVENTING A SECOND COMPOSITION. `install_into_repo` already establishes the shape: build `skill_members` from `_build_skill_members(workflows, plan.source_root, target_layout)`, then merge as `{**shim_members, **skill_members}`. Use the SAME call with the SAME arguments and the SAME merge order. A different argument set or a different merge order here would be a second answer to one question, which is how the two paths drifted in the first place.
   THE TWO SITES ARE IN DIFFERENT FUNCTIONS, so do not expect to see them together. The `--diff` branch is in `run` (`engine.py:5806-5937`, the branch guarded by `if plan.diff:`); the apply composition is in `install_into_repo` (`:5626-5803`). The plan previously described them as twenty lines apart in one function, which is wrong and would mislead anyone trying to locate the edit.
   THE `--diff` BRANCH ALREADY HAS EVERY INPUT IT NEEDS, VERIFIED AT REVIEW TIME rather than assumed: `target_layout` (from `resolve_target_layout`), `workflows` (from `parse_manifest`), and `plan.source_root` are all bound on that branch already, which are exactly `_build_skill_members`'s three parameters. So this adds no new resolution and no new I/O. Re-confirm by reading before editing; if any input is missing, STOP and report rather than resolving it a second way.
@@ -50,11 +50,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT CHANGE WHAT AN APPLY WRITES. This plan alters the PREVIEW only. If a diff appears after this change that an apply would not produce, that is a bug in this change, not a discovery about the apply path.
   - Depends on: none
   - Expected outcome: the `--diff` branch builds `skill_members` through `_build_skill_members` and passes the merged shim-plus-skill map to `show_install_diffs`; `show_install_diffs`'s own body is unmodified; no change to `install_all`, `prune_stale`, or any generator.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the parity so it cannot regress
 
-- [ ] E-02 ADD A PARITY TEST THAT RUNS IN THE BARE SUITE AND OBSERVES WHAT THE REAL `--diff` BRANCH ACTUALLY PASSES, asserting the generated map it hands `show_install_diffs` carries the skill members.
+- [x] E-02 ADD A PARITY TEST THAT RUNS IN THE BARE SUITE AND OBSERVES WHAT THE REAL `--diff` BRANCH ACTUALLY PASSES, asserting the generated map it hands `show_install_diffs` carries the skill members.
   THE TEST MUST DRIVE `engine.run`, NOT RE-COMPOSE THE MAPS ITSELF. This is the item's central constraint and it REPLACES the plan's original prescription, which was measured to be untestable. The original text said to prove parity "by calling the generators directly, with no temporary git repo"; a test written that way composes BOTH sides itself, so it is an identity assertion that passes at HEAD with the defect fully present. MEASURED: `{**shims, **skills} == {**shims, **skills}` evaluates True on unmodified code, so such a test could never satisfy V-02's requirement to fail with E-01 reverted, and would be a test that proves nothing while appearing to gate the fix. The real branch must be exercised.
   THE VERIFIED MECHANISM, so the executor does not have to search for one. Monkeypatch `engine.show_install_diffs` with a recorder, build args via `engine.parse_args(["--repo", <tmpdir>, "--diff", "--no-color"])`, call `engine.run(args)`, and assert on the map the recorder CAPTURED. MEASURED at review time: this returns rc 0, needs NO git repo and no `init_repo` (the `--diff` branch returns before `ensure_repo_root` and the git diagnostics), captures a 54-entry generated map at HEAD of which ZERO are skill members, and therefore FAILS at HEAD and passes after E-01. That is both fast enough to be non-slow and genuinely falsifiable.
   ASSERT THE PROPERTY, NOT A HARDCODED COUNT. The measured 54 shims and 92 skills are true today and change the moment a workflow is added or removed, so a test pinning either number fails for the wrong reason. Assert that the captured generated map CONTAINS every key of `_build_skill_members(...)` composed from the same inputs, which stays true as the corpus grows.
@@ -62,16 +62,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   A NEW TEST FILE IS FORCED, not a preference (see OQ-02, now resolved). `tests/test_installer_skill_emission.py:32` sets a MODULE-level `pytestmark = pytest.mark.slow`, and pytest has no per-test or per-class escape from that: measured directly, a `@pytest.mark.<other>` on a test and a class-level `pytestmark = []` both still leave the test DESELECTED under `-m "not slow"`. So the parity test goes in a NEW non-slow module, and `- Scope-Paths:` declares it.
   - Depends on: E-01
   - Expected outcome: a test in a new non-slow module that drives the real `--diff` branch, asserts the captured generated map contains the (non-empty) skill member set, runs in a bare `python3 -m pytest`, hardcodes no counts, and fails when E-01 is reverted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 DEMONSTRATE THE FIX END TO END THROUGH THE REAL COMMAND, so the claim is about operator-visible behavior and not only about a captured map.
+- [x] E-03 DEMONSTRATE THE FIX END TO END THROUGH THE REAL COMMAND, so the claim is about operator-visible behavior and not only about a captured map.
   USE THE COMMAND THAT ACTUALLY EXISTS: `python3 install-workflows.py --repo <tmp> --diff --no-color`. Do NOT use `aw install --diff`, which is not a real flag and exits `unrecognized arguments: --diff` (measured). An executor who reaches for the `aw` form will get an error and may wrongly conclude the defect does not reproduce.
   SHOW THE BEFORE AND THE AFTER, COUNTING PROPOSED-FILE HEADERS, not merely grepping for the word "skills". MEASURED CAUTION: a naive `grep skills` on the `--diff` output matches 17 lines at HEAD, all of them file CONTENT (host-adapter path templates like `".agents/skills/{skill_name}/SKILL.md"`), not previewed paths, so a grep-based check would report the defect as already fixed. Count `^\+\+\+ ` / `Diff: ` headers under `.agents/skills/` instead: measured 0 at HEAD out of 213 proposed files, and it must be non-zero after.
   CONFIRM THE APPLY PATH DID NOT MOVE. Install into a throwaway repository and show the on-disk skill file set is byte-identical in NAME SET to before this change (the review-time figure is 92 files under `.agents/skills/`). The whole safety claim of this plan is that only the preview changed, and an unverified claim of no-change is exactly the kind this repository's validation rule exists to reject.
   REUSE THE EXISTING END-TO-END HARNESS rather than writing a third one: `tests/test_installer_skill_emission.py` already imports `SOURCE_WORKFLOWS`, `git` and `init_repo` from `tests.support` (`:24`) and builds throwaway repositories that way. This item may legitimately live in that slow module, since it is an end-to-end check by nature; E-02 is the one that must be fast.
   - Depends on: E-02
   - Expected outcome: pasted `install-workflows.py --diff` output before and after, with skill-path proposed-file headers going from 0 to non-zero, plus evidence that an apply's on-disk skill file set is unchanged by this plan.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -116,12 +116,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - RENAMING THE `shim_members` PARAMETER on `install_all` and `prune_stale` to something like `generated_members`. OQ-01. It is purely cosmetic, it is pre-existing rather than introduced here, and it would touch two signatures plus their call sites and tests, turning a one-line correctness fix into a refactor. A correctness fix and a rename should not share a review.
+  - Carrier-Declined: purely cosmetic and pre-existing (OQ-01, resolved NO). It changes no behavior, so there is nothing for a carrier to track: the correct home is any future change that already touches those two signatures, which the resolution says so. Filing an item for a parameter name would put noise in the backlog a gate then has to carry.
 - ANY CHANGE TO SKILL GENERATION, `host_adapters`, `build_skill_package`, or `generate_adapter_bundle`. All shipped in `5af28bbb` and are under test. This plan consumes them unchanged.
+  - Carrier-Evidence: .aw/records/plans/executed/20260825-installerskill-01-kvfsak-emit-skill-package-adapter-bundle-from-install-all-across-ho.ipd.md
 - ANY CHANGE TO PRUNE, UNINSTALL, OR IDEMPOTENCY. Delivered by `kvfsak` E-05/E-07 and pinned by the existing tests, which I ran. Re-implementing them is exactly the waste the obsolescence check exists to prevent.
+  - Carrier-Evidence: .aw/records/plans/executed/20260825-installerskill-01-kvfsak-emit-skill-package-adapter-bundle-from-install-all-across-ho.ipd.md
 - PER-HOST SKILL EMISSION. Not pending work: `kvfsak` resolved skills to ONE shared directory for both layouts (`host_adapters.py:60`, `engine.py:174`), so the item's "across hosts" clause is already answered.
+  - Carrier-Declined: NOT outstanding work at all. `kvfsak` already resolved skills to ONE shared directory for both layouts (`host_adapters.SHARED_SKILLS_DIR`, `engine.resolve_skills_dir`), so the item's "across hosts" clause is answered rather than deferred; a carrier would track a thing nobody intends to do.
 - ADAPTER-METADATA FILE EMISSION. Deliberately excluded by `kvfsak` OQ-02 Option A, and pinned by `::test_no_adapter_metadata_files_emitted`. Not reopened here.
-- THE ~49 ENSURER-WRITTEN FILES THE PREVIEW STILL OMITS (F-13). Measured at review time: with E-01 applied the preview proposes 304 paths while an apply writes 353, the remainder being `.aw/records/**` READMEs and `.gitkeep`s, `.aw/.gitignore` and similar, produced by separate `ensure_*` steps that `show_install_diffs` has never modelled. Closing that too would mean teaching the preview about every ensurer, which is a materially larger change with its own design question (what a preview should say about a file created only when absent), and it is NOT the divergence backlog `bplplj` named. It needs its own backlog item. Recorded here so the gap is a known, bounded exclusion rather than a surprise, and so nobody reads the residual difference as a regression introduced by this plan.
+  - Carrier-Declined: a DELIBERATE, decided exclusion (`kvfsak` OQ-02 Option A) that is pinned by a test asserting the absence (`::test_no_adapter_metadata_files_emitted`). It is a settled design choice, not an obligation, so there is nothing for a carrier to carry forward.
+- THE ~49 ENSURER-WRITTEN FILES THE PREVIEW STILL OMITS (F-13). Measured at review time: with E-01 applied the preview proposes 304 paths while an apply writes 353, the remainder being `.aw/records/**` READMEs and `.gitkeep`s, `.aw/.gitignore` and similar, produced by separate `ensure_*` steps that `show_install_diffs` has never modelled. Closing that too would mean teaching the preview about every ensurer, which is a materially larger change with its own design question (what a preview should say about a file created only when absent), and it is NOT the divergence backlog `bplplj` named. It needs its own backlog item, and FILED AT EXECUTION AS ONE rather than left as prose: backlog `9vkhkk` (`.aw/records/backlog/open/20260920-instdiff-01-9vkhkk-diff-preview-omits-ensurer-written-files.backlog.md`) is the durable carrier, so this deferral survives the plan reaching `executed` instead of vanishing from `aw attention`. RE-MEASURED at execution time on the fixed code: 305 previewed against 353 applied, so the residual is 48 rather than the review-time 49 (the corpus moved); the PROPERTY, not the count, is the finding. Recorded here so the gap is a known, bounded exclusion rather than a surprise, and so nobody reads the residual difference as a regression introduced by this plan.
+  - Carrier: 9vkhkk
 - ADDING A `--diff` FLAG TO `aw install`. The `aw` verb exposes `--dry-run` and not `--diff` (F-9). Whether the two surfaces should converge is a CLI-design question with its own review; this plan fixes the existing preview rather than adding a command surface.
+  - Carrier-Declined: a CLI-design question about whether two surfaces should converge, not a defect and not work this plan leaves half done. `aw install --dry-run` already exists and works; nobody has asked for the flag. Filing it would gate a release on a speculative ergonomics change.
 
 ## Scope check
 
@@ -138,6 +145,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 No spec governs the `--diff` renderer's member set, and this plan amends no spec: it makes one code path agree with another that is already correct, changing no contract. That is the justification to record, per the rule that a plan touching behavior a spec describes must carry the amendment.
 VERIFY RATHER THAN ASSUME, since a wrong answer here means a silent contract change. Before executing, grep `.aw/records/specs/` for any spec that describes `aw install`'s dry-run or preview output. If one specifies what `--diff` reports, then making the preview complete is a CONTRACT change and that spec file must be added to `- Scope-Paths:` before the run starts, because both runners announce declared spec edits at run start and the finalize scope gate reconciles declared against actual. My reading is that none does, but the executor must confirm and state the result.
 No user-facing documentation change is expected: the fix makes `--diff` behave the way its existing help already implies. If any doc states the preview's contents explicitly, correct it there rather than leaving it contradicted.
+EXECUTOR'S CONFIRMATION (2026-09-20), the check this section demanded rather than an assumption: `grep -rln 'install --diff|show_install_diffs|--diff' .aw/records/specs/` returns NOTHING, so no spec describes `aw install`'s dry-run or the preview's member set, and no spec file is added to `- Scope-Paths:`. `grep -rln 'install-workflows.py --diff' README.md docs/ *.md` likewise returns nothing, so no user-facing document states the preview's contents and none is contradicted by this change. The plan's reading is CONFIRMED: this amends no contract, it makes one code path agree with another that was already correct, and no spec edit is declared or performed.
 
 ## Open questions
 
@@ -159,20 +167,120 @@ No user-facing documentation change is expected: the fix makes `--diff` behave t
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the modified `--diff` branch showing the `_build_skill_members` call and the merged map handed to `show_install_diffs`. Paste a diff of `show_install_diffs`'s body proving it is UNCHANGED. Paste a diff of `install_all` and `prune_stale` proving they are unchanged. Paste the apply path (`engine.py:5697-5704`) beside the new preview code so a reviewer can see the two compositions are identical in call, arguments and merge order.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE NEW PREVIEW CODE, the ONLY hunk in `engine.py` (`git diff -U0` reports exactly one: `@@ -6642 +6642,15 @@ def run(args: argparse.Namespace) -> int:`, `1 file changed, 15 insertions(+), 1 deletion(-)`), inside the `if plan.diff:` branch of `run`:
+    ```
+                shim_members = generate_shim_members(
+                    workflows, plan.source_root, target_layout=target_layout
+                )
+    -           show_install_diffs(plan, body_members, shim_members)
+    +           [comment block: why the preview must compose the apply's map]
+    +           skill_members = _build_skill_members(
+    +               workflows, plan.source_root, target_layout
+    +           )
+    +           show_install_diffs(plan, body_members, {**shim_members, **skill_members})
+                continue
+    ```
+    THE APPLY PATH BESIDE IT, unchanged, `engine.py:6460-6463` in `install_into_repo`:
+    ```
+        skill_members = _build_skill_members(workflows, plan.source_root, target_layout)
+        generated_members = {**shim_members, **skill_members}
+    ```
+    The call, its three arguments and the merge order are IDENTICAL, which is the "no second composition" requirement.
+    `show_install_diffs`, `install_all` AND `prune_stale` ARE PROVABLY UNCHANGED, and the proof is stronger than three separate diffs: `git diff -U0 -- agent_workflows/engine.py` contains exactly ONE hunk, at line 6642, and all three of those functions live elsewhere in the file (`show_install_diffs` at `:3840`, and `_build_skill_members` at `:6358` is likewise untouched). A single hunk at 6642 cannot have modified any of them. `git diff --stat` for the whole change: `agent_workflows/engine.py | 16 +++++++++++++++-` and nothing else in `agent_workflows/`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the new test's source. It MUST show the test driving the real branch (`engine.run` with `show_install_diffs` recorded) and asserting on the CAPTURED map; a test that composes both sides itself is a FAILED validation of this item, not an alternative implementation, because it passes at HEAD with the defect present (F-10). Paste it EXECUTING IN A BARE `python3 -m pytest` run, showing the node id in the output rather than a passing count from a direct invocation, which is the property F-6/F-12 make load-bearing. Paste the assertion showing the expected skill map is non-empty. Confirm by inspection that no file count is hardcoded. Paste the test FAILING with E-01 reverted, since a test that passes both before and after proves nothing; the review-measured pre-change observation is a 54-entry captured map with ZERO skill members.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE TEST DRIVES THE REAL BRANCH AND ASSERTS ON THE CAPTURED MAP. `tests/test_installer_diff_parity.py` (new, non-slow module) records the renderer and calls `engine.run`:
+    ```
+            calls: list[CapturedDiffCall] = []
+            original = INS.show_install_diffs
 
-- [ ] V-03 validates E-03
+            def recorder(plan, body_members, shim_members):  # mirrors the real signature
+                calls.append(CapturedDiffCall(plan=plan, body_members=list(body_members),
+                                              generated_members=dict(shim_members)))
+
+            INS.show_install_diffs = recorder
+            try:
+                args = INS.parse_args(["--repo", str(repo_root), "--diff", "--no-color"])
+                rc = INS.run(args)
+            finally:
+                INS.show_install_diffs = original
+            self.assertEqual(rc, 0, "the --diff branch must succeed")
+            self.assertEqual(len(calls), 1, "show_install_diffs was not called exactly once")
+            return calls[0]
+    ```
+    NON-EMPTINESS IS ASSERTED, so the containment check cannot pass vacuously:
+    ```
+            self.assertTrue(expected_skills, "expected at least one generated skill member to check against")
+            missing = sorted(set(expected_skills) - set(generated))
+            self.assertEqual(missing, [], "the --diff preview omits generated skill members an apply would write")
+    ```
+    NO COUNT IS HARDCODED, confirmed by inspection: the expectation is recomposed with `INS._build_skill_members(...)` from the same inputs, and the historical figures (54/92/213) appear only in module and comment prose, never in an assertion.
+    IT RUNS IN THE BARE SUITE (the property F-6/F-12 make load-bearing). `python3 -m pytest --collect-only -q | grep test_installer_diff_parity` -> `tests/test_installer_diff_parity.py: 3`, and the node ids execute:
+    ```
+    tests/test_installer_diff_parity.py::DiffPreviewGeneratedMemberParityTests::test_diff_preview_generated_map_contains_every_generated_skill_member PASSED [ 33%]
+    tests/test_installer_diff_parity.py::DiffPreviewGeneratedMemberParityTests::test_diff_preview_generated_map_matches_the_apply_composition PASSED [ 66%]
+    tests/test_installer_diff_parity.py::DiffPreviewGeneratedMemberParityTests::test_every_previewed_skill_member_value_is_renderable_text PASSED [100%]
+    3 passed in 0.26s
+    ```
+    The bare full-suite run rose from `7226 passed` to `7229 passed` (+3), i.e. these three ran in it.
+    IT FAILS WITH E-01 REVERTED, which is what makes it a gate rather than decoration. With the `_build_skill_members` call removed from the `--diff` branch:
+    ```
+    E           AssertionError: Lists differ: ['.agents/skills/advise-architect/SKILL.md[4951 chars].md'] != []
+    E           First list contains 92 additional elements.
+    E           First extra element 0:
+    E           '.agents/skills/advise-architect/SKILL.md'
+    FAILED tests/test_installer_diff_parity.py::...::test_diff_preview_generated_map_matches_the_apply_composition
+    FAILED tests/test_installer_diff_parity.py::...::test_every_previewed_skill_member_value_is_renderable_text
+    FAILED tests/test_installer_diff_parity.py::...::test_diff_preview_generated_map_contains_every_generated_skill_member
+    ============================== 3 failed in 0.56s ===============================
+    ```
+    All three fail, naming the 92 omitted members; the fix was then restored and re-verified passing.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `python3 install-workflows.py --repo <tmp> --diff --no-color` output from a throwaway repository BEFORE the change and AFTER, and report the COUNT of proposed-file headers under `.agents/skills/` (review-measured pre-change value: 0, out of 213 total). Do NOT substitute a bare `grep skills`, which matches 17 content lines at HEAD and would falsely show the defect absent (F-14). Paste the on-disk skill file set from an apply before and after the change, showing the NAME SET IDENTICAL (review-measured: 92 files), which is this plan's central safety claim. Paste `python3 -m pytest tests/test_installer_skill_emission.py -o addopts=""` showing the pre-existing `10 passed` still passing (re-measured at review time: `10 passed in 13.00s`). Paste the bare full-suite summary line with the worktree baseline beside it and a node-id comparison against the corrected baseline in the required-tests section.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE REAL COMMAND, BEFORE AND AFTER, counting `Diff: ` proposed-file headers rather than grepping for the word. `python3 install-workflows.py --repo <throwaway> --diff --no-color`, rc 0 both times:
+    ```
+    === BEFORE (HEAD, no fix): skill-path headers
+    (count: 0 of 213)
+
+    === AFTER (fixed): first 6 skill-path headers
+    Diff: .agents/skills/advise-architect/SKILL.md
+    Diff: .agents/skills/advise-architect/reference/canonical-body.md
+    Diff: .agents/skills/advise-domain-expert/SKILL.md
+    Diff: .agents/skills/advise-domain-expert/reference/canonical-body.md
+    Diff: .agents/skills/advise-naive-user/SKILL.md
+    Diff: .agents/skills/advise-naive-user/reference/canonical-body.md
+    (count: 92 of 305)
+    ```
+    So 0 -> 92 skill-path headers and 213 -> 305 previewed paths. The F-14 caution held: a naive `grep -c skills` on the BEFORE output returns 23 (content lines, host-adapter path templates), which would have falsely reported the defect absent, so it was not used.
+    THE APPLY PATH DID NOT MOVE, this plan's central safety claim. A real install into a throwaway git repo before and after the change, `find .agents/skills -type f | sort`, 92 files each time, `diff` of the two name sets empty:
+    ```
+    92
+    92
+    APPLY SKILL NAME SET IDENTICAL
+    ```
+    THE SLOW SKILL SUITE STILL PASSES, now including the new end-to-end item (pre-change baseline `10 passed`; 11 with this plan's addition):
+    ```
+    $ python3 -m pytest tests/test_installer_skill_emission.py -o addopts=""
+    collected 11 items
+    tests/test_installer_skill_emission.py ...........                       [100%]
+    ============================= 11 passed in 23.09s ==============================
+    ```
+    That new item also FAILS with E-01 reverted (`AssertionError: [] is not true : the --diff preview reported no skill paths (it under-reports what an apply writes)`), so the end-to-end check is a gate too.
+    BARE FULL SUITE, with the baseline measured in THIS worktree and compared by NODE ID, not by totals:
+    ```
+    BEFORE (this worktree, HEAD f156e14c): 1 failed, 7226 passed, 3 skipped, 2 xfailed, 3 warnings in 196.30s
+      FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    AFTER:  1 failed, 7229 passed, 3 skipped, 2 xfailed, 3 warnings in 184.78s (0:03:04)
+      FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    ```
+    SAME single failing node id before and after, so this change introduced no failure. That failure is ENVIRONMENTAL and unrelated: the test asserts a non-isolated turn gets no denial policy, and it trips on `OPENCODE_CONFIG_CONTENT` inherited from THIS executing agent's own turn environment (note it is a DIFFERENT node id from the one the plan's review-time baseline named, because that run was on a different HEAD in a different environment). Counts rose by exactly the 3 new non-slow parity tests.
+  - Result: pass
 
 ## Approval and execution gate
 
