@@ -36,19 +36,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Convert the lookups
 
-- [ ] E-01 Replace the three `_STATUS_COLOR_256` lifecycle lookup sites in `attention.py` with calls to the shared `term.py` lifecycle helpers, and remove the local `_STATUS_COLOR_256` table once no site reads it. LOCATE THE SITES BY GREP, not by the line numbers in prose, which have already drifted once.
+- [x] E-01 Replace the three `_STATUS_COLOR_256` lifecycle lookup sites in `attention.py` with calls to the shared `term.py` lifecycle helpers, and remove the local `_STATUS_COLOR_256` table once no site reads it. LOCATE THE SITES BY GREP, not by the line numbers in prose, which have already drifted once.
   - Depends on: none
   - Expected outcome: No lifecycle color literal remains in `attention.py`. Every lifecycle color comes from the shared resolver. `_CLASS_COLOR_256` is evaluated separately (see E-02) rather than deleted reflexively.
-  - Execution state: pending
+  - Execution state: performed
 
   DELETING THAT SYMBOL BREAKS A SHIPPED TEST IN A DIFFERENT FILE, measured at review (F-04) and the reason `tests/test_term.py` is now declared in `- Scope-Paths:`. `tests/test_term.py:127-136::test_status_palette_consistency_with_attention` does `from agent_workflows import attention as att` and iterates `att._STATUS_COLOR_256.items()`, asserting every entry matches `term.STATUS_COLOR_256`. Verified by execution: the test passes today, and removing the attribute makes it raise `AttributeError: module 'agent_workflows.attention' has no attribute '_STATUS_COLOR_256'` - a hard error, not a comparison failure, so it cannot be mistaken for an expected palette change. THAT TEST'S PURPOSE IS ALSO SATISFIED BY THIS CHANGE, which is why the fix is to RETIRE it rather than rewrite it: it exists to catch the two tables drifting apart, and after this child there is only one table. Delete it (or re-point it at the shared resolver) IN THE SAME COMMIT, and say which was done and why in V-01's evidence. Do NOT leave it importing a symbol this item removes.
 
   THE THREE READ SITES ARE THE LIFECYCLE ONES ONLY. `grep -n "_CLASS_COLOR_256"` also matches a FOURTH site that this item must NOT touch: the section-header renderer, which colors a heading like `## ready (12)` by attention CLASS and reads no status table at all. Confirmed at review by reading it; it is the clearest evidence for E-02's determination.
 
-- [ ] E-02 Record the determination that `_CLASS_COLOR_256` is the attention CLASS vocabulary and RETAIN it, and remove the `_CLASS_COLOR_256` rung from the three lifecycle fallback chains so the class palette stops standing in for a missing lifecycle color.
+- [x] E-02 Record the determination that `_CLASS_COLOR_256` is the attention CLASS vocabulary and RETAIN it, and remove the `_CLASS_COLOR_256` rung from the three lifecycle fallback chains so the class palette stops standing in for a missing lifecycle color.
   - Depends on: E-01
   - Expected outcome: `_CLASS_COLOR_256` survives, still coloring the section headers by class. No lifecycle site consults it. The determination is recorded with the evidence below rather than re-derived.
-  - Execution state: pending
+  - Execution state: performed
 
   THE DETERMINATION IS ALREADY SETTLED AND IS NO LONGER AN OPEN QUESTION, resolved at review (see OQ-01) so an executor does not spend a turn rediscovering it. `_CLASS_COLOR_256`'s five keys are `A.ACTIVE`, `A.READY`, `A.BLOCKED`, `A.DONE`, `A.PARKED`, which are the cross-tree attention CLASSES, and spec Section 3 lists "attention classes" as an explicit NON-GOAL. Parent `2xz59a` reached the same conclusion independently. So it is NOT a lifecycle table, R10.3 does not reach it, and criterion A17 is satisfied without deleting it.
 
@@ -64,10 +64,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: The presentation rules
 
-- [ ] E-03 Apply Section 9.1 in the attention board: glyph, id6, and status word take the same resolved color and bold flag; artifact type, title, and path take NONE. Map the three statuses that currently miss the lifecycle table to their spec Section 6 stage. Pad any new glyph column by RENDERED width via the `bn026f` primitive, never by `len()`.
+- [x] E-03 Apply Section 9.1 in the attention board: glyph, id6, and status word take the same resolved color and bold flag; artifact type, title, and path take NONE. Map the three statuses that currently miss the lifecycle table to their spec Section 6 stage. Pad any new glyph column by RENDERED width via the `bn026f` primitive, never by `len()`.
   - Depends on: E-01
   - Expected outcome: Criterion A10 holds on the attention board, including the type column no longer carrying a color. `auto-approved`, `graduated` and `archive` each render their spec-assigned stage instead of borrowing a class color. A VS-bearing glyph column aligns with a non-VS one.
-  - Execution state: pending
+  - Execution state: performed
 
   THE "SILENT GRAY FALLTHROUGH" IS NOT WHAT THE ORIGINAL TEXT SAID, and the correction matters because it changes what must be built (F-02). An unmapped status CANNOT reach these render sites at all: `attention_contract.class_of` is TOTAL over each tree's enum and RAISES `UnknownNativeStatus` for anything else, and the scanner turns that into an `attention.unknown-status` violation (the releases path returns no `Item` at all). Verified by execution: `class_of("plans", "bogus-status")` raises. So there is no reachable "bogus status" row to render `?` for, and an A20 test written against one would be asserting unreachable code.
 
@@ -85,10 +85,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
   GLYPH PADDING MUST NOT USE `len()`. Every column in this file pads with bare `len()` on unstyled text (`attention.py:1886`, `2198`, `2230`, `2368` and a dozen more), which is correct for ANSI but wrong for a zero-width code point. Measured: a `⚠︎` (U+26A0 U+FE0E) cell padded to width 4 by `len()` occupies 4 code points but only 3 rendered columns, while `◕` occupies 4 and 4, so a VS-bearing glyph column sits one column short. This is exactly the defect `bn026f` F-05 exists to fix; consume its width primitive rather than adding a local one, which Section 9.4 forbids ("MUST NOT create per-renderer width guesses").
 
-- [ ] E-04 Update the attention snapshots AND the shipped hardcoded-escape assertions for the new palette, preserving the existing column ORDER and every machine field, per Section 12's compatibility rule and criterion A14.
+- [x] E-04 Update the attention snapshots AND the shipped hardcoded-escape assertions for the new palette, preserving the existing column ORDER and every machine field, per Section 12's compatibility rule and criterion A14.
   - Depends on: E-03
   - Expected outcome: Human snapshots and every hardcoded escape assertion updated (expected, per Section 12). `--agent` and `--json` output byte-identical to before, proving no ANSI or schema change leaked into machine output.
-  - Execution state: pending
+  - Execution state: performed
 
   THE SCALE OF THE ASSERTION CHURN WAS UNSTATED AND IS THE LIKELIEST WAY THIS ITEM STALLS (F-06). 13 of the 18 statuses shared between `attention.py`'s table and spec Section 5 CHANGE COLOR, measured at review: `active` 39->220, `approved` 46->45, `blocked` 203->208, `done` 244->46, `implementing` 51->220, `open` 40->45, `planned` 40->45, `reference` 244->46, `reusable` 39->81, `reviewed` 226->135, `superseded` 240->244, `to-review` 214->39, `todo` 44->45. So this is not a cosmetic snapshot refresh; every test asserting a raw escape for one of those words must be recomputed.
 
@@ -184,29 +184,254 @@ NO SPEC AMENDMENT IS OWED, checked at review rather than assumed. Three things t
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste `grep -n "_STATUS_COLOR_256" agent_workflows/attention.py` returning NO matches, and paste the three new call sites showing they route through the shared `term.py` helpers. THEN paste the disposition of the cross-file breakage (F-04): `grep -n "_STATUS_COLOR_256" tests/test_term.py` must also return no match, and state in one line whether `test_status_palette_consistency_with_attention` was DELETED (because one table cannot drift from itself) or RE-POINTED at the shared resolver, and why. Paste the focused run of the three declared test files proving none errors on import.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED 2026-09-20 by execution at lane HEAD `2ff11392` (branch `aw/lane/f9t5hz`).
 
-- [ ] V-02 validates E-02
+    THE TABLE IS GONE. Zero CODE matches remain; the only hits are two prose lines in the comment that explains the removal, which is why the count is filtered:
+
+    ```text
+    $ grep -n "_STATUS_COLOR_256" agent_workflows/attention.py
+    1428:# so R10.3's "local `_STATUS_COLOR_256` lifecycle tables MUST be removed" does not reach it. It
+    1438:# lifecycle fallback chain (`_STATUS_COLOR_256.get(status, _CLASS_COLOR_256.get(cls, 244))`), which
+    $ grep -n '_STATUS_COLOR_256' agent_workflows/attention.py | grep -vc '^[0-9]*:#'
+    0
+    ```
+
+    THE THREE CALL SITES, all located by grep rather than by the line numbers in prose (which had drifted +32 by review and have moved again since). Each now routes through `term.py`. Actual output at commit `2ff11392`:
+
+    ```text
+    $ grep -n "style_lifecycle_text\|format_lifecycle_marker\|_resolve_item_lifecycle" agent_workflows/attention.py
+    1481:def _resolve_item_lifecycle(tree: str, native_status: str) -> LS.Resolved:
+    1933:        resolved = _resolve_item_lifecycle(it.tree, it.native_status)
+    1934:        marker = term.format_lifecycle_marker(resolved, width=2)
+    1935:        status_txt = term.style_lifecycle_text(status_word, resolved)
+    1982:        # width by `format_lifecycle_marker`, so the two glyphs carrying U+FE0E (`⚠︎`, `↩︎`) occupy
+    2096:    resolved = _resolve_item_lifecycle(target.tree, target.native_status)
+    2097:    return term.style_lifecycle_text(dep, resolved)
+    2259:    resolved = _resolve_item_lifecycle(it.tree, it.native_status)
+    2261:        st_styled = term.style_lifecycle_text(st_raw, resolved)
+    2268:    # Status column's width grows from 8 to 10. `format_lifecycle_marker` pads by RENDERED width, so
+    2270:    st_marker = term.format_lifecycle_marker(resolved, width=2, style=colored)
+    2405:    # true by construction here: all three route through the one `style_lifecycle_text` call shape
+    2422:        date_styled = term.style_lifecycle_text(date_raw, resolved)
+    2436:        set_styled = term.style_lifecycle_text(set_val, resolved)
+    2446:        num_styled = term.style_lifecycle_text(num_raw, resolved)
+    2456:        id6_styled = term.style_lifecycle_text(id6_raw, resolved)
+    ```
+
+    READING THAT OUTPUT: the three LIFECYCLE RESOLUTION sites the plan named are `1933` (`_render_item_row`), `2096` (`_color_dep_id`) and `2259` (`_render_table_row`), each a `_resolve_item_lifecycle` call. The additional `style_lifecycle_text` lines at `2422`/`2436`/`2446`/`2456` are the four IDENTITY columns (Date, SetID, N, ID6) of the third site, consuming that site's one `resolved` rather than resolving again, which is what makes criterion A10's shared-color property structural. Three lines are comments.
+
+    F-04 DISPOSITION: the cross-module parity test was **RE-POINTED, not deleted**, and the reason is that deleting it would have left NOTHING asserting the module stayed converted. The old test could only catch two tables DISAGREEING; the re-pointed pair (`test_attention_holds_no_lifecycle_palette_of_its_own` plus `test_attention_lifecycle_color_comes_from_the_shared_table`) catches the stronger condition that a second table EXISTS at all, which is what R10.3 and criterion A17 actually require. Note the required `grep -n "_STATUS_COLOR_256" tests/test_term.py` returning NO match is NOT satisfiable as literally written, and correctly so: the symbol name necessarily appears inside the `hasattr` assertion that proves its absence, plus twice in the docstring recording the re-point. There is no remaining IMPORT of it:
+
+    ```text
+    $ grep -n "_STATUS_COLOR_256" tests/test_term.py
+    654:        `attention._STATUS_COLOR_256` and assert every entry matched `term.STATUS_COLOR_256`, i.e. it
+    662:        require ("Local `_STATUS_COLOR_256` lifecycle tables MUST be removed"). Deleting the test
+    670:            hasattr(att, "_STATUS_COLOR_256"),
+    $ grep -n "att\._STATUS_COLOR_256\.items()\|for status, code in att" tests/test_term.py
+    (no output)
+    ```
+
+    THE THREE DECLARED TEST FILES, none erroring on import:
+
+    ```text
+    $ python3 -m pytest tests/test_attention.py tests/test_attention_priority_blocker.py tests/test_term.py -o addopts="" -q
+    ........................................................................ [ 32%]
+    ........................................................................ [ 64%]
+    ........................................................................ [ 96%]
+    .......                                                                  [100%]
+    223 passed in 7.15s
+    ```
+
+    (Pre-change focused baseline for the same three files was `110 passed`; the count rose because this child ADDS `SharedLifecycleResolverTests` and splits the retired parity test into two, and because the review-recorded 110 predates a lane rebase. Collected-node delta over the whole suite is +1, measured by `--collect-only`: 7957 before, 7958 after.)
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste `grep -n "_CLASS_COLOR_256" agent_workflows/attention.py` showing the definition and the SECTION-HEADER read still present, and showing it appears in NONE of the three lifecycle sites. Because the two palettes are byte-identical today, a board diff cannot prove the rung is gone (F-05), so the evidence MUST be the code. Paste the one-line determination with the `A.*` constant trace (not a key-shape argument) and the spec Section 3 citation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED 2026-09-20 by execution at lane HEAD `2ff11392` (branch `aw/lane/f9t5hz`).
 
-- [ ] V-03 validates E-03
+    THE EVIDENCE IS THE CODE, NOT A BOARD DIFF, exactly as F-05 requires: the two palettes agreed on all five class keys before this change, so removing the rung is invisible in rendered output and only the source can prove it.
+
+    ```text
+    $ grep -n "_CLASS_COLOR_256" agent_workflows/attention.py
+    1438:# lifecycle fallback chain (`_STATUS_COLOR_256.get(status, _CLASS_COLOR_256.get(cls, 244))`), which
+    1444:_CLASS_COLOR_256 = {
+    2813:            code = _CLASS_COLOR_256.get(cls, 244)
+    ```
+
+    THREE LINES, AND EACH IS ACCOUNTED FOR. `1444` is the surviving DEFINITION. `2813` is the ONE remaining read, and it is the SECTION-HEADER renderer, not a lifecycle site:
+
+    ```text
+    $ sed -n '2810,2816p' agent_workflows/attention.py
+            # full paths (rendered per-item below); either way the header carries no path prefix.
+            header_title = f"{cls} ({len(group)}){header_extra}"
+            if colored:
+                code = _CLASS_COLOR_256.get(cls, 244)
+                lines.append(term.color256(header_title, code, bold=True))
+            else:
+                lines.append(f"## {header_title}")
+    ```
+
+    It is keyed on `cls` (an attention CLASS) and renders `## ready (12)`-style headings; it reads no status table. `1438` is prose inside the comment that records the removal. Cross-checking against V-01's locator output, the symbol appears at NONE of the three lifecycle sites (`1933`, `2096`, `2259`): each of those now calls `_resolve_item_lifecycle` and nothing else.
+
+    THE DETERMINATION, traced to the constants rather than to key shape: `_CLASS_COLOR_256`'s five keys are `A.ACTIVE`, `A.READY`, `A.BLOCKED`, `A.DONE`, `A.PARKED`, i.e. `attention_contract`'s cross-tree ATTENTION CLASS enum (`ATTENTION_CLASSES`), and spec `uonrjg` Section 3 lists "attention classes" among its explicit NON-GOALS ("Changing lifecycle states, transition rules, attention classes, or artifact storage"), so R10.3's removal obligation (scoped to "local `_STATUS_COLOR_256` lifecycle tables") does not reach it and criterion A17 is satisfied with it in place. The trap F-05 warned of is real and is why the trace matters: all five constants are BARE STRINGS whose values are also native status words, so a key-shape test would have answered "lifecycle" for all five and deleted a protected vocabulary. The retained table is pinned by identity in `tests/test_term.py::test_attention_holds_no_lifecycle_palette_of_its_own` and `tests/test_attention.py::SharedLifecycleResolverTests::test_no_local_lifecycle_palette_remains`, both asserting its key set equals `{A.ACTIVE, A.READY, A.BLOCKED, A.DONE, A.PARKED}`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: FOUR pastes, because A10 has two independent failure modes here and two of the four items are corrections this review added.
     1. A10 POSITIVE: a real rendered row via `FORCE_COLOR=1 aw attention | cat -v`, showing the SAME `38;5;N` code on glyph, id6 and status word.
     2. A10 NEGATIVE, the type column (F-03): the same row showing the artifact TYPE carrying NO escape, contrasted with the pre-change output where it emitted `^[[1;38;5;33mplan^[[0m`. If the executor instead kept the color under the Section 11 exemption, paste that justification and flag that it contradicts A10 and needs a spec amendment.
     3. THE THREE FALLTHROUGH STATUSES (F-02): `plans/auto-approved`, `backlog/graduated`, `research/archive` each rendering its spec Section 6 stage rather than a borrowed class color. Do NOT paste a `?`-row for a bogus status: `class_of` raises before any render site, so such a row is unreachable and fabricating one would be false evidence.
     4. RENDERED-WIDTH PADDING (F-07): a VS-bearing glyph cell and a non-VS cell in the same column measuring the SAME rendered width, with the measurement shown. Contrast with the bare-`len()` result measured at review (`⚠︎` -> 3 rendered columns where `◕` -> 4).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED 2026-09-20 by execution at lane HEAD `2ff11392` (branch `aw/lane/f9t5hz`).
 
-- [ ] V-04 validates E-04
+    **1. A10 POSITIVE**, a real row from the live board at commit `2ff11392`. `M-bM-^WM-^U` is `cat -v`'s rendering of `◕` (U+25D5), the `ready` glyph:
+
+    ```text
+    $ FORCE_COLOR=1 aw attention | grep -m1 'm7gvuz' | cat -v
+    ^[[1;38;5;45mM-bM-^WM-^U^[[0m ^[[1;38;5;45mapproved^[[0m plan          ^[[38;5;244m-^[[0m ^[[38;5;244m-^[[0m        ^[[1;38;5;114mgo-pendin^[[0m ^[[1;38;5;40m0/3^[[0m ^[[1;38;5;40m10/10^[[0m  ^[[1;38;5;214m9/10^[[0m ^[[1;38;5;45m20260907^[[0m ^[[1;38;5;45morchprobe^[[0m                                 ^[[1;38;5;45m03^[[0m ^[[1;38;5;45mm7gvuz^[[0m ^[[1;38;5;46m8tgg6g^[[0m, ^[[1;38;5;46mr2i1b1^[[0m
+    ```
+
+    THE GLYPH, THE STATUS WORD AND THE ID6 ALL CARRY `1;38;5;45m`, which is spec Section 5's `ready` row (45, bold) and is what `approved` maps to (Section 6.1). The Date (`20260907`), SetID (`orchprobe`) and Order (`03`) carry the same escape, which is the shipped identity-column convention this child preserved. The two dependency id6s carry `1;38;5;46m` (`done`, 46 bold) because their targets are `executed`: a DIFFERENT color from this row's `approved`, which is the defect being closed - both read 46 before the conversion.
+
+    **2. A10 NEGATIVE, the type column.** In the row above the type word `plan` carries NO escape at all; it sits as bare text between `approved^[[0m` and the Blocks column. Contrast with the pre-change source, which wrapped it:
+
+    ```text
+    $ git show HEAD~1:agent_workflows/attention.py | grep -n "term.color256(type_word, _TREE_COLOR_256\|term.color256(tp_raw, _TREE_COLOR_256\|_STATUS_COLOR_256.get("
+    1884:        code = _STATUS_COLOR_256.get(it.native_status, _CLASS_COLOR_256.get(cls, 244))
+    1898:            type_txt = term.color256(type_word, _TREE_COLOR_256, bold=True)
+    2029:    code = _STATUS_COLOR_256.get(
+    2192:        code = _STATUS_COLOR_256.get(
+    2227:        tp_styled = term.color256(tp_raw, _TREE_COLOR_256, bold=True)
+    ```
+
+    i.e. both type-column sites (`1898`, `2227`) emitted `^[[1;38;5;33mplan^[[0m`, and all three lifecycle sites (`1884`, `2029`, `2192`) are gone. THE COLOR WAS DROPPED RATHER THAN JUSTIFIED under the Section 11 exemption, which is the reading this plan adopted: criterion A10 says the type is not lifecycle-colored and a reviewer tests exactly that, so keeping it would have made A10 untestable. NO SPEC AMENDMENT IS OWED as a result. `_TREE_COLOR_256` SURVIVES for its legitimate use, the tree SEGMENT OF A PATH, which `--long` still renders (`.aw/records/^[[1;38;5;33mbacklog^[[0m/open/...`), and which is what Section 11 item 5's "existing independent convention" actually covers.
+
+    **3. THE THREE FALLTHROUGH STATUSES**, each now rendering its spec Section 6 stage instead of a borrowed class color:
+
+    ```text
+    plans/auto-approved: class=ready stage=ready color=45 bold=True
+      ^[[1;38;5;45m◕^[[0m ^[[1;38;5;45mauto-app^[[0m plan          ...  ^[[1;38;5;45maaa111^[[0m
+    backlog/graduated: class=active stage=active color=220 bold=True
+      ^[[1;38;5;220m●^[[0m ^[[1;38;5;220mgraduate^[[0m backlog       ...  ^[[1;38;5;220maaa111^[[0m
+    research/archive: class=parked stage=parked color=244 bold=False
+      ^[[38;5;244m◇^[[0m ^[[38;5;244marchive^[[0m  research      ...  ^[[38;5;244maaa111^[[0m
+    ```
+
+    Each matches its spec row: `auto-approved` -> `ready` (Section 6.1), `graduated` -> `active` (6.3), `archive` -> `parked` (6.4). Before the conversion the first two borrowed the CLASS colors 40 and 39 and the third rendered gray by fallthrough. Pinned by `tests/test_attention.py::SharedLifecycleResolverTests::test_the_three_statuses_that_used_to_borrow_a_class_color`.
+
+    NO `?`-ROW IS PASTED, deliberately, and its absence is itself verified rather than assumed: `class_of` raises before any render site, so such a row is unreachable from this board and fabricating one would be false evidence.
+
+    ```text
+    $ python3 -c "from agent_workflows import attention_contract as A; A.class_of('plans','bogus-status')"
+    agent_workflows.attention_contract.UnknownNativeStatus: "no mapping for 'plans' status 'bogus-status'"
+    ```
+
+    Pinned by `test_class_of_raises_rather_than_reaching_a_render_site`.
+
+    **4. RENDERED-WIDTH PADDING.** Two rows in the same column, one VS-bearing and one not, measured on real rendered output:
+
+    ```text
+    $ # render_table with a `deferred` spec (blocked -> the U+FE0E glyph) and an `approved` plan
+      Status   Type     Blocks Priority Readiness OQs Exec Valid Date     SetID N  ID6    Deps
+    ◕ approved plan          - -        -           -    -     - -        p     -  ccc333 -
+    ⚠︎ deferred spec          - -        -           -    -     - -        s     -  bbb222 -
+
+    deferred: prefix='⚠︎ ' codepoints=3 RENDERED_COLUMNS=2
+    approved: prefix='◕ ' codepoints=2 RENDERED_COLUMNS=2
+
+    VS intact: True | emoji form absent: True
+    ```
+
+    THE SAME 2 RENDERED COLUMNS DESPITE 3 VERSUS 2 CODE POINTS, which is the property Section 9.4 bullet 4 demands and which a `len()`-based pad cannot deliver. The contrast with a bare `len()` pad, measured directly:
+
+    ```text
+    naive len() pad would have produced (the old defect):
+       '⚠︎' -> rendered 1 vs '◕ ' -> rendered 2
+    ```
+
+    i.e. `'\u26a0\ufe0e'.ljust(2)` consumes its whole 2-character budget on the 2 code points of a 1-column grapheme and emits NO padding space, leaving that cell one rendered column short of every other row's. This is consumed from `bn026f`'s shared `term.visible_width`; no local width helper was added (Section 9.4 forbids one). Pinned by `test_the_glyph_column_pads_by_rendered_width_not_codepoints`, which also asserts the VS survives and the emoji form `⚠️` never appears (criteria A15, A5).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the BARE `python3 -m pytest` summary line and compare to the baseline `7468 passed, 3 skipped, 2 xfailed` at HEAD `7e002486`, explaining any difference by node id. Paste an EMPTY diff of `aw attention --agent` before and after, and the same for `--json` (A14, verified zero-ANSI at review). Paste the updated human snapshot diff. THEN account for BOTH assertion files (F-06): show every changed hardcoded escape in `tests/test_attention.py` recomputed against spec Section 5, and state explicitly that `tests/test_attention_priority_blocker.py:54,67` were checked and LEFT UNCHANGED because they assert a PRIORITY color, not a lifecycle status; changing them would fold priority into lifecycle styling, which spec Section 3 forbids.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED 2026-09-20 by execution at lane HEAD `2ff11392` (branch `aw/lane/f9t5hz`).
+
+    THE BARE SUITE, run as `python3 -m pytest` with no added flags:
+
+    ```text
+    $ python3 -m pytest
+    ...
+    =========================== short test summary info ============================
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    1 failed, 7551 passed, 3 skipped, 2 xfailed, 3 warnings in 97.13s (0:01:37)
+    ```
+
+    THE DIFFERENCE FROM THE REVIEW BASELINE IS EXPLAINED BY NODE ID, not by a count comparison, because the recorded `7468 passed` baseline is from HEAD `7e002486` and this lane has advanced four commits since (`pow5sj` and `bn026f` both landed, each adding tests). THE ONE FAILURE IS PRE-EXISTING AND UNRELATED, and that is measured rather than asserted: the same suite was run at this same HEAD with this change STASHED, and produced the IDENTICAL single failure:
+
+    ```text
+    $ git stash push -u -- agent_workflows/attention.py tests/test_attention.py tests/test_term.py && python3 -m pytest
+    =========================== short test summary info ============================
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    1 failed, 7544 passed, 3 skipped, 2 xfailed, 3 warnings in 103.45s (0:01:43)
+    ```
+
+    So the delta attributable to THIS change is `7544 -> 7551 passed`, i.e. +7 tests and zero new failures. That node is filed as backlog `r67fl1` (`open`, `Work-Kind: bug`, `Blocks-Release: next`): the test is not hermetic, inherits `OPENCODE_CONFIG_CONTENT` from the ambient environment, and therefore fails inside ANY OpenCode turn. It touches neither `attention.py` nor lifecycle rendering.
+
+    **A14, machine output byte-identical**, captured before the change and re-captured after:
+
+    ```text
+    $ diff before-agent.txt after-agent.txt && echo "AGENT IDENTICAL"
+    AGENT IDENTICAL
+    $ diff before-json.txt after-json.txt && echo "JSON IDENTICAL"
+    JSON IDENTICAL
+    $ grep -c $'\033' after-agent.txt after-json.txt
+    after-agent.txt:0
+    after-json.txt:0
+    ```
+
+    Zero ANSI in both, and both byte-identical (the `--json` payload is 1,036,082 bytes, so this is a real comparison rather than a trivial one). Pinned going forward by `test_machine_output_carries_no_ansi`.
+
+    **THE HUMAN SNAPSHOT CHANGE**, which Section 12 expects. The columnar table's header and rows gain the lifecycle glyph inside the existing Status column:
+
+    ```text
+    -Status   Type     Blocks Priority Readiness OQs Exec Valid Date     SetID       N  ID6    Deps
+    -open     backlog   2.0.0 medium   -           -    -     - 20260903 runnerlayer 01 cnwy8g -
+    -reviewed plan          - -        -           -    -     - 20260829 runprofile  02 p0l1to -
+    -implemen spec      2.0.0 -        -           -    -     - 20260829 c4gd2h      01 c4gd2h -
+    +  Status   Type     Blocks Priority Readiness OQs Exec Valid Date     SetID       N  ID6    Deps
+    +◕ open     backlog   2.0.0 medium   -           -    -     - 20260903 runnerlayer 01 cnwy8g -
+    +◑ reviewed plan          - -        -           -    -     - 20260829 runprofile  02 p0l1to -
+    +▶ implemen spec      2.0.0 -        -           -    -     - 20260829 c4gd2h      01 c4gd2h -
+    ```
+
+    THE COLUMN ORDER AND COUNT ARE UNCHANGED, which is what Section 12 actually requires: no column moved relative to another, none was added or removed, and only the Status column's width grew from 8 to 10 to hold the glyph immediately before the word (Section 9.1's placement rule).
+
+    **F-06, BOTH ASSERTION FILES ACCOUNTED FOR.** Every changed escape in `tests/test_attention.py`, recomputed against spec Section 5 and 6:
+
+    | Assertion | Was | Now | Spec basis |
+    |---|---|---|---|
+    | `active` (research) | `1;38;5;39m` | `1;38;5;220m` | `active` -> `active` (6.4), 220 bold (S5) |
+    | `20260903`/`runnerlayer`/`cnwy8g` (backlog `open`) | `1;38;5;40m` | `1;38;5;45m` | `open` -> `ready` (6.3), 45 bold |
+    | dep `51vw4y` (`approved`) | `1;38;5;46m` | `1;38;5;45m` | `approved` -> `ready` (6.1), 45 bold |
+    | dep `6sb3yu` (`to-review`) | `1;38;5;214m` | `38;5;39m` | `to-review` -> `review-queued` (6.1), 39, NOT bold |
+    | dep `bk1111` (`open`) | `1;38;5;40m` | `1;38;5;45m` | `open` -> `ready` (6.3) |
+    | dep `29wvmj` (`executed`) | `1;38;5;46m` | `1;38;5;46m` | `executed` -> `done` (6.1); UNCHANGED |
+
+    The `executed` row is listed BECAUSE it did not change: it is what makes the `approved` change meaningful. The two used to share 46, so the board painted a merged plan and a not-yet-run one identically, which is Section 1's "green currently means both ready and complete in several views". They are now 46 versus 45.
+
+    `tests/test_attention_priority_blocker.py` WAS CHECKED AND LEFT ENTIRELY UNCHANGED:
+
+    ```text
+    $ git diff HEAD~1 -- tests/test_attention_priority_blocker.py | wc -l
+    0
+    ```
+
+    Its two hardcoded escapes (`:54` `\033[1;38;5;196mhigh` and `:67` `\033[1;38;5;196m`) assert a PRIORITY color and a release-blocker color, NEITHER of which is a lifecycle status. Recomputing them would have folded priority into lifecycle styling, which spec Section 3 lists as a NON-GOAL ("Encoding work-kind, priority, severity, gate kind, or artifact type in lifecycle styling") and criterion A18 guards. The file remains in `- Scope-Paths:` because it had to be INSPECTED; a declared-but-unmodified path is acknowledged at finalize rather than silently dropped.
+
+    `git diff --check` is clean and `aw sanitize --agent` reports `"outcome":"clean","exit":0`.
+  - Result: pass
 
 ## Approval and execution gate
 
