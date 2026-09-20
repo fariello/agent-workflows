@@ -43,7 +43,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: measure the real set before reporting on it
 
-- [ ] E-01 ENUMERATE THE EXCEPTION SET AT YOUR HEAD AND CLASSIFY EVERY MEMBER, before writing any report. The count is the deliverable's whole point, so it must be established rather than inherited.
+- [x] E-01 ENUMERATE THE EXCEPTION SET AT YOUR HEAD AND CLASSIFY EVERY MEMBER, before writing any report. The count is the deliverable's whole point, so it must be established rather than inherited.
   SCAN EVERY TRACKED RECORD, not just plans: compare each file's declared `- Id:` and `- Set:` against its own filename. RE-MEASURED AT THE SECOND REVIEW (2026-09-10), so these are the numbers to reproduce and explain rather than to discover: the `- Id:` case is TEN (reproduced exactly; not the authoring count of nine) and the `- Set:` case is EIGHT (the first review said seven; an eighth member was found, see F-16). READ BOTH DIALECTS when scanning: the bullet form `- Id:` and the YAML form `id:`, since research records use YAML front matter and two of the ten are research documents.
   SCAN FULL BODIES, AND KNOW THAT THE WINDOW DECIDES THE COUNT. A bounded 4096-byte header scan finds NINE for the `- Id:` case; a FULL-BODY scan finds TEN, the tenth being the second `uyeko5` quotation, which sits beyond the header window. Order 01 (`826o13`) legitimately says nine because the RESOLVER only ever reads `_HEADER_BYTES` (`selectors.py:317`); this plan says ten because a REPORT reads whole files, and the existing `check_collisions` it extends reads whole files too (`p.read_text()`, no bound). So the two siblings' counts differ by design, not by error: do NOT "reconcile" them, and state your window whenever you cite a count.
   CLASSIFY EACH INTO ONE OF FOUR BUCKETS, because the remedies differ completely and the fourth was found at review: (a) LEGACY GRAMMAR, a pre-id6 or grandfathered name whose rename is a maintainer call (the eight: plans `4o5lt9`, `wvlk84`, `lus9ou`, `8q6yr9`, `7qx7ys`, specs `4w7d6s`, `25kzda`, `5tapom`); (b) PARSER ARTIFACT, where the declared value comes from a QUOTED EXAMPLE in the body rather than front matter - measured at the second review, this class has FIVE members across BOTH fields and THREE types, not a research-only pair: `uyeko5` quoted in `27rjro`'s prompt and `takpys`'s report, `runflags` from the same two quoted blocks, and `aw-delivery` quoted in a SPEC's fenced frontmatter-schema example (`20260730-2152-01-agents-artifact-organization.spec.md:198`); owned by `cqytxf`/`76w6mq`; (c) GENUINE DRIFT, a modern-grammar file whose name and metadata simply disagree, which would be a real defect; (d) NON-IDENTIFIER VALUE, a declared value that is not an identifier at all - measured: `20260813-1833-01-attention-visible-backlog-tier.spec.md` declares `set: <terse-id>`, a placeholder inside an illustrative code block. Bucket (d) must never produce a rename suggestion, because there is no name that would satisfy it.
@@ -52,38 +52,38 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   RE-MEASURE AFTER CHECKING WHETHER `76w6mq` HAS LANDED. Its status is now `reviewed` (advanced from `to-review` since the first review) but it is still in `pending/`, so it has NOT landed and bucket (b) is NON-empty with five members across both fields. If it lands before you execute, bucket (b) should be EMPTY, the `- Id:` count should be eight, and the `- Set:` count six. Say which state you observed and re-check rather than trusting either figure.
   - Depends on: none
   - Expected outcome: the exception set enumerated at your HEAD with every member classified into legacy / parser-artifact / genuine-drift / non-identifier, the `- Set:` case measured separately, both front-matter dialects read, full bodies scanned with the window stated, and `76w6mq`'s status stated.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 READ THE EXISTING IDENTITY RULE AND DECIDE EXTEND-VERSUS-ADD BEFORE WRITING ANY COMPARATOR. This item did not exist at authoring and is now the plan's first real design decision, because the plan proposed building from scratch something that is half-built already.
+- [x] E-06 READ THE EXISTING IDENTITY RULE AND DECIDE EXTEND-VERSUS-ADD BEFORE WRITING ANY COMPARATOR. This item did not exist at authoring and is now the plan's first real design decision, because the plan proposed building from scratch something that is half-built already.
   WHAT IS ALREADY THERE, re-verified at the second review: `check.id6-identity-slot` is registered at `check_engine.py:101` (severity `error`, assurance `repository`, deterministic, invariant `I-09`, all four confirmed by reading `RULE_REGISTRY`) and implemented in `_check_identity_slots`, called from `check_collisions`. Its documented rule ALREADY states case (a): a file that declares a frontmatter `- Id:` must carry that same id6 in its filename slot. IT PRODUCES ZERO FINDINGS TODAY, not the 2 the first review recorded (F-15); the tree now reports 169 findings and this rule is absent from them. Take your own count.
   WHY IT DOES NOT COVER THE TEN, which is the narrow gap this plan actually fills: it only examines "a filename whose slot PARSES as a real id6 via the naming authority", so a legacy `YYYYMMDD-HHMM-NN-<slug>` name with no slot at all is exempt by construction. Verified: zero of the ten are flagged by it.
   REUSE ITS DISCRIMINATOR RATHER THAN INVENTING ONE, AND IT IS A NAMED SHARED HELPER YOU CAN CALL DIRECTLY: `check_engine._is_real_id6(token, declared_ids)`. `_check_identity_slots` builds `declared_ids` from every file's frontmatter and passes it in; the helper returns True iff the token is some file's declared Id OR visibly mixes digits and letters, whose docstring records the same `assess`/`agents` oracle this plan's F-13 describes. That matters concretely here, and it was VERIFIED at the second review rather than assumed: `_is_real_id6('assess', declared_ids)` returns `False` and `_is_real_id6('826o13', ...)` returns `True`, so calling the existing helper genuinely fixes F-13's mis-bucketing. `parse_clustered` reports the legacy name `20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md` as CONFORMANT with `id6='assess'`, and `ID6_RE` accepts `assess`, so a second comparator that skipped the helper would silently mis-bucket that record, which is one of the ten.
   STATE THE CHOICE AND ITS REASON IN THE CODE. Either extend the existing rule to cover slot-less names under a distinct advisory code, or add a sibling rule that imports the same discriminator. Do NOT copy the id6-detection logic; two definitions of "is this a real id6" that can drift is exactly the defect `check.id6-identity-slot` was written to avoid.
   - Depends on: E-01
   - Expected outcome: a recorded extend-versus-add decision with its reason, the existing rule's coverage measured (2 findings, 0 of the ten), and the real-id6 discriminator reused rather than reimplemented.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 MAKE THE REPORT DISTINGUISH THE FOUR BUCKETS RATHER THAN EMITTING ONE COUNT, because a single number would be actively misleading on its first run.
+- [x] E-02 MAKE THE REPORT DISTINGUISH THE FOUR BUCKETS RATHER THAN EMITTING ONE COUNT, because a single number would be actively misleading on its first run.
   THE PARSER-ARTIFACT BUCKET MUST NOT BE REPORTED AS A NAMING PROBLEM, AND IT HOLDS TWO FILES. `27rjro`'s and `takpys`'s filenames are both CORRECT; their declared-`- Id:` readings are the same reader bug that `76w6mq` fixes. Reporting either as "rename this file" would send an operator to damage a correct name, and the item's own instruction for that document (via `cqytxf`) is that "the fix is in the reader, not the doc." Code the bucket as a CLASS, not as a hardcoded `27rjro` exception, since review measured two members and a third quotation could appear at any time.
   THE NON-IDENTIFIER BUCKET MUST NOT PRODUCE A REMEDY EITHER. `set: <terse-id>` is a documentation placeholder; no rename satisfies it. Detect it structurally (a value that is not a legal setid/id6 token, e.g. containing `<`, `>`, or whitespace) rather than by name, and emit it - if at all - as a distinct informational note saying the declaration is not an identifier.
   THE CLEANEST IMPLEMENTATION IS TO READ IDENTITY THE WAY THE FIXED READER WILL. If `76w6mq` has landed, consume its metadata-region-bounded reader and bucket (b) disappears by construction. If it has NOT landed (its status is now `reviewed` but it remains in `pending/`, so today it has not), the report must EXCLUDE body-quoted declarations explicitly and say why in its own output, so it does not carry a known-false finding. Note `76w6mq` also declares `check_engine.py`, so if it lands first you are editing a file it changed and must re-read it (F-18).
   NORMALIZE QUOTING, and note the case is LIVE rather than historical: exactly one tracked record carries `` set: `awoptimize` `` with backticks (`20260821-awoptimize-03-effzzi-...`), so an un-normalized comparison produces a real phantom on the first run. Compare stripped values.
   - Depends on: E-01, E-06
   - Expected outcome: a report that separates legacy-grammar records from parser artifacts, genuine drift and non-identifier values, never reporting a correctly-named file as needing a rename, with quoting normalized and the artifact bucket coded as a class rather than a named exception.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make it advisory and actionable
 
-- [ ] E-03 EMIT IT AS AN ADVISORY WITH THE EXACT REMEDY PER RECORD, and do NOT promote the legacy exemption to an error.
+- [x] E-03 EMIT IT AS AN ADVISORY WITH THE EXACT REMEDY PER RECORD, and do NOT promote the legacy exemption to an error.
   ADVISORY IS THE ITEM'S EXPLICIT REQUIREMENT and the reason is measured: `executed/` plan bodies are immutable by policy and the grandfathered specs are a documented decision, so an error-severity rule would fail the tree for states the maintainer deliberately chose. `check_engine`'s own precedent is the same shape: its review-escalation rule keeps the ABSENT case SILENT because a fail-closed absent case "would mass-fail the entire corpus on day one".
   NAME THE EXACT `aw rename` PER RECORD, which is what makes the report actionable rather than a lament. The item asks for "the exact `aw rename` that would fix it". Note the verb differs by type (`aw rename plans` versus `aw rename specs`) and that `--to-id6` exists for adopting the id6 grammar; get the per-record command right, because a wrong suggested command is worse than none.
   DO NOT TOUCH THE EXISTING LEGACY EXEMPTION. `check_engine`'s naming rule deliberately exempts legacy shapes, and the spec-name cutover deliberately grandfathers pre-cutover specs. This plan ADDS a report; it does not reclassify what is already tolerated.
   RESPECT THE SPEC CUTOVER RULE. Specs adopted the id6 grammar going forward with pre-cutover names grandfathered, so a pre-cutover spec appearing in this report is EXPECTED and its remedy line should say the rename is optional and a maintainer call, not overdue.
   - Depends on: E-02
   - Expected outcome: an advisory-severity report with a correct per-record `aw rename` suggestion, no change to the existing exemption, and pre-cutover specs described as optional rather than overdue.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 DECIDE WHERE THE REPORT SURFACES, and choose a place that cannot mass-fail CI.
+- [x] E-04 DECIDE WHERE THE REPORT SURFACES, and choose a place that cannot mass-fail CI.
   THE CANDIDATES: a new advisory `check.*` rule in the full sweep; a dedicated flag on `aw check`; or `aw doctor` only. Each has a different blast radius.
   THE PLAN'S CENTRAL TEST RESTS ON A FALSE PREMISE AND MUST BE RESTATED, measured at review: `aw check all` ALREADY exits 1 today, with 170 findings on the live tree. So "prove the exit code is unchanged" is trivially satisfiable and proves nothing - the code is 1 before and 1 after no matter what this plan does. THE REAL PROPERTY to prove is the one the plan meant: that the new code carries `warning` severity and that NO ERROR-severity finding is added, so the advisory could not turn an otherwise-green tree red. Prove it as a SEVERITY assertion (paste the `RuleSpec` and assert the new code's severity is `warning`) plus a fixture-tree assertion: on a synthetic tree whose ONLY finding is this new code, `aw check` must exit 0. A live-tree exit-code comparison is NOT acceptable evidence for this item.
   THE WARNING PRECEDENT IS REAL AND NAMED, so the registration has a template rather than a guess: six codes already carry `warning` severity (`check.orphaned-live-blocker`, `check.review-dangling`, `check.review-decision-unescalated`, `check.system-layout-missing`, `check.system-layout-drift`, `check.stale-index-stale`), against 24 `error` and 2 `info`. Follow one of the six.
@@ -91,11 +91,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   IF A NEW RULE CODE IS ADDED IT MUST BE REGISTERED. `check_engine`'s `RuleSpec` table assigns severity, assurance class and determinism; an unregistered code carries no contract. Register it as a warning with the catalog id the adjacent naming rules use (`I-09`), matching the advisory decision.
   - Depends on: E-03
   - Expected outcome: a chosen surface with the finding count that justified it, a registered `warning`-severity rule code following one of the six existing warning precedents, and the no-error-added property proven by a severity assertion plus a synthetic-tree exit-0 test rather than by a live-tree exit-code comparison.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it counts the right things
 
-- [ ] E-05 PROVE THE REPORT IS CORRECT ON ALL FOUR BUCKETS AND COSTS NOTHING ELSE.
+- [x] E-05 PROVE THE REPORT IS CORRECT ON ALL FOUR BUCKETS AND COSTS NOTHING ELSE.
   SEVEN ASSERTIONS MINIMUM, from fixtures (raised from five at review to cover the two cases the plan did not model): a legacy-named record IS reported with the right `aw rename`; a conformant modern record is NOT reported; a record whose declared value appears only in a QUOTED body block is NOT reported as a naming problem; a backtick-quoted front-matter value produces NO phantom finding; a genuine-drift record (modern grammar, mismatched metadata) IS reported and distinguished from legacy; a NON-IDENTIFIER declared value (`set: <terse-id>`) produces NO rename suggestion; and A LEGACY NAME WHOSE SLUG'S FIRST WORD IS SIX ALPHANUMERIC CHARACTERS is bucketed as legacy rather than as drift. That last one is not hypothetical: `20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md` parses as "conformant" with `id6='assess'`, which `ID6_RE` accepts, so a comparator that trusts the parsed slot mis-buckets a real member of the ten.
   BUILD FIXTURES, NOT LIVE-TREE ASSERTIONS. The live records will change: `76w6mq` removes two, and several agents are authoring concurrently. Use the live tree only for the count in evidence.
   ASSERT THE LIVE COUNT AS EVIDENCE, SEPARATELY, and name every member for BOTH the `- Id:` case (TEN full-body at the second review) and the `- Set:` case (EIGHT). STATE THE READ WINDOW with each, since a bounded header scan yields nine for the `- Id:` case and sibling `826o13` legitimately reports that number. That count is the artifact a future reader compares against to see whether the set is shrinking, which is the item's stated long-term prize.
@@ -103,7 +103,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   COMPARE `aw check` PER RULE, never by total, since several counts drift for unrelated reasons. Live baseline re-measured at the second review: 169 findings, of which `check.scope-drift` is 110, `check.setid-collision` is 38, `check.lifecycle-transition-invalid` 15, `check.name-nonconformant` 3, and `check.id6-identity-slot` is ZERO (absent from the diagnostics). The first review recorded 170 total, `setid-collision` 86 and `id6-identity-slot` 2, so all three moved: do NOT assert against those figures. The `check.id6-identity-slot` count must not change FROM WHATEVER YOU MEASURE unless E-06 chose to extend that rule, in which case state the new count and why (F-15).
   - Depends on: E-04
   - Expected outcome: seven fixture assertions passing, both live counts recorded with members named, per-rule comparison showing only the new code appearing (and `check.id6-identity-slot` unchanged unless deliberately extended), and an empty bare-suite delta judged by node id.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -225,35 +225,423 @@ No spec change is expected. The spec-name cutover is already documented in `chec
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the enumerated exception set at your HEAD with EVERY member named and its bucket (legacy / parser-artifact / genuine-drift / non-identifier). Paste the `- Set:` case count separately from the `- Id:` case, and compare both against the review's measured 10 and 7, explaining any divergence rather than restating it. Show that BOTH front-matter dialects were read (name the two research documents, which use YAML). State `76w6mq`'s status. If bucket (c) is non-empty, paste those records prominently as a finding rather than folding them into a count.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: HEAD `7f06bb37`, scanning every tracked record of every SUPPORTED type PLUS `research`, reading BOTH dialects (bullet `- Id:`/`- Set:` and YAML `id:`/`set:`), 1227 files.
 
-- [ ] V-06 validates E-06
+    RAW FULL-BODY SCAN, which is the plan's measurement and REPRODUCES IT: the `- Id:` case is **TEN** (matching the second review exactly) and the `- Set:` case is **SEVEN** by my scan, or EIGHT counting the backtick record the plan lists separately. Window matters, as E-01 says: a bounded 4096-byte header read yields NINE and FOUR respectively, so sibling `826o13`'s nine is legitimate and the two must not be "reconciled".
+
+    ```
+    total files scanned: 1227
+    === Id case: 10
+      [plans]      lus9ou  .aw/records/plans/executed/20260808-0004-00-plans-adopter-orchestrator.ipd.md
+      [plans]      7qx7ys  .aw/records/plans/executed/20260808-0004-06-migrate-existing-plans.ipd.md
+      [plans]      8q6yr9  .aw/records/plans/executed/20260808-0004-07-plans-scaffold-directives-decisions.ipd.md
+      [plans]      4o5lt9  .aw/records/plans/executed/20260815-2156-01-installer-rollback-same-second-backup-collision.ipd.md
+      [plans]      wvlk84  .aw/records/plans/executed/20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md
+      [research]   uyeko5  .aw/records/research/reference/202609/20260905-awmetastore-00-27rjro-...research-prompt.md
+      [research]   uyeko5  .aw/records/research/reference/202609/20260905-awmetastore-01-takpys-...research-report.md
+      [specs]      5tapom  .aw/records/specs/20260824-2000-01-research-lifecycle-reliability.spec.md
+      [specs]      25kzda  .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
+      [specs]      4w7d6s  .aw/records/specs/20260827-1514-01-setid-uniqueness-across-types-and-graduation-links.spec.md
+    === Set case: 7 (+1 = the backtick record, listed by the plan as a member)
+      [plans]    'plans-adopter'  20260808-0004-06-migrate-existing-plans.ipd.md
+      [plans]    'plans-adopter'  20260808-0004-07-plans-scaffold-directives-decisions.ipd.md
+      [plans]    'awphysical'     20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md
+      [research] '`awoptimize`'   20260821-awoptimize-03-effzzi-...roadmap.md          <- the backtick phantom
+      [research] 'runflags'       20260905-awmetastore-00-27rjro-...research-prompt.md
+      [research] 'runflags'       20260905-awmetastore-01-takpys-...research-report.md
+      [specs] YAML 'aw-delivery'  20260730-2152-01-agents-artifact-organization.spec.md
+      [specs] YAML '<terse-id>'   20260813-1833-01-attention-visible-backlog-tier.spec.md
+    ```
+
+    BOTH DIALECTS PROVEN READ: the two research documents named above (`27rjro`, `takpys`) use YAML front matter and both appear, as does `aw-delivery` (YAML `set:` in a spec) and `<terse-id>` (YAML `set:`). A bullet-only scanner would have found neither of the last two.
+
+    `76w6mq`'s STATUS: `- Status: approved` (advanced from `reviewed` since the second review) and STILL IN `pending/` (`.aw/records/plans/pending/20260908-idcapture-01-76w6mq-...ipd.md`). So it has NOT landed, and the not-landed branch is the one this execution took: the bounded metadata-region reader is implemented HERE, with a code note saying to delegate to `76w6mq`'s reader once it lands.
+
+    CLASSIFIED SET AS THE SHIPPED RULE REPORTS IT (`include_retired=True`, i.e. the full historical count), THIRTEEN findings over ELEVEN records:
+
+    ```
+    === include_retired=True: 13 findings  {'legacy': 11, 'artifact': 1, 'non-identifier': 1, 'drift': 0}
+      legacy          Id: lus9ou         20260808-0004-00-plans-adopter-orchestrator.ipd.md
+      legacy          Id: 7qx7ys         20260808-0004-06-migrate-existing-plans.ipd.md
+      legacy          Set: plans-adopter 20260808-0004-06-migrate-existing-plans.ipd.md
+      legacy          Id: 8q6yr9         20260808-0004-07-plans-scaffold-directives-decisions.ipd.md
+      legacy          Set: plans-adopter 20260808-0004-07-plans-scaffold-directives-decisions.ipd.md
+      legacy          Id: 4o5lt9         20260815-2156-01-installer-rollback-same-second-backup-collision.ipd.md
+      legacy          Id: wvlk84         20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md
+      legacy          Set: awphysical    20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md
+      legacy          Id: 5tapom         20260824-2000-01-research-lifecycle-reliability.spec.md
+      legacy          Id: 25kzda         20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
+      legacy          Id: 4w7d6s         20260827-1514-01-setid-uniqueness-across-types-and-graduation-links.spec.md
+      artifact        Set: aw-delivery   20260730-2152-01-agents-artifact-organization.spec.md
+      non-identifier  Set: <terse-id>    20260813-1833-01-attention-visible-backlog-tier.spec.md
+    === include_retired=False (the DEFAULT scope): 2 findings {'legacy': 2}
+      legacy          Id: 5tapom         20260824-2000-01-research-lifecycle-reliability.spec.md
+      legacy          Id: 25kzda         20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
+    ```
+
+    TWO DIVERGENCES FROM THE PLAN'S FIGURES, EXPLAINED RATHER THAN RESTATED, because both are the report working as E-02 specifies rather than a scan error.
+
+    FIRST, THE ARTIFACT BUCKET IS ONE MEMBER, NOT FIVE, AND FOUR OF THE PLAN'S FIVE ARE NOT REPORTED AT ALL. `27rjro` and `takpys` each DECLARE their own `id:` and `set:` CORRECTLY in YAML front matter (`id: 27rjro`, `set: awmetastore`, both present in their filenames); the quoted `- Id: uyeko5` / `- Set: runflags` block at line ~58 is a different record's metadata entirely. Reading identity from the bounded metadata region - which E-02 asks for explicitly - therefore finds each file's OWN correct declaration and emits NOTHING, which is strictly better than emitting an advisory "this is a quoted example, do not rename" note about a file that has no problem. The one remaining artifact member (`aw-delivery`, in the `agents-artifact-organization` spec) IS reported as `artifact`, because that spec declares no `- Set:` of its own anywhere, so the only `set:` in the file is the quoted schema example; the class test still fires, keyed on POSITION. Note this required a real fix found during execution: searching by DIALECT first let the quoted BULLET shadow `27rjro`'s own YAML declaration, so the region is now searched first across both dialects (see `_identity_declared_values`).
+
+    SECOND, `<terse-id>` IS BUCKETED `non-identifier`, NOT `artifact`, DESPITE ALSO BEING INSIDE A FENCED BLOCK. F-8/F-13 model it as a fourth bucket and E-02 requires the non-identifier detection to be structural; since no rename could ever satisfy `<terse-id>` regardless of where it sits, `non-identifier` is the stronger and more actionable statement. The positional fact is APPENDED to that finding rather than replacing it, so nothing is lost.
+
+    BUCKET (c) GENUINE DRIFT IS EMPTY, as at authoring and both reviews: ZERO members, in both scopes. It is nonetheless implemented and proven from a fixture (`test_genuine_drift_on_a_modern_name_is_reported_and_distinguished_from_legacy`), and `LiveCountEvidenceTests` asserts the live bucket stays empty so a first real instance surfaces as a failure rather than silently joining an advisory count.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste `check.id6-identity-slot`'s registration and the relevant lines of `_check_identity_slots`, and paste its finding count on your live tree (2 at review) together with proof that ZERO of the ten are covered by it - that is what establishes the gap is real and narrow. State the extend-versus-add decision and paste the code comment recording it. Paste the code showing the real-id6 discriminator is REUSED, plus a grep proving there is no second definition of id6-detection in the file. Paste the F-13 case measured directly: `parse_clustered` on the `assess` legacy name returning `id6='assess'`, `ID6_RE.match('assess')` True, and your classifier nevertheless bucketing that record as legacy.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE EXISTING RULE, read at HEAD (`check_engine.py:107`, relocated by name as instructed, not by the cited line):
 
-- [ ] V-02 validates E-02
+    ```python
+    "check.id6-identity-slot": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-09"
+    ),
+    ```
+
+    Its rule (a), from `_check_identity_slots` (unchanged by this plan):
+
+    ```python
+    for path_str, declared_id, slot_id6 in records:
+        if slot_id6 is None:
+            continue  # legacy / no identity slot -> exempt
+        if declared_id is not None:
+            # Rule (a): the slot must equal the file's own declared identity. ...
+            if slot_id6 != declared_id:
+    ```
+
+    ITS LIVE FINDING COUNT IS **ZERO**, NOT THE 2 THE FIRST REVIEW RECORDED - F-15 predicted exactly this and the re-measurement confirms it, so I state my own number as instructed. From `python3 -m agent_workflows check all --agent` on my HEAD, 324 findings BEFORE and 329 AFTER, with `check.id6-identity-slot` ABSENT from the diagnostics in both runs (per-rule table in V-04 below). It is therefore 0 -> 0, unchanged, and E-06 chose NOT to extend it.
+
+    ZERO OF THE TEN ARE COVERED BY IT, which is what makes the gap real and narrow. Measured directly: `_identity_slot_token()` returns `None` for every one of the ten legacy names, because `parse_clustered` either fails outright or yields a 4-digit HHMM in the set segment:
+
+    ```
+    20260808-0004-00-plans-adopter-orchestrator.ipd.md                        parse=None            slot=None
+    20260808-0004-06-migrate-existing-plans.ipd.md                            parse=None            slot=None
+    20260808-0004-07-plans-scaffold-directives-decisions.ipd.md               parse=None            slot=None
+    20260815-2156-01-installer-rollback-same-second-backup-collision.ipd.md   parse=None            slot=None
+    20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md              parse=('1357','01','assess','ipd')  slot=None
+    20260824-2000-01-research-lifecycle-reliability.spec.md                   parse=None            slot=None
+    20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md              parse=None            slot=None
+    20260827-1514-01-setid-uniqueness-across-types-and-graduation-links.spec.md parse=None          slot=None
+    ```
+
+    And as a behavioral rather than structural proof, `test_the_new_rule_sits_beside_the_identity_slot_rule_without_changing_it` builds a tree holding ONLY a legacy `executed/` plan, asserts `check_collisions(..., include_retired=True)` reports `[]` for `check.id6-identity-slot`, and asserts the NEW rule does report it.
+
+    THE DECISION: **ADD A SIBLING**, not extend. Recorded in the code (block comment above `check_name_identity`):
+
+    > DECISION: ADD A SIBLING rather than extend it, for two reasons. (1) SEVERITY: `check.id6-identity-slot` is `error` and must stay so (a foreign id6 in an id6-bearing slot is a real defect); this population is grandfathered and must be `warning`, and one rule id cannot carry two severities without lying to every consumer keyed on it. (2) SUBJECT: that rule compares a filename SLOT against a declaration; this one reports a declaration that appears NOWHERE in the filename, including names that have no slot.
+
+    THE DISCRIMINATOR IS REUSED, NOT REIMPLEMENTED:
+
+    ```python
+    m = _naming.parse_uniform_permissive(filename)
+    if m is None:
+        return False
+    if _HHMM_RE.match(m.group("set")):
+        return False  # legacy YYYYMMDD-HHMM-NN-<slug>, whose HHMM mimics a setid
+    if own_id is not None:
+        return True
+    return _is_real_id6(m.group("id6"), declared_ids)
+    ```
+
+    Grep proving ONE definition (`grep -n "_is_real_id6" agent_workflows/check_engine.py`; `grep -c "def _is_real_id6"` -> `1`):
+
+    ```
+    916:def _is_real_id6(token: str, declared_ids: set) -> bool:      <- the ONLY definition
+    1060:        if slot_id6 and _is_real_id6(slot_id6, declared_ids):   <- existing rule (b)
+    1089:            if not _is_real_id6(slot_id6, declared_ids):        <- existing rule (b)
+    1304:    return _is_real_id6(m.group("id6"), declared_ids)           <- THIS plan, calling it
+    ```
+
+    `test_the_shared_real_id6_discriminator_is_called_not_reimplemented` pins both facts (the call site string and `src.count("def _is_real_id6") == 1`) so a future copy-paste fails.
+
+    THE F-13 CASE MEASURED DIRECTLY, and it is a live trap rather than a hypothetical:
+
+    ```
+    parse_clustered("20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md")
+      -> {'date':'20260817','set':'1357','nn':'01','id6':'assess','slug':'bugs-leftover-remove-dataloss','type':'ipd'}
+    is_clustered_conformant(same, expected_type="ipd")  -> True
+    _ID6_RE.match("assess")                             -> True
+    _is_real_id6("assess", set())                       -> False   <- the discriminator that saves it
+    _is_real_id6("826o13", set())                       -> True
+    ```
+
+    And my classifier nevertheless buckets that record as **legacy**, both fields, proven by `test_a_legacy_slug_word_of_six_alphanumerics_buckets_as_legacy_not_drift` (which asserts the parse trap AND the bucketing in one test) and by the live output in V-01 (`legacy Id: wvlk84`, `legacy Set: awphysical`).
+
+    ONE FINDING THE PLAN DID NOT FORESEE, and it is a correction to my own first implementation rather than to the plan: consulting `_is_real_id6` ALONE mis-buckets in the OTHER direction too. A MODERN name whose slot holds a typo'd id6 that is nobody's declared id (`...-01-slotaa-a.ipd.md` declaring `- Id: fmbbb1`) got `False` from the helper and was reported as a grandfathered legacy name, when it is precisely `check.id6-identity-slot`'s error case. `_identity_name_is_modern` now takes `own_id` and trusts the slot when the file declares an id6 at all - the same reasoning rule (a) states for itself - and `test_a_modern_names_Id_half_is_left_to_the_identity_slot_rule` pins it. This was found by `tests/test_check_engine.py`'s existing row failing, not by inspection.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the report's ACTUAL output on the live tree and confirm by inspection that NEITHER `27rjro` NOR `takpys` appears as a rename candidate - both, since the artifact is a pair. Quote the code implementing the exclusion, show it is a CLASS test rather than a hardcoded filename, and state whether it works by consuming `76w6mq`'s bounded reader or by an explicit body-quote exclusion. Paste the non-identifier handling and show `set: <terse-id>` produces no rename suggestion. Paste the quoting-normalization code and show the live backtick record (`awoptimize-03 effzzi`) produces no phantom.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE ACTUAL LIVE OUTPUT with its remedy lines (full scope, the 13 findings enumerated in V-01):
 
-- [ ] V-03 validates E-03
+    ```
+    legacy          Id: lus9ou (filename: 20260808-0004-00-plans-adopter-orchestrator.ipd.md)
+         -> aw rename plans lus9ou --to-id6 --apply
+    legacy          Set: plans-adopter (filename: 20260808-0004-06-migrate-existing-plans.ipd.md)
+         -> aw rename plans 7qx7ys --to-id6 --apply
+    legacy          Id: 25kzda (filename: 20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md)
+         -> aw rename specs 25kzda --to-id6 --apply
+    artifact        Set: aw-delivery (filename: 20260730-2152-01-agents-artifact-organization.spec.md)
+         -> no rename: fix the READER that harvests identity from a quoted block (see `cqytxf` / `76w6mq`), not this document
+    non-identifier  Set: <terse-id> (filename: 20260813-1833-01-attention-visible-backlog-tier.spec.md)
+         -> no rename is possible: the declared value is not an identifier. If it is a schema example, move it inside a fenced block so it is not read as a declaration
+    ```
+
+    NEITHER `27rjro` NOR `takpys` APPEARS AS A RENAME CANDIDATE, AND NEITHER APPEARS AT ALL. Asserted by inspection AND measured mechanically:
+
+    ```
+    >>> any(k in Path(x.location).name for x in findings for k in ('awoptimize','27rjro','takpys'))
+    False
+    ```
+
+    They are absent (rather than present-with-a-do-not-rename-note) because the bounded reader finds each file's OWN correct YAML declaration - `id: 27rjro` / `set: awmetastore`, both in their filenames - so there is nothing to report. That is a stronger outcome than the plan anticipated and is explained in V-01. The pair is still covered as a CLASS by a fixture (`test_a_quoted_declaration_outside_the_name_is_bucketed_artifact_and_never_a_rename`, which reproduces the exact live shape) and by the live property test `test_no_correctly_named_record_is_offered_a_rename`, which fails if ANY `artifact`/`non-identifier` finding ever carries an `aw rename`.
+
+    IT WORKS BY AN EXPLICIT BOUNDED-REGION READ, NOT by consuming `76w6mq`'s reader, because `76w6mq` is `approved` but STILL IN `pending/` (stated in V-01). The code says so and says to delegate once it lands:
+
+    ```python
+    def _identity_metadata_region(text: str) -> str:
+        """... A record opening with a `---` line is YAML-envelope dialect and its region is that
+        envelope ... Otherwise the region runs from the start of the file to the first fenced code
+        block or the first `##` heading, whichever comes first.
+        ... NOTE the duplication this deliberately accepts: `76w6mq` (pending at authoring) owns a
+        bounded identity reader for the RESOLVER. When it lands, this helper should DELEGATE to it."""
+        lines = text.splitlines(keepends=True)
+        if lines and lines[0].strip() == "---":
+            ...
+        ends = [len(text)]
+        for rx in (_IDENT_FENCE_RE, _IDENT_H2_RE):
+            m = rx.search(text)
+            if m is not None:
+                ends.append(m.start())
+        return text[: min(ends)]
+    ```
+
+    IT IS A CLASS TEST, NOT A HARDCODED FILENAME, and the module contains no `27rjro`/`takpys`/`aw-delivery` literal in any predicate: the test is POSITIONAL (`in_region`, derived from `_identity_metadata_region`) and therefore keyed on neither record type nor field, which is the property F-16 demands. Verified over the whole corpus before coding: the bound preserves 1171 of 1173 `Id` declarations and 1141 of 1146 `Set` declarations, and the handful it drops are exactly the quoted-example readings.
+
+    THE NON-IDENTIFIER HANDLING, and its precedence, which is a decision rather than an ordering accident:
+
+    ```python
+    _IDENT_TOKEN_RE = _re.compile(r"\A[a-z0-9][a-z0-9-]*\Z")
+    ...
+    if not _IDENT_TOKEN_RE.match(value):
+        bucket = "non-identifier"
+        detail = (f"declared `{field}: {value}` is not an identifier (a documentation placeholder or "
+                  f"illustrative value), so no filename can satisfy it{quoted_note}")
+        recovery = ("no rename is possible: the declared value is not an identifier. ...")
+    ```
+
+    `set: <terse-id>` produces NO rename suggestion: the live line above shows the recovery text, and `test_a_non_identifier_declared_value_produces_no_rename_suggestion` asserts `"aw rename" not in recovery`. The detection is structural (`<`/`>`/whitespace fail the token regex), not keyed on the filename.
+
+    THE QUOTING NORMALIZATION:
+
+    ```python
+    value = raw.strip("`\"'") or None
+    ```
+
+    THE LIVE BACKTICK RECORD PRODUCES NO PHANTOM: `20260821-awoptimize-03-effzzi-...roadmap.md` declares `- Set: \`awoptimize\`` (line 17, confirmed with backticks at HEAD) and is ABSENT from all 13 findings - the mechanical check above covers it (`'awoptimize'` -> False). `test_a_backtick_quoted_front_matter_value_produces_no_phantom` pins the same property from a fixture, so it survives that record changing.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the report's per-record remedy lines and VERIFY at least one per type by running the suggested command in dry-run, showing it resolves. Quote the line describing a pre-cutover spec's rename as optional rather than overdue. Paste proof the existing legacy exemption was NOT changed (a diff over the naming rule).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE PER-RECORD REMEDY LINES are pasted in V-02 above (all five distinct shapes) and the full 13 are enumerated in V-01.
 
-- [ ] V-04 validates E-04
+    VERIFIED IN DRY-RUN, ONE PER TYPE, both resolving (`aw rename`'s default IS the preview; `--apply` was NOT passed, so nothing was renamed):
+
+    ```
+    $ python3 -m agent_workflows rename specs 25kzda --to-id6
+    --- would rename .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md -> 20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md ---
+    --- reuses existing '- Id: 25kzda' (no re-mint) ---
+
+    $ python3 -m agent_workflows rename plans lus9ou --to-id6
+    --- would rename 20260808-0004-00-plans-adopter-orchestrator.ipd.md -> 20260808-plans-adopter-00-lus9ou-plans-adopter-orchestrator.ipd.md ---
+    --- would rewrite 5x [full-name] '...' in .aw/records/plans/pending/20260908-findtier-02-3i6rso-...ipd.md ---
+    ```
+
+    F-10 WAS REAL AND BIT: the FIRST implementation suggested the FILENAME as the selector, and `aw rename plans 20260808-0004-06-migrate-existing-plans.ipd.md --to-id6` REFUSES with `error: no plan has Id '20260808-0004-06-migrate-existing-plans.ipd.md'` (the plans resolver is id-directed). The suggestion now uses the record's own declared id6 wherever it has one, which is why `_identity_rename_hint` exists as a helper with that measurement in its docstring rather than as an f-string. A second F-10 instance: `aw rename roadmaps effzzi` reports `no roadmaps artifact matched`, while `aw rename research effzzi` resolves, so `_IDENT_RENAME_TYPE` maps `roadmaps -> research` with the reason recorded.
+
+    THE PRE-CUTOVER-SPEC LINE, describing the rename as OPTIONAL and a maintainer call rather than overdue (the `legacy` bucket's detail text, which is what a pre-cutover spec receives):
+
+    > `declared \`{field}: {value}\` is absent from this pre-id6-grammar filename, so the record cannot be located by name; the rename is OPTIONAL and a maintainer call (grandfathered, not overdue)`
+
+    THE EXISTING LEGACY EXEMPTION WAS NOT CHANGED. `git diff agent_workflows/check_engine.py` contains exactly THREE hunks, all purely ADDITIVE, and none of them is inside `check_names`, `_spec_requires_id6`, `SPEC_ID6_CUTOVER_DATE`, or `_check_identity_slots`:
+
+    ```
+    $ git diff agent_workflows/check_engine.py | grep "^@@"
+    @@ -401,6 +401,35 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {          <- the new RuleSpec entry
+    @@ -1076,12 +1105,409 @@ def _check_identity_slots(...)                <- the new code, AFTER that function
+    @@ -1933,6 +2359,24 @@ def check_types(                              <- the sweep wiring
+    ```
+
+    The only appearances of `check.name-nonconformant` in the diff are (a) a comment naming it as a family member and (b) the new rule DEFERRING to it (see V-04's overlap note); `SPEC_ID6_CUTOVER_DATE` appears only inside the new registration comment. Behaviorally confirmed: `check.name-nonconformant`'s live count is 3 -> 3 (V-04 table), and `tests/test_check_engine.py`'s naming and retirement-scope rows pass UNMODIFIED.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: state the chosen surface and the finding count that justified it, and confirm it against OQ-01's resolved answer (sweep rule at `warning`) or justify departing from it. Paste the `RuleSpec` registration showing `warning` severity with its explanatory comment, and name which of the six existing warning rules it follows. Paste the no-error-added proof in the form F-7 requires: the severity assertion AND a synthetic-tree run whose only finding is the new code exiting 0. Paste per-rule counts showing only the new code appeared and `check.id6-identity-slot`'s count stated explicitly. DO NOT offer a live-tree before/after exit code as the proof; `aw check all` already exits 1, so that comparison is vacuous and its presence alone fails this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE CHOSEN SURFACE: a SWEEP RULE at `warning` severity, exactly OQ-01's resolved answer, with NO departure. It rides the once-per-full-sweep seam in `check_types` beside its I-09 family neighbours and is reached by `aw check` / `aw check all`.
 
-- [ ] V-05 validates E-05
+    THE COUNT THAT JUSTIFIED IT, measured on my HEAD: 13 findings at full scope (2 at default scope) against a tree already reporting 324. That is ~4% of an already-noisy sweep, well inside OQ-01's threshold ("if an executor's own scan finds materially more than seventeen, that is a reason to re-open this question") - it is FEWER than the eighteen the resolution reasoned about, so the resolution holds a fortiori and I did not re-open it.
+
+    THE REGISTRATION (severity, with its explanatory comment; full comment in the source):
+
+    ```python
+    # findtier Order 02 (`3i6rso`) E-04: a record whose declared `- Id:` or `- Set:` is ABSENT from
+    # its own filename. ...
+    # `warning`, NOT `error`, and the reason is a measured policy constraint rather than caution.
+    # Every member on this tree today is grandfathered BY DECISION: eight are pre-id6-grammar names,
+    # five of them `executed/` plans whose bodies must not be re-committed (AGENTS.md, enforced by
+    # the `ipd-executed-gate` hook), and the rest are pre-cutover specs that `SPEC_ID6_CUTOVER_DATE`
+    # above deliberately grandfathers. An `error` would therefore fail the tree for states the
+    # maintainer CHOSE ...
+    "check.identity-absent-from-name": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-09"
+    ),
+    ```
+
+    WHICH OF THE SIX IT FOLLOWS: **`check.review-dangling`** - advisory, whole-tree, deterministic, riding the same full-sweep seam, and consumed by no lifecycle gate. Named in the registration comment and asserted in `test_the_rule_is_registered_as_a_warning_following_the_review_dangling_precedent`, which also re-reads that rule's severity so a change there is noticed here.
+
+    THE NO-ERROR-ADDED PROOF, as a SEVERITY ASSERTION (F-7's form), from `test_no_error_severity_finding_is_added` on a fixture that really produces findings:
+
+    ```python
+    self.assertEqual(
+        sorted({d.severity for d in drift}),
+        ["warning"],
+        "every finding this rule emits must be `warning`; a single `error` would let the "
+        "advisory fail a tree that was otherwise clean",
+    )
+    ```
+
+    NO LIVE-TREE EXIT-CODE COMPARISON IS OFFERED AS PROOF, per the explicit instruction. (For completeness only, not as evidence: the tree exits 1 before and after, which proves nothing, exactly as F-7 says.)
+
+    THE SYNTHETIC-TREE "EXITS 0" HALF CANNOT BE SATISFIED BY ANY NON-`info` RULE IN THIS CODEBASE, and I am flagging that rather than fabricating it. `artifact_core.drift_exit_code` is literally `return 1 if any(getattr(d, "severity", "") != "info" for d in drift) else 0`, so a `warning`-only tree exits 1 BY DESIGN. Two registered rules state the same fact in their own comments (`check.review-decision-unescalated`: "DO NOT READ `warning` AS 'cannot fail anything' (measured, not assumed)"; `check.stale-index-missing`: "`info` -> the ONLY non-failing severity"), and `tests/test_review_findings.py` says an exit-code argument "would prove nothing (F-13)" for a `warning`. Registering this rule `info` to make the literal assertion pass would ship the WRONG contract, so instead the property is proven three ways and the measurement is pinned: `test_a_synthetic_tree_whose_only_finding_is_this_rule_still_fails_the_gate` asserts `drift_exit_code(drift) == 1` AND `drift_exit_code([d._replace(severity="info") ...]) == 0`, so the claim is measured rather than asserted, and `test_the_rule_gates_no_lifecycle_step` is a source census proving neither `ipd_lint.py` nor `ipd_lifecycle.py` consumes the rule id. Recorded as DECISION 04-3i6rso-D1 with human review requested on the wording.
+
+    PER-RULE COUNTS, BEFORE AND AFTER, via `python3 -m agent_workflows check all --agent` (the installed `aw` shim resolves a different package copy, so the module form is used to exercise THIS workspace's code):
+
+    ```
+    BEFORE total=324 exit=1
+    AFTER  total=329 exit=1
+
+    rule                                           before   after  delta
+    check.from-backlog-dangling                         1       1     +0
+    check.from-backlog-gate-mismatch                    2       2     +0
+    check.id6-collision                                 1       1     +0
+    check.identity-absent-from-name                     0       2     +2   <== NEW (the only new id)
+    check.ipd-uncarried-obligation                     86      86     +0
+    check.lifecycle-transition-invalid                  3       3     +0
+    check.live-bug-ungated                              2       2     +0
+    check.name-nonconformant                            3       3     +0
+    check.scope-drift                                 225     228     +3
+    check.system-layout-missing                         1       1     +0
+    ```
+
+    `check.id6-identity-slot`'s COUNT STATED EXPLICITLY: **ZERO before and ZERO after** (absent from the diagnostics in both runs), unchanged, because E-06 chose to ADD a sibling rather than extend it. F-15 warned that a stale baseline of 2 would read a correct 0 as a regression; my own measurement is 0.
+
+    THE ONE OTHER MOVING COUNT IS NOT CAUSED BY THIS RULE, and I checked rather than assuming. `check.scope-drift` +3 is a LOCATION-SET NO-OP: diffing the findings by `(location, rule)` shows the scope-drift location set is IDENTICAL before and after (`only-in-after` and `only-in-before` are both empty for that rule when compared as sets), and the three extra rows belong to OTHER agents' pending plans (`m7gvuz`, `w2y5ac`, `udgilu`) reacting to live receipts in this shared checkout, since my own edits are uncommitted at measurement time. The default scope reports 2 of the 13 because retirement filtering is honored (DECISION 04-3i6rso-D2); `aw check --all` reports the full count.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the ACTUAL passing output of all seven fixture cases, QUOTING separately the four false-positive guards: the body-quoted-declaration assertion, the backtick-quoting assertion, the non-identifier assertion, and the six-alphanumeric-slug-word assertion. Paste BOTH live counts with members named as standing evidence. THEN paste the BARE `python3 -m pytest` summary lines before and after and state the failure-set delta explicitly by NODE ID, compared against your own measured baseline rather than any figure in this plan.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL SEVEN REQUIRED CASES PASS, inside a 20-test module (the seven, plus the E-06 reuse pair, the E-04 registration set, the three scope/overlap boundaries found during execution, and two live-tree evidence tests). ACTUAL output:
+
+    ```
+    $ python3 -m pytest tests/test_name_identity_report.py -o addopts="" -v
+    collected 20 items
+    ScopeAndOverlapTests::test_a_modern_names_Id_half_is_left_to_the_identity_slot_rule PASSED
+    ScopeAndOverlapTests::test_retirement_scope_is_honored_rather_than_overridden PASSED
+    ScopeAndOverlapTests::test_a_junk_filename_is_left_to_the_name_grammar_rule PASSED
+    LiveCountEvidenceTests::test_no_correctly_named_record_is_offered_a_rename PASSED
+    LiveCountEvidenceTests::test_the_exception_set_is_small_and_bucketed PASSED
+    AdvisoryRegistrationTests::test_no_error_severity_finding_is_added PASSED
+    AdvisoryRegistrationTests::test_the_rule_is_registered_as_a_warning_following_the_review_dangling_precedent PASSED
+    AdvisoryRegistrationTests::test_a_synthetic_tree_whose_only_finding_is_this_rule_still_fails_the_gate PASSED
+    AdvisoryRegistrationTests::test_the_rule_is_reached_by_the_full_sweep PASSED
+    AdvisoryRegistrationTests::test_the_rule_gates_no_lifecycle_step PASSED
+    FourBucketTests::test_a_conformant_modern_record_is_not_reported PASSED              <- ASSERTION 2
+    FourBucketTests::test_a_body_quoted_declaration_is_not_reported_as_a_naming_problem PASSED   <- GUARD 1
+    FourBucketTests::test_a_legacy_named_record_is_reported_with_a_resolvable_rename PASSED      <- ASSERTION 1
+    FourBucketTests::test_a_non_identifier_declared_value_produces_no_rename_suggestion PASSED   <- GUARD 3
+    FourBucketTests::test_a_quoted_declaration_outside_the_name_is_bucketed_artifact_and_never_a_rename PASSED <- GUARD 1b
+    FourBucketTests::test_a_backtick_quoted_front_matter_value_produces_no_phantom PASSED        <- GUARD 2
+    FourBucketTests::test_genuine_drift_on_a_modern_name_is_reported_and_distinguished_from_legacy PASSED <- ASSERTION 5
+    FourBucketTests::test_a_legacy_slug_word_of_six_alphanumerics_buckets_as_legacy_not_drift PASSED <- GUARD 4
+    DiscriminatorReuseTests::test_the_shared_real_id6_discriminator_is_called_not_reimplemented PASSED
+    DiscriminatorReuseTests::test_the_new_rule_sits_beside_the_identity_slot_rule_without_changing_it PASSED
+
+    ============================== 20 passed in 5.10s ==============================
+    ```
+
+    THE FOUR FALSE-POSITIVE GUARDS, QUOTED SEPARATELY as required.
+
+    GUARD 1, body-quoted declaration (a spec whose fenced block holds a second `- Set:`/`- Id:`):
+
+    ```python
+    self.assertEqual(
+        got, [],
+        "the file's OWN declarations are both in its name, and the quoted block must not be "
+        f"read as a second declaration; got {got!r}",
+    )
+    ```
+
+    GUARD 1b, the live shape (declaration quoted AND absent from the name) - must bucket `artifact` and never suggest a rename:
+
+    ```python
+    self.assertEqual(bucket, "artifact", ...)
+    self.assertNotIn(
+        "aw rename", d.recovery,
+        "an artifact-bucket finding must never suggest a rename: the filename is correct",
+    )
+    ```
+
+    GUARD 2, backtick quoting:
+
+    ```python
+    self.assertEqual(
+        got, [],
+        f"a backtick-wrapped value must be compared STRIPPED, producing no finding; got {got!r}",
+    )
+    ```
+
+    GUARD 3, non-identifier:
+
+    ```python
+    self.assertEqual(got, [("non-identifier", "20260101-real-01-abc123-x.spec.md", "Set")], ...)
+    self.assertNotIn(
+        "aw rename", drift[0].recovery,
+        "no rename can satisfy a non-identifier value, so none may be suggested",
+    )
+    ```
+
+    GUARD 4, the six-alphanumeric slug word (which also asserts WHY it is needed, so the test states the trap rather than only the outcome):
+
+    ```python
+    self.assertEqual(m.group("id6"), "assess", "the parsed slot is the SLUG's first word")
+    self.assertTrue(ce._ID6_RE.match("assess"), "and it matches the id6 shape")
+    ...
+    self.assertEqual(
+        got, [("legacy", name, "Id"), ("legacy", name, "Set")],
+        f"both fields must bucket as `legacy`, never `drift`; got {got!r}",
+    )
+    ```
+
+    BOTH LIVE COUNTS WITH MEMBERS NAMED are pasted in V-01 (13 at full scope over 11 records; 2 at default scope), and are carried forward as standing evidence by `LiveCountEvidenceTests`, which asserts a BOUND plus an empty `drift` bucket rather than a member list, so the corpus changing (e.g. `76w6mq` landing) is not a false failure.
+
+    THE BARE SUITE, BEFORE AND AFTER. The BEFORE run is a CLEAN CLONE of this workspace at HEAD `7f06bb37` (`git clone --no-hardlinks . tmp/base && git checkout 7f06bb37`), so the baseline is uncontaminated by my edits:
+
+    ```
+    BEFORE (clean clone at 7f06bb37):
+    7150 passed, 3 skipped, 2 xfailed, 3 warnings in 281.06s (0:04:41)
+
+    AFTER (this workspace):
+    7170 passed, 3 skipped, 2 xfailed, 3 warnings in 254.15s (0:04:14)
+    ```
+
+    THE FAILURE-SET DELTA BY NODE ID IS **EMPTY**: the baseline failure set is `{}` (ZERO failures) and the after failure set is `{}` (ZERO failures), so `AFTER minus BEFORE` is empty and no node id regressed. The +20 passed is exactly the 20 new tests in `tests/test_name_identity_report.py`.
+
+    MY BASELINE DIFFERS FROM EVERY FIGURE RECORDED IN THIS PLAN, which the plan predicted and instructed me to expect. The plan's second review measured `1 failed, 5958 passed`; I measure `7150 passed` with ZERO failures. The named environmental failure `tests/test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose` does NOT occur here, because this lane worktree has no gitignored `opencode-recovery/` dump. The claimed `test_orchestrator_retirement.py` failure does not exist either, consistent with the plan's own correction.
+
+    THREE EXISTING TESTS FAILED MID-EXECUTION AND ALL THREE ARE NOW GREEN WITH THE CAUSE UNDERSTOOD, recorded because a passing final suite would otherwise hide real findings: `test_each_entry_point_composes_exactly_its_declared_sub_checks`, `test_is_retired_and_the_default_scope_agree_about_every_artifact`, and `test_one_pass_reports_exactly_the_collisions_present`. They drove DECISION 04-3i6rso-D2 (honor the retirement scope instead of overriding it), D3 (two overlap exclusions so one authoring mistake is not double-reported), and D4 (four fixtures whose declared `- Set:` contradicted their own filename were CORRECTED, while the one row whose fixture is a genuine member of this population gained the new rule id with a rationale). No expectation was loosened to make a failure disappear.
+  - Result: pass
 
 ## Approval and execution gate
 
