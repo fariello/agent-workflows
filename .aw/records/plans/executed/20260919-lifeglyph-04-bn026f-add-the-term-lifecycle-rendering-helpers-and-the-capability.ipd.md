@@ -7,18 +7,18 @@
 - Scope: IN: the three R10.2 helpers (names may differ, per the spec, but resolution and rendering MUST stay separate); the Section 9.1 full-row styling rule that glyph, id6, and status share one color and weight while type and title do not; the Section 9.2 compact `GLYPH id6` form and the legend RENDERER; the Section 9.4 grapheme-safety contract, including the ANSI-and-zero-width-aware visible-width measurement and grapheme-safe truncation that contract requires in UTF-8 mode; and the criterion A16 capability matrix. OUT: the semantic tables (child `udgilu`), the depth ladder (child `pow5sj`), and every consumer conversion (children `f9t5hz` onward). Also OUT: placing the legend in command help or in user documentation (child `7p3tt8`), converting the generic `format_outcome`/`badge`/`format_path` roles named in Concern, and a full wcwidth-style 0/1/2 East-Asian-width table, for the reason in Deferred.
 - Scope-Paths: agent_workflows/term.py, tests/test_term.py
 - Item-Dependencies: executed:udgilu, executed:pow5sj
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: lifeglyph
 - Order: 4
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: bn026f
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - From-Spec: uonrjg
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-20 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: bn026f verified (set lifeglyph, attempt 1).
 - 2026-09-20 executed (opencode its_direct/pt3-claude-opus-5-1m-us, aw oc run run-20260920T181010Z-757518 lane bn026f): all five E-items performed and all five V-items verified with pasted measured evidence at lane HEAD `e72eba8d`. Added the three R10.2 helpers (`resolve_lifecycle` module-level, `format_lifecycle_marker`/`style_lifecycle_text` as `Term` methods, per D1), the Section 9.1 row renderer whose neutral cells are unstylable by construction, the Section 9.2 compact form and the table-GENERATED legend renderer, and the two Section 9.4 primitives (`visible_width`, `truncate_visible`, plus `_pad_visible`). 44 new tests in `tests/test_term.py` (7501 -> 7545 passed at the same HEAD, delta fully accounted for). `aw ipd lint --phase pre-transition` conforming. Both dependency edges (`executed:udgilu`, `executed:pow5sj`) were satisfied on disk at dispatch. One environment-induced suite failure diagnosed as pre-existing and NOT this change (the turn's own `OPENCODE_CONFIG_CONTENT` leaks into `test_turn_bounds`); filed as backlog `r67fl1`.
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-19 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED. PR-401..PR-407 all FIXED, none deferred, none open. Two HIGH scope-understatements fixed: E-04 delegated all of spec Section 9.4 to an ASCII table satisfying one of its four contract bullets (three fail by measurement in UTF-8 mode), and E-03 claimed legend placement obligations this child structurally cannot meet. Readiness go-pending-approval; dispatch still gated by udgilu PR-203 and pow5sj PR-301.
