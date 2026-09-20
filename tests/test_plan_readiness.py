@@ -1673,34 +1673,133 @@ class ApprovalGateRealCorpusTests(unittest.TestCase):
             polarity, _ = PR.newest_verdict(path.read_text(encoding="utf-8"))
             self.assertNotEqual(polarity, PR.NEGATIVE, f"{id6} falsely refused")
 
-    @pytest.mark.livecorpus
-    def test_no_pending_plan_is_refused_on_a_verdict_today(self):
+    # Plan h3bjue E-02. Each id6 is pinned for a NAMED hazard, and the polarity beside it was
+    # MEASURED (not assumed) on 2026-09-20, which matters because `assertNotEqual(polarity,
+    # NEGATIVE)` passes trivially for the `None` polarity that 10 of the 102 pending plans and 89 of
+    # the 553 executed ones carry. An id pinned without measuring can therefore look like coverage
+    # while asserting nothing, which is the vacuous pass this class treats as a defect. All four sit
+    # in a TERMINAL disposition, so no legitimate lifecycle move can silently drop one: that is the
+    # property `test_the_three_item_13_successors_are_not_refused` demonstrated when two of its three
+    # ids left `pending/` without breaking it.
+    KNOWN_POSITIVE = (
+        # Its own review record explains that it states the verdict token explicitly BECAUSE
+        # `newest_verdict` reads it, so the record CONTAINS `REJECT` while being an approval. The
+        # naive "newest record mentions REJECT" rule `is_review_history_entry` exists to reject would
+        # refuse exactly this plan.
+        ("fn2l1u", "executed", "an APPROVE whose prose contains `REJECT`"),
+        # A maintainer `--by-human` attestation via `askme` that narrates the `no-go` it is CLEARING
+        # and also contains `REJECT`. Both negative tokens are present; the verdict is positive. This
+        # is the record shape whose misreading cost run `run-20260919T194413Z-2056285` 2h10m.
+        (
+            "8lfoum",
+            "executed",
+            "an attestation narrating a CLEARED `no-go` and containing `REJECT`",
+        ),
+        # `newest_verdict`'s docstring records that 6 review records state a positive verdict and
+        # also contain `NO-GO` while narrating a readiness change; refusing those would lock out
+        # legitimate approvals. This is one of them.
+        ("btot17", "executed", "an APPROVE narrating a superseded `no-go`"),
+        # Its actor field is `trimmed scope) (opencode ...`, i.e. it CONTAINS parentheses. The old
+        # `(?P<actor>[^)]*)` bound failed to match such a record at all, so the gate fell silent on
+        # it (fn2l1u). This pins the widened regex against a REAL record rather than a fixture.
+        ("920qnm", "executed", "a PARENTHESIZED actor, the fn2l1u fail-open shape"),
+    )
+
+    def test_named_plans_whose_verdict_is_known_positive_are_not_refused(self):
         """A gate that refuses live, legitimately-reviewed plans is a lockout, not a safeguard.
 
-        MARKED `livecorpus`, SO THE DEFAULT SUITE SKIPS IT, and the reason is WHERE it fires rather
-        than whether it should. This test sweeps EVERY plan in the live `pending/` tree, so any agent
-        authoring a plan can turn it red. A runner lane merges its work only when the full test suite
-        passes, so a red test here blocks integration for EVERY concurrent lane, including lanes whose
-        work is unrelated and correct.
+        THE CHECK IS AGAINST NAMED PLANS WHOSE VERDICT POLARITY IS KNOWN, and the reason is that the
+        form this replaced was FALSE BY CONSTRUCTION. It globbed the whole live `pending/` tree and
+        asserted that NO plan there carried a negative verdict. But a plan that `/plan-review`
+        legitimately REJECTED and that is awaiting its replan is a CORRECT thing for `pending/` to
+        contain, so "no pending plan is refused" is false exactly when the gate is WORKING. It could
+        not distinguish a FALSE refusal (the parser misreading an approval) from a TRUE one (a real
+        rejection), which is the only thing this test is named for. Measured: it went red on `32ij2j`
+        after that plan's own legitimate `REJECT - NEEDS REPLAN` verdict, and review records across
+        the tree spend paragraphs re-establishing that the red is nobody's fault. DO NOT RESTORE IT.
 
-        MEASURED 2026-09-19: three `reaskscore` plans wrote "clearing ... its `no-go`", the negative
-        readiness check matched the token inside that clearing clause, this test went red, and run
-        `run-20260919T194413Z-2056285` spent 2h 10m and $55.02 integrating NOTHING. Three lanes were
-        preserved unmerged and eight further items cascaded to `dependency-blocked`.
-
-        IT IS NOT DELETED, BECAUSE IT WORKED: it is the only check that caught that parser bug, and a
-        made-up-data test could not have. It still runs in `make test-all`, in release-review, and in
-        any invocation that clears the marker filter (`-m ''` or `-m livecorpus`), where a failure
-        informs a human instead of halting a queue.
+        The ids and their measured polarities are in `KNOWN_POSITIVE` above, each with the hazard it
+        pins. `_find` resolves them across all five dispositions, and the counter below refuses to
+        pass vacuously if they are ever all deleted.
         """
-        pending = sorted(PENDING_DIR.glob("*.ipd.md"))
-        self.assertGreater(len(pending), 0)
-        refused = [
-            p.name
-            for p in pending
-            if PR.newest_verdict(p.read_text(encoding="utf-8"))[0] == PR.NEGATIVE
-        ]
-        self.assertEqual(refused, [], "pending plans falsely refused on their verdict")
+        checked = 0
+        for id6, disposition, why in self.KNOWN_POSITIVE:
+            path = self._find(id6)
+            polarity, entry = PR.newest_verdict(path.read_text(encoding="utf-8"))
+            # assertEqual, NOT assertNotEqual(NEGATIVE): the looser form also passes for `None`
+            # (no readable verdict), so it would report coverage it does not have.
+            self.assertEqual(
+                polarity,
+                PR.POSITIVE,
+                f"{id6} ({why}, measured positive in {disposition}/) now reads {polarity!r}; "
+                f"record: {entry[:200]}",
+            )
+            checked += 1
+        if checked == 0:
+            self.skipTest(
+                "none of the pinned known-positive plans remain in any disposition"
+            )
+        self.assertEqual(checked, len(self.KNOWN_POSITIVE))
+
+    @pytest.mark.livecorpus
+    def test_every_negative_verdict_in_the_corpus_states_the_reject_token(self):
+        """Plan h3bjue E-03: the whole-corpus property, chosen because it CAN FAIL.
+
+        THE PROPERTY: every plan whose newest review record parses as `NEGATIVE` must have a record
+        that literally contains `REJECT`.
+
+        IT SURVIVES A LEGITIMATE REJECT BY CONSTRUCTION, which is the whole difference from the
+        assertion removed above: a properly rejected plan parses `NEGATIVE` and DOES state the token,
+        so it SATISFIES this property instead of violating it.
+
+        IT IS FALSIFIABLE, and that had to be checked rather than assumed. `newest_verdict` reaches
+        `NEGATIVE` by a SECOND route: when the record states no verdict token at all, an ASSERTED
+        negative READINESS decides. A record taking that route contains no `REJECT` and fails here.
+        Verified in both directions on 2026-09-20.
+
+        AND THAT FAILURE MODE IS THE FALSE-REFUSAL CLASS THIS CLASS EXISTS FOR: a reviewer who
+        records a readiness but omits the verdict token has their plan silently refused by a gate
+        whose refusal has no override.
+
+        THE PROPERTY THE ORIGINATING BACKLOG ITEM RECOMMENDED WAS REJECTED AS UNFALSIFIABLE, and is
+        recorded here so nobody reintroduces it from `yw6759`: "no plan whose newest review record
+        contains an APPROVING verdict token is refused". `newest_verdict` DERIVES its polarity by
+        calling `classify_verdict` on that same record and returning the result, so the antecedent
+        and the consequent are one line of code. It cannot fail for any input, and it holds over the
+        whole corpus for that reason rather than as evidence. A test that cannot be red is not a
+        check.
+
+        MARKED `livecorpus` for the reason the marker exists: it reads every artifact in this
+        repository's own records tree, so any agent authoring a plan can turn it red, and a red test
+        in a lane blocks integration for EVERY concurrent lane. It still runs in `make test-all`, in
+        release-review, and under `-m ''`, where a failure informs a human instead of halting a queue.
+        """
+        plans_root = REPO_ROOT / ".aw" / "records" / "plans"
+        checked = 0
+        silent = []
+        for name in ("pending", "executed", "superseded", "not-executed", "reusable"):
+            directory = plans_root / name
+            if not directory.is_dir():
+                continue
+            for path in sorted(directory.glob("*.ipd.md")):
+                polarity, entry = PR.newest_verdict(path.read_text(encoding="utf-8"))
+                if polarity != PR.NEGATIVE:
+                    continue
+                checked += 1
+                if "REJECT" not in entry:
+                    silent.append(f"{name}/{path.name}: {entry[:200]}")
+        if checked == 0:
+            self.skipTest("no plan in any disposition currently parses as NEGATIVE")
+        self.assertEqual(
+            silent,
+            [],
+            f"{len(silent)} of {checked} refused plans state NO `REJECT` token, so each was refused "
+            "on its READINESS alone. That is a silent lockout: the gate's refusal has no override, "
+            "and the review record its author wrote states no rejection at all. FIX: read the named "
+            "records; either the reviewer omitted the verdict token they meant to state, or "
+            "`negative_readiness_asserted` is matching a token inside a clause that CLEARS it, which "
+            "is the 2026-09-19 incident returning.\n" + "\n".join(silent),
+        )
 
     def test_the_incident_plans_are_refused(self):
         """The five plans a blanket approval swept up on 2026-08-30 must all now refuse.
