@@ -907,10 +907,35 @@ class PublishedContractParityTests(unittest.TestCase):
         # And the allowed set is exactly what the doc lists. `verify_with` joined both the schema
         # and the doc in `runprofile` Order 06 (`kgpptv`); it is a profile NAME, not a credential
         # or an argv fragment, so it does not weaken the claim this test defends.
-        self.assertEqual(
-            sorted(rp.ALLOWED_PROFILE_KEYS),
-            ["agent", "model", "runner", "validate", "variant", "verify_with"],
-        )
+        #
+        # `execution_profile` joined both in `hardreach` Order 01 (`n5qca5`) and likewise does not
+        # weaken it: its value space is a CLOSED two-member enum this module owns, so it is a NAME
+        # exactly as `verify_with` is. It cannot express WHICH paths are writable (only whether to
+        # request the jail at all), which is precisely why the adjacent `permission`/`permissions`
+        # keys stay forbidden while this one is allowed. The full reasoning, and the tests that
+        # assert rather than assume it, live in `test_runner_profiles.py`.
+        #
+        # THIS LIST IS BOUND TO THE DOC BY THE ASSERTION BELOW IT, so a field added to the schema
+        # without documenting it fails here. That is deliberate: the doc is the only place a user
+        # learns that hardened enforcement is Linux only and that an unsupported host REFUSES.
+        allowed = [
+            "agent",
+            "execution_profile",
+            "model",
+            "runner",
+            "validate",
+            "variant",
+            "verify_with",
+        ]
+        self.assertEqual(sorted(rp.ALLOWED_PROFILE_KEYS), allowed)
+        for key in allowed:
+            with self.subTest(documented=key):
+                self.assertIn(
+                    f"`{key}`",
+                    self.text,
+                    f"{key} is storable but the doc never names it, so a user cannot learn it "
+                    "exists or what it limits",
+                )
 
     def test_the_doc_contains_no_em_or_en_dash(self):
         """Repository convention for user-facing prose, enforced by `docs_check` too."""

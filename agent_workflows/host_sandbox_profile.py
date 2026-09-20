@@ -53,6 +53,29 @@ inside it. "The launcher exited 0" is deliberately insufficient: a misconfigured
 `--bind / /` instead of `--ro-bind / /`) starts perfectly cleanly and enforces nothing, so a
 launch-only criterion cannot tell an enforcing jail from a permissive one.
 
+HOW HARDENED MODE IS REQUESTED, which this contract previously did not say and which made the
+capability unreachable in practice (`hardreach` Order 01, `n5qca5`). An operator asks for it with a
+per-profile `execution_profile: "hardened"` field in their own `runner-profiles.json`
+(`runner_profiles.ALLOWED_PROFILE_KEYS`); `oc_runipd.resolve_launch_pair` resolves it and
+`initialize_run` freezes it into `state["options"]["execution_profile"]`, which is the key
+`_apply_execution_profile` reads before calling `select_execution_profile` below. Until that plan
+NOTHING in the package wrote that key, so this whole module's enforcement was correct, tested, and
+unreachable from any real invocation.
+
+THERE IS DELIBERATELY NO CLI FLAG, and the reason belongs in this contract because it bounds the
+guarantee. A documented `--hardened` flag on a cross-platform tool reads as a cross-platform
+GUARANTEE, and this one is Linux only against a stated platform bar of macOS 100% and Windows 95%,
+so the flag would be typed on a host where the only honest answer is a refusal. A field in the
+operator's own local configuration claims exactly what is true: they asked for it, on this machine.
+The maintainer's decision is recorded as `n5qca5` OQ-01. The DEFAULT is unchanged on every platform
+(Phase 6.4), because a Linux-only default would make every macOS and Windows run refuse.
+
+OPENCODE ONLY, AND THE OTHER HOST IGNORES RATHER THAN REFUSES. `agy_runipd` reads no launch-profile
+identity at all, so a stored request is INERT there: an agy run proceeds UNSANDBOXED AND SILENT. That
+is degradation-by-omission, the precise failure this module refuses by raising, so it is named here
+and in `docs/runner-profiles.md` rather than left to be discovered. Giving that host a refusal is a
+change to that host, not a property of this contract.
+
 THE GUARANTEE IS VOID ON ANY HOST WHERE THE EXECUTED PROBE RETURNS False. There is no
 partial credit and no silent degradation: `supports_os_sandbox` is True only when a real
 jail was actually constructed and a real write outside the allowed root was actually

@@ -3339,10 +3339,11 @@ def launch_profile_record(
 
     Contains NO credentials: only the model/variant/agent identifiers, the profile names, and the
     store path. `runner_profiles` stores no secrets by construction (its schema admits only
-    `runner`/`model`/`variant`/`agent`/`validate`).
+    `runner`/`model`/`variant`/`agent`/`validate`/`verify_with`/`execution_profile`, the last two
+    being NAMES from vocabularies that module owns).
     """
 
-    return {
+    record: dict[str, Any] = {
         "requested": resolved.requested_profile,
         "applied": resolved.applied_profile,
         "runner": resolved.runner,
@@ -3363,6 +3364,17 @@ def launch_profile_record(
         "validate": resolved.validate,
         "provenance": dict(resolved.provenance),
     }
+    # hardreach Order 01 (`n5qca5`) E-03: the resolved SANDBOX REQUEST, recorded in the provenance
+    # object beside the fields it travels with. CONDITIONAL, matching `kgpptv`'s `verify_*` treatment:
+    # a run that requested nothing freezes the record it always froze, byte for byte, so no existing
+    # reader of `options.launch_profile` sees a new key it must learn.
+    #
+    # THIS IS THE AUDIT COPY, NOT THE READ PATH. `_apply_execution_profile` reads
+    # `options["execution_profile"]`, which `initialize_run` writes beside this record; the value here
+    # exists so an operator reading `state.json` can see WHICH profile asked and via which tier.
+    if resolved.execution_profile is not None:
+        record["execution_profile"] = resolved.execution_profile
+    return record
 
 
 def initialize_run(args: argparse.Namespace) -> Path:
@@ -3391,6 +3403,37 @@ def initialize_run(args: argparse.Namespace) -> Path:
                 "verify_launch_profile": launch_profile_record(resolved_verify),
             }
             if resolved_verify is not None
+            else {}
+        ),
+        # hardreach Order 01 (`n5qca5`) E-03: THE WRITER for the key `_apply_execution_profile` has
+        # always read. Before this, `options["execution_profile"]` was set by NOTHING in the package
+        # (its single occurrence outside the reader was a COMMENT), so `select_execution_profile`
+        # returned "default" on every real invocation and the whole hardened branch below it was
+        # unreachable in production even on a host whose EXECUTED probe reports it CAN enforce.
+        #
+        # THE EXISTING KEY, NOT A PARALLEL ONE. The reader, the closed vocabulary, and the fail-closed
+        # resolver all already existed and are tested; this plan adds only a writer, and deliberately
+        # changes nothing about what the sandbox does once selected.
+        #
+        # RESOLVED AT THE EXISTING SEAM, which is what makes it safe. `resolve_launch_pair` ran as the
+        # FIRST statement of this function, before the run directory exists, so a malformed config
+        # leaves no run id and no partial state; and this dict is FROZEN ONCE into `state.json`, so a
+        # later edit to `runner-profiles.json` cannot change an in-flight run's sandbox posture.
+        #
+        # CONDITIONAL, so a run that requested nothing freezes byte-identically to what it froze
+        # before this field existed. A `None` here would be a THIRD state the resolver does not have
+        # (it reads absent and "default" identically) and would change every existing run's shape.
+        #
+        # OPENCODE ONLY BY CONSTRUCTION. `agy_runipd` contains zero references to `execution_profile`,
+        # `host_sandbox_profile`, `runner_profiles`, `resolve_launch_profile` or `launch_profile`
+        # (measured at execution HEAD), so it has no seam to carry this and an agy run SILENTLY
+        # IGNORES a stored request rather than refusing it. That is degradation-by-omission, the very
+        # thing `select_execution_profile` refuses by raising, so it is stated here and in
+        # `docs/runner-profiles.md` instead of being left for an operator to discover. Making agy
+        # refuse is a change to that host and is deliberately not smuggled in here.
+        **(
+            {"execution_profile": resolved_launch.execution_profile}
+            if resolved_launch.execution_profile is not None
             else {}
         ),
         "auto": getattr(args, "auto", True),
@@ -5068,6 +5111,13 @@ def _apply_execution_profile(
     probe reports it cannot enforce the sandbox (fail closed, never silent degradation), and
     `SandboxProfileError` when hardened mode is requested without an isolated lane, because
     there would be no lane boundary to enforce.
+
+    WHO WRITES THE KEY THIS READS (`hardreach` Order 01, `n5qca5`): a per-profile
+    `execution_profile` field in the operator's own `runner-profiles.json`, resolved by
+    `resolve_launch_pair` and frozen into `state["options"]` by `initialize_run`. Until that
+    plan there was NO writer at all, so both branches below were unreachable in production. There
+    is deliberately no CLI flag: the enforcement is Linux/Landlock only, and a documented flag on a
+    cross-platform tool reads as a cross-platform guarantee (that plan's OQ-01).
     """
     options = state.get("options", {})
     requested = options.get("execution_profile")
@@ -5607,6 +5657,12 @@ def run_opencode(
     # `options["execution_profile"]` is explicitly "hardened": `select_execution_profile`
     # returns "default" for unset/"default", so `argv` below is untouched and the default
     # launch is byte-for-byte what it was before this phase.
+    #
+    # hardreach Order 01 (`n5qca5`): that key now HAS a writer, an `execution_profile` field in the
+    # operator's own `runner-profiles.json` resolved and frozen at run creation. Until then nothing
+    # in the package assigned it, so this seam could never fire in production. Reading it from the
+    # FROZEN options (not from a store read here) is what makes a resume honor the posture the run
+    # was created with.
     #
     # When "hardened" IS requested, `select_execution_profile` FAILS CLOSED - it raises
     # `HardModeUnavailableError` on a host whose EXECUTED probe cannot enforce the sandbox,
