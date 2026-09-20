@@ -6,18 +6,18 @@
 - Scope: IN: re-read A11/A12/A13 and Section 9.3 of `uonrjg` once `yaxr4i` is `executed`, against the shipped flag surface and the rewritten contract doc, and record the round in the spec's workflow history via `aw specs note`. Amend A11/A12/A13/9.3 text if and only if the shipped surface differs from what the spec anticipates. OUT: building any part of the resolver (that is `udgilu` onward); any change to the spec's palette, glyph table, or mappings, none of which `yaxr4i` touches; invoking `/spec-review` or filing a `.review.md` for this spec (both are wrong for an `approved` spec, for the measured reasons in E-01 and findings F-04/F-05); and any transition of the spec's `- Status:`, which MUST remain `approved`.
 - Scope-Paths: .aw/records/specs/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md
 - Item-Dependencies: executed:yaxr4i
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: lifeglyph
 - Order: 1
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: n4xq3l
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 - From-Spec: uonrjg
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-20 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: n4xq3l verified (set lifeglyph, attempt 2).
 - 2026-09-19 approved (aw set): status set to approved
 - 2026-09-19 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED. PR-101..PR-105 all FIXED, none deferred, none open. Readiness go-pending-approval. OQ-01 left open, non-blocking and conditional.
 
