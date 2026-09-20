@@ -48,7 +48,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: prevent the collision at creation
 
-- [ ] E-01 GIVE `generate_id6` THE UNIFIED INVENTORY AS ITS COLLISION SET, at every call site, so a cross-type collision cannot be created. `status_set.inventory_all_artifacts` already spans every type and already backs the collision CHECKER, so this consumes an existing substrate rather than building one.
+- [x] E-01 GIVE `generate_id6` THE UNIFIED INVENTORY AS ITS COLLISION SET, at every call site, so a cross-type collision cannot be created. `status_set.inventory_all_artifacts` already spans every type and already backs the collision CHECKER, so this consumes an existing substrate rather than building one.
   DO NOT CHANGE `generate_id6`'S SIGNATURE TO FETCH ITS OWN SET. It takes `existing: set` and an injectable `_rng`, which is what makes it deterministically testable; a function that reaches out to the filesystem cannot be unit-tested that way. Add a helper that BUILDS the global set and have each caller pass it, keeping the generator pure.
   THE INVENTORY MUST INCLUDE TERMINAL ARTIFACTS, and this is the load-bearing detail. A retired or executed artifact's id6 is permanently cited across the repository (`Item-Dependencies`, `From-Backlog`, review filenames, prose), so reusing it is a real collision even though nothing is "live". The measured `uyeko5` case is exactly this shape: one side is in `executed/`. If your global set is built from a helper that defaults to excluding retired paths, that default is WRONG here and must be overridden explicitly, with a comment saying why.
   THE CALL-SITE LIST IN THIS PLAN WAS INCOMPLETE AND IS NOW CORRECTED. Re-measured at HEAD `0a073ea9` by `grep -n generate_id6 agent_workflows/*.py`: there are ELEVEN mint call sites across EIGHT modules, not the six across five this plan originally named. The full set, to be RE-LOCATED BY SYMBOL:
@@ -57,36 +57,40 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   `ipd_authoring.py:564` IS ALSO A REAL MINT SITE AND WAS NOT NAMED. It calls `generate_id6(existing)`; determine what `existing` holds and give it the global set on the same terms as the others.
   - Depends on: none
   - Expected outcome: every mint site collision-checks against a global, terminal-inclusive id6 set; `generate_id6` stays pure and injectable; no call site retains a per-type-only check; all ELEVEN sites across EIGHT modules accounted for, with `research_cmd.py` and `set_records.py` explicitly included.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: performed 2026-09-20. Added `artifact_core.global_id6s` (repository-wide, terminal-inclusive) + `mint_id6` (impure wrapper), keeping `generate_id6` pure and injectable. All ELEVEN sites across EIGHT modules now route through it: backlog.py, set_records.py, releases.py, specs.py, research_cmd.py (x2, via `_mint_research_id6`), ipd_authoring.py (x4), artifact_rename.py. SUBSTRATE DIVERGENCE, recorded as DECISION D1: the plan names `status_set.inventory_all_artifacts`, but that reader MISSES the research YAML `id:` dialect (measured: only 33 of 147 research records carry an id there, and `27rjro`/`takpys` are both absent), so it is built on `artifact_adopt.repository_id6s` instead, which is already the dialect-complete collision set used by the adopt verb and is a strict SUPERSET of the inventory. Using the plan's literal substrate would have left the research mint path blind to research ids, i.e. exactly the hole F-11 identifies as the gravest authoring error
 
-- [ ] E-07 DO NOT BUILD THE GLOBAL MINT SET ON AN UNBOUNDED IDENTITY READER WITHOUT RECORDING WHAT THAT MEANS. `status_set.inventory_all_artifacts` is the correct substrate and E-01 should use it, but MEASURE THIS FIRST: `status_set._ID_RE` is `^-\s*Id:\s*([0-9a-z]{6})\s*$` compiled with `re.MULTILINE`, so it is a THIRD unbounded identity reader, alongside `check_engine._ID_LINE_RE` and the `selectors` readers `76w6mq` bounds. Verified: it matches a `- Id:` line inside a fenced code block.
+- [x] E-07 DO NOT BUILD THE GLOBAL MINT SET ON AN UNBOUNDED IDENTITY READER WITHOUT RECORDING WHAT THAT MEANS. `status_set.inventory_all_artifacts` is the correct substrate and E-01 should use it, but MEASURE THIS FIRST: `status_set._ID_RE` is `^-\s*Id:\s*([0-9a-z]{6})\s*$` compiled with `re.MULTILINE`, so it is a THIRD unbounded identity reader, alongside `check_engine._ID_LINE_RE` and the `selectors` readers `76w6mq` bounds. Verified: it matches a `- Id:` line inside a fenced code block.
   THE DIRECTION OF THE ERROR IS WHAT MAKES THIS SAFE FOR MINTING AND UNSAFE FOR CHECKING, and stating it is this item's whole job. An unbounded reader OVER-COLLECTS ids (it picks up quoted examples), so the mint set is a SUPERSET of the true id6 set. For MINTING that is harmless and even conservative: refusing to mint a quoted id6 costs one wasted candidate out of 36^6. For CHECKING it manufactures false collisions, which is exactly the live `uyeko5` finding. So E-01 may consume the inventory as-is; what it must NOT do is describe that set as "the id6s in use" without qualification, or reuse the same reader to decide that a collision EXISTS.
   MEASURED CONSEQUENCE, to be confirmed rather than assumed: the inventory reports 799 ids and 797 distinct over 982 artifacts, with `uyeko5` appearing THREE times. Two of those three are quotations. So the global set already contains phantom entries today.
   ADD A COMMENT AT THE HELPER naming this, because the next reader will otherwise assume the set is exact and may "optimize" the mint path onto the checker's reader or vice versa. Cross-reference `76w6mq`, which owns the bounding work.
   DO NOT BOUND `status_set._ID_RE` HERE. That is the same class of change `76w6mq` owns for the other two readers, and a third plan editing a third identity reader is precisely the drift `cqytxf` warns about. Report it as a finding for `76w6mq` (or a successor) instead.
   - Depends on: E-01
   - Expected outcome: a recorded measurement that the mint substrate's reader is unbounded and over-collects; a comment at the global-set helper stating that the set is a conservative SUPERSET and why that is correct for minting and wrong for checking; no change to `status_set._ID_RE`; the finding handed to `76w6mq`'s owner rather than fixed here.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: performed 2026-09-20. Measured and recorded rather than fixed: `status_set._ID_RE` is `^-\s*Id:\s*([0-9a-z]{6})\s*$` with `re.MULTILINE` (flags 40) and demonstrably matches a `- Id:` inside a fenced ```markdown block. `global_id6s` carries the required comment stating the set is a conservative SUPERSET, that over-collection is SAFE for minting and WRONG for checking, and that `76w6mq` owns the bounding work. `status_set._ID_RE` was NOT changed (status_set.py is not in this plan's diff at all). Finding handed off as backlog item `q1ov25`, which also records that `76w6mq`'s declared scope does NOT cover this third reader
 
-- [ ] E-02 DECIDE AND IMPLEMENT WHAT THE EMPTY-SET CALL SHOULD DO, rather than passing it a set and calling the job done. `ipd_authoring.py:152` calls `_core.generate_id6(set())`, so any id6 is "unique" against nothing.
+- [x] E-02 DECIDE AND IMPLEMENT WHAT THE EMPTY-SET CALL SHOULD DO, rather than passing it a set and calling the job done. `ipd_authoring.py:152` calls `_core.generate_id6(set())`, so any id6 is "unique" against nothing.
   ANSWER THE ITEM'S REACHABILITY QUESTION FIRST, because it decides which fix is correct. That call sits in the SKELETON GENERATOR, whose docstring says `plan_id` "is the stable `- Id:` handle; when omitted a fresh one is generated" and that "deterministic output for tests can pin `plan_id`". So establish by inspection whether any production path reaches it WITHOUT passing `plan_id` (the scaffold verb at `:316`/`:328` mints properly and passes it in). If the only unpinned caller is a test, the honest fix is to give it the real inventory ANYWAY or to document it as deliberately unchecked WITH THE REASON; if a production path reaches it, it is a live bug and must get the global set.
   THE ANSWER WAS MEASURED AT REVIEW, so CONFIRM it rather than re-deriving it, and treat a contradiction as the finding. `build_skeleton` is the only function holding `generate_id6(set())`, and its ONLY production caller passes `plan_id=plan_id` explicitly (`ipd_authoring.py:340-347`); every other caller is under `tests/`. So NO production path reaches the empty-set mint today. That makes this a latent trap rather than a live bug: the correct fix is the COMMENT (mandatory) and, optionally, threading the real inventory so the default is safe if a future caller omits `plan_id`. Do NOT report it as a live minting defect, and do NOT skip the comment on the grounds that it is unreachable, because unreachability is the very thing a future caller can silently change.
   DO NOT LEAVE AN EMPTY-SET COLLISION CHECK WITH NO COMMENT under any outcome. It is wrong on its face, and the next reader will re-derive this whole question.
   - Depends on: E-01
   - Expected outcome: a written reachability finding for that call site, and either the global set passed or an explicit comment recording why it is deliberately unchecked; never a bare `set()` with no explanation.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: performed 2026-09-20. Reachability CONFIRMED as the plan measured: `build_skeleton` is the only holder of the empty-set mint and its only production caller (`run_scaffold`) passes `plan_id` explicitly; every other caller is a test. So it was a latent trap, not a live bug. Fixed anyway (DECISION D2) by threading the repository-wide set, PLUS the mandatory comment recording the reachability finding, why unreachability is not a reason to leave it, and that a caller wanting determinism must pin `plan_id`. No bare `set()` remains
 
 ### Task group 2: close the two detection gaps
 
-- [ ] E-03 CLOSE D140's DECLARED-DUPLICATE BLIND SPOT by adding the third case the rule is missing: a file whose declared `- Id:` is ALSO another file's declared `- Id:`, where the two are DIFFERENT TYPES.
+- [x] E-03 CLOSE D140's DECLARED-DUPLICATE BLIND SPOT by adding the third case the rule is missing: a file whose declared `- Id:` is ALSO another file's declared `- Id:`, where the two are DIFFERENT TYPES.
   THE BLIND SPOT IS PROVEN, NOT ASSUMED. Verified by calling `_check_identity_slots` directly with a synthetic record pair in which both files declare and slot the same id6: ZERO findings. Rule (a) compares the slot against the file's OWN declared Id and passes when they agree; rule (b) is skipped entirely for a file that declares an Id. So the shape D140 most cares about, an artifact ASSERTING ownership of another's identity, is invisible to the rule written for D140.
   MIND THE OVERLAP WITH `check.id6-collision`, and do not emit two findings for one fact. The plain declared-Id duplicate is ALREADY reported by `check_collisions`'s `seen_ids` pass. So decide deliberately whether this is a new identity-slot case or simply the EXISTING collision rule being surfaced properly (E-06 covers surfacing), and record the choice. Emitting `check.id6-collision` and `check.id6-identity-slot` for the same pair is worse than one clear finding.
   DO NOT MASS-FLAG CONFORMANT FILES. `_is_real_id6`'s discriminator exists because legacy slugs whose first word matches `[0-9a-z]{6}` (`assess`, `agents`) were being flagged. Any new case must preserve that guard, and V-03 requires the before/after repo-wide finding count to prove it.
   - Depends on: none
   - Expected outcome: the declared-duplicate-across-types shape produces exactly ONE clear finding; no double-reporting with `check.id6-collision`; the repo-wide finding count does not grow for conformant files.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: performed 2026-09-20. Blind spot RE-PROVEN by direct call (`_check_identity_slots` returns ZERO findings for a pair that both declares and slots one id6). Resolved per OQ-01 as SURFACE, NOT DUPLICATE (DECISION D3): measured, the same pair already yields exactly ONE `check.id6-collision` from the `seen_ids` pass, so adding a slot case would emit two findings for one fact. Added an explicit docstring at `_check_identity_slots` recording that the blindness is DELIBERATE and why, so a future maintainer cannot 'fix' it into double-reporting, and pinned the one-finding outcome plus a negative control (a genuinely FOREIGN slot id6 still fires) and a legacy-slug row (`_is_real_id6` intact) in tests
 
-- [ ] E-04 DO NOT BOUND THE IDENTITY PARSER HERE; CONSUME `76w6mq`'s FIX AND PROVE THIS PLAN DID NOT FORK IT. CORRECTED 2026-09-08: the authored version of this item required bounding `_ID_LINE_RE` to the metadata region, presented as a newly discovered defect. IT WAS NOT NEW AND IT IS NOT THIS PLAN'S WORK. Backlog item `cqytxf` (`idcapture`, `Work-Kind: bug`, `Priority: high`) was filed 2026-09-05, THREE DAYS BEFORE this plan was authored, naming the same document, the same line 60, and the same `uyeko5` collision; it is already graduated to plan `76w6mq`, whose `Scope-Paths` are `agent_workflows/selectors.py, agent_workflows/check_engine.py, tests/test_selector_zero_open.py, tests/test_id_metadata_region.py` and whose E-01..E-04 bound the metadata region across `_read_id`, `_read_status` and `_read_setid` together.
+- [x] E-04 DO NOT BOUND THE IDENTITY PARSER HERE; CONSUME `76w6mq`'s FIX AND PROVE THIS PLAN DID NOT FORK IT. CORRECTED 2026-09-08: the authored version of this item required bounding `_ID_LINE_RE` to the metadata region, presented as a newly discovered defect. IT WAS NOT NEW AND IT IS NOT THIS PLAN'S WORK. Backlog item `cqytxf` (`idcapture`, `Work-Kind: bug`, `Priority: high`) was filed 2026-09-05, THREE DAYS BEFORE this plan was authored, naming the same document, the same line 60, and the same `uyeko5` collision; it is already graduated to plan `76w6mq`, whose `Scope-Paths` are `agent_workflows/selectors.py, agent_workflows/check_engine.py, tests/test_selector_zero_open.py, tests/test_id_metadata_region.py` and whose E-01..E-04 bound the metadata region across `_read_id`, `_read_status` and `_read_setid` together.
   THE OVERLAP WAS EXACT AND WOULD HAVE BEEN TWO PLANS EDITING ONE PARSER. Both plans declare `check_engine.py`. Had both executed as authored, whichever landed second would have found the region-bounding already done, or worse would have added a second bound in a different place. `cqytxf` also records the reason a fork is dangerous here: `selectors.py` previously carried private `_read_id` copies in the host runners that DRIFTED, and "a fix landing in only one of the two regexes recreates exactly that drift".
   SO THIS ITEM'S JOB IS NOW A CONSUMPTION CHECK. Verify that `76w6mq` has landed the region bound, then assert that THIS plan's minting and collision work reads identity through the SAME bounded reader rather than a second unbounded one. If `76w6mq` has NOT landed, do not implement its fix: report that this plan's E-05 measurement will still show the parser artifact and proceed, because E-01 through E-03 and E-05 through E-06 do not depend on the bound.
   MEASURED AT REVIEW: `76w6mq` HAS **NOT** LANDED. It is `- Status: to-review` in `.aw/records/plans/pending/20260908-idcapture-01-76w6mq-bound-identity-extraction-to-the-metadata-region-so-a-quoted.ipd.md`, so it is neither approved nor executed. The not-landed branch above is therefore the LIVE branch, and E-05's measurement WILL still contain the parser artifact. Confirm the status at execution time (it may have advanced) and follow whichever branch is then true.
@@ -96,11 +100,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT EDIT THE RESEARCH PROMPT under any circumstance. Its quoted example is legitimate cited content and `cqytxf` says so explicitly: "the fix is in the reader, not the doc."
   - Depends on: none
   - Expected outcome: no identity-parser change is made by this plan; a written statement of whether `76w6mq` has landed; proof that this plan's minting and collision paths consume ONE bounded reader rather than a forked copy.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: performed 2026-09-20. performed 2026-09-20 as a CONSUMPTION CHECK; no parser change made. `76w6mq` has ADVANCED since review (now `- Status: approved`) but is STILL IN `pending/`, so its region bound has NOT landed and the not-landed branch is the live one. NEGATIVE PROOF: `git diff` over this plan's changes contains no line touching `_ID_LINE_RE`, and the pattern is byte-identical to HEAD. This plan's mint and collision paths read identity through the SAME `check_engine._ID_LINE_RE` / `artifact_adopt` readers rather than a forked copy. `Item-Dependencies: none` is DELIBERATE, not an omission: E-04 succeeds under both branches. `uyeko5` VERDICT: still OUTSTANDING (2 findings), resolved by neither plan; this plan takes no credit for a parser fix it did not make. No records file was edited (`git status --porcelain .aw/records/` is clean of modifications)
 
 ### Task group 3: make an existing collision impossible to miss
 
-- [ ] E-05 MAKE `aw check` SEE A COLLISION INVOLVING A TERMINAL ARTIFACT, because today it does not and that is why this collision sat undetected. MEASURED: `aw check all` reports ZERO `check.id6-collision`, `aw check all --all` reports ONE, `aw doctor --agent` reports ONE. The cause is that `_iter_type_files` drops retired paths unless `include_retired=True` (`check_engine.py:493`), `executed/` counts as retired (`is_retired`, `:453-460`), and `cli.py:9213` binds `include_retired` to `args.all`; plans iterated go from 46 to 532 with the flag.
+- [x] E-05 MAKE `aw check` SEE A COLLISION INVOLVING A TERMINAL ARTIFACT, because today it does not and that is why this collision sat undetected. MEASURED: `aw check all` reports ZERO `check.id6-collision`, `aw check all --all` reports ONE, `aw doctor --agent` reports ONE. The cause is that `_iter_type_files` drops retired paths unless `include_retired=True` (`check_engine.py:493`), `executed/` counts as retired (`is_retired`, `:453-460`), and `cli.py:9213` binds `include_retired` to `args.all`; plans iterated go from 46 to 532 with the flag.
   THIS IS THE DEFECT `76w6mq` E-06 DELIBERATELY REPORTS AND DOES NOT FIX, so this item is its intended successor rather than a duplicate. That plan's E-06 states the reason for deferring: "making `check_collisions` scan retired records changes what the repository-level check reports across the whole executed corpus and could surface a large batch of pre-existing findings". READ ITS FINDING FIRST and honor that warning: measure the batch before enabling, and if it is large, report the count and treat a phased introduction as the fallback rather than committing a mass failure.
   THE COLLISION SCAN SHOULD NOT INHERIT THE LIVENESS FILTER, and that is the narrow claim to implement. Excluding terminal artifacts is right for most rules (a finished plan's own conformance is not actionable) and WRONG for identity, because a terminal id6 is permanently cited. So make the collision pass see every artifact regardless of the caller's retired setting, rather than telling users to remember `--all`.
   DO NOT WIDEN ANY OTHER RULE outside `check_collisions`. This E-item changes what the COLLISION scan enumerates and nothing else.
@@ -111,14 +116,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   STATE THE COST. Measured: `check_collisions` goes from about 0.27s to about 0.32s on this repository, so the IO cost is small. Confirm it in the executing worktree rather than inheriting this figure, and report wall-clock `aw check all` before and after too.
   - Depends on: E-04
   - Expected outcome: `aw check all` (no flags) reports every id6 collision including one involving a terminal artifact; the setid and identity-slot passes keep their existing enumeration so neither gains findings; the +47 setid and +2 walkthrough slot findings are demonstrated ABSENT from the result; the added cost is measured and stated.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: performed 2026-09-20. performed 2026-09-20, scoped to the id6 pass ALONE as required. `check_collisions` now enumerates with `include_retired=True` unconditionally and TAGS each file `caller_visible`; the id6 pass consumes every file while the setid and identity-slot passes consume only the caller's corpus. MEASURED: `check.id6-collision` 1 -> 10 with `aw check all` (no flags), and the two neighbours did NOT move (`check.setid-collision` 0 -> 0, `check.id6-identity-slot` 0 -> 0); the walkthrough false positives `zpbx7o`/`y5od1h` are demonstrably ABSENT. The separation was cleanly possible, so no STOP-AND-REPORT was needed. 8 of the 9 new findings are ONE pre-existing defect (backlog items duplicated across `graduated/` and `done/`), filed as `fwq5nu` and independently corroborated by `aw attention`'s eight `attention.duplicate-id` violations
 
-- [ ] E-06 DECIDE WHAT A PER-TYPE `aw check <type>` OWES THE AUTHOR, and implement that decision. MEASURED: `aw check research` reports `errors 0 warnings 0` and exits 0 on a tree containing a real id6 collision, because `collisions` is gated on `norm == "all"` (`cli.py:9237`). An author who checks the type they just wrote is told they are fine.
+- [x] E-06 DECIDE WHAT A PER-TYPE `aw check <type>` OWES THE AUTHOR, and implement that decision. MEASURED: `aw check research` reports `errors 0 warnings 0` and exits 0 on a tree containing a real id6 collision, because `collisions` is gated on `norm == "all"` (`cli.py:9237`). An author who checks the type they just wrote is told they are fine.
   THREE LEGITIMATE OUTCOMES, and the item explicitly left this open: run the collision scan for the type being checked (correct but pays the repo-wide inventory cost on every per-type run); put it behind a flag; or have the per-type report SAY that collisions are only checked in the full sweep. The third is the cheapest honest answer and is not a cop-out, because the failure mode here is a SILENT clean bill of health, and one sentence removes it.
   WHATEVER IS CHOSEN, A CLEAN PER-TYPE REPORT MUST NOT IMPLY COLLISION-CLEAN. That is the whole defect. Do not resolve this by leaving the report unchanged.
   - Depends on: E-05
   - Expected outcome: a per-type check either performs the collision scan or explicitly states that it does not; no per-type run reports an unqualified clean when collisions were never examined.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: performed 2026-09-20. performed 2026-09-20 as the report-the-limit option (DECISION D4; OQ-02 stays the maintainer's). New `info`-severity rule `check.collisions-not-checked`, emitted by `check_types` only when the collision scan was skipped AND at least one SUPPORTED type was checked (that second condition was added after the existing `EntryPointTests` row for `check_types(['bogus'])` correctly caught the first version announcing a skipped scan on a run that checked nothing). `drift_exit_code` ignores `info`, so a clean per-type run still exits 0, verified unpiped. `cli.py` was NOT edited: the engine's own report sufficed, so the plan's Scope check held
 
 ## Project conventions discovered (Step 0)
 
@@ -242,40 +249,196 @@ No spec change is expected. If the executor finds spec text asserting that id6 m
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the ACTUAL passing output of the forced-collision minting test, and quote the assertion showing the candidate id6 belonged to a DIFFERENT type. Paste proof that a TERMINAL artifact's id6 is in the collision set (compare the set's size against `inventory_all_artifacts`'s count, which measured 982 artifacts / 799 ids at REVIEW, not the 703 this plan recorded at authoring; measure it yourself rather than citing either figure). Paste `generate_id6`'s signature showing it is unchanged and still takes `existing` plus an injectable `_rng`. THEN paste a `grep -n generate_id6 agent_workflows/*.py` over ALL ELEVEN call sites in EIGHT modules showing none still passes a per-type-only set, and confirm `research_cmd.py` and `set_records.py` are among them (they were absent from this plan as authored). Confirm `research_cmd.generate_id6`'s wrapper routes to the same global helper rather than becoming a second source of truth.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: FORCED-COLLISION MINTING TEST, actual output (`python3 -m pytest tests/test_id6_global_mint.py -o addopts="" -v`):
+    tests/test_id6_global_mint.py::ForcedCollisionMintTests::test_a_taken_id6_from_another_type_is_never_minted PASSED [ 83%]
+    tests/test_id6_global_mint.py::ForcedCollisionMintTests::test_the_callers_own_set_is_unioned_not_replaced PASSED [100%]
+    tests/test_id6_global_mint.py::GlobalMintSetTests::test_every_tree_and_disposition_is_collected PASSED [ 50%]
+    tests/test_id6_global_mint.py::GlobalMintSetTests::test_a_missing_records_tree_yields_an_empty_set_rather_than_raising PASSED [ 66%]
+    tests/test_id6_global_mint.py::PurityAndSubsetContractTests::test_generate_id6_keeps_its_injectable_signature PASSED [ 33%]
+    tests/test_id6_global_mint.py::PurityAndSubsetContractTests::test_the_mint_set_over_collects_quoted_ids_and_that_is_deliberate PASSED [ 16%]
+    ============================== 6 passed in 0.53s ===============================
+  THE ASSERTION SHOWING THE CANDIDATE BELONGED TO A DIFFERENT TYPE, quoted from `ForcedCollisionMintTests`: the rng is pinned with `_rng_returning(taken, free)` so the FIRST candidate offered is an id6 already held by another type, and the assertion is `assertEqual(got, free, ...)` with the message "the rng offered the ALREADY-TAKEN id6 {taken!r} first and a free id6 {free!r} second, so returning {taken!r} proves the candidate was not checked against the other tree". Rows cover a pending plan, an EXECUTED plan, a DONE backlog item, a spec, and a research record's YAML id.
+  TERMINAL ARTIFACTS ARE IN THE COLLISION SET, measured in this worktree:
+    global_id6s (mint set): 1201
+    inventory_all_artifacts ids: 1084 over 1260 artifacts
+    mint set is a strict SUPERSET of the inventory: True | extra ids only in mint set: 117
+    uyeko5 (executed plan) in mint set: True
+    27rjro (research, YAML dialect) in mint set: True | in inventory: False
+  So the mint set is larger than the plan's prescribed substrate and CONTAINS the executed plan's id6.
+  `generate_id6` IS UNCHANGED. `git show HEAD:agent_workflows/artifact_core.py | grep -n "^def generate_id6"` and the same grep on the working file BOTH print:
+    58:def generate_id6(existing: set, _rng: Optional[Callable[[str], str]] = None) -> str:
+  ALL ELEVEN CALL SITES, `grep -n "generate_id6\|mint_id6\|global_id6s" agent_workflows/*.py` (mint sites only, after the change):
+    artifact_rename.py:493:            minted_id6 = _core.mint_id6(
+    backlog.py:476:    item.id = core.mint_id6(repo_root, existing_ids)
+    ipd_authoring.py:207:        plan_id = _core.mint_id6(_core.repo_root_of(Path.cwd()))        <- the former empty-set call (E-02)
+    ipd_authoring.py:382:                plan_id = _core.mint_id6(
+    ipd_authoring.py:399:        plan_id = _core.mint_id6(repo_root, _existing_plan_ids(pending))
+    ipd_authoring.py:662:            _existing_plan_ids(path) | _core.global_id6s(_core.repo_root_of(path)),   <- `_backfill_id`
+    releases.py:64:    id6 = _core.mint_id6(repo_root, _existing_ids(repo_root))
+    research_cmd.py:62:    return _core.mint_id6(_core.repo_root_of(research_root), existing)   <- `_mint_research_id6`
+    research_cmd.py:258:    existing = _existing_id6s(research_root) | _core.global_id6s(   <- the comparison-Set planner
+    set_records.py:278:    item.id = _core.mint_id6(repo_root, existing_ids)
+    specs.py:964:    id6 = core.mint_id6(repo_root, _existing_spec_ids(repo_root))
+  NO site passes a per-type-only set: every one either calls `mint_id6` (which unions the global set) or explicitly unions `global_id6s`. `research_cmd.py` and `set_records.py` ARE among them, as required.
+  `research_cmd.generate_id6` IS NOT A SECOND SOURCE OF TRUTH: it still forwards to `_core.generate_id6` unchanged (kept because it is a published seam that tests call), and the two real mint sites route through `_mint_research_id6`/`global_id6s` instead. Its docstring now says exactly that.
+  DIVERGENCE FROM THE PLAN'S LETTER, stated plainly: the substrate is `artifact_adopt.repository_id6s`, NOT `status_set.inventory_all_artifacts`. Reason and evidence in DECISION 07-sk7ggr-D1; the short form is that the prescribed reader misses the research YAML dialect (only 33 of 147 research records carry an id in it, and both `27rjro` and `takpys` are absent), so using it would have left the research mint path blind to research ids.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: state the reachability finding for `ipd_authoring.py:152` in one or two sentences, with the evidence that decided it (which callers reach it, and whether any omits `plan_id`). Paste the resulting code: either the global set being passed, or the comment recording why it is deliberately unchecked. A bare `set()` with no comment is a FAILED validation regardless of test results.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: REACHABILITY FINDING: no PRODUCTION path reaches the empty-set mint. `build_skeleton` was the only holder of `generate_id6(set())`, and its single production caller `run_scaffold` passes `plan_id=plan_id` explicitly (`ipd_authoring.py`, the `text = build_skeleton(... plan_id=plan_id)` call); every other caller is under `tests/` (`test_ipd_authoring.py`, `test_ipd_templates.py`, `test_ipd_lint.py`, `test_ipd_lifecycle_cli.py`, `test_orchestrator_retirement.py`, `test_receipt_requirement_digest.py`, `test_run_flag_surface.py`, `test_run_selection_policy.py`, `test_worker_role_refusal.py`), found by grepping every `build_skeleton` occurrence. Two of those test callers DO omit `plan_id`, which is what the branch exists for. This CONFIRMS the plan's review-time measurement rather than contradicting it, so it is a latent trap and NOT a live minting defect.
+  RESULTING CODE (the global set IS passed, and the comment is present):
+    if plan_id is None:
+        # IPD sk7ggr E-02. REACHABILITY, MEASURED: no PRODUCTION path reaches this branch today.
+        # `build_skeleton` is the only holder of the old `generate_id6(set())`, and its single
+        # production caller (`run_scaffold`, below) always passes `plan_id=plan_id` explicitly; every
+        # other caller is under `tests/`. So this was a LATENT TRAP, not a live minting bug.
+        #
+        # It is fixed rather than merely documented because unreachability is exactly the property a
+        # future caller can change silently, and the failure mode is invisible: `generate_id6(set())`
+        # checks a candidate against NOTHING, so any id6 it returns is "unique" by vacuous truth and a
+        # duplicate is only discovered once the plan is written and cited. Minting against the
+        # repository-wide set costs one scan on a path that writes a file anyway.
+        #
+        # A caller that wants determinism must PIN `plan_id` (the documented contract above); it must
+        # not rely on this default being unchecked.
+        plan_id = _core.mint_id6(_core.repo_root_of(Path.cwd()))
+  NO bare `set()` remains: `grep -n "generate_id6(set())" agent_workflows/` returns nothing. The two unpinned test callers still pass (`tests/test_ipd_authoring.py`, `tests/test_ipd_templates.py` green in the full run), proving the new default does not break the unpinned path.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the ACTUAL passing output of the declared-duplicate test AND of the negative tests (a conformant pair produces nothing; legacy slug names are not mass-flagged). Paste the per-rule finding counts before and after from `aw check all --agent`, and state explicitly whether any pair now yields BOTH `check.id6-collision` and `check.id6-identity-slot`; if any does, that is a failure of this item's no-double-reporting requirement.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: DECLARED-DUPLICATE AND NEGATIVE TESTS, actual output (`python3 -m pytest tests/test_check_engine_collisions.py -o addopts="" -q`): `12 passed in 0.81s`, and in the combined run of the four affected modules `30 passed in 5.36s`. The relevant class is `DeclaredDuplicateIsReportedExactlyOnceTests`, whose three tests are: the declared duplicate across types yields exactly ONE finding; the slot rule STILL catches a genuinely foreign slot id6 (the negative control, without which deleting the rule would satisfy the no-double-reporting assertions); and a conformant pair plus a legacy `assess` slug name produce NOTHING (proving `_is_real_id6`'s discriminator survives and conformant files are not mass-flagged).
+  DIRECT MEASUREMENT OF THE BLIND SPOT, re-proven at execution time: calling `_check_identity_slots` with a synthetic pair in which both files declare AND slot `abc123` returns `[]` (zero findings). Materializing the same pair as real files and calling `check_collisions` returns exactly ONE finding: `check.id6-collision | 20260908-dup-01-abc123-spec.spec.md | id6 abc123 also on .../20260908-dup-01-abc123-plan.ipd.md`, and `by rule: {'check.id6-collision': 1}`.
+  DOES ANY PAIR NOW YIELD BOTH RULES? NO. Explicitly asserted in `test_a_declared_duplicate_across_types_yields_exactly_one_finding`, which requires `check.id6-identity-slot == 0` for the duplicate pair, and confirmed repo-wide below where `check.id6-identity-slot` stays at 0 while `check.id6-collision` rises to 10. No finding is double-reported.
+  PER-RULE COUNTS BEFORE AND AFTER (`aw check all --agent`, tallied by rule; BEFORE captured at HEAD 93b7aabb before any edit):
+    rule                                           before   after  delta
+    check.from-backlog-dangling                         1       1  +0
+    check.from-backlog-gate-mismatch                    2       2  +0
+    check.id6-collision                                 1      10  +9
+    check.identity-absent-from-name                     2       2  +0
+    check.ipd-uncarried-obligation                     76      76  +0
+    check.lifecycle-transition-invalid                  3       3  +0
+    check.live-bug-ungated                              2       2  +0
+    check.name-nonconformant                            3       3  +0
+    check.scope-drift                                 333     360  +27
+    check.system-layout-missing                         1       1  +0
+  `check.setid-collision` and `check.id6-identity-slot` are absent from BOTH columns, i.e. 0 -> 0. The only rules that moved are `check.id6-collision` (E-05's intended effect) and `check.scope-drift` (+27, this executor's own uncommitted edits, which the plan's "Required tests" section predicts and forbids "fixing"). Compared per RULE, never by total, as instructed.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `76w6mq`'s current `- Status:` and lifecycle directory, stating whether its region bound has landed. At REVIEW it was `to-review` in `pending/`, i.e. NOT landed, so the expected branch is the not-landed one; if it has advanced, say so and follow the other branch. State explicitly that `Item-Dependencies: none` is DELIBERATE (E-04 succeeds under both branches) rather than an omission. Also state that `76w6mq`'s scope does NOT include `status_set._ID_RE`, so one unbounded reader survives its fix (see V-07). Paste NEGATIVE proof that THIS plan introduced no identity-parser change: a diff or search over `_ID_LINE_RE` and any sibling reader showing this plan left the pattern and its region handling untouched. Paste proof that this plan's minting and collision paths read identity through ONE reader rather than a forked copy (show the call sites). THEN state the `uyeko5` verdict as OBSERVED, and say plainly whether it was resolved by `76w6mq` or is still outstanding; do NOT claim credit for a parser fix this plan did not make. Paste `git status --porcelain .aw/records/` proving NO records file was edited.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `76w6mq` CURRENT STATE: `- Status: approved`, and its lifecycle directory is still `pending/` (`.aw/records/plans/pending/20260908-idcapture-01-76w6mq-bound-identity-extraction-to-the-metadata-region-so-a-quoted.ipd.md`; `ls -d .aw/records/plans/*/20260908-idcapture-01-76w6mq-*` matches only that pending path). IT HAS ADVANCED since review (`to-review` -> `approved`) but it has NOT LANDED: approved is not executed, so its region bound is not in the tree and the NOT-LANDED branch is the live one, exactly as the plan expected.
+  `Item-Dependencies: none` IS DELIBERATE, not an omission. E-04 is written to succeed under both branches, so declaring a hard edge would block this plan behind an unexecuted sibling for no benefit. Stating it explicitly as V-04 requires.
+  `76w6mq`'s SCOPE DOES NOT INCLUDE `status_set._ID_RE`. Its declared Scope-Paths are `agent_workflows/selectors.py, agent_workflows/check_engine.py, tests/test_selector_zero_open.py, tests/test_id_metadata_region.py`; `status_set.py` is in neither. So one unbounded identity reader survives its fix, and it is the one this plan's mint set is built on (see V-07 and backlog `q1ov25`).
+  NEGATIVE PROOF THAT THIS PLAN CHANGED NO IDENTITY PARSER:
+    $ git diff agent_workflows/check_engine.py | grep -E "^[-+].*_ID_LINE_RE"
+      (no output - NO diff line touches _ID_LINE_RE)
+    $ git show HEAD:agent_workflows/check_engine.py | grep -n "_ID_LINE_RE = "
+      895:_ID_LINE_RE = _re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
+    $ grep -n "_ID_LINE_RE = " agent_workflows/check_engine.py
+      903:_ID_LINE_RE = _re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
+  The pattern is byte-identical; only its line number moved (docstring additions above it). `agent_workflows/status_set.py` and `agent_workflows/selectors.py` are NOT in `git diff --name-only` at all.
+  ONE READER, NOT A FORK. The collision path reads identity through `check_engine._ID_LINE_RE` at its single site inside `check_collisions` (`m = _ID_LINE_RE.search(text)`), unchanged. The minting path reads identity through `artifact_adopt.repository_id6s` -> `scan_body_identities`, which is the EXISTING dialect-complete scanner already used by the adopt verb; this plan added no new identity regex anywhere (`git diff` introduces no `re.compile` for an id).
+  `uyeko5` VERDICT, OBSERVED: STILL OUTSTANDING. After this plan's changes, `aw check all` reports 2 findings naming `uyeko5`, on `20260905-awmetastore-01-takpys-...research-report.md` and `20260905-awmetastore-00-27rjro-...research-prompt.md`. It was resolved by NEITHER plan: `76w6mq` has not landed, and this plan deliberately made no parser change. This plan claims NO credit for a parser fix. Per OQ-03 the honest statement is that these two are the PROSE-MATCH artifact (both documents' real identities are `takpys` and `27rjro`; each merely QUOTES a plan's metadata block), so they are not genuine collisions and will disappear when the reader is bounded, not because anything was edited.
+    $ git status --porcelain .aw/records/
+      (no modified records; the only entries anywhere under .aw/records/ are the four NEW backlog items this turn filed, which are additions, not edits)
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste all THREE commands' id6-collision output after the change (`aw check all`, `aw check all --all`, `aw doctor --agent`) and confirm in one sentence that the three sets are identical. Paste the wall-clock cost of `aw check all` before and after. Paste the per-rule finding counts before and after. THE LOAD-BEARING ASSERTION IS NOW NEGATIVE: show that `check.setid-collision` did NOT move toward its 86-with-retired figure and that `check.id6-identity-slot` did NOT gain the two walkthrough findings (`zpbx7o`, `y5od1h`). If either moved, E-05 widened the shared enumeration instead of the id6 pass and this validation FAILS. Also state the id6-collision count as OBSERVED against the corrected baseline of ONE (not zero).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL THREE SURFACES, id6-collision output AFTER the change:
+    aw check all        : 10
+    aw check all --all  : 10
+    doctor-equivalent (include_retired=True): 10
+    identical: True
+  The three sets are IDENTICAL, so `aw check` and `aw doctor` no longer disagree about what a collision is. The ten, by location:
+    20260824-bplplj-01-bplplj-wire-skill-package-emission-into-the-installer-run.backlog.md :: id6 bplplj
+    20260830-gatejrnl-01-gjadwm-executed-transition-pre-commit-gate-false-positive.backlog.md :: id6 gjadwm
+    20260831-rxya25-01-rxya25-lifecycle-automation-policy.backlog.md :: id6 rxya25
+    20260901-findtwotier-01-f8m2z2-re-author-aw-find-as-two-tier-filesystem-first.backlog.md :: id6 f8m2z2
+    20260901-hardreach-01-fjs11i-hardened-profile-unreachable.backlog.md :: id6 fjs11i
+    20260905-awinbox-01-plbkp5-attention-inbox-waiting-count.backlog.md :: id6 plbkp5
+    20260905-awmetastore-00-27rjro-where-aw-metadata-should-live.research-prompt.md :: id6 uyeko5
+    20260905-awmetastore-01-takpys-where-aw-metadata-should-live.gpt56solhigh.research-report.md :: id6 uyeko5
+    20260908-corpuspin-01-yw6759-approval-gate-test-pinned-to-live-plan-corpus.backlog.md :: id6 yw6759
+    20260908-grouporder-01-s9p5x5-group-order-reset.backlog.md :: id6 s9p5x5
+  id6-COLLISION COUNT AS OBSERVED, against the corrected baseline of ONE (not zero): 1 -> 10, i.e. +9. EIGHT of the nine are ONE pre-existing defect this widening EXPOSED rather than caused: eight backlog items tracked in git HEAD under BOTH `graduated/` and `done/` with the same id6 (verified with `git ls-tree -r HEAD`, both paths present for all eight; `md5sum` shows the copies differ). Independently corroborated: `aw attention --format json` already reports `valid: false` with eight `attention.duplicate-id` violations naming exactly these pairs. Filed as backlog `fwq5nu`. The ninth is the `27rjro`/`takpys` pair, which is the PROSE-MATCH artifact (V-04, OQ-03).
+  THE LOAD-BEARING NEGATIVE ASSERTIONS, both HELD:
+    check.setid-collision   before 0 after 0   (the widened-wholesale figure would have been 86)
+    check.id6-identity-slot before 0 after 0   (the widened-wholesale figure would have been 3)
+    zpbx7o present in identity-slot findings: False
+    y5od1h present in identity-slot findings: False
+  Neither neighbour moved and neither walkthrough false positive was surfaced, so the widening hit the id6 pass ALONE rather than the shared enumeration. The separation WAS cleanly possible inside `check_collisions` (enumerate once with `include_retired=True`, tag each file `caller_visible`, and gate the setid and identity-slot passes on that tag), so no STOP-AND-REPORT condition arose. Guarded by `NeighbouringRulesMustNotWidenTests`, which asserts a retired setid conflict stays invisible by default yet IS reported when the caller asks, and that a retired walkthrough slot finding stays invisible.
+  COST, measured in this worktree over three runs each (`check_collisions` on the real tree), BEFORE measured by stashing only the `check_engine.py` change:
+    BEFORE run1 0.348s / run2 0.358s / run3 0.344s
+    AFTER  run1 0.467s / run2 0.459s / run3 0.457s
+  So about +0.11s (roughly 0.35s -> 0.46s) for the wider corpus, consistent with the plan's ~0.27 -> ~0.32s order of magnitude on a smaller tree. PER-RULE COUNTS BEFORE AND AFTER are pasted in full under V-03 and are not repeated here.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste `status_set._ID_RE`'s pattern and its `re.MULTILINE` flag, plus a demonstration that it matches a `- Id:` line inside a fenced code block. Paste the comment added at the global-set helper, showing it states that the set is a conservative SUPERSET, that over-collection is safe for MINTING and wrong for CHECKING, and that `76w6mq` owns the bounding work. Paste a diff or search proving `status_set._ID_RE` itself was NOT changed by this plan. State where the finding was handed off (an existing plan, a new backlog item, or a note on `76w6mq`) and confirm this plan did not become the third editor of an identity reader.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `status_set._ID_RE` PATTERN AND FLAGS, printed at execution time:
+    pattern: ^-\s*Id:\s*([0-9a-z]{6})\s*$
+    flags: 40 MULTILINE set: True
+    match inside a fenced block: uyeko5
+  The demonstration fed it a document whose YAML front matter declares `id: takpys` while its body quotes a plan's metadata block inside a ```markdown fence; the reader returned `uyeko5`, i.e. the QUOTED id, confirming it is a third unbounded identity reader.
+  THE COMMENT ADDED AT THE GLOBAL-SET HELPER (`artifact_core.global_id6s`), verbatim excerpt:
+    THE RETURNED SET IS A CONSERVATIVE SUPERSET, NOT AN EXACT CENSUS, AND THAT ASYMMETRY IS THE
+    POINT (IPD ``sk7ggr`` E-07). It is built from readers that are UNBOUNDED, i.e. they match a
+    ``- Id:``/``id:`` line ANYWHERE in a document including inside a fenced code block, so a research
+    report QUOTING another artifact's metadata block contributes that quoted id6 here. Measured: the
+    set holds ``uyeko5`` partly because two research documents quote it as an example.
 
-- [ ] V-06 validates E-06
+    * For MINTING that over-collection is HARMLESS and even conservative: refusing to mint one
+      already-quoted candidate costs one draw out of 36**6, and the result is still guaranteed not to
+      collide with anything real.
+    * For CHECKING it is WRONG, because treating a quotation as a declaration manufactures a
+      collision finding for a document whose real identity is its own. That is a live defect and it
+      is NOT fixed here; bounding the identity readers to the front-matter region is owned by IPD
+      ``76w6mq`` (from backlog ``cqytxf``).
+
+    THE SPECIFIC UNBOUNDED READER BEHIND THIS SET IS ``status_set._ID_RE``, and it is OUTSIDE
+    ``76w6mq``'s declared scope (``selectors.py`` + ``check_engine.py``), so one unbounded reader
+    survives even after that plan lands. Recorded as backlog ``q1ov25`` rather than fixed here,
+    because ``cqytxf`` warns that several plans editing these readers is what recreated parser drift
+    before.
+  It states all three required things: conservative SUPERSET, safe for MINTING and wrong for CHECKING, and `76w6mq` owns the bounding work.
+  `status_set._ID_RE` WAS NOT CHANGED:
+    $ git diff --name-only | grep -c status_set.py
+      0
+  The file does not appear in this plan's diff at all, so the pattern is untouched by construction.
+  HANDOFF: filed as a NEW BACKLOG ITEM `q1ov25` (`.aw/records/backlog/open/20260920-idreader3-01-q1ov25-statusset-id-reader-unbounded.backlog.md`, `Work-Kind: bug`, `Blocks-Release: next`), which records the pattern, the fenced-block demonstration, the direction-of-error reasoning, and the recommendation to fold it into `76w6mq`'s region bound or widen that plan's Scope-Paths. THIS PLAN DID NOT BECOME THE THIRD EDITOR OF AN IDENTITY READER: it added no identity regex and modified none (`_ID_LINE_RE` byte-identical per V-04; `status_set.py` and `selectors.py` not in the diff).
+  Additionally pinned by test, so the superset property cannot be silently assumed away: `tests/test_id6_global_mint.py::PurityAndSubsetContractTests::test_the_mint_set_over_collects_quoted_ids_and_that_is_deliberate` asserts a quoted `- Id:` inside a fenced block IS collected, with a message telling a future reader what to do if a bounding fix makes it fail.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste `aw check research`'s output after the change and its unpiped exit code, showing that a clean per-type report no longer implies collision-clean. Quote the report line (or the scan result) that removes the false clean. State which of the three options E-06 implemented and why, and if a CLI edit turned out to be required, say so plainly as a scope-widening finding rather than committing it silently.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `aw check research` AFTER THE CHANGE (run as `python3 -m agent_workflows check research`, which executes THIS worktree's code; note the installed `aw` shim resolves `agent_workflows` from the environment's site-packages, so it does not exercise these edits):
+    AW check  research                                                         17 ms
+    ✓ CONFORMS  81 research checked
+
+    Findings:
+      Issue: cross-tree collisions NOT checked by a per-type run
+      - <collisions>
+        1. <collisions>
+        Fix: inspect <collisions> frontmatter and schema conformity.
+
+
+    Evidence
+      checked  81
+      errors  1   warnings  0
+  UNPIPED EXIT CODE (`python3 -m agent_workflows check research >/dev/null 2>&1; echo $?`): `0`. Agent mode agrees: `exit 0 outcome conforms findings 1`, with the single diagnostic `check.collisions-not-checked`.
+  THE LINE THAT REMOVES THE FALSE CLEAN, quoted: `Issue: cross-tree collisions NOT checked by a per-type run`, carried in the Drift's `observed` field as "a per-type check does not run the cross-tree collision scan, so a clean result here does NOT mean collision-clean" with `recovery="aw check all"`. Before this change the same command printed `✓ CONFORMS 81 research checked` with `errors 0 warnings 0` and nothing else, over a tree that genuinely holds a collision.
+  WHICH OF THE THREE OPTIONS, AND WHY: option THREE, have the report SAY that collisions are only checked in the full sweep, implemented as a new `info`-severity rule `check.collisions-not-checked`. Chosen because the plan explicitly authorizes it as "the cheapest honest answer" and OQ-02 is non-blocking precisely because every option removes the false clean; running the repo-wide scan on every per-type check would add a whole-repository inventory to the narrowest command (how a check gets dropped from a hook later), and a flag nobody passes removes no silence. `info` is load-bearing: `artifact_core.drift_exit_code` ignores it, so a conformant per-type run still exits 0 and no consumer's exit contract changes. OQ-02 REMAINS OPEN and the maintainer's; this implements the cheap option without foreclosing an upgrade. Full reasoning in DECISION 07-sk7ggr-D4.
+  NO CLI EDIT WAS REQUIRED. `agent_workflows/cli.py` is NOT in this plan's diff, so the Scope check's "cli.py is deliberately NOT in scope" held; the engine's own report sufficed.
+  TWO SCOPE-WIDENING FINDINGS, reported rather than committed silently, per the instruction to say so plainly:
+  (1) TWO TEST FILES NOT IN `- Scope-Paths:` were edited, because this change necessarily altered their expectations: `tests/test_check_recipe.py` (two assertions that asserted `findings == 0` on a clean per-type run, i.e. the very SILENCE E-06 removes) and `tests/test_check_engine.py` (one `EntryPointTests` row plus a new rule constant). Both were made STRICTER, not looser: each now pins the EXACT rule list `["check.collisions-not-checked"]` and still asserts `exit == 0` / `outcome == "conforms"`. `tests/test_check_engine.py`'s own row rationale already documented that the sweep's "one documented extra is the cross-tree collision pass", which is the distinction the notice makes explicit. Recorded as DECISION 07-sk7ggr-D5.
+  (2) `DECISIONS.md` was edited, adding ONE new `Applied (2026-09-20, IPD sk7ggr)` bullet to D140 as the plan's "Spec / documentation sync" section directs ("If an amendment is warranted, add to its Applied line"). D140's Context and Decision are UNTOUCHED, and the pre-existing "Enforcement gap identified" paragraph is left intact with the new bullet explaining which part of it is now historical and which part it did not anticipate. `DECISIONS.md` is not a `.spec.md`, so the spec-amendment declaration rule does not apply; no spec file was modified and no spec claims global-unique minting today.
+  A THIRD, PRE-EXISTING defect surfaced by this work is reported and filed, not fixed: the human report above reads `errors 1` for what is an `info` finding, because `cli._run_check` tallies `err_cnt` by rule-name prefix (`not d.rule.startswith("warn")`) instead of by severity. It already mislabels the 76 pre-existing info-severity `check.ipd-uncarried-obligation` findings the same way (`aw check plans` renders `errors 428`). Exit codes are correct throughout. Filed as backlog `zosk0a`; `cli.py` is out of scope.
+  - Result: pass
 
 ## Approval and execution gate
 
