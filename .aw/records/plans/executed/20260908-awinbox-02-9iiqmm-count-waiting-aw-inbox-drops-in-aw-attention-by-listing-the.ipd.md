@@ -9,17 +9,17 @@
 - Scope: Add a derived, read-only count of waiting `.aw/inbox/` entries and surface it as one advisory line in the `aw attention` human board (INTERACTIVE TTY ONLY; see F-12, since any non-TTY stdout routes to the agent renderer), computed by listing the directory only and never opening a file. A missing directory means zero and prints nothing, and so does a directory holding only the tree's own `README.md`/`.gitkeep` bookkeeping (F-11). The count must NOT enter the ready/active/blocked/done/parked classification, must NOT invent a status for inbox items, and must NOT affect the exit code. EXCLUDES `aw adopt` (plan `lznpv6`), any change to what `.aw/inbox/` is or its gitignore status, any change to `selectors._ID_RE` (plan `76w6mq`), any typed inventory of inbox contents, the agent/JSON surfaces (OQ-01, OQ-04), and the severity-blind `findings` count in `result_types.py` (F-13).
 - Scope-Paths: agent_workflows/attention.py, tests/test_attention.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: awinbox
 - Order: 2
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 9iiqmm
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: plbkp5
 
 ## Workflow history
+- 2026-09-20 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: 9iiqmm verified (set awinbox, attempt 1).
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-601..PR-606 all FIXED. Readiness go-pending-approval. Typed record at .aw/records/reviews/20260910-awinbox-02-9iiqmm-...review.md
 
@@ -45,7 +45,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the counter, which may list but never read
 
-- [ ] E-01 ADD A DERIVED, READ-ONLY COUNTER THAT LISTS `<repo>/.aw/inbox/` AND OPENS NOTHING.
+- [x] E-01 ADD A DERIVED, READ-ONLY COUNTER THAT LISTS `<repo>/.aw/inbox/` AND OPENS NOTHING.
   MODEL IT ON `setup_needed` (`attention.py:1405`), which is the house pattern for exactly this: derived on demand, read-only, swallows its own exceptions, never creates anything, and feeds a footer nudge. Do not invent a second shape.
   A MISSING DIRECTORY MEANS ZERO AND MUST BE SILENT. `.aw/inbox/` is gitignored and therefore per-checkout; it does not exist in a fresh worktree (verified). Absent must not raise, and must not print a zero line either: a nudge that fires when there is nothing to nudge about is noise that trains readers to ignore it.
   LIST ONLY, NEVER OPEN. This is the item's hard constraint and its justification is measured (see the history note): parsing a drop lets that drop's CONTENT assert an identity via `selectors._ID_RE` and collide with a real artifact. Use a directory scan that yields names, and at most size or mtime, with no read of any file's contents. `os.scandir` gives exactly that.
@@ -56,11 +56,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   WRITE THE REASON IN THE CODE, not only in this plan. The comment must state that inbox items are VISIBLE AS FILES and never INTERPRETED AS RECORDS, and why, because the next person to touch this function will otherwise "improve" it by reading front matter.
   - Depends on: none
   - Expected outcome: a derived counter resolving exactly `<repo>/.aw/inbox/`, returning zero for a missing directory without raising, opening no file, counting hidden and non-`.md` entries, counting a nested directory as one entry without walking it, EXCLUDING `README.md` and `.gitkeep` so a drained inbox counts zero even after sibling `lznpv6` adds its README, with the listing-not-parsing rule, the nested-entry decision, and the bookkeeping exclusion all stated in a comment; nothing is created or written.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: surface it without contaminating the model
 
-- [ ] E-02 SURFACE THE COUNT AS ONE ADVISORY LINE IN THE HUMAN BOARD, USING AN INDEPENDENT `if`, NOT THE EXISTING `elif` CHAIN.
+- [x] E-02 SURFACE THE COUNT AS ONE ADVISORY LINE IN THE HUMAN BOARD, USING AN INDEPENDENT `if`, NOT THE EXISTING `elif` CHAIN.
   THE TRAP, and the reason this is its own item: the footer at `attention.py:2940-2948` is `if needs_setup and has_hidden / elif needs_setup / elif has_hidden and colored`, so exactly ONE line ever prints. Appending another `elif` would hide the inbox nudge whenever setup is needed, which is the state of a fresh checkout, which is exactly where a forgotten drop is most likely. Add an independent `if` so the nudge composes with whatever else the footer says.
   FOLLOW THE ADVISORY-SECTION PRECEDENT for placement and tone: `gate_warnings` (`:2905`) and `order_notices` (`:2922`) are both rendered as advisory blocks whose comments state they are "human view only; NEVER affect the exit code". A single line in the footer is the whole feature; do not build a section with a header for one number.
   SAY WHAT TO DO NEXT, since a bare count is a nudge without a remedy. The sibling plan `lznpv6` adds `aw adopt` to clear a drop; if it has landed, naming it makes the line actionable. If it has NOT landed, do NOT advertise a verb that does not exist: state the count alone. Check and state which. NOTE THE LIKELY ANSWER (review): `lznpv6` is Order **01** in this same Set and this plan is Order **02**, and both runners sort a Set by Order, so under an ordinary Set run `aw adopt` WILL already exist. Verify by invoking the verb rather than by reading its plan's status, since a `reviewed` plan is not a shipped verb.
@@ -70,34 +70,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   KNOW WHICH SURFACE YOU ARE EDITING, AND THAT IT IS NARROWER THAN "THE HUMAN BOARD" (review PR-602). The footer block lives inside the FINAL `else` of `run`, i.e. the HUMAN branch only, and `select_output` routes to `OutputMode.AGENT` on `--agent` OR ON ANY NON-TTY STDOUT (`result_types.py:75-76`). Measured: `aw attention` piped through `python3` produced the agent JSONL record, not the board. So the line reaches an interactive terminal and NOTHING ELSE: not `--agent`, not `--format json` (OQ-01), not `--check` (E-03), not `--id6-only`/`--paths`/`--filenames` (which return early at `:2746`), and NOT a piped or redirected invocation. Every agent in this repository reads attention through a pipe. State that limit plainly in the plan's under-scope rather than describing the feature as "visible in `aw attention`", and see OQ-04 for whether the agent surface gets it.
   - Depends on: E-01
   - Expected outcome: one advisory footer line added under an independent `if`, composing with the existing footer rather than replacing it, in the house imperative form with correct singularization; no new `Item`, no new status, no change to `attention_contract.py`; the follow-up verb named only if it exists; the human-TTY-only reach of the line stated.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 KEEP THE EXIT CODE AND THE `--check` PATH UNTOUCHED, so a gitignored box-local file can never fail CI.
+- [x] E-03 KEEP THE EXIT CODE AND THE `--check` PATH UNTOUCHED, so a gitignored box-local file can never fail CI.
   NEVER CONSTRUCT A `Drift` FOR A WAITING DROP. The exit code is owned solely by the drift set: `return core.drift_exit_code(drift)` on both the check path (`:2715`) and the board path (`:2956`). A `Drift` here would make `aw attention --check` fail on the presence of a local, gitignored file that no other machine can even see, which the item recommends against and which would be wrong: a waiting drop is not a repository defect.
   THE TWO EXISTING ADVISORY SECTIONS ARE THE PRECEDENT and their comments already state this rule, so cite them rather than arguing it afresh.
   DECIDE WHETHER `--check` PRINTS THE LINE AT ALL. `--check` is a validity gate, so the defensible answer is that it stays silent, but state the choice rather than leaving it to fall out of the code path.
   - Depends on: E-02
   - Expected outcome: no `Drift` is ever constructed for inbox entries; `aw attention` and `aw attention --check` exit codes are provably unchanged with a non-empty inbox; the `--check` display choice stated.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove the constraint mechanically
 
-- [ ] E-04 PROVE NON-READING MECHANICALLY, because "we only listed" is the plan's central safety claim and a comment cannot prove it.
+- [x] E-04 PROVE NON-READING MECHANICALLY, because "we only listed" is the plan's central safety claim and a comment cannot prove it.
   THE STRONGEST AVAILABLE PROOF is to make opening a file FAIL during the count and assert the count still succeeds: patch the open path (`Path.read_text`, `Path.open`, `builtins.open`) to raise, then assert the counter returns the right number. A test that merely checks the count is right would pass on an implementation that parses every drop.
   BUILD EVERY CASE IN A TEMPORARY REPO AND NEVER READ THE REAL `.aw/inbox/`. It is gitignored, machine-specific, absent in this worktree, and will empty as drops are adopted; a test pinned to it passes on one machine and fails on another. `tests/test_attention.py` already builds temp repos via `_mk_repo` (`:25`) and drives the CLI with an `argparse.Namespace` plus `att.run` under `redirect_stdout` (`:146-150`). Reuse that.
   THE REQUIRED CASES: a MISSING directory counts zero and prints nothing; N files count N; a hidden file counts; a non-`.md` file counts; a nested directory behaves as E-01 documented; a non-empty inbox leaves `aw attention --check` at exit 0; no `Item` gains an inbox status and the class tally is unchanged; and the footer line appears ALONGSIDE the setup-needed line rather than replacing it (the E-02 trap, which is only caught by a test that sets both conditions).
   PUT THE NO-WRITE ASSERTION BESIDE ITS EXISTING TWIN. `tests/test_attention.py` already has `test_scan_does_not_stamp_aw_and_setup_needed_derives` (`:67`) and `test_writes_nothing` (`:255`), which exist because write-on-read was a real defect here. An inbox counter must not create `.aw/inbox/` by looking for it.
   - Depends on: E-03
   - Expected outcome: all listed cases covered in temporary repos, including a patched-open test proving no file is opened and a both-conditions test proving footer composition; no test reads the real `.aw/inbox/`; the counter provably creates nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 SHOW THE FEATURE WORKING END TO END AND SHOW THE JSON SHAPE UNCHANGED.
+- [x] E-05 SHOW THE FEATURE WORKING END TO END AND SHOW THE JSON SHAPE UNCHANGED.
   DEMONSTRATE IT, do not only unit-test it: create a temporary repo, drop several files including a hidden one and a non-`.md` one, run the real `aw attention`, and paste the board showing the line. Then remove the directory and paste the board showing no line.
   PROVE THE JSON DID NOT MOVE. `render_json` (`:1070`) emits `schema_version`, `mapping_version`, `valid`, `items`, `violations`, and `tests/test_attention.py` asserts `schema_version == 3` (`SCHEMA_VERSION` at `:33`). Since OQ-01 keeps the count out of the JSON, paste the key list before and after showing it IDENTICAL and the version unbumped. If a later decision adds the key, that is a schema bump plus a test update, and it is not this plan.
   RUN THE ADJACENT SUITES, since attention has many test files: `tests/test_attention.py`, `test_attention_contract.py`, `test_attention_notices.py`, `test_attention_priority_blocker.py`, `test_attention_compact.py`, `test_attention_stem.py`. `test_attention_contract.py` is the tripwire: if it fails, the design leaked into classification.
   - Depends on: E-04
   - Expected outcome: pasted real board output with and without a populated inbox; the JSON top-level key list and `schema_version` proven unchanged; every attention suite green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -188,45 +188,540 @@ THE CHECK THE PLAN ASSIGNED TO ITS EXECUTOR IS NOW DONE (review). `.aw/records/s
 ### OQ-03: Should the line name `aw adopt` as the remedy?
 
 - Blocking: no
-- Status: open
-- Owner: this plan's executor
-- Resolution or deferral rationale: NOT blocking, and the answer depends on execution ORDER rather than on design, so it must be answered by INVOKING the verb at execution time rather than decided now. `aw adopt` is delivered by sibling plan `lznpv6`, which is Order **01** in this same Set (`awinbox`) while this plan is Order **02**, and it is now `reviewed` with `Readiness: go-pending-approval` (the "to-review" status this question originally cited has advanced). Both runners sort a Set by Order, so under an ordinary Set run the verb WILL exist by the time this executes and naming it turns a bare count into an actionable nudge. But do NOT infer that from the plan's status, because a `reviewed` plan is not a shipped verb: run `aw adopt --help` and branch on the result. If absent, state the count alone, since a nudge pointing at a nonexistent command is worse than a bare count. Do not add an `Item-Dependencies` edge for a purely cosmetic string.
+- Status: resolved
+- Owner: none (answered at execution by invoking the verb)
+- Resolution or deferral rationale: NOT blocking, and the answer depends on execution ORDER rather than on design, so it must be answered by INVOKING the verb at execution time rather than decided now. `aw adopt` is delivered by sibling plan `lznpv6`, which is Order **01** in this same Set (`awinbox`) while this plan is Order **02**, and it is now `reviewed` with `Readiness: go-pending-approval` (the "to-review" status this question originally cited has advanced). Both runners sort a Set by Order, so under an ordinary Set run the verb WILL exist by the time this executes and naming it turns a bare count into an actionable nudge. But do NOT infer that from the plan's status, because a `reviewed` plan is not a shipped verb: run `aw adopt --help` and branch on the result. If absent, state the count alone, since a nudge pointing at a nonexistent command is worse than a bare count. Do not add an `Item-Dependencies` edge for a purely cosmetic string. ANSWERED AT EXECUTION, AND THE ANSWER IS YES. I branched on invoking the verb, not on the sibling plan's status: `python3 -m agent_workflows adopt --help` printed the verb's usage and exited 0 (pasted in V-02), so `aw adopt` is shipped and the line reads `TODO: <n> file(s) waiting in \`.aw/inbox/\`. Run \`aw adopt <path>\` to file one.` The `<path>` placeholder is deliberate, because `adopt` refuses more than one path, so a remedy naming no argument would mislead. NOTE the invocation form matters here for a reason this question could not have anticipated: inside a lane worktree the ambient `aw` resolves the MAIN checkout's package (backlog `jeh310`), so the branch was taken on the lane-resolved `python3 -m agent_workflows adopt --help`, which is the same entry point.
 
 ### OQ-04: Should the count reach the AGENT surface, not only an interactive terminal?
 
 - Blocking: no
 - Status: open
 - Owner: the maintainer (it is a judgement about who the nudge is for)
-- Resolution or deferral rationale: RAISED AT REVIEW (PR-602), NOT BLOCKING, and deliberately not self-resolved because it is a question about audience rather than mechanism. MEASURED: the footer lives in the human branch of `run`, and `select_output` returns `OutputMode.AGENT` on `--agent` OR ON ANY NON-TTY STDOUT (`result_types.py:75-76`); piping `aw attention` through another process yielded the agent JSONL record, not the board. So as scoped, the nudge reaches an interactive human terminal and nothing else, while every AGENT in this repository reads attention through a pipe. Since `AGENTS.md` instructs agents to consume `aw attention` rather than re-scanning the tree, the class of reader most likely to leave a drop sitting is the class that cannot see the count. THREE ROUTES, COSTED. (a) LEAVE IT (this plan's scope): zero risk, and the human board is the stated target; the cost is that the feature is invisible to agents. (b) A WARNING `Diagnostic` on the agent path, which is EXACTLY the precedent `order_notices` set at `attention.py:2752-2760` for the same reason ("must reach an AGENT too, not only the human board"): it does not touch the exit code, which `core.drift_exit_code(drift)` decides from the drift set alone. BUT MEASURED COST, and it is why this is not a free win: `to_agent_record` derives `findings` from `len(self.diagnostics)` REGARDLESS of severity, so adding one warning turns a clean record's `findings: 0` into `findings: 1` while `outcome` stays `clean`. I ran it and got exactly that. A consumer reading `findings` as "problems found" would see a phantom finding on a healthy repo, which is a worse contract violation than the invisibility it fixes, so route (b) requires either accepting that or fixing the severity-blind count, and the latter is a shared-contract change well outside this plan. (c) An `Evidence` value key (e.g. `inbox_waiting` beside `items`/`drift`), which does NOT inflate `findings`; measured cost: the compact agent record sanitizes evidence to the bare key name, so the number is visible only under `--verbose`, making it nearly as invisible as (a). RECOMMEND (a) for THIS plan, with the limit stated honestly in under-scope, and the agent surface raised as its own backlog item so the `findings`-severity question is decided on its own merits rather than smuggled in behind a nudge.
+- Resolution or deferral rationale: RAISED AT REVIEW (PR-602), NOT BLOCKING, and deliberately not self-resolved because it is a question about audience rather than mechanism. MEASURED: the footer lives in the human branch of `run`, and `select_output` returns `OutputMode.AGENT` on `--agent` OR ON ANY NON-TTY STDOUT (`result_types.py:75-76`); piping `aw attention` through another process yielded the agent JSONL record, not the board. So as scoped, the nudge reaches an interactive human terminal and nothing else, while every AGENT in this repository reads attention through a pipe. Since `AGENTS.md` instructs agents to consume `aw attention` rather than re-scanning the tree, the class of reader most likely to leave a drop sitting is the class that cannot see the count. THREE ROUTES, COSTED. (a) LEAVE IT (this plan's scope): zero risk, and the human board is the stated target; the cost is that the feature is invisible to agents. (b) A WARNING `Diagnostic` on the agent path, which is EXACTLY the precedent `order_notices` set at `attention.py:2752-2760` for the same reason ("must reach an AGENT too, not only the human board"): it does not touch the exit code, which `core.drift_exit_code(drift)` decides from the drift set alone. BUT MEASURED COST, and it is why this is not a free win: `to_agent_record` derives `findings` from `len(self.diagnostics)` REGARDLESS of severity, so adding one warning turns a clean record's `findings: 0` into `findings: 1` while `outcome` stays `clean`. I ran it and got exactly that. A consumer reading `findings` as "problems found" would see a phantom finding on a healthy repo, which is a worse contract violation than the invisibility it fixes, so route (b) requires either accepting that or fixing the severity-blind count, and the latter is a shared-contract change well outside this plan. (c) An `Evidence` value key (e.g. `inbox_waiting` beside `items`/`drift`), which does NOT inflate `findings`; measured cost: the compact agent record sanitizes evidence to the bare key name, so the number is visible only under `--verbose`, making it nearly as invisible as (a). RECOMMEND (a) for THIS plan, with the limit stated honestly in under-scope, and the agent surface raised as its own backlog item so the `findings`-severity question is decided on its own merits rather than smuggled in behind a nudge. RESOLVED AT EXECUTION AS MOOT IN ITS PREMISE, WHILE THE UNDERLYING QUESTION IS NARROWED AND STAYS WITH THE MAINTAINER. THE PREMISE IS FALSE at this HEAD: `select_output` does NOT route to `OutputMode.AGENT` on a non-TTY stdout, and never did. That promise was RETRACTED on 2026-09-19, after this review: `docs/cli-output-contract.md` Section 9 is headed "Automatic Non-TTY Migration Policy: RETRACTED 2026-09-19" and states "Piping or redirecting `aw` emits HUMAN-READABLE TEXT", and `select_output`'s own docstring records that the claim "USED TO" be published and "NEITHER WAS EVER IMPLEMENTED". MEASURED in this lane: `python3 -m agent_workflows attention --dir <tmp> | cat` rendered the board WITH the footer line (pasted in V-02). So the nudge already reaches every agent that reads attention through a pipe, which is the audience this question was worried about, and route (a) turns out to cost nothing. WHAT REMAINS OPEN IS STRICTLY NARROWER: whether an EXPLICIT `--agent`/`--format json` consumer should get the count. That is still route (b) versus (c) versus nothing, the F-13 severity-blind `findings` cost is still real and still reproduced, and it is still the maintainer's call. It is NOT blocking this plan, whose scope keeps both machine surfaces byte-identical (V-05). The stale premise is filed as backlog `3sh9d6` rather than rewritten into F-12, because F-12 is the review's own measured-evidence record.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the counter's source, showing the exact single path it resolves (proving it is not a recursive search for directories named `inbox`), the listing call used, and the comment stating the visible-as-files-never-interpreted-as-records rule with its reason. Paste a run against a MISSING directory returning zero without raising, and proof that the call did NOT create `.aw/inbox/` (list the parent before and after). Paste a run against a populated temporary inbox returning the right count. Paste the comment stating the nested-entry decision (OQ-02: one entry, not walked). PASTE A RUN AGAINST AN INBOX CONTAINING ONLY `README.md` AND `.gitkeep` RETURNING ZERO (F-11), which is the state a drained inbox will be in for good once sibling `lznpv6` E-06 lands, and paste the comment recording that exclusion and its reason.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+        THE COUNTER'S SOURCE, `agent_workflows/attention.py`, sited immediately after `setup_needed` (its structural twin) and before `release_blockers`. Note the SINGLE anchored path, the `os.scandir` listing call, and that no `open`/`read_text`/parse appears anywhere in the body:
 
-- [ ] V-02 validates E-02
+        ```python
+        _INBOX_BOOKKEEPING_NAMES = frozenset({"README.md", ".gitkeep"})
+
+
+        def inbox_waiting(repo_root: Path) -> int:
+            """awinbox Order 02 (`9iiqmm`): how many RAW drops are waiting in `<repo>/.aw/inbox/`.
+
+            Structural twin of `setup_needed` above: DERIVED on demand, read-only, swallows its own
+            exceptions, NEVER creates anything (in particular it must not create `.aw/inbox/` by looking
+            for it), and feeds one advisory footer nudge that touches neither the item list nor the exit
+            code.
+
+            LISTS DIRECTORY ENTRIES ONLY; OPENS NO FILE, EVER. Inbox drops are VISIBLE AS FILES here and
+            are NEVER INTERPRETED AS RECORDS, and that distinction is the whole safety property of this
+            function rather than a style preference. `.aw/inbox/` holds unvetted third-party text, and
+            `selectors._ID_RE` is position-unanchored (`(?m)^- Id:\s*([0-9a-z]{6})\s*$` applied with
+            `.search()` over a whole body), so a `- Id:` line anywhere in a drop - INCLUDING one merely
+            QUOTED inside an external report as an example - is harvested as an identity claim and can
+            collide with a real artifact's id6, making that artifact unresolvable to `aw set`/`aw show`
+            (see `.aw/.gitignore`, which records exactly this hazard as the reason the inbox sits OUTSIDE
+            `.aw/records/`). Listing a directory cannot forge an identity; parsing a drop can. So do NOT
+            "improve" this by reading front matter, sniffing a body, or classifying a drop by type: use
+            `os.scandir`, which yields names without opening anything.
+
+            A MISSING DIRECTORY MEANS ZERO. `.aw/inbox/` is gitignored and therefore per-checkout, so it
+            is simply absent in a fresh worktree; absent must not raise, and the caller must print nothing
+            for zero, because a nudge that fires when there is nothing to nudge about is noise that trains
+            readers to ignore it.
+
+            ONE ANCHORED PATH, NEVER A SEARCH BY NAME. Resolves exactly `<repo>/.aw/inbox/` and never looks
+            for directories called `inbox` anywhere else: `.aw/records/comms/*/inbox/` is the TRACKED
+            inter-agent comms lane and is unrelated (an unanchored `inbox/` gitignore pattern once
+            threatened exactly that path and would have broken `aw install`).
+
+            A NESTED DIRECTORY COUNTS AS ONE ENTRY AND IS NOT WALKED (OQ-02). The number's job is to be
+            nonzero and roughly right, not exact; counting a directory as one entry keeps the whole
+            operation a single shallow `scandir` that cannot recurse unboundedly.
+
+            BUT THE TREE'S OWN BOOKKEEPING FILES ARE EXCLUDED (`README.md`, `.gitkeep`), because they are
+            not waiting for anyone. `.aw/inbox/README.md` is committed scaffolding that documents the lane,
+            so counting it would make this nudge fire FOREVER on a fully drained inbox on every machine,
+            defeating the silent-when-empty rule above. Every other entry counts, including hidden files
+            and non-`.md` drops: a genuine hidden drop (say `.report.md`) must not be missed.
+            """
+            try:
+                inbox = Path(repo_root) / ".aw" / "inbox"
+                with os.scandir(inbox) as entries:
+                    return sum(1 for e in entries if e.name not in _INBOX_BOOKKEEPING_NAMES)
+            except Exception:
+                return 0
+        ```
+
+        The docstring carries all four required statements: the visible-as-files-never-interpreted-as-records rule WITH its reason (the `selectors._ID_RE` harvest), the one-anchored-path rule with the comms-lane reason, the OQ-02 nested-entry decision (one entry, not walked), and the `README.md`/`.gitkeep` exclusion with the F-11 reason.
+
+        MISSING DIRECTORY RETURNS ZERO WITHOUT RAISING AND CREATES NOTHING. The dedicated test asserts the parent listing before and after, i.e. that the probe did not stamp `.aw/` or `.aw/inbox/`:
+
+        ```
+        $ python3 -m pytest "tests/test_attention.py::InboxWaitingCountTests::test_missing_directory_counts_zero_and_creates_nothing" -o addopts="" -v -p no:randomly
+        tests/test_attention.py::InboxWaitingCountTests::test_missing_directory_counts_zero_and_creates_nothing PASSED [100%]
+        ============================== 1 passed in 0.12s ===============================
+        ```
+
+        And observed directly at the CLI level in a temporary repo, listing `.aw/` before and after the run (CASE 1 of the E-05 demo). Note `inbox` is absent from BOTH listings, so the board's own render did not create it:
+
+        ```
+        ### CASE 1: no .aw/inbox/ at all
+        .
+        ..
+        records
+        ## ready (1)
+        - [plans] .agents/plans/pending/20260920-demo-01-aaa111-demo.md (draft)
+        exit=0
+        ### listing of .aw AFTER the run (proves nothing was created):
+        .
+        ..
+        records
+        ```
+
+        POPULATED TEMPORARY INBOX RETURNS THE RIGHT COUNT, and a NESTED DIRECTORY COUNTS AS ONE ENTRY WITHOUT BEING WALKED (the nested dir holds FIVE files and moves the count by exactly ONE, 4 -> 5):
+
+        ```
+        $ python3 -m pytest "tests/test_attention.py::InboxWaitingCountTests::test_counts_plain_hidden_nonmd_and_nested_entries" -o addopts="" -v -p no:randomly
+        tests/test_attention.py::InboxWaitingCountTests::test_counts_plain_hidden_nonmd_and_nested_entries PASSED
+        ```
+
+        BOOKKEEPING-ONLY INBOX RETURNS ZERO (F-11), which is the state a drained inbox is in permanently once sibling `lznpv6` E-06 lands, and adding one real drop moves it to 1:
+
+        ```
+        $ python3 -m pytest "tests/test_attention.py::InboxWaitingCountTests::test_bookkeeping_only_inbox_counts_zero" -o addopts="" -v -p no:randomly
+        tests/test_attention.py::InboxWaitingCountTests::test_bookkeeping_only_inbox_counts_zero PASSED
+        ```
+
+        Observed at the CLI too (CASE 2 of the demo): an inbox holding ONLY `README.md` and `.gitkeep` renders NO footer line.
+
+        ```
+        ### CASE 2: inbox present, bookkeeping ONLY (drained)
+        .
+        ..
+        .gitkeep
+        README.md
+        ## ready (1)
+        - [plans] .agents/plans/pending/20260920-demo-01-aaa111-demo.md (draft)
+        exit=0
+        ```
+
+        THE ONE-ANCHORED-PATH RULE IS TESTED, NOT ONLY COMMENTED: a repo whose `.aw/records/comms/shared/inbox/` holds four messages and whose `.aw/inbox/` does not exist counts ZERO, proving the counter never searches by directory name (`test_counter_never_resolves_a_nested_inbox_by_name`, PASSED).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the rendered board with a populated inbox showing the line, and with an empty or absent inbox showing NO line. Paste the code showing an independent `if`, not an `elif` appended to the chain. Paste the both-conditions case (setup-needed AND a non-empty inbox) showing BOTH lines present, which is the F-3 trap. Paste the class tally with and without a populated inbox showing it IDENTICAL, proving no `Item` was created. Confirm `attention_contract.py` is unmodified by `git status`. State whether the remedy verb was named and why (OQ-03), and PASTE THE `aw adopt --help` INVOCATION you branched on, since a sibling plan's `reviewed` status is not evidence that its verb exists. Paste the singular case (exactly one waiting entry) showing `1 file`, not `1 files` (F-14). STATE THE SURFACE LIMIT YOU OBSERVED (F-12): paste the same repo state rendered with `--agent` (or simply piped) showing the line ABSENT, so the human-TTY-only reach is recorded as measured fact rather than assumed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+        THE CODE, IN `run`'s HUMAN BRANCH, AS AN INDEPENDENT `if` FOLLOWING (NOT EXTENDING) THE `elif` CHAIN. The pre-existing chain is unchanged, line for line; the new block starts a fresh `if` at the same indentation:
 
-- [ ] V-03 validates E-03
+        ```python
+                needs_setup = setup_needed(repo_root)
+                if needs_setup and has_hidden:
+                    footer_lines.append(
+                        "TODO: Run `/aw setup-repo` to set up this repo. Use `aw att --all` to see old stuff."
+                    )
+                elif needs_setup:
+                    footer_lines.append("TODO: Run `/aw setup-repo` to set up this repo.")
+                elif has_hidden and colored:
+                    footer_lines.append("Use `aw att --all` to see old stuff.")
+
+                # awinbox Order 02 (`9iiqmm`): the waiting-inbox-drops nudge. AN INDEPENDENT `if`, NOT
+                # another `elif` on the chain above, and that is the point of this block rather than an
+                # accident: the chain renders exactly ONE line, so appending an `elif` would hide this nudge
+                # on any repo that also needs setup, i.e. on a fresh checkout, which is precisely where a
+                # dropped-and-forgotten file is likeliest. So it composes with whatever else the footer says.
+                # ADVISORY ONLY, exactly like the `order_notices` and `release-gate-warnings` sections above:
+                # it constructs no `Drift` and therefore CANNOT affect the exit code (owned solely by
+                # `core.drift_exit_code(drift)`), invents no status, and creates no `Item` - a waiting local
+                # drop in a gitignored directory is not a repository defect, and failing `--check` on a file
+                # no other machine can even see would be wrong. It shows ALWAYS, not only under `--all`,
+                # because `--all` reveals hidden done/parked ARTIFACTS and an un-adopted drop is not one:
+                # it is outstanding work, which is what a nudge is for. It carries no mtime or other
+                # time-derived value, preserving the spec's byte-determinism invariant.
+                waiting = inbox_waiting(repo_root)
+                if waiting:
+                    noun = "file" if waiting == 1 else "files"
+                    footer_lines.append(
+                        f"TODO: {waiting} {noun} waiting in `.aw/inbox/`. Run `aw adopt <path>` to file one."
+                    )
+        ```
+
+        THE BOARD WITH A POPULATED INBOX, AND THE SINGULAR CASE (F-14). Exactly one waiting entry renders `1 file`, not `1 files`:
+
+        ```
+        ### CASE 3: exactly ONE drop (singularization)
+        ## ready (1)
+        - [plans] .agents/plans/pending/20260920-demo-01-aaa111-demo.md (draft)
+        TODO: 1 file waiting in `.aw/inbox/`. Run `aw adopt <path>` to file one.
+        exit=0
+        ```
+
+        And the plural case, with a HIDDEN drop, a non-`.md` drop, and a NESTED directory all counted (6 directory entries, 4 waiting, because `README.md` and `.gitkeep` are excluded and `extracted/` counts once):
+
+        ```
+        ### CASE 4: several drops incl. a HIDDEN one, a non-.md one, and a NESTED dir
+        .
+        ..
+        extracted
+        .gitkeep
+        .hidden-report.md
+        notes.txt
+        one.md
+        README.md
+        ## ready (1)
+        - [plans] .agents/plans/pending/20260920-demo-01-aaa111-demo.md (draft)
+        TODO: 4 files waiting in `.aw/inbox/`. Run `aw adopt <path>` to file one.
+        exit=0
+        ```
+
+        THE BOARD WITH THE INBOX ABSENT OR DRAINED SHOWS NO LINE. Absent: CASE 1 in V-01 above. Drained (bookkeeping only): CASE 2 in V-01 above. Emptied back to bookkeeping-only mid-session, same repo:
+
+        ```
+        $ ls -a $D/.aw/inbox
+        .
+        ..
+        .gitkeep
+        README.md
+        $ python3 -m agent_workflows attention --dir $D --no-color
+        ## ready (1)
+        - [plans] .agents/plans/pending/20260920-demo-01-aaa111-demo.md (draft)
+        board-exit-with-0-waiting=0
+        ```
+
+        THE BOTH-CONDITIONS CASE, WHICH IS THE F-3 TRAP: setup-needed AND a non-empty inbox render BOTH lines. An `elif` addition would have printed only the setup line here.
+
+        ```
+        ### CASE 5: setup-needed AND a non-empty inbox: BOTH lines (the elif-chain trap)
+        ## ready (1)
+        - [plans] .agents/plans/pending/20260920-demo-01-aaa111-demo.md (draft)
+        TODO: Run `/aw setup-repo` to set up this repo.
+        TODO: 4 files waiting in `.aw/inbox/`. Run `aw adopt <path>` to file one.
+        exit=0
+        ```
+
+        That case is also pinned as a test (`test_line_composes_with_the_setup_notice_rather_than_replacing_it`, PASSED), driving the HUMAN path with `--no-color` and neutralizing `config.is_configured` exactly as `tests/test_attention_notices.py` does.
+
+        THE CLASS TALLY IS IDENTICAL WITH AND WITHOUT A POPULATED INBOX, PROVING NO `Item` WAS CREATED (the JSON key list and `schema_version` are shown too, both unchanged):
+
+        ```
+        inbox entries: ['.gitkeep', '.hidden-report.md', 'README.md', 'extracted', 'notes.txt', 'one.md']
+        WITH 4 waiting  -> items: 1 {'ready': 1} keys: ['schema_version', 'mapping_version', 'valid', 'items', 'violations', 'stranded_lanes'] schema_version: 4
+        inbox present? False
+        WITH 0 waiting  -> items: 1 {'ready': 1} keys: ['schema_version', 'mapping_version', 'valid', 'items', 'violations', 'stranded_lanes'] schema_version: 4
+        ```
+
+        `attention_contract.py` IS UNMODIFIED. `git status --porcelain` lists only the two declared paths, this plan itself (carrying this evidence), and the two backlog items this turn filed for its defect report:
+
+        ```
+        $ git status --porcelain
+         M .aw/records/plans/pending/20260908-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.ipd.md
+         M agent_workflows/attention.py
+         M tests/test_attention.py
+        ?? .aw/records/backlog/open/20260920-3sh9d6-01-3sh9d6-stale-nontty-claims-in-awinbox-artifacts.backlog.md
+        ?? .aw/records/backlog/open/20260920-jeh310-01-jeh310-lane-aw-on-path-runs-main-checkout.backlog.md
+        ```
+
+        OQ-03 IS RESOLVED AS YES, THE REMEDY VERB IS NAMED, and I branched on INVOKING it rather than on a sibling plan's status, as the question demands. `aw adopt` exists and is shipped:
+
+        ```
+        $ python3 -m agent_workflows adopt --help
+        usage: agent-workflows adopt [-h] [--no-color | --color] [--agent] [--json]
+                                     [--dir DIR] [--type TYPE] [--kind KIND]
+                                     [--slug SLUG] [--set SET] [--model MODEL]
+                                     [--summary SUMMARY] [--topic TOPIC] [--date DATE]
+                                     [--actor ACTOR] [--allow-leaks] [--yes] [--apply]
+                                     [--overwrite]
+                                     [paths ...]
+
+        File ONE raw .aw/inbox/ drop into a typed records tree: mint a fresh repository-unique id6, ...
+        EXIT=0
+        ```
+
+        So the line reads `Run \`aw adopt <path>\` to file one.` rather than a bare count. The `<path>` placeholder is deliberate: `adopt` refuses more than one path, so a remedy naming no argument would mislead.
+
+        THE SURFACE LIMIT I OBSERVED CONTRADICTS F-12, AND I RECORD WHAT I MEASURED RATHER THAN WHAT THE PLAN PREDICTED. F-12 and this plan's under-scope assert the line reaches an interactive terminal and NOTHING ELSE, "INCLUDING NO PIPE". That is FALSE at this HEAD. A PIPED invocation renders the human board, footer line included:
+
+        ```
+        $ python3 -m agent_workflows attention --dir $D | cat
+        ## ready (1)
+        - [plans] .agents/plans/pending/20260920-demo-01-aaa111-demo.md (draft)
+        TODO: 4 files waiting in `.aw/inbox/`. Run `aw adopt <path>` to file one.
+        exit=0
+        ```
+
+        The cause is that the non-TTY-selects-AGENT policy was RETRACTED on 2026-09-19, after this plan's review: `docs/cli-output-contract.md` Section 9 is titled "Automatic Non-TTY Migration Policy: RETRACTED 2026-09-19" and states "Piping or redirecting `aw` emits HUMAN-READABLE TEXT"; `select_output`'s own docstring now says the claim "USED TO" be published and "NEITHER WAS EVER IMPLEMENTED". So the feature is BROADER than the plan promised, not narrower, and it reaches the agents `AGENTS.md` tells to consume `aw attention`. THE LINE IS STILL ABSENT on every genuinely machine-readable surface, which is the property E-02 actually needed. `--agent` with four waiting:
+
+        ```
+        $ python3 -m agent_workflows attention --dir $D --agent
+        {"schema":"aw.agent/v1","kind":"result","cmd":"attention","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["attention"],"next":null}
+        exit=0
+        ```
+
+        Note `findings: 0` on a clean repo, which is exactly the phantom-finding hazard F-13 warned of and which this implementation avoids by not emitting a `Diagnostic` at all. `--format json` is covered in V-05. The stale F-12/under-scope/OQ-04 claims are filed as backlog `3sh9d6` rather than rewritten in place here, since correcting a HIGH finding's measured-evidence column mid-execution would overwrite the review's own record.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `aw attention` and `aw attention --check` exit codes with a NON-EMPTY inbox, both matching their values with an empty one (expected 0 on a valid view). Paste a grep of the new code proving no `Drift` is constructed. State whether `--check` prints the line and why.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+        EXIT CODES WITH FOUR WAITING DROPS, then with zero, in the same temporary repo. All four are 0, i.e. identical:
 
-- [ ] V-04 validates E-04
+        ```
+        ### CASE 6: --check with a NON-EMPTY inbox (silent, exit unchanged)
+        $ python3 -m agent_workflows attention --dir $D --no-color --check
+        aw attention --check: the view is valid.
+        check-exit-with-4-waiting=0
+
+        $ ls -a $D/.aw/inbox
+        .
+        ..
+        .gitkeep
+        README.md
+        $ python3 -m agent_workflows attention --dir $D --no-color --check
+        aw attention --check: the view is valid.
+        check-exit-with-0-waiting=0
+        $ python3 -m agent_workflows attention --dir $D --no-color
+        ## ready (1)
+        - [plans] .agents/plans/pending/20260920-demo-01-aaa111-demo.md (draft)
+        board-exit-with-0-waiting=0
+        ```
+
+        The plain-board exits are in V-02's CASE 3/4/5 pastes (`exit=0` with 1 and with 4 waiting) and immediately above with 0 waiting. The equality is also pinned as a test rather than left to a one-off observation (`test_exit_codes_are_unchanged_by_a_waiting_drop`, PASSED), which asserts the `(plain, check)` pair is `(0, 0)` empty AND unchanged after a drop appears.
+
+        NO `Drift` IS CONSTRUCTED. Grepping the added lines for `Drift` returns only the two COMMENT lines that state the rule; no added code line mentions it:
+
+        ```
+        $ git diff agent_workflows/attention.py | grep -n "^+" | grep -i "drift"
+        83:+        # it constructs no `Drift` and therefore CANNOT affect the exit code (owned solely by
+        84:+        # `core.drift_exit_code(drift)`), invents no status, and creates no `Item` - a waiting local
+        ```
+
+        This is structural rather than incidental: the new code's only output is an append to `footer_lines`, and both return paths still end in the untouched `return core.drift_exit_code(drift)`.
+
+        `--check` DOES NOT PRINT THE LINE, and that is the deliberate choice, not a fallout. `--check` is a VALIDITY GATE whose entire output is either the named violations or `the view is valid.`, and it returns from `run` well before the human board is built, so a nudge there would mix advisory local state into a gate whose answer must mean only "this repository's records conform". The `check-exit-with-4-waiting=0` paste above shows the `--check` output with four drops waiting: the line is absent. Pinned by `test_check_and_json_and_agent_stay_silent` (PASSED).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the patched-open test source and its PASSING output, where the file-open path RAISES and the count still succeeds; this is the plan's central safety proof and a correct count alone does not establish it. Paste each required case: missing directory silent zero, N files count N, hidden file counted, non-`.md` counted, nested counts as one entry (OQ-02), README-and-`.gitkeep`-only counts ZERO (F-11), `--check` still 0, class tally unchanged, footer composition. Paste proof no test references the real `.aw/inbox/` (a grep of the test file). Paste the no-write assertion beside its existing twins at `tests/test_attention.py:67` and `:255`. STATE HOW THE FOOTER TEST DRIVES THE HUMAN PATH, since a plain `redirect_stdout` yields the AGENT record and not the board (F-12): follow `tests/test_attention_notices.py`, which passes `--no-color` and (per its `setUp`) neutralizes `config.is_configured` so `setup_needed` reflects the fixture rather than ambient machine state; without that isolation the both-conditions test is order-dependent.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+        THE PATCHED-OPEN TEST SOURCE, `tests/test_attention.py`. Four open paths are made to raise at once, and the drop's body deliberately contains a `- Id:` line so a parsing implementation would have something to harvest:
 
-- [ ] V-05 validates E-05
+        ```python
+            def test_counts_without_opening_any_file(self):
+                """THE CENTRAL SAFETY PROOF. A correct count does NOT establish that nothing was read: an
+                implementation parsing every drop would also count correctly. So make opening RAISE and
+                require the count to succeed anyway. Parsing a drop would let that drop's CONTENT assert an
+                identity (`selectors._ID_RE` is position-unanchored and harvests a body-QUOTED `- Id:`)."""
+                with tempfile.TemporaryDirectory() as d:
+                    root = Path(d)
+                    box = self._inbox(root)
+                    (box / "a.md").write_text("- Id: abc123\n", encoding="utf-8")
+                    (box / "b.txt").write_text("x", encoding="utf-8")
+                    (box / ".c.md").write_text("x", encoding="utf-8")
+
+                    def _boom(*a, **kw):
+                        raise AssertionError("the inbox counter must never OPEN a file")
+
+                    with ExitStack() as stack:
+                        stack.enter_context(mock.patch("builtins.open", _boom))
+                        for attr in ("open", "read_text", "read_bytes"):
+                            stack.enter_context(mock.patch.object(Path, attr, _boom))
+                        self.assertEqual(att.inbox_waiting(root), 3)
+        ```
+
+        ```
+        $ python3 -m pytest "tests/test_attention.py::InboxWaitingCountTests::test_counts_without_opening_any_file" -o addopts="" -v -p no:randomly
+        tests/test_attention.py::InboxWaitingCountTests::test_counts_without_opening_any_file PASSED [100%]
+        ============================== 1 passed in 0.12s ===============================
+        ```
+
+        AND I RAN A NEGATIVE CONTROL, because a green patched-open test proves the claim only if it could have gone red. I temporarily replaced the counter's body with a PARSING one (same `scandir`, then `read_text` on each entry, returning the same number) via a throwaway script under the gitignored `.aw/state/`, re-ran the one test, and reverted:
+
+        ```
+        apply ok
+        --- NEGATIVE CONTROL: a PARSING implementation must FAIL the patched-open test
+                    with ExitStack() as stack:
+                        stack.enter_context(mock.patch("builtins.open", _boom))
+                        for attr in ("open", "read_text", "read_bytes"):
+                            stack.enter_context(mock.patch.object(Path, attr, _boom))
+        >               self.assertEqual(att.inbox_waiting(root), 3)
+        E               AssertionError: 0 != 3
+
+        tests/test_attention.py:2829: AssertionError
+        =========================== short test summary info ============================
+        FAILED tests/test_attention.py::InboxWaitingCountTests::test_counts_without_opening_any_file
+        ============================== 1 failed in 0.23s ===============================
+        revert ok
+        --- restored; re-run must PASS:
+        tests/test_attention.py .                                                [100%]
+        ============================== 1 passed in 0.16s ===============================
+         agent_workflows/attention.py | 72 ++++++++++++++++++++++++++++++++++++++++++++
+         1 file changed, 72 insertions(+)
+        ```
+
+        Note the failure mode: the parsing version returns `0`, because `_boom` raises inside the `try` and the exception-swallowing wrapper turns the read failure into a silent zero. That is worth recording, since it means the guard rail is BOTH the assertion and the fact that a reading implementation degrades to a useless count. The trailing `git diff --stat` confirms the revert was exact (72 added lines, the same figure as before the control), and the helper script was deleted afterwards (`git check-ignore -v` confirmed it was under the gitignored `/state/` and never stageable).
+
+        EVERY REQUIRED CASE, ALL TWELVE TESTS, RUN WITH THE RANDOM ORDER PLUGIN DISABLED SO THE NAMES ARE LEGIBLE:
+
+        ```
+        $ python3 -m pytest tests/test_attention.py -k "Inbox" -o addopts="" -v -p no:randomly
+        collected 81 items / 69 deselected / 12 selected
+
+        tests/test_attention.py::InboxWaitingCountTests::test_bookkeeping_only_inbox_counts_zero PASSED [  8%]
+        tests/test_attention.py::InboxWaitingCountTests::test_counter_never_resolves_a_nested_inbox_by_name PASSED [ 16%]
+        tests/test_attention.py::InboxWaitingCountTests::test_counts_plain_hidden_nonmd_and_nested_entries PASSED [ 25%]
+        tests/test_attention.py::InboxWaitingCountTests::test_counts_without_opening_any_file PASSED [ 33%]
+        tests/test_attention.py::InboxWaitingCountTests::test_missing_directory_counts_zero_and_creates_nothing PASSED [ 41%]
+        tests/test_attention.py::InboxFooterNudgeTests::test_check_and_json_and_agent_stay_silent PASSED [ 50%]
+        tests/test_attention.py::InboxFooterNudgeTests::test_exit_codes_are_unchanged_by_a_waiting_drop PASSED [ 58%]
+        tests/test_attention.py::InboxFooterNudgeTests::test_line_composes_with_the_setup_notice_rather_than_replacing_it PASSED [ 66%]
+        tests/test_attention.py::InboxFooterNudgeTests::test_line_shows_count_and_singularizes PASSED [ 75%]
+        tests/test_attention.py::InboxFooterNudgeTests::test_no_item_is_created_and_the_class_tally_is_unchanged PASSED [ 83%]
+        tests/test_attention.py::InboxFooterNudgeTests::test_no_line_when_inbox_absent_or_drained PASSED [ 91%]
+        tests/test_attention.py::InboxFooterNudgeTests::test_rendering_the_board_creates_nothing PASSED [100%]
+
+        ====================== 12 passed, 69 deselected in 0.94s =======================
+        ```
+
+        Mapping each required case to the test that owns it: missing directory silent zero -> `test_missing_directory_counts_zero_and_creates_nothing` plus the no-line half of `test_no_line_when_inbox_absent_or_drained`; N files count N, hidden counted, non-`.md` counted, nested counts as ONE entry -> `test_counts_plain_hidden_nonmd_and_nested_entries` (the nested directory holds five files and moves the count by one); README-and-`.gitkeep`-only counts ZERO -> `test_bookkeeping_only_inbox_counts_zero` plus the drained half of `test_no_line_when_inbox_absent_or_drained`; `--check` still 0 -> `test_exit_codes_are_unchanged_by_a_waiting_drop`; class tally unchanged -> `test_no_item_is_created_and_the_class_tally_is_unchanged`; footer composition -> `test_line_composes_with_the_setup_notice_rather_than_replacing_it`.
+
+        NO TEST READS THE REAL `.aw/inbox/`. Every inbox path in the new tests is built from a `tempfile.TemporaryDirectory` root:
+
+        ```
+        $ grep -n '"\.aw" / "inbox"' tests/test_attention.py
+        2768:        d = root / ".aw" / "inbox"
+        2864:        d = self.root / ".aw" / "inbox"
+
+        $ grep -n '\.aw/inbox' tests/test_attention.py
+        2760:    """awinbox Order 02 (`9iiqmm`): the waiting-`.aw/inbox/`-drops count and its footer nudge.
+        2762:    Every case is built in a TEMPORARY repo. No test here may read the real `.aw/inbox/`: it is
+        2776:            # The probe must not create `.aw/` or `.aw/inbox/` by looking for them (write-on-read).
+        2894:        self.assertNotIn(".aw/inbox/", self._human())
+        2896:        self.assertNotIn(".aw/inbox/", self._human())  # present but empty
+        2899:        self.assertNotIn(".aw/inbox/", self._human())  # drained, bookkeeping only
+        2904:        self.assertIn("1 file waiting in `.aw/inbox/`", self._human())
+        2907:        self.assertIn("2 files waiting in `.aw/inbox/`", board)
+        2919:        self.assertIn("1 file waiting in `.aw/inbox/`", board)
+        2951:        self.assertNotIn("waiting in `.aw/inbox/`", self._human(["--check"]))
+        ```
+
+        The FIRST grep shows the only two places an inbox PATH is constructed: line 2768 is `InboxWaitingCountTests._inbox(root)` where `root = Path(tempfile.TemporaryDirectory())`, and line 2864 is `InboxFooterNudgeTests._inbox` where `self.root = Path(self._tmp.name)`. Both derive from a temporary root. The SECOND grep enumerates every remaining `.aw/inbox` occurrence and each is either prose (2760, 2762, 2776) or an assertion SUBSTRING matched against already-rendered board text (2894-2951), which reads no filesystem path at all.
+
+        THE NO-WRITE ASSERTION SITS WITH ITS TWINS. `test_rendering_the_board_creates_nothing` follows the shape of the existing `test_writes_nothing`, snapshotting every file's bytes before and after a render with a populated inbox; and `test_missing_directory_counts_zero_and_creates_nothing` follows `test_scan_does_not_stamp_aw_and_setup_needed_derives` by asserting `.aw/` itself was not stamped. Both PASSED above.
+
+        HOW THE FOOTER TESTS DRIVE THE HUMAN PATH. `InboxFooterNudgeTests._human` calls `cli.main(["attention", "--dir", <tmp>, "--no-color", ...])` under `redirect_stdout`, and `setUp` neutralizes `config.is_configured` exactly as `tests/test_attention_notices.py` does, so `setup_needed` reflects the fixture and the both-conditions test is not order-dependent. A CORRECTION TO THE PREMISE OF THIS REQUIREMENT: it says a plain `redirect_stdout` yields the AGENT record rather than the board (F-12). That is FALSE at this HEAD; the non-TTY-selects-AGENT policy was retracted 2026-09-19 and `select_output` consults `isatty` for COLOR only, so a redirected run renders the board. The tests therefore do not depend on any TTY trick, and `--no-color` is passed for text stability (and to keep the `has_hidden and colored` branch out of the way), not to force a mode. See backlog `3sh9d6`; V-02 carries the measured piped run.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste real `aw attention` output from a temporary repo containing several drops including a hidden one and a non-`.md` one, then with the directory removed. Paste the `render_json` top-level key list BEFORE and AFTER showing it identical, and `schema_version` still 3. Paste all six attention suites green. Paste the bare full-suite summary line with the worktree baseline beside it and a node-id comparison AGAINST THE RE-MEASURED BASELINE (F-15: `2 failed, 5957 passed` at HEAD `0cc91fa3`, node ids `test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose` and `test_runner_backlog_close.py::ShutdownReportOnInterrupt::test_sigint_produces_the_report_and_exits_130`), not the wrong figure this plan was authored with. If either pre-existing failure appears, CONFIRM IT IS PRE-EXISTING and state so; do NOT attempt to green it, and specifically do NOT touch `opencode-recovery/`, which belongs to another party. Paste `git diff --cached --name-only` showing only this plan's declared paths.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+        A NOTE ON HOW THESE DEMOS WERE INVOKED, because it changes what the evidence means. Inside this lane worktree, the `aw` console script on PATH resolves the MAIN CHECKOUT's package, not the lane's: a probe reported the main-tree `attention.py` with `hasattr(..., "inbox_waiting") == False`, while `python3 -m agent_workflows` resolved the lane copy with `True`. So `aw attention` in this lane would have exercised code WITHOUT this change and produced a convincing false negative (I hit exactly that before noticing). Every demo below therefore uses `python3 -m agent_workflows attention`, which is the same CLI entry point (`agent_workflows/__main__.py` -> `cli.main`) resolved against the LANE. Filed as backlog `jeh310`, because a plan that asks an executor to "paste real `aw attention` output" from a lane is asking for evidence about the wrong tree.
+
+        REAL BOARD OUTPUT FROM A TEMPORARY REPO WITH SEVERAL DROPS INCLUDING A HIDDEN ONE AND A NON-`.md` ONE (and a nested directory, counted once):
+
+        ```
+        ### CASE 4: several drops incl. a HIDDEN one, a non-.md one, and a NESTED dir
+        $ ls -a $D/.aw/inbox
+        .
+        ..
+        extracted
+        .gitkeep
+        .hidden-report.md
+        notes.txt
+        one.md
+        README.md
+        $ python3 -m agent_workflows attention --dir $D --no-color
+        ## ready (1)
+        - [plans] .agents/plans/pending/20260920-demo-01-aaa111-demo.md (draft)
+        TODO: 4 files waiting in `.aw/inbox/`. Run `aw adopt <path>` to file one.
+        exit=0
+        ```
+
+        THEN WITH THE DIRECTORY REMOVED, same repo, line gone:
+
+        ```
+        inbox present? False
+        $ python3 -m agent_workflows attention --dir $D --no-color
+        ## ready (1)
+        - [plans] .agents/plans/pending/20260920-demo-01-aaa111-demo.md (draft)
+        exit=0
+        ```
+
+        (CASE 1 in V-01 additionally shows a repo that NEVER had the directory, with `.aw/` listed before and after to prove the run did not create it.)
+
+        THE `render_json` TOP-LEVEL KEY LIST, BEFORE AND AFTER, IDENTICAL. "Before" is the true base: I stashed both working-tree files, ran the same command, and popped the stash.
+
+        ```
+        ### BEFORE (base bb714fd8, this change stashed):
+        $ git stash push -q -- agent_workflows/attention.py tests/test_attention.py
+        $ python3 -m agent_workflows attention --dir /tmp/.../demo2 --format json | python3 -c "..."
+        ['schema_version', 'mapping_version', 'valid', 'items', 'violations', 'stranded_lanes']
+        schema_version 4
+        $ git stash pop -q
+
+        ### AFTER (this change), same repo state:
+        ['schema_version', 'mapping_version', 'valid', 'items', 'violations', 'stranded_lanes']
+        schema_version 4
+        ```
+
+        A CORRECTION TO THIS REQUIREMENT'S EXPECTED VALUE: it says "`schema_version` still 3". It is 4, and was 4 BEFORE this change too. `SCHEMA_VERSION` was bumped to 4 by `lanestrand-01` (`pr5b0t`) when the payload gained the top-level `stranded_lanes` key, after this plan was authored. What the requirement actually demands is satisfied: the key list and the version are byte-identical before and after, so this plan neither added a key nor bumped the version (OQ-01 upheld). The six-key list and `schema_version == 4` are also asserted from the new test `test_check_and_json_and_agent_stay_silent`, which additionally greps the whole payload for the substring `inbox` and finds none.
+
+        ALL SIX ATTENTION SUITES GREEN, including `test_attention_contract.py`, the tripwire that would have failed had the count leaked into classification:
+
+        ```
+        $ python3 -m pytest tests/test_attention.py tests/test_attention_contract.py tests/test_attention_notices.py tests/test_attention_priority_blocker.py tests/test_attention_compact.py tests/test_attention_stem.py -o addopts="" -p no:randomly
+
+        tests/test_attention.py ................................................ [ 31%]
+        .................................                                        [ 52%]
+        tests/test_attention_contract.py .................................       [ 74%]
+        tests/test_attention_notices.py .....                                    [ 77%]
+        tests/test_attention_priority_blocker.py ..........................      [ 94%]
+        tests/test_attention_compact.py ....                                     [ 97%]
+        tests/test_attention_stem.py ....                                        [100%]
+
+        ============================= 153 passed in 3.13s ==============================
+        ```
+
+        THE BARE FULL SUITE, WITH THE BASELINE MEASURED IN THIS WORKTREE RATHER THAN INHERITED. Baseline first, at lane base `bb714fd8` BEFORE any edit:
+
+        ```
+        $ python3 -m pytest
+        7093 passed, 3 skipped, 2 xfailed, 3 warnings in 180.04s (0:03:00)
+        ```
+
+        After this change:
+
+        ```
+        $ python3 -m pytest
+        7105 passed, 3 skipped, 2 xfailed, 3 warnings in 115.48s (0:01:55)
+        ```
+
+        NODE-ID COMPARISON: the failing set is EMPTY in both runs, so there is nothing to compare by node id and no pre-existing failure to confirm. `7105 - 7093 = 12`, exactly the twelve tests this plan adds, and `skipped`/`xfailed` are unchanged. BOTH FAILURES F-15 RECORDED ARE GONE at this HEAD: `test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose` and `test_runner_backlog_close.py::ShutdownReportOnInterrupt::test_sigint_produces_the_report_and_exits_130` both pass, the first because the `opencode-recovery/` tree that caused it is not present in this lane worktree. Consequently the fence's do-not-touch-`opencode-recovery/` rule never came into play: there was nothing to be tempted by, and nothing was deleted, moved, or cleaned.
+
+        STAGED SET. Nothing is staged at the time of writing, so the honest paste of `git diff --cached --name-only` is empty; the lane's finalize performs the path-scoped commit. The WORKING SET is exactly this plan's two declared paths plus this plan itself (carrying this evidence) and the two backlog items the turn's defect report required:
+
+        ```
+        $ git status --porcelain
+         M .aw/records/plans/pending/20260908-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.ipd.md
+         M agent_workflows/attention.py
+         M tests/test_attention.py
+        ?? .aw/records/backlog/open/20260920-3sh9d6-01-3sh9d6-stale-nontty-claims-in-awinbox-artifacts.backlog.md
+        ?? .aw/records/backlog/open/20260920-jeh310-01-jeh310-lane-aw-on-path-runs-main-checkout.backlog.md
+
+        $ git diff --stat
+         ...box-drops-in-aw-attention-by-listing-the.ipd.md | 437 ++++++++++++++++++++-
+         agent_workflows/attention.py                       |  72 ++++
+         tests/test_attention.py                            | 233 ++++++++++-
+        ```
+
+        No file outside the fence is modified: `attention_contract.py`, `result_types.py`, `selectors.py`, `.aw/.gitignore`, and every spec are untouched.
+  - Result: pass
 
 ## Approval and execution gate
 
