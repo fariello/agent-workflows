@@ -2141,6 +2141,12 @@ def initialize_run(args: argparse.Namespace) -> Path:
         host_options=host_options,
         expand_selectors_fn=expand_selectors,
         enforce_dependency_preflight_fn=enforce_dependency_preflight,
+        # depclosure 01 (`dhycim`): the closure asks THIS host's satisfaction predicate
+        # whether an edge is already met, so it never adds a target adding cannot help.
+        # INJECTED because `runner_shared` must import neither runner (two shipped guards
+        # enforce that), and because one shared definition is what keeps the closure's
+        # judgement identical to the dispatch-time re-check's.
+        edge_satisfied_fn=edge_satisfied,
         set_plan_approved_fn=set_plan_approved,
         announce_run_order_fn=announce_run_order,
         is_plan_review_approved_fn=is_plan_review_approved,

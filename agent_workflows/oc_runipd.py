@@ -3364,6 +3364,12 @@ def initialize_run(args: argparse.Namespace) -> Path:
         host_options=host_options,
         expand_selectors_fn=expand_selectors,
         enforce_dependency_preflight_fn=enforce_dependency_preflight,
+        # depclosure 01 (`dhycim`): the closure asks THIS host's satisfaction predicate
+        # whether an edge is already met, so it never adds a target adding cannot help.
+        # INJECTED because `runner_shared` must import neither runner (two shipped guards
+        # enforce that), and because one shared definition is what keeps the closure's
+        # judgement identical to the dispatch-time re-check's.
+        edge_satisfied_fn=edge_satisfied,
         set_plan_approved_fn=set_plan_approved,
         announce_run_order_fn=announce_run_order,
         is_plan_review_approved_fn=is_plan_review_approved,
@@ -3576,9 +3582,12 @@ def edge_satisfied(
         # review turn still accepts a `reviewed`/`approved` `- Status:` field, since reviewing plan B
         # against plan A needs A's TEXT and not A's code.
         #
-        # Evaluated from frozen repository state. There is no
-        # `--with-dependencies` closure in this runner, so an unsatisfied external target simply
-        # cannot be met in this run.
+        # Evaluated from frozen repository state, and that is UNCHANGED by the arrival of
+        # `--with-dependencies` (depclosure 01, `dhycim`). The flag now ships
+        # (`runner_shared.expand_dependency_closure`), but spec 25kzda :351 is explicit that it
+        # "changes selection, not satisfaction semantics": it can put the target IN the queue before
+        # freezing, which is a different run, and it grants no relaxation to the rule below. Without
+        # the flag an unsatisfied external target still simply cannot be met in this run.
         try:
             dep_path = resolve_plan_path(repo, "", edge.id6)
         except DriverError as exc:
@@ -4061,9 +4070,14 @@ def queue_sort_key(item: dict[str, Any], by_id: dict[str, dict[str, Any]]) -> tu
     claim a typed one (see `run_order_rationale`).
 
     Spec 5.4 rule 4 also lists a TYPE RANK (`spec`, `backlog`, `ipd`, `prompt`) ahead of Set. It is
-    deliberately NOT implemented: this runner's queue is homogeneous (IPDs only; there is no
-    `--with-dependencies` closure and no non-plan item can enter), so a rank over types that cannot
-    appear would be untestable dead code. Recorded rather than silently skipped.
+    deliberately NOT implemented: this runner's queue is homogeneous (IPDs only), so a rank over types
+    that cannot appear would be untestable dead code. Recorded rather than silently skipped.
+
+    THE HOMOGENEITY SURVIVED `--with-dependencies` SHIPPING (depclosure 01, `dhycim`), which is worth
+    stating because this note previously rested on the closure not existing. The closure now exists,
+    and it REFUSES a `spec` or `backlog` dependency target precisely because the manifest cannot carry
+    one, so every id it can add is still an IPD. A later plan that admits non-plan targets is what
+    would make this rank reachable, and it must revisit this note.
     """
     return (
         dependency_depth(item["id6"], by_id),

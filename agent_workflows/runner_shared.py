@@ -5606,12 +5606,18 @@ RUN_POLICY_FLAGS: tuple = (
         flag="--with-dependencies",
         dest="with_dependencies",
         kind="bool",
-        implemented=False,
-        owner="backlog x8diyb (rundepflags-01)",
+        implemented=True,
+        owner="runner_shared.expand_dependency_closure",
         help=(
-            "NOT YET IMPLEMENTED (refuses; backlog x8diyb owns the behavior). Would expand the "
-            "selection to the transitive declared dependency closure BEFORE the queue is frozen, "
-            "subjecting any newly introduced type to the mixed-type gate"
+            "Expand the selection to the transitive declared dependency closure BEFORE the queue is "
+            "frozen, so a prerequisite outside your selection is enqueued instead of merely being "
+            "state-checked. PLAN TARGETS ONLY: a spec or backlog dependency target REFUSES, because "
+            "the run manifest is built from the plans trees and has no queue entry for one (this is "
+            "narrower than spec 25kzda, which subjects any newly introduced type to the mixed-type "
+            "gate). A target already in a terminal disposition (executed, superseded, not-executed, "
+            "reusable) is SKIPPED, since its work is done; an unresolvable target refuses rather than "
+            "expanding partially. Changes selection only: every declared dependency is enforced "
+            "either way"
         ),
     ),
     RunPolicyFlag(
@@ -5863,6 +5869,355 @@ def refuse_unimplemented_run_flags(args: Any) -> None:
                 f"The flag is registered so it fails HERE, loudly, rather than parsing and "
                 f"silently doing nothing"
             )
+
+
+#: What :func:`expand_dependency_closure` refuses to enqueue, and WHY each exclusion is not a silent
+#: drop. A closure target in one of these dispositions has already produced whatever a dependent
+#: consumes (or has been deliberately retired), so ADDING it to the queue cannot help the dependent
+#: and can only hand the runner finished work. See the skip-rule section of the function's docstring
+#: for the measurement that makes this load-bearing rather than tidy.
+CLOSURE_TERMINAL_BUCKETS: tuple[str, ...] = (
+    "executed",
+    "superseded",
+    "not-executed",
+    "reusable",
+)
+
+
+class ClosureRefusal(DriverError):
+    """`--with-dependencies` cannot honestly expand this selection, and says so BEFORE any run state.
+
+    A DISTINCT TYPE RATHER THAN A BARE `DriverError`, for the same reason :class:`RunFlagRefusal` is
+    one: the caller sits at the seam ahead of the run directory, and a test that wants to prove "this
+    refusal happened at the seam and left nothing durable" must be able to name the refusal it
+    expects rather than catching every error the initializer can raise.
+    """
+
+
+def closure_target_admission(
+    repo: Path,
+    edge: Any,
+    *,
+    manifest: dict,
+    edge_satisfied_fn: Any = None,
+) -> tuple[str, str]:
+    """Should the closure ADD this edge's target to the selection? Returns ``(verdict, reason)``.
+
+    ``verdict`` is one of:
+
+      * ``"add"``      - a plan target, present in the manifest, in a NON-terminal disposition.
+      * ``"skip"``     - a target adding cannot help (terminal disposition). ``reason`` says which.
+      * ``"refuse"``   - the closure cannot honestly enqueue it; the caller raises with ``reason``.
+
+    PURE APART FROM READING THE REPOSITORY, and deliberately separate from the walk so the POLICY
+    (which target types and dispositions are admissible) is testable without building a graph, and so
+    the walk has exactly one place to consult.
+
+    THE THREE-WAY SPLIT IS THE DESIGN DECISION, not an implementation convenience: the one outcome
+    that is FORBIDDEN is a fourth, silent one. An operator passes `--with-dependencies` precisely to
+    be certain prerequisites were queued, so a target that quietly vanishes tells them a falsehood
+    about what the run enforced - which is the very thing `refuse_unimplemented_run_flags` exists to
+    prevent, and it would be perverse to replace that refusal with a quieter version of the same lie.
+    """
+
+    from agent_workflows import ipd_schema as _schema
+
+    tok = edge.canonical()
+
+    if edge.target_type != "ipd":
+        # E-03 / OQ-03: A NON-PLAN TARGET IS REFUSED AT THE SEAM, and this is a KNOWN, WRITTEN-DOWN
+        # GAP BETWEEN THE SPEC AND THE IMPLEMENTATION rather than a quiet narrowing.
+        #
+        # THE SPEC PRESUPPOSES OTHERWISE. Spec 25kzda :166 says "Any newly introduced type is subject
+        # to the same mixed-type gate", which only means something if a `spec` or `backlog` target can
+        # join the queue, and `ipd_schema.ITEM_DEP_TYPES` does admit `exists:spec:<id6>` and
+        # `state:backlog:<status>:<id6>` as legal grammar. So this refusal is NARROWER than the
+        # approved spec, and `--with-dependencies`'s own `--help` says so, because a narrowing visible
+        # only in a plan record leaves the shipped command lying.
+        #
+        # WHY REFUSING IS NEVERTHELESS RIGHT HERE, and why the two permissive options were not taken:
+        #
+        #   * THE QUEUE IS BUILT FROM MANIFEST DATA AND THE MANIFEST IS PLANS-ONLY. `discover_plans`
+        #     walks `.aw/records/plans` and `.agents/plans` and nothing else, so a non-plan target has
+        #     no entry to build a queue item from. Constructing one invents a SECOND queue-entry shape
+        #     that every downstream consumer (dispatch, ordering, reporting, resume) would have to
+        #     learn, and extending discovery makes a live mixed selection reachable for the first
+        #     time, which is a real behavioral change deserving its own review.
+        #   * ADMITTING ONE WITHOUT ALSO GUARDING THE QUEUE BUILDER IS UNSAFE. `initialize_run_core`'s
+        #     per-item first statement is an unguarded `manifest["plans"][id6]`, and it runs AFTER the
+        #     run directory is created, so a non-plan id6 that got that far would raise a bare
+        #     `KeyError` with durable state already written - a traceback instead of a message, and
+        #     the loss of the no-durable-state property the flag refusal was careful to have.
+        #   * REFUSING NEEDS NEITHER CHANGE, is loud, names the type, and precedes the run directory,
+        #     so the spec's wider intent stays available to a plan that can review the discovery
+        #     change on its own merits.
+        record_type = _schema.ITEM_DEP_TYPE_TO_RECORD_TYPE.get(edge.target_type)
+        return "refuse", (
+            f"{tok}: --with-dependencies cannot enqueue a {edge.target_type} target. The run "
+            f"manifest is built from the plans trees only, so a {record_type or edge.target_type} "
+            f"record has no queue entry to build. This is NARROWER than spec 25kzda :166, which "
+            f"subjects any newly introduced type to the mixed-type gate; the gap is recorded in "
+            f"`closure_target_admission` and stated in --with-dependencies's own --help. Satisfy "
+            f"this edge outside the run, or re-run without --with-dependencies (the edge is still "
+            f"enforced either way)."
+        )
+
+    try:
+        path = resolve_plan_path(repo, "", edge.id6)
+    except DriverError as exc:
+        # OQ-02, DECIDED: AN UNRESOLVABLE TARGET REFUSES THE RUN rather than warning past it.
+        #
+        # THE REASONING IS THE FLAG'S OWN PURPOSE. An operator passes `--with-dependencies` to be
+        # CERTAIN the prerequisites are in the queue; a partially expanded closure delivers a
+        # selection that is neither the one they asked for nor the one they would have got without the
+        # flag, and they have no way to tell from the outside which. That is the same category of
+        # falsehood the unimplemented-flag refusal was written to avoid, so proceeding with a warning
+        # would trade a loud lie for a quiet one.
+        #
+        # WHAT IT COSTS, stated honestly: one dangling edge in one selected plan refuses an otherwise
+        # legitimate selection. Measured in this repository at execution, that cost is ZERO today -
+        # all 43 declared edges across the pending plans resolve to a real artifact and NONE dangles -
+        # so the strict choice forbids nothing anybody is doing, while the permissive choice would be
+        # paying for a case that does not occur.
+        #
+        # CONSISTENT WITH `f6idxs` (`depverb-01`), which refuses a dangling dependency target at WRITE
+        # time. Two surfaces, one rule: a dependency naming nothing is an error, not a warning. The
+        # obligation between the plans is consistency of RULE, not of sequence (no file overlap), so
+        # either may land first.
+        #
+        # WITHOUT the flag nothing changes: the edge is still checked by the dependency preflight and
+        # re-checked at dispatch, on its own merits. Only the EXPANSION refuses.
+        return "refuse", (
+            f"{tok}: --with-dependencies cannot resolve dependency target {edge.id6}, so the "
+            f"closure would be incomplete and the run would not be the one you asked for "
+            f"({exc}). Fix the dangling edge, or re-run without --with-dependencies (the edge is "
+            f"still enforced either way)."
+        )
+
+    # THE SKIP RULE, and it guards against a re-execution bug rather than untidiness.
+    # `discover_plans` recurses EVERY disposition directory, so the manifest carries terminal plans
+    # too: measured at execution, 694 discoverable plans of which 547 are `- Status: executed`, and 12
+    # of the 43 `executed:` edges declared across the pending plans point at a target that is ALREADY
+    # in a terminal directory. `action_for(kind, "executed")` returns `"execute"` (`"orchestrate"` for
+    # an orchestrator), so a closure that enqueued every declared target would hand the runner FINISHED
+    # PLANS to execute again.
+    #
+    # WHAT CURRENTLY PREVENTS DISPATCH IS INCIDENTAL AND MUST NOT BE LEANED ON: the queue builder
+    # assigns `status: "reviewed"` to any status outside
+    # `("to-review","draft","approved","auto-approved")`, and the dispatch loop only picks
+    # `status == "queued"` items. Neither was written as a terminal-target filter, and either could
+    # change for an unrelated reason, at which point a closure without this rule becomes a
+    # re-execution bug. So the closure filters for itself.
+    #
+    # SATISFACTION IS ASKED OF THE ONE SHIPPED AUTHORITY, `oc_runipd.edge_satisfied`, and is NOT
+    # re-derived here. That function is the single definition of "is this typed edge met?" (both hosts
+    # import it; the agy module re-exports the oc object rather than defining a second), and it is
+    # callable with no run in existence: `item` only supplies the action and `state` only the repo, so
+    # asking it at queue-build time is asking exactly the question the dispatch-time re-check will ask
+    # later. Writing a second rule here is how the two would come to disagree, and a closure that
+    # believed an edge unmet while dispatch believed it met would enqueue work dispatch then skips.
+    #
+    # THE ACTION IS `execute`, the STRICTER of the two the predicate distinguishes: a review turn
+    # accepts a merely `reviewed`/`approved` target (it needs the target's TEXT), while an execute turn
+    # demands terminal execution evidence (it consumes the target's WORK). The closure cannot know
+    # which action the dependent will take until the queue is built, so it asks the strict question;
+    # the consequence is conservative in the safe direction (an edge judged UNMET means the target is
+    # ADDED, never silently dropped).
+    #
+    # AN ALREADY-SATISFIED EDGE IS SKIPPED WITHOUT TOUCHING SATISFACTION SEMANTICS (spec :351). Every
+    # declared edge is still enforced by the preflight and by the dispatch-time re-check, whether or
+    # not its target was selected. The closure merely declines to ADD a node that adding cannot help.
+    #
+    # THE DISPOSITION CHECK IS KEPT AS A SECOND, INDEPENDENT REASON rather than being folded into the
+    # first, because the two answer different questions and neither implies the other. A `superseded`
+    # or `not-executed` plan does NOT satisfy an `executed:` edge (the predicate correctly says so),
+    # yet enqueuing it is still wrong: it is retired work, and running it is not how the edge gets met.
+    # `reusable` is skipped for its own reason - a standing plan is run on purpose by an operator who
+    # names it, and pulling one in as a side effect of another selection would execute recurring work
+    # nobody asked for in this run.
+    #
+    # THE PREDICATE IS INJECTED, NEVER IMPORTED, and that is an ARCHITECTURE RULE this module is held
+    # to rather than a style choice: `runner_shared` must import NEITHER runner, because doing so would
+    # drag one host's possibly-diverged behavior into code BOTH hosts run, and it would create an import
+    # cycle. Two shipped guards enforce it
+    # (`tests/test_runner_shared.py::NoRunnerImportTests::test_runner_shared_imports_neither_runner` and
+    # `tests/test_rununify_host_descriptor.py::TheSharedModuleStaysCleanTests`), and a `from
+    # agent_workflows import oc_runipd` here - even lazily, inside the function - FAILS both, measured.
+    # So `initialize_run_core` threads the host's own `edge_satisfied` down as
+    # `edge_satisfied_fn`, exactly as it already threads `expand_selectors_fn` and
+    # `enforce_dependency_preflight_fn`. With no predicate supplied the satisfaction half is SKIPPED
+    # (not faked), and the disposition half below still applies.
+    try:
+        already_met = bool(
+            edge_satisfied_fn
+            and edge_satisfied_fn(edge, {"action": "execute"}, {"repo": str(repo)}, {})[
+                0
+            ]
+        )
+    except Exception:
+        # The predicate is the authority on satisfaction, NOT on whether the closure may proceed: if it
+        # cannot answer, the closure falls through to the disposition check and (for a non-terminal
+        # target) ADDS the plan. Failing toward inclusion is right here, because the cost of an extra
+        # queue item is an item the dispatch-time re-check will skip, while the cost of a wrong
+        # exclusion is a prerequisite the operator asked for and did not get.
+        already_met = False
+    if already_met:
+        return "skip", (
+            f"{tok}: already satisfied against current repository state "
+            f"(oc_runipd.edge_satisfied), so enqueuing {edge.id6} cannot help"
+        )
+
+    bucket = plan_bucket(path)
+    if bucket in CLOSURE_TERMINAL_BUCKETS:
+        return "skip", (
+            f"{tok}: target {edge.id6} is already in the {bucket!r} disposition, which is retired "
+            f"work; enqueuing it is not how this edge gets met"
+        )
+
+    if edge.id6 not in manifest.get("plans", {}):
+        # A PLAN THE MANIFEST DOES NOT CARRY, which is reachable with an EXPLICIT `--manifest` even
+        # though dynamic discovery always carries every plan. Refused rather than fabricated: the
+        # queue entry's `configured_file`, `set` and `order` come from the manifest, and inventing
+        # them would put an item in the queue whose Set membership and ordering nobody declared.
+        return "refuse", (
+            f"{tok}: dependency target {edge.id6} resolves to {path.name} but is absent from the "
+            f"run manifest, so --with-dependencies has no queue entry to build for it. Add it to "
+            f"the manifest, or re-run without --with-dependencies (the edge is still enforced "
+            f"either way)."
+        )
+
+    return "add", ""
+
+
+def expand_dependency_closure(
+    repo: Path,
+    manifest: dict,
+    queue_ids: Any,
+    *,
+    with_dependencies: bool,
+    edge_satisfied_fn: Any = None,
+) -> tuple[list[str], dict]:
+    """Spec 25kzda's `--with-dependencies`: the transitive declared dependency closure, BEFORE freezing.
+
+    Returns ``(queue_ids, record)``. ``record`` is the facts a reader needs afterwards
+    (``applied``, ``added``, ``skipped``, ``visited``), so the expansion is reportable rather than
+    invisible.
+
+    WHEN THE FLAG IS ABSENT THIS IS THE IDENTITY FUNCTION, and that is the load-bearing half. Spec
+    :166 and :1007 both state the negative: "Without the flag, dependencies outside the selection are
+    checked against current repository state but are not silently enqueued." An implementation that
+    expanded unconditionally would silently enqueue prerequisites for EVERY run, which is the exact
+    mirror of the falsehood the old refusal prevented. So the flag is read first and nothing is read
+    from disk when it is off.
+
+    IT REBINDS THE SELECTION; IT NEVER CHANGES SATISFACTION SEMANTICS. Spec :351: "`--with-dependencies`
+    changes selection, not satisfaction semantics. Every declared dependency is enforced whether or
+    not its target was selected." So `enforce_dependency_preflight` and the dispatch-time
+    `dependency_status` re-check keep their rules untouched; only the SET being run changes.
+
+    IT RUNS BEFORE THE MIXED-TYPE GATE AND BEFORE FREEZING, which spec :1007 fixes as a contract and
+    not a preference. In `initialize_run_core` that means before `selected_plan_paths` is built, since
+    that list - not `queue_ids` - is what feeds BOTH the dependency preflight and
+    `enforce_mixed_type_gate`; expanding after it would leave both reasoning about the pre-expansion
+    selection.
+
+    IT IS NOT SCOPED TO STATUS SELECTORS. The draft-admission gate beside it is wrapped in
+    `is_status_selector` because spec 2.5a scopes that gate to status sweeps; `--with-dependencies`
+    carries no such scoping, so the closure runs for ANY selector when the flag is passed. The shape
+    is borrowed from the draft gate (rebind rather than raise); the conditional is not.
+
+    `dependency_depth` IS NOT REUSED AND MUST NOT BE. That function deliberately skips a target not
+    already in the queue, which is correct for ORDERING and exactly wrong for EXPANSION; teaching it
+    to pull outside targets in would change the sort key for every run.
+
+    A VISITED SET IS SUFFICIENT AND `item_dependency_cycles` IS NOT NEEDED. This walk answers "which
+    ids are reachable", not "is the graph acyclic": a cycle, a self-edge and a diamond all reduce to
+    "already visited", so each id is expanded at most once and each target enqueued at most once.
+    Detecting and REPORTING cycles is a lint/`aw check` concern and `ipd_schema.item_dependency_cycles`
+    already owns it there; re-deciding it here would mean refusing a run for a defect a different
+    surface is responsible for naming.
+
+    EVERY EXCLUSION IS DECIDED, NEVER SILENT. See :func:`closure_target_admission` for the per-target
+    verdicts and the reason each one is what it is: terminal targets are SKIPPED (a dependent consumes
+    its prerequisite's work, and that work is already done), while an unresolvable target and a
+    non-plan target REFUSE.
+    """
+
+    ids = list(queue_ids)
+    if not with_dependencies:
+        return ids, {
+            "applied": False,
+            "added": [],
+            "skipped": [],
+            "visited": [],
+        }
+
+    from agent_workflows import ipd_schema as _schema
+
+    selection = list(dict.fromkeys(ids))
+    in_selection = set(selection)
+    added: list[dict] = []
+    skipped: list[dict] = []
+    visited: list[str] = []
+    seen: set[str] = set()
+    frontier = list(selection)
+
+    while frontier:
+        id6 = frontier.pop(0)
+        if id6 in seen:
+            # A cycle, a self-edge and a diamond all arrive here; this is the whole termination proof.
+            continue
+        seen.add(id6)
+        visited.append(id6)
+
+        entry = manifest.get("plans", {}).get(id6)
+        configured = entry.get("file", "") if isinstance(entry, dict) else ""
+        try:
+            path = resolve_plan_path(repo, configured, id6)
+        except DriverError:
+            # A SELECTED id we cannot locate is NOT this function's error to raise: selector
+            # expansion produced it, and the pre-existing surfaces (the `selected_plan_paths` build
+            # and the dependency preflight) already decide what an unlocatable selection member
+            # means. Expanding it is simply impossible, so it contributes no edges.
+            continue
+        try:
+            raw_edges, err = _read_item_dependencies(path.read_text(encoding="utf-8"))
+        except OSError:
+            continue
+        if err:
+            # A MALFORMED STATEMENT IS NOT THE CLOSURE'S TO ADJUDICATE either: the dependency
+            # preflight reports it with the shared evaluator's own message, which is a better error
+            # than anything composed here. Contributing no edges leaves that report to fire.
+            continue
+
+        for tok in raw_edges:
+            edge, edge_err = _schema._parse_item_dependency_edge(tok)
+            if edge_err or edge is None:
+                continue
+            verdict, reason = closure_target_admission(
+                repo, edge, manifest=manifest, edge_satisfied_fn=edge_satisfied_fn
+            )
+            if verdict == "refuse":
+                raise ClosureRefusal(reason)
+            if verdict == "skip":
+                skipped.append({"from": id6, "edge": tok, "reason": reason})
+                continue
+            if edge.id6 == id6:
+                # A self-edge cannot be a prerequisite of itself; it is already in the selection.
+                continue
+            if edge.id6 not in in_selection:
+                in_selection.add(edge.id6)
+                selection.append(edge.id6)
+                added.append({"id6": edge.id6, "edge": tok, "required_by": id6})
+            if edge.id6 not in seen:
+                frontier.append(edge.id6)
+
+    return selection, {
+        "applied": True,
+        "added": added,
+        "skipped": skipped,
+        "visited": visited,
+    }
 
 
 # ---- dirtybase Order 01 (`3i0aaz`): the dirty-base cases a LANE guard cannot reach ----------------
@@ -6438,6 +6793,24 @@ def enforce_mixed_type_gate(
     reached on every run and its gate correctly does not APPLY, because the classification is
     single-type. The wiring is proven correct; a live mixed selection being gated is NOT proven, and
     must not be reported as if it were.
+
+    `--with-dependencies` SHIPPING DID NOT CHANGE THAT LIMIT, and the reason is worth stating because
+    the obvious reading is the wrong one (depclosure 01, `dhycim`). Spec 25kzda :166 makes the closure
+    the one route by which a NEW TYPE could enter a selection, so the flag looks like it should make
+    this gate live. It does not, for two reasons that compound:
+
+      * THE CLOSURE REFUSES A NON-PLAN TARGET. `closure_target_admission` returns `refuse` for a
+        `spec` or `backlog` edge, because the manifest is plans-only and has no queue entry to build
+        for one. So every id the closure can add is an IPD, and an expansion introduces no new type.
+      * EVEN IF IT ADMITTED ONE, THIS FUNCTION WOULD NOT SEE IT. The gate is handed
+        `selected_plan_paths`, not `queue_ids`, and that list is built by a loop that resolves
+        `manifest["plans"][id6]` inside `except (DriverError, KeyError): continue`. A manifest-absent
+        target is therefore DROPPED BEFORE `classify_paths` ever types it, so the very type the spec
+        wants gated would be invisible here. A future plan that admits non-plan targets must fix THAT
+        LOOP as well, or it will have built an expansion this gate silently cannot gate.
+
+    So after the closure shipped the position is unchanged and must be reported unchanged: the wiring
+    is proven correct; a live mixed selection being gated is NOT proven.
 
     Returns the `Verdict` so the caller can record spec 2.5 bullet 4's four facts in the run ledger.
     """
@@ -11808,6 +12181,7 @@ def initialize_run_core(
     host_options: dict[str, Any],
     expand_selectors_fn: Any = None,
     enforce_dependency_preflight_fn: Any = None,
+    edge_satisfied_fn: Any = None,
     set_plan_approved_fn: Any = None,
     announce_run_order_fn: Any = None,
     is_plan_review_approved_fn: Any = None,
@@ -11888,6 +12262,43 @@ def initialize_run_core(
             )
     else:
         draft_verdict = None
+
+    # depclosure 01 (`dhycim`) E-04: THE SEAM. `--with-dependencies` REBINDS the selection here,
+    # after selector expansion and the draft gate (whose rebind-rather-than-raise shape this borrows)
+    # and BEFORE `selected_plan_paths` is built.
+    #
+    # BEFORE THAT LIST, NOT MERELY BEFORE THE MIXED-TYPE GATE, and the distinction is the whole
+    # correctness argument: the list immediately below - not `queue_ids` - is what feeds BOTH
+    # `enforce_dependency_preflight` and `enforce_mixed_type_gate`, so an expansion placed after it
+    # would leave both of them reasoning about the pre-expansion selection. Spec 25kzda :1007 fixes
+    # the order as a contract: the closure "computes the transitive closure before mixed-type
+    # confirmation and freezing".
+    #
+    # NOT WRAPPED IN `is_status_selector`, unlike the draft gate above, because spec 2.5a scopes THAT
+    # gate to status sweeps and `--with-dependencies` carries no such scoping: the flag means expand,
+    # whatever the selector.
+    #
+    # AHEAD OF THE RUN DIRECTORY, so a `ClosureRefusal` leaves nothing durable behind, which is the
+    # same property `refuse_unimplemented_run_flags` has and for the same reason.
+    queue_ids, closure_record = expand_dependency_closure(
+        repo,
+        manifest,
+        queue_ids,
+        with_dependencies=bool(getattr(args, "with_dependencies", False)),
+        edge_satisfied_fn=edge_satisfied_fn,
+    )
+    if closure_record["applied"] and closure_record["added"]:
+        # An expansion that changed the queue is ANNOUNCED. The operator asked for prerequisites to be
+        # pulled in; which ones, and on whose behalf, is the answer to that request.
+        print(
+            "--with-dependencies expanded the selection by "
+            f"{len(closure_record['added'])} item(s): "
+            + ", ".join(
+                f"{row['id6']} (required by {row['required_by']} via {row['edge']})"
+                for row in closure_record["added"]
+            ),
+            file=sys.stderr,
+        )
 
     selected_plan_paths: list[Path] = []
     for id6 in queue_ids:
@@ -12083,6 +12494,19 @@ def initialize_run_core(
                 "excluded_complete": list(draft_verdict.excluded_complete),
                 "skipped_incomplete": list(draft_verdict.skipped_incomplete),
                 **draft_verdict.record.as_dict(),
+            },
+        )
+    if closure_record["applied"]:
+        # depclosure 01 (`dhycim`) E-04: the expansion is RECORDED beside the two gates that flank it,
+        # for the same reason theirs are: a selection that changed shape before freezing is a fact
+        # about what the run actually enqueued, and a reader of the run afterwards cannot recover it
+        # from the frozen queue alone (the queue looks exactly as if the operator had named every id).
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "dependency-closure",
+                **closure_record,
             },
         )
     write_report_fn(run_dir, state)
