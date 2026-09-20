@@ -740,12 +740,34 @@ class HostResumeSpellingTests(unittest.TestCase):
             "--session", argv, "a hardcoded oc flag would silently fail here"
         )
 
-    def test_neither_host_gained_a_third_launcher_call_site(self) -> None:
-        """Two callers each (executor + verifier): a third could inherit the wrong profile."""
+    def test_every_launcher_call_site_states_its_launch_role(self) -> None:
+        """No call site may INHERIT a launch profile by omission, which was the real hazard here.
 
-        for mod, launcher in (
-            (oc_runipd, "run_opencode"),
-            (agy_runipd, "run_agy_turn"),
+        THE COUNT WAS A PROXY, AND reverify-01 (`mp289j`) MADE THAT VISIBLE. This asserted exactly two
+        callers per host, with the stated reason that "a third could inherit the wrong profile". The
+        OpenCode host now has three, because the standalone `audit` verb launches the verifier prompt on
+        demand, and that third caller passes `use_verifier_launch=True` explicitly - so it is exactly
+        what the reason asked for and the count rejected it anyway.
+
+        WHAT IS ASSERTED INSTEAD is the hazard itself. Exactly ONE call site per host may be the
+        executor (no `use_verifier_launch`, no `log_suffix`); every other must declare
+        `use_verifier_launch=True`. `run_opencode` selects the model/variant/agent keys from that flag
+        alone (never from `fresh_session`, which is true for every isolated turn), so a verifying launch
+        that omits it silently runs under the EXECUTOR's model, which is the "verified with the wrong
+        model" defect this file's Set exists to prevent.
+
+        AGY IS UNCHANGED at two callers, and this test still covers it, because the rule is per host
+        rather than a shared total. ITS ROLE MARKER IS A DIFFERENT KEYWORD, and that asymmetry is real
+        rather than an oversight to normalize here: `use_verifier_launch` selects a VERIFIER LAUNCH
+        PROFILE, and `--verify-with` is an OpenCode-only flag (pinned as oc-only in
+        `tests/test_rununify_build_parser.py`), so there is no such profile to select on agy. What that
+        host's verifying call site does state is `telemetry_phase`, so the marker is read from a per-host
+        table instead of assuming one spelling.
+        """
+
+        for mod, launcher, role_flag in (
+            (oc_runipd, "run_opencode", "use_verifier_launch"),
+            (agy_runipd, "run_agy_turn", "telemetry_phase"),
         ):
             tree = ast.parse(Path(str(mod.__file__)).read_text(encoding="utf-8"))
             calls = [
@@ -755,7 +777,22 @@ class HostResumeSpellingTests(unittest.TestCase):
                 and isinstance(n.func, ast.Name)
                 and n.func.id == launcher
             ]
-            self.assertEqual(len(calls), 2, f"{mod.__name__}: {len(calls)} callers")
+            verifying = [
+                call
+                for call in calls
+                if any(kw.arg == role_flag for kw in call.keywords)
+            ]
+            with self.subTest(module=mod.__name__):
+                self.assertGreaterEqual(
+                    len(calls), 2, f"{mod.__name__}: {len(calls)} callers"
+                )
+                self.assertEqual(
+                    len(calls) - len(verifying),
+                    1,
+                    f"{mod.__name__}: {len(calls)} callers but {len(verifying)} declare "
+                    f"{role_flag}; exactly one (the executor) may omit it, and any other omission "
+                    f"silently runs a verifying turn under the executor's model",
+                )
 
     def test_a_normal_turn_argv_is_unchanged_by_the_new_parameter(self) -> None:
         """`resume_session` defaults to None, so no existing turn's argv moved."""

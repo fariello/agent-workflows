@@ -4648,6 +4648,240 @@ def add_integrate_parser(sub: Any, *, command: str = "aw oc run") -> Any:
     return integrate
 
 
+AUDIT_VERB_HELP = (
+    "Buy an independent skeptical opinion on an ALREADY-EXECUTED plan, on demand "
+    "(one fresh-session agent turn; cannot change the finished plan)"
+)
+
+AUDIT_VERB_DESCRIPTION = """Audit a finished plan: ask a fresh, independent session whether it was really executed faithfully.
+
+WHAT IT IS FOR. Another agent claims it fully completed a plan. Until this verb existed the only
+independent opinion available was the IN-RUN verifier turn, which can only ever run as the second turn
+of an execution, so it could not be asked for afterwards at all. On the OpenCode host that turn is OFF
+by default, so most executed plans here never got one.
+
+IT FORMS AN OPINION; IT CANNOT REWRITE HISTORY. The audit may fix CODE in scope and commit
+path-scoped, exactly as the in-run verifier may, and it never pushes. It may NOT edit, re-status, move
+or commit to the finished plan document: that is immutable by repository policy, and a gap it cannot
+close with an in-scope fix is closed by a NEW corrective IPD. Every finding it reports must also be
+filed as a backlog item, so the finding lands in tracked history rather than only in a local verdict.
+
+WHAT IT COMPARES AGAINST. The plan's OWN recorded claims versus the repository as it now stands, which
+is always available. A historical baseline usually is NOT: a clean finalize consumes the begin receipt,
+so measured 2026-09-20 only 17 of 561 executed plans still have a recorded `base_head`. When a base IS
+reachable (a surviving receipt, or a revision you name with --base) it is offered to the auditor as
+corroboration and the verdict records which basis it had.
+
+WHERE THE VERDICT GOES. A fresh run directory under the runs root, which is GITIGNORED, so each
+invocation appends rather than overwriting and a second opinion cannot erase the first. The findings
+are what become citable, because they are filed as backlog items.
+"""
+
+
+def add_audit_parser(sub: Any, *, command: str = "aw oc run") -> Any:
+    """Declare the `audit` subcommand on ``sub``. ONE declaration, both drivers.
+
+    reverify-01 (`mp289j`) E-05 / DECISION D5. Declared HERE, on the runner's own parser, for the two
+    reasons `add_stop_parser` and `add_integrate_parser` record: `aw oc run` / `aw agy run` forward
+    `argparse.REMAINDER` verbatim to the runner's `main`, so declaring it at the `aw` layer would drift
+    and would bypass the implicit-start shim, which lives in `main()` rather than `build_parser()`.
+
+    THE VERB MUST ALSO BE REGISTERED IN THAT SHIM'S SUBCOMMAND SET, in both drivers. Declaring the
+    subparser alone is NOT enough: an unregistered first token is rewritten into `start <token>`, so a
+    bare `audit <id6>` would LAUNCH A RUN with `audit` as a selector, which is both expensive and the
+    opposite of the operator's intent. That hazard is recorded for `stop` and `integrate` and is
+    identical here.
+
+    WHY THIS NOUN AND NOT `aw runs audit` OR `aw run audit`. `aw runs` self-describes as "the READING
+    half of the run surface ... Read-only" with four NAMED exceptions; this verb launches a model turn
+    and writes, so it is read-only under no reading of that sentence, and adding a fifth exception to a
+    description that has already gone stale twice by counting is the wrong direction. `aw run`'s ledger
+    transactions (`start`/`record`/`cancel`/`finalize`) are deterministic bookkeeping that spend no
+    agent turn. An agent turn against a plan is what the HOST RUNNER noun owns, which is why `stop` and
+    `integrate` live here too.
+
+    DECLARED ON BOTH HOSTS, IMPLEMENTED ON ONE. The declaration is shared because the two hosts'
+    subparser sets are a pinned contract (`tests/test_rununify_build_parser.py`), and a verb existing
+    on one host only is exactly the surface fork `rununify` exists to prevent. The Antigravity BINDING
+    refuses with a message naming the OpenCode spelling rather than half-running, because wiring a
+    second launch path is out of plan `mp289j`'s fence.
+    """
+
+    import argparse
+
+    audit = sub.add_parser(
+        "audit",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=AUDIT_VERB_HELP,
+        description=AUDIT_VERB_DESCRIPTION,
+        epilog="EXAMPLES:\n  {0} audit nna8yz\n  {0} audit nna8yz --base HEAD~50\n  "
+        "{0} audit nna8yz --no-isolate-worktree\n".format(command),
+    )
+    audit.add_argument("id6", help="The 6-character id of the executed plan to audit")
+    audit.add_argument("--repo", default=".", help="Target Git repository root")
+    audit.add_argument(
+        "--base",
+        dest="base",
+        default=None,
+        help="A revision to offer the auditor as a diff basis, when no begin receipt survives "
+        "(optional: the audit compares the plan's claims against present state either way)",
+    )
+    audit.add_argument(
+        "--isolate-worktree",
+        dest="isolate_worktree",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Run the audit turn in its own git worktree (default: yes, matching execute turns; "
+        "--no-isolate-worktree runs it in the shared checkout, which other agents may be using)",
+    )
+    return audit
+
+
+#: Refusal codes for :func:`plan_audit_target`, so a caller can branch on the reason without parsing
+#: prose and a test can assert WHICH refusal fired.
+AUDIT_PLAN_NOT_FOUND = "audit-plan-not-found"
+AUDIT_PLAN_NOT_EXECUTED = "audit-plan-not-executed"
+AUDIT_BASIS_RECEIPT = "receipt"
+AUDIT_BASIS_OPERATOR = "operator"
+AUDIT_BASIS_NONE = "none"
+
+
+class AuditTarget(NamedTuple):
+    """A resolved audit subject: WHICH plan, and WHAT (if anything) it can be diffed against.
+
+    ``refusal`` is empty on success and carries one of the ``AUDIT_*`` codes otherwise, with
+    ``reason`` holding the operator-facing sentence. Refusals are RETURNED rather than raised, for the
+    reason :func:`reintegrate_lane` records: an out-of-band verb must exit nonzero with a sentence
+    rather than a traceback.
+    """
+
+    plan_path: Path
+    id6: str
+    setid: str
+    basis: str
+    basis_detail: str
+    refusal: str = ""
+    reason: str = ""
+
+
+def plan_audit_target(
+    repo: Path, id6: str, *, base: str | None = None
+) -> "AuditTarget":
+    """Resolve ``id6`` to an EXECUTED plan and decide what diff basis the audit can offer.
+
+    reverify-01 (`mp289j`) E-02 / DECISION D2. TWO questions, deliberately answered together because
+    the second is meaningless without the first.
+
+    THE PLAN MUST BE TERMINAL-EXECUTED, and that is checked as a DIRECTORY question via
+    :func:`plan_bucket`, never by re-reading `- Status:` (see that function's docstring: a bucket is a
+    directory, readiness is a field). Auditing a plan still in `pending/` is refused because the verb's
+    whole contract is "this is finished and immutable"; a pending plan is reviewed with `/plan-review`
+    and executed with a run, both of which already exist.
+
+    THE BASIS IS WHATEVER IS ACTUALLY REACHABLE, in precedence order:
+
+      * ``operator``  - a ``--base`` revision the operator named, which wins because they said it;
+      * ``receipt``   - a surviving `aw ipd begin` receipt's ``base_head``, correct but RARE (measured
+                        2026-09-20: 17 of 561 executed plans, because a clean finalize consumes the
+                        receipt at `ipd_lifecycle.py:3989`);
+      * ``none``      - no baseline at all, which is the COMMON case and is NOT an error.
+
+    ``none`` IS A FIRST-CLASS ANSWER, not a degraded one, and that is the design decision this
+    function encodes. Backlog `7u9kbm`'s original framing assumed a stored-baseline diff, and the
+    maintainer withdrew that premise explicitly (OQ-01, 2026-09-10): "I can ask an agent today
+    'another agent claims to have fully completed abc123. Please verify all of its claims and the
+    completeness of execution'. It needs exactly no work to compare against." So the audit always has
+    its subject; the basis only decides how much corroboration it gets, and the verdict records which
+    it had so nobody over-reads it.
+    """
+
+    try:
+        plan_path = resolve_plan_path(repo, "", id6)
+    except DriverError as exc:
+        return AuditTarget(
+            plan_path=repo,
+            id6=id6,
+            setid="",
+            basis=AUDIT_BASIS_NONE,
+            basis_detail="",
+            refusal=AUDIT_PLAN_NOT_FOUND,
+            reason=str(exc),
+        )
+
+    bucket = plan_bucket(plan_path)
+    if bucket != "executed":
+        return AuditTarget(
+            plan_path=plan_path,
+            id6=id6,
+            setid="",
+            basis=AUDIT_BASIS_NONE,
+            basis_detail="",
+            refusal=AUDIT_PLAN_NOT_EXECUTED,
+            reason=(
+                "{0} is in {1}/, not executed/, so there is no finished execution to audit. This "
+                "verb exists to buy a second opinion on work that is already DONE and immutable; a "
+                "plan that has not executed is reviewed with `/plan-review` and run with "
+                "`aw oc run {0}`".format(id6, bucket or "an unrecognized directory")
+            ),
+        )
+
+    setid = ""
+    try:
+        parsed = parse_plan_file(plan_path, repo)
+        setid = str(parsed.setid or "") if parsed is not None else ""
+    except Exception:
+        # A missing or unparseable Set is COSMETIC here: it only labels the prompt and the session
+        # title, so it must never refuse an audit of a plan that is demonstrably in executed/.
+        setid = ""
+
+    if base:
+        return AuditTarget(
+            plan_path=plan_path,
+            id6=id6,
+            setid=setid,
+            basis=AUDIT_BASIS_OPERATOR,
+            basis_detail=(
+                "OPERATOR-SUPPLIED revision `{0}`. You may diff against it for corroboration, but "
+                "the correctness of that choice is the operator's, not the repository's: nothing "
+                "verifies it is the baseline this plan actually executed from".format(
+                    base
+                )
+            ),
+        )
+
+    receipt_base = ""
+    try:
+        from agent_workflows import ipd_lifecycle
+
+        receipt = ipd_lifecycle.read_receipt(repo, id6)
+        if receipt:
+            receipt_base = str(receipt.get("base_head") or "").strip()
+    except Exception:
+        receipt_base = ""
+
+    if receipt_base and receipt_base != "unversioned":
+        return AuditTarget(
+            plan_path=plan_path,
+            id6=id6,
+            setid=setid,
+            basis=AUDIT_BASIS_RECEIPT,
+            basis_detail=(
+                "the plan's OWN surviving begin receipt, base_head `{0}`, so `git diff {0}..HEAD` "
+                "is the real execution window. NOTE that a receipt survives precisely when finalize "
+                "did NOT cleanly complete, so the plan may have a recovery history worth "
+                "reading".format(receipt_base)
+            ),
+        )
+
+    return AuditTarget(
+        plan_path=plan_path,
+        id6=id6,
+        setid=setid,
+        basis=AUDIT_BASIS_NONE,
+        basis_detail="",
+    )
+
+
 def reconcile_item_on_interrupt(
     repo: Path,
     run_dir: Path,
@@ -12689,6 +12923,55 @@ def write_report(
     (run_dir / "execution-report.md").write_text("\n".join(lines), encoding="utf-8")
 
 
+#: The audit mode's replacement for requirement 1, which in the IN-RUN prompt inspects "the git
+#: commits and working tree diffs produced for this IPD". reverify-01 (`mp289j`) E-06, route (a).
+#:
+#: WHY REQUIREMENT 1 IS THE ONLY CLAUSE THAT HAD TO MOVE, and requirement 4 deliberately did not.
+#: OQ-05's maintainer resolution (2026-09-10) narrowed the immutability rule precisely: `AGENTS.md`
+#: forbids adding commits to a plan already in `executed/`, so THE IMMUTABLE THING IS THE PLAN
+#: DOCUMENT, NOT THE REPOSITORY. Fixing CODE behind a finished plan is therefore authorized, which is
+#: why requirement 4's "fix them, re-run validation, and commit path-scoped ... Never push" is reused
+#: VERBATIM here rather than being weakened. What is genuinely wrong for a finished plan is the
+#: WORKING-TREE DIFF premise: an audit requested weeks later has no such tree, and an instruction to
+#: inspect one is an instruction the run cannot honor.
+_AUDIT_REQUIREMENT_1 = """1. **Audit the Plan's Own Claims Against Present Repository State**:
+   - This plan is ALREADY FINISHED. There is no working tree from its execution and usually no
+     recorded base commit either (measured 2026-09-20: 17 of 561 executed plans still have a begin
+     receipt carrying `base_head`; a clean finalize consumes it). So do NOT wait for a diff.
+   - Read the plan's claims and check each against the repository AS IT NOW STANDS: does every
+     symbol, file, test and behavior the plan says it delivered actually exist and work?
+   - Verify that real functional changes are present, not just cosmetic/vocabulary additions.
+   - Ensure every path in the plan's Scope-Paths exists and that what the plan claims about it holds.
+   - A diff hint may be supplied above. When it is, use it as CORROBORATION, never as the question:
+     your verdict is about whether the claims are borne out now, not about a historical diff."""
+
+#: The audit mode's extra requirement: the plan DOCUMENT is out of bounds, and a finding needs a
+#: durable carrier. reverify-01 (`mp289j`) E-06 / E-03.
+#:
+#: BOTH HALVES ARE RECORDED MAINTAINER RULINGS, not this plan's invention. OQ-05: "the audit may not
+#: add commits to, rewrite, or re-status the executed plan document, and it may not make finished work
+#: look as though it was always complete". OQ-01: a finding "MUST LAND IN A BACKLOG ITEM OR PLAN
+#: RATHER THAN ONLY IN A REPORT", on the standing rule that no defect may be raised without at least
+#: one IPD or backlog item. The second is also what makes the GITIGNORED verdict destination
+#: acceptable (E-03): the verdict text is local, but every finding is forced into tracked history a
+#: gate can see.
+_AUDIT_PROHIBITIONS = """6. **The Finished Plan Document Is Out Of Bounds (HARD PROHIBITION)**:
+   - Do NOT edit, re-status, move, or add any commit to the plan file itself. It is in a terminal
+     lifecycle directory and is immutable by repository policy.
+   - Do NOT append to its `## Workflow history`, tick its checkboxes, or fill in its `Observed
+     evidence` blocks. Making finished work look as though it was always complete is the exact
+     dishonesty that policy exists to prevent, and no efficiency argument buys it.
+   - A gap that cannot be closed by an in-scope code fix is closed by a NEW corrective IPD, never by
+     an in-place edit of this one.
+
+7. **Every Finding Needs A Durable Carrier**:
+   - For each defect, gap or concern you find, file a backlog item with `aw backlog new` so the
+     finding has a tracked carrier a release gate can see. Reporting it only in your verdict is NOT
+     sufficient, because this verdict is written to a gitignored run directory.
+   - Reference the filed item ids in your verdict's `findings_filed` list. If filing genuinely fails,
+     STILL report the finding: reporting outranks filing."""
+
+
 def build_verifier_prompt(
     item: dict[str, Any],
     state: dict[str, Any],
@@ -12696,6 +12979,8 @@ def build_verifier_prompt(
     plan_path: Path,
     *,
     labels: HostLabels,
+    audit: bool = False,
+    diff_basis: str = "",
 ) -> str:
     """The independent-verifier turn prompt, one definition for both hosts.
 
@@ -12714,6 +12999,26 @@ def build_verifier_prompt(
     1 occurrence on OpenCode, 0 on Antigravity. Both hosts' EXECUTION prompts already carried
     one, so the omission was specific to the VERIFIER path. It now reaches both hosts because
     there is one definition.
+
+    ``audit`` SWITCHES THIS INTO THE STANDALONE AUDIT MODE (reverify-01 `mp289j` E-06, route (a)),
+    and it defaults False so THE IN-RUN TURN'S PROMPT IS BYTE-IDENTICAL to what it was before this
+    parameter existed. That default is the whole safety argument for touching this function at all:
+    plan `mp289j`'s Deferred section permits parameterizing the composer only on the condition that
+    "the in-run turn's EFFECTIVE PROMPT AND BEHAVIOR must be byte-identical before and after", and a
+    defaulted keyword is what makes that checkable rather than asserted.
+
+    WHY ONE COMPOSER RATHER THAN TWO, restated because the alternative is the obvious-looking one. A
+    second composer for the standalone verb is exactly the drift backlog `7u9kbm` forbids ("It must
+    NOT be a second implementation ... or the two verifiers will drift and neither can be trusted"),
+    and it is the same argument `wlxkoz` makes against a second completion checker. So the standalone
+    verb calls THIS function; what differs is two clauses and two added requirements, all visible
+    here side by side rather than in a divergent copy.
+
+    ``diff_basis`` is a one-line, operator-facing description of what the auditor may diff against
+    (a surviving begin receipt's base, the plan's lifecycle commit, an operator-supplied revision, or
+    nothing). It is stated rather than inferred because a verdict computed with NO historical base
+    means something narrower than one computed with the real base, and the reader has to be told
+    which they are holding (E-02). Ignored unless ``audit`` is set.
     """
     from agent_workflows import reporting_contract
 
@@ -12722,6 +13027,16 @@ def build_verifier_prompt(
     verify_outcome = (
         run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}-verification.json"
     )
+    if audit:
+        return _build_audit_prompt(
+            item=item,
+            state=state,
+            plan_path=plan_path,
+            labels=labels,
+            test_tool=test_tool,
+            verify_outcome=verify_outcome,
+            diff_basis=diff_basis,
+        )
     return f"""# Independent Rigorous Verification of Executed IPD
 
 Plan: `{plan_path}`
@@ -12778,6 +13093,103 @@ and documentation satisfy every requirement before this plan can be considered e
    }}
 
 Begin independent verification now.
+{reporting_contract.prompt_block()}"""
+
+
+def _build_audit_prompt(
+    *,
+    item: dict[str, Any],
+    state: dict[str, Any],
+    plan_path: Path,
+    labels: HostLabels,
+    test_tool: str,
+    verify_outcome: Path,
+    diff_basis: str,
+) -> str:
+    """The AUDIT rendering of the verifier prompt. Private: reached only through ``audit=True``.
+
+    reverify-01 (`mp289j`) E-06. Split out for readability, NOT as a second composer: it is called
+    from exactly one place, the ``audit`` branch of :func:`build_verifier_prompt`, and it reuses that
+    function's shared clause constants. A caller who reaches this directly has bypassed the one
+    documented entry point; there is no reason to.
+
+    THREE DIFFERENCES FROM THE IN-RUN RENDERING, and nothing else changes:
+
+      1. Requirement 1 becomes :data:`_AUDIT_REQUIREMENT_1`, because a finished plan has no working
+         tree to diff (E-02: the recorded base is gone for 544 of 561 executed plans).
+      2. Requirements 6 and 7 (:data:`_AUDIT_PROHIBITIONS`) are ADDED: the plan document is out of
+         bounds, and each finding needs a tracked carrier.
+      3. There is no Execution Outcome JSON line, because for a historical plan there is usually no
+         such file, and naming a path that does not exist invites the auditor to treat its absence as
+         a defect.
+
+    Requirements 2, 3, 4 and 5 are reused VERBATIM, including requirement 4's fix-and-commit
+    authority, which OQ-05 explicitly preserved.
+    """
+    from agent_workflows import reporting_contract
+
+    basis_line = diff_basis.strip() or (
+        "NONE. No begin receipt survives for this plan and no revision was supplied, so there is no "
+        "historical baseline to diff. Audit the claims against present state; say so in your verdict."
+    )
+    return f"""# Independent Audit of an Already-Executed IPD
+
+Plan: `{plan_path}`
+Id: `{item["id6"]}`
+Set: `{item["setid"]}`
+Audit Run ID: `{state["run_id"]}`
+Diff basis available to you: {basis_line}
+Audit Outcome JSON to write: `{verify_outcome}`
+
+## Concurrent Work
+
+Other agents may modify this repository concurrently. Work only on files required for your task. Ignore unrelated changes, commits, and untracked files.
+
+Do not alter, revert, stage, or commit another agent's work. Stage only your files; never use `git add .` or `git add -A`.
+
+Before EVERY commit, verify what you are actually about to commit: run `git diff --cached --name-only` and confirm every path listed is one YOU modified for this task; `git restore --staged <path>` anything that is not yours. Path-scoping is NOT by itself sufficient, because `git commit -- <paths>` still commits whatever is ALREADY STAGED for those paths, including a co-worker's edits to the same file.
+
+Stop only if another agent changes a file you are editing or must edit and the changes cannot be safely combined. Never discard their work.
+
+You are an independent, skeptical auditor running in a fresh {labels.product} session. An operator
+has asked, after the fact, whether this plan was actually executed faithfully and completely. Another
+agent claims it was. Your job is to test that claim against the repository's present state and to
+report honestly, including when the honest answer is that you cannot tell.
+
+## Audit Requirements:
+
+{_AUDIT_REQUIREMENT_1}
+
+2. **Evidence Table (E-* and V-*)**:
+   - Check every Execution item (`E-*`) and every Validation item (`V-*`) in the IPD.
+   - Check if the recorded observed evidence matches real code and passing tests.
+
+3. **Run and Verify Test Suite**:
+   - Run the required tests and validation commands for this IPD{test_tool} (e.g. `python3 -m pytest <test_file> -v` or `python3 -m unittest ...`).
+   - Paste the actual runner output with exit code.
+   - Confirm that tests are genuine and testing real assertions (not trivial passes).
+
+4. **In-Scope Fixes**:
+   - If you discover safely correctable defects, regressions, or missing test cases within the approved scope, fix them, re-run validation, and commit path-scoped (`git commit -m msg -- <paths>`). Never push.
+   - If any unresolvable defect or scope gap remains, report it clearly.
+
+5. **Write Audit Outcome**:
+   Before exiting, write valid JSON to `{verify_outcome}`:
+   {{
+     "schema_version": 1,
+     "id6": "{item["id6"]}",
+     "verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED",
+     "summary": "...",
+     "evidence": [],
+     "tests_run": [],
+     "corrections_made": [],
+     "diff_basis": "receipt|lifecycle-commit|operator|none",
+     "findings_filed": []
+   }}
+
+{_AUDIT_PROHIBITIONS}
+
+Begin the independent audit now.
 {reporting_contract.prompt_block()}"""
 
 

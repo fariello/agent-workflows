@@ -4037,6 +4037,18 @@ AUTOMATIC STATUS ROUTING:
     # `cli.py`'s `agy` group, which forwards `argparse.REMAINDER` verbatim to this `main`.
     runner_shared.add_integrate_parser(sub, command=_detect_driver_command())
 
+    # reverify-01 (`mp289j`) E-05: the OUT-OF-BAND `audit` verb, DECLARED here through the same shared
+    # helper so the two hosts keep registering the same subparser set (pinned by
+    # `tests/test_rununify_build_parser.py`), and so `aw agy run audit --help` documents the verb
+    # rather than reporting it does not exist.
+    #
+    # DECLARED ON BOTH HOSTS, IMPLEMENTED ON ONE, DELIBERATELY. Plan `mp289j` excludes wiring a second
+    # host launch path ("a second host surface doubles the review burden for a verb whose value is
+    # conditional"), so THIS host's binding REFUSES with a message naming the OpenCode spelling. That
+    # is the honest shape: the verb is visible and self-documenting on both hosts, and the one place it
+    # is not implemented says so out loud instead of half-running.
+    runner_shared.add_audit_parser(sub, command=_detect_driver_command())
+
     # hostdefault-02 (`ybkmzp`) E-02: prove the two verification spellings did not collide while this
     # parser was being built. Checked HERE because the hazard is a property of the registration
     # (a `--validate` alias list, or `conflict_handler="resolve"`, can silently steal `--no-verify`
@@ -4072,6 +4084,36 @@ def handle_integrate_command(args: argparse.Namespace) -> int:
     message = runner_shared.render_reintegration_result(outcome, id6=id6)
     print(message, file=sys.stdout if outcome.integrated else sys.stderr)
     return 0 if outcome.integrated else 1
+
+
+def handle_audit_command(args: argparse.Namespace) -> int:
+    """Refuse the `audit` verb on THIS host, naming the spelling that works. reverify-01 (`mp289j`).
+
+    NOT A STUB TO BE FILLED IN CASUALLY, and not an oversight. Plan `mp289j` excludes wiring the
+    Antigravity host unless the decision requires it, and it does not: the verb buys ONE independent
+    opinion, so having it on one host is the whole product, while a second launch path doubles the
+    review burden for a surface whose value the plan itself calls conditional. The drivers are also
+    mid-unification (`rununify`/`5e4sb6`), so a host-local copy of the launch logic is exactly the fork
+    that backlog is open to remove.
+
+    IT REFUSES LOUDLY RATHER THAN HALF-RUNNING, and the alternative is worse than it looks: with no
+    binding at all, the shared declaration would parse `audit <id6>` successfully and then fall through
+    to the "Unknown command" path, telling the operator the verb does not exist while `--help`
+    documents it. Naming the working spelling is the difference between a dead end and a redirect.
+
+    EXIT CONTRACT: 2, which is this driver's code for "cannot run", not 1 ("refused after checking"):
+    nothing about the request was evaluated, so claiming a considered refusal would be a lie.
+    """
+
+    id6 = str(getattr(args, "id6", "") or "<id6>")
+    print(
+        "audit is not implemented on the Antigravity host. The verb buys ONE independent opinion, so "
+        "it is wired on one host deliberately (plan `mp289j`) rather than duplicated while the two "
+        "drivers are still being unified.\n"
+        f"Run it on the OpenCode host instead:\n  aw oc run audit {id6}",
+        file=sys.stderr,
+    )
+    return 2
 
 
 def handle_stop_command(args: argparse.Namespace) -> int:
@@ -4163,6 +4205,10 @@ def main(argv: list[str] | None = None) -> int:
     # an unregistered first token becomes `start <token>`, so `integrate <id6>` would LAUNCH A RUN with
     # `integrate` as a selector. Added in lockstep with the oc twin and with the inline copy in
     # `tests/test_runner_stop_triggers.py`, which pins all three equal.
+    # reverify-01 (`mp289j`) E-05: `"audit"` MUST be listed here for the SAME measured reason `stop` and
+    # `integrate` must, and it must match the oc copy token for token (a test pins the two sets against
+    # each other). An unregistered first token is rewritten into `start <token>`, so `audit <id6>` would
+    # LAUNCH A RUN with `audit` as a selector.
     subcommands = {
         "start",
         "resume",
@@ -4170,6 +4216,7 @@ def main(argv: list[str] | None = None) -> int:
         "report",
         "stop",
         "integrate",
+        "audit",
         "-h",
         "--help",
     }
@@ -4200,6 +4247,10 @@ def main(argv: list[str] | None = None) -> int:
             # mutation. No run directory, no agent turn; it refuses a lane a LIVE process owns exactly
             # because it holds no run lock.
             return handle_integrate_command(args)
+        if args.command == "audit":
+            # reverify-01 (`mp289j`) E-05: declared on both hosts, implemented on OpenCode only. This
+            # binding refuses and names the working spelling; see `handle_audit_command`.
+            return handle_audit_command(args)
         if args.command == "start":
             run_dir = initialize_run(args)
             print(f"Run ID: {run_dir.name}")

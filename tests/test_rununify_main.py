@@ -111,6 +111,14 @@ EXPECTED_CLOSURE = {
     # `run_suite_check`, which `runner_shared` may not import; the DECISION is the single shared
     # `runner_shared.reintegrate_lane`, so the fork is the wiring and not the logic.
     "handle_integrate_command": "still-defined-twice",
+    # ADDED 2026-09-20 by reverify-01 (`mp289j`): the `audit` verb's per-host handler. ITS FORK IS
+    # ASYMMETRIC AND THAT IS THE DESIGN rather than a cost to pay down later: the OpenCode half
+    # launches the turn (it must bind THIS host's `run_opencode` and `resolve_launch_pair`, which
+    # `runner_shared` may not import), and the Antigravity half is a REFUSAL naming the oc spelling,
+    # because wiring a second launch path is out of that plan's fence. The two decisions that are not
+    # host-specific are shared: `runner_shared.plan_audit_target` (which plan is auditable, and what it
+    # can be diffed against) and `runner_shared.build_verifier_prompt(..., audit=True)` (the prompt).
+    "handle_audit_command": "still-defined-twice",
     "handle_stop_command": "still-defined-twice",
     "initialize_run": "still-defined-twice",
     "install_stop_triggers": "still-defined-twice",
@@ -141,7 +149,12 @@ EXPECTED_CLASS_COUNTS = {
     # carrying the merge subject's label, and `run_suite_check`, which `runner_shared` may not import),
     # while the decision lives once in `runner_shared.reintegrate_lane`. Nothing previously shared was
     # forked.
-    "still-defined-twice": 7,
+    # RE-MEASURED 2026-09-20: 8, up from 7. reverify-01 (`mp289j`) added `handle_audit_command` per
+    # host, for the same shape of reason and with the same test applied: nothing PREVIOUSLY SHARED was
+    # forked. Both of the new verb's host-neutral decisions were placed in `runner_shared` from the
+    # start (`plan_audit_target`, and the `audit` mode of the ONE `build_verifier_prompt`), so what is
+    # duplicated is the host binding alone, and on one host that binding is a refusal.
+    "still-defined-twice": 8,
     "oc-only": 3,
 }
 
@@ -250,11 +263,18 @@ class TheClosureClassification(unittest.TestCase):
             "in the commit which symbol moved and why",
         )
 
-    def test_the_closure_is_still_28_names(self):
-        # 28, up from 27: integpath-04 (`rl67b0`) added `handle_integrate_command`, the `integrate`
-        # verb's per-host handler, to `main`'s closure. The table above records its class and why.
-        self.assertEqual(len(measured_closure()), 28)
-        self.assertEqual(len(EXPECTED_CLOSURE), 28)
+    def test_the_closure_size_matches_the_table(self):
+        """The measured closure and the table must agree on SIZE as well as on membership.
+
+        THE NUMBER IS NO LONGER IN THE TEST NAME, deliberately. It read `..._is_still_28_names` and went
+        stale twice in four days (27 -> 28 when `rl67b0` added `handle_integrate_command`, 28 -> 29 when
+        `mp289j` added `handle_audit_command`), leaving a method whose name asserted one number while its
+        body asserted another. The table is the single place the count lives; this asserts the code has
+        not drifted from it.
+        """
+
+        self.assertEqual(len(measured_closure()), len(EXPECTED_CLOSURE))
+        self.assertEqual(len(EXPECTED_CLOSURE), 29)
 
     def test_each_name_is_still_in_its_expected_class(self):
         for name, expected in sorted(EXPECTED_CLOSURE.items()):
@@ -298,10 +318,18 @@ class TheClosureClassification(unittest.TestCase):
             label onto MAIN, and this host's `run_suite_check`, which `runner_shared` is forbidden by
             test from importing), and the decision itself is the one shared
             `runner_shared.reintegrate_lane`.
+          * 7 -> 8: reverify-01 (`mp289j`) added `handle_audit_command`, the `audit` verb's per-host
+            handler. NOT a re-fork, by the same test: nothing that was shared became forked, and BOTH of
+            the new verb's host-neutral decisions were placed in `runner_shared` from the start
+            (`plan_audit_target`, and the `audit` MODE of the one `build_verifier_prompt` rather than a
+            second composer). What is duplicated is the host binding, and on the Antigravity host that
+            binding is a refusal naming the OpenCode spelling.
         """
         measured = measured_closure()
         twice = sorted(n for n, c in measured.items() if c == "still-defined-twice")
-        self.assertEqual(len(twice), 7, twice)
+        self.assertEqual(
+            len(twice), EXPECTED_CLASS_COUNTS["still-defined-twice"], twice
+        )
         self.assertNotIn(
             "EmptyStatusSelection",
             twice,
@@ -310,7 +338,7 @@ class TheClosureClassification(unittest.TestCase):
         )
 
     def test_agys_own_closure_is_smaller_and_that_is_the_capability_gap(self):
-        """agy reads 25 module-level names against oc's 28; the 3 missing are oc's profile grammar.
+        """agy reads 26 module-level names against oc's 29; the 3 missing are oc's profile grammar.
 
         Pinned because it is the measurement that answers "how much of `main` is even shareable":
         the difference is a CAPABILITY agy has no subsystem for, not drift to reconcile.
@@ -318,11 +346,17 @@ class TheClosureClassification(unittest.TestCase):
         RE-MEASURED 2026-09-17 (24/27 -> 25/28): integpath-04 (`rl67b0`) added
         `handle_integrate_command` to BOTH hosts, so both counts rose by one and the GAP - which is what
         this test is actually about - is unchanged at exactly oc's three profile-grammar symbols.
+
+        RE-MEASURED 2026-09-20 (25/28 -> 26/29): reverify-01 (`mp289j`) added `handle_audit_command` to
+        BOTH hosts, so both counts rose by one again and THE GAP IS STILL EXACTLY THE THREE
+        PROFILE-GRAMMAR SYMBOLS. That the verb is IMPLEMENTED on oc only does not widen the gap, which
+        is worth stating because one might expect it to: the agy half is a real, declared handler that
+        refuses, so the NAME exists on both hosts and only its body differs.
         """
         agy_names = module_level_free_names(agy_runipd, "main")
         oc_names = module_level_free_names(oc_runipd, "main")
-        self.assertEqual(len(agy_names), 25)
-        self.assertEqual(len(oc_names), 28)
+        self.assertEqual(len(agy_names), 26)
+        self.assertEqual(len(oc_names), 29)
         self.assertEqual(
             sorted(oc_names - agy_names),
             ["ProfileClauseError", "extract_profile_clause", "print_launch_identity"],
