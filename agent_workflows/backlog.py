@@ -471,7 +471,9 @@ def run_new(args) -> int:
         pid = parse_item(f.read_text(encoding="utf-8")).id
         if pid:
             existing_ids.add(pid)
-    item.id = core.generate_id6(existing_ids)
+    # IPD sk7ggr E-01: mint against the REPOSITORY-WIDE id6 set (terminal artifacts included), not
+    # just this tree's ids. The backlog set is unioned in, so this is strictly stronger than before.
+    item.id = core.mint_id6(repo_root, existing_ids)
     item.status = status
     item.set = getattr(args, "set", None) or item.id  # singleton set defaults to the id
     item.priority = getattr(args, "priority", None) or "medium"

@@ -488,8 +488,10 @@ def run_rename_generic(
         if existing:
             minted_id6 = existing  # reuse; no metadata write needed (already present)
         else:
-            minted_id6 = _core.generate_id6(
-                _existing_type_id6s(repo_root, artifact_type)
+            # IPD sk7ggr E-01: repository-wide mint, unioned with this type's own ids. A conversion
+            # mint is the same hazard as a creation mint: the id6 it writes becomes permanent identity.
+            minted_id6 = _core.mint_id6(
+                repo_root, _existing_type_id6s(repo_root, artifact_type)
             )
             inject_id6 = (
                 minted_id6  # must be written into the file during the transaction

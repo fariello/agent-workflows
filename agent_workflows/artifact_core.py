@@ -56,7 +56,14 @@ def iter_id6_in_text(text: str) -> List[str]:
 
 
 def generate_id6(existing: set, _rng: Optional[Callable[[str], str]] = None) -> str:
-    """Generate a fresh 6-char base36-lowercase id not in ``existing`` (collision-checked)."""
+    """Generate a fresh 6-char base36-lowercase id not in ``existing`` (collision-checked).
+
+    DELIBERATELY PURE. It takes the collision set as an ARGUMENT and never fetches one itself, and
+    ``_rng`` is injectable, which together are what make a forced-collision test possible (pin the
+    rng to a candidate that is already taken and assert the generator moves past it). A version that
+    reached out to the filesystem for its own set could not be unit-tested that way. Callers that
+    want the repository-wide set ask :func:`global_id6s` for it and pass the result in.
+    """
 
     rng = _rng or secrets.choice
     for _ in range(10000):
@@ -64,6 +71,100 @@ def generate_id6(existing: set, _rng: Optional[Callable[[str], str]] = None) -> 
         if candidate not in existing:
             return candidate
     raise RuntimeError("could not generate a unique id6 after many attempts")
+
+
+def global_id6s(repo_root) -> set:
+    """Every id6 in use ANYWHERE in the repository's records: THE collision set for minting.
+
+    WHY THIS EXISTS (IPD ``sk7ggr`` E-01). id6 identity is repository-WIDE, but minting was
+    per-TREE at all eleven call sites: ``backlog`` checked backlog ids, ``specs`` spec ids, and so
+    on, so a fresh backlog id6 could equal an existing spec's and nothing would notice until after
+    the file was written. This helper is the one set that makes that impossible, and every mint site
+    passes it to :func:`generate_id6`.
+
+    IT DELIBERATELY INCLUDES TERMINAL ARTIFACTS, which is the load-bearing detail. An executed plan's
+    or a done item's id6 is permanently cited across the repository (``Item-Dependencies``,
+    ``From-Backlog``, ``From-Spec``, review filenames, prose), so re-minting it is a real collision
+    even though the original is no longer live. The measured motivating case is exactly this shape:
+    ``uyeko5`` is held by a plan in ``executed/``.
+
+    THE RETURNED SET IS A CONSERVATIVE SUPERSET, NOT AN EXACT CENSUS, AND THAT ASYMMETRY IS THE
+    POINT (IPD ``sk7ggr`` E-07). It is built from readers that are UNBOUNDED, i.e. they match a
+    ``- Id:``/``id:`` line ANYWHERE in a document including inside a fenced code block, so a research
+    report QUOTING another artifact's metadata block contributes that quoted id6 here. Measured: the
+    set holds ``uyeko5`` partly because two research documents quote it as an example.
+
+    * For MINTING that over-collection is HARMLESS and even conservative: refusing to mint one
+      already-quoted candidate costs one draw out of 36**6, and the result is still guaranteed not to
+      collide with anything real.
+    * For CHECKING it is WRONG, because treating a quotation as a declaration manufactures a
+      collision finding for a document whose real identity is its own. That is a live defect and it
+      is NOT fixed here; bounding the identity readers to the front-matter region is owned by IPD
+      ``76w6mq`` (from backlog ``cqytxf``).
+
+    THE SPECIFIC UNBOUNDED READER BEHIND THIS SET IS ``status_set._ID_RE``, and it is OUTSIDE
+    ``76w6mq``'s declared scope (``selectors.py`` + ``check_engine.py``), so one unbounded reader
+    survives even after that plan lands. Recorded as backlog ``q1ov25`` rather than fixed here,
+    because ``cqytxf`` warns that several plans editing these readers is what recreated parser drift
+    before. ``tests/test_id6_global_mint.py`` pins the superset behavior so this cannot be mistaken
+    for an exact census.
+
+    So do NOT "optimize" this onto a checker's reader, do not describe it to a user as "the id6s in
+    use", and never reuse it to decide that a collision EXISTS. Over-collect for minting; parse
+    precisely for checking.
+
+    Falls back to a per-caller empty set only if the scan genuinely cannot run (no records tree),
+    because a mint must not be blocked by an unreadable repository; the caller's own per-tree set is
+    unioned in by :func:`mint_id6` so a fallback is never worse than the previous behavior.
+    """
+
+    try:
+        from agent_workflows import artifact_adopt as _adopt
+
+        return set(_adopt.repository_id6s(Path(repo_root)))
+    except Exception:
+        return set()
+
+
+def repo_root_of(path) -> Path:
+    """Walk up from any path inside a repository to its root; fall back to the path itself.
+
+    Exists so a caller holding only a TREE root (``research_cmd`` is handed a ``research_root``, not a
+    repo root) can still reach the repository-wide mint set. Same marker set and shape as
+    ``status_set._repo_root_of`` / ``specs._repo_root_of``.
+    """
+
+    p = Path(path).resolve()
+    for anc in [p] + list(p.parents):
+        if (
+            (anc / ".aw").is_dir()
+            or (anc / ".agents").is_dir()
+            or (anc / ".git").exists()
+        ):
+            return anc
+    return p
+
+
+def mint_id6(
+    repo_root,
+    existing: Optional[set] = None,
+    _rng: Optional[Callable[[str], str]] = None,
+) -> str:
+    """Mint a fresh id6 collision-checked against the REPOSITORY-WIDE set (plus ``existing``).
+
+    This is the seam every mint call site uses (IPD ``sk7ggr`` E-01). ``existing`` is the caller's
+    own per-tree set, UNIONED rather than replaced, for two reasons: a caller may hold ids that are
+    not on disk yet (``research_cmd`` mints a whole Set in one pass and adds each id6 as it goes),
+    and if the repository-wide scan degrades to empty the mint is still no worse than the per-tree
+    check it replaced.
+
+    :func:`generate_id6` stays pure; this function is the impure wrapper that fetches the set.
+    """
+
+    pool = global_id6s(repo_root)
+    if existing:
+        pool |= set(existing)
+    return generate_id6(pool, _rng)
 
 
 # --------------------------------------------------------------------------------------

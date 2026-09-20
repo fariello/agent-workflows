@@ -301,6 +301,14 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.ipd-draft-ready-to-review": RuleSpec(
         "info", ASSURANCE_GUIDANCE, DET_HEURISTIC, "I-12"
     ),
+    # IPD sk7ggr E-06: a per-type `aw check <type>` does NOT run the cross-tree collision scan, so a
+    # clean per-type report must not be read as "collision-clean". This rule SAYS so on exactly those
+    # runs. `info` is the whole point: it removes the silence without inventing a failure (a per-type
+    # run examining no collisions is correct behavior, not drift), so `drift_exit_code` keeps the run
+    # at exit 0. Same I-09 family as the collision rules whose absence it is reporting.
+    "check.collisions-not-checked": RuleSpec(
+        "info", ASSURANCE_GUIDANCE, DET_DETERMINISTIC, "I-09"
+    ),
     # Event-derived lifecycle transition validity (agentadhere Phase 3, IPD wqj1ne E-01; catalog
     # I-03). A plan whose inline history event stream contains an invalid/out-of-order/unauthorized
     # transition is flagged. Repository-class + deterministic over the (locally forgeable) events.
@@ -967,6 +975,28 @@ def check_collisions(
       of that id6). A violation emits ``check.id6-identity-slot`` naming the offending path AND the
       file that actually owns that id6. Legacy ``YYYYMMDD-HHMM-NN-<slug>`` names (no id6 slot) are
       exempt - only a filename whose slot parses as a real id6 via the naming authority is checked.
+
+    THE id6 PASS IGNORES THE LIVENESS FILTER; ITS TWO NEIGHBOURS DO NOT (IPD ``sk7ggr`` E-05). Every
+    other rule in this engine skips a RETIRED artifact by default, and for most rules that is right: a
+    finished plan's own conformance is nobody's action item. IT IS WRONG FOR IDENTITY. An executed
+    plan's id6 is permanently cited across the repository (``Item-Dependencies``, ``From-Backlog``,
+    ``From-Spec``, review filenames, prose), so an id6 shared with a terminal artifact is a REAL
+    collision and re-minting it is a real defect. Measured before this change: ``aw check all``
+    reported 1 id6-collision and MISSED the one whose other side sits in ``executed/``, while
+    ``aw doctor`` (which passes ``include_retired=True`` unconditionally) reported it. Two surfaces
+    disagreeing about what identity IS is the defect; telling users to remember ``--all`` is not a fix.
+
+    THE WIDENING IS DELIBERATELY NARROW, and this is load-bearing rather than fastidiousness. ONE
+    enumeration feeds THREE rules, so widening it wholesale moves all three: measured, that ships
+    ``check.setid-collision`` 39 -> 86 (overwhelmingly the LEGITIMATE pattern of a backlog item sharing
+    a setid with the plan it graduated into, a policy question owned by backlog ``sjsoqq``) plus two
+    ``check.id6-identity-slot`` FALSE POSITIVES (walkthroughs ``zpbx7o`` and ``y5od1h``, whose filename
+    slot carries their own plan's id6 while declaring no ``- Id:`` - the documented walkthrough
+    convention, not a defect). So the file set is enumerated ONCE, terminal artifacts included, and
+    each file is tagged live-or-retired: the id6 pass consumes EVERY file, while the setid pass and the
+    identity-slot pass consume only the files the caller's ``include_retired`` would have shown them.
+    Do NOT "simplify" this by hoisting ``include_retired=True`` into the enumeration; that is the
+    +47-finding regression this structure exists to prevent.
     """
     repo_root = Path(repo_root)
     drift: List[_core.Drift] = []
@@ -982,13 +1012,17 @@ def check_collisions(
     # First gather, for every file, its declared frontmatter Id and its filename identity-slot id6,
     # so the identity-slot rule (below) can be evaluated with global knowledge of who OWNS each id6.
     # A file "record": (path-str, declared_id-or-None, slot_id6-or-None).
+    #
+    # IPD sk7ggr E-05: the enumeration is ALWAYS terminal-inclusive and each file is TAGGED instead,
+    # so the three rules fed by this one loop can have different corpora (see the docstring). The id6
+    # pass takes every file; the setid and identity-slot passes take only what the caller asked for.
     records: List[tuple] = []
     for record_type in SUPPORTED:
         for p in _iter_type_files(
             repo_root,
             record_type,
             include_untracked=include_untracked,
-            include_retired=include_retired,
+            include_retired=True,
         ):  # already deduped by resolved path
             try:
                 text = p.read_text(encoding="utf-8")
@@ -997,8 +1031,15 @@ def check_collisions(
             m = _ID_LINE_RE.search(text)
             declared_id = m.group(1) if m else None
             slot_id6 = _identity_slot_token(p.name)
-            records.append((str(p), declared_id, slot_id6))
+            # Is this file one the CALLER's liveness setting would have shown? With
+            # include_retired=True the answer is always yes and `is_retired` (which reads the file) is
+            # never called, so the default sweep pays nothing extra for the tag.
+            caller_visible = include_retired or not is_retired(p, record_type)
+            if caller_visible:
+                records.append((str(p), declared_id, slot_id6))
 
+            # The id6 pass: EVERY file, retired or not. A terminal id6 is permanently cited, so a
+            # collision with one is real (docstring, and IPD sk7ggr F-3).
             if declared_id:
                 id6 = declared_id
                 if id6 in seen_ids:
@@ -1011,6 +1052,10 @@ def check_collisions(
                     )
                 else:
                     seen_ids[id6] = str(p)
+            # The setid pass keeps the caller's corpus: widening it would ship the +47 legitimate
+            # backlog-shares-its-plan's-setid batch that belongs to `sjsoqq`.
+            if not caller_visible:
+                continue
             sid, desc = _parse_setid(text)
             if sid:
                 set_key = (record_type, sid)
@@ -1042,6 +1087,23 @@ def _check_identity_slots(records: List[tuple]) -> List[_core.Drift]:
     ``records`` is a list of ``(path_str, declared_id_or_None, slot_id6_or_None)``. Returns
     ``check.id6-identity-slot`` Drift for each file whose filename identity slot holds an id6 that
     is not that file's own unique identity. See ``check_collisions`` for the precise (a)/(b) rule.
+
+    THIS RULE IS DELIBERATELY BLIND TO THE DECLARED-DUPLICATE SHAPE, AND THAT IS NOT A GAP TO CLOSE
+    HERE (IPD ``sk7ggr`` E-03, OQ-01). Two files of DIFFERENT types that both DECLARE and both SLOT
+    the same id6 produce ZERO findings from this function, by construction: rule (a) compares each
+    file's slot against its OWN declared Id and both agree, and rule (b) is skipped for any file that
+    declares an Id. Verified by direct call on exactly that synthetic pair.
+
+    THE FACT IS NOT UNDETECTED, IT IS DETECTED ELSEWHERE. ``check_collisions``'s ``seen_ids`` pass
+    reports that same pair as ONE ``check.id6-collision``, which is the correct and sufficient
+    finding. The reason the live instance went unseen was never a missing rule: it was the retired
+    filter (fixed by E-05, so the id6 pass now enumerates terminal artifacts) and an unbounded
+    identity parser reading a ``- Id:`` out of quoted PROSE (owned by IPD ``76w6mq``).
+
+    SO DO NOT "FIX" THIS BY ADDING A DECLARED-DUPLICATE CASE HERE. Doing so would emit
+    ``check.id6-collision`` AND ``check.id6-identity-slot`` for one fact, handing an operator two
+    findings and two remedies for a single problem. If you are here because a declared duplicate felt
+    unreported, check whether you are looking at the DEFAULT sweep's output from before E-05.
     """
     drift: List[_core.Drift] = []
     # The set of all frontmatter-declared ids drives the real-id6 discriminator (a slot token that
@@ -2252,7 +2314,23 @@ def check_types(
 ) -> List[_core.Drift]:
     """Fan out check_type over the given types (or every SUPPORTED type for the ['all'] sentinel),
     concatenating Drift; unsupported types are skipped. The ['all'] sentinel implies
-    collisions=True; the cross-tree collision scan is appended exactly ONCE (never per type)."""
+    collisions=True; the cross-tree collision scan is appended exactly ONCE (never per type).
+
+    WHEN THE COLLISION SCAN IS SKIPPED, THE REPORT SAYS SO (IPD ``sk7ggr`` E-06). A per-type run does
+    not perform the cross-tree scan, and before this change it rendered an UNQUALIFIED
+    ``CONFORMS / errors 0 warnings 0`` and exited 0 over a tree that genuinely held an id6 collision:
+    measured, ``aw check research`` told an author their tree was fine while ``uyeko5`` was duplicated
+    inside it. A silent clean bill of health is the defect, so a skipped scan now emits ONE
+    ``info``-severity ``check.collisions-not-checked`` finding naming the command that does check.
+
+    WHY ``info`` AND NOT AN ERROR, i.e. why OQ-02's cheapest option is the right one. The three
+    candidates were: run the repo-wide scan on every per-type check (correct but makes every narrow
+    command pay a whole-repository inventory, which is how a check gets removed from a hook later);
+    hide it behind a flag (a flag nobody passes removes no silence); or STATE the limit. The third
+    costs one line, cannot slow anything down, and fully removes the false clean, which is the actual
+    failure mode. ``drift_exit_code`` ignores ``info``, so a conformant per-type run still exits 0 and
+    no existing caller's exit contract changes.
+    """
     if types == ["all"]:
         target = list(SUPPORTED.keys())
         collisions = True
@@ -2271,6 +2349,45 @@ def check_types(
                 include_retired=include_retired,
             )
         )
+    if not collisions:
+        # IPD sk7ggr E-06: name the limit rather than rendering an unqualified clean. See this
+        # function's docstring for why this is `info` and not an error.
+        #
+        # GATED ON HAVING ACTUALLY CHECKED SOMETHING. A target list containing no SUPPORTED type
+        # (`check_types(['bogus'])`) checks nothing at all, and the fan-out deliberately returns []
+        # there so one unknown member cannot poison a multi-type sweep. Announcing "collisions were not
+        # examined" on that run would be noise attached to a run that examined NOTHING, and it would
+        # also convert that deliberate empty result into a non-empty one. The notice exists to qualify
+        # a CLEAN REPORT, so it is emitted only when there was a report to qualify.
+        checked = [t for t in target if t in SUPPORTED]
+        if checked:
+            # The location is the SENTINEL `<collisions>` rather than a type name, following the
+            # established `<git>`/`<layout>`/`<attention>` convention in `doctor._categorize_drift`.
+            # WHY: this finding is about the SCAN, not about any file. Passing a bare type name made
+            # the human renderer's path-resolving fallback guess a directory for it and attach an
+            # unrelated per-type "Fix:" line; a sentinel is excluded from that path search by
+            # construction, so the report stays truthful without editing `doctor.py` (which is outside
+            # this plan's declared Scope-Paths).
+            # The DETAIL is kept under 60 characters deliberately. `doctor.build_remediation` has no
+            # case for this rule (that module is outside this plan's Scope-Paths), and its generic
+            # fallback uses the detail AS THE TITLE when it is short enough, falling back to the bare
+            # rule id otherwise. So a short detail is what makes the human report read as a sentence
+            # about the scan instead of the rule id alone. The full explanation lives in
+            # `observed`/`required`, which the agent-mode finding shape carries.
+            drift.append(
+                _core.Drift(
+                    "<collisions>",
+                    "check.collisions-not-checked",
+                    "cross-tree collisions NOT checked by a per-type run",
+                    observed=(
+                        "a per-type check does not run the cross-tree collision scan, so a clean "
+                        "result here does NOT mean collision-clean"
+                    ),
+                    required="run `aw check all` to validate cross-tree id6/setid uniqueness",
+                    recovery="aw check all",
+                    severity="info",
+                )
+            )
     if collisions:
         drift.extend(
             check_collisions(

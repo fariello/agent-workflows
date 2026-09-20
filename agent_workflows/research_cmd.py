@@ -39,9 +39,27 @@ def _existing_id6s(research_root: Path) -> set:
 
 
 def generate_id6(existing: set, _rng=None) -> str:
-    """Generate a fresh 6-char base36-lowercase id not in ``existing`` (delegates to the core)."""
+    """Generate a fresh 6-char base36-lowercase id not in ``existing`` (delegates to the core).
+
+    KEPT as the module's published seam (it is re-exported and called by tests), but it is NOT a
+    second source of truth: it forwards to the pure core generator and nothing else. The
+    repository-wide collision set is supplied by :func:`_mint_research_id6` below, which is what the
+    two real mint sites call (IPD sk7ggr E-01).
+    """
 
     return _core.generate_id6(existing, _rng)
+
+
+def _mint_research_id6(research_root: Path, existing: set) -> str:
+    """Mint a research id6 against the REPOSITORY-WIDE set, unioned with ``existing``.
+
+    IPD sk7ggr E-01. Research was the tree most implicated in the motivating collision yet its mint
+    path was per-tree (``_existing_id6s`` scans research filenames only), so a fresh research id6
+    could equal an existing plan's. ``research_root`` is a TREE root, so the repo root is derived
+    from it via ``artifact_core.repo_root_of``.
+    """
+
+    return _core.mint_id6(_core.repo_root_of(research_root), existing)
 
 
 # --------------------------------------------------------------------------------------
@@ -180,7 +198,7 @@ def plan_new(
     order_n = _next_order_for_set(research_root, derived_set)
 
     ids = existing_ids if existing_ids is not None else _existing_id6s(research_root)
-    id6 = generate_id6(ids)
+    id6 = _mint_research_id6(research_root, ids)
 
     name = R.ResearchName(
         date=set_date,
@@ -233,7 +251,13 @@ def plan_new_comparison(
         norm_models.append(res.value or m)
 
     today = date_str or date.today().strftime("%Y%m%d")
-    existing = _existing_id6s(research_root)
+    # IPD sk7ggr E-01: seed the collision pool with the REPOSITORY-WIDE id6 set, then keep adding each
+    # minted id6 as the comparison Set is planned. Unioned ONCE here rather than per document: `_mk`
+    # runs once per planned file and a repo-wide rescan inside it would repeat the whole scan N times
+    # for one command.
+    existing = _existing_id6s(research_root) | _core.global_id6s(
+        _core.repo_root_of(research_root)
+    )
     files: List[PlannedFile] = []
 
     def _mk(order_n: int, kind: str, model: Optional[str], sm: str) -> PlannedFile:

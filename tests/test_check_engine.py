@@ -43,6 +43,7 @@ SETID_COLLISION = "check.setid-collision"
 IDENTITY_SLOT = "check.id6-identity-slot"
 IDENTITY_ABSENT = "check.identity-absent-from-name"
 TYPE_UNSUPPORTED = "check.type-unsupported"
+COLLISIONS_NOT_CHECKED = "check.collisions-not-checked"
 DRAFT_READY = "check.ipd-draft-ready-to-review"
 MISSING_STATUS = "attention.missing-status"
 HISTORY_MISSING = "attention.history-missing"
@@ -675,11 +676,22 @@ class EntryPointTests(unittest.TestCase):
         (
             "an explicit two-type sweep",
             ("check_types", ("plans", "specs")),
-            (NONCONFORMANT, DRAFT_READY, MISSING_STATUS, HISTORY_MISSING),
-            "NAMING THE TYPES MUST EQUAL `['all']` HERE, since this tree holds only plans and specs. "
-            "Comparing the two rows is what shows `all` is a SENTINEL expanding to the supported "
-            "types rather than a separate code path with its own rule set (its one documented extra "
-            "is the cross-tree collision pass, which this tree does not trip)",
+            (
+                NONCONFORMANT,
+                DRAFT_READY,
+                MISSING_STATUS,
+                HISTORY_MISSING,
+                COLLISIONS_NOT_CHECKED,
+            ),
+            "NAMING THE TYPES MUST EQUAL `['all']` HERE, since this tree holds only plans and specs - "
+            "EXCEPT for the one rule that distinguishes them, which is the whole point of comparing "
+            "this row with the sweep row above. `all` is a SENTINEL expanding to the supported types, "
+            "and its documented extra is the cross-tree COLLISION pass. A named-type run does NOT run "
+            "that pass, so (IPD sk7ggr E-06) it must SAY so rather than render an unqualified clean: "
+            "before that notice existed, `aw check research` reported `errors 0 warnings 0` and exited "
+            "0 over a tree that held a real id6 collision. The notice is `info`, so it adds a line to "
+            "the report WITHOUT failing the gate; the sweep row above must never carry it, because "
+            "the sweep really does check",
         ),
     )
 
