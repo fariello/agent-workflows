@@ -3877,6 +3877,663 @@ class NoProjectAgentEnvelopeTests(unittest.TestCase):
         self.assertEqual(args.arcive_state, ["running"])
 
 
+def _attsel_repo(tmp: Path) -> Path:
+    """A clean four-artifact repo for the attsel `fqnj8k` selector tests.
+
+    Deliberately DRIFT-FREE, because the ambiguity being pinned is measured in exit codes and a stray
+    contract violation would make every case exit 1 and hide the very distinction under test.
+
+    The artifacts are chosen for what each one PROVES:
+      * `abc123` a pending plan            -> the matches-and-visible case, and the `-t plans` survivor
+      * `def456` an active research doc     -> the DOWNSTREAM-FILTERED case under `-t plans` (F7 guard)
+      * `prk001` a parked backlog item      -> proves a selector forces `show_all`, so "matched but
+                                              hidden" is NOT the matched-but-empty twin (F1a)
+      * `spc001` an approved spec           -> a second tree, so a tree token matches something
+    """
+    specs = tmp / ".aw" / "records" / "specs"
+    research = tmp / ".aw" / "records" / "research"
+    plans = tmp / ".aw" / "records" / "plans" / "pending"
+    backlog = tmp / ".aw" / "records" / "backlog" / "parked"
+    for d in (specs, research, plans, backlog):
+        d.mkdir(parents=True, exist_ok=True)
+    (specs / "20260808-s-01-spc001-s.spec.md").write_text(
+        "# Spec: s\n\n- Date: 2026-08-08\n- Status: approved\n- Id: spc001\n- Author: t\n\n"
+        "## Body\n\nx\n\n## Workflow history\n- 2026-08-08 draft (t): created.\n",
+        encoding="utf-8",
+    )
+    (plans / "20260808-x-01-abc123-p.ipd.md").write_text(
+        "# IPD: p\n\n- Status: draft\n- Id: abc123\n\n"
+        "## Workflow history\n- 2026-08-08 draft (t): created.\n",
+        encoding="utf-8",
+    )
+    (research / "20260808-r-00-def456-r.survey.md").write_text(
+        "---\nid: def456\nstatus: active\nkind: survey\n---\n\n# r\n\n"
+        "## Workflow history\n- 2026-08-08 draft (t): x.\n",
+        encoding="utf-8",
+    )
+    # NOTE the backlog item has NO H1: `backlog.parse_item` ends the metadata block at the first H2 or
+    # non-bullet line, so a leading `# Backlog: b` would make `Status` unreadable and emit an
+    # `attention.missing-status` violation - which is exactly how a first draft of this fixture
+    # accidentally made all three cases exit 1.
+    (backlog / "20260808-b-01-prk001-b.backlog.md").write_text(
+        "- Id: prk001\n- Status: parked\n- Set: b\n- Priority: medium\n"
+        "- Work-Kind: chore\n- Summary: a parked maybe\n\n"
+        "## Workflow history\n- 2026-08-08 parked (t): created.\n",
+        encoding="utf-8",
+    )
+    return tmp
+
+
+def _attsel_args(root: Path, **kw) -> argparse.Namespace:
+    """A full `aw attention` Namespace, so a surface flag under test is the ONLY thing that varies."""
+    base = dict(
+        dir=str(root),
+        format=None,
+        check=False,
+        selectors=[],
+        no_color=True,
+        all=False,
+        long=False,
+        types=[],
+        status=[],
+        priority=[],
+        blocking=[],
+        readiness=[],
+        open_questions=False,
+        agent=False,
+        json=False,
+        id6_only=False,
+        paths=False,
+        filenames=False,
+        details=False,
+        order_by=None,
+        runs=False,
+        active=False,
+        not_active=False,
+        run_status=[],
+        arcive_state=[],
+        active_state=[],
+    )
+    base.update(kw)
+    return argparse.Namespace(**base)
+
+
+def _attsel_run(root: Path, **kw):
+    """Run `att.run` capturing BOTH streams separately. Returns (rc, stdout, stderr).
+
+    The streams are kept apart deliberately: this plan's whole list-mode requirement is that the
+    refusal goes to STDERR while STDOUT stays byte-identical, and a merged capture could not tell.
+    """
+    out, err = io.StringIO(), io.StringIO()
+    with redirect_stdout(out), redirect_stderr(err):
+        rc = att.run(_attsel_args(root, **kw))
+    return rc, out.getvalue(), err.getvalue()
+
+
+class SelectorNoMatchIsReportedTests(unittest.TestCase):
+    """attsel `fqnj8k`: a selector that matches NO artifact says so instead of printing an empty view.
+
+    THE DEFECT, measured before the fix: `aw att zzzzzz` printed one blank line and exited 0,
+    BYTE-IDENTICAL to `aw att <id6> -t <other-type>` (a token that DOES match, narrowed away
+    downstream), and in `--agent` mode both emitted `outcome:clean, exit:0, verified:true,
+    complete:true, findings:0`, so a machine consumer recorded a typo as a clean audit.
+    """
+
+    # ---------------------------------------------------------------- E-01 / V-01
+
+    def test_E01_the_three_way_fixture_now_distinguishes_no_match_from_matched_but_empty(
+        self,
+    ):
+        """(a) nonexistent REFUSES; (b) downstream-filtered match is UNCHANGED; (c) unchanged."""
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+
+            # (a) NONEXISTENT: refuses, names the token, and writes to stderr (not stdout).
+            rc_a, out_a, err_a = _attsel_run(root, selectors=["zzzzzz"])
+            self.assertEqual(rc_a, att.EXIT_UNRESOLVED_SELECTOR)
+            self.assertEqual(rc_a, 2)
+            self.assertEqual(
+                out_a, "", "the refusal must not land on stdout for the human board"
+            )
+            self.assertIn("zzzzzz", err_a)
+
+            # (b) DOWNSTREAM-FILTERED MATCH: `def456` is a RESEARCH doc, so `-t plans` removes it.
+            # This is the matched-but-empty twin and it MUST NOT be reported as a no-match. It is the
+            # F7 regression guard and the single most important assertion in this class: the authored
+            # fix site (inside `filter_items_by_selectors`) would have FAILED it.
+            rc_b, out_b, err_b = _attsel_run(
+                root, selectors=["def456"], types=["plans"]
+            )
+            self.assertEqual(rc_b, 0, "a downstream-filtered match is not a no-match")
+            self.assertNotIn("def456", err_b)
+            self.assertEqual(
+                err_b, "", "no refusal for a token that matched the unfiltered scan"
+            )
+
+            # (c) MATCHES AND VISIBLE: unchanged, item still rendered.
+            rc_c, out_c, err_c = _attsel_run(root, selectors=["abc123"])
+            self.assertEqual(rc_c, 0)
+            self.assertIn("abc123", out_c)
+            self.assertEqual(err_c, "")
+
+            # And the three are now mutually distinguishable, which they were not before.
+            self.assertNotEqual((rc_a, out_a), (rc_b, out_b))
+
+    def test_E01_a_parked_artifact_IS_shown_when_named_so_it_is_not_the_empty_twin(
+        self,
+    ):
+        """F1a: the authoring-time fixture was WRONG, and this pins why.
+
+        A selector FORCES `show_all`, so a named parked artifact IS displayed. "Matched but hidden"
+        therefore does not exist as a case, and a fixture built on it could not have distinguished
+        anything.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["prk001"])
+            self.assertEqual(rc, 0)
+            self.assertIn(
+                "prk001", out, "a selector forces show_all, so a parked item is shown"
+            )
+            self.assertEqual(err, "")
+
+    # ---------------------------------------------------------------- E-02 / V-02
+
+    def test_E02_a_substring_selector_that_resolves_as_no_identifier_is_NOT_a_no_match(
+        self,
+    ):
+        """F4's regression guard. `filter_items_by_selectors`' last rung is a SUBSTRING test on the
+        path, so a token can match WITHOUT resolving as any identifier. A no-match report keyed on the
+        resolver would fire on every substring query, which is WORSE than the defect being fixed.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            items, _drift = att.scan(root)
+
+            # `.aw` resolves as no identifier at all, yet matches every artifact by path substring.
+            from agent_workflows import selectors as sel
+
+            resolved = 0
+            for rt in ("plans", "specs", "research", "backlog"):
+                try:
+                    resolved += len(sel.resolve_selectors(root, rt, [".aw"]))
+                except Exception:
+                    pass
+            self.assertEqual(
+                resolved,
+                0,
+                "`.aw` must resolve as no identifier, or this proves nothing",
+            )
+            self.assertTrue(att.filter_items_by_selectors(items, [".aw"], root))
+
+            facts = att.selector_match_facts(items, [".aw"], root)
+            self.assertEqual(facts.matched, (".aw",))
+            self.assertEqual(facts.unmatched, ())
+            self.assertEqual(facts.refusable, ())
+
+            # And end to end: it must NOT refuse.
+            rc, _out, err = _attsel_run(root, selectors=[".aw"])
+            self.assertEqual(rc, 0)
+            self.assertEqual(err, "")
+
+    # ---------------------------------------------------------------- E-03 / V-03
+
+    def test_E03_match_facts_are_computed_against_the_UNFILTERED_scan(self):
+        """The F7 guard at the FUNCTION level: the fact must key on the unfiltered scan.
+
+        Measured at review on the real corpus: the same filter matches a backlog id6 over the full
+        scan and 0 items over the `-t plans` scan. So a fact derived from the NARROWED list reports a
+        real artifact as a typo.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            full_items, _d = att.scan(root)
+            plans_items, _d2 = att.scan(root, type_filters={"plans"})
+
+            # The premise: the narrowed scan really does lose the artifact.
+            self.assertTrue(att.filter_items_by_selectors(full_items, ["def456"], root))
+            self.assertEqual(
+                att.filter_items_by_selectors(plans_items, ["def456"], root), []
+            )
+
+            # Against the UNFILTERED scan the token is MATCHED (the correct answer).
+            self.assertEqual(
+                att.selector_match_facts(full_items, ["def456"], root).refusable, ()
+            )
+            # Against the NARROWED scan it would be reported as a refusal - the bug this avoids.
+            self.assertEqual(
+                att.selector_match_facts(plans_items, ["def456"], root).refusable,
+                ("def456",),
+                "this is the FALSE no-match the implementation must not ship",
+            )
+
+    def test_E03_the_F7_guard_holds_at_the_CLI_level_not_only_in_the_pure_function(
+        self,
+    ):
+        """V-03/V-04 require this at the CLI, because the ordering defect lives in `run()`.
+
+        A pure-function-only check would pass while the CLI still reported a typo.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            # `--type` narrowing
+            rc, out, err = _attsel_run(root, selectors=["def456"], types=["plans"])
+            self.assertEqual(rc, 0)
+            self.assertEqual(err, "")
+            # `--status` narrowing: a DIFFERENT downstream filter, same requirement.
+            rc2, _out2, err2 = _attsel_run(
+                root, selectors=["def456"], status=["approved"]
+            )
+            self.assertEqual(rc2, 0)
+            self.assertEqual(err2, "")
+
+    def test_E03_a_token_naming_a_MALFORMED_artifact_is_matched_not_a_typo(self):
+        """FOUND BY THIS PLAN'S OWN E-06 TEST, not predicted, and it is the worst false-no-match case.
+
+        A malformed artifact yields a `Drift` record and ZERO items, so a match fact derived from items
+        alone told the operator their id6 does not exist while the file sat in `pending/` - and the one
+        artifact you most need to find is the broken one. A token matching a drift LOCATION counts as
+        matched.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            bad = (
+                root
+                / ".aw"
+                / "records"
+                / "plans"
+                / "pending"
+                / "20260808-x-02-bad001-b.ipd.md"
+            )
+            bad.write_text(
+                "# IPD: b\n\n- Id: bad001\n\nno status here\n", encoding="utf-8"
+            )
+
+            items, drift = att.scan(root)
+            # The premise: this file produced NO item but DID produce a violation.
+            self.assertNotIn("bad001", {it.id for it in items})
+            self.assertTrue(any("bad001" in d.location for d in drift))
+
+            # Without the drift set the fact is WRONG (this is the bug, pinned so it cannot return).
+            self.assertEqual(
+                att.selector_match_facts(items, ["bad001"], root).refusable, ("bad001",)
+            )
+            # With it, the token is correctly MATCHED.
+            self.assertEqual(
+                att.selector_match_facts(
+                    items, ["bad001"], root, drift=drift
+                ).refusable,
+                (),
+            )
+
+            # End to end the operator is shown the violation, not accused of a typo.
+            rc, out, err = _attsel_run(root, selectors=["bad001"])
+            self.assertNotEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+            self.assertNotIn("no artifact matched", err)
+            self.assertIn("bad001", out)
+
+    def test_E03_separates_an_invalid_selector_from_a_merely_absent_one(self):
+        """F3: "this token is not a valid selector" and "this valid token matched nothing" are
+        different messages, and conflating them would trade one ambiguity for another."""
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            items, _d = att.scan(root)
+            facts = att.selector_match_facts(items, ["zzzzzz"], root)
+            self.assertEqual(facts.unmatched, ("zzzzzz",))
+            # `zzzzzz` is well-formed, merely absent, so it is NOT in `invalid`.
+            self.assertEqual(facts.invalid, ())
+
+    def test_E03_filter_items_by_selectors_contract_is_UNCHANGED(self):
+        """The plan requires the existing six assertions keep passing, i.e. the filter's signature,
+        return value and behavior were not mutated to carry the new facts. Re-asserted here against
+        the attsel fixture so a regression in either fixture is caught."""
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            items, _d = att.scan(root)
+            self.assertEqual(len(items), 4)
+            # id6
+            self.assertEqual(
+                [
+                    it.id
+                    for it in att.filter_items_by_selectors(items, ["abc123"], root)
+                ],
+                ["abc123"],
+            )
+            # tree
+            self.assertEqual(
+                len(att.filter_items_by_selectors(items, ["specs"], root)), 1
+            )
+            # attention class
+            self.assertEqual(
+                [
+                    it.id
+                    for it in att.filter_items_by_selectors(items, ["active"], root)
+                ],
+                ["def456"],
+            )
+            # OR-union over multiple tokens
+            self.assertEqual(
+                {
+                    it.id
+                    for it in att.filter_items_by_selectors(
+                        items, ["abc123", "def456"], root
+                    )
+                },
+                {"abc123", "def456"},
+            )
+            # substring
+            self.assertTrue(att.filter_items_by_selectors(items, ["p.ipd.md"], root))
+            # no match -> empty list, and it STILL returns a plain list (no tuple, no facts)
+            self.assertEqual(att.filter_items_by_selectors(items, ["zzzzzz"], root), [])
+            self.assertIsInstance(
+                att.filter_items_by_selectors(items, ["zzzzzz"], root), list
+            )
+
+    # ---------------------------------------------------------------- E-04 / V-04
+
+    def test_E04_the_human_report_names_the_token_and_reuses_the_house_primitive(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["zzzzzz"])
+            self.assertEqual(rc, 2)
+            self.assertEqual(out, "")
+            self.assertIn("zzzzzz", err)
+            # The house empty-state primitive's shape (`format_empty_result`): an outcome line, an
+            # `Active filters:` block echoing the selector, and a `Next` action. `aw find` renders its
+            # own empty result with the same primitive.
+            self.assertIn("FAIL", err)
+            self.assertIn("Active filters:", err)
+            self.assertIn("Next", err)
+            # It says what was searched, so the message is actionable rather than a bare negative.
+            self.assertIn("searched trees", err)
+            # NO intent guessing: a wrong guess is worse than a clean negative.
+            self.assertNotIn("did you mean", err.lower())
+
+    def test_E04_a_mixed_invocation_reports_ONLY_the_unmatched_token(self):
+        """A multi-token invocation is exactly where a single typo hides, so the unmatched tokens are
+        reported individually rather than collapsed into one message."""
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["abc123", "zzzzzz"])
+            self.assertEqual(rc, 2)
+            self.assertIn("zzzzzz", err)
+            # The matching token is named as MATCHED, never as unmatched.
+            unmatched_block = err.split("matched selectors")[0]
+            self.assertNotIn("abc123", unmatched_block)
+            self.assertIn("abc123", err)
+
+    def test_E04_an_all_matching_invocation_is_byte_identical_to_before(self):
+        """The fix adds output for a no-match ONLY. A successful selector's board must not change."""
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["abc123"])
+            self.assertEqual(rc, 0)
+            self.assertEqual(err, "")
+            self.assertIn("abc123", out)
+            self.assertNotIn("FAIL", out)
+
+    # ---------------------------------------------------------------- E-05 / V-05
+
+    def test_E05_the_agent_record_distinguishes_the_two_cases_and_validates(self):
+        """The half that matters most for automation: the record must be honest AND schema-valid.
+
+        Before: a nonexistent selector emitted `outcome:clean, verified:true, complete:true,
+        findings:0`, identical to a matched-but-empty one.
+        """
+        from agent_workflows import agent_schema
+
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+
+            # NO-MATCH: the refusal record.
+            rc_a, out_a, _err_a = _attsel_run(root, selectors=["zzzzzz"], agent=True)
+            self.assertEqual(rc_a, 2)
+            rec_a = json.loads(out_a.strip().splitlines()[-1])
+            self.assertEqual(rec_a["kind"], "error")
+            self.assertEqual(rec_a["outcome"], "cannot-run")
+            self.assertEqual(rec_a["exit"], 2)
+            self.assertIs(rec_a["verified"], False)
+            self.assertIs(rec_a["complete"], False)
+            self.assertEqual(rec_a["unresolved_selectors"], ["zzzzzz"])
+            # The `aw runs` precedent's own field name carries the same list (decision D2).
+            self.assertEqual(rec_a["unresolved_targets"], ["zzzzzz"])
+            # Validated by the VALIDATOR, not by eye.
+            self.assertEqual(agent_schema.validate_agent_record(rec_a), [])
+            # The embedded exit must equal the process exit (the parity rule).
+            self.assertEqual(rec_a["exit"], rc_a)
+
+            # MATCHED-BUT-EMPTY: unchanged, and visibly different from the above.
+            rc_b, out_b, _err_b = _attsel_run(
+                root, selectors=["def456"], types=["plans"], agent=True
+            )
+            self.assertEqual(rc_b, 0)
+            rec_b = json.loads(out_b.strip().splitlines()[-1])
+            self.assertEqual(rec_b["outcome"], "clean")
+            self.assertEqual(rec_b["exit"], 0)
+            self.assertNotIn("unresolved_selectors", rec_b)
+            self.assertEqual(agent_schema.validate_agent_record(rec_b), [])
+
+            self.assertNotEqual(
+                (rec_a["outcome"], rec_a["exit"], rec_a["verified"], rec_a["complete"]),
+                (rec_b["outcome"], rec_b["exit"], rec_b["verified"], rec_b["complete"]),
+            )
+
+    # ---------------------------------------------------------------- E-06 / V-06
+
+    def test_E06_the_exit_code_is_2_and_it_composes_with_a_drifty_view(self):
+        """F12: a no-match code must not MASK drift, and drift must not mask the no-match.
+
+        Exit 2 dominates `core.drift_exit_code`'s 0/1 by construction, and the drift findings are still
+        carried in the record, so neither hides the other.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            # Introduce REAL drift: a plan with no Status at all.
+            bad = (
+                root
+                / ".aw"
+                / "records"
+                / "plans"
+                / "pending"
+                / "20260808-x-02-bad001-b.ipd.md"
+            )
+            bad.write_text(
+                "# IPD: b\n\n- Id: bad001\n\nno status here\n", encoding="utf-8"
+            )
+
+            # The view IS drifty now (a bare invocation reports findings).
+            rc_drift, _o, _e = _attsel_run(root, selectors=[], agent=True)
+            self.assertEqual(
+                rc_drift,
+                1,
+                "fixture must actually be drifty for this to prove anything",
+            )
+
+            # A no-match selector on that drifty view still refuses at 2, not 1.
+            rc, _out, err = _attsel_run(root, selectors=["zzzzzz"])
+            self.assertEqual(rc, 2)
+            self.assertIn("zzzzzz", err)
+
+            # And a MATCHING selector on the drifty view still reports the drift as 1, so the new code
+            # has not swallowed the old one.
+            rc_m, _out_m, _err_m = _attsel_run(root, selectors=["bad001"])
+            self.assertIn(rc_m, (0, 1))
+
+    def test_E06_a_vocabulary_token_that_matches_nothing_is_a_SUCCESS(self):
+        """Spec `25kzda` Section 2.4a: a status-like token is "a standing question about repository
+        state rather than an assertion that a named item exists", so an empty answer is a success.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            for tok in ("reusable", "shipped", "roadmaps", "abandoned", "high"):
+                with self.subTest(token=tok):
+                    items, _d = att.scan(root)
+                    self.assertEqual(
+                        att.filter_items_by_selectors(items, [tok], root),
+                        [],
+                        f"{tok!r} must match nothing in this fixture, or the test proves nothing",
+                    )
+                    rc, _out, err = _attsel_run(root, selectors=[tok])
+                    self.assertEqual(
+                        rc, 0, f"{tok!r} is vocabulary and must not refuse"
+                    )
+                    self.assertEqual(err, "")
+
+    def test_E06_the_vocabulary_is_derived_from_contract_symbols_not_a_literal_list(
+        self,
+    ):
+        """E-08's central requirement: a value added to the contract later must join the vocabulary
+        automatically, so it cannot silently become an "error"."""
+        vocab = att.selector_vocabulary()
+        # Every tracked tree, attention class, per-tree native status and priority is in it.
+        for t in A.TRACKED_TREES:
+            self.assertIn(str(t).lower(), vocab)
+        for c in A.ATTENTION_CLASSES:
+            self.assertIn(str(c).lower(), vocab)
+        for _tree, cmap in A.CLASS_MAPS.items():
+            for s in cmap:
+                self.assertIn(str(s).lower(), vocab)
+        from agent_workflows import backlog as backlog_mod
+
+        for p in backlog_mod.PRIORITIES:
+            self.assertIn(str(p).lower(), vocab)
+        # Every type name the CLI accepts, including the ones the scanner does not yield items for
+        # (`roadmaps`, `walkthroughs`), which is why they are not typos.
+        for k, v in att.TYPE_ALIASES.items():
+            self.assertIn(str(k).lower(), vocab)
+            self.assertIn(str(v).lower(), vocab)
+        # A genuine typo is NOT in it.
+        self.assertNotIn("zzzzzz", vocab)
+        self.assertNotIn("nosuchid", vocab)
+
+    # ---------------------------------------------------------------- E-07 / E-10 / V-07 / V-10
+
+    def test_E10_every_surface_reports_the_no_match_and_none_keeps_the_old_silence(
+        self,
+    ):
+        """F8: FIVE surfaces were silent, and a board-level message reaches none of them, because
+        `--check` and the three list modes return BEFORE the board is composed."""
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            surfaces = {
+                "human": dict(),
+                "agent": dict(agent=True),
+                "json": dict(json=True),
+                "format-json": dict(format="json"),
+                "check": dict(check=True),
+                "check-agent": dict(check=True, agent=True),
+                "id6-only": dict(id6_only=True),
+                "paths": dict(paths=True),
+                "filenames": dict(filenames=True),
+            }
+            for name, kw in surfaces.items():
+                with self.subTest(surface=name):
+                    rc, out, err = _attsel_run(root, selectors=["zzzzzz"], **kw)
+                    self.assertEqual(rc, 2, f"{name} must fail closed on a no-match")
+                    blob = out + err
+                    self.assertIn("zzzzzz", blob, f"{name} must name the token")
+
+    def test_E10_check_no_longer_asserts_the_view_is_valid_about_a_token_it_never_found(
+        self,
+    ):
+        """The most actively misleading surface measured: `--check` printed "the view is valid." and
+        exited 0 for a selector it never resolved."""
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["zzzzzz"], check=True)
+            self.assertEqual(rc, 2)
+            self.assertNotIn("the view is valid", out)
+            self.assertNotIn("the view is valid", err)
+            self.assertIn("zzzzzz", err)
+
+    def test_E10_the_list_modes_keep_STDOUT_byte_identical_and_report_on_STDERR(self):
+        """A list mode exists to be piped, so a diagnostic on ITS stdout would corrupt the pipe."""
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            for flag in ("id6_only", "paths", "filenames"):
+                with self.subTest(mode=flag):
+                    rc, out, err = _attsel_run(
+                        root, selectors=["zzzzzz"], **{flag: True}
+                    )
+                    self.assertEqual(rc, 2)
+                    self.assertEqual(
+                        out, "", f"--{flag} stdout must stay byte-identical (empty)"
+                    )
+                    self.assertIn("zzzzzz", err)
+
+    def test_E10_a_bare_check_with_NO_selector_is_completely_unaffected(self):
+        """The CI gate runs `attention --check --agent` with NO selector, so it must be untouched."""
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=[], check=True)
+            self.assertEqual(rc, 0)
+            self.assertIn("the view is valid", out)
+            self.assertEqual(err, "")
+
+            rc_a, out_a, _err_a = _attsel_run(
+                root, selectors=[], check=True, agent=True
+            )
+            self.assertEqual(rc_a, 0)
+            rec = json.loads(out_a.strip().splitlines()[-1])
+            self.assertEqual(rec["outcome"], "clean")
+            self.assertEqual(rec["exit"], 0)
+
+    # ---------------------------------------------------------------- E-09 / V-09
+
+    def test_E09_the_json_surface_no_longer_says_valid_true_about_a_token_it_never_found(
+        self,
+    ):
+        """F9: `--format json` is what `/whatnext` reads FIRST, and its `valid` flag comes only from
+        the drift list, so a typo yielded `valid:true, items:[]` and an agent concluded the repository
+        was fine and had nothing matching."""
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            for kw in (dict(json=True), dict(format="json")):
+                with self.subTest(**kw):
+                    rc, out, _err = _attsel_run(root, selectors=["zzzzzz"], **kw)
+                    self.assertEqual(rc, 2)
+                    payload = json.loads(out)
+                    # It is the REFUSAL record, not the ordinary board payload, so there is no `valid`
+                    # flag to be wrong (decision D6).
+                    self.assertNotIn("valid", payload)
+                    self.assertEqual(payload["outcome"], "cannot-run")
+                    self.assertEqual(payload["unresolved_selectors"], ["zzzzzz"])
+
+    def test_E09_the_ordinary_json_payload_shape_and_SCHEMA_VERSION_are_UNCHANGED(self):
+        """Decision D6: because the refusal is emitted before the surface branches, `render_json` is
+        never reached on a no-match, so its versioned payload needs no bump and gets none."""
+        self.assertEqual(att.SCHEMA_VERSION, 4)
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, _err = _attsel_run(root, selectors=["abc123"], format="json")
+            self.assertEqual(rc, 0)
+            payload = json.loads(out)
+            self.assertEqual(payload["schema_version"], 4)
+            self.assertIs(payload["valid"], True)
+            self.assertEqual([it["id"] for it in payload["items"]], ["abc123"])
+
+    # ---------------------------------------------------------------- guards
+
+    def test_a_bare_invocation_with_no_selector_never_refuses(self):
+        """Asking for EVERYTHING and finding nothing is not a failed request. This mirrors the
+        deliberate exemption `aw runs` documents for its own bare invocation."""
+        with tempfile.TemporaryDirectory() as td:
+            empty = Path(td) / "empty"
+            (empty / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
+            rc, _out, err = _attsel_run(empty, selectors=[])
+            self.assertEqual(rc, 0)
+            self.assertEqual(err, "")
+
+    def test_the_refusal_message_contains_no_absolute_path(self):
+        """`aw attention` writes machine payloads; a refusal must not leak the checkout location."""
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            _rc, out, err = _attsel_run(root, selectors=["zzzzzz"], agent=True)
+            self.assertNotIn(str(root), out + err)
+            _rc2, out2, err2 = _attsel_run(root, selectors=["zzzzzz"])
+            self.assertNotIn(str(root), out2 + err2)
+
+
 def core_Drift(*args, **kw):
     from agent_workflows import artifact_core
 

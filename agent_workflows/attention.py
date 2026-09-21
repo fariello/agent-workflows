@@ -20,7 +20,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Collection, Dict, List, NamedTuple, Optional, Sequence, Tuple
+from typing import Any, Collection, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import artifact_core as core
 from agent_workflows import artifact_naming as _naming
@@ -47,6 +47,39 @@ SCHEMA_VERSION = 4
 # scanned artifact's class changed. Bumping it would tell every consumer to re-derive a mapping that is
 # byte-identical for every artifact they can see.
 MAPPING_VERSION = 1
+
+# attsel `fqnj8k` E-06: THE EXIT CODE FOR A SELECTOR THAT MATCHED NO ARTIFACT.
+#
+# THE DECISION, WITH THE REJECTED ALTERNATIVES NAMED, so a later reader sees this was decided rather
+# than defaulted. `aw attention <selector>` used to print an empty view and exit 0 for a token that
+# matched nothing, byte-identical to a token that matched and was then narrowed away downstream, so an
+# operator could not tell a typo from a quiet repository and a machine consumer recorded a typo as a
+# clean audit.
+#
+# CHOSEN: 2, with outcome `cannot-run` on the machine surfaces. FOLLOWING THE PRECEDENT spec `25kzda`
+# (`Status: approved`) Section 2.3 sets: "Zero matches return exit 2", with the single Section 2.4a
+# exemption for STATUS selectors because such a token is "a standing question about repository state
+# rather than an assertion that a named item exists", closing "A misspelled id6 still exits 2; only
+# the status selectors are exempt". That spec governs `aw <host> run` rather than this verb, so it is
+# PRECEDENT and not binding contract; it is adopted because `aw runs` already implements exactly it for
+# the identical condition (an unresolvable read-only target: `run_viewer.py`
+# `emit_unresolvable_target_refusal`, exit 2, `cannot-run`, `unresolved_targets`).
+#
+# REJECTED, exit 1 folded into the drift/findings code: `agent_schema.validate_agent_record`'s parity
+# rule makes `exit:1` incompatible with `cannot-run`, so this would force a `findings` outcome for a
+# request that was never answered - the same greenwash the fix exists to remove - and it would be
+# indistinguishable from a genuine contract violation.
+#
+# REJECTED, exit 0 with a message only, which is the live `aw find` convention (`aw find plans zzzzzz`
+# prints `no matching plans` and exits 0): a script that greps for an id6 and gets exit 0 with empty
+# output concludes "nothing to do", which is exactly the wrong conclusion, and this plan's execution
+# contract mandates the fail-closed form. OQ-01 leaves the relaxation to the maintainer; it is one
+# constant and its pinning tests.
+#
+# IT COMPOSES WITH DRIFT rather than masking it (F12). 2 dominates `core.drift_exit_code`'s 0/1, so a
+# no-match on a drifty view can never be read as a clean view, and the drift findings are still carried
+# in the record's diagnostics and in the human message, so neither code hides the other.
+EXIT_UNRESOLVED_SELECTOR = 2
 
 
 class Item(NamedTuple):
@@ -3184,6 +3217,321 @@ def filter_items_by_selectors(
     return filtered
 
 
+def selector_vocabulary() -> frozenset:
+    """The set of selector tokens that are a STANDING QUESTION about repository state.
+
+    attsel `fqnj8k` E-08. A token in this set legitimately matches nothing (a repository may simply
+    contain no `reusable` plan and no `releases` record), so a zero-match on it is a SUCCESSFUL answer
+    and is exempt from the `EXIT_UNRESOLVED_SELECTOR` refusal. A token OUTSIDE it that matches nothing
+    is an assertion that a named artifact exists, which is a refusal.
+
+    THE DISTINCTION IS NOT INVENTED HERE. Spec `25kzda` Section 2.4a already draws it, for exactly this
+    reason: an empty status-selector result "is a success, not an error ... because `reviews` is a
+    standing question about repository state rather than an assertion that a named item exists. A
+    misspelled id6 still exits 2; only the status selectors are exempt."
+
+    DERIVED FROM THE CONTRACT SYMBOLS, NEVER A LITERAL LIST, which is the whole point: a tree, class,
+    status or priority added to `attention_contract` (or to `backlog.PRIORITIES`) later joins this
+    vocabulary automatically and so cannot silently become an "error" for an operator who asked a
+    perfectly reasonable question about it.
+
+    TWO SOURCES ARE INCLUDED THAT `TRACKED_TREES` AND `CLASS_MAPS` ALONE WOULD MISS, and each was
+    found by MEASURING rather than by reading the enums, so neither is a guess:
+
+    * TYPE NAMES THIS VERB ACCEPTS BUT DOES NOT SCAN. `TYPE_ALIASES` accepts `roadmaps`,
+      `walkthroughs`, `prompts`, `comms` and `actions`, while `TRACKED_TREES` is five trees and the
+      live scan yields four. So `aw att roadmaps` is a type question the CLI invites and the scanner
+      can never answer with an item, and refusing it would call the operator wrong for using a name
+      the verb's own `-t` flag documents. (The deeper gap - that `releases` records and every
+      `roadmaps`/`walkthroughs` file are invisible to the view at all - is owned by approved plan
+      `m867ox`, which declares `attention_contract.py`; this function deliberately does NOT edit that
+      file and only stops those tokens being reported as typos.)
+    * RUN-STATUS WORDS. `abandoned` reaches this verb through `--arcive-state`/`-as`, whose alias
+      table is `_RUN_STATUS_ALIASES` and whose canonical values `matches_run_status` consumes. Asking
+      "what is abandoned?" and hearing "nothing" is a successful answer, exactly like asking about an
+      empty tree, so these join the vocabulary too. Sourced from the alias table and the `lanes`
+      `CLASS_MAPS` fragment, never typed out here.
+    """
+    from agent_workflows import backlog as backlog_mod
+
+    vocab: set = set()
+    # Tree names (`-t`-style tokens used positionally): `specs`, `plans`, `research`, ...
+    vocab |= {str(t).lower() for t in A.TRACKED_TREES}
+    # Every type name the CLI accepts, INCLUDING the ones the scanner does not (see the docstring).
+    vocab |= {str(k).lower() for k in TYPE_ALIASES}
+    vocab |= {str(v).lower() for v in TYPE_ALIASES.values()}
+    # Cross-tree attention classes: `ready`, `active`, `blocked`, `done`, `parked`.
+    vocab |= {str(c).lower() for c in A.ATTENTION_CLASSES}
+    # Every per-tree NATIVE status enum, read from the mapping that defines them.
+    for _tree, class_map in A.CLASS_MAPS.items():
+        vocab |= {str(s).lower() for s in class_map.keys()}
+    # Priorities, whose owner is the backlog module.
+    vocab |= {str(p).lower() for p in backlog_mod.PRIORITIES}
+    # Run-status words, from the alias table this module already owns.
+    vocab |= {str(k).lower() for k in _RUN_STATUS_ALIASES}
+    vocab |= {str(v).lower() for v in _RUN_STATUS_ALIASES.values()}
+    # The run-status words the runner writes that are not aliases (`abandoned` is the measured case).
+    try:
+        from agent_workflows import run_viewer as _run_viewer
+
+        vocab.add(str(_run_viewer.ABANDONED).lower().rstrip("?"))
+    except Exception:
+        # A missing optional symbol must never make a legitimate question into an error, so the only
+        # failure mode here is that ONE token loses its exemption, never a crash.
+        pass
+    return frozenset(vocab)
+
+
+class SelectorMatchFacts(NamedTuple):
+    """Per-token answers to "did this selector match anything, and is it even a valid selector?".
+
+    attsel `fqnj8k` E-03. Two facts are kept SEPARATE because they are different messages and
+    conflating them would trade one ambiguity for another (F3):
+
+    * ``unmatched`` - the token is a well-formed selector that matched NO artifact in the unfiltered
+      scan. This is the typo case.
+    * ``invalid``  - resolving the token RAISED for every record type. `filter_items_by_selectors`
+      swallows that in a bare `except Exception: pass`, so today a malformed selector is as silent as
+      a merely-absent one. A token here is also in ``unmatched`` when it matched nothing, because a
+      malformed token that somehow matched by path substring is still a match.
+    """
+
+    matched: Tuple[str, ...]
+    unmatched: Tuple[str, ...]
+    invalid: Tuple[str, ...]
+    vocabulary: Tuple[str, ...]
+
+    @property
+    def refusable(self) -> Tuple[str, ...]:
+        """The unmatched tokens that are NOT a standing vocabulary question, i.e. the refusals."""
+        vocab = set(self.vocabulary)
+        return tuple(t for t in self.unmatched if t.lower() not in vocab)
+
+
+def selector_match_facts(
+    items: List[Item],
+    selectors_list: Sequence[str],
+    repo_root: Path,
+    drift: Optional[Sequence[core.Drift]] = None,
+) -> SelectorMatchFacts:
+    """Answer, PER TOKEN, whether it matched at least one artifact in the ``items`` given.
+
+    attsel `fqnj8k` E-03.
+
+    THE CALLER MUST PASS THE UNFILTERED SCAN, and this is the single most important property of this
+    function. `run()` applies `--type` BEFORE the selector filter, so a token matching a backlog
+    artifact under `-t plans` reaches the selector filter with its artifact already gone: a match fact
+    computed from what the filter RECEIVED would report that token as a typo (measured at review: the
+    same filter matches `sv0sf3` over the full 1063-item scan and 0 items over the `-t plans` 661-item
+    scan). Reporting a FALSE no-match is a worse defect than the silence this fix removes, so the fact
+    is pinned to the scan before any filter narrowed it.
+
+    IT KEYS ON "MATCHED", NOT ON "RESOLVED" (F4). `filter_items_by_selectors`' last rung is a SUBSTRING
+    test on `it.path`, so a token can legitimately match an artifact without resolving as any
+    identifier; a no-match report keyed on the resolver alone would fire on every substring query. This
+    function therefore re-uses the SAME matcher the view itself uses, one token at a time, so the two
+    can never disagree about what a match is.
+
+    A MALFORMED ARTIFACT YIELDS DRIFT AND NO ITEM, so ``drift`` must be passed or a token naming a real
+    but unparseable file is reported as a typo. FOUND BY THIS PLAN'S OWN E-06 TEST rather than
+    predicted: a plan carrying no `Status:` produces one `attention.missing-status` violation and ZERO
+    items, so `aw att <its-id6>` saw an empty match set and refused, telling the operator their id6 does
+    not exist when the file is sitting in `pending/` and is precisely what they need to go fix. That is
+    the F4 false-no-match class arriving by a third route, and it is the worst instance of it, because
+    the one artifact you most need to find is the broken one. A token matching a drift LOCATION
+    therefore counts as MATCHED.
+
+    `filter_items_by_selectors`' own signature, return value and behavior are UNTOUCHED: this is a
+    separate pure function, not a mutation of that contract.
+    """
+    from agent_workflows import selectors
+
+    tokens = [str(t).strip() for t in selectors_list if str(t).strip()]
+    matched: List[str] = []
+    unmatched: List[str] = []
+    invalid: List[str] = []
+
+    # The drift LOCATIONS, matched the same two ways the item rungs match: by resolved path and by
+    # path substring. An id6 embedded in a filename is caught by the substring rung, which is what
+    # makes `aw att bad001` find a plan too broken to have become an item.
+    drift_locations = [str(d.location) for d in (drift or [])]
+
+    record_types = (
+        "plans",
+        "specs",
+        "research",
+        "backlog",
+        "prompts",
+        "walkthroughs",
+        "roadmaps",
+        "releases",
+    )
+    for tok in tokens:
+        # Ask the ONE matcher the view uses, for this token alone. Calling it per token is what turns
+        # its set-valued answer into a per-token fact without duplicating any matching rung.
+        hit = bool(filter_items_by_selectors(items, [tok], repo_root))
+        if not hit and drift_locations:
+            tok_lower = tok.lower()
+            hit = any(tok_lower in loc.lower() for loc in drift_locations)
+        if hit:
+            matched.append(tok)
+        else:
+            unmatched.append(tok)
+        # Independently: did the resolver raise for EVERY record type? That is the malformed-selector
+        # fact, which the filter's bare `except Exception: pass` currently hides. Raising for every
+        # type is the test, not raising for one: most tokens raise for the types they are not.
+        raised_everywhere = True
+        for rt in record_types:
+            try:
+                selectors.resolve_selectors(repo_root, rt, [tok])
+                raised_everywhere = False
+            except Exception:
+                continue
+        if raised_everywhere:
+            invalid.append(tok)
+
+    return SelectorMatchFacts(
+        matched=tuple(matched),
+        unmatched=tuple(unmatched),
+        invalid=tuple(invalid),
+        vocabulary=tuple(sorted(selector_vocabulary())),
+    )
+
+
+def format_unresolved_selector_message(
+    facts: SelectorMatchFacts, *, term: Optional[T.Term] = None
+) -> str:
+    """The human report for selector tokens that matched no artifact.
+
+    attsel `fqnj8k` E-04. REUSES `term.Term.format_empty_result`, the house empty-state primitive
+    (`aw find` renders its own empty result with it), rather than inventing a second message shape the
+    operator would have to learn. It renders the outcome line, an `Active filters:` block echoing the
+    offending token(s), and a `Next` action.
+
+    EACH UNMATCHED TOKEN IS NAMED INDIVIDUALLY, never collapsed into one message, because a
+    multi-token invocation is exactly where a single typo hides.
+
+    NO "DID YOU MEAN" GUESS. A wrong guess is worse than a clean negative and the operator knows what
+    they typed; fuzzy matching is a separate feature with its own design question.
+    """
+    if term is None:
+        term = T.Term(stream=sys.stderr, color=False)
+    toks = facts.refusable
+    noun = "selector" if len(toks) == 1 else "selectors"
+    quoted = ", ".join(repr(t) for t in toks)
+    summary = f"no artifact matched {noun} {quoted}"
+    filters: List[Tuple[str, Any]] = [
+        (f"unmatched {noun}", list(toks)),
+        ("searched trees", ", ".join(sorted(str(t) for t in A.TRACKED_TREES))),
+    ]
+    if facts.matched:
+        # Say which tokens DID match, so a mixed invocation reads as "these worked, that one did not".
+        filters.append(("matched selectors", list(facts.matched)))
+    if facts.invalid:
+        # F3: "this token is not a valid selector at all" is a DIFFERENT message from "this valid
+        # token matched nothing", and reporting only the second would trade one ambiguity for another.
+        filters.append(("not a valid selector", list(facts.invalid)))
+    return term.format_empty_result(
+        summary,
+        filters=filters,
+        next_action=(
+            "aw next",
+            "show the whole board, then copy an id6 from it",
+        ),
+        status="fail",
+    )
+
+
+def unresolved_selector_agent_record(facts: SelectorMatchFacts) -> Dict[str, Any]:
+    """The `aw.agent/v1` error record for selector tokens that matched no artifact.
+
+    attsel `fqnj8k` E-05/E-09.
+
+    SHAPED ON THE SHIPPED PRECEDENT, not invented. `aw runs <bogus>` already refuses an unresolvable
+    read-only target with `kind:error, outcome:cannot-run, exit:2, verified:false, complete:false,
+    findings:N, unresolved_targets:[...]` (`run_viewer.emit_unresolvable_target_refusal`), and that
+    shape validates today. Copying it means one convention across the two verbs rather than a third.
+
+    WHY `verified:false` AND `complete:false` ARE THE HONEST VALUES, and this is the half that matters
+    most for automation. The old record said `outcome:clean, verified:true, complete:true, findings:0`
+    for a token that matched nothing, so a consumer recorded a typo as a CLEAN AUDIT. Both booleans
+    were false in substance: nothing was verified, and the answer is not complete, it is ABSENT.
+
+    BOTH FIELD NAMES ARE EMITTED (decision D2). `unresolved_selectors` is this verb's own noun (its
+    CLI positional is `selectors`), and `unresolved_targets` carries the identical list so a consumer
+    already written against the `aw runs` precedent reads it unchanged. One extra key removes the only
+    way a consumer could be surprised.
+
+    NO SCHEMA BUMP IS NEEDED OR MADE. `render_json`'s `SCHEMA_VERSION` payload is not involved at all,
+    because this refusal is emitted BEFORE the surface branches and so a no-match invocation never
+    reaches `render_json` (decision D6).
+    """
+    from agent_workflows import agent_schema as _agent_schema
+
+    toks = list(facts.refusable)
+    noun = "selector" if len(toks) == 1 else "selectors"
+    quoted = ", ".join(repr(t) for t in toks)
+    record: Dict[str, Any] = {
+        "schema": _agent_schema.SCHEMA_VERSION,
+        "kind": "error",
+        "cmd": "attention",
+        "outcome": "cannot-run",
+        "exit": EXIT_UNRESOLVED_SELECTOR,
+        "verified": False,
+        "complete": False,
+        "findings": len(toks),
+        "unresolved_selectors": toks,
+        # D2: the precedent's own field name, same list, for a consumer written against `aw runs`.
+        "unresolved_targets": toks,
+        "error": (
+            f"no artifact matched {noun} {quoted}; searched the tracked record trees "
+            + ", ".join(sorted(str(t) for t in A.TRACKED_TREES))
+        ),
+        "next": "aw next",
+    }
+    if facts.matched:
+        record["matched_selectors"] = list(facts.matched)
+    if facts.invalid:
+        # F3: kept distinct from merely-unmatched, since they are different messages.
+        record["invalid_selectors"] = list(facts.invalid)
+    # Fail closed on our OWN record rather than trusting it by eye (the plan forbids asserting schema
+    # validity without the validator).
+    _agent_schema.assert_valid_agent_record(record)
+    return record
+
+
+def _emit_unresolved_selector_refusal(
+    facts: SelectorMatchFacts, *, args, ctx, repo_root: Path
+) -> int:
+    """Emit the no-match refusal on whichever surface is active, and return its exit code.
+
+    attsel `fqnj8k` E-04/E-05/E-09/E-10. ONE function for all eight surfaces, because the defect it
+    fixes was five surfaces having no report at all while two were thought to be the whole problem.
+
+    THE CHANNEL IS PER SURFACE (decision D5), and the split is not cosmetic:
+
+    * STDOUT for `--agent`, `--json`/`--format json` and `--check --agent`, because on those surfaces
+      the record IS the payload and the consumer reads stdout.
+    * STDERR for the human board, `--check`'s human path, and all three list modes. A list mode exists
+      to be piped into another command, so a diagnostic on ITS stdout would corrupt the pipe; keeping
+      stdout byte-identical there is a hard requirement, not a preference. This also matches the
+      shipped `aw runs` refusal, which goes to stderr "so a refusal never lands in a report a caller
+      is parsing on stdout".
+    """
+    if ctx.is_agent or ctx.is_json or getattr(args, "format", None) == "json":
+        record = unresolved_selector_agent_record(facts)
+        # `--json` (and `--format json`) pretty-print; `--agent` is one compact line. This mirrors how
+        # `run_viewer.emit_unresolvable_target_refusal` chooses its indent.
+        indent = 2 if (ctx.is_json or getattr(args, "format", None) == "json") else None
+        sys.stdout.write(json.dumps(record, indent=indent, ensure_ascii=False) + "\n")
+        return EXIT_UNRESOLVED_SELECTOR
+
+    color = False if getattr(args, "no_color", False) else None
+    term = T.Term(stream=sys.stderr, color=color)
+    sys.stderr.write(format_unresolved_selector_message(facts, term=term) + "\n")
+    return EXIT_UNRESOLVED_SELECTOR
+
+
 def run(args) -> int:
     # Climb to the project root so `aw attention` works from any subdirectory; an explicit --dir is
     # honored verbatim (IPD awretrofit Order 06).
@@ -3309,6 +3657,13 @@ def run(args) -> int:
 
     all_items_by_id = {it.id: it for it in items if it.id}
 
+    # attsel `fqnj8k` E-03: HOLD THE UNNARROWED SCAN RESULT for the selector match facts. `items` and
+    # `drift` are both rebound by the filters below, and the match fact must be answered against what
+    # the scan actually found rather than against what a filter left. Captured here, immediately after
+    # the ONE scan, so no filter can have touched it and no second scan is needed in the common case.
+    unnarrowed_items = list(items)
+    unnarrowed_drift = list(drift)
+
     # worksequence i6015i E-04/E-09: apply the requested ORDER to the items the ONE existing scan
     # produced. Read through `getattr` with the contract default, matching how every other option on
     # this path is read, so a narrower caller (a test harness, or an alias parser) still works.
@@ -3332,10 +3687,59 @@ def run(args) -> int:
         )
 
     selectors_arg = getattr(args, "selectors", None) or []
+    selector_facts: Optional[SelectorMatchFacts] = None
     if selectors_arg:
+        # attsel `fqnj8k` E-03: THE MATCH FACT IS COMPUTED AGAINST THE UNFILTERED SCAN, and that is
+        # the load-bearing detail of this whole fix.
+        #
+        # `--type` narrowed `items` fifteen lines above, so asking "did this token match?" of the list
+        # the selector filter RECEIVES answers NO for a token whose artifact `--type` already removed.
+        # Measured at review: the same filter matches `sv0sf3` over the full 1063-item scan and 0 items
+        # over the `-t plans` 661-item scan, so `aw att sv0sf3 -t plans` would be reported as a TYPO.
+        # Reporting a FALSE no-match is a WORSE defect than the silence this change removes, so the
+        # fact is pinned to a scan that no filter has narrowed.
+        #
+        # A SECOND SCAN IS PAID ONLY WHEN `--type` COULD HAVE HIDDEN A MATCH. `scan()` itself honors
+        # `type_filters`, so under `--type` even `unnarrowed_items` never saw the other trees and the
+        # only way to know whether a token matches one of them is to scan them. Without `--type`,
+        # `unnarrowed_items` IS the complete scan and re-scanning would buy nothing: a full scan of this
+        # repository measures about 1.3s against about 0.65s narrowed, and paying that on every plain
+        # `aw att <id6>` would be a user-perceptible slowdown for no change in output.
+        fact_items = unnarrowed_items
+        fact_drift = unnarrowed_drift
+        if type_filters:
+            try:
+                fact_items, fact_drift = scan(repo_root)
+            except Exception:
+                # A scan that fails here must not break the view: fall back to the narrowed result,
+                # which can only ever UNDER-report a match. Under-reporting means the refusal does not
+                # fire, i.e. the pre-change behavior, never a false accusation.
+                fact_items, fact_drift = unnarrowed_items, unnarrowed_drift
+        selector_facts = selector_match_facts(
+            fact_items, selectors_arg, repo_root, drift=fact_drift
+        )
         items = filter_items_by_selectors(items, selectors_arg, repo_root)
         drift = prune_drift_to_selection(
             drift, items, repo_root, selected_trees=type_filters or None
+        )
+
+    # attsel `fqnj8k` E-04/E-05/E-06/E-09/E-10: THE REFUSAL, EVALUATED ONCE, BEFORE EVERY
+    # SURFACE-SPECIFIC BRANCH.
+    #
+    # WHY HERE AND NOT IN THE RENDERERS (decision D4, answering OQ-02). `--check` returns before the
+    # board is composed, and so do `-id`/`--paths`/`--filenames`; a message appended to the board
+    # reaches NEITHER, which is precisely how five output surfaces stayed silent while the defect was
+    # thought to be about two. Evaluating the ONE predicate here is what makes all eight surfaces agree
+    # without eight copies of it.
+    #
+    # AND IT IS A SEPARATE CONDITION FROM DRIFT, deliberately. A `Drift` record is a repository-CONTRACT
+    # finding about an artifact; an unmatched token is an OPERATOR INPUT error. Routing the refusal
+    # through the drift set would get the `--check` behavior for free but would make `--json`'s `valid`
+    # flag mean "you typed wrong", and would leave the maintainer unable to relax OQ-02 without
+    # touching the drift path.
+    if selector_facts is not None and selector_facts.refusable:
+        return _emit_unresolved_selector_refusal(
+            selector_facts, args=args, ctx=ctx, repo_root=repo_root
         )
 
     status_filters = parse_status_filters(getattr(args, "status", None))

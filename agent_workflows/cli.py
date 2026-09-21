@@ -394,7 +394,10 @@ _DESCRIPTIONS = {
         "order, and 'depth' sequences declared dependencies so a prerequisite comes before its "
         "dependents. Items lacking the selected key sort LAST; ordering never filters. --check fails "
         "closed on an invalid view (CI gate); --agent for machine output. --all reveals the hidden "
-        "done/parked groups. Aliases: 'aw attention', 'aw att', 'aw todo'."
+        "done/parked groups. A SELECTOR THAT MATCHES NO ARTIFACT IS AN ERROR naming the token "
+        "(exit 2) on every surface rather than an empty board, so a typo cannot read as a quiet "
+        "repository; a vocabulary token (tree, class, status, priority, run state) that matches "
+        "nothing is still exit 0. Aliases: 'aw attention', 'aw att', 'aw todo'."
     ),
     # The `attention` and `att` keys are deliberately absent for the same reason as `todo` (see the
     # note above): they are aliases sharing the canonical parser object, so declaring them here would
@@ -3963,7 +3966,9 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Validate all tracked trees AND report every stranded lane (work a driver run left "
-            "unintegrated); fail closed on any violation or stranded lane."
+            "unintegrated); fail closed on any violation or stranded lane. Combined with a selector "
+            "that matches no artifact it REFUSES (exit 2) instead of asserting the view is valid, "
+            "since it cannot validate a view about a token it never found."
         ),
     )
     p_attention.add_argument(
@@ -4122,11 +4127,25 @@ def _build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Show only artifacts that have only empty state in the 'Run' column.",
     )
+    # attsel `fqnj8k` E-06: the exit contract is DOCUMENTED here, not only implemented. A verb whose
+    # help still promises the old contract is worse than one with no documented contract. The wording
+    # follows the pattern `aw runs` uses for the identical rule (see `_RUNS_DESCRIPTION`'s sibling at
+    # the unresolvable-target refusal): state the refusal, the reason, and the deliberate exemption.
     p_attention.add_argument(
         "selectors",
         nargs="*",
         default=[],
-        help="Optional selector tokens (id6, setid, path, filename, tree, or status) to filter items.",
+        help=(
+            "Optional selector tokens (id6, setid, path, filename, tree, or status) to filter items. "
+            "A selector that matches NO artifact is an ERROR naming the token (exit 2), not an empty "
+            "success, because the question asked was not answered; the message goes to stderr so a "
+            "piped list stays clean. TWO DELIBERATE EXEMPTIONS: a bare `aw next` with no selector in "
+            "a repository with nothing to report is still exit 0 (asking for everything and finding "
+            "nothing is not a failed request), and a VOCABULARY token (a tree name, attention class, "
+            "artifact status, priority, or run state) that matches nothing is also exit 0, because it "
+            "asks a standing question about repository state rather than asserting a named artifact "
+            "exists."
+        ),
     )
 
     # awocrunner Order 02 (nfo184): the `oc` (alias `opencode`) host group surfaces the packaged
