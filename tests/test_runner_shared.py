@@ -5656,16 +5656,33 @@ class ReintegrationVerbTests(unittest.TestCase):
             )
 
     def test_the_validation_runner_is_NOT_the_shipped_constant_true_one(self):
-        """The runner the verb supplies must be able to say NO; the shipped one cannot.
+        """The runner the verb supplies must be able to say NO, and it must be the verb's OWN runner.
 
-        Measured directly: `make_integration_validation_runner(...)` returns True for any arguments, so
-        pinning that the verb does not use it is what stops a green gate result being offered as proof
-        of verification.
+        THE PREMISE OF THIS TEST CHANGED AT integearn-03 (`daexj1`) E-03, and the assertion was updated
+        rather than deleted because what it PROTECTS is unchanged. It used to read
+        `assertTrue(shipped(...))`, pinning that the shared factory returned a constant True, and used
+        that fact to argue the verb must not call it. The factory no longer returns a constant: it now
+        materializes the merge result and runs the suite there, and with NO `suite_check` injected (the
+        three-argument call below) it FAILS CLOSED and returns False.
+
+        So the old assertion is now false, and asserting it would be asserting the inert gate this
+        repository spent a plan removing. What still matters, and is asserted instead, is the property
+        the test exists for: the shared factory must never be a source of unconditional YES, and
+        `reintegrate_lane` must supply its OWN suite-backed runner rather than reaching for the factory.
         """
+        # THE MODE IS STATED EXPLICITLY, exactly as a real run's frozen state states it
+        # (`oc_runipd.py:3477-3478` writes `validate` and `no_audit`; `agy_runipd.py:2190` writes
+        # `no_verify`). It matters here: revalidation is the SUITE-EARNED mode's step, and an options
+        # mapping carrying none of those keys resolves to the VERIFIER mode, whose trust signal is the
+        # verifier's verdict rather than a suite. This case is about the suite-earned mode.
         shipped = runner_shared.make_integration_validation_runner(
-            {}, pathlib.Path("."), {}
+            {"options": {"validate": False}}, pathlib.Path("."), {}
         )
-        self.assertTrue(shipped("any diff", ("any", "files")))
+        self.assertFalse(
+            shipped("any diff", ("any", "files")),
+            "with no suite checker injected the shared runner must FAIL CLOSED; a True here would be "
+            "a way to land an unvalidated lane on main while reporting a green gate",
+        )
         # Asserted over the CODE, not the source text: the docstring and a comment both NAME the
         # shipped runner in order to explain why it is not used, and a substring test over the raw
         # source would therefore fail on the prose that documents the very property being pinned.

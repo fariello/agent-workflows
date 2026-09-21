@@ -12461,15 +12461,152 @@ def perform_gate_answer(
     )
 
 
+#: integearn-03 (`daexj1`) E-04: the cache key/value for a post-merge revalidation result, so the suite
+#: runs ONCE PER DISTINCT MERGE RESULT rather than once per lane. Keyed on the merged TREE id, which is
+#: the honest identity of "the thing that was tested": two lanes whose merge produces the same tree are
+#: the same measurement, and a lane whose merge produces a different tree is a different one.
+#:
+#: SITED ON `state` RATHER THAN IN A MODULE GLOBAL, deliberately. A module global would persist across
+#: runs inside one process (so a test, or a resumed second run, could read a verdict measured against a
+#: tree that no longer exists) and would not survive a restart anyway. The run's own state is the
+#: correct lifetime.
+REVALIDATION_CACHE_KEY: str = "post_merge_revalidation"
+
+
+def materialize_merge_result(
+    repo: Path,
+    base_commit: str,
+    head_commit: str,
+    *,
+    work_root: Path,
+) -> tuple[Path | None, str, str]:
+    """Create a DETACHED worktree holding the MERGE RESULT of ``head_commit`` into ``base_commit``.
+
+    Returns ``(path, tree_id, reason)``. ``path`` is None when the merge result could not be
+    materialized, and then ``reason`` says why in one operator-readable sentence.
+
+    integearn-03 (`daexj1`) E-03. WHY THIS EXISTS AT ALL, which is the crux of the plan it implements.
+    `orchestrate_isolation.execute_merge_and_revalidate_gate` is DIFF-BASED: it concatenates the lane
+    diffs into `combined_diff` and hands that text to `full_validation_runner`, and the real `git merge`
+    happens only AFTER the gate passes. So at the moment the gate asks "does the combined result still
+    pass?", NO TREE CONTAINING THE COMBINED RESULT EXISTS ON DISK. A validation runner that wants to
+    answer that question honestly must build one, and that is all this function does.
+
+    IT USES `git merge-tree --write-tree`, WHICH WRITES NO REF AND TOUCHES NO WORKING TREE. The merged
+    tree is written into the object database, `git commit-tree` gives it a commit so a worktree can be
+    created at it, and the worktree is DETACHED so no branch is created or moved. Nothing about main,
+    the lane branch, or any index is modified, which matters because this runs while other agents may be
+    working in the same checkout.
+
+    A CONFLICTING MERGE RETURNS None RATHER THAN A GUESS, and that is the same three-valued discipline
+    `merge_write_set` already documents: `git merge-tree` exits non-zero for a conflicting merge, an
+    unmergeable ref, and an older git lacking `--write-tree`. None of those licenses claiming a verdict.
+    The CALLER decides what an unknown means, and the caller here fails CLOSED.
+
+    THE `dh0uno` OBJECTION DOES NOT APPLY, and it is stated here because the plan that ordered this work
+    inherited it as a blocker. `run_suite_check`'s docstring insists on the PRIMARY checkout because a
+    linked worktree once resolved `.aw/state` relative to cwd, making about 15 `test_run_viewer` tests
+    fail in a lane. That was backlog `dh0uno`; it is `- Status: done`, fixed in `6771e590` by keying the
+    control root on `git rev-parse --git-common-dir`, and its own history retracts the claim: "the old
+    acceptance claim that ~15 test_run_viewer failures ARE this bug was false". RE-MEASURED 2026-09-21
+    inside a real linked worktree: `python3 -m pytest tests/test_run_viewer.py` gives `91 passed`. So
+    measuring in a linked worktree is no longer known-noisy, which is what makes this approach available.
+    """
+
+    rc, out, err = _run_git(
+        repo, ["merge-tree", "--write-tree", base_commit, head_commit]
+    )
+    if rc != 0:
+        # UNKNOWN, never a verdict. A conflicting merge is the merge's own to classify (the gate's
+        # conflict checks and git itself own that), and an unsupported flag is an environment fact.
+        detail = (err or out or "").strip().splitlines()
+        return (
+            None,
+            "",
+            "git merge-tree could not produce a merge result for {0}..{1} (rc {2}): {3}".format(
+                base_commit[:12],
+                head_commit[:12],
+                rc,
+                detail[0] if detail else "no message",
+            ),
+        )
+    tree_id = (out or "").strip().splitlines()[0].strip() if (out or "").strip() else ""
+    if not tree_id:
+        return None, "", "git merge-tree wrote no tree id, so there is nothing to test"
+
+    rc, commit_id, err = _run_git(
+        repo,
+        [
+            "commit-tree",
+            tree_id,
+            "-p",
+            base_commit,
+            "-p",
+            head_commit,
+            "-m",
+            "aw: ephemeral post-merge revalidation of {0} into {1}".format(
+                head_commit[:12], base_commit[:12]
+            ),
+        ],
+    )
+    commit_id = (commit_id or "").strip()
+    if rc != 0 or not commit_id:
+        return (
+            None,
+            tree_id,
+            "git commit-tree refused the merged tree {0} (rc {1}): {2}".format(
+                tree_id[:12], rc, (err or "").strip() or "no message"
+            ),
+        )
+
+    work_root.mkdir(parents=True, exist_ok=True)
+    dest = work_root / f"revalidate-{tree_id[:12]}"
+    if dest.exists():
+        # Already materialized in this run (the E-04 cache normally prevents reaching here twice).
+        return dest, tree_id, ""
+    rc, _out, err = _run_git(
+        repo, ["worktree", "add", "--detach", str(dest), commit_id]
+    )
+    if rc != 0:
+        return (
+            None,
+            tree_id,
+            "could not create a detached worktree at the merge result (rc {0}): {1}".format(
+                rc, (err or "").strip() or "no message"
+            ),
+        )
+    return dest, tree_id, ""
+
+
+def release_merge_result(repo: Path, path: Path) -> None:
+    """Remove a worktree created by :func:`materialize_merge_result`. NEVER raises.
+
+    Best effort by design: a failure to clean up an EPHEMERAL worktree must not fail an integration that
+    already passed its gate, and must not raise out of a `finally`. It is `--force` because the suite run
+    leaves artifacts (`__pycache__`, `.pytest_cache`) that make the tree dirty, and git refuses to remove
+    a dirty worktree without it. FORCING IS SAFE HERE, AND ONLY HERE, because this worktree was created
+    DETACHED by this function moments earlier and holds no branch and no human's work; do NOT copy this
+    call to a lane worktree, where `--force` would destroy an agent's uncommitted changes.
+    """
+
+    import shutil
+
+    with contextlib.suppress(Exception):
+        _run_git(repo, ["worktree", "remove", "--force", str(path)])
+    with contextlib.suppress(Exception):
+        if path.exists():
+            shutil.rmtree(path, ignore_errors=True)
+
+
 def make_integration_validation_runner(
-    state: dict[str, Any], run_dir: Path, item: dict[str, Any]
+    state: dict[str, Any],
+    run_dir: Path,
+    item: dict[str, Any],
+    *,
+    suite_check: Callable[..., Any] | None = None,
 ) -> Any:
     """Build the `full_validation_runner(combined_diff, merged_files) -> bool` the integration gate
     calls to REVALIDATE the combined HEAD (per-lane green never implies integrated green).
-
-    For a serial run each IPD is a SINGLE lane, so the combined diff == the lane diff the driver's
-    independent verifier turn already validated (verify_disp == "verified" is the gate precondition for
-    reaching integration). The runner therefore returns True on the already-verified single-lane case.
 
     SHARED SINCE rununify 03 (`i3d6ml`), with one consequence a caller must know. Tests PATCH THIS
     FUNCTION to exercise a combined-red path, and there is now ONE function to patch. A test that
@@ -12477,12 +12614,266 @@ def make_integration_validation_runner(
     re-export bound in the runner's namespace and patching the runner's attribute is what the call site
     resolves; but a test patching it on one runner no longer leaves the other host's copy unpatched,
     because there is no other copy.
+
+    integearn-03 (`daexj1`) E-03/E-04: THIS NO LONGER RETURNS A CONSTANT TRUE.
+
+    WHAT IT USED TO BE, stated plainly because the previous docstring's justification was wrong in a way
+    worth recording. Its whole body was `return True`, justified as "for a serial run each IPD is a
+    SINGLE lane, so the combined diff == the lane diff the driver's independent verifier turn already
+    validated". TWO THINGS ARE WRONG WITH THAT. First, the verifier turn is only reached under
+    `--validate`, which defaults FALSE, so in the shipped default configuration nothing had validated
+    the lane diff when this ran. Second and more important, the lane's own measurement was taken in the
+    LANE, against the lane's base; main may have advanced since, and a lane verified against yesterday's
+    main is not verified against today's. That is exactly the case the gate's own comment calls out
+    ("per-lane green NEVER implies integrated green", `orchestrate_isolation.py:1159`) and it had never
+    been checked, because the runner it calls could not say no.
+
+    WHAT IT IS NOW. It materializes the MERGE RESULT (see :func:`materialize_merge_result`), runs the
+    repository suite THERE through the INJECTED `suite_check`, and returns that verdict. The suite
+    therefore measures a tree that actually CONTAINS the work being integrated, which the primary
+    checkout does not (isolation defaults ON, so the lane's commits are not in main yet).
+
+    IT FAILS CLOSED, and each unknown is named rather than absorbed. No `suite_check` available, no
+    resolvable base/head, a merge result that cannot be materialized, and an exception from the suite all
+    return False, which makes the gate refuse with `integration_failed_combined_red` and leaves the lane
+    PRESERVED and main untouched. A wrongly refused lane is recoverable (`aw <host> integrate <id6>`); a
+    wrongly integrated one has merged work nothing cleared.
+
+    IT HONORS `integration_is_earned`'s TWO-MODE RULE RATHER THAN ADDING A THIRD SIGNAL, and this is the
+    constraint that shapes the whole function. That predicate already decides the trust question, and the
+    two modes are ALTERNATIVES, not a conjunction: with `--validate` ON the VERIFIER's verdict decides
+    (and a green suite deliberately does not override a decline), with `--validate` OFF the DRIVER-RUN
+    SUITE decides. A post-merge suite run that refused a VERIFIER-EARNED integration would silently make
+    `--validate` stricter than the mode it is an alternative to, adding a second gate the operator did not
+    ask for. MEASURED when this was first written without the distinction: 14 tests across
+    `test_oc_runipd.py`, `test_agy_runipd_cli.py` and `test_runner_backlog_close_in_lane.py` went red,
+    every one of them a `--validate`-ON path reaching integration through a verifier verdict in a fixture
+    repository. So revalidation runs for the SUITE-EARNED mode only, and the verifier mode is untouched.
+
+    AND `pytest` EXIT 5 ("no tests collected") IS NOT A FAILURE HERE, which is a genuine distinction and
+    not a convenience. `run_suite_check` correctly reports exit 5 as non-passing for its own purpose,
+    because a driver whose gating suite collected nothing has no trust signal and must not integrate on
+    it. But this runner asks a NARROWER question: "did merging this work BREAK the tree?" A tree that has
+    no tests cannot have been broken by the merge, and treating "there is nothing to run" as "the merge
+    broke something" would make every repository without a test suite permanently unintegrable. The two
+    readings are both right for their own question; the code says which question it is asking.
+
+    ``suite_check`` IS INJECTED AND DEFAULTS None, which is what keeps this change adoptable and is the
+    same discipline `reintegrate_lane` already documents. `run_suite_check` is defined in `oc_runipd`, and
+    `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks this module and fails on ANY import
+    naming `runipd`, at module level or lazily inside a function, so this module cannot reach it and
+    copying its body would fork its fail-closed reading of exit 124/127. Each host passes its own. The
+    None DEFAULT means every EXISTING caller (including the tests that patch this factory) keeps its
+    previous three-positional-argument call shape and gets the honest refusal described below rather than
+    a silent pass; it is NOT a way to opt out of revalidation.
+
+    ONE RUN PER DISTINCT MERGE RESULT (E-04), cached on `state` under :data:`REVALIDATION_CACHE_KEY` and
+    keyed on the merged TREE ID. Two lanes that merge to the same tree are one measurement; a second
+    lane whose merge differs gets its own run.
+
+    THE COST, MEASURED RATHER THAN ESTIMATED (2026-09-21, this repository, at HEAD `64f5254c`), because
+    E-04 requires a future reader to be able to judge whether the tradeoff still holds:
+
+      * BEFORE: the gate's revalidation step cost ~0s. Its runner's whole body was `return True`.
+      * AFTER: 107.04s per distinct merge result, of which the SUITE is 106.59s
+        (`1 failed, 7694 passed, 3 skipped, 2 xfailed in 105.50s`) and the git work to materialize and
+        release the ephemeral worktree is 0.45s (0.40s `merge-tree` + `commit-tree` + `worktree add`,
+        0.06s `worktree remove`). So the overhead this machinery ADDS on top of running a suite at all
+        is under half a second, and the honest price is simply "one more suite run".
+      * The bare suite in the primary checkout measured 110.30s in the same session, so a post-merge run
+        costs about the same as the run the driver already performs for its trust signal. A serial run of
+        N items with N distinct merge results therefore roughly DOUBLES total suite time.
+
+    That is the price of the gate meaning what it says. The alternative is what shipped: a gate whose
+    docstring claimed "per-lane green NEVER implies integrated green" while its runner could only say yes.
     """
 
-    def _runner(_combined_diff: str, _merged_files: Any) -> bool:
-        return True
+    def _runner(_combined_diff: str, merged_files: Any) -> bool:
+        # THE TWO-MODE RULE, resolved exactly as `execute_item_core` resolves it (`:16176-16178`) so the
+        # two cannot disagree about which mode a run is in. With the verifier mode active the verifier's
+        # verdict IS the trust signal and this step must not add a second one.
+        opts = (state or {}).get("options", {}) if isinstance(state, dict) else {}
+        if isinstance(opts, Mapping):
+            validate = bool(opts.get("validate", False))
+            if "validate" not in opts:
+                validate = not (opts.get("no_verify") or opts.get("no_audit"))
+        else:  # pragma: no cover - defensive
+            validate = False
+        if validate:
+            _record_revalidation(
+                item,
+                passed=True,
+                tree_id="",
+                reason=(
+                    "validation is ON, so the VERIFIER's verdict is this item's trust signal and a "
+                    "post-merge suite run is deliberately not a second gate beside it "
+                    "(integration_is_earned's two modes are alternatives, not a conjunction)"
+                ),
+                skipped=True,
+            )
+            return True
+
+        if not callable(suite_check):
+            # NO SIGNAL IS NOT A PASS. Recorded loudly, because a silent True here is precisely the
+            # inert gate this item exists to remove.
+            _record_revalidation(
+                item,
+                passed=False,
+                tree_id="",
+                reason=(
+                    "no suite checker was injected for post-merge revalidation, so the combined "
+                    "result could not be measured; refusing (fail-closed)"
+                ),
+            )
+            return False
+
+        repo_raw = (state or {}).get("repo") if isinstance(state, dict) else None
+        base = str(item.get("preserved_base") or item.get("base_commit") or "")
+        head = str(item.get("lane_head") or item.get("preserved_head") or "")
+        if not head:
+            branch = str(item.get("preserved_branch") or "")
+            if branch and repo_raw:
+                rc, out, _err = _run_git(Path(str(repo_raw)), ["rev-parse", branch])
+                if rc == 0:
+                    head = out.strip()
+        if not (repo_raw and base and head):
+            _record_revalidation(
+                item,
+                passed=False,
+                tree_id="",
+                reason=(
+                    "the lane's base/head could not be resolved from run state "
+                    f"(repo={bool(repo_raw)}, base={bool(base)}, head={bool(head)}), so the merge "
+                    "result cannot be built; refusing (fail-closed)"
+                ),
+            )
+            return False
+
+        repo = Path(str(repo_raw))
+        cache = (
+            state.setdefault(REVALIDATION_CACHE_KEY, {})
+            if isinstance(state, dict)
+            else {}
+        )
+
+        work_root = run_dir / "revalidation"
+        path, tree_id, why = materialize_merge_result(
+            repo, base, head, work_root=work_root
+        )
+        if tree_id and isinstance(cache, dict) and tree_id in cache:
+            # E-04: ONE run per distinct merge result. A cache hit is recorded so a reader can see the
+            # suite was not re-run and WHY that was sound.
+            cached = cache[tree_id]
+            if path is not None:
+                release_merge_result(repo, path)
+            _record_revalidation(
+                item,
+                passed=bool(cached.get("passed")),
+                tree_id=tree_id,
+                reason=(
+                    "reused the revalidation already measured for merge result "
+                    f"{tree_id[:12]}: {cached.get('reason') or 'no detail'}"
+                ),
+                cached=True,
+            )
+            return bool(cached.get("passed"))
+        if path is None:
+            _record_revalidation(
+                item,
+                passed=False,
+                tree_id=tree_id,
+                reason=f"{why}; refusing (fail-closed)",
+            )
+            return False
+
+        try:
+            result = suite_check(path, str((state or {}).get("run_id") or ""))
+            passed = bool(getattr(result, "passing", False))
+            reason = str(getattr(result, "reason", "") or "") or (
+                "the suite reported " + ("passing" if passed else "failing")
+            )
+            failures = list(getattr(result, "failures", ()) or ())
+            if not passed and int(getattr(result, "exit_code", 0) or 0) == 5:
+                # `pytest` EXIT 5 IS "no tests collected", and for THIS question that is not a failure.
+                # See the docstring: "did merging this work break the tree?" cannot be answered NO by a
+                # tree that has nothing to break. Narrowed to exactly 5 so a real failure (1), a timeout
+                # (124) and a spawn failure (127) all keep refusing.
+                passed = True
+                reason = (
+                    "the merge result collected NO tests (pytest exit 5), so the merge cannot have "
+                    "broken anything; treating as passing for revalidation only. This is NOT a trust "
+                    f"signal for integration, which integration_is_earned owns separately: {reason}"
+                )
+                failures = []
+        except Exception as exc:  # noqa: BLE001
+            # DELIBERATE blind catch: an exception from the suite must be an honest REFUSAL that leaves
+            # the lane preserved, never a traceback that aborts the run mid-integration.
+            passed, failures = False, []
+            reason = f"the post-merge suite run errored ({exc}); refusing (fail-closed)"
+        finally:
+            release_merge_result(repo, path)
+
+        if isinstance(cache, dict) and tree_id:
+            cache[tree_id] = {"passed": passed, "reason": reason}
+        _record_revalidation(
+            item,
+            passed=passed,
+            tree_id=tree_id,
+            reason=reason,
+            failures=failures,
+            merged_files=list(merged_files or ()),
+        )
+        return passed
 
     return _runner
+
+
+def _record_revalidation(
+    item: dict[str, Any],
+    *,
+    passed: bool,
+    tree_id: str,
+    reason: str,
+    failures: Sequence[str] = (),
+    merged_files: Sequence[str] = (),
+    cached: bool = False,
+    skipped: bool = False,
+) -> None:
+    """Record WHAT the post-merge revalidation measured, ON THE ITEM. NEVER raises.
+
+    ``skipped`` distinguishes "measured and passed" from "deliberately not measured, and why", which a
+    reader MUST be able to tell apart: a `passed: true, skipped: true` record is an honest statement that
+    another signal governs this item, whereas presenting it as a measurement would claim a suite run that
+    never happened.
+
+    integearn-03 (`daexj1`) E-03/E-07. This exists because a refusal an operator cannot explain is
+    indistinguishable from a bug: `integration_failed_combined_red` alone does not say WHICH tree was
+    tested or WHAT failed in it, and the previous constant-True runner recorded nothing because it
+    measured nothing. Recording the TREE ID is what makes the E-04 cache auditable, since it names the
+    exact object the verdict belongs to.
+
+    IT WRITES THE ITEM AND DOES NOT PERSIST, deliberately. `save_state` in this module is an INJECTED
+    parameter everywhere (see the module docstring's divergence table), not a module-level function, so
+    a helper this deep cannot resolve it without threading a fifth injection through the gate and both
+    hosts' call sites. The item this mutates IS the live `state["queue"][i]` mapping, so the record is
+    written to the run's state on the NEXT save the driver performs, which happens immediately after
+    integration at the seam that already records `integration_signal`. Nothing is lost and no new
+    injection is invented.
+
+    Best effort: a bookkeeping failure must never turn a measured verdict into an exception on the
+    integration path.
+    """
+
+    with contextlib.suppress(Exception):
+        item["post_merge_revalidation"] = {
+            "passed": bool(passed),
+            "tree": tree_id,
+            "reason": reason,
+            "failures": [str(f) for f in failures],
+            "merged_files": [str(f) for f in merged_files],
+            "cached": bool(cached),
+            "skipped": bool(skipped),
+        }
 
 
 def build_review_prompt(
@@ -16473,7 +16864,13 @@ def execute_item_core(
                     lane_handle=wt_handle,
                     lane_repo=Path(work_dir),
                 )
-                val_runner = make_integration_validation_runner(state, run_dir, item)
+                # integearn-03 (`daexj1`) E-03: the host's OWN `run_suite_check` is handed to the
+                # factory so the gate's revalidation step actually measures the merge result. Bound
+                # from the local name this body already resolves (the same one the suite-signal and
+                # `fixed`-recheck paths above use), so no new injection reaches the call sites.
+                val_runner = make_integration_validation_runner(
+                    state, run_dir, item, suite_check=run_suite_check
+                )
                 try:
                     integrated, integ_reason, integ_kind = integrate_lane_branch(
                         repo, wt_handle, item["id6"], val_runner

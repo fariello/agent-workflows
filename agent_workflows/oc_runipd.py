@@ -2626,11 +2626,15 @@ def retry_deferred_integrations(
         )
 
     def _integrate(item: Any, handle: Any) -> tuple[bool, str, str]:
+        # integearn-03 (`daexj1`) E-03: pass THIS host's `run_suite_check` so the gate's revalidation
+        # step measures the merge result instead of returning a constant True.
         return integrate_lane_branch(
             repo,
             handle,
             str(item.get("id6") or ""),
-            make_integration_validation_runner(state, run_dir, item),
+            make_integration_validation_runner(
+                state, run_dir, item, suite_check=run_suite_check
+            ),
         )
 
     def _finish(item: Any, handle: Any, reason: str) -> None:
@@ -2720,8 +2724,10 @@ def retry_deferred_integrations(
         save_state=save_state,
         append_jsonl=append_jsonl,
         handle_for=_handle_for,
+        # integearn-03 (`daexj1`) E-03: carry the host's suite checker here too, so a DEFERRED
+        # integration re-attempt revalidates on the same terms a first attempt does.
         validation_runner_for=lambda item: make_integration_validation_runner(
-            state, run_dir, dict(item)
+            state, run_dir, dict(item), suite_check=run_suite_check
         ),
         poll=poll,
         interactive=runner_shared.is_interactive_run(
