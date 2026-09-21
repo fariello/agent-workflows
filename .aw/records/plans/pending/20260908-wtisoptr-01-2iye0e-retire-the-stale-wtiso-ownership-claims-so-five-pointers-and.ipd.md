@@ -22,6 +22,12 @@
 - From-Backlog: ol8iyx
 
 ## Workflow history
+- 2026-09-21 executed (opencode/its_direct/pt3-claude-opus-5-1m-us, `aw oc run` lane `2iye0e`, run `run-20260921T024413Z-3445983` position 04): all five E-items performed, all five V-items verified with pasted evidence. Every one of the six target sites was re-located BY PHRASE and confirmed present as quoted before editing; the plan's line numbers HAD moved (the two `runner_shutdown` sites were at `:233`/`:348`, not `:218`/`:334`), vindicating its own warning. F-4 confirmed by measurement: the id6 grep returned 12 hits and NEITHER `runner_stop.py:42-43` nor `:369` was among them.
+  ONE PRESCRIBED MECHANISM WAS WRONG AND WAS CORRECTED ON EVIDENCE (decision `04-2iye0e-D1`). E-04/F-11 instruct adding `describe_lane` to `DOCUMENTED_SINCE_MOVE`, asserting it is the harness's purpose-built route. I ran exactly that and it FAILED (`test_every_clean_symbol_is_a_STRICT_fingerprint_match`, `1 failed, 205 passed`). ROOT CAUSE, measured: that route strips the docstring from the CURRENT side only and compares to the capture VERBATIM, which is correct for a symbol that GAINED a docstring (`plan_bucket`'s capture provably has none) but structurally impossible for one whose capture ALREADY CONTAINS a docstring, as `describe_lane`'s does (verified: its captured dump holds the OLD "are owned by plan" text). So F-11's DIAGNOSIS (do not regenerate the fixture) was right and its MECHANISM was not. Fixed within E-04's intent by adding a SECOND enumerated exemption `REDOCUMENTED_SINCE_MOVE` plus `_capture_without_docstring`, which applies the same subtraction to the CAPTURE side, and a new falsifiability test that mutates an executable statement and requires the comparison to still refuse. THE FIXTURE WAS NOT REGENERATED and is byte-unchanged; `len(clean)` is unchanged; `describe_lane` remains in the STRICT set.
+  TWO OF THE PLAN'S STATED NUMBERS WERE STALE AND ARE CORRECTED HERE: `tests/test_runner_shared.py` baselines at `206 passed` in this worktree (not `58` as authored, nor `70` as measured at review), and the drift guard asserts `len(clean) == 22` (not `24`), the harness comment documenting both decrements. The substance of the requirement (do not relax the guard, do not exclude the symbol) was met.
+  NO BEHAVIOR CHANGED, PROVEN MECHANICALLY rather than inferred from a green suite: for all three edited modules the docstring-stripped AST is byte-identical to `HEAD` (`runner_stop.py` sha `aa7fca5b...`, `runner_shutdown.py` sha `4a496556...`, `runner_shared.py` sha `af3d9640...`, each equal before and after). VALIDATION: bare `python3 -m pytest` -> `7648 passed, 3 skipped, 2 xfailed` (self-measured baseline `1 failed, 7646 passed`, the single failure environmental from this driver turn's own `OPENCODE_CONFIG_CONTENT` leaking into a child env); `tests/test_runner_shared.py` -> `207 passed`; `aw specs check` conforms.
+  THE SPEC AMENDMENT IS ONE ADDED LINE with ZERO removed lines. OQ-03 keeps `- Blocking: yes`, `- Status: resolved`, `- Owner: human maintainer` and the maintainer's resolution verbatim; the spec's own `- Status: implementing` and `- Blocks-Release: next` are untouched, as are OQ-01/02/04. The note is purely declarative and introduces no question.
+  TWO DEFECTS FOUND AND FILED, neither in this plan's scope. Backlog `w07sbr` (bug, blocks-release next): two `@pytest.mark.slow` tests in `tests/test_runner_stop_triggers.py` fail at HEAD - a stopped item is left `running` with no `stopped` record - reproduced in a pristine worktree at the same HEAD both before and after these edits, and invisible to the contracted bare run because `addopts` scopes it to `-m 'not slow'`. Backlog `qdro85` (followup): the residual two-list design concern behind decision D1.
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-A01..PR-A07 all FIXED; readiness go-pending-approval
 
@@ -42,25 +48,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the pointers that genuinely have no successor
 
-- [ ] E-01 REWRITE THE THREE `2c122z` NO-SUCCESSOR POINTERS to name the capability and its status instead of a retired owner. The sites, re-located by text: `runner_stop.py:34-36` (module docstring, "The Windows process-tree kill remains owned by Set `wtiso` Phase 5 (`2c122z`); do not build a second one here"), `runner_stop.py:1610-1611` (the same prohibition restated at the level-5 block), and `runner_shutdown.py:334-335` ("`wtiso` Phase 5 (`2c122z`) requires never auto-stashing, resetting, or overwriting a dirty user main").
+- [x] E-01 REWRITE THE THREE `2c122z` NO-SUCCESSOR POINTERS to name the capability and its status instead of a retired owner. The sites, re-located by text: `runner_stop.py:34-36` (module docstring, "The Windows process-tree kill remains owned by Set `wtiso` Phase 5 (`2c122z`); do not build a second one here"), `runner_stop.py:1610-1611` (the same prohibition restated at the level-5 block), and `runner_shutdown.py:334-335` ("`wtiso` Phase 5 (`2c122z`) requires never auto-stashing, resetting, or overwriting a dirty user main").
   KEEP THE PROHIBITION, CHANGE ONLY THE OWNER. The item is explicit that the P8 do-not-duplicate instruction "is still the right guidance". Two of these three sites exist to STOP someone building a second implementation, and a rewrite that drops the prohibition while fixing the citation would remove a guardrail in the name of tidying prose. The shape the item prescribes: "not implemented; no current owner (was `wtiso` Phase 5 `2c122z`, retired unlanded 2026-09-02)".
   THE THIRD SITE IS DIFFERENT IN KIND AND MUST NOT GET THE SAME SENTENCE. `runner_shutdown.py:334-335` does not claim ownership of unbuilt work; it cites `2c122z` as the AUTHORITY for a still-correct requirement (never auto-stash a dirty user main). Read the surrounding paragraph: it independently grounds that requirement in house policy and GUIDING_PRINCIPLES 10. So the fix there is to attribute the requirement to the policy that survives, not to say "no owner" about a rule that is still in force.
   FOLLOW THE STYLE ALREADY LANDED IN `wtiso_gate.py`, which solved this exact problem under `604wra`: name the owner AND its disposition, and add a WHAT-DID-LAND note so a reader does not assume a total gap. Match that voice rather than inventing a second phrasing for the same idea.
   - Depends on: none
   - Expected outcome: the three sites name the capability and its status; every do-not-duplicate and never-auto-stash instruction is preserved verbatim in force; the still-correct requirement at `runner_shutdown.py:334-335` is attributed to surviving policy rather than declared ownerless.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CORRECT THE ONE CLAIM THAT IS NOW FALSE: `runner_shutdown.py:218-219` says the cross-platform `platform_lock` "is owned elsewhere (`wtiso` Phase 5, `2c122z`), which this Set must not duplicate".
+- [x] E-02 CORRECT THE ONE CLAIM THAT IS NOW FALSE: `runner_shutdown.py:218-219` says the cross-platform `platform_lock` "is owned elsewhere (`wtiso` Phase 5, `2c122z`), which this Set must not duplicate".
   THIS SITE GETS THE OPPOSITE NOTE FROM E-01, which is why it is its own item. The capability SHIPPED. `agent_workflows/platform_lock.py` exists on `main`; plan `y6mfgo` states it SUPERSEDES `2c122z`'s `platform_lock` portion, and its E-02 named the module `platform_lock` deliberately so that `2c122z`'s references still resolve. Writing "no current owner" here would assert something absent that is present.
   THE DO-NOT-DUPLICATE INSTRUCTION BECOMES STRONGER, NOT WEAKER, and that is the point: today it says "someone else will build this", which invites a reader to wait; it should say "this exists at `agent_workflows/platform_lock.py` (shipped under `y6mfgo`), so acquire through it and do not hand-roll a second lock". Cite the module by path so the next reader can go straight to it.
   VERIFY BEFORE WRITING, do not take this plan's word for it. Confirm `agent_workflows/platform_lock.py` exists and confirm `y6mfgo`'s supersession statement is really in its record. If either check fails, STOP and report rather than writing a citation you did not verify.
   - Depends on: none
   - Expected outcome: `runner_shutdown.py:218-219` states the capability exists, cites `agent_workflows/platform_lock.py` and plan `y6mfgo`, and keeps a do-not-duplicate instruction now grounded in a real module; both preconditions independently verified before the edit.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the Phase 4 pointers, including the two no grep for an id6 will find
 
-- [ ] E-03 REWRITE THE THREE PHASE 4 POINTERS, two of which are INVISIBLE to the item's own VERIFY-WITH grep because they name the phase in prose without its id6.
+- [x] E-03 REWRITE THE THREE PHASE 4 POINTERS, two of which are INVISIBLE to the item's own VERIFY-WITH grep because they name the phase in prose without its id6.
   THE THREE SITES, re-located by text rather than by the item's line numbers: `runner_stop.py:41-44` (module docstring, "Set `wtiso` Phase 4 relocates the driver run root OUT of the repository to `platform_state.checkout_state_root(<checkout-id>)/runs/<run-id>/`, and because this module resolves through the shared accessor it inherits that relocation automatically"), `runner_stop.py:362-363` (inside `resolve_stop_request_path`'s docstring, "when Set `wtiso` Phase 4 moves that accessor's answer out of the repository, the flag moves with it and nothing here changes (spec OQ-03)"), and `runner_shared.py:555-558` (`describe_lane`'s docstring, "`aw doctor --lanes` and `aw recover` are owned by plan `2c122z`").
   GREP FOR THE PHRASE, NOT ONLY THE ID6. Neither `runner_stop.py:41-44` nor `:362-363` contains the string `58ha43`, so the item's stated verification would pass while both stale claims remained. Search for "Phase 4", "Phase 5", "wtiso", and `platform_state` as well.
   PRESERVE THE ARCHITECTURAL POINT AT BOTH `runner_stop.py` SITES, because it is correct and load-bearing: this module resolves the flag through the drivers' own `state_root` accessor rather than constructing a path, so it inherits whatever that accessor answers and would inherit a future relocation for free. That is the reason the surrounding "DO NOT fix this back into `<repo>/.aw/state`" instruction exists. Rewrite the OWNER (a retired plan) into a capability status; do NOT delete the design rationale, and do NOT weaken the do-not-construct-a-second-root instruction.
@@ -68,9 +74,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   `describe_lane` IS THE FROZEN ONE. Its capability half is CORRECT (confirmed at review: no `recover` verb in `cli.py`, and `aw doctor --lanes` does not exist), so only the owner is stale. Editing this docstring breaks the STRICT AST comparison; E-04 handles it by adding the symbol to the harness's `DOCUMENTED_SINCE_MOVE` exemption, NOT by regenerating the frozen fixture, and this item must not be marked done until E-04 is performed.
   - Depends on: none
   - Expected outcome: all three sites name the capability and its status, cite backlog `e820ka` BY ID6 rather than a retired plan, and retain the accessor-indirection rationale and the do-not-construct-a-second-root instruction; located by phrase search, not by id6 alone.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 KEEP THE FINGERPRINT FIXTURE UNTOUCHED AND ADD `describe_lane` TO `DOCUMENTED_SINCE_MOVE`, the harness's OWN purpose-built mechanism for exactly this case. DO NOT regenerate any fingerprint.
+- [x] E-04 KEEP THE FINGERPRINT FIXTURE UNTOUCHED AND ADD `describe_lane` TO `DOCUMENTED_SINCE_MOVE`, the harness's OWN purpose-built mechanism for exactly this case. DO NOT regenerate any fingerprint.
   THE HAZARD IS REAL, THE ORIGINALLY PRESCRIBED REMEDY WAS WRONG, and both halves were measured at review rather than reasoned about. Confirmed real: `describe_lane` is in the STRICT comparison set (it is in `symbols`, and in NONE of `UNMOVABLE`, `INJECTED`, `HOST_NAMING_ONLY` or `SUPERSEDED_SINCE_MOVE`), it currently matches the pre-move capture EXACTLY, and re-dumping it with the docstring altered yields a DIFFERENT dump. So E-03's edit does break the freeze. But the harness ALREADY solves this: `DOCUMENTED_SINCE_MOVE = ("plan_bucket",)` (`tests/test_runner_shared.py:150`) names symbols compared with `drop_docstring=True`, and `_strip_docstring`'s docstring states the rationale in terms that fit this plan exactly, that "a docstring is a string constant that no caller can observe through behavior, so adding one cannot change what the function does", and that the alternative "was measured and rejected: a moved symbol could then never be DOCUMENTED, which penalizes exactly the improvement this repository wants".
   WHY REGENERATING WOULD HAVE BEEN THE WRONG ACT, stated so it is not re-attempted. Rewriting the fixture entry re-baselines the recorded pre-move truth to a post-move value, which destroys the falsifiability the file exists for and does so in the ONE file whose entire value is that a change to it is suspicious. The `DOCUMENTED_SINCE_MOVE` route instead leaves the historical capture intact and records an EXPLICIT, enumerated, reviewable exemption whose own mechanism guarantees the rest of the body still matches strictly ("Change one executable line as well and the comparison still fails").
   THE FIXTURE IS THEREFORE NOT MODIFIED, AND `tests/fixtures/runner_shared_premove_fingerprints.json` SHOULD BE `--scope-ack`ed AS DECLARED-BUT-UNMODIFIED at finalize rather than edited to satisfy the declaration. Do not invent an edit to make a declared path dirty.
@@ -79,11 +85,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   PROVE THE BODY DID NOT CHANGE, not merely that the test passes. The claim is "docstring only", so show it: `fingerprint_of(runner_shared, "describe_lane", drop_docstring=True)` must be IDENTICAL before and after the edit.
   - Depends on: E-03
   - Expected outcome: the fixture is byte-unchanged (and `--scope-ack`ed as such); `describe_lane` added to `DOCUMENTED_SINCE_MOVE` with a recorded reason; `len(clean) == 24` still holds; `tests/test_runner_shared.py` green against a SELF-MEASURED baseline; docstring-subtracted fingerprint identical before and after, proving no executable change.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the spec, which must be annotated and not reopened
 
-- [ ] E-05 APPEND A NOTE TO SPEC `c4gd2h` OQ-03 recording that its cited precondition plans are retired unlanded and that the flag resolves through the in-repo accessor today, WITHOUT reopening the human-resolved answer.
+- [x] E-05 APPEND A NOTE TO SPEC `c4gd2h` OQ-03 recording that its cited precondition plans are retired unlanded and that the flag resolves through the in-repo accessor today, WITHOUT reopening the human-resolved answer.
   DO NOT CHANGE `- Status: resolved` AND DO NOT REWRITE THE RESOLUTION. OQ-03 was resolved by the HUMAN maintainer on 2026-08-29 (`- Owner: human maintainer`) and its ANSWER is still correct: per-machine control state, inside the driver run dir, one accessor, never a worktree-relative path. Only the cited SEQUENCING is stale ("the out-of-repo path REQUIRES `wtiso` Phase 3+4 (`7p9n2v`, `58ha43`) to be executed first"). Reopening a signed-off question, or editing the maintainer's words, would be writing an attestation this plan has no authority to write. ADD; do not revise.
   WHAT THE NOTE MUST SAY, so it is useful rather than decorative: that `7p9n2v` and `58ha43` are retired to `superseded/` unlanded (verified at review: both resolve under `.aw/records/plans/superseded/`), so the stated precondition is unsatisfiable as written; that the flag TODAY resolves through the drivers' own `state_root` accessor and works, so nothing is broken; that the resolved answer stands and the relocation is tracked by backlog `e820ka`, named BY ID6; and that `platform_state.state_home`/`checkout_state_root` do NOT exist on `main` (confirmed at review: no `platform_state.py`, and the only occurrence of either symbol anywhere in `agent_workflows/` is the stale prose at `runner_stop.py:43` that E-03 rewrites), so a reader does not go looking for them.
   WORD THE NOTE SO IT CANNOT BE READ AS A QUESTION. OQ-03 is `- Blocking: yes`, and a `Blocking: yes` question that reads as unresolved is refused by `aw ipd lint` at EVERY checkpoint, which would gate every plan governed by this release-blocking spec. So the note must be declarative throughout: it records facts and points at a tracker. It must not ask anything, must not say the answer "needs revisiting", and must not introduce a new question heading.
@@ -91,7 +97,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT TOUCH THE SPEC'S OWN `- Status: implementing`, its requirement list, or any other OQ. The scope here is one note under one resolved question.
   - Depends on: E-03
   - Expected outcome: OQ-03 carries an additive note stating the retirement, the current in-repo resolution path, the surviving successor tracker, and the absence of the `platform_state` symbols; `- Status: resolved`, the maintainer's resolution text, the spec's own status, and every other OQ are unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -182,30 +188,186 @@ THE AMENDMENT IS STRICTLY ADDITIVE AND THE LIMIT IS THE POINT. OQ-03 is `- Statu
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the before and after text of all three sites. For each, show the do-not-duplicate or never-auto-stash instruction still present and still imperative. For `runner_shutdown.py:334-335` specifically, show the requirement re-attributed to surviving policy rather than declared ownerless, and quote the surrounding paragraph proving that policy grounding already existed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All three sites re-located BY PHRASE (their line numbers had moved: the `runner_shutdown` sites were at `:233` and `:348`, not `:218`/`:334`, confirming the plan's own warning). Verified present as quoted before editing.
 
-- [ ] V-02 validates E-02
+    SITE 1, `runner_stop.py` module docstring (was `:35-36`, now `:35-40`).
+    BEFORE: "The Windows / process-tree kill remains owned by Set `wtiso` Phase 5 (`2c122z`); do not build a second one here / (GUIDING_PRINCIPLES P8)."
+    AFTER: "The Windows / process-tree kill is NOT IMPLEMENTED and has NO CURRENT OWNER: it was owned by Set `wtiso` Phase 5 / (`2c122z`), RETIRED UNLANDED 2026-09-02, and no successor plan is in flight. The prohibition stands / regardless of who owns it: do not build a second process-tree kill here (GUIDING_PRINCIPLES P8). What / DID land separately, so a reader does not assume a total gap, is cross-platform LOCKING (`platform_lock`, / IPD `y6mfgo`); what is genuinely absent is the Windows kill itself."
+    PROHIBITION STILL PRESENT AND IMPERATIVE: "do not build a second process-tree kill here (GUIDING_PRINCIPLES P8)", and it is now stated to hold INDEPENDENTLY of ownership ("The prohibition stands regardless of who owns it"), which is strictly stronger than the original. WHAT-DID-LAND note added per the `604wra` house style.
+
+    SITE 2, `runner_stop.py` level-5 block (was `:1617-1618`, now `:1628-1631`).
+    BEFORE: "# text in this module may promise a working Windows subset. The Windows process-tree kill is owned by / # Set `wtiso` Phase 5 (`2c122z`); building a second one here is forbidden (GUIDING_PRINCIPLES P8)."
+    AFTER: "# text in this module may promise a working Windows subset. The Windows process-tree kill is NOT / # IMPLEMENTED and has NO CURRENT OWNER (it was Set `wtiso` Phase 5, `2c122z`, RETIRED UNLANDED / # 2026-09-02, with no successor plan in flight); building a second one here is forbidden anyway / # (GUIDING_PRINCIPLES P8), and the prohibition does not depend on someone else owning the work."
+    PROHIBITION STILL PRESENT AND IMPERATIVE: "building a second one here is forbidden anyway (GUIDING_PRINCIPLES P8)", with the anti-inference clause added.
+
+    SITE 3, `runner_shutdown.observe_tree` (was `:334-335`, actually `:348`). THIS ONE GOT THE DIFFERENT TREATMENT E-01 REQUIRES, not the "no current owner" sentence.
+    BEFORE: "contaminated base), and `wtiso` Phase 5 (`2c122z`) requires never auto-stashing, resetting, / or overwriting a dirty user main. An automatic ``git stash`` at stop time would also capture / edits a HUMAN made in their own checkout while a run happened to be in flight, exactly the / destructive, hard-to-reverse action GUIDING_PRINCIPLES 10 forbids."
+    AFTER: "contaminated base), and NEVER auto-stashing, resetting, or overwriting a dirty user main is / required by SURVIVING POLICY, namely GUIDING_PRINCIPLES 10 (safety and reversibility) and / AGENTS.md's shared-checkout rule that another party's uncommitted work is never reverted, / discarded, or stashed. That requirement is STILL IN FORCE and is grounded in the policy rather / than in any one plan: it was previously attributed here to `wtiso` Phase 5 (`2c122z`), which was / RETIRED UNLANDED 2026-09-02, and the rule outlives its retirement untouched."
+    RE-ATTRIBUTED, NOT DECLARED OWNERLESS: the requirement is now sourced to GUIDING_PRINCIPLES 10 and AGENTS.md, and explicitly marked "STILL IN FORCE". The strings "no current owner" and "NOT IMPLEMENTED" do NOT appear at this site.
+    THE SURROUNDING PARAGRAPH ALREADY CARRIED THAT POLICY GROUNDING, quoted from the BEFORE text: "An automatic ``git stash`` at stop time would also capture edits a HUMAN made in their own checkout while a run happened to be in flight, exactly the destructive, hard-to-reverse action GUIDING_PRINCIPLES 10 forbids." So the re-attribution moves the citation to a source the paragraph already relied on rather than inventing one. Confirmed the policy source exists: `GUIDING_PRINCIPLES.md:94` is "## 10. Safety and reversibility".
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `ls agent_workflows/platform_lock.py` proving the module exists, and paste the line from `y6mfgo`'s record stating it supersedes `2c122z`'s `platform_lock` portion. Then paste the before and after of `runner_shutdown.py:218-219`, showing the new text cites the real module path and plan and still forbids a second lock. Confirm explicitly that this site did NOT receive E-01's "no current owner" wording.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BOTH PRECONDITIONS VERIFIED BEFORE THE EDIT, as E-02 requires.
 
-- [ ] V-03 validates E-03
+    (1) `ls -l agent_workflows/platform_lock.py` returned a regular file of 14781 bytes, mode
+    `-rw-r--r--` (owner/group elided: the raw output carries a local username and the leak-sanitizer
+    correctly refuses it). The module EXISTS on this base.
+
+    (2) `y6mfgo`'s record (`.aw/records/plans/executed/20260830-locksafe-01-y6mfgo-one-cross-platform-file-lock-via-filelock-replacing-every-ra.ipd.md:22`), quoted verbatim: "That choice SUPERSEDES the `platform_lock` portion of approved plan `2c122z`, which planned to hand-roll the same thing (18 references there)."
+    Corroborated at `:75` (E-06): "`2c122z`'s `platform_lock` portion is SUPERSEDED by this plan and must not be built twice" and at `:97` (F4): "This plan SUPERSEDES that plan's `platform_lock` work (18 references there)."
+
+    SITE, `runner_shutdown.RunLockHandle` docstring (plan said `:218-219`; actually `:232-233`, re-located by phrase).
+    BEFORE: "This is deliberately a HANDLE plus a release step, not a lock abstraction: acquisition stays / in each driver's ``run_lock`` and the cross-platform ``platform_lock`` is owned elsewhere / (`wtiso` Phase 5, `2c122z`), which this Set must not duplicate (orchestrator CID-5)."
+    AFTER: "This is deliberately a HANDLE plus a release step, not a lock abstraction: acquisition stays / in each driver's ``run_lock``, and the cross-platform lock ALREADY EXISTS at / ``agent_workflows/platform_lock.py``, shipped under IPD `y6mfgo` (which SUPERSEDES the / ``platform_lock`` portion of the since-retired `2c122z`). So acquire through that module and do / NOT hand-roll a second lock here (orchestrator CID-5)."
+    CITES THE REAL MODULE BY PATH (`agent_workflows/platform_lock.py`) AND THE REAL PLAN (`y6mfgo`). STILL FORBIDS A SECOND LOCK, and does so more usefully than before: "So acquire through that module and do NOT hand-roll a second lock here", which tells the reader what to DO instead of implying someone else will build it.
+    CONFIRMED EXPLICITLY: this site did NOT receive E-01's wording. The strings "no current owner", "NO CURRENT OWNER" and "NOT IMPLEMENTED" are absent here; the site asserts the opposite (ALREADY EXISTS), because the capability shipped. Writing E-01's generic note here would have been a false claim, which is why the plan made this a separate E-item.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the before and after of all three sites, showing the accessor-indirection rationale and the do-not-construct-a-second-root instruction retained, and backlog `e820ka` cited BY ID6 (a pointer reading "a successor backlog item" without the id6 fails this item). Paste BOTH greps: the item's `grep -rn "58ha43\|2c122z\|7p9n2v" agent_workflows/` AND a phrase grep for "Phase 4", "Phase 5" and "wtiso" over `agent_workflows/`, since F-4 shows the first alone is insufficient. Exclude `__pycache__` from both (review's run returned four binary `.pyc` matches that are build artifacts, not sites). Enumerate every remaining hit and classify each as fixed, legitimate `rchpms` provenance, `runstop`-Phase-5 prose about the LIVE plan `71vjbn` (which review confirmed is unrelated to `wtiso` and must NOT be touched), or deliberately out of scope; a bare claim of zero hits is not acceptable given the Scope check.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: F-4 CONFIRMED BY MEASUREMENT: the id6 grep returned 12 hits and NEITHER `runner_stop.py:42-43` nor `:369` was among them, exactly as the plan predicted, so both were found only by phrase search.
 
-- [ ] V-04 validates E-04
+    SITE 1, `runner_stop.py` module docstring (was `:42-47`, now `:45-52`).
+    BEFORE: "That is deliberate: Set `wtiso` Phase 4 relocates the driver run root OUT of the repository to / `platform_state.checkout_state_root(<checkout-id>)/runs/<run-id>/`, and because this module / resolves through the shared accessor it inherits that relocation automatically. DO NOT \"fix\" this / back into `<repo>/.aw/state` and do not resolve it from a worktree-relative path: an inner `aw` / would fork a second state tree the driver cannot see, and worktree teardown would destroy it / (backlog `dh0uno`)."
+    AFTER: "That is deliberate, and the REASON SURVIVES ITS ORIGINAL OWNER: relocating the driver run root OUT of / the repository is NOT IMPLEMENTED and has no plan in flight (it was Set `wtiso` Phase 4, `58ha43`, / RETIRED UNLANDED 2026-09-02, and the decision of whether to relocate at all is now tracked by backlog / `e820ka`). Note that the accessors that retirement would have created, `platform_state.state_home` and / `platform_state.checkout_state_root`, DO NOT EXIST on `main`, so do not go looking for them. Resolving / through the shared accessor is what makes this module inherit ANY future relocation for free without / being rewritten, which is why the indirection stays whether or not `e820ka` is ever built. DO NOT \"fix\" / this back into `<repo>/.aw/state` and do not resolve it from a worktree-relative path: an inner `aw` / would fork a second state tree the driver cannot see, and worktree teardown would destroy it / (backlog `dh0uno`, whose one-control-root invariant is what `ipd_lifecycle.checkout_control_root` / already enforces)."
+    ACCESSOR-INDIRECTION RATIONALE RETAINED AND STRENGTHENED: "Resolving through the shared accessor is what makes this module inherit ANY future relocation for free without being rewritten, which is why the indirection stays whether or not `e820ka` is ever built" - the rationale is now independent of the retired plan rather than conditional on it. DO-NOT-CONSTRUCT-A-SECOND-ROOT INSTRUCTION RETAINED VERBATIM IN FORCE: "DO NOT \"fix\" this back into `<repo>/.aw/state` and do not resolve it from a worktree-relative path". `e820ka` CITED BY ID6.
+
+    SITE 2, `resolve_stop_request_path` docstring (was `:369-370`, now `:377-381`).
+    BEFORE: "a second run root: when Set `wtiso` Phase 4 moves that accessor's answer out of the / repository, the flag moves with it and nothing here changes (spec OQ-03)."
+    AFTER: "a second run root: if anything ever moves that accessor's answer out of the repository, the flag / moves with it and nothing here changes (spec OQ-03). That relocation is NOT IMPLEMENTED and has no / plan in flight (it was Set `wtiso` Phase 4, `58ha43`, RETIRED UNLANDED 2026-09-02; the decision is / tracked by backlog `e820ka`), and the indirection is correct regardless, because the point is to / have exactly ONE resolver rather than to anticipate one specific move."
+    INDIRECTION RATIONALE RETAINED: the "keeps this module from constructing a second run root" clause is untouched (it is the sentence this text continues), and the reason is now grounded in having ONE resolver rather than in a specific pending move. `e820ka` CITED BY ID6.
+
+    SITE 3, `runner_shared.describe_lane` docstring (was `:555-558`, actually `:841-842`).
+    BEFORE: "The classifier is the SINGLE source of the reported facts; this adds no second git probe and no / new CLI verb (`aw doctor --lanes` and `aw recover` are owned by plan `2c122z`).\"\"\""
+    AFTER: "The classifier is the SINGLE source of the reported facts; this adds no second git probe and no / new CLI verb. `aw doctor --lanes` and `aw recover` are NOT IMPLEMENTED and have NO CURRENT OWNER: / that recovery surface belonged to plan `2c122z`, RETIRED UNLANDED 2026-09-02, with no successor / plan in flight (see backlog `e820ka` for the surviving tracker of the related state-relocation / decision). Neither verb exists today, so this stays a reporting shape and must not grow one.\"\"\""
+    CAPABILITY CLAIM RE-VERIFIED AT EXECUTION: `grep -c '\-\-lanes' agent_workflows/cli.py` = 0, and the 8 `recover` hits in `cli.py` are all prose about recovery/recoverable (`:4153`, `:5410`, `:5414`, `:6521`, `:6564`, `:6606`, `:10277`, `:10288`), none a verb definition. So both verbs genuinely do not exist and only the owner was stale. `e820ka` CITED BY ID6.
+
+    GREP 1, the item's own VERIFY-WITH (`grep -rn "58ha43\|2c122z\|7p9n2v" agent_workflows/ --exclude-dir=__pycache__`): 16 hits, NOT zero, and every one classified below as required.
+    - `wtiso_gate.py:38`, `:40`, `:279`, `:280`, `:294`, `:423`, `:440` (7) - ALREADY FIXED by executed `604wra`; each states the owner AND its disposition ("RETIRED UNLANDED 2026-09-02", "BOTH RETIRED 2026-09-02"). DELIBERATELY EXCLUDED by this plan's fence.
+    - `runner_shared.py:1394`, `:1395` (2) - NOT ownership claims. These are a MEASUREMENT record in the lane-report de-duplication rationale ("20 rows covered 13 distinct lanes (`7p9n2v`/`qcqhj7`/`rchpms` tripled, `58ha43` doubled), inflating the violation count by 54%"), i.e. lane NAMES in observed data. Retirement does not falsify a measurement. Out of scope and correctly so.
+    - `runner_shutdown.py:234` (1) - FIXED by E-02; names `2c122z` only to say its `platform_lock` portion was SUPERSEDED.
+    - `runner_shutdown.py:354` (1) - FIXED by E-01 site 3; names `2c122z` only to record that the requirement was PREVIOUSLY attributed to it and that it was RETIRED UNLANDED.
+    - `runner_stop.py:36`, `:46`, `:379`, `:1629` (4) - FIXED by E-01 and E-03; each now states the disposition (RETIRED UNLANDED 2026-09-02) and, where applicable, the successor tracker.
+    NO `rchpms` CITATION WAS TOUCHED: the `rchpms` occurrences live in `ipd_lifecycle.py` and the drivers and are legitimate provenance for shipped code (`frozen_region_digest`); they are outside this plan's scope-paths and were not edited.
+
+    GREP 2, the PHRASE grep (`grep -rn "Phase 4\|Phase 5\|wtiso\|platform_state" agent_workflows/ --exclude-dir=__pycache__`): 89 hits across 15 files. Restricted to this plan's three code scope-paths it is 23 hits, classified:
+    - `runner_stop.py:35`, `:46`, `:48`, `:49`, `:379`, `:1629` (6) - this plan's own corrected text (the two `platform_state` mentions at `:48-49` are the new explicit "DO NOT EXIST on `main`" note E-05/E-03 require, not a claim they exist).
+    - `runner_stop.py:133`, `:152`, `:166`, `:1065`, `:1134`, `:1149`, `:1186`, `:1189`, `:1208`, `:1219`, `:1272`, `:1607` (12) and `runner_shutdown.py:508` (1) - `runstop` Phase 4/5 (`m0z0ti`, `71vjbn`), a DIFFERENT and LIVE Set. The fence forbids touching these and they were NOT touched.
+    - `runner_shutdown.py:354` (1) - this plan's corrected text.
+    - `runner_shared.py:10547` (1) - `runstop` Phase 5 prose, live Set, untouched.
+    - `runner_shared.py:12747`, `:13045` (2) - `aw oc run wtiso` as an INCIDENT COMMAND LINE in a measured defect record (backlog `em0z50`), not an ownership claim. Untouched.
+    KNOWN REMAINING OUT-OF-SCOPE HITS, per the plan's Scope check (under-scope), confirmed still present and deliberately so: `docs/wtiso-state-taxonomy.md`'s owner column (OQ-01, resolved NO) and `tests/test_lane_allocation_idempotent.py`'s two prose sites (OQ-02, resolved NO). A repo-wide grep therefore still returns hits, as the plan predicted; zero was never the target.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m pytest tests/test_runner_shared.py` GREEN against a SELF-MEASURED baseline (review measured `70 passed`; the `58 passed` originally written here was wrong, so do not treat 70 as a regression). Paste `git diff --stat tests/fixtures/runner_shared_premove_fingerprints.json` proving it is EMPTY: the fixture must be byte-unchanged, which is the INVERSE of this item's original requirement and the point of F-11. Paste the one-line addition to `DOCUMENTED_SINCE_MOVE` with its recorded reason, beside the existing `plan_bucket` entry. Paste proof that `len(clean)` is still 24 so the drift guard at `tests/test_runner_shared.py:396` was not relaxed. Paste independent proof that only the docstring changed: `fingerprint_of(runner_shared, "describe_lane", drop_docstring=True)` identical before and after. A pasted fixture regeneration is a FAILED validation, not an alternative route.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE PRESCRIBED REMEDY DOES NOT WORK, MEASURED RATHER THAN ASSUMED, AND THE PLAN'S TWO STATED NUMBERS WERE BOTH STALE. The fixture was still NOT regenerated: F-11's core instruction is honored, only its mechanism had to change. This is recorded as autonomous DECISION `04-2iye0e-D1`.
 
-- [ ] V-05 validates E-05
+    WHAT THE PLAN SAID TO DO, AND WHAT HAPPENED. E-04 says to add `describe_lane` to `DOCUMENTED_SINCE_MOVE`. I did exactly that first, and it FAILED:
+    ```
+    FAILED tests/test_runner_shared.py::PureMoveFingerprintTests::test_every_clean_symbol_is_a_STRICT_fingerprint_match
+    AssertionError: "Module(body=[FunctionDef(name='describe_[3093 chars]))])" != 'Module(body=[FunctionDef(name=\'describe[3555 chars]))])'
+    : `describe_lane` was NOT a pure move: its body differs from the pre-move capture at 1ecc5891... (compared with its docstring subtracted, per DOCUMENTED_SINCE_MOVE, so this failure is about an EXECUTABLE statement)
+    1 failed, 205 passed in 33.24s
+    ```
+    THE ROOT CAUSE, measured: `DOCUMENTED_SINCE_MOVE` subtracts the docstring from the CURRENT side ONLY and compares against the capture VERBATIM. That is right for a symbol that GAINED a docstring, because its capture has none to subtract. `describe_lane` ALREADY HAD one in the capture:
+    ```
+    plan_bucket:    capture body starts with a docstring Expr -> False
+    describe_lane:  capture body starts with a docstring Expr -> True
+    ```
+    and the captured docstring provably contains the OLD text ("...`aw doctor --lanes` and `aw recover` are owned by plan `..."). So the one-sided subtraction compares a body WITHOUT a docstring against a capture WITH one, which can never match. The plan's premise that this is the harness's purpose-built route for this case is FALSE for a REVISED docstring; it is correct only for a GAINED one.
+
+    WHAT WAS DONE INSTEAD, staying inside E-04's actual intent (enumerated, reviewable exemption; fixture untouched). Added a SECOND enumerated list `REDOCUMENTED_SINCE_MOVE = ("describe_lane",)` with the reason recorded beside it in the same voice as `plan_bucket`'s, plus `_capture_without_docstring` which applies the SAME subtraction to the CAPTURE side, wired at the one comparison site. The fixture is NOT rewritten: the recorded dump is parsed back, only its leading string expression is dropped, and every remaining token must still match. Also added `test_a_redocumented_symbol_is_still_held_to_its_executable_body`, which proves the exemption is narrow by (a) requiring a docstring now, (b) requiring the CAPTURE to genuinely contain one (so a misfiled name is rejected), (c) requiring the strict comparison to genuinely fail, and (d) appending an executable statement and requiring the comparison to STILL refuse.
+
+    SUITE GREEN, SELF-MEASURED BASELINE IN THIS WORKTREE (not the plan's figures, both of which were wrong):
+    ```
+    BEFORE any edit:  python3 -m pytest tests/test_runner_shared.py  ->  206 passed in 11.05s
+    AFTER  all edits: python3 -m pytest tests/test_runner_shared.py  ->  207 passed in 34.42s
+    ```
+    207 = 206 + the one test I added. The plan's `70 passed` (review) and `58 passed` (original) are both stale; the real baseline here is 206.
+
+    FIXTURE BYTE-UNCHANGED (the inverse requirement, and the point of F-11):
+    ```
+    $ git diff --stat tests/fixtures/runner_shared_premove_fingerprints.json
+    [no output, exit 0]
+    $ git status --porcelain tests/fixtures/runner_shared_premove_fingerprints.json
+    [no output]
+    ```
+    No regeneration was performed. The file does not appear in this plan's commit.
+
+    DRIFT GUARD NOT RELAXED. The plan says `len(clean)` must still be 24; the ACTUAL assertion in the harness at this HEAD is 22 (it was lowered to 23 then 22 as `_run_git` and `should_color` entered `SUPERSEDED_SINCE_MOVE`, documented in the comment above the assertion). Measured before and after my change:
+    ```
+    BEFORE: len(clean) = 22   describe_lane in clean: True
+    AFTER:  len(clean) = 22   describe_lane still IN clean (not excluded): True
+    ```
+    So the count is unchanged and `describe_lane` remains in the STRICT set rather than being excluded, which is what E-04 required in substance (the plan's "24" was simply a stale number, not a different requirement).
+
+    ONLY THE DOCSTRING CHANGED, PROVEN INDEPENDENTLY of the suite:
+    ```
+    docstring-subtracted fingerprint IDENTICAL before vs after edit: True
+    sha256(before) = 6e54253ca8c49d82395fec76676904532244ec2be1f6a0f922bc38d4d69a8914
+    sha256(after)  = 6e54253ca8c49d82395fec76676904532244ec2be1f6a0f922bc38d4d69a8914
+    ```
+    And against the CAPTURE with the subtraction applied to both sides: `current (docstring dropped) == capture (docstring dropped): True`, i.e. the executable body still matches the pre-move capture exactly.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the `git diff` of the spec file, which must show ONLY an addition under OQ-03. Paste the unchanged lines proving `- Status: resolved`, `- Blocking: yes`, `- Owner: human maintainer`, the maintainer's resolution text, the spec's own `- Status: implementing`, its `- Blocks-Release: next`, and every other OQ (OQ-01, OQ-02, OQ-04) are untouched. Paste the note's text showing it states the retirement, today's in-repo resolution path, backlog `e820ka` by id6, and the absence of `platform_state.state_home`/`checkout_state_root` (paste the grep proving that absence). CONFIRM THE NOTE IS PURELY DECLARATIVE: it must contain no question, must not say the resolved answer needs revisiting, and must not add a question heading, because OQ-03 is `Blocking: yes` and anything readable as a re-opening would gate every plan this release-blocking spec governs. Paste `aw specs check` conforming (review baseline: `29 checked, 0 findings`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE DIFF IS ONE ADDED LINE AND NOTHING ELSE.
+    ```
+    $ git diff .aw/records/specs/20260829-c4gd2h-01-c4gd2h-runner-lifecycle-graceful-quit.spec.md
+    @@ -161,6 +161,7 @@
+     - Status: resolved
+     - Owner: human maintainer
+     - Resolution (2026-08-29, follow `wtiso`, do not invent a third location): ... [UNCHANGED CONTEXT]
+    +- Note (2026-09-21, added by plan `2iye0e`; the resolution above STANDS and is not reopened): ...
+
+     ### OQ-04: Is `unknown_outcome` reconciliation automatic or operator-gated?
+    ```
+    PROOF IT IS STRICTLY ADDITIVE: the diff contains ZERO removed lines (`git diff --unified=0 ... | grep -c '^-'` excluding the `---` header returned `0`). The maintainer's resolution line is CONTEXT in the diff, not a modification.
+
+    EVERY FIELD THE ITEM NAMES, RE-READ AFTER THE EDIT:
+    ```
+    $ grep -n "^- Status:\|^- Blocks-Release:" <spec>
+    4:- Status: implementing          <- the spec's own status, UNCHANGED
+    8:- Blocks-Release: next          <- UNCHANGED
+    147:- Status: resolved            <- OQ-01, UNCHANGED
+    154:- Status: open                <- OQ-02, UNCHANGED
+    161:- Status: resolved            <- OQ-03, UNCHANGED
+    169:- Status: open                <- OQ-04, UNCHANGED
+    $ sed -n '158,164p' <spec>
+    ### OQ-03: Where does the stop-request flag live?
+    - Blocking: yes (it interacts directly with `wtiso` Phase 4, which relocates machine state ...
+    - Status: resolved
+    - Owner: human maintainer
+    - Resolution (2026-08-29, follow `wtiso`, do not invent a third location): the stop-reques...
+    - Note (2026-09-21, added by plan `2iye0e`; the resolution above STANDS and is not reopene...
+    ```
+    OQ-03 keeps `- Blocking: yes`, `- Status: resolved`, `- Owner: human maintainer`, and the maintainer's resolution text verbatim. All four OQ headings still present (`### OQ-01` `:144`, `### OQ-02` `:151`, `### OQ-03` `:158`, `### OQ-04` `:166`); no new question heading was introduced.
+
+    THE NOTE'S TEXT, and what it states: (a) THE RETIREMENT - "`7p9n2v` (Phase 3) and `58ha43` (Phase 4) both sit in `.aw/records/plans/superseded/`, retired 2026-09-02, and `58ha43` was retired UNLANDED with no successor for its main deliverable", and that the cited sequencing "is unsatisfiable as written"; (b) TODAY'S IN-REPO RESOLUTION PATH - "the flag is per-machine control state, it lives inside the driver's run directory beside `driver.lock`, and it is resolved through the drivers' own single `state_root` accessor (`runner_stop.resolve_stop_request_path` takes that accessor as a parameter)", with "NOTHING IS BROKEN BY THIS" stated explicitly; (c) `e820ka` BY ID6 - "which is now tracked as backlog item `e820ka`"; (d) THE ABSENT SYMBOLS - "`platform_state.state_home` and `platform_state.checkout_state_root`, DO NOT EXIST on `main`: there is no `agent_workflows/platform_state.py`, so a reader should not go looking for them."
+
+    GREP PROVING THAT ABSENCE:
+    ```
+    $ ls agent_workflows/platform_state.py
+    ls: cannot access 'agent_workflows/platform_state.py': No such file or directory
+    $ grep -rn "state_home\|checkout_state_root" agent_workflows/ --include="*.py"
+    agent_workflows/runner_stop.py:43:`platform_state.checkout_state_root(<checkout-id>)/runs/<run-id>/`, and because this module
+    ```
+    ONE hit at measurement time, and it was the stale prose E-03 rewrote. Both plans also confirmed retired: `ls .aw/records/plans/superseded/` lists `...-7p9n2v-phase-3-...`, `...-58ha43-phase-4-relocate-runtime-machine-state-out-of-the-repo-to-an.ipd.md`, and `...-2c122z-phase-5-...`; `58ha43`'s RETIRED header reads "retiring UNLANDED, with no successor for its main deliverable ... nothing on `main` does that, so the capability is genuinely NOT delivered."
+
+    CONFIRMED PURELY DECLARATIVE. The note contains no question mark and no interrogative; it does not say the answer needs revisiting (it says the opposite: "the resolution above STANDS and is not reopened", "The resolved ANSWER is the part that matters and it is fully satisfied today"); and it adds no `###` heading. Every sentence records a fact or points at a tracker. OQ-03's `Blocking: yes` + `Status: resolved` pairing is therefore preserved, so no plan governed by this release-blocking spec is newly gated.
+
+    ```
+    $ aw specs check
+    aw specs check: all specs conform.
+    ```
+    Measured BEFORE the edit as well, with the identical result, so the spec conformed before and after (this build prints the summary line rather than the review's `29 checked, 0 findings` phrasing).
+  - Result: pass
 
 ## Approval and execution gate
 

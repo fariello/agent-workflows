@@ -173,6 +173,33 @@ HOST_NAMING_ONLY = ("print_status",)
 # only together with the reason the new documentation was needed.
 DOCUMENTED_SINCE_MOVE = ("plan_bucket",)
 
+# Symbols that ALREADY HAD a docstring in the pre-move capture and whose docstring TEXT was later
+# REVISED, with no executable change. ENUMERATED separately from `DOCUMENTED_SINCE_MOVE`, and the
+# separation is LOAD-BEARING rather than stylistic.
+#
+# WHY IT CANNOT BE THE SAME LIST, measured rather than reasoned about (IPD `2iye0e` E-04). The
+# `DOCUMENTED_SINCE_MOVE` route subtracts the docstring from the CURRENT body ONLY and then demands
+# equality with the capture VERBATIM, which is exactly right for a symbol that GAINED a docstring,
+# because the capture has none to subtract (`plan_bucket`'s captured body provably starts with no
+# docstring `Expr`). `describe_lane`'s captured body DOES start with one, so subtracting only from the
+# current side compares a body WITHOUT a docstring against a capture WITH one, which can never match.
+# Adding this name to `DOCUMENTED_SINCE_MOVE` was tried first and FAILED precisely there
+# (`test_every_clean_symbol_is_a_STRICT_fingerprint_match`), so this list subtracts the docstring from
+# BOTH SIDES.
+#
+# WHY THE EXEMPTION IS LEGITIMATE HERE. `describe_lane`'s docstring named plan `2c122z` as the live
+# OWNER of `aw doctor --lanes` and `aw recover`. That plan was RETIRED UNLANDED 2026-09-02, so the
+# sentence sent a reader to a plan that will never run; the verbs themselves still do not exist, so
+# only the ownership claim was wrong. Correcting a false citation is a documentation improvement, and
+# the alternative is the one this harness explicitly rejects elsewhere: re-baselining the recorded
+# pre-move capture, which would destroy the falsifiability the fixture exists for.
+#
+# THE EXEMPTION IS NARROW AND PROVEN BY SUBTRACTION, not asserted. Every remaining token on both
+# sides must match EXACTLY, so an edit to any executable statement still FAILS, which
+# `test_a_redocumented_symbol_is_still_held_to_its_executable_body` proves by mutation. Keep this list
+# SHORT, and add a name only together with the reason the documentation had to change.
+REDOCUMENTED_SINCE_MOVE = ("describe_lane",)
+
 # Symbols whose implementations have been SUPERSEDED by design in subsequent approved IPDs, and whose
 # post-move bodies deliberately no longer match the pre-move capture. ENUMERATED, in the same spirit
 # as `INJECTED` and `DOCUMENTED_SINCE_MOVE`.
@@ -313,6 +340,38 @@ def _without_docstring(node: ast.AST) -> ast.AST:
         # `len(body) > 1` guard keeps it rather than emitting an empty body.
         clone.body = body[1:]
     return clone
+
+
+def _capture_without_docstring(dumped: str) -> str:
+    """Return a CAPTURED fingerprint re-dumped with its leading docstring removed.
+
+    THE CAPTURE SIDE NEEDS ITS OWN SUBTRACTION, which is why this exists beside
+    `_without_docstring` rather than being folded into it (IPD `2iye0e` E-04, serving
+    `REDOCUMENTED_SINCE_MOVE`). `_without_docstring` strips the CURRENT source, which is all a symbol
+    that GAINED a docstring needs, because its capture has none. A symbol whose captured body ALREADY
+    contained a docstring needs the same subtraction applied to the CAPTURE too, or a stripped body is
+    compared against an unstripped capture and can never match. Measured: adding `describe_lane` to
+    `DOCUMENTED_SINCE_MOVE` failed for exactly that reason.
+
+    THIS IS STILL A SUBTRACTION, NOT A RE-BASELINE. The fixture on disk is never rewritten; the
+    recorded dump is parsed back into a tree, ONLY its leading string expression is dropped, and every
+    remaining token must match. The alternative - regenerating the fixture entry - would replace
+    recorded pre-move truth with a post-move value in the one file whose whole value is that a change
+    to it is suspicious.
+    """
+    namespace = {
+        name: getattr(ast, name) for name in dir(ast) if not name.startswith("_")
+    }
+    tree = eval(dumped, {"__builtins__": {}}, namespace)  # noqa: S307 - fixture-authored dump only
+    ast.fix_missing_locations(tree)
+    node = tree.body[0]
+    assert isinstance(
+        node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+    ), "a captured fingerprint must be a single def"
+    stripped = _without_docstring(node)
+    return _normalize_dump(
+        ast.dump(ast.parse(ast.unparse(stripped)), include_attributes=False)
+    )
 
 
 def fingerprint_of(module, name: str, *, drop_docstring: bool = False) -> str | None:
@@ -468,18 +527,34 @@ class PureMoveFingerprintTests(unittest.TestCase):
         )
         for name in clean:
             with self.subTest(symbol=name):
-                # A name in `DOCUMENTED_SINCE_MOVE` is compared with its docstring subtracted; every
-                # other name is compared STRICTLY, docstring included.
+                # A name in `DOCUMENTED_SINCE_MOVE` is compared with its docstring subtracted from the
+                # CURRENT side only (its capture has none to subtract). A name in
+                # `REDOCUMENTED_SINCE_MOVE` already had one in the capture, so the subtraction is
+                # applied to BOTH sides. Every other name is compared STRICTLY, docstring included.
                 documented = name in DOCUMENTED_SINCE_MOVE
+                redocumented = name in REDOCUMENTED_SINCE_MOVE
+                want = (
+                    _capture_without_docstring(expected[name])
+                    if redocumented
+                    else _normalize_dump(expected[name])
+                )
                 self.assertEqual(
-                    fingerprint_of(runner_shared, name, drop_docstring=documented),
-                    _normalize_dump(expected[name]),
+                    fingerprint_of(
+                        runner_shared, name, drop_docstring=documented or redocumented
+                    ),
+                    want,
                     f"`{name}` was NOT a pure move: its body differs from the pre-move "
                     f"capture at {data['captured_at_head']}"
                     + (
                         " (compared with its docstring subtracted, per DOCUMENTED_SINCE_MOVE, so "
                         "this failure is about an EXECUTABLE statement)"
                         if documented
+                        else ""
+                    )
+                    + (
+                        " (compared with the docstring subtracted from BOTH sides, per "
+                        "REDOCUMENTED_SINCE_MOVE, so this failure is about an EXECUTABLE statement)"
+                        if redocumented
                         else ""
                     ),
                 )
@@ -543,6 +618,66 @@ class PureMoveFingerprintTests(unittest.TestCase):
                         )
                     ),
                     _normalize_dump(expected[name]),
+                    f"an added statement in `{name}` was NOT detected; the exemption is too wide",
+                )
+
+    def test_a_redocumented_symbol_is_still_held_to_its_executable_body(self):
+        """The `REDOCUMENTED_SINCE_MOVE` exemption covers the docstring and NOTHING else.
+
+        Proves the two-sided subtraction is narrow rather than trusting the comment that says so. Each
+        exempt symbol must (a) genuinely have a docstring NOW and (b) have had one in the CAPTURE too,
+        which is the very thing that distinguishes this list from `DOCUMENTED_SINCE_MOVE` and makes the
+        one-sided route structurally unable to match; (c) still differ from the capture when compared
+        STRICTLY, so the exemption is necessary rather than decorative; and (d) FAIL when an executable
+        statement is also changed, which is what keeps this a subtraction and not a blanket pass.
+        """
+        data = load_fixture()
+        expected = data["fingerprints"]["oc_runipd"]
+        self.assertEqual(
+            set(REDOCUMENTED_SINCE_MOVE) & set(DOCUMENTED_SINCE_MOVE),
+            set(),
+            "a symbol belongs to exactly one docstring exemption",
+        )
+        for name in REDOCUMENTED_SINCE_MOVE:
+            with self.subTest(symbol=name):
+                fn = getattr(runner_shared, name)
+                self.assertTrue(
+                    (fn.__doc__ or "").strip(),
+                    f"`{name}` is listed as re-documented but has no docstring",
+                )
+                # (b) the CAPTURE must already contain a docstring, or this is the wrong list.
+                self.assertNotEqual(
+                    _capture_without_docstring(expected[name]),
+                    _normalize_dump(expected[name]),
+                    f"`{name}`'s pre-move capture has NO docstring to subtract, so it belongs in "
+                    "DOCUMENTED_SINCE_MOVE, not REDOCUMENTED_SINCE_MOVE",
+                )
+                # (c) it must genuinely fail the strict comparison.
+                self.assertNotEqual(
+                    fingerprint_of(runner_shared, name),
+                    _normalize_dump(expected[name]),
+                    f"`{name}` matches STRICTLY, so it does not need the exemption; "
+                    "remove it from REDOCUMENTED_SINCE_MOVE",
+                )
+                # (d) mutate one executable statement and require the subtraction to still refuse.
+                node = None
+                for cand in ast.parse(module_source(runner_shared)).body:
+                    if (
+                        isinstance(cand, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        and cand.name == name
+                    ):
+                        node = cand
+                assert node is not None
+                mutated = _without_docstring(node)
+                assert isinstance(mutated, (ast.FunctionDef, ast.AsyncFunctionDef))
+                mutated.body.append(ast.Return(value=ast.Constant(value="mutant")))
+                self.assertNotEqual(
+                    _normalize_dump(
+                        ast.dump(
+                            ast.parse(ast.unparse(mutated)), include_attributes=False
+                        )
+                    ),
+                    _capture_without_docstring(expected[name]),
                     f"an added statement in `{name}` was NOT detected; the exemption is too wide",
                 )
 

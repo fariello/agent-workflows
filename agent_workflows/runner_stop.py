@@ -32,19 +32,27 @@ no Windows equivalent, so the honest claim remains: the signal triggers require 
 text here may promise a working Windows subset. What IS implemented for A10's second half is LOUD
 failure rather than a silent no-op: `install_stop_signal_handlers` returns a per-trigger status and
 `render_trigger_support` renders whatever could not be installed, for the caller to print. The Windows
-process-tree kill remains owned by Set `wtiso` Phase 5 (`2c122z`); do not build a second one here
-(GUIDING_PRINCIPLES P8).
+process-tree kill is NOT IMPLEMENTED and has NO CURRENT OWNER: it was owned by Set `wtiso` Phase 5
+(`2c122z`), RETIRED UNLANDED 2026-09-02, and no successor plan is in flight. The prohibition stands
+regardless of who owns it: do not build a second process-tree kill here (GUIDING_PRINCIPLES P8). What
+DID land separately, so a reader does not assume a total gap, is cross-platform LOCKING (`platform_lock`,
+IPD `y6mfgo`); what is genuinely absent is the Windows kill itself.
 
 WHERE THE FLAG LIVES (spec `c4gd2h` OQ-03, RESOLVED). The stop request is per-machine CONTROL
 state and lives INSIDE the driver's run directory, as `<run_dir>/stop-request.json`, beside the
 existing `driver.lock`. It is resolved from the SAME accessor the drivers already use for
 `run_dir` (`oc_runipd.state_root` / `agy_runipd.state_root`), never from a root constructed here.
-That is deliberate: Set `wtiso` Phase 4 relocates the driver run root OUT of the repository to
-`platform_state.checkout_state_root(<checkout-id>)/runs/<run-id>/`, and because this module
-resolves through the shared accessor it inherits that relocation automatically. DO NOT "fix" this
-back into `<repo>/.aw/state` and do not resolve it from a worktree-relative path: an inner `aw`
+That is deliberate, and the REASON SURVIVES ITS ORIGINAL OWNER: relocating the driver run root OUT of
+the repository is NOT IMPLEMENTED and has no plan in flight (it was Set `wtiso` Phase 4, `58ha43`,
+RETIRED UNLANDED 2026-09-02, and the decision of whether to relocate at all is now tracked by backlog
+`e820ka`). Note that the accessors that retirement would have created, `platform_state.state_home` and
+`platform_state.checkout_state_root`, DO NOT EXIST on `main`, so do not go looking for them. Resolving
+through the shared accessor is what makes this module inherit ANY future relocation for free without
+being rewritten, which is why the indirection stays whether or not `e820ka` is ever built. DO NOT "fix"
+this back into `<repo>/.aw/state` and do not resolve it from a worktree-relative path: an inner `aw`
 would fork a second state tree the driver cannot see, and worktree teardown would destroy it
-(backlog `dh0uno`).
+(backlog `dh0uno`, whose one-control-root invariant is what `ipd_lifecycle.checkout_control_root`
+already enforces).
 
 WHY THERE IS A SIDECAR LOCK (do not "simplify" this away). Writing the record with
 `tempfile.mkstemp` + `os.replace` makes each WRITE atomic, but it does NOT serialize the
@@ -366,8 +374,11 @@ def resolve_stop_request_path(
 
     `state_root` must be the driver's accessor (`oc_runipd.state_root` /
     `agy_runipd.state_root`). Taking it as a parameter is what keeps this module from constructing
-    a second run root: when Set `wtiso` Phase 4 moves that accessor's answer out of the
-    repository, the flag moves with it and nothing here changes (spec OQ-03).
+    a second run root: if anything ever moves that accessor's answer out of the repository, the flag
+    moves with it and nothing here changes (spec OQ-03). That relocation is NOT IMPLEMENTED and has no
+    plan in flight (it was Set `wtiso` Phase 4, `58ha43`, RETIRED UNLANDED 2026-09-02; the decision is
+    tracked by backlog `e820ka`), and the indirection is correct regardless, because the point is to
+    have exactly ONE resolver rather than to anticipate one specific move.
     """
 
     return stop_request_path(state_root(Path(repo)) / run_id)
@@ -1614,8 +1625,10 @@ def refused_resume_event(item: dict, *, at: str) -> dict:
 # from `platform_lock` instead (IPD `y6mfgo`), so they now LOAD on a non-POSIX host. But loading is not
 # supporting. The SIGINT/SIGTERM ladder needs POSIX signal semantics and the process-tree kill has no
 # Windows equivalent, so this Set's honest platform claim for the TRIGGERS remains POSIX-ONLY, and no
-# text in this module may promise a working Windows subset. The Windows process-tree kill is owned by
-# Set `wtiso` Phase 5 (`2c122z`); building a second one here is forbidden (GUIDING_PRINCIPLES P8).
+# text in this module may promise a working Windows subset. The Windows process-tree kill is NOT
+# IMPLEMENTED and has NO CURRENT OWNER (it was Set `wtiso` Phase 5, `2c122z`, RETIRED UNLANDED
+# 2026-09-02, with no successor plan in flight); building a second one here is forbidden anyway
+# (GUIDING_PRINCIPLES P8), and the prohibition does not depend on someone else owning the work.
 # What IS implemented for A10's second half is the LOUD failure: `install_stop_signal_handlers`
 # reports each trigger it could not install rather than silently no-opping, and the caller prints it.
 

@@ -229,8 +229,10 @@ class RunLockHandle:
     OTHER live process now holds (the inode identity check in :meth:`holds_current_path`).
 
     This is deliberately a HANDLE plus a release step, not a lock abstraction: acquisition stays
-    in each driver's ``run_lock`` and the cross-platform ``platform_lock`` is owned elsewhere
-    (`wtiso` Phase 5, `2c122z`), which this Set must not duplicate (orchestrator CID-5).
+    in each driver's ``run_lock``, and the cross-platform lock ALREADY EXISTS at
+    ``agent_workflows/platform_lock.py``, shipped under IPD `y6mfgo` (which SUPERSEDES the
+    ``platform_lock`` portion of the since-retired `2c122z`). So acquire through that module and do
+    NOT hand-roll a second lock here (orchestrator CID-5).
     """
 
     path: Path
@@ -345,11 +347,16 @@ def observe_tree(repo: Path) -> tuple[bool, list[str], str]:
     Returns ``(observed, dirty_paths, detail)``. This is OBSERVE-AND-REPORT by design, not
     auto-quarantine: the house policy for un-owned dirty paths is REFUSE-AND-REPORT (see
     ``oc_runipd.dirty_tree_overlap`` and its caller, which refuse to integrate over a
-    contaminated base), and `wtiso` Phase 5 (`2c122z`) requires never auto-stashing, resetting,
-    or overwriting a dirty user main. An automatic ``git stash`` at stop time would also capture
-    edits a HUMAN made in their own checkout while a run happened to be in flight, exactly the
-    destructive, hard-to-reverse action GUIDING_PRINCIPLES 10 forbids. Any real relocation must
-    therefore be opt-in and operator-triggered, which this child does not implement.
+    contaminated base), and NEVER auto-stashing, resetting, or overwriting a dirty user main is
+    required by SURVIVING POLICY, namely GUIDING_PRINCIPLES 10 (safety and reversibility) and
+    AGENTS.md's shared-checkout rule that another party's uncommitted work is never reverted,
+    discarded, or stashed. That requirement is STILL IN FORCE and is grounded in the policy rather
+    than in any one plan: it was previously attributed here to `wtiso` Phase 5 (`2c122z`), which was
+    RETIRED UNLANDED 2026-09-02, and the rule outlives its retirement untouched. An automatic
+    ``git stash`` at stop time would capture edits a HUMAN made in their own checkout while a run
+    happened to be in flight, exactly the destructive, hard-to-reverse action that policy forbids.
+    Any real relocation must therefore be opt-in and operator-triggered, which this child does not
+    implement.
     """
 
     try:

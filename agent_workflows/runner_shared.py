@@ -839,7 +839,10 @@ def describe_lane(repo: Path, lane: dict[str, Any]) -> dict[str, Any]:
     """The E-01 classifier's reading of one recorded lane, shaped for reporting (E-06).
 
     The classifier is the SINGLE source of the reported facts; this adds no second git probe and no
-    new CLI verb (`aw doctor --lanes` and `aw recover` are owned by plan `2c122z`)."""
+    new CLI verb. `aw doctor --lanes` and `aw recover` are NOT IMPLEMENTED and have NO CURRENT OWNER:
+    that recovery surface belonged to plan `2c122z`, RETIRED UNLANDED 2026-09-02, with no successor
+    plan in flight (see backlog `e820ka` for the surviving tracker of the related state-relocation
+    decision). Neither verb exists today, so this stays a reporting shape and must not grow one."""
     from agent_workflows import worktree_lease
 
     lane_id = lane.get("lane_id") or lane.get("id6") or ""
