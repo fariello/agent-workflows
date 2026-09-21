@@ -41,18 +41,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish the live state, because one of the item's two defects is fictional
 
-- [ ] E-01 RE-VERIFY BOTH THE SURVIVING DEFECT AND THE RETRACTED ONE, and write both results down. This item was filed with a measurement error and corrected itself; the correction must be re-confirmed rather than trusted, and the surviving half must be re-confirmed rather than assumed still true.
+- [x] E-01 RE-VERIFY BOTH THE SURVIVING DEFECT AND THE RETRACTED ONE, and write both results down. This item was filed with a measurement error and corrected itself; the correction must be re-confirmed rather than trusted, and the surviving half must be re-confirmed rather than assumed still true.
   MEASURE THE EXIT CODE UNPIPED. `aw runs verify-ledger <real-run-id> >/dev/null 2>&1; echo $?` must print 2. DO NOT pipe the command through `head`, `grep` or anything else when reading `$?`: a pipeline reports the LAST stage's status, which is the exact error that produced this item's false defect 2. If you measure 0, then something regressed and this plan's shape changes; report it rather than proceeding.
   MEASURE THE LEDGER'S ABSENCE THREE WAYS, since it is the plan's whole premise: no `ledger.jsonl` anywhere in the repository; zero `run_ledger_store` or `RunLedgerStore` references in `oc_runipd.py` and `agy_runipd.py`; and the spec's own concession at `25kzda:29`. All three re-confirmed at review (0 files, 0 and 0, and the line reads "the ledger is built but UNWIRED").
   ENUMERATE EVERY LEAF THAT EMITS THE MESSAGE, BECAUSE THE FIX'S SIZE DEPENDS ON IT AND THE PLAN ORIGINALLY UNDER-COUNTED IT (F-10). Grep the literal `ledger file not found for target` and every `_resolve_or_error` caller. Measured at review: 3 inline emitters (`_run_show`, `_run_evidence`, `_run_verify_ledger`) plus 7 helper callers (`_run_start`, `_run_next`, `_run_record`, `_run_resume`, `_run_cancel`, `_run_status`, `_run_finalize`), 10 operator-facing leaves in total. Reproduce at least three of them live on a real run id and paste the identical output, so the shared-wording decision rests on your own measurement.
   IF A DRIVER HAS SINCE BEEN WIRED TO WRITE A LEDGER, STOP AND RE-SCOPE. The message this plan writes would then be false, which is worse than the vague message it replaces.
   - Depends on: none
   - Expected outcome: a written record of the unpiped exit code, the three absence measurements, the full leaf enumeration with inline-versus-helper split, at least three leaves reproduced live, and an explicit STOP if any result has changed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the refusal truthful
 
-- [ ] E-02 REPLACE THE BARE FILE-NOT-FOUND WITH A MESSAGE THAT NAMES THE REAL SITUATION, IN THE SHARED HELPER SO EVERY LEAF INHERITS IT.
+- [x] E-02 REPLACE THE BARE FILE-NOT-FOUND WITH A MESSAGE THAT NAMES THE REAL SITUATION, IN THE SHARED HELPER SO EVERY LEAF INHERITS IT.
   PUT THE WORDING IN `_resolve_or_error` (`run_cli.py:622-645`), NOT ONLY IN `_run_verify_ledger`'s branch (`:516-522`). Measured (F-10, F-11): the helper already has SEVEN callers and the identical sentence is duplicated inline in three more leaves, so writing the honest text in one leaf leaves it false in nine and adds a fourth copy of a string that already exists four times. The helper already emits through `_emit_error`, which handles both the human and machine paths, so one edit there is both the smallest and the most complete change available.
   THEN ROUTE THE THREE INLINE DUPLICATES THROUGH THE HELPER (`_run_show:288`, `_run_evidence:394`, `_run_verify_ledger:517`), so the wording has exactly one home. Note the inline sites return a literal `2` while the helper returns `EXIT_INVALID_INVOCATION`; verify those are the same value before routing (measured 2 at review) and paste the check, since silently changing an exit code is the one thing this plan forbids. If any inline site's surrounding behavior differs in a way routing would change, leave that site inline with the SAME new wording and say why.
   THE MESSAGE MUST DISTINGUISH THREE THINGS an operator conflates here: that this command reads the hash-chained `ledger.jsonl` owned by `run_ledger_store`; that NO driver run currently writes one, so the answer is "cannot verify" rather than "nothing wrong"; and that the drivers' own `events.jsonl` is a DIFFERENT file in a different format that does exist. The third clause is the item's fix #3 landing where the confusion actually happens.
@@ -63,20 +63,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   WRITE NO EM OR EN DASHES: this is operator-facing prose.
   - Depends on: E-01
   - Expected outcome: the honest wording lives in `_resolve_or_error` and reaches all ten leaves; the three inline duplicates route through it or carry the same wording with a stated reason; the text is true for action verbs as well as readers; exit stays 2 at every leaf; the machine record keeps its keys with only the text changed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 PROVE THE WORDING REACHES EVERY LEAF AND THAT NO LEAF NOW PRINTS SOMETHING FALSE, which is the check the shared placement makes necessary and the original per-leaf survey made unnecessary.
+- [x] E-03 PROVE THE WORDING REACHES EVERY LEAF AND THAT NO LEAF NOW PRINTS SOMETHING FALSE, which is the check the shared placement makes necessary and the original per-leaf survey made unnecessary.
   THE HELPER QUESTION IS ALREADY ANSWERED BY MEASUREMENT, SO DO NOT RE-DEBATE IT. `_resolve_or_error` exists with seven callers (F-11), so the "extract a helper only if two or more callers need it" test is satisfied before execution starts, and the answer is the opposite of what this plan first assumed. What remains is verification, not a design choice.
   RUN EVERY AFFECTED LEAF AGAINST A REAL RUN ID AND PASTE ITS OUTPUT. Ten leaves emit the message: `show`, `evidence`, `verify-ledger`, `start`, `next`, `record`, `resume`, `cancel`, `status`, `finalize`. Confirm each prints the new wording, each still exits 2, and each sentence is TRUE for that verb. A leaf that prints "cannot verify" when the operator asked to `cancel` is a new defect introduced by the fix.
   DISTINGUISH THE BARE-RUN-ID CASE FROM THE EXPLICIT-PATH CASE, which is the one piece of the original per-leaf reasoning that survives. `resolve_ledger_path` honours an explicit path verbatim, so for a caller who passed a real path that does not exist, "file not found" IS the whole truth and the no-driver-writes-one clause is noise. Decide whether the message distinguishes the two inputs, and if it does not, state why the combined wording is still true in both cases.
   DO NOT CHANGE ANY VERIFICATION BEHAVIOR while in this file. The chain verification, evidence validation and completion predicates are out of scope entirely. Note the five `RunLedgerStore(` construction sites (`:295`, `:401`, `:524`, `:698`, `:746`) are DOWNSTREAM of resolution and are not absent-file branches at all; the plan previously conflated the two counts, and touching them is out of scope.
   - Depends on: E-02
   - Expected outcome: all ten leaves exercised against a real run id with output pasted, each exiting 2 and each message true for its verb; the explicit-path case addressed explicitly; no verification logic and no `RunLedgerStore` construction site touched.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it
 
-- [ ] E-04 TEST THE MESSAGE AND PIN THE EXIT CODE, including the pipeline trap that produced this item's false defect.
+- [x] E-04 TEST THE MESSAGE AND PIN THE EXIT CODE, including the pipeline trap that produced this item's false defect.
   FIVE ASSERTIONS MINIMUM: the absent-ledger human message contains the three required clauses (the file it reads, that no driver writes one, and that `events.jsonl` is different); the exit code is 2, measured UNPIPED; the `--agent` record carries the same text with `ok: False` and `exit_code: 2` and unchanged keys; a PRESENT, valid ledger still verifies clean with its existing exit code, proving the happy path is untouched; and AT LEAST ONE NON-`verify-ledger` LEAF gets the same honest message, which is the assertion that pins the shared placement so a later refactor cannot quietly return the wording to one leaf (F-10).
   PARAMETERIZE THE MESSAGE ASSERTION ACROSS THE LEAVES rather than testing `verify-ledger` alone. Ten leaves emit it; a test covering one would pass against the exact defect this plan is correcting. Cover at least `verify-ledger`, one other inline site (`show` or `evidence`), and one helper-only site (`status` is the cheapest read-only choice).
   ASSERT THE EXIT CODE WITHOUT A PIPELINE, and say so in the test's own comment naming why: this item exists in its corrected form precisely because a piped `$?` reported `head`'s status. A test that captures output through a pipe and then reads a return code is repeating the original error in a place that will be trusted.
@@ -84,7 +84,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   RUN THE SUITE BARE (`python3 -m pytest`) and judge on the DELTA. Re-measured at review on main: `1 failed, 5919 passed, 3 skipped, 2 xfailed`, and the failing node is the ENVIRONMENTAL `tests/test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose` (a gitignored local dump), which may be absent in your worktree. The plan's earlier figure (`1 failed, 5648 passed`) and its attribution to `tests/test_orchestrator_retirement.py` are BOTH wrong: that file PASSES (`112 passed`, measured with `-o addopts=""`). MEASURE YOUR OWN BEFORE-BASELINE and compare failing NODE IDS, never counts.
   - Depends on: E-03
   - Expected outcome: five assertions passing with the message assertion parameterized across at least three leaves, the exit code pinned unpiped with the reason commented, a fixture-based happy path, and a bare-suite failing node-id set identical to the executor's own before-baseline.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -191,25 +191,374 @@ The refusal text is OPERATOR-FACING PROSE: write no em or en dashes, do not impl
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the UNPIPED exit-code measurement (`cmd >/dev/null 2>&1; echo $?`) showing 2, and state explicitly that no pipeline was used. Paste all three absence measurements: the `ledger.jsonl` search, the per-driver `run_ledger_store` counts, and the spec line. PASTE THE TEN-LEAF ENUMERATION with each leaf classified inline or helper-routed, and paste the live output of at least three leaves on a real run id showing the identical message (F-10). If any result differs from this plan's premise, paste the STOP and do not proceed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Unpiped exit code measured 2 before any edit (no pipeline: redirect then read `$?`); all three absence measurements confirm the ledger is unwired (0 `ledger.jsonl` files, 0 store references in each driver); the ten-leaf enumeration resolved exactly as F-10 states (3 inline + 7 helper-routed) and SIX leaves were reproduced live printing the identical misleading line at exit 2. Two CITATION corrections, neither a premise failure: the spec's "built but UNWIRED" string was rewritten on 2026-09-20 and the fact now reads at `:59-62`, and `oc_runipd.py` says "ledger" 9 times rather than 13. No driver has been wired to write a ledger, so the STOP condition did not fire. Full measurements below.
 
-- [ ] V-02 validates E-02
+    UNPIPED EXIT CODE, BEFORE ANY EDIT. NO PIPELINE WAS USED: stdout and stderr were redirected to `/dev/null` and `$?` was read on the next command, so the status is the command's own and not a downstream stage's.
+
+    ```
+    $ aw runs verify-ledger run-20260921T105933Z-1994623 >/dev/null 2>&1; echo "exit=$?"
+    exit=2
+    ```
+
+    So the item's retracted defect 2 stays retracted: the absent path exits 2, exactly as `return 2` intends. Nothing regressed and the plan's shape is unchanged.
+
+    THE THREE ABSENCE MEASUREMENTS, all three confirming the surviving defect 1.
+
+    ```
+    $ find . -name ledger.jsonl -not -path './.git/*' | wc -l
+    0
+    $ grep -c 'run_ledger_store\|RunLedgerStore' agent_workflows/oc_runipd.py
+    0
+    $ grep -c 'run_ledger_store\|RunLedgerStore' agent_workflows/agy_runipd.py
+    0
+    ```
+
+    THE SPEC LINE, WITH ONE CORRECTION TO THIS PLAN'S CITATION. Spec `25kzda` is `.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` (`- Id: 25kzda`). This plan cites `:29` reading "the ledger is built but UNWIRED"; that exact string is NO LONGER PRESENT (`grep -n -i 'unwired\|built but'` returns nothing in that file), because the spec's preamble was rewritten on 2026-09-20 by plan `wenmg4`. The FACT the plan relies on is intact and now stated at `:59-62`, so this is citation rot rather than a premise failure and is not a STOP:
+
+    ```
+    STILL NET-NEW and to be built: the hash-chained run ledger's `AW-Run:`/`AW-Item:` commit
+    trailers (the ledger AND the writer are built - `git_commit_helper.run_item_trailers` formats them -
+    but NOTHING PASSES THEM: zero of 3764 commits across all refs carry an `AW-Run` trailer; plan `wao266`
+    from backlog `a8eufb` owns the wiring)
+    ```
+
+    The spec's own preamble additionally instructs a reader to re-measure rather than trust a dated snapshot, which is what the two greps above did.
+
+    THE DRIVER'S 13 "ledger" MENTIONS ARE NOW 9, a second citation correction with no bearing on the fix: `grep -c ledger agent_workflows/oc_runipd.py` returns 9 (`grep -o ... | wc -l` also 9). The two-substrate naming trap the count illustrates is unchanged; only the number moved.
+
+    THE TEN-LEAF ENUMERATION, classified. Derived by grepping the message literal and every `_resolve_or_error` caller, then mapping each hit to its enclosing function:
+
+    ```
+    $ grep -rn 'ledger file not found for target' agent_workflows/
+    agent_workflows/run_cli.py:288  -> _run_show          INLINE
+    agent_workflows/run_cli.py:394  -> _run_evidence      INLINE
+    agent_workflows/run_cli.py:517  -> _run_verify_ledger INLINE
+    agent_workflows/run_cli.py:633  -> _resolve_or_error  SHARED HELPER
+
+    $ grep -rn '_resolve_or_error' agent_workflows/run_cli.py
+    :622 definition
+    :812 -> _run_start     HELPER-ROUTED (action verb)
+    :867 -> _run_next      HELPER-ROUTED (reader)
+    :916 -> _run_record    HELPER-ROUTED (action verb)
+    :994 -> _run_resume    HELPER-ROUTED (reader)
+    :1054 -> _run_cancel   HELPER-ROUTED (action verb)
+    :1090 -> _run_status   HELPER-ROUTED (reader)
+    :1130 -> _run_finalize HELPER-ROUTED (action verb)
+    ```
+
+    Ten operator-facing leaves: 3 inline emitters plus 7 helper-routed callers. Every line number in F-10 resolved exactly, so that finding needed no correction. All four literal occurrences were byte-identical.
+
+    SIX LEAVES REPRODUCED LIVE BEFORE THE EDIT (more than the three required), each printing the identical misleading line and exiting 2:
+
+    ```
+    === aw runs show run-20260921T105933Z-1994623 ===
+    error: ledger file not found for target 'run-20260921T105933Z-1994623'
+    exit=2
+    === aw runs evidence run-20260921T105933Z-1994623 ===
+    error: ledger file not found for target 'run-20260921T105933Z-1994623'
+    exit=2
+    === aw runs verify-ledger run-20260921T105933Z-1994623 ===
+    error: ledger file not found for target 'run-20260921T105933Z-1994623'
+    exit=2
+    === aw runs status run-20260921T105933Z-1994623 ===
+    error: ledger file not found for target 'run-20260921T105933Z-1994623'
+    exit=2
+    === aw runs next run-20260921T105933Z-1994623 ===
+    error: ledger file not found for target 'run-20260921T105933Z-1994623'
+    exit=2
+    === aw runs resume run-20260921T105933Z-1994623 ===
+    error: ledger file not found for target 'run-20260921T105933Z-1994623'
+    exit=2
+    ```
+
+    The four `aw run` writers (`start`, `record`, `cancel`, `finalize`) were reproduced identically in the same pass.
+
+    NO DRIVER HAS BEEN WIRED TO WRITE A LEDGER, so the message this plan writes is true and the STOP condition did not fire.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the new human message VERBATIM and identify its three clauses one by one. Paste the DIFF of `_resolve_or_error` showing the wording landed in the shared helper, and show the three inline sites either routed through it or carrying the same wording with the stated reason (F-11). Paste the `--agent` record showing the same text, `ok: False`, `exit_code: 2` and unchanged KEYS. Paste the unpiped exit code AFTER the change, still 2. Confirm the shared wording is TRUE for an action verb by pasting one action leaf's output (F-13) and stating in one sentence why the text is not false for a caller who was not verifying. Paste a search showing the prose contains no em or en dash, and confirm in one sentence that the message asserts nothing about the run's health.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. The honest wording lives in ONE builder, `_ledger_not_found_message`, called by the shared `_resolve_or_error` (so all seven helper callers inherit it) and by the three inline emitters, leaving exactly one construction of the sentence in the package where there were four. The three inline sites keep their OWN emit shape, which E-02 explicitly permits, because routing them would silently change their machine payload's `error: ` prefix, a divergence approved sibling plan `d91i3e` declares as its own work. Exit stays 2 everywhere, machine keys are unchanged (`error`, `exit_code`, `ok`), an action verb prints text that is true for it, and no em or en dash appears. Full evidence below.
 
-- [ ] V-03 validates E-03
+    THE NEW HUMAN MESSAGE, VERBATIM (from `aw runs verify-ledger <real-run-id>`):
+
+    ```
+    error: ledger file not found for target 'run-20260921T105933Z-1994623': this reads the hash-chained ledger.jsonl, and no driver run writes one today, so there is nothing here to read rather than something missing from this run. The drivers' own events.jsonl is a different file in a different format and is not a ledger.
+    ```
+
+    ITS THREE CLAUSES, one by one.
+    1. WHICH FILE THIS READS: "this reads the hash-chained ledger.jsonl". The operator now knows what was looked for, which is the file `run_ledger_store` owns.
+    2. THAT NO DRIVER WRITES ONE: "and no driver run writes one today, so there is nothing here to read rather than something missing from this run". This is the clause that converts a puzzling absence into a known limitation, and it is the whole point of the change (OQ-01 resolved to say the stronger, measured thing).
+    3. THAT `events.jsonl` IS DIFFERENT: "The drivers' own events.jsonl is a different file in a different format and is not a ledger". This is the item's fix #3 landing where the confusion actually happens, beside the `--help` note that already shipped.
+
+    THE WORDING LANDED IN THE SHARED HELPER. Diff of `_resolve_or_error`:
+
+    ```diff
+    @@ -628,9 +703,12 @@ def _resolve_or_error(args: argparse.Namespace) -> tuple[Optional[Path], int]:
+         ledger_file = resolve_ledger_path(target, getattr(args, "dir", None))
+         if not ledger_file:
+    +        # The wording lives in `_ledger_not_found_message` so this helper's SEVEN callers and the
+    +        # three inline emitters cannot drift apart (`i1hlgx`). The message deliberately states no
+    +        # verb of its own, because six of this helper's callers are ACTION verbs.
+             return None, _emit_error(
+                 args,
+    -            f"ledger file not found for target '{target}'",
+    +            _ledger_not_found_message(target),
+                 EXIT_INVALID_INVOCATION,
+             )
+         return ledger_file, EXIT_OK
+    ```
+
+    THE THREE INLINE SITES CARRY THE SAME WORDING FROM THE SAME BUILDER, AND THE STATED REASON THEY ARE NOT ROUTED. All three now read the text from `_ledger_not_found_message` (identical hunk at `_run_show:351`, `_run_evidence:460`, `_run_verify_ledger:586`):
+
+    ```diff
+         if not ledger_file:
+    -        err_msg = f"error: ledger file not found for target '{target}'"
+    +        # Text from the ONE builder (`i1hlgx`); the emit shape stays this leaf's own, because its
+    +        # machine payload bakes in the `error: ` prefix that `_emit_error` adds only on the human
+    +        # path, and reconciling that split is plan `d91i3e`'s declared work, not this plan's.
+    +        err_msg = f"error: {_ledger_not_found_message(target)}"
+             if machine:
+                 _emit_machine(args, {"ok": False, "error": err_msg, "exit_code": 2})
+    ```
+
+    THE REASON, which E-02 explicitly permits ("If any inline site's surrounding behavior differs in a way routing would change, leave that site inline with the SAME new wording and say why"). Routing them through `_resolve_or_error` WOULD change behavior beyond the message text: the inline sites bake `error: ` INTO the machine payload string, while `_emit_error` adds that prefix only on the human path. Measured before the edit on the same run id:
+
+    ```
+    $ aw runs show <id> --agent
+    {"error":"error: ledger file not found for target '<id>'","exit_code":2,"ok":false}
+    $ aw runs status <id> --agent
+    {"error":"ledger file not found for target '<id>'","exit_code":2,"ok":false}
+    ```
+
+    That `error:`-prefix split is a real machine-payload divergence, and reconciling it is the DECLARED work of approved sibling plan `d91i3e` (its E-01 "RECONCILE THE `error:` PREFIX SPLIT while consolidating (F-17) ... Pick one convention, state which, and pin it", with `agent_workflows/run_cli.py` in its `Scope-Paths`). Silently changing an agent-visible payload here would move a contract that another approved plan owns and is being written against, so the wording is single-homed (one definition, zero duplication) while each site keeps its existing emit shape. THE SINGLE-HOMING GOAL IS FULLY MET, measured after the edit: exactly ONE construction of the sentence remains in the package.
+
+    ```
+    $ grep -rn "ledger file not found" agent_workflows/*.py
+    agent_workflows/run_cli.py:301:    `ledger file not found for target '<id>'`. That is an accurate statement about a FILE and a
+    agent_workflows/run_cli.py:328:    bare = f"ledger file not found for target '{target}'"
+    ```
+
+    (`:301` is docstring prose; `:328` is the one builder. Before the edit there were four separate constructions.)
+
+    THE `--agent` RECORD, same text, `ok: false`, `exit_code: 2`, KEYS UNCHANGED (`error`, `exit_code`, `ok`, exactly as before):
+
+    ```
+    $ aw runs verify-ledger run-20260921T105933Z-1994623 --agent
+    {"error":"error: ledger file not found for target 'run-20260921T105933Z-1994623': this reads the hash-chained ledger.jsonl, and no driver run writes one today, so there is nothing here to read rather than something missing from this run. The drivers' own events.jsonl is a different file in a different format and is not a ledger.","exit_code":2,"ok":false}
+    ```
+
+    THE UNPIPED EXIT CODE AFTER THE CHANGE IS STILL 2, again with no pipeline (redirect, then read `$?`):
+
+    ```
+    $ aw runs verify-ledger run-20260921T105933Z-1994623 >/dev/null 2>&1; echo "exit=$?"
+    exit=2
+    ```
+
+    AN ACTION VERB PRINTS IT AND IT IS NOT FALSE (F-13). `aw run cancel`, a writer, not a reader:
+
+    ```
+    $ aw run cancel run-20260921T105933Z-1994623
+    error: ledger file not found for target 'run-20260921T105933Z-1994623': this reads the hash-chained ledger.jsonl, and no driver run writes one today, so there is nothing here to read rather than something missing from this run. The drivers' own events.jsonl is a different file in a different format and is not a ledger.
+    exit=2
+    ```
+
+    WHY THE TEXT IS NOT FALSE FOR A CALLER WHO WAS NOT VERIFYING: every clause is a statement about the FILE and the world (which file this family reads, that no driver writes one, that `events.jsonl` is a different thing) and none is a statement about what the caller asked to do, so it never says "cannot verify" and reads correctly for `cancel`, `start`, `record` and `finalize` as well as for the readers.
+
+    NO EM OR EN DASH in either changed file:
+
+    ```
+    $ grep -c '[em-dash or en-dash]' agent_workflows/run_cli.py tests/test_run_cli_ledger_message.py
+    agent_workflows/run_cli.py:0
+    tests/test_run_cli_ledger_message.py:0
+    ```
+
+    THE MESSAGE ASSERTS NOTHING ABOUT THE RUN'S HEALTH: it says only that the file is not there and that no driver writes one, never that this run is fine, that it is broken, or that a ledger will appear later, and it does not ask the operator to file a bug; `test_refusal_asserts_nothing_about_the_run_health` pins that prohibition.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the OUTPUT AND UNPIPED EXIT CODE of every one of the ten affected leaves against a real run id (`show`, `evidence`, `verify-ledger`, `start`, `next`, `record`, `resume`, `cancel`, `status`, `finalize`), showing each prints the new wording, each exits 2, and each sentence is true for that verb. Name the seven helper callers that justified the shared placement. State how the EXPLICIT-PATH case is handled (distinguished, or covered by wording true in both cases, with the reason). Paste a search proving no verification logic (chain, evidence, completion) was modified and that none of the five `RunLedgerStore(` construction sites was touched.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All ten leaves print the new wording and exit 2 unpiped; each sentence is true for its verb because the text makes only file-and-world claims and never names an operation. The explicit-path case is DISTINGUISHED (a named path keeps the bare sentence, since the resolver honours it verbatim). The diff touches no `RunLedgerStore(` construction site, no chain/evidence/completion predicate, and no exit code. Full evidence below.
 
-- [ ] V-04 validates E-04
+    ALL TEN LEAVES, run against the same run id, each printing the new wording and each exiting 2 with NO pipeline. The six readers:
+
+    ```
+    === aw runs show ===
+    error: ledger file not found for target 'run-20260921T105933Z-1994623': this reads the hash-chained ledger.jsonl, and no driver run writes one today, so there is nothing here to read rather than something missing from this run. The drivers' own events.jsonl is a different file in a different format and is not a ledger.
+    exit=2
+    === aw runs evidence ===
+    error: ledger file not found for target 'run-20260921T105933Z-1994623': this reads the hash-chained ledger.jsonl, and no driver run writes one today, so there is nothing here to read rather than something missing from this run. The drivers' own events.jsonl is a different file in a different format and is not a ledger.
+    exit=2
+    === aw runs verify-ledger ===
+    error: ledger file not found for target 'run-20260921T105933Z-1994623': this reads the hash-chained ledger.jsonl, and no driver run writes one today, so there is nothing here to read rather than something missing from this run. The drivers' own events.jsonl is a different file in a different format and is not a ledger.
+    exit=2
+    === aw runs status ===
+    error: ledger file not found for target 'run-20260921T105933Z-1994623': this reads the hash-chained ledger.jsonl, and no driver run writes one today, so there is nothing here to read rather than something missing from this run. The drivers' own events.jsonl is a different file in a different format and is not a ledger.
+    exit=2
+    === aw runs next ===
+    error: ledger file not found for target 'run-20260921T105933Z-1994623': this reads the hash-chained ledger.jsonl, and no driver run writes one today, so there is nothing here to read rather than something missing from this run. The drivers' own events.jsonl is a different file in a different format and is not a ledger.
+    exit=2
+    === aw runs resume ===
+    error: ledger file not found for target 'run-20260921T105933Z-1994623': this reads the hash-chained ledger.jsonl, and no driver run writes one today, so there is nothing here to read rather than something missing from this run. The drivers' own events.jsonl is a different file in a different format and is not a ledger.
+    exit=2
+    ```
+
+    The four writers:
+
+    ```
+    === aw run start ===
+    error: ledger file not found for target 'run-20260921T105933Z-1994623': this reads the hash-chained ledger.jsonl, and no driver run writes one today, so there is nothing here to read rather than something missing from this run. The drivers' own events.jsonl is a different file in a different format and is not a ledger.
+    exit=2
+    === aw run record ===
+    error: ledger file not found for target 'run-20260921T105933Z-1994623': this reads the hash-chained ledger.jsonl, and no driver run writes one today, so there is nothing here to read rather than something missing from this run. The drivers' own events.jsonl is a different file in a different format and is not a ledger.
+    exit=2
+    === aw run cancel ===
+    error: ledger file not found for target 'run-20260921T105933Z-1994623': this reads the hash-chained ledger.jsonl, and no driver run writes one today, so there is nothing here to read rather than something missing from this run. The drivers' own events.jsonl is a different file in a different format and is not a ledger.
+    exit=2
+    === aw run finalize ===
+    error: ledger file not found for target 'run-20260921T105933Z-1994623': this reads the hash-chained ledger.jsonl, and no driver run writes one today, so there is nothing here to read rather than something missing from this run. The drivers' own events.jsonl is a different file in a different format and is not a ledger.
+    exit=2
+    ```
+
+    EACH SENTENCE IS TRUE FOR ITS VERB: the text makes only file-and-world claims and never names an operation, so nothing in it is specific to verifying; `cancel` is told what file was missing and why none exists, not that something "cannot be verified".
+
+    ONE MEASUREMENT NOTE A LATER READER NEEDS. The installed `aw` console script resolves `agent_workflows` from the MAIN checkout, not from this lane worktree (confirmed: emulating the console script's `sys.path`, which has no CWD entry, it imports the MAIN checkout's `agent_workflows/__init__.py` rather than the lane's). Every output above was therefore produced by invoking the LANE's package explicitly, `python3 -c "import sys;sys.path.insert(0,'<lane>');from agent_workflows.cli import main;sys.exit(main(sys.argv[1:]))" <argv>`, which is the same entry point `aw` uses. A bare `aw` in a lane measures the wrong tree and silently shows the OLD message; that trap cost one debugging cycle here and is worth knowing before trusting a lane measurement.
+
+    THE SEVEN HELPER CALLERS that justified the shared placement, all of `_resolve_or_error`: `_run_start`, `_run_next`, `_run_record`, `_run_resume`, `_run_cancel`, `_run_status`, `_run_finalize`. Six of the ten leaves are action verbs (`start`, `record`, `cancel`, `finalize` under `aw run`) or readers reached through the same helper, which is why the shared text names no verb.
+
+    THE EXPLICIT-PATH CASE IS DISTINGUISHED, not merely covered. `_target_names_a_path` returns the BARE sentence when the target is spelled as a path (a separator, or a `.jsonl` suffix), because `resolve_ledger_path` honours an explicit path verbatim: an operator who named a file asked about THAT file, so "no driver run writes one" would answer a question they did not ask. Measured:
+
+    ```
+    $ aw runs verify-ledger ./no/such/ledger.jsonl
+    error: ledger file not found for target './no/such/ledger.jsonl'
+    exit=2
+    ```
+
+    The test is deliberately conservative and syntactic, so an ambiguous target falls to the run-id side and receives the fuller message: an extra true clause costs one sentence, while omitting it would return the operator to the exact bare message this plan replaces. `test_an_explicit_path_that_is_absent_keeps_the_bare_sentence` pins the inversion.
+
+    NO VERIFICATION LOGIC WAS MODIFIED AND NO `RunLedgerStore(` SITE WAS TOUCHED. Searching the diff itself, which is stronger than searching the file:
+
+    ```
+    $ git diff -U0 agent_workflows/run_cli.py | grep -E '^[+-]' | grep 'RunLedgerStore('
+    (no output)
+    $ git diff -U0 agent_workflows/run_cli.py | grep -E '^[+-]' | grep -E 'verify_chain|validate_ledger_evidence|evaluate_completion|read_records'
+    (no output)
+    $ git diff -U0 agent_workflows/run_cli.py | grep -E '^[+-]' | grep -E 'return [0-9]|EXIT_'
+    +    The EXIT CODE is unchanged at `EXIT_INVALID_INVOCATION` (2) everywhere, which executed plan
+    ```
+
+    The single `EXIT_` hit is docstring prose, so no exit code moved, no chain/evidence/completion predicate changed, and all five store construction sites (`:295`, `:401`, `:524`, `:698`, `:746` before the edit) are untouched.
+
+    ```
+    $ git diff --stat
+     agent_workflows/run_cli.py | 86 +++++++++++++++++++++++++++++++++++++++++++---
+     1 file changed, 82 insertions(+), 4 deletions(-)
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the ACTUAL passing output of all FIVE assertions, including the cross-leaf parameterization covering at least `verify-ledger`, one other inline site, and one helper-only site (F-10). QUOTE the exit-code assertion and its comment, showing it measures without a pipeline and says why. Paste the fixture-ledger happy-path result with its exit code, proving the absent branch alone changed. THEN paste YOUR OWN before-baseline and the after run of BARE `python3 -m pytest`, and state the failing NODE-ID delta explicitly rather than comparing counts.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Five assertions pass, parameterized across all three emit classes (`verify-ledger` inline, `show` a second inline, `status` helper-routed, `run cancel` a helper-routed ACTION verb); the exit code is taken from `cli.main`'s own return with no pipeline and a comment naming the trap; the fixture happy path still exits 0. The tests were PROVEN falsifiable by failing against stashed unfixed code. Bare-suite failing NODE-ID delta is EMPTY: before `{test_turn_bounds::...::test_the_permission_policy_by_contrast_IS_isolation_scoped}` plus the two new tests correctly failing, after that same single node id only, and that one failure is demonstrated environmental (it passes with `OPENCODE_CONFIG_CONTENT` unset). Full evidence below.
+
+    ALL FIVE ASSERTIONS PASSING, named:
+
+    ```
+    $ python3 -m pytest tests/test_run_cli_ledger_message.py -o addopts="" -v
+    tests/test_run_cli_ledger_message.py::TestPresentLedgerIsUnaffected::test_verify_ledger_on_a_present_valid_ledger_still_exits_clean PASSED [ 20%]
+    tests/test_run_cli_ledger_message.py::TestAbsentLedgerRefusalIsTruthful::test_machine_payload_carries_the_same_text_with_unchanged_keys PASSED [ 40%]
+    tests/test_run_cli_ledger_message.py::TestAbsentLedgerRefusalIsTruthful::test_every_leaf_states_all_three_clauses_and_exits_two PASSED [ 60%]
+    tests/test_run_cli_ledger_message.py::TestAbsentLedgerRefusalIsTruthful::test_an_explicit_path_that_is_absent_keeps_the_bare_sentence PASSED [ 80%]
+    tests/test_run_cli_ledger_message.py::TestAbsentLedgerRefusalIsTruthful::test_refusal_asserts_nothing_about_the_run_health PASSED [100%]
+
+    ============================== 5 passed in 0.60s ===============================
+    ```
+
+    Mapped to the five required assertions: the three message clauses and the exit code are asserted together per leaf by `test_every_leaf_states_all_three_clauses_and_exits_two`; the machine record by `test_machine_payload_carries_the_same_text_with_unchanged_keys`; the untouched happy path by `test_verify_ledger_on_a_present_valid_ledger_still_exits_clean`; the cross-leaf placement pin by the `LEAVES` table inside the first test; plus two beyond the minimum, the health-claim prohibition and the explicit-path inversion.
+
+    THE CROSS-LEAF PARAMETERIZATION covers all three emit classes, as required: `runs verify-ledger` (inline), `runs show` (a SECOND inline site), `runs status` (helper-routed, read-only) and `run cancel` (helper-routed ACTION VERB). A single-leaf test would have passed against the very defect being fixed, which is why the table exists.
+
+    THE EXIT-CODE ASSERTION MEASURES WITHOUT A PIPELINE, quoted with the comment saying why:
+
+    ```python
+        def _exit_code_unpiped(self, *argv: str) -> Tuple[int, str]:
+            """Return (exit code, stdout). The code is `cli.main`'s own return, not a pipeline's."""
+            with patch("sys.stdout", new_callable=io.StringIO) as out:
+                rc = cli.main(list(argv))
+            return rc, out.getvalue()
+    ```
+
+    and the module docstring naming the trap:
+
+    ```
+    THE EXIT CODE IS MEASURED WITHOUT A PIPELINE, AND THAT IS THE POINT OF `_exit_code_unpiped`. The
+    backlog item this graduates from originally claimed the command exited 0 on an absent ledger and
+    told a reader to hunt for lost plumbing. It does not, and never did: the original measurement piped
+    the command through `head`, so the `$?` read was `head`'s status rather than the command's. Reading
+    a return code through a pipe in a TEST would enshrine that very error in the place most likely to be
+    trusted, so these tests take the return value of the call directly and capture output by patching
+    `sys.stdout` rather than through any pipeline.
+    ```
+
+    The code asserted is `cli.main`'s own return value, so no downstream stage can mask it, and the assertion is `assertEqual(run_cli.EXIT_INVALID_INVOCATION, rc)` (2) per leaf.
+
+    THE FIXTURE HAPPY PATH proves only the absent branch changed: `test_verify_ledger_on_a_present_valid_ledger_still_exits_clean` builds a real hash-chained ledger in a temp dir (none exists in the repository, which is the plan's premise), asserts `run_cli.EXIT_OK` (0), and asserts the refusal's unwired clause is ABSENT from a present ledger's output. It passes, as shown above.
+
+    THE TESTS FAIL AGAINST THE UNFIXED CODE, which is what makes them falsifiable rather than decorative. Measured during the before-baseline, with `run_cli.py` stashed to HEAD and the new test file present:
+
+    ```
+    E       runs verify-ledger (inline emitter, and the leaf the item was filed against): refusal is missing the 'events' clause ('events.jsonl'); got "error: ledger file not found for target 'run-abcdef1234'\n"
+    E       runs show (a SECOND inline emitter): refusal is missing the 'file' clause ('ledger.jsonl'); got "error: ledger file not found for target 'run-abcdef1234'\n"
+    E       runs status (helper-routed, read-only): refusal is missing the 'unwired' clause ('no driver run writes one'); got "error: ledger file not found for target 'run-abcdef1234'\n"
+    E       run cancel (helper-routed, and an ACTION VERB): refusal is missing the 'events' clause ('events.jsonl'); got "error: ledger file not found for target 'run-abcdef1234'\n"
+    ```
+
+    All four leaf classes reported the original misleading line, confirming the tests detect the real defect at every emit path.
+
+    MY OWN BEFORE-BASELINE, bare `python3 -m pytest`, with `agent_workflows/run_cli.py` stashed to HEAD and the new test module present (so the new failures are the new tests correctly failing against unfixed code):
+
+    ```
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    FAILED tests/test_run_cli_ledger_message.py::TestAbsentLedgerRefusalIsTruthful::test_machine_payload_carries_the_same_text_with_unchanged_keys
+    FAILED tests/test_run_cli_ledger_message.py::TestAbsentLedgerRefusalIsTruthful::test_every_leaf_states_all_three_clauses_and_exits_two
+    3 failed, 7945 passed, 3 skipped, 2 xfailed, 3 warnings in 110.50s (0:01:50)
+    ```
+
+    PRE-EXISTING FAILING NODE-ID SET (independent of this plan): `{tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped}`.
+
+    AFTER, bare `python3 -m pytest` with the fix in place:
+
+    ```
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    1 failed, 7947 passed, 3 skipped, 2 xfailed, 3 warnings in 108.15s (0:01:48)
+    ```
+
+    THE NODE-ID DELTA, stated as node ids and not as counts: the AFTER failing set equals the pre-existing BEFORE set exactly, `{tests/test_turn_bounds.py::...::test_the_permission_policy_by_contrast_IS_isolation_scoped}`. Nothing was added; the two new-test failures present in the before-run are RESOLVED by the fix, which is the intended direction.
+
+    THAT ONE FAILURE IS ENVIRONMENTAL AND NOT MINE, demonstrated rather than asserted. It fails because `OPENCODE_CONFIG_CONTENT` is exported into this agent turn's own environment and leaks into the test's non-isolated control case. Unsetting only that variable turns the whole module green, and the file is neither in this plan's `Scope-Paths` nor touched by this change:
+
+    ```
+    $ env | grep -c OPENCODE_CONFIG_CONTENT
+    1
+    $ env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py -o addopts="" -q
+    ...........................................                              [100%]
+    43 passed in 4.75s
+    ```
+
+    ADJACENT REGRESSION SUITES, the `run_cli` neighbours most able to catch an unintended change:
+
+    ```
+    $ python3 -m pytest tests/test_run_recovery_cli.py tests/test_run_evidence_completion.py tests/test_run_noun_split.py tests/test_run_cli_ledger_message.py -o addopts="" -q
+    148 passed in 8.28s
+    ```
+
+    `aw sanitize --agent` CLEAN:
+
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
