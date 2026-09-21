@@ -241,6 +241,10 @@ def resolve_ledger_path(
 
     An EXPLICIT path argument is still honoured verbatim, whatever it is named, so an operator can
     point the reader at a ledger stored anywhere; the shape check downstream decides what it is.
+
+    The NOT-FOUND MESSAGE carries the same two-substrate distinction this docstring records: see
+    `_ledger_not_found_message` below, which is the one place the refusal is worded, so a future
+    reader editing either place finds the other (`i1hlgx`).
     """
     if not target:
         return None
@@ -269,6 +273,68 @@ def resolve_ledger_path(
     return None
 
 
+def _target_names_a_path(target: str) -> bool:
+    """True when the target was spelled as a PATH rather than as a bare run id.
+
+    This exists only to keep `_ledger_not_found_message` from printing a clause that is irrelevant.
+    `resolve_ledger_path` honours an explicit path VERBATIM, so when an operator names a file that
+    is not there, "file not found" is the whole truth and "no driver run writes one" is noise about
+    a file they never asked the resolver to find for them.
+
+    The test is deliberately CONSERVATIVE and syntactic: a path separator, or a `.jsonl` suffix.
+    A run id carries neither (`run_ledger_schema.is_run_id` pins the shape as `run-<hex>`), so an
+    ambiguous target falls to the run-id side and gets the fuller message, which is the safe
+    direction: an extra true clause costs an operator one sentence, while omitting it returns them
+    to the bare message this function exists to replace.
+    """
+    if not target:
+        return False
+    if "/" in target or "\\" in target:
+        return True
+    return target.endswith(".jsonl")
+
+
+def _ledger_not_found_message(target: str) -> str:
+    """Word the absent-ledger refusal ONCE, truthfully, for every leaf that resolves a target.
+
+    THE DEFECT THIS EXISTS TO FIX (`i1hlgx`, from backlog `zrzfkw`). The refusal used to read only
+    `ledger file not found for target '<id>'`. That is an accurate statement about a FILE and a
+    misleading one about the WORLD: no driver run writes a `ledger.jsonl` at all today, so an
+    operator asking whether a run's record is intact was told something that reads like one unusual
+    missing artifact rather than "this command cannot answer that question for any driver run".
+    Measured at authoring time: zero `ledger.jsonl` files anywhere in the repository, zero
+    `run_ledger_store` references in either driver, and spec `25kzda` names the trailers' substrate
+    as still to be built.
+
+    THREE CLAUSES, because an operator conflates three things here:
+      1. WHICH FILE this family reads, the hash-chained `ledger.jsonl` owned by `run_ledger_store`;
+      2. that NO DRIVER RUN WRITES ONE TODAY, so absence is a known limitation and not a symptom;
+      3. that the drivers' own `events.jsonl` is a DIFFERENT file in a different format that does
+         exist, which is the naming trap `resolve_ledger_path` already refuses to fall into.
+
+    IT SAYS NOTHING IT CANNOT KNOW. It does not claim the run is healthy, does not claim it is
+    broken, does not promise a ledger will exist later, and does not ask the operator to file a bug
+    (the gap is known and tracked). It also does not say "cannot verify": SEVEN of the ten leaves
+    that print this are ACTION verbs (`start`, `next`, `record`, `resume`, `cancel`, `finalize`)
+    rather than readers, so verb-specific phrasing belongs to the caller and never to this text.
+
+    THE EXPLICIT-PATH CASE keeps the bare sentence, because clauses 2 and 3 would be noise: an
+    operator who named a file verbatim asked about THAT file, and the resolver honours the name
+    rather than searching for a run (see `_target_names_a_path`).
+
+    The EXIT CODE is unchanged at `EXIT_INVALID_INVOCATION` (2) everywhere, which executed plan
+    `7wei1o` cites as the precedent its own refusals align with.
+    """
+    bare = f"ledger file not found for target '{target}'"
+    if _target_names_a_path(target):
+        return bare
+    return (
+        f"{bare}: this reads the hash-chained {store.LEDGER_FILENAME}, and no driver run writes one "
+        "today, so there is nothing here to read rather than something missing from this run. The "
+        "drivers' own events.jsonl is a different file in a different format and is not a ledger."
+    )
+
+
 # --------------------------------------------------------------------------------------------------
 # show (read-only run inspection and completion evaluation)
 # --------------------------------------------------------------------------------------------------
@@ -285,7 +351,10 @@ def _run_show(args: argparse.Namespace) -> int:
     machine = _machine(args)
 
     if not ledger_file:
-        err_msg = f"error: ledger file not found for target '{target}'"
+        # Text from the ONE builder (`i1hlgx`); the emit shape stays this leaf's own, because its
+        # machine payload bakes in the `error: ` prefix that `_emit_error` adds only on the human
+        # path, and reconciling that split is plan `d91i3e`'s declared work, not this plan's.
+        err_msg = f"error: {_ledger_not_found_message(target)}"
         if machine:
             _emit_machine(args, {"ok": False, "error": err_msg, "exit_code": 2})
         else:
@@ -391,7 +460,10 @@ def _run_evidence(args: argparse.Namespace) -> int:
     machine = _machine(args)
 
     if not ledger_file:
-        err_msg = f"error: ledger file not found for target '{target}'"
+        # Text from the ONE builder (`i1hlgx`); the emit shape stays this leaf's own, because its
+        # machine payload bakes in the `error: ` prefix that `_emit_error` adds only on the human
+        # path, and reconciling that split is plan `d91i3e`'s declared work, not this plan's.
+        err_msg = f"error: {_ledger_not_found_message(target)}"
         if machine:
             _emit_machine(args, {"ok": False, "error": err_msg, "exit_code": 2})
         else:
@@ -514,7 +586,10 @@ def _run_verify_ledger(args: argparse.Namespace) -> int:
     machine = _machine(args)
 
     if not ledger_file:
-        err_msg = f"error: ledger file not found for target '{target}'"
+        # Text from the ONE builder (`i1hlgx`); the emit shape stays this leaf's own, because its
+        # machine payload bakes in the `error: ` prefix that `_emit_error` adds only on the human
+        # path, and reconciling that split is plan `d91i3e`'s declared work, not this plan's.
+        err_msg = f"error: {_ledger_not_found_message(target)}"
         if machine:
             _emit_machine(args, {"ok": False, "error": err_msg, "exit_code": 2})
         else:
@@ -628,9 +703,12 @@ def _resolve_or_error(args: argparse.Namespace) -> tuple[Optional[Path], int]:
         )
     ledger_file = resolve_ledger_path(target, getattr(args, "dir", None))
     if not ledger_file:
+        # The wording lives in `_ledger_not_found_message` so this helper's SEVEN callers and the
+        # three inline emitters cannot drift apart (`i1hlgx`). The message deliberately states no
+        # verb of its own, because six of this helper's callers are ACTION verbs.
         return None, _emit_error(
             args,
-            f"ledger file not found for target '{target}'",
+            _ledger_not_found_message(target),
             EXIT_INVALID_INVOCATION,
         )
     return ledger_file, EXIT_OK
