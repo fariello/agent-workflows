@@ -146,6 +146,7 @@ import os
 import re
 import secrets
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -11863,6 +11864,518 @@ INTEGRATION_REFUSED_NO_SIGNAL = "no-trust-signal"
 
 
 # ==================================================================================================
+# THE PRE-WORK SUITE BASELINE (integearn-05, `9lyg5h`)
+#
+# WHAT THIS IS FOR, AND THE ONE SENTENCE THAT MUST NOT BE "IMPROVED" AWAY:
+#
+#     THE BASELINE IS INFORMATION FOR AN HONEST AGENT, NOT A CHECK ON A DISHONEST ONE. NOTHING MAY
+#     REFUSE, DOWNGRADE, OR OTHERWISE CHANGE AN OUTCOME ON THE STRENGTH OF IT.
+#
+# THE MAINTAINER RULED THAT EXPLICITLY, 2026-09-08 (recorded on `daexj1` OQ-02 and reaffirmed
+# 2026-09-20): "You cannot build a pre-test that detects deception ... We're mitigating sloppiness,
+# not malice. Asking the agent is 100% the right move." The originally-proposed constraint ("refuse
+# `not-mine` for any failing id ABSENT from the baseline") was rejected IN AS MANY WORDS. Four
+# reasons, and each one independently kills the gate idea:
+#
+#   1. A GATE CANNOT DETECT DECEPTION. It can only detect a MISMATCH between two id sets, and a
+#      mismatch has many innocent causes (a flaky test, a test that only fails under a different
+#      shard order, a new test added by a merge that landed mid-turn).
+#   2. A CAPABLE MODEL CAN MAKE TESTS PASS. Any gate keyed on "is this id in the baseline" is
+#      satisfiable by an agent that simply deletes or skips the test, which is strictly worse than
+#      the sloppiness it was built to catch.
+#   3. A GENUINELY MALICIOUS AGENT WOULD REWRITE THE GATE. It has write access to this file.
+#   4. THE TARGET IS SLOPPINESS, NOT MALICE. An agent that broke something subtly and genuinely
+#      believes the failure is unrelated answers `not-mine` in GOOD FAITH and is WRONG. Telling it
+#      what was already red lets it be RIGHT. That is the whole deliverable.
+#
+# SO THE BASELINE'S ONLY CONSUMER IS THE ADJUDICATION PROMPT, and its only effect is on what the
+# agent READS. `tests/test_suite_baseline.py::NothingRefusesOnTheBaseline` asserts a `not-mine`
+# verdict produces a byte-identical outcome whether the failing id appears in the baseline or not.
+# If you are here to add a comparison that changes an outcome, the four reasons above say why not,
+# and the plan's spec-sync section records that doing so would REQUIRE amending spec `25kzda`
+# because it would change the AUTHORITY under which a red suite may be cleared.
+#
+# WHY THE MEASUREMENT IS COMPARABLE TO THE POST-WORK ONE, documented here because the next reader
+# needs to know whether a difference between the two id sets is real or an artifact of WHERE each
+# ran. Both sides run the SAME argv (`oc_runipd.SUITE_CHECK_ARGV`, i.e. a BARE `python3 -m pytest`,
+# whose flags come from `pyproject.toml` `addopts`) over the SAME repository, and the failing ids on
+# both sides are extracted by the SAME function (`oc_runipd.extract_suite_failures`, owned by
+# `daexj1`/`h5pyqa`). The one deliberate difference is the CHECKOUT: the post-work check runs in the
+# PRIMARY checkout (`run_suite_check`'s documented contract, unchanged by this plan) while the
+# baseline runs in its own detached checkout pinned to the item's base commit.
+#
+# THAT DIFFERENCE WAS MEASURED RATHER THAN ASSUMED, AND IT IS ZERO TODAY (integearn-05 E-01, measured
+# 2026-09-21 at `24aa8d41`). The historical claim in `run_suite_check`'s own docstring - 36 passed in
+# the primary checkout against `15 failed, 20 passed` in a linked worktree, because `.aw/state`
+# resolved relative to cwd (backlog `dh0uno`) - is HISTORICAL, not current: `dh0uno` is `done` and
+# its own history retracts the acceptance claim. Re-measured in a real linked worktree
+# (`git worktree add --detach`) of a fresh clone: `tests/test_run_viewer.py` gives `91 passed` in
+# BOTH, and the FULL bare suite gives `1 failed, 7830 passed, 3 skipped, 2 xfailed` in BOTH, the one
+# failure being the same environmental one in both. So NO neutralization layer and NO subtraction
+# list is built here, deliberately: a hand-maintained subtraction list would ROT, and building one
+# from the stale fifteen ids would MASK fifteen real failures rather than remove fifteen phantom
+# ones. `tests/test_suite_baseline.py::TheTwoMeasurementsAreComparable` is the regression test that
+# FAILS if a divergence reappears, so the premise is monitored rather than trusted.
+
+#: The lane-identity NAMESPACE for a baseline checkout, which is what keeps it OUT of the lane
+#: namespace entirely. Baseline checkouts are created with a plain `git worktree add --detach` under
+#: this directory, hold NO branch, and are never registered as a lane.
+#:
+#: THIS IS A DATA-SAFETY DECISION, NOT A NAMING PREFERENCE, and it was measured (integearn-05 F-14).
+#: The obvious implementation - allocate through `worktree_lease.allocate_worktree` keyed on the
+#: item's own id6 - DESTROYS THE AGENT'S IN-FLIGHT WORK, end to end:
+#:
+#:   1. The driver allocates the agent's lane: branch `aw/lane/<id6>`, path `.aw/worktrees/<id6>`.
+#:   2. The baseline calls the same helper for the same lane id -> disposition `adopted`, AT THE
+#:      SAME PATH (`baseline.path == agent.path`).
+#:   3. The agent commits work there.
+#:   4. Teardown on the baseline handle deletes the agent's BRANCH and its REFLOG, leaving the
+#:      agent's commit reachable from NO ref. Unrecoverable.
+#:
+#: THE DOCUMENTED LIVENESS GATE DOES NOT SAVE YOU: `lane_is_safe_to_adopt` returns
+#: `(True, 'no owner record; unclaimed')` because the driver's allocation path is the only writer of
+#: an owner record, and the baseline runs IN THE SAME PROCESS where the same PID is treated as
+#: allowed self-reallocation. The gate exists to stop a DIFFERENT live process, which is exactly not
+#: this case. And the other timing is wrong too: once the agent HAS committed, the helper
+#: attempt-scopes to `<id6>:attempt2`, creating the `_attempt2` clutter `rl67b0`/`pr5b0t` exist to
+#: stop AND writing an owner record under a bogus lane identity that `resolve_prior_lane` then reads.
+#:
+#: SO ROUTE (b) FROM THE PLAN IS TAKEN: a plain DETACHED worktree outside the lane namespace. A
+#: read-only suite run needs no branch, no owner record and no lane classification, and a detached
+#: checkout has nothing for `teardown_worktree` (which its own docstring calls a DATA-SAFETY HAZARD
+#: because it deletes the branch and its reflog) to destroy but a directory.
+SUITE_BASELINE_SUBDIR: str = ".aw/state/suite-baselines"
+
+#: How long the baseline's own suite run may take before it is abandoned as ABSENT. Deliberately the
+#: SAME order as `run_suite_check`'s timeout: a baseline that has not finished when the turn ends is
+#: a MISSING baseline, never a reason to wait and never a reason to fail (see `collect_suite_baseline`).
+SUITE_BASELINE_TIMEOUT_SECONDS: float = 900.0
+
+#: The state a baseline record reports. THREE values, and the third is the one that matters: an
+#: ABSENT baseline must never be confused with a COMPLETED one that found nothing failing, because
+#: the first says "I do not know what was already red" and the second says "nothing was".
+SUITE_BASELINE_COMPLETED: str = "completed"
+SUITE_BASELINE_ABSENT: str = "absent"
+SUITE_BASELINE_NOT_STARTED: str = "not-started"
+
+
+class SuiteBaseline(NamedTuple):
+    """What was failing BEFORE the agent's work, or an honest statement that it is unknown.
+
+    integearn-05 (`9lyg5h`) E-03/E-06. FOUR FACTS, and the commit matters most: without it a reader
+    cannot tell whether the baseline described the tree the item actually STARTED from.
+
+    `failures` CARRIES `daexj1`/`h5pyqa`'s OWN FIELD, not a second extraction. The lines come from
+    `oc_runipd.extract_suite_failures`, reached through the INJECTED extractor (this module may not
+    import a driver), so the two sides of the comparison are parsed by ONE function. This plan
+    declares no scope over `run_evidence.py` precisely to keep that boundary visible.
+    """
+
+    #: `completed`, `absent`, or `not-started`.
+    state: str
+    #: The commit the baseline checkout was pinned to. Empty when none was taken.
+    base_commit: str
+    #: The `FAILED`/`ERROR` lines observed BEFORE the work. Meaningful ONLY when `state` is
+    #: `completed`: an empty tuple with `state == "absent"` means UNKNOWN, not "nothing was failing".
+    failures: tuple[str, ...] = ()
+    #: WHY it is absent, when it is. Always non-empty for an absent baseline.
+    reason: str = ""
+    #: The suite's own count line, when one was parsed. Context only.
+    summary: str = ""
+    #: The baseline suite's exit code, when it ran.
+    exit_code: int | None = None
+    #: Wall-clock the baseline's own run took, for the wall-clock claim this design was accepted on.
+    elapsed_seconds: float = 0.0
+
+    @property
+    def known(self) -> bool:
+        """True only when a baseline actually completed and its failing set means something."""
+
+        return self.state == SUITE_BASELINE_COMPLETED
+
+    def as_record(self) -> dict[str, Any]:
+        """The shape persisted on the run record beside `attempt["suite_check"]` (E-06).
+
+        ONE writer for BOTH hosts, so an audit's answer cannot depend on which runner executed the
+        plan. Written through `execute_item_core`, which both hosts delegate to.
+        """
+
+        return {
+            "state": self.state,
+            "base_commit": self.base_commit,
+            "failures": list(self.failures),
+            "reason": self.reason,
+            "summary": self.summary,
+            "exit_code": self.exit_code,
+            "elapsed_seconds": round(float(self.elapsed_seconds), 3),
+        }
+
+
+def suite_baseline_absent(reason: str, *, base_commit: str = "") -> SuiteBaseline:
+    """An ABSENT baseline with its reason. The ONLY way this module reports a failure to measure.
+
+    A BASELINE THAT COULD NOT BE TAKEN IS NOT A FAILED ITEM, and this is the seam that enforces it.
+    `run_suite_check` FAILS CLOSED by design (a suite that cannot run is a FAILURE, timeout -> 124,
+    any other exception -> 127, neither special-cased into a pass), and that stance is correct THERE
+    because it guards integration. The baseline must NOT inherit it: a missing baseline is an
+    ABSENCE OF INFORMATION, so the agent simply answers as it does today, which is the current
+    behavior and therefore not a regression.
+    """
+
+    return SuiteBaseline(
+        state=SUITE_BASELINE_ABSENT,
+        base_commit=base_commit,
+        failures=(),
+        reason=reason or "no reason recorded",
+    )
+
+
+def suite_baseline_checkout_path(repo_root: Path, id6: str, attempt: int) -> Path:
+    """Where a baseline checkout lives. OUTSIDE the lane namespace, by construction.
+
+    Keyed on the item AND the attempt so two attempts cannot collide, and rooted under
+    `SUITE_BASELINE_SUBDIR` (which is inside the gitignored `.aw/state/`) rather than under
+    `.aw/worktrees/`, so no lane classifier, no owner-record reader and no lane reclamation pass can
+    ever mistake it for a lane. See `SUITE_BASELINE_SUBDIR` for the measured reason.
+    """
+
+    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", str(id6 or "unknown"))
+    return (
+        repo_root / SUITE_BASELINE_SUBDIR / f"{safe}-attempt{int(attempt)}"
+    ).resolve()
+
+
+class SuiteBaselineRun:
+    """A baseline suite run IN FLIGHT, started at dispatch and collected at turn end.
+
+    integearn-05 (`9lyg5h`) E-02/E-03. WHY A NEW CONCURRENT PATH RATHER THAN REUSING
+    `run_suite_check`: that function is SYNCHRONOUS BY CONSTRUCTION. It calls
+    `run_evidence.capture_command`, which calls `subprocess.run(...)` and blocks until the process
+    exits or its timeout fires; there is no start/poll/collect split anywhere in it. So a concurrent
+    baseline cannot reuse it, and this class is that split.
+
+    THE CONCURRENCY MODEL IS A PLAIN `subprocess.Popen` PLUS A THREAD THAT ONLY READS ITS PIPES, and
+    it cannot deadlock with the turn for three structural reasons:
+
+      * IT SHARES NO LOCK WITH THE TURN. It touches no run lock, no lane owner record, no `state`
+        dict and no run directory; it writes only into its own detached checkout.
+      * IT NEVER WAITS ON THE TURN, and the turn never waits on IT except for a BOUNDED collection.
+        The dependency is one-way.
+      * ITS OUTPUT IS DRAINED BY A DAEMON THREAD, so the child cannot block on a full pipe while the
+        collector waits for the child - which is the one classic deadlock this shape admits. The
+        thread is a daemon, so it can never keep the interpreter alive.
+
+    THE WALL-CLOCK PROPERTY THIS DESIGN WAS ACCEPTED ON: the suite is ~2-3 minutes while an execute
+    turn is minutes to hours, so run CONCURRENTLY with the turn and collected at its end, the added
+    wall-clock is essentially ZERO. `collect()` defaults to a ZERO wait (OQ-02's recommended option,
+    which cannot delay a turn BY CONSTRUCTION) and a caller may bound a wait explicitly.
+    """
+
+    def __init__(
+        self,
+        *,
+        checkout: Path,
+        base_commit: str,
+        argv: Sequence[str],
+        extract_failures: Callable[[str, str], Sequence[str]],
+        parse_summary: Callable[[str], str] | None = None,
+        timeout: float = SUITE_BASELINE_TIMEOUT_SECONDS,
+        popen: Callable[..., Any] | None = None,
+    ) -> None:
+        self.checkout = Path(checkout)
+        self.base_commit = str(base_commit)
+        self.argv = list(argv)
+        self._extract = extract_failures
+        self._parse_summary = parse_summary
+        self.timeout = float(timeout)
+        self._started = time.monotonic()
+        self._stdout = ""
+        self._stderr = ""
+        self._result: SuiteBaseline | None = None
+        spawn = popen or subprocess.Popen
+        self.process = spawn(
+            self.argv,
+            cwd=str(self.checkout),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        self._drain = threading.Thread(target=self._pump, daemon=True)
+        self._drain.start()
+
+    def _pump(self) -> None:
+        """Drain the child's pipes so it can never block on a full buffer. NEVER raises."""
+
+        try:
+            out, err = self.process.communicate(timeout=self.timeout)
+        except Exception as exc:  # noqa: BLE001
+            # The child's OWN timeout fired (or the pipes broke). Kill it and drain whatever it
+            # produced, so a partial run still yields the ids it managed to report. The failure text
+            # is appended to stderr rather than raised: this thread must never raise, because
+            # nothing awaits it and an exception here would be invisible.
+            with contextlib.suppress(Exception):
+                self.process.kill()
+            partial_out = partial_err = ""
+            with contextlib.suppress(Exception):
+                partial_out, partial_err = self.process.communicate(timeout=30)
+            self._stdout = partial_out or ""
+            self._stderr = "\n".join(
+                part
+                for part in (partial_err or "", f"{type(exc).__name__}: {exc}")
+                if part
+            )
+            return
+        self._stdout = out or ""
+        self._stderr = err or ""
+
+    def collect(self, *, wait_seconds: float = 0.0) -> SuiteBaseline:
+        """The baseline, or an ABSENT record. NEVER raises and NEVER waits unboundedly.
+
+        `wait_seconds` DEFAULTS TO ZERO, which is OQ-02's recommended answer and the property the
+        maintainer accepted this design on: a zero-wait collection cannot delay a turn AT ALL. A
+        caller that wants to give a late baseline a chance passes a bound; expiry is then a MISSING
+        baseline, not a hang and not a failure.
+        """
+
+        if self._result is not None:
+            return self._result
+        with contextlib.suppress(Exception):
+            self._drain.join(timeout=max(0.0, float(wait_seconds)))
+        elapsed = time.monotonic() - self._started
+        if self._drain.is_alive():
+            # Still running at collection time. Abandon it rather than wait: it is a missing
+            # baseline. The child is killed so it cannot outlive the turn and burn CPU unobserved.
+            with contextlib.suppress(Exception):
+                self.process.kill()
+            self._result = suite_baseline_absent(
+                f"the baseline suite had not finished when the turn ended "
+                f"(waited {float(wait_seconds):.0f}s of a {self.timeout:.0f}s bound); "
+                "the pre-work failing set is UNKNOWN",
+                base_commit=self.base_commit,
+            )
+            return self._result
+        exit_code = self.process.poll()
+        if exit_code is None:
+            self._result = suite_baseline_absent(
+                "the baseline suite process reported no exit code; the pre-work failing set is "
+                "UNKNOWN",
+                base_commit=self.base_commit,
+            )
+            return self._result
+        failures = tuple(
+            str(line) for line in self._extract(self._stdout, self._stderr)
+        )
+        summary = ""
+        if self._parse_summary is not None:
+            with contextlib.suppress(Exception):
+                summary = str(
+                    self._parse_summary(self._stdout)
+                    or self._parse_summary(self._stderr)
+                    or ""
+                )
+        self._result = SuiteBaseline(
+            state=SUITE_BASELINE_COMPLETED,
+            base_commit=self.base_commit,
+            failures=failures,
+            reason="",
+            summary=summary,
+            exit_code=int(exit_code),
+            elapsed_seconds=elapsed,
+        )
+        return self._result
+
+    def abandon(self) -> None:
+        """Kill the child and remove nothing. Idempotent, NEVER raises.
+
+        Called from the cleanup construct so no baseline process survives its turn on ANY exit path.
+        """
+
+        with contextlib.suppress(Exception):
+            self.process.kill()
+
+
+def start_suite_baseline(
+    repo: Path,
+    *,
+    id6: str,
+    attempt: int,
+    base_commit: str,
+    argv: Sequence[str],
+    extract_failures: Callable[[str, str], Sequence[str]],
+    parse_summary: Callable[[str], str] | None = None,
+    timeout: float = SUITE_BASELINE_TIMEOUT_SECONDS,
+    run_git: Callable[..., Any] | None = None,
+    popen: Callable[..., Any] | None = None,
+) -> tuple[SuiteBaselineRun | None, SuiteBaseline | None]:
+    """Create the detached baseline checkout and START its suite. Returns `(run, absent_record)`.
+
+    EXACTLY ONE of the two is non-None: a started run, or an ABSENT record saying why none could be
+    started. This function NEVER raises, because a baseline that cannot be taken must not fail the
+    item (see `suite_baseline_absent`).
+
+    PINNED TO A COMMIT, NEVER TO A BRANCH, and that is the maintainer's own requirement rather than
+    tidiness: if a human or another agent merges to main mid-turn, a commit-pinned baseline still
+    describes the tree THIS item started from, while a branch-pinned one would silently describe a
+    different tree.
+
+    `base_commit` MUST COME FROM A FIELD THAT EXISTS AT DISPATCH (integearn-05 F-15). The caller
+    reads `attempt["worktree_base"]`, written from `wt_handle.base_commit` immediately after lane
+    allocation. It must NOT read `item["preserved_base"]`, which is written only on the POST-turn
+    PRESERVATION path and only when the item did not reach `executed`, so it is absent for a first
+    attempt at the moment a baseline must start.
+
+    IT NEVER READS THE AGENT'S LANE. The checkout is created from the COMMIT by
+    `git worktree add --detach <path> <commit>` run in the PRIMARY repo, so the agent's lane
+    directory is never opened; reading it would sample half-written files.
+    """
+
+    git = run_git or (
+        lambda args: subprocess.run(
+            ["git", "-C", str(repo), *args],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    )
+    commit = str(base_commit or "").strip()
+    if not commit:
+        return None, suite_baseline_absent(
+            "no base commit was recorded for this attempt at dispatch, so no baseline could be "
+            "pinned (a NON-ISOLATED turn has no worktree handle and therefore no base to pin to); "
+            "the pre-work failing set is UNKNOWN"
+        )
+    try:
+        resolved = git(["rev-parse", "--verify", f"{commit}^{{commit}}"])
+        if getattr(resolved, "returncode", 1) != 0:
+            return None, suite_baseline_absent(
+                f"the recorded base commit {commit!r} could not be resolved: "
+                f"{str(getattr(resolved, 'stderr', '') or '').strip()}",
+                base_commit=commit,
+            )
+        sha = str(getattr(resolved, "stdout", "") or "").strip() or commit
+        path = suite_baseline_checkout_path(repo, id6, attempt)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists():
+            # Residue from an earlier attempt or a crash. Remove it through git so the worktree
+            # registry stays coherent, then fall through; a stale checkout is not a reason to skip.
+            remove_suite_baseline_checkout(repo, path, run_git=git)
+        added = git(["worktree", "add", "--detach", str(path), sha])
+        if getattr(added, "returncode", 1) != 0:
+            return None, suite_baseline_absent(
+                f"the baseline checkout could not be created at {path}: "
+                f"{str(getattr(added, 'stderr', '') or '').strip()}",
+                base_commit=sha,
+            )
+    except Exception as exc:  # noqa: BLE001
+        return None, suite_baseline_absent(
+            f"the baseline checkout could not be created ({type(exc).__name__}: {exc})",
+            base_commit=commit,
+        )
+    try:
+        run = SuiteBaselineRun(
+            checkout=path,
+            base_commit=sha,
+            argv=argv,
+            extract_failures=extract_failures,
+            parse_summary=parse_summary,
+            timeout=timeout,
+            popen=popen,
+        )
+    except Exception as exc:  # noqa: BLE001
+        with contextlib.suppress(Exception):
+            remove_suite_baseline_checkout(repo, path, run_git=git)
+        return None, suite_baseline_absent(
+            f"the baseline suite could not be started ({type(exc).__name__}: {exc})",
+            base_commit=sha,
+        )
+    return run, None
+
+
+def remove_suite_baseline_checkout(
+    repo: Path, path: Path, *, run_git: Callable[..., Any] | None = None
+) -> None:
+    """Remove a baseline checkout. Idempotent, NEVER raises, DESTROYS NO BRANCH.
+
+    THE ABSENCE OF A BRANCH DELETE IS THE POINT. `worktree_lease.teardown_worktree` deletes the lane
+    BRANCH and its REFLOG, which its own docstring calls a DATA-SAFETY HAZARD and which is exactly
+    how the naive implementation of this feature was measured destroying an agent's committed work
+    (see `SUITE_BASELINE_SUBDIR`). A detached checkout has no branch, so there is nothing here to
+    delete but a directory, and this function is deliberately not able to delete a ref.
+    """
+
+    git = run_git or (
+        lambda args: subprocess.run(
+            ["git", "-C", str(repo), *args],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    )
+    with contextlib.suppress(Exception):
+        git(["worktree", "remove", "--force", str(path)])
+    with contextlib.suppress(Exception):
+        if Path(path).exists():
+            shutil.rmtree(path, ignore_errors=True)
+    with contextlib.suppress(Exception):
+        git(["worktree", "prune"])
+
+
+def suite_baseline_context(baseline: SuiteBaseline | None) -> str:
+    """The block handed to the adjudication question as CONTEXT (E-04). NEVER a constraint.
+
+    THREE PROPERTIES, each load-bearing:
+
+      1. ABSENCE IS STATED AS *UNKNOWN*, NEVER AS AN EMPTY SET. That inversion is precisely the
+         defect class `daexj1` E-02 exists to prevent on the other side of this feature ("do NOT let
+         a missing or empty list read as success"), and here it would tell the agent that nothing was
+         failing before its work - the exact false belief the baseline exists to remove.
+      2. IT IS INFORMATION, NOT AN ACCUSATION AND NOT A CONSTRAINT, and it SAYS SO. An agent shown a
+         list it must justify itself against will answer defensively; an agent shown what was already
+         red can simply be right. The text states in as many words that the agent's answer is not
+         constrained by this list and that a failure absent from it may still legitimately be
+         `not-mine`.
+      3. IT DOES NOT RESTATE OR RESHAPE `daexj1`'s PROMPT. `gate_answer_question` owns the four
+         answers, their consequences and the outcome-JSON shape; this is ONE additional block of
+         context passed into it.
+    """
+
+    if baseline is None or not baseline.known:
+        reason = ""
+        if baseline is not None:
+            reason = baseline.reason or ""
+        detail = f" ({reason})" if reason else ""
+        return (
+            "WHAT WAS ALREADY FAILING BEFORE YOUR TURN: UNKNOWN. A pre-work baseline of the suite "
+            f"was NOT available for this turn{detail}. This does NOT mean nothing was failing "
+            "before you started; it means nobody measured. Answer from the evidence you do have, "
+            "exactly as you would if this section were not here."
+        )
+    at = baseline.base_commit[:12] or "the recorded base commit"
+    if not baseline.failures:
+        body = (
+            "NOTHING was failing. The suite was GREEN at your base commit"
+            + (f" ({baseline.summary})" if baseline.summary else "")
+            + "."
+        )
+    else:
+        listed = "\n".join(f"  {line}" for line in baseline.failures)
+        body = (
+            "these tests were ALREADY FAILING before your work existed"
+            + (f" ({baseline.summary})" if baseline.summary else "")
+            + f":\n\n{listed}"
+        )
+    return (
+        f"WHAT WAS ALREADY FAILING BEFORE YOUR TURN, measured by running the same suite at your own "
+        f"base commit ({at}) in a separate checkout while you worked: {body}\n\n"
+        "THIS IS INFORMATION TO HELP YOU JUDGE, NOT AN ACCUSATION AND NOT A CONSTRAINT ON YOUR "
+        "ANSWER. Nothing checks your answer against this list and nothing refuses on it. A failure "
+        "that is NOT listed here may still genuinely be nothing to do with your work (it may be "
+        "flaky, order-dependent, or caused by something that landed while you worked), and a "
+        "failure that IS listed here is one you can attribute with confidence."
+    )
+
+
+# ==================================================================================================
 # THE INTEGRATION-REFUSAL ANSWER (gateanswer, defect 2 of the 2026-09-19 incident)
 #
 # WHY THIS EXISTS. A lane's trust signal is a FULL TEST SUITE run, and a single red test refuses
@@ -12055,6 +12568,7 @@ def gate_answer_question(
     failing: str,
     changed_files: Sequence[str] = (),
     violation: str = "",
+    baseline: SuiteBaseline | None = None,
 ) -> str:
     """The question put to the agent when the suite refused its integration.
 
@@ -12072,6 +12586,23 @@ def gate_answer_question(
     4. IT MAKES `mine` SAFE TO SAY. An honest `mine` must never be worse for the agent than silence,
        or the incentive is to stay quiet; silence already refuses, so `mine` costs nothing extra and
        records the truth.
+
+    `baseline` IS integearn-05 (`9lyg5h`) E-04, AND IT IS THE THIRD PROPERTY MADE ACTUALLY TRUE. The
+    question already showed the agent the POST-work failing ids and its own diff, but one of the two
+    answers it invites ("it was already failing before your turn") was unanswerable from that
+    evidence: nothing told the agent what was failing BEFORE it started, so an agent that broke
+    something subtly could answer `not-mine` in good faith and be wrong. This parameter supplies that
+    missing half AS CONTEXT ONLY.
+
+    IT ADDS NOTHING ELSE AND RESHAPES NOTHING. The four answers, their consequences, the outcome-JSON
+    key and the closing instruction are untouched (`daexj1`/`h5pyqa` own them); `baseline` inserts one
+    labelled block rendered by `suite_baseline_context`. It DEFAULTS None, and None renders the
+    UNKNOWN wording rather than an empty list, because "nobody measured" and "nothing was failing" are
+    different facts and conflating them is the very inversion this feature exists to remove.
+
+    NOTHING IN THIS FUNCTION OR ANY CALLER COMPARES THE BASELINE TO THE POST-WORK SET. See the
+    `SUITE_BASELINE_SUBDIR` block for the maintainer's ruling and the four reasons a gate here is
+    wrong.
     """
 
     changed = "\n".join(f"  {p}" for p in changed_files) or "  (none recorded)"
@@ -12085,6 +12616,8 @@ and other work lands in it, so a failure here is often nothing to do with your t
 THE FULL TEST SUITE REPORTED:
 
 {failing}
+
+{suite_baseline_context(baseline)}
 
 THE FILES YOUR TURN CHANGED:
 
@@ -12261,6 +12794,7 @@ def gate_answer_record(
     recheck_budget: int = 0,
     recheck_passed: bool | None = None,
     recheck_summary: str = "",
+    baseline: SuiteBaseline | None = None,
 ) -> dict[str, Any]:
     """The NORMALIZED record persisted on the run record, beside the integration signal.
 
@@ -12276,9 +12810,30 @@ def gate_answer_record(
     `defect_report_record`): `state["queue"][i]["integration_gate_answer"]` in
     `<run_dir>/state.json`, written at the same per-item seam as `item["integration_signal"]`, by BOTH
     host drivers. `<run_dir>` is gitignored, so a test must build its own records in a tmp_path.
+
+    `suite_baseline` IS integearn-05 (`9lyg5h`) E-06, AND IT IS HERE FOR AUDIT AND NOTHING ELSE. An
+    auditor reading a released `not-mine` afterwards can ask whether it was WELL-FOUNDED - was the
+    cleared test already red at that item's base commit? - even though NOTHING enforced it at the
+    time, which is the same "attribution is the safeguard" reasoning `failing_tests` is recorded
+    under. It carries all four facts (`state`, `base_commit`, `failures`, `reason`), and the commit
+    matters most: without it a reader cannot tell whether the baseline described the tree the item
+    actually started from. An ABSENT baseline is recorded as such, so it stays distinguishable from a
+    COMPLETED baseline that found nothing failing.
+
+    WRITING IT IS NOT READING IT. Nothing in this package compares `suite_baseline["failures"]` to
+    `failing_tests`; a record is not a check. See `SUITE_BASELINE_SUBDIR`.
     """
 
     return {
+        "suite_baseline": (
+            baseline.as_record()
+            if baseline is not None
+            else SuiteBaseline(
+                state=SUITE_BASELINE_NOT_STARTED,
+                base_commit="",
+                reason="no pre-work baseline was started for this turn",
+            ).as_record()
+        ),
         "answer": verdict.answer,
         "reason": verdict.reason,
         "violation": verdict.violation,
@@ -12328,6 +12883,7 @@ def perform_gate_answer(
     session_id: str | None = None,
     integration_signal: str = INTEGRATION_REFUSED_SUITE_FAILED,
     ask_reason: str = "",
+    baseline: SuiteBaseline | None = None,
 ) -> GateAnswerOutcome:
     """Ask the question, read the answer, and act on it. Returns a :class:`GateAnswerOutcome`.
 
@@ -12357,6 +12913,15 @@ def perform_gate_answer(
     NEVER RAISES ON THE AGENT'S BEHALF: an unusable answer, a missing outcome file and a re-run that
     cannot be performed all land on REFUSE, which is the fail-closed direction (a wrongly refused lane
     is preserved and recoverable; a wrongly integrated one merges work no trust signal cleared).
+
+    `baseline` IS PASSED STRAIGHT THROUGH TO THE QUESTION AND THEN RECORDED (integearn-05 `9lyg5h`
+    E-04/E-06), AND IT REACHES NO DECISION IN THIS FUNCTION. Read the control flow below and note
+    what it does NOT contain: `baseline` appears in exactly two places, the `gate_answer_question(...)`
+    call and the `gate_answer_record(...)` call. It is absent from every `if`, from the `release`
+    conjunction, from the `earns_recheck` loop and from the `violation` text. That absence IS the
+    maintainer's 2026-09-08 ruling in executable form, and `tests/test_suite_baseline.py` asserts a
+    `not-mine` verdict produces an IDENTICAL `GateAnswerOutcome.release` whether the failing id is in
+    the baseline or not. Do not "finish" it into a check; see `SUITE_BASELINE_SUBDIR` for why.
     """
 
     failures = tuple(getattr(suite_result, "failures", ()) or ())
@@ -12377,6 +12942,7 @@ def perform_gate_answer(
             failing=failing_text,
             changed_files=changed_files,
             violation=violation,
+            baseline=baseline,
         )
         ask(prompt)
         if session_turn_counts is not None and session_id:
@@ -12452,6 +13018,7 @@ def perform_gate_answer(
         recheck_budget=budget,
         recheck_passed=recheck_passed,
         recheck_summary=recheck_summary,
+        baseline=baseline,
     )
     return GateAnswerOutcome(
         release=release,
@@ -16045,368 +16612,679 @@ def execute_item_core(
         )
         save_state(run_dir, state)
 
-    try:
-        exit_code, session_id, log_path, argv = spawn_executor(
-            prompt_path,
-            work_dir,
-            tracker,
-            plan_path,
-            attempt_no,
-            session_id,
-            use_continue,
+    # ---- integearn-05 (`9lyg5h`): START THE PRE-WORK SUITE BASELINE, CONCURRENTLY -----------------
+    #
+    # WHY IT STARTS HERE. This is the last statement before the agent turn is dispatched, so the
+    # baseline's ~2-3 minute suite runs ALONGSIDE a turn that takes minutes to hours and the added
+    # wall-clock is essentially ZERO. That property is the condition the maintainer accepted this
+    # design on (their standing objection being that rigid gates here "keep biting us in time and
+    # money"), so running it BEFORE the turn instead would violate the terms rather than merely be
+    # slower.
+    #
+    # THE BASE COMMIT IS READ FROM `attempt["worktree_base"]`, AND THAT CHOICE IS LOAD-BEARING
+    # (integearn-05 F-15). It was written a few lines above from `wt_handle.base_commit` immediately
+    # after lane allocation, so it EXISTS at dispatch. The field a naive reading would reach for,
+    # `item["preserved_base"]`, is written only on the POST-turn PRESERVATION path and only when the
+    # item did NOT reach `executed`, so it is absent for a first attempt and a baseline pinned to it
+    # would never be taken at all. A NON-ISOLATED turn (`--no-isolate-worktree`) has no handle and so
+    # no recorded base; it gets NO baseline, recorded as ABSENT with that reason, which is the honest
+    # answer rather than pinning to a moving `HEAD`.
+    #
+    # PINNED TO A COMMIT, NEVER A BRANCH, so a merge to main by a human or another agent mid-turn
+    # cannot make the baseline describe a different tree than the item started from.
+    #
+    # THE EXTRACTOR AND THE ARGV ARE INJECTED FROM THE HOST, never re-implemented: `runner_shared` may
+    # not import a driver (a shipped AST test enforces it), and `extract_suite_failures` is
+    # `daexj1`/`h5pyqa`'s function. Using it here is what makes the two id sets comparable, and it is
+    # why this plan writes no second parser and declares no scope over `run_evidence.py`.
+    suite_baseline_run: SuiteBaselineRun | None = None
+    suite_baseline: SuiteBaseline | None = None
+    baseline_extractor = getattr(driver_module, "extract_suite_failures", None)
+    if (
+        not is_review
+        and self_finalize
+        and callable(baseline_extractor)
+        and getattr(driver_module, "SUITE_CHECK_ARGV", None)
+    ):
+        suite_baseline_run, suite_baseline = start_suite_baseline(
+            repo,
+            id6=item["id6"],
+            attempt=attempt_no,
+            base_commit=str(attempt.get("worktree_base") or ""),
+            argv=list(getattr(driver_module, "SUITE_CHECK_ARGV")),
+            extract_failures=baseline_extractor,
+            parse_summary=getattr(driver_module, "parse_suite_summary", None),
         )
-    except runner_stop.StopNowForce as stop:
-        now = utc_now()
-        record = _record_forced_stop(run_dir, state, item, stop, work_dir=work_dir)
-        attempt["interrupted_at"] = now
-        attempt["ended_at"] = now
-        attempt["interrupt_reason"] = "deliberate-stop-now-force"
-        attempt["exit_code"] = stop.exit_code
-        attempt["stopped"] = record
-        attempt["disposition"] = runner_stop.FORCED_DISPOSITION
-        item["status"] = runner_stop.FORCED_DISPOSITION
-        save_state(run_dir, state)
-        print(
-            pal(
-                f"  \u25cf IPD {item['id6']} interrupted by deliberate force stop",
-                "yellow",
-            ),
-            file=sys.stderr,
-        )
-        return
-    except runner_stop.StopAtCheckpoint as stop:
-        now = utc_now()
-        record = _record_checkpoint_stop(
-            run_dir, state, item, stop.observer, work_dir=work_dir
-        )
-        attempt["interrupted_at"] = now
-        attempt["ended_at"] = now
-        attempt["interrupt_reason"] = "deliberate-stop-at-checkpoint"
-        attempt["exit_code"] = stop.exit_code
-        attempt["stopped"] = record
-        attempt["disposition"] = runner_stop.STOPPED_DISPOSITION
-        item["status"] = runner_stop.STOPPED_DISPOSITION
-        save_state(run_dir, state)
-        print(
-            pal(
-                f"  \u25cf IPD {item['id6']} stopped cleanly at checkpoint: "
-                f"{stop.observer.last_checkpoint_label}",
-                "yellow",
-            ),
-            file=sys.stderr,
-        )
-        return
-    except StallTimeout:
-        from agent_workflows import lane_containment, worktree_lease
-
-        now = utc_now()
-        attempt["interrupted_at"] = now
-        attempt["ended_at"] = now
-        attempt["interrupt_reason"] = "stall_timeout"
-        stall_sec = state.get("options", {}).get("stall_timeout", DEFAULT_STALL_TIMEOUT)
-        attempt["stall_timeout"] = stall_sec
-        item["status"] = "interrupted"
-        if wt_handle is not None:
-            try:
-                worktree_lease.snapshot_lane_dirty_work(
-                    repo, wt_handle, note="Reason: stall_timeout."
-                )
-            except Exception:
-                pass
-            lane_containment.record_lane_preserved(
-                run_dir=run_dir,
-                item=item,
-                handle=wt_handle,
-                reason="turn stalled; lane preserved for recovery",
-                reason_codes=("stall-timeout",),
-            )
-        save_state(run_dir, state)
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": now,
-                "event": "ipd-stalled",
-                "id6": item["id6"],
-                "stall_timeout": stall_sec,
-                "attempt": attempt_no,
-            },
-        )
-        print(
-            pal(
-                f"\u2717 IPD {seq:02d}/{total} {item['id6']} stalled (no output for {int(stall_sec) if stall_sec else 0}s); turn terminated",
-                "red",
-            ),
-            file=sys.stderr,
-        )
-        return
-
-    if session_id:
-        attempt["session_id"] = session_id
-        if turn_runs_in_review_sweep_lane(state, work_dir):
-            counts = state.setdefault("session_turn_counts", {})
-            existing_sweep = state.get(REVIEW_SWEEP_SESSION_KEY)
-            existing_turns = counts.get(existing_sweep, 0) if existing_sweep else 0
-            sweep_rotation = bool(
-                max_items and max_items > 0 and existing_turns >= max_items
-            )
-            if existing_sweep and existing_sweep != session_id and not sweep_rotation:
-                raise DriverError(
-                    f"Review sweep changed session unexpectedly: {existing_sweep} -> {session_id}"
-                )
-            state[REVIEW_SWEEP_SESSION_KEY] = session_id
-            counts[session_id] = counts.get(session_id, 0) + 1
-        if not work_dir:
-            counts = state.setdefault("session_turn_counts", {})
-            existing = state.setdefault("set_sessions", {}).get(item["setid"])
-            existing_turns = counts.get(existing, 0) if existing else 0
-            is_planned_rotation = bool(
-                max_items and max_items > 0 and existing_turns >= max_items
-            )
-            if existing and existing != session_id and not is_planned_rotation:
-                raise DriverError(
-                    f"Set {item['setid']} changed session unexpectedly: {existing} -> {session_id}"
-                )
-            state["set_sessions"][item["setid"]] = session_id
-            state["session_id"] = session_id
-            counts[session_id] = counts.get(session_id, 0) + 1
-
-    attempt.update(
-        {
-            "ended_at": utc_now(),
-            "exit_code": exit_code,
-            "ending_head": git_head(repo),
-            "ending_branch": git_branch(repo),
-            "ending_status": git_status(repo),
-            "log": str(log_path),
-            "argv": argv,
-        }
-    )
-    from agent_workflows.run_viewer import extract_log_metrics
-
-    att_cost, att_toks = extract_log_metrics(log_path)
-    if att_cost is not None:
-        attempt["cost"] = att_cost
-    if att_toks:
-        attempt["tokens"] = att_toks
-
-    if work_dir and (not is_review or turn_runs_in_review_sweep_lane(state, work_dir)):
-        try:
-            collection = lane_containment.collect_lane_submissions(
-                run_dir=run_dir,
-                item=item,
-                run_id=state["run_id"],
-                lane_root=Path(work_dir),
-                plan_path=plan_path,
-                attempt=attempt_no,
-            )
-        except (
-            Exception
-        ) as exc:  # pragma: no cover - defensive; collection must never kill a turn
-            collection = None
-            attempt["collection_error"] = f"{type(exc).__name__}: {exc}"
-        if collection is not None:
-            attempt["collection"] = {
-                "status": collection.get("status"),
-                "collected": collection.get("collected"),
-                "failed": collection.get("failed"),
-                "receipt": str(
-                    lane_containment.collection_receipt_path(run_dir, item, attempt_no)
-                ),
+        if suite_baseline_run is not None:
+            attempt["suite_baseline_started"] = {
+                "base_commit": suite_baseline_run.base_commit,
+                "checkout": str(suite_baseline_run.checkout),
             }
             append_jsonl(
                 run_dir / "events.jsonl",
                 {
                     "at": utc_now(),
-                    "event": "lane-submissions-collected",
+                    "event": "suite-baseline-started",
                     "id6": item["id6"],
                     "attempt": attempt_no,
-                    "collected": collection.get("collected"),
-                    "failed": collection.get("failed"),
+                    "base_commit": suite_baseline_run.base_commit,
+                    "checkout": str(suite_baseline_run.checkout),
+                },
+            )
+        else:
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "suite-baseline-unavailable",
+                    "id6": item["id6"],
+                    "attempt": attempt_no,
+                    "detail": (
+                        suite_baseline.reason if suite_baseline is not None else ""
+                    ),
                 },
             )
 
-    disposition, outcome = reconcile_disposition(
-        repo,
-        item,
-        run_dir,
-        exit_code,
-        plan_repo=Path(work_dir) if work_dir else None,
-    )
-
-    verify_disp = None
-    opts = state.get("options", {})
-    validate = opts.get("validate", False)
-    if "validate" not in opts:
-        validate = not (opts.get("no_verify") or opts.get("no_audit"))
-    if (
-        not is_review
-        and disposition in ("executed", "substantially-complete")
-        and validate
-    ):
-        plan_repo = Path(work_dir) if work_dir else repo
+    # integearn-05 (`9lyg5h`) E-02/E-03: THE CLEANUP CONSTRUCT, and it had to be ADDED rather than
+    # appended to. MEASURED at authoring: `execute_item_core` contained ZERO `finally:` blocks, and
+    # between the dispatch point below and the collection point near the end there are FOUR paths that
+    # leave this function without reaching the collection - `StopNowForce`, `StopAtCheckpoint`,
+    # `StallTimeout` (each an `except ... return` on the spawn call immediately below) and
+    # `KeyboardInterrupt` (which propagates out untouched). A trailing `remove_...()` call would
+    # therefore have leaked the baseline's checkout and its running child process on every one of them.
+    # This `try:`/`finally:` wraps the whole post-dispatch remainder of the function so ALL FOUR are
+    # covered, plus the two `raise DriverError` session-drift paths and every ordinary `return`.
+    #
+    # THE `finally` DESTROYS NO BRANCH AND TOUCHES NO LANE. It calls `abandon()` (kill the baseline's
+    # own child) and `remove_suite_baseline_checkout` (remove a DETACHED checkout directory), neither of
+    # which can delete a ref. That is the whole reason the baseline is a detached checkout outside the
+    # lane namespace: see `SUITE_BASELINE_SUBDIR` for the measurement showing the lane-keyed
+    # alternative deleting an agent's branch, its reflog and its commits.
+    try:
         try:
-            current_plan_path = resolve_plan_path(
-                plan_repo, item.get("configured_file", ""), item["id6"]
-            )
-        except DriverError:
-            current_plan_path = plan_path
-        v_prompt = build_verifier_prompt(
-            item, state, run_dir, current_plan_path, labels=host_labels
-        )
-        v_prompt_file = write_prompt(
-            run_dir, item, v_prompt, attempt_no, suffix="verify"
-        )
-        print(
-            pal(
-                f"  \u25b6 Verifying {item['id6']} ({current_plan_path})...",
-                "cyan",
-            ),
-            flush=True,
-        )
-        try:
-            v_rc, _v_session, _v_log, _v_argv = spawn_verifier(
-                v_prompt_file,
-                current_plan_path,
+            exit_code, session_id, log_path, argv = spawn_executor(
+                prompt_path,
                 work_dir,
                 tracker,
+                plan_path,
                 attempt_no,
+                session_id,
+                use_continue,
             )
-            if _v_log:
-                attempt["verify_log"] = str(_v_log)
-                v_cost, v_toks = extract_log_metrics(_v_log)
-                if v_cost is not None:
-                    attempt["verify_cost"] = v_cost
-                if v_toks:
-                    attempt["verify_tokens"] = v_toks
-            v_outcome_file = (
-                run_dir
-                / "outcomes"
-                / f"{item['position']:02d}-{item['id6']}-verification.json"
-            )
-            if v_outcome_file.is_file():
-                try:
-                    v_data = json.loads(v_outcome_file.read_text(encoding="utf-8"))
-                    verify_verdict = str(v_data.get("verdict", "")).strip().upper()
-                    if (
-                        "BLOCKED" in verify_verdict
-                        or "NOT CONFORMING" in verify_verdict
-                    ):
-                        verify_disp = "blocked"
-                        disposition = "partial"
-                    elif verify_verdict == "VERIFIED":
-                        verify_disp = "verified"
-                    else:
-                        verify_disp = "unverified"
-                        disposition = "partial"
-                except Exception:
-                    verify_disp = "unverified"
-                    disposition = "partial"
-            else:
-                verify_disp = "unverified"
-                disposition = "partial"
         except runner_stop.StopNowForce as stop:
             now = utc_now()
+            record = _record_forced_stop(run_dir, state, item, stop, work_dir=work_dir)
             attempt["interrupted_at"] = now
             attempt["ended_at"] = now
             attempt["interrupt_reason"] = "deliberate-stop-now-force"
-            record = _record_forced_stop(run_dir, state, item, stop, work_dir=work_dir)
+            attempt["exit_code"] = stop.exit_code
             attempt["stopped"] = record
             attempt["disposition"] = runner_stop.FORCED_DISPOSITION
-            item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
-            raise
+            item["status"] = runner_stop.FORCED_DISPOSITION
+            save_state(run_dir, state)
+            print(
+                pal(
+                    f"  \u25cf IPD {item['id6']} interrupted by deliberate force stop",
+                    "yellow",
+                ),
+                file=sys.stderr,
+            )
+            return
         except runner_stop.StopAtCheckpoint as stop:
             now = utc_now()
-            attempt["interrupted_at"] = now
-            attempt["ended_at"] = now
-            attempt["interrupt_reason"] = "deliberate-stop-at-checkpoint"
             record = _record_checkpoint_stop(
                 run_dir, state, item, stop.observer, work_dir=work_dir
             )
+            attempt["interrupted_at"] = now
+            attempt["ended_at"] = now
+            attempt["interrupt_reason"] = "deliberate-stop-at-checkpoint"
+            attempt["exit_code"] = stop.exit_code
             attempt["stopped"] = record
             attempt["disposition"] = runner_stop.STOPPED_DISPOSITION
-            item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
-            raise
-        except StallTimeout:
-            verify_disp = "unverified"
-            disposition = "partial"
-
-    attempt["disposition"] = disposition
-    attempt["verification"] = verify_disp
-    attempt["verification_status"] = verify_disp
-    item["status"] = disposition
-    item["last_outcome"] = outcome
-    item["verification_status"] = verify_disp
-
-    if not is_review:
-        defect_verdict = validate_defect_report(outcome)
-        reask_session = attempt.get("session_id")
-        warranted, reask_reason = defect_reask_is_warranted(
-            defect_verdict,
-            disposition=disposition,
-            session_id=reask_session,
-            already_reasked=bool(attempt.get("defect_reasked")),
-        )
-        reask_verdict = None
-        if warranted:
-            reask_prompt = write_prompt(
-                run_dir,
-                item,
-                defect_reask_message(defect_verdict),
-                attempt_no,
-                suffix="defect-reask",
+            item["status"] = runner_stop.STOPPED_DISPOSITION
+            save_state(run_dir, state)
+            print(
+                pal(
+                    f"  \u25cf IPD {item['id6']} stopped cleanly at checkpoint: "
+                    f"{stop.observer.last_checkpoint_label}",
+                    "yellow",
+                ),
+                file=sys.stderr,
             )
-            attempt["defect_reask_prompt"] = str(reask_prompt)
-            attempt["defect_reasked"] = True
+            return
+        except StallTimeout:
+            from agent_workflows import lane_containment, worktree_lease
+
+            now = utc_now()
+            attempt["interrupted_at"] = now
+            attempt["ended_at"] = now
+            attempt["interrupt_reason"] = "stall_timeout"
+            stall_sec = state.get("options", {}).get(
+                "stall_timeout", DEFAULT_STALL_TIMEOUT
+            )
+            attempt["stall_timeout"] = stall_sec
+            item["status"] = "interrupted"
+            if wt_handle is not None:
+                try:
+                    worktree_lease.snapshot_lane_dirty_work(
+                        repo, wt_handle, note="Reason: stall_timeout."
+                    )
+                except Exception:
+                    pass
+                lane_containment.record_lane_preserved(
+                    run_dir=run_dir,
+                    item=item,
+                    handle=wt_handle,
+                    reason="turn stalled; lane preserved for recovery",
+                    reason_codes=("stall-timeout",),
+                )
+            save_state(run_dir, state)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": now,
+                    "event": "ipd-stalled",
+                    "id6": item["id6"],
+                    "stall_timeout": stall_sec,
+                    "attempt": attempt_no,
+                },
+            )
+            print(
+                pal(
+                    f"\u2717 IPD {seq:02d}/{total} {item['id6']} stalled (no output for {int(stall_sec) if stall_sec else 0}s); turn terminated",
+                    "red",
+                ),
+                file=sys.stderr,
+            )
+            return
+
+        if session_id:
+            attempt["session_id"] = session_id
+            if turn_runs_in_review_sweep_lane(state, work_dir):
+                counts = state.setdefault("session_turn_counts", {})
+                existing_sweep = state.get(REVIEW_SWEEP_SESSION_KEY)
+                existing_turns = counts.get(existing_sweep, 0) if existing_sweep else 0
+                sweep_rotation = bool(
+                    max_items and max_items > 0 and existing_turns >= max_items
+                )
+                if (
+                    existing_sweep
+                    and existing_sweep != session_id
+                    and not sweep_rotation
+                ):
+                    raise DriverError(
+                        f"Review sweep changed session unexpectedly: {existing_sweep} -> {session_id}"
+                    )
+                state[REVIEW_SWEEP_SESSION_KEY] = session_id
+                counts[session_id] = counts.get(session_id, 0) + 1
+            if not work_dir:
+                counts = state.setdefault("session_turn_counts", {})
+                existing = state.setdefault("set_sessions", {}).get(item["setid"])
+                existing_turns = counts.get(existing, 0) if existing else 0
+                is_planned_rotation = bool(
+                    max_items and max_items > 0 and existing_turns >= max_items
+                )
+                if existing and existing != session_id and not is_planned_rotation:
+                    raise DriverError(
+                        f"Set {item['setid']} changed session unexpectedly: {existing} -> {session_id}"
+                    )
+                state["set_sessions"][item["setid"]] = session_id
+                state["session_id"] = session_id
+                counts[session_id] = counts.get(session_id, 0) + 1
+
+        attempt.update(
+            {
+                "ended_at": utc_now(),
+                "exit_code": exit_code,
+                "ending_head": git_head(repo),
+                "ending_branch": git_branch(repo),
+                "ending_status": git_status(repo),
+                "log": str(log_path),
+                "argv": argv,
+            }
+        )
+        from agent_workflows.run_viewer import extract_log_metrics
+
+        att_cost, att_toks = extract_log_metrics(log_path)
+        if att_cost is not None:
+            attempt["cost"] = att_cost
+        if att_toks:
+            attempt["tokens"] = att_toks
+
+        if work_dir and (
+            not is_review or turn_runs_in_review_sweep_lane(state, work_dir)
+        ):
             try:
-                reask_verdict, reask_rc = perform_defect_reask(
-                    verdict=defect_verdict,
-                    prompt_path=reask_prompt,
-                    outcome_path=run_dir
-                    / "outcomes"
-                    / f"{item['position']:02d}-{item['id6']}.json",
-                    resume=(
-                        (
-                            lambda reask_prompt_path: resume_via_launcher(
-                                raw_launcher,
-                                (
-                                    state,
-                                    run_dir,
-                                    item,
-                                    plan_path,
-                                    reask_prompt_path,
-                                    attempt_no,
-                                ),
-                                {
-                                    "log_suffix": "defect-reask",
-                                    "label_suffix": "defect-reask",
-                                    "tracker": tracker,
-                                    "work_dir": work_dir,
-                                    "resume_session": reask_session,
-                                },
-                            )
-                        )
-                        if host_labels == OC_HOST_LABELS
-                        else (
-                            lambda reask_prompt_path: resume_via_launcher(
-                                raw_launcher,
-                                (
-                                    state,
-                                    run_dir,
-                                    item,
-                                    reask_prompt_path,
-                                    attempt_no,
-                                ),
-                                {
-                                    "session_id": reask_session,
-                                    "use_continue": False,
-                                    "log_suffix": "defect-reask",
-                                    "label_suffix": "defect-reask",
-                                    "work_dir": work_dir,
-                                    "tracker": tracker,
-                                },
-                            )
+                collection = lane_containment.collect_lane_submissions(
+                    run_dir=run_dir,
+                    item=item,
+                    run_id=state["run_id"],
+                    lane_root=Path(work_dir),
+                    plan_path=plan_path,
+                    attempt=attempt_no,
+                )
+            except (
+                Exception
+            ) as exc:  # pragma: no cover - defensive; collection must never kill a turn
+                collection = None
+                attempt["collection_error"] = f"{type(exc).__name__}: {exc}"
+            if collection is not None:
+                attempt["collection"] = {
+                    "status": collection.get("status"),
+                    "collected": collection.get("collected"),
+                    "failed": collection.get("failed"),
+                    "receipt": str(
+                        lane_containment.collection_receipt_path(
+                            run_dir, item, attempt_no
                         )
                     ),
+                }
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "lane-submissions-collected",
+                        "id6": item["id6"],
+                        "attempt": attempt_no,
+                        "collected": collection.get("collected"),
+                        "failed": collection.get("failed"),
+                    },
+                )
+
+        disposition, outcome = reconcile_disposition(
+            repo,
+            item,
+            run_dir,
+            exit_code,
+            plan_repo=Path(work_dir) if work_dir else None,
+        )
+
+        verify_disp = None
+        opts = state.get("options", {})
+        validate = opts.get("validate", False)
+        if "validate" not in opts:
+            validate = not (opts.get("no_verify") or opts.get("no_audit"))
+        if (
+            not is_review
+            and disposition in ("executed", "substantially-complete")
+            and validate
+        ):
+            plan_repo = Path(work_dir) if work_dir else repo
+            try:
+                current_plan_path = resolve_plan_path(
+                    plan_repo, item.get("configured_file", ""), item["id6"]
+                )
+            except DriverError:
+                current_plan_path = plan_path
+            v_prompt = build_verifier_prompt(
+                item, state, run_dir, current_plan_path, labels=host_labels
+            )
+            v_prompt_file = write_prompt(
+                run_dir, item, v_prompt, attempt_no, suffix="verify"
+            )
+            print(
+                pal(
+                    f"  \u25b6 Verifying {item['id6']} ({current_plan_path})...",
+                    "cyan",
+                ),
+                flush=True,
+            )
+            try:
+                v_rc, _v_session, _v_log, _v_argv = spawn_verifier(
+                    v_prompt_file,
+                    current_plan_path,
+                    work_dir,
+                    tracker,
+                    attempt_no,
+                )
+                if _v_log:
+                    attempt["verify_log"] = str(_v_log)
+                    v_cost, v_toks = extract_log_metrics(_v_log)
+                    if v_cost is not None:
+                        attempt["verify_cost"] = v_cost
+                    if v_toks:
+                        attempt["verify_tokens"] = v_toks
+                v_outcome_file = (
+                    run_dir
+                    / "outcomes"
+                    / f"{item['position']:02d}-{item['id6']}-verification.json"
+                )
+                if v_outcome_file.is_file():
+                    try:
+                        v_data = json.loads(v_outcome_file.read_text(encoding="utf-8"))
+                        verify_verdict = str(v_data.get("verdict", "")).strip().upper()
+                        if (
+                            "BLOCKED" in verify_verdict
+                            or "NOT CONFORMING" in verify_verdict
+                        ):
+                            verify_disp = "blocked"
+                            disposition = "partial"
+                        elif verify_verdict == "VERIFIED":
+                            verify_disp = "verified"
+                        else:
+                            verify_disp = "unverified"
+                            disposition = "partial"
+                    except Exception:
+                        verify_disp = "unverified"
+                        disposition = "partial"
+                else:
+                    verify_disp = "unverified"
+                    disposition = "partial"
+            except runner_stop.StopNowForce as stop:
+                now = utc_now()
+                attempt["interrupted_at"] = now
+                attempt["ended_at"] = now
+                attempt["interrupt_reason"] = "deliberate-stop-now-force"
+                record = _record_forced_stop(
+                    run_dir, state, item, stop, work_dir=work_dir
+                )
+                attempt["stopped"] = record
+                attempt["disposition"] = runner_stop.FORCED_DISPOSITION
+                item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
+                raise
+            except runner_stop.StopAtCheckpoint as stop:
+                now = utc_now()
+                attempt["interrupted_at"] = now
+                attempt["ended_at"] = now
+                attempt["interrupt_reason"] = "deliberate-stop-at-checkpoint"
+                record = _record_checkpoint_stop(
+                    run_dir, state, item, stop.observer, work_dir=work_dir
+                )
+                attempt["stopped"] = record
+                attempt["disposition"] = runner_stop.STOPPED_DISPOSITION
+                item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
+                raise
+            except StallTimeout:
+                verify_disp = "unverified"
+                disposition = "partial"
+
+        attempt["disposition"] = disposition
+        attempt["verification"] = verify_disp
+        attempt["verification_status"] = verify_disp
+        item["status"] = disposition
+        item["last_outcome"] = outcome
+        item["verification_status"] = verify_disp
+
+        if not is_review:
+            defect_verdict = validate_defect_report(outcome)
+            reask_session = attempt.get("session_id")
+            warranted, reask_reason = defect_reask_is_warranted(
+                defect_verdict,
+                disposition=disposition,
+                session_id=reask_session,
+                already_reasked=bool(attempt.get("defect_reasked")),
+            )
+            reask_verdict = None
+            if warranted:
+                reask_prompt = write_prompt(
+                    run_dir,
+                    item,
+                    defect_reask_message(defect_verdict),
+                    attempt_no,
+                    suffix="defect-reask",
+                )
+                attempt["defect_reask_prompt"] = str(reask_prompt)
+                attempt["defect_reasked"] = True
+                try:
+                    reask_verdict, reask_rc = perform_defect_reask(
+                        verdict=defect_verdict,
+                        prompt_path=reask_prompt,
+                        outcome_path=run_dir
+                        / "outcomes"
+                        / f"{item['position']:02d}-{item['id6']}.json",
+                        resume=(
+                            (
+                                lambda reask_prompt_path: resume_via_launcher(
+                                    raw_launcher,
+                                    (
+                                        state,
+                                        run_dir,
+                                        item,
+                                        plan_path,
+                                        reask_prompt_path,
+                                        attempt_no,
+                                    ),
+                                    {
+                                        "log_suffix": "defect-reask",
+                                        "label_suffix": "defect-reask",
+                                        "tracker": tracker,
+                                        "work_dir": work_dir,
+                                        "resume_session": reask_session,
+                                    },
+                                )
+                            )
+                            if host_labels == OC_HOST_LABELS
+                            else (
+                                lambda reask_prompt_path: resume_via_launcher(
+                                    raw_launcher,
+                                    (
+                                        state,
+                                        run_dir,
+                                        item,
+                                        reask_prompt_path,
+                                        attempt_no,
+                                    ),
+                                    {
+                                        "session_id": reask_session,
+                                        "use_continue": False,
+                                        "log_suffix": "defect-reask",
+                                        "label_suffix": "defect-reask",
+                                        "work_dir": work_dir,
+                                        "tracker": tracker,
+                                    },
+                                )
+                            )
+                        ),
+                        recollect=(
+                            functools.partial(
+                                lane_containment.collect_lane_submissions,
+                                run_dir=run_dir,
+                                item=item,
+                                run_id=state["run_id"],
+                                lane_root=Path(work_dir),
+                                plan_path=plan_path,
+                                attempt=attempt_no,
+                            )
+                            if work_dir
+                            else None
+                        ),
+                        session_turn_counts=(
+                            None
+                            if work_dir
+                            else state.setdefault("session_turn_counts", {})
+                        ),
+                        session_id=reask_session,
+                    )
+                    attempt["defect_reask_exit_code"] = reask_rc
+                except (KeyboardInterrupt, StallTimeout):
+                    reask_verdict = None
+            record = defect_report_record(
+                defect_verdict,
+                reasked=warranted,
+                reask_reason=reask_reason,
+                reask_verdict=reask_verdict,
+            )
+            attempt["defect_report"] = record
+            item["defect_report"] = record
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "defect-report-recorded",
+                    "id6": item["id6"],
+                    "disposition": disposition,
+                    "reasked": warranted,
+                    "reask_reason": reask_reason,
+                    "verdict": record["verdict"],
+                    "state": record["state"],
+                    "coerced": record["coerced"],
+                    "findings_count": len(record["findings"]),
+                },
+            )
+
+        suite_result: Any = None
+        integration_gate_relevant = (
+            self_finalize
+            and not is_review
+            and disposition in ("executed", "substantially-complete")
+        )
+        if integration_gate_relevant and not validate:
+            suite_result = run_suite_check(repo, str(state.get("run_id") or ""))
+            attempt["suite_check"] = {
+                "passing": suite_result.passing,
+                "exit_code": suite_result.exit_code,
+                "summary": suite_result.summary,
+                "cwd": suite_result.cwd,
+                "timeout_seconds": suite_result.timeout_seconds,
+                "elapsed_seconds": round(suite_result.elapsed_seconds, 3),
+                # gatewire-01 (`h5pyqa`) E-02: WHICH tests failed, not merely how many. Persisted beside
+                # the count line because `summary` alone ("1 failed") is not attributable to a diff, so a
+                # human reading this record afterwards could not check the agent's answer either.
+                "failures": list(getattr(suite_result, "failures", ()) or ()),
+            }
+            # ---- integearn-05 (`9lyg5h`) E-03/E-06: COLLECT THE PRE-WORK BASELINE -----------------
+            #
+            # SITED AT EXACTLY THE SEAM THE POST-WORK RESULT IS CONSUMED AT, so the two facts about
+            # the same attempt are recorded together and an auditor reads them side by side.
+            #
+            # THE WAIT IS ZERO, which is OQ-02's answer and the property that makes this design free:
+            # a zero-wait collection CANNOT delay a turn, by construction, and the baseline has had
+            # the entire agent turn (minutes to hours) to finish a ~2-3 minute suite. A baseline not
+            # finished by now is treated as MISSING, never waited for and never a failure.
+            #
+            # A MISSING OR FAILED BASELINE IS NOT A FAILED ITEM. `collect()` never raises and reports
+            # ABSENT with a reason; the `contextlib.suppress` is a second belt for the same rule,
+            # because this plan's worst possible outcome is making the runner MORE FRAGILE in exchange
+            # for better information. The agent then answers exactly as it does today.
+            if suite_baseline_run is not None:
+                with contextlib.suppress(Exception):
+                    suite_baseline = suite_baseline_run.collect(wait_seconds=0.0)
+            if suite_baseline is None:
+                suite_baseline = suite_baseline_absent(
+                    "no pre-work baseline was started for this turn"
+                )
+            # E-06: WRITTEN BY THIS ONE SHARED SEAM, so BOTH hosts persist the identical shape. All
+            # four facts are here: the base commit it was taken at (without which a reader cannot tell
+            # whether it described the tree the item started from), the failing id set, whether it
+            # completed, and the reason when it did not.
+            attempt["suite_baseline"] = suite_baseline.as_record()
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "suite-baseline-collected",
+                    "id6": item["id6"],
+                    "attempt": attempt_no,
+                    "state": suite_baseline.state,
+                    "base_commit": suite_baseline.base_commit,
+                    "failing_count": len(suite_baseline.failures),
+                    "reason": suite_baseline.reason,
+                },
+            )
+        integration = integration_is_earned(
+            validate=validate, verify_disp=verify_disp, suite_result=suite_result
+        )
+        if integration_gate_relevant:
+            attempt["integration_signal"] = integration.signal
+            attempt["integration_detail"] = integration.detail
+            item["integration_signal"] = integration.signal
+            item["verifier_ran"] = bool(validate)
+        save_state(run_dir, state)
+
+        # ---- gatewire-01 (`h5pyqa`): ASK about a suite-failure refusal, and act on the answer ---------
+        #
+        # SITED HERE, immediately after the verdict and BEFORE anything reads `integration.earned`, which
+        # is what makes one wiring serve BOTH lane shapes: the isolated-lane self-finalize arm and the
+        # non-isolated arm each test `integration.earned` further down, so releasing the verdict at its
+        # source reaches both. A fix applied at one of those arms would be a fix on neither (plan V-03).
+        #
+        # ONLY the suite-failure signal is asked about; `gate_answer_is_warranted` owns that rule and the
+        # two exclusions behind it.
+        gate_answer_asked, gate_answer_reason = gate_answer_is_warranted(
+            integration_gate_relevant=integration_gate_relevant,
+            earned=integration.earned,
+            integration_signal=integration.signal,
+            session_id=attempt.get("session_id"),
+            already_asked=bool(attempt.get("gate_answer_asked")),
+        )
+        if gate_answer_asked:
+            attempt["gate_answer_asked"] = True
+            gate_session = attempt.get("session_id")
+            item_outcome_path = (
+                run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
+            )
+            # THE TURN'S OWN CHANGED FILES, which is half the comparison the answer turns on. Only an
+            # ISOLATED lane has a branch to diff; a non-isolated turn commits onto the working branch, so
+            # there is no lane base to measure from and the question degrades honestly to "(none
+            # recorded)" rather than showing the agent somebody else's diff.
+            gate_changed_files: list[str] = list(
+                item.get("integration_changed_files") or ()
+            )
+            if wt_handle is not None:
+                try:
+                    gate_changed_files = list(
+                        build_lane_outcome(repo, wt_handle, item["id6"]).changed_files
+                    )
+                except Exception:
+                    # Showing the failing tests without the file list is worse than showing both and far
+                    # better than refusing with no question asked at all.
+                    pass
+            try:
+                gate_outcome = perform_gate_answer(
+                    suite_result=suite_result,
+                    changed_files=gate_changed_files,
+                    ask=(
+                        lambda gate_prompt_text: resume_via_launcher(
+                            raw_launcher,
+                            (
+                                state,
+                                run_dir,
+                                item,
+                                plan_path,
+                                write_prompt(
+                                    run_dir,
+                                    item,
+                                    gate_prompt_text,
+                                    attempt_no,
+                                    suffix="gate-answer",
+                                ),
+                                attempt_no,
+                            ),
+                            {
+                                "log_suffix": "gate-answer",
+                                "label_suffix": "gate-answer",
+                                "tracker": tracker,
+                                "work_dir": work_dir,
+                                "resume_session": gate_session,
+                            },
+                        )
+                        if host_labels == OC_HOST_LABELS
+                        else resume_via_launcher(
+                            raw_launcher,
+                            (
+                                state,
+                                run_dir,
+                                item,
+                                write_prompt(
+                                    run_dir,
+                                    item,
+                                    gate_prompt_text,
+                                    attempt_no,
+                                    suffix="gate-answer",
+                                ),
+                                attempt_no,
+                            ),
+                            {
+                                "session_id": gate_session,
+                                "use_continue": False,
+                                "log_suffix": "gate-answer",
+                                "label_suffix": "gate-answer",
+                                "work_dir": work_dir,
+                                "tracker": tracker,
+                            },
+                        )
+                    ),
+                    outcome_path=item_outcome_path,
                     recollect=(
                         functools.partial(
                             lane_containment.collect_lane_submissions,
@@ -16420,771 +17298,636 @@ def execute_item_core(
                         if work_dir
                         else None
                     ),
+                    # A `fixed` claim is verified by RE-RUNNING the real suite in the PRIMARY checkout,
+                    # exactly as the first run was (`run_suite_check`'s docstring: a lane-run suite is
+                    # permanently red for reasons unrelated to the plan).
+                    rerun_suite=lambda: run_suite_check(
+                        repo, str(state.get("run_id") or "")
+                    ),
+                    retry_budget=frozen_retry_budget(state),
                     session_turn_counts=(
                         None
                         if work_dir
                         else state.setdefault("session_turn_counts", {})
                     ),
-                    session_id=reask_session,
-                )
-                attempt["defect_reask_exit_code"] = reask_rc
-            except (KeyboardInterrupt, StallTimeout):
-                reask_verdict = None
-        record = defect_report_record(
-            defect_verdict,
-            reasked=warranted,
-            reask_reason=reask_reason,
-            reask_verdict=reask_verdict,
-        )
-        attempt["defect_report"] = record
-        item["defect_report"] = record
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": utc_now(),
-                "event": "defect-report-recorded",
-                "id6": item["id6"],
-                "disposition": disposition,
-                "reasked": warranted,
-                "reask_reason": reask_reason,
-                "verdict": record["verdict"],
-                "state": record["state"],
-                "coerced": record["coerced"],
-                "findings_count": len(record["findings"]),
-            },
-        )
-
-    suite_result: Any = None
-    integration_gate_relevant = (
-        self_finalize
-        and not is_review
-        and disposition in ("executed", "substantially-complete")
-    )
-    if integration_gate_relevant and not validate:
-        suite_result = run_suite_check(repo, str(state.get("run_id") or ""))
-        attempt["suite_check"] = {
-            "passing": suite_result.passing,
-            "exit_code": suite_result.exit_code,
-            "summary": suite_result.summary,
-            "cwd": suite_result.cwd,
-            "timeout_seconds": suite_result.timeout_seconds,
-            "elapsed_seconds": round(suite_result.elapsed_seconds, 3),
-            # gatewire-01 (`h5pyqa`) E-02: WHICH tests failed, not merely how many. Persisted beside
-            # the count line because `summary` alone ("1 failed") is not attributable to a diff, so a
-            # human reading this record afterwards could not check the agent's answer either.
-            "failures": list(getattr(suite_result, "failures", ()) or ()),
-        }
-    integration = integration_is_earned(
-        validate=validate, verify_disp=verify_disp, suite_result=suite_result
-    )
-    if integration_gate_relevant:
-        attempt["integration_signal"] = integration.signal
-        attempt["integration_detail"] = integration.detail
-        item["integration_signal"] = integration.signal
-        item["verifier_ran"] = bool(validate)
-    save_state(run_dir, state)
-
-    # ---- gatewire-01 (`h5pyqa`): ASK about a suite-failure refusal, and act on the answer ---------
-    #
-    # SITED HERE, immediately after the verdict and BEFORE anything reads `integration.earned`, which
-    # is what makes one wiring serve BOTH lane shapes: the isolated-lane self-finalize arm and the
-    # non-isolated arm each test `integration.earned` further down, so releasing the verdict at its
-    # source reaches both. A fix applied at one of those arms would be a fix on neither (plan V-03).
-    #
-    # ONLY the suite-failure signal is asked about; `gate_answer_is_warranted` owns that rule and the
-    # two exclusions behind it.
-    gate_answer_asked, gate_answer_reason = gate_answer_is_warranted(
-        integration_gate_relevant=integration_gate_relevant,
-        earned=integration.earned,
-        integration_signal=integration.signal,
-        session_id=attempt.get("session_id"),
-        already_asked=bool(attempt.get("gate_answer_asked")),
-    )
-    if gate_answer_asked:
-        attempt["gate_answer_asked"] = True
-        gate_session = attempt.get("session_id")
-        item_outcome_path = (
-            run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
-        )
-        # THE TURN'S OWN CHANGED FILES, which is half the comparison the answer turns on. Only an
-        # ISOLATED lane has a branch to diff; a non-isolated turn commits onto the working branch, so
-        # there is no lane base to measure from and the question degrades honestly to "(none
-        # recorded)" rather than showing the agent somebody else's diff.
-        gate_changed_files: list[str] = list(
-            item.get("integration_changed_files") or ()
-        )
-        if wt_handle is not None:
-            try:
-                gate_changed_files = list(
-                    build_lane_outcome(repo, wt_handle, item["id6"]).changed_files
-                )
-            except Exception:
-                # Showing the failing tests without the file list is worse than showing both and far
-                # better than refusing with no question asked at all.
-                pass
-        try:
-            gate_outcome = perform_gate_answer(
-                suite_result=suite_result,
-                changed_files=gate_changed_files,
-                ask=(
-                    lambda gate_prompt_text: resume_via_launcher(
-                        raw_launcher,
-                        (
-                            state,
-                            run_dir,
-                            item,
-                            plan_path,
-                            write_prompt(
-                                run_dir,
-                                item,
-                                gate_prompt_text,
-                                attempt_no,
-                                suffix="gate-answer",
-                            ),
-                            attempt_no,
-                        ),
-                        {
-                            "log_suffix": "gate-answer",
-                            "label_suffix": "gate-answer",
-                            "tracker": tracker,
-                            "work_dir": work_dir,
-                            "resume_session": gate_session,
-                        },
-                    )
-                    if host_labels == OC_HOST_LABELS
-                    else resume_via_launcher(
-                        raw_launcher,
-                        (
-                            state,
-                            run_dir,
-                            item,
-                            write_prompt(
-                                run_dir,
-                                item,
-                                gate_prompt_text,
-                                attempt_no,
-                                suffix="gate-answer",
-                            ),
-                            attempt_no,
-                        ),
-                        {
-                            "session_id": gate_session,
-                            "use_continue": False,
-                            "log_suffix": "gate-answer",
-                            "label_suffix": "gate-answer",
-                            "work_dir": work_dir,
-                            "tracker": tracker,
-                        },
-                    )
-                ),
-                outcome_path=item_outcome_path,
-                recollect=(
-                    functools.partial(
-                        lane_containment.collect_lane_submissions,
-                        run_dir=run_dir,
-                        item=item,
-                        run_id=state["run_id"],
-                        lane_root=Path(work_dir),
-                        plan_path=plan_path,
-                        attempt=attempt_no,
-                    )
-                    if work_dir
-                    else None
-                ),
-                # A `fixed` claim is verified by RE-RUNNING the real suite in the PRIMARY checkout,
-                # exactly as the first run was (`run_suite_check`'s docstring: a lane-run suite is
-                # permanently red for reasons unrelated to the plan).
-                rerun_suite=lambda: run_suite_check(
-                    repo, str(state.get("run_id") or "")
-                ),
-                retry_budget=frozen_retry_budget(state),
-                session_turn_counts=(
-                    None if work_dir else state.setdefault("session_turn_counts", {})
-                ),
-                session_id=gate_session,
-                integration_signal=integration.signal,
-                ask_reason=gate_answer_reason,
-            )
-        except (KeyboardInterrupt, StallTimeout):
-            # An interrupted follow-up leaves the refusal STANDING, which is the fail-closed
-            # direction, and is recorded as asked-but-unanswered rather than silently dropped.
-            gate_outcome = GateAnswerOutcome(
-                release=False,
-                record=gate_answer_record(
-                    GateAnswerVerdict(
-                        "", "", "the follow-up turn was interrupted before it answered"
-                    ),
-                    asked=True,
-                    ask_reason=gate_answer_reason,
                     session_id=gate_session,
                     integration_signal=integration.signal,
-                    failures=getattr(suite_result, "failures", ()) or (),
-                ),
-            )
-        attempt[GATE_ANSWER_RECORD_KEY] = gate_outcome.record
-        item[GATE_ANSWER_RECORD_KEY] = gate_outcome.record
-        if gate_outcome.suite_result is not None and gate_outcome.record.get(
-            "recheck_attempts"
-        ):
-            # A verified repair REPLACES the suite evidence on the attempt, so the record shows the
-            # run that actually decided rather than the stale first failure.
-            attempt["suite_check_recheck"] = {
-                "passing": bool(gate_outcome.suite_result.passing),
-                "exit_code": int(gate_outcome.suite_result.exit_code),
-                "summary": str(gate_outcome.suite_result.summary),
-                "failures": list(
-                    getattr(gate_outcome.suite_result, "failures", ()) or ()
-                ),
-            }
-        if gate_outcome.release:
-            integration = integration.__class__(
-                True,
-                integration.signal,
-                f"{integration.detail}; RELEASED by the agent's gate answer "
-                f"({gate_outcome.record.get('answer')}): "
-                f"{gate_outcome.record.get('reason') or 'no reason recorded'}",
-            )
-            attempt["integration_detail"] = integration.detail
-            attempt["integration_released_by_answer"] = gate_outcome.record.get(
-                "answer"
-            )
-            item["integration_released_by_answer"] = gate_outcome.record.get("answer")
-        elif (
-            gate_outcome.verdict is not None
-            and gate_outcome.verdict.awaits_human_decision
-        ):
-            # E-06: `needs-human` means the item waits on a DECISION rather than on work, and those
-            # route to different people. Recorded through the ONE refusal writer so the existing
-            # `Diagnostics / Blocked Items:` block renders it (it renders a `Refusal` for ANY status).
-            record_refusal(
-                item,
-                code=GATE_ANSWER_NEEDS_HUMAN_CODE,
-                reason=(
-                    f"the agent answered {GATE_ANSWER_NEEDS_HUMAN!r} about the failing test suite: "
-                    f"{gate_outcome.record.get('reason') or 'no reason recorded'}"
-                ),
-                remedy=gate_answer_needs_human_remedy(
-                    item["id6"], str(gate_outcome.record.get("reason") or "")
-                ),
-            )
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": utc_now(),
-                "event": (
-                    "integration-gate-answer-released"
-                    if gate_outcome.release
-                    else "integration-gate-answer-refused"
-                ),
-                "id6": item["id6"],
-                "attempt": attempt_no,
-                "answer": gate_outcome.record.get("answer"),
-                "reason": gate_outcome.record.get("reason"),
-                "usable": gate_outcome.record.get("usable"),
-                "signal": integration.signal,
-                "recheck_attempts": gate_outcome.record.get("recheck_attempts"),
-                "recheck_passed": gate_outcome.record.get("recheck_passed"),
-                "session_id": gate_session,
-            },
-        )
-        if gate_outcome.release:
-            print(
-                pal(
-                    f"  \u2713 IPD {item['id6']} integration RELEASED by the agent's answer "
-                    f"({gate_outcome.record.get('answer')}): "
-                    f"{gate_outcome.record.get('reason')}",
-                    "cyan",
+                    ask_reason=gate_answer_reason,
+                    # integearn-05 (`9lyg5h`) E-04: the pre-work failing set, handed over as CONTEXT
+                    # so an HONEST agent can answer "was this already failing?" correctly instead of
+                    # guessing. It reaches the PROMPT and the RECORD and nothing else; no code path
+                    # here or downstream compares it to `suite_result.failures` to change an outcome.
+                    # That absence is the maintainer's 2026-09-08 ruling in executable form; see
+                    # `SUITE_BASELINE_SUBDIR` for the four reasons a gate on it would be wrong.
+                    baseline=suite_baseline,
                 )
-            )
-        else:
-            print(
-                pal(
-                    f"  ! IPD {item['id6']} integration still REFUSED after asking "
-                    f"({gate_outcome.record.get('answer') or 'no usable answer'}): "
-                    f"{gate_outcome.record.get('reason') or gate_outcome.record.get('violation')}",
-                    "yellow",
-                ),
-                file=sys.stderr,
-            )
-        save_state(run_dir, state)
-    elif integration_gate_relevant and not integration.earned:
-        # Recorded even when NOT asked, because "nobody asked" and "asked and refused" are materially
-        # different facts for a human reading the record, exactly as they are for the defect report.
-        attempt["gate_answer_skipped_reason"] = gate_answer_reason
-        save_state(run_dir, state)
-
-    if is_review and wt_handle is not None:
-        review_commit, review_committed_paths = commit_review_lane_output(
-            repo, wt_handle, item["id6"], host_label=host_labels.command
-        )
-        if review_commit:
-            attempt["review_lane_commit"] = review_commit
-            attempt["review_lane_committed_paths"] = list(review_committed_paths)
+            except (KeyboardInterrupt, StallTimeout):
+                # An interrupted follow-up leaves the refusal STANDING, which is the fail-closed
+                # direction, and is recorded as asked-but-unanswered rather than silently dropped.
+                gate_outcome = GateAnswerOutcome(
+                    release=False,
+                    record=gate_answer_record(
+                        GateAnswerVerdict(
+                            "",
+                            "",
+                            "the follow-up turn was interrupted before it answered",
+                        ),
+                        asked=True,
+                        ask_reason=gate_answer_reason,
+                        session_id=gate_session,
+                        integration_signal=integration.signal,
+                        failures=getattr(suite_result, "failures", ()) or (),
+                        baseline=suite_baseline,
+                    ),
+                )
+            attempt[GATE_ANSWER_RECORD_KEY] = gate_outcome.record
+            item[GATE_ANSWER_RECORD_KEY] = gate_outcome.record
+            if gate_outcome.suite_result is not None and gate_outcome.record.get(
+                "recheck_attempts"
+            ):
+                # A verified repair REPLACES the suite evidence on the attempt, so the record shows the
+                # run that actually decided rather than the stale first failure.
+                attempt["suite_check_recheck"] = {
+                    "passing": bool(gate_outcome.suite_result.passing),
+                    "exit_code": int(gate_outcome.suite_result.exit_code),
+                    "summary": str(gate_outcome.suite_result.summary),
+                    "failures": list(
+                        getattr(gate_outcome.suite_result, "failures", ()) or ()
+                    ),
+                }
+            if gate_outcome.release:
+                integration = integration.__class__(
+                    True,
+                    integration.signal,
+                    f"{integration.detail}; RELEASED by the agent's gate answer "
+                    f"({gate_outcome.record.get('answer')}): "
+                    f"{gate_outcome.record.get('reason') or 'no reason recorded'}",
+                )
+                attempt["integration_detail"] = integration.detail
+                attempt["integration_released_by_answer"] = gate_outcome.record.get(
+                    "answer"
+                )
+                item["integration_released_by_answer"] = gate_outcome.record.get(
+                    "answer"
+                )
+            elif (
+                gate_outcome.verdict is not None
+                and gate_outcome.verdict.awaits_human_decision
+            ):
+                # E-06: `needs-human` means the item waits on a DECISION rather than on work, and those
+                # route to different people. Recorded through the ONE refusal writer so the existing
+                # `Diagnostics / Blocked Items:` block renders it (it renders a `Refusal` for ANY status).
+                record_refusal(
+                    item,
+                    code=GATE_ANSWER_NEEDS_HUMAN_CODE,
+                    reason=(
+                        f"the agent answered {GATE_ANSWER_NEEDS_HUMAN!r} about the failing test suite: "
+                        f"{gate_outcome.record.get('reason') or 'no reason recorded'}"
+                    ),
+                    remedy=gate_answer_needs_human_remedy(
+                        item["id6"], str(gate_outcome.record.get("reason") or "")
+                    ),
+                )
             append_jsonl(
                 run_dir / "events.jsonl",
                 {
                     "at": utc_now(),
-                    "event": "review-lane-output-committed",
+                    "event": (
+                        "integration-gate-answer-released"
+                        if gate_outcome.release
+                        else "integration-gate-answer-refused"
+                    ),
                     "id6": item["id6"],
                     "attempt": attempt_no,
-                    "commit": review_commit,
-                    "paths": list(review_committed_paths),
+                    "answer": gate_outcome.record.get("answer"),
+                    "reason": gate_outcome.record.get("reason"),
+                    "usable": gate_outcome.record.get("usable"),
+                    "signal": integration.signal,
+                    "recheck_attempts": gate_outcome.record.get("recheck_attempts"),
+                    "recheck_passed": gate_outcome.record.get("recheck_passed"),
+                    "session_id": gate_session,
                 },
             )
-        elif review_committed_paths:
-            attempt["review_lane_commit_refused"] = list(review_committed_paths)
-        review_scope = None
-        try:
-            lane_changed = review_turn_changed_files(
-                repo, wt_handle, since_commit=attempt.get("review_lane_tip_before")
-            )
-        except (
-            Exception
-        ) as exc:  # pragma: no cover - defensive; never kill a turn over reporting
-            lane_changed = ()
-            attempt["review_scope_error"] = f"{type(exc).__name__}: {exc}"
-        if lane_changed:
-            review_scope = classify_review_writes(
-                lane_changed,
-                id6=item["id6"],
-                queued_id6s=[
-                    entry.get("id6", "")
-                    for entry in state.get("queue", [])
-                    if entry.get("status") == "queued"
-                ],
-            )
-            attempt["review_write_scope"] = {
-                "changed": list(review_scope.changed),
-                "allowed": list(review_scope.allowed),
-                "out_of_scope": list(review_scope.out_of_scope),
-                "queued_siblings": list(review_scope.queued_siblings),
-            }
-            item["review_write_scope"] = attempt["review_write_scope"]
-            if not review_scope.clean:
-                append_jsonl(
-                    run_dir / "events.jsonl",
-                    {
-                        "at": utc_now(),
-                        "event": "review-wrote-out-of-scope-paths",
-                        "id6": item["id6"],
-                        "out_of_scope": list(review_scope.out_of_scope),
-                        "queued_siblings": list(review_scope.queued_siblings),
-                        "detail": describe_review_write_scope(
-                            review_scope, id6=item["id6"]
-                        ),
-                    },
-                )
+            if gate_outcome.release:
                 print(
                     pal(
-                        "  ! "
-                        + describe_review_write_scope(review_scope, id6=item["id6"]),
+                        f"  \u2713 IPD {item['id6']} integration RELEASED by the agent's answer "
+                        f"({gate_outcome.record.get('answer')}): "
+                        f"{gate_outcome.record.get('reason')}",
+                        "cyan",
+                    )
+                )
+            else:
+                print(
+                    pal(
+                        f"  ! IPD {item['id6']} integration still REFUSED after asking "
+                        f"({gate_outcome.record.get('answer') or 'no usable answer'}): "
+                        f"{gate_outcome.record.get('reason') or gate_outcome.record.get('violation')}",
                         "yellow",
                     ),
                     file=sys.stderr,
                 )
             save_state(run_dir, state)
-
-        review_integrated, review_reason, review_kind = integrate_review_lane_branch(
-            repo, wt_handle, item["id6"]
-        )
-        attempt["review_integrated"] = review_integrated
-        attempt["review_integration_reason"] = review_reason
-        attempt["review_integration_kind"] = review_kind
-        item["review_integrated"] = review_integrated
-        save_state(run_dir, state)
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": utc_now(),
-                "event": (
-                    "review-lane-integrated"
-                    if review_integrated
-                    else "review-lane-not-integrated"
-                ),
-                "id6": item["id6"],
-                "branch": wt_handle.branch,
-                "kind": review_kind,
-                "detail": review_reason,
-            },
-        )
-        if not review_integrated:
-            item["review_integration_refusal"] = review_reason
+        elif integration_gate_relevant and not integration.earned:
+            # Recorded even when NOT asked, because "nobody asked" and "asked and refused" are materially
+            # different facts for a human reading the record, exactly as they are for the defect report.
+            attempt["gate_answer_skipped_reason"] = gate_answer_reason
             save_state(run_dir, state)
-            print(
-                pal(
-                    f"  ! review {item['id6']} was NOT integrated to main ({review_kind}): "
-                    f"{review_reason}. Its work is preserved on {wt_handle.branch}.",
-                    "yellow",
-                ),
-                file=sys.stderr,
-            )
-        else:
-            print(
-                pal(
-                    f"  \u2713 review {item['id6']} integrated to main ({review_reason})",
-                    "cyan",
-                )
-            )
 
-    if not is_review and disposition in ("executed", "substantially-complete"):
-        if self_finalize and work_dir and wt_handle is not None and integration.earned:
-            finalize_repo = Path(work_dir)
+        if is_review and wt_handle is not None:
+            review_commit, review_committed_paths = commit_review_lane_output(
+                repo, wt_handle, item["id6"], host_label=host_labels.command
+            )
+            if review_commit:
+                attempt["review_lane_commit"] = review_commit
+                attempt["review_lane_committed_paths"] = list(review_committed_paths)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "review-lane-output-committed",
+                        "id6": item["id6"],
+                        "attempt": attempt_no,
+                        "commit": review_commit,
+                        "paths": list(review_committed_paths),
+                    },
+                )
+            elif review_committed_paths:
+                attempt["review_lane_commit_refused"] = list(review_committed_paths)
+            review_scope = None
             try:
-                current_plan_for_finalize = resolve_plan_path(
-                    finalize_repo, item.get("configured_file", ""), item["id6"]
+                lane_changed = review_turn_changed_files(
+                    repo, wt_handle, since_commit=attempt.get("review_lane_tip_before")
                 )
-            except DriverError:
-                current_plan_for_finalize = plan_path
-            actor = driver_actor(state, labels=host_labels)
-            fin_message = (
-                f"{host_labels.command} self-finalize: {item['id6']} verified "
-                f"(set {item['setid']}, attempt {attempt_no})."
-            )
-            record_item_spec_edits(
-                finalize_repo,
-                current_plan_for_finalize,
-                item,
-                reconcile=lambda r, p: compute_scope_reconciliation(
-                    r, p, labels=host_labels
-                ),
-            )
-            sync_receipt_into_worktree(repo, finalize_repo, item["id6"])
-            fin_rc, fin_msg = driver_finalize(
-                finalize_repo,
-                current_plan_for_finalize,
-                item["id6"],
-                actor,
-                fin_message,
-            )
-            if fin_rc == 0:
-                process_backlog_close(
-                    run_dir,
-                    state,
-                    item,
-                    lane_handle=wt_handle,
-                    lane_repo=Path(work_dir),
+            except (
+                Exception
+            ) as exc:  # pragma: no cover - defensive; never kill a turn over reporting
+                lane_changed = ()
+                attempt["review_scope_error"] = f"{type(exc).__name__}: {exc}"
+            if lane_changed:
+                review_scope = classify_review_writes(
+                    lane_changed,
+                    id6=item["id6"],
+                    queued_id6s=[
+                        entry.get("id6", "")
+                        for entry in state.get("queue", [])
+                        if entry.get("status") == "queued"
+                    ],
                 )
-                # integearn-03 (`daexj1`) E-03: the host's OWN `run_suite_check` is handed to the
-                # factory so the gate's revalidation step actually measures the merge result. Bound
-                # from the local name this body already resolves (the same one the suite-signal and
-                # `fixed`-recheck paths above use), so no new injection reaches the call sites.
-                val_runner = make_integration_validation_runner(
-                    state, run_dir, item, suite_check=run_suite_check
-                )
-                try:
-                    integrated, integ_reason, integ_kind = integrate_lane_branch(
-                        repo, wt_handle, item["id6"], val_runner
+                attempt["review_write_scope"] = {
+                    "changed": list(review_scope.changed),
+                    "allowed": list(review_scope.allowed),
+                    "out_of_scope": list(review_scope.out_of_scope),
+                    "queued_siblings": list(review_scope.queued_siblings),
+                }
+                item["review_write_scope"] = attempt["review_write_scope"]
+                if not review_scope.clean:
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "review-wrote-out-of-scope-paths",
+                            "id6": item["id6"],
+                            "out_of_scope": list(review_scope.out_of_scope),
+                            "queued_siblings": list(review_scope.queued_siblings),
+                            "detail": describe_review_write_scope(
+                                review_scope, id6=item["id6"]
+                            ),
+                        },
                     )
-                except TypeError:
-                    integrated, integ_reason, integ_kind = integrate_lane_branch(
-                        repo,
-                        wt_handle,
-                        item["id6"],
-                        val_runner,
-                        host_label=host_labels.command,
-                        run_checked=globals()["run_checked"],
-                        action_kind="execute",
-                    )
-                if not integrated:
-                    with contextlib.suppress(Exception):
-                        item["integration_changed_files"] = list(
-                            build_lane_outcome(
-                                repo, wt_handle, item["id6"]
-                            ).changed_files
-                        )
-                    decision = record_integration_refusal(
-                        run_dir=run_dir,
-                        state=state,
-                        item=item,
-                        attempt=attempt,
-                        integ_kind=integ_kind,
-                        integ_reason=integ_reason,
-                        branch=wt_handle.branch if wt_handle else None,
-                        save_state=save_state,
-                        append_jsonl=append_jsonl,
-                    )
-                    fail_status = decision.status
-                    render_record_integration_refusal(
-                        item,
-                        code=fail_status,
-                        reason=integ_reason,
-                        branch=wt_handle.branch if wt_handle else None,
-                    )
-                    lane_branch = wt_handle.branch if wt_handle else "(none)"
                     print(
                         pal(
-                            f"  ! IPD {item['id6']} finalized on lane {lane_branch} but NOT "
-                            f"integrated to main ({fail_status}): {integ_reason}",
+                            "  ! "
+                            + describe_review_write_scope(
+                                review_scope, id6=item["id6"]
+                            ),
                             "yellow",
                         ),
                         file=sys.stderr,
                     )
-                    if decision.deferred:
-                        print(
-                            pal(
-                                f"    -> {decision.reason}",
-                                "cyan",
-                            ),
-                            file=sys.stderr,
+                save_state(run_dir, state)
+
+            review_integrated, review_reason, review_kind = (
+                integrate_review_lane_branch(repo, wt_handle, item["id6"])
+            )
+            attempt["review_integrated"] = review_integrated
+            attempt["review_integration_reason"] = review_reason
+            attempt["review_integration_kind"] = review_kind
+            item["review_integrated"] = review_integrated
+            save_state(run_dir, state)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": (
+                        "review-lane-integrated"
+                        if review_integrated
+                        else "review-lane-not-integrated"
+                    ),
+                    "id6": item["id6"],
+                    "branch": wt_handle.branch,
+                    "kind": review_kind,
+                    "detail": review_reason,
+                },
+            )
+            if not review_integrated:
+                item["review_integration_refusal"] = review_reason
+                save_state(run_dir, state)
+                print(
+                    pal(
+                        f"  ! review {item['id6']} was NOT integrated to main ({review_kind}): "
+                        f"{review_reason}. Its work is preserved on {wt_handle.branch}.",
+                        "yellow",
+                    ),
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    pal(
+                        f"  \u2713 review {item['id6']} integrated to main ({review_reason})",
+                        "cyan",
+                    )
+                )
+
+        if not is_review and disposition in ("executed", "substantially-complete"):
+            if (
+                self_finalize
+                and work_dir
+                and wt_handle is not None
+                and integration.earned
+            ):
+                finalize_repo = Path(work_dir)
+                try:
+                    current_plan_for_finalize = resolve_plan_path(
+                        finalize_repo, item.get("configured_file", ""), item["id6"]
+                    )
+                except DriverError:
+                    current_plan_for_finalize = plan_path
+                actor = driver_actor(state, labels=host_labels)
+                fin_message = (
+                    f"{host_labels.command} self-finalize: {item['id6']} verified "
+                    f"(set {item['setid']}, attempt {attempt_no})."
+                )
+                record_item_spec_edits(
+                    finalize_repo,
+                    current_plan_for_finalize,
+                    item,
+                    reconcile=lambda r, p: compute_scope_reconciliation(
+                        r, p, labels=host_labels
+                    ),
+                )
+                sync_receipt_into_worktree(repo, finalize_repo, item["id6"])
+                fin_rc, fin_msg = driver_finalize(
+                    finalize_repo,
+                    current_plan_for_finalize,
+                    item["id6"],
+                    actor,
+                    fin_message,
+                )
+                if fin_rc == 0:
+                    process_backlog_close(
+                        run_dir,
+                        state,
+                        item,
+                        lane_handle=wt_handle,
+                        lane_repo=Path(work_dir),
+                    )
+                    # integearn-03 (`daexj1`) E-03: the host's OWN `run_suite_check` is handed to the
+                    # factory so the gate's revalidation step actually measures the merge result. Bound
+                    # from the local name this body already resolves (the same one the suite-signal and
+                    # `fixed`-recheck paths above use), so no new injection reaches the call sites.
+                    val_runner = make_integration_validation_runner(
+                        state, run_dir, item, suite_check=run_suite_check
+                    )
+                    try:
+                        integrated, integ_reason, integ_kind = integrate_lane_branch(
+                            repo, wt_handle, item["id6"], val_runner
                         )
-                    disposition = fail_status
-                else:
-                    attempt["ending_head"] = git_head(repo)
-                    attempt["ending_status"] = git_status(repo)
-                    if (
-                        wt_handle is not None
-                        and lane_containment.lane_preserved_for_missing_input(item)
-                    ):
-                        missing_input_reason = (
-                            "a missing-input report was refused; the lane is preserved and "
-                            "paused (spec 7ckptx R3.2) so its evidence is not destroyed"
+                    except TypeError:
+                        integrated, integ_reason, integ_kind = integrate_lane_branch(
+                            repo,
+                            wt_handle,
+                            item["id6"],
+                            val_runner,
+                            host_label=host_labels.command,
+                            run_checked=globals()["run_checked"],
+                            action_kind="execute",
                         )
-                        append_jsonl(
-                            run_dir / "events.jsonl",
-                            {
-                                "at": utc_now(),
-                                "event": "lane-preserved-for-missing-input",
-                                "id6": item["id6"],
-                                "branch": wt_handle.branch,
-                                "worktree": str(wt_handle.path),
-                                "reason": missing_input_reason,
-                            },
-                        )
-                        lane_containment.record_preserved_lane_state(
+                    if not integrated:
+                        with contextlib.suppress(Exception):
+                            item["integration_changed_files"] = list(
+                                build_lane_outcome(
+                                    repo, wt_handle, item["id6"]
+                                ).changed_files
+                            )
+                        decision = record_integration_refusal(
+                            run_dir=run_dir,
+                            state=state,
                             item=item,
-                            handle=wt_handle,
-                            reason=missing_input_reason,
-                            reason_codes=("missing-input-refused",),
+                            attempt=attempt,
+                            integ_kind=integ_kind,
+                            integ_reason=integ_reason,
+                            branch=wt_handle.branch if wt_handle else None,
+                            save_state=save_state,
+                            append_jsonl=append_jsonl,
                         )
+                        fail_status = decision.status
+                        render_record_integration_refusal(
+                            item,
+                            code=fail_status,
+                            reason=integ_reason,
+                            branch=wt_handle.branch if wt_handle else None,
+                        )
+                        lane_branch = wt_handle.branch if wt_handle else "(none)"
                         print(
                             pal(
-                                f"  ! lane {wt_handle.branch} PRESERVED: a missing-input report was "
-                                f"refused (paused per spec R3.2); the lane was not torn down",
+                                f"  ! IPD {item['id6']} finalized on lane {lane_branch} but NOT "
+                                f"integrated to main ({fail_status}): {integ_reason}",
                                 "yellow",
                             ),
                             file=sys.stderr,
                         )
-                    elif wt_handle is not None:
-                        decision = lane_containment.teardown_lane_if_classified(
-                            repo=repo,
-                            handle=wt_handle,
-                            run_dir=run_dir,
-                            item=item,
-                        )
-                        if decision.torn_down:
-                            wt_handle = None
-                        else:
-                            lane_containment.record_lane_preserved(
-                                run_dir=run_dir,
+                        if decision.deferred:
+                            print(
+                                pal(
+                                    f"    -> {decision.reason}",
+                                    "cyan",
+                                ),
+                                file=sys.stderr,
+                            )
+                        disposition = fail_status
+                    else:
+                        attempt["ending_head"] = git_head(repo)
+                        attempt["ending_status"] = git_status(repo)
+                        if (
+                            wt_handle is not None
+                            and lane_containment.lane_preserved_for_missing_input(item)
+                        ):
+                            missing_input_reason = (
+                                "a missing-input report was refused; the lane is preserved and "
+                                "paused (spec 7ckptx R3.2) so its evidence is not destroyed"
+                            )
+                            append_jsonl(
+                                run_dir / "events.jsonl",
+                                {
+                                    "at": utc_now(),
+                                    "event": "lane-preserved-for-missing-input",
+                                    "id6": item["id6"],
+                                    "branch": wt_handle.branch,
+                                    "worktree": str(wt_handle.path),
+                                    "reason": missing_input_reason,
+                                },
+                            )
+                            lane_containment.record_preserved_lane_state(
                                 item=item,
                                 handle=wt_handle,
-                                reason=decision.reason,
-                                reason_codes=decision.reason_codes,
-                                detail=decision.inventory.as_dict(),
+                                reason=missing_input_reason,
+                                reason_codes=("missing-input-refused",),
                             )
                             print(
                                 pal(
-                                    f"  ! lane {wt_handle.branch} PRESERVED (not torn down): "
-                                    f"{decision.reason}",
+                                    f"  ! lane {wt_handle.branch} PRESERVED: a missing-input report was "
+                                    f"refused (paused per spec R3.2); the lane was not torn down",
                                     "yellow",
                                 ),
                                 file=sys.stderr,
                             )
-                    disposition = "executed"
+                        elif wt_handle is not None:
+                            decision = lane_containment.teardown_lane_if_classified(
+                                repo=repo,
+                                handle=wt_handle,
+                                run_dir=run_dir,
+                                item=item,
+                            )
+                            if decision.torn_down:
+                                wt_handle = None
+                            else:
+                                lane_containment.record_lane_preserved(
+                                    run_dir=run_dir,
+                                    item=item,
+                                    handle=wt_handle,
+                                    reason=decision.reason,
+                                    reason_codes=decision.reason_codes,
+                                    detail=decision.inventory.as_dict(),
+                                )
+                                print(
+                                    pal(
+                                        f"  ! lane {wt_handle.branch} PRESERVED (not torn down): "
+                                        f"{decision.reason}",
+                                        "yellow",
+                                    ),
+                                    file=sys.stderr,
+                                )
+                        disposition = "executed"
+                        attempt["disposition"] = "executed"
+                        attempt["finalized"] = True
+                        attempt["integrated"] = integ_reason
+                        item["status"] = "executed"
+                        try:
+                            item["last_plan_path"] = str(
+                                resolve_plan_path(
+                                    repo, item.get("configured_file", ""), item["id6"]
+                                )
+                            )
+                        except DriverError:
+                            pass
+                        save_state(run_dir, state)
+                        append_jsonl(
+                            run_dir / "events.jsonl",
+                            {
+                                "at": utc_now(),
+                                "event": "ipd-finalized",
+                                "id6": item["id6"],
+                                "setid": item["setid"],
+                                "integration": integ_reason,
+                            },
+                        )
+                else:
+                    attempt["ending_head"] = git_head(repo)
+                    attempt["ending_status"] = git_status(repo)
+                    # finalback (`zzcrlo`): the refusal is CORRECT and unchanged; what changes is what
+                    # happens next. Delegated so this arm and its twin below cannot drift.
+                    disposition = handle_finalize_refusal(
+                        run_dir=run_dir,
+                        state=state,
+                        item=item,
+                        attempt=attempt,
+                        fin_rc=fin_rc,
+                        fin_msg=fin_msg,
+                        disposition=disposition,
+                        host_labels=host_labels,
+                        save_state=save_state,
+                        append_jsonl=append_jsonl,
+                    )
+            elif self_finalize and not work_dir and integration.earned:
+                try:
+                    current_plan_for_finalize = resolve_plan_path(
+                        repo, item.get("configured_file", ""), item["id6"]
+                    )
+                except DriverError:
+                    current_plan_for_finalize = plan_path
+                actor = driver_actor(state, labels=host_labels)
+                fin_message = (
+                    f"{host_labels.command} self-finalize: {item['id6']} verified "
+                    f"(set {item['setid']}, attempt {attempt_no})."
+                )
+                record_item_spec_edits(
+                    repo,
+                    current_plan_for_finalize,
+                    item,
+                    reconcile=lambda r, p: compute_scope_reconciliation(
+                        r, p, labels=host_labels
+                    ),
+                )
+                fin_rc, fin_msg = driver_finalize(
+                    repo, current_plan_for_finalize, item["id6"], actor, fin_message
+                )
+                attempt["ending_head"] = git_head(repo)
+                attempt["ending_status"] = git_status(repo)
+                if fin_rc == 0:
                     attempt["disposition"] = "executed"
                     attempt["finalized"] = True
-                    attempt["integrated"] = integ_reason
-                    item["status"] = "executed"
+                    disposition = "executed"
                     try:
-                        item["last_plan_path"] = str(
-                            resolve_plan_path(
-                                repo, item.get("configured_file", ""), item["id6"]
-                            )
+                        plan_path = resolve_plan_path(
+                            repo, item.get("configured_file", ""), item["id6"]
                         )
                     except DriverError:
                         pass
+                else:
+                    # finalback (`zzcrlo`): the TWIN of the lane-worktree arm above, delegated to the same
+                    # shared performer so the no-lane path cannot drift from the lane path.
+                    disposition = handle_finalize_refusal(
+                        run_dir=run_dir,
+                        state=state,
+                        item=item,
+                        attempt=attempt,
+                        fin_rc=fin_rc,
+                        fin_msg=fin_msg,
+                        disposition=disposition,
+                        host_labels=host_labels,
+                        save_state=save_state,
+                        append_jsonl=append_jsonl,
+                    )
+            if disposition == "executed":
+                if not (item.get("backlog_close") or {}).get("closed"):
+                    process_backlog_close(run_dir, state, item)
+
+        if wt_handle is not None and not is_review and item.get("status") != "executed":
+            lane_containment.record_lane_preserved(
+                run_dir=run_dir,
+                item=item,
+                handle=wt_handle,
+                reason=(
+                    f"the item finished {item.get('status')!r} rather than executed, so its work was "
+                    "never integrated; the lane is kept attributably for a later turn"
+                ),
+                reason_codes=("not-integrated",),
+            )
+            save_state(run_dir, state)
+            print(
+                pal(
+                    f"  • IPD {item['id6']} work preserved on lane {wt_handle.branch} "
+                    f"at {wt_handle.path} (not integrated; attributable for a later turn/child-03)",
+                    "dim",
+                ),
+                file=sys.stderr,
+            )
+
+        item["status"] = disposition
+        save_state(run_dir, state)
+
+        full_auto = state.get("options", {}).get("full_auto", False)
+        auto_approved = False
+        if is_review and disposition in ("reviewed", "approved") and full_auto:
+            plan_curr = resolve_plan_path(
+                repo, item.get("configured_file", ""), item["id6"]
+            )
+            if is_plan_review_approved(plan_curr):
+                try:
+                    set_plan_approved(repo, item["id6"])
+                    run_action = state.get("options", {}).get("action")
+                    if run_action != "review":
+                        item["action"] = "execute"
+                        item["status"] = "queued"
+                    item["auto_approved"] = True
+                    auto_approved = True
                     save_state(run_dir, state)
                     append_jsonl(
                         run_dir / "events.jsonl",
                         {
                             "at": utc_now(),
-                            "event": "ipd-finalized",
+                            "event": "ipd-auto-approved",
                             "id6": item["id6"],
-                            "setid": item["setid"],
-                            "integration": integ_reason,
                         },
                     )
-            else:
-                attempt["ending_head"] = git_head(repo)
-                attempt["ending_status"] = git_status(repo)
-                # finalback (`zzcrlo`): the refusal is CORRECT and unchanged; what changes is what
-                # happens next. Delegated so this arm and its twin below cannot drift.
-                disposition = handle_finalize_refusal(
-                    run_dir=run_dir,
-                    state=state,
-                    item=item,
-                    attempt=attempt,
-                    fin_rc=fin_rc,
-                    fin_msg=fin_msg,
-                    disposition=disposition,
-                    host_labels=host_labels,
-                    save_state=save_state,
-                    append_jsonl=append_jsonl,
-                )
-        elif self_finalize and not work_dir and integration.earned:
-            try:
-                current_plan_for_finalize = resolve_plan_path(
-                    repo, item.get("configured_file", ""), item["id6"]
-                )
-            except DriverError:
-                current_plan_for_finalize = plan_path
-            actor = driver_actor(state, labels=host_labels)
-            fin_message = (
-                f"{host_labels.command} self-finalize: {item['id6']} verified "
-                f"(set {item['setid']}, attempt {attempt_no})."
-            )
-            record_item_spec_edits(
-                repo,
-                current_plan_for_finalize,
-                item,
-                reconcile=lambda r, p: compute_scope_reconciliation(
-                    r, p, labels=host_labels
-                ),
-            )
-            fin_rc, fin_msg = driver_finalize(
-                repo, current_plan_for_finalize, item["id6"], actor, fin_message
-            )
-            attempt["ending_head"] = git_head(repo)
-            attempt["ending_status"] = git_status(repo)
-            if fin_rc == 0:
-                attempt["disposition"] = "executed"
-                attempt["finalized"] = True
-                disposition = "executed"
-                try:
-                    plan_path = resolve_plan_path(
-                        repo, item.get("configured_file", ""), item["id6"]
+                except Exception as exc:
+                    print(
+                        pal(
+                            f"  ! Failed to auto-approve IPD {item['id6']}: {exc}",
+                            "yellow",
+                        ),
+                        file=sys.stderr,
                     )
-                except DriverError:
-                    pass
-            else:
-                # finalback (`zzcrlo`): the TWIN of the lane-worktree arm above, delegated to the same
-                # shared performer so the no-lane path cannot drift from the lane path.
-                disposition = handle_finalize_refusal(
-                    run_dir=run_dir,
-                    state=state,
-                    item=item,
-                    attempt=attempt,
-                    fin_rc=fin_rc,
-                    fin_msg=fin_msg,
-                    disposition=disposition,
-                    host_labels=host_labels,
-                    save_state=save_state,
-                    append_jsonl=append_jsonl,
-                )
-        if disposition == "executed":
-            if not (item.get("backlog_close") or {}).get("closed"):
-                process_backlog_close(run_dir, state, item)
 
-    if wt_handle is not None and not is_review and item.get("status") != "executed":
-        lane_containment.record_lane_preserved(
-            run_dir=run_dir,
-            item=item,
-            handle=wt_handle,
-            reason=(
-                f"the item finished {item.get('status')!r} rather than executed, so its work was "
-                "never integrated; the lane is kept attributably for a later turn"
-            ),
-            reason_codes=("not-integrated",),
+        # zz5yxq E-02, question (3) of the classification at `SUCCESS_STATES`: "should this row show a
+        # checkmark?". Both reads used to be unconditional `SUCCESS_STATES` membership, so an EXECUTE item
+        # that ended `reviewed` got a green check for work that never ran. Judged against the item's own
+        # action now: `item["action"]` is read through the entry rather than the local `action`, because
+        # the `--full-auto` bridge above may have just rewritten it from `review` to `execute`, and the
+        # glyph must describe what the item ACTUALLY did. A review pass that reached `reviewed` still
+        # checks green, unchanged.
+        reached_success = item_reached_success(
+            {"action": item.get("action", action), "status": disposition}
         )
-        save_state(run_dir, state)
-        print(
-            pal(
-                f"  • IPD {item['id6']} work preserved on lane {wt_handle.branch} "
-                f"at {wt_handle.path} (not integrated; attributable for a later turn/child-03)",
-                "dim",
-            ),
-            file=sys.stderr,
+        glyph = "\u2713" if reached_success else "\u25cf"
+        glyph_color = (
+            "green" if reached_success else (_STATUS_COLOR.get(disposition, "yellow"))
         )
-
-    item["status"] = disposition
-    save_state(run_dir, state)
-
-    full_auto = state.get("options", {}).get("full_auto", False)
-    auto_approved = False
-    if is_review and disposition in ("reviewed", "approved") and full_auto:
-        plan_curr = resolve_plan_path(
-            repo, item.get("configured_file", ""), item["id6"]
+        finish = (
+            pal(f"{glyph} ", glyph_color)
+            + pal(f"IPD {seq:02d}/{total} {item['id6']}", "bold")
+            + pal(f" ({action})", "dim")
+            + " -> "
+            + pal(disposition, glyph_color)
+            + pal(f"  (exit {exit_code})", "dim")
         )
-        if is_plan_review_approved(plan_curr):
-            try:
-                set_plan_approved(repo, item["id6"])
-                run_action = state.get("options", {}).get("action")
-                if run_action != "review":
-                    item["action"] = "execute"
-                    item["status"] = "queued"
-                item["auto_approved"] = True
-                auto_approved = True
-                save_state(run_dir, state)
-                append_jsonl(
-                    run_dir / "events.jsonl",
-                    {
-                        "at": utc_now(),
-                        "event": "ipd-auto-approved",
-                        "id6": item["id6"],
-                    },
+        print(finish)
+        if auto_approved:
+            print(
+                pal(
+                    f"  \u2713 IPD {item['id6']} auto-approved (review readiness cleared, "
+                    "NOT human approval); progressing to execution",
+                    "cyan",
                 )
-            except Exception as exc:
-                print(
-                    pal(
-                        f"  ! Failed to auto-approve IPD {item['id6']}: {exc}",
-                        "yellow",
-                    ),
-                    file=sys.stderr,
-                )
-
-    # zz5yxq E-02, question (3) of the classification at `SUCCESS_STATES`: "should this row show a
-    # checkmark?". Both reads used to be unconditional `SUCCESS_STATES` membership, so an EXECUTE item
-    # that ended `reviewed` got a green check for work that never ran. Judged against the item's own
-    # action now: `item["action"]` is read through the entry rather than the local `action`, because
-    # the `--full-auto` bridge above may have just rewritten it from `review` to `execute`, and the
-    # glyph must describe what the item ACTUALLY did. A review pass that reached `reviewed` still
-    # checks green, unchanged.
-    reached_success = item_reached_success(
-        {"action": item.get("action", action), "status": disposition}
-    )
-    glyph = "\u2713" if reached_success else "\u25cf"
-    glyph_color = (
-        "green" if reached_success else (_STATUS_COLOR.get(disposition, "yellow"))
-    )
-    finish = (
-        pal(f"{glyph} ", glyph_color)
-        + pal(f"IPD {seq:02d}/{total} {item['id6']}", "bold")
-        + pal(f" ({action})", "dim")
-        + " -> "
-        + pal(disposition, glyph_color)
-        + pal(f"  (exit {exit_code})", "dim")
-    )
-    print(finish)
-    if auto_approved:
-        print(
-            pal(
-                f"  \u2713 IPD {item['id6']} auto-approved (review readiness cleared, "
-                "NOT human approval); progressing to execution",
-                "cyan",
             )
+        print()
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "ipd-finished",
+                "id6": item["id6"],
+                "action": action,
+                "attempt": attempt_no,
+                "exit_code": exit_code,
+                "status": disposition,
+                "session_id": session_id,
+                "verification_status": verify_disp,
+            },
         )
-    print()
-    append_jsonl(
-        run_dir / "events.jsonl",
-        {
-            "at": utc_now(),
-            "event": "ipd-finished",
-            "id6": item["id6"],
-            "action": action,
-            "attempt": attempt_no,
-            "exit_code": exit_code,
-            "status": disposition,
-            "session_id": session_id,
-            "verification_status": verify_disp,
-        },
-    )
+    finally:
+        # integearn-05 (`9lyg5h`) E-02: UNCONDITIONAL, and this is the ONLY teardown of a baseline.
+        # Reached on all four turn-ending paths (`StopNowForce`, `StopAtCheckpoint`, `StallTimeout`,
+        # `KeyboardInterrupt`), on the two `raise DriverError` session-drift paths, on every ordinary
+        # `return`, and on a normal fall-through. STRANDED CHECKOUTS ARE A MEASURED COST HERE, not a
+        # hypothetical: eleven lanes were once found only by a hand audit of `git worktree list`.
+        #
+        # BEST-EFFORT AND SILENT BY CONTRACT. A `finally` that raises would REPLACE the exception the
+        # turn was already carrying (including a deliberate stop), so a cleanup failure must never
+        # propagate; both callees swallow their own exceptions and this suppression is the second belt.
+        if suite_baseline_run is not None:
+            with contextlib.suppress(Exception):
+                suite_baseline_run.abandon()
+            with contextlib.suppress(Exception):
+                remove_suite_baseline_checkout(repo, suite_baseline_run.checkout)

@@ -472,6 +472,18 @@ from agent_workflows.oc_runipd import (
     SuiteCheckResult as SuiteCheckResult,
     integration_is_earned as integration_is_earned,
     run_suite_check as run_suite_check,
+    # integearn-05 (`9lyg5h`) E-03/E-06: the three names the shared concurrent pre-work BASELINE is
+    # injected with. They are re-exported HERE, under the same `as <same-name>` discipline as the
+    # suite check above, because `execute_item_core` resolves them off `driver_module` and a name
+    # missing from one host would silently give that host NO baseline while the other had one - which
+    # is exactly the single-host divergence this whole re-export block exists to prevent, and it
+    # would make an audit's answer depend on which runner executed the plan.
+    #
+    # `extract_suite_failures` IS `daexj1`/`h5pyqa`'s FUNCTION AND IS NOT RE-IMPLEMENTED. Sharing the
+    # one extractor is what makes the pre-work and post-work id sets comparable at all.
+    SUITE_CHECK_ARGV as SUITE_CHECK_ARGV,
+    extract_suite_failures as extract_suite_failures,
+    parse_suite_summary as parse_suite_summary,
     BacklogCloseVerdict as BacklogCloseVerdict,
     CARRIER_KIND_IPD as CARRIER_KIND_IPD,
     CARRIER_KIND_OTHER as CARRIER_KIND_OTHER,

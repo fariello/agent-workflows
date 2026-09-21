@@ -3935,6 +3935,25 @@ _SUITE_SUMMARY_RE = re.compile(
     r"^(?:=+\s*)?(\d+ (?:passed|failed).*?)(?:\s*=+)?$", re.MULTILINE
 )
 
+
+def parse_suite_summary(text: str) -> str:
+    """The suite's COUNT LINE out of its output, or `""` when none is present.
+
+    integearn-05 (`9lyg5h`) E-03: a NAMED, injectable reader for the one pattern `run_suite_check`
+    already applies inline, so the concurrent pre-work baseline in `runner_shared` can report the same
+    count line the post-work check reports. It exists ONLY because `runner_shared` may not import a
+    host driver (a shipped AST test enforces that), so every host specific must be handed over as a
+    name; this is the `run_checked`/`host_label` injection precedent applied to one regex.
+
+    IT IS THE SAME PATTERN, DELIBERATELY NOT A SECOND ONE. `run_suite_check` keeps its inline use, and
+    both now resolve `_SUITE_SUMMARY_RE`, because a second spelling of a parser is how a producer and
+    a reader drift apart (the render_stream F-4 defect class, measured twice in this package).
+    """
+
+    match = _SUITE_SUMMARY_RE.search(text or "")
+    return match.group(1).strip() if match else ""
+
+
 #: gatewire-01 (`h5pyqa`) E-02: the lines naming WHICH tests failed, which `_SUITE_SUMMARY_RE`
 #: deliberately does not capture.
 #:
@@ -4096,8 +4115,7 @@ def run_suite_check(
         )
 
     elapsed = time.monotonic() - started
-    m = _SUITE_SUMMARY_RE.search(stdout) or _SUITE_SUMMARY_RE.search(stderr)
-    summary = m.group(1).strip() if m else ""
+    summary = parse_suite_summary(stdout) or parse_suite_summary(stderr)
     # gatewire-01 (`h5pyqa`) E-02: capture WHICH tests failed, not merely how many. `stdout` is
     # discarded after this function returns, so a failure name not taken here is gone for good.
     failures = extract_suite_failures(stdout, stderr)
