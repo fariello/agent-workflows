@@ -18,42 +18,89 @@ the product of a two-pass frontier-model design (initial design + a revision fol
 pushbacks and a new dependency-enforcement mechanism). It is authored as the single source of truth an
 IPD Set (or Sets) can be graduated from and reviewed against.
 
-Infrastructure status (corrected 2026-08-30; this paragraph originally declared ALL of the below
-net-new and nonexistent, which is no longer true and would mislead a graduating Set into rebuilding
-shipped machinery). PARTS ALREADY SHIPPED, which a graduating Set must CONSUME, not rebuild:
+EVERY DATED PARAGRAPH BELOW IS A POINT-IN-TIME SNAPSHOT, NOT A STANDING CLAIM, AND YOU MUST
+RE-MEASURE BEFORE RELYING ON ANY OF IT. This convention governs the whole preamble: the three
+paragraphs that follow (infrastructure status, Section 4.2's finding codes, and Section 2.1's command
+grammar) each describe WHAT WAS SHIPPED ON THE DATE IT CARRIES, and each is stale from the moment the
+next commit lands. Each therefore states its own measurement date and, where one exists, the commit
+that moved it. A SET GRADUATING FROM THIS SPEC MUST MEASURE CURRENT STATE ITSELF and must not treat
+any entry here as current; the entry tells you WHERE TO LOOK and WHAT THE ANSWER WAS, never what the
+answer is. The convention is stated once, here, because it governs all three equally and a rule
+attached to one paragraph while its neighbors decay is a fourth thing to maintain rather than a fix.
+WHY THE SNAPSHOTS SURVIVE AT ALL, rather than being deleted in favor of "measure it yourself": their
+function is to WARN, not to inform. This preamble's infrastructure paragraph was itself written as a
+correction because the original text declared everything net-new and "would mislead a graduating Set
+into rebuilding shipped machinery", and that duplication really happened once (`a54m79`). A reader who
+re-measures loses nothing by their presence; a reader who would have rebuilt shipped machinery is
+stopped by it. NOTHING ENFORCES THIS, which is the honest limit: no test and no `aw check` rule reads
+these paragraphs, so their accuracy rests on whoever next touches them. The re-verify instruction is
+the defeat mechanism for their staleness, deliberately in place of a gate. The infrastructure
+paragraph has now been corrected twice (2026-08-30, then 2026-09-20) and the Section 2.1 paragraph
+once (2026-09-20), so treat a date more than a few days old as probably wrong.
+
+Infrastructure status (measured 2026-09-20 at `007d05e1`; corrected 2026-08-30 in `a59f2c53` and
+again 2026-09-20 by plan `wenmg4`, because this paragraph originally declared ALL of the below
+net-new and nonexistent, which would mislead a graduating Set into rebuilding shipped machinery).
+PARTS ALREADY SHIPPED, which a graduating Set must CONSUME, not rebuild:
 `Item-Dependencies` (the field, its grammar, and the shared graph predicate), the
 `aw ipd dependencies` surface, and `aw runs`. These were graduated FROM this spec by the `ipddeps`
 Set (`r7xku3`, `g69y23`, `ovbnyq`, `mp88bl`, all `executed`), whose plans cite this spec and its
-sections 2.7-2.11 by name. STILL NET-NEW and to be built: `From-Spec` (absent from
-`ipd_schema.META_RECOGNIZED`), the hash-chained run ledger with `AW-Run:`/`AW-Item:` commit trailers
-(the ledger is built but UNWIRED), the prompt `Run contract` block, the per-host capability
-descriptor, and `aw hooks install` (no such verb today). This overlaps the agentadhere
+sections 2.7-2.11 by name. ALSO SHIPPED SINCE THE 2026-08-30 CORRECTION: `From-Spec` is RECOGNIZED
+(`ipd_schema.META_FROM_SPEC in META_RECOGNIZED` is True), landed with its dangling-link rule
+`check.from-spec-dangling` in `8c437188` (merged `b0eb74e6`, 2026-08-30); and the PER-HOST CAPABILITY
+DESCRIPTOR EXISTS and must be EXTENDED, NEVER CREATED - `host_sandbox_profile.HostSandboxCapabilities`
+carries 13 fields including the three runner-safety ones (`supports_commit_gateway`,
+`supports_deny_push`, `supports_fresh_verifier_session`) added by plan `mjx7ne` (`executed`), of which
+`supports_commit_gateway` and `supports_deny_push` are DECLARED AND NEVER PROBED by deliberate
+decision so they fail closed (`host_sandbox_profile.py:107-111`). Creating a parallel capability
+module because this paragraph once called the descriptor net-new is the exact defect that destroyed
+`a54m79`. STILL NET-NEW and to be built: the hash-chained run ledger's `AW-Run:`/`AW-Item:` commit
+trailers (the ledger AND the writer are built - `git_commit_helper.run_item_trailers` formats them -
+but NOTHING PASSES THEM: zero of 3764 commits across all refs carry an `AW-Run` trailer; plan `wao266`
+from backlog `a8eufb` owns the wiring), the prompt `Run contract` block, and `aw hooks install` (no
+such verb today; the top-level `hooks` noun does not resolve). This overlaps the agentadhere
 policy-engine/atomic-command phases, the bklggrad `From-Backlog` work, and the runner rename.
 Constraints honored: pre-release (no backward-compatibility shims or legacy aliases) and
 design-against-roles (no dependence on current internal filenames).
 
-READ SECTION 4.2's FINDING CODES AS SPECIFICATION, NOT AS SHIPPED BEHAVIOR (measured 2026-09-05).
-Only the `RUN-*` family exists in the package: `run_evidence.RUN_FINDING_CODES` carries all 13, of
-which 10 are BOUND to predicates, one (`RUN-NO-PUSH`) is a name over deliberately unbuilt
-enforcement (`run_evidence.py:1509-1517`; backlog `d07nz2`), and the rest are unbound-by-dependency.
-EVERY OTHER FAMILY GREPS TO ZERO FILES under `agent_workflows/`: all 11 `IPD-EXEC-*`, 5 `IPD-DEP-*`,
-6 `IPD-REVIEW-*`, 2 approval codes, 3 `IPD-REUSE-*`, 12 `SPEC-*`, 5 `BACKLOG-*`, 7 `PROMPT-*`, and 3
-`NONRUN-*`. So a plan MUST NOT cite one of those codes as an existing enforcement mechanism; cite the
-shipped enforcer by symbol (for the IPD execution checks that is `ipd_lint` phases plus
+READ SECTION 4.2's FINDING CODES AS SPECIFICATION, NOT AS SHIPPED BEHAVIOR (re-measured 2026-09-20 at
+`007d05e1`; first measured 2026-09-05). Only the `RUN-*` family exists in the package:
+`run_evidence.RUN_FINDING_CODES` carries all 13, of which 10 are BOUND to predicates, one
+(`RUN-NO-PUSH`) is a name over deliberately unbuilt enforcement (`RUN-NO-PUSH`'s own
+`UNBOUND-UNBUILT` binding in `run_evidence.py`; backlog `d07nz2`), and the remaining two
+(`RUN-COMMIT-CONTENTS`, `RUN-COMMIT-GATEWAY`) are unbound-by-dependency. NO OTHER FAMILY IS BOUND TO
+ANY PREDICATE: of the 55 non-`RUN-` codes this spec names (11 `IPD-EXEC-*`, 5 `IPD-DEP-*`, 6
+`IPD-REVIEW-*`, 2 approval codes, 3 `IPD-REUSE-*`, 13 `SPEC-*`, 5 `BACKLOG-*`, 7 `PROMPT-*`, and 3
+`NONRUN-*`), exactly FOUR appear anywhere under `agent_workflows/` and all four only inside PROSE
+COMMENTS that cite this spec while keying on the shipped enforcer instead:
+`IPD-EXEC-E-COMPLETE`/`IPD-EXEC-V-EVIDENCE`/`IPD-EXEC-PRE-TRANSITION` in `runner_shared.py` and
+`PROMPT-UNVERIFIABLE` in `run_evidence.py`. CORRECTED 2026-09-20 by plan `wenmg4`: this paragraph
+previously said every other family "GREPS TO ZERO FILES", which is now literally false for those four
+and was measured at 12 `SPEC-*` where the spec names 13; a comment citation is still not a binding, so
+the RULE is unchanged. A plan MUST NOT cite one of those codes as an existing enforcement mechanism;
+cite the shipped enforcer by symbol (for the IPD execution checks that is `ipd_lint` phases plus
 `ipd_lifecycle` finalize gates) and treat the code as the name it will take once bound.
 
-LIKEWISE, SEVERAL COMMANDS IN SECTION 2.1's GRAMMAR DO NOT EXIST as written (measured 2026-09-05):
-`--json` is registered on neither runner; `--resume <run-id>` ships as the POSITIONAL subcommand
+LIKEWISE, SEVERAL COMMANDS IN SECTION 2.1's GRAMMAR DO NOT EXIST as written (re-measured 2026-09-20
+at `007d05e1`; first measured 2026-09-05): `--json` is registered on neither runner's `start` or
+`resume` (it IS on `status`); `--resume <run-id>` ships as the POSITIONAL subcommand
 `run resume <run-id>`, not a flag; the spelling `aw runs verify <run-id>` names no leaf at all (the
 real leaf is `verify-ledger`; AMENDED 2026-09-08 by plan `7wei1o`: that spelling now REFUSES with exit
 2 and a message naming the unresolved token and suggesting `verify-ledger`. It previously absorbed a
 first token matching no leaf as a TARGET and, when that target resolved to nothing, dropped it and
-EXITED 0 having verified nothing - backlog `6kq1lj`); `aw <host> prompt`
+EXITED 0 having verified nothing - backlog `6kq1lj`); and `aw <host> prompt`
 does not exist (the nearest shipped surface is
-`aw agy exec --prompt/--file`); and the interactive phrase `run unverifiable`, `--allow-unverifiable`
-and `--unverifiable-ok` all grep to zero. Six shipped operator-facing recovery strings in
-`run_evidence.py` already transcribe the non-existent `--resume` spelling verbatim; do not add more.
-Correct the grammar or the code deliberately, but do not treat these spellings as available.
+`aw agy exec --prompt/--file`); both spellings exit 2. CORRECTED 2026-09-20 by plan `wenmg4`: this
+paragraph previously claimed the interactive phrase `run unverifiable`, `--allow-unverifiable` and
+`--unverifiable-ok` "all grep to zero", and ALL THREE NOW EXIST. `--allow-unverifiable` and
+`--unverifiable-ok` are REGISTERED argparse options on the `start` AND `resume` subcommands of BOTH
+hosts, declared `implemented=True` in `runner_shared.RunPolicyFlag` and owned by
+`run_evidence.aggregate_run_exit`; the phrase `run unverifiable` occurs in three source modules. They
+landed in `08aab7ed` (2026-09-05, "wire spec 2.1's run flag surface onto both hosts"), the SAME DAY
+this paragraph was measured, which is exactly how a point-in-time snapshot decays. Six shipped
+operator-facing recovery strings in `run_evidence.py` already transcribe the non-existent `--resume`
+spelling verbatim; do not add more. Correct the grammar or the code deliberately, but do not treat
+the spellings still listed above as available.
 
 ---
 
@@ -1339,6 +1386,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-09-20 note (aw specs): Factual-status correction of all three point-in-time preamble paragraphs by plan `wenmg4` (Set `specfresh`, from backlog `sd2wz5`), on the `a59f2c53` precedent: no design text changed and the spec stays `approved`. All five enumerated infrastructure items were re-measured at `007d05e1` before editing. TWO WERE FALSE, one in each direction of harm. `From-Spec` is RECOGNIZED (`META_FROM_SPEC in META_RECOGNIZED` is True, landed `8c437188` with `check.from-spec-dangling`), so the old text would have sent a Set to add a second recognition path. The PER-HOST CAPABILITY DESCRIPTOR EXISTS and carries 13 fields including the three runner-safety ones added by `mjx7ne` (`executed`), two of them declared-and-never-probed by deliberate decision, so the old text would have sent a Set to CREATE a module that ships, which is the exact defect that destroyed `a54m79`. THREE HELD and were left alone except for one sharpening: the `AW-Run:`/`AW-Item:` trailers are built AND their writer exists (`git_commit_helper.run_item_trailers`) while NOTHING PASSES THEM (0 of 3764 commits across all refs; control key `Co-authored-by` returns 22, proving the scan non-vacuous), now attributed to plan `wao266`; the prompt `Run contract` block is absent from both drivers; `aw hooks install` does not resolve (exit 2). TWO NEIGHBORING PARAGRAPHS IN THE SAME PREAMBLE WERE STALE THE SAME WAY and are corrected here rather than left to decay. Section 2.1's grammar paragraph claimed `run unverifiable`, `--allow-unverifiable` and `--unverifiable-ok` "all grep to zero"; all three EXIST, both flags being registered argparse options on `start` AND `resume` on BOTH hosts (`implemented=True` in `runner_shared.RunPolicyFlag`), landed `08aab7ed` on 2026-09-05, the very day that paragraph was measured. Section 4.2's finding-code paragraph claimed every non-`RUN-` family "GREPS TO ZERO FILES"; four codes now appear under `agent_workflows/`, all four only inside prose comments that key on the shipped enforcer, and its `SPEC-*` count was 12 where the spec names 13, so the numbers are corrected while the RULE (a comment citation is not a binding) is unchanged. DURABILITY DECISION, which is the item's real question: option (c), an explicit point-in-time snapshot, implemented as a convention stated ONCE at the head of the preamble so it governs all THREE dated paragraphs rather than only the one that prompted the plan. Each paragraph now carries its own measurement date and, where one exists, the commit that moved it, plus the instruction to re-measure before relying on any of it. Option (a), keep correcting it, is refuted by the track record (two decays in nine days, now three in three weeks). Option (b), delete the enumeration, was rejected because it drops the anti-duplication WARNING whose value is demonstrated by `a54m79`, and the audit's own finding that reviews re-measure anyway means the list's function is to warn rather than to inform. The honest limit is recorded in the spec itself: nothing enforces these paragraphs, and no test or `aw check` rule was added, deliberately, since that is a code and design change this plan has no mandate to make. NOTE the plan text says FOUR point-in-time paragraphs; measured at `007d05e1` there are THREE (infrastructure, Section 4.2 finding codes, Section 2.1 grammar), and the convention governs all three.
 - 2026-09-19 note (aw specs): Section 2.5b ADDED and 2.1 amended by orchprobe-03 (m7gvuz): the ORCHESTRATOR COVERAGE GATE, plus its unattended half --allow-uncovered-orchestrator-work. WHY HERE: 77tr3o R-5 resolved the E/V pre-transition question as shape (b), a runner-owned rollup that SKIPS the checkpoint on the premise that an orchestrator's own items are performed by nobody; that premise was falsified in production on 2026-09-08 (rh5tt6, commit 8b4e1570). 77tr3o R-12 now makes the check OWED; this section owns its MECHANISM, beside the sibling pre-queue gates of 2.5 and 2.5a. Specified: it is a MODEL question and must not be replaced by a syntactic rule (the dangerous case is prose, and every live orchestrator carries items most of which are legitimate orchestration, so false positives would drive deletion of the child checklist); it runs once per run over the QUEUED orchestrators only, after the run directory exists and before any agent turn, worktree or session, which is a deliberate exception to the pre-durable-write ordering because it spends a model call that must be logged and its refusal must be readable in aw runs; the verdict is cached on content so a correct execution's checkbox ticks do not re-probe; a DELIVERED but unusable answer blocks while a COULD-NOT-ASK is retried to --retry-budget and then warned past with a durable hole record; the interactive phrase is 'run uncovered' and refusal starts no work at all, following 2.5 rather than 2.5a; and the refusal must name ADD A CHILD rather than a prohibition. 2.1 gains the flag and the rule that it TAKES A JUSTIFICATION STRING, the grammar's only operator-authored value: the risk accepted is that a parent's items are reported complete unperformed, so the ledger must record WHY and not merely that someone accepted it.
 - 2026-09-14 note (aw specs): AMENDED 2.1 (plan 3i0aaz, dirtybase Order 01): declared --allow-dirty-base in the 'aw <host> run <selector>' grammar stanza plus one Rules bullet. WHY: dirtybase E-03 adds a dirty-tracked-base refusal on the --no-isolate-worktree path, which nna8yz E-05 structurally could not reach (its call was gated on 'isolate'), and shipping a refusal with no sanctioned override is how an operator learns to work around a gate instead of through it. The declaration and the code registration are ATOMIC because tests/test_run_flag_surface.py reads this file in BOTH directions. Section 4.2's finding-code table and every other section are untouched; Status stays approved.
 - 2026-09-14 note (aw specs): AMENDED 2.1 by declaring two new run policy flags, --integration-retry-limit and --on-integration-blocked, per the maintainer's 2026-09-07 ruling on plan 51vw4y OQ-04 (option (a): amend 2.1, then register in runner_shared.RUN_POLICY_FLAGS). WHY THE SPEC MOVED WITH THE CODE: plan 51vw4y (Set integpath) adds the integration deferral ladder so a lane refused on transient dirty-path overlap is re-attempted instead of going terminally integration-blocked on first refusal, and that ladder needs an operator surface. tests/test_run_flag_surface.py reads THIS FILE, extracts 2.1's grammar stanza and asserts BOTH directions, so registering either flag before this declaration would turn the suite red; the declaration therefore lands FIRST and in the same change. This file is declared in 51vw4y's Scope-Paths, so the pre-run spec-impact announcement names it. WHAT THE TWO RULES BULLETS PIN: --integration-retry-limit counts INTEGRATION RE-ATTEMPTS and is explicitly NOT the 0..10 correction budget --retry-budget bounds (different quantity, different default, neither moves the other), because a correction retry spends a paid agent turn and cannot succeed by repetition while an integration re-attempt costs one git status plus one git merge-tree and CAN succeed, the blocker being another writer's transient uncommitted file; every re-attempt must route through the same merge-and-revalidate gate, since a clean merge-tree proves absence of textual conflict and never that the combined result still passes. --on-integration-blocked selects the ladder rung, with block reproducing the previous first-refusal-is-terminal behavior exactly, which is what makes the change adoptable; the ladder is scoped to the TRANSIENT dirty-overlap refusal ONLY and never to a genuine merge conflict, stale base, combined-red revalidation, or scope violation; the refusal CONDITION is unchanged at every setting, no rung integrates over a contaminated base and none stashes, resets, or cleans another writer's work; and the ask rung is suppressed with no interactive channel and carries its own timeout so no setting can wait indefinitely. NO OTHER SECTION WAS TOUCHED, specifically not 4.2's finding-code table (transcribed verbatim into run_evidence.RUN_FINDING_CODES under a byte-equality test, so editing a cell IS a code change): git diff --stat reports 4 insertions and 0 deletions, both hunks inside 2.1. Status was NOT hand-edited.
