@@ -824,6 +824,167 @@ def resolve(
     return Resolution([], None, None, selector)
 
 
+# ----------------------------------------------------------------------------------------------
+# IDENTITY OWNERSHIP FOR ONE ALREADY-MATCHED ROW (IPD paw8so E-06 / E-01).
+#
+# WHY THIS IS NOT `Resolution.kind`, WHICH IS THE ONE THING A READER OF THIS FILE WILL ASSUME.
+# `resolve` carries a `kind`, and for the common case it does separate declaration (`id6`) from
+# filename reference (`substring`). The CONVERSE DOES NOT HOLD: `kind == MATCH_SUBSTRING` means
+# "not proven to declare", NOT "is a reference". Two independent reasons, one historical and one
+# still live:
+#
+#   * HISTORICAL, and the reason this predicate was specified: `_read_header` was once a HARD
+#     4096-byte CAP, so a `- Id:` bullet sitting past it was invisible and its OWNER resolved as
+#     `substring`. Measured at this plan's review (2026-09-10): 63 of 608 declaring plans, 52 of
+#     them producing a multi-row `aw find`. That cap became a structural bound on 2026-09-19 (see
+#     `_HEADER_CHUNK_BYTES`), and re-measured 2026-09-21 the population is ZERO of 702 plans.
+#   * STILL LIVE: `_HEADER_MAX_BYTES` remains a hard stop, so a record whose metadata block
+#     outruns 256KB still reads as `substring` while genuinely declaring the id6. Reproduced.
+#
+# So a surface that must decide "is this row the OWNER or a mere mention" reads THAT ONE ROW's
+# declaration directly, and never infers ownership from a bounded read. It is affordable precisely
+# because it runs over rows ALREADY MATCHED (typically 1 to 3), never over the corpus.
+#
+# DO NOT "FIX" THIS BY WIDENING THE WINDOW (IPD paw8so OQ-04). Raising the byte bounds or routing
+# `resolve`'s id6 rule through a whole-file read would change which records `aw find` MATCHES for
+# every type and every front-matter kind, which the `_STATUS_RE` parity note above establishes is a
+# MATCHING-BEHAVIOR decision and not a cleanup. This predicate cannot change what matches at all.
+def declares_id6(path: Path, id6: str) -> bool:
+    """True iff the file at ``path`` DECLARES ``id6`` as its own identity.
+
+    Reads the WHOLE file and bounds the search to `metadata_region`, so a QUOTED example
+    ``- Id:`` block in a body is not read as a declaration (the same ARTIFACTS-NOT-MENTIONS rule
+    the selector readers apply, just without the byte bound). Reuses the module's own `_ID_RE`
+    rather than adding a third identity pattern; `plans_index._meta(text, "Id")` and
+    `check_engine._ID_LINE_RE` are byte-identical twins of it.
+
+    Returns False (never raises) for an unreadable file.
+    """
+
+    if not id6 or not _core.ID6_RE.match(id6):
+        return False
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    return _read_id(text) == id6
+
+
+def declared_id6(path: Path) -> Optional[str]:
+    """Return the id6 the file at ``path`` declares in its metadata region, or ``None``.
+
+    The whole-file twin of `_read_id`; see `declares_id6` for why a bounded read is not
+    sufficient for an ownership verdict.
+    """
+
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    return _read_id(text)
+
+
+# A LEGACY NAME'S PARSED SLOT IS NOT AN id6, AND `ID6_RE` ALONE CANNOT TELL YOU THAT. The trap is
+# recorded above `MATCH_PATH` and it is live: `parse_clustered` reports CONFORMANT with
+# `id6='assess'` for `20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md`, and
+# `ID6_RE.match('assess')` is True, while that record's real declared Id is `wvlk84`. Trusting the
+# slot shape alone would therefore manufacture identity claims out of ordinary slug words.
+#
+# THE DISCRIMINATOR IS THE REPOSITORY'S EXISTING ORACLE, reused rather than re-derived: a slot token
+# is a real id6 if it visibly MIXES digits and letters (a slug word like `assess`/`agents` is
+# all-letters). This mirrors `check_engine._is_real_id6`, whose other arm (membership in the set of
+# all declared ids) needs a corpus-wide inventory that a lookup deliberately does not build; the
+# digit test is the half that works per-row. The cost of the missing arm is a FALSE NEGATIVE on an
+# all-letter real id6, which is the safe direction for a warning.
+_HAS_DIGIT_RE = re.compile(r"\d")
+
+
+def filename_slot_id6(path: Path) -> Optional[str]:
+    """Return the id6 occupying ``path``'s FILENAME IDENTITY SLOT, or ``None``.
+
+    Only a CANONICAL clustered name has such a slot (`YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md`),
+    and the slot token must be a REAL id6 rather than a legacy name's slug word (see the note
+    above). A legacy `YYYYMMDD-HHMM-NN-<slug>` name yields ``None``.
+    """
+
+    m = _naming.parse_clustered(path.name)
+    if m is None:
+        return None
+    slot = m.groupdict().get("id6")
+    if not slot or not _core.ID6_RE.match(slot):
+        return None
+    if not _HAS_DIGIT_RE.search(slot):
+        return None
+    return slot
+
+
+# The four ownership verdicts for one already-matched row, under D140's identity-versus-reference
+# distinction (`DECISIONS.md:2465`, "an artifact MUST NOT place another artifact's id6 in its own
+# identity slot"; "id6/setid citations elsewhere remain stable references").
+OWNERSHIP_DECLARED = "declared"  # the file's own `- Id:` IS this id6
+OWNERSHIP_SLOT_ONLY = (
+    "slot-only"  # the id6 sits in the filename identity slot, no `- Id:` declared
+)
+OWNERSHIP_REFERENCE = (
+    "reference"  # the id6 appears only as a reference (not an identity claim)
+)
+OWNERSHIP_FOREIGN_ID = "foreign-id"  # the file declares a DIFFERENT id6 of its own
+
+# The ownership verdicts that constitute an IDENTITY CLAIM on the id6. Two files both claiming is a
+# collision; one claiming plus any number of references is the normal, correct state.
+CLAIMING_OWNERSHIPS = frozenset({OWNERSHIP_DECLARED, OWNERSHIP_SLOT_ONLY})
+
+
+def id6_ownership(path: Path, id6: str) -> str:
+    """Classify how the file at ``path`` relates to ``id6``: one of the OWNERSHIP_* verdicts.
+
+    THE VERDICT IS KEYED ON DECLARATION, NOT ON RECORD TYPE, and that is deliberate rather than
+    incidental. A REVIEW record carries its SUBJECT's id6 in its filename identity slot BY
+    DOCUMENTED DESIGN (`.aw/records/reviews/README.md`: "`<id6>` is the REVIEWED ARTIFACT's id6,
+    not a fresh identifier ... so the join survives a rename"), and measured 2026-09-21 all 257
+    review records in this repository declare a `- Subject-Id:` and NO own `- Id:`. A rule that
+    suppressed the `reviews` TYPE would be an exception list that breaks the moment another type
+    adopts the same convention; a rule keyed on DECLARATION has reviews fall out silently as a
+    consequence, and covers `comms`/`other` too, which `check_engine.SUPPORTED` does not.
+
+    THAT IS WHY `slot-only` IS A CLAIM WHILE A REVIEW IS NOT, EVEN THOUGH BOTH CARRY A FOREIGN
+    id6 IN THE SLOT. The discriminator is the TYPED SUBJECT FIELD: a record that names its subject
+    with `- Subject-Id:`/`- Target-Id:`/`- References:` is expressing exactly the typed reference
+    D140 prescribes, so its slot is a documented JOIN and not an identity claim. A file with a
+    foreign id6 in its slot, no `- Id:` of its own, and NO typed subject field is the p7dqwz shape
+    D140 was written about, and it is the one that must be reported.
+    """
+
+    declared = declared_id6(path)
+    if declared == id6:
+        return OWNERSHIP_DECLARED
+    if declared is not None:
+        return OWNERSHIP_FOREIGN_ID
+    if filename_slot_id6(path) == id6 and not _declares_typed_subject(path, id6):
+        return OWNERSHIP_SLOT_ONLY
+    return OWNERSHIP_REFERENCE
+
+
+# The TYPED reference fields D140 prescribes for pointing at another artifact
+# ("expresses that link as a TYPED frontmatter field (e.g. `Target-Id:`/`References: <id6>`)").
+# `Subject-Id` is the reviews tree's spelling of the same idea.
+_TYPED_SUBJECT_RE = re.compile(
+    r"(?m)^-\s*(?:Subject-Id|Target-Id|References|From-Backlog|From-Spec|Reviewed-Id)"
+    r":\s*([0-9a-z]{6})\s*$"
+)
+
+
+def _declares_typed_subject(path: Path, id6: str) -> bool:
+    """True iff the file names ``id6`` through a TYPED reference field in its metadata region."""
+
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    region = metadata_region(text)
+    return any(m.group(1) == id6 for m in _TYPED_SUBJECT_RE.finditer(region))
+
+
 def resolve_for_mutation(
     repo_root: Path,
     record_type: str,
@@ -883,6 +1044,15 @@ def resolve_one(repo_root: Path, record_type: str, token: str) -> List[Path]:
     superseded by the unified id6 -> setid -> status -> stem -> substring, which is behavior-
     equivalent for real records (a token is not simultaneously a setid AND a status). Returns the
     matched paths (sorted), or [] for no match.
+
+    THIS SHIM DROPS THE AMBIGUITY VERDICT, AND THAT IS WHAT LEFT THE READ SURFACES SILENT (IPD
+    paw8so). It returns `.paths` only, so the `kind` that `resolve_for_mutation` acts on - the
+    `UNIQUE_KINDS` policy under which an id6 matching several files is "a data bug to fix, not
+    overridable by --force" - never reaches a read caller. `aw find` consequently rendered a
+    corrupt identity as an unremarkable multi-result list at exit 0 for as long as it routed
+    through here. Do NOT reuse this shim for a NEW read path in the belief that it carries the
+    policy: call `resolve` and inspect `Resolution.kind`, and for an OWNERSHIP question use
+    `id6_ownership`, which is reliable where `kind` is only indicative.
     """
     res = resolve(repo_root, record_type, token, deny=frozenset({MATCH_PATH}))
     return list(res.paths)

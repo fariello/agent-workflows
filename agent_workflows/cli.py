@@ -9602,14 +9602,59 @@ def _find_status_and_id6(
     return status_cell, id6_cell
 
 
+class _FindMatch(NamedTuple):
+    """One (selector token, matched row) pair, carrying BOTH facts the collision surface needs.
+
+    IPD paw8so E-02. `kind` is the CHEAP indicator from `selectors.resolve` (a bounded front-matter
+    read); `path` is what the RELIABLE ownership verdict (`selectors.id6_ownership`, a whole-file
+    read of that one row) is computed from. Both are threaded because `kind` alone is not a sound
+    discriminator - see the long note above `selectors.declares_id6`.
+    """
+
+    token: str
+    artifact_type: str
+    path: Path
+    kind: Optional[str]
+
+
+def _resolve_selectors_with_kinds(
+    repo_root: Path, artifact_type: str, tokens: List[str]
+) -> tuple[List[Path], List[_FindMatch]]:
+    """`selectors.resolve_selectors`, but ALSO returning the per-token match KIND (IPD paw8so E-02).
+
+    WHY THIS REPLACES `resolve_selectors` AT THE THREE CALL SITES RATHER THAN SITTING BESIDE IT:
+    `resolve_selectors` fans out over `resolve_one`, which is a back-compat shim returning `.paths`
+    ONLY, so the `Resolution.kind` that answers "was this an identity match or a filename match" is
+    computed and then discarded (see that shim's docstring). Calling this instead costs the SAME
+    traversal - it is the same `resolve` call per token, with the kind kept rather than dropped.
+    """
+    from agent_workflows import selectors as sel_mod
+
+    seen: dict = {}
+    matches: List[_FindMatch] = []
+    for tok in tokens:
+        res = sel_mod.resolve(
+            repo_root, artifact_type, tok, deny=frozenset({sel_mod.MATCH_PATH})
+        )
+        for p in res.paths:
+            seen[str(p)] = p
+            matches.append(_FindMatch(tok, artifact_type, p, res.kind))
+    return [seen[k] for k in sorted(seen)], matches
+
+
 def _find_type_records(
     repo_root: Path,
     artifact_type: str,
     selectors_list: List[str],
     args: argparse.Namespace,
     term: Term,
-) -> tuple[List[str], List[str]]:
-    """Find and format matching records for a given artifact type. Returns (lines, paths)."""
+) -> tuple[List[str], List[str], List[_FindMatch]]:
+    """Find and format matching records for a given artifact type.
+
+    Returns ``(lines, paths, matches)``. ``matches`` is the IPD paw8so E-02 metadata thread: one
+    `_FindMatch` per (token, matched row), carrying the match kind. It ADDS information and removes
+    no result - ``lines``/``paths`` are byte-identical to the pre-paw8so behavior.
+    """
     from agent_workflows import selectors as sel_mod
 
     highlight_tokens = list(selectors_list)
@@ -9629,12 +9674,13 @@ def _find_type_records(
         explicit_set = getattr(args, "set", None)
         explicit_status = getattr(args, "status", None)
         explicit_disp = getattr(args, "disposition", None)
+        type_matches: List[_FindMatch] = []
 
         if selectors_list:
-            matched = set(
-                p.resolve()
-                for p in sel_mod.resolve_selectors(repo_root, "plans", selectors_list)
+            matched_paths, type_matches = _resolve_selectors_with_kinds(
+                repo_root, "plans", selectors_list
             )
+            matched = set(p.resolve() for p in matched_paths)
             results = [
                 e
                 for e in entries
@@ -9674,7 +9720,13 @@ def _find_type_records(
             disp_p = _highlight_filename_matches(rel_p, highlight_tokens, term)
             lines.append(f"{status_txt}  {id6_txt}  {set_txt}  {disp_p}")
             paths.append(rel_p)
-        return lines, paths
+        # THE PLANS PATH'S OWN DATA IS THE RELIABLE SOURCE OF TRUTH FOR IDENTITY, NOT `resolve`'s
+        # `kind` (IPD paw8so E-02). This branch's display data comes from `pi.scan_plans`, which
+        # reads WHOLE files, while the `kind` above comes from `resolve`'s bounded header read; the
+        # two can disagree, and when they do the whole-file answer is right. That is exactly why the
+        # collision verdict is computed by `selectors.id6_ownership` (also a whole-file read of the
+        # one matched row) rather than from `kind`, which is threaded only as a cheap indicator.
+        return lines, paths, type_matches
 
     if artifact_type == "research":
         from agent_workflows import research_index as ri
@@ -9685,14 +9737,13 @@ def _find_type_records(
         explicit_set = getattr(args, "set", None)
         explicit_topic = getattr(args, "topic", None)
         explicit_status = getattr(args, "status", None)
+        type_matches = []
 
         if selectors_list:
-            matched = set(
-                p.resolve()
-                for p in sel_mod.resolve_selectors(
-                    repo_root, "research", selectors_list
-                )
+            matched_paths, type_matches = _resolve_selectors_with_kinds(
+                repo_root, "research", selectors_list
             )
+            matched = set(p.resolve() for p in matched_paths)
             results = [
                 e
                 for e in entries
@@ -9732,11 +9783,12 @@ def _find_type_records(
             disp_p = _highlight_filename_matches(rel_p, highlight_tokens, term)
             lines.append(f"{status_txt}  {id6_txt}  {disp_p}{summary}")
             paths.append(rel_p)
-        return lines, paths
+        return lines, paths, type_matches
 
     # All other types: specs, prompts, backlog, walkthroughs, roadmaps, comms, releases
+    type_matches = []
     if selectors_list:
-        matched_paths = sel_mod.resolve_selectors(
+        matched_paths, type_matches = _resolve_selectors_with_kinds(
             repo_root, artifact_type, selectors_list
         )
     else:
@@ -9759,7 +9811,123 @@ def _find_type_records(
         disp_p = _highlight_filename_matches(rel, highlight_tokens, term)
         lines.append(f"{status_txt}  {id6_txt}  {disp_p}")
         paths.append(rel)
-    return lines, paths
+    return lines, paths, type_matches
+
+
+class _Id6Collision(NamedTuple):
+    """One genuine id6 collision found among the rows `find` is already about to print."""
+
+    id6: str
+    shape: str  # "cross-type" | "same-type"
+    claimants: List[str]  # repo-relative paths, sorted
+
+
+# THE STABLE RULE STRING for the `--json` diagnostic. Keep it stable: a machine consumer keys on it.
+_FIND_ID6_COLLISION_RULE = "find.id6-collision"
+
+
+def _detect_id6_collisions(
+    repo_root: Path, matches: List[_FindMatch]
+) -> List[_Id6Collision]:
+    """Find genuine id6 collisions among ALREADY-MATCHED rows (IPD paw8so E-03/E-04).
+
+    WHAT IS SHARED AND WHAT IS NEW, stated honestly because the reuse claim is easy to overstate.
+    SHARED: the NOTION of a collision is the repository's existing one, not a fresh heuristic -
+    `selectors.UNIQUE_KINDS` (an id6 multi-match is "a data bug to fix, not overridable by
+    --force", `selectors.resolve_for_mutation`), and D140's identity-versus-reference rule, applied
+    through `selectors.id6_ownership`. NEW: the CROSS-TYPE JOIN below. It has to be new, because
+    `resolve_for_mutation` applies its policy per `record_type` to ONE `Resolution`, so on a plan
+    and a walkthrough that BOTH declare `aaa111` it returns `err=None` for BOTH types (measured
+    2026-09-21) and sees no collision at all; its `UNIQUE_KINDS` refusal fires only for a SAME-TYPE
+    ambiguous resolution. That gap is why `aw check` needed its own cross-type inventory
+    (`check_engine.check_collisions`), and it is why this join is genuinely additional logic.
+
+    NO SECOND CORPUS-WIDE SCAN IS PERFORMED OR INVOKED. `check_collisions` builds a repo-wide
+    inventory, which is the wrong cost inside an interactive lookup and ALSO the wrong COVERAGE:
+    its `SUPPORTED` set omits `reviews`, `comms` and `other`, all three of which `aw find` spans,
+    so delegating would go blind on exactly the type (reviews) whose convention must be reasoned
+    about here. This function reads only the handful of rows already matched, so the cross-type
+    coverage comes for free from `find`'s own fan-out.
+
+    Kept deliberately small and side-effect-free so a later plan (paw8so OQ-02) can lift it out to
+    serve other read surfaces rather than re-deriving it.
+    """
+    from agent_workflows import selectors as sel_mod
+
+    # Only an id6-SHAPED selector can collide. A `setid` multi-match is DELIBERATELY multi-target
+    # (`selectors.MATCH_SETID` is excluded from `UNIQUE_KINDS`) and must never be reported.
+    by_token: Dict[str, List[_FindMatch]] = {}
+    for m in matches:
+        if not _artifact_core_id6(m.token):
+            continue
+        by_token.setdefault(m.token, []).append(m)
+
+    out: List[_Id6Collision] = []
+    for token, rows in sorted(by_token.items()):
+        # THE OWNERSHIP VERDICT IS THE RELIABLE WHOLE-FILE READ, not the row's match `kind`.
+        claim_rows = [
+            m
+            for m in rows
+            if sel_mod.id6_ownership(m.path, token) in sel_mod.CLAIMING_OWNERSHIPS
+        ]
+        uniq: Dict[str, _FindMatch] = {}
+        for m in claim_rows:
+            uniq.setdefault(str(m.path.resolve()), m)
+        if len(uniq) < 2:
+            continue  # one owner (plus any number of legitimate references) is the NORMAL state
+        claimants = sorted(uniq)
+        types = {uniq[k].artifact_type for k in claimants}
+        shape = "same-type" if len(types) == 1 else "cross-type"
+        rels = []
+        for k in claimants:
+            try:
+                rels.append(str(Path(k).relative_to(repo_root.resolve())))
+            except ValueError:
+                rels.append(k)
+        out.append(_Id6Collision(token, shape, sorted(rels)))
+    return out
+
+
+def _artifact_core_id6(token: str) -> bool:
+    from agent_workflows import artifact_core as _ac
+
+    return bool(_ac.is_valid_id6(token))
+
+
+def _id6_collision_message(coll: _Id6Collision) -> str:
+    """The warning text for one collision, naming the remedy for the SHAPE FOUND (IPD paw8so E-03).
+
+    THE TWO SHAPES HAVE DIFFERENT FIXES and one message for both would send half of readers down
+    the wrong path. A cross-type duplicate is an IDENTITY problem (D140): the non-owning artifact
+    needs its own id6 and a typed reference to its source. A same-type duplicate in two disposition
+    directories is a LIFECYCLE problem: one copy is stale.
+
+    NO COMMAND IS NAMED FOR THE CROSS-TYPE CASE, and that is deliberate rather than an omission.
+    `aw rename <type> <path> --to-id6` was the obvious candidate and is a measured NO-OP on the
+    very shape this warning prints for: `--to-id6` converts a LEGACY timestamp name, and on an
+    ALREADY-CLUSTERED name (which every colliding artifact necessarily has) it falls through to the
+    uniform branch and returns the SAME name with the foreign id6 intact, reporting success.
+    Printing it would send an operator to a command that silently does nothing.
+    """
+
+    where = "\n".join(f"    {p}" for p in coll.claimants)
+    if coll.shape == "same-type":
+        return (
+            f"!  id6 {coll.id6} is claimed by {len(coll.claimants)} files of the SAME type, in "
+            f"different lifecycle directories - one copy is STALE (a lifecycle problem, not an "
+            f"identity one):\n{where}\n"
+            f"   Remedy: keep the copy whose disposition directory matches its `- Status:` and "
+            f"remove or retire the other. No single verb does this; move it with `git mv` and "
+            f"record the retirement."
+        )
+    return (
+        f"!  id6 {coll.id6} is claimed as its OWN identity by {len(coll.claimants)} artifacts of "
+        f"different types; an id6 identifies exactly ONE file (DECISIONS.md D140):\n{where}\n"
+        f"   Remedy: the non-owning artifact must take its OWN id6 - in both its `- Id:` and its "
+        f"filename identity slot - and cite the source through a TYPED reference field "
+        f"(`Target-Id:`/`References:`/`Subject-Id:`). No single verb delivers this today: "
+        f"`aw rename --to-id6` is a no-op on an already-clustered name."
+    )
 
 
 def _run_find(
@@ -9773,6 +9941,7 @@ def _run_find(
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
         CommandResult,
+        Diagnostic,
         Evidence,
         NextAction,
         select_output,
@@ -9802,10 +9971,20 @@ def _run_find(
         disposition=getattr(args, "disposition", None),
         dir=getattr(args, "dir", None),
     )
+    all_matches: List[_FindMatch] = []
     for t in types:
-        lines, paths = _find_type_records(repo_root, t, selectors, explicit_flags, term)
+        lines, paths, matches = _find_type_records(
+            repo_root, t, selectors, explicit_flags, term
+        )
         all_lines.extend(lines)
         all_paths.extend(paths)
+        all_matches.extend(matches)
+
+    # IPD paw8so E-03: a GENUINE id6 collision among the rows we are about to print. Computed over
+    # already-matched rows only (no corpus scan), and SILENT for every legitimate shape: a review
+    # record carrying its subject's id6 by documented convention, a setid multi-match (deliberately
+    # multi-target), and a sole owner whose declaration lies outside the resolver's bounded read.
+    collisions = _detect_id6_collisions(repo_root, all_matches) if selectors else []
 
     # Active filter facts and next action recommendation (highpbacklog0822 Order 04 E-03)
     filters_dict = {"type": norm}
@@ -9833,8 +10012,21 @@ def _run_find(
     )
 
     if getattr(args, "paths", False) or (ctx.is_agent and all_paths):
+        # STDOUT IS BYTE-IDENTICAL ON BOTH SURFACES (IPD paw8so E-03 / decision D3). Scripts consume
+        # this bare-path stream line-by-line, so no warning line may enter it. `--paths` is the
+        # explicitly script-shaped surface and stays silent on BOTH streams; `--agent` additionally
+        # writes the finding to STDERR, so an agent piping stdout keeps a clean stream and still
+        # receives a signal it could otherwise never see (this branch returns before any
+        # `CommandResult` is built, so `diagnostics` is unreachable here).
         for p in all_paths:
             print(p)
+        if collisions and ctx.is_agent and not getattr(args, "paths", False):
+            for coll in collisions:
+                print(
+                    f"aw-find-warning:{_FIND_ID6_COLLISION_RULE}:{coll.id6}:{coll.shape}:"
+                    + ",".join(coll.claimants),
+                    file=sys.stderr,
+                )
         return 0 if (all_paths or not selectors) else 1
 
     if ctx.is_agent or ctx.is_json:
@@ -9843,6 +10035,35 @@ def _run_find(
             status="clean",
             exit_code=0,
             summary=summary_text,
+            # IPD paw8so E-03: `diagnostics` is the ONE machine surface that can carry the finding
+            # (`result_types.py` `CommandResult.diagnostics`), and `find` emitted it empty until
+            # now. EXIT STAYS 0 and every row still prints: `find` is read-only and is often run
+            # WHILE diagnosing a mess, so refusing to answer would make it useless when most
+            # needed. `find`'s parser already accepts `--check` and this deliberately leaves that
+            # flag INERT rather than quietly giving it meaning (paw8so F-14).
+            diagnostics=[
+                Diagnostic(
+                    location=coll.claimants[0],
+                    rule=_FIND_ID6_COLLISION_RULE,
+                    detail=(
+                        f"id6 {coll.id6} is claimed as its own identity by "
+                        f"{len(coll.claimants)} artifacts ({coll.shape}): "
+                        + ", ".join(coll.claimants)
+                    ),
+                    severity="warning",
+                    fix=(
+                        "keep the copy whose disposition directory matches its `- Status:` and "
+                        "remove or retire the other"
+                        if coll.shape == "same-type"
+                        else (
+                            "give the non-owning artifact its OWN id6 (in `- Id:` and the filename "
+                            "identity slot) and cite the source through a typed reference field "
+                            "(DECISIONS.md D140)"
+                        )
+                    ),
+                )
+                for coll in collisions
+            ],
             evidence=[
                 Evidence(
                     key="find-count",
@@ -9876,6 +10097,11 @@ def _run_find(
 
     for line in all_lines:
         term.line(line)
+    # EVERY MATCHING ROW IS PRINTED FIRST AND THE WARNING FOLLOWS (IPD paw8so E-03). The warning
+    # ADDS a line; it never removes, reorders or suppresses a result, and the exit code stays 0.
+    for coll in collisions:
+        term.line("")
+        term.line(_id6_collision_message(coll))
     return 0
 
 
