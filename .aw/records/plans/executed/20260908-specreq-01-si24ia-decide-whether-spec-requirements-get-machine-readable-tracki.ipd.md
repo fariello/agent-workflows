@@ -11,17 +11,17 @@
 - Scope: Answer the item's five open questions with measured evidence and produce a written recommendation the maintainer can accept or reject, covering: whether requirement tracking should exist at all, and if so the minimum viable form (a convention plus an `aw check` rule, versus a parsed model plus an attention view), the retrofit cost per spec, and whether `implemented` should be computed from coverage. Deliverables are a research record with the corpus measurement and a recommendation section in this plan. EXCLUDES implementing any requirement parser, any new spec status, any new front-matter field, any `aw check` rule, any change to `aw attention`, and any edit to a spec's requirement text. Nothing in `agent_workflows/` changes.
 - Scope-Paths: .aw/records/research
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: specreq
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: si24ia
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: f1sw71
 
 ## Workflow history
+- 2026-09-21 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: si24ia verified (set specreq, attempt 1).
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review; APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. Findings PR-301..PR-309, all FIXED in place, no deferrals, no open questions added. Structural preflight `aw ipd lint --phase author` conformed before semantic review and `--phase review-finalize` conformed after. DISCLOSURE: same model family and session lineage as the author, so this is close to a self-review and worth less than an independent one.
