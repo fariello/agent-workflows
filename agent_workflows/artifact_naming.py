@@ -43,7 +43,8 @@ those types (out of scope); it only represents whatever shape they already use.
 
 Specs are NO LONGER in that id6-less set going forward (IPD ha55fi): ``aw specs new`` mints an id6
 and emits the id6-clustered ``.spec.md`` name via :func:`build_clustered_name`, and the checker
-enforces the clustered grammar for specs dated at/after ``check_engine.SPEC_ID6_CUTOVER_DATE``.
+enforces the clustered grammar for specs dated at/after the repository's dynamic spec_id6 cutover
+date (resolved dynamically via ``config.resolve_cutover_date`` / ``check_engine.SPEC_ID6_CUTOVER_DATE``).
 Pre-cutover legacy ``YYYYMMDD-HHMM-NN-<slug>.spec.md`` names remain valid (grandfathered) and can be
 converted on demand with ``aw rename specs <legacy> --to-id6``.
 """

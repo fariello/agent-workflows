@@ -47,7 +47,7 @@ YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md
 |---|---|---|
 | Plan / IPD | `.ipd.md` | (was bare `.md`) |
 | Prompt | `.prompt.md` | staging AND library items are `.prompt.md` |
-| Spec | `.spec.md` | The `.spec.md` suffix was always the convention; the id6-in-filename requirement is now ALSO applied to specs GOING FORWARD (IPD ha55fi): `aw specs new` produces `YYYYMMDD-<id6>-NN-<id6>-<slug>.spec.md`, and `aw check specs` enforces the id6-clustered grammar for a spec dated at/after the configured cutover (`check_engine.SPEC_ID6_CUTOVER_DATE`) while GRANDFATHERING pre-cutover legacy `YYYYMMDD-HHMM-NN-<slug>.spec.md` names. A legacy spec is converted on demand with `aw rename specs <legacy> --to-id6` (mints the id6, injects `- Id:`, rewrites references). |
+| Spec | `.spec.md` | The `.spec.md` suffix was always the convention; the id6-in-filename requirement is now ALSO applied to specs GOING FORWARD (IPD ha55fi): `aw specs new` produces `YYYYMMDD-<id6>-NN-<id6>-<slug>.spec.md`, and `aw check specs` enforces the id6-clustered grammar for a spec dated at/after the repository's dynamic install cutover date (resolved dynamically via `config.resolve_cutover_date` / `check_engine.SPEC_ID6_CUTOVER_DATE`) while GRANDFATHERING pre-cutover legacy `YYYYMMDD-HHMM-NN-<slug>.spec.md` names. A legacy spec is converted on demand with `aw rename specs <legacy> --to-id6` (mints the id6, injects `- Id:`, rewrites references). |
 | Walkthrough | `.walkthrough.md` | |
 | Roadmap | `.roadmap.md` | |
 | Backlog item | `.backlog.md` | |

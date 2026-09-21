@@ -66,8 +66,14 @@ class _RepoTestCase(unittest.TestCase):
         subprocess.run(["git", "config", "user.name", "T"], cwd=self.tmp, check=True)
         self.specs = self.tmp / ".aw" / "records" / "specs"
         self.plans = self.tmp / ".aw" / "records" / "plans" / "pending"
+        self.config_dir = self.tmp / ".aw" / "config"
         self.specs.mkdir(parents=True, exist_ok=True)
         self.plans.mkdir(parents=True, exist_ok=True)
+        self.config_dir.mkdir(parents=True, exist_ok=True)
+        (self.config_dir / "project.json").write_text(
+            '{"cutovers": {"spec_id6": "2026-08-28"}}',
+            encoding="utf-8",
+        )
 
     def _run(self, argv):
         out, err = io.StringIO(), io.StringIO()
@@ -164,6 +170,34 @@ class TestCheckGrandfatherCutover(_RepoTestCase):
         )
         rc, out = self._run(["check", "specs", "names"])
         self.assertEqual(rc, 0, out)
+
+    def test_dynamic_cutover_custom_date_honored(self):
+        # When cutover is dynamically set to 2026-09-10 in project.json:
+        (self.config_dir / "project.json").write_text(
+            '{"cutovers": {"spec_id6": "2026-09-10"}}',
+            encoding="utf-8",
+        )
+        self._write_spec("20260828-1200-01-post-legacy.spec.md")
+        # 20260828 is now grandfathered under dynamic 2026-09-10 cutover
+        drift = ce.check_names(self.tmp, "specs")
+        self.assertEqual(len(drift), 0, drift)
+
+        # But a spec dated 20260910 is flagged
+        self._write_spec("20260910-1200-01-post-dynamic.spec.md")
+        drift = ce.check_names(self.tmp, "specs")
+        self.assertEqual(len(drift), 1, drift)
+        self.assertIn("--to-id6", drift[0].detail)
+
+    def test_fallback_to_constant_when_unconfigured(self):
+        (self.config_dir / "project.json").unlink()
+        # Pre-fallback date is grandfathered
+        self._write_spec("20260827-1200-01-pre-cutover.spec.md")
+        drift = ce.check_names(self.tmp, "specs")
+        self.assertEqual(len(drift), 0, "pre-cutover grandfathered under fallback")
+        # Cutover date itself is flagged under fallback
+        self._write_spec("20260828-1200-01-at-cutover.spec.md")
+        drift = ce.check_names(self.tmp, "specs")
+        self.assertEqual(len(drift), 1, "cutover flagged under fallback")
 
 
 class TestToId6Rename(_RepoTestCase):

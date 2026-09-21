@@ -915,4 +915,9 @@ def persist_project_policy(
     with open(history_file, "a", encoding="utf-8") as f:
         f.write(json.dumps(snapshot_data) + "\n")
 
+    # 5. Synchronize cutover dates into project.json
+    from agent_workflows import config as _config
+
+    _config.sync_cutovers_on_install(repo_path)
+
     return policy.to_dict()

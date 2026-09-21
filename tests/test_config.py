@@ -1137,5 +1137,134 @@ class DeclarativeAllowedValuesTests(unittest.TestCase):
         self.assertIn("~/allowed", str(ctx.exception))
 
 
+class DynamicCutoverResolutionTests(unittest.TestCase):
+    """Plan ogs6a2: tests for resolve_cutover_date and sync_cutovers_on_install."""
+
+    def test_project_json_precedence_and_formatting(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True)
+            project_json = cfg_dir / "project.json"
+            project_json.write_text(
+                json.dumps(
+                    {
+                        "cutovers": {
+                            "spec_id6": "2026-08-29",
+                            "carrier_obligations": "20260919",
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            # compact=True -> YYYYMMDD
+            self.assertEqual(
+                CFG.resolve_cutover_date(repo, "spec_id6", compact=True),
+                "20260829",
+            )
+            # compact=False -> YYYY-MM-DD
+            self.assertEqual(
+                CFG.resolve_cutover_date(repo, "spec_id6", compact=False),
+                "2026-08-29",
+            )
+            self.assertEqual(
+                CFG.resolve_cutover_date(repo, "carrier_obligations", compact=False),
+                "2026-09-19",
+            )
+            self.assertEqual(
+                CFG.resolve_cutover_date(repo, "carrier_obligations", compact=True),
+                "20260919",
+            )
+
+    def test_legacy_dependency_schema_fallback(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True)
+            project_json = cfg_dir / "project.json"
+            project_json.write_text(
+                json.dumps({"dependency_schema_cutover": {"date": "2026-09-01"}}),
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                CFG.resolve_cutover_date(repo, "dependency_schema", compact=False),
+                "2026-09-01",
+            )
+            self.assertEqual(
+                CFG.resolve_cutover_date(repo, "dependency_schema", compact=True),
+                "20260901",
+            )
+
+    def test_install_history_fallback_matches_first_valid_install(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            history_dir = repo / ".aw" / "state" / "history"
+            history_dir.mkdir(parents=True)
+            installs = history_dir / "installs.jsonl"
+            # History has installs on 2026-08-18 and 2026-08-29.
+            # spec_id6 was introduced 2026-08-28, so 2026-08-29 should match.
+            # carrier_obligations was introduced 2026-09-19, so none match.
+            installs.write_text(
+                json.dumps({"timestamp": "2026-08-18T15:00:00Z"})
+                + "\n"
+                + json.dumps({"timestamp": "2026-08-29T20:00:00Z"})
+                + "\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                CFG.resolve_cutover_date(repo, "spec_id6", compact=False),
+                "2026-08-29",
+            )
+            self.assertIsNone(
+                CFG.resolve_cutover_date(repo, "carrier_obligations", compact=False)
+            )
+
+    def test_fail_open_when_no_configuration_or_history(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            self.assertIsNone(CFG.resolve_cutover_date(repo, "spec_id6"))
+            self.assertIsNone(CFG.resolve_cutover_date(repo, "carrier_obligations"))
+            self.assertIsNone(CFG.resolve_cutover_date(repo, "dependency_schema"))
+
+    def test_sync_cutovers_on_install_stamps_missing_and_preserves_existing(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True)
+            project_json = cfg_dir / "project.json"
+            project_json.write_text(
+                json.dumps(
+                    {
+                        "preset": "private-target",
+                        "cutovers": {"spec_id6": "2026-08-20"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            history_dir = repo / ".aw" / "state" / "history"
+            history_dir.mkdir(parents=True)
+            installs = history_dir / "installs.jsonl"
+            installs.write_text(
+                json.dumps({"timestamp": "2026-09-02T10:00:00Z"}) + "\n",
+                encoding="utf-8",
+            )
+
+            stamped = CFG.sync_cutovers_on_install(repo, install_timestamp="2026-09-25")
+            # Existing spec_id6 is preserved
+            self.assertEqual(stamped["spec_id6"], "2026-08-20")
+            # dependency_schema resolved from history (2026-09-02 >= 2026-09-01)
+            self.assertEqual(stamped["dependency_schema"], "2026-09-02")
+            # carrier_obligations was not in history, so stamped with install_timestamp
+            self.assertEqual(stamped["carrier_obligations"], "2026-09-25")
+
+            # Subsequent call does not overwrite
+            stamped2 = CFG.sync_cutovers_on_install(
+                repo, install_timestamp="2026-10-01"
+            )
+            self.assertEqual(stamped2["spec_id6"], "2026-08-20")
+            self.assertEqual(stamped2["dependency_schema"], "2026-09-02")
+            self.assertEqual(stamped2["carrier_obligations"], "2026-09-25")
+
+
 if __name__ == "__main__":
     unittest.main()

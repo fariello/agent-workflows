@@ -519,6 +519,7 @@ class ProjectPolicySchema:
     non_secret_consent: Dict[str, bool] = None  # type: ignore
     delivery_mode: Optional[str] = None
     records_backend: Optional[str] = None
+    cutovers: Optional[Dict[str, str]] = None
     unknown_fields: Dict[str, Any] = None  # type: ignore
 
     def to_dict(self) -> Dict[str, Any]:
@@ -535,6 +536,8 @@ class ProjectPolicySchema:
             res["delivery_mode"] = self.delivery_mode
         if self.records_backend:
             res["records_backend"] = self.records_backend
+        if self.cutovers:
+            res["cutovers"] = dict(self.cutovers)
         if self.unknown_fields:
             for k, v in self.unknown_fields.items():
                 if k not in res:
@@ -600,11 +603,14 @@ def parse_portable_policy(data: Dict[str, Any]) -> ProjectPolicySchema:
         "non_secret_consent",
         "delivery_mode",
         "records_backend",
+        "cutovers",
     }
     unknown_fields = {k: v for k, v in data.items() if k not in known_keys}
 
     placements = data.get("placements", {})
     git_policies = data.get("git_policies", {})
+    cutovers_val = data.get("cutovers")
+    cutovers = dict(cutovers_val) if isinstance(cutovers_val, dict) else None
 
     return ProjectPolicySchema(
         schema_version=ver,
@@ -618,6 +624,7 @@ def parse_portable_policy(data: Dict[str, Any]) -> ProjectPolicySchema:
         non_secret_consent=dict(data.get("non_secret_consent", {})),
         delivery_mode=data.get("delivery_mode"),
         records_backend=data.get("records_backend"),
+        cutovers=cutovers,
         unknown_fields=unknown_fields,
     )
 

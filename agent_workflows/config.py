@@ -44,6 +44,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -1132,6 +1133,193 @@ def expanded_excludes(config: Dict[str, Any]) -> List[str]:
 # --------------------------------------------------------------------------------------
 
 DEPENDENCY_SCHEMA_CUTOVER_KEY = "dependency_schema_cutover"
+CUTOVERS_KEY = "cutovers"
+
+#: Earliest introduction date of cutover-enforced features in the toolkit.
+#: When inspecting install history in a target repository, the first install on or after
+#: this date marks when the repository adopted the requirement.
+KNOWN_FEATURE_CUTOVERS: Dict[str, str] = {
+    "spec_id6": "2026-08-28",
+    "dependency_schema": "2026-09-01",
+    "carrier_obligations": "2026-09-19",
+}
+
+
+def _format_date(date_str: str, compact: bool = True) -> str:
+    """Format a date string (ISO YYYY-MM-DD or timestamp or compact YYYYMMDD)."""
+    clean = date_str.split("T")[0].strip()
+    digits = clean.replace("-", "")
+    if len(digits) >= 8:
+        yyyy = digits[:4]
+        mm = digits[4:6]
+        dd = digits[6:8]
+        if compact:
+            return f"{yyyy}{mm}{dd}"
+        return f"{yyyy}-{mm}-{dd}"
+    return date_str
+
+
+def _find_install_history_cutover(repo_root: Path, feature: str) -> Optional[str]:
+    """Find the first install date in installs.jsonl on or after the feature introduction."""
+    intro_date = KNOWN_FEATURE_CUTOVERS.get(feature)
+    if not intro_date:
+        return None
+    intro_compact = _format_date(intro_date, compact=True)
+
+    history_paths = [
+        repo_root / ".aw" / "state" / "history" / "installs.jsonl",
+        repo_root / ".aw" / "state" / "durable" / "history" / "installs.jsonl",
+    ]
+    entries: List[str] = []
+    for hpath in history_paths:
+        if hpath.is_file():
+            try:
+                for line in hpath.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        record = json.loads(line)
+                        ts = record.get("timestamp") or record.get("last_installed_at")
+                        if isinstance(ts, str) and ts.strip():
+                            entries.append(ts.strip())
+                    except Exception:
+                        continue
+            except OSError:
+                pass
+            if entries:
+                break
+
+    if not entries:
+        return None
+
+    # Sort timestamps chronologically
+    sorted_dates = sorted(set(_format_date(e, compact=True) for e in entries))
+    for d in sorted_dates:
+        if d >= intro_compact:
+            return d
+    return None
+
+
+def resolve_cutover_date(
+    repo_root: "os.PathLike[str] | str",
+    feature: str,
+    compact: bool = True,
+) -> Optional[str]:
+    """Resolve the cutover date for a feature in the target repository.
+
+    Precedence:
+    (1) `.aw/config/project.json` under `cutovers.<feature>` or legacy keys.
+    (2) target repository install history in `installs.jsonl` matching the install that introduced the feature.
+    (3) fail-open `None`.
+    """
+    root = Path(repo_root)
+    project_file = root / ".aw" / "config" / "project.json"
+    data: Dict[str, Any] = {}
+    if project_file.is_file():
+        try:
+            parsed = json.loads(project_file.read_text(encoding="utf-8"))
+            if isinstance(parsed, dict):
+                data = parsed
+        except (OSError, ValueError):
+            data = {}
+
+    # (1) Check cutovers.<feature>
+    cutovers = data.get(CUTOVERS_KEY)
+    if isinstance(cutovers, dict) and feature in cutovers:
+        val = cutovers[feature]
+        if isinstance(val, dict):
+            val = val.get("date")
+        if isinstance(val, str) and val.strip():
+            return _format_date(val.strip(), compact=compact)
+
+    # Legacy fallback for dependency_schema
+    if feature == "dependency_schema" and DEPENDENCY_SCHEMA_CUTOVER_KEY in data:
+        marker = data[DEPENDENCY_SCHEMA_CUTOVER_KEY]
+        date = None
+        if isinstance(marker, dict):
+            date = marker.get("date")
+        elif isinstance(marker, str):
+            date = marker
+        if isinstance(date, str) and date.strip():
+            return _format_date(date.strip(), compact=compact)
+
+    # (2) Check install history
+    hist_cutover = _find_install_history_cutover(root, feature)
+    if hist_cutover:
+        return _format_date(hist_cutover, compact=compact)
+
+    # (3) Fail-open None
+    return None
+
+
+def sync_cutovers_on_install(
+    repo_root: "os.PathLike[str] | str",
+    install_timestamp: Optional[str] = None,
+) -> Dict[str, str]:
+    """Stamp missing cutover dates into `.aw/config/project.json` during install or update.
+
+    Preserves existing dates so a subsequent install/update never alters previously established
+    cutover boundaries.
+    """
+    root = Path(repo_root)
+    project_file = root / ".aw" / "config" / "project.json"
+    data: Dict[str, Any] = {}
+    if project_file.is_file():
+        try:
+            parsed = json.loads(project_file.read_text(encoding="utf-8"))
+            if isinstance(parsed, dict):
+                data = parsed
+        except (OSError, ValueError):
+            data = {}
+
+    if not data and not project_file.exists():
+        return {}
+
+    cutovers = data.get(CUTOVERS_KEY)
+    if not isinstance(cutovers, dict):
+        cutovers = {}
+        data[CUTOVERS_KEY] = cutovers
+
+    now_iso = _format_date(
+        install_timestamp or time.strftime("%Y-%m-%d", time.gmtime()), compact=False
+    )
+    modified = False
+
+    for feature, intro_date in KNOWN_FEATURE_CUTOVERS.items():
+        if feature not in cutovers or not cutovers[feature]:
+            # Check legacy key
+            legacy_date = None
+            if feature == "dependency_schema" and DEPENDENCY_SCHEMA_CUTOVER_KEY in data:
+                marker = data[DEPENDENCY_SCHEMA_CUTOVER_KEY]
+                if isinstance(marker, dict):
+                    legacy_date = marker.get("date")
+                elif isinstance(marker, str):
+                    legacy_date = marker
+
+            if legacy_date:
+                cutovers[feature] = _format_date(legacy_date, compact=False)
+                modified = True
+            else:
+                # Check history
+                hist_date = _find_install_history_cutover(root, feature)
+                if hist_date:
+                    cutovers[feature] = _format_date(hist_date, compact=False)
+                    modified = True
+                else:
+                    # Stamped with current install date
+                    cutovers[feature] = now_iso
+                    modified = True
+
+    if modified:
+        project_file.parent.mkdir(parents=True, exist_ok=True)
+        tmp_project = project_file.with_name(".tmp_project.json")
+        with open(tmp_project, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+            f.write("\n")
+        os.replace(tmp_project, project_file)
+
+    return {k: str(v) for k, v in cutovers.items()}
 
 
 def read_dependency_schema_cutover(
@@ -1150,6 +1338,14 @@ def read_dependency_schema_cutover(
         return None
     if not isinstance(data, dict):
         return None
+    # Check new cutovers section first
+    cutovers = data.get(CUTOVERS_KEY)
+    if isinstance(cutovers, dict) and "dependency_schema" in cutovers:
+        val = cutovers["dependency_schema"]
+        if isinstance(val, dict):
+            return val
+        if isinstance(val, str) and val.strip():
+            return {"date": _format_date(val.strip(), compact=False)}
     marker = data.get(DEPENDENCY_SCHEMA_CUTOVER_KEY)
     if isinstance(marker, dict):
         return marker
@@ -1161,6 +1357,9 @@ def read_dependency_schema_cutover(
 
 def dependency_cutover_date(repo_root: "os.PathLike[str] | str") -> Optional[str]:
     """Return the cutover `date` (YYYY-MM-DD) if a marker is set, else None (no cutover)."""
+    resolved = resolve_cutover_date(repo_root, "dependency_schema", compact=False)
+    if resolved:
+        return resolved
     marker = read_dependency_schema_cutover(repo_root)
     if marker is None:
         return None

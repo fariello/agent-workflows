@@ -31,6 +31,7 @@ entry points at once, which is the claim itself.
 from __future__ import annotations
 
 import collections
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -947,6 +948,65 @@ class RetiredAndIgnoredScopeTests(unittest.TestCase):
                 f"{label} looked inside an ignored directory and reported "
                 f"{[(d.rule, d.location) for d in leaked]!r}; ignored paths are scratch space, so a "
                 "finding there is noise a user cannot act on and did not ask for",
+            )
+
+
+class DynamicCutoverCheckEngineTests(unittest.TestCase):
+    """Plan ogs6a2: tests for dynamic cutovers in check_engine."""
+
+    def test_deprecated_aliases_remain_accessible(self):
+        self.assertEqual(ce.SPEC_ID6_CUTOVER_DATE, "20260828")
+        self.assertEqual(ce.CARRIER_CUTOVER_DATE, "20260919")
+
+    def test_check_names_honors_dynamic_spec_id6_cutover(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            cfg_dir = root / ".aw" / "config"
+            cfg_dir.mkdir(parents=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps({"cutovers": {"spec_id6": "2026-09-10"}}),
+                encoding="utf-8",
+            )
+            specs_dir = root / ".aw" / "records" / "specs"
+            specs_dir.mkdir(parents=True)
+            # 20260828 would be flagged under static cutover, but under dynamic 2026-09-10 it is grandfathered
+            (specs_dir / "20260828-1200-01-legacy.spec.md").write_text(
+                "# Spec\n\n- Status: draft\n", encoding="utf-8"
+            )
+            drift = ce.check_names(root, "specs")
+            self.assertEqual(drift, [])
+
+            # A spec at or after the dynamic cutover date is flagged
+            (specs_dir / "20260910-1200-01-post.spec.md").write_text(
+                "# Spec\n\n- Status: draft\n", encoding="utf-8"
+            )
+            drift2 = ce.check_names(root, "specs")
+            self.assertEqual(len(drift2), 1)
+            self.assertEqual(drift2[0].rule, "check.name-nonconformant")
+
+    def test_carrier_severity_honors_dynamic_carrier_cutover(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            cfg_dir = root / ".aw" / "config"
+            cfg_dir.mkdir(parents=True)
+            plan_text = "# IPD\n\n- Date: 2026-09-15\n"
+
+            # When dynamic cutover is 2026-09-18, plan is grandfathered -> info
+            (cfg_dir / "project.json").write_text(
+                json.dumps({"cutovers": {"carrier_obligations": "2026-09-18"}}),
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                ce.carrier_severity_for_plan(plan_text, repo_root=root), "info"
+            )
+
+            # When dynamic cutover is 2026-09-10, plan is post-cutover -> error
+            (cfg_dir / "project.json").write_text(
+                json.dumps({"cutovers": {"carrier_obligations": "2026-09-10"}}),
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                ce.carrier_severity_for_plan(plan_text, repo_root=root), "error"
             )
 
 

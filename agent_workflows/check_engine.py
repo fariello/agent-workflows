@@ -673,9 +673,11 @@ def check_names(
         include_untracked=include_untracked,
         include_retired=include_retired,
     ):
-        # Spec id6 cutover (IPD ha55fi E-03): a spec dated at/after SPEC_ID6_CUTOVER_DATE must be
+        # Spec id6 cutover (IPD ha55fi E-03): a spec dated at/after the spec_id6 cutover must be
         # id6-clustered; a pre-cutover spec is grandfathered (legacy HHMM-NN name still conforms).
-        require_id6 = record_type == "specs" and _spec_requires_id6(p.name)
+        require_id6 = record_type == "specs" and _spec_requires_id6(
+            p.name, repo_root=repo_root
+        )
         if npn.is_conformant(p.name, expected_type=facet, require_id6=require_id6):
             continue
         # legacy=True allows a name that FAILS is_conformant but is a RECOGNIZED legacy shape
@@ -686,8 +688,14 @@ def check_names(
             continue
         detail = f"filename does not match the {record_type} grammar"
         if require_id6:
+            from agent_workflows import config as _config
+
+            cutover_disp = (
+                _config.resolve_cutover_date(repo_root, "spec_id6", compact=True)
+                or SPEC_ID6_CUTOVER_DATE
+            )
             detail = (
-                f"spec dated at/after the id6 cutover ({SPEC_ID6_CUTOVER_DATE}) must be "
+                f"spec dated at/after the id6 cutover ({cutover_disp}) must be "
                 f"id6-clustered; convert it with `aw rename specs {p.name} --to-id6 --apply`"
             )
         drift.append(
@@ -703,16 +711,25 @@ def check_names(
 _SPEC_DATE_RE = _re.compile(r"\A(\d{8})-")
 
 
-def _spec_requires_id6(filename: str) -> bool:
-    """True iff a spec filename's leading YYYYMMDD date is at/after SPEC_ID6_CUTOVER_DATE.
+def _spec_requires_id6(filename: str, repo_root: Optional[Path] = None) -> bool:
+    """True iff a spec filename's leading YYYYMMDD date is at/after the spec_id6 cutover date.
 
+    When repo_root is provided, resolves dynamically via resolve_cutover_date(repo_root, 'spec_id6').
+    Falls back to the deprecated SPEC_ID6_CUTOVER_DATE constant when unconfigured or repo_root is omitted.
     A name with no parseable leading date is treated as pre-cutover (require_id6=False) so an
     unusual/legacy shape is not force-failed by the cutover; the normal grammar check still applies.
     """
     m = _SPEC_DATE_RE.match(filename)
     if m is None:
         return False
-    return m.group(1) >= SPEC_ID6_CUTOVER_DATE
+    cutover = None
+    if repo_root is not None:
+        from agent_workflows import config as _config
+
+        cutover = _config.resolve_cutover_date(repo_root, "spec_id6", compact=True)
+    if cutover is None:
+        cutover = SPEC_ID6_CUTOVER_DATE
+    return m.group(1) >= cutover
 
 
 def check_content(
@@ -4548,9 +4565,11 @@ def _plan_date_compact(text: str) -> Optional[str]:
     return "{0}{1}{2}".format(m.group(1), m.group(2), m.group(3))
 
 
-def carrier_severity_for_plan(plan_text: str) -> str:
+def carrier_severity_for_plan(plan_text: str, repo_root: Optional[Path] = None) -> str:
     """The severity tier this plan's carrier findings get: `error` post-cutover, else the legacy tier.
 
+    When repo_root is provided, queries resolve_cutover_date(repo_root, "carrier_obligations").
+    Falls back to deprecated CARRIER_CUTOVER_DATE constant when unconfigured or repo_root is omitted.
     A plan with NO parseable `- Date:` is treated as PRE-cutover (grandfathered). That direction is
     deliberate: the metadata linter already owns the missing-Date complaint (`IPD-M101`), and inventing
     a second, harsher consequence for it here would make this rule fire on a defect it does not own.
@@ -4558,7 +4577,16 @@ def carrier_severity_for_plan(plan_text: str) -> str:
     date = _plan_date_compact(plan_text)
     if date is None:
         return _CARRIER_LEGACY_SEVERITY
-    return "error" if date >= CARRIER_CUTOVER_DATE else _CARRIER_LEGACY_SEVERITY
+    cutover = None
+    if repo_root is not None:
+        from agent_workflows import config as _config
+
+        cutover = _config.resolve_cutover_date(
+            repo_root, "carrier_obligations", compact=True
+        )
+    if cutover is None:
+        cutover = CARRIER_CUTOVER_DATE
+    return "error" if date >= cutover else _CARRIER_LEGACY_SEVERITY
 
 
 def _deferred_section_obligations(plan_text: str) -> List[CarrierObligation]:
@@ -4844,7 +4872,7 @@ def evaluate_durable_carrier(
     if not failures:
         return drift
 
-    severity = carrier_severity_for_plan(plan_text)
+    severity = carrier_severity_for_plan(plan_text, repo_root=repo_root)
     shown = failures[:5]
     detail = "{0} obligation(s) name no durable carrier: {1}{2}".format(
         len(failures),

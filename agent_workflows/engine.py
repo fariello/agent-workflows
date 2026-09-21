@@ -1185,7 +1185,7 @@ def agents_pointer_prose(target_layout: str = "legacy") -> str:
         "FORWARD: create one with `aw specs new --title ... --slug ... --apply` (it mints an id6 and "
         "writes `YYYYMMDD-<id6>-01-<id6>-<slug>.spec.md` with `- Id:`), and convert a legacy "
         "`YYYYMMDD-HHMM-NN-<slug>.spec.md` on demand with `aw rename specs <legacy> --to-id6`; "
-        "pre-cutover legacy spec names stay valid (grandfathered). "
+        "pre-cutover legacy spec names (prior to the repository install cutover date) stay valid (grandfathered). "
         "COMMITTED lightweight backlog work lives in the `records/backlog/` tree (managed by "
         "`aw backlog new|set|check`) and surfaces in `aw attention` too: `open`->`ready`, "
         "`graduated`->`active` (design handed off to a plan/spec, code not yet written), gated "
@@ -6561,6 +6561,9 @@ def install_into_repo(
 
     # Honest tracking notice + already-tracked scan (IPD 03). Informational; skip on dry-run.
     if not dry_run:
+        from agent_workflows import config as _config
+
+        _config.sync_cutovers_on_install(plan.repo_root)
         warn_tracking_and_scan(plan, use_git)
 
     return {
