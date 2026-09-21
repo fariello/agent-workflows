@@ -63,6 +63,8 @@ __all__ = [
     "GROUPABLE_FIELDS",
     "AGGREGATE_METRICS",
     "AGGREGATE_STATS",
+    "TOKEN_ABSENCE_CLASSES",
+    "classify_token_absences",
     "DEFAULT_ROW_LIMIT",
     "MAX_ROW_LIMIT",
     "QueryError",
@@ -150,11 +152,24 @@ GROUPABLE_FIELDS: tuple[str, ...] = (
 )
 
 #: Metrics an aggregation may name.
+#:
+#: `duration_seconds` WAS HERE AND WAS REMOVED ON PURPOSE (2026-09-20). Do not re-add it. It was
+#: advertised here and permitted by the privacy allowlist while NO producer ever emitted it, so it
+#: returned `sample_size: 0` for every run ever cached: measured over a six-run synthetic corpus,
+#: 0 entries carried the key against 6 for `wall_seconds`. Computing it was rejected rather than
+#: unimplemented, for two reasons. FIRST, at run grain it would be exactly `wall_seconds`
+#: (`created_at`..`updated_at`), so it would be a second name for a shipped metric and an operator
+#: would have to learn why the two ever disagree. SECOND, the layer below REFUSES a single
+#: reconciled duration by design: `run_analytics_schema.TimeAccounting` publishes four quantities
+#: (`wall_seconds`, `observed_activity_seconds`, `overlap_seconds`, `unattributed_seconds`) and no
+#: total, because "distributing elapsed time across them would require a model this layer refuses to
+#: impose". The telemetry field of the same NAME is a different SUBJECT: it is
+#: `round(elapsed_seconds(), 6)` on a telemetry session's `end` event, i.e. that sampler session's
+#: own monotonic lifetime, not a run's or an attempt's wall clock. Ask for `wall_seconds`.
 AGGREGATE_METRICS: tuple[str, ...] = (
     "cost",
     "tokens",
     "token_total",
-    "duration_seconds",
     "wall_seconds",
     "observed_activity_seconds",
     "event_count",
@@ -465,18 +480,90 @@ def _matches(entry: Mapping[str, Any], filters: Mapping[str, str]) -> bool:
     return True
 
 
-def _numbers_for(
-    entries: Sequence[Mapping[str, Any]], metric: str
-) -> tuple[list[float], int]:
-    """Present values for ``metric`` plus a MISSING count.
+#: The token metric's absence CLASSES, in the order a report should read them. `not-recorded` is the
+#: only one that means a possible defect; the other two mean the corpus is behaving correctly.
+#:
+#: WHY THIS EXISTS. One folded "missing" integer covered two opposite facts: a value the producer
+#: failed to record, and a value that could not exist because no agent turn ever happened. Measured
+#: over this repository's own corpus (180 analyzed runs, both hosts), all 32 token absences were the
+#: SECOND kind (19 no attempt dispatched, 3 orchestrate-only, 2 refused pre-launch, 4
+#: running/interrupted, 1 dependency-blocked, 1 no state), and the decisive check (a completed item, a
+#: non-empty session, and no tokens) returned ZERO runs. So the number an operator read as "we lost 32
+#: measurements" was in fact "32 runs had nothing to measure".
+TOKEN_ABSENCE_CLASSES: tuple[str, ...] = (
+    "not-recorded",
+    "nothing-to-record",
+    "run-unfinished",
+)
 
-    Returns the two separately because an absent value is not zero: Order 05's four-state provenance
+
+def _token_absence_class(entry: Mapping[str, Any]) -> str:
+    """Which :data:`TOKEN_ABSENCE_CLASSES` member explains THIS entry's absent token total.
+
+    Reads the flags the INGESTER recorded (``tokens-nothing-to-record``, ``tokens-run-unfinished``)
+    rather than re-deriving the judgement from the cached fact. Deliberate: the queue that decides it
+    is not in the envelope, so a second rule here would be guessing from a projection of the evidence.
+    An entry carrying neither flag is `not-recorded`, which FAILS CLOSED: an older entry written
+    before the flags existed reads as a possible defect rather than being silently excused.
+
+    BOTH FLAG LISTS ARE READ, and that is not belt-and-braces. An envelope carries TWO: the RUN
+    FACT's own ``metric_facts.quality_flags``, which is where the ingester's token-absence flags land,
+    and the ENVELOPE-level ``quality_flags``, which Order 02 composes from the quality summary
+    (`incomplete`, `has-missing-fields`, ...). Reading only the envelope level was measured to
+    misclassify every explained absence as `not-recorded`.
+    """
+
+    flags = {str(f) for f in (_facts_of(entry).get("quality_flags") or ())}
+    flags |= {str(f) for f in (entry.get("quality_flags") or ())}
+    if "tokens-run-unfinished" in flags:
+        return "run-unfinished"
+    if "tokens-nothing-to-record" in flags:
+        return "nothing-to-record"
+    return "not-recorded"
+
+
+def classify_token_absences(
+    entries: Sequence[Mapping[str, Any]],
+) -> dict[str, int]:
+    """Per-class counts of absent token totals. The classes PARTITION the folded ``missing`` count.
+
+    That partition is a real constraint rather than a presentation detail: ``sum(counts.values())``
+    equals the ``missing`` integer :func:`_numbers_for` returns for the ``tokens`` metric over the
+    same entries, which is what makes the new vocabulary a refinement of the old number instead of a
+    second, differently-scoped statistic beside it.
+    """
+
+    counts = {name: 0 for name in TOKEN_ABSENCE_CLASSES}
+    _values, _missing, classes = _numbers_for(entries, "tokens", classify_absence=True)
+    for name in classes:
+        counts[name] = counts.get(name, 0) + 1
+    return counts
+
+
+def _numbers_for(
+    entries: Sequence[Mapping[str, Any]],
+    metric: str,
+    *,
+    classify_absence: bool = False,
+) -> tuple[list[float], int, list[str]]:
+    """Present values for ``metric``, a MISSING count, and (opt-in) each absence's CLASS.
+
+    Returns them separately because an absent value is not zero: Order 05's four-state provenance
     exists for that distinction, and folding missingness into the sample would silently strengthen
     every statistic computed from it.
+
+    THE THIRD RETURN VALUE REFINES THE SECOND, IT DOES NOT REPLACE IT. ``missing`` keeps its exact
+    previous meaning (how many entries carried no usable number), so every existing consumer of
+    ``missing_count`` is unaffected. When ``classify_absence`` is set, the returned list carries one
+    :data:`TOKEN_ABSENCE_CLASSES` label per absence, in entry order, so the classes always sum to
+    ``missing``. It is opt-in because it is meaningful for the token metric only: the ingester records
+    the flags that explain a token absence and no others, and inventing a class for `cost` or
+    `wall_seconds` here would be a guess dressed as a measurement.
     """
 
     values: list[float] = []
     missing = 0
+    classes: list[str] = []
     for entry in entries:
         facts = _facts_of(entry)
         raw = facts.get(metric)
@@ -487,9 +574,11 @@ def _numbers_for(
             raw = total if isinstance(total, (int, float)) else None
         if isinstance(raw, bool) or not isinstance(raw, (int, float)):
             missing += 1
+            if classify_absence:
+                classes.append(_token_absence_class(entry))
             continue
         values.append(float(raw))
-    return values, missing
+    return values, missing, classes
 
 
 def _group_key(entry: Mapping[str, Any], fields: Sequence[str]) -> tuple[str, ...]:
@@ -630,26 +719,39 @@ def view_metrics(
         )
 
     if not group_by:
-        values, missing = _numbers_for(entries, metric)
+        values, missing, absence_classes = _numbers_for(
+            entries, metric, classify_absence=(metric == "tokens")
+        )
         dist = stats_mod.describe(f"{metric}", values)
+        payload: dict[str, Any] = {
+            "metric": metric,
+            "stat": stat,
+            "value": _stat_of(dist, stat, values),
+            "sample_size": dist.sample_size,
+            # UNCHANGED IN MEANING: still how many observations carried no usable number. The
+            # `missing_by_class` breakdown below REFINES it (the classes sum to exactly this), so a
+            # consumer reading only this field reads the same number it always did.
+            "missing_count": missing,
+            "coverage": round(
+                (dist.sample_size / (dist.sample_size + missing))
+                if (dist.sample_size + missing)
+                else 0.0,
+                6,
+            ),
+        }
+        if absence_classes:
+            counts = {name: 0 for name in TOKEN_ABSENCE_CLASSES}
+            for name in absence_classes:
+                counts[name] = counts.get(name, 0) + 1
+            payload["missing_by_class"] = counts
         return QueryResult(
             view="metrics",
             total=1,
             emitted=1,
-            payload={
-                "metric": metric,
-                "stat": stat,
-                "value": _stat_of(dist, stat, values),
-                "sample_size": dist.sample_size,
-                "missing_count": missing,
-                "coverage": round(
-                    (dist.sample_size / (dist.sample_size + missing))
-                    if (dist.sample_size + missing)
-                    else 0.0,
-                    6,
-                ),
-            },
-            caveats=_coverage_caveats(group_by, dist.sample_size, missing),
+            payload=payload,
+            caveats=_coverage_caveats(
+                group_by, dist.sample_size, missing, absence_classes=absence_classes
+            ),
         )
 
     buckets: dict[tuple[str, ...], list[Mapping[str, Any]]] = {}
@@ -657,7 +759,7 @@ def view_metrics(
         buckets.setdefault(_group_key(entry, group_by), []).append(entry)
     rows: list[dict[str, Any]] = []
     for key, members in sorted(buckets.items()):
-        values, missing = _numbers_for(members, metric)
+        values, missing, _classes = _numbers_for(members, metric)
         dist = stats_mod.describe(metric, values)
         row: dict[str, Any] = {name: key[i] for i, name in enumerate(group_by)}
         row["n"] = len(members)
@@ -684,13 +786,22 @@ def view_metrics(
 
 
 def _coverage_caveats(
-    group_by: Sequence[str], resolved: int, missing: int
+    group_by: Sequence[str],
+    resolved: int,
+    missing: int,
+    *,
+    absence_classes: Sequence[str] = (),
 ) -> tuple[str, ...]:
     """Caveats a consumer MUST surface, including the measured `model` coverage trap.
 
     `model` is called out BY NAME because Order 06 measured model identity resolvable for 2 of 179
     attempts (1.1 percent). A `--group-by model` aggregation therefore renders an almost entirely
     `(unresolved)` table, and a caller who does not know that will read it as a real comparison.
+
+    ``absence_classes`` adds a SECOND sentence saying how many of those exclusions had nothing to
+    record versus how many were genuinely not recorded. Two sentences rather than one rewritten one,
+    because the existing sentence is the shape this layer already established for cost ("EXCLUDED, not
+    counted as zero") and an operator who learned to read it should not have to relearn it.
     """
 
     caveats: list[str] = []
@@ -700,6 +811,18 @@ def _coverage_caveats(
             f"{missing} of {total} observations had no value for this metric and were EXCLUDED, "
             "not counted as zero"
         )
+        if absence_classes:
+            counts = {name: 0 for name in TOKEN_ABSENCE_CLASSES}
+            for name in absence_classes:
+                counts[name] = counts.get(name, 0) + 1
+            nothing = counts["nothing-to-record"]
+            unfinished = counts["run-unfinished"]
+            not_recorded = counts["not-recorded"]
+            caveats.append(
+                f"of those {missing}: {nothing} had NOTHING to record (no agent turn was "
+                f"dispatched), {unfinished} are still in flight, and {not_recorded} were NOT "
+                "RECORDED and are the only ones that may indicate lost data"
+            )
     if "model" in group_by:
         coverage = stats_mod.CORPUS_BASELINE.get("model_identity_coverage")
         caveats.append(
@@ -733,7 +856,9 @@ def view_distributions(
     still bounds the optional per-bucket histogram.
     """
 
-    values, missing = _numbers_for(entries, metric)
+    values, missing, absence_classes = _numbers_for(
+        entries, metric, classify_absence=(metric == "tokens")
+    )
     dist = stats_mod.describe(metric, values)
     payload = dict(dist.to_dict())
     payload["metric"] = metric
@@ -744,7 +869,9 @@ def view_distributions(
         emitted=len(values),
         omitted=0,
         payload=payload,
-        caveats=_coverage_caveats((), dist.sample_size, missing),
+        caveats=_coverage_caveats(
+            (), dist.sample_size, missing, absence_classes=absence_classes
+        ),
     )
 
 
@@ -767,7 +894,7 @@ def view_slices(
         buckets.setdefault(_group_key(entry, group_by), []).append(entry)
     rows: list[dict[str, Any]] = []
     for key, members in sorted(buckets.items()):
-        values, missing = _numbers_for(members, metric)
+        values, missing, _classes = _numbers_for(members, metric)
         row: dict[str, Any] = {name: key[i] for i, name in enumerate(group_by)}
         row["n"] = len(members)
         row["with_metric"] = len(values)

@@ -227,6 +227,96 @@ def _attempt_intervals(
     return spans
 
 
+#: Queue-item statuses that mean NO agent turn was ever dispatched for that item, so the item has no
+#: token usage to record. Measured across this repository's own corpus (180 analyzed runs, both
+#: hosts): of 32 runs with no token total, 19 dispatched no attempt, 3 were orchestrate-only, 2 were
+#: refused pre-launch by the clean-base gate, 4 were still running or interrupted, 1 was
+#: dependency-blocked, and 1 had no state at all. Every one of the 32 was CORRECTLY empty, and the
+#: decisive check (a completed item, a non-empty session, and no tokens) returned zero runs.
+_NO_DISPATCH_STATUSES: frozenset[str] = frozenset(
+    {
+        "queued",
+        "not-attempted",
+        "skipped",
+        "dependency-blocked",
+        "refused",
+        "deferred",
+        "blocked",
+        "cancelled",
+        "retired",
+    }
+)
+
+#: Queue-item statuses that mean the item is NOT FINISHED, so its usage may still be written. An
+#: absence here is neither a producer defect nor a settled nothing-to-record: it is simply not yet
+#: known, and calling it either would be a claim the run cannot support.
+_UNFINISHED_STATUSES: frozenset[str] = frozenset({"running", "interrupted"})
+
+#: Queue actions that perform NO agent work by construction. An orchestrator is retired from its
+#: children's state on disk and spends no agent turn, so it can have no tokens.
+_NO_AGENT_ACTIONS: frozenset[str] = frozenset({"orchestrate", "retire", "review-only"})
+
+#: The flag naming a token absence THIS LAYER CAN EXPLAIN: nothing was dispatched, so there was
+#: nothing to record. Consumed by the query layer to separate that from an unexplained absence.
+TOKENS_NOTHING_TO_RECORD_FLAG = "tokens-nothing-to-record"
+
+#: The flag naming a run whose token absence is NOT YET DECIDABLE because work is still in flight.
+TOKENS_RUN_UNFINISHED_FLAG = "tokens-run-unfinished"
+
+
+def _token_absence_flags(
+    queue_items: Sequence[Mapping[str, Any]], run_usage: Usage
+) -> list[str]:
+    """Flags EXPLAINING an absent run-grain token total, or ``[]`` when it is present.
+
+    THE DISTINCTION THIS EXISTS FOR. A single "missing" count folds together two opposite facts: a
+    value the producer failed to record, and a value that could not exist because no agent turn ever
+    happened. An operator reads the folded number as the first and it is usually the second, which is
+    the defect this function supplies the evidence to fix. It classifies ONLY absence and asserts
+    nothing when the total is present, so a run with tokens is never flagged.
+
+    Deliberately conservative in three ways, because an over-eager explanation would excuse a real
+    loss. FIRST, a run with NO queue items at all is nothing-to-record: there was no work. SECOND, a
+    run is nothing-to-record only when EVERY item either dispatched nothing or performs no agent work
+    by construction; one genuinely executed item with no tokens leaves the absence UNEXPLAINED, which
+    is exactly the case that must keep reading as a defect. THIRD, an unfinished item yields its own
+    separate flag rather than the nothing-to-record one, because "not written yet" is a third state
+    and collapsing it into either neighbour would assert something the run has not settled.
+    """
+
+    if run_usage.total.is_present:
+        return []
+    if not queue_items:
+        return [TOKENS_NOTHING_TO_RECORD_FLAG]
+
+    unfinished = False
+    explained = True
+    for item in queue_items:
+        status = str(item.get("status") or "").strip().lower()
+        action = str(item.get("action") or "execute").strip().lower()
+        attempts = [a for a in (item.get("attempts") or []) if isinstance(a, Mapping)]
+        if status in _UNFINISHED_STATUSES:
+            unfinished = True
+            continue
+        if action in _NO_AGENT_ACTIONS:
+            continue
+        if status in _NO_DISPATCH_STATUSES and not attempts:
+            continue
+        if not attempts:
+            # No attempt was dispatched, whatever the status label says. An item that finished
+            # without ever launching an agent has nothing to record, and treating an unrecognized
+            # status as unexplained here would flag every future status token as a defect.
+            continue
+        explained = False
+
+    flags: list[str] = []
+    if unfinished:
+        flags.append(TOKENS_RUN_UNFINISHED_FLAG)
+    elif explained:
+        flags.append(TOKENS_NOTHING_TO_RECORD_FLAG)
+    return flags
+
+
 def build_run_facts(run_dir: Path | str) -> RunFacts:
     """Normalize ONE run directory into its complete fact table.
 
@@ -480,6 +570,7 @@ def build_run_facts(run_dir: Path | str) -> RunFacts:
         run_flags.append("no-telemetry")
     if any(not r.holds for r in conservation):
         run_flags.append("conservation-violation")
+    run_flags.extend(_token_absence_flags(queue_items, run_usage))
 
     facts.append(
         Fact(
@@ -523,12 +614,16 @@ def build_run_facts(run_dir: Path | str) -> RunFacts:
 
 
 # --- The privacy boundary: consumed, never reimplemented ----------------------------------------
-def _metric_payload(fact: Fact) -> dict[str, Any]:
+def _metric_payload(fact: Fact, *, event_count: int | None = None) -> dict[str, Any]:
     """One fact rendered into the allowlist's OWN vocabulary, ready for the projector.
 
     Only allowlisted key NAMES appear here, and every absent value is OMITTED rather than zero-filled,
     which is what keeps the persisted form from asserting a count nobody observed. Deliberately does
     NOT sanitize anything: the projector is the boundary, and a filter here would be a second one.
+
+    ``event_count`` is supplied by :func:`project_run_facts` for the RUN grain ONLY, and is ``None``
+    for every other grain and for a run whose event stream is ABSENT. See that function for why the
+    count is derived there rather than read off a fact field.
     """
 
     payload: dict[str, Any] = {
@@ -579,6 +674,13 @@ def _metric_payload(fact: Fact) -> dict[str, Any]:
         if value.is_present:
             payload[key] = value.as_number()
 
+    # OMITTED, NEVER ZERO-FILLED, and the caller decides which it is: `None` here means this grain
+    # has no event stream to count, while `0` is a real measurement (a run whose events file exists
+    # and holds no parseable line). Writing 0 for the first would assert a count nobody observed,
+    # which is exactly what this function's docstring forbids.
+    if event_count is not None:
+        payload["event_count"] = event_count
+
     if fact.quality_flags:
         payload["quality_flags"] = list(fact.quality_flags)
     return payload
@@ -611,7 +713,19 @@ def project_run_facts(run_facts: RunFacts) -> dict[str, Any]:
 
     Raises :class:`agent_workflows.run_analytics_privacy.PrivacyRefusal` for a fact carrying a key or
     a value type the allowlist does not name.
+
+    ``event_count`` IS DERIVED HERE, on the RUN grain only, as the number of event-grain facts this
+    same table already holds. Derived rather than re-measured for the reason the module docstring
+    gives about precedence: a second count read from the file would agree with this one on the day it
+    was written and diverge after the first change to event parsing or deduplication. A run whose
+    ``events.jsonl`` is ABSENT gets NO key at all, because a run that could not record events has
+    nothing to count and a zero there would be a fabricated observation; a run whose file EXISTS and
+    yields no parseable line legitimately counts 0, and the ``partial-events`` quality flag already
+    says why.
     """
+
+    has_event_stream = bool(run_facts.inventory.artifacts.get("events"))
+    event_total = sum(1 for f in run_facts.facts if f.grain is Grain.EVENT)
 
     projected: dict[str, list[dict[str, Any]]] = {}
     for fact in run_facts.facts:
@@ -620,8 +734,9 @@ def project_run_facts(run_facts: RunFacts) -> dict[str, Any]:
                 privacy.project_event_facts(_event_payload(fact))
             )
             continue
+        count = event_total if (fact.grain is Grain.RUN and has_event_stream) else None
         projected.setdefault(fact.grain.value, []).append(
-            privacy.project_metric_facts(_metric_payload(fact))
+            privacy.project_metric_facts(_metric_payload(fact, event_count=count))
         )
     return projected
 

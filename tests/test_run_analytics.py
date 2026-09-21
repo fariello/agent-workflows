@@ -976,6 +976,205 @@ class DeduplicationAndPartialRunTests(unittest.TestCase):
                 self.assertNotIn(_HANDLE, warning)
 
 
+class AdvertisedMetricProductionTests(unittest.TestCase):
+    """metgap `6krsym`: a metric the query grammar OFFERS must be one a producer actually emits.
+
+    THE DEFECT THESE PIN. `duration_seconds` and `event_count` were both advertised by
+    `run_analytics_query.AGGREGATE_METRICS` and both permitted by Order 02's privacy allowlist, while
+    `_metric_payload` emitted NEITHER, so each returned `sample_size: 0` for every run ever cached.
+    `duration_seconds` was REMOVED (it would duplicate `wall_seconds`, and `TimeAccounting` refuses a
+    single reconciled duration on purpose) and `event_count` is now COMPUTED.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+
+    def _run_payload(self, run: Path) -> dict:
+        projected = ingest.project_run_facts(ingest.build_run_facts(run))
+        return projected["run"][0]
+
+    def test_every_offered_metric_is_emitted_by_the_producer_for_a_healthy_run(self):
+        """THE STANDING GUARD: advertising a metric no producer writes is the defect itself.
+
+        Written as a loop over the live tuple rather than as a hardcoded list, so adding a metric to
+        `AGGREGATE_METRICS` without teaching a producer to emit it fails HERE rather than shipping as
+        a silent `sample_size: 0`.
+        """
+
+        from agent_workflows import run_analytics_query as query_mod
+
+        run = _write_run(
+            self.root,
+            items=[
+                _item(
+                    attempts=[_attempt(tokens={"input": 10, "output": 5, "total": 15})]
+                )
+            ],
+        )
+        payload = self._run_payload(run)
+        # `tokens` is an open component MAP and `token_total` its provider-reported scalar; a query
+        # for `tokens` falls back to `token_total`, so either key satisfies that metric.
+        satisfied = set(payload) | ({"tokens"} if "token_total" in payload else set())
+        for metric in query_mod.AGGREGATE_METRICS:
+            with self.subTest(metric=metric):
+                self.assertIn(
+                    metric,
+                    satisfied,
+                    f"{metric} is offered by the query grammar but no producer emits it, so it "
+                    "returns sample_size 0 for every run",
+                )
+
+    def test_event_count_is_the_number_of_event_facts_the_same_table_holds(self):
+        run = _write_run(
+            self.root,
+            events=[
+                '{"at":"2026-09-08T10:00:00Z","event":"run-created"}',
+                '{"at":"2026-09-08T10:00:01Z","event":"ipd-started"}',
+                '{"at":"2026-09-08T10:00:02Z","event":"ipd-finished"}',
+            ],
+        )
+        facts = ingest.build_run_facts(run)
+        payload = self._run_payload(run)
+        self.assertEqual(payload["event_count"], 3)
+        self.assertEqual(payload["event_count"], len(facts.by_grain(Grain.EVENT)))
+
+    def test_an_unparseable_line_is_NOT_counted_as_an_event(self):
+        """The count must agree with the fact table, which excludes a line it could not parse."""
+
+        run = _write_run(
+            self.root,
+            events=[
+                '{"at":"2026-09-08T10:00:00Z","event":"run-created"}',
+                "{ THIS LINE IS DELIBERATELY CORRUPT",
+            ],
+        )
+        payload = self._run_payload(run)
+        self.assertEqual(payload["event_count"], 1)
+        self.assertIn("partial-events", payload["quality_flags"])
+
+    def test_an_events_file_that_EXISTS_and_is_empty_counts_a_real_zero(self):
+        run = _write_run(self.root, events=[])
+        (run / "events.jsonl").write_text("", encoding="utf-8")
+        payload = self._run_payload(run)
+        self.assertEqual(
+            payload["event_count"],
+            0,
+            "a file that exists and holds no line is a MEASURED zero, not an absence",
+        )
+
+    def test_a_run_with_NO_events_file_OMITS_the_key_rather_than_reporting_zero(self):
+        """OMIT, NEVER ZERO-FILL. A zero here would assert a count nobody observed."""
+
+        run = _write_run(self.root)
+        (run / "events.jsonl").unlink()
+        payload = self._run_payload(run)
+        self.assertNotIn("event_count", payload)
+
+    def test_event_count_is_a_RUN_grain_key_and_appears_at_no_other_grain(self):
+        run = _write_run(self.root)
+        projected = ingest.project_run_facts(ingest.build_run_facts(run))
+        self.assertIn("event_count", projected["run"][0])
+        for grain in ("ipd", "attempt", "phase"):
+            for record in projected.get(grain, []):
+                with self.subTest(grain=grain):
+                    self.assertNotIn(
+                        "event_count",
+                        record,
+                        "a per-item fact has no event stream of its own to count",
+                    )
+
+    def test_duration_seconds_is_NOT_offered_and_is_still_NOT_produced(self):
+        """The removal branch, asserted on BOTH halves so a half-state cannot pass.
+
+        Re-adding the name to the grammar without a producer would restore the exact defect, and
+        emitting it without offering it would persist a key nothing can query.
+        """
+
+        from agent_workflows import run_analytics_query as query_mod
+
+        self.assertNotIn("duration_seconds", query_mod.AGGREGATE_METRICS)
+        run = _write_run(self.root)
+        self.assertNotIn("duration_seconds", self._run_payload(run))
+
+
+class TokenAbsenceClassificationTests(unittest.TestCase):
+    """metgap `6krsym` E-06: the ingester records WHY a token total is absent, or says nothing.
+
+    Measured over this repository's corpus at authoring time: all 32 token absences across both hosts
+    were runs where no agent turn was ever dispatched, and the decisive check (a completed item, a
+    non-empty session, no tokens) returned ZERO runs. So the folded `missing` count was reporting
+    correctly-empty runs as lost data.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+
+    def _flags(self, **kwargs) -> set[str]:
+        run = _write_run(self.root, **kwargs)
+        facts = ingest.build_run_facts(run)
+        return set(facts.by_grain(Grain.RUN)[0].quality_flags)
+
+    def test_a_run_WITH_tokens_carries_no_absence_flag_at_all(self):
+        flags = self._flags(
+            items=[_item(attempts=[_attempt(tokens={"input": 10, "total": 10})])]
+        )
+        self.assertNotIn(ingest.TOKENS_NOTHING_TO_RECORD_FLAG, flags)
+        self.assertNotIn(ingest.TOKENS_RUN_UNFINISHED_FLAG, flags)
+
+    def test_an_item_that_dispatched_NO_attempt_is_nothing_to_record(self):
+        flags = self._flags(items=[_item(status="not-attempted", attempts=[])])
+        self.assertIn(ingest.TOKENS_NOTHING_TO_RECORD_FLAG, flags)
+
+    def test_an_ORCHESTRATE_only_item_is_nothing_to_record(self):
+        """An orchestrator is retired from its children's state and spends no agent turn."""
+
+        flags = self._flags(items=[_item(action="orchestrate", attempts=[])])
+        self.assertIn(ingest.TOKENS_NOTHING_TO_RECORD_FLAG, flags)
+
+    def test_an_EMPTY_queue_is_nothing_to_record(self):
+        flags = self._flags(items=[])
+        self.assertIn(ingest.TOKENS_NOTHING_TO_RECORD_FLAG, flags)
+
+    def test_a_RUNNING_item_is_unfinished_rather_than_nothing_to_record(self):
+        """A third state. Collapsing it either way would assert something the run has not settled."""
+
+        flags = self._flags(items=[_item(status="running", attempts=[])])
+        self.assertIn(ingest.TOKENS_RUN_UNFINISHED_FLAG, flags)
+        self.assertNotIn(ingest.TOKENS_NOTHING_TO_RECORD_FLAG, flags)
+
+    def test_A_GENUINE_LOSS_IS_NEVER_EXPLAINED_AWAY(self):
+        """THE LOAD-BEARING ASSERTION of this plan: a dispatched turn with no tokens stays UNEXPLAINED.
+
+        This is the case the new vocabulary must not absorb. An attempt ran, finished, and recorded no
+        token total; that is either a producer defect or real data loss, and it must keep reading as
+        one.
+        """
+
+        flags = self._flags(items=[_item(attempts=[_attempt(tokens=None, cost=2.0)])])
+        self.assertNotIn(ingest.TOKENS_NOTHING_TO_RECORD_FLAG, flags)
+        self.assertNotIn(ingest.TOKENS_RUN_UNFINISHED_FLAG, flags)
+
+    def test_a_MIXED_queue_with_one_real_execution_is_not_explained_away(self):
+        """One genuinely executed item with no tokens outweighs any number of empty ones."""
+
+        flags = self._flags(
+            items=[
+                _item("aaa111", position=1, status="not-attempted", attempts=[]),
+                _item("bbb222", position=2, attempts=[_attempt(tokens=None, cost=1.0)]),
+            ]
+        )
+        self.assertNotIn(ingest.TOKENS_NOTHING_TO_RECORD_FLAG, flags)
+
+    def test_the_flags_are_short_LABELS_that_survive_the_privacy_projector(self):
+        run = _write_run(self.root, items=[_item(status="not-attempted", attempts=[])])
+        payload = ingest.project_run_facts(ingest.build_run_facts(run))["run"][0]
+        self.assertIn(ingest.TOKENS_NOTHING_TO_RECORD_FLAG, payload["quality_flags"])
+
+
 class ConservationSurveyTests(unittest.TestCase):
     """E-06: the both-forms survey, which makes the measurement reproducible rather than cited."""
 
