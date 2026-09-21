@@ -3809,12 +3809,18 @@ AUTOMATIC STATUS ROUTING:
     )
     sub = parser.add_subparsers(dest="command", required=False)
 
+    # stopdisc (`wqq8ua`) E-04: the mirror of the oc twin, which carries the full note. The run-level
+    # help named no way to stop a run; this POINTS AT the shared `stop` verb instead of restating its
+    # per-level help (P8), and the text is `runner_stop`'s so both hosts say the same thing.
+    _stopping_note = runner_stop.stop_run_help_note(_detect_driver_command())
+
     # start
     start = sub.add_parser(
         "start",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         help="Create a run and execute its queue (default)",
-        description="Create a durable queue of IPDs and execute or review them.",
+        description="Create a durable queue of IPDs and execute or review them.\n\n"
+        + _stopping_note,
     )
     start.add_argument(
         "selectors",
@@ -3965,8 +3971,14 @@ AUTOMATIC STATUS ROUTING:
     # resume
     resume = sub.add_parser(
         "resume",
+        # stopdisc (`wqq8ua`) E-04 / DECISION 03-wqq8ua-D3: `RawDescriptionHelpFormatter` ADDED here,
+        # the mirror of the oc twin. `start` above always had it; `resume` did not, and argparse's
+        # default formatter reflows a description, so the stopping paragraph would collapse onto one
+        # line with its indented command inlined. Behavior-neutral for parsing.
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         help="Resume an existing run",
-        description="Resume an interrupted run or retry incomplete items in recovery mode.",
+        description="Resume an interrupted run or retry incomplete items in recovery mode.\n\n"
+        + _stopping_note,
     )
     resume.add_argument(
         "run_id",
@@ -4373,6 +4385,16 @@ def main(argv: list[str] | None = None) -> int:
                 f"{'Terminated by SIGTERM' if is_sigterm else 'Interrupted'}; durable run state was preserved.",
                 file=sys.stderr,
             )
+        # stopdisc (`wqq8ua`) E-03: the exact counterpart of the oc twin, which carries the full note.
+        # In brief: this is where an operator learns what just happened and it named no gentler option;
+        # the sentence sits AFTER the branch because it is true on both exits and leaves each existing
+        # message byte-identical; it is future-tense because this handler cannot know which R12 path or
+        # ladder rung produced the exit; and it is NOT a prompt, because Ctrl-C is taken by an operator
+        # who wants out. The text itself is `runner_stop`'s, so both hosts say the same thing.
+        print(
+            runner_stop.stop_interrupt_hint(_detect_driver_command()),
+            file=sys.stderr,
+        )
         return 143 if is_sigterm else 130
     except EmptyStatusSelection:
         # revsweep 76gsmv E-04, spec 25kzda 2.4a property 3: an empty STATUS sweep is the HEALTHY

@@ -2162,6 +2162,78 @@ class ContinuationHintTests(unittest.TestCase):
         self.assertIn("aw oc runipd --session ses_abc123 <selector>", hint)
         self.assertIn("aw oc runipd resume --repo /repo run-xyz", hint)
 
+    # --- stopdisc (`wqq8ua`) E-02/E-05: the footer names GRACEFUL STOPPING -------------------------
+    #
+    # ADDED BESIDE the six tests above, never modifying them: their four `assertNotIn("resume", ...)`
+    # / `assertNotIn("aw runs", ...)` assertions are the contract the new line must not break, so
+    # leaving them untouched and green is the actual proof that E-02 added a line without perturbing
+    # the footer. Asserted on RENDERED output rather than on a string constant, because the claim is
+    # that an operator SEES this; a test that a constant exists proves nothing about what reaches a
+    # terminal.
+
+    def test_the_footer_tells_an_operator_how_to_stop_a_run_gracefully(self):
+        """The item's cleanest surviving ask (backlog `1m3nul`): the footer taught reuse, inspect and
+        resume, and said nothing about STOPPING, so an operator who wanted a run to wind down cleanly
+        had no surface here naming the levels or the verb that requests them."""
+        hint = driver.render_continuation_hint(
+            self._state({"demo": "ses_abc123"}, queue=[{"status": "partial"}]),
+            Path("/x"),
+        )
+        self.assertIn("To stop a future run gracefully:", hint)
+        self.assertIn("aw oc run stop <run-id> --after-call", hint)
+
+    def test_the_stopping_line_prints_on_BOTH_footer_branches(self):
+        """Plan OQ-01, decided at execution (DECISION 03-wqq8ua-D2): both branches.
+
+        The line is FUTURE-tense, which is what licenses the success branch: OQ-01's worry was a nudge
+        that prints when it cannot be acted on, and that applies to a line about stopping THIS
+        (already finished) run, not to one about the next. Both branches are asserted here so the
+        placement cannot be narrowed later without a failing test.
+        """
+        for status, other in (("executed", "aw runs run-xyz"), ("partial", "resume")):
+            with self.subTest(status=status):
+                hint = driver.render_continuation_hint(
+                    self._state({"demo": "ses_abc123"}, queue=[{"status": status}]),
+                    Path("/x"),
+                )
+                # the pre-existing branch content is still there...
+                self.assertIn(other, hint)
+                # ...and the stopping line joins it rather than replacing it.
+                self.assertIn("To stop a future run gracefully:", hint)
+
+    def test_the_stopping_line_avoids_the_substrings_the_success_branch_forbids(self):
+        """The wording constraint stated as its own assertion, not left implicit in six other tests.
+
+        Three shipped assertions in this class plus one end-to-end test require the SUCCESS branch to
+        contain neither `resume` nor `aw runs` beyond what it prints itself. Those tests fail if this
+        wording regresses, but they would not say WHY; this one names the constraint, so a future
+        rewording is told what rule it broke instead of being pointed at four unrelated tests.
+        """
+        from agent_workflows import runner_stop
+
+        stopping = "\n".join(runner_stop.stop_footer_hint("aw oc run"))
+        self.assertNotIn("resume", stopping)
+        self.assertNotIn("aw runs", stopping)
+
+    def test_the_footer_does_not_restate_the_four_levels(self):
+        """GUIDING_PRINCIPLES P8: `aw oc run stop --help` already describes each level well, and a
+        second copy would drift from the first. The footer POINTS; it does not explain."""
+        hint = driver.render_continuation_hint(
+            self._state({"demo": "ses_abc123"}, queue=[{"status": "partial"}]),
+            Path("/x"),
+        )
+        for level_word in (
+            "--after-set",
+            "--now-force",
+            "level 2",
+            "level 3",
+            "level 4",
+        ):
+            self.assertNotIn(level_word, hint, level_word)
+        # And it must not imply Ctrl-C can reach level 2, which no signal can
+        # (`runner_stop`: the ladder is 1 -> 3 -> 4, "a decision, not an omission").
+        self.assertNotIn("--after-set", hint)
+
 
 class VerifierPromptTests(unittest.TestCase):
     """#1: turn-2 verifier prompt is well-formed and instructs a fresh-session audit."""

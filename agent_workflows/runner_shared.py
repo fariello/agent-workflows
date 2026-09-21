@@ -13092,6 +13092,30 @@ def render_continuation_hint(
     else:
         lines.append("To resume this run:")
         lines.append(f"  {cmd} resume --repo {repo} {run_id}")
+
+    # stopdisc (`wqq8ua`) E-02: the footer teaches how to REUSE a session, how to INSPECT a summary
+    # and how to RESUME, and said nothing about STOPPING - so an operator who wanted a run to wind
+    # down cleanly had no surface here that named the graceful-stop levels or the verb that requests
+    # them (backlog `1m3nul`).
+    #
+    # ON BOTH BRANCHES, DELIBERATELY (plan OQ-01, decided at execution as DECISION 03-wqq8ua-D2). The
+    # resume branch is the primary one: an operator who will resume is the one most likely to want a
+    # graceful stop later. But the line is about a FUTURE run, so it is equally actionable after a
+    # clean run, which is precisely when the next run is being planned. A line about stopping THIS
+    # (already finished) run would have been noise; a future-tense one is not, which is why the tense
+    # is what licenses the placement.
+    #
+    # THE TEXT IS OWNED BY `runner_stop`, not written here, because it POINTS AT that module's `stop`
+    # verb; keeping pointer and target in one module is what stops them drifting. It contains neither
+    # `resume` nor `aw runs`, which the success branch's shipped `assertNotIn` assertions require
+    # (`tests/test_oc_runipd.py::ContinuationHintTests` and the end-to-end successful-run test).
+    #
+    # ONE EDIT SERVES BOTH HOSTS because this body is shared and each host's four-line wrapper passes
+    # its own `HostLabels`; `cmd` therefore renders `aw oc run` or `aw agy run` while the SENTENCE is
+    # identical by construction rather than by hand (sibling `tx6q0h` unified this function).
+    from agent_workflows import runner_stop
+
+    lines.extend(runner_stop.stop_footer_hint(cmd))
     lines.append("")
     return "\n".join(lines)
 

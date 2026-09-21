@@ -2672,6 +2672,145 @@ class PlatformHonestyTests(unittest.TestCase):
 # =============================================================================================
 
 
+class RunLevelHelpAdvertisesStoppingTests(unittest.TestCase):
+    """stopdisc (`wqq8ua`) E-04/E-05: `start` and `resume` help tell an operator a stop exists.
+
+    THE MEASURED GAP THIS CLOSES: before this change, `aw oc run start --help` matched NOTHING for
+    stop, interrupt or ctrl on either host, so the levels were discoverable only by already knowing
+    the `stop` verb's name. Backlog `1m3nul` filed exactly that.
+
+    RENDERED, NOT DECLARED. Every assertion below runs the real `--help` in a subprocess, because
+    which text argparse shows where depends on the subparser wiring, and because the decisive defect
+    here is a FORMATTING one (see the reflow test) that reading the source cannot reveal.
+    """
+
+    def _run_help(self, driver: str, verb: str) -> str:
+        result = subprocess.run(
+            [sys.executable, "-m", _driver_module(driver), verb, "--help"],
+            env=_DRIVER_ENV,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=60,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout)
+        return result.stdout
+
+    def test_both_verbs_on_both_hosts_point_at_the_stop_verb(self):
+        for driver, command in (("oc", "aw oc run"), ("agy", "aw agy run")):
+            for verb in ("start", "resume"):
+                with self.subTest(driver=driver, verb=verb):
+                    text = self._run_help(driver, verb)
+                    self.assertIn("STOPPING A RUN GRACEFULLY:", text)
+                    self.assertIn(f"{command} stop <run-id> --after-call", text)
+                    self.assertIn(f"{command} stop --help", text)
+                    print(f"--- {driver} {verb} --help (stopping section) ---")
+                    print(
+                        "\n".join(
+                            line
+                            for line in text.splitlines()
+                            if "stop" in line.lower() or "Ctrl-C" in line
+                        )
+                    )
+
+    def test_the_resume_paragraph_is_not_REFLOWED_onto_one_line(self):
+        """The decisive assertion, and the one the plan's review measured as a mid-pass blocker.
+
+        `resume` had NO `RawDescriptionHelpFormatter` on either host while `start` did, and argparse's
+        default formatter REFLOWS a description: the paragraph collapses onto a single line and the
+        indented command is inlined, which destroys the copy-ready command that is the whole point.
+        DECISION 03-wqq8ua-D3 added the formatter to both hosts' `resume` parsers.
+
+        Asserted on STRUCTURE rather than on the formatter attribute, deliberately: what an operator
+        needs is the command alone on its own indented line, and that survives any later refactor of
+        HOW the formatter gets set.
+        """
+        for driver, command in (("oc", "aw oc run"), ("agy", "aw agy run")):
+            with self.subTest(driver=driver):
+                text = self._run_help(driver, "resume")
+                wanted = f"{command} stop <run-id> --after-call"
+                command_lines = [line for line in text.splitlines() if wanted in line]
+                self.assertTrue(
+                    command_lines, f"{driver}: command line missing entirely"
+                )
+                for line in command_lines:
+                    # Alone on its line (modulo indentation) is what "not reflowed" means.
+                    self.assertEqual(
+                        line.strip(),
+                        wanted,
+                        f"{driver}: the command was REFLOWED into surrounding prose; "
+                        "`resume` needs argparse.RawDescriptionHelpFormatter",
+                    )
+                    self.assertTrue(
+                        line.startswith("    "),
+                        f"{driver}: the command lost its indentation: {line!r}",
+                    )
+                # And the section header must still be on a line of its own.
+                self.assertIn("\nSTOPPING A RUN GRACEFULLY:\n", text)
+
+    def test_the_two_hosts_say_the_SAME_thing_modulo_their_own_command(self):
+        """A surface added to one host only is the divergence the shared-runner work exists to stop."""
+        oc_text = runner_stop.stop_run_help_note("aw oc run")
+        agy_text = runner_stop.stop_run_help_note("aw agy run")
+        self.assertEqual(
+            oc_text.replace("aw oc run", "CMD"), agy_text.replace("aw agy run", "CMD")
+        )
+
+    def test_the_run_help_does_not_duplicate_the_per_level_text(self):
+        """GUIDING_PRINCIPLES P8: the `stop` verb's help owns the per-level descriptions, and a second
+        copy in the run help would drift from it. The note POINTS and names at most ONE level."""
+        note = runner_stop.stop_run_help_note("aw oc run")
+        for level_text in (
+            "Level 1:",
+            "Level 2:",
+            "Level 3:",
+            "Level 4:",
+            "--after-set",
+            "--now-force",
+            "indeterminate",
+        ):
+            self.assertNotIn(level_text, note, level_text)
+
+    def test_the_note_attributes_neither_ctrl_c_path_to_the_other(self):
+        """Spec R12 specifies TWO paths (R12.1 the interactive menu, R12.2 the ladder) and the note
+        must not present either as the only one, nor imply Ctrl-C reaches level 2, which no signal
+        can."""
+        note = runner_stop.stop_run_help_note("aw oc run")
+        self.assertIn("on a real terminal", note)
+        self.assertIn("otherwise", note)
+        self.assertNotIn("--after-set", note)
+
+    def test_the_continuity_FOOTER_names_stopping_on_BOTH_hosts(self):
+        """The footer half of E-02, asserted here because it is the BOTH-HOST assertion.
+
+        `tests/test_oc_runipd.py::ContinuationHintTests` covers the oc footer's branches in detail;
+        this is the cross-host one, kept beside the other both-host stop assertions in this file so
+        every stop-discoverability surface is reachable from one place (DECISION 03-wqq8ua-D4).
+
+        THE FOOTER IS NOW ONE SHARED IMPLEMENTATION (sibling `tx6q0h` lifted it behind `HostLabels`),
+        so the sentence is identical by construction and what actually needs asserting is that each
+        host renders its OWN command prefix - the per-host datum a shared body could silently lose.
+        """
+        state = {
+            "repo": "/repo",
+            "run_id": "run-xyz",
+            "set_sessions": {"demo": "ses_abc"},
+            "queue": [{"status": "partial"}],
+        }
+        for module, command, other in (
+            (oc, "aw oc run", "aw agy run"),
+            (agy, "aw agy run", "aw oc run"),
+        ):
+            with self.subTest(module=module.__name__):
+                hint = module.render_continuation_hint(state, Path("/x"))
+                self.assertIn("To stop a future run gracefully:", hint)
+                self.assertIn(f"{command} stop <run-id> --after-call", hint)
+                self.assertNotIn(
+                    f"{other} stop", hint, "a host rendered the OTHER host's command"
+                )
+                print(f"--- {module.__name__} continuity footer ---\n{hint}")
+
+
 class ScopeFenceTests(unittest.TestCase):
     """What this phase deliberately does NOT do."""
 

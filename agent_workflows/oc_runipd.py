@@ -7362,11 +7362,21 @@ LAUNCH IDENTITY (model / variant / agent):
     )
     sub = parser.add_subparsers(dest="command", required=False)
 
+    # stopdisc (`wqq8ua`) E-04: the run-level help matched NOTHING for stop, interrupt or ctrl
+    # (measured), so an operator reading the command that STARTS a run was never told that graceful
+    # stopping exists. The note POINTS AT the `stop` verb rather than restating its per-level help,
+    # which `STOP_VERB_DESCRIPTION` and `STOP_LEVEL_FLAG_HELP` already do well (P8); a second copy
+    # would drift, and the drift is the cost. The text is `runner_stop`'s, so both hosts and both
+    # verbs say the same thing. It contains newlines and an indented command, which is why BOTH
+    # parsers below need `RawDescriptionHelpFormatter`.
+    _stopping_note = runner_stop.stop_run_help_note(_detect_driver_command())
+
     start = sub.add_parser(
         "start",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         help="Create a run and execute its queue (default)",
-        description="Create a durable queue of IPDs and execute or review them.",
+        description="Create a durable queue of IPDs and execute or review them.\n\n"
+        + _stopping_note,
     )
     start.add_argument(
         "selectors",
@@ -7522,8 +7532,17 @@ LAUNCH IDENTITY (model / variant / agent):
 
     resume = sub.add_parser(
         "resume",
+        # stopdisc (`wqq8ua`) E-04 / DECISION 03-wqq8ua-D3: `RawDescriptionHelpFormatter` ADDED here.
+        # `start` above has always had it; `resume` did not, and argparse's DEFAULT formatter REFLOWS a
+        # description, so the stopping paragraph below would collapse onto one line with its indented
+        # command inlined (reproduced with a minimal argparse case at execution time). The keyword is
+        # behavior-neutral for PARSING - argparse consults `formatter_class` only when formatting
+        # usage/help - and it makes `start` and `resume` render their help the same way, which is what
+        # an operator comparing the two verbs expects.
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         help="Resume an existing run",
-        description="Resume an interrupted run or retry incomplete items in recovery mode.",
+        description="Resume an interrupted run or retry incomplete items in recovery mode.\n\n"
+        + _stopping_note,
     )
     resume.add_argument(
         "run_id",
@@ -8365,6 +8384,25 @@ def main(argv: list[str] | None = None) -> int:
                 f"{'Terminated by SIGTERM' if is_sigterm else 'Interrupted'}; durable run state was preserved.",
                 file=sys.stderr,
             )
+        # stopdisc (`wqq8ua`) E-03: this is the moment an operator learns what just happened, and it
+        # said nothing about the gentler option that existed. Spec R16's report covers a LIVE request
+        # (`render_request_accepted`); the message printed on the way OUT was the empty surface.
+        #
+        # AFTER THE BRANCH, NOT INSIDE EITHER, for two reasons. It is true on BOTH exits, and keeping
+        # it out of the branch bodies leaves each existing sentence byte-identical and contiguous,
+        # which is what `tests/test_interrupt_menu.py::RunnerMainOutputOnInterruptTests` asserts.
+        #
+        # PHRASED AS WHAT IS AVAILABLE NEXT TIME, because this handler cannot know which R12 path or
+        # which ladder rung produced the exit, so naming a level would risk describing the wrong one.
+        # The out-of-band verb is true either way and needs no terminal at all.
+        #
+        # NOT A PROMPT, AND MUST NOT BECOME ONE: Ctrl-C is taken by an operator who wants OUT, and
+        # blocking it on a question risks the unbounded wait `runner_stop.interrupt_menu_is_safe`
+        # documents. One sentence, then the pre-existing exit code, unchanged.
+        print(
+            runner_stop.stop_interrupt_hint(_detect_driver_command()),
+            file=sys.stderr,
+        )
         return 143 if is_sigterm else 130
     except EmptyStatusSelection:
         # revsweep 76gsmv E-04, spec 25kzda 2.4a property 3: an empty STATUS sweep is the HEALTHY

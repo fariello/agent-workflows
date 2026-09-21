@@ -3,7 +3,8 @@
 
 TWO DIFFERENT ACTORS ARE GUARDED AGAINST HERE, which is why the file has two halves.
 
-E-05 GUARDS AGAINST THE CODE DRIFTING. `main` closes over 27 module-level names, and the plan's
+E-05 GUARDS AGAINST THE CODE DRIFTING. `main` closes over 31 module-level names (27 when this file was
+written; every change since is annotated and dated in :data:`EXPECTED_CLOSURE`), and the plan's
 decision about whether it can be split at all rests on HOW MANY of them are still defined twice.
 :class:`TheClosureClassification` re-derives that classification from the AST at import time and
 asserts it against :data:`EXPECTED_CLOSURE`, a NAMED TABLE. A symbol that silently changes class
@@ -74,7 +75,8 @@ CLOSURE_CLASSES = {
     "oc-only": "no agy counterpart exists: host hook, permanently",
 }
 
-#: The 27 module-level free names of `oc_runipd.main`, each mapped to its class.
+#: The 31 module-level free names of `oc_runipd.main`, each mapped to its class (27 when this table was
+#: first written; see the dated per-row notes below for each addition and why it was not a re-fork).
 #:
 #: MEASURED AT HEAD `761edad3`, 2026-09-17, by the same AST method the assertions below use, and it
 #: is re-derived rather than trusted: :meth:`TheClosureClassification.test_every_name_is_in_the_table`
@@ -97,14 +99,30 @@ EXPECTED_CLOSURE = {
     # class 2: shared NAME, per-host wrapper object (2)
     "print_status": "shared-host-wrapper",
     "save_state": "shared-host-wrapper",
-    # class 3: one object, agy imports it from oc (5)
+    # class 3: one object, agy imports it from oc (6)
     "emit_shutdown_report": "one-object-agy-imports-oc",
     "install_exit_signal_handler": "one-object-agy-imports-oc",
     "render_runs_pointer": "one-object-agy-imports-oc",
     "report_run_spec_edits": "one-object-agy-imports-oc",
     "runner_shared": "one-object-agy-imports-oc",
-    # class 4: STILL DEFINED TWICE, i.e. the injection cost of a split (8)
+    # ADDED 2026-09-21 by stopdisc-01 (`wqq8ua`): `main`'s interrupt/SIGTERM handler now prints the
+    # graceful-stop hint, so `main` REFERENCES the `runner_stop` module it previously did not. NOTHING
+    # WAS FORKED OR MOVED, and that distinction is the whole reason this row is a legitimate update
+    # rather than the drift this table exists to catch: `runner_stop` was ALREADY bound on both hosts
+    # before this change (verified at the pre-change HEAD), and both hosts already resolved the SAME
+    # module object. What grew is the set of names `main` closes over, not the number of definitions.
+    "runner_stop": "one-object-agy-imports-oc",
+    # class 4: STILL DEFINED TWICE, i.e. the injection cost of a split (9)
     "build_parser": "still-defined-twice",
+    # ADDED 2026-09-21 by stopdisc-01 (`wqq8ua`): `main` now calls `_detect_driver_command()` to render
+    # the graceful-stop hint in this host's own command vocabulary (`aw oc run` / `aw agy run`), so the
+    # name entered `main`'s closure. IT IS NOT A NEW FORK: both hosts have carried their own one-line
+    # `_detect_driver_command` since rununify 04 (`tx6q0h`) lifted the host labels, and the two were
+    # ALREADY distinct objects at the pre-change HEAD (verified). It is classed `still-defined-twice`
+    # for the same reason `print_status` is a wrapper: each host binds its OWN `HostLabels`
+    # (`OC_HOST_LABELS` vs `AGY_HOST_LABELS`), which is exactly the per-host datum that must not be
+    # lost, and the DECISION it wraps is the single shared `runner_shared.detect_driver_command`.
+    "_detect_driver_command": "still-defined-twice",
     # ADDED 2026-09-17 by integpath-04 (`rl67b0`): the `integrate` verb's per-host handler, the exact
     # twin of `handle_stop_command` beside it and forked for the same reason. Each host binds its OWN
     # `integrate_lane_branch` wrapper (so the merge subject on MAIN names the right driver) and its own
@@ -142,7 +160,11 @@ EXPECTED_CLASS_COUNTS = {
     # `still-defined-twice` when sibling `tx6q0h` lifted them behind the `HostLabels` descriptor; the
     # fork count falls by the same two, so the histogram still partitions the same population.
     "shared-host-wrapper": 4,
-    "one-object-agy-imports-oc": 5,
+    # RE-MEASURED 2026-09-21: 6, up from 5. stopdisc-01 (`wqq8ua`) made `main` reference the
+    # `runner_stop` module when printing the graceful-stop hint on the interrupt path. A rise in THIS
+    # class is not a re-fork by construction: the class MEANS "already one object", so a name can only
+    # enter it by being a single shared object both hosts see, which `runner_stop` already was.
+    "one-object-agy-imports-oc": 6,
     # RE-MEASURED 2026-09-17: 7, up from 6. integpath-04 (`rl67b0`) added `handle_integrate_command`
     # per host. A RISE is normally a re-fork and therefore a defect, so the reason is stated: this is a
     # NEW verb whose per-host half binds host-specific values only (the `integrate_lane_branch` wrapper
@@ -154,7 +176,13 @@ EXPECTED_CLASS_COUNTS = {
     # forked. Both of the new verb's host-neutral decisions were placed in `runner_shared` from the
     # start (`plan_audit_target`, and the `audit` mode of the ONE `build_verifier_prompt`), so what is
     # duplicated is the host binding alone, and on one host that binding is a refusal.
-    "still-defined-twice": 8,
+    # RE-MEASURED 2026-09-21: 9, up from 8. stopdisc-01 (`wqq8ua`) made `main` call
+    # `_detect_driver_command()` so the graceful-stop hint names THIS host's command. NOTHING WAS
+    # FORKED: that wrapper has existed on both hosts since `tx6q0h` lifted the host labels, and the two
+    # were ALREADY distinct objects at the pre-change HEAD (verified before the edit). The rise measures
+    # what `main` now REFERENCES, not a new duplicate, which is the distinction that makes this a
+    # legitimate table update rather than the drift this table exists to catch.
+    "still-defined-twice": 9,
     "oc-only": 3,
 }
 
@@ -167,14 +195,25 @@ EXPECTED_CLASS_COUNTS = {
 #: exercise the REAL `run_queue`, `locked_run` and `initialize_run` against a temp repo, where it may
 #: still pass while asserting nothing it claims to.
 PATCH_SEAM_FILES = {
-    "tests/test_interrupt_menu.py": 12,
+    # RE-MEASURED 2026-09-21: 18, up from 12. stopdisc-01 (`wqq8ua`) added
+    # `MainInterruptNamesTheGracefulStopVerbTests`, whose `_stderr_for` helper drives the REAL `main`
+    # to its `KeyboardInterrupt` handler through the same SIX seams the sibling
+    # `RunnerMainOutputOnInterruptTests` already used (`run_queue`, `emit_shutdown_report`,
+    # `resolve_run_dir`, `load_state`, `locked_run`, `install_stop_triggers`).
+    #
+    # A RISE HERE IS NOT AUTOMATICALLY GOOD OR BAD, which is why it is annotated rather than bumped:
+    # what this counter protects is that each seam still TAKES EFFECT, since a seam that silently stops
+    # applying leaves its test green while exercising the real `run_queue`. These six are declared once
+    # in a helper rather than repeated per test, so they are six seams serving four tests.
+    "tests/test_interrupt_menu.py": 18,
     "tests/test_run_summary_table.py": 8,
     "tests/test_oc_runipd.py": 4,
     "tests/test_oc_runipd_cli.py": 2,
 }
 
-#: Total seams across those four files, i.e. the number plan `3dki3o` F-9 reported.
-EXPECTED_SEAM_TOTAL = 26
+#: Total seams across those four files. 26 when plan `3dki3o` F-9 first reported it; 32 since
+#: stopdisc-01 (`wqq8ua`) added the six-seam interrupt-message harness annotated above.
+EXPECTED_SEAM_TOTAL = 32
 
 
 # ==========================================================================================
@@ -274,7 +313,11 @@ class TheClosureClassification(unittest.TestCase):
         """
 
         self.assertEqual(len(measured_closure()), len(EXPECTED_CLOSURE))
-        self.assertEqual(len(EXPECTED_CLOSURE), 29)
+        # 29 -> 31 on 2026-09-21 (stopdisc-01, `wqq8ua`): `main`'s interrupt handler now prints the
+        # graceful-stop hint, which references `runner_stop` and calls `_detect_driver_command()`. Both
+        # names already existed on BOTH hosts; the closure grew by what `main` references, not by any
+        # new definition. See the two annotated rows in `EXPECTED_CLOSURE`.
+        self.assertEqual(len(EXPECTED_CLOSURE), 31)
 
     def test_each_name_is_still_in_its_expected_class(self):
         for name, expected in sorted(EXPECTED_CLOSURE.items()):
@@ -324,6 +367,14 @@ class TheClosureClassification(unittest.TestCase):
             (`plan_audit_target`, and the `audit` MODE of the one `build_verifier_prompt` rather than a
             second composer). What is duplicated is the host binding, and on the Antigravity host that
             binding is a refusal naming the OpenCode spelling.
+          * 8 -> 9: stopdisc-01 (`wqq8ua`) made `main` call `_detect_driver_command()` so the new
+            graceful-stop hint names THIS host's command vocabulary. NOT a re-fork, and this case is
+            weaker still than the two above: those ADDED a per-host handler, whereas this added NO
+            definition at all. The wrapper has existed on both hosts since `tx6q0h`, and the two were
+            already distinct objects before the change (verified at the pre-change HEAD); only `main`'s
+            reference to it is new. A rise driven purely by a new REFERENCE is the one kind this
+            counter cannot distinguish from a fork on its own, which is why it is annotated rather
+            than merely incremented.
         """
         measured = measured_closure()
         twice = sorted(n for n, c in measured.items() if c == "still-defined-twice")
@@ -355,8 +406,15 @@ class TheClosureClassification(unittest.TestCase):
         """
         agy_names = module_level_free_names(agy_runipd, "main")
         oc_names = module_level_free_names(oc_runipd, "main")
-        self.assertEqual(len(agy_names), 26)
-        self.assertEqual(len(oc_names), 29)
+        # RE-MEASURED 2026-09-21 (26/29 -> 28/31): stopdisc-01 (`wqq8ua`) made BOTH hosts' `main` print
+        # the graceful-stop hint on the interrupt path, so both closures gained the same two names
+        # (`runner_stop` and `_detect_driver_command`) and THE GAP IS STILL EXACTLY THE THREE
+        # PROFILE-GRAMMAR SYMBOLS. That symmetry is the point of re-measuring it here: a change that
+        # widened the gap would mean one host got a surface the other did not, which is the divergence
+        # this file guards, and an operator-facing surface added to one driver only is precisely the
+        # defect the repository's shared-runner work exists to prevent.
+        self.assertEqual(len(agy_names), 28)
+        self.assertEqual(len(oc_names), 31)
         self.assertEqual(
             sorted(oc_names - agy_names),
             ["ProfileClauseError", "extract_profile_clause", "print_launch_identity"],
@@ -1008,7 +1066,9 @@ class TheEmptySweepExitCodeContract(unittest.TestCase):
 
 
 class ThePatchSeamPopulation(unittest.TestCase):
-    """The 26 seams plan `3dki3o` F-9 measured, asserted so their loss cannot be silent.
+    """The patch seams plan `3dki3o` F-9 measured (26 then, 32 now), asserted so their loss cannot be
+    silent. :data:`PATCH_SEAM_FILES` is the authority for the per-file counts and carries a dated note
+    for every change.
 
     WHY COUNT THEM AT ALL, when a split has not happened: because this is the obstacle that does NOT
     announce itself. A source pin fails at its assertion. A seam that stops taking effect leaves the
@@ -1072,11 +1132,20 @@ class ThePatchSeamPopulation(unittest.TestCase):
                     f"its test green while exercising real code (F-9)",
                 )
 
-    def test_the_total_across_those_files_is_still_26(self):
+    def test_the_total_across_those_files_matches_the_table(self):
+        """THE NUMBER IS NOT IN THE TEST NAME, for the reason its sibling
+        `test_the_closure_size_matches_the_table` records: a hardcoded count in a method name goes
+        stale and leaves a test asserting one number while its name claims another. This method read
+        `..._is_still_26` and its message said "expected 26" while `EXPECTED_SEAM_TOTAL` was the real
+        authority; renamed by stopdisc-01 (`wqq8ua`) when the total legitimately moved to 32."""
         total = sum(
             1 for rel, _line, _symbol in self.seams() if rel in PATCH_SEAM_FILES
         )
-        self.assertEqual(total, EXPECTED_SEAM_TOTAL, f"expected 26, measured {total}")
+        self.assertEqual(
+            total,
+            EXPECTED_SEAM_TOTAL,
+            f"expected {EXPECTED_SEAM_TOTAL}, measured {total}",
+        )
 
     def test_every_seam_still_names_a_symbol_main_actually_reads(self):
         """Non-vacuity of the count: a seam on an unrelated name would inflate it harmlessly."""
