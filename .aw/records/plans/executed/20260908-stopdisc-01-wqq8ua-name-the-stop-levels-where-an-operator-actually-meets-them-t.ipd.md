@@ -12,17 +12,17 @@
 - Scope: Add stop-level discoverability to the three surfaces that lack it: a stopping line in the continuity footer on both hosts, a graceful-stop hint in the `main` interrupt message on both hosts, and a stopping paragraph on the run-level (`start`/`resume`) help. Text must POINT AT the existing `stop` verb rather than restating its per-level help, and must describe only behavior true on both the interactive and non-interactive paths. EXCLUDES any change to `runner_stop`'s levels, budgets, escalation, or the R16 request report; excludes adding, removing or altering the interactive Ctrl-C prompt; excludes resolving the R12 conflict that prompt creates.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_stop_triggers.py, tests/test_interrupt_menu.py, tests/test_oc_runipd.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: stopdisc
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: wqq8ua
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: 1m3nul
 
 ## Workflow history
+- 2026-09-21 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: wqq8ua verified (set stopdisc, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/runner_shared.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope agent_workflows/runner_stop.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_rununify_main.py: changed by the plan's approved execution (auto-reconciled by aw oc run)]
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-201..PR-209 all FIXED, no deferrals, no open questions; Readiness go-pending-approval
 
