@@ -6,14 +6,16 @@
 - Scope: Replace static module constants for previous cutovers (spec_id6, carrier_obligations, dependency_schema) with dynamic resolution derived from the target repository's installation history or committed project configuration.
 - Scope-Paths: agent_workflows/config.py, agent_workflows/project_schema.py, agent_workflows/engine.py, agent_workflows/install_wizard.py, agent_workflows/check_engine.py, agent_workflows/artifact_naming.py, .aw/config/project.json, AGENTS.md, .aw/records/specs/20260817-2147-01-uniform-artifact-naming-grammar.spec.md, tests/test_config.py, tests/test_check_engine.py, tests/test_durable_capture.py, tests/test_spec_id6_filenames.py, tests/test_runner_item_dependencies.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: approved
 - Set: cutoverfix
 - Order: 1
 - Highest E allocated: 05
 - Author: antigravity
 - Id: ogs6a2
+- Approval: 2026-09-21, human ("approved"): Approved by maintainer: resolve previous cutovers from install history
 
 ## Workflow history
+- 2026-09-21 approved (aw set, --by-human): Approved by maintainer: resolve previous cutovers from install history
 
 - 2026-09-20 to-review (antigravity): authored complete review-ready IPD for dynamic install-based cutover resolution.
 - 2026-09-20 draft (antigravity): created via aw ipd scaffold.
