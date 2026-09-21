@@ -3120,11 +3120,20 @@ def finalize_retry_remedy(labels: "HostLabels | None", id6: str, retry: bool) ->
 # correction turn, false of an integration re-attempt costing one `git status` and one `git
 # merge-tree`.
 #
-# ONLY THE DIRTY-OVERLAP ARM DEFERS, AND THAT SCOPING IS LOAD-BEARING. `integrate_lane_branch`
-# returns THREE kinds. `"merge-conflict"` means the reused gate returned a non-passing result (real
-# conflict, stale base, combined-red, scope), which repetition does NOT fix; deferring it would spin
-# the ladder against a genuine failure and burn the budget for nothing, and every positive-arm test
-# would still pass. :func:`classify_integration_refusal` is the single place that decision is made.
+# WHICH ARMS DEFER IS LOAD-BEARING SCOPING. `integrate_lane_branch` returns THREE kinds, and
+# `"merge-conflict"` means the reused gate returned a non-passing result (real conflict, stale base,
+# combined-red, scope), which repetition does NOT fix; deferring it would spin the ladder against a
+# genuine failure and burn the budget for nothing. :func:`classify_integration_refusal` is the single
+# place that decision is made.
+#
+# WITH ONE FOURTH KIND ADDED AFTERWARDS (`l2mzxn`, 2026-09-21), for a reason the original scoping did
+# not anticipate. `merge-conflict` covered BOTH "the gate measured the merged tree and it is red" and
+# "the gate could not measure at all", and the second is not a statement about the work: it is a
+# harness fault, it prints a combined-red sentence asserting a suite run that never happened, and being
+# terminal it stranded three verified lanes in run `run-20260921T105933Z-1994623`.
+# :data:`INTEGRATION_REFUSAL_UNMEASURED` separates it and IS deferrable. It is a KIND, never a status,
+# so it maps onto the existing `integration-deferred`/`integration-blocked` statuses and no renderer,
+# attention mapping, analytics key or `TERMINAL_STATES` set changes.
 #
 # RE-VERIFICATION IS MANDATORY ON EVERY ATTEMPT and is not this section's job to skip: a lane
 # verified against yesterday's main is not verified against today's, so each re-attempt calls
@@ -3146,6 +3155,30 @@ INTEGRATION_REFUSAL_TRANSIENT = "integration-blocked"
 
 #: The refusal kind that is NOT transient and must stay terminal on its first attempt.
 INTEGRATION_REFUSAL_CONFLICT = "merge-conflict"
+
+#: The refusal kind meaning THE GATE COULD NOT MEASURE, as distinct from measured and failing.
+#:
+#: WHY THIS THIRD KIND EXISTS, measured rather than reasoned (`l2mzxn`, 2026-09-21). The revalidation
+#: runner has FOUR fail-closed paths that are not verdicts about the code at all: no `suite_check` was
+#: injected, the lane's base/head could not be resolved, the merge result could not be materialized, and
+#: the suite raised. Each correctly returns False, and the gate then reported
+#: `integration_failed_combined_red`, whose own message reads "Full test suite / revalidation failed
+#: after merging isolated lanes (per-lane-green + combined-red)" - a claim that a suite RAN and FAILED.
+#: In run `run-20260921T105933Z-1994623` that sentence was printed for three items whose suite was never
+#: invoked, against lanes that merged cleanly and a merged tree that was green. The operator-facing
+#: label was `merge-conflict`, for a refusal with no conflict.
+#:
+#: AND THE MISLABEL HAD A SECOND COST BEYOND CONFUSION: `merge-conflict` is terminal on its FIRST
+#: attempt, correctly, because repetition cannot resolve a real conflict. But a HARNESS failure is
+#: exactly the kind of condition a re-attempt can clear once the cause is fixed, so collapsing the two
+#: excluded recoverable work from the ladder and stranded three verified lanes for the rest of the run.
+#:
+#: DEFERRABLE, therefore, and that is the whole point of the separate kind. It is NOT in either host's
+#: `TERMINAL_STATES` because it is not a STATUS: :func:`decide_integration_deferral` maps it onto the
+#: EXISTING `integration-deferred` / `integration-blocked` statuses, so no status vocabulary, renderer,
+#: attention mapping or analytics key changes. A deferred harness refusal that never clears still ends
+#: terminal at `integration-blocked` when the budget is exhausted, so nothing can spin forever.
+INTEGRATION_REFUSAL_UNMEASURED = "integration-unmeasured"
 
 #: `--integration-retry-limit`'s default. TEN, not `DEFAULT_RETRY_LIMIT`'s two, because the two count
 #: different things (see the section header). Ten cheap re-attempts is the maintainer-approved value.
@@ -3188,13 +3221,26 @@ POLL_BOUND_CLEARED = "dirt-cleared"
 def classify_integration_refusal(integ_kind: str) -> bool:
     """Is this refusal the TRANSIENT one the deferral ladder may re-attempt?
 
-    ONE definition, so the two hosts cannot disagree about which arm defers. `True` only for the
-    dirty-overlap refusal; `False` for `merge-conflict` and for anything unrecognized, which is the
-    fail-closed direction (an unknown kind keeps today's terminal path rather than acquiring a retry
-    loop nobody reasoned about).
+    ONE definition, so the two hosts cannot disagree about which arm defers. `True` for the dirty-overlap
+    refusal and for :data:`INTEGRATION_REFUSAL_UNMEASURED`; `False` for `merge-conflict` and for anything
+    unrecognized, which is the fail-closed direction (an unknown kind keeps today's terminal path rather
+    than acquiring a retry loop nobody reasoned about).
+
+    THE TWO DEFERRABLE KINDS ARE DEFERRABLE FOR DIFFERENT REASONS, and the difference is worth stating
+    because it decides what an operator should DO. `integration-blocked` clears ITSELF: it is another
+    writer's uncommitted file, so waiting is the fix. `integration-unmeasured` does NOT clear itself: the
+    gate could not measure (no checker injected, unresolvable lane, unmaterializable merge result, or a
+    suite that raised), and something has to change before a re-attempt differs. It is still deferrable
+    rather than terminal because re-attempting is CHEAP and, unlike a real conflict, CAN succeed - a
+    suite that raised on a transient resource, or a lane resolvable once state is saved, both clear.
+    What it must never do is silently pass: it refuses, defers, and ends terminal when the budget runs
+    out, so a permanent harness fault costs a bounded number of cheap retries and then a human.
     """
 
-    return integ_kind == INTEGRATION_REFUSAL_TRANSIENT
+    return integ_kind in (
+        INTEGRATION_REFUSAL_TRANSIENT,
+        INTEGRATION_REFUSAL_UNMEASURED,
+    )
 
 
 def resolve_integration_retry_limit(cli_value: Any) -> int:
@@ -3265,7 +3311,7 @@ def decide_integration_deferral(
 
     THE FOUR REASONS A REFUSAL STAYS TERMINAL, each deliberate:
 
-    * the kind is NOT the transient dirty-overlap one (`merge-conflict` and anything unrecognized);
+    * the kind is NOT one of the deferrable ones (`merge-conflict` and anything unrecognized);
     * `--on-integration-blocked=block`, the operator pinning today's behavior;
     * the budget is exhausted, so a permanently dirty path cannot spin the loop forever; or
     * the budget is zero, which is `block` spelled as a count.
@@ -3280,9 +3326,17 @@ def decide_integration_deferral(
             status=INTEGRATION_REFUSAL_CONFLICT,
             deferred=False,
             reason=(
-                f"integration refusal kind {integ_kind!r} is not the transient dirty-overlap "
-                "condition; repetition cannot fix a conflict, stale base, combined-red "
-                "revalidation, or scope violation, so it is terminal on its first attempt"
+                # NAMES WHAT THIS REFUSAL IS, NOT A MENU (`l2mzxn`). This sentence used to list all
+                # four causes - "a conflict, stale base, combined-red revalidation, or scope
+                # violation" - leaving the reader to guess which one fired, and in the measured
+                # incident it named none of them correctly: the actual cause was a harness fault that
+                # is now its own deferrable kind. The gate's specific status travels in
+                # `integration_deferral` beside this verdict, so the verdict states only the fact it
+                # actually knows: the kind, and why the kind is terminal.
+                f"integration refusal kind {integ_kind!r} is terminal on its first attempt: it is "
+                "neither the transient dirty-overlap condition nor an unmeasured-gate refusal, so "
+                "it asserts a real failure of the work (see the recorded integration_deferral for "
+                "the gate's specific status) and repetition alone cannot clear it"
             ),
             attempts_used=attempts_used,
             limit=limit,
@@ -3298,24 +3352,46 @@ def decide_integration_deferral(
             attempts_used=attempts_used,
             limit=limit,
         )
+    # THE VERDICT MUST DESCRIBE THE KIND THAT ACTUALLY FIRED (`l2mzxn`). Both deferral sentences below
+    # used to assert dirty overlap unconditionally, which was true when that was the only deferrable
+    # kind; with the unmeasured-gate kind also deferrable, the same text would tell an operator to wait
+    # for dirt to clear when nothing is dirty and the actual cause is a harness fault needing a fix.
+    unmeasured = integ_kind == INTEGRATION_REFUSAL_UNMEASURED
     if attempts_used > limit:
+        cause = (
+            (
+                "the gate still could not MEASURE the merge result, so no verdict about the work was "
+                "ever produced; this needs a fix to the runner or the environment rather than more "
+                "waiting"
+            )
+            if unmeasured
+            else "the overlapping dirty path never cleared"
+        )
         return IntegrationDeferralDecision(
             status=INTEGRATION_BLOCKED_STATUS,
             deferred=False,
             reason=(
                 f"integration re-attempt budget exhausted ({attempts_used - 1} re-attempt(s) after "
-                f"the first, limit {limit}); the overlapping dirty path never cleared, so the lane "
-                "is preserved and a human owns it"
+                f"the first, limit {limit}); {cause}, so the lane is preserved and a human owns it"
             ),
             attempts_used=attempts_used,
             limit=limit,
         )
+    cause = (
+        (
+            "the post-merge revalidation could not MEASURE the merge result, so the refusal is a "
+            "statement about the harness and NOT about the work (no conflict, no failing suite)"
+        )
+        if unmeasured
+        else (
+            "main holds un-owned dirty paths overlapping this change, which is transient by nature"
+        )
+    )
     return IntegrationDeferralDecision(
         status=INTEGRATION_DEFERRED_STATUS,
         deferred=True,
         reason=(
-            f"integration DEFERRED (attempt {attempts_used} of {limit + 1}): main holds un-owned "
-            "dirty paths overlapping this change, which is transient by nature, so the lane is "
+            f"integration DEFERRED (attempt {attempts_used} of {limit + 1}): {cause}, so the lane is "
             "preserved and integration is re-attempted through the full revalidate gate once other "
             "work advances"
         ),
@@ -3518,6 +3594,23 @@ def record_integration_refusal(
     policy = str(options.get("on_integration_blocked", ON_INTEGRATION_BLOCKED_DEFER))
     attempts_used = int(item.get("integration_attempts", 0)) + 1
     item["integration_attempts"] = attempts_used
+
+    # `l2mzxn`: RECLASSIFY A REFUSAL THE GATE COULD NOT MEASURE, at the ONE site both hosts share.
+    #
+    # `integrate_lane_branch` returns `merge-conflict` for ANY non-passing gate result, because from its
+    # vantage point a gate that said no is a gate that said no. But the gate's `combined_red` status is
+    # also what it reports when the revalidation RUNNER refused without measuring, and those two facts
+    # need different labels and different terminality: a measured red is the code's fault and terminal,
+    # while a harness fault is neither. The runner recorded which one this was, so read that rather than
+    # re-deriving it here or widening the gate's boolean protocol.
+    if integ_kind == INTEGRATION_REFUSAL_CONFLICT and revalidation_was_unmeasured(item):
+        integ_kind = INTEGRATION_REFUSAL_UNMEASURED
+        record = item.get(REVALIDATION_CACHE_KEY) or {}
+        integ_reason = (
+            "integration refused because the post-merge revalidation COULD NOT MEASURE the merge "
+            "result (this is NOT a merge conflict and NOT a failing suite): "
+            f"{record.get('reason') or 'no detail recorded'}"
+        )
 
     decision = decide_integration_deferral(
         integ_kind=integ_kind,
@@ -13348,6 +13441,7 @@ def make_integration_validation_runner(
                     "no suite checker was injected for post-merge revalidation, so the combined "
                     "result could not be measured; refusing (fail-closed)"
                 ),
+                measured=False,
             )
             return False
 
@@ -13367,6 +13461,7 @@ def make_integration_validation_runner(
                     f"(repo={bool(repo_raw)}, base={bool(base)}, head={bool(head)}), so the merge "
                     "result cannot be built; refusing (fail-closed)"
                 ),
+                measured=False,
             )
             return False
 
@@ -13396,6 +13491,10 @@ def make_integration_validation_runner(
                     f"{tree_id[:12]}: {cached.get('reason') or 'no detail'}"
                 ),
                 cached=True,
+                # INHERITED, NOT ASSUMED: a cached entry that was never a measurement must not become
+                # one by being reused. Older cache entries carry no flag and default to measured, which
+                # matches how they were recorded.
+                measured=cached.get("measured", True) is not False,
             )
             return bool(cached.get("passed"))
         if path is None:
@@ -13404,9 +13503,11 @@ def make_integration_validation_runner(
                 passed=False,
                 tree_id=tree_id,
                 reason=f"{why}; refusing (fail-closed)",
+                measured=False,
             )
             return False
 
+        measured = True
         try:
             result = suite_check(path, str((state or {}).get("run_id") or ""))
             passed = bool(getattr(result, "passing", False))
@@ -13430,12 +13531,22 @@ def make_integration_validation_runner(
             # DELIBERATE blind catch: an exception from the suite must be an honest REFUSAL that leaves
             # the lane preserved, never a traceback that aborts the run mid-integration.
             passed, failures = False, []
+            # NOT A MEASUREMENT (`l2mzxn`). The suite raised, so no verdict about the merged tree was
+            # ever produced; reporting this as combined-red would blame the code for a harness fault.
+            measured = False
             reason = f"the post-merge suite run errored ({exc}); refusing (fail-closed)"
         finally:
             release_merge_result(repo, path)
 
         if isinstance(cache, dict) and tree_id:
-            cache[tree_id] = {"passed": passed, "reason": reason}
+            # THE `measured` FLAG IS CACHED WITH THE VERDICT, so a second lane reaching the same merge
+            # result inherits the harness/code distinction instead of silently downgrading to a
+            # measured red on the cache-hit path.
+            cache[tree_id] = {
+                "passed": passed,
+                "reason": reason,
+                "measured": measured,
+            }
         _record_revalidation(
             item,
             passed=passed,
@@ -13443,6 +13554,7 @@ def make_integration_validation_runner(
             reason=reason,
             failures=failures,
             merged_files=list(merged_files or ()),
+            measured=measured,
         )
         return passed
 
@@ -13459,6 +13571,7 @@ def _record_revalidation(
     merged_files: Sequence[str] = (),
     cached: bool = False,
     skipped: bool = False,
+    measured: bool = True,
 ) -> None:
     """Record WHAT the post-merge revalidation measured, ON THE ITEM. NEVER raises.
 
@@ -13466,6 +13579,15 @@ def _record_revalidation(
     reader MUST be able to tell apart: a `passed: true, skipped: true` record is an honest statement that
     another signal governs this item, whereas presenting it as a measurement would claim a suite run that
     never happened.
+
+    ``measured`` is the SAME honesty applied to the REFUSING paths, and it is what
+    :func:`revalidation_was_unmeasured` reads to pick the refusal kind. `passed=False, measured=True` is
+    "the suite ran and the tree is red", a verdict about the CODE. `passed=False, measured=False` is "the
+    harness could not ask the question", which is a statement about the RUNNER. Both refuse, and they
+    must not print the same sentence: reporting the second as combined-red asserts a suite run that never
+    happened, which is what `l2mzxn` measured in production. Defaults True so only the four fail-closed
+    harness paths declare otherwise, and so any future caller is read as a real measurement unless it
+    says it is not.
 
     integearn-03 (`daexj1`) E-03/E-07. This exists because a refusal an operator cannot explain is
     indistinguishable from a bug: `integration_failed_combined_red` alone does not say WHICH tree was
@@ -13494,7 +13616,31 @@ def _record_revalidation(
             "merged_files": [str(f) for f in merged_files],
             "cached": bool(cached),
             "skipped": bool(skipped),
+            "measured": bool(measured),
         }
+
+
+def revalidation_was_unmeasured(item: Mapping[str, Any]) -> bool:
+    """Did the post-merge revalidation REFUSE because it could not measure, rather than measure red?
+
+    THE ONE READER OF THE `measured` FLAG, so the "harness fault or code fault?" question is answered in
+    a single place and both hosts inherit it. True only for a record that REFUSED (`passed` false) and
+    said it did not measure; False for a passing record, for a measured red one, and - fail-closed - for
+    an ABSENT record, since a caller that recorded nothing has made no claim this may reinterpret.
+
+    WHY IT READS A DURABLE RECORD RATHER THAN A RETURN VALUE: the gate's boolean protocol is
+    `full_validation_runner(diff, files) -> bool`, which can carry a verdict but not its provenance, and
+    widening that signature would touch `orchestrate_isolation`'s gate contract and every test that
+    patches it. The runner already writes this record on the item for the operator's benefit, and the item
+    IS the live queue mapping, so the fact is available at the refusal site for free.
+    """
+
+    record = item.get(REVALIDATION_CACHE_KEY)
+    if not isinstance(record, Mapping):
+        return False
+    if record.get("passed"):
+        return False
+    return record.get("measured") is False
 
 
 def build_review_prompt(

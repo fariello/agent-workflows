@@ -2683,6 +2683,187 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         self.assertFalse(conflict.deferred)
         self.assertEqual(conflict.status, "merge-conflict")
 
+    def test_an_UNMEASURED_gate_refusal_is_DEFERRABLE_and_not_a_merge_conflict(self):
+        """`l2mzxn`: "the gate could not measure" is not "the suite failed", and must not be terminal.
+
+        THE MEASURED INCIDENT (run `run-20260921T105933Z-1994623`, 2026-09-21). Three items completed
+        successful agent turns and were refused `merge-conflict` because the revalidation runner could not
+        resolve their lane endpoints. No conflict existed (`git merge-tree --write-tree` exited 0 for all
+        three) and the merged tree was green (`7991 passed`), yet the recorded reason read "Full test
+        suite / revalidation failed ... (per-lane-green + combined-red)" - asserting a suite run that was
+        never invoked. Because `merge-conflict` is terminal on its FIRST attempt, all three verified lanes
+        were also excluded from the deferral ladder and stranded for the rest of the run.
+
+        TWO SEPARATE PROPERTIES, both asserted: the KIND is deferrable, and the reclassification happens
+        from the fact the runner RECORDED rather than from a guess at the refusal text.
+        """
+        self.assertTrue(
+            runner_shared.classify_integration_refusal("integration-unmeasured"),
+            "an unmeasured-gate refusal must be deferrable: unlike a real conflict, a re-attempt CAN "
+            "succeed once the harness fault clears, and terminality here strands verified work",
+        )
+        first = runner_shared.decide_integration_deferral(
+            integ_kind="integration-unmeasured", attempts_used=1, limit=10
+        )
+        self.assertTrue(first.deferred)
+        self.assertEqual(first.status, "integration-deferred")
+        self.assertIn(
+            "could not MEASURE",
+            first.reason,
+            "the deferral verdict must name the harness fault; the dirty-overlap wording would tell "
+            "an operator to wait for dirt to clear when nothing is dirty",
+        )
+        self.assertNotIn("dirty paths", first.reason)
+
+        # BOUNDED: a harness fault that never clears still ends terminal rather than spinning forever.
+        exhausted = runner_shared.decide_integration_deferral(
+            integ_kind="integration-unmeasured", attempts_used=11, limit=10
+        )
+        self.assertFalse(exhausted.deferred)
+        self.assertEqual(exhausted.status, "integration-blocked")
+        self.assertIn("could not MEASURE", exhausted.reason)
+
+    def test_the_refusal_site_RECLASSIFIES_only_an_unmeasured_revalidation(self):
+        """The reclassification must key on the RECORD, so a real failure stays terminal.
+
+        This is the discrimination that makes the new kind safe: `integrate_lane_branch` returns
+        `merge-conflict` for ANY non-passing gate result, so the refusal site is where the harness fault
+        is told apart from the code fault. Getting this wrong in the permissive direction would defer
+        genuine conflicts and burn the budget; getting it wrong in the strict direction restores the
+        `l2mzxn` defect. All four cases are therefore pinned together.
+        """
+
+        def _refuse(item, kind="merge-conflict"):
+            with tempfile.TemporaryDirectory() as d:
+                state = {"options": {}, "queue": [item]}
+                decision = runner_shared.record_integration_refusal(
+                    run_dir=pathlib.Path(d),
+                    state=state,
+                    item=item,
+                    attempt={},
+                    integ_kind=kind,
+                    integ_reason="integration gate did not pass (integration_failed_combined_red)",
+                    branch="aw/lane/zzzzzz",
+                    save_state=lambda *_a, **_k: None,
+                    append_jsonl=lambda *_a, **_k: None,
+                )
+            return decision, item["integration_ladder"]["kind"]
+
+        # 1. UNMEASURED -> reclassified and deferred.
+        decision, kind = _refuse(
+            {
+                "id6": "aaa",
+                "post_merge_revalidation": {
+                    "passed": False,
+                    "measured": False,
+                    "reason": "the lane's base/head could not be resolved from run state",
+                },
+            }
+        )
+        self.assertEqual(kind, "integration-unmeasured")
+        self.assertTrue(decision.deferred)
+        self.assertEqual(decision.status, "integration-deferred")
+
+        # 2. MEASURED RED -> a real combined-red verdict about the code stays terminal.
+        decision, kind = _refuse(
+            {
+                "id6": "bbb",
+                "post_merge_revalidation": {
+                    "passed": False,
+                    "measured": True,
+                    "reason": "3 failed",
+                },
+            }
+        )
+        self.assertEqual(
+            kind,
+            "merge-conflict",
+            "a suite that RAN and failed is a verdict about the work; deferring it would spin the "
+            "ladder against a failure repetition cannot fix",
+        )
+        self.assertFalse(decision.deferred)
+
+        # 3. NO RECORD AT ALL -> fail closed. A caller that recorded nothing has made no claim, and a
+        #    real merge conflict never reaches the revalidation runner, so this is the conflict path.
+        decision, kind = _refuse({"id6": "ccc"})
+        self.assertEqual(kind, "merge-conflict")
+        self.assertFalse(decision.deferred)
+
+        # 4. A PASSING record is never reinterpreted (the refusal came from elsewhere in the gate).
+        decision, kind = _refuse(
+            {
+                "id6": "ddd",
+                "post_merge_revalidation": {"passed": True, "measured": True},
+            }
+        )
+        self.assertEqual(kind, "merge-conflict")
+        self.assertFalse(decision.deferred)
+
+    def test_the_terminal_verdict_NAMES_the_condition_instead_of_listing_four(self):
+        """`l2mzxn`: the sentence a human reads must not be a menu of four possible causes.
+
+        The old verdict read "repetition cannot fix a conflict, stale base, combined-red revalidation,
+        or scope violation", leaving the reader to guess which fired - and in the measured incident it
+        named none of them correctly, because the real cause was a harness fault absent from the list.
+        A refusal an operator cannot explain is indistinguishable from a bug, which is why this is
+        asserted rather than left to review.
+        """
+        verdict = runner_shared.decide_integration_deferral(
+            integ_kind="merge-conflict", attempts_used=1, limit=10
+        ).reason
+        self.assertNotIn(
+            "stale base",
+            verdict,
+            "the verdict must not enumerate causes it cannot distinguish",
+        )
+        self.assertNotIn("scope violation", verdict)
+        self.assertIn("terminal on its first attempt", verdict)
+        self.assertIn(
+            "integration_deferral",
+            verdict,
+            "having stopped guessing, the verdict must point at the field that carries the gate's "
+            "actual status, or the specific cause becomes unfindable",
+        )
+
+    def test_an_unmeasured_revalidation_is_RECORDED_as_not_measured(self):
+        """The flag the reclassification reads must actually be written by the refusing paths.
+
+        Without this the two halves could pass independently while the wiring between them is broken:
+        `revalidation_was_unmeasured` is the ONLY reader, and a runner that never writes `measured: false`
+        would silently restore `merge-conflict` for every harness fault.
+        """
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            # No suite checker injected: one of the four harness paths, and the cheapest to reach.
+            item: dict = {"id6": "xx1111"}
+            self.assertFalse(
+                runner_shared.make_integration_validation_runner(
+                    {"options": {"validate": False}}, run_dir, item
+                )("d", ())
+            )
+            record = item["post_merge_revalidation"]
+            self.assertIs(record["measured"], False)
+            self.assertTrue(runner_shared.revalidation_was_unmeasured(item))
+
+        # And the predicate is fail-closed on the shapes that are NOT harness faults.
+        self.assertFalse(
+            runner_shared.revalidation_was_unmeasured({"id6": "no-record"}),
+            "an absent record makes no claim and must not be reinterpreted as a harness fault",
+        )
+        self.assertFalse(
+            runner_shared.revalidation_was_unmeasured(
+                {"post_merge_revalidation": {"passed": False, "measured": True}}
+            )
+        )
+        self.assertFalse(
+            runner_shared.revalidation_was_unmeasured(
+                {"post_merge_revalidation": {"passed": True, "measured": False}}
+            ),
+            "a PASSING record is not a refusal, whatever its measured flag says",
+        )
+
     def test_the_kind_vocabulary_is_UNCHANGED_by_the_extraction(self):
         """The three `kind` values are a CONTRACT read by callers and by run state.
 
@@ -3612,13 +3793,20 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
         `integrate_lane_branch` returns THREE kinds and only the dirty-overlap one is transient:
         `merge-conflict` means the reused gate returned non-passing (real conflict, stale base,
         combined-red, or scope), which repetition does not fix.
+
+        THE WORDING ASSERTION WAS UPDATED BY `l2mzxn`, and the PROPERTY is untouched. This used to
+        require the literal "not the transient", which the verdict no longer says: it stopped
+        enumerating four causes it could not distinguish (the measured incident's real cause was absent
+        from that list) and now states the kind plus why the kind is terminal. What this test exists to
+        guard - that a genuine conflict is terminal on its FIRST attempt and consults no budget - is
+        asserted below exactly as before.
         """
         decision = self.decide(
             integ_kind=runner_shared.INTEGRATION_REFUSAL_CONFLICT, attempts_used=1
         )
         self.assertFalse(decision.deferred)
         self.assertEqual(decision.status, "merge-conflict")
-        self.assertIn("not the transient", decision.reason)
+        self.assertIn("terminal on its first attempt", decision.reason)
         self.assertFalse(
             runner_shared.classify_integration_refusal(
                 runner_shared.INTEGRATION_REFUSAL_CONFLICT
