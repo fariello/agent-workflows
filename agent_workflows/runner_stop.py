@@ -187,6 +187,11 @@ __all__ = [
     "STOP_VERB_DESCRIPTION",
     "STOP_PLATFORM_NOTE",
     "STOP_LEVEL_FLAG_HELP",
+    # stop DISCOVERABILITY (`wqq8ua`): the three operator-facing surfaces that never mentioned
+    # stopping. Each POINTS AT the verb below rather than restating its per-level help (P8).
+    "stop_footer_hint",
+    "stop_interrupt_hint",
+    "stop_run_help_note",
     "stop_verb_epilog",
     "add_stop_parser",
     "StopCommandResult",
@@ -2145,6 +2150,107 @@ _FLAG_TO_DEST = {
     "--now": "now",
     "--now-force": "now_force",
 }
+
+
+# --- stop DISCOVERABILITY on the three surfaces that never mentioned stopping (`wqq8ua`) ----------
+#
+# WHY THESE LIVE HERE, BESIDE THE VERB'S OWN HELP RATHER THAN IN THE DRIVERS. Every string below
+# POINTS AT the `stop` verb declared directly underneath, so keeping them in the same module is what
+# makes "the text and the thing it describes" one edit. The `stop` verb itself is already shared for
+# this exact reason (orchestrator CID-3: `aw oc run stop` and `aw agy run stop` must be the SAME verb,
+# not two that happen to agree), and a per-host copy of the pointer would be free to drift from the
+# verb it points at while every test still passed.
+#
+# WHAT THEY DELIBERATELY DO NOT DO: restate the four levels. `STOP_VERB_DESCRIPTION` and
+# `STOP_LEVEL_FLAG_HELP` above already describe each level well, and GUIDING_PRINCIPLES P8 forbids a
+# second implementation of an existing surface. A second copy of the per-level text would drift from
+# the first, and the drift is the real cost. So each string names the VERB, at most ONE level, and
+# lets `--help` carry the rest.
+#
+# WHY LEVEL 1 IS THE ONE LEVEL NAMED, when one is named at all: it is the gentlest, it is the only
+# level an operator reaches by a first Ctrl-C on BOTH R12 paths (R12.1's menu choice 2 and R12.2's
+# first ladder rung both record `LEVEL_AFTER_CALL`), and its `--after-call` spelling is the one an
+# operator winding a run down actually wants. Level 2 is deliberately NOT named in a Ctrl-C context:
+# no signal can reach it (see the `SIGINT_LADDER` note above), so implying otherwise would be false.
+
+
+def stop_footer_hint(command: str) -> list[str]:
+    """The continuity footer's stopping lines: a label and one copy-ready command.
+
+    WHY THE FOOTER AT ALL. It is what an operator reads when a run ENDS, and it already teaches three
+    other things (reuse a session, inspect a summary, resume this run) while saying nothing about
+    stopping the next one. An operator who just watched a run finish is exactly the operator deciding
+    how to drive the next one.
+
+    WHY IT IS FUTURE-TENSE ("a future run"), which is also what makes it safe on BOTH footer branches.
+    The run this footer describes is already over, so a line about stopping THIS run could not be acted
+    on; a line about the NEXT one is equally true after a clean run and after an interrupted one.
+
+    THE WORDING IS CONSTRAINED BY SHIPPED ASSERTIONS AND MUST STAY SO. Several tests assert that the
+    footer's SUCCESS branch contains neither the substring ``resume`` nor ``aw runs`` beyond what that
+    branch itself prints (`tests/test_oc_runipd.py::ContinuationHintTests`, plus an end-to-end
+    successful-run test). This text contains neither. If you reword it, re-check those assertions
+    rather than relaxing them.
+    """
+
+    return [
+        "To stop a future run gracefully:",
+        f"  {command} stop <run-id> --after-call",
+    ]
+
+
+def stop_interrupt_hint(command: str) -> str:
+    """The one sentence appended to the driver's interrupt/SIGTERM exit message.
+
+    THE MOMENT THIS TEACHES AT. The operator has just pressed Ctrl-C (or sent SIGTERM) and is reading
+    what happened; that is when they learn what they could have asked for instead. Spec R16 requires a
+    LIVE request to report its level, boundary and escalation, and `render_request_accepted` already
+    does that; this is the different and previously empty case of the message printed on the way OUT.
+
+    IT IS PHRASED AS WHAT IS AVAILABLE NEXT TIME, ON PURPOSE. This handler cannot know which R12 path
+    or which rung produced the exit, so asserting a level would risk describing the wrong one. The
+    out-of-band verb is true regardless: it needs no terminal, no signal and no menu, and it reaches
+    any level including the one no signal can (level 2).
+
+    IT IS NOT A PROMPT, AND MUST NOT BECOME ONE. Ctrl-C is the path taken by an operator who wants
+    OUT; blocking it on a question risks exactly the unbounded wait `interrupt_menu_is_safe` documents.
+    One extra sentence on the way out, nothing more.
+    """
+
+    return (
+        f"Next time, `{command} stop <run-id> --after-call` requests a graceful stop from another "
+        f"terminal (see `{command} stop --help` for the levels)."
+    )
+
+
+def stop_run_help_note(command: str) -> str:
+    """The stopping paragraph for the run-level (`start` / `resume`) help.
+
+    WHY IT POINTS RATHER THAN EXPLAINS. `{command} stop --help` already renders four per-level
+    descriptions and four worked commands; this is a pointer so an operator reading the RUN command
+    learns that graceful stopping exists and where to read about it (P8).
+
+    IT NAMES BOTH R12 PATHS BECAUSE THE SPEC SPECIFIES BOTH, and attributing one path's behavior to
+    the other would be false. R12.1: on a real terminal (both streams, and no `AW_NONINTERACTIVE`/`CI`)
+    Ctrl-C offers a menu whose second choice finishes the current item and stops. R12.2: otherwise the
+    ladder governs and a first press already requests level 1. The out-of-band verb is named first
+    because it is the only route that needs neither a terminal nor a signal.
+
+    IT CONTAINS NEWLINES AND AN INDENTED COMMAND, so any parser rendering it MUST use
+    `argparse.RawDescriptionHelpFormatter`; argparse's default formatter reflows a description onto one
+    line and would inline the command. Both hosts' `start` and `resume` parsers set that formatter.
+    """
+
+    return (
+        "STOPPING A RUN GRACEFULLY:\n"
+        "  Ask a live run to wind down, from another terminal or a script:\n\n"
+        f"    {command} stop <run-id> --after-call\n\n"
+        "  That lets the in-flight agent turn finish and starts nothing further. Cleanup always\n"
+        f"  runs, at every level. See `{command} stop --help` for all four levels.\n\n"
+        "  Ctrl-C in THIS terminal also stops the run: on a real terminal it offers a menu whose\n"
+        "  second choice finishes the current item and stops, and otherwise a first press requests\n"
+        "  the same gentlest level and pressing again stops harder."
+    )
 
 
 def stop_verb_epilog(command: str) -> str:

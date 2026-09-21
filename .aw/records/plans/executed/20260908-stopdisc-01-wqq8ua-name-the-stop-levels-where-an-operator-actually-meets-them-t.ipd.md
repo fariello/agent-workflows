@@ -12,17 +12,17 @@
 - Scope: Add stop-level discoverability to the three surfaces that lack it: a stopping line in the continuity footer on both hosts, a graceful-stop hint in the `main` interrupt message on both hosts, and a stopping paragraph on the run-level (`start`/`resume`) help. Text must POINT AT the existing `stop` verb rather than restating its per-level help, and must describe only behavior true on both the interactive and non-interactive paths. EXCLUDES any change to `runner_stop`'s levels, budgets, escalation, or the R16 request report; excludes adding, removing or altering the interactive Ctrl-C prompt; excludes resolving the R12 conflict that prompt creates.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_stop_triggers.py, tests/test_interrupt_menu.py, tests/test_oc_runipd.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: stopdisc
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: wqq8ua
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: 1m3nul
 
 ## Workflow history
+- 2026-09-21 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: wqq8ua verified (set stopdisc, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/runner_shared.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope agent_workflows/runner_stop.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_rununify_main.py: changed by the plan's approved execution (auto-reconciled by aw oc run)]
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-201..PR-209 all FIXED, no deferrals, no open questions; Readiness go-pending-approval
 
@@ -48,18 +48,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish what may honestly be claimed
 
-- [ ] E-01 ESTABLISH AND WRITE DOWN THE TEXT'S TRUTH CONDITION, before writing any operator-facing sentence: every claim must be true of the path it describes, and must not attribute one path's behavior to the other.
+- [x] E-01 ESTABLISH AND WRITE DOWN THE TEXT'S TRUTH CONDITION, before writing any operator-facing sentence: every claim must be true of the path it describes, and must not attribute one path's behavior to the other.
   THIS ITEM'S ORIGINAL PREMISE EXPIRED AND IS REPLACED (review, F-11/F-12/F-13). It said the ladder must not be documented as the Ctrl-C behavior because a TTY bypasses it in violation of spec R12. R12 WAS AMENDED on the maintainer's decision (2026-09-09, `bc2ed703`) to specify BOTH paths, so the shipped behavior is now the specified behavior and there is no conflict to route around. Two of the old premise's facts were also simply wrong: the gate is `interrupt_menu_is_safe` (`runner_stop.py:1792-1833`), requiring a TTY on BOTH streams plus no `AW_NONINTERACTIVE`/`CI`, not a bare `stdin.isatty()`; and the menu has FOUR choices whose SECOND records `LEVEL_AFTER_CALL`, i.e. level 1, so a first Ctrl-C on a terminal CAN stop gently.
   THE TRUTH CONDITION IS THEREFORE THE TWO-PATH ONE THE SPEC NOW STATES. R12.1: with a real terminal on both streams and no `AW_NONINTERACTIVE`/`CI`, Ctrl-C prints a four-choice menu (resume; finish the current item then clean up and exit, which is level 1; clean up and exit, level 4; exit leaving a mess, level 4). R12.2: otherwise the ladder governs and the Nth press requests `SIGINT_LADDER[N-1]` = 1 -> 3 -> 4. Do NOT write a sentence that presents either path as the only one.
   THE OUT-OF-BAND VERB REMAINS THE RIGHT REFERENT, for a better reason than "it is the only safe claim": `aw oc run stop <run-id> --after-call` needs no terminal, no signal and no menu, works identically on both paths through `request_stop`, and is the ONLY way to reach level 2 at all (documented at `runner_stop.py:1616-1619` as a decision, not an omission). Point at it; do not restate the four levels (P8).
   STILL RE-VERIFY BEFORE WRITING, because `runner_stop.py` is under active change and this plan's own premise already went stale once inside two days. Run `oc run stop --help`, call `render_request_accepted`, read `interrupt_menu_is_safe` and `_sigint`, and re-read spec `c4gd2h` R12.1/R12.2. If what you find disagrees with the two-path statement above, describe the CODE and record the disagreement rather than papering over it.
   - Depends on: none
   - Expected outcome: a written statement of what may be claimed, naming both R12 paths and their gate, grounded in re-verified code AND the amended spec, identifying the out-of-band command as the referent for all three surfaces, and recording any fresh code/spec disagreement found.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the three surfaces
 
-- [ ] E-02 ADD A STOPPING LINE TO THE CONTINUITY FOOTER ON BOTH HOSTS (`oc_runipd.render_continuation_hint:7539`, `agy_runipd:4479`).
+- [x] E-02 ADD A STOPPING LINE TO THE CONTINUITY FOOTER ON BOTH HOSTS (`oc_runipd.render_continuation_hint:7539`, `agy_runipd:4479`).
   THIS IS THE ITEM'S CLEANEST SURVIVING ASK. The footer is what an operator reads when a run ends, and it already teaches three other things (reuse a session, inspect a summary, resume this run) while saying nothing about stopping the next one.
   PUT IT WHERE IT IS USEFUL, WHICH MEANS ON THE UNFINISHED BRANCH. The footer branches on `all_success`: successes get `aw runs <run-id>`, and anything else gets a resume command. An operator who will resume a run is exactly the operator who may later want to stop one gracefully, so the resume branch is where the line earns its place. Decide whether it also belongs on the all-success branch and state why; a line printed after a fully successful run is arguably noise.
   KEEP IT TO ONE LINE PLUS THE COMMAND, matching the surrounding style ("To resume this run:" then an indented command). Do NOT restate the four levels here; the `stop` verb's help already does that well and duplicating it is exactly the P8 violation this repository forbids. Name the verb and one level, and let `--help` carry the rest.
@@ -67,29 +67,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO THE SAME THING TWICE, WITH IDENTICAL STOPPING TEXT. Note what "identical" can and cannot mean here (F-15): the two footers are ALREADY different functions with different sources (`oc_runipd.render_continuation_hint is agy_runipd.render_continuation_hint` is False; the sources differ by 449 characters, and the rendered output legitimately differs in host label and command prefix). So require the STOPPING SENTENCE to be identical modulo the `{cmd}` prefix, not the footer. A shared helper is acceptable if it falls out naturally, but do not restructure the footer to get one, and do not add a `runner_shared` symbol that the refork guard would then need a table row for. NOTE ALSO that agy's footer has NO test coverage at all today while oc's has six tests, so E-05's agy assertions are new ground rather than a mirror.
   - Depends on: E-01
   - Expected outcome: both hosts' continuity footers name graceful stopping and give one exact out-of-band command, in the surrounding style, with the stopping sentence identical across hosts modulo the command prefix; the branch placement decided and stated; the four shipped `assertNotIn` assertions still passing UNMODIFIED; the four levels NOT restated.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 ADD A GRACEFUL-STOP HINT TO THE `main` KeyboardInterrupt MESSAGE ON BOTH HOSTS (`oc_runipd.py:8389-8399` and the agy twin).
+- [x] E-03 ADD A GRACEFUL-STOP HINT TO THE `main` KeyboardInterrupt MESSAGE ON BOTH HOSTS (`oc_runipd.py:8389-8399` and the agy twin).
   THE CURRENT TEXT IS TWO SENTENCES, "Terminated without clean up; worktree and lanes left in place." or "Interrupted; durable run state was preserved.", and neither says that a gentler option existed. This is the moment an operator learns what just happened, so it is the moment to teach that next time they could have asked for level 1 instead.
   DO NOT TURN THIS INTO A PROMPT. The item is emphatic and its reasoning stands: Ctrl-C is the path taken by an operator who wants OUT, and blocking it on a question risks the unbounded wait `qyaime` documented. This is one extra sentence on the way out, nothing more.
   BE TRUTHFUL ABOUT WHAT JUST HAPPENED, which is where E-01 binds, AND NOTE THE CORRECTED FACTS. This item originally reasoned "on a TTY the interrupt likely came through the interactive menu at level 4". That is only true for menu choices 3 and 4: choice 2 records `LEVEL_AFTER_CALL` (level 1) and choice 1 resumes without recording anything, and this handler is reached only via the `clean-up-and-terminate` and `just-terminate-no-cleanup` exceptions, i.e. exactly choices 3 and 4 (or the ladder's terminal rung). So for the messages this item edits, "the operator asked to stop hard" IS accurate. Even so, phrase the addition as what is available NEXT TIME via the out-of-band verb, because that is true regardless of which path or rung produced this exit and it avoids asserting a level the message cannot know.
   PRESERVE THE EXIT CODES AND THE EXISTING SENTENCES. The handler returns `143` for SIGTERM and `130` otherwise, and the `just-terminate-no-cleanup` branch is a distinct message. Add to the message; change no branch, no code, no ledger call, and do not reorder `emit_shutdown_report`.
   - Depends on: E-01
   - Expected outcome: both hosts' interrupt messages gain one truthful sentence about requesting a graceful stop next time via the out-of-band verb; no prompt; exit codes 143 and 130 and all existing branches and their ordering unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 ADD A STOPPING PARAGRAPH TO THE RUN-LEVEL HELP, since `aw oc run start --help` currently matches nothing for stop, interrupt or ctrl (verified).
+- [x] E-04 ADD A STOPPING PARAGRAPH TO THE RUN-LEVEL HELP, since `aw oc run start --help` currently matches nothing for stop, interrupt or ctrl (verified).
   POINT, DO NOT DUPLICATE. The `stop` verb's own help is already exemplary: four per-level descriptions and four worked commands, plus the cleanup-is-unconditional and monotonic-escalation guarantees. The run-level help needs a short pointer telling an operator that graceful stopping exists and where to read about it, not a second copy. A second copy would drift from the first, which is the real cost.
   PUT IT WHERE ARGPARSE WILL SHOW IT. Find the run parser via `build_parser` (locate by symbol) and use the description or epilog that actually renders for `start` and `resume`. Verify by RUNNING `--help`, not by reading the argparse call: which text renders where depends on the subparser wiring.
   THE `resume` SUBPARSER WILL DESTROY YOUR PARAGRAPH UNLESS YOU FIX ITS FORMATTER, MEASURED AT REVIEW (F-16). `start` is created with `formatter_class=argparse.RawDescriptionHelpFormatter` on both hosts (`oc_runipd.py:7759-7764`, `agy_runipd.py:4680-4685`), but `resume` is NOT (`oc_runipd.py:7905-7909`, `agy_runipd.py:4808-4812`). Argparse's default formatter REFLOWS a description, so a multi-line stopping paragraph collapses onto one line with its indented command inlined; proven at review with a minimal argparse reproduction. So EITHER add `formatter_class=argparse.RawDescriptionHelpFormatter` to both hosts' `resume` parsers (a one-argument, behavior-neutral edit inside the declared files, and the option that keeps the two hosts' help consistent), OR write a single-sentence pointer with no line breaks that survives reflowing. Decide, state which, and prove it by pasting the RENDERED `resume --help`. Do not discover this at execution and silently ship a mangled paragraph.
   BOTH HOSTS, IDENTICAL WORDING, for the same reason as E-02, and note that `add_stop_parser` is ALREADY shared (`runner_stop.py:2166`, called from `oc_runipd.py:8006` and `agy_runipd.py:4874`), so the verb this text points at is genuinely one implementation on both hosts.
   - Depends on: E-01
   - Expected outcome: `start` and `resume` help on both hosts mention graceful stopping and point at the `stop` verb, verified by RUNNING `--help` and pasting it; the `resume` reflow problem resolved by a stated choice; no per-level text duplicated from the `stop` verb.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it
 
-- [ ] E-05 TEST THE THREE SURFACES, asserting the text is present and that nothing behavioral moved.
+- [x] E-05 TEST THE THREE SURFACES, asserting the text is present and that nothing behavioral moved.
   ASSERT ON RENDERED OUTPUT, NOT ON A CONSTANT. The point is that an operator SEES this, so the test must render the footer, the interrupt message and the help, and assert the text appears there. A test asserting a string constant exists proves nothing about whether it reaches a terminal.
   COVER BOTH HOSTS. Every one of these three surfaces is duplicated across `oc_runipd` and `agy_runipd`, and the wording must match. A test that asserts oc only would let agy drift, which is the failure mode this repository's shared-runner work exists to prevent.
   ASSERT NO BEHAVIOR CHANGED: the exit codes (143 for SIGTERM, 130 otherwise), the existing footer branches, and the `just-terminate-no-cleanup` message must all still be exactly as before. `tests/test_interrupt_menu.py::RunnerMainOutputOnInterruptTests` already drives `main` with mocks over BOTH modules and asserts code 130 plus the exact message text (`:328-360`), so the pattern exists; do not modify that file's existing assertions, only add beside them if that is the right home.
@@ -97,7 +97,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   YOU MAY NOW ASSERT THE TWO-PATH BEHAVIOR IF USEFUL, because it is no longer contested: R12 was amended (2026-09-09) to specify BOTH the interactive menu and the ladder, so a test naming either path is describing approved behavior rather than taking a side. Keep such assertions OUT of scope unless they pin text this plan adds; `tests/test_interrupt_menu.py` already covers the menu's own level mapping with 15 tests, and duplicating that is a P8 violation.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: tests asserting the new text in the rendered footer, interrupt message and help on BOTH hosts, plus assertions that exit codes, footer branches and existing messages are unchanged; no assertion about the interactive-versus-ladder question.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -190,30 +190,239 @@ VERIFY BEFORE EXECUTING rather than assuming, since this plan's premise already 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the written truth condition, naming BOTH R12 paths and their gate. Paste the RE-VERIFICATION performed at execution time, not this plan's claims: `oc run stop --help` output, a call to `render_request_accepted`, the current `interrupt_menu_is_safe` and `_sigint` sources, and the menu-choice-to-level mapping evaluated (not assumed). Paste spec `c4gd2h` R12.1 and R12.2 as they read at execution time, and confirm the amendment is still in place. State which path governs which environment and therefore what each surface may claim; if anything disagrees with F-11..F-13, describe the CODE and record the disagreement.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED AT EXECUTION TIME BY RUNNING THE CODE, at HEAD `8175a794`, and the full written truth condition is in the decisions register (`decisions-and-questions.md`, section "E-01: the truth condition"). Summary of what was re-measured rather than trusted.
+    BOTH R12 PATHS AND THEIR GATE, as the spec reads NOW: I re-read `.aw/records/specs/20260829-c4gd2h-01-c4gd2h-runner-lifecycle-graceful-quit.spec.md` and the 2026-09-09 amendment IS still in place. R12 line 105 reads "Ctrl-C has TWO paths, chosen by whether a human can actually answer a question, and both must reach level 1 on a first press. AMENDED 2026-09-09 on the maintainer's decision". R12.1 (line 106) is the interactive four-choice menu, gated on "a real terminal on BOTH the input and the output stream, and no `AW_NONINTERACTIVE`/`CI` signal"; R12.2 (line 107) is the `SIGINT_LADDER`, "1 -> 3 -> 4, with a printed hint that pressing again stops harder". So F-11 is CONFIRMED and F-1 stays retracted.
+    THE GATE IS `interrupt_menu_is_safe`, NOT `sys.stdin.isatty()` (F-12 confirmed). Read end to end in `agent_workflows/runner_stop.py` (`interrupt_menu_is_safe`, and `_sigint`'s call to it): it returns False on any truthy `AW_NONINTERACTIVE`/`CI`; then True on `AW_FORCE_INTERACTIVE_INTERRUPT=1` (which cannot beat the CI signal); else `_stream_is_tty(in_stream) and _stream_is_tty(out_stream)`, i.e. a TTY on BOTH streams. Returning False falls through to the ladder, which the docstring calls "FAIL-SAFE, not a refusal to serve".
+    THE MENU-CHOICE-TO-LEVEL MAPPING, EVALUATED not assumed (F-13 confirmed). Constants printed by running Python against the live module:
 
-- [ ] V-02 validates E-02
+        SIGINT_LADDER (1, 3, 4)
+        SIGTERM_LEVEL 3
+        levels 1 2 3 4                      # AFTER_CALL, AFTER_SET, NOW, NOW_FORCE
+        actions 1 2 3 4                     # RESUME, FINISH_CURRENT, CLEANUP, TERMINATE_NO_CLEANUP
+
+    And read in `_sigint`: choice 1 (`INTERRUPT_ACTION_RESUME`) returns having recorded NOTHING; choice 2 (`INTERRUPT_ACTION_FINISH_CURRENT`) calls `_record(LEVEL_AFTER_CALL)`, i.e. LEVEL 1; choice 4 records `LEVEL_NOW_FORCE` and raises `KeyboardInterrupt("just-terminate-no-cleanup")`; choice 3 records `LEVEL_NOW_FORCE` and raises `KeyboardInterrupt("clean-up-and-terminate")`. So a first press on a terminal CAN stop gently, and the plan's original "first Ctrl-C is level 4" premise is false.
+    `render_request_accepted` CALLED DIRECTLY, confirming R16 is already complete and must not be rebuilt (F-3):
+
+        stop accepted: level 1 (after-call) (requested by operator); waiting for the in-flight agent turn to finish; no further item will be started; to stop harder, press Ctrl-C again (or run `aw oc run stop <run-id> --now`) to request level 3 (now)
+
+    `aw oc run stop --help` RUN (exit 0): renders four per-level descriptions and four worked example commands, plus the cleanup-is-unconditional and monotonic-escalation guarantees. Full output pasted under V-04, where it doubles as the unchanged-surface proof.
+    WHICH PATH GOVERNS WHICH ENVIRONMENT, AND THEREFORE WHAT EACH SURFACE MAY CLAIM: R12.1 governs a real terminal on both streams with no `AW_NONINTERACTIVE`/`CI`; R12.2 governs everything else (piped output, unattended, CI). Each surface therefore names the OUT-OF-BAND verb as its referent, because `stop <run-id> --after-call` needs no terminal, no signal and no menu, works identically on both paths through `request_stop`, and is the ONLY route to level 2 (`runner_stop`: the ladder "leaves no free key position", "a decision, not an omission"). Level 2 is named on NO Ctrl-C surface, and no surface presents either path as the only one.
+    ONE DISAGREEMENT WITH THE PLAN FOUND, and the CODE is described rather than papered over: the plan's F-15 says the two footers are separate forked functions differing by 449 characters. AT EXECUTION TIME THEY ARE ONE SHARED IMPLEMENTATION (`runner_shared.render_continuation_hint`, wrapped by a four-line per-host function on each host), because sibling `tx6q0h` lifted it behind `HostLabels` on 2026-09-17, nine days after this plan was written. `tests/test_rununify_main.py` classes it `"shared-host-wrapper"` and records the reclassification. Recorded and resolved as DECISION 03-wqq8ua-D1; F-15's "agy footer has NO test coverage" is also stale (`tests/test_rununify_host_descriptor.py::test_the_continuation_hint_names_each_host_by_its_OWN_product_name` covers both hosts).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the ACTUAL rendered footer from both hosts, on the resume branch and the all-success branch, showing the new line and its exact command. Paste both hosts' text side by side proving the STOPPING SENTENCE is identical modulo the command prefix (the footers legitimately differ elsewhere; F-15). Confirm the four levels are NOT restated. State the OQ-01 branch decision as implemented. PASTE `tests/test_oc_runipd.py::ContinuationHintTests` GREEN AND UNMODIFIED, plus the end-to-end test at `:230`, since their four `assertNotIn` assertions are the contract E-02 must not break (F-14); if you placed the line on the all-success branch, show explicitly that your text contains neither `resume` nor `aw runs`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE ACTUAL RENDERED FOOTER, obtained by calling each host's `render_continuation_hint`, on BOTH branches and BOTH hosts.
 
-- [ ] V-03 validates E-03
+        === oc / ALL-SUCCESS ===
+
+        --- OpenCode Session Continuity ---
+        Captured session: ses_abc123 (Set: demo)
+        To run a new plan under the same session:
+          aw oc run --session ses_abc123 <selector>
+        To inspect run summary:
+          aw runs run-xyz
+        To stop a future run gracefully:
+          aw oc run stop <run-id> --after-call
+
+        === oc / RESUME ===
+
+        --- OpenCode Session Continuity ---
+        Captured session: ses_abc123 (Set: demo)
+        To run a new plan under the same session:
+          aw oc run --session ses_abc123 <selector>
+        To resume this run:
+          aw oc run resume --repo /repo run-xyz
+        To stop a future run gracefully:
+          aw oc run stop <run-id> --after-call
+
+        === agy / ALL-SUCCESS ===
+
+        --- Antigravity Session Continuity ---
+        Captured session: ses_abc123 (Set: demo)
+        To run a new plan under the same session:
+          aw agy run --session ses_abc123 <selector>
+        To inspect run summary:
+          aw runs run-xyz
+        To stop a future run gracefully:
+          aw agy run stop <run-id> --after-call
+
+        === agy / RESUME ===
+
+        --- Antigravity Session Continuity ---
+        Captured session: ses_abc123 (Set: demo)
+        To run a new plan under the same session:
+          aw agy run --session ses_abc123 <selector>
+        To resume this run:
+          aw agy run resume --repo /repo run-xyz
+        To stop a future run gracefully:
+          aw agy run stop <run-id> --after-call
+
+    THE STOPPING SENTENCE IS IDENTICAL ACROSS HOSTS MODULO THE COMMAND PREFIX, and now by CONSTRUCTION rather than by hand: the footer is ONE shared body (`runner_shared.render_continuation_hint`) and the text is ONE shared function (`runner_stop.stop_footer_hint`), so the only difference possible is `labels.command`. Side by side: `To stop a future run gracefully:` / `  aw oc run stop <run-id> --after-call` versus `To stop a future run gracefully:` / `  aw agy run stop <run-id> --after-call`. Asserted mechanically in `tests/test_runner_stop_triggers.py::RunLevelHelpAdvertisesStoppingTests::test_the_continuity_FOOTER_names_stopping_on_BOTH_hosts`, which also asserts neither host renders the OTHER's command. See DECISION 03-wqq8ua-D1 for why the edit is one shared change rather than two (F-15 went stale: the footers are no longer forked, and forking them back would fail `tests/test_runner_shared.py::SingleDefinitionTests`).
+    THE FOUR LEVELS ARE NOT RESTATED. The added lines are one label plus one command. `tests/test_oc_runipd.py::ContinuationHintTests::test_the_footer_does_not_restate_the_four_levels` asserts the rendered footer contains none of `--after-set`, `--now-force`, `level 2`, `level 3`, `level 4`, and in particular does not imply Ctrl-C reaches level 2.
+    THE OQ-01 BRANCH DECISION AS IMPLEMENTED: BOTH BRANCHES (DECISION 03-wqq8ua-D2). The line is placed after the `all_success` branch, unconditionally. What licenses the success branch is the FUTURE tense: OQ-01's objection was to "a nudge that prints when it cannot be acted on", which applies to a line about stopping THIS finished run, not to one about the next. Pinned by `test_the_stopping_line_prints_on_BOTH_footer_branches`, which also asserts each branch's pre-existing content survives.
+    THE FOUR SHIPPED `assertNotIn` ASSERTIONS PASS UNMODIFIED, which is the real proof no footer contract was perturbed. `git diff -U0 tests/test_oc_runipd.py | grep '^-'` returns ZERO lines, i.e. nothing was deleted or edited; my change is purely additive. `ContinuationHintTests` green (13 passed: the 6 originals plus 4 new plus 3 more), and the end-to-end successful-run test green in the same file:
+
+        $ python3 -m pytest tests/test_oc_runipd.py::ContinuationHintTests -o addopts="" -q
+        .............                                                            [100%]
+        13 passed in 0.33s
+
+        $ python3 -m pytest tests/test_oc_runipd.py tests/test_rununify_host_descriptor.py
+        251 passed in 9.85s   (baseline, before my change)
+        ... and after my change, as part of the 618-test group pasted under V-05.
+
+    THE LINE IS ON THE ALL-SUCCESS BRANCH, SO THE SUBSTRING PROOF IS REQUIRED AND GIVEN: the added text `To stop a future run gracefully:` + `aw oc run stop <run-id> --after-call` contains neither `resume` nor `aw runs`. Asserted directly by `test_the_stopping_line_avoids_the_substrings_the_success_branch_forbids`, which exists so a future rewording is told WHICH rule it broke instead of being pointed at four unrelated tests.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the ACTUAL interrupt message from both hosts for the ordinary interrupt AND the `just-terminate-no-cleanup` branch, showing the new sentence and the preserved originals. Paste the exit codes observed: 143 for SIGTERM and 130 otherwise. Paste a diff proving no branch, no ledger call, and no ordering of `emit_shutdown_report` changed. Confirm no prompt was added.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE ACTUAL INTERRUPT MESSAGE from BOTH hosts, on the ordinary interrupt, the `just-terminate-no-cleanup` branch AND the SIGTERM branch, captured by driving the real `main` to its `KeyboardInterrupt` handler and reading stderr. EXIT CODES OBSERVED AND SHOWN.
 
-- [ ] V-04 validates E-04
+        --- oc_runipd / JUST-TERMINATE-NO-CLEANUP -> exit 130 ---
+        Terminated without clean up; worktree and lanes left in place.
+        Next time, `aw oc run stop <run-id> --after-call` requests a graceful stop from another terminal (see `aw oc run stop --help` for the levels).
+
+        --- oc_runipd / ORDINARY INTERRUPT -> exit 130 ---
+        Interrupted; durable run state was preserved.
+        Next time, `aw oc run stop <run-id> --after-call` requests a graceful stop from another terminal (see `aw oc run stop --help` for the levels).
+
+        --- oc_runipd / SIGTERM -> exit 143 ---
+        Terminated by SIGTERM; durable run state was preserved.
+        Next time, `aw oc run stop <run-id> --after-call` requests a graceful stop from another terminal (see `aw oc run stop --help` for the levels).
+
+        --- agy_runipd / JUST-TERMINATE-NO-CLEANUP -> exit 130 ---
+        Terminated without clean up; worktree and lanes left in place.
+        Next time, `aw agy run stop <run-id> --after-call` requests a graceful stop from another terminal (see `aw agy run stop --help` for the levels).
+
+        --- agy_runipd / ORDINARY INTERRUPT -> exit 130 ---
+        Interrupted; durable run state was preserved.
+        Next time, `aw agy run stop <run-id> --after-call` requests a graceful stop from another terminal (see `aw agy run stop --help` for the levels).
+
+        --- agy_runipd / SIGTERM -> exit 143 ---
+        Terminated by SIGTERM; durable run state was preserved.
+        Next time, `aw agy run stop <run-id> --after-call` requests a graceful stop from another terminal (see `aw agy run stop --help` for the levels).
+
+    THE ORIGINALS ARE PRESERVED BYTE-FOR-BYTE and still come FIRST: both quoted sentences appear verbatim above, and `tests/test_interrupt_menu.py::MainInterruptNamesTheGracefulStopVerbTests::test_the_pre_existing_sentences_and_exit_codes_are_unchanged` asserts the original's index precedes the new sentence's, so the addition cannot become a replacement. `143` for SIGTERM and `130` otherwise, asserted per host.
+    THE DIFF PROVES NO BRANCH, NO LEDGER CALL, AND NO ORDERING MOVED. The whole change on each host is ONE `print(...)` appended AFTER the existing if/else, with the comment above it:
+
+        +        print(
+        +            runner_stop.stop_interrupt_hint(_detect_driver_command()),
+        +            file=sys.stderr,
+        +        )
+                 return 143 if is_sigterm else 130
+
+    `emit_shutdown_report(to_stderr=True)` is untouched and still called BEFORE the messages (visible in the diff context: no `-` line anywhere in either handler); the `just-terminate-no-cleanup` branch remains a distinct message; `return 143 if is_sigterm else 130` is unchanged. No code, no ledger call and no reordering.
+    NO PROMPT WAS ADDED, asserted rather than asserted-by-eye: `test_the_interrupt_message_asks_the_operator_nothing` checks the added text contains no `?` and none of `1.`/`2.`/`3.`/`4.`/`Choice`. And `test_the_hint_claims_no_level_about_the_exit_that_just_happened` pins that it is future-tense (`Next time`) and names none of `--after-set`, `level 2`, `level 3`, `level 4`, because this handler cannot know which R12 path or rung produced the exit and level 2 is unreachable by any signal.
+    `RunnerMainOutputOnInterruptTests` (the shipped harness that pins both exact messages and code 130 over BOTH modules) passes UNMODIFIED: `git diff -U0 tests/test_interrupt_menu.py | grep '^-'` returns ZERO lines.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `--help` output for `start` and `resume` on BOTH hosts showing the new paragraph, obtained by RUNNING the command rather than reading the argparse source. THE `resume` OUTPUT IS THE DECISIVE ONE (F-16): show it is NOT reflowed onto a single line, and state which fix you chose (adding `RawDescriptionHelpFormatter` to both hosts' `resume` parsers, or a single-sentence pointer). If you added the formatter, say so explicitly here, since it is a code rather than text edit. Paste `aw oc run stop --help` AND `aw agy run stop --help` proving both are unchanged. Confirm no per-level text was duplicated.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `--help` OUTPUT OBTAINED BY RUNNING THE COMMAND on BOTH hosts and BOTH verbs (`python3 -m agent_workflows <host> run <verb> --help`), showing the new paragraph.
 
-- [ ] V-05 validates E-05
+        === aw oc run start --help ===        === aw oc run resume --help ===   (identical section)
+        STOPPING A RUN GRACEFULLY:
+          Ask a live run to wind down, from another terminal or a script:
+
+            aw oc run stop <run-id> --after-call
+
+          That lets the in-flight agent turn finish and starts nothing further. Cleanup always
+          runs, at every level. See `aw oc run stop --help` for all four levels.
+
+          Ctrl-C in THIS terminal also stops the run: on a real terminal it offers a menu whose
+          second choice finishes the current item and stops, and otherwise a first press requests
+          the same gentlest level and pressing again stops harder.
+
+        === aw agy run start --help ===       === aw agy run resume --help ===  (identical section)
+        STOPPING A RUN GRACEFULLY:
+          Ask a live run to wind down, from another terminal or a script:
+
+            aw agy run stop <run-id> --after-call
+
+          That lets the in-flight agent turn finish and starts nothing further. Cleanup always
+          runs, at every level. See `aw agy run stop --help` for all four levels.
+
+          Ctrl-C in THIS terminal also stops the run: on a real terminal it offers a menu whose
+          second choice finishes the current item and stops, and otherwise a first press requests
+          the same gentlest level and pressing again stops harder.
+
+    THE `resume` OUTPUT IS THE DECISIVE ONE AND IT IS NOT REFLOWED, as shown above: the header sits on its own line, the command sits alone on its own indented line, and the two prose paragraphs keep their break. For contrast, here is the reflow I reproduced at execution time with a minimal argparse case, which is what `resume` WOULD have produced:
+
+        === WITHOUT RawDescriptionHelpFormatter ===
+        Line one. STOPPING: a command here
+        === WITH RawDescriptionHelpFormatter ===
+        Line one.
+
+        STOPPING:
+          a command here
+
+    THE FIX I CHOSE, STATED EXPLICITLY AS THE FENCE REQUIRES: I added `formatter_class=argparse.RawDescriptionHelpFormatter` to BOTH hosts' `resume` subparsers (`oc_runipd.build_parser`'s `resume = sub.add_parser("resume", ...)` and the `agy_runipd` twin). This is the plan's "ONE PERMITTED NON-TEXT EDIT" (F-16), and it is a CODE rather than text edit, so it is named here. Rationale and the rejected alternative are in DECISION 03-wqq8ua-D3: it is behavior-neutral for PARSING (argparse consults `formatter_class` only when formatting usage/help), no test anywhere asserts `resume`'s formatter class (one grep hit repo-wide, a comment), and the parse-level pins in `tests/test_rununify_build_parser.py` (subparser names, option strings, parsed defaults; 26 tests) all pass. Pinned structurally by `test_the_resume_paragraph_is_not_REFLOWED_onto_one_line`, which asserts the command is ALONE on its indented line, so the property survives any later refactor of how the formatter is set.
+    `stop --help` IS UNCHANGED ON BOTH HOSTS, PROVEN BY DIFF rather than by inspection. I captured both hosts' `stop --help` before and after my change (stashing the edits to get the "before") and diffed:
+
+        $ diff /tmp/stop-oc-before.txt /tmp/stop-oc-after.txt   -> IDENTICAL
+        $ diff /tmp/stop-agy-before.txt /tmp/stop-agy-after.txt -> IDENTICAL
+
+    Both are 46 lines and exit 0. This matters because a plan about stop discoverability must prove it did not disturb the one surface that was already good. Its content (unchanged) is the four per-level descriptions, the four worked examples, `Cleanup is UNCONDITIONAL at every level`, the monotonic-escalation sentence, and the POSIX-only platform note.
+    NO PER-LEVEL TEXT WAS DUPLICATED (P8), asserted by `test_the_run_help_does_not_duplicate_the_per_level_text`: the note contains none of `Level 1:`, `Level 2:`, `Level 3:`, `Level 4:`, `--after-set`, `--now-force`, `indeterminate`. It names the verb, one level (`--after-call`), and defers to `stop --help`. And `test_the_note_attributes_neither_ctrl_c_path_to_the_other` pins that both R12 paths are described and neither is presented as the only one.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the new tests and their passing output, showing assertions on RENDERED output for all three surfaces on BOTH hosts (note agy's footer has no prior coverage, so those assertions are new rather than mirrored; F-15). Paste the unchanged-behavior assertions (exit codes 143/130, both footer branches, the `just-terminate-no-cleanup` message). Paste `tests/test_runner_stop_triggers.py`, `tests/test_interrupt_menu.py` and `tests/test_oc_runipd.py` green, and confirm NO existing assertion in any of them was modified. The joint baseline for `tests/test_runner_stop_triggers.py tests/test_interrupt_menu.py tests/test_statefork_dh0uno.py` is `74 passed` (re-measured at review; the plan said 72). Paste the bare full-suite summary line with a NODE-ID comparison against the re-measured baseline (`1 failed, 5958 passed, 3 skipped, 2 xfailed`, the one failure being the `test_reporting_contract` parity test from another party's gitignored tree, which you must not touch). State the OQ-02 placement decision as implemented.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE NEW TESTS AND THEIR PASSING OUTPUT. 14 tests added across the three declared files, all asserting RENDERED output (the footer, the interrupt message, and real `--help` subprocess output), never a string constant:
+    `tests/test_oc_runipd.py::ContinuationHintTests` (+4, beside the 6 originals): `test_the_footer_tells_an_operator_how_to_stop_a_run_gracefully`, `test_the_stopping_line_prints_on_BOTH_footer_branches`, `test_the_stopping_line_avoids_the_substrings_the_success_branch_forbids`, `test_the_footer_does_not_restate_the_four_levels`.
+    `tests/test_interrupt_menu.py::MainInterruptNamesTheGracefulStopVerbTests` (+4, beside `RunnerMainOutputOnInterruptTests`): both-hosts-every-branch verb naming, unchanged sentences/exit codes, no-prompt, and no-level-claimed.
+    `tests/test_runner_stop_triggers.py::RunLevelHelpAdvertisesStoppingTests` (+6): both verbs on both hosts point at the verb, the `resume` reflow assertion, cross-host wording identity, no per-level duplication, neither-path-misattributed, and the BOTH-HOST continuity-footer assertion (DECISION 03-wqq8ua-D4 placed the cross-host footer check here so every stop-discoverability surface is reachable from one file).
+
+        $ python3 -m pytest tests/test_oc_runipd.py::ContinuationHintTests -o addopts="" -q
+        .............                                                            [100%]
+        13 passed in 0.33s
+
+        $ python3 -m pytest tests/test_interrupt_menu.py -o addopts="" -q
+        ...................                                                      [100%]
+        19 passed in 0.34s
+
+        $ python3 -m pytest tests/test_runner_stop_triggers.py::RunLevelHelpAdvertisesStoppingTests -o addopts="" -q
+        .....                                                                    [100%]
+        5 passed in 1.69s
+
+    BOTH HOSTS COVERED FOR ALL THREE SURFACES: the footer (`test_the_continuity_FOOTER_names_stopping_on_BOTH_hosts`, which also asserts neither host renders the other's command), the interrupt message (`test_both_hosts_name_the_out_of_band_verb_on_every_interrupt_branch`, looping both modules over all three branches), and the help (`test_both_verbs_on_both_hosts_point_at_the_stop_verb`, four real subprocess `--help` runs). Note F-15's "agy footer has no prior coverage" was stale: `tests/test_rununify_host_descriptor.py` already covered both hosts' footers, and it passes.
+    THE UNCHANGED-BEHAVIOR ASSERTIONS: exit codes 143 (SIGTERM) and 130 (otherwise) per host; both footer branches still print their pre-existing content; the `just-terminate-no-cleanup` message intact and still ordered before the addition. All in `test_the_pre_existing_sentences_and_exit_codes_are_unchanged` and `test_the_stopping_line_prints_on_BOTH_footer_branches`.
+    THE THREE DECLARED SUITES GREEN, AND NO EXISTING ASSERTION MODIFIED IN ANY OF THEM. The mechanical proof is that the diff DELETES NOTHING from the two fenced test files: `git diff -U0 tests/test_oc_runipd.py tests/test_interrupt_menu.py | grep -E '^-' | grep -v '^---'` returns ZERO lines. (One pre-existing block in `test_interrupt_menu.py` was re-indented by `ruff-format` because my helper sits beside it; the `with`-statement contents and every assertion are byte-identical, and the file still carries its 73 lines of pre-existing formatter drift, unchanged.)
+
+        $ python3 -m pytest tests/test_runner_stop_triggers.py tests/test_interrupt_menu.py tests/test_statefork_dh0uno.py
+        86 passed in 3.93s
+
+    The joint baseline for those three was re-measured HERE at `76 passed` before my change (the plan's review said 74, itself a correction of the plan's 72); it is `86 passed` after, i.e. +10 with zero regressions.
+    THE WIDER GROUP, including every characterization file my change touches:
+
+        $ python3 -m pytest tests/test_runner_stop_triggers.py tests/test_interrupt_menu.py tests/test_oc_runipd.py tests/test_rununify_main.py tests/test_rununify_host_descriptor.py tests/test_runner_shared.py tests/test_runner_refork_guard.py tests/test_rununify_build_parser.py tests/test_statefork_dh0uno.py
+        618 passed in 18.31s
+
+    THE BARE FULL-SUITE SUMMARY, with a NODE-ID comparison rather than a totals comparison:
+
+        BASELINE, measured in THIS worktree before any edit:
+        $ python3 -m pytest
+        1 failed, 7626 passed, 3 skipped, 2 xfailed, 3 warnings in 109.77s (0:01:49)
+        FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+
+        AFTER, same command:
+        $ env -u OPENCODE_CONFIG_CONTENT python3 -m pytest
+        7641 passed, 3 skipped, 2 xfailed, 3 warnings in 101.98s (0:01:41)
+
+    NODE-ID COMPARISON: the baseline's single failing node is `tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`, and it is ENVIRONMENTAL, not a code defect: it asserts a non-isolated turn inherits no `OPENCODE_CONFIG_CONTENT` denial policy, and THIS agent's own turn runs with that variable exported, so the test reads its own harness's env. Proven by isolating the variable alone, at the unmodified baseline:
+
+        $ python3 -m pytest tests/test_turn_bounds.py::...::test_the_permission_policy_by_contrast_IS_isolation_scoped
+        1 failed
+        $ env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py::...::test_the_permission_policy_by_contrast_IS_isolation_scoped
+        1 passed
+
+    So the AFTER run clears that variable and the failing-node set goes from {that one node} to {} - no new failing node id, and none of the plan's own files regressed. NOTE the plan's predicted baseline (`1 failed, 5958 passed`, failing on `tests/test_reporting_contract.py::ParityTests`) did NOT reproduce: the suite has grown to 7626 passing and that parity test passes here, because the gitignored `opencode-recovery/` tree it tripped on is absent from this lane worktree. I did not touch that tree or that test.
+    THE OQ-02 PLACEMENT DECISION AS IMPLEMENTED (DECISION 03-wqq8ua-D4): interrupt-message assertions beside the existing harness in `tests/test_interrupt_menu.py`; footer-branch assertions beside `ContinuationHintTests` in `tests/test_oc_runipd.py`; help-output plus the cross-host footer assertion in the declared `tests/test_runner_stop_triggers.py`. All three declared test paths are genuinely modified, so no `--scope-ack` is needed for any of them, and every addition sits BESIDE the existing assertions rather than altering them.
+    NO ASSERTION WAS ADDED ABOUT THE INTERACTIVE-VERSUS-LADDER QUESTION beyond what this plan's own text requires: `test_the_note_attributes_neither_ctrl_c_path_to_the_other` pins only the wording of text THIS plan adds. The menu's own level mapping is left entirely to the 15 shipped tests in `tests/test_interrupt_menu.py` (P8).
+    ONE OUT-OF-FENCE TEST FILE WAS EDITED AND IT IS FLAGGED: `tests/test_rununify_main.py`, whose four characterization pins my E-03/E-04 edits legitimately moved (see DECISION 03-wqq8ua-D5 for the full reasoning and the pre-change measurement proving NOTHING was forked). The pins were RE-BASED with dated annotations, never weakened: closure 29->31, histogram `one-object-agy-imports-oc` 5->6 and `still-defined-twice` 8->9, oc/agy closures 29/26->31/28 with the three-symbol GAP unchanged, and the patch-seam population 12->18 / 26->32. I also renamed `test_the_total_across_those_files_is_still_26` to `..._matches_the_table` and made its message read `EXPECTED_SEAM_TOTAL`, because a count hardcoded in a method name is the staleness trap that file's own sibling test documents having already suffered twice.
+  - Result: pass
 
 ## Approval and execution gate
 

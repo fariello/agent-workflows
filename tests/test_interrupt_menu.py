@@ -369,6 +369,120 @@ class RunnerMainOutputOnInterruptTests(unittest.TestCase):
                 )
 
 
+class MainInterruptNamesTheGracefulStopVerbTests(unittest.TestCase):
+    """stopdisc (`wqq8ua`) E-03/E-05: the interrupt message points at the out-of-band `stop` verb.
+
+    ADDED BESIDE `RunnerMainOutputOnInterruptTests` above and modifying none of its assertions: those
+    pin the two pre-existing sentences and the exit code, which is exactly what E-03 must not disturb,
+    so their remaining green and unedited is half of this proof.
+
+    WHY THIS SURFACE NEEDED ANYTHING. Spec R16's report covers a LIVE stop request and
+    `render_request_accepted` already delivers it in full. The message printed on the way OUT was the
+    empty one: it said only that the run was interrupted or terminated, never that a gentler level
+    existed or how to ask for it.
+    """
+
+    def _stderr_for(self, module, exc_message: str) -> tuple[int, str]:
+        """Drive the real `main` to its `KeyboardInterrupt` handler and capture stderr.
+
+        The same mock set the sibling class uses, so the two cannot disagree about what `main` needs.
+        """
+        with (
+            mock.patch.object(
+                module, "run_queue", side_effect=KeyboardInterrupt(exc_message)
+            ),
+            mock.patch.object(module, "emit_shutdown_report"),
+            mock.patch.object(
+                module, "resolve_run_dir", return_value=Path("/tmp/fake-run")
+            ),
+            mock.patch.object(module, "load_state", return_value={"options": {}}),
+            mock.patch.object(module, "locked_run", mock.MagicMock()),
+            mock.patch.object(module, "install_stop_triggers", mock.MagicMock()),
+            mock.patch("sys.stderr", new_callable=io.StringIO) as err,
+        ):
+            code = module.main(["resume", "run-fake"])
+        return code, err.getvalue()
+
+    def test_both_hosts_name_the_out_of_band_verb_on_every_interrupt_branch(self):
+        """BOTH hosts and BOTH message branches, because a hint on one host lets the other drift.
+
+        Asserted on RENDERED stderr rather than on the constant, since the claim is that an operator
+        READS this. The `just-terminate-no-cleanup` branch is included deliberately: an operator who
+        chose "exit leaving a mess" is precisely the one who may not know a graceful level existed.
+        """
+        for module in (oc_runipd, agy_runipd):
+            command = module._detect_driver_command()
+            for exc_message in (
+                "just-terminate-no-cleanup",
+                "clean-up-and-terminate",
+                "Terminated by SIGTERM",
+            ):
+                with self.subTest(module=module.__name__, msg=exc_message):
+                    _, err = self._stderr_for(module, exc_message)
+                    self.assertIn(
+                        f"{command} stop <run-id> --after-call",
+                        err,
+                        "the interrupt message must name the exact out-of-band command",
+                    )
+                    self.assertIn(f"{command} stop --help", err)
+                    # And it must be THIS host's vocabulary, never the other's.
+                    other = "aw agy run" if command == "aw oc run" else "aw oc run"
+                    self.assertNotIn(other, err)
+
+    def test_the_pre_existing_sentences_and_exit_codes_are_unchanged(self):
+        """The no-behavior-moved half, asserted here as well as in the sibling class.
+
+        E-03 adds a sentence and must change nothing else: `143` for SIGTERM, `130` otherwise, and both
+        original messages intact and still the FIRST thing printed after the shutdown report.
+        """
+        for module in (oc_runipd, agy_runipd):
+            with self.subTest(module=module.__name__):
+                code, err = self._stderr_for(module, "just-terminate-no-cleanup")
+                self.assertEqual(code, 130)
+                self.assertIn(
+                    "Terminated without clean up; worktree and lanes left in place.",
+                    err,
+                )
+
+                code, err = self._stderr_for(module, "clean-up-and-terminate")
+                self.assertEqual(code, 130)
+                self.assertIn("Interrupted; durable run state was preserved.", err)
+
+                code, err = self._stderr_for(module, "Terminated by SIGTERM")
+                self.assertEqual(code, 143, "SIGTERM must still exit 143")
+                self.assertIn(
+                    "Terminated by SIGTERM; durable run state was preserved.", err
+                )
+
+                # ORDER MATTERS: the new sentence is an ADDITION after the existing one, not a
+                # replacement of it, so the original must still come first.
+                self.assertLess(
+                    err.index("durable run state was preserved"),
+                    err.index("stop <run-id> --after-call"),
+                )
+
+    def test_the_interrupt_message_asks_the_operator_nothing(self):
+        """It must not become a PROMPT. Ctrl-C is the path taken by an operator who wants OUT, and
+        blocking it on a question risks the unbounded wait `interrupt_menu_is_safe` documents. So the
+        added text is declarative: no question mark, and no numbered choices."""
+        for module in (oc_runipd, agy_runipd):
+            with self.subTest(module=module.__name__):
+                added = runner_stop.stop_interrupt_hint(module._detect_driver_command())
+                self.assertNotIn("?", added)
+                for choice in ("1.", "2.", "3.", "4.", "Choice"):
+                    self.assertNotIn(choice, added, choice)
+
+    def test_the_hint_claims_no_level_about_the_exit_that_just_happened(self):
+        """It is FUTURE-tense on purpose, and that is a truthfulness requirement rather than a style
+        choice: this handler cannot know which R12 path or which ladder rung produced the exit, so
+        naming the level that DID apply would risk describing the wrong one. Level 2 is especially
+        forbidden here, since no signal can reach it at all."""
+        added = runner_stop.stop_interrupt_hint("aw oc run")
+        self.assertIn("Next time", added)
+        for forbidden in ("--after-set", "level 2", "level 3", "level 4"):
+            self.assertNotIn(forbidden, added, forbidden)
+
+
 class InteractiveSigintSignalTests(unittest.TestCase):
     @mock.patch("agent_workflows.runner_stop.handle_interactive_interrupt")
     @mock.patch("agent_workflows.runner_stop.request_stop_nowait")
