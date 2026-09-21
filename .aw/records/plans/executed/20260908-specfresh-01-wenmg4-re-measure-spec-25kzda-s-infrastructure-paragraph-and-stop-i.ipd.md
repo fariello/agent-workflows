@@ -14,17 +14,17 @@
 - Scope: Correct the two factually wrong entries in `25kzda`'s infrastructure paragraph, and decide what stops it decaying a third time. This is a FACTUAL-STATUS correction plus a durability decision; it changes NO design and the spec stays `approved`, on the `a59f2c5` precedent. EXCLUDES re-running the 24-spec audit (closed), and excludes building any of the five enumerated items.
 - Scope-Paths: .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: specfresh
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: wenmg4
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: sd2wz5
 
 ## Workflow history
+- 2026-09-21 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: wenmg4 verified (set specfresh, attempt 1).
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-901..PR-907 all FIXED, no deferrals. Re-measured all five enumerated claims independently at HEAD fc67605d and the plan's measurements are correct, including its stronger-than-the-item item 4 correction; both cited shas resolve. PR-901 (HIGH): a SECOND paragraph in the same preamble, four lines from the edited text, is stale the same way - the Section 2.1 grammar paragraph says run unverifiable/--allow-unverifiable/--unverifiable-ok 'all grep to zero' while both flags are REGISTERED argparse options on start and resume on BOTH hosts (implemented=True, runner_shared.py:1938-1960), landed 08aab7ed on 2026-09-05, the paragraph's own measurement date; added as E-05/V-05 inside the already-declared file, so no new scope path. PR-903: E-03's durability decision would have covered one point-in-time paragraph of four, two of them now measured stale, so it now must govern all four. PR-902 (HIGH): the suite baseline was wrong in both halves and named a test that passes - real state 1 failed, 5958 passed at test_reporting_contract.py ParityTests, caused by another party's gitignored opencode-recovery/ tree, with a do-not-clean-up prohibition and node-id comparison replacing the count comparison. PR-904: three of four byte-pinned spec regions were unnamed (4.1 abort table, 2.1 fenced grammar, 2.5a fenced blocks); verified the preamble edit cannot reach any (no fence, no RUN- row; those three files 261 passed). PR-906: three verdicts rest on a zero, so E-01 now requires a whole-history scan (0 of 2936) plus a non-vacuity control. PR-907: forbids inventing a test/check enforcement mechanism. PR-905: the item's 'confined to one spec' is no longer true - kw5y2s (approved) claims aw check reviews fails with unknown artifact type reviews while that verb now succeeds (152 reviews checked, exit 0); reported as F-15, NOT fixed (undeclared spec), raised to the maintainer as non-blocking OQ-04. Four decisions recorded (D-1..D-4), all reversible. E/V go 4->5 each, bijection intact; aw ipd lint --phase review-finalize conforming. Readiness go-pending-approval: OQ-01 remains open by design and is non-blocking, and no unfixed BLOCKER/HIGH remains.
 
