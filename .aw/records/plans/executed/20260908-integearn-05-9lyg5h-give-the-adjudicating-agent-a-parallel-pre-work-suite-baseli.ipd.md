@@ -9,7 +9,7 @@
 - Scope: Produce a pre-work suite baseline for each execute item, computed CONCURRENTLY with the agent turn in its OWN checkout pinned to that item's base commit and provably NOT the agent's lane, establish that the two results are comparable (re-measuring the divergence first, and building no neutralization layer if none is observable), and hand the result to the adjudication prompt as CONTEXT. CONSUMES `daexj1` E-01's failing-id capture rather than re-deriving ids; this plan cannot produce a failing-id set on its own. EXCLUDES any refusal, gate, or automatic action keyed on the baseline (the maintainer's ruling forbids it); excludes the adjudication prompt and its verdict handling (`daexj1` owns them); excludes capture-time id extraction (`daexj1` E-01 owns it, and `run_evidence.py` is deliberately NOT in Scope-Paths); excludes changing `run_suite_check`'s primary-checkout contract.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_suite_baseline.py
 - Item-Dependencies: executed:daexj1
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: integearn
 - Order: 5
@@ -17,9 +17,9 @@
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Blocks-Release: next
 - Id: 9lyg5h
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-21 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: 9lyg5h verified (set integearn, attempt 1). [Scope reconciliation - out-of-scope tests/test_gate_answer_wiring.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_orchestrator_probe_cache.py: changed by the plan's approved execution (auto-reconciled by aw oc run)]
 - 2026-09-21 executed (opencode its_direct/pt3-claude-opus-5-1m-us): E-01..E-07 all `performed`, V-01..V-07 all `pass` with pasted evidence; `aw ipd lint --phase pre-transition` reports `outcome: clean, exit 0` (one `info` advisory, `check.ipd-uncarried-obligation`, now answered by a new 'Durable carriers' subsection); `aw sanitize --agent` clean. THE HARD PREREQUISITE HELD: `daexj1` is `- Status: executed` and the failing-id capability it owns SHIPPED (re-sited by `h5pyqa`/`gatewire-01` as `oc_runipd.extract_suite_failures` with the typed list at `attempt["suite_check"]["failures"]`), so this plan CONSUMED that field and wrote no second extractor; `run_evidence.py` is unmodified, exactly as `Scope-Paths` demanded.
   E-01 INVERTED AS REVIEW PREDICTED, AND MORE SO: the worktree divergence is ZERO, not merely smaller. Measured at `24aa8d41` in a real `--detach` linked worktree of a fresh clone, `tests/test_run_viewer.py` gives `91 passed` in BOTH checkouts and the full bare suite gives `1 failed, 7830 passed, 3 skipped, 2 xfailed` in BOTH, the SAME single id in each - so it does not even run in review's opposite direction, because that failure's cause is the HOST environment rather than the checkout. NO neutralization layer and NO subtraction list was built; the comparability premise is now MONITORED by a regression test instead.
   THE WORK-DESTROYING HAZARD (F-14) WAS AVOIDED BY ROUTE (b), a plain DETACHED worktree under the gitignored `.aw/state/suite-baselines/`, outside the lane namespace entirely - not a non-colliding lane id, because route (b) removes the hazard by CONSTRUCTION: no branch means `teardown_worktree`'s branch-and-reflog delete has nothing to destroy. Proven ADVERSARIALLY, not by reasoning: with the agent's lane present and EMPTY, the baseline's allocation and cleanup leave its worktree, branch and reflog byte-identical (`REFLOG IDENTICAL? True`, `worktree list IDENTICAL? True`); with the lane HOLDING A COMMIT, no `_attempt2` branch appears, the owner-record set is unchanged (`['abc123.json']` before and after), and the commit stays reachable.
