@@ -1270,6 +1270,56 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Write the change (default is preview only).",
     )
 
+    # rdyrecheck Order 01 (qhy3i3): RE-EVALUATE a stale `- Readiness: no-go` rather than strand it.
+    p_ipd_recheck = ipd_sub.add_parser(
+        "recheck-readiness",
+        parents=[common],
+        help="Recompute the three no-go conditions and clear a STALE no-go (dry-run by default).",
+        description=(
+            "Re-evaluate a `- Readiness: no-go` whose recorded cause is gone. A no-go records a "
+            "MOMENT, not a condition, and nothing re-evaluates it when the cause it was set for is "
+            "removed, so a plan whose blocking question has been answered stays permanently "
+            "unapprovable behind a refusal that has NO override. This verb RECOMPUTES the three "
+            "conditions the plan-review contract defines (an unresolved BLOCKING open question, an "
+            "unresolved gating finding in the typed review record, a negative review verdict) using "
+            "the shipped predicates, reports each one individually, and writes ONLY when all three "
+            "are clear. It can reach ONLY `go-pending-approval`, which still requires human "
+            "approval; `go` is unreachable here, because only a review may set it. It refuses an "
+            "absent field (absence means no review recorded a signal, and minting one would assert "
+            "a review that never happened), an out-of-vocab field, and any readiness that is not "
+            "`no-go`. Every write records its computed evidence in the plan's own Workflow history, "
+            "labelled a re-check so it is never read as a review verdict. --stale-findings "
+            "additionally closes the one-directional escalation loop: a finding whose escalated "
+            "`Blocking: yes` question has been ANSWERED is reported stale and, under --apply, "
+            "marked fixed by a NEW review round citing that question."
+        ),
+    )
+    p_ipd_recheck.add_argument(
+        "selectors",
+        nargs="*",
+        help="Plan selectors (id6 or path). Omit to sweep every plan under pending/ and reusable/.",
+    )
+    p_ipd_recheck.add_argument(
+        "--apply",
+        action="store_true",
+        help="Write the change (default is preview only: nothing is written and nothing is committed).",
+    )
+    p_ipd_recheck.add_argument(
+        "--stale-findings",
+        dest="stale_findings",
+        action="store_true",
+        help="Also close the escalation return path: report (and under --apply, resolve by appending "
+        "a new review round) a gating finding whose escalated question is now resolved.",
+    )
+    p_ipd_recheck.add_argument(
+        "--actor",
+        default=None,
+        help="Actor recorded in the history entry (default: AW_IPD_AUTHOR or a generic agent label).",
+    )
+    p_ipd_recheck.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+
     # execset Order 01 (iy1a2g): compile an approved Set into a plan-only execution manifest.
     p_ipd_execset = ipd_sub.add_parser(
         "execute-set",
@@ -12164,6 +12214,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import ipd_authoring
 
             return ipd_authoring.run_sync(args)
+        if ipd_cmd == "recheck-readiness":
+            from agent_workflows import readiness_recheck
+
+            return readiness_recheck.run_recheck_readiness(args)
         if ipd_cmd == "execute-set":
             from agent_workflows import ipd_set_plan
 

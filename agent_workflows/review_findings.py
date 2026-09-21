@@ -1068,3 +1068,251 @@ def review_attestation_missing(
             "(expected {1}): {2}".format(wanted, want_type, "; ".join(wrong_type))
         )
     return "no review record names {0} as its `- Subject-Id:`".format(wanted)
+
+
+# --------------------------------------------------------------------------------------
+# The ESCALATION RETURN PATH (Set rdyrecheck, Order 01 / plan qhy3i3, E-07).
+#
+# THE DEFECT, WHICH IS THE SAME ONE AS THE READINESS RE-CHECK'S, ONE LAYER UP. The escalation is
+# defined in ONE DIRECTION ONLY: `plan-review.md` requires an unfixed finding at or above the gate
+# threshold to be escalated INTO the plan as a `- Blocking: yes` open question carrying
+# `- Finding: <ID>`. NOTHING defines the return path. So when the maintainer ANSWERS that question,
+# the question goes `- Status: resolved` while the FINDING stays `OPEN` in the typed review record
+# forever, and `subject_gating_blocks` reads that column and keeps blocking.
+#
+# MEASURED at HEAD `ce33d3c1` when plan qhy3i3 was authored: `4h7tt0` PR-002 (HIGH), `kbqpkn` PR-801
+# (BLOCKER), `5lxvl3` PR-002 (HIGH), `y9vpvv` PR-904 (HIGH) and `daexj1` PR-401 (BLOCKER) were ALL
+# still `OPEN` while every one of their escalated questions was `- Status: resolved` with the
+# maintainer's 2026-09-10 answer recorded.
+#
+# WHY IT APPENDS A ROUND RATHER THAN SKIPPING THE FINDING. Making a consumer IGNORE a finding whose
+# question is resolved would clear a plan on an INFERENCE about another artifact's contents rather
+# than on that artifact's own record, which is fail-open and leaves no audit trail. Appending a new
+# `## Round <n>` that marks the finding `fixed` and cites the answered question is the opposite: the
+# review record itself now says what happened, `current_findings()` stops returning it by the
+# existing current-round semantics, and the change is visible in a diff.
+# --------------------------------------------------------------------------------------
+
+#: An open question's `- Finding: <ID>` back-reference, which is the JOIN KEY for the return path.
+#:
+#: Matching on this field rather than on prose is the whole point: the escalation contract REQUIRES
+#: the question to carry it, so the match is made on a declared identity and never on a guess about
+#: which finding a question is "about".
+_OQ_FINDING_REF_RE = re.compile(
+    r"(?mi)^-[ \t]*Finding:[ \t]*([A-Za-z][A-Za-z0-9_-]*)[ \t]*$"
+)
+
+
+class StaleFinding(NamedTuple):
+    """A finding still recorded unresolved whose ESCALATED question has since been ANSWERED.
+
+    ``question_id`` / ``question_status`` come from the PLAN, ``finding_id`` / ``severity`` /
+    ``decision`` from the typed REVIEW RECORD, and ``review_path`` names the record to amend. Both
+    sides are carried because the whole claim is a JOIN between two artifacts, and a report naming
+    only one of them cannot be audited.
+    """
+
+    subject_id6: str
+    finding_id: str
+    severity: str
+    decision: str
+    question_id: str
+    question_status: str
+    review_path: str
+
+    def describe(self) -> str:
+        """One operator-facing clause naming both sides of the join and the evidence for it."""
+        return (
+            "{0}: finding {1} ({2}/{3}) is STALE - the question it was escalated as ({4}) is "
+            "`{5}`, so the finding's own record has not caught up".format(
+                self.subject_id6,
+                self.finding_id,
+                self.severity,
+                self.decision,
+                self.question_id,
+                self.question_status,
+            )
+        )
+
+
+def _resolved_escalated_questions(plan_text: str) -> Dict[str, Tuple[str, str]]:
+    """Map ``finding_id`` -> ``(question_id, status)`` for every question carrying a `- Finding:` ref.
+
+    EVERY such question is returned, resolved or not, because the caller must distinguish "resolved,
+    so the finding is stale" from "still open, so it is NOT stale" and a pre-filtered map cannot
+    express the negative case.
+
+    Reuses ``plan_readiness._open_question_blocks`` rather than re-parsing the section: that parser
+    already bounds the `## Open questions` section and already defines the `### OQ-NN:` block shape,
+    and a second encoding of it is how two consumers end up disagreeing about the same plan.
+    """
+    from agent_workflows import ipd_schema as _sch
+    from agent_workflows import plan_readiness as _pr
+
+    out: Dict[str, Tuple[str, str]] = {}
+    for block in _pr._open_question_blocks(plan_text):
+        heading = _sch.OQ_HEADING_RE.match(block[0].rstrip())
+        if not heading:
+            continue
+        qid = heading.group(1)
+        finding_id: Optional[str] = None
+        status: Optional[str] = None
+        for line in block[1:]:
+            m = _OQ_FINDING_REF_RE.match(line.strip())
+            if m and finding_id is None:
+                finding_id = m.group(1).strip()
+                continue
+            m2 = re.match(r"(?i)^-[ \t]*Status:[ \t]?(.*)$", line.strip())
+            if m2 and status is None:
+                status = m2.group(1).strip().lower()
+        if finding_id:
+            out[finding_id] = (qid, status or "")
+    return out
+
+
+def stale_escalated_findings(
+    repo_root, subject_id6: str, plan_text: str, threshold: Optional[str] = None
+) -> Tuple[StaleFinding, ...]:
+    """Every finding that still BLOCKS while the question it was escalated as is RESOLVED.
+
+    THE MATCH IS MADE ON DECLARED IDENTITY. A finding is reported stale only when a question in the
+    plan carries `- Finding: <that id>` AND that question's `- Status:` is ``resolved``. A question
+    that is still open does NOT make its finding stale, which is the negative case that keeps this
+    from becoming a blanket amnesty.
+
+    IT ONLY EVER REPORTS FINDINGS THAT CURRENTLY BLOCK, by intersecting with
+    :func:`subject_gating_blocks`. Two consequences worth stating: a finding below the gate threshold
+    is never reported (it blocks nothing, so there is nothing to clear), and a MALFORMED review record
+    is never reported either (its block has no ``finding_id``, and a record that cannot be parsed must
+    be repaired by a human rather than amended by a tool).
+
+    Pure with respect to disk: reads, never writes. Deterministic order (by finding id).
+    """
+    wanted = (subject_id6 or "").strip()
+    if not wanted:
+        return ()
+    refs = _resolved_escalated_questions(plan_text or "")
+    if not refs:
+        return ()
+    out: List[StaleFinding] = []
+    for block in subject_gating_blocks(repo_root, wanted, threshold):
+        if block.kind != "finding" or not block.finding_id:
+            continue  # a malformed record is a human's repair, not a tool's amendment.
+        ref = refs.get(block.finding_id)
+        if ref is None:
+            continue
+        qid, status = ref
+        if status != "resolved":
+            continue  # THE NEGATIVE CASE: an unanswered question leaves its finding blocking.
+        out.append(
+            StaleFinding(
+                subject_id6=wanted,
+                finding_id=block.finding_id,
+                severity=block.severity,
+                decision=block.decision,
+                question_id=qid,
+                question_status=status,
+                review_path=block.review_path,
+            )
+        )
+    return tuple(sorted(out, key=lambda s: s.finding_id))
+
+
+def append_round_resolving_stale(
+    review_path,
+    stale: Sequence[StaleFinding],
+    *,
+    date: str,
+    actor: str,
+    apply: bool = False,
+) -> Optional[str]:
+    """Append a new ``## Round <n>`` marking each stale finding ``fixed``, citing its question.
+
+    Returns the amended review text, or ``None`` when there is nothing to do. Writes only when
+    ``apply`` is true, so the reporting path and the mutating path share one implementation and a dry
+    run shows exactly what would land.
+
+    A NEW ROUND, NEVER AN IN-PLACE EDIT OF AN EXISTING ROW. The review record is history: round 1 said
+    the finding was open and that WAS true at the time. Rewriting it would destroy the audit trail and
+    make the escalation look as though it never happened. :meth:`ReviewDocument.current_findings`
+    already gives the last round authority, so appending is both honest and sufficient.
+
+    THE CARRY-FORWARD IS COMPLETE, not just the stale rows. Every still-unresolved finding from the
+    current round is carried into the new round UNCHANGED, because `current_findings()` returns ONLY
+    the last round: a new round listing just the cleared rows would silently drop every other
+    unresolved finding and clear the plan for the wrong reason. Findings already `fixed` are not
+    carried, matching the existing semantics that a fixed row stops blocking.
+    """
+    path = Path(review_path)
+    if not stale:
+        return None
+    doc = parse_review_file(path)
+    if doc.diagnostics:
+        return None  # never amend a record that does not parse.
+    cur = doc.current_round()
+    if cur is None:
+        return None
+    by_id = {s.finding_id: s for s in stale}
+
+    rows: List[Finding] = []
+    for finding in cur.findings:
+        if finding.is_resolved:
+            continue  # already closed; a new round need not restate it.
+        s = by_id.get(finding.id)
+        if s is None:
+            rows.append(
+                finding
+            )  # carried forward UNCHANGED: still unresolved, still blocking.
+            continue
+        rows.append(
+            finding._replace(
+                decision="fixed",
+                resolution=(
+                    "STALE ESCALATION CLOSED {0} by {1}. The question this finding was escalated as "
+                    "({2}) is `- Status: {3}`, so the finding it gated on has been answered and the "
+                    "record is caught up. NO FINDING WAS RE-DERIVED and no plan content was "
+                    "re-critiqued: the match was made on the question's declared `- Finding: {4}` "
+                    "back-reference, not on a judgement about what the question was about. Previous "
+                    "decision: {5}.".format(
+                        date,
+                        actor,
+                        s.question_id,
+                        s.question_status,
+                        finding.id,
+                        finding.decision,
+                    )
+                ),
+            )
+        )
+    if not rows:
+        return None
+
+    lines = path.read_text(encoding="utf-8").rstrip("\n").split("\n")
+    lines.append("")
+    lines.append("## Round {0}".format(cur.number + 1))
+    lines.append("")
+    lines.append("### {0}".format(H_FINDINGS))
+    lines.append("")
+    lines.extend(
+        _table(
+            FINDING_COLUMNS,
+            [
+                (
+                    f.id,
+                    f.severity,
+                    f.scope,
+                    f.area,
+                    f.evidence,
+                    f.finding,
+                    f.remediation_risk,
+                    f.decision,
+                    f.resolution,
+                )
+                for f in rows
+            ],
+        )
+    )
+    new_text = "\n".join(lines).rstrip("\n") + "\n"
+    if apply:
+        path.write_text(new_text, encoding="utf-8")
+    return new_text
