@@ -834,6 +834,120 @@ class TheSuiteRunsWhereTheMergedCodeActuallyIs(unittest.TestCase):
             )
             self.assertIn("could not be resolved", _revalidation(item)["reason"])
 
+    def test_a_FIRST_ATTEMPT_item_resolves_its_lane_from_the_LIVE_attempt(self) -> None:
+        """`l2mzxn`: the shape the gate ACTUALLY sees mid-run must resolve, and used not to.
+
+        WHY THIS CASE EXISTS AND THE SIBLINGS ABOVE DID NOT CATCH IT. Every other case in this class
+        hand-populates `preserved_base`/`preserved_branch` on the item (`_item`). Those fields are written
+        by `lane_containment.record_preserved_lane_state` on the POST-turn PRESERVATION path, which runs
+        AFTER integration and only when the item did NOT reach `executed`. So the fixtures describe a
+        state that CANNOT exist when the gate asks its question, and the first-attempt shape - the only
+        shape a live run actually presents - went unexercised.
+
+        MEASURED CONSEQUENCE (2026-09-21, run `run-20260921T105933Z-1994623`): items `i1hlgx`, `k9awrq`
+        and `quqyc4` each finished a full successful agent turn and were then refused `merge-conflict`
+        with `base=False, head=False` recorded and the suite invoked ZERO times. No git conflict existed
+        (`git merge-tree --write-tree` exited 0 for all three) and the merged tree was green
+        (`7991 passed`). With `--validate` off (the DEFAULT) this refused every isolated first-attempt
+        item, so the gate was inverted: it could only say no.
+
+        THIS TEST IS FALSIFIABLE and was PROVEN so: against the pre-fix resolution it fails with the
+        `base=False, head=False` refusal and `calls == 0`.
+        """
+
+        calls: list[pathlib.Path] = []
+
+        def _spy(path, _run_id):
+            calls.append(pathlib.Path(path))
+            return _suite_result(passing=True, exit_code=0, summary="green")
+
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            repo, base = self._repo_with_a_lane(root)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            # EXACTLY the call-site shape: the attempt carries the lane, the item carries no
+            # `preserved_*` field, because nothing has preserved anything yet.
+            item: dict[str, object] = {
+                "id6": "xx1111",
+                "attempts": [
+                    {
+                        "worktree_base": base,
+                        "worktree_branch": "aw/lane/xx1111",
+                    }
+                ],
+            }
+            verdict = R.make_integration_validation_runner(
+                {
+                    "repo": str(repo),
+                    "run_id": "r",
+                    "options": {"validate": False},
+                },
+                run_dir,
+                item,
+                suite_check=_spy,
+            )("a diff", ("lane_work.py",))
+
+            self.assertTrue(
+                verdict,
+                "a first-attempt item whose attempt names its lane must be resolvable; refusing it "
+                "makes the gate reject every isolated item in the DEFAULT configuration",
+            )
+            self.assertEqual(
+                len(calls),
+                1,
+                "the suite must actually RUN; the measured defect was a refusal reached with the "
+                "suite invoked zero times, so a verdict alone does not prove the fix",
+            )
+            self.assertNotIn("could not be resolved", _revalidation(item)["reason"])
+
+    def test_the_lane_resolver_prefers_the_attempt_and_falls_back_to_preserved(
+        self,
+    ) -> None:
+        """Both readers are live, and the PRECEDENCE is the point.
+
+        The attempt is authoritative because it exists DURING the turn, which is when the gate asks. The
+        `preserved_*` fields remain the fallback for a LATER caller (`aw <host> integrate <id6>`, the
+        deferral ladder) reading an item whose lane was preserved after the fact. Asserting the order
+        stops a future edit from 'simplifying' back to the preserved-only read that caused `l2mzxn`.
+        """
+
+        self.assertEqual(
+            R.resolve_lane_endpoints(
+                {
+                    "attempts": [{"worktree_base": "aaa", "worktree_branch": "br/a"}],
+                    "preserved_base": "bbb",
+                    "preserved_branch": "br/b",
+                }
+            ),
+            ("aaa", "br/a", ""),
+            "the LIVE attempt must win over the post-turn preservation fields",
+        )
+        self.assertEqual(
+            R.resolve_lane_endpoints(
+                {"preserved_base": "bbb", "preserved_branch": "br/b"}
+            ),
+            ("bbb", "br/b", ""),
+            "with no attempt the preserved fields must still answer",
+        )
+        self.assertEqual(
+            R.resolve_lane_endpoints({"id6": "xx1111"}),
+            ("", "", ""),
+            "an item naming no lane at all must resolve to nothing, so the caller fails closed",
+        )
+        self.assertEqual(
+            R.resolve_lane_endpoints(
+                {
+                    "attempts": [
+                        {"worktree_base": "old", "worktree_branch": "br/old"},
+                        {"worktree_base": "new", "worktree_branch": "br/new"},
+                    ]
+                }
+            ),
+            ("new", "br/new", ""),
+            "the LATEST attempt that names a lane is the current one",
+        )
+
     def test_an_EXCEPTION_from_the_suite_refuses_instead_of_aborting_the_run(
         self,
     ) -> None:

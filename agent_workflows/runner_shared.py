@@ -13165,6 +13165,63 @@ def release_merge_result(repo: Path, path: Path) -> None:
             shutil.rmtree(path, ignore_errors=True)
 
 
+def resolve_lane_endpoints(item: Mapping[str, Any]) -> tuple[str, str, str]:
+    """Resolve a lane's `(base, branch, head)` from an item, reading the LIVE attempt first.
+
+    WHY THIS EXISTS, measured rather than reasoned (2026-09-21, run `run-20260921T105933Z-1994623`).
+    Three items (`i1hlgx`, `k9awrq`, `quqyc4`) each completed a full successful agent turn and were then
+    refused `merge-conflict` by the post-merge revalidation gate, with
+    `base=False, head=False` recorded and the suite invoked ZERO times. None of them had a git conflict:
+    `git merge-tree --write-tree main <lane>` exited 0 for all three, and the merged tree ran
+    `7991 passed, 3 skipped, 2 xfailed` green. The gate was reading item keys that DO NOT EXIST YET.
+
+    THE FOUR KEYS THE CALLER USED TO READ, and why each is wrong on a FIRST attempt:
+
+      * `preserved_base` / `preserved_branch` are written by
+        `lane_containment.record_preserved_lane_state` on the POST-turn PRESERVATION path, which runs
+        AFTER integration and only when the item did NOT reach `executed`. This module already warns
+        about exactly that field for exactly this reason (see the suite-baseline comment at `:16624`,
+        which reads `attempt["worktree_base"]` PRECISELY to avoid it). Reading it at integration time is
+        reading a field whose own documentation says it is absent there.
+      * `lane_head` and `preserved_head` are written NOWHERE in this codebase. Before this function
+        existed, `grep -rn 'lane_head\\|preserved_head' agent_workflows/` returned exactly ONE hit: the
+        read itself. They were dead keys, so the head was unresolvable by construction.
+      * `base_commit` is an ATTEMPT field (`attempt["worktree_base"]`), never an item field, so the
+        item-level read never matched either.
+
+    SO THE ATTEMPT IS THE AUTHORITY, and the `preserved_*` fields are the FALLBACK, not the reverse.
+    `worktree_base`/`worktree_branch` are written immediately after lane allocation and therefore EXIST
+    while the turn is running, which is when the gate asks. The `preserved_*` fields still answer for a
+    LATER caller (`aw <host> integrate <id6>`, the deferral ladder's re-attempts) reading an item whose
+    lane was preserved and whose attempt list may be stale, so both are consulted.
+
+    RETURNS `("", "", "")`-shaped tuples on absence rather than raising, because every caller here fails
+    CLOSED on an unresolved endpoint: a wrongly refused lane is recoverable, a wrongly integrated one has
+    merged work nothing cleared.
+    """
+
+    attempts = item.get("attempts")
+    attempt: Mapping[str, Any] = {}
+    if isinstance(attempts, Sequence) and not isinstance(attempts, (str, bytes)):
+        for candidate in reversed(list(attempts)):
+            if isinstance(candidate, Mapping) and (
+                candidate.get("worktree_base") or candidate.get("worktree_branch")
+            ):
+                attempt = candidate
+                break
+    base = str(
+        attempt.get("worktree_base")
+        or item.get("preserved_base")
+        or item.get("base_commit")
+        or ""
+    ).strip()
+    branch = str(
+        attempt.get("worktree_branch") or item.get("preserved_branch") or ""
+    ).strip()
+    head = str(item.get("lane_head") or item.get("preserved_head") or "").strip()
+    return base, branch, head
+
+
 def make_integration_validation_runner(
     state: dict[str, Any],
     run_dir: Path,
@@ -13295,14 +13352,11 @@ def make_integration_validation_runner(
             return False
 
         repo_raw = (state or {}).get("repo") if isinstance(state, dict) else None
-        base = str(item.get("preserved_base") or item.get("base_commit") or "")
-        head = str(item.get("lane_head") or item.get("preserved_head") or "")
-        if not head:
-            branch = str(item.get("preserved_branch") or "")
-            if branch and repo_raw:
-                rc, out, _err = _run_git(Path(str(repo_raw)), ["rev-parse", branch])
-                if rc == 0:
-                    head = out.strip()
+        base, branch, head = resolve_lane_endpoints(item)
+        if not head and branch and repo_raw:
+            rc, out, _err = _run_git(Path(str(repo_raw)), ["rev-parse", branch])
+            if rc == 0:
+                head = out.strip()
         if not (repo_raw and base and head):
             _record_revalidation(
                 item,
