@@ -21,6 +21,10 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-21 executed (opencode its_direct/pt3-claude-opus-5-1m-us): all six E-items performed and all six V-items verified with pasted evidence at HEAD `00379f98`. `aw find` now distinguishes a genuine id6 collision from the reference conventions it rendered identically, warning only on the former with the remedy matching its shape; exit stays 0, every row still prints, `--paths`/`--agent` stdout is byte-identical, `--json` carries the finding in `diagnostics` under the stable rule `find.id6-collision`, and `--check` is left inert. 19 new fixture tests; bare-suite failure-set delta EMPTY (1 pre-existing environmental failure before and after, `7811 -> 7830 passed`).
+  THREE OF THE PLAN'S OWN MEASUREMENTS WERE FALSIFIED AT HEAD AND ARE REPORTED RATHER THAN REPRODUCED. (1) F-11, the BLOCKER the plan was reshaped around, no longer holds: `_HEADER_BYTES` does not exist, the 4096-byte hard cap became a structural bound on 2026-09-19, and the header-invisible population is ZERO of 702 declaring plans rather than 63/52. E-06 was built anyway because `_HEADER_MAX_BYTES` (262144) is still a cap and the shape is still constructible, recorded as decision D1. (2) The motivating example moved: `aw find uyeko5` prints TWO rows, not three, because `76w6mq` landed and killed the parser artifact. (3) The review census is 257, not 160. Both of the plan's stale baselines were replaced by one established locally.
+  THE DISCRIMINATOR IS DECLARATION OWNERSHIP, NOT RECORD TYPE, which is what let the reviews population stay silent without an exception list: a row warns only if the FILE ITSELF declares the id6 or holds it in its filename identity slot with no typed subject field, which is D140's identity-versus-reference rule verbatim. Zero false positives across both required populations (257 reviewed ids, 0 header-invisible plans).
+  ONE GENUINE DEFECT FOUND AND FILED, NOT SUPPRESSED. The repo-wide measurement fires exactly one warning, on `y5od1h`, where a walkthrough carries its plan's id6 in its own identity slot with no typed reference - the p7dqwz shape D140 was written about. `aw check all` reports ZERO such findings because `check_collisions` gates its identity-slot pass on the caller's liveness filter while its id6 sibling deliberately does not. Filed as backlog `mw0s1y` (three offending records) and `e2j5w4` (the checker blindness, `Work-Kind: bug`, `Blocks-Release: next`). No record under `.aw/records/` was edited or renamed.
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL; PR-001..PR-008, all FIXED, zero deferred, no open questions. `aw ipd lint` conformed at `--phase author` before review and again at `--phase review-finalize` after revisions; `aw sanitize --agent` clean.
@@ -42,15 +46,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: define what counts as a collision at this surface
 
-- [ ] E-06 BUILD THE RELIABLE "DOES THIS FILE DECLARE THIS id6" PREDICATE FIRST, because every later item's verdict rests on it and the obvious source of truth is measurably wrong. This is a new E-item added at review after the naive `kind`-only discriminator was falsified; do not skip it and do not fold it into E-02.
+- [x] E-06 BUILD THE RELIABLE "DOES THIS FILE DECLARE THIS id6" PREDICATE FIRST, because every later item's verdict rests on it and the obvious source of truth is measurably wrong. This is a new E-item added at review after the naive `kind`-only discriminator was falsified; do not skip it and do not fold it into E-02.
   THE REQUIREMENT: given ONE already-matched path and ONE id6 token, answer whether that FILE DECLARES that id6 as its own identity, without depending on the 4096-byte bounded window that made 63 plans' declarations invisible. Read that ONE file's declaration directly. Two existing readers already do this correctly and either is an acceptable basis: `plans_index._meta(text,"Id")` (`plans_index.py:68`, reads the whole file, and is ALREADY the source the plans display path uses) and `check_engine._ID_LINE_RE`. Prefer reusing one over writing a third regex, and if you must add a helper, put it in `selectors.py` beside the existing readers so there is one home for identity reading.
   SCOPE IT TO MATCHED ROWS, WHICH IS WHAT MAKES IT CHEAP. This predicate runs over the rows `find` is ALREADY about to print (typically 1 to 3), never over the corpus, so it costs one extra whole-file read per displayed row in the multi-row case and nothing at all in the overwhelmingly common single-row case. Assert that: a single-match lookup must perform NO additional file read beyond today's.
   DO NOT "FIX" THIS BY WIDENING THE WINDOW. Raising `_HEADER_BYTES` or routing `resolve`'s id6 rule through a whole-file read would change which records `aw find` MATCHES across every type and every selector kind, which is a repo-wide matching-behavior contract change and explicitly not this plan's business (`selectors.py:112-121` records the precedent that such a change is a contract decision, not a cleanup). If you conclude the window genuinely must change, STOP and report it as a scope-widening finding for a human.
   - Depends on: none
   - Expected outcome: a single predicate answering declaration-ownership per (path, id6) that returns True for all 63 header-invisible plans (assert on `sk7ggr` specifically, whose `- Id:` is at byte 6317); it reuses an existing whole-file reader rather than adding a third pattern; it is invoked only for already-matched rows; and `_HEADER_BYTES` and `resolve`'s matching behavior are untouched.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: `selectors.declares_id6` / `declared_id6` / `filename_slot_id6` / `id6_ownership` added, reusing this module's own `_ID_RE` through `_read_id` over a WHOLE-FILE read bounded by `metadata_region` (so a quoted example block is not a declaration). THE PLAN'S PREMISE CHANGED UNDER IT AND THE WORK STILL STANDS, recorded as decision D1: `_HEADER_BYTES` NO LONGER EXISTS. The 4096-byte HARD CAP became a structural read quantum on 2026-09-19 (`_HEADER_CHUNK_BYTES` + `_metadata_region_complete`, bounded by `_HEADER_MAX_BYTES` = 262144), so F-11's population is now ZERO of 702 declaring plans rather than 63, and `sk7ggr` (whose `- Id:` is at byte 6318, not 6317) now resolves `kind=id6`. The predicate was built anyway because `_HEADER_MAX_BYTES` is STILL a cap: a fixture whose metadata block outruns 256KB reads `_read_id(_read_header(p)) is None` while `declares_id6` returns True, so shape (e) is still constructible and still needs the reliable read. One correction the fixtures forced, which the plan did not anticipate: a CANONICAL-parsing legacy name yields a slug word in the slot (`parse_clustered` reports `id6='assess'`, and `ID6_RE.match('assess')` is True), so `filename_slot_id6` reuses `check_engine._is_real_id6`'s digit-mixing arm rather than trusting the slot shape.
 
-- [ ] E-01 CLASSIFY THE MULTI-ROW CASES BEFORE CHANGING ANY OUTPUT, and write the classification down. This is the whole difficulty of the plan: `aw find` currently renders at least four distinct situations identically, and three of them are legitimate.
+- [x] E-01 CLASSIFY THE MULTI-ROW CASES BEFORE CHANGING ANY OUTPUT, and write the classification down. This is the whole difficulty of the plan: `aw find` currently renders at least four distinct situations identically, and three of them are legitimate.
   THE FOUR SHAPES, each with a live or measured example. (a) GENUINE CROSS-TYPE DUPLICATE: two artifacts each DECLARE the same id6 as their own. (b) PARSER ARTIFACT: a document whose body QUOTES another artifact's metadata, read as a declaration; live today as research prompt `27rjro` "declaring" `uyeko5` at `:60`. That parser is fixed by plan `76w6mq` (from backlog `cqytxf`, filed 2026-09-05), NOT by Order 01: Order 01's E-04 was CORRECTED to a consumption check after the duplication was found. So this shape should vanish once `76w6mq` lands, which is NOT gated by this Set's own dependency edge, and E-01 must therefore re-measure rather than assume it has happened. (c) LEGITIMATE REFERENCE BY CONVENTION: a review record carrying its SUBJECT's id6 in its filename slot, required by `reviews/README.md`; 160 files at review, all 160 affected. (d) SAME-TYPE LIFECYCLE DUPLICATE: one plan present in two disposition directories (the `ntf6sx` shape). No instance exists today.
   AND A FIFTH SHAPE THE PLAN AS AUTHORED DID NOT KNOW ABOUT, added at review and load-bearing: (e) HEADER-INVISIBLE DECLARATION, a file that genuinely DECLARES the id6 but whose `- Id:` line sits past `_HEADER_BYTES`, so `resolve` reports `kind=substring` and the row looks like a mere filename reference. 63 plans are in this state, 52 of them producing a multi-row `find` (F-11). It must be classified as a DECLARATION, which is what E-06 makes possible.
   `resolve`'s OWN `kind` IS THE STARTING POINT BUT IS **NOT** A SOUND DISCRIMINATOR ON ITS OWN, AND THIS IS THE SINGLE MOST IMPORTANT CORRECTION IN THIS PLAN. The intuition is right in shape: for `uyeko5`, `resolve(..., 'plans', tok).kind == 'id6'` while `resolve(..., 'reviews', tok).kind == 'substring'`, so a row matched by SUBSTRING on a filename looks like a reference and a row matched by `id6` looks like a declaration. BUT THE CONVERSE DOES NOT HOLD, measured at review: **63 of the 608 plans that genuinely DECLARE a bullet `- Id:` resolve via `kind=substring`, not `kind=id6`**, and **52 of those 63 produce a multi-row `aw find`**. The cause is not a data bug, it is `resolve`'s deliberate BOUNDED READ: `_read_header` reads at most `_HEADER_BYTES` = 4096 (`selectors.py:317-328`), and in a plan with a long `- Concern:` block the `- Id:` line sits past that window. Order 01's own sibling `sk7ggr` is an instance: its `- Id:` line is at byte 6317, its first `## ` heading is at byte 6377, and `selectors._read_id(_read_header(p))` returns `None`, so `resolve(root,'plans','sk7ggr').kind == 'substring'` while `plans_index.scan_plans` (which reads the WHOLE file) correctly reports `plan_id == 'sk7ggr'`.
@@ -58,20 +63,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THE CORRECT DISCRIMINATOR IS THEREFORE "DOES THIS FILE DECLARE THIS id6", read RELIABLY, which E-06 builds. Use `kind` as a cheap first pass, and settle every row that is not already proven a declaration by reading the DECLARATION of that row only. That is affordable precisely because it applies to MATCHED ROWS (a handful) and never to the corpus; do NOT widen `_HEADER_BYTES` or make `resolve` read whole files, which would change matching behavior repo-wide and is a separate contract decision.
   - Depends on: E-06
   - Expected outcome: a written classification of the multi-row shapes with, per shape, the discriminator that identifies it and whether it warrants a warning; re-measured at your HEAD after Order 01 landed; and an explicit statement that the verdict rests on the RELIABLE declaration read of E-06 rather than on `kind` alone, with the header-invisible count re-measured locally (63 plans / 52 multi-row at review).
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: Classification written into the new test module's module docstring (`tests/test_find_collision_surface.py`), which is the durable home: it is read by anyone changing the behavior, and each shape has a test beside it. Per shape: (a) GENUINE CROSS-TYPE DUPLICATE - discriminator `id6_ownership` returns a CLAIMING verdict for two rows of different types - WARN with the D140 identity remedy; (b) SAME-TYPE LIFECYCLE DUPLICATE - same, with one record_type - WARN with the LIFECYCLE remedy; (c) REVIEW BY CONVENTION - the file declares no `- Id:` and names the id6 through a typed `- Subject-Id:` - SILENT; (d) SETID MULTI-MATCH - the token is not id6-shaped, or matches via `MATCH_SETID` which is excluded from `UNIQUE_KINDS` - SILENT; (e) HEADER-INVISIBLE DECLARATION - `kind=substring` but `declares_id6` is True - SILENT, classified as the OWNER. RE-MEASURED AT MY HEAD (`00379f98`) and the plan's two motivating measurements BOTH moved: shape (b) of the parser artifact is GONE (`76w6mq` landed; `aw find uyeko5` now prints TWO rows, the plan plus its review, not three), and shape (e)'s live population is ZERO (see E-06/D1), so (e) is proven from a constructed fixture and stated as having no live instance rather than implying one was observed. The counter-example proving `kind` alone is insufficient is therefore the FIXTURE at `test_e_...`: `resolve(...).kind == 'substring'` while `declares_id6` is True and the verdict is `declared`, so the row is classified as the owner and stays silent.
 
-- [ ] E-02 STOP DISCARDING THE MATCH KIND IN THE DISPLAY LAYER, so the classification of E-01 is available where the decision must be made. `cli._find_type_records` resolves per type and returns formatted LINES plus paths; the `Resolution.kind` that would answer "was this an identity match or a filename match" is computed inside `resolve` and dropped.
+- [x] E-02 STOP DISCARDING THE MATCH KIND IN THE DISPLAY LAYER, so the classification of E-01 is available where the decision must be made. `cli._find_type_records` resolves per type and returns formatted LINES plus paths; the `Resolution.kind` that would answer "was this an identity match or a filename match" is computed inside `resolve` and dropped.
   RE-LOCATE BY SYMBOL. The item's cited `plans_index.run_find:401-410` is NOT the general CLI path: `cli._run_find` fans out over `at.ARTIFACT_TYPES` calling `_find_type_records`, which uses `scan_plans` + `query` for plans and `sel.resolve_selectors` for other types. `plans_index.run_find` remains registered as the plans backend in `artifact_types.TYPE_BACKENDS`, so BOTH paths exist and you must establish which one your invocation takes before editing either.
   NOTE THE PLANS PATH DOES NOT GO THROUGH `resolve` AT ALL FOR ITS DISPLAY DATA. It calls `scan_plans` and intersects with `resolve_selectors`' paths, so for plans you have the paths but not the kind unless you ask `resolve` directly. Say in a comment which source of truth you chose and why, because a future reader will otherwise assume the two agree.
   AND THE TWO SOURCES MEASURABLY DISAGREE, so "which source of truth" is a correctness question and not a style note: for `sk7ggr`, `plans_index.scan_plans` reports `plan_id == 'sk7ggr'` (whole-file read) while `resolve(...).kind == 'substring'` (bounded read). The plans path's OWN data is therefore the RELIABLE one, and that asymmetry is why E-06 exists. Thread BOTH facts per row: the `kind` (cheap, from `resolve`) and the declaration verdict (reliable, from E-06). Do not thread `kind` alone.
   DO NOT CHANGE WHAT `find` RETURNS. Every matching row must still be printed. This E-item threads metadata through; it removes no result.
   - Depends on: E-01
   - Expected outcome: the display layer knows, per row, BOTH the match kind and the E-06 declaration verdict; the returned result set is byte-identical to today's; the chosen source of truth is documented at the site, naming the measured `sk7ggr` disagreement as the reason.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: `cli._FindMatch` (token, artifact_type, path, kind) plus `cli._resolve_selectors_with_kinds`, which calls `selectors.resolve` directly instead of `resolve_selectors` (a shim over `resolve_one` that discards `.kind`); same traversal, kind kept rather than dropped. `_find_type_records` now returns `(lines, paths, matches)` and all three of its branches (plans, research, all-other-types) populate it. SOURCE-OF-TRUTH CHOICE DOCUMENTED AT THE SITE, in the comment at the plans branch's return: the plans display path's own data comes from `pi.scan_plans` (whole-file) while `kind` comes from `resolve` (bounded), so the ownership verdict is computed by `selectors.id6_ownership` (also whole-file) and `kind` is threaded only as a cheap indicator. Result set unchanged: `--paths`, `--agent` and human stdout are byte-identical for a single-match lookup (V-02).
 
 ### Task group 2: flag the real thing, name the right remedy
 
-- [ ] E-03 EMIT A WARNING ONLY FOR A GENUINE DUPLICATE, and name the remedy for the SHAPE FOUND rather than a generic one. The item is right that conflating shapes is worse than silence, and its own two shapes have different fixes.
+- [x] E-03 EMIT A WARNING ONLY FOR A GENUINE DUPLICATE, and name the remedy for the SHAPE FOUND rather than a generic one. The item is right that conflating shapes is worse than silence, and its own two shapes have different fixes.
   THE TWO REMEDIES, kept distinct. Same id6 across DIFFERENT types where both DECLARE it: the non-owning artifact needs its own id6 plus a typed reference to its source, per D140 ("an artifact MUST NOT place another artifact's id6 in its own identity slot ... expresses that link as a TYPED frontmatter field (e.g. `Target-Id:`/`References: <id6>`)", `DECISIONS.md:2467`). Same id6, SAME type, two lifecycle directories: one copy is stale and must be removed or retired, which is a lifecycle problem and not an identity one. Emitting one message for both would send half of readers down the wrong path.
   DO **NOT** NAME `aw rename <type> <path> --to-id6` AS THE CROSS-TYPE REMEDY. This plan originally did, and it is measurably a NO-OP on the very shape the warning would be printed for. `--to-id6` converts a LEGACY `YYYYMMDD-HHMM-NN-<slug>` timestamp name; on an ALREADY-CLUSTERED name it falls through to the uniform branch, which preserves the existing `id6` group verbatim (`artifact_rename.compute_target_name`, `artifact_rename.py:138-147`). Measured: `compute_target_name('20260101-tset-01-aaa111-w.walkthrough.md','walkthroughs',to_id6=True,mint_id6='zzz999')` returns the SAME name, foreign id6 `aaa111` intact, `err=None`. A colliding artifact necessarily already carries an id6 in its slot, so it is always in that branch. Printing that command would send an operator to run a command that silently does nothing and reports success, which is worse than printing no remedy at all.
   SO STATE THE REMEDY AS THE OUTCOME REQUIRED, NOT AS A COMMAND THAT DOES NOT DELIVER IT: the non-owning artifact must take its OWN id6 (in both its `- Id:` and its filename identity slot) and cite the source through a typed reference field. VERIFY whatever command you do name actually produces that outcome on an already-clustered name before putting it in user-facing text, and if no verb does it today, say so plainly rather than inventing one; an honest "no single verb does this yet" is correct and a fabricated fix is not.
@@ -81,19 +88,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   MIND WHERE A STRUCTURED FINDING CAN ACTUALLY GO, because two of the three machine surfaces cannot carry one and the plan must not promise otherwise. `CommandResult` HAS a `diagnostics: List[Diagnostic]` field (`result_types.py:285`, each carrying `location`/`rule`/`detail`/`severity`) and `find` currently emits it EMPTY, so `--json` is the surface with a real home for the finding: put it there, with a stable `rule` string. BUT `--agent` DOES NOT REACH THAT CODE: `_run_find` returns at `cli.py:8898-8901` whenever `--paths` is set OR (`ctx.is_agent` and any paths matched), printing bare paths and returning before the `CommandResult` is ever built (verified: `aw find uyeko5 --agent` prints three bare paths and no JSON). That bare-path stream is a token-efficient contract that scripts consume line-by-line and MUST NOT gain a warning line. So: `--json` carries the structured finding; `--paths` stays byte-identical; and for `--agent`, state explicitly which you chose - leaving it silent (consistent with `--paths`) or emitting the finding to STDERR so stdout stays parseable - and justify it. Do NOT write "a structured finding in `--agent`/`--json`" as if both worked.
   - Depends on: E-02
   - Expected outcome: a genuine duplicate produces one warning naming its shape's remedy; a review-convention match produces none; exit stays 0; every row still prints; `--json` carries the finding in `diagnostics` with a stable rule string; `--paths` output is byte-identical; the `--agent` behavior is a stated, justified decision; `--check` is left inert.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: `cli._detect_id6_collisions` + `cli._id6_collision_message`, wired into `_run_find` after the rows are printed. Cross-type message cites D140 and names the required OUTCOME with an explicit "No single verb delivers this today"; same-type message names the LIFECYCLE remedy and shares no text with it. Exit stays 0 and every row still prints. `--json` carries the finding in `CommandResult.diagnostics` with the stable rule `find.id6-collision` at severity `warning` (that field was previously emitted empty). `--paths` is byte-identical on BOTH streams; `--agent` keeps stdout byte-identical and writes one `aw-find-warning:` line to STDERR (decision D3). `--check` left inert. NO COMMAND IS PRINTED for the cross-type remedy, per F-12 re-measured this turn.
 
-- [ ] E-04 DO NOT FORK A SECOND DETECTOR, and record honestly why this surface cannot simply ask the existing one. The item's recommendation 3 says to reuse `check_engine.check_collisions` rather than growing a duplicate scan, and the principle is right, but a measurement complicates it.
+- [x] E-04 DO NOT FORK A SECOND DETECTOR, and record honestly why this surface cannot simply ask the existing one. The item's recommendation 3 says to reuse `check_engine.check_collisions` rather than growing a duplicate scan, and the principle is right, but a measurement complicates it.
   THE MEASURED OBSTACLE: `check_collisions`'s `SUPPORTED` set is `backlog, plans, prompts, releases, research, roadmaps, specs, walkthroughs`, while `aw find` spans `at.ARTIFACT_TYPES`, which ALSO includes `reviews`, `comms` and `other`. So `find` can display a pair the checker never examines, and delegating wholesale would make `find` silent on exactly the type (reviews) whose convention this plan must reason about. Also relevant: `check_collisions` builds a repo-wide inventory, which is a real cost to pay inside an interactive lookup.
   A SECOND MEASURED OBSTACLE, AND IT BOUNDS WHAT "REUSE" CAN MEAN: `resolve_for_mutation` DOES NOT DETECT THE CROSS-TYPE CASE AT ALL, so it cannot be the authority for this plan's PRIMARY shape. Its policy is applied per `record_type` to ONE `Resolution`, so on the genuine cross-type fixture (a plan and a walkthrough both declaring `aaa111`) it returns `err=None` for BOTH types, each seeing a clean single match; the `UNIQUE_KINDS` refusal fires only when ONE type's resolution is itself ambiguous, which is the SAME-TYPE lifecycle shape (measured: the two-directory `bbb222` fixture DOES produce "is a id6 collision matching multiple files"). This is consistent with the Concern's citation but narrower than it implies, and it explains why the repository's own `aw check` needed a separate CROSS-TYPE inventory (`check_collisions`) to see this class at all.
   SO THE RULE IS: SHARE THE DEFINITION, NOT THE SCAN, AND BE HONEST THAT THE CROSS-TYPE ASSEMBLY IS NEW HERE. Reuse the existing NOTION of a collision (`UNIQUE_KINDS`, `resolve`'s `kind`, and the D140 identity-slot rule) and reuse an existing declaration reader per E-06; do not invoke the repo-wide scan from a lookup. But do NOT claim `resolve_for_mutation` already answers the cross-type question: `find` legitimately holds something neither existing consumer holds, namely the ALREADY-ASSEMBLED cross-type row set, and joining those rows on declaration-ownership is the one genuinely new logic this plan adds. Keep that join minimal and put it where a later plan can lift it out (OQ-02 anticipates exactly that reuse). What remains forbidden is re-deriving what a collision IS with fresh heuristics, or building a second corpus-wide scan.
   - Depends on: E-03
   - Expected outcome: no second corpus-wide duplicate-detection scan exists and none is invoked from `find`; the warning derives from the existing `UNIQUE_KINDS`/`resolve`/D140 notion plus E-06's reader; the ONE new piece (the cross-type join over already-matched rows) is named as new, justified by the measured `resolve_for_mutation` gap, and kept liftable; the type-coverage gap between `find` and the checker is documented.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: No corpus-wide scan added and none invoked: the negative proof is an AST walk over all five find-path functions asserting no call, attribute or import reaches `check_collisions`/`check_engine` (a substring search would have matched the detector's own docstring, which DISCUSSES the checker at length). The shared DEFINITION is `UNIQUE_KINDS` + `resolve` + D140 applied through `id6_ownership`; the ONE new piece, named as new in the function's docstring, is the CROSS-TYPE JOIN over already-matched rows, justified by the re-measured F-13 gap: `resolve_for_mutation` returns `err=None` for BOTH types on a plan+walkthrough pair declaring `aaa111`, and refuses only the SAME-TYPE two-directory shape. Type-coverage gap documented and pinned by a test (`reviews` in `at.ARTIFACT_TYPES`, absent from `ce.SUPPORTED`).
 
 ### Task group 3: prove it on the shapes that actually exist
 
-- [ ] E-05 TEST EVERY SHAPE, INCLUDING THE THREE THAT MUST STAY SILENT, using fixtures rather than the live tree. FIVE assertions minimum: a genuine cross-type declared duplicate warns, with the D140 remedy; a same-type two-directory duplicate warns, with the lifecycle remedy; a review record carrying its subject's id6 does NOT warn; a setid multi-match does NOT warn, because `MATCH_SETID` is deliberately multi-target (`selectors.py:651`); AND the header-invisible shape (E-06's case) is classified CORRECTLY rather than silently, i.e. a plan whose `- Id:` sits past `_HEADER_BYTES` is still recognized as the declaring owner.
+- [x] E-05 TEST EVERY SHAPE, INCLUDING THE THREE THAT MUST STAY SILENT, using fixtures rather than the live tree. FIVE assertions minimum: a genuine cross-type declared duplicate warns, with the D140 remedy; a same-type two-directory duplicate warns, with the lifecycle remedy; a review record carrying its subject's id6 does NOT warn; a setid multi-match does NOT warn, because `MATCH_SETID` is deliberately multi-target (`selectors.py:651`); AND the header-invisible shape (E-06's case) is classified CORRECTLY rather than silently, i.e. a plan whose `- Id:` sits past `_HEADER_BYTES` is still recognized as the declaring owner.
   THE FIXTURES ARE CHEAP AND WERE PROVEN AT REVIEW, so there is no excuse for asserting against live records. A `--dir` pointing at a tmp tree holding `.aw/records/plans/pending/20260101-tset-01-aaa111-a.ipd.md` plus `.aw/records/walkthroughs/20260101-tset-01-aaa111-w.walkthrough.md` (both declaring `- Id: aaa111`) reproduces the cross-type shape, and the same file in `pending/` and `executed/` reproduces the lifecycle shape; both were built and confirmed to yield the intended two-row `aw find` at review. For the header-invisible fixture, pad a `- Concern:` block so the `- Id:` line lands past byte 4096 (assert the offset in the test so a future `_HEADER_BYTES` change fails loudly rather than silently voiding the test).
   BUILD FIXTURES, DO NOT ASSERT AGAINST THE LIVE REPOSITORY. Neither of the item's two examples exists any more, which is itself the lesson: a test pinned to live records rots. The live tree may be used for a one-off measurement in evidence, never as a test's input.
   ASSERT THE FALSE-POSITIVE COUNT REPO-WIDE, since that is the failure this plan most needs to avoid. Run the new logic over every reviewed id6 in the real tree as a MEASUREMENT and report how many warnings it produces; the target is ZERO. RE-MEASURED AT REVIEW, and the authored figure was stale in a way that matters: there are **160** review files, all 160 declaring a `- Subject-Id:`, and all 160 of those ids resolving to more than one artifact - not 70. Measure locally rather than citing any number written here. Also measure the SECOND false-positive population this plan did not know about: the 63 header-invisible plans (52 of which are multi-row), which must ALSO produce zero warnings.
@@ -101,7 +110,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ALSO ASSERT THE READ CONTRACT IS UNCHANGED: same rows, same order, exit 0, and `--paths` output byte-identical, since scripts consume it. Include `--agent` in that assertion, since it shares the bare-path return at `cli.py:8898-8901`.
   - Depends on: E-04
   - Expected outcome: all five shapes asserted from fixtures; zero warnings across BOTH false-positive populations in the real tree (the reviewed ids and the header-invisible plans), counts stated from local measurement; the read contract byte-unchanged for `--paths` and `--agent`; bare-suite delta empty against a locally established baseline.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: `tests/test_find_collision_surface.py`, 19 tests, all from `--dir` fixture trees and none asserting against live records. All five shapes covered, the three silent ones asserting ABSENCE. Both repo-wide false-positive measurements are ZERO. A GENUINE DEFECT WAS FOUND BY THE MEASUREMENT and is reported rather than suppressed: one warning fires in the live tree, on `y5od1h`, where a walkthrough carries its plan's id6 in its own identity slot with no typed reference field - a real D140 violation that `aw check all` does NOT report. Filed as backlog `mw0s1y` (the data) and `e2j5w4` (the checker blindness). No record was edited or renamed.
 
 ## Project conventions discovered (Step 0)
 
@@ -219,35 +229,219 @@ No spec change is expected. If spec text asserts that `aw find` returns exactly 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the predicate's code and name which EXISTING whole-file reader it reuses (`plans_index._meta` or `check_engine._ID_LINE_RE`), or justify a new helper. Paste proof it returns True for the header-invisible case, asserting on `sk7ggr` specifically with its measured byte offsets (`- Id:` at 6317, `_HEADER_BYTES` 4096) and showing `resolve(...).kind == 'substring'` alongside the predicate's True. Paste the LOCALLY RE-MEASURED count of header-invisible declaring plans (63 at review) and how many are multi-row (52 at review). Paste NEGATIVE proof that `_HEADER_BYTES` is unchanged and that a single-match lookup performs no extra file read.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PREDICATE SHIPPED, REUSING AN EXISTING READER. `selectors.declares_id6(path, id6)` reads the WHOLE file and delegates the pattern to this module's own `_read_id`, which is bounded to `metadata_region`; `plans_index._meta(text,"Id")` and `check_engine._ID_LINE_RE` are byte-identical twins of `_ID_RE`, so no third identity pattern was added. Companions: `declared_id6`, `filename_slot_id6`, `id6_ownership`, `_declares_typed_subject`.
 
-- [ ] V-01 validates E-01
+    THE PLAN'S PREMISE IS FALSIFIED AT HEAD AND THE ITEM IS STILL JUSTIFIED (decision D1). `_HEADER_BYTES` NO LONGER EXISTS: it became `_HEADER_CHUNK_BYTES` (4096, a read quantum) plus `_HEADER_MAX_BYTES` (262144) with a STRUCTURAL stop at the first `##`, changed 2026-09-19. So the plan's asserted evidence (63 plans / 52 multi-row, `sk7ggr` invisible) cannot be reproduced and asserting it would be fabrication. RE-MEASURED LOCALLY over the live tree:
+
+        plan files: 702
+        declaring bullet - Id:: 702
+        header-read disagreement count: 0
+
+    `sk7ggr` specifically, which the plan required be asserted on:
+
+        sk7ggr - Id: offset 6318 first ## at 6378
+        plans_index._meta: sk7ggr
+        sk7ggr declares_id6: True resolve kind: id6
+        ownership plan: declared
+
+    i.e. its `- Id:` is at byte 6318 (not the plan's 6317) and `resolve(...).kind` is now `id6`, not `substring`, because the read is no longer capped at 4096. POPULATION (b) IS THEREFORE ZERO, measured directly:
+
+        POPULATION (b) header-invisible declaring plans: 0 of 702
+          of those, multi-row: 0 ; WARNINGS: 0
+
+    PROOF THE SHAPE STILL EXISTS, so the predicate is not dead code. `_HEADER_MAX_BYTES` remains a hard stop, so a metadata block longer than 256KB is still invisible to the bounded read. Constructed:
+
+        - Id: byte offset: 300036
+        resolve kind: substring
+        declares_id6 (E-06): True
+        ownership: declared
+
+    and `aw find ddd444` on that fixture prints the one row with NO warning (correctly the OWNER). Pinned by `test_e_a_header_invisible_sole_owner_is_silent_and_classified_as_the_owner`, which asserts the offset exceeds `_HEADER_MAX_BYTES` so a future bound change fails loudly instead of voiding the test.
+
+    NEGATIVE PROOF THE BOUNDS ARE UNCHANGED: `git diff` touches neither constant, and `ResolverBoundsUnchangedTests::test_the_bounded_read_constants_are_untouched` pins `_HEADER_CHUNK_BYTES == 4096` and `_HEADER_MAX_BYTES == 262144`.
+
+    NO EXTRA READ ON A SINGLE-MATCH LOOKUP: `test_a_single_match_lookup_reads_no_extra_file` monkeypatches `Path.read_text` and asserts at most ONE read for a one-row match set (and the detector returns [] without proceeding, since `len(uniq) < 2`).
+  - Result: pass
+
+- [x] V-01 validates E-01
   - Required evidence: paste the written classification. It must name, per shape, the discriminator and the warn/silent verdict, and MUST cover all FIVE shapes including the header-invisible declaration (e). Paste the RE-MEASUREMENT at your HEAD (after Order 01): `aw find uyeko5` output with its unpiped exit code, plus the `resolve(...).kind` per type for at least one id6 shared between a plan and its review, showing `id6` versus `substring`. THEN paste the counter-example that proves `kind` alone is insufficient: an id6 whose owning plan declares it yet resolves as `substring` (`sk7ggr` at review), and state in one sentence how your classification avoids calling it a reference. If a shape has no live instance, say so rather than implying you observed one.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: CLASSIFICATION WRITTEN DOWN, in the module docstring of `tests/test_find_collision_surface.py` (chosen over a prose section so each shape sits beside the test that pins it). All FIVE shapes with discriminator and verdict:
 
-- [ ] V-02 validates E-02
+      (a) cross-type declared duplicate  - two rows of DIFFERENT types both return a CLAIMING `id6_ownership` verdict - WARN (D140 identity remedy)
+      (b) same-type lifecycle duplicate  - as (a) with ONE record_type                                                  - WARN (lifecycle remedy)
+      (c) review by convention           - no own `- Id:`, names the id6 via a typed `- Subject-Id:`                     - SILENT
+      (d) setid multi-match              - token not id6-shaped / matched via `MATCH_SETID` (excluded from UNIQUE_KINDS)  - SILENT
+      (e) header-invisible declaration    - `kind=substring` yet `declares_id6` True                                      - SILENT, classified OWNER
+
+    RE-MEASURED AT MY HEAD (`00379f98`), AND THE PLAN'S MOTIVATING EXAMPLE HAS CHANGED, reported as it actually stands per OQ-03:
+
+        $ aw find uyeko5
+        ✓  executed      uyeko5  runflags        .aw/records/plans/executed/20260903-runflags-01-uyeko5-wire-the-spec-2-1-run-flag-surface-onto-both-host-runners.ipd.md
+        ·  -             -  .aw/records/reviews/20260904-runflags-01-uyeko5-wire-the-spec-2-1-run-flag-surface-onto-both-host-runners.review.md
+        unpiped exit code: 0
+
+    TWO rows, not the plan's three: the research-prompt PARSER ARTIFACT is GONE, because `76w6mq` landed and `selectors._read_id` is now bounded to `metadata_region`. `resolve(...).kind` per type for an id6 shared between a plan and its review, showing `id6` versus `substring`:
+
+        == uyeko5
+            plans id6 [.../plans/executed/20260903-runflags-01-uyeko5-...ipd.md]
+            reviews substring [.../reviews/20260904-runflags-01-uyeko5-...review.md]
+
+    THE COUNTER-EXAMPLE PROVING `kind` ALONE IS INSUFFICIENT is now a FIXTURE, not a live record, and I say so rather than implying I observed a live one: shape (e) has NO live instance at this HEAD (population measured at 0 of 702, see V-06). On the constructed fixture `resolve(...).kind == 'substring'` while `declares_id6` is True. In one sentence: the classification never calls such a row a reference because the verdict is `id6_ownership`'s WHOLE-FILE declaration read, and `kind` is consulted only as a cheap indicator that is never allowed to decide.
+
+    SHAPE (b) ALSO HAS NO LIVE INSTANCE (no plan sits in two disposition directories today); it is proven from a fixture.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the code threading the match kind through, and state which source of truth you used for the PLANS path (whose display data comes from `scan_plans`+`query`, not from `resolve`) and why, quoting the comment you left. THEN paste before/after output of a normal single-match lookup proving the row set and order are byte-identical, and the `--paths` output likewise.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: CODE THREADING THE KIND: `cli._FindMatch` (a `NamedTuple` of token / artifact_type / path / kind) plus `cli._resolve_selectors_with_kinds`, which calls `selectors.resolve(..., deny={MATCH_PATH})` per token and keeps `res.kind`, replacing `resolve_selectors` (a fan-out over `resolve_one`, which returns `.paths` only). `_find_type_records` returns `(lines, paths, matches)`; all three branches populate `type_matches`.
 
-- [ ] V-03 validates E-03
+    SOURCE OF TRUTH FOR THE PLANS PATH, and the comment left at the site (quoted verbatim):
+
+        # THE PLANS PATH'S OWN DATA IS THE RELIABLE SOURCE OF TRUTH FOR IDENTITY, NOT `resolve`'s
+        # `kind` (IPD paw8so E-02). This branch's display data comes from `pi.scan_plans`, which
+        # reads WHOLE files, while the `kind` above comes from `resolve`'s bounded header read; the
+        # two can disagree, and when they do the whole-file answer is right. That is exactly why the
+        # collision verdict is computed by `selectors.id6_ownership` (also a whole-file read of the
+        # one matched row) rather than from `kind`, which is threaded only as a cheap indicator.
+
+    The plan asked me to name the measured `sk7ggr` disagreement as the reason. HONEST CORRECTION: that disagreement NO LONGER REPRODUCES at this HEAD (`resolve(...).kind` is now `id6` for `sk7ggr`, see V-06), so the comment states the disagreement as POSSIBLE rather than citing a stale measurement as current. Naming a measurement I could not reproduce would have been fabricated evidence.
+
+    BEFORE/AFTER BYTE-IDENTITY, measured by stashing my two source files, capturing baseline output, popping the stash, re-capturing, and running `cmp`:
+
+        === --paths byte-identity (stdout) ===
+        uyeko5 paths stdout IDENTICAL / uyeko5 paths stderr IDENTICAL
+        sk7ggr paths stdout IDENTICAL / sk7ggr paths stderr IDENTICAL
+        paw8so paths stdout IDENTICAL / paw8so paths stderr IDENTICAL
+        y5od1h paths stdout IDENTICAL / y5od1h paths stderr IDENTICAL
+        === --agent byte-identity (stdout) ===
+        uyeko5 agent stdout IDENTICAL
+        sk7ggr agent stdout IDENTICAL
+        paw8so agent stdout IDENTICAL
+        y5od1h agent stdout IDENTICAL
+        === human stdout delta ===
+        --- uyeko5 ---   (no diff)
+        --- sk7ggr ---   (no diff)
+        --- paw8so ---   (no diff)
+
+    The ONLY human-stdout delta in the whole sweep is on `y5od1h`, which is the genuine collision, and it is purely ADDITIVE (`3a4,8`): the three original rows are unchanged and the warning is appended.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the ACTUAL output for a genuine cross-type duplicate fixture, showing the warning text and that the D140 remedy is named; then for the same-type two-directory fixture, showing the LIFECYCLE remedy and that it is a DIFFERENT message. Paste the unpiped exit code for both, which must be 0, and confirm every matching row still printed. Quote the structured `--json` finding (from `CommandResult.diagnostics`) with its `rule` string, and state explicitly what `--agent` does and why, since `--agent` cannot reach that code path (`cli.py:8898-8901`). If your cross-type message names a COMMAND, paste proof that command actually re-identifies an already-clustered file; if it names none, say so explicitly (F-12).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: CROSS-TYPE FIXTURE, ACTUAL OUTPUT (both rows printed, then the warning):
 
-- [ ] V-04 validates E-04
+        ◕  pending       aaa111  tset            .aw/records/plans/pending/20260101-tset-01-aaa111-a.ipd.md
+        ·  -             aaa111  .aw/records/walkthroughs/20260101-tset-01-aaa111-w.walkthrough.md
+
+        !  id6 aaa111 is claimed as its OWN identity by 2 artifacts of different types; an id6 identifies exactly ONE file (DECISIONS.md D140):
+            .aw/records/plans/pending/20260101-tset-01-aaa111-a.ipd.md
+            .aw/records/walkthroughs/20260101-tset-01-aaa111-w.walkthrough.md
+           Remedy: the non-owning artifact must take its OWN id6 - in both its `- Id:` and its filename identity slot - and cite the source through a TYPED reference field (`Target-Id:`/`References:`/`Subject-Id:`). No single verb delivers this today: `aw rename --to-id6` is a no-op on an already-clustered name.
+        unpiped exit code: 0
+
+    SAME-TYPE FIXTURE, A DIFFERENT MESSAGE NAMING THE LIFECYCLE REMEDY:
+
+        ✓  executed      bbb222  tset            .aw/records/plans/executed/20260101-tset-02-bbb222-b.ipd.md
+        ◕  pending       bbb222  tset            .aw/records/plans/pending/20260101-tset-02-bbb222-b.ipd.md
+
+        !  id6 bbb222 is claimed by 2 files of the SAME type, in different lifecycle directories - one copy is STALE (a lifecycle problem, not an identity one):
+            .aw/records/plans/executed/20260101-tset-02-bbb222-b.ipd.md
+            .aw/records/plans/pending/20260101-tset-02-bbb222-b.ipd.md
+           Remedy: keep the copy whose disposition directory matches its `- Status:` and remove or retire the other. No single verb does this; move it with `git mv` and record the retirement.
+        unpiped exit code: 0
+
+    The two share no remedy text, pinned by `test_the_two_shapes_do_not_share_one_message` (D140 appears in one and not the other; "lifecycle problem" vice versa). Every matching row printed in both cases.
+
+    NO COMMAND IS NAMED FOR THE CROSS-TYPE REMEDY, stated explicitly as F-12 requires. F-12 RE-MEASURED THIS TURN and it still holds: `artifact_rename.compute_target_name('20260101-tset-01-aaa111-w.walkthrough.md','walkthroughs',to_id6=True,mint_id6='zzz999')` returns the SAME name with the foreign id6 `aaa111` intact and `err=None`. So the message names the required OUTCOME and says "No single verb delivers this today"; nothing unverified is printed.
+
+    `--json` STRUCTURED FINDING, from `CommandResult.diagnostics`, with the stable rule string `find.id6-collision`:
+
+        {"location": ".aw/records/plans/pending/20260101-tset-01-aaa111-a.ipd.md",
+         "rule": "find.id6-collision",
+         "detail": "id6 aaa111 is claimed as its own identity by 2 artifacts (cross-type): ...",
+         "severity": "warning",
+         "fix": "give the non-owning artifact its OWN id6 ... (DECISIONS.md D140)"}
+
+    and `diagnostics == []` for every silent shape (`test_json_diagnostics_is_empty_for_a_legitimate_multi_row_shape`).
+
+    `--agent` DECISION, STATED AND JUSTIFIED (decision D3): `--agent` shares `--paths`' bare-path early return and never builds a `CommandResult`, so `diagnostics` is unreachable there. CHOSEN: stdout stays BYTE-IDENTICAL and the finding goes to STDERR as one line, `aw-find-warning:find.id6-collision:aaa111:cross-type:<paths>`. Rationale: an agent piping stdout keeps a parseable stream and still gets a signal it could otherwise never see, while `--paths` (the explicitly script-shaped surface) stays silent on BOTH streams. `--check` is LEFT INERT, pinned by `test_check_is_left_inert_rather_than_quietly_given_meaning` (identical stdout and rc with and without the flag).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste NEGATIVE proof that no second CORPUS-WIDE duplicate-detection scan exists and that `check_collisions` is not invoked from the find path (show the searches). Paste the code showing the warning derives from the existing `UNIQUE_KINDS`/`resolve`/D140 notion plus E-06's reader. Paste the documented note about the type-coverage gap, and confirm in one sentence that `reviews`/`comms`/`other` are handled even though the checker does not cover them. THEN paste the measurement that `resolve_for_mutation` returns `err=None` for BOTH types on a genuine cross-type fixture (F-13), and identify in one sentence exactly which logic here is NEW because of that gap, so the reuse claim is honest rather than overstated.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: NEGATIVE PROOF, NO SECOND CORPUS-WIDE SCAN. `test_the_find_path_never_invokes_the_repo_wide_collision_checker` walks the AST of `cli.py` over all five find-path functions (`_detect_id6_collisions`, `_id6_collision_message`, `_run_find`, `_find_type_records`, `_resolve_selectors_with_kinds`) and asserts no `Name`, `Attribute`, `Import` or `ImportFrom` node reaches `check_collisions` or `check_engine`, plus that all five were actually found (so a rename fails the test). A SUBSTRING SEARCH WOULD HAVE BEEN THE WRONG PROOF AND I HIT THAT: the naive `assertNotIn("check_collisions", region)` FAILED on first run because the detector's own docstring DISCUSSES the checker at length explaining why it is not delegated to. The AST walk proves absence of a CALL rather than absence of the word.
 
-- [ ] V-05 validates E-05
+    THE WARNING DERIVES FROM THE EXISTING NOTION: `_detect_id6_collisions` calls only `selectors.id6_ownership` (which applies D140's identity-versus-reference rule via `_read_id`/`metadata_region`) and gates on id6-SHAPED tokens so a `MATCH_SETID` group can never be reported; `UNIQUE_KINDS`/`resolve_for_mutation` supply the policy language quoted in its docstring.
+
+    TYPE-COVERAGE GAP DOCUMENTED and pinned by `test_the_verdict_covers_types_the_checker_does_not`:
+
+        find types: ('plans','specs','prompts','research','backlog','walkthroughs','roadmaps','comms','releases','reviews','other')
+        checker SUPPORTED: ['backlog','plans','prompts','releases','research','roadmaps','specs','walkthroughs']
+
+    In one sentence: `reviews`, `comms` and `other` ARE handled here even though `check_engine.SUPPORTED` omits them, because the verdict runs over `find`'s own already-assembled row set rather than the checker's inventory - which is exactly why delegating would have gone blind on the one type whose convention this plan had to reason about.
+
+    F-13 RE-MEASURED THIS TURN on the genuine cross-type fixture (a plan and a walkthrough both declaring `aaa111`):
+
+        plans ([.../plans/pending/20260101-tset-01-aaa111-a.ipd.md], None)
+        walkthroughs ([.../walkthroughs/20260101-tset-01-aaa111-w.walkthrough.md], None)
+        same-type: ([], "selector 'bbb222' is a id6 collision matching multiple files (a data bug to fix, not overridable by --force): ...")
+
+    `err=None` for BOTH types on the cross-type shape; the refusal fires only SAME-TYPE. WHICH LOGIC IS NEW, in one sentence: the CROSS-TYPE JOIN - grouping already-matched rows by token and counting how many independently CLAIM the id6 - is new here, because `resolve_for_mutation` cannot see across types at all and `check_collisions` answers the same question only by building a repo-wide inventory a lookup must not pay for.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the ACTUAL passing output of all FIVE fixture tests, and quote the three SILENT assertions (review convention, setid multi-match, header-invisible sole owner) so it is visible they assert absence rather than presence. Paste BOTH repo-wide false-positive MEASUREMENTS with their counts - every reviewed id6 (160 at review) and every header-invisible declaring plan (63 at review, 52 multi-row); anything above zero in EITHER is a FAILED validation, not a caveat. Paste the `--paths` AND `--agent` byte-identity evidence. THEN paste the BARE `python3 -m pytest` summary lines before and after and state the failure-set delta explicitly, against a baseline you established yourself rather than the stale one this plan once carried.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL 19 FIXTURE TESTS PASSING (actual output):
+
+        tests/test_find_collision_surface.py ...................                 [ 39%]
+        tests/test_cli_find.py .............................                     [100%]
+        ============================= 48 passed in 10.09s ==============================
+
+    The five shapes are `test_a_cross_type_declared_duplicate_warns_with_the_d140_identity_remedy`, `test_b_same_type_two_directory_duplicate_warns_with_the_lifecycle_remedy`, `test_c_a_review_carrying_its_subjects_id6_is_silent`, `test_d_a_setid_multi_match_is_silent_because_a_set_is_deliberately_a_group`, `test_e_a_header_invisible_sole_owner_is_silent_and_classified_as_the_owner`.
+
+    THE THREE SILENT ASSERTIONS, quoted so it is visible they assert ABSENCE rather than presence. All three call one shared helper:
+
+        def _assert_no_warning(self, out: str) -> None:
+            self.assertNotIn("is claimed", out)
+            self.assertNotIn("D140", out)
+            self.assertNotIn(cli._FIND_ID6_COLLISION_RULE, out)
+
+    (c) review convention: both rows asserted present, then `self._assert_no_warning(out)`. (d) setid: `assertEqual(3, sum(1 for line in out.splitlines() if ".ipd.md" in line))` then `self._assert_no_warning(out)`. (e) header-invisible: `assertEqual(MATCH_SUBSTRING, resolve(...).kind)`, `assertTrue(declares_id6(...))`, `assertEqual(OWNERSHIP_DECLARED, id6_ownership(...))`, then `self._assert_no_warning(out)`.
+
+    REPO-WIDE FALSE-POSITIVE MEASUREMENT (a), MEASURED LOCALLY rather than citing the plan's number:
+
+        POPULATION (a): 257 reviewed ids from 257 review files
+        reviewed ids measured: 257 (all 257 review files carry Subject-Id)
+        of those, ids producing a MULTI-ROW find: 257
+        FALSE POSITIVES: review files reported as a claimant: 0
+
+    257, not the plan's 160 (and not the 70 it was authored with) - the population grows with every review, exactly as the plan warned. ZERO of the 257 review files is ever reported as a claimant. A supporting measurement explains why no exception list was needed: all 257 reviews declare `- Subject-Id:` and NONE declares an own `- Id:`, so they are references by construction.
+
+    REPO-WIDE FALSE-POSITIVE MEASUREMENT (b):
+
+        POPULATION (b) header-invisible declaring plans: 0 of 702
+          of those, multi-row: 0 ; WARNINGS: 0
+
+    Zero warnings, on a population that is itself now zero at this HEAD (see V-06 / decision D1).
+
+    ONE WARNING DOES FIRE IN THE LIVE TREE AND IT IS A TRUE POSITIVE, NOT A CAVEAT. The (a) sweep reported exactly one id6: `y5od1h`, a cross-type claim between `plans/executed/20260901-lanectn-04-y5od1h-...ipd.md` (declares `- Id: y5od1h`) and `walkthroughs/20260906-lanectn-04-y5od1h-...walkthrough.md` (declares NO `- Id:`, carries `y5od1h` in its filename identity slot, and has NO typed reference field - only a prose `- Plan:` path). That is the p7dqwz shape D140 was written about, and `.aw/records/walkthroughs/README.md` states the rule and names `check.id6-identity-slot` as its enforcement. `aw check all` reports ZERO such findings. No record was edited or renamed; both halves are filed as backlog `mw0s1y` (the three offending records) and `e2j5w4` (the checker blindness).
+
+    READ-CONTRACT INVARIANCE: `--paths` and `--agent` stdout byte-identical on all four live selectors tested (V-02 paste), exit 0 unpiped, same rows in the same order.
+
+    BARE SUITE, BEFORE AND AFTER, with the delta stated rather than an absolute count. BEFORE (my own baseline, established at `00379f98` before any edit):
+
+        FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+        1 failed, 7811 passed, 3 skipped, 2 xfailed, 3 warnings in 108.20s (0:01:48)
+
+    AFTER:
+
+        FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+        1 failed, 7830 passed, 3 skipped, 2 xfailed, 3 warnings in 177.24s (0:02:57)
+
+    FAILURE-SET DELTA: AFTER minus BEFORE is EMPTY - the same single test, unrelated to this plan. It is ENVIRONMENTAL and proven so: the test asserts that a non-isolated turn carries no `OPENCODE_CONFIG_CONTENT` denial policy, and my own turn runs with that variable EXPORTED, so it leaks into the child env. Re-run with it cleared, the file is green: `env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py -o addopts="" -q` -> `43 passed in 4.68s`. The plan's authored baseline (`1 failed, 5648 passed`, failure `test_orchestrator_retirement`) and its review-time baseline (`2 failed, 5957 passed`) are both stale; +19 passed is this plan's new module.
+  - Result: pass
 
 ## Approval and execution gate
 
