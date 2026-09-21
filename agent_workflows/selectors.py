@@ -28,7 +28,16 @@ That order-of-magnitude shift is a SEMANTIC change (which dialects a selector un
 performance one, so it does not belong to a resolver-cost change. Research therefore stays on the
 filesystem scan, and the underlying dialect gap is tracked as its own backlog item rather than being
 silently "fixed" here. The same caution applies to the plans index: see the parity note on
-`_STATUS_RE` below, where the two readers provably disagree on 24 records."""
+`_STATUS_RE` below, where the two readers provably disagree on 24 records.
+
+THE CONTENT RULES READ THE METADATA REGION, NOT THE WHOLE BODY (IPD `76w6mq`). The `id6`, `setid`
+and `status` rules match only within a record's leading metadata region - the bullet block before
+the first `##` heading, or the leading `---` fence for a YAML-front-matter document - as computed by
+`metadata_region`. This is the ARTIFACTS-NOT-MENTIONS contract (see the precedence note below)
+applied to quoted METADATA specifically: a document that QUOTES an example `- Id: <id6>` block is
+discussing that id6, not claiming it, so it must not resolve as it. Unbounded, such a quotation
+made the REAL artifact unaddressable by every status verb via an id6 collision that `--force`
+explicitly could not override."""
 
 from __future__ import annotations
 
@@ -294,13 +303,34 @@ def record_dirs(repo_root: Path, record_type: str) -> List[Path]:
     return list(_record_dirs_cached(str(repo_root), record_type))
 
 
+# --- THE THREE CONTENT READERS ARE BOUNDED TO THE METADATA REGION (IPD `76w6mq`) ---------------
+#
+# All three consult `metadata_region(text)`, NOT the whole text, and the bounding is what makes a
+# quotation a quotation. Unbounded, ANY `- Id: <id6>` line anywhere in a document claimed that
+# document's identity, so a file QUOTING an example metadata block was read as ASSERTING the quoted
+# id6 - which collided with the real artifact and made it UNADDRESSABLE by every status verb, with
+# the refusal explicitly stating it was "not overridable by --force". The trigger was ordinary prose
+# (quoting the metadata format), so the documents most likely to break the tool were the specs and
+# research ABOUT `aw` itself.
+#
+# ALL THREE, not just id: measured before the fix, the two quoting research documents also reported
+# `- Status: reviewed` and `- Set: runflags` from the quoted block instead of their own YAML values,
+# which is the same defect producing a wrong `aw find <status>`/`aw find <setid>` answer rather than
+# a visible collision.
+#
+# WHAT "FIXED" LOOKS LIKE FOR A YAML-FENCED RECORD IS `None`, NOT THE DOCUMENT'S OWN VALUE, and an
+# executor expecting the latter will think this regressed. These patterns speak only the BULLET
+# dialect, and a YAML region contains no `^- Id:`/`^- Status:`/`^- Set:` lines at all, so a research
+# doc's three readers now return None. That stops the false claim without inventing a true one;
+# teaching the readers the YAML dialect is a separate change (plan `xo3244`), deliberately not made
+# here. See the FRONT-MATTER DIALECT note in the module docstring.
 def _read_id(text: str) -> str | None:
-    m = _ID_RE.search(text)
+    m = _ID_RE.search(metadata_region(text))
     return m.group(1) if m else None
 
 
 def _read_status(text: str) -> str | None:
-    m = _STATUS_RE.search(text)
+    m = _STATUS_RE.search(metadata_region(text))
     return m.group(1) if m else None
 
 
@@ -328,27 +358,43 @@ def _read_status(text: str) -> str | None:
 # therefore consistent with the rest of the toolkit, and it fails safe: a missed `- Status:` read
 # silently degrades a runner to a directory-derived status (`oc_runipd.parse_plan_file`), which
 # is precisely the class of silent wrongness this Set exists to remove.
+#
+# THIS PAIR IS REGION-BOUNDED TOO, AND THAT IS THE POINT OF CONSOLIDATING RATHER THAN FIXING ONE
+# SIDE (IPD `76w6mq` E-03, OQ-02). What is shared is the metadata-region BOUND; what stays distinct
+# is the WHITESPACE tolerance above. Bounding only the strict internal pair would deliberately
+# reinstate, in this very module, the reader DRIFT whose prevention is the documented reason this
+# public pair exists at all: both host runners previously carried private `_read_id`/`_read_status`
+# copies that diverged. A driver reads PLAN front matter, where the region boundary is unambiguous
+# (a bullet block before `## Workflow history`), so bounding is behavior-preserving for every real
+# driver input; measured over all 1614 tracked records, exactly ONE file's public-reader answer
+# changes, and it is one of the two quoting research documents this plan exists to fix.
+#
+# The header-exhaustion rule in `metadata_region` matters HERE in particular: a driver reading a
+# long plan whose metadata block outruns one read chunk must not lose its region to a missing `##`,
+# which is why exhaustion means "the region continues" and never an empty region.
 _FRONT_MATTER_ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
 _FRONT_MATTER_STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
 
 
 def read_front_matter_id(text: str) -> str | None:
-    """Return the `- Id:` id6 from a record's front matter, or ``None``.
+    """Return the `- Id:` id6 from a record's METADATA REGION, or ``None``.
 
     Tolerates any whitespace after the leading dash (see the note above). For SELECTOR
     matching use the strict internal reader instead, so `aw find` behavior is unchanged.
+    Bounded to `metadata_region`, so a QUOTED `- Id:` in a body is not read as a declaration.
     """
-    m = _FRONT_MATTER_ID_RE.search(text)
+    m = _FRONT_MATTER_ID_RE.search(metadata_region(text))
     return m.group(1) if m else None
 
 
 def read_front_matter_status(text: str) -> str | None:
-    """Return the single-token `- Status:` value from a record's front matter, or ``None``.
+    """Return the single-token `- Status:` value from a record's METADATA REGION, or ``None``.
 
     A multi-word status (e.g. ``EXECUTED (approved ...)``) yields ``None``, matching the
     internal reader's `(\\S+)` contract; only the leading whitespace tolerance differs.
+    Bounded to `metadata_region`, like its `read_front_matter_id` twin.
     """
-    m = _FRONT_MATTER_STATUS_RE.search(text)
+    m = _FRONT_MATTER_STATUS_RE.search(metadata_region(text))
     return m.group(1) if m else None
 
 
@@ -363,7 +409,7 @@ def read_front_matter_status(text: str) -> str | None:
 # the `_STATUS_RE` parity constraint above, so the fix belongs at plan `3i6rso`'s report-only
 # comparison site, where it changes no selector answer, and NOT here.
 def _read_setid(text: str) -> str | None:
-    m = _SET_RE.search(text)
+    m = _SET_RE.search(metadata_region(text))
     if not m:
         return None
     # The set-id is the first whitespace token before any '(' (mirrors plans_index.set_terse_id).
@@ -413,6 +459,59 @@ def _metadata_region_complete(chunk: str) -> bool:
     """
 
     return _METADATA_END_RE.search(chunk) is not None
+
+
+# A YAML-fenced document's metadata region is its LEADING `---` block, not "everything before the
+# first `##`". The distinction is not cosmetic: measured on this corpus, exactly one record
+# (`effzzi`, a roadmap) opens with a YAML fence and then carries `- Key: value` BODY PROSE bullets
+# under its H1 (`- Plans: one orchestrator plus eight children`, `- Authoring state: ...`) before
+# its first `## ` heading. Those bullets are narrative, not metadata, and the fence is the record's
+# real declaration site, so the fence is where the region ends.
+_YAML_FENCE_OPEN_RE = re.compile(r"\A---[ \t]*\r?\n")
+_YAML_FENCE_CLOSE_RE = re.compile(r"(?m)^---[ \t]*\r?$")
+
+
+def metadata_region(text: str) -> str:
+    """Return the leading METADATA REGION of a record: where it DECLARES its own identity.
+
+    This is the ONE boundary every identity/status/setid reader in the toolkit is bounded to, so a
+    document that merely QUOTES a metadata block (which is ordinary, legitimate prose in a
+    repository that documents its own metadata format) cannot be read as ASSERTING the quoted
+    values. Identity comes from where an artifact declares it, not from anywhere the pattern
+    happens to match.
+
+    Two shapes, because both are present in the corpus:
+
+    * BULLET front matter (plans, specs, backlog, releases, reviews, prompts, walkthroughs): the
+      region is everything before the first ``##``+ heading. A leading ``# `` H1 title does NOT
+      end it - the boundary is ``##``, not ``#`` - so a title-then-bullets file keeps its whole
+      bullet block.
+    * YAML front matter (research, roadmaps): the region is the leading ``---`` fence block ONLY,
+      ending at its closing fence. See the note above `_YAML_FENCE_OPEN_RE` for the measured record
+      that makes this stricter bound the correct one rather than a refinement.
+
+    HEADER EXHAUSTION MEANS "THE REGION CONTINUES", NEVER AN ERROR AND NEVER AN EMPTY REGION, and
+    this is the case most likely to be got wrong because it is COMMON rather than exotic. Callers
+    pass a BOUNDED header read (`_read_header`), not a whole file, so the terminator may simply lie
+    past the end of the window: measured on this repo, 25 of 1614 tracked records present no ``##``
+    heading inside that window at all. For them "everything before the first ``##``" legitimately
+    means the WHOLE window, and a helper that returned empty, raised, or refused would break
+    identity extraction for 25 records while fixing 2. The same rule covers a truncated YAML fence:
+    an unterminated leading fence yields the whole input.
+    """
+
+    if not text:
+        return text or ""
+    m_open = _YAML_FENCE_OPEN_RE.match(text)
+    if m_open is not None:
+        m_close = _YAML_FENCE_CLOSE_RE.search(text, m_open.end())
+        if m_close is None:
+            return text  # fence unterminated within the input -> the region continues
+        return text[: m_close.end()]
+    m_end = _METADATA_END_RE.search(text)
+    if m_end is None:
+        return text  # no `##` in the input -> the region continues (the common 25-record case)
+    return text[: m_end.start()]
 
 
 def _read_header(p: Path) -> str | None:

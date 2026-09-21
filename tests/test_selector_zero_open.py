@@ -517,6 +517,76 @@ class RegexShapeTests(unittest.TestCase):
         self.assertIn(r"(.+?)", plans_index._META_RE["Status"].pattern)
 
 
+class ContentRulesReadOnlyTheMetadataRegionTests(_Fixture):
+    """IPD `76w6mq`: the three CONTENT rules match only inside the metadata region.
+
+    This is the ARTIFACTS-NOT-REFERENCES contract (pinned for filenames by
+    `tests/test_cli_find.py::ArtifactsNotReferencesTests`) applied to quoted METADATA specifically.
+    It belongs in THIS module because it is a statement about the resolver's dialect and precedence:
+    `find` must return the record that IS the selector, never one that merely QUOTES it. The region
+    helper's own shape units live in `tests/test_id_metadata_region.py`.
+
+    Unbounded, a quotation was indistinguishable from a declaration, so a document discussing
+    another artifact's metadata became a second claimant of its id6 and the REAL artifact could no
+    longer be addressed by any status verb.
+    """
+
+    def _add_quoting_doc(self) -> Path:
+        """A record whose BODY quotes another record's whole metadata block."""
+        p = self.pend / "20260101-demo-99-bb0099-a-doc-that-quotes-metadata.ipd.md"
+        p.write_text(
+            "# IPD: a plan that documents the metadata format\n\n"
+            "- Id: bb0099\n- Status: to-review\n- Set: demo\n\n"
+            "## Goal\n\nA conformant metadata block looks like this:\n\n"
+            f"- Id: {self.target_id6}\n- Status: approved\n- Set: quoted\n",
+            encoding="utf-8",
+        )
+        return p
+
+    def test_a_quoted_id6_resolves_to_the_declaring_record_only(self) -> None:
+        self._add_quoting_doc()
+        res = selectors.resolve(self.root, "plans", self.target_id6)
+        self.assertEqual(selectors.MATCH_ID6, res.kind)
+        self.assertEqual([self.target.resolve()], [p.resolve() for p in res.paths])
+
+    def test_a_quoting_document_is_not_an_id6_collision(self) -> None:
+        """The measured live symptom: a collision `--force` explicitly could not override."""
+        self._add_quoting_doc()
+        paths, err = selectors.resolve_for_mutation(self.root, "plans", self.target_id6)
+        self.assertIsNone(err)
+        self.assertEqual([self.target.resolve()], [p.resolve() for p in paths])
+
+    def test_the_quoting_document_still_resolves_by_its_own_identity(self) -> None:
+        self._add_quoting_doc()
+        res = selectors.resolve(self.root, "plans", "bb0099")
+        self.assertEqual(selectors.MATCH_ID6, res.kind)
+        self.assertEqual(1, len(res.paths))
+
+    def test_a_quoted_setid_does_not_widen_a_set_query(self) -> None:
+        """`- Set:` shares the bound, so a quoted Set line adds no phantom member."""
+        self._add_quoting_doc()
+        self.assertEqual(
+            [], list(selectors.resolve(self.root, "plans", "quoted").paths)
+        )
+        self.assertEqual(
+            self.N_PLANS + 1, len(selectors.resolve(self.root, "plans", "demo").paths)
+        )
+
+    def test_the_content_rules_are_bounded_while_filename_rules_are_not(self) -> None:
+        """A body token must not resolve by CONTENT, but a filename token still may.
+
+        The point of the pairing: bounding the content rules must not silently narrow the LATER
+        filename rules, so this asserts the boundary rather than the absence of matching.
+        """
+        p = self._add_quoting_doc()
+        self.assertEqual(
+            [], list(selectors.resolve(self.root, "plans", "quoted").paths)
+        )
+        res = selectors.resolve(self.root, "plans", "quotes-metadata")
+        self.assertEqual(selectors.MATCH_SUBSTRING, res.kind)
+        self.assertEqual([p.resolve()], [x.resolve() for x in res.paths])
+
+
 class _SanityOnRealRepoTests(unittest.TestCase):
     """A light check against the ACTUAL repository tree when it is present."""
 

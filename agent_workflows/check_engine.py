@@ -438,6 +438,36 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.identity-absent-from-name": RuleSpec(
         "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-09"
     ),
+    # idcapture Order 01 (`76w6mq`) E-05: a metadata-shaped `- Id: <id6>` line found OUTSIDE a
+    # record's METADATA REGION. The companion to bounding the identity readers to that region
+    # (`selectors.metadata_region`): bounding STOPS the false claim, and this rule SURFACES the
+    # ambiguity instead of swallowing it silently (maintainer ruling 2026-09-05, "fix AND warn").
+    #
+    # `info`, AND THIS IS A MEASUREMENT RATHER THAN A PREFERENCE. The obvious choice is `warning`,
+    # reasoning that the repository must not FAIL its own check for legitimately documenting its own
+    # metadata format - and that reasoning is right while the label is wrong, because `warning` fails
+    # the gate exactly as `error` does. Verified by driving `artifact_core.drift_exit_code` with each
+    # value: `error` -> 1, `warning` -> 1, `info` -> 0, empty -> 1 (`artifact_core.py`, whose
+    # docstring states only `info` is advisory). So registering `warning` would make `aw check` exit
+    # nonzero on documents whose content is CORRECT, which is the failure mode backlog `gjadwm`
+    # records as training agents to bypass a gate. The two shipped precedents for this exact
+    # detect-and-nudge purpose are `check.ipd-draft-ready-to-review` and `check.stale-index-missing`,
+    # both `info`. Registration is NOT optional bookkeeping either: an unregistered id falls through
+    # to `_DEFAULT_RULESPEC` at severity `error`, so omitting this entry would fail the tree.
+    #
+    # I-09, joining the identity family (`check.id6-collision`, `check.id6-identity-slot`,
+    # `check.identity-absent-from-name`): the finding is about WHERE a record's identity is declared.
+    # Deterministic: a literal anchored-pattern position test against the region boundary, no prose
+    # is interpreted and nothing is inferred.
+    #
+    # WHAT A FINDING MEANS, since the two cases differ and the rule cannot yet tell them apart: an
+    # out-of-region `- Id:` is either a QUOTATION (harmless, and the reason this is advisory) or a
+    # MISPLACED DECLARATION (a real defect whose identity no reader will ever see). Promoting the
+    # severity would force the second to be fixed but would fail the tree for the first, so that
+    # remains a future choice on a rule that by then has a clean corpus, not a change to make here.
+    "check.id6-outside-metadata-region": RuleSpec(
+        "info", ASSURANCE_GUIDANCE, DET_DETERMINISTIC, "I-09"
+    ),
 }
 
 # Conservative default for an unregistered rule id: treat it as an error-severity, repository-class,
@@ -922,6 +952,37 @@ _SET_LINE_RE = _re.compile(r"(?m)^- Set:\s*(.+?)\s*$")
 _HHMM_RE = _re.compile(r"\A\d{4}\Z")
 _HAS_DIGIT_RE = _re.compile(r"\d")
 
+# idcapture Order 01 (`76w6mq`): the CHECKER's identity readers are bounded to the same METADATA
+# REGION the selector's are, via the ONE shared helper `selectors.metadata_region`, so a quoted
+# example block cannot be read as a declaration on EITHER surface.
+#
+# THIS MODULE HAD ITS OWN COPY OF THE DEFECT, and that is why bounding only the selector would have
+# been a half-fix. `_ID_LINE_RE` / `_SET_LINE_RE` above are byte-identical twins of
+# `selectors._ID_RE` / `selectors._SET_RE`, and `check_collisions` applied them to a WHOLE FILE
+# BODY, so the two research documents quoting one `- Id: uyeko5` block were reported as a genuine
+# `check.id6-collision` with each other. Measured before this change: 17 id6-collision findings, of
+# which those 2 were manufactured by the quotation. Fixing only `selectors` would have left `aw
+# check` asserting a collision that no verb could any longer see - two surfaces disagreeing about
+# what identity IS, which is the precise defect shape `check_collisions`'s own docstring records.
+#
+# ONE helper, imported rather than re-derived: a second local region parser is how the reader drift
+# documented at `selectors.read_front_matter_id` happened before.
+
+
+def _metadata_region(text: str) -> str:
+    """This module's accessor for the shared metadata-region boundary (`selectors`-owned)."""
+
+    from agent_workflows import selectors as _sel
+
+    return _sel.metadata_region(text)
+
+
+def _read_declared_id(text: str) -> "str | None":
+    """The record's DECLARED `- Id:` id6, read only from its metadata region, or None."""
+
+    m = _ID_LINE_RE.search(_metadata_region(text))
+    return m.group(1) if m else None
+
 
 def _identity_slot_token(filename: str) -> "str | None":
     """Return the raw ``<id6>`` token in a filename's identity slot, or None.
@@ -948,8 +1009,11 @@ def _is_real_id6(token: str, declared_ids: set) -> bool:
 
 def _parse_setid(text: str):
     """Return (setid, descriptive-or-None) from a `- Set: <terse> (<descriptive>)` line, or
-    (None, None). The setid is the first whitespace token before any '('."""
-    m = _SET_LINE_RE.search(text)
+    (None, None). The setid is the first whitespace token before any '('.
+
+    Bounded to the record's METADATA REGION (IPD `76w6mq`), like its `- Id:` sibling above, so a
+    `- Set:` line inside quoted example prose is not read as this record's own Set declaration."""
+    m = _SET_LINE_RE.search(_metadata_region(text))
     if not m:
         return None, None
     raw = m.group(1).strip()
@@ -1045,8 +1109,10 @@ def check_collisions(
                 text = p.read_text(encoding="utf-8")
             except OSError:
                 continue
-            m = _ID_LINE_RE.search(text)
-            declared_id = m.group(1) if m else None
+            # IPD `76w6mq`: bounded to the metadata region, so a QUOTED example `- Id:` block is
+            # not counted as this file DECLARING that id6 (which manufactured 2 of the 17 findings
+            # measured before the fix, between two research docs quoting one plan's metadata).
+            declared_id = _read_declared_id(text)
             slot_id6 = _identity_slot_token(p.name)
             # Is this file one the CALLER's liveness setting would have shown? With
             # include_retired=True the answer is always yes and `is_retired` (which reads the file) is
@@ -1095,6 +1161,80 @@ def check_collisions(
                     seen_sets[set_key] = (desc, str(p))
 
     drift.extend(_check_identity_slots(records))
+    return drift
+
+
+def check_id_outside_metadata_region(
+    repo_root: Path,
+    include_untracked: bool = False,
+    include_retired: bool = False,
+) -> List[_core.Drift]:
+    """Report a metadata-shaped ``- Id: <id6>`` line found OUTSIDE a record's METADATA REGION.
+
+    THE COMPANION TO BOUNDING THE READERS, AND THE REASON BOTH SHIP TOGETHER (IPD ``76w6mq`` E-05,
+    maintainer ruling 2026-09-05 "fix AND warn"). Bounding identity extraction to the metadata region
+    stops a quoted example block from CLAIMING an id6; on its own, though, it also makes such a line
+    invisible. That silence is only correct for one of the two things an out-of-region ``- Id:`` can
+    be:
+
+    * a QUOTATION - legitimate cited content, which a repository documenting its own metadata format
+      produces by design, and which must NOT be mangled (the fix belongs in the reader, never in the
+      document); or
+    * a MISPLACED DECLARATION - a record whose real identity sits below its first ``##`` heading,
+      where no reader will ever look, so the record is effectively identity-less.
+
+    This rule cannot yet tell them apart, which is exactly why it is ``info``-severity: it makes the
+    ambiguity VISIBLE and COUNTABLE without failing a tree for correct behavior. See the registry
+    entry for the measurement behind that severity (``warning`` fails the gate; only ``info`` does
+    not).
+
+    IT FIRES ON THE SHAPE, NEEDING NO COLLIDING COUNTERPART, which is what makes it strictly stronger
+    than the collision rules for this defect class. ``check.id6-collision`` can only speak when TWO
+    sides are scannable, so a lone document quoting an id6 whose owner is retired, or quoting an id6
+    that exists nowhere at all, produces no collision finding; this rule still reports it.
+    """
+
+    repo_root = Path(repo_root)
+    drift: List[_core.Drift] = []
+    for record_type in SUPPORTED:
+        for p in _iter_type_files(
+            repo_root,
+            record_type,
+            include_untracked=include_untracked,
+            include_retired=include_retired,
+        ):
+            try:
+                text = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            region_len = len(_metadata_region(text))
+            for m in _ID_LINE_RE.finditer(text):
+                if m.start() < region_len:
+                    continue
+                line_no = text.count("\n", 0, m.start()) + 1
+                drift.append(
+                    enrich_drift(
+                        _core.Drift(
+                            str(p),
+                            "check.id6-outside-metadata-region",
+                            f"`- Id: {m.group(1)}` at line {line_no} is outside the metadata region",
+                        ),
+                        observed=(
+                            f"a metadata-shaped `- Id: {m.group(1)}` line appears at line {line_no}, "
+                            "after this record's metadata region ends"
+                        ),
+                        required=(
+                            "a record declares its identity ONLY in its metadata region (the bullet "
+                            "block before the first `##` heading, or the leading `---` fence), so an "
+                            "`- Id:` outside it is read by NO identity reader"
+                        ),
+                        recovery=(
+                            "if this is a QUOTED example, no action is needed (it is correctly "
+                            "ignored); if it is this record's real identity, move it into the "
+                            "metadata region"
+                        ),
+                    )
+                )
     return drift
 
 
@@ -2513,6 +2653,23 @@ def check_types(
             )
         except Exception:
             pass
+        # idcapture Order 01 (`76w6mq`) E-05: a metadata-shaped `- Id:` outside the metadata region.
+        # Rides THIS once-per-full-sweep seam beside its identity-family neighbours above, for the
+        # same two reasons they do: it is CROSS-TREE (every record type at once), so fanning it out
+        # over `check_type` would emit each finding once per type; and the full sweep is the surface
+        # agents and CI already run, which is what lets the count be WATCHED rather than merely
+        # available behind a flag nobody passes. `info`-severity, so it cannot turn a green tree red.
+        # Own try/except, per the established pattern here, so a failure cannot suppress another rule.
+        try:
+            drift.extend(
+                check_id_outside_metadata_region(
+                    repo_root,
+                    include_untracked=include_untracked,
+                    include_retired=include_retired,
+                )
+            )
+        except Exception:
+            pass
     return drift
 
 
@@ -3333,9 +3490,16 @@ def evaluate_ipd_dependencies(
     for p, text in all_plans:
         ps = str(p)
         plan_text[ps] = text
-        mid = _ID_LINE_RE.search(text)
-        if mid:
-            own_id[ps] = mid.group(1)
+        # IPD `76w6mq`: the owner id6 is read from the plan's METADATA REGION, the same bound every
+        # other identity reader uses, so a plan that QUOTES another plan's metadata block cannot be
+        # entered into the dependency graph under the quoted id6. Measured at the time of the change:
+        # no plan in the corpus changes its graph identity, so this is a fail-safe alignment rather
+        # than a behavior change - which is exactly why it should be made now, before a plan
+        # discussing `Item-Dependencies` (a normal thing for a plan about the graph to do) acquires a
+        # quoted `- Id:` and silently takes over another plan's node.
+        mid_declared = _read_declared_id(text)
+        if mid_declared:
+            own_id[ps] = mid_declared
         mdep = _ITEM_DEPENDENCIES_RE.search(text)
         dep_value[ps] = mdep.group(1).strip() if mdep else None
 
