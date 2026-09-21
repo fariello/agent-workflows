@@ -132,18 +132,38 @@ class CheckRecipeUnitTests(unittest.TestCase):
         self.assertEqual(rec["outcome"], "conforms")
 
     def test_check_valid_plan_clean_state(self):
+        # THIS FIXTURE IS NOW ACTUALLY CONFORMANT, WHICH IT PREVIOUSLY WAS NOT (lintreach `k9awrq`).
+        # The test's own assertion message says "a conformant plan must trip no real rule", but the
+        # plan it wrote was not a conformant plan: `- Status: pending` is not in the readiness enum at
+        # all, and ten required H2 sections were absent, so `aw ipd lint --phase author` reported 12
+        # diagnostics on it. Nothing caught that, because `aw check plans` did not run the linter -
+        # which is precisely the defect `check.ipd-lint-diagnostic` exists to close, and this fixture
+        # was one of its first finds. The body below is the SAME plan with a valid `Status`, the
+        # required sections present, and a `Scope-Paths` line; every assertion in this test is
+        # unchanged, because a genuinely conformant plan trips no real rule exactly as the test always
+        # claimed.
+        #
+        # `to-review` RATHER THAN `draft`, deliberately: this fixture is placeholder-free, so `draft`
+        # would (correctly) trip the pre-existing `check.ipd-draft-ready-to-review` advisory and add a
+        # SECOND finding, which would have forced a change to the assertion below. `to-review` is also
+        # the status the managed contract says a completed IPD is born with, so it is the honest state
+        # for a fixture that is complete.
         plan_content = """# IPD: Test Valid Plan
 
 - Date: 2026-08-22
 - Kind: child
 - Concern: Test verification.
 - Scope: Test only.
-- Status: pending
+- Scope-Paths: x.py
+- Status: to-review
 - Set: testset
 - Order: 1
 - Highest E allocated: 01
 - Author: Test
 - Id: abc123
+
+## Workflow history
+- 2026-08-22 to-review (test): created.
 
 ## Goal
 Verify clean check.
@@ -154,11 +174,44 @@ Verify clean check.
   - Expected outcome: done.
   - Execution state: pending
 
+## Project conventions discovered (Step 0)
+- none
+
+## Findings
+
+| Id | Severity | Area | What | Evidence |
+|---|---|---|---|---|
+| F-1 | LOW | test | nothing of note | this fixture |
+
+## Proposed changes (ordered, validatable)
+1. Do something.
+
+## Deferred / out of scope (with reason)
+- nothing deferred.
+  - Carrier-Declined: a fixture has no outstanding obligations.
+
+## Scope check
+- Over-scope: none
+- Under-scope: none
+
+## Required tests / validation
+This test.
+
+## Spec / documentation sync
+none
+
+## Open questions
+none
+
 ## Validation and cross-check (verify before reporting done)
 - [ ] V-01 validates E-01
   - Required evidence: evidence.
   - Observed evidence:
   - Result: pending
+
+## Approval and execution gate
+- Size assessment: standard
+- Cohesion rationale: not required
 """
         plan_path = (
             self.root

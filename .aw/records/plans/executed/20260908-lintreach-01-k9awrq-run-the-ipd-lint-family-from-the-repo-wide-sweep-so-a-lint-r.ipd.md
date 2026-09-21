@@ -11,7 +11,7 @@
 - Scope: Make the `IPD-*` family reachable from `aw check plans` at the `author` checkpoint, so CI and any agent running the sweep sees what `aw ipd lint` would refuse. SEVERITY CORRECTED AT REVIEW: introduce it ADVISORY (warning), not blocking, because the author-phase corpus is no longer clean (16 `IPD-Q501` across 10 files) and every offender is a legitimately-reviewed plan waiting on a maintainer answer, so a blocking rule would fail one agent's CI on another agent's pending human decision. REACHABILITY is the deliverable; blocking severity is a later, separately-justified step (OQ-04). The PHASE choice (`author`) is settled by measurement and is not re-litigated. EXCLUDES a pre-commit hook (the item's option 3, deferred with a reason), any change to lint RULES themselves (in particular do NOT weaken `IPD-Q501`), any edit to the 10 offending plans, and any change to what `aw ipd lint` reports per file.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/ipd_lint.py, tests/test_check_engine_lint_reach.py, tests/test_ipd_lint.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Blocks-Release: next
 - Readiness: go-pending-approval
 - Set: lintreach
@@ -19,10 +19,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: k9awrq
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: q0h9ls
 
 ## Workflow history
+- 2026-09-21 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: k9awrq verified (set lintreach, attempt 1). [Scope reconciliation - out-of-scope tests/test_check_engine.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_check_recipe.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_ipd_dependency_check.py: changed by the plan's approved execution (auto-reconciled by aw oc run); in-scope-unmodified agent_workflows/ipd_lint.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-18 approved (aw set): status set to approved
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-10 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-901 (BLOCKER: premise broke, author-phase corpus no longer clean) through PR-905 all FIXED. Severity inverted to advisory. Readiness go-pending-approval.
@@ -49,7 +49,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: confirm the numbers before changing a gate
 
-- [ ] E-01 RE-MEASURE BOTH CHECKPOINTS ACROSS THE WHOLE CORPUS AND WRITE THE COUNTS DOWN, before wiring anything. This plan's central claim is that an `author`-phase sweep is free today, and that claim is the difference between a blocking rule and a mass failure.
+- [x] E-01 RE-MEASURE BOTH CHECKPOINTS ACROSS THE WHOLE CORPUS AND WRITE THE COUNTS DOWN, before wiring anything. This plan's central claim is that an `author`-phase sweep is free today, and that claim is the difference between a blocking rule and a mass failure.
   MEASURE BY CALLING THE FUNCTION, not by parsing CLI text: `ipd_lint.lint_file(path, checkpoint="author")` over every `*.ipd.md` under `.aw/records/plans`, counting diagnostics by `Diagnostic.code`. Note the parameter is `checkpoint=`, NOT `phase=` (the CLI flag is `--phase`, the API keyword is `checkpoint`); a call using the wrong keyword raises and, if wrapped in a broad `except`, silently reports zero for every file, which looks exactly like success.
   THE PREMISE HAS ALREADY BROKEN. DO NOT INTRODUCE THIS BLOCKING (review PR-901). The authored baseline was 561 plans, `author` -> 0 diagnostics. RE-MEASURED AT REVIEW HEAD `f3f87b90`: 608 plans, `author` -> **16 diagnostics across 10 files, ALL `IPD-Q501`**, and `lint_file` returns `disposition: error` for each, so `aw ipd lint --phase author` already exits 1 on them (verified). `pre-transition` -> 1850 across 104 files (1834 `IPD-S404` + the same 16). Every one of the 10 offending files is visible to a check-style sweep (`_iter_type_files(repo,"plans")` returns 104 files and all 10 are in it), so a blocking introduction would fail CI on day one.
   AND THE CAUSE MATTERS MORE THAN THE COUNT, because it is not a defect to triage. `IPD-Q501`'s blocking-open-question form landed in commit `ec865c2d` at 2026-09-08 21:11, roughly ELEVEN HOURS AFTER this plan was committed (`25f56bc2`, 10:16), so the measurement was honest when taken and was invalidated by a rule that did not yet exist. The 10 files are legitimately `reviewed` plans carrying `Blocking: yes` / `Status: open` questions that are correctly WAITING ON THE MAINTAINER (`zexed1`, `xo3244`, `yaxr4i`, `wfjsp4`, `yku4ga`, `drzbs9`, `iuxtjy`, `b5sfwm`, `xipfy1`, `mp289j`). They are not broken; they are mid-flight and blocked on a human.
@@ -58,11 +58,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   RE-MEASURE ANYWAY AND PASTE IT, since the corpus moves daily and review's numbers will themselves be stale. Report per code, not just a total: `IPD-S404` at `pre-transition` is the correct state of an unexecuted plan and is a different fact from `IPD-Q501` at `author`.
   - Depends on: none
   - Expected outcome: measured per-checkpoint counts at your HEAD with the codes named and each offending file listed; a stated decision to introduce the rule ADVISORY (warning) unless the author-phase count is genuinely zero; no plan file edited.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: wire the family into the sweep
 
-- [ ] E-02 CALL `ipd_lint.lint_file` FROM `check_engine`'s PLAN SWEEP AT THE `author` CHECKPOINT, and translate each `Diagnostic` into the `Drift` shape the sweep already emits.
+- [x] E-02 CALL `ipd_lint.lint_file` FROM `check_engine`'s PLAN SWEEP AT THE `author` CHECKPOINT, and translate each `Diagnostic` into the `Drift` shape the sweep already emits.
   THE IMPORT DIRECTION IS THE FIRST THING TO VERIFY, because it decides whether this is a two-line change or a redesign. `ipd_lint` imports `ipd_schema` and `term` plus stdlib; establish whether `check_engine` importing `ipd_lint` creates a cycle, and if it does, import lazily inside the function rather than restructuring either module. There is precedent for the lazy-import pattern in this file: `check_scope_drift` imports `ipd_lifecycle` inside the function body specifically to avoid a cycle.
   DO NOT FORK A SECOND LINT IMPLEMENTATION. The whole value of this change is that the sweep and the per-file verb agree; re-implementing even one rule inside `check_engine` recreates the drift this plan closes. `evaluate_review_finding_escalation` is the in-repo precedent for the right shape: its docstring states that `aw check` and `aw ipd lint` "both call THIS function, so the sweep and the checkpoint gate cannot drift apart in what they consider escalated". Follow that model in the other direction.
   MAP THE CODES INTO THE RULE TABLE DELIBERATELY. `check_engine` assigns severity, assurance class and determinism per rule code via `RuleSpec`; an emitted code with no table entry carries no contract. Decide whether every `IPD-*` code gets an entry or whether they share one umbrella `check.*` code carrying the underlying `IPD-*` in its detail, and say why. The umbrella is likely correct (the `IPD-*` family is large and owned by `ipd_lint`, not by the check catalog), but it must be a decision rather than an accident.
@@ -70,26 +70,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   PRESERVE THE PER-FILE VERB'S OUTPUT EXACTLY. `aw ipd lint` is what an author and the `begin` gate consume; this plan adds a READER of the same rules and must not change what that verb reports.
   - Depends on: E-01
   - Expected outcome: the sweep runs the real `lint_file` at `author`, no rule is re-implemented, every emitted code carries a registered contract, and `aw ipd lint`'s own output is byte-unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 SCOPE THE SWEEP TO THE FILES IT CAN HONESTLY JUDGE, and be explicit about which those are. The checkpoint is not a free parameter per file: `author` is the only phase valid for an arbitrary pending plan, which the item states and the measurement confirms.
+- [x] E-03 SCOPE THE SWEEP TO THE FILES IT CAN HONESTLY JUDGE, and be explicit about which those are. The checkpoint is not a free parameter per file: `author` is the only phase valid for an arbitrary pending plan, which the item states and the measurement confirms.
   DO NOT LINT A TERMINAL PLAN AT `pre-transition`, and do not lint one at `author` if that produces noise: a plan in `executed/` has already passed its gate, its body is immutable by policy, and 1261 of the measured diagnostics come from applying the wrong phase to plans that simply have not executed. Establish what the sweep does for each disposition and record it.
   MIND THE RETIRED-PATH FILTER, which has bitten a sibling rule measurably. `_iter_type_files` excludes retired paths unless `include_retired=True`, and `executed/` counts as retired, which is why `aw check all` reported zero id6-collisions while `aw doctor` reported one. Decide deliberately whether the lint sweep sees terminal plans, and make `aw check` and `aw doctor` AGREE, since `doctor` passes `include_retired=True` unconditionally and would otherwise lint a different set than `check`.
   - Depends on: E-02
   - Expected outcome: a recorded, tested decision about which dispositions the lint sweep covers, with `aw check` and `aw doctor` covering the same set.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it catches the motivating case and costs nothing
 
-- [ ] E-04 PROVE THE MOTIVATING DEFECT IS NOW CAUGHT BY THE SWEEP, using the item's own reproduction, from a FIXTURE rather than the live tree.
+- [x] E-04 PROVE THE MOTIVATING DEFECT IS NOW CAUGHT BY THE SWEEP, using the item's own reproduction, from a FIXTURE rather than the live tree.
   THE REPRODUCTION, which this graduation ran and which the plan requires re-running: scaffold a plan, inject `- Readiness: go-pending-approval` with a history containing no review verdict, then assert `aw check plans` REPORTS it. Before this plan, `aw ipd lint --phase author` reported `IPD-M107` and `aw check plans --agent` reported nothing; after, both must report.
   ASSERT THE BEFORE STATE TOO, not only the after. A test that only checks the fixed behavior would pass even if the wiring were inverted; the contrast is the evidence.
   USE A FIXTURE, NEVER A TRACKED FILE. Injecting a fabricated `Readiness` into a real tracked plan would commit a forged attestation if anything went wrong, and the corpus guard in `tests/test_ipd_lint.py` would (correctly) fail. Build the plan in a temporary directory.
   - Depends on: E-03
   - Expected outcome: a fixture test asserting the sweep now reports the fabricated-`Readiness` case, with the pre-change silence demonstrated for contrast.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE THE SWEEP'S EXISTING VERDICT DID NOT MOVE, which is what makes this safe to land while other work is in flight.
+- [x] E-05 PROVE THE SWEEP'S EXISTING VERDICT DID NOT MOVE, which is what makes this safe to land while other work is in flight.
   THE EXPECTED RESULT IS NO LONGER ZERO, AND EXPECTING ZERO WOULD MAKE THIS ITEM UNSATISFIABLE (review PR-901). Review measured 16 `author`-phase diagnostics across 10 tracked plans, all `IPD-Q501` on legitimately-reviewed plans awaiting maintainer answers. So the correct expectation is: the new rule reports EXACTLY those (re-measured at your HEAD, listed by file), every OTHER rule's count is unchanged, and the EXIT CODE of `aw check plans` is unchanged from before your change. That last one is the real no-regression criterion now, and it is what the advisory-severity decision must actually deliver: paste the exit code before and after, measured unpiped.
   DO NOT FIX, EDIT, OR TRIAGE THE OFFENDING PLANS. They belong to other agents and their questions are the maintainer's to answer; report the list and stop. Equally, do NOT weaken `IPD-Q501` or filter its code out of the sweep to make the number zero: suppressing the one rule that is currently firing would defeat the purpose of adding reachability at all, and would silently re-open the gap the askme work closed. If your wiring reports something OTHER than those `IPD-Q501` findings, that is either a genuinely new defect (report it) or a wiring bug (fix that); distinguish the two explicitly.
   COMPARE PER RULE, NEVER BY TOTAL. `aw check all` reports 98 findings at HEAD across rules this plan does not touch, and several of those counts drift for unrelated reasons (`check.scope-drift` moves with live receipts; `check.lifecycle-transition-invalid` grows whenever any plan gains a history line). A total comparison would be unreadable.
@@ -97,7 +97,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   RUN THE SUITE BARE and judge on the DELTA of failing NODE IDS. THE AUTHORED BASELINE IS WRONG IN BOTH HALVES (review PR-903). Re-measured at HEAD `f3f87b90`: `2 failed, 5957 passed, 3 skipped, 2 xfailed`, and the named `tests/test_orchestrator_retirement.py` PASSES (`112 passed` in isolation). The two real failures are `tests/test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose`, caused by the GITIGNORED `opencode-recovery/` tree of another party's session transcripts (`.gitignore:49`), and `tests/test_runner_backlog_close.py::ShutdownReportOnInterrupt::test_sigint_produces_the_report_and_exits_130`, which passes in isolation (`47 passed`) and fails on a 30-second subprocess timeout under `-n auto`, so it is load-sensitive. Both are PRE-EXISTING and unrelated to this plan. DO NOT delete, move, or clean `opencode-recovery/` to green the suite; it is another party's work. Criterion: AFTER minus BEFORE is EMPTY by node id, never an absolute count.
   - Depends on: E-04
   - Expected outcome: zero new findings on tracked plans with any exception explained and not silently fixed; per-rule comparison stated; the added wall-clock cost measured; bare-suite delta empty.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -184,6 +184,13 @@ No spec change is expected: the `IPD-*` family and the checkpoint vocabulary are
 
 The corpus guard's docstring in `tests/test_ipd_lint.py` calls itself "the check that would have caught the original mistake at commit time". Once the sweep covers that rule, add one sentence noting the checker now covers it too, so the next reader does not assume the test is the only line of defense.
 
+DONE AT EXECUTION (2026-09-21), all four obligations in this section:
+
+1. `check_engine`'s MODULE DOCSTRING now carries a paragraph stating that the plans sweep runs the whole `IPD-*` family at `author` under the one umbrella code, and a second paragraph giving the REASON for that checkpoint with the number beside it: `author` -> 0 diagnostics across 702 plans, `pre-transition` -> 1199 across all 76 pending plans, 1196 of them `IPD-S404`. The plan cited 1261 from its authoring measurement; the re-measured figure is 1199 and the conclusion is identical. The number is ALSO recorded at `_IPD_LINT_SWEEP_CHECKPOINT`, beside the constant a future reader would edit, precisely because that is where the "improvement" (making the phase configurable, or defaulting it to the stricter value) would be attempted.
+2. THE UMBRELLA-CODE MAPPING is documented where the rule table lives: the `RULE_REGISTRY` entry for `check.ipd-lint-diagnostic` records the ownership argument for one code rather than 30, and every emitted finding carries the underlying `IPD-*` code in its `detail`, its `observed`, and a `recovery` command that is the exact per-file verb at the same checkpoint (`aw ipd lint <path> --phase author`). An operator reading `aw check` output therefore has both the code and the command that explains it, which is asserted by `MotivatingCaseTests::test_the_finding_names_the_per_file_verb_that_explains_it`.
+3. NO SPEC CHANGE WAS MADE, and the plan's conditional was checked rather than assumed: I searched `.aw/records/specs/20260802-1904-01-ipd-structure-and-linting.spec.md` and the `ipd-spec` document for any claim that `aw check` covers the lint family and found NONE (`grep -n "aw check"` returns nothing in the linting spec). So there was no false claim to correct, no `.spec.md` file entered `Scope-Paths`, and the spec-amendment rule was not engaged. This plan changed only which SURFACE consults the existing contract.
+4. THE CORPUS GUARD'S DOCSTRING in `tests/test_ipd_lint.py` now says the checker covers this rule too, and says why the guard is nevertheless KEPT rather than deleted as redundant: it sweeps the WHOLE tracked tree while the checker is pending-lane scoped, and it FAILS where the checker's `info` severity only REPORTS. That file's own tests still pass unchanged (`43 passed`).
+
 ## Open questions
 
 ### OQ-01: Should the lint sweep emit one umbrella rule code or one per `IPD-*` diagnostic?
@@ -214,34 +221,358 @@ The corpus guard's docstring in `tests/test_ipd_lint.py` calls itself "the check
 - Owner: maintainer
 - Resolution or deferral rationale: RAISED AT REVIEW (PR-901), non-blocking, because advisory reachability is deliverable now and the escalation is a separate policy decision that should not be smuggled in behind it. THE PROBLEM WITH "WAIT UNTIL THE CORPUS IS CLEAN": the corpus being clean at `author` is not a stable property. `IPD-Q501` fires on any plan with an unanswered blocking question, and this repository deliberately produces such plans (14 carried one when the rule was scoped; 10 carry one now), so the count returns to nonzero every time a reviewer correctly escalates a question and the maintainer has not yet answered. A blocking tree-wide rule therefore makes EVERY agent's commit depend on the maintainer's answer latency, which is the outcome the `IPD-Q501` scoping ruling explicitly rejected (F-13). THREE ROUTES. (a) STAY ADVISORY indefinitely, and rely on `aw ipd lint` plus `aw ipd begin` for the blocking authority they already have (my recommendation: it costs nothing and the gap the item named, that the sweep cannot SEE the family, is fully closed by reachability alone). (b) BLOCK ON A SUBSET, excluding the codes that legitimately fire on healthy in-flight plans (`IPD-Q501` today), which needs a stated rule for what qualifies and re-opens the question every time a lint rule is added. (c) BLOCK ON EVERYTHING once the maintainer decides answer-latency-blocks-commits is acceptable. This is a maintainer call about workflow, not a technical question, which is why review did not resolve it.
 
+  STILL OPEN AFTER EXECUTION, AND EXECUTION SUPPLIED THE DATA POINT THIS QUESTION NEEDED (2026-09-21). The rule shipped ADVISORY at `info`, so nothing here was pre-empted. TWO THINGS THE EXECUTION MEASUREMENT ADDS. FIRST, the instability this question predicts is now OBSERVED rather than argued: the author-phase count went 0 (authoring, 561 plans) -> 16 across 10 files (review, 608 plans) -> 0 (execution, 702 plans), and the final zero is the maintainer having ANSWERED review's ten blocking questions, not the rule being weakened. A gate keyed to that number would have flipped from passing to failing to passing across three weeks with no code change. SECOND, the severity that actually delivers "advisory" is `info` and NOT `warning`: measured against `artifact_core.drift_exit_code`, `error` -> 1, `warning` -> 1, `info` -> 0, `''` -> 1 (DECISION 02-k9awrq-D1). So route (a) as implemented costs exactly zero exit-code risk, and routes (b)/(c) are each a one-token change to the `RULE_REGISTRY` entry plus a deliberate update to `RuleRegistrationTests::test_info_is_the_only_severity_that_is_actually_advisory`, which is written so that a promotion cannot happen silently. My recommendation is UNCHANGED from review's: stay advisory, because the reachability the backlog item asked for is fully delivered and `aw ipd lint`/`aw ipd begin` already hold the blocking authority. ONE PRACTICAL CAVEAT for whichever route is chosen, filed as backlog `ct1n04`: `aw check plans` currently reports 416 findings of which 354 are `check.scope-drift`, so a single `info` line is easy to miss in that report - advisory reachability is only as useful as the report's readability.
+
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the ACTUAL per-checkpoint measurement at your HEAD: plans scanned, files with at least one diagnostic, total diagnostics, and the code breakdown, for BOTH `author` and `pre-transition`, PLUS the list of offending files. Compare against the REVIEW baseline (608 / 10 / 16 all `IPD-Q501` at `author`; 608 / 104 / 1850 at `pre-transition`), not the authoring baseline, and state the difference. Confirm you used the `checkpoint=` keyword and that no broad `except` could have masked an exception as a zero count (F-5). State your severity decision and its justification: ADVISORY unless the author-phase count is genuinely zero at your HEAD, and if you find zero, say so with the date and read OQ-04 before treating it as stable.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED 2026-09-21 at HEAD `cd2e6adb304ad873adeda8602e3f783de95190cf`, by calling `ipd_lint.lint_file(path, checkpoint=...)` over every `*.ipd.md` under `.aw/records/plans` (script preserved at `tmp/k9awrq/measure.py`, untracked). ACTUAL OUTPUT:
 
-- [ ] V-02 validates E-02
+    ```
+    === checkpoint=author ===
+    plans scanned: 702
+    files with >=1 diagnostic: 0
+    total diagnostics: 0
+    code breakdown:
+    dispositions: {'conforming': 76, 'legacy/not evaluated': 626}
+    offending files:
+
+    === checkpoint=pre-transition ===
+    plans scanned: 702
+    files with >=1 diagnostic: 76
+    total diagnostics: 1199
+    code breakdown:
+      IPD-S404: 1196
+      check.ipd-uncarried-obligation: 3
+    dispositions: {'error': 76, 'legacy/not evaluated': 626}
+    offending files: 76 (list suppressed; see codes above)
+    ```
+
+    DIFFERENCE FROM THE REVIEW BASELINE, stated in both directions. The corpus GREW from 608 to 702 plans. At `author` the count FELL from review's 16 diagnostics across 10 files to **ZERO across zero files**, so the offending-file list is EMPTY and there is nothing to enumerate. At `pre-transition` it FELL from 1850 across 104 files to 1199 across 76, because 626 plans are now in terminal directories and `lint_text` returns `DISPOSITION_LEGACY` for those at any checkpoint other than `post-transition`; the residue is still overwhelmingly `IPD-S404` (1196 of 1199), which is the CORRECT state of an unexecuted plan, so F-3's conclusion is unchanged and `author` remains the only defensible sweep phase.
+
+    THE AUTHOR-PHASE ZERO IS THE MAINTAINER ANSWERING, NOT SUPPRESSION, and I verified that rather than assuming it. Review's 10 offenders resolve as: `zexed1`, `yaxr4i`, `b5sfwm`, `mp289j` are now in `executed/`; `yku4ga`, `drzbs9` in `superseded/`; and `xo3244`, `wfjsp4`, `iuxtjy`, `xipfy1` are still `pending` with `- Status: approved`, where every `- Blocking: yes` question now reads `- Status: resolved` and `aw ipd lint --phase author` reports `conforming` for each. `IPD-Q501` was NOT weakened, filtered, or special-cased, and no plan file was edited.
+
+    KEYWORD CONFIRMED AND THE MASKING TRAP RULED OUT (F-5). `inspect.signature(ipd_lint.lint_file)` -> `(path: 'Path', *, checkpoint: 'str' = 'author', legacy: 'bool' = False) -> 'LintResult'`, so `checkpoint=` is the API keyword (the CLI flag is `--phase`). The measurement script contains NO `except` of any kind, deliberately, so a wrong-keyword call would have raised and crashed the run rather than being counted as a zero for every file. The `pre-transition` half is the positive control that the harness can see diagnostics at all: the same loop, same keyword, returned 1199.
+
+    SEVERITY DECISION: `info`, i.e. ADVISORY, recorded in full as DECISION 02-k9awrq-D1. The author-phase count IS genuinely zero at my HEAD (2026-09-21), which E-01 says would PERMIT a blocking introduction, and I declined it for two reasons. FIRST, OQ-04 is OPEN and maintainer-owned, and it states that a clean author-phase corpus is not a STABLE property: `IPD-Q501` fires on any plan with an unanswered blocking question, this repository deliberately produces those, and my zero is a snapshot of an hour in which they happen to be answered. Shipping blocking would pre-empt an open maintainer decision. SECOND, `warning` would NOT have delivered advisory behavior: driving `artifact_core.drift_exit_code` directly gives `error` -> 1, `warning` -> 1, `info` -> 0, `''` -> 1, so `info` is the UNIQUE severity that cannot move an exit code, which is what V-02 demands be MEASURED rather than spelled.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the call site showing the REAL `lint_file` invoked at `author`. Paste NEGATIVE proof that no lint rule was re-implemented inside `check_engine` (show the searches). Paste the `RuleSpec` entry for whatever code is emitted, showing it IS registered (an unregistered code silently defaults to `error`, F-14) and showing the severity you chose, and quote the comment recording BOTH the umbrella-versus-per-code decision (OQ-01) and the advisory-severity decision with its reason. PASTE THE MEASURED EXIT CODE of `aw check plans` before and after, unpiped, proving the severity actually behaves as intended rather than merely being spelled `warning`. THEN paste `aw ipd lint` output for one conforming and one non-conforming plan, before and after, proving the per-file verb is byte-unchanged.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE CALL SITE, in `evaluate_ipd_lint_diagnostics` (`agent_workflows/check_engine.py`). The import is lazy-in-body because `ipd_lint.lint_file` already imports `check_engine` lazily, so a module-level import would close a cycle; the in-file precedent is `check_scope_drift`, which imports `ipd_lifecycle` in its body for the same reason:
 
-- [ ] V-03 validates E-03
+    ```python
+        drift: List[_core.Drift] = []
+        try:
+            from agent_workflows import ipd_lint as _lint
+
+            result = _lint.lint_file(plan_path, checkpoint=checkpoint)
+        except Exception:
+            return drift
+    ```
+
+    and the sweep's wiring into the plans content path, reached by BOTH `aw check plans` and the `aw check all` fan-out exactly once:
+
+    ```python
+            try:
+                drift.extend(
+                    check_ipd_lint_reach(repo_root, include_untracked=include_untracked)
+                )
+            except Exception:
+                pass
+    ```
+
+    The checkpoint is a module CONSTANT, not a parameter of the sweep: `_IPD_LINT_SWEEP_CHECKPOINT = "author"`, pinned by `SharedImplementationTests::test_the_sweep_checkpoint_constant_is_author`.
+
+    NEGATIVE PROOF THAT NO RULE WAS RE-IMPLEMENTED. Searched `agent_workflows/check_engine.py` for any `IPD-*` code literal and for every rule-function name `ipd_lint` defines. ACTUAL OUTPUT:
+
+    ```
+    $ grep -cE '"IPD-[A-Z]?[0-9]+"' agent_workflows/check_engine.py
+    0
+      def check_metadata in check_engine: 0
+      def check_headings in check_engine: 0
+      def check_ids_and_bijection in check_engine: 0
+      def check_states in check_engine: 0
+      def check_gate_contract in check_engine: 0
+      def check_open_questions in check_engine: 0
+      def check_size in check_engine: 0
+      def check_checkpoint in check_engine: 0
+      def check_readiness_attestation in check_engine: 0
+      def check_citation_anchors in check_engine: 0
+      def check_density in check_engine: 0
+    ```
+
+    Zero `IPD-*` literals and zero copied rule functions, so the sweep emits codes it has never heard of, by construction. That is also asserted BEHAVIORALLY rather than by this search, in `SharedImplementationTests::test_one_implementation_backs_both_surfaces`: an `IPD-SENTINEL` diagnostic invented inside `ipd_lint` must surface in the sweep's finding detail, which a re-implementation could not satisfy.
+
+    THE REGISTERED `RuleSpec`, showing the code IS in `RULE_REGISTRY` (F-14: an unregistered code falls back to `_DEFAULT_RULESPEC`, which is `error` with an EMPTY invariant, so omitting it would silently give the STRICTEST behavior):
+
+    ```python
+        "check.ipd-lint-diagnostic": RuleSpec(
+            "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-05"
+        ),
+    ```
+
+    Asserted by identity against the fallback in `RuleRegistrationTests::test_the_rule_is_registered_and_not_falling_back_to_the_default` (`assertIsNot(spec, ce._DEFAULT_RULESPEC)`), so a future deletion of the entry fails rather than silently re-tiering the rule to `error`.
+
+    THE UMBRELLA-VERSUS-PER-CODE DECISION (OQ-01), quoted from the registration comment: "ONE UMBRELLA CODE, NOT ONE PER `IPD-*` DIAGNOSTIC, and the reason is OWNERSHIP rather than taste (plan OQ-01, resolved). The `IPD-*` family is large, is owned and versioned by `ipd_lint`/`ipd_schema`, and GROWS whenever a lint rule is added. Registering each code here would mean every new lint rule needs a second registration in a different module, and a missed one would fall through to `_DEFAULT_RULESPEC` and emit a code carrying NO severity contract."
+
+    THE ADVISORY-SEVERITY DECISION AND ITS REASON, quoted from the same comment: "`info`, AND THAT IS A MEASUREMENT, NOT THE PLAN'S LITERAL WORD (DECISION 02-k9awrq-D1). The plan says 'advisory' and spells it `warning`, while its own F-14 records that `warning` DOES drive a nonzero findings exit, and its V-02 requires the severity be proven by MEASURING the exit code rather than by choosing a word. Driving `artifact_core.drift_exit_code` directly: `error` -> 1, `warning` -> 1, `info` -> 0, empty -> 1. So `info` is the UNIQUE severity that is advisory in BEHAVIOR, and `warning` would have satisfied the spelling while failing the requirement." The same comment records WHY advisory at all despite a clean corpus (OQ-04 is open; clean is not a stable property) and that promotion is a one-token change.
+
+    MEASURED EXIT CODE, UNPIPED, BEFORE AND AFTER. "Before" is a pristine `git archive HEAD` checkout of the whole repository at `tmp/k9awrq/pristine`, run against THIS working tree via `--dir`, so only the code differs:
+
+    ```
+    $ (cd tmp/k9awrq/pristine && PYTHONPATH="$PWD" python3 -m agent_workflows check plans --dir <worktree> >/dev/null 2>&1; echo "exit=$?")
+    exit=1
+    $ python3 -m agent_workflows check plans --dir "$PWD" >/dev/null 2>&1; echo "exit=$?"
+    exit=1
+    ```
+
+    UNCHANGED at 1, and unchanged FOR THE RIGHT REASON: the 1 is driven by the pre-existing `error`-severity findings (`check.scope-drift`, `check.lifecycle-transition-invalid`), not by my rule. That my rule's own findings cannot move an exit code is asserted directly on a REAL finding in `RuleRegistrationTests::test_the_rules_own_findings_cannot_move_an_exit_code` (`drift_exit_code([finding]) == 0`), and the whole `error`/`warning`/`info`/`''` -> `1/1/0/1` table is pinned in `test_info_is_the_only_severity_that_is_actually_advisory`. `aw doctor`'s exit is likewise unchanged (1 before, 1 after).
+
+    PER-FILE VERB BYTE-UNCHANGED, diffed rather than eyeballed. One CONFORMING case (`k9awrq` at `--phase author`, exit 0) and one NON-CONFORMING case (the same plan at `--phase pre-transition`, exit 1, 15 `IPD-S404` lines), each captured from the pristine checkout and from the changed tree:
+
+    ```
+    $ diff tmp/k9awrq/verb_before_conf.txt tmp/k9awrq/verb_after_conf.txt && echo IDENTICAL
+    IDENTICAL
+    $ diff tmp/k9awrq/verb_before_nonconf.txt tmp/k9awrq/verb_after_nonconf.txt && echo IDENTICAL
+    IDENTICAL
+    ```
+
+    For reference the conforming output is `- >  ◕  approved     plan        20260908-lintreach-01-k9awrq  [blocking]  conforming` and the non-conforming one is the same header at `error` followed by its 15 `IPD-S404` detail lines. `aw ipd lint` gained a second READER of its rules and no change to what it reports.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: state which dispositions the lint sweep covers and paste the test asserting it. Paste evidence that `aw check plans` and `aw doctor` cover the SAME plan set, by comparing the file counts each linted (not merely their findings), since a zero-finding agreement proves nothing about coverage.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: DISPOSITIONS COVERED: the PENDING lane ONLY. The guard is `if "pending" not in p.parts: continue` inside `check_ipd_lint_reach`, which is the same scope, with the same recorded grandfathering rationale, that `check_durable_carrier`, `check_review_finding_unescalated`, `check_lifecycle_transitions` and the rule behind `check.review-decision-unescalated` already use. Decision recorded in full as DECISION 02-k9awrq-D3.
 
-- [ ] V-04 validates E-04
+    THE SCOPE IS ASSERTED BY PLACING THE SAME DEFECTIVE PLAN IN EVERY LANE IN TURN, in `CoveredDispositionTests::test_only_the_pending_lane_is_swept`:
+
+    ```python
+            for lane, expect in (
+                ("pending", 1),
+                ("executed", 0),
+                ("superseded", 0),
+                ("not-executed", 0),
+            ):
+                with self.subTest(lane=lane):
+                    p = _plan(self.repo, lane=lane, readiness="go-pending-approval")
+    ```
+
+    EXCLUDING TERMINAL PLANS COSTS NO COVERAGE, which is why the constraint is free rather than a compromise, and it is asserted rather than argued (`test_excluding_terminal_plans_costs_no_coverage`): `ipd_lint.lint_text` returns `DISPOSITION_LEGACY` with NO diagnostics for a terminal-directory plan at `author`, so linting the terminal corpus could not produce a finding even if the sweep traversed it. The live corpus confirms the scale: 626 of 702 plans returned `legacy/not evaluated` in the V-01 measurement, so sweeping them would buy 626 file reads and 626 parses for a guaranteed-empty result.
+
+    `aw check` AND `aw doctor` LINT THE SAME PLAN SET, measured on the LIVE tree by spying on `lint_file` and comparing the linted PATHS (not the findings, which are zero here and would agree vacuously). ACTUAL OUTPUT:
+
+    ```
+    aw check   linted files: 76
+    aw doctor  linted files: 76
+    identical path sets: True
+    all in pending lane: True
+    total plans on disk: 702
+    ```
+
+    WHY THEY CANNOT DIVERGE, which is the real content of OQ-02. The measured hazard is that `_iter_type_files` skips retired paths unless `include_retired=True`, `executed/` counts as retired, and `doctor.py` passes `include_retired=True` UNCONDITIONALLY (three call sites) while `check_engine.check_types` defaults it to `False` - an asymmetry that already produced a real zero-versus-one disagreement on `check.id6-collision`. The `"pending" not in p.parts` guard does not consult `include_retired` at all, so the two surfaces traverse an identical set BY CONSTRUCTION. I also verified the filter cannot bite from the other direction: 0 of the 76 pending plans are `is_retired` by frontmatter status. The same property is pinned on a fixture holding plans in three lanes at once in `CoveredDispositionTests::test_check_and_doctor_lint_an_identical_file_set`, which compares path lists and asserts `len == 1`, so a coverage change fails even on a tree with no findings.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the fixture construction, then the ACTUAL output of `aw check plans` against it BEFORE the change (silent) and AFTER (reporting), plus the `aw ipd lint` output for the same fixture. Quote the assertion covering the before state, so it is visible the contrast is tested rather than assumed. Confirm in one sentence that no tracked plan was modified to build this fixture.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE FIXTURE CONSTRUCTION, from `tests/test_check_engine_lint_reach.py::_plan`. It writes a fully conformant minimal IPD and injects ONLY the fabrication, so the sole `author`-phase diagnostic is `IPD-M107`:
 
-- [ ] V-05 validates E-05
+    ```python
+        readiness_line = (
+            "- Readiness: {0}\n".format(readiness) if readiness is not None else ""
+        )
+        history = "- 2026-09-01 to-review (t): created.\n"
+        if history_review:
+            history += "- 2026-09-02 reviewed (t): /plan-review complete: APPROVE.\n"
+    ```
+
+    THE ISOLATION IS ASSERTED, NOT ASSUMED (`FixtureIsolationTests::test_the_fixture_isolates_exactly_one_diagnostic`): `assertEqual([d.code for d in res.diagnostics], ["IPD-M107"])`. That test exists because an earlier draft of this fixture omitted `Concern`/`Scope`/`Author` and produced three extra `IPD-M101` diagnostics, which would have let every assertion below pass for the wrong reason. Two controls sit beside it: the same fixture WITHOUT the fabrication lints clean, and the same fabricated `Readiness` WITH a review verdict in its history also lints clean, so the rule is a forgery check rather than a ban on the field.
+
+    `aw check plans` BEFORE THE CHANGE (pristine `git archive HEAD` checkout at `tmp/k9awrq/pristine`, run against the SAME fixture tree via `--dir`). ACTUAL OUTPUT - SILENT about the plan:
+
+    ```
+    AW check  plans                                                            87 ms
+    ✓ CONFORMS  1 plans checked
+
+    Findings:
+      Issue: cross-tree collisions NOT checked by a per-type run
+      - <collisions>
+        1. <collisions>
+
+    Evidence
+      pending  1   reusable  0   terminal  0
+      errors  1   warnings  0
+    ```
+
+    `aw check plans` AFTER THE CHANGE, same fixture tree. ACTUAL OUTPUT - now REPORTS it:
+
+    ```
+    AW check  plans                                                            90 ms
+    ✓ CONFORMS  1 plans checked
+
+    Findings:
+      Issue: check.ipd-lint-diagnostic
+      - tmp/k9awrq/fixture/.aw/records/plans/pending
+        1. 20260901-lreach-01-fab001-fabricated-readiness.ipd.md
+        Fix: inspect .../20260901-lreach-01-fab001-fabricated-readiness.ipd.md frontmatter and schema conformity.
+
+      Issue: cross-tree collisions NOT checked by a per-type run
+      - <collisions>
+        1. <collisions>
+
+    Evidence
+      pending  1   reusable  0   terminal  0
+      errors  2   warnings  0
+    ```
+
+    The only difference is the new finding; the exit code is 0 in BOTH runs, which is the advisory severity behaving as designed.
+
+    `aw ipd lint` ON THE SAME FIXTURE, showing the per-file verb refused it all along (this is the asymmetry the plan exists to close). ACTUAL OUTPUT, exit 1:
+
+    ```
+    -    ◔  to-review    plan        20260901-lreach-01-fab001  error
+         ! IPD-M107: Readiness: 'go-pending-approval' is a REVIEW OUTPUT but no review verdict appears in '## Workflow history'. Do not write this field when authoring: the auto-approve gate reads it BEFORE the history, so a hand-written value asserts that a review cleared the plan when none has. Remove the line and let /plan-review write it.
+    ```
+
+    THE BEFORE STATE IS TESTED, NOT ONLY DEMONSTRATED. `PreChangeContrastTests::test_removing_the_call_site_restores_the_original_silence` establishes the same inversion against the SHIPPED code, which is stronger than a snapshot of history because it keeps failing if someone unwires the call site later. The quoted assertions:
+
+    ```python
+            with mock.patch.object(ce, "check_ipd_lint_reach", return_value=[]):
+                before = ce.check_content(self.repo, "plans")
+            self.assertEqual(
+                _rule_findings(before),
+                [],
+                "BEFORE: the sweep was blind to a lint-refusable defect",
+            )
+            after = ce.check_content(self.repo, "plans")
+            self.assertEqual(
+                len(_rule_findings(after)),
+                1,
+                "AFTER: the sweep reports what the per-file verb refuses",
+            )
+    ```
+
+    It is driven through `check_content` (the real call site) rather than through the sweep function, so deleting the wiring while leaving the function behind also fails it. A precondition assertion in the same test first confirms the per-file verb genuinely refuses the plan, so the contrast cannot pass on a fixture that was never defective.
+
+    NO TRACKED PLAN WAS MODIFIED TO BUILD THIS FIXTURE: every fixture in the new test module is an isolated `tempfile.mkdtemp` tree, the record copy above lives in gitignored `tmp/`, and the corpus guard in `tests/test_ipd_lint.py` still passes (`43 passed`), which it would not if a fabricated `Readiness` had reached a tracked plan.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `aw check all --agent` PER-RULE counts before and after, showing the new code at the MEASURED `IPD-Q501` population (not zero, review measured 16 across 10 files) and no other rule's count changed. Paste the list of files it reported and confirm in one sentence that you did NOT edit, fix, or triage any of them, and did not weaken or filter `IPD-Q501`. If anything OTHER than those was reported, state explicitly whether it is a real exposed defect (REPORTED, not fixed) or a wiring bug. Paste the `aw check plans` EXIT CODE before and after, measured unpiped, as the no-regression criterion. Paste wall-clock timings for `aw check plans` before and after. Paste `tests/test_ipd_lint.py`'s own summary line. THEN paste the BARE `python3 -m pytest` summary lines before and after and state the failing NODE-ID delta against the re-measured baseline (`2 failed, 5957 passed` at `f3f87b90`), confirming each pre-existing failure is pre-existing and that `opencode-recovery/` was untouched.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `aw check all --agent` PER-RULE, BEFORE and AFTER over the SAME working tree (only the code differs: "before" is a pristine `git archive HEAD` checkout at `tmp/k9awrq/pristine` driven with `--dir`). ACTUAL OUTPUT:
+
+    ```
+    --- BEFORE
+    outcome=findings exit=1 findings=445
+      check.from-backlog-dangling: 1
+      check.from-backlog-gate-mismatch: 2
+      check.id6-collision: 16
+      check.id6-outside-metadata-region: 2
+      check.identity-absent-from-name: 2
+      check.ipd-uncarried-obligation: 58
+      check.lifecycle-transition-invalid: 3
+      check.live-bug-ungated: 2
+      check.name-nonconformant: 4
+      check.scope-drift: 354
+      check.system-layout-missing: 1
+    --- AFTER
+    outcome=findings exit=1 findings=446
+      check.from-backlog-dangling: 1
+      check.from-backlog-gate-mismatch: 2
+      check.id6-collision: 16
+      check.id6-outside-metadata-region: 2
+      check.identity-absent-from-name: 2
+      check.ipd-lint-diagnostic: 1
+      check.ipd-uncarried-obligation: 58
+      check.lifecycle-transition-invalid: 3
+      check.live-bug-ungated: 2
+      check.name-nonconformant: 4
+      check.scope-drift: 354
+      check.system-layout-missing: 1
+    ```
+
+    NO OTHER RULE'S COUNT MOVED: all eleven pre-existing rules are identical before and after, and the only delta is `check.ipd-lint-diagnostic: 1`.
+
+    THE NEW RULE'S COUNT IS 1, NOT THE 16 THE REQUIRED-EVIDENCE TEXT EXPECTS, AND THAT EXPECTATION IS ITSELF STALE - which V-01 measures and this row must not paper over. Review's 16 `IPD-Q501` findings across 10 plans NO LONGER EXIST at my HEAD: the maintainer answered those blocking questions (four of the ten are now in `executed/`, two in `superseded/`, and the four still pending carry `- Status: resolved` on every `Blocking: yes` question and lint `conforming`). So the author-phase corpus is clean again and the correct count for the tracked corpus is ZERO. Per the plan's own instruction ("If your wiring reports something OTHER than those `IPD-Q501` findings, that is either a genuinely new defect (report it) or a wiring bug (fix that); distinguish the two explicitly") I state both explicitly.
+
+    THE ONE FILE IT REPORTED, and it is NEITHER a wiring bug NOR another agent's plan:
+
+    ```
+    --- locations for check.ipd-lint-diagnostic ---
+      .aw/records/plans/pending/20260908-lintreach-01-k9awrq-run-the-ipd-lint-family-from-the-repo-wide-sweep-so-a-lint-r.ipd.md
+    ```
+
+    That is THIS PLAN, and the finding is TRANSIENT AND SELF-INFLICTED: it is the plan being mid-execution, with `V-05`'s own `Result:` not yet `pass` while I write this very block (`IPD-S402`). It disappears as this row completes, which `aw ipd lint --phase pre-transition` conforming at the terminal gate then proves. It is therefore not a defect in adjacent code and needs no backlog item.
+
+    NOT A WIRING BUG, PROVED POSITIVELY RATHER THAN BY THE ABSENCE OF FINDINGS, because a zero on a clean corpus is exactly what a silently-broken wiring also produces. I injected the motivating defect into a COPY of the live tree (`tmp/k9awrq/livecopy`, gitignored) by stripping the review verdict from one pending plan's history so its existing `- Readiness: go` became unattested, and the sweep found it. ACTUAL OUTPUT:
+
+    ```
+    subject: 20260829-rununify-00-5e4sb6-unify-the-two-host-runners-onto-one-shared-runner-library-ph.ipd.md
+    before, per-file verb: clean
+    before, sweep findings: 0
+    after stripping the review verdict:
+      per-file verb: ['IPD-M107']
+      sweep findings: 1
+       severity: info | detail: 1 lint diagnostic(s) at the `author` checkpoint: IPD-M107 Readiness: 'go' is a REVIEW OUTPUT but no review verdict appears in '## Workflow history'...
+    ```
+
+    So the sweep reports a real live-corpus plan the moment one becomes defective; the zero is a clean corpus, not silence.
+
+    I DID NOT EDIT, FIX, OR TRIAGE ANY REPORTED PLAN, AND I DID NOT WEAKEN OR FILTER `IPD-Q501`: no file under `.aw/records/plans/` was modified except THIS plan (its own E/V states and this evidence), `agent_workflows/ipd_lint.py` finished UNCHANGED, `IPD-Q501` is untouched and un-excluded, and the injection above was performed on a gitignored COPY, never on the tracked tree.
+
+    `aw check plans` EXIT CODE, UNPIPED, BEFORE AND AFTER:
+
+    ```
+    $ (cd tmp/k9awrq/pristine && PYTHONPATH="$PWD" python3 -m agent_workflows check plans --dir <worktree> >/dev/null 2>&1; echo "exit=$?")
+    exit=1
+    $ python3 -m agent_workflows check plans --dir "$PWD" >/dev/null 2>&1; echo "exit=$?"
+    exit=1
+    ```
+
+    UNCHANGED, which is this row's primary no-regression criterion. `aw doctor` is likewise 1 before and 1 after.
+
+    WALL CLOCK, three runs each, same tree:
+
+    ```
+    BEFORE run1 2.87 s   AFTER  run1 3.15 s
+    BEFORE run2 2.96 s   AFTER  run2 3.14 s
+    BEFORE run3 2.97 s   AFTER  run3 3.13 s
+    ```
+
+    ADDED COST: about +0.17s on a ~2.9s command, roughly 6 percent, for linting 76 pending plans. Stated plainly because a quiet slowdown in the verb CI runs is how a check gets removed later. It is bounded by the pending-lane scope: sweeping all 702 plans would have paid for 626 files whose result is `legacy/not evaluated` by construction.
+
+    `tests/test_ipd_lint.py` SUMMARY LINE, showing the corpus guard still passes unchanged (that file was NOT edited):
+
+    ```
+    ...........................................                              [100%]
+    43 passed in 2.86s
+    ```
+
+    BARE `python3 -m pytest` BEFORE AND AFTER. "Before" is the pristine HEAD checkout run on this machine, because the plan's quoted baseline (`2 failed, 5957 passed` at `f3f87b90`) is stale by 2000 tests. ACTUAL SUMMARY LINES:
+
+    ```
+    BEFORE (pristine HEAD cd2e6adb):
+    FAILED tests/test_run_summary_table.py::test_the_committed_fixture_is_tracked_and_not_gitignored
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    FAILED tests/test_run_analytics_spa.py::PackagedAssetTests::test_every_declared_asset_ships_and_carries_what_it_must
+    FAILED tests/test_run_analytics_e2e.py::FixtureCorpusTests::test_no_live_corpus_byte_was_copied_into_the_fixture_tree
+    FAILED tests/test_run_analytics_e2e.py::CanaryDisciplineTests::test_the_fixture_tree_is_tracked_which_is_why_the_rule_exists
+    5 failed, 7938 passed, 3 skipped, 2 xfailed, 3 warnings in 144.41s (0:02:24)
+
+    AFTER (this worktree):
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    1 failed, 7964 passed, 3 skipped, 2 xfailed, 3 warnings in 102.37s (0:01:42)
+    ```
+
+    NODE-ID DELTA: AFTER minus BEFORE is **EMPTY**. The one AFTER failure, `test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`, is PRE-EXISTING and unrelated (it asserts a non-isolated turn carries no denial policy, and fails because this lane IS isolated); I re-confirmed it by stashing all four of my changed files and running that file alone -> `1 failed, 42 passed`. The four BEFORE-only failures are artifacts of the pristine harness (a `git archive` export is not a git repo and carries no packaged assets, so the tracked-fixture and packaged-asset tests cannot pass there); they pass in this worktree, which is why AFTER has fewer failures than BEFORE. The delta that matters, AFTER minus BEFORE, contains nothing.
+
+    SEVEN TESTS DID FAIL ON THE WAY AND WERE FIXED AT THE FIXTURE, NOT THE ASSERTION (DECISION 02-k9awrq-D5, a declared-scope deviation reported to the human). With the wiring in and no test edits the suite was `8 failed, 7957 passed`. Each failure was a stub fixture that genuinely violates the IPD contract: `test_check_engine.py`'s shared `_plan_text` stub yields TWENTY `author`-phase diagnostics, and `test_check_recipe.py`'s fixture - in a test NAMED `test_check_valid_plan_clean_state`, asserting "a conformant plan must trip no real rule" - yields TWELVE, including `- Status: pending`, which is not in the readiness enum at all. I made the fixtures conformant rather than loosening the exact-rule-set assertions, which is the property those tables exist to hold. One expected set was widened, and only because the new count is CORRECT (`check.identity-absent-from-name` fires twice on a legacy-named plan once its body declares `- Set:` as well as `- Id:`; it counted once before only because the stub omitted `- Set:`). `test_ipd_dependency_check.py` uses its own pre-existing "prefix-sharing non-dependency rule" exclusion list, which already carried one such entry. The plan's `Scope-Paths` declares `tests/test_ipd_lint.py` but not these three files, so this is reported as a scope deviation for human confirmation.
+
+    `opencode-recovery/` WAS NOT TOUCHED (the F-15 instruction), and its parity test does not appear in either summary above; `aw sanitize --agent` reports `"outcome":"clean","exit":0,"findings":0`.
+  - Result: pass
 
 ## Approval and execution gate
 
