@@ -13,7 +13,7 @@
 - Scope: Make the absent-ledger refusal TRUTHFUL about why it cannot verify, at EVERY leaf that emits it, and disambiguate the two senses of "ledger" where an operator actually meets the confusion. Land the wording in the EXISTING shared helper `_resolve_or_error` so its seven callers inherit it, and route the three inline duplicates (`_run_show`, `_run_evidence`, `_run_verify_ledger`) through it instead of copying the text a fourth time. Exit codes and every verification behavior stay exactly as they are. EXCLUDES deciding whether drivers should write a ledger (the item's fix #2, a design question), and excludes the sibling fail-open in `6kq1lj`, which executed plan `7wei1o` already owns.
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_run_cli_ledger_message.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Blocks-Release: next
 - Readiness: go-pending-approval
 - Set: ledgerhonest
@@ -21,10 +21,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: i1hlgx
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: zrzfkw
 
 ## Workflow history
+- 2026-09-21 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: i1hlgx verified (set ledgerhonest, attempt 1).
 - 2026-09-18 approved (aw set): status set to approved
 - 2026-09-13 approved (aw set): status set to approved
 
