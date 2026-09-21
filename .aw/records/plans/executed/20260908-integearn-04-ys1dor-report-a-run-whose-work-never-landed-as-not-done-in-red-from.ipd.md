@@ -6,18 +6,18 @@
 - Scope: Make the summary tell the truth about LANDING, using only what the run itself recorded. IN: an outcome that is not `COMPLETED` when the run's own record says integration was refused, rendered in red, naming the preserved branch and the refusal reason. OUT: the CAUSE of stranding (sibling Order 03), the cross-tree `aw attention` view (backlog `nuanaw`), and any change to what integration DECIDES.
 - Scope-Paths: agent_workflows/render_stream.py, tests/test_run_summary_table.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: integearn
 - Order: 4
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: ys1dor
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: 7m0aro
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-21 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: ys1dor verified (set integearn, attempt 1). [Scope reconciliation - out-of-scope tests/fixtures/run_summary/stranded-run-state.json: changed by the plan's approved execution (auto-reconciled by aw oc run)]
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-08 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-501..PR-508
 
