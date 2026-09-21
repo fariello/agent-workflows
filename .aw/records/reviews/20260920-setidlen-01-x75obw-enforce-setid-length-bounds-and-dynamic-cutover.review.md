@@ -105,3 +105,11 @@ PR-403 is the only finding not FIXED. It is `HIGH`, which is at the repository's
 is therefore ESCALATED into the plan as OQ-03 carrying `- Blocking: yes` and `- Finding: PR-403`, so
 `aw ipd lint` refuses the plan at every checkpoint until a human answers. No `Reversible: no` decision
 was made in this round.
+
+## Round 2
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+| PR-403 | high | IN-SCOPE | C. Architecture / F. Principles | `config.py:1141-1167` | The maintainer directive forbids a hardcoded calendar date in Python, but the shipped stamper only covers features listed in `KNOWN_FEATURE_CUTOVERS`, every entry of which IS a hardcoded date. Registering `setid_length` therefore writes a date into source. Not resolvable from the repository: it is a reading of the maintainer's own instruction. | C:Medium; U:Low; S:Low; F:Medium; Overall:Medium | fixed | STALE ESCALATION CLOSED 2026-09-21 by opencode its_direct/pt3-claude-opus-5-1m-us. The question this finding was escalated as (OQ-03) is `- Status: resolved`, so the finding it gated on has been answered and the record is caught up. NO FINDING WAS RE-DERIVED and no plan content was re-critiqued: the match was made on the question's declared `- Finding: PR-403` back-reference, not on a judgement about what the question was about. Previous decision: open. |

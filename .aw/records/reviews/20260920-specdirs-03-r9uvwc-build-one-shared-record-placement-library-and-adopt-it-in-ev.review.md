@@ -178,3 +178,11 @@ it is therefore ESCALATED into the plan as OQ-03 carrying `- Blocking: yes` and 
 plan's own content: this plan is safe to run in isolation, and the refusal exists to stop the SET
 running in an order that would waste the migration. No `Reversible: no` decision was made in this
 round.
+
+## Round 2
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+| PR-001 | blocker | UNDER-SCOPE | C. Architecture / G. Executability | `oc_runipd.py:4246,4281,4330`; `1bdxcp:13` | THE MIGRATION DISPATCHES BEFORE THIS PLAN TODAY. Measured with the runner's own scheduler: as the Set's fields actually stand, `simulate_dispatch_order` returns `['y4bdoz','1bdxcp','r9uvwc','ingpvc','wfjsp4']`; with `executed:r9uvwc` added to `1bdxcp` it returns `['y4bdoz','r9uvwc','1bdxcp','ingpvc','wfjsp4']`. Both children are depth 1, so the Order digit decides and `02` beats `03`. The plan recorded this as prose ("must be made before the Set runs"), which a runner cannot read and which therefore gates nothing. Consequence: `aw oc run specdirs` migrates 36 specs while the writers still strand them. | C:Low; U:Low; S:Low; F:High; Overall:High | fixed | STALE ESCALATION CLOSED 2026-09-21 by opencode its_direct/pt3-claude-opus-5-1m-us. The question this finding was escalated as (OQ-03) is `- Status: resolved`, so the finding it gated on has been answered and the record is caught up. NO FINDING WAS RE-DERIVED and no plan content was re-critiqued: the match was made on the question's declared `- Finding: PR-001` back-reference, not on a judgement about what the question was about. Previous decision: open. |

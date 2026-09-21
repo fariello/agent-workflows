@@ -1135,9 +1135,46 @@ def expanded_excludes(config: Dict[str, Any]) -> List[str]:
 DEPENDENCY_SCHEMA_CUTOVER_KEY = "dependency_schema_cutover"
 CUTOVERS_KEY = "cutovers"
 
-#: Earliest introduction date of cutover-enforced features in the toolkit.
-#: When inspecting install history in a target repository, the first install on or after
-#: this date marks when the repository adopted the requirement.
+# ---- TWO DIFFERENT DATES, AND CONFUSING THEM IS THE RECURRING MISTAKE ----------------------------
+#
+# Written out because the distinction has now cost two review round trips (most recently plan `x75obw`
+# OQ-03, 2026-09-21, which was escalated to the maintainer as a contradiction and turned out not to be
+# one). A cutover involves TWO dates that look alike and are not the same quantity:
+#
+#   1. THE FEATURE INTRODUCTION DATE - the value in this dict. It is a fact about THE TOOLKIT: "the
+#      rule began to exist on this date." It is the SAME for every repository, it is history rather
+#      than policy, and it CANNOT be discovered at runtime - no repository contains a record of when
+#      some other codebase gained a rule. That is precisely why it is hardcoded here.
+#
+#   2. THE ENFORCEMENT BOUNDARY - the value stamped into `.aw/config/project.json` under
+#      `cutovers.<feature>`. It is a fact about ONE REPOSITORY: "artifacts older than this are
+#      grandfathered HERE." It DIFFERS per repository and it is what `check`/`lint` actually read to
+#      pick the `error` tier over the advisory one.
+#
+# DATE 1 IS THE INPUT TO A SEARCH, NOT THE BOUNDARY, which is the part that gets misread.
+# `_find_install_history_cutover` walks the target repo's `installs.jsonl` and returns the FIRST
+# install at or after date 1; that RESULT becomes date 2. Worked example from this very repository:
+# `spec_id6` is introduced at `2026-08-28` here, while this repo's stamped boundary is `2026-08-29`,
+# because that is when this repo first installed a toolkit carrying the rule. A repository that first
+# installed in October gets an October boundary from the identical `2026-08-28`.
+#
+# SO "the cutover must not be a hardcoded calendar date, it must be stamped into project.json
+# dynamically" IS SATISFIED by adding an entry here. The enforcement boundary remains dynamic and
+# per-repository; registration only supplies the one fact that cannot be computed.
+#
+# WHAT GOES WRONG IF YOU DO NOT REGISTER A FEATURE: `resolve_cutover_date` falls through to its
+# tier-3 fail-open `None`, so the `error` tier is unreachable and the rule ships as DECORATION - it
+# warns forever and never refuses. `check_engine.CARRIER_CUTOVER_DATE`'s own comment records this same
+# exposure in the opposite direction.
+#
+# AND WHAT GOES WRONG IF YOU "FIX" THIS BY STAMPING THE CURRENT INSTALL DATE INSTEAD (rejected as
+# option (b) of `x75obw` OQ-03): the boundary becomes TODAY for every existing repository, which
+# permanently grandfathers every artifact that already violates the new rule. The install-history
+# search exists specifically to avoid that, so replacing it with "now" is strictly worse than the
+# hardcoded date it removes, not merely more literal.
+#
+# TO ADD A FEATURE: put its introduction date here, and let `sync_cutovers_on_install` stamp the
+# per-repo boundary. Do not invent a second mechanism; three shipped features use this one.
 KNOWN_FEATURE_CUTOVERS: Dict[str, str] = {
     "spec_id6": "2026-08-28",
     "dependency_schema": "2026-09-01",
