@@ -12,6 +12,7 @@ import io
 import json
 import os
 import re
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -20,6 +21,10 @@ from unittest import mock
 
 from agent_workflows import attention as att
 from agent_workflows import attention_contract as A
+
+# This repository's own root, for the few cases that legitimately measure the REAL corpus (the E-08
+# parity assertion). Derived from this file's location so it is correct in a worktree/lane too.
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _mk_repo(tmp: Path):
@@ -939,18 +944,30 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
             lines[4],
             "◕ approved plan      2.0.0 -        -           -    -     - 20260829 rununify    00 5e4sb6 -",
         )
+        # `go-pend?`, NOT `go-pendin`: attcor `rkn8ya` E-11b. The raw 9-char slice of
+        # `go-pending-approval` read as a truncated `go`, and the colour heuristic (a substring test
+        # for "go") gave it the SAME green as a cleared `go`, so an UNAPPROVED plan rendered as
+        # approved. The `?` marks the approval as still outstanding. Width is still 9, so the
+        # Readiness column and every column after it are byte-unchanged.
         self.assertEqual(
             lines[5],
-            "◑ reviewed plan      2.0.0 -        go-pendin   -    -     - 20260830 runcodes    01 wlxkoz -",
+            "◑ reviewed plan      2.0.0 -        go-pend?    -    -     - 20260830 runcodes    01 wlxkoz -",
         )
         self.assertEqual(
             lines[6],
             "◔ to-revie plan      2.0.0 -        -           -    -     - 20260904 revsweep    01 76gsmv -",
         )
         # 3. Type: spec
+        #
+        # `implmntg`, NOT `implemen`: attcor `rkn8ya` E-11a. `implementing` and `implemented` BOTH
+        # sliced to `implemen` at the column's 8-char width, so with `--no-color` (and in every piped
+        # or machine read) the table could not distinguish ACTIVE work from FINISHED work. The two
+        # abbreviations share the stem and differ in the final letter, carrying the same distinction
+        # the full words do: `g` gerund (in progress), `d` past participle (finished). Width is still
+        # 8, so no column moves.
         self.assertEqual(
             lines[7],
-            "▶ implemen spec      2.0.0 -        -           -    -     - 20260829 c4gd2h      01 c4gd2h -",
+            "▶ implmntg spec      2.0.0 -        -           -    -     - 20260829 c4gd2h      01 c4gd2h -",
         )
         # 4. Legend
         self.assertEqual(
@@ -1230,10 +1247,23 @@ class AttentionFilteringTests(unittest.TestCase):
         self.assertTrue(att.matches_blocking(item_blk_tag, filters_ver))
         self.assertTrue(att.matches_blocking(item_blk_tag, filters_tag))
 
-        # 'next' matches any release blocker regardless of tag/number
+        # `next` RESOLVES against the PLANNED release; it does NOT match every gated item.
+        #
+        # THIS BLOCK ASSERTED THE OPPOSITE UNTIL attcor `rkn8ya` E-04, and the change is deliberate.
+        # It read "'next' matches any release blocker regardless of tag/number" and asserted that an
+        # item gated on `2.0.0` matches `--blocking next`, which is exactly the short-circuit the fix
+        # removes (`matches_blocking` used to `return True` for the `next` token before looking at
+        # WHICH release the item names). Keeping the old assertions would pin the defect.
+        #
+        # EVERY CALL HERE PASSES `repo_root=None` (the default), so there is NO planned release to
+        # resolve against. `next` therefore matches NOTHING, which is the honest answer: `next` names
+        # a release record, and with no record there is no release for an item to gate. The
+        # positive-resolution cases (a real planned release, matched by `next` AND by its id6, with a
+        # DIFFERENT release excluded) need a two-release fixture and live in
+        # `BlockingNextResolvesAgainstThePlannedReleaseTests` below.
         filters_next = att.parse_blocking_filters(["next"])
-        self.assertTrue(att.matches_blocking(item_blk, filters_next))
-        self.assertTrue(att.matches_blocking(item_blk_tag, filters_next))
+        self.assertFalse(att.matches_blocking(item_blk, filters_next))
+        self.assertFalse(att.matches_blocking(item_blk_tag, filters_next))
         item_blk_next = att.Item(
             "4",
             "p4.md",
@@ -1244,7 +1274,7 @@ class AttentionFilteringTests(unittest.TestCase):
             None,
             blocks_release="next",
         )
-        self.assertTrue(att.matches_blocking(item_blk_next, filters_next))
+        self.assertFalse(att.matches_blocking(item_blk_next, filters_next))
         item_blk_id6 = att.Item(
             "5",
             "p5.md",
@@ -1255,13 +1285,23 @@ class AttentionFilteringTests(unittest.TestCase):
             None,
             blocks_release="f33nrj",
         )
-        self.assertTrue(att.matches_blocking(item_blk_id6, filters_next))
+        self.assertFalse(att.matches_blocking(item_blk_id6, filters_next))
         self.assertFalse(att.matches_blocking(item_nonblk, filters_next))
 
         item_dash = att.Item(
             "6", "p6.md", "plans", "approved", A.READY, None, None, blocks_release="-"
         )
         self.assertFalse(att.matches_blocking(item_dash, filters_next))
+
+        # `--blocking any` is how you ask "gated on ANYTHING at all", and it is UNAFFECTED by the
+        # `next` change. Stated here so the fix cannot be mistaken for "you can no longer list all
+        # blockers without a release record".
+        filters_any = att.parse_blocking_filters(["any"])
+        self.assertTrue(att.matches_blocking(item_blk, filters_any))
+        self.assertTrue(att.matches_blocking(item_blk_next, filters_any))
+        self.assertTrue(att.matches_blocking(item_blk_id6, filters_any))
+        self.assertFalse(att.matches_blocking(item_dash, filters_any))
+        self.assertFalse(att.matches_blocking(item_nonblk, filters_any))
 
         filters_bool_true = att.parse_blocking_filters(["true"])
         self.assertTrue(att.matches_blocking(item_blk, filters_bool_true))
@@ -1421,7 +1461,21 @@ class AttentionFilteringTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            # Without --all: excludes archived (e.g. executed or superseded)
+            # Without --all, the JSON PAYLOAD still carries the archived item.
+            #
+            # THIS ASSERTION WAS INVERTED BY attcor `rkn8ya` E-07, deliberately. It used to require
+            # exactly ONE item here, because `--open-questions` was the ONE filter that applied
+            # DEFAULT VISIBILITY inside the FILTER stage; every other filter defers that decision to
+            # the RENDER stage, and the JSON/`--agent` renderers apply no visibility narrowing at all.
+            # The measured asymmetry on the real tree was `--priority high --format json` keeping 90
+            # `done` + 2 `parked` items while `--open-questions --format json` kept 0 of either.
+            #
+            # IT WAS ALSO A FAIL-CLOSED HOLE: the shrunken item set shrank the `selected_paths` used
+            # to prune drift, so a contract violation on a `done` artifact carrying open questions was
+            # silently dropped from `--check`.
+            #
+            # THE DEFAULT HUMAN BOARD IS UNAFFECTED (asserted separately below): the render stage
+            # recomputes the same `show_all` predicate and still hides the `done`/`parked` sections.
             args = argparse.Namespace(
                 dir=str(root),
                 format="json",
@@ -1443,8 +1497,35 @@ class AttentionFilteringTests(unittest.TestCase):
                 rc = att.run(args)
             self.assertEqual(rc, 0)
             data = json.loads(buf.getvalue())
-            self.assertEqual(len(data["items"]), 1)
-            self.assertEqual(data["items"][0]["id"], "aaaaaa")
+            self.assertEqual({it["id"] for it in data["items"]}, {"aaaaaa", "cccccc"})
+
+            # The DEFAULT HUMAN board (no --all) still HIDES the terminal item, which is the behavior
+            # the inverted assertion above was really protecting. Asserted on the human surface, where
+            # default visibility legitimately lives.
+            args_human = argparse.Namespace(
+                dir=str(root),
+                format=None,
+                check=False,
+                selectors=[],
+                types=[],
+                status=[],
+                priority=[],
+                blocking=[],
+                readiness=[],
+                open_questions=True,
+                no_color=True,
+                all=False,
+                long=False,
+                details=False,
+            )
+            buf_human = io.StringIO()
+            with mock.patch("sys.stdout", buf_human):
+                rc_human = att.run(args_human)
+            self.assertEqual(rc_human, 0)
+            human_out = buf_human.getvalue()
+            self.assertIn("aaaaaa", human_out)
+            self.assertNotIn("cccccc", human_out)
+            self.assertIn("hidden; use --all", human_out)
 
             # With --all: includes archived items with open questions
             args_all = argparse.Namespace(
@@ -1477,6 +1558,23 @@ class AttentionFilteringTests(unittest.TestCase):
             root = Path(tmp)
             research_dir = root / ".aw" / "records" / "research"
             research_dir.mkdir(parents=True)
+
+            # A PLANNED RELEASE RECORD, added by attcor `rkn8ya` E-04. This fixture previously had
+            # none, and `-b next` matched anyway because `matches_blocking` short-circuited on the
+            # `next` token without resolving it. Now that `next` RESOLVES against the planned
+            # release, the fixture must contain the thing `next` names, or the filter correctly
+            # matches nothing. The subject of this test is unchanged: front matter vs QUOTED BODY
+            # text as the source of a `Blocks-Release` value.
+            releases_dir = root / ".aw" / "records" / "releases"
+            releases_dir.mkdir(parents=True)
+            (releases_dir / "20260901-rel001-01-rel001-1-0-0.release.md").write_text(
+                "# Release: 1.0.0\n\n"
+                "- Id: rel001\n"
+                "- Version: 1.0.0\n"
+                "- Status: planned\n\n"
+                "## Summary\n\nfixture release.\n",
+                encoding="utf-8",
+            )
 
             # Research doc with blocks-release in frontmatter
             r1 = (
@@ -2947,6 +3045,836 @@ class SharedLifecycleResolverTests(unittest.TestCase):
         )
         self.assertNotIn("\033", plain)
         self.assertIn("- [plans] .aw/records/plans/pending/p.ipd.md (approved)", plain)
+
+
+# ======================================================================================
+# attcor `rkn8ya`: the attention-view correctness and drift-audit fixes.
+#
+# One class per execution item, so a failure names the fix it belongs to. Each class states the
+# DEFECT it pins, because several of these conditions are invisible on the live repository tree and a
+# test written against that tree would pass with the bug intact.
+# ======================================================================================
+
+
+def _mk_plan(
+    dirpath: Path, *, setid: str, order: str, id6: str, slug: str, body: str
+) -> Path:
+    """Write a clustered-name plan file and return its path."""
+
+    dirpath.mkdir(parents=True, exist_ok=True)
+    p = dirpath / f"20260101-{setid}-{order}-{id6}-{slug}.ipd.md"
+    p.write_text(body, encoding="utf-8")
+    return p
+
+
+def _check_args(root: Path, **kw):
+    """An argparse Namespace for a `--check` run, with every filter defaulted off."""
+
+    base = dict(
+        dir=str(root),
+        check=True,
+        format=None,
+        agent=False,
+        json=False,
+        no_color=True,
+        all=False,
+        types=[],
+        status=[],
+        priority=[],
+        blocking=[],
+        readiness=[],
+        open_questions=False,
+        selectors=[],
+        long=False,
+        details=False,
+    )
+    base.update(kw)
+    return argparse.Namespace(**base)
+
+
+class DriftSurvivesEveryNarrowingTests(unittest.TestCase):
+    """E-01: `--check` must FAIL CLOSED under every narrowing, not just the bare invocation.
+
+    THE DEFECT: each filter pruned `drift` down to the paths of the SURVIVING ITEMS. An artifact that
+    fails to parse yields drift and NO item (`_plans_record` returns `(None, drift)`; `scan` skips the
+    `None` record AFTER extending drift), so its violation matched no surviving path and was silently
+    DELETED. Measured before the fix with one unparseable plan present: bare `--check` exited 1,
+    `-t plans --check` exited 0, and a selector narrowing exited 0. The spec's Section 8.6 requires
+    `--check` to "never silently skip a malformed included artifact".
+
+    THE PRUNE EXISTED AT THREE SITES (types, selectors, and the combined status/priority/blocking/
+    readiness/open-questions/run-status site), so this class exercises all three: fixing one would
+    have left two live, which is how the bug hid.
+    """
+
+    def _fixture(self, tmp: Path) -> Path:
+        plans = tmp / ".aw" / "records" / "plans" / "pending"
+        # A GOOD plan, so the plans tree has a surviving item and the narrowing is not vacuous.
+        _mk_plan(
+            plans,
+            setid="fix",
+            order="01",
+            id6="aaaaaa",
+            slug="good",
+            body="# IPD: good\n\n- Status: to-review\n- Id: aaaaaa\n\n"
+            "## Workflow history\n- 2026-01-01 draft (t): created.\n",
+        )
+        # The UNPARSEABLE plan: an unknown status yields drift and NO item.
+        _mk_plan(
+            plans,
+            setid="fix",
+            order="02",
+            id6="bbbbbb",
+            slug="bad",
+            body="# IPD: bad\n\n- Status: frobnicated\n- Id: bbbbbb\n\n"
+            "## Workflow history\n- 2026-01-01 draft (t): created.\n",
+        )
+        specs = tmp / ".aw" / "records" / "specs"
+        specs.mkdir(parents=True, exist_ok=True)
+        (specs / "20260101-cccccc-01-cccccc-s.spec.md").write_text(
+            "# Spec: s\n\n- Status: approved\n- Id: cccccc\n\n## Body\n\nx\n\n"
+            "## Workflow history\n- 2026-01-01 draft (t): created.\n",
+            encoding="utf-8",
+        )
+        return tmp
+
+    def _run_check(self, root: Path, **kw):
+        buf = io.StringIO()
+        with mock.patch.object(att, "stranded_lane_drift", return_value=[]):
+            with redirect_stdout(buf):
+                rc = att.run(_check_args(root, **kw))
+        return rc, buf.getvalue()
+
+    def test_an_unparseable_artifacts_violation_survives_all_three_narrowings(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = self._fixture(Path(td))
+
+            for label, kw in (
+                ("bare", {}),
+                ("--types plans", dict(types=["plans"])),
+                ("a selector", dict(selectors=["aaaaaa"])),
+                ("--status to-review", dict(status=["to-review"])),
+            ):
+                with self.subTest(narrowing=label):
+                    rc, out = self._run_check(root, **kw)
+                    self.assertEqual(
+                        rc,
+                        1,
+                        f"--check must FAIL CLOSED under {label}; got exit {rc}. Output:\n{out}",
+                    )
+                    self.assertIn("attention.unknown-status", out)
+                    self.assertIn("bbbbbb", out)
+
+    def test_drift_from_an_UNSELECTED_tree_is_still_pruned(self):
+        """The other half of the retention rule: retaining EVERYTHING would be wrong too.
+
+        A `--types plans` narrowing must not surface a SPEC's violation. Without this, the fix would
+        trade a false-negative for a false-positive.
+        """
+
+        with tempfile.TemporaryDirectory() as td:
+            root = self._fixture(Path(td))
+            (
+                root
+                / ".aw"
+                / "records"
+                / "specs"
+                / "20260101-dddddd-01-dddddd-bad.spec.md"
+            ).write_text(
+                "# Spec: bad\n\n- Status: frobnicated\n- Id: dddddd\n\n"
+                "## Workflow history\n- 2026-01-01 draft (t): created.\n",
+                encoding="utf-8",
+            )
+            rc, out = self._run_check(root, types=["plans"])
+            self.assertEqual(rc, 1, out)
+            self.assertIn("bbbbbb", out)  # the selected tree's violation is retained
+            self.assertNotIn("dddddd", out)  # the unselected tree's violation is pruned
+
+    def test_stranded_lane_drift_is_still_suppressed_under_an_explicit_narrowing(self):
+        """The deliberate F3a behavior must NOT regress.
+
+        A lane's Drift location is a git BRANCH, which matches no path and belongs to no tree, so it
+        must stay suppressed under an explicit `--types`/selector narrowing while surviving the bare
+        invocation. Retaining all drift unconditionally would have broken this.
+        """
+
+        lane = core_Drift("aw/lane/lane01", "attention.lane-stranded", "stranded")
+        with tempfile.TemporaryDirectory() as td:
+            root = self._fixture(Path(td))
+            with mock.patch.object(att, "stranded_lane_drift", return_value=[lane]):
+                buf_bare = io.StringIO()
+                with redirect_stdout(buf_bare):
+                    att.run(_check_args(root))
+                buf_narrow = io.StringIO()
+                with redirect_stdout(buf_narrow):
+                    att.run(_check_args(root, types=["plans"]))
+        self.assertIn("attention.lane-stranded", buf_bare.getvalue())
+        self.assertNotIn("attention.lane-stranded", buf_narrow.getvalue())
+
+
+class SpecDriftLocationIsRepoRelativeTests(unittest.TestCase):
+    """E-02: no machine-local ABSOLUTE path may reach a Drift location.
+
+    THE DEFECT: `validate_spec` set `loc = str(path)` and both callers pass an ABSOLUTE path, so the
+    operator's real directory appeared in `aw attention --check`'s human line and in the JSON
+    `location` field. Spec Section 8.5 requires repo-relative POSIX paths and forbids absolute paths.
+    `aw check specs` MASKED this by relativizing defensively, which is why `aw specs check` looked
+    clean while `aw attention` leaked.
+
+    ASSERTED BY EQUALITY against the expected relative string, not by `is_absolute()`: an
+    `is_absolute()` check would also pass for a bare filename, which is not what the spec asks for.
+    """
+
+    _SPEC_BODY = (
+        "# Spec: bad\n\n- Status: frobnicated\n- Id: aaaaaa\n\n"
+        "## Workflow history\n- 2026-01-01 draft (t): created.\n"
+    )
+
+    def test_validate_spec_emits_a_repo_relative_location_for_an_absolute_path(self):
+        from agent_workflows import specs as specs_mod
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            rel = ".aw/records/specs/20260101-aaaaaa-01-aaaaaa-bad.spec.md"
+            p = root / rel
+            p.parent.mkdir(parents=True)
+            p.write_text(self._SPEC_BODY, encoding="utf-8")
+
+            drift = specs_mod.validate_spec(p, self._SPEC_BODY)
+            self.assertTrue(drift, "the fixture must produce at least one violation")
+            for d in drift:
+                self.assertEqual(d.location, rel)
+                self.assertNotIn(str(root), d.location)
+
+    def test_the_legacy_layout_is_relativized_too(self):
+        from agent_workflows import specs as specs_mod
+
+        with tempfile.TemporaryDirectory() as td:
+            rel = ".agents/docs/specs/bad.md"
+            p = Path(td) / rel
+            p.parent.mkdir(parents=True)
+            p.write_text(self._SPEC_BODY, encoding="utf-8")
+            drift = specs_mod.validate_spec(p, self._SPEC_BODY)
+            self.assertTrue(drift)
+            self.assertEqual(drift[0].location, rel)
+
+    def test_an_already_relative_path_is_returned_unchanged(self):
+        """The many existing callers that pass `Path("s.md")` must be unaffected."""
+
+        from agent_workflows import specs as specs_mod
+
+        drift = specs_mod.validate_spec(Path("s.md"), self._SPEC_BODY)
+        self.assertTrue(drift)
+        self.assertEqual(drift[0].location, "s.md")
+
+    def test_neither_attention_surface_carries_the_absolute_path(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            rel = ".aw/records/specs/20260101-aaaaaa-01-aaaaaa-bad.spec.md"
+            p = root / rel
+            p.parent.mkdir(parents=True)
+            p.write_text(self._SPEC_BODY, encoding="utf-8")
+
+            human = io.StringIO()
+            with mock.patch.object(att, "stranded_lane_drift", return_value=[]):
+                with redirect_stdout(human):
+                    rc = att.run(_check_args(root, types=["specs"]))
+            self.assertEqual(rc, 1, human.getvalue())
+            self.assertIn(rel, human.getvalue())
+            self.assertNotIn(str(root), human.getvalue())
+
+            payload = io.StringIO()
+            with mock.patch.object(att, "stranded_lane_drift", return_value=[]):
+                with mock.patch("sys.stdout", payload):
+                    att.run(
+                        _check_args(root, check=False, format="json", types=["specs"])
+                    )
+            obj = json.loads(payload.getvalue())
+            self.assertEqual([v["location"] for v in obj["violations"]], [rel])
+            self.assertNotIn(str(root), payload.getvalue())
+
+
+class BlockingNextResolvesAgainstThePlannedReleaseTests(unittest.TestCase):
+    """E-04: `--blocking next` means "gates THE PLANNED release", not "is gated on anything".
+
+    THE DEFECT: `matches_blocking` did `if tok == "next": return True` inside the is-blocking branch,
+    so every gated item matched regardless of which release it named, including a SHIPPED one.
+
+    A SYNTHETIC TWO-RELEASE FIXTURE IS MANDATORY HERE. On the live repository every blocking artifact
+    points at `next` or at the id6 of the single PLANNED release, so `--blocking next` returns the
+    same set whether the code is fixed or broken; a test written against the live tree would pass with
+    the bug intact.
+    """
+
+    def _fixture(self, tmp: Path, *, planned: bool = True) -> Path:
+        releases = tmp / ".aw" / "records" / "releases"
+        releases.mkdir(parents=True)
+        (releases / "20260101-pppppp-01-pppppp-1-0-0.release.md").write_text(
+            "# Release: 1.0.0\n\n- Id: pppppp\n- Version: 1.0.0\n"
+            f"- Status: {'planned' if planned else 'shipped'}\n\n## Summary\n\nx.\n",
+            encoding="utf-8",
+        )
+        (releases / "20251201-ssssss-01-ssssss-0-9-0.release.md").write_text(
+            "# Release: 0.9.0\n\n- Id: ssssss\n- Version: 0.9.0\n- Status: shipped\n\n"
+            "## Summary\n\nx.\n",
+            encoding="utf-8",
+        )
+        backlog = tmp / ".aw" / "records" / "backlog" / "open"
+        backlog.mkdir(parents=True)
+        for order, id6, gate in (
+            ("01", "aaaaaa", "next"),  # gates the planned release by symbol
+            ("02", "bbbbbb", "ssssss"),  # gates a DIFFERENT, shipped release
+            ("03", "cccccc", "pppppp"),  # gates the planned release by id6
+        ):
+            (backlog / f"20260101-b-{order}-{id6}-gate.backlog.md").write_text(
+                f"- Id: {id6}\n- Status: open\n- Set: b\n- Priority: high\n"
+                f"- Work-Kind: chore\n- Blocks-Release: {gate}\n- Summary: fixture\n\n"
+                "## Workflow history\n- 2026-01-01 created (aw backlog): fixture\n",
+                encoding="utf-8",
+            )
+        return tmp
+
+    def test_next_includes_the_planned_releases_blockers_and_excludes_another_releases(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as td:
+            root = self._fixture(Path(td))
+            items, drift = att.scan(root)
+            self.assertEqual(drift, [], f"fixture must be clean, got {drift}")
+            filters = att.parse_blocking_filters(["next"])
+            matched = {it.id for it in items if att.matches_blocking(it, filters, root)}
+            # BOTH spellings of "the planned release" match; the shipped one does NOT.
+            self.assertEqual(matched, {"aaaaaa", "cccccc"})
+
+    def test_with_NO_planned_release_next_matches_nothing_and_any_still_matches(self):
+        """The stated behavior change, asserted rather than left implicit.
+
+        `next` names a release record; with no PLANNED record there is no release for an item to gate,
+        so the honest answer is the empty set. `--blocking any` remains the way to list every gated
+        item, so no capability is lost.
+        """
+
+        with tempfile.TemporaryDirectory() as td:
+            root = self._fixture(Path(td), planned=False)
+            items, _ = att.scan(root)
+            next_filters = att.parse_blocking_filters(["next"])
+            self.assertEqual(
+                [it.id for it in items if att.matches_blocking(it, next_filters, root)],
+                [],
+            )
+            any_filters = att.parse_blocking_filters(["any"])
+            self.assertEqual(
+                {it.id for it in items if att.matches_blocking(it, any_filters, root)},
+                {"aaaaaa", "bbbbbb", "cccccc"},
+            )
+
+
+class DispositionMismatchFiresUnderTheModernLayoutTests(unittest.TestCase):
+    """E-05: the disposition-vs-terminal-status check was DEAD under `.aw/records/plans/`.
+
+    THE DEFECT: the disposition was computed only when the path started with `.agents/plans/`, so
+    every modern path yielded `""` and the rule could never fire. Spec F3 lists
+    "disposition-vs-terminal-status disagreement" among the conditions `--check` must fail closed on.
+
+    A FIXTURE IS MANDATORY: the live tree has ZERO terminal-status/directory disagreements (measured),
+    so a test over the real corpus would be vacuous.
+    """
+
+    _TERMINAL_MISMATCH = (
+        "# IPD: mismatch\n\n- Status: superseded\n- Id: {id6}\n\n"
+        "## Workflow history\n- 2026-01-01 draft (t): created.\n"
+    )
+
+    def _rules_for(self, root: Path):
+        items, drift = att.scan(root)
+        return [(d.location, d.rule) for d in drift]
+
+    def test_a_terminal_status_disagreeing_with_its_directory_is_drift(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            _mk_plan(
+                root / ".aw" / "records" / "plans" / "executed",
+                setid="d",
+                order="01",
+                id6="aaaaaa",
+                slug="mismatch",
+                body=self._TERMINAL_MISMATCH.format(id6="aaaaaa"),
+            )
+            found = self._rules_for(root)
+            self.assertIn(
+                (
+                    ".aw/records/plans/executed/20260101-d-01-aaaaaa-mismatch.ipd.md",
+                    "attention.disposition-mismatch",
+                ),
+                found,
+            )
+
+    def test_an_ARCHIVE_SHARDED_plan_is_recognized_too(self):
+        """`aw archive plans` shards into `<disposition>/YYYYMM/`, so the disposition is the FIRST
+        component under the plans dir, never `parent.name`. A `parent.name` test would read `202609`
+        and silently stop recognizing every sharded plan."""
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            _mk_plan(
+                root / ".aw" / "records" / "plans" / "executed" / "202609",
+                setid="d",
+                order="02",
+                id6="bbbbbb",
+                slug="shard",
+                body=self._TERMINAL_MISMATCH.format(id6="bbbbbb"),
+            )
+            found = self._rules_for(root)
+            self.assertIn(
+                (
+                    ".aw/records/plans/executed/202609/20260101-d-02-bbbbbb-shard.ipd.md",
+                    "attention.disposition-mismatch",
+                ),
+                found,
+            )
+
+    def test_a_matching_status_and_a_NON_TERMINAL_status_emit_nothing(self):
+        """Two negative cases in one place, because the second is a deliberate scope boundary.
+
+        A plan whose status MATCHES its directory is obviously fine. A plan with a NON-TERMINAL status
+        (`draft`) in a terminal directory is ALSO not this rule's business: the rule's third conjunct
+        is `status in plans.TERMINAL`. Whether that SHOULD be drift is a contract question for the
+        spec, so widening it here would change the F3 violation set without amending the spec.
+        """
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            plans = root / ".aw" / "records" / "plans"
+            _mk_plan(
+                plans / "superseded",
+                setid="d",
+                order="03",
+                id6="cccccc",
+                slug="ok",
+                body=self._TERMINAL_MISMATCH.format(id6="cccccc"),
+            )
+            _mk_plan(
+                plans / "executed",
+                setid="d",
+                order="04",
+                id6="dddddd",
+                slug="draft-in-executed",
+                body="# IPD: draft\n\n- Status: draft\n- Id: dddddd\n\n"
+                "## Workflow history\n- 2026-01-01 draft (t): created.\n",
+            )
+            found = [r for _loc, r in self._rules_for(root)]
+            self.assertNotIn("attention.disposition-mismatch", found)
+
+
+class PriorityMedAliasTests(unittest.TestCase):
+    """E-06: `--priority med` silently returned ZERO items instead of erroring or working.
+
+    `parse_priority_filters` was a bare passthrough, `matches_priority` does exact membership, and
+    `--priority` carries no argparse `choices`. `med` is already accepted by `PRIORITY_RANK` in the
+    same module, so normalizing it at the PARSE boundary removes an internal inconsistency.
+    """
+
+    def test_med_and_medium_select_the_same_items(self):
+        self.assertEqual(
+            att.parse_priority_filters(["med"]), att.parse_priority_filters(["medium"])
+        )
+        item_med = att.Item(
+            "aaaaaa", "p.md", "backlog", "open", A.READY, None, None, priority="medium"
+        )
+        item_high = att.Item(
+            "bbbbbb", "q.md", "backlog", "open", A.READY, None, None, priority="high"
+        )
+        for token in ("med", "medium"):
+            filters = att.parse_priority_filters([token])
+            self.assertTrue(att.matches_priority(item_med, filters), token)
+            self.assertFalse(att.matches_priority(item_high, filters), token)
+
+    def test_the_shared_vocabulary_and_sort_rank_are_UNCHANGED(self):
+        """The alias must not become a second vocabulary. `PRIORITY_ORDER` is the one vocabulary and
+        `_PRIORITY_SORT_RANK` is DERIVED from it; duplicating either is the mistake `ipd_schema`
+        already recorded when a copied status table desynced."""
+
+        self.assertEqual(A.PRIORITY_ORDER, ("high", "medium", "low"))
+        self.assertEqual(att._PRIORITY_SORT_RANK, {"high": 0, "medium": 1, "low": 2})
+
+    def test_the_alias_is_READ_SIDE_only_and_the_setters_still_refuse_it(self):
+        """`med` must never be WRITABLE into an artifact."""
+
+        from agent_workflows import cli
+
+        parser = cli._build_parser()
+        for argv in (
+            ["backlog", "set", "done", "aaaaaa", "--priority", "med"],
+            ["specs", "set", "x.md", "--priority", "med"],
+        ):
+            with self.subTest(argv=argv):
+                with self.assertRaises(SystemExit):
+                    with redirect_stderr(io.StringIO()):
+                        parser.parse_args(argv)
+
+
+class NameGrammarAgreesWithTheNamingAuthorityTests(unittest.TestCase):
+    """E-08: `-o set` / `-o order` used a THIRD private copy of the clustered filename grammar.
+
+    THE DEFECT: the private regex spelled the set id `[A-Za-z0-9]+`, excluding the HYPHEN that
+    `artifact_naming.build_clustered_name` PRODUCES (it kebab-cases the set id). Measured before the
+    fix: 103 fully-conformant modern names parsed differently from the authority and all sorted as
+    ABSENT. The module comment blamed "grandfathered pre-cutover names", which was wrong about those
+    103 and is corrected in the same change.
+    """
+
+    def test_parity_with_parse_clustered_over_the_whole_repository(self):
+        from agent_workflows import artifact_naming as an
+
+        items, _drift = att.scan(REPO_ROOT)
+        conformant = 0
+        mismatches = []
+        for it in items:
+            name = Path(it.path).name
+            m = an.parse_clustered(name)
+            if m is None:
+                continue
+            conformant += 1
+            expected = (m.group("set"), int(m.group("nn")))
+            got = att._name_grammar_fields(it.path)
+            if got != expected:
+                mismatches.append((name, got, expected))
+        self.assertGreater(conformant, 100, "the corpus must not be empty")
+        self.assertEqual(
+            mismatches, [], f"{len(mismatches)} name(s) disagree with the authority"
+        )
+
+    def test_a_hyphenated_set_id_parses_instead_of_sorting_as_absent(self):
+        self.assertEqual(
+            att._name_grammar_fields(
+                ".aw/records/plans/pending/20260917-gate-contract-01-dcri4s-some-slug.ipd.md"
+            ),
+            ("gate-contract", 1),
+        )
+
+    def test_the_AMBIGUOUS_stem_parses_the_way_the_authority_does_not_greedily(self):
+        """A GREEDY `[a-z0-9-]+` would read set `foo-12-abc123-bar` / order `01` here. The authority
+        (and therefore this module) reads set `foo` / order `12`."""
+
+        from agent_workflows import artifact_naming as an
+
+        stem = "20260101-foo-12-abc123-bar-01-def456-slug.ipd.md"
+        m = an.parse_clustered(stem)
+        self.assertIsNotNone(m, "the authority must accept this stem")
+        assert m is not None  # for the type checker
+        self.assertEqual((m.group("set"), int(m.group("nn"))), ("foo", 12))
+        self.assertEqual(att._name_grammar_fields(stem), ("foo", 12))
+
+    def test_a_grandfathered_name_sorts_as_ABSENT_rather_than_raising(self):
+        self.assertEqual(
+            att._name_grammar_fields(
+                ".aw/records/specs/20260808-1945-01-attention-registry.spec.md"
+            ),
+            (None, None),
+        )
+
+    def test_a_research_facet_name_still_parses_via_the_clustered_PREFIX(self):
+        """Research names carry `.<model>.<kind>.md` facets the authority's CLOSED enum rejects, but
+        their clustered PREFIX is well formed. They must keep their sort key."""
+
+        self.assertEqual(
+            att._name_grammar_fields(
+                ".aw/records/research/20260826-awclia-03-3uh9j3-aw-cli-naming-ia.gemini31pro.research-report.md"
+            ),
+            ("awclia", 3),
+        )
+
+
+class BlocksReleaseDashSortsAsAbsentTests(unittest.TestCase):
+    """E-09: `Blocks-Release: -` means ABSENT, and must not outrank a real blocker.
+
+    THE DEFECT: the `-o blocking` sort key tested truthiness, so the literal `"-"` sorted as PRESENT,
+    and `-` (0x2D) collates below every alphanumeric, placing an item that DECLARES ITSELF A
+    NON-BLOCKER above every real blocker. This is the one reader of four that omitted the guard.
+
+    LATENT, so a fixture is mandatory: `releases.set_blocks_release_line` REMOVES the line for value
+    `-`, and zero artifacts in the live tree carry it, so only a hand-edit produces the condition.
+    """
+
+    def test_a_dash_item_sorts_with_the_non_blockers(self):
+        mk = lambda i, br: att.Item(  # noqa: E731
+            i, f"p/{i}.md", "plans", "draft", A.READY, None, None, blocks_release=br
+        )
+        items = [mk("dashes", "-"), mk("real01", "next"), mk("none01", None)]
+        ordered, _notices = att.sort_items_with_notices(
+            items, "blocking", repo_root=REPO_ROOT
+        )
+        self.assertEqual(
+            [it.id for it in ordered][0],
+            "real01",
+            "a REAL blocker must sort first",
+        )
+        self.assertEqual({it.id for it in ordered[1:]}, {"dashes", "none01"})
+
+    def test_the_dash_and_the_absent_value_take_the_SAME_sort_key(self):
+        """The strongest form of the assertion: `-` and `None` are indistinguishable to the key."""
+
+        dash = att.Item(
+            "aaaaaa", "p.md", "plans", "draft", A.READY, None, None, blocks_release="-"
+        )
+        absent = att.Item("bbbbbb", "q.md", "plans", "draft", A.READY, None, None)
+        self.assertEqual(
+            att._order_key(dash, "blocking", None),
+            att._order_key(absent, "blocking", None),
+        )
+
+
+class UnbulletedFrontmatterDetailTests(unittest.TestCase):
+    """E-10: a research doc's plain-YAML `summary:` never reached `--details`.
+
+    THE DEFECT: every pattern in `_FIELD_PATTERNS` requires the `- ` bullet, but research front matter
+    is plain YAML. Measured: 110 research files carry an unbulleted `summary:` and ZERO carry
+    `- Summary:`, so the field was never used for that whole tree.
+    """
+
+    def test_an_unbulleted_frontmatter_summary_is_read(self):
+        text = "---\nid: aaaaaa\nstatus: todo\nsummary: The real summary.\n---\n\n# Research: a title\n"
+        self.assertEqual(att._extract_detail(text), ("summary", "The real summary."))
+
+    def test_a_doc_with_NO_H1_now_reports_a_detail_instead_of_nothing(self):
+        text = "---\nid: aaaaaa\nstatus: todo\nsummary: Only the summary exists.\n---\n\nbody text\n"
+        self.assertEqual(
+            att._extract_detail(text), ("summary", "Only the summary exists.")
+        )
+
+    def test_the_unbulleted_form_is_FRONT_MATTER_SCOPED_not_document_wide(self):
+        """55 files carry a `summary:`-like key in BODY PROSE (a quoted example, a table cell). Reading
+        the whole document would surface that prose as the artifact's own summary."""
+
+        text = (
+            "---\nid: aaaaaa\nstatus: todo\n---\n\n"
+            "# Real Title\n\n"
+            "Here is an example of what NOT to write:\n\n"
+            "```yaml\nsummary: THIS IS QUOTED PROSE\n```\n"
+        )
+        kind, val = att._extract_detail(text)
+        self.assertEqual((kind, val), ("title", "Real Title"))
+        self.assertNotIn("QUOTED PROSE", val or "")
+
+    def test_the_BULLETED_cascade_is_unchanged_and_still_wins(self):
+        """No artifact that already reported a detail may report a different one."""
+
+        plan = "# IPD: p\n\n- Status: to-review\n- Scope: the declared scope\n- Id: aaaaaa\n"
+        self.assertEqual(att._extract_detail(plan), ("scope", "the declared scope"))
+        both = (
+            "---\nid: aaaaaa\nsummary: the frontmatter one\n---\n\n"
+            "# T\n\n- Summary: the bulleted one\n"
+        )
+        self.assertEqual(att._extract_detail(both), ("summary", "the bulleted one"))
+
+    def test_a_document_with_no_front_matter_is_unaffected(self):
+        self.assertEqual(
+            att._extract_detail("# Just A Title\n\nbody\n"), ("title", "Just A Title")
+        )
+
+
+class StatusAndReadinessColumnCollisionTests(unittest.TestCase):
+    """E-11: two display collisions that made the table LIE.
+
+    (a) STATUS at width 8: `implementing` and `implemented` both sliced to `implemen`, so with
+        `--no-color` (and in every piped or machine read) ACTIVE work was indistinguishable from
+        FINISHED work.
+    (b) READINESS at width 9: `go-pending-approval` sliced to `go-pendin` AND the colour heuristic (a
+        substring test for "go") gave it the same green as a cleared `go`, so an UNAPPROVED plan
+        rendered as approved. That is the more serious half: it misreports an approval state.
+    """
+
+    def _item(self, id6, status, readiness=None):
+        return att.Item(
+            id6,
+            f".aw/records/plans/pending/20260101-t-01-{id6}-x.ipd.md",
+            "plans",
+            status,
+            A.ACTIVE,
+            None,
+            None,
+            readiness=readiness,
+        )
+
+    def test_implementing_and_implemented_are_distinguishable_WITHOUT_color(self):
+        rows = att.render_table(
+            [self._item("aaaaaa", "implementing"), self._item("bbbbbb", "implemented")],
+            [],
+            show_all=True,
+            term=att.T.Term(color=False),
+        )
+        line_ing = [ln for ln in rows.splitlines() if "aaaaaa" in ln][0]
+        line_ed = [ln for ln in rows.splitlines() if "bbbbbb" in ln][0]
+        self.assertNotEqual(
+            line_ing.split()[1],
+            line_ed.split()[1],
+            "the two statuses must not render as the same word",
+        )
+        self.assertNotIn("implemen ", line_ing)
+
+    def test_go_pending_approval_is_distinguishable_from_go_in_TEXT(self):
+        rows = att.render_table(
+            [
+                self._item("cccccc", "approved", "go"),
+                self._item("dddddd", "reviewed", "go-pending-approval"),
+            ],
+            [],
+            show_all=True,
+            term=att.T.Term(color=False),
+        )
+        self.assertIn("go-pend?", rows)
+        self.assertNotIn("go-pendin", rows)
+
+    def test_go_pending_approval_is_distinguishable_from_go_in_COLOR(self):
+        colored = att.render_table(
+            [
+                self._item("cccccc", "approved", "go"),
+                self._item("dddddd", "reviewed", "go-pending-approval"),
+                self._item("eeeeee", "draft", "no-go"),
+            ],
+            [],
+            show_all=True,
+            term=att.T.Term(color=True),
+        )
+        codes = {}
+        for token in ("go", "go-pend?", "no-go"):
+            m = re.search(r"\033\[([0-9;]*)m" + re.escape(token) + r"\033\[0m", colored)
+            self.assertIsNotNone(m, f"{token} must carry its own escape")
+            assert m is not None  # for the type checker
+            codes[token] = m.group(1)
+        self.assertEqual(
+            len(set(codes.values())),
+            3,
+            f"all three readiness colours must differ: {codes}",
+        )
+
+    def test_column_ALIGNMENT_is_unchanged_for_every_other_value(self):
+        statuses = (
+            "not-executed",
+            "superseded",
+            "to-review",
+            "reviewed",
+            "approved",
+            "executed",
+            "implementing",
+            "implemented",
+        )
+        items = [self._item(f"id{i:04d}", s) for i, s in enumerate(statuses)]
+        plain = att.render_table(items, [], show_all=True, term=att.T.Term(color=False))
+        # The ITEM rows only: the header and the legend line legitimately have their own widths.
+        body = [ln for ln in plain.splitlines() if re.search(r"\bid\d{4}\b", ln)]
+        self.assertEqual(
+            len(body), len(statuses), f"expected one row per status:\n{plain}"
+        )
+        widths = {att.T.visible_width(ln) for ln in body}
+        self.assertEqual(
+            len(widths), 1, f"every item row must be one width, got {widths}:\n{plain}"
+        )
+        # And the colored table stays a character-for-character strip of the plain one.
+        colored = att.render_table(
+            items, [], show_all=True, term=att.T.Term(color=True)
+        )
+        self.assertEqual(re.sub(r"\033\[[0-9;]*m", "", colored), plain)
+
+    def test_the_abbreviations_are_within_the_column_width(self):
+        for status in ("implementing", "implemented"):
+            self.assertLessEqual(len(att._abbrev_status(status)), 8)
+        self.assertLessEqual(len(att._abbrev_readiness("go-pending-approval")), 9)
+
+
+class NoProjectAgentEnvelopeTests(unittest.TestCase):
+    """E-12: `aw attention --agent` outside an AW project wrote NOTHING to stdout.
+
+    THE DEFECT: the `CommandResult` was built and then thrown away - the `emit` call was missing - so
+    the machine surface produced prose on stderr and an EMPTY stdout, breaking the `aw.agent/v1`
+    envelope contract for a consumer that only reads stdout.
+
+    THE EXIT CODE IS 2 ON THE MACHINE SURFACES, not 3, and that is forced by a published contract:
+    `aw.agent/v1` admits only 0/1/2 and classifies a cannot-run as 2, so an `exit_code=3` record
+    RAISES in the renderer before writing a byte. The HUMAN surface keeps its long-standing exit 3.
+    """
+
+    def _run_from_nowhere(self, **kw):
+        base = dict(
+            dir=None,
+            check=False,
+            format=None,
+            agent=False,
+            json=False,
+            no_color=True,
+            all=False,
+            types=[],
+            status=[],
+            priority=[],
+            blocking=[],
+            readiness=[],
+            open_questions=False,
+            selectors=[],
+            long=False,
+            details=False,
+        )
+        base.update(kw)
+        cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as td:
+            os.chdir(td)
+            try:
+                out, err = io.StringIO(), io.StringIO()
+                old_out, old_err = sys.stdout, sys.stderr
+                sys.stdout, sys.stderr = out, err
+                try:
+                    rc = att.run(argparse.Namespace(**base))
+                finally:
+                    sys.stdout, sys.stderr = old_out, old_err
+                return rc, out.getvalue(), err.getvalue(), td
+            finally:
+                os.chdir(cwd)
+
+    def test_the_agent_surface_emits_a_valid_envelope_on_STDOUT(self):
+        from agent_workflows import agent_schema
+
+        rc, out, err, td = self._run_from_nowhere(agent=True)
+        self.assertEqual(rc, 2)
+        self.assertTrue(out.strip(), "STDOUT WAS EMPTY (the defect)")
+        rec = json.loads(out.splitlines()[0])
+        self.assertEqual(rec["schema"], "aw.agent/v1")
+        self.assertEqual(rec["outcome"], "cannot-run")
+        self.assertEqual(rec["exit"], 2)
+        self.assertEqual(agent_schema.validate_agent_record(rec), [])
+
+    def test_the_json_surface_emits_the_same_fact(self):
+        rc, out, err, td = self._run_from_nowhere(format="json")
+        self.assertEqual(rc, 2)
+        obj = json.loads(out)
+        self.assertEqual(obj["status"], "cannot-run")
+        self.assertEqual(obj["exit_code"], 2)
+
+    def test_the_machine_payload_carries_NO_absolute_path(self):
+        """`no_project_message` interpolates `Path.cwd()`, so emitting it verbatim would leak the
+        operator's real directory into a machine payload (the same class as E-02)."""
+
+        for kw in (dict(agent=True), dict(format="json")):
+            with self.subTest(**kw):
+                _rc, out, _err, td = self._run_from_nowhere(**kw)
+                self.assertNotIn(td, out)
+                self.assertNotIn("/home/", out)
+
+    def test_the_HUMAN_surface_is_UNCHANGED_at_exit_3_with_prose_on_stderr(self):
+        rc, out, err, _td = self._run_from_nowhere()
+        self.assertEqual(rc, 3)
+        self.assertEqual(out, "")
+        self.assertIn("no AW project found", err)
+
+    def test_the_arcive_state_LEGACY_ALIAS_is_untouched(self):
+        """Guard clause. This plan's audit called `arcive_state` a typo and instructed its removal; it
+        is a SHIPPED flag with an argparse action, a default and a passing assertion. Removing it would
+        break a user-facing flag."""
+
+        from agent_workflows import cli
+
+        parser = cli._build_parser()
+        args = parser.parse_args(["att", "--arcive-state", "running"])
+        self.assertEqual(args.run_status, ["running"])
+        self.assertEqual(args.arcive_state, ["running"])
 
 
 def core_Drift(*args, **kw):

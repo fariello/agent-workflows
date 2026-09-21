@@ -208,11 +208,55 @@ def _history_lines(lines: List[str]) -> List[str]:
 # --------------------------------------------------------------------------------------
 
 
+_RECORDS_SEGMENTS = (".aw/records/", ".agents/")
+
+
+def drift_location(path: Path) -> str:
+    """The REPO-RELATIVE POSIX location to put in a Drift record for ``path``.
+
+    attcor `rkn8ya` E-02: `validate_spec` used to emit ``str(path)`` verbatim, and its two callers
+    pass an ABSOLUTE path (`attention._spec_record` and `run_check`'s `_spec_files` list), so a
+    machine-local absolute path leaked into `aw attention --check`'s human line and into the JSON
+    `location` field. Spec `20260808-1945-01-attention-registry-and-cross-tree-status` Section 8.5
+    requires "repo-relative POSIX paths" and forbids absolute paths outright.
+
+    PURE AND CWD-INDEPENDENT BY CONSTRUCTION, which is why this truncates at a known RECORDS SEGMENT
+    instead of relativizing against a root. `validate_spec` is documented pure ("does not read
+    anything but the passed text") and Section 8.5 forbids cwd-sensitive output, so neither a
+    filesystem climb for the project marker nor a `Path.cwd()` relativization is admissible: the
+    first reads the disk, the second makes the same bytes depend on where the command ran from.
+    Every real spec lives under `.aw/records/specs/` or the legacy `.agents/docs/specs/`, so cutting
+    the string at that segment yields exactly the repo-relative path the sibling record builders
+    already pass (`attention._plans_record`, `_research_record`, `_backlog_record`, `_release_record`
+    all pass their `rel`).
+
+    FALLBACK, stated because it loses information deliberately: an ABSOLUTE path with no records
+    segment (a `aw specs check --path /elsewhere/x.spec.md` on a file outside any records tree) is
+    reduced to its FILE NAME. That is the leak-free choice, and the name is sufficient to locate a
+    file the operator just named on the command line. A path that is already relative is returned
+    unchanged, so a caller passing `Path("s.md")` is unaffected.
+    """
+
+    posix = Path(path).as_posix()
+    for seg in _RECORDS_SEGMENTS:
+        idx = posix.find(seg)
+        if idx != -1:
+            return posix[idx:]
+    if Path(path).is_absolute():
+        return Path(path).name
+    return posix
+
+
 def validate_spec(path: Path, text: str) -> List[core.Drift]:
     """Return every spec-contract violation for one spec file, as Drift records (rule ids from the
-    Order 01 catalog). Pure; does not read anything but the passed text."""
+    Order 01 catalog). Pure; does not read anything but the passed text.
 
-    loc = str(path)
+    The Drift ``location`` is the REPO-RELATIVE POSIX path (see `drift_location`), never the
+    absolute path the callers pass in: spec Section 8.5 forbids an absolute path on any output
+    surface, and both callers here feed absolute paths.
+    """
+
+    loc = drift_location(path)
     drift: List[core.Drift] = []
     lines = _lines(text)
 
@@ -434,7 +478,11 @@ def run_check(args) -> int:
             text = p.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             drift.append(
-                core.Drift(str(p), "attention.unreadable", "cannot read/decode spec")
+                # attcor `rkn8ya` E-02: the unreadable-file path carried the same `str(p)` absolute
+                # leak as `validate_spec`; route it through the same repo-relative helper.
+                core.Drift(
+                    drift_location(p), "attention.unreadable", "cannot read/decode spec"
+                )
             )
             continue
         drift.extend(validate_spec(p, text))

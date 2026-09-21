@@ -144,6 +144,35 @@ _CORE_RE = re.compile(
     r"\A(?P<date>\d{8})-(?P<set>[a-z0-9-]+?)-(?P<nn>\d{2})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9-]+)\Z"
 )
 
+# The clustered IDENTITY PREFIX: `YYYYMMDD-<set-id>-<NN>-<id6>-`, anchored at the START only, with no
+# constraint on the tail. Defined HERE, in the authority, and re-exported by any consumer that needs
+# it, for the same single-source reason `_CORE_RE` is (a second private copy of this grammar is
+# precisely the defect attcor `rkn8ya` E-08 removed from `attention.py`, where a `[A-Za-z0-9]+` set id
+# silently rejected the hyphen this module's own builder PRODUCES).
+#
+# WHY A PREFIX FORM IS NEEDED AT ALL, since `parse_clustered` already exists: that function anchors at
+# the tail (`\Z`) with a CLOSED facet enum, so it correctly REJECTS a name whose facets it does not
+# own, such as research's `.<model>.<kind>.md`. A consumer that only wants the (set, order) IDENTITY
+# of such a name has a well-formed prefix to read and no legal way to read it. This is that way.
+#
+# THE LAZY QUANTIFIER IS LOAD-BEARING, exactly as in `_CORE_RE`: a greedy `[a-z0-9-]+` reads
+# `20260101-foo-12-abc123-bar-01-def456-slug` as set `foo-12-abc123-bar` / order `01`, disagreeing
+# with this module's own canonical reading of set `foo` / order `12`.
+_CLUSTERED_PREFIX_RE = re.compile(
+    r"\A(?P<date>\d{8})-(?P<set>[a-z0-9-]+?)-(?P<nn>\d{2})-(?P<id6>[0-9a-z]{6})-"
+)
+
+
+def parse_clustered_prefix(name: str):
+    """Return the ``re.Match`` for the clustered IDENTITY PREFIX of ``name``, or ``None``.
+
+    Exposes ``date``, ``set``, ``nn`` and ``id6``. Use this ONLY when the tail is legitimately not the
+    canonical closed-facet form (research's `.<model>.<kind>.md`); prefer `parse_clustered`, which
+    validates the WHOLE name, whenever the name is supposed to be canonical.
+    """
+
+    return _CLUSTERED_PREFIX_RE.match(name)
+
 
 # --------------------------------------------------------------------------------------
 # BUILD: the one clustered-name builder.
