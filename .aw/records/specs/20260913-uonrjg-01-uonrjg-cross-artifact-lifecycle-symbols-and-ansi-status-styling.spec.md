@@ -10,13 +10,7 @@
 
 ## Workflow history
 
-- 2026-09-19 note (aw specs): Section 12a re-review round 2 (opencode its_direct/pt3-claude-opus-5-1m-us, plan n4xq3l) at HEAD 8fd2658a, a HEAD where yaxr4i is executed (.aw/records/plans/executed/, finalize commit 878f6152). STATUS DELIBERATELY UNCHANGED at approved: this is a documentary re-read, /spec-review was NOT invoked (it refuses an approved spec, and its transition step would de-approve this release-gating spec), and no .review.md was filed (filing one arms an approval gate with no override). PER-CRITERION VERDICT: A11 NEEDED AMENDMENT and was amended; A12 HOLDS in substance but NEEDED A RE-POINTED CITATION and got one; A13 NEEDED AMENDMENT and was amended; Section 9.3 NEEDED RE-POINTING and was re-pointed. A11: its 'UNCONDITIONAL' claim is no longer true as written, because yaxr4i added the flag layer this spec asked for and placed it ABOVE the environment; measured on a non-TTY stream, --color returns True against all three of A11's conditions (NO_COLOR=1, TERM=dumb, non-TTY), each of which returns False without the flag. Restated to hold for an invocation passing neither --color nor --no-color; the glyph-plus-word half stays unconditional. The documentation hazard A11 warned about is RESOLVED: docs/cli-output-contract.md section 9 is now headed 'RETRACTED 2026-09-19' and the 'adopts aw.agent/v1 immediately upon release' promise survives only as explicitly-quoted retracted text, so the ruling and the document finally agree. A12: substance holds (AW_ASCII_ONLY and FORCE_ASCII are both read in term.should_unicode, gated on exactly '1', untouched by yaxr4i, and there is no --ascii flag, so the new flag layer is color-only), but its citation term.py:224-227 had rotted onto should_color's NO_COLOR block; now cited BY SYMBOL, since a line number in a spec rots on the next unrelated edit and a wrong line is worse than none. A13: 'according to existing precedence' was a deliberately deferred reference and the referent has shipped, so the chain is now written out (--color/--no-color > NO_COLOR/FORCE_COLOR > TERM > isatty) with three rungs named for assertion; FORCE_COLOR=1 with --no-color now yields NO color, so an implementation treating FORCE_COLOR as the top of the chain is wrong. Section 9.3: 'current behavior' re-pointed at the one originating definition (term.should_color), the published chain, the override= argument rule (a flag must never reach the resolver via os.environ, because nested aw processes inherit it), and the measured flag surface (200 leaf subcommands, 229 nodes including 29 intermediate groups; 29 leaves declare neither flag and all 29 are accounted for: 28 host-driver leaves that forward argv verbatim and honor the flags by CONSUMPTION in cli._dispatch, plus the hidden __complete callback, verified separately). TWO DEFECTS FOUND AND FILED AGAINST OTHER ARTIFACTS, NOT THIS SPEC: (1) docs/cli-output-contract.md section 1.1 row 2 says NO_COLOR disables unless FORCE_COLOR 'is set' and that any non-empty FORCE_COLOR enables, which makes FORCE_COLOR=0 both cancel NO_COLOR and enable color; the shipped code does neither (measured FORCE_COLOR=0 -> False, NO_COLOR=1 FORCE_COLOR=0 -> False). The code is right on accessibility grounds and A13 adopts it; the document wording is stale. (2) aw specs note and aw specs set DESTROY tracked inline workflow history (they keep only the latest record, per maintainer-resolved OQ-2 of spec 20260818-1525-02, on the premise that the full log lives in .aw/records/history.jsonl) while that sidecar is GITIGNORED since commit 0c82cbdb, so the dropped rounds have no tracked home; this round's own five predecessor rounds were restored by hand in the same commit to avoid destroying a --by-human approval attestation. APPROVAL NOTE for the maintainer (plan OQ-01 fired): A11 and A13 are acceptance criteria and were NARROWED, on a spec carrying Blocks-Release: next, so the acceptance bar moved and the executing agent is surfacing that rather than deciding it. No aw specs set was run on this spec in either direction.
-- 2026-09-13 approved (aw set, --by-human): status set to approved
-- 2026-09-13 reviewed (aw set): spec-review round 1 (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-401..SR-409, all nine FIXED, none deferred, none open. THE DESIGN IS SOUND; the findings are about COVERAGE and about relationships to other specs. OVERRIDE AUTHORITY recorded (new 0.5) on the maintainer's ruling, scoped to DISPLAY only, superseding 25kzda 5.6's five-color runner scheme (itself approved and release-gating) and requiring the implementing plan to amend that spec rather than leave two live tables. FIVE ORPHAN STATUS WORDS were in no mapping table and would each have rendered a gray '?', violating the spec's own A2: needs_input and awaiting-human -> waiting-input (satisfying 6kwd2e R4a.6, since 214 differs from blocked's 208), ran -> recovering, unknown_outcome -> failed, quarantined -> parked. OQ-01's PREMISE WAS WRONG and that was the session's most useful finding: the accessibility lens was STALE, not in conflict. DECISIONS D42 already required 'degrade through 256/16/none' and the lens still said 'prefer the 16 named colors', which is why D133 had to be an exception to a superseded rule. The lens is corrected (it ships to every managed repo) and this spec now carries the full ladder in 9.3a with one depth resolver, an AUTHORED 16-color palette with named collapses, and USER CONFIGURABILITY of depth and scheme. TWO FINDINGS RECORD MY OWN ERRORS: I proposed ran -> done (refuted twice over: 25kzda makes a ran item exit 1 and 7.2 already forbids styling unverified completion as success) and I proposed deferring configurability (no advantage, since configured and detected depth are one decision at one seam, and detection cannot see a colorblind user). SEQUENCING: implementing after yaxr4i is safe and recommended; 12a requires a declared executed:yaxr4i edge and a RE-REVIEW of this spec once yaxr4i lands, since it moves the flag surface A11-A13 rest on.
-- 2026-09-13 to-review (aw set): Maintainer direction 2026-09-13: priority high, gates the next release (2.0.0). Recorded during /spec-review, before the review's own transition.
-- 2026-09-13 to-review (aw set): Lifecycle glyph, active overlay, accessibility, mapping, architecture, and verification contracts finalized for review.
-- 2026-09-13 created (aw specs): A single accessible glyph and ANSI vocabulary for artifact statuses, artifact id6s, and live runner activity across human terminal views.
-
+- 2026-09-21 note (aw specs): AMENDED 2026-09-21 (maintainer-directed rename): the integration status vocabulary was renamed one-for-one and Sections 4.4a/7.2 now carry the canonical spelling: integration-deferred -> merge-retry, integration-blocked -> merge-needs-human, merge-conflict -> merge-refused, and the same-day unreleased integration-unmeasured -> merge-unchecked. NO STAGE CHANGED, so this is a naming amendment and not a presentation ruling: merge-retry and merge-unchecked stay recovering, merge-needs-human and merge-refused stay blocked. A rename table plus the rationale and the two rejected candidates (merge-error, merge-waiting) are recorded in Section 7.2 so a future reader sees why the churn was worth it rather than re-litigating it. The trigger was measured, not aesthetic: diagnosing run run-20260921T105933Z-1994623 cost a full investigation largely because merge-conflict was the operator-facing label on a refusal that involved no conflict (that kind is also returned for a stale base, a scope violation and a red combined suite), and the maintainer judged integration-deferred/integration-blocked unintuitive because neither says what the operator must DO. Both spellings remain readable forever via runner_shared.LEGACY_INTEGRATION_STATUS_ALIASES, since a run directory is a durable record; nothing writes a legacy spelling. Verified: tests/test_lifecycle_style.py 's spec-coverage assertion (which reads THIS FILE and fails when a code mapping is absent here) passes, 235 passed across the lifecycle/flag-surface/retirement suites.
 ## 0. Decision summary
 
 Human terminal views MUST use one shared lifecycle presentation system for managed artifacts and runner
@@ -129,7 +123,7 @@ state is actively misleading.
 MANY-TO-ONE IS THE DESIGN, NOT AN OVERSIGHT. Section 0 makes the native word authoritative and the glyph
 a redundant scanning aid, so a stage is deliberately shared by every native word with the same lifecycle
 meaning. This spec already does it in several places: `blocked`, `dependency-blocked`,
-`integration-blocked` and `merge-conflict` all render `⚠︎` while each printing its own word. A reader
+`merge-needs-human` and `merge-refused` all render `⚠︎` while each printing its own word. A reader
 comparing two rows that share a glyph is seeing the aid work, not a table defect.
 
 THE WAITING CASE IS WORTH SPELLING OUT, because three names look interchangeable and are not. They sit at
@@ -327,13 +321,13 @@ only when the subtype is genuinely unavailable.
 | `reviewed` | authority-queued |
 | `approved` | ready |
 | `executed`, `verified`, `complete` | done |
-| `blocked`, `dependency-blocked`, `integration-blocked`, `merge-conflict` | blocked |
+| `blocked`, `dependency-blocked`, `merge-needs-human`, `merge-refused` | blocked |
 | `failed`, `failed-safely` | failed |
 | `not-attempted`, `cancelled` | abandoned |
 | `needs_input`, `awaiting-human` | waiting-input |
 | `ran` | recovering |
 | `unknown_outcome` | failed |
-| `integration-deferred` | recovering |
+| `merge-retry`, `merge-unchecked` | recovering |
 | stale projected `abandoned?` or another inference | unknown |
 
 THE FOUR ROWS ABOVE WERE ADDED AT REVIEW (2026-09-13) and each closes a word this spec's own Section 6
@@ -371,6 +365,7 @@ judgement calls:
 
 A SIXTH ROW WAS ADDED LATER, 2026-09-19, BY PLAN `udgilu`, and it is called out separately because the
 paragraph above says "THE FOUR ROWS ABOVE" and must not be read as covering it. `integration-deferred`
+(RENAMED `merge-retry` on 2026-09-21; see the rename note at the end of this section)
 was MISSED BY THE 2026-09-13 REVIEW FOR A STRUCTURAL REASON rather than an oversight: the plan that
 introduced the status (`integpath-03`/`51vw4y`) landed AFTER that review, so the review's own five-orphan
 sweep could not have seen it. Measured 2026-09-19 by importing the enum and counting occurrences in this
@@ -388,11 +383,38 @@ iteration, with "Zero waiting, zero tokens, no agent turn".
 So WORK HERE ADVANCES BY ITSELF, which is precisely this spec's definition of `recovering` ("Retry,
 correction, resume, or recovery is active or required") and precisely NOT its definition of `blocked`
 ("Work cannot advance until a named condition clears"). The neighbouring rows confirm the placement:
-every row mapped to `blocked` (`dependency-blocked`, `integration-blocked`, `merge-conflict`) leaves the
+every row mapped to `blocked` (`dependency-blocked`, `merge-needs-human`, `merge-refused`) leaves the
 item NOT integrated with NO scheduled retry, while `interrupted`, `partial`, `correction_required` and
 `ran` already share `recovering`. REJECTED: `blocked`, on the reading that the dirty-path overlap is a
 named condition (it is, but it clears without anyone acting, so nothing is obstructed in this spec's
 sense); and `unknown`, which Section 6's preamble already calls a defect for a KNOWN status.
+
+THE INTEGRATION VOCABULARY WAS RENAMED 2026-09-21 (maintainer decision), and the rows above carry the new
+spelling. The mapping is one-for-one, so NO STAGE CHANGED and this is a naming amendment rather than a
+presentation ruling:
+
+| Pre-rename | Canonical | Stage |
+|---|---|---|
+| `integration-deferred` | `merge-retry` | recovering |
+| `integration-blocked` | `merge-needs-human` | blocked |
+| `merge-conflict` | `merge-refused` | blocked |
+| `integration-unmeasured` (same-day, unreleased) | `merge-unchecked` | recovering |
+
+WHY, since a rename needs a reason to be worth the churn: the old names described the runner's INTERNAL
+CAUSE, and the new ones state WHAT AN OPERATOR MUST DO. `merge-retry` retries itself, so do nothing;
+`merge-needs-human` needs a person; `merge-refused` is the gate declining the work; `merge-unchecked` is
+the gate unable to judge it. The trigger was measured: diagnosing run `run-20260921T105933Z-1994623` cost
+a full investigation largely because `merge-conflict` was the label on a refusal involving NO conflict
+(it is also returned for a stale base, a scope violation, and a red combined suite), and the maintainer's
+judgement was that `integration-deferred`/`integration-blocked` are not intuitive - neither answers the
+only question a status must answer at a glance. Two candidates were REJECTED and are recorded because the
+reasons generalize: `merge-error`, because these states mean the work is FINE and main is untouched (the
+usual cause is a co-worker's uncommitted file), so "error" invites the "this plan failed" misread that
+caused the incident; and `merge-waiting`, because "waiting for what?" names a state instead of an owner.
+
+BOTH SPELLINGS REMAIN READABLE FOREVER. A run directory is a durable record and the old strings are
+written into every run that already happened, so `runner_shared.LEGACY_INTEGRATION_STATUS_ALIASES` maps
+each legacy name to its canonical one and the resolver accepts both. Nothing WRITES a legacy spelling.
 
 An item that is presently verifying displays `verifying`, even if its last durable ledger event is
 `performed`. Once verification completes, it displays `done`. Unverified completion MUST NOT be styled

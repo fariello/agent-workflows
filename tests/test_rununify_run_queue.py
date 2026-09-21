@@ -1310,9 +1310,9 @@ class TheRetryIncompleteFlagRequeuesTheStatesItDeclares(RunQueueCase):
         "failed-safely",
         "blocked",
         "dependency-blocked",
-        "integration-blocked",
-        "merge-conflict",
-        "integration-deferred",
+        "merge-needs-human",
+        "merge-refused",
+        "merge-retry",
     )
 
     def test_every_declared_non_terminal_state_is_requeued_and_dispatched(self):
@@ -1608,13 +1608,13 @@ class TheIntegrationLadderIsReachedFromTheLoop(RunQueueCase):
                 def retry(rd, st, *a, **kw):
                     calls.append(dict(kw))
                     for entry in st["queue"]:
-                        if entry["status"] == "integration-deferred":
+                        if entry["status"] == "merge-retry":
                             entry["status"] = "executed"
                     module.save_state(rd, st)
 
                 run_dir = self.make_run(
                     [
-                        self.item("def111", position=1, status="integration-deferred"),
+                        self.item("def111", position=1, status="merge-retry"),
                         self.item("aaa222", position=2),
                     ],
                     run_id=f"rung1-{label}",
@@ -1644,12 +1644,12 @@ class TheIntegrationLadderIsReachedFromTheLoop(RunQueueCase):
                     polled.append(dict(kw))
                     if kw.get("poll"):
                         for entry in st["queue"]:
-                            if entry["status"] == "integration-deferred":
+                            if entry["status"] == "merge-retry":
                                 entry["status"] = "executed"
                         module.save_state(rd, st)
 
                 run_dir = self.make_run(
-                    [self.item("def111", position=1, status="integration-deferred")],
+                    [self.item("def111", position=1, status="merge-retry")],
                     run_id=f"rung23-{label}",
                 )
                 with patch.object(
@@ -1691,7 +1691,7 @@ class TheIntegrationLadderIsReachedFromTheLoop(RunQueueCase):
 
                 def retry(rd, st, *a, **kw):
                     for entry in st["queue"]:
-                        if entry["status"] == "integration-deferred":
+                        if entry["status"] == "merge-retry":
                             entry["status"] = "executed"
                     module.save_state(rd, st)
                     return []
@@ -1704,7 +1704,7 @@ class TheIntegrationLadderIsReachedFromTheLoop(RunQueueCase):
 
                 run_dir = self.make_run(
                     [
-                        self.item("def111", position=1, status="integration-deferred"),
+                        self.item("def111", position=1, status="merge-retry"),
                         # A second runnable item is what keeps the loop alive past rung 1, so the
                         # probe fires AFTER the ladder reload rather than at the summary.
                         self.item("aaa222", position=2),
@@ -1747,7 +1747,7 @@ class TheIntegrationLadderIsReachedFromTheLoop(RunQueueCase):
 
                 def retry(rd, st, *a, **kw):
                     for entry in st["queue"]:
-                        if entry["status"] == "integration-deferred":
+                        if entry["status"] == "merge-retry":
                             entry["status"] = "executed"
                     module.save_state(rd, st)
                     return []
@@ -1761,7 +1761,7 @@ class TheIntegrationLadderIsReachedFromTheLoop(RunQueueCase):
 
                 run_dir = self.make_run(
                     [
-                        self.item("def111", position=1, status="integration-deferred"),
+                        self.item("def111", position=1, status="merge-retry"),
                         self.item("aaa222", position=2),
                     ],
                     run_id=f"laddersnap-{label}",

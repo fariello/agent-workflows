@@ -408,7 +408,7 @@ class SpecSectionCoverageTests(unittest.TestCase):
         """Plan `udgilu` OQ-02, resolved from code evidence: the status is in-flight with an
         automatically scheduled re-attempt, so work advances BY ITSELF. That is `recovering`'s
         definition and exactly not `blocked`'s."""
-        resolved = L.resolve(L.FAMILY_RUNNER_ITEM, "integration-deferred")
+        resolved = L.resolve(L.FAMILY_RUNNER_ITEM, "merge-retry")
         self.assertEqual(resolved.stage, L.RECOVERING)
         self.assertNotEqual(resolved.stage, L.UNKNOWN)
         self.assertNotEqual(resolved.stage, L.BLOCKED)
@@ -417,15 +417,15 @@ class SpecSectionCoverageTests(unittest.TestCase):
         """The module and the contract must agree: a mapping present in code and absent from the
         spec is exactly the drift this Set exists to end."""
         spec_text = SPEC_PATH.read_text(encoding="utf-8")
-        self.assertIn("integration-deferred", spec_text)
+        self.assertIn("merge-retry", spec_text)
 
     def test_blocked_group_shares_one_stage(self):
         # Section 4.4a: many native words to one stage is the design.
         for status in (
             "blocked",
             "dependency-blocked",
-            "integration-blocked",
-            "merge-conflict",
+            "merge-needs-human",
+            "merge-refused",
         ):
             self.assertEqual(
                 L.resolve(L.FAMILY_RUNNER_ITEM, status).stage, L.BLOCKED, status

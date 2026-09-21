@@ -1835,10 +1835,10 @@ def test_a_recorded_refusal_supplies_the_reason_through_the_owning_plans_reader(
     """
     from agent_workflows import render_stream
 
-    entry = _queue_entry(status="merge-conflict")
+    entry = _queue_entry(status="merge-refused")
     render_stream.record_refusal(
         entry,
-        code="merge-conflict",
+        code="merge-refused",
         reason="the lane conflicted with main on two files",
         remedy="inspect the lane, resolve, then re-integrate",
     )
@@ -2070,10 +2070,10 @@ def test_a_recorded_refusals_own_remedy_is_sourced_not_duplicated():
     """E-06's executed branch: `orchprobe` `r2i1b1` shipped the record, so its remedy is the authority."""
     from agent_workflows import render_stream
 
-    entry = _queue_entry(status="integration-blocked", attempts=[{"n": 1}])
+    entry = _queue_entry(status="merge-needs-human", attempts=[{"n": 1}])
     render_stream.record_refusal(
         entry,
-        code="integration-blocked",
+        code="merge-needs-human",
         reason="the lane finalized but could not be merged",
         remedy="re-attempt with `aw oc run integrate <run-id>`",
     )
@@ -2082,10 +2082,10 @@ def test_a_recorded_refusals_own_remedy_is_sourced_not_duplicated():
             [entry], refusal_reader=render_stream.refusal_of_item
         )
     )
-    assert "integration-blocked (1)" in text
+    assert "merge-needs-human (1)" in text
     # The record's OWN remedy, rather than a second copy maintained in this module.
     assert "re-attempt with `aw oc run integrate <run-id>`" in text
-    assert "integration-blocked" not in pol.DISPOSITION_REMEDIES
+    assert "merge-needs-human" not in pol.DISPOSITION_REMEDIES
 
 
 def test_the_line_and_the_summary_cannot_disagree_about_one_artifact():

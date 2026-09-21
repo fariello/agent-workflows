@@ -1021,7 +1021,7 @@ class TwinParityTests(unittest.TestCase):
                     "position": 1,
                     "id6": f"def{label}",
                     "setid": "lanectn",
-                    "status": "integration-deferred",
+                    "status": "merge-retry",
                     "action": "execute",
                     "configured_file": "absent.ipd.md",
                     "attempts": [{"number": 1}],

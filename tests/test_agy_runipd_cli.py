@@ -521,7 +521,7 @@ class AgyWorktreeIsolationTests(unittest.TestCase):
             ):
                 agy_runipd.execute_item(run_dir, state, item, recovery=False)
 
-            self.assertEqual(item["status"], "merge-conflict")
+            self.assertEqual(item["status"], "merge-refused")
             self.assertIn("integration_deferral", item)
             self.assertFalse(
                 (repo / ".aw" / "records" / "plans" / "executed" / plan.name).is_file()
@@ -730,10 +730,10 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
 
             self.assertEqual(
                 item["integration_ladder"]["kind"],
-                "integration-blocked",
+                "merge-retry",
                 f"git refused to START the merge: {item.get('integration_deferral')}",
             )
-            self.assertEqual(item["status"], "integration-deferred")
+            self.assertEqual(item["status"], "merge-retry")
             self.assertNotIn(item["status"], agy_runipd.TERMINAL_STATES)
             reason = item["integration_deferral"]
             self.assertIn("Your local changes", reason)
@@ -793,7 +793,7 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
             # first refusal to the NON-TERMINAL `integration-deferred`, so the transient condition no
             # longer permanently strands verified work. Kept symmetric with the oc twin (CID-3).
             self.assertEqual(len(gate_calls), 0)
-            self.assertEqual(item["status"], "integration-deferred")
+            self.assertEqual(item["status"], "merge-retry")
             self.assertNotIn(
                 item["status"],
                 agy_runipd.TERMINAL_STATES,
@@ -845,7 +845,7 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
             ):
                 agy_runipd.execute_item(run_dir, state, item, recovery=False)
 
-            self.assertEqual(item["status"], "merge-conflict")
+            self.assertEqual(item["status"], "merge-refused")
             self.assertIn("integration_deferral", item)
             head_after = subprocess.run(
                 ["git", "rev-parse", "HEAD"], cwd=repo, text=True, capture_output=True
@@ -908,7 +908,7 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
             ):
                 agy_runipd.execute_item(run_dir, state, item, recovery=False)
 
-                self.assertEqual(item["status"], "integration-deferred")
+                self.assertEqual(item["status"], "merge-retry")
                 self.assertNotIn(item["status"], agy_runipd.TERMINAL_STATES)
                 self.assertEqual(len(gate_calls), 0)
                 turns_after_first = len(agent_turns)

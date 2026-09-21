@@ -283,7 +283,7 @@ class TestNoFieldNameMismatch:
                 f"`record_refusal` so the writer cannot drift from the reader"
             )
 
-    @pytest.mark.parametrize("status", ["integration-blocked", "merge-conflict"])
+    @pytest.mark.parametrize("status", ["merge-needs-human", "merge-refused"])
     def test_the_two_repaired_statuses_render_the_field_the_runners_write(
         self, status: str
     ):

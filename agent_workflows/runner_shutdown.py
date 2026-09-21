@@ -76,6 +76,9 @@ KNOWN_ITEM_STATUSES = frozenset(
         "not-attempted",
         "integration-blocked",
         "merge-conflict",
+        # post-rename spellings (`l2mzxn`); both accepted so a pre-rename run still reads as known
+        "merge-needs-human",
+        "merge-refused",
         # in-flight / recoverable
         "queued",
         "running",
@@ -85,6 +88,7 @@ KNOWN_ITEM_STATUSES = frozenset(
         # whole point of the status: the item is not done, and R3's coherence check must recognize it
         # or a run holding one would read as "an undefined state" and refuse its own resume.
         "integration-deferred",
+        "merge-retry",
     }
 )
 

@@ -609,7 +609,7 @@ class ForwardDirectionDerivationTests(unittest.TestCase):
         means the run finished the item. The point of this test is that the code does not NAME them: it
         asks whether the status expected the artifact in `pending/`.
         """
-        for status in ("reviewed", "queued", "integration-blocked"):
+        for status in ("reviewed", "queued", "merge-needs-human"):
             with self.subTest(status=status):
                 self.assertTrue(artifact_audit.run_status_is_nonterminal(status))
         for status in (
@@ -953,7 +953,7 @@ class MeasuredFalseAlarmShapeTests(unittest.TestCase):
         shapes = {
             "reviewed": "rvw777",
             "queued": "que777",
-            "integration-blocked": "ibl777",
+            "merge-needs-human": "ibl777",
         }
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

@@ -65,6 +65,13 @@ _STATUS_COLOR = {
     # rendered red because they leave the child NOT integrated and its set NOT finished.
     "integration-blocked": "red",
     "merge-conflict": "red",
+    # `l2mzxn` renamed these; BOTH spellings are listed so a pre-rename run directory renders
+    # identically to a post-rename one.
+    "merge-needs-human": "red",
+    "merge-refused": "red",
+    # The deferrable pair is YELLOW, not red: nothing is lost and the runner retries by itself.
+    "merge-retry": "yellow",
+    "merge-unchecked": "yellow",
 }
 
 
@@ -1795,6 +1802,8 @@ def execution_index(item: dict[str, Any], state: dict[str, Any]) -> int:
                 "failed-safely",
                 "integration-blocked",
                 "merge-conflict",
+                "merge-needs-human",
+                "merge-refused",
             }
             or (it.get("attempts") and it.get("status") != "queued")
         ):
@@ -2423,7 +2432,14 @@ def render_run_summary_table(
     elif any(it.get("status") == "interrupted" for it in queue):
         outcome_str = "INTERRUPTED"
     elif any(
-        it.get("status") in ("failed-safely", "integration-blocked", "merge-conflict")
+        it.get("status")
+        in (
+            "failed-safely",
+            "integration-blocked",
+            "merge-conflict",
+            "merge-needs-human",
+            "merge-refused",
+        )
         for it in queue
     ):
         outcome_str = "FAILED"
@@ -2823,11 +2839,19 @@ def render_run_summary_table(
             "failed-safely",
             "integration-blocked",
             "merge-conflict",
+            "merge-needs-human",
+            "merge-refused",
         ) and it.get("driver_error"):
             diag_lines.append(f"  • {id6}: {st} ({it['driver_error']})")
         elif st in (
             "integration-blocked",
             "merge-conflict",
+            # `l2mzxn`: the renamed spellings, INCLUDING the deferrable pair. A deferred item also
+            # carries `integration_deferral`, and its reason is exactly what a reader needs to see.
+            "merge-needs-human",
+            "merge-refused",
+            "merge-retry",
+            "merge-unchecked",
         ) and it.get("integration_deferral"):
             # F-4's repair, legacy-record arm: these two statuses render their reason instead of
             # nothing even when no `Refusal` was recorded (a pre-r2i1b1 run directory).

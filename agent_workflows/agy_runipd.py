@@ -580,6 +580,10 @@ TERMINAL_STATES = {
     # resolution. Both leave the child NOT integrated and its set NOT finished (never faked executed).
     "integration-blocked",
     "merge-conflict",
+    # The post-rename spellings (`l2mzxn`). BOTH are listed: a pre-rename run directory still
+    # carries the old strings, and terminality must not depend on which vocabulary wrote the file.
+    "merge-needs-human",
+    "merge-refused",
 }
 # rununify 04 (`tx6q0h`): relocated to `runner_shared` (byte-identical in both hosts);
 # re-exported so this module's other call sites are untouched.
@@ -3357,6 +3361,13 @@ def run_queue(
                 # non-terminal, so a resume must be able to pick it up. Listed here rather than left to
                 # the ladder alone because the ladder only runs inside a live dispatch loop.
                 "integration-deferred",
+                # `l2mzxn` renamed all four. BOTH vocabularies are listed because this set is matched
+                # against a status read from a DURABLE run directory: the pre-rename spellings keep an
+                # already-stranded item recoverable, and the canonical ones cover every new run.
+                "merge-needs-human",
+                "merge-refused",
+                "merge-retry",
+                "merge-unchecked",
             }:
                 # integpath-04 (`rl67b0`) E-03/E-04, symmetric with `oc_runipd`: REMEMBER the status
                 # being overwritten, because the integration pass must follow the indeterminate refusal

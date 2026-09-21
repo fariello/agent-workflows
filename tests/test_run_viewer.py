@@ -2501,7 +2501,7 @@ class SharedLifecycleRenderingTests(TestCase):
             ("needs_input", "\u2026", "1;38;5;214", "waiting-input"),
             ("not-attempted", "\u2205", "38;5;244", "abandoned"),
             ("quarantined", "\u25c7", "38;5;244", "parked"),
-            ("integration-deferred", "\u21a9\ufe0e", "1;38;5;220", "recovering"),
+            ("merge-retry", "\u21a9\ufe0e", "1;38;5;220", "recovering"),
         )
         term = self._term()
         for status, glyph, sgr, why in cases:

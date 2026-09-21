@@ -465,6 +465,10 @@ _RUNNER_ITEM_PAIRS: Tuple[Tuple[str, str], ...] = (
     ("dependency-blocked", BLOCKED),
     ("integration-blocked", BLOCKED),
     ("merge-conflict", BLOCKED),
+    # `l2mzxn` renamed these; BOTH spellings resolve, because this table is consulted with a status
+    # read from a durable run directory and a pre-rename run must keep its glyph and color.
+    ("merge-needs-human", BLOCKED),
+    ("merge-refused", BLOCKED),
     ("failed", FAILED),
     ("failed-safely", FAILED),
     ("not-attempted", ABANDONED),
@@ -475,6 +479,13 @@ _RUNNER_ITEM_PAIRS: Tuple[Tuple[str, str], ...] = (
     ("unknown_outcome", FAILED),
     ("quarantined", PARKED),
     ("integration-deferred", RECOVERING),
+    # The renamed deferrable pair. RECOVERING, not BLOCKED: both retry themselves.
+    ("merge-retry", RECOVERING),
+    ("merge-unchecked", RECOVERING),
+    # The same-day pre-rename spelling of `merge-unchecked`, so a run directory written in that window
+    # resolves to `recovering` instead of falling through to `unknown`. Caught by comparing each legacy
+    # spelling's resolved stage against its canonical twin: this was the one that did not match.
+    ("integration-unmeasured", RECOVERING),
     # The STALE PROJECTED form Section 7.2's last row names. It is an INFERENCE rather than a
     # durable state, so it resolves `unknown` on purpose: the trailing `?` is the projection's own
     # admission that it does not know.

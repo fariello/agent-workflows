@@ -2255,7 +2255,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                 )
 
                 self.assertFalse(integrated)
-                self.assertEqual(kind, "integration-blocked")
+                self.assertEqual(kind, "merge-retry")
                 self.assertIn("src/x.py", reason)
                 # Main untouched: HEAD unmoved, the un-owned edit NOT clobbered, lane preserved.
                 self.assertEqual(self._git(repo, "rev-parse", "HEAD"), head_before)
@@ -2315,7 +2315,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                 )
 
                 self.assertFalse(integrated, reason)
-                self.assertEqual(kind, "merge-conflict")
+                self.assertEqual(kind, "merge-refused")
                 # Main is CLEAN: HEAD unmoved, no partial merge, no markers in the file.
                 self.assertEqual(self._git(repo, "rev-parse", "HEAD"), head_before)
                 self.assertEqual(self._git(repo, "status", "--short"), "")
@@ -2446,7 +2446,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                     self.assertFalse(integrated, reason)
                     self.assertEqual(
                         kind,
-                        "integration-blocked",
+                        "merge-retry",
                         f"a refusal to START a merge is the TRANSIENT arm, not a conflict: {reason}",
                     )
                     # Git's OWN words, naming the offending file, carried verbatim.
@@ -2530,7 +2530,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                     )
                 self.assertEqual(
                     kind,
-                    "integration-blocked",
+                    "merge-retry",
                     "classification must not depend on git's message language",
                 )
                 self.assertIn(
@@ -2558,7 +2558,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                 )
                 self.assertEqual(
                     kind,
-                    "merge-conflict",
+                    "merge-refused",
                     "a real conflict must stay the TERMINAL kind in any locale",
                 )
 
@@ -2590,7 +2590,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                     # them asserting exactly what they asserted before (the revalidation gate still runs).
                     action_kind=runner_shared.INTEGRATION_ACTION_EXECUTE,
                 )
-            self.assertEqual(kind, "integration-blocked")
+            self.assertEqual(kind, "merge-retry")
             self.assertIn(
                 ["merge", "--no-ff", "--no-edit", "-m", mock.ANY, handle.branch],
                 calls,
@@ -2623,7 +2623,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                     # them asserting exactly what they asserted before (the revalidation gate still runs).
                     action_kind=runner_shared.INTEGRATION_ACTION_EXECUTE,
                 )
-            self.assertEqual(kind, "merge-conflict")
+            self.assertEqual(kind, "merge-refused")
             self.assertIn(["merge", "--abort"], calls)
             # The `mergemsg` contract: the conflicted path is named, from the conflict's STDOUT.
             self.assertIn("clash.txt", reason)
@@ -2668,20 +2668,18 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         on its first attempt. So the kind this branch returns decides whether verified work gets
         another attempt or is lost for the run.
         """
-        self.assertTrue(
-            runner_shared.classify_integration_refusal("integration-blocked")
-        )
-        self.assertFalse(runner_shared.classify_integration_refusal("merge-conflict"))
+        self.assertTrue(runner_shared.classify_integration_refusal("merge-retry"))
+        self.assertFalse(runner_shared.classify_integration_refusal("merge-refused"))
         first = runner_shared.decide_integration_deferral(
-            integ_kind="integration-blocked", attempts_used=1, limit=10
+            integ_kind="merge-retry", attempts_used=1, limit=10
         )
         self.assertTrue(first.deferred)
-        self.assertEqual(first.status, "integration-deferred")
+        self.assertEqual(first.status, "merge-retry")
         conflict = runner_shared.decide_integration_deferral(
-            integ_kind="merge-conflict", attempts_used=1, limit=10
+            integ_kind="merge-refused", attempts_used=1, limit=10
         )
         self.assertFalse(conflict.deferred)
-        self.assertEqual(conflict.status, "merge-conflict")
+        self.assertEqual(conflict.status, "merge-refused")
 
     def test_an_UNMEASURED_gate_refusal_is_DEFERRABLE_and_not_a_merge_conflict(self):
         """`l2mzxn`: "the gate could not measure" is not "the suite failed", and must not be terminal.
@@ -2698,15 +2696,15 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         from the fact the runner RECORDED rather than from a guess at the refusal text.
         """
         self.assertTrue(
-            runner_shared.classify_integration_refusal("integration-unmeasured"),
+            runner_shared.classify_integration_refusal("merge-unchecked"),
             "an unmeasured-gate refusal must be deferrable: unlike a real conflict, a re-attempt CAN "
             "succeed once the harness fault clears, and terminality here strands verified work",
         )
         first = runner_shared.decide_integration_deferral(
-            integ_kind="integration-unmeasured", attempts_used=1, limit=10
+            integ_kind="merge-unchecked", attempts_used=1, limit=10
         )
         self.assertTrue(first.deferred)
-        self.assertEqual(first.status, "integration-deferred")
+        self.assertEqual(first.status, "merge-retry")
         self.assertIn(
             "could not MEASURE",
             first.reason,
@@ -2717,10 +2715,10 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
 
         # BOUNDED: a harness fault that never clears still ends terminal rather than spinning forever.
         exhausted = runner_shared.decide_integration_deferral(
-            integ_kind="integration-unmeasured", attempts_used=11, limit=10
+            integ_kind="merge-unchecked", attempts_used=11, limit=10
         )
         self.assertFalse(exhausted.deferred)
-        self.assertEqual(exhausted.status, "integration-blocked")
+        self.assertEqual(exhausted.status, "merge-needs-human")
         self.assertIn("could not MEASURE", exhausted.reason)
 
     def test_the_refusal_site_RECLASSIFIES_only_an_unmeasured_revalidation(self):
@@ -2733,7 +2731,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         `l2mzxn` defect. All four cases are therefore pinned together.
         """
 
-        def _refuse(item, kind="merge-conflict"):
+        def _refuse(item, kind="merge-refused"):
             with tempfile.TemporaryDirectory() as d:
                 state = {"options": {}, "queue": [item]}
                 decision = runner_shared.record_integration_refusal(
@@ -2760,9 +2758,9 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                 },
             }
         )
-        self.assertEqual(kind, "integration-unmeasured")
+        self.assertEqual(kind, "merge-unchecked")
         self.assertTrue(decision.deferred)
-        self.assertEqual(decision.status, "integration-deferred")
+        self.assertEqual(decision.status, "merge-retry")
 
         # 2. MEASURED RED -> a real combined-red verdict about the code stays terminal.
         decision, kind = _refuse(
@@ -2777,7 +2775,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         )
         self.assertEqual(
             kind,
-            "merge-conflict",
+            "merge-refused",
             "a suite that RAN and failed is a verdict about the work; deferring it would spin the "
             "ladder against a failure repetition cannot fix",
         )
@@ -2786,7 +2784,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         # 3. NO RECORD AT ALL -> fail closed. A caller that recorded nothing has made no claim, and a
         #    real merge conflict never reaches the revalidation runner, so this is the conflict path.
         decision, kind = _refuse({"id6": "ccc"})
-        self.assertEqual(kind, "merge-conflict")
+        self.assertEqual(kind, "merge-refused")
         self.assertFalse(decision.deferred)
 
         # 4. A PASSING record is never reinterpreted (the refusal came from elsewhere in the gate).
@@ -2796,7 +2794,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                 "post_merge_revalidation": {"passed": True, "measured": True},
             }
         )
-        self.assertEqual(kind, "merge-conflict")
+        self.assertEqual(kind, "merge-refused")
         self.assertFalse(decision.deferred)
 
     def test_the_terminal_verdict_NAMES_the_condition_instead_of_listing_four(self):
@@ -2809,7 +2807,7 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         asserted rather than left to review.
         """
         verdict = runner_shared.decide_integration_deferral(
-            integ_kind="merge-conflict", attempts_used=1, limit=10
+            integ_kind="merge-refused", attempts_used=1, limit=10
         ).reason
         self.assertNotIn(
             "stale base",
@@ -2867,8 +2865,15 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
     def test_the_kind_vocabulary_is_UNCHANGED_by_the_extraction(self):
         """The three `kind` values are a CONTRACT read by callers and by run state.
 
-        Child 03 changes what `integration-blocked` means for `TERMINAL_STATES`; this child must not,
+        Child 03 changes what the transient kind means for `TERMINAL_STATES`; this child must not,
         and asserting the vocabulary here is what keeps a "pure move" from smuggling that in.
+
+        RESOLVES NAMES AS WELL AS LITERALS (`l2mzxn`). The three kinds used to be spelled as bare
+        strings inside the function; the rename moved them onto the module constants so a literal and
+        the constant it duplicates can no longer drift. An AST walk that only accepted `ast.Constant`
+        would therefore see an EMPTY set and pass vacuously against any vocabulary at all, which is
+        strictly weaker than the contract this test exists to pin. So a returned `ast.Name` is resolved
+        through the module, and a kind that is neither a literal nor a resolvable module constant fails.
         """
         src = module_source(runner_shared)
         node = next(
@@ -2876,16 +2881,23 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
             for n in ast.parse(src).body
             if isinstance(n, ast.FunctionDef) and n.name == "integrate_lane_branch"
         )
-        returned = {
-            ast.literal_eval(elt)
-            for sub in ast.walk(node)
-            if isinstance(sub, ast.Return) and isinstance(sub.value, ast.Tuple)
-            for elt in [sub.value.elts[-1]]
-            if isinstance(elt, ast.Constant)
-        }
-        self.assertEqual(
-            returned, {"integrated", "integration-blocked", "merge-conflict"}
-        )
+        returned = set()
+        for sub in ast.walk(node):
+            if not (isinstance(sub, ast.Return) and isinstance(sub.value, ast.Tuple)):
+                continue
+            elt = sub.value.elts[-1]
+            if isinstance(elt, ast.Constant):
+                returned.add(ast.literal_eval(elt))
+            elif isinstance(elt, ast.Name):
+                resolved = getattr(runner_shared, elt.id, None)
+                self.assertIsInstance(
+                    resolved,
+                    str,
+                    f"integrate_lane_branch returns {elt.id!r} as a kind, which is not a string "
+                    "constant on the module; the kind vocabulary must stay resolvable",
+                )
+                returned.add(resolved)
+        self.assertEqual(returned, {"integrated", "merge-retry", "merge-refused"})
 
 
 class CanonicalRunsRootTests(unittest.TestCase):
@@ -3778,6 +3790,165 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
             with self.subTest(host=module.__name__):
                 self.assertIn(exhausted.status, module.TERMINAL_STATES)
 
+    # ---- the 2026-09-21 rename, and its back-compatibility guarantee (`l2mzxn`) ------------------
+
+    def test_the_status_vocabulary_is_NAMED_FOR_THE_OPERATORS_NEXT_ACTION(self):
+        """The four canonical spellings, pinned so a future edit cannot quietly revert the rename.
+
+        WHY PIN LITERAL STRINGS HERE when the rest of this class deliberately drives constants: these
+        values are the OPERATOR-FACING CONTRACT. They are what a human reads in `aw runs`, what appears
+        in a run summary, and what gets typed into a `--status` filter. A constant-only assertion would
+        happily pass if someone renamed all four back, which is exactly the regression this pins.
+        """
+        self.assertEqual(runner_shared.INTEGRATION_DEFERRED_STATUS, "merge-retry")
+        self.assertEqual(runner_shared.INTEGRATION_BLOCKED_STATUS, "merge-needs-human")
+        self.assertEqual(runner_shared.INTEGRATION_REFUSAL_CONFLICT, "merge-refused")
+        self.assertEqual(
+            runner_shared.INTEGRATION_REFUSAL_UNMEASURED, "merge-unchecked"
+        )
+        # The transient KIND and the deferred STATUS share a value, as they did pre-rename. Asserted
+        # rather than assumed, because `revladder` (`i4ak5n`) records a wrong diagnosis caused by
+        # exactly this coincidence, and a future reader needs it to be deliberate.
+        self.assertEqual(
+            runner_shared.INTEGRATION_REFUSAL_TRANSIENT,
+            runner_shared.INTEGRATION_DEFERRED_STATUS,
+        )
+
+    def test_EVERY_pre_rename_spelling_still_resolves(self):
+        """A run directory is a DURABLE RECORD, so the old names must never stop being readable.
+
+        THE HARM THIS PREVENTS IS SILENT. Every run that already happened wrote the old strings into its
+        `state.json`. If the rename dropped them, `aw runs` would render the repository's own history as
+        unknown statuses and `aw <host> run integrate` would refuse to rescue an already-stranded lane -
+        the verb whose entire purpose is rescuing lanes stranded by an EARLIER run, i.e. exactly the runs
+        most likely to carry the old vocabulary. Nothing would crash; the audit trail would just go
+        blank, which is the same class of harm as deleting a plan instead of retiring it.
+        """
+        self.assertEqual(
+            runner_shared.LEGACY_INTEGRATION_STATUS_ALIASES,
+            {
+                "integration-deferred": "merge-retry",
+                "integration-blocked": "merge-needs-human",
+                "merge-conflict": "merge-refused",
+                "integration-unmeasured": "merge-unchecked",
+            },
+        )
+        for legacy, canonical in (
+            ("integration-deferred", "merge-retry"),
+            ("integration-blocked", "merge-needs-human"),
+            ("merge-conflict", "merge-refused"),
+            ("integration-unmeasured", "merge-unchecked"),
+        ):
+            self.assertEqual(
+                runner_shared.canonical_integration_status(legacy), canonical, legacy
+            )
+            # IDEMPOTENT: translating a canonical name is a no-op, so a caller may translate freely
+            # without having to know whether a value came from an old run or a new one.
+            self.assertEqual(
+                runner_shared.canonical_integration_status(canonical), canonical
+            )
+
+    def test_the_translator_PASSES_THROUGH_what_it_does_not_own(self):
+        """It is an alias map, not a validator; turning it into a gate would break every caller.
+
+        `canonical_integration_status` is called on statuses drawn from the WHOLE item vocabulary, most
+        of which have nothing to do with integration. Refusing or blanking an unknown value would make a
+        rendering helper silently drop `executed` rows.
+        """
+        for untouched in (
+            "executed",
+            "queued",
+            "dependency-blocked",
+            "interrupted",
+            "",
+        ):
+            self.assertEqual(
+                runner_shared.canonical_integration_status(untouched), untouched
+            )
+        # Non-strings degrade to the empty string rather than raising: this runs on the reporting path,
+        # where a malformed record must not take down the summary a human is waiting for.
+        self.assertEqual(runner_shared.canonical_integration_status(None), "")
+        self.assertEqual(runner_shared.canonical_integration_status(17), "")
+
+    def test_a_legacy_spelling_is_STILL_RE_INTEGRATABLE(self):
+        """The rename must not strand the lanes the `integrate` verb exists to rescue.
+
+        This is the one back-compat consequence with teeth, so it is asserted on the real predicate
+        rather than on the alias map: `REINTEGRATABLE_STATUSES` is matched against a status READ BACK
+        from a run directory written by an earlier run.
+        """
+        for spelling in (
+            "merge-needs-human",
+            "merge-refused",
+            "integration-blocked",
+            "merge-conflict",
+        ):
+            self.assertIn(spelling, runner_shared.REINTEGRATABLE_STATUSES, spelling)
+        # And the DEFERRABLE pair is absent: those are non-terminal and the live ladder owns them, so
+        # offering them to the manual verb would invite a human to race the runner.
+        for spelling in ("merge-retry", "merge-unchecked", "integration-deferred"):
+            self.assertNotIn(spelling, runner_shared.REINTEGRATABLE_STATUSES, spelling)
+
+    def test_a_legacy_spelling_RENDERS_identically_to_its_canonical_twin(self):
+        """A pre-rename run must LOOK the same, not merely be classifiable.
+
+        WHY THIS IS A SEPARATE TEST FROM THE ALIAS MAP: the alias map is consulted by code that CHOOSES
+        to translate, while `lifecycle_style.resolve` is a lookup table keyed on the raw status. A rename
+        can therefore leave the map perfect and still make old runs render as `unknown`, because the
+        table simply has no row for the old word. THAT IS NOT HYPOTHETICAL - it is what this assertion
+        found: `integration-unmeasured` resolved to `unknown` while `merge-unchecked` resolved to
+        `recovering`, so a run directory from the rename window would have rendered its glyph as
+        undecidable. Comparing each legacy spelling against its canonical twin is what caught it, which
+        is why the test is written as a PARITY check rather than as eight hardcoded expectations.
+        """
+        from agent_workflows import lifecycle_style
+
+        for (
+            legacy,
+            canonical,
+        ) in runner_shared.LEGACY_INTEGRATION_STATUS_ALIASES.items():
+            legacy_stage = lifecycle_style.resolve(
+                lifecycle_style.FAMILY_RUNNER_ITEM, legacy
+            ).stage
+            canonical_stage = lifecycle_style.resolve(
+                lifecycle_style.FAMILY_RUNNER_ITEM, canonical
+            ).stage
+            self.assertEqual(
+                legacy_stage,
+                canonical_stage,
+                f"{legacy!r} renders as {legacy_stage!r} but its canonical twin {canonical!r} "
+                f"renders as {canonical_stage!r}; a pre-rename run directory would display "
+                "differently from an identical post-rename one",
+            )
+            self.assertNotEqual(
+                legacy_stage,
+                lifecycle_style.UNKNOWN,
+                f"{legacy!r} has no row in the style table, so an already-recorded run renders as "
+                "undecidable",
+            )
+
+    def test_the_deferrable_pair_is_NOT_TERMINAL_and_the_refusals_ARE(self):
+        """The property the whole ladder rests on, asserted across BOTH vocabularies.
+
+        `TERMINAL_STATES` membership is what decides whether an item can be re-attempted, whether
+        `cascade_dependency_blocked` kills its dependents, and whether an orchestrator keeps waiting. The
+        rename touched this set, so the invariant is re-pinned here rather than trusted.
+        """
+        for terminal in (
+            "merge-needs-human",
+            "merge-refused",
+            "integration-blocked",
+            "merge-conflict",
+        ):
+            self.assertIn(terminal, runner_shared.TERMINAL_STATES, terminal)
+        for non_terminal in ("merge-retry", "merge-unchecked", "integration-deferred"):
+            self.assertNotIn(
+                non_terminal,
+                runner_shared.TERMINAL_STATES,
+                f"{non_terminal} must NOT be terminal: that absence is what makes a re-attempt "
+                "possible and keeps dependents alive",
+            )
+
     def test_a_zero_limit_is_block_spelled_as_a_count(self):
         self.assertFalse(self.decide(attempts_used=1, limit=0).deferred)
 
@@ -3805,7 +3976,7 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
             integ_kind=runner_shared.INTEGRATION_REFUSAL_CONFLICT, attempts_used=1
         )
         self.assertFalse(decision.deferred)
-        self.assertEqual(decision.status, "merge-conflict")
+        self.assertEqual(decision.status, "merge-refused")
         self.assertIn("terminal on its first attempt", decision.reason)
         self.assertFalse(
             runner_shared.classify_integration_refusal(
@@ -4262,7 +4433,7 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
                 self.assertEqual(state["queue"][1]["status"], "queued")
                 # CONTROL: the SAME shape with a terminal non-success prerequisite still cascades, so
                 # this test cannot pass by the cascade having been disabled.
-                state["queue"][0]["status"] = "integration-blocked"
+                state["queue"][0]["status"] = "merge-needs-human"
                 self.assertTrue(module.cascade_dependency_blocked(state))
                 self.assertEqual(state["queue"][1]["status"], "dependency-blocked")
 
@@ -4395,7 +4566,7 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
         """A deferral can outlive its run (an interrupt between deferring and the next iteration).
 
         REPLACES A SOURCE-TEXT PIN. It read `inspect.getsource(module.run_queue)` and asserted the
-        literal `'"integration-deferred"'` appeared somewhere in it. That is a change-detector in both
+        literal `'"merge-retry"'` appeared somewhere in it. That is a change-detector in both
         directions: `run_queue` carries a long COMMENT explaining exactly this rule (it names the
         status in prose so a later reader does not delete it from the requeue set), so the pin was
         satisfied by that comment and would have stayed green with the status removed from the set;
@@ -4405,7 +4576,7 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
         WHAT REPLACES IT DRIVES THE REQUEUE. A real `run_queue(retry_incomplete=True)` is driven over
         a queue holding ONE `integration-deferred` item with the agent turn stubbed, and the item must
         actually be dispatched (so the flip to `queued` happened) and must carry
-        `requeue_from_status == "integration-deferred"` (so the prior disposition was REMEMBERED, which
+        `requeue_from_status == "merge-retry"` (so the prior disposition was REMEMBERED, which
         is what the integration pass and E-04's hold-back read). A comment cannot dispatch an item.
 
         THE CONTROL ROW IS LOAD-BEARING: the same fixture with `retry_incomplete=False` must dispatch
@@ -5726,7 +5897,7 @@ def _verified_lane(
     }
 
 
-def _stranded_item(lane: dict, status: str = "integration-blocked") -> dict:
+def _stranded_item(lane: dict, status: str = "merge-needs-human") -> dict:
     return {
         "id6": lane["id6"],
         "position": 1,
@@ -6171,10 +6342,22 @@ class ReintegrationVerbTests(unittest.TestCase):
             self.assertIn("git exploded", outcome.reason)
 
     def test_a_merge_conflict_item_is_ALSO_re_attemptable(self):
-        """OQ-01: both statuses, because main has moved and only the gate can say if it still conflicts."""
+        """OQ-01: both statuses, because main has moved and only the gate can say if it still conflicts.
+
+        AND BOTH VOCABULARIES (`l2mzxn`). The pre-rename spellings are part of this contract rather than
+        leftovers: this verb exists to rescue a lane stranded by an EARLIER run, which is exactly the run
+        most likely to have written `integration-blocked` / `merge-conflict`. Dropping them would make
+        every already-stranded lane in the repository's history unrecoverable by the one verb built to
+        recover it, so the rename would have destroyed data while looking cosmetic.
+        """
         self.assertEqual(
             set(runner_shared.REINTEGRATABLE_STATUSES),
-            {"integration-blocked", "merge-conflict"},
+            {
+                "merge-needs-human",
+                "merge-refused",
+                "integration-blocked",
+                "merge-conflict",
+            },
         )
         with tempfile.TemporaryDirectory() as d:
             root = pathlib.Path(d)
@@ -6183,7 +6366,7 @@ class ReintegrationVerbTests(unittest.TestCase):
             state = {
                 "repo": str(repo),
                 "run_id": "run-fixture",
-                "queue": [_stranded_item(lane, status="merge-conflict")],
+                "queue": [_stranded_item(lane, status="merge-refused")],
             }
             _write_run_state(repo, state)
             self.assertEqual(
@@ -6279,7 +6462,7 @@ class ResumeIntegrationPassTests(unittest.TestCase):
             lane = _verified_lane(repo, root, "bb0003")
             item = _stranded_item(lane)
             # Exactly what the requeue leaves behind.
-            item["requeue_from_status"] = "integration-blocked"
+            item["requeue_from_status"] = "merge-needs-human"
             item["status"] = "queued"
             item["recovery_next"] = True
             state = {"repo": str(repo), "run_id": "run-fixture", "queue": [item]}
@@ -6299,7 +6482,7 @@ class ResumeIntegrationPassTests(unittest.TestCase):
             repo = _repo_with_pending_plan(root, "bb0004")
             lane = _verified_lane(repo, root, "bb0004")
             item = _stranded_item(lane)
-            item["requeue_from_status"] = "integration-blocked"
+            item["requeue_from_status"] = "merge-needs-human"
             item["status"] = "queued"
             item["recovery_next"] = True
             state = {"repo": str(repo), "run_id": "run-fixture", "queue": [item]}
@@ -6309,7 +6492,7 @@ class ResumeIntegrationPassTests(unittest.TestCase):
             records, lines = self._pass(repo, run_dir, state, suite=_failing_suite)
 
             self.assertEqual([r["outcome"] for r in records], ["held-back"])
-            self.assertEqual(item["status"], "integration-blocked")
+            self.assertEqual(item["status"], "merge-needs-human")
             self.assertNotIn("recovery_next", item)
             self.assertEqual(_git(repo, "rev-parse", "HEAD"), before)
             # The lane is STILL THERE: it is the preserved evidence, never reclaimed to clear the way.
@@ -6343,7 +6526,7 @@ class ResumeIntegrationPassTests(unittest.TestCase):
 
             self.assertEqual([r["outcome"] for r in records], ["held-back"])
             self.assertEqual(records[0]["code"], runner_shared.REINTEGRATE_ERROR)
-            self.assertEqual(item["status"], "integration-blocked")
+            self.assertEqual(item["status"], "merge-needs-human")
 
     def test_items_that_genuinely_need_a_turn_are_NOT_captured(self):
         """E-04 narrows the flag's reach; it does not redefine it.
@@ -6480,7 +6663,7 @@ class MeasuredIncidentsAreSurvivedTests(unittest.TestCase):
                 lane = _verified_lane(repo, root, "mm0001")
                 item = _stranded_item(lane)
                 # The `--retry-incomplete` shape, which is how `mm6wuz` was resumed.
-                item["requeue_from_status"] = "integration-blocked"
+                item["requeue_from_status"] = "merge-needs-human"
                 item["status"] = "queued"
                 item["recovery_next"] = True
                 state = {"repo": str(repo), "run_id": "run-fixture", "queue": [item]}

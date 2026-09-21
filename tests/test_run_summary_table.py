@@ -628,12 +628,12 @@ def test_an_integration_blocked_status_still_reports_failed() -> None:
     """THE REGRESSION THIS CHANGE COULD HAVE SHIPPED, so it gets its own test.
 
     The outcome block ALREADY had a `FAILED` branch firing on `("failed-safely",
-    "integration-blocked", "merge-conflict")`, and an `integration-blocked` item ALSO carries a
+    "integration-blocked", "merge-refused")`, and an `integration-blocked` item ALSO carries a
     refusing `integration_signal`. An implementation that tested the signal BEFORE the status
     would have RELABELLED that existing outcome to `STRANDED`: a regression dressed as the
     feature. The landing question is therefore asked LAST, inside the success branch only.
     """
-    item = _stranded_item(status="integration-blocked")
+    item = _stranded_item(status="merge-needs-human")
     outcome = _strip_ansi(_outcome_line(_state(item)))
     assert (
         "FAILED" in outcome

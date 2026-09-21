@@ -437,7 +437,7 @@ class TheCloseHappensInTheLane(unittest.TestCase):
                     lambda *a, **k: (
                         False,
                         "induced integration failure",
-                        "merge-conflict",
+                        "merge-refused",
                     ),
                 ),
             ):

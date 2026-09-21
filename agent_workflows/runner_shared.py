@@ -2590,7 +2590,7 @@ def integrate_lane_branch(
                 "integration refused: main tree has un-owned dirty paths overlapping the incoming "
                 f"change: {', '.join(overlap)}"
             ),
-            "integration-blocked",
+            INTEGRATION_REFUSAL_TRANSIENT,
         )
 
     # dirtygates Order 05 (`ajxr5d`) E-03: THE ONE STEP A REVIEW SKIPS, and it is skipped by NOT
@@ -2619,7 +2619,7 @@ def integrate_lane_branch(
             return (
                 False,
                 f"integration gate did not pass ({result.status}): {detail}",
-                "merge-conflict",
+                INTEGRATION_REFUSAL_CONFLICT,
             )
 
     # Gate passed (conflict-free, revalidated), or - for a review - was correctly not run. Perform the
@@ -2682,7 +2682,7 @@ def integrate_lane_branch(
             format_merge_conflict_reason(
                 repo, merge_stdout=out2, merge_stderr=err2, paths=conflicted
             ),
-            "merge-conflict",
+            INTEGRATION_REFUSAL_CONFLICT,
         )
 
     # Git REFUSED TO START the merge, so there is nothing to abort and NO abort is issued: with no
@@ -2693,7 +2693,7 @@ def integrate_lane_branch(
     return (
         False,
         format_local_changes_refusal_reason(merge_stdout=out2, merge_stderr=err2),
-        "integration-blocked",
+        INTEGRATION_REFUSAL_TRANSIENT,
     )
 
 
@@ -3141,20 +3141,53 @@ def finalize_retry_remedy(labels: "HostLabels | None", id6: str, retry: bool) ->
 # `orchestrate_isolation.execute_merge_and_revalidate_gate`. There is deliberately no fast path that
 # takes a clean `merge-tree` as sufficient.
 
-#: The NON-TERMINAL status a deferred integration carries. Deliberately NOT in either runner's
-#: `TERMINAL_STATES`: that absence is the single fact that makes a re-attempt possible, keeps
-#: `cascade_dependency_blocked` from killing dependents, and keeps the orchestrator waiting.
-INTEGRATION_DEFERRED_STATUS = "integration-deferred"
+# ---- THE STATUS AND KIND VOCABULARY, NAMED FOR WHAT AN OPERATOR MUST DO --------------------------
+#
+# RENAMED 2026-09-21 (maintainer decision), and the OLD SPELLINGS REMAIN READABLE FOREVER through
+# :data:`LEGACY_INTEGRATION_STATUS_ALIASES` below. The reason for the rename is measured, not
+# aesthetic: diagnosing run `run-20260921T105933Z-1994623` cost a full investigation largely because
+# `merge-conflict` was the label on a refusal that involved NO conflict, and the maintainer's judgement
+# was that `integration-deferred` / `integration-blocked` "are not intuitive" - neither says what the
+# operator must DO, which is the only question a status needs to answer at a glance.
+#
+# THE NAMING RULE, so a future addition does not drift: the name states the NEXT ACTION, not the
+# internal cause. `merge-retry` retries itself; `merge-needs-human` needs you; `merge-refused` is the
+# gate declining the WORK; `merge-unchecked` is the gate unable to JUDGE the work. Two rejected
+# candidates are recorded because the reasons generalize: `merge-error` was rejected because these
+# states mean the work is FINE and main is untouched (the usual cause is a co-worker's uncommitted
+# file), so "error" invites exactly the "this plan failed" misread that cost the diagnosis; and
+# `merge-waiting` was rejected by the maintainer because "waiting for what?" - it names a state instead
+# of an owner, which is the same flaw in the other direction.
 
-#: The terminal status a deferred integration ends at when the ladder is exhausted. Today's outcome,
-#: reached LAST instead of FIRST.
-INTEGRATION_BLOCKED_STATUS = "integration-blocked"
+#: The NON-TERMINAL status a deferred integration carries: it will be re-attempted automatically, so
+#: the operator does NOTHING. Deliberately NOT in either runner's `TERMINAL_STATES`: that absence is
+#: the single fact that makes a re-attempt possible, keeps `cascade_dependency_blocked` from killing
+#: dependents, and keeps the orchestrator waiting.
+INTEGRATION_DEFERRED_STATUS = "merge-retry"
+
+#: The terminal status a deferred integration ends at when the ladder is exhausted: a HUMAN now owns
+#: it, via `aw <host> run integrate <id6>` or a `--retry-incomplete` resume. Today's outcome, reached
+#: LAST instead of FIRST.
+INTEGRATION_BLOCKED_STATUS = "merge-needs-human"
 
 #: The refusal kind that is TRANSIENT and therefore deferrable (un-owned dirty overlap in main).
-INTEGRATION_REFUSAL_TRANSIENT = "integration-blocked"
+#:
+#: NOTE THIS IS DELIBERATELY THE SAME STRING AS :data:`INTEGRATION_DEFERRED_STATUS`, as it was before
+#: the rename (both were `integration-blocked`). `integrate_lane_branch` returns this as a KIND and the
+#: ladder writes it as a STATUS, and the two have always coincided; keeping them equal preserves that
+#: identity rather than inventing a distinction the code does not make.
+INTEGRATION_REFUSAL_TRANSIENT = "merge-retry"
 
-#: The refusal kind that is NOT transient and must stay terminal on its first attempt.
-INTEGRATION_REFUSAL_CONFLICT = "merge-conflict"
+#: The refusal kind that is NOT transient and must stay terminal on its first attempt: the gate
+#: measured the work and REFUSED it (a real conflict, a stale base, a scope violation, or a red
+#: combined suite).
+#:
+#: NAMED `merge-refused` RATHER THAN `merge-conflict` because a conflict is only ONE of the four things
+#: it reports (`orchestrate_isolation.py` returns `integration_failed_stale_base`,
+#: `integration_failed_conflict`, `integration_failed_scope_violation` and
+#: `integration_failed_combined_red`, all collapsing to this one kind). The old name asserted the
+#: rarest of the four and was actively misleading for the other three.
+INTEGRATION_REFUSAL_CONFLICT = "merge-refused"
 
 #: The refusal kind meaning THE GATE COULD NOT MEASURE, as distinct from measured and failing.
 #:
@@ -3177,8 +3210,54 @@ INTEGRATION_REFUSAL_CONFLICT = "merge-conflict"
 #: `TERMINAL_STATES` because it is not a STATUS: :func:`decide_integration_deferral` maps it onto the
 #: EXISTING `integration-deferred` / `integration-blocked` statuses, so no status vocabulary, renderer,
 #: attention mapping or analytics key changes. A deferred harness refusal that never clears still ends
-#: terminal at `integration-blocked` when the budget is exhausted, so nothing can spin forever.
-INTEGRATION_REFUSAL_UNMEASURED = "integration-unmeasured"
+#: terminal at `merge-needs-human` when the budget is exhausted, so nothing can spin forever.
+INTEGRATION_REFUSAL_UNMEASURED = "merge-unchecked"
+
+#: EVERY PRE-RENAME SPELLING, mapped to its canonical replacement. Read-only compatibility.
+#:
+#: WHY THIS EXISTS AND MUST NEVER BE DELETED: these strings were written into `state.json` by every run
+#: that has already happened, and a run directory is a DURABLE RECORD. Renaming without this map would
+#: make `aw runs` render the repository's own history as unknown statuses, which is a silent loss of the
+#: operator's audit trail - the same class of harm as deleting a plan instead of retiring it. Migrating
+#: the old files instead was rejected for the same reason: rewriting a recorded run's state would edit
+#: history to match today's vocabulary.
+#:
+#: ONE-DIRECTIONAL BY DESIGN. Nothing WRITES a legacy spelling; :func:`canonical_integration_status`
+#: translates on READ. So the aliases cannot become a second live vocabulary that drifts from this one.
+#:
+#: `integration-blocked` DELIBERATELY MAPS TO `merge-needs-human` rather than to `merge-retry`, even
+#: though the pre-rename code used that one string for BOTH the terminal status and the transient kind.
+#: A stored `status` field is the only place a reader encounters it, and in that position it always
+#: meant the TERMINAL state (the ladder's exhausted end); the kind lived in `integration_ladder.kind`.
+#: Mapping it to `merge-retry` would resurrect finished items as retryable.
+LEGACY_INTEGRATION_STATUS_ALIASES: dict[str, str] = {
+    "integration-deferred": INTEGRATION_DEFERRED_STATUS,
+    "integration-blocked": INTEGRATION_BLOCKED_STATUS,
+    "merge-conflict": INTEGRATION_REFUSAL_CONFLICT,
+    # Shipped 2026-09-21 and renamed the SAME DAY, before any release carried it. Aliased anyway: the
+    # cost is one dict entry, and a run directory written in that window would otherwise be unreadable.
+    "integration-unmeasured": INTEGRATION_REFUSAL_UNMEASURED,
+}
+
+
+def canonical_integration_status(status: Any) -> str:
+    """Translate a possibly-legacy integration status/kind to its canonical spelling.
+
+    THE ONE TRANSLATION POINT (the `research_contract.normalize_status` pattern, which handled the
+    `intake` -> `todo` rename the same way). Call it on any status READ FROM A RUN DIRECTORY before
+    comparing, mapping, or rendering, so a pre-rename run classifies exactly as its post-rename
+    equivalent.
+
+    PASSES THROUGH ANYTHING IT DOES NOT KNOW, including the canonical names themselves and every status
+    outside this vocabulary (`executed`, `queued`, `dependency-blocked`, ...). It is a targeted alias
+    map, NOT a validator: refusing an unknown status here would turn a rendering helper into a gate and
+    break every caller that legitimately passes a non-integration status.
+    """
+
+    if not isinstance(status, str):
+        return ""
+    return LEGACY_INTEGRATION_STATUS_ALIASES.get(status, status)
+
 
 #: `--integration-retry-limit`'s default. TEN, not `DEFAULT_RETRY_LIMIT`'s two, because the two count
 #: different things (see the section header). Ten cheap re-attempts is the maintainer-approved value.
@@ -4029,9 +4108,19 @@ REINTEGRATE_ERROR = "attempt-errored"
 #: run and no agent turn, and a refusal leaves the item exactly as it was with its lane preserved, so
 #: declining to retry the more-likely-to-need-help case would leave a paid re-dispatch that ORPHANS the
 #: lane as its only route.
+#: INCLUDES THE PRE-RENAME SPELLINGS (`l2mzxn`), and that is not redundancy. This tuple is matched
+#: against a status READ BACK FROM A RUN DIRECTORY, and the whole point of the `integrate` verb is to
+#: rescue a lane stranded by an EARLIER run - which is precisely the run most likely to have written the
+#: old vocabulary. Listing only the canonical names would make every already-stranded lane in the
+#: repository's history unrecoverable by the very verb that exists to recover it, turning a rename into
+#: silent data loss. Derived from the alias map rather than hand-listed so the two cannot drift.
 REINTEGRATABLE_STATUSES: tuple[str, ...] = (
     INTEGRATION_BLOCKED_STATUS,
     INTEGRATION_REFUSAL_CONFLICT,
+) + tuple(
+    legacy
+    for legacy, canonical in LEGACY_INTEGRATION_STATUS_ALIASES.items()
+    if canonical in (INTEGRATION_BLOCKED_STATUS, INTEGRATION_REFUSAL_CONFLICT)
 )
 
 
@@ -14489,10 +14578,15 @@ DISPATCH_PROVING_STATUSES: frozenset = frozenset(
         "partial",
         "substantially-complete",
         "blocked",
-        # ran, finalized, and then hit the integration gate
+        # ran, finalized, and then hit the integration gate. BOTH vocabularies (`l2mzxn` renamed
+        # them): this set is consulted with a status read from a durable run directory.
         "integration-blocked",
         "integration-deferred",
         "merge-conflict",
+        "merge-needs-human",
+        "merge-refused",
+        "merge-retry",
+        "merge-unchecked",
     }
 )
 
@@ -15906,6 +16000,12 @@ TERMINAL_STATES = frozenset(
         "blocked",
         "reviewed",
         "failed-safely",
+        # `l2mzxn`'s renamed spellings of the two TERMINAL integration outcomes. The deferrable pair
+        # (`merge-retry`, `merge-unchecked`) is DELIBERATELY ABSENT, exactly as `integration-deferred`
+        # always was: that absence is what makes a re-attempt possible, keeps
+        # `cascade_dependency_blocked` from killing dependents, and keeps an orchestrator waiting.
+        "merge-needs-human",
+        "merge-refused",
     }
 )
 

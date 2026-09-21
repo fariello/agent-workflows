@@ -14,8 +14,7 @@
 
 ## Workflow history
 
-- 2026-09-19 note (aw specs): R-12 ADDED by orchprobe-03 (m7gvuz): R-5's premise must be CHECKED before a run relies on it. R-5 chose shape (b), a rollup that skips the pre-transition E/V checkpoint, on the premise that an orchestrator's items are performed by nobody; that premise is true of a parent holding only orchestration and FALSE of one holding work no child covers, and nothing established which was in front of it. It was falsified in production 2026-09-08 when aw oc run retired rh5tt6 (commit 8b4e1570, message: 'Its own E-*/V-* items were NOT performed') with its E-02 still 'Execution state: pending' and V-02 blank. R-12 requires the run to establish coverage for every QUEUED orchestrator before any agent turn, worktree or session, and states three properties following from R-5: fail closed on a DELIVERED answer (with availability the one exception, a could-not-ask being retried then warned past with a durable hole record); the refusal names ADD A CHILD and is never a bare prohibition, because a prohibition-only message gets complied with by deleting the checklist that makes non-runner execution complete; and shape (a) stays REJECTED, so ipd_lint.py remains Kind-unaware. The mechanism itself is specified in 25kzda 2.5b. Also added to Section 4: the backfill of orchestrators carrying this debt today is OUT of scope, and the honest consequence is that the first runs after this lands will refuse on them.
-- 2026-09-06 note (aw specs): OQ-1 and OQ-2 RESOLVED by the maintainer 2026-09-06, both recorded in Section 5 with the rejected option and its reason. OQ-1: shape (b), a SEPARATE runner-owned rollup transition; ipd_lint.py is NOT to be modified, because teaching the honesty checker a narrow exception is how it stops protecting anything. Accepted cost: two paths can drift, so the rollup must keep every gate except the E/V checkpoint and a test must pin that. OQ-2: parse the orchestrator's own Child IPDs table and refuse on any unresolved row; no new metadata field, so nothing needs backfilling; any non-numeric or unparseable row (5e4sb6's is literally '03+') must refuse, whose worst case is a false refusal (status quo) not a false retirement. Child ueg5cf reworked accordingly: ipd_lint.py dropped from its Scope-Paths and its OQ-01 closed.
+- 2026-09-21 note (aw specs): AMENDED 2026-09-21 (maintainer-directed rename): the non-success terminal status list now names merge-needs-human and merge-refused rather than integration-blocked and merge-conflict. A pure one-for-one renaming of the same two statuses; the retirement rule itself is unchanged, and both pre-rename spellings remain recognized at read time via runner_shared.LEGACY_INTEGRATION_STATUS_ALIASES so an already-recorded run still classifies identically. Verified: tests/test_orchestrator_retirement.py passes.
 ## 1. Why this exists
 
 An Order-0 orchestrator IPD coordinates a Set: it owns the child table, the sequencing, and the
@@ -165,7 +164,7 @@ so the asymmetry is known in passing but unfixed.
   is not the source of Set membership.
 - R-2 RETIREMENT IS GATED ON EVERY CHILD BEING `executed`. No other state qualifies. In particular
   `substantially-complete` does NOT (it means finalize refused, see `i452hf`), nor do `blocked`,
-  `dependency-blocked`, `integration-blocked`, `merge-conflict`, `reviewed`, or `approved`.
+  `dependency-blocked`, `merge-needs-human`, `merge-refused`, `reviewed`, or `approved`.
 - R-3 A SET WHOSE CHILD SET IS NOT FULLY AUTHORED MUST NOT BE RETIRED. Per 2.5. The refusal MUST name
   the reason so it is distinguishable from an unfinished-children refusal.
 - R-4 THE TRANSITION MUST BE HONEST ABOUT WHAT IT IS. The terminal history entry MUST record that the

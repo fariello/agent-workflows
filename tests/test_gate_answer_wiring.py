@@ -720,14 +720,14 @@ class NeedsHumanIsSurfacedAsADecisionRequest(unittest.TestCase):
 
         ordinary = {
             "id6": "zzz999",
-            "status": "integration-blocked",
+            "status": "merge-needs-human",
             "position": 2,
             "setid": "gatewire",
             "action": "execute",
         }
         render_stream.record_refusal(
             ordinary,
-            code="integration-blocked",
+            code="merge-needs-human",
             reason="merge conflict",
             remedy="resolve it",
         )

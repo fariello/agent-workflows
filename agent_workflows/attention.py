@@ -1789,6 +1789,13 @@ _RUN_STATUS_ALIASES = {
     "dependency-blocked": "blocked",
     "integration-blocked": "blocked",
     "merge-conflict": "blocked",
+    # `l2mzxn` renamed the integration vocabulary; BOTH spellings map here, because this table is
+    # consulted with a status READ FROM A RUN DIRECTORY and pre-rename runs are durable records.
+    # NOTE the deferrable pair (`merge-retry`, `merge-unchecked`) is DELIBERATELY ABSENT, exactly as
+    # its pre-rename twin `integration-deferred` was: those are non-terminal and retry themselves, so
+    # classifying them as `blocked` would report an item needing no attention as needing attention.
+    "merge-needs-human": "blocked",
+    "merge-refused": "blocked",
 }
 
 
@@ -2398,6 +2405,10 @@ def get_active_runs_map(repo_root: Path) -> Dict[str, str]:
                     "dependency-blocked",
                     "integration-blocked",
                     "merge-conflict",
+                    # post-rename spellings (`l2mzxn`); both vocabularies classify identically.
+                    # The deferrable pair is absent for the reason given at `_RUN_STATUS_ALIASES`.
+                    "merge-needs-human",
+                    "merge-refused",
                 ):
                     mapped = "blocked"
                 else:

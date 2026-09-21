@@ -289,7 +289,7 @@ class DispositionTests(MergeDirtyScopeFixture):
                 integrated, reason, kind = self.integrate(host, repo, handle)
 
                 self.assertFalse(integrated, reason)
-                self.assertEqual(kind, "integration-blocked")
+                self.assertEqual(kind, "merge-retry")
                 self.assertIn("renamed.txt", reason)
                 self.assertIn("un-owned dirty paths", reason)
                 # The deferrable arm is the one the ladder re-attempts; that is the whole point.
@@ -415,7 +415,7 @@ class DispositionTests(MergeDirtyScopeFixture):
                 integrated, reason, kind = self.integrate(host, repo, handle)
 
                 self.assertFalse(integrated, reason)
-                self.assertEqual(kind, "merge-conflict")
+                self.assertEqual(kind, "merge-refused")
                 self.assertFalse(runner_shared.classify_integration_refusal(kind))
                 # Main is clean: HEAD unmoved, no markers, no in-progress merge.
                 self.assertEqual(self.git(repo, "rev-parse", "HEAD"), head_before)
@@ -441,7 +441,7 @@ class DispositionTests(MergeDirtyScopeFixture):
         ):
             integrated, reason, kind = self.integrate("oc_runipd", repo, handle)
         self.assertFalse(integrated)
-        self.assertEqual(kind, "integration-blocked")
+        self.assertEqual(kind, "merge-retry")
         self.assertIn("a.txt", reason)
 
 

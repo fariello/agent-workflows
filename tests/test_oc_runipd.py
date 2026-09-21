@@ -2036,7 +2036,7 @@ class ContinuationHintTests(unittest.TestCase):
         shipped fixture carries no `attempts` key at all.
         """
         # A status proving dispatch, with NO attempts key -> the cautious sentence.
-        for status in ("failed", "running", "interrupted", "partial", "merge-conflict"):
+        for status in ("failed", "running", "interrupted", "partial", "merge-refused"):
             hint = driver.render_continuation_hint(
                 self._state({}, queue=[{"status": status}]), Path("/x")
             )
@@ -3253,7 +3253,7 @@ class WorktreeIsolationTests(unittest.TestCase):
                 driver.execute_item(run_dir, state, item, recovery=False)
 
             # NOT faked executed; recorded as merge-conflict (driverfin-03 E-02) with a reason.
-            self.assertEqual(item["status"], "merge-conflict")
+            self.assertEqual(item["status"], "merge-refused")
             self.assertIn("integration_deferral", item)
             # Plan did NOT move to main's executed/ (integration did not happen on main).
             self.assertFalse(
@@ -3439,7 +3439,7 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
                 len(gate_calls), 0, "gate must not run against a dirty overlapping base"
             )
             # Item recorded the NON-TERMINAL deferral, NOT executed and NOT terminally blocked.
-            self.assertEqual(item["status"], "integration-deferred")
+            self.assertEqual(item["status"], "merge-retry")
             self.assertNotIn(
                 item["status"],
                 driver.TERMINAL_STATES,
@@ -3450,7 +3450,7 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
             # The ladder recorded WHY it deferred and against WHICH budget.
             self.assertTrue(item["integration_ladder"]["deferred"])
             self.assertEqual(item["integration_ladder"]["attempts_used"], 1)
-            self.assertEqual(item["integration_ladder"]["kind"], "integration-blocked")
+            self.assertEqual(item["integration_ladder"]["kind"], "merge-retry")
             # Plan did NOT move to main's executed/.
             self.assertFalse(
                 (repo / ".aw" / "records" / "plans" / "executed" / plan.name).is_file()
@@ -3571,10 +3571,10 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
             # The refusal is the DEFERRABLE class, so the ladder re-attempts it: NOT merge-conflict.
             self.assertEqual(
                 item["integration_ladder"]["kind"],
-                "integration-blocked",
+                "merge-retry",
                 f"git refused to START the merge, so it is not a conflict: {item.get('integration_deferral')}",
             )
-            self.assertEqual(item["status"], "integration-deferred")
+            self.assertEqual(item["status"], "merge-retry")
             self.assertNotIn(item["status"], driver.TERMINAL_STATES)
             self.assertTrue(item["integration_ladder"]["deferred"])
             # Git's own words are the recorded reason, and NOT the conflict helper's phrase.
@@ -3633,7 +3633,7 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
                 driver.execute_item(run_dir, state, item, recovery=False)
 
             # merge-conflict recorded, NOT executed.
-            self.assertEqual(item["status"], "merge-conflict")
+            self.assertEqual(item["status"], "merge-refused")
             self.assertIn("integration_deferral", item)
             # MAIN is pristine: HEAD unchanged, working tree clean (no markers/partial merge).
             main_head_after = subprocess.run(
@@ -3801,7 +3801,7 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
                 driver.execute_item(run_dir, state, item, recovery=False)
 
                 # ATTEMPT ONE: deferred, not terminal, nothing integrated, nothing clobbered.
-                self.assertEqual(item["status"], "integration-deferred")
+                self.assertEqual(item["status"], "merge-retry")
                 self.assertNotIn(item["status"], driver.TERMINAL_STATES)
                 self.assertEqual(
                     len(gate_calls), 0, "the gate must not run against a dirty base"

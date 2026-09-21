@@ -36,7 +36,7 @@ loop for free, already routes every re-attempt through the full merge-and-revali
 bounds itself with a budget and an operator policy flag. The review path is simply not wired to it.
 
 BUT "SIMPLY NOT WIRED" UNDERSTATES THE JOB, AND THE THREE MEASUREMENTS BELOW ARE WHY. Review found that
-the ladder is ACTION-BLIND in three places, so setting a review item to `integration-deferred` (which is
+the ladder is ACTION-BLIND in three places, so setting a review item to `merge-retry` (which is
 literally what E-03 prescribes) hands it to machinery built for execute items. Each of these is a
 CORRECTNESS problem, not a style one, and each must be closed by this plan rather than discovered by an
 executor.
@@ -87,7 +87,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: a pasted per-host comparison naming the execute call site that enters the ladder and the review call site that does not, with the scan that proves the absence.
   - Execution state: pending
 
-- [ ] E-02 CONFIRM THE KIND IS ALREADY CLASSIFIED TRANSIENT, so the fix does not touch `classify_integration_refusal` and cannot widen what defers. Show `classify_integration_refusal(INTEGRATION_REFUSAL_TRANSIENT)` is True, that `INTEGRATION_REFUSAL_TRANSIENT` equals the string the git-refused-to-start arm returns (`runner_shared.py:2230-2233`), and that `merge-conflict` remains False. This is the measurement that keeps the fix to WIRING rather than to POLICY, and it is the one I got wrong first, so verify it rather than inheriting it.
+- [ ] E-02 CONFIRM THE KIND IS ALREADY CLASSIFIED TRANSIENT, so the fix does not touch `classify_integration_refusal` and cannot widen what defers. Show `classify_integration_refusal(INTEGRATION_REFUSAL_TRANSIENT)` is True, that `INTEGRATION_REFUSAL_TRANSIENT` equals the string the git-refused-to-start arm returns (`runner_shared.py:2230-2233`), and that `INTEGRATION_REFUSAL_CONFLICT` (`merge-refused`) remains False. NOTE the vocabulary was RENAMED 2026-09-21 (`l2mzxn`): the transient kind is now `merge-retry` and the terminal refusal is `merge-refused`; cite the CONSTANTS rather than the strings, and note a third kind `merge-unchecked` is now ALSO deferrable. This is the measurement that keeps the fix to WIRING rather than to POLICY, and it is the one I got wrong first, so verify it rather than inheriting it.
   - Depends on: none
   - Expected outcome: pasted values showing the transient kind, the conflict kind, and the classifier's verdict for each, plus the arm that returns the transient kind quoted.
   - Execution state: pending
@@ -96,7 +96,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-03 ROUTE A REFUSED REVIEW INTEGRATION THROUGH THE SHARED LADDER WRITE SITE, which is `runner_shared.record_integration_refusal` (`:2688`), NOT `decide_integration_deferral` directly. CORRECTED AT REVIEW: `decide_integration_deferral` is PURE and is called from exactly two places, both inside `record_integration_refusal`; no driver calls it (verified: `grep decide_integration_deferral agent_workflows/` returns only `runner_shared.py`). `record_integration_refusal` is what counts the attempt durably, asks for the verdict, writes the status, and emits the rung-naming event, and it is already shared by both hosts. Because `execute_item` is unified in `runner_shared.execute_item_core`, the review integration call site lives in `runner_shared.py`, so wiring it there inherently wires it for both hosts. Reuse it; do NOT add a second decision site, a review-specific policy, or a review-specific budget. The four terminal reasons it enforces through the pure decision (non-transient kind, `--on-integration-blocked=block`, budget exhausted, budget zero) must apply to the review path with no exception carved out.
   - Depends on: E-01, E-02
-  - Expected outcome: a refused review integration whose kind is transient records `integration-deferred` with the shared reason string and an `integration_ladder` record; a `merge-conflict` refusal and a `block` policy each stay terminal, all three pasted.
+  - Expected outcome: a refused review integration whose kind is transient records `merge-retry` with the shared reason string and an `integration_ladder` record; a `merge-refused` refusal and a `block` policy each stay terminal, all three pasted.
   - Execution state: pending
 
 - [ ] E-04 MAKE THE RE-ATTEMPT ACTION-CORRECT, which review measurement shows is the load-bearing item and is NOT what the authored E-04 asked for. The ladder is ACTION-BLIND in two ways that would corrupt a review, both proven at review and both restated here so an executor cannot miss them. (a) `integrate=_integrate` calls this host's execute wrapper, which pins `action_kind=INTEGRATION_ACTION_EXECUTE` (`oc_runipd.py:2440-2448`), and that constant is exactly what triggers `execute_merge_and_revalidate_gate` (`runner_shared.py:2204`); a re-attempted review would therefore REVALIDATE, defeating the `ajxr5d` OQ-01 rule that the skip happen "by NOT RUNNING". The re-attempt must dispatch to `integrate_review_lane_branch` for a review item. (b) `finish_integrated=_finish` sets `item["status"] = "executed"` and calls `process_backlog_close` / `resolve_plan_path` (`oc_runipd.py:2524-2578`), none of which is valid for a review. A review's success path must record review integration the way the FIRST-attempt review path does, and must not claim `executed` or close a backlog item. Prefer selecting the per-action behavior from the item itself over adding a parallel ladder; state which you chose and why.
@@ -130,7 +130,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - THE LADDER IS ALREADY BUILT AND ALREADY CHEAP. `reattempt_deferred_integrations` (`runner_shared.py:2779`; the authored `:2714` was stale) is called from the TOP of the dispatch loop, and its docstring records why rung 1 costs nothing: "that loop already reloads state and already runs `cascade_dependency_blocked` each iteration, so the next item's completion IS the natural retry trigger. Zero waiting, zero tokens, nothing blocked." Rungs 2 and 3 (`poll`, `ask`) fire when nothing else is dispatchable. This plan wires a caller in; it does not build a mechanism.
 - EVERY RE-ATTEMPT MUST GO THROUGH THE FULL GATE. The same docstring: "There is deliberately no shortcut that treats a clean `dirty_tree_overlap` as sufficient: that would prove only the absence of un-owned dirt, and say nothing about whether the suite still passes against today's main." A review-path shortcut would be the same error.
-- THE STATUS AND THE KIND SHARE A SPELLING, AND THAT IS THE TRAP IN THIS AREA. `INTEGRATION_REFUSAL_TRANSIENT == 'integration-blocked'` (a refusal KIND) and `INTEGRATION_BLOCKED_STATUS == 'integration-blocked'` (a terminal STATUS) are the same string used for two different things. Reading one for the other is what produced my first wrong diagnosis; an executor should keep them apart deliberately.
+- THE STATUS AND THE KIND ONCE SHARED A SPELLING, AND THAT WAS THE TRAP IN THIS AREA. Before the 2026-09-21 rename (`l2mzxn`) `INTEGRATION_REFUSAL_TRANSIENT` and `INTEGRATION_BLOCKED_STATUS` were BOTH the string `'integration-blocked'` - one a refusal KIND, one a terminal STATUS - and reading one for the other produced my first wrong diagnosis. THE RENAME SPLIT THEM: the transient kind is now `merge-retry` (equal to `INTEGRATION_DEFERRED_STATUS`, deliberately) and the terminal status is `merge-needs-human`. The trap is therefore GONE for the pair that caused it, but the lesson stands: cite the CONSTANTS, never the strings, because `INTEGRATION_REFUSAL_TRANSIENT` and `INTEGRATION_DEFERRED_STATUS` still share a value.
 - THE TERMINAL ARMS ARE DELIBERATE AND ENUMERATED. `decide_integration_deferral` (`:2459`; the authored `:2400` was stale) documents four reasons a refusal stays terminal, including the operator's `--on-integration-blocked=block` pin and an exhausted budget so "a permanently dirty path cannot spin the loop forever". The review path must inherit all four rather than acquiring a softer rule.
 - ONE SHARED REVIEW LANE IS AN ACCEPTED DESIGN COST. The review call site's own comment records the
   `ajxr5d` OQ-02 decision: "a stranded review, never a lost edit." This plan does not revisit that; it makes
@@ -365,7 +365,7 @@ four terminal arms for the review path: an operator who passed `--on-integration
 the budget must still get a terminal refusal, and V-03 tests all four for that reason. SECOND, do not add a
 review-specific shortcut that treats a clean `dirty_tree_overlap` as sufficient to integrate; the ladder's
 own docstring records why every re-attempt must go through the full merge-and-revalidate gate. THIRD, DO NOT
-SHIP E-03 WITHOUT E-04: setting a review item to `integration-deferred` while the re-attempt still runs the
+SHIP E-03 WITHOUT E-04: setting a review item to `merge-retry` while the re-attempt still runs the
 EXECUTE wrapper makes the retry revalidate a review and mark it `executed`, which is strictly worse than
 today's honest refusal, because the plan's own F2 complaint (a promise that is not kept) becomes a promise
 that is kept WRONGLY. FOURTH, DO NOT SHIP E-03/E-04 WITHOUT E-05: the sweep lane is shared, so the first
@@ -374,7 +374,7 @@ stranding into a lost one. Both are why V-04 and V-05 exist and why neither may 
 single-review test.
 
 BEWARE THE SHARED SPELLING: the refusal KIND and the
-terminal STATUS are both the string `integration-blocked`, and confusing them is what produced this
+terminal STATUS were both the string `integration-blocked` before the 2026-09-21 rename, and confusing them is what produced this
 plan's first wrong diagnosis. THE HARD-MUST HONESTY RULE: paste the ACTUAL command and test output for
 every `V-*`, on BOTH hosts where the item says both; never claim a run not performed. Commit path-scoped
 (`git commit -m msg -- <paths>`); never `git add -A`; never push. Before every commit run
