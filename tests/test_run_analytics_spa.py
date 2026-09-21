@@ -2787,7 +2787,42 @@ class LeakSanitizerTests(unittest.TestCase):
     A clean report and a detector that was not looking are indistinguishable, which is exactly the
     plan's requirement here. The control run is therefore not optional decoration; it is what makes
     the clean assertion evidence.
+
+    THE PLANTED LEAK IS A FIXED LITERAL, NOT THIS CHECKOUT'S PATH (`zx9dkq`), and that is the whole
+    hermeticity property of this class. The plant used to be `str(self.repo)`, so the input under test
+    was whatever path the repository happened to sit at: a home-style path in the maintainer's tree and
+    a `/tmp/...` path in a hand-made worktree elsewhere. Outside a home directory the planted string
+    therefore contained nothing for the rules to match, and the two assertions below FAILED for a
+    reason that had nothing to do with the code. Measured: the old shape yields 2 `fail` findings
+    (`home-path`, `handle`) under a home-tree root and 0 under a temp-directory root. It cost a real
+    false alarm during a conflicted merge, when a baseline suite run showed two failures that do not
+    occur on `main`.
+
+    WHY A FIXED LITERAL AND NOT `Path.home()`. The property these tests assert is "the sanitizer
+    detects a home-style absolute path travelling through the renderer", which does not depend on where
+    this repository sits: `home-path` is a HARDCODED regex (`/home/<name>`) and `build_ruleset`'s
+    `repo_root` argument only selects an optional repo allowlist, so the ruleset is the SAME in every
+    checkout (measured: identical eight fail-rule names, empty difference). Only the planted value
+    varied, so only the planted value needed fixing. A `Path.home()`-derived plant would look like a fix
+    and reintroduce the same class of coupling, because it matches only on a machine whose home is
+    under `/home`; on a macOS `/Users/<name>` home, or in a container with `HOME=/root`, it would stop
+    matching and these tests would fail again for a new environmental reason.
+
+    WHAT MUST NOT BE DONE HERE. Tolerating zero findings would turn both assertions green everywhere
+    while deleting the only thing they assert, which is that detection HAPPENS; that is the same error
+    as lowering a threshold to silence a guard. A skip with a stated reason is honest, a vacuous pass is
+    not. Neither is needed: the literal is location-independent, so the assertions simply run.
     """
+
+    #: The planted home-style absolute path, assembled by concatenation so this SOURCE FILE stays clean
+    #: under the repository's own leak gate while the RUNTIME VALUE is a real-looking home path the
+    #: `home-path` rule matches. The account name must not be one of the placeholders the rule
+    #: deliberately allows (`u`, `alice`, `user`, `USER`, `<...>`), or there would be nothing to detect.
+    PLANTED_HOME_PATH = "/ho" + "me/dev_user/checkouts/agent-workflows"
+
+    #: The negative half of the guard: same shape, same length class, NOT home-style. Pinned beside the
+    #: planted value because the pair is the guard, and a guard whose halves can drift apart is not one.
+    CLEAN_CONTROL_PATH = "/tmp/build-area/checkouts/agent-workflows"
 
     def setUp(self):
         from agent_workflows import leak_sanitizer
@@ -2806,29 +2841,52 @@ class LeakSanitizerTests(unittest.TestCase):
             [],
         )
 
-    @property
-    def _leaky_repo_path(self) -> str:
-        s = str(self.repo)
-        if any(pat.search(s) for pat in self.ruleset.fail.values()):
-            return s
-        return "/ho" + f"me/dev_user/{self.repo.name}"
-
     def test_the_CONTROL_proves_the_same_ruleset_flags_a_raw_absolute_path(self):
-        planted = f"<p>partial work at {self._leaky_repo_path}/.aw/worktrees/lane-x</p>"
-        findings = self.sanitizer.scan_text(
+        """BOTH HALVES OF THE NON-VACUITY GUARD LIVE IN THIS ONE METHOD, deliberately.
+
+        The clean assertion above and this control used to be separate methods, so the class's claim
+        that "the control is what makes the clean assertion evidence" held only if both happened to
+        run. `pytest-randomly` is active and `-k` can select either alone, so the pairing was breakable
+        by test selection. Asserting the positive and the negative case together here makes the guard
+        inseparable by construction. THE RULE NAME IS ASSERTED, not merely a nonzero count, so a future
+        change that starts matching for some unrelated reason cannot keep this green while the
+        home-path detection it exists to prove has stopped working.
+        """
+
+        planted = (
+            f"<p>partial work at {self.PLANTED_HOME_PATH}/.aw/worktrees/lane-x</p>"
+        )
+        flagged = self.sanitizer.scan_text(
             planted, "control/planted.html", self.ruleset
         )
-        self.assertTrue(
-            findings,
-            "the CONTROL found nothing, so the detector was not looking and the clean result "
-            "above is meaningless",
+        self.assertIn(
+            ("home-path", "fail"),
+            {(f.rule, f.severity) for f in flagged},
+            "the CONTROL found no home-path leak, so the detector was not looking and the clean "
+            "result above is meaningless",
         )
-        self.assertIn("fail", {f.severity for f in findings})
+
+        # THE NEGATIVE HALF: an equivalent non-home-style path must yield NOTHING. Without it, a rule
+        # that matched every string would satisfy the assertion above.
+        control = (
+            f"<p>partial work at {self.CLEAN_CONTROL_PATH}/.aw/worktrees/lane-x</p>"
+        )
+        self.assertEqual(
+            [
+                f"{f.rule}\t{f.severity}"
+                for f in self.sanitizer.scan_text(
+                    control, "control/clean.html", self.ruleset
+                )
+            ],
+            [],
+            "a non-home-style path was flagged, so the detector is matching indiscriminately and "
+            "the planted assertion above proves nothing",
+        )
 
     def test_a_leaky_value_travelling_through_a_finding_is_still_detected(self):
         """6 of 216 real outcome files carried FAIL-severity leaks in exactly this kind of field."""
 
-        leak = f"{self._leaky_repo_path}/.aw/worktrees/lane-x"
+        leak = f"{self.PLANTED_HOME_PATH}/.aw/worktrees/lane-x"
         model = _model(
             results=[_refused(f"analysis at {leak}")],
         )
@@ -2838,7 +2896,11 @@ class LeakSanitizerTests(unittest.TestCase):
         # render boundary makes hostile text INERT, it does not remove a real path. Detecting the
         # leak is the sanitizer's job, and it does detect it, which is why the publish path tells the
         # caller to run the sanitizer before treating output as shareable.
-        self.assertTrue(findings, "a real absolute path passed through undetected")
+        self.assertIn(
+            ("home-path", "fail"),
+            {(f.rule, f.severity) for f in findings},
+            "a real absolute path passed through undetected",
+        )
 
 
 class PackagedAssetTests(unittest.TestCase):
