@@ -3536,6 +3536,7 @@ def run(args) -> int:
     # Climb to the project root so `aw attention` works from any subdirectory; an explicit --dir is
     # honored verbatim (IPD awretrofit Order 06).
     from agent_workflows.project_context import (
+        git_root_for_message,
         is_project_dir,
         no_project_message,
         resolve_verb_repo_root,
@@ -3545,6 +3546,7 @@ def run(args) -> int:
         CommandResult,
         Diagnostic,
         Evidence,
+        NextAction,
         select_output,
     )
 
@@ -3592,12 +3594,12 @@ def run(args) -> int:
             # branch ten lines above, and the scan-error branch below also emits; this one path did
             # not. Reproduced before the fix: rc=3, stdout empty, stderr carrying the prose.
             #
-            # AND THE SUMMARY IS SANITIZED. `no_project_message` interpolates `Path.cwd()`
-            # (`project_context.py`), so emitting it verbatim would write a machine-local ABSOLUTE
-            # path into a machine payload, the same leak class as E-02 and forbidden by the attention
-            # spec's Section 8.5. The human STDERR line keeps the full guidance (it names the
-            # directory it checked, which is exactly what helps an operator standing in the wrong
-            # one); the MACHINE summary states the condition and the two remedies without the path.
+            # AND THE SUMMARY IS SANITIZED. `no_project_message` interpolates the directory it
+            # checked (`project_context.py`), so emitting it verbatim would write a machine-local
+            # ABSOLUTE path into a machine payload, the same leak class as E-02 and forbidden by the
+            # attention spec's Section 8.5. The human STDERR line keeps the full guidance (it names
+            # the directory it checked, which is exactly what helps an operator standing in the wrong
+            # one); the MACHINE summary states the condition and the remedies without the path.
             #
             # THE MACHINE SURFACE CARRIES EXIT 2, NOT 3, and the reason is a hard contract, recorded
             # here because the number differs from the human path's on purpose (decision D1).
@@ -3608,14 +3610,25 @@ def run(args) -> int:
             # the embedded `exit` to EQUAL the process exit code. An `exit_code=3` result therefore
             # cannot be emitted at all: it raises `ValueError` in the renderer before writing a byte,
             # which is why simply adding the missing `emit` call with 3 would reproduce the empty
-            # stdout this fix removes. (Measured: the sibling `aw ipd --agent` at `cli.py:8127` still
-            # builds `exit_code=3` and DOES emit, so it CRASHES in a non-project directory. That is a
-            # live defect in `cli.py`, which is outside this plan's Scope-Paths; it is filed as
-            # backlog rather than fixed here.)
+            # stdout this fix removes. (The sibling `aw ipd board` had the identical defect and was
+            # filed as backlog `5x195l`; nogitmsg `quqyc4` E-05 FIXED it the same way, so no site in
+            # the package now builds an `exit_code=3` record. That property is pinned by
+            # `tests/test_awretrofit_project_root_climb.py::NoProjectSubprocessMatrixTests`.)
             #
             # THE HUMAN PATH IS UNCHANGED at exit 3, so the shipped assertion in
             # `tests/test_awretrofit_project_root_climb.py` (rc 3, prose on stderr, empty stdout)
             # keeps passing and no operator-visible behavior regresses.
+            #
+            # nogitmsg `quqyc4` E-04 ADDS THE INSTALL OFFER AS STRUCTURED DATA, not only as prose:
+            # when cwd IS inside a git repository, the record carries a `NextAction` so an automated
+            # consumer can read the remedy from the `next` field instead of parsing the summary. The
+            # command is `aw install .` and NOT `aw install <absolute root>` because the absolute form
+            # is UNEMITTABLE: `agent_schema` refuses an absolute home path in ANY string field, so it
+            # would raise in the renderer and reintroduce the very crash class this branch documents
+            # (measured; decision 03-quqyc4-D2). `aw install` defaults to cwd, so `.` is literally
+            # runnable. In a NON-git directory no action is attached and `next` stays null, because an
+            # unconditional install suggestion would be wrong there.
+            git_root = git_root_for_message(repo_root)
             res = CommandResult(
                 command="attention",
                 status="cannot-run",
@@ -3624,9 +3637,19 @@ def run(args) -> int:
                     "no AW project found at the working directory or any ancestor; "
                     "cd into the repository or pass --dir <repo>"
                 ),
+                next_actions=(
+                    [
+                        NextAction(
+                            command="aw install .",
+                            description="install agent-workflows in this repo",
+                        )
+                    ]
+                    if git_root is not None
+                    else []
+                ),
             )
             return get_renderer(ctx).emit(res, ctx)
-        sys.stderr.write(no_project_message("attention") + "\n")
+        sys.stderr.write(no_project_message("attention", repo_root) + "\n")
         return 3
 
     type_filters = parse_type_filters(getattr(args, "types", None))

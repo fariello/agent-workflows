@@ -319,6 +319,27 @@ def resolve_verb_repo_root(explicit_dir: Optional[str] = None) -> Path:
       the verb works from any subdirectory, git-style).
     - If no project root is found, fall through to cwd (the caller then emits the no-project message
       via ``no_project_message`` rather than printing a silent empty result).
+
+    THAT LAST BULLET DESCRIBES AN INTENTION, NOT WHAT MOST CALLERS DO, and the asymmetry is recorded
+    here so it is not rediscovered from scratch (IPD nogitmsg `quqyc4` E-07; reasoning in backlog
+    item `okm6e6`). Only TWO verbs pair this resolver with ``is_project_dir`` and then emit
+    ``no_project_message``: ``aw attention`` and ``aw ipd board``. Every other caller takes the cwd
+    fallback SILENTLY, so run outside a project it produces an empty or misplaced result with no
+    explanation of why.
+
+    RE-DERIVE THE SURFACE, DO NOT TRUST A TRANSCRIBED LIST. Measured 2026-09-21 on this file's HEAD:
+    64 call sites across 21 modules (including this definition), counted with
+
+        grep -rn --include=*.py resolve_verb_repo_root agent_workflows/
+
+    Not every call site is a distinct user-facing verb. A line-number list is deliberately NOT written
+    here: `quqyc4`'s own citations for these sites drifted twice before execution and again during it
+    (9 of 10 sampled lines no longer held the call), which is the whole argument for a derivation
+    command over an enumeration.
+
+    WHETHER THE SILENT CALLERS SHOULD ALL GUIDE IS A SEPARATE DESIGN QUESTION, deliberately NOT
+    settled here: some may legitimately operate on a bare directory. This note records the gap; it
+    does not license converting them on the way past.
     """
 
     if explicit_dir:
@@ -327,19 +348,61 @@ def resolve_verb_repo_root(explicit_dir: Optional[str] = None) -> Path:
     return root if root is not None else Path.cwd().resolve()
 
 
-def no_project_message(verb: str) -> str:
+def no_project_message(verb: str, start_dir: Optional[str | Path] = None) -> str:
     """The verbose 'no AW project found' message a repo-scoped verb prints instead of empty output.
 
-    Emitted when the operator did not pass ``--dir`` and no ``.aw/``/``.agents/`` marker exists at cwd
-    or any ancestor (IPD awretrofit Order 06). Names the verb, what was checked, and the two fixes.
+    Emitted when the operator did not pass ``--dir`` and no ``.aw/``/``.agents/`` marker exists at
+    ``start_dir`` (default cwd) or any ancestor (IPD awretrofit Order 06). Names the verb, what was
+    checked, and the fixes.
+
+    WHEN ``start_dir`` IS INSIDE A GIT REPOSITORY the message gains a FOURTH fact and an offer: it
+    names the git root and prints the literal ``aw install <root>`` that would fix the condition
+    (IPD nogitmsg `quqyc4` E-01, from backlog `okm6e6`). The commonest way to reach this message is
+    to stand in a real repository that simply has no agent-workflows installed, and without this the
+    message could describe the problem but never name the one action that resolves it.
+
+    ``start_dir`` IS A PARAMETER RATHER THAN A ``Path.cwd()`` READ ON PURPOSE. Both call sites have
+    already resolved a root via ``resolve_verb_repo_root``, so a ``cwd()`` read here would let the
+    message describe one directory while the verb operated on another. Today those agree only
+    because both callers guard this branch with ``not explicit_dir``; passing the resolved root makes
+    the agreement a property of the inputs instead of an accident of the callers (`quqyc4` F-19).
+    The default preserves every pre-existing caller's behavior.
+
+    PROBING FOR GIT HERE IS A MESSAGE CONCERN AND MUST NEVER BE PROMOTED INTO ``find_project_root``
+    (`quqyc4` E-02). Root detection is DELIBERATELY git-blind: a ``.aw/`` tree can exist without git,
+    and a bare ``.git`` ancestor with no AW marker is NOT an AW project (IPD awretrofit Order 06,
+    OQ-01), a rule locked by ``tests/test_awretrofit_project_root_climb.py``'s
+    ``test_bare_git_ancestor_is_not_a_root``. This function only decides what to SAY once that climb
+    has already failed; it never decides what counts as a project.
     """
 
-    return (
+    where = Path(start_dir) if start_dir is not None else Path.cwd()
+    msg = (
         f"aw {verb}: no AW project found here.\n"
-        f"Checked {Path.cwd()} and its parents for a .aw/ (or legacy .agents/) project directory.\n"
+        f"Checked {where} and its parents for a .aw/ (or legacy .agents/) project directory.\n"
         f"Are you inside your repository? cd into the repo (or a subdirectory of it), "
         f"or pass --dir <repo>."
     )
+    git_root = _find_git_root(str(where))
+    if git_root is not None:
+        msg += (
+            f"\n{git_root} IS a git repository, but agent-workflows is not installed in it.\n"
+            f"Install it there with: aw install {git_root}"
+        )
+    return msg
+
+
+def git_root_for_message(start_dir: Optional[str | Path] = None) -> Optional[str]:
+    """The git root ``no_project_message`` would name, or ``None`` when there is no git ancestor.
+
+    Exposed so a caller building a MACHINE record can attach the same install offer as a structured
+    ``NextAction`` without re-deriving (or re-implementing) the probe, and without parsing prose out
+    of the human message (`quqyc4` E-04). Same git-blindness caveat as ``no_project_message``: this
+    answers "what should we SAY", never "is this an AW project".
+    """
+
+    where = Path(start_dir) if start_dir is not None else Path.cwd()
+    return _find_git_root(str(where))
 
 
 def is_project_dir(repo_root: str | Path) -> bool:

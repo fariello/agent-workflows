@@ -8119,6 +8119,7 @@ def _run_plans(
     args: argparse.Namespace, term: Term, context: Optional[Any] = None
 ) -> int:
     from agent_workflows.project_context import (
+        git_root_for_message,
         is_project_dir,
         no_project_message,
         resolve_verb_repo_root,
@@ -8134,20 +8135,67 @@ def _run_plans(
     from . import plans as plans_mod
 
     ctx = context or select_output(args)
-    # Climb to the project root so `aw plans` works from any subdirectory; explicit --dir verbatim
+    # Climb to the project root so `aw ipd board` works from any subdirectory; explicit --dir verbatim
     # (IPD awretrofit Order 06).
     explicit_dir = getattr(args, "dir", None)
     root = resolve_verb_repo_root(explicit_dir)
     if not explicit_dir and not is_project_dir(root):
         if ctx.is_agent or ctx.is_json:
+            # nogitmsg `quqyc4` E-05 / backlog `5x195l`: THIS BRANCH USED TO CRASH. It built
+            # `exit_code=3` and emitted it, but `aw.agent/v1` admits only 0/1/2 and additionally
+            # requires an error-class record to carry exit=2, so the record could never serialize and
+            # `assert_valid_agent_record` raised BEFORE writing a byte: `aw ipd board --agent` outside
+            # a project exited 1 with a `ValueError` traceback and an empty stdout (measured).
+            #
+            # THE FIX MIRRORS THE SIBLING rather than widening the protocol, and that is a recorded
+            # reversal of this plan's own OQ-01 (decision 03-quqyc4-D1). OQ-01 chose to widen
+            # `agent_schema` to admit 3, on the ground that the parity rule in
+            # `docs/cli-output-contract.md` ("the embedded `exit` MUST equal the process exit code")
+            # forbade emitting 2 beside a process exit of 3. Since that ruling, attcor `rkn8ya` E-12
+            # fixed the SAME defect in `aw attention` by satisfying parity the OTHER way: it moved the
+            # MACHINE process exit to 2, leaving the HUMAN surface at 3. That shipped, and
+            # `tests/test_attention.py::NoProjectAgentEnvelopeTests` pins it. Widening the schema now
+            # would promote exit 3 into two published contracts at the moment its only other emitter
+            # was removed, and would leave two verbs answering one condition with different codes.
+            # After this change `grep -n "exit_code=3" agent_workflows/*.py` finds NO site, so the
+            # schema and both contract docs need no amendment at all.
+            #
+            # THE SUMMARY IS SANITIZED for the same reason attention's is: `no_project_message`
+            # interpolates the resolved directory, so emitting it verbatim would write a machine-local
+            # ABSOLUTE path into a machine payload, which `agent_schema` refuses outright. The human
+            # STDERR path below keeps the full guidance, including the git root and the install offer,
+            # because naming the directory is exactly what helps an operator.
+            #
+            # E-04 ATTACHES THE INSTALL OFFER AS STRUCTURED DATA when a git root was found, so a
+            # consumer reads the remedy from `next` instead of parsing prose. `aw install .` and not
+            # `aw install <absolute root>`, because the absolute form is unemittable for the leak
+            # reason above (decision 03-quqyc4-D2); `aw install` defaults to cwd.
+            git_root = git_root_for_message(root)
             res = CommandResult(
                 command="ipd board",
                 status="cannot-run",
-                exit_code=3,
-                summary=no_project_message("plans"),
+                exit_code=2,
+                summary=(
+                    "no AW project found at the working directory or any ancestor; "
+                    "cd into the repository or pass --dir <repo>"
+                ),
+                next_actions=(
+                    [
+                        NextAction(
+                            command="aw install .",
+                            description="install agent-workflows in this repo",
+                        )
+                    ]
+                    if git_root is not None
+                    else []
+                ),
             )
             return get_renderer(ctx).emit(res, ctx)
-        sys.stderr.write(no_project_message("plans") + "\n")
+        # THE VERB STRING IS `ipd board`, NOT `plans` (`quqyc4` E-03, F-18). This message's whole job
+        # is to tell the operator what to run, and `aw plans` is NOT a registered command: it exits 2
+        # from argparse as an invalid choice (measured). So the pre-change message misdirected the
+        # operator from inside the help text.
+        sys.stderr.write(no_project_message("ipd board", root) + "\n")
         return 3
 
     # Validate --status up front so a typo teaches the valid set instead of silently
