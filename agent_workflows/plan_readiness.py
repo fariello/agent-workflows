@@ -72,7 +72,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import ipd_schema as _schema
 from agent_workflows.attention import _history_section_lines
@@ -84,15 +84,22 @@ __all__ = [
     "NEGATIVE",
     "VERDICTS",
     "READINESS_TOKENS",
+    "RECHECK_SOURCE_READINESS",
+    "RECHECK_TARGET_READINESS",
+    "ConditionResult",
+    "RecheckResult",
     "approval_refusals",
     "classify_verdict",
     "extract_newest_history_entry",
+    "format_recheck_history_entry",
     "history_has_review_record",
     "history_verdict_approves",
     "has_unresolved_blocking_question",
     "is_plan_review_approved",
     "is_review_history_entry",
     "newest_verdict",
+    "recheck_conditions",
+    "recheck_readiness",
 ]
 
 # ------------------------------------------------------------------------------------------------
@@ -700,3 +707,481 @@ def _one_line(text: str, limit: int = 220) -> str:
     """``text`` collapsed to one bounded line, so a refusal cannot dump a 2000-char history record."""
     flat = re.sub(r"\s+", " ", (text or "").strip())
     return flat if len(flat) <= limit else flat[: limit - 3] + "..."
+
+
+# ------------------------------------------------------------------------------------------------
+# The READINESS RE-CHECK (Set rdyrecheck, Order 01 / plan qhy3i3).
+#
+# THE DEFECT. A `- Readiness: no-go` records a MOMENT, not a condition. Nothing re-evaluates it when
+# the cause it was set for is removed, so a plan whose blocking question has been answered stays
+# permanently unapprovable behind a refusal that, by design, has NO override (see the message in
+# `approval_refusals` above: "get the review's readiness changed (re-run /plan-review)"). The only
+# sanctioned remedy was therefore a FULL RE-REVIEW of a document whose findings were already swept.
+#
+# WHY A COMPUTATION AND NOT AN EDITING LICENCE. `AGENTS.md` forbids an agent hand-writing a
+# `- Readiness:` value, because the auto-approve predicate reads that FIELD FIRST and a hand-written
+# value asserts a review that never happened. That prohibition is NOT relaxed here. What makes this
+# verb legitimate is three properties, each pinned by a test:
+#   1. It COMPUTES the value from the three conditions the plan-review contract already enumerates,
+#      using the SHIPPED predicates (no fork).
+#   2. It can only ever write `no-go` -> `go-pending-approval`, a state that STILL REQUIRES a human.
+#      `go` is unreachable from here; only a review may set it.
+#   3. It RECORDS its computed evidence in the plan's own history, labelled a re-check, so the new
+#      value carries its basis exactly as a review's verdict does.
+#
+# WHY THE RESULT IS PER-CONDITION AND NOT A BOOLEAN. The whole defect is that a verdict lost its
+# reason. A re-check that also collapses to one bit reintroduces the same defect one layer down, so
+# the caller must be able to say WHICH condition still holds and the record must name it.
+# ------------------------------------------------------------------------------------------------
+
+#: The ONLY readiness value this re-check will read as its input, and the ONLY one it will write as
+#: its output. Named constants rather than inline literals because E-02's pinning test asserts the
+#: write target by NAME: a future edit that widens the target has to change a constant every test in
+#: `tests/test_plan_readiness_recheck.py` reads, instead of a bare string buried in a function.
+RECHECK_SOURCE_READINESS = "no-go"
+RECHECK_TARGET_READINESS = "go-pending-approval"
+
+
+class ConditionResult(NamedTuple):
+    """One of the three `no-go` conditions, recomputed: whether it HOLDS and the reason why.
+
+    ``holds`` True means the condition is STILL TRUE and therefore still justifies `no-go`.
+    ``reason`` is a human-readable clause naming the specific cause when it holds, and the evidence
+    of clearance when it does not; it is never empty, because a condition result that does not state
+    its basis is the failure mode this whole module exists to remove.
+    """
+
+    name: str
+    holds: bool
+    reason: str
+
+
+class RecheckResult(NamedTuple):
+    """The full per-condition recomputation for one plan, plus whether a write is permitted.
+
+    ``conditions`` is always the three results in a stable order (blocking question, gating finding,
+    negative verdict), so a caller renders a fixed table rather than discovering fields.
+
+    ``refusals`` is every reason NOT to write, which is deliberately WIDER than "a condition holds":
+    it also carries the precondition refusals (an absent field, an out-of-vocab field, a readiness
+    that is not `no-go`). Empty ``refusals`` is the ONE state in which a write is permitted, and the
+    write is then unconditionally to :data:`RECHECK_TARGET_READINESS`.
+    """
+
+    id6: str
+    readiness: Optional[str]
+    readiness_present: bool
+    conditions: Tuple[ConditionResult, ...]
+    refusals: Tuple[str, ...]
+
+    @property
+    def may_write(self) -> bool:
+        """Whether the re-check is permitted to write. Empty refusals and nothing else."""
+        return not self.refusals
+
+    def holding(self) -> Tuple[ConditionResult, ...]:
+        """Only the conditions that STILL HOLD, for a caller naming the surviving cause."""
+        return tuple(c for c in self.conditions if c.holds)
+
+
+C_BLOCKING_QUESTION = "unresolved-blocking-question"
+C_GATING_FINDING = "unresolved-gating-finding"
+C_NEGATIVE_VERDICT = "negative-review-verdict"
+
+
+def recheck_conditions(
+    repo_root, plan_path, plan_text: Optional[str] = None
+) -> RecheckResult:
+    """Recompute the three `no-go` conditions INDIVIDUALLY, composing the shipped predicates.
+
+    THE THREE CONDITIONS ARE THE CONTRACT'S OWN, not new policy: `/plan-review` enumerates them
+    (`.aw/system/workflows/plan-review/plan-review.md`, the readiness vocabulary) and this module
+    already computes all three inside :func:`approval_refusals`. The gap this function closes is that
+    nothing recomputed them AFTER the fact.
+
+    IT FORKS NOTHING. Condition 1 is :func:`has_unresolved_blocking_question`, condition 2 is
+    ``review_findings.subject_gating_blocks``, condition 3 is :func:`newest_verdict`; each is the
+    shipped predicate :func:`approval_refusals` itself composes, called here rather than copied.
+    ``tests/test_review_findings_gate.py`` carries an explicit anti-fork guard for the second.
+
+    CONDITION 1 IS BLOCKING-ONLY, AND THAT IS A DELIBERATE DEPARTURE recorded as the maintainer's
+    2026-09-10 ruling on this plan's OQ-01: a NON-BLOCKING open question does NOT make a plan
+    not-ready, because the `- Blocking:` flag exists precisely to record which questions must stop
+    work and treating both kinds alike discards the distinction. Measured scale behind the ruling: 43
+    of 104 pending plans carried ONLY non-blocking questions, so the contract's former literal
+    wording ("any open question") was holding 43 plans for reasons their own authors judged
+    non-stopping. The contract wording was amended in the same change (this plan's E-05), so the code
+    and the document agree rather than drift.
+
+    HOW THE OVERRIDABLE HALF IS CONSUMED, stated rather than inherited silently. :func:`approval_refusals`
+    applies the STRICTER ``Status != "resolved"`` rule to open questions and exposes
+    ``allow_open_questions`` to suppress exactly that half. This function calls
+    :func:`has_unresolved_blocking_question` DIRECTLY for condition 1, which is the blocking-only test
+    the ruling requires, and it does NOT consult ``allow_open_questions`` at all: there is no override
+    here, because a re-check that could be told to ignore a blocking question would be a bypass of the
+    very gate it is recomputing. A caller wanting to approve over a blocking question uses
+    ``aw ipd set approved --allow-open-questions``, which records the override in the artifact.
+
+    Never raises. An unreadable plan yields a refusal naming that, not an exception: this function is
+    consulted to decide whether to WRITE, and a crash would strand the plan exactly as the stale field
+    does.
+    """
+    path = Path(plan_path)
+    if plan_text is None:
+        try:
+            plan_text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            return RecheckResult(
+                id6="",
+                readiness=None,
+                readiness_present=False,
+                conditions=(),
+                refusals=(
+                    "the plan file could not be read ({0}), so nothing was recomputed".format(
+                        exc
+                    ),
+                ),
+            )
+
+    id6_match = re.search(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$", plan_text)
+    id6 = id6_match.group(1) if id6_match else ""
+
+    # ---- Condition 1: an unresolved BLOCKING open question (the shipped, blocking-only predicate).
+    blocking = has_unresolved_blocking_question(plan_text)
+    if blocking:
+        ids = _blocking_question_ids(plan_text) or "OQ"
+        c1_reason = (
+            "an unresolved BLOCKING open question remains ({0}); `has_unresolved_blocking_question` "
+            "-> True".format(ids)
+        )
+    else:
+        c1_reason = (
+            "no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False "
+            "(a NON-blocking open question is deliberately not counted, per the maintainer's "
+            "2026-09-10 ruling on qhy3i3 OQ-01)"
+        )
+    c1 = ConditionResult(C_BLOCKING_QUESTION, blocking, c1_reason)
+
+    # ---- Condition 2: an unresolved GATING finding in the TYPED review record.
+    #
+    # ABSENT REVIEW ARTIFACT IS SILENT, which is `subject_gating_blocks`'s documented contract and is
+    # required for safety rather than laziness (only a minority of plans have a `.review.md`). A plan
+    # with no review record therefore clears THIS condition, and the other two still apply.
+    #
+    # AN UNREADABLE REVIEW TREE IS A REFUSAL HERE, and that asymmetry with `approval_refusals` is
+    # deliberate. There, a crashing review tree is swallowed because a crashing gate is a DISABLED
+    # gate and swallowing it only makes the gate more permissive about refusing a human. Here the
+    # output is a WRITE to an attestation field, so failing open would clear a plan on the strength of
+    # an exception rather than on evidence. Fail closed instead.
+    gating_blocks: Tuple = ()
+    gating_error: Optional[str] = None
+    if id6:
+        try:
+            from agent_workflows import review_findings as _rf
+
+            gating_blocks = tuple(_rf.subject_gating_blocks(repo_root, id6))
+        except Exception as exc:  # pragma: no cover - defensive
+            gating_error = str(exc)
+    if gating_error is not None:
+        c2 = ConditionResult(
+            C_GATING_FINDING,
+            True,
+            "the typed review artifact could not be evaluated ({0}); treated as HOLDING, because "
+            "clearing a readiness on the strength of an exception would be fail-open".format(
+                gating_error
+            ),
+        )
+    elif not id6:
+        c2 = ConditionResult(
+            C_GATING_FINDING,
+            True,
+            "the plan carries no `- Id:` bullet, so no typed review record can be matched to it; "
+            "treated as HOLDING, since an unidentifiable plan cannot be shown clear",
+        )
+    elif gating_blocks:
+        c2 = ConditionResult(
+            C_GATING_FINDING,
+            True,
+            "the typed review artifact records an unresolved gating finding: "
+            + "; ".join(b.describe() for b in gating_blocks),
+        )
+    else:
+        c2 = ConditionResult(
+            C_GATING_FINDING,
+            False,
+            "no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty "
+            "(an ABSENT review artifact is silent by that predicate's documented contract)",
+        )
+
+    # ---- Condition 3: a NEGATIVE verdict in the newest REVIEW history record.
+    polarity, entry = newest_verdict(plan_text)
+    if polarity == NEGATIVE:
+        c3 = ConditionResult(
+            C_NEGATIVE_VERDICT,
+            True,
+            "the newest review record states a verdict that does not clear this plan; "
+            "`newest_verdict` -> negative. Record: {0}".format(_one_line(entry)),
+        )
+    else:
+        c3 = ConditionResult(
+            C_NEGATIVE_VERDICT,
+            False,
+            "the newest review record's verdict is not negative; `newest_verdict` -> {0}".format(
+                polarity if polarity is not None else "none (no verdict token read)"
+            ),
+        )
+
+    conditions = (c1, c2, c3)
+
+    # ---- Preconditions on the FIELD ITSELF. These are refusals, not conditions: they are reasons the
+    # re-check may not act at all, as distinct from reasons the plan is not ready.
+    refusals: List[str] = []
+    readiness = _schema.read_readiness(plan_text)
+    present = bool(_READINESS_FIELD_PRESENT_RE.search(plan_text))
+    if readiness is None and not present:
+        # ABSENT. Refuse rather than mint: absence means NO REVIEW RECORDED A SIGNAL, and writing one
+        # here would be exactly the forgery `AGENTS.md` forbids. Absence is also a LEGITIMATE state
+        # that `approval_refusals` falls back to prose for, so it is not a defect to repair.
+        refusals.append(
+            "the plan has NO `- Readiness:` field. A re-check RE-EVALUATES a recorded readiness; it "
+            "does not mint one. Absence means no review recorded a signal, and writing a value here "
+            "would assert a review that never happened."
+        )
+    elif readiness is None:
+        # PRESENT but out-of-vocab. `read_readiness` normalizes that to None, matching its fail-closed
+        # contract; refuse, mirroring `approval_refusals`'s treatment of a CORRUPT field.
+        refusals.append(
+            "a `- Readiness:` field is present but its value is not one of {0}. A CORRUPT readiness "
+            "is not treated as an absent one: fix the field, then re-check.".format(
+                ", ".join(sorted(_schema.READINESS_VALUES))
+            )
+        )
+    elif readiness != RECHECK_SOURCE_READINESS:
+        refusals.append(
+            "the plan's readiness is `{0}`, not `{1}`. This verb only ever re-evaluates a `{1}`; it "
+            "has no path that lowers or re-asserts a readiness.".format(
+                readiness, RECHECK_SOURCE_READINESS
+            )
+        )
+
+    refusals.extend(c.reason for c in conditions if c.holds)
+
+    return RecheckResult(
+        id6=id6,
+        readiness=readiness,
+        readiness_present=present,
+        conditions=conditions,
+        refusals=tuple(refusals),
+    )
+
+
+#: The four `/plan-review` VERDICT tokens, which a re-check history entry must NOT contain.
+#:
+#: WHY THIS MATTERS MECHANICALLY: :func:`newest_verdict` scans history prose for exactly these tokens
+#: and reads the NEWEST review record. A re-check entry containing one would either be read as a
+#: review verdict itself or shadow the real review's, so the entry is checked against this tuple
+#: before it is written and the assertion is pinned by a test.
+REVIEW_VERDICT_TOKENS: Tuple[str, ...] = tuple(VERDICTS)
+
+#: The finding ids a review record mentions, e.g. `PR-001..PR-008` or `PR-801`. Used to cite a review
+#: by its FINDING SPAN rather than by quoting its text.
+_FINDING_ID_RE = re.compile(r"\b([A-Z]{1,4}-\d{1,4})\b")
+
+
+def cite_review_entry(entry: str) -> str:
+    """A review record cited by its DATE and FINDING SPAN, carrying NO verdict token.
+
+    QUOTING THE RECORD VERBATIM IS THE OBVIOUS WRONG IMPLEMENTATION, and it was the first one written
+    here: a review record almost always states its verdict in its own message, so copying that message
+    into the re-check entry imports the token, and :func:`newest_verdict` would then read the RE-CHECK
+    as the newest review. The failure was caught by this plan's own V-03 assertion rather than in
+    production, which is what that assertion exists for.
+
+    So the citation is DERIVED, not copied: the record's date plus the span of finding ids it mentions,
+    which is exactly what E-03 asks for ("its date and its finding span") and is enough for a reader to
+    find the record being re-checked without re-running anything.
+
+    Pure. Returns the empty string when nothing citable can be read.
+    """
+    if not entry:
+        return ""
+    m = _HISTORY_RECORD_PARTS_RE.match(entry.strip())
+    if m is None:
+        return ""
+    date = m.group("date")
+    ids = _FINDING_ID_RE.findall(m.group("msg") or "")
+    # De-dupe preserving order, then state the SPAN rather than every id, so a 14-finding review cites
+    # compactly and a reader still knows which rows were swept.
+    seen: List[str] = []
+    for i in ids:
+        if i not in seen:
+            seen.append(i)
+    if not seen:
+        return "the review of {0} (no finding ids stated in its record)".format(date)
+    if len(seen) == 1:
+        span = seen[0]
+    else:
+        span = "{0}..{1}".format(seen[0], seen[-1])
+    return "the review of {0}, findings {1}".format(date, span)
+
+
+def format_recheck_history_entry(
+    result: RecheckResult,
+    *,
+    date: str,
+    actor: str,
+    reviewed_entry: str = "",
+    head: str = "",
+) -> str:
+    """Render the `## Workflow history` record for a performed re-check, carrying its evidence.
+
+    THE ENTRY IS THE ATTESTATION, so it names the three conditions it evaluated, states that each was
+    found clear, and cites the review it re-checked. A reader must be able to tell a re-check from a
+    review AT A GLANCE and audit the claim WITHOUT re-running anything, which is the standard a
+    review's own verdict record meets.
+
+    IT MUST NOT READ AS A REVIEW VERDICT. The entry is labelled ``readiness re-check`` in the record's
+    status/workflow middle, which :func:`is_review_history_entry` does NOT classify as a review, and it
+    contains none of :data:`REVIEW_VERDICT_TOKENS`, which :func:`newest_verdict` scans for. Both
+    properties are asserted by this function's caller before the write and pinned by tests, so
+    `newest_verdict` keeps resolving to the REVIEW's record rather than to this one.
+
+    Pure: builds a string, touches no disk. ``reviewed_entry`` is the review record being re-checked;
+    it is CITED by date and finding span via :func:`cite_review_entry` and never quoted, because a
+    review states its verdict in its own message and copying that would import the token. ``head`` is
+    the commit the recomputation was performed at.
+    """
+    parts: List[str] = [
+        "- {0} readiness re-check ({1}): `- Readiness:` CHANGED `{2}` -> `{3}`.".format(
+            date, actor, RECHECK_SOURCE_READINESS, RECHECK_TARGET_READINESS
+        ),
+        "THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was "
+        "re-critiqued.",
+        "The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found "
+        "clear:",
+    ]
+    clauses = []
+    for cond in result.conditions:
+        clauses.append("{0} -> clear ({1})".format(cond.name, cond.reason))
+    parts.append("; ".join(clauses) + ".")
+    # CITED BY DATE AND FINDING SPAN, NEVER QUOTED. A review record states its own verdict in its
+    # message, so quoting it would import a verdict token and make `newest_verdict` read THIS entry as
+    # the newest review. See `cite_review_entry`.
+    citation = cite_review_entry(reviewed_entry)
+    if citation:
+        parts.append("RE-CHECKED REVIEW: {0}.".format(citation))
+    if head:
+        parts.append("Recomputed at HEAD `{0}`.".format(head))
+    parts.append(
+        "HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `{0}` means the plan awaits sign-off, "
+        "and nothing here approves it or clears it to execute. Only a review may set `go`.".format(
+            RECHECK_TARGET_READINESS
+        )
+    )
+    return " ".join(parts)
+
+
+def recheck_readiness(
+    repo_root,
+    plan_path,
+    *,
+    apply: bool = False,
+    date: str,
+    actor: str,
+    head: str = "",
+) -> Tuple[RecheckResult, Optional[str]]:
+    """Recompute, and when permitted rewrite `no-go` -> `go-pending-approval` WITH its evidence.
+
+    Returns ``(result, new_text)``. ``new_text`` is the amended plan text when a write is PERMITTED
+    (whether or not ``apply`` wrote it, so a dry run can diff), and ``None`` when it is refused.
+
+    THE WRITE TARGET IS PINNED, not merely documented. The value written is
+    :data:`RECHECK_TARGET_READINESS` unconditionally: there is no parameter, no branch, and no caller
+    input that can change it, so `go` is unreachable through this function by construction rather than
+    by discipline. That matters because the field is read FIRST by the auto-approve predicate, making a
+    silent widening the highest-consequence regression this area could carry.
+
+    AN ASSERTION GUARDS THE ENTRY TOO, because the history record is the other half of the
+    attestation: if the rendered entry ever contained a review verdict token, :func:`newest_verdict`
+    would read this re-check as a review. That is checked here rather than trusted.
+    """
+    path = Path(plan_path)
+    result = recheck_conditions(repo_root, path)
+    if not result.may_write:
+        return result, None
+
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:  # pragma: no cover - recheck_conditions already read it
+        return result, None
+
+    _, reviewed_entry = newest_verdict(text)
+    entry = format_recheck_history_entry(
+        result, date=date, actor=actor, reviewed_entry=reviewed_entry, head=head
+    )
+    # GUARD THE ENTRY, NOT JUST THE FIELD, because the history record is the other half of the
+    # attestation: an entry `newest_verdict` could read as a review would forge the very verdict this
+    # design refuses to write.
+    #
+    # THE GUARD USES THE CONSUMER'S OWN SCANNERS, NOT A SUBSTRING SEARCH, and that distinction is
+    # measured rather than stylistic. A naive `"APPROVE" in entry.upper()` matched the word
+    # "approves" inside this entry's own closing sentence ("nothing here approves it"), which is not a
+    # verdict token at all: `_VERDICT_SCAN_RE` is word-bounded, so the consumer would never have read
+    # it as one. Guarding on a stricter rule than the consumer applies produces false alarms on
+    # correct output, which is how a guard gets deleted.
+    assert classify_verdict(entry) == (None, None), (
+        "a re-check history entry must state no /plan-review verdict token; `classify_verdict` read "
+        + repr(classify_verdict(entry)[0])
+    )
+    assert not is_review_history_entry(entry), (
+        "a re-check history entry must not be classified as a REVIEW record; its status/workflow "
+        "middle must remain `readiness re-check`"
+    )
+
+    new_text, n = _READINESS_LINE_SUB_RE.subn(
+        "- Readiness: " + RECHECK_TARGET_READINESS, text, count=1
+    )
+    if n != 1:  # pragma: no cover - the field was proven present by recheck_conditions
+        return result, None
+    # Guard the WRITE TARGET. Re-read the amended text through the same reader every consumer uses,
+    # so the assertion tests the OBSERVABLE value rather than the string we intended to write.
+    written = _schema.read_readiness(new_text)
+    assert (
+        written == RECHECK_TARGET_READINESS
+    ), "the re-check may write ONLY {0}; refusing to write {1!r}".format(
+        RECHECK_TARGET_READINESS, written
+    )
+
+    new_text = _prepend_history_entry(new_text, entry)
+    if apply:
+        path.write_text(new_text, encoding="utf-8")
+    return result, new_text
+
+
+_READINESS_LINE_SUB_RE = re.compile(r"(?m)^-[ \t]*Readiness:[ \t]*.*$")
+
+
+def _prepend_history_entry(text: str, entry: str) -> str:
+    """Insert ``entry`` as the NEWEST record directly under ``## Workflow history``.
+
+    NEWEST-FIRST, matching `aw set`'s own writer (`status_set.py`, ``new_lines.insert(i + 1, ...)``)
+    and therefore matching what :func:`extract_newest_history_entry` reads. Appending instead would
+    make the newest record unreadable by every consumer in this module.
+
+    When the section is absent the entry is placed after the front matter, before the first ``## ``
+    heading, so the file stays conformant rather than growing a trailing orphan section.
+    """
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        if line.strip() == "## Workflow history":
+            insert_at = i + 1
+            # Keep the customary blank line directly under the heading intact.
+            if insert_at < len(lines) and lines[insert_at].strip() == "":
+                insert_at += 1
+            lines.insert(insert_at, entry)
+            return "\n".join(lines)
+    for i, line in enumerate(lines):
+        if line.startswith("## "):
+            lines[i:i] = ["## Workflow history", "", entry, ""]
+            return "\n".join(lines)
+    return "\n".join(lines + ["", "## Workflow history", "", entry, ""])

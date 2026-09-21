@@ -739,6 +739,23 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         exit_contract=(0, 2),
     ),
     CommandDeclaration(
+        # rdyrecheck Order 01 (qhy3i3): re-evaluate a stale `- Readiness: no-go`. A MUTATION-class verb
+        # (it rewrites an attestation field and appends a history record) gated dry-run-by-default,
+        # like `ipd scaffold`/`ipd sync`, because the preview is what lets a human read the computed
+        # per-condition reasons before anything is written. Its write target is pinned to
+        # `go-pending-approval`, which still requires human approval, so this verb can never clear a
+        # plan to execute. Exit 0 swept (a REFUSAL is a correct outcome, not an error) / 1 a named
+        # selector resolved to nothing / 2 cannot-run.
+        command="ipd recheck-readiness",
+        command_class="mutation",
+        human_recipe="preview",
+        agent_record_kind="result",
+        mutation_gate="dry_run_default",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--apply", "--stale-findings", "--actor", "--dir"),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
         # ipdgates Order xjbvu2: fail-closed execution-start receipt. A check-class gate: it
         # runs pre-execution lint and writes only a LOCAL, gitignored receipt (mutates no tracked
         # file), so it carries no tracked-tree mutation gate. Exit 0 ok / 1 findings / 2 cannot-run.

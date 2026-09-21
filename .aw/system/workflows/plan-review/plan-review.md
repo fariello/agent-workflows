@@ -543,12 +543,69 @@ for genuine not-ready conditions):
   questions, no unfixed BLOCKER/HIGH) but the human sign-off has not happened yet.
   This is the positive, correct readiness for a plan that passed review and only
   awaits approval. It is NOT a failure state.
-- **NO-GO:** genuine not-ready: any open question, any unfixed BLOCKER/HIGH, or a
-  `REVIEWED - OPEN QUESTIONS` / `REJECT - NEEDS REPLAN` verdict. NOT used merely
-  because a clean plan lacks a signature.
+- **NO-GO:** genuine not-ready: an unresolved BLOCKING open question, any unfixed
+  BLOCKER/HIGH, or a `REVIEWED - OPEN QUESTIONS` / `REJECT - NEEDS REPLAN`
+  verdict. NOT used merely because a clean plan lacks a signature.
 
 A plan may be `Status: reviewed` and be `GO - PENDING HUMAN APPROVAL` (passed,
 awaiting sign-off); it is only `NO-GO` when a genuine not-ready condition remains.
+
+A NON-BLOCKING open question does NOT make a plan `NO-GO`. Maintainer ruling of
+2026-09-10 (plan `qhy3i3` OQ-01), which changed the first `NO-GO` condition above
+from "any open question" to an unresolved BLOCKING one. The reasoning generalizes:
+the `- Blocking:` flag exists precisely to record which questions must stop work,
+so treating blocking and non-blocking questions alike discards the distinction the
+field was created to carry, and under the former literal reading the flag had
+almost no consequence. Measured scale behind the ruling: 43 of 104 pending plans
+carried ONLY non-blocking questions, so the literal reading was holding 43 plans
+for reasons their own authors had judged non-stopping. The accepted cost, recorded
+because the maintainer was shown it: a question mislabelled `Blocking: no` when it
+truly does block will no longer hold its plan back, so mislabelling is now the
+single point of failure, and it is visible in the plan itself.
+
+### A `NO-GO` is RE-EVALUABLE
+
+A `NO-GO` records a MOMENT, not a permanent condition. When the cause it was set
+for is removed, the refusal must state a reason that is STILL TRUE rather than one
+that is spent. Re-evaluate with:
+
+```sh
+aw ipd recheck-readiness <id6>            # preview the per-condition verdict
+aw ipd recheck-readiness <id6> --apply    # write, when every condition is clear
+```
+
+The verb RECOMPUTES the three `NO-GO` conditions above with the shipped predicates,
+reports each one individually with its reason, and writes only when all three are
+clear. Three properties bound it, and they are what make it something an agent may
+run at all:
+
+- It can reach ONLY `GO - PENDING HUMAN APPROVAL`. **Only a review may set `GO`**,
+  and `GO` still requires human approval. The verb refuses an absent field (absence
+  means no review recorded a signal, and minting a value would assert a review that
+  never happened), an out-of-vocab field, and any readiness that is not `NO-GO`.
+- It RECORDS its computed evidence in the plan's `## Workflow history`, labelled a
+  readiness re-check and containing no verdict token, so it is never read as a
+  review and a reader can audit the claim without re-running anything.
+- It re-checks; it does NOT re-review. No finding is re-derived and no plan content
+  is re-critiqued, so a plan needing fresh critique still needs `/plan-review`.
+
+### The escalation RETURN PATH
+
+Step 4 requires an unfixed finding at or above the gate threshold to be escalated
+INTO the plan as a `- Blocking: yes` question carrying `- Finding: <ID>`. That
+escalation is defined in one direction only, so answering the question used to
+leave the finding `OPEN` in the typed review record forever, and the gate that
+reads that column kept blocking.
+
+A finding whose escalated question is now `- Status: resolved` is therefore STALE.
+Clear it by APPENDING a new `## Round <n>` to the review record that marks the
+finding `fixed` and cites the answered question and its date; never edit the
+earlier round in place, because round 1 was true when it was written and rewriting
+it destroys the audit trail. `aw ipd recheck-readiness --stale-findings` reports
+these (and writes the round under `--apply`), matching the question to the finding
+on the question's declared `- Finding: <ID>` back-reference rather than on a
+judgement about what the question was about. A question that is still open does NOT
+make its finding stale.
 
 ---
 ## Required final report
