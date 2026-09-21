@@ -6,16 +6,16 @@
 - Scope: Make the metric surface honest in all three cases: compute the two missing metrics or remove them from the allowlist with the reason recorded, and separate "we failed to record this" from "there was nothing to record" in the missingness vocabulary. Does NOT change how any working metric is computed, does NOT change pricing or the cost caveat, and does NOT touch the report renderer.
 - Scope-Paths: agent_workflows/run_analytics.py, agent_workflows/run_analytics_query.py, tests/test_run_analytics.py, tests/test_run_analytics_cli.py, tests/test_run_analytics_query.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: metgap
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: 6krsym
-- Approval: 2026-09-19, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-21 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: 6krsym verified (set metgap, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_run_analytics_query.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-19 approved (aw set): status set to approved
 
 - 2026-09-18 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006, all FIXED, none deferred, none open. EVERY CODE CLAIM VERIFIED INDEPENDENTLY: `AGGREGATE_METRICS` is the seven named (`run_analytics_query.py:153-161`); `_metric_payload`'s timing loop (`:573-580`) emits exactly `wall_seconds`/`observed_activity_seconds`/`overlap_seconds`/`unattributed_seconds` and NEVER `duration_seconds` or `event_count`; telemetry does write `duration_seconds` (`run_analytics_telemetry.py:1343`) and the producer never reads it; `_numbers_for` (`:468-492`) returns one folded `missing` integer; the allowlist already permits `duration_seconds` twice. THE BLOCKER (PR-001) IS THAT ALL SEVEN V-ITEMS REQUIRED EVIDENCE FROM `.aw/records/runs/`, WHICH IS GITIGNORED AND ABSENT FROM EVERY LANE, and the failure is SILENT: measured, `aw runs query metrics --metric duration_seconds` and `--metric wall_seconds` return byte-identical `sample_size: 0, outcome: clean, exit 0` payloads with no corpus, so an executor cannot tell the defect from the fix and V-04/V-05's "nonzero sample size" is unproducible. FIXED by re-pointing every V-item at deterministic FIXTURE evidence, which I proved first: a six-entry synthetic corpus reproduces all three defects (`duration_seconds` 0/6, `event_count` 0/6, `tokens` 5 present with 1 legitimately-empty). Also: a declared scope path did not exist (`tests/test_run_analytics_query.py`), while the file that actually tests the query layer (`tests/test_run_analytics_cli.py`) was undeclared and `_numbers_for` has NO direct test; and both conditional spec-sync worries measured out to nothing (no spec mentions either metric; help is generic and `schema`/refusal both derive from the one tuple, so removal propagates automatically). NOTE: none of the plan's CORPUS figures (180 runs, 61 telemetry files, the 32-absence classification) could be verified in a lane; the revisions make execution independent of them.
