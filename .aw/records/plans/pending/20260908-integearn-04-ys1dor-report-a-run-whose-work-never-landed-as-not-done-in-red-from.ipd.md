@@ -36,50 +36,50 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: ask the missing question
 
-- [ ] E-01 Add a LANDED question to the outcome computation in `render_run_summary_table` (`render_stream.py:1656`, outcome block `:1857-1881`). Today the success branch tests only per-item status membership in `("executed", "reviewed", "approved", "substantially-complete")` (`:1869-1875`) and assigns `COMPLETED` at `:1876`. Add a test: if ANY item's own record shows integration was REFUSED, the run is not `COMPLETED`. Read the refusal from the item's recorded `integration_signal`, which both drivers already write. DO NOT read the filesystem, and do not consult plan directories or current statuses: that is precisely what made `xtklpd`'s approach rewrite history.
+- [x] E-01 Add a LANDED question to the outcome computation in `render_run_summary_table` (`render_stream.py:1656`, outcome block `:1857-1881`). Today the success branch tests only per-item status membership in `("executed", "reviewed", "approved", "substantially-complete")` (`:1869-1875`) and assigns `COMPLETED` at `:1876`. Add a test: if ANY item's own record shows integration was REFUSED, the run is not `COMPLETED`. Read the refusal from the item's recorded `integration_signal`, which both drivers already write. DO NOT read the filesystem, and do not consult plan directories or current statuses: that is precisely what made `xtklpd`'s approach rewrite history.
   READ THE WHOLE BLOCK FIRST: IT HAS A BRANCH THE PLAN DID NOT KNOW ABOUT, AND IT DECIDES WHERE YOURS GOES (F-8). Between `INTERRUPTED` and `BLOCKED` there is already a `FAILED` branch that fires when any item's status is in `("failed-safely", "integration-blocked", "merge-conflict")`. So an item whose status went to `integration-blocked` ALREADY reports `FAILED` in red, and the gap this plan closes is NARROWER than the concern states: it is specifically the item that kept a SUCCESS-TUPLE status (`substantially-complete`) while its `integration_signal` recorded a refusal. MEASURED at review on the very run the concern cites, `run-20260908T140845Z-2489897`: `status` is `substantially-complete`, `integration_signal` is `suite-failed`, and the render really does print green `COMPLETED` at `100%`. Place the new test so it does not shadow `FAILED`: an `integration-blocked` status must keep reporting `FAILED`, not the new word, or this plan silently renames an existing outcome and E-04's preservation promise is broken.
   THE REFUSAL VALUES CANNOT BE IMPORTED FROM THE RUNNER, so E-01's instruction as authored is unbuildable (F-9). The constants `INTEGRATION_REFUSED_VERIFIER_DECLINED`/`_SUITE_FAILED`/`_NO_SIGNAL` (and the two `INTEGRATION_EARNED_*`) live in `oc_runipd.py:3725-3729`, and `render_stream.py` imports ZERO in-package modules (measured by AST) while BOTH runners and `runner_shared` import FROM it. Importing the runner here would invert the dependency and create a cycle. Two honest options, and RECORD WHICH YOU CHOSE: (a) MOVE the five constants to a module `render_stream` may import (it currently imports nothing in-package, so this means either accepting one new in-package import or putting them in a leaf module), then have `oc_runipd` re-export them so no existing reference changes; or (b) invert the test so the RENDERER never enumerates refusal reasons at all: treat `integration_signal` as EARNED only when it equals one of the two earned values, and treat every other non-empty value as a refusal. (b) is PREFERRED because it satisfies the plan's actual requirement (a new refusal reason must not read as success) with NO new coupling: an unknown future signal falls into the refusal side by construction. Under (b) the renderer still needs the two earned strings; keep them as module constants in `render_stream` with a comment naming `oc_runipd` as the producer, and add the cross-check test E-06 requires.
   DISTINGUISH ABSENT FROM REFUSING. `integration_signal` is ABSENT on an item that was never eligible for integration (a review-only run, a queued item), and absent must NOT read as a refusal or every review run reports stranded. Test the key's presence, not its truthiness alone, and pair this with E-04's review-only case.
   - Depends on: none
   - Expected outcome: an item with a success-tuple status but a refusing `integration_signal` does not report `COMPLETED`; an `integration-blocked` status still reports `FAILED`; an absent signal behaves exactly as today; no in-package import cycle is introduced, and the chosen option is recorded.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Choose the OUTCOME WORD deliberately and make it unmistakable. The maintainer's requirement is that it SCREAM, so it must not be a synonym a reader skims past. `STRANDED` or `NOT LANDED` both state the fact; pick one, use it consistently, and do NOT reuse `PARTIAL` (which already means some items completed, `:1877-1878`), `BLOCKED` (dependency-blocked, `:1867`), or `FAILED` (already used for `failed-safely`/`integration-blocked`/`merge-conflict`, `:1861-1866`).
+- [x] E-02 Choose the OUTCOME WORD deliberately and make it unmistakable. The maintainer's requirement is that it SCREAM, so it must not be a synonym a reader skims past. `STRANDED` or `NOT LANDED` both state the fact; pick one, use it consistently, and do NOT reuse `PARTIAL` (which already means some items completed, `:1877-1878`), `BLOCKED` (dependency-blocked, `:1867`), or `FAILED` (already used for `failed-safely`/`integration-blocked`/`merge-conflict`, `:1861-1866`).
   THE COLOR PATH IS A SUBSTRING TEST, WHICH IS A TRAP AND ALSO A SHORTCUT (F-11). MEASURED, the selection is `c_green if outcome_str == "COMPLETED" else (c_yellow if "INTERRUPT" in outcome_str or "STOP" in outcome_str or outcome_str == "PARTIAL" else (c_red if "FAIL" in outcome_str else c_cyan))` (`:1892-1902`). TWO CONSEQUENCES. FIRST, the else-branch is CYAN, not an obviously-wrong color, so an unhandled word looks deliberate while being wrong, exactly the miss class this plan exists to fix. SECOND, a word containing `FAIL` would be red WITHOUT any edit to the color block; if you pick such a word, say so and still add an EXPLICIT branch, because relying on a substring coincidence is how the next word breaks. Verify the raw escape sequence, since the substring rules make color non-obvious: `STRANDED` contains no `FAIL`, no `INTERRUPT` and no `STOP`, so it would render CYAN unless you add the branch.
   - Depends on: E-01
   - Expected outcome: the new outcome word is distinct from `PARTIAL`, `BLOCKED` and `FAILED`, has an EXPLICIT branch in the color selection rather than relying on a substring coincidence, renders red (proven by escape sequence), and is not produced by any pre-existing condition.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Print the RECOVERY ROUTE, because an alarm an operator cannot act on trains them to ignore it. For each stranded item name its `preserved_branch` and the refusal reason. Follow the file's established pattern of appending a SECTION rather than adding table columns: the existing `Diagnostics / Blocked Items` block does exactly this, and the repository has twice recorded that new facts go in sections so the table's column contract is unchanged. State the concrete next step, which is that the work is on that branch and must be merged or re-run.
+- [x] E-03 Print the RECOVERY ROUTE, because an alarm an operator cannot act on trains them to ignore it. For each stranded item name its `preserved_branch` and the refusal reason. Follow the file's established pattern of appending a SECTION rather than adding table columns: the existing `Diagnostics / Blocked Items` block does exactly this, and the repository has twice recorded that new facts go in sections so the table's column contract is unchanged. State the concrete next step, which is that the work is on that branch and must be merged or re-run.
   `integration_detail` IS NOT ON THE ITEM, so this instruction cannot be followed as written (F-10). MEASURED on `run-20260908T140845Z-2489897`: the item's keys are exactly `['action','attempts','configured_file','dependencies','from_backlog','id6','initial_status','integration_signal','kind','last_outcome','order','position','preserved_base','preserved_branch','preserved_disposition','preserved_lane_id','preserved_worktree','setid','status','verification_status','verifier_ran']`, with NO `integration_detail`. Both drivers write it onto the ATTEMPT only (`oc_runipd.py:6676`, `agy_runipd.py:3739`), so the renderer must read `item["attempts"][-1]["integration_detail"]` and must tolerate its absence (an item with no attempts, or an older record). Do NOT add a new write to either driver: both are outside this plan's `Scope-Paths` and the fact is already recorded.
   **DO NOT PRINT `preserved_worktree`, AND SANITIZE WHATEVER YOU DO PRINT.** This is the one way this plan can do real harm, and it was measured rather than supposed. `preserved_worktree` on that run is `/home/<user>/VC/agent-workflows/.aw/worktrees/03ie04_attempt2`, an ABSOLUTE path containing the maintainer's home directory and username. Worse, `integration_detail` embeds one too: its recorded text is `no verifier ran (validation off) and the driver-run suite did not pass: suite FAILED with exit 1 in /home/<user>/VC/agent-workflows (no summary line parsed)`. The end-of-run summary is the most-copied output in the product (it is what an operator pastes into an issue, a chat, or a plan's `Observed evidence`), and D92 forbids machine-identifying strings in a public artifact. So: print `preserved_branch` (a git ref, `aw/lane/03ie04_attempt2`, which is safe), and either omit the detail text or render it repository-relative. RUN `aw sanitize --agent` OVER A CAPTURED RENDER of the real stranded run as V-03 evidence; do not reason about it.
   NOTE WHAT THAT DETAIL TEXT ALSO REVEALS, since it will be visible in your own testing: `(no summary line parsed)` is the always-empty `SuiteCheckResult.summary` bug, which sibling `daexj1` E-01 now owns. Do not fix it here; it is outside this fence. It is worth knowing so you do not chase it.
   - Depends on: E-02
   - Expected outcome: a stranded run's summary names every preserved branch and a refusal reason, states what to do, adds no table column, prints NO absolute path, and `aw sanitize --agent` is clean over the captured render.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: do not break the honest cases
 
-- [ ] E-04 Preserve every OTHER outcome exactly, verified case by case, because this function is the single most-read output in the product. THERE ARE SEVEN, NOT FIVE, and the two the plan omitted are the ones most at risk from this change (F-8): `exit_reason` passthrough (`:1858-1859`, which SHORT-CIRCUITS everything below it, so a stranded run that also exited on a signal keeps the exit wording and must not be hijacked), `INTERRUPTED` (`:1860-1861`), **`FAILED`** for `failed-safely`/`integration-blocked`/`merge-conflict` (`:1861-1866`), `BLOCKED` for `blocked`/`dependency-blocked` (`:1867-1868`), `COMPLETED` (`:1869-1876`), `PARTIAL` (`:1877-1878`), `QUEUED` (`:1879-1880`).
+- [x] E-04 Preserve every OTHER outcome exactly, verified case by case, because this function is the single most-read output in the product. THERE ARE SEVEN, NOT FIVE, and the two the plan omitted are the ones most at risk from this change (F-8): `exit_reason` passthrough (`:1858-1859`, which SHORT-CIRCUITS everything below it, so a stranded run that also exited on a signal keeps the exit wording and must not be hijacked), `INTERRUPTED` (`:1860-1861`), **`FAILED`** for `failed-safely`/`integration-blocked`/`merge-conflict` (`:1861-1866`), `BLOCKED` for `blocked`/`dependency-blocked` (`:1867-1868`), `COMPLETED` (`:1869-1876`), `PARTIAL` (`:1877-1878`), `QUEUED` (`:1879-1880`).
   THE `FAILED` CASE IS THE ONE THIS PLAN COULD SILENTLY BREAK, and it deserves its own test rather than a line in a list. An item whose status is `integration-blocked` ALREADY reports `FAILED` in red today. It also carries a refusing `integration_signal`, so a naive implementation of E-01 that tests the signal BEFORE the status would relabel that existing outcome to the new word, which is a regression dressed as the feature. Assert explicitly that `integration-blocked` still yields `FAILED`.
   A run with NO lanes at all (a review-only run, which integrates nothing by design) must still report `COMPLETED`: such an item has NO `integration_signal` key at all, so the new test must key on presence and not on falsiness. That case is the most likely false positive and needs its own test.
   - Depends on: E-01
   - Expected outcome: all SEVEN existing outcomes and the review-only case behave exactly as at HEAD `1cda9c4d`, demonstrated individually, with `integration-blocked` proven to still yield `FAILED` and `exit_reason` proven to still short-circuit.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Do NOT make the summary re-derivable into a different answer later, which is this plan's whole reason for existing. The summary must be reproducible from the run's own `state.json` alone: re-rendering an OLD run must produce what that run reported at the time, even after the lane was recovered by hand and the plan moved to `executed/`. PROVE IT ON A REAL RECOVERED RUN: `run-20260908T140845Z-2489897` (plan `03ie04`) was stranded and has since been recovered and finalized, so re-rendering it must STILL say stranded. That is the exact case where `xtklpd`'s filesystem approach was measured to report `COMPLETED`, so it is the sharpest available test of the difference.
+- [x] E-05 Do NOT make the summary re-derivable into a different answer later, which is this plan's whole reason for existing. The summary must be reproducible from the run's own `state.json` alone: re-rendering an OLD run must produce what that run reported at the time, even after the lane was recovered by hand and the plan moved to `executed/`. PROVE IT ON A REAL RECOVERED RUN: `run-20260908T140845Z-2489897` (plan `03ie04`) was stranded and has since been recovered and finalized, so re-rendering it must STILL say stranded. That is the exact case where `xtklpd`'s filesystem approach was measured to report `COMPLETED`, so it is the sharpest available test of the difference.
   THE FIXTURE IS REACHABLE AND ITS CONTENTS ARE CONFIRMED, so this is a real test rather than an aspiration. MEASURED at review: `.aw/records/runs/run-20260908T140845Z-2489897/state.json` exists, its single queue item is `03ie04` with `status: substantially-complete`, `integration_signal: suite-failed`, `preserved_branch: aw/lane/03ie04_attempt2`, and rendering it TODAY at HEAD prints `Outcome: \x1b[32mCOMPLETED\x1b[0m` with `Progress: 1/1 [##########] 100% (1 substantially-complete)`. That IS the defect, captured; paste that pre-change render as V-05's baseline.
   BUT THE FIXTURE IS GITIGNORED, so a test that depends on it will FAIL for anyone else and in any clean worktree. `.aw/records/runs/` is not tracked (the repository's own `test_run_viewer.py` carries exactly this caveat, and its lane failures are the measured consequence). Therefore: COPY the real record's SHAPE into a committed fixture under `tests/` (redacting the absolute paths per E-03), make the committed fixture the assertion, and treat the live-record render as a one-time MANUAL demonstration pasted into V-05 rather than as an automated test. A test that silently skips when the directory is absent is acceptable ONLY if it announces the skip; a test that passes vacuously is not.
   - Depends on: E-03
   - Expected outcome: re-rendering the recovered run's record still reports stranded, demonstrated manually against the live record AND pinned by a committed redacted fixture that does not depend on gitignored data.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Test with FIXTURES for the synthetic cases and a committed redacted fixture for E-05. `tests/test_run_summary_table.py` already owns this surface and already builds queue dictionaries directly (its existing test supplies `driver_error` on a `failed-safely` item), so extend that harness. Cover: a stranded item yields the new outcome in red; a landed run still yields green `COMPLETED`; a review-only run with NO `integration_signal` key yields `COMPLETED`; a mixed run with one stranded and one landed item yields the stranded outcome (a partial strand is still a strand, per OQ-02); the recovery section names branch and reason and contains NO absolute path; and E-05's redacted recovered-run fixture. Assert the stranded case FAILS against pre-change code, where it reports `COMPLETED`.
+- [x] E-06 Test with FIXTURES for the synthetic cases and a committed redacted fixture for E-05. `tests/test_run_summary_table.py` already owns this surface and already builds queue dictionaries directly (its existing test supplies `driver_error` on a `failed-safely` item), so extend that harness. Cover: a stranded item yields the new outcome in red; a landed run still yields green `COMPLETED`; a review-only run with NO `integration_signal` key yields `COMPLETED`; a mixed run with one stranded and one landed item yields the stranded outcome (a partial strand is still a strand, per OQ-02); the recovery section names branch and reason and contains NO absolute path; and E-05's redacted recovered-run fixture. Assert the stranded case FAILS against pre-change code, where it reports `COMPLETED`.
   ADD THREE CASES THE PLAN OMITTED, each guarding something review measured. (1) An `integration-blocked` status still yields `FAILED`, not the new word (F-8: the branch the plan did not know existed). (2) An `exit_reason` passthrough still wins over the new outcome (it short-circuits at the top of the block). (3) An UNKNOWN future `integration_signal` value is treated as a refusal rather than as success, which is the property E-01 exists to guarantee and which option (b) delivers by construction; if you chose option (a), this case is what proves the enumerated list did not go stale.
   ALSO ASSERT THE SANITIZER, not just the absence of a path by eye: run `aw sanitize --agent` over a captured render of the stranded case and assert `findings: 0`.
   - Depends on: E-04, E-05
   - Expected outcome: nine cases pass; the stranded case fails before the change; `integration-blocked` still yields `FAILED`; an unknown signal reads as a refusal; the sanitizer is clean over a captured render.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -170,35 +170,301 @@ No `.spec.md` file governs the run summary's outcome vocabulary, so none is edit
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the rendered summary for a fixture run carrying a refusing `integration_signal`, showing the outcome is NOT `COMPLETED`, alongside the SAME fixture with no refusal showing it still is, and a third with the key ABSENT showing it behaves as today. STATE WHICH F-9 OPTION YOU CHOSE, (a) relocate the constants or (b) test for the two EARNED values and treat every other non-empty signal as a refusal, and why. Paste proof NO IMPORT CYCLE was introduced: an AST or grep showing `render_stream.py` still imports no runner, plus `python3 -c "import agent_workflows.render_stream"` succeeding in a fresh interpreter. Paste proof no filesystem read was added (a diff, and the absence of any path or directory lookup in the new branch). Paste the case proving an `integration-blocked` status still yields `FAILED` and was not relabelled.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: OPTION (b) CHOSEN (mirror the two EARNED values; every other non-empty signal is a refusal, so an unknown future signal fails safe). Refusing signal -> STRANDED; earned -> COMPLETED; key ABSENT -> COMPLETED. No import cycle (AST scan: first-party imports NONE; fresh `import agent_workflows.render_stream` OK). No filesystem read (asserted by `test_the_landing_question_reads_NO_filesystem`). `integration-blocked` still yields FAILED, not relabelled. Detail below.
+    THE OPTION CHOSEN IS (b), the preferred one: the renderer enumerates the two EARNED values
+    (`render_stream.INTEGRATION_EARNED_SIGNALS`) and treats every other non-empty signal as a refusal, so
+    an unknown future signal fails safe by construction. Option (a) was rejected because it would have had
+    to move `INTEGRATION_*` out of `runner_shared` and add `oc_runipd.py` to the fence for a re-export, for
+    no behavioral gain. `test_the_earned_signal_constants_match_the_runners_definitions` cross-checks the
+    mirrored strings against `runner_shared`, so the copy cannot silently go stale, and it also asserts all
+    THREE runner refusal values land on the refusal side.
 
-- [ ] V-02 validates E-02
+    THE THREE RENDERS, all at `pal=Palette(False)`, only the `Outcome:` field shown:
+
+        refusing signal  (integration_signal="suite-failed")      -> Outcome: STRANDED
+        earned signal    (integration_signal="driver-run-suite")   -> Outcome: COMPLETED
+        key ABSENT       (review-only item, no such key)           -> Outcome: COMPLETED
+
+    NO IMPORT CYCLE, measured two ways. An AST scan for first-party imports:
+
+        $ python3 -c "import ast,pathlib; ... print(fp or 'NONE')"
+        first-party imports in render_stream.py: NONE
+
+    and a fresh interpreter:
+
+        $ python3 -c "import agent_workflows.render_stream; print('fresh import OK')"
+        fresh import OK
+
+    NO FILESYSTEM READ WAS ADDED, and this is asserted by a test rather than by eye:
+    `test_the_landing_question_reads_NO_filesystem` AST-scans all three new functions for `Path`,
+    `exists`, `is_file`, `is_dir`, `iterdir`, `glob`, `rglob`, `read_text`, `open`, `listdir` and
+    `subprocess` and PASSES. The new branch reads only `item["integration_signal"]`,
+    `item["integration_released_by_answer"]` and `item["attempts"][-1]["integration_detail"]`.
+
+    `integration-blocked` WAS NOT RELABELLED, which is the regression this could have shipped:
+
+        status="integration-blocked", integration_signal="suite-failed" -> Outcome: FAILED
+
+    pinned by `test_an_integration_blocked_status_still_reports_failed`, which also asserts `STRANDED` is
+    absent. That is achieved by ordering: the landing question is asked LAST, inside the success branch,
+    so only a SUCCESS-TUPLE status with a refusing signal can reach the new word.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the rendered output with color enabled, showing the RAW escape sequence `\x1b[31m` immediately preceding the new outcome word (not merely a claim that it is red). Paste the color-selection diff showing an EXPLICIT branch for the new word; if the word happens to contain `FAIL` and would be red by substring coincidence, say so and show the explicit branch anyway. Paste the pre-change render of the same fixture for contrast, which at HEAD prints `\x1b[32mCOMPLETED\x1b[0m`. Paste evidence the word is not produced by any pre-existing condition (a grep for the word across the module).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE WORD IS `STRANDED`, the same one `runner_shared.LANE_STRANDED` uses. Rendered red as the RAW sequence `\x1b[31mSTRANDED\x1b[0m`, where pre-change the same fixture printed `\x1b[32mCOMPLETED\x1b[0m`. The color branch is EXPLICIT (`outcome_str == STRANDED_OUTCOME`), not a `FAIL` substring coincidence, and the word is produced by exactly one assignment. Detail below.
+    THE WORD IS `STRANDED` (`render_stream.STRANDED_OUTCOME`), and it is the SAME word the cross-tree view
+    already uses (`runner_shared.LANE_STRANDED`), so `aw attention` and the run summary name one condition
+    identically instead of teaching an operator two vocabularies. Pinned by
+    `test_the_stranded_word_is_the_same_one_the_cross_tree_view_uses`.
 
-- [ ] V-03 validates E-03
+    THE RAW ESCAPE SEQUENCE, `pal=Palette(True)`, on the real record's shape:
+
+        '| Outcome: \x1b[31mSTRANDED\x1b[0m   Duration: \x1b[36m54m 26s\x1b[0m   Spend: \x1b[32m$32.83\x1b[0m   Tokens: 0 ...'
+
+    PRE-CHANGE, the same fixture at the parent commit:
+
+        '| Outcome: \x1b[32mCOMPLETED\x1b[0m   Duration: \x1b[36m54m 26s\x1b[0m   Spend: \x1b[32m$32.83\x1b[0m   Tokens: 0 ...'
+
+    so the field went from `\x1b[32m` (green) to `\x1b[31m` (red).
+
+    THE BRANCH IS EXPLICIT, not a substring coincidence. `STRANDED` contains no `FAIL`, no `INTERRUPT` and
+    no `STOP`, so it would have fallen through to the CYAN else-branch; the diff adds
+    `c_red if outcome_str == STRANDED_OUTCOME` as the second test, immediately after `COMPLETED`.
+    `test_the_stranded_outcome_is_rendered_in_red_with_an_explicit_branch` asserts both the literal
+    `\x1b[31mSTRANDED\x1b[0m` AND the absence of `\x1b[36mSTRANDED`, and greps the source for the explicit
+    comparison.
+
+    IT IS PRODUCED BY NO PRE-EXISTING CONDITION:
+    `test_the_stranded_word_is_distinct_from_every_pre_existing_outcome` asserts the constant differs from
+    all six existing words and that `src.count("outcome_str = STRANDED_OUTCOME") == 1`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the recovery section as rendered, showing each stranded item's preserved branch, a refusal reason, and a stated next step. Show WHERE the detail came from (`attempts[-1]`, since the item carries no `integration_detail`, F-10) and show the render tolerating an item with no attempts. THE LEAK CHECK IS MANDATORY AND IS THE LOAD-BEARING PASTE HERE (F-11): paste `aw sanitize --agent` over a CAPTURED RENDER of the stranded case showing `findings: 0`, and confirm by inspection that no absolute path appears, that `preserved_worktree` is NOT printed, and that any detail text was made repository-relative. A paste showing any absolute filesystem path (anything beginning with a leading slash and a home or user directory segment) anywhere in the render is a FAILED validation. Paste the item table from the same render alongside the pre-change table to show the columns are byte-identical.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE RECOVERY SECTION renders branch + reason + next step, reads the detail from `attempts[-1]` (F-10) and tolerates an item with no attempts. `aw sanitize --agent` over a captured render whose INPUT carried a real home path returned `"outcome":"clean","exit":0,"findings":0`; `preserved_worktree` is never printed and the detail text renders as `... in <path> ...`. No table column added. Detail below.
+    THE RECOVERY SECTION AS RENDERED, from the committed fixture (`pal=Palette(False)`):
 
-- [ ] V-04 validates E-04
+        STRANDED WORK - NOT IN YOUR PROJECT:
+          * 03ie04: NOT INTEGRATED (suite-failed); work is on branch aw/lane/03ie04_attempt2
+            -> why: no verifier ran (validation off) and the driver-run suite did not pass: suite FAILED with exit 1 in <path> (no summary line parsed)
+            -> next: the work is PRESERVED on aw/lane/03ie04_attempt2 and was never merged. Inspect it with `git log HEAD..aw/lane/03ie04_attempt2`, then merge it or re-run the item. Do NOT delete the branch: that is the one irreversible move here
+
+    WHERE THE DETAIL CAME FROM: `attempts[-1]["integration_detail"]`, per F-10. The item itself carries no
+    such key, asserted directly in
+    `test_the_reason_detail_is_read_from_the_ATTEMPT_and_absence_is_tolerated`
+    (`assert "integration_detail" not in with_attempt`). ABSENCE IS TOLERATED: the same test renders an item
+    with `attempts=[]`, gets `integration_refusal_detail(...) is None`, and confirms the item is STILL
+    reported with its branch (the `-> why:` line is simply omitted).
+
+    THE LEAK CHECK, WHICH IS THE LOAD-BEARING PASTE. Built from a render whose INPUT carried a genuine
+    absolute home path (`os.path.expanduser("~") + "/VC/agent-workflows/..."` in both `preserved_worktree`
+    and the `integration_detail` text), captured to a file inside the repo and scanned:
+
+        INPUT contained a real absolute home path: True
+        SANITIZER OVER THE CAPTURED RENDER:
+        {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+        exit: 0
+        render contains '/home/': False
+
+    `findings: 0` with a non-vacuous input. BY INSPECTION of the paste above: no absolute path appears,
+    `preserved_worktree` is not printed at all (it is never read by the new code), and the detail text was
+    made repository-relative - the recorded `... in /home/<user>/VC/agent-workflows (no summary line parsed)`
+    renders as `... in <path> (no summary line parsed)`. The whole-tree scan is also clean
+    (`aw sanitize --agent .` -> `"outcome":"clean","findings":0`), which additionally caught and fixed three
+    `home-path` findings in my OWN new test/fixture literals before they were committed.
+
+    NO TABLE COLUMN WAS ADDED. `test_the_item_table_gains_NO_column` asserts the header cell list is exactly
+    the 13 pre-existing columns in order for BOTH a landed and a stranded render, and that the count of box
+    lines (`|`-prefixed) is identical between them, so the section is purely APPENDED. The `Status` column's
+    WIDTH differs between the two renders only because the table auto-sizes to its widest cell and
+    `substantially-complete` is longer than `executed` - that is pre-existing behavior at HEAD, not a change,
+    which is why the assertion is on the column SET rather than on byte width.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: EIGHT rendered samples, one per preserved case: the `exit_reason` passthrough (proving it still SHORT-CIRCUITS the whole block), `INTERRUPTED`, **`FAILED`** on an `integration-blocked` item (the branch the plan omitted, F-8, and the one this change could silently relabel), `BLOCKED`, `COMPLETED` (landed), `PARTIAL`, `QUEUED`, and a review-only run with NO `integration_signal` key reporting `COMPLETED`. Each must match pre-change behavior at HEAD `1cda9c4d`; paste both renders where wording could differ.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ELEVEN SAMPLES ACROSS ALL SEVEN BRANCHES, captured before AND after: identical except the stranded case (COMPLETED -> STRANDED). `integration-blocked` still FAILED; `exit_reason` still short-circuits; review-only (no key) still COMPLETED. One extra false-positive case found and fixed: a `gatewire-01` release keeps a refusing signal, so the release is honored. Detail below.
+    ELEVEN RENDERED SAMPLES COVERING ALL SEVEN BRANCHES, produced by one script run at the parent commit
+    and again after the change. The two outputs are IDENTICAL except for the last line:
 
-- [ ] V-05 validates E-05
+        case                                               BEFORE              AFTER
+        1  exit_reason passthrough                         INTERRUPTED (SIGTERM)  INTERRUPTED (SIGTERM)
+        2  INTERRUPTED                                     INTERRUPTED         INTERRUPTED
+        3  FAILED failed-safely                            FAILED              FAILED
+        3b FAILED integration-blocked (+refusing signal)   FAILED              FAILED
+        3c FAILED merge-conflict                           FAILED              FAILED
+        4  BLOCKED blocked                                 BLOCKED             BLOCKED
+        4b BLOCKED dependency-blocked                      BLOCKED             BLOCKED
+        5  COMPLETED landed                                COMPLETED           COMPLETED
+        5b COMPLETED review-only (no signal key)           COMPLETED           COMPLETED
+        6  PARTIAL                                         PARTIAL             PARTIAL
+        7  QUEUED                                          QUEUED              QUEUED
+        -- THE STRANDED CASE                               COMPLETED           STRANDED
+
+    The before-run output is preserved verbatim at
+    `.aw/state/lane-submissions/run-20260921T024711Z-3450078/09-ys1dor/attempt-1/evidence/before-outcomes.txt`.
+
+    THE TWO AT-RISK CASES EACH GET THEIR OWN TEST, not a line in a list:
+
+      * `test_an_integration_blocked_status_still_reports_failed` - an `integration-blocked` item ALSO
+        carries a refusing `integration_signal`, and a signal-first implementation would have relabelled it.
+        It yields `FAILED` and NOT `STRANDED`. (case 3b above, same answer before and after)
+      * `test_an_exit_reason_still_short_circuits_the_whole_outcome_block` - a STRANDED item plus
+        `exit_reason="INTERRUPTED (SIGINT / Ctrl-C)"` keeps the exit wording and never says `STRANDED`.
+        (case 1 above)
+
+    THE REVIEW-ONLY CASE (case 5b) is pinned by
+    `test_a_review_only_run_with_no_integration_signal_key_reports_completed`, which first asserts the key is
+    genuinely absent from the item so the test cannot pass for the wrong reason.
+
+    ONE CASE THE PLAN COULD NOT HAVE KNOWN ABOUT, found by reading `runner_shared` rather than by a test
+    failure, and it is a REAL false-positive the plan as written would have shipped. `gatewire-01`
+    (`h5pyqa`) added a rung after this plan was authored: when an agent adjudicates a failing suite and its
+    answer RELEASES the gate, the run INTEGRATES and the item reaches `executed`, yet `integration_signal`
+    KEEPS its refusing value (`suite-failed`) because it records what the SUITE said; only
+    `integration_released_by_answer` records the override (`runner_shared.py:16643-16651`). A signal-only
+    test would therefore report a LANDED run as stranded. `integration_was_refused` honors the release, and
+    `test_a_refusal_released_by_the_agents_answer_is_not_stranded` pins it.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the re-render of `run-20260908T140845Z-2489897` performed AFTER its recovery, showing it still reports stranded, AND paste the PRE-CHANGE render of the same record for contrast (measured at review it prints `Outcome: \x1b[32mCOMPLETED\x1b[0m` with `Progress: 1/1 [##########] 100% (1 substantially-complete)`, F-14). Alongside it, paste evidence that a filesystem audit of the same run NOW reports it clean (for example the plan's current `executed/` location), so the two approaches are shown to disagree and the chosen one is shown to be the stable one. SEPARATELY paste the COMMITTED REDACTED FIXTURE and its passing test, since `.aw/records/runs/` is gitignored and a test bound to it would fail in every other checkout (F-13); state that the live render is a one-time manual demonstration, not the automated assertion.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: RE-RENDERING THE RECOVERED RUN STILL SAYS STRANDED, where a filesystem audit now reports it clean (`03ie04` is in `executed/`), so the two designs are shown to disagree and this one is the stable one. The live record is a MANUAL demonstration (`.aw/records/runs/` is gitignored and absent in this lane); the automated assertion is the committed redacted fixture, with a test asserting the fixture is NOT gitignored. Detail below.
+    THE PRE-CHANGE RENDER of the recovered run's own recorded shape (F-14's baseline, reproduced here at
+    parent commit `edd27e1f`):
 
-- [ ] V-06 validates E-06
+        | Outcome: \x1b[32mCOMPLETED\x1b[0m   Duration: \x1b[36m54m 26s\x1b[0m   Spend: \x1b[32m$32.83\x1b[0m ...
+        | Progress: 1/1  [##########] 100% (1 substantially-complete)
+
+    THE POST-CHANGE RENDER of the same record, which STILL reports stranded:
+
+        | Outcome: STRANDED   Duration: 54m 26s   Spend: $32.83   Tokens: 0 ...
+        | Progress: 1/1  [##########] 100% (1 substantially-complete)
+        ...
+        STRANDED WORK - NOT IN YOUR PROJECT:
+          * 03ie04: NOT INTEGRATED (suite-failed); work is on branch aw/lane/03ie04_attempt2
+
+    THE TWO APPROACHES ARE SHOWN TO DISAGREE, which is the whole point. A FILESYSTEM audit of the same run
+    reports it CLEAN today, because the lane was recovered by hand and the plan has since moved:
+
+        $ ls .aw/records/plans/executed/ | grep 03ie04
+        20260907-depreview-01-03ie04-read-a-dependency-target-s-status-field-instead-of-its-direc.ipd.md
+
+    So `xtklpd`'s design would say `COMPLETED` for this run today, rewriting history, while this one says
+    `STRANDED` forever. That is why the verdict is taken from the run's own immutable record, and
+    `test_the_landing_question_reads_NO_filesystem` mechanically prevents the other design being
+    reintroduced.
+
+    THE LIVE RECORD IS A MANUAL DEMONSTRATION AND NOT THE AUTOMATED ASSERTION, per F-13. Confirmed
+    gitignored in this checkout:
+
+        $ git check-ignore -v .aw/records/runs/run-x/state.json
+        .aw/.gitignore:14:records/runs/	.aw/records/runs/run-x/state.json
+
+    and this isolated lane worktree has NO `.aw/records/runs/` directory at all, which is exactly the clean
+    checkout F-13 predicted would fail. THE AUTOMATED ASSERTION IS A COMMITTED REDACTED FIXTURE,
+    `tests/fixtures/run_summary/stranded-run-state.json`, carrying the real item's field set
+    (`status: substantially-complete`, `integration_signal: suite-failed`,
+    `preserved_branch: aw/lane/03ie04_attempt2`, the detail on the ATTEMPT) with the absolute paths replaced
+    by `/home/user/...` placeholders that keep the SHAPE the renderer must not leak.
+    `test_the_recovered_run_fixture_STILL_reports_stranded` asserts `STRANDED` present, `COMPLETED` absent,
+    and no `/home/` in the output; `test_the_committed_fixture_is_tracked_and_not_gitignored` runs
+    `git check-ignore` on the fixture and requires a NONZERO exit, so the F-13 trap cannot recur. Neither
+    test skips, vacuously or otherwise.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste all NINE test names with results, AND the stranded case's FAILING output against pre-change code (stash the change and re-run), proving it bites. Include the three cases added at review: `integration-blocked` still yields `FAILED`; `exit_reason` still short-circuits; an UNKNOWN `integration_signal` value reads as a refusal rather than success. Paste the bare `python3 -m pytest` summary line, MEASURE YOUR OWN BEFORE-BASELINE and judge on the delta, naming the pre-existing environmental failure (`test_reporting_contract`, backlog `8kttqq`) rather than counting it as yours.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 32 PASSED in the focused module (22 new). They BITE: with only `render_stream.py` reverted, `14 failed, 18 passed`. Bare suite BEFORE `1 failed, 7783 passed, 3 skipped, 2 xfailed`; AFTER `1 failed, 7805 passed, 3 skipped, 2 xfailed` = +22, SAME single failure. That failure is `test_turn_bounds.py::...IS_isolation_scoped`, ENVIRONMENTAL (passes under `env -u OPENCODE_CONFIG_CONTENT`), reproduces with my change stashed, and is already filed nine times over. Detail below.
+    THIRTY-TWO TESTS PASS in the focused module, 22 of them new (the file had 10):
+
+        $ python3 -m pytest tests/test_run_summary_table.py
+        32 passed in 2.22s
+
+    THE NEW TEST NAMES, all PASSED:
+
+        test_a_stranded_run_is_not_reported_completed
+        test_a_landed_run_still_reports_completed_in_green
+        test_a_review_only_run_with_no_integration_signal_key_reports_completed
+        test_an_explicitly_empty_signal_is_treated_as_absent_not_as_a_refusal
+        test_a_partially_stranded_run_reports_stranded
+        test_an_unknown_future_signal_reads_as_a_refusal_not_as_success
+        test_an_integration_blocked_status_still_reports_failed
+        test_an_exit_reason_still_short_circuits_the_whole_outcome_block
+        test_a_refusal_released_by_the_agents_answer_is_not_stranded
+        test_the_stranded_outcome_is_rendered_in_red_with_an_explicit_branch
+        test_the_stranded_word_is_distinct_from_every_pre_existing_outcome
+        test_the_recovery_section_names_the_branch_and_the_reason_and_the_next_step
+        test_the_recovery_section_prints_NO_absolute_path
+        test_the_reason_detail_is_read_from_the_ATTEMPT_and_absence_is_tolerated
+        test_an_item_with_no_preserved_branch_still_gets_an_actionable_line
+        test_the_item_table_gains_NO_column
+        test_the_earned_signal_constants_match_the_runners_definitions
+        test_the_stranded_word_is_the_same_one_the_cross_tree_view_uses
+        test_the_landing_question_reads_NO_filesystem
+        test_render_stream_still_imports_no_first_party_module
+        test_the_recovered_run_fixture_STILL_reports_stranded
+        test_the_committed_fixture_is_tracked_and_not_gitignored
+
+    THEY BITE. With ONLY `agent_workflows/render_stream.py` reverted (`git stash push` on that one path)
+    and the new tests in place:
+
+        14 failed, 18 passed in 0.44s
+        FAILED test_a_stranded_run_is_not_reported_completed
+        FAILED test_a_partially_stranded_run_reports_stranded
+        FAILED test_an_unknown_future_signal_reads_as_a_refusal_not_as_success
+        FAILED test_the_stranded_outcome_is_rendered_in_red_with_an_explicit_branch
+        FAILED test_the_stranded_word_is_distinct_from_every_pre_existing_outcome
+        FAILED test_the_recovery_section_names_the_branch_and_the_reason_and_the_next_step
+        FAILED test_the_recovery_section_prints_NO_absolute_path
+        FAILED test_the_reason_detail_is_read_from_the_ATTEMPT_and_absence_is_tolerated
+        FAILED test_an_item_with_no_preserved_branch_still_gets_an_actionable_line
+        FAILED test_the_item_table_gains_NO_column
+        FAILED test_the_earned_signal_constants_match_the_runners_definitions
+        FAILED test_the_stranded_word_is_the_same_one_the_cross_tree_view_uses
+        FAILED test_the_landing_question_reads_NO_filesystem
+        FAILED test_the_recovered_run_fixture_STILL_reports_stranded
+
+    with the core one reporting exactly the measured defect: `AssertionError: a run whose own record says
+    integration was REFUSED must not report COMPLETED; got 'Outcome: COMPLETED ...'`.
+
+    THE THREE REVIEW-ADDED CASES ARE ALL PRESENT AND PASSING:
+    `test_an_integration_blocked_status_still_reports_failed`,
+    `test_an_exit_reason_still_short_circuits_the_whole_outcome_block`, and
+    `test_an_unknown_future_signal_reads_as_a_refusal_not_as_success` (which proves option (b)'s fail-safe
+    property directly: a signal invented for 2027 reads as a refusal).
+
+    THE SANITIZER IS ASSERTED, not eyeballed. Over a captured render whose input carried a real home path:
+    `{"outcome":"clean","exit":0,"findings":0}`; see V-03 for the full paste.
+
+    THE BARE SUITE, AND THE DELTA. I MEASURED MY OWN BEFORE-BASELINE rather than trusting the authored one
+    (which review had already corrected once and which is stale again):
+
+        BEFORE (parent commit edd27e1f, this lane, bare `python3 -m pytest`):
+        1 failed, 7783 passed, 3 skipped, 2 xfailed, 3 warnings in 114.46s (0:01:54)
+
+        AFTER:
+        1 failed, 7805 passed, 3 skipped, 2 xfailed, 3 warnings in 105.21s (0:01:45)
+
+    DELTA: +22 passed (exactly my new tests), and the SAME single failure before and after. THE AUTHORED
+    BASELINE WAS WRONG IN BOTH HALVES AGAIN: it named `test_reporting_contract` (backlog `8kttqq`), which is
+    now `done` and PASSES here. The one current failure is
+    `tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped`,
+    and it is ENVIRONMENTAL AND NOT MINE, proven in both directions on the same tree:
+
+        $ python3 -m pytest tests/test_turn_bounds.py           -> 1 failed, 42 passed
+        $ env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py -> 43 passed
+
+    It asserts `'OPENCODE_CONFIG_CONTENT' not in main_env`, and that variable is set in MY OWN agent turn
+    environment and inherited by the env the test builds, so it fails on a variable the code under test
+    never wrote. It also reproduces with my changes stashed. It is ALREADY FILED - nine times over, by
+    sibling lanes of this same Set (`se8vsp`, `tng9xf`, `4vn040`, `8dp3zp`, `zgndje`, `to77re`, `rfu7mk`,
+    `hco0mk`, `r67fl1`), so I deliberately did NOT file a tenth duplicate. It is excluded from my delta and
+    I did not touch any other party's files to clear it.
+  - Result: pass
 
 ## Approval and execution gate
 

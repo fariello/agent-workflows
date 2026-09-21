@@ -1,0 +1,66 @@
+{
+  "_README": [
+    "ys1dor E-05: a REDACTED COPY OF THE SHAPE of the real stranded run",
+    "`run-20260908T140845Z-2489897`, whose single item finished `substantially-complete` while its",
+    "own record said integration was REFUSED (`integration_signal: suite-failed`) and its work sat on",
+    "`aw/lane/03ie04_attempt2`. Rendering that record at HEAD printed a green `Outcome: COMPLETED` at",
+    "`100%`; that is the defect this fixture pins.",
+    "",
+    "WHY A COMMITTED COPY RATHER THAN THE LIVE RECORD: `.aw/records/runs/` is GITIGNORED (F-13), so a",
+    "test bound to the real directory passes only on the maintainer's machine and fails in every clean",
+    "checkout. `tests/test_run_viewer.py` carries the same caveat and its lane failures are the",
+    "measured consequence.",
+    "",
+    "WHY IT PROVES HISTORY IS NOT REWRITTEN: plan `03ie04` has SINCE been recovered by hand and now",
+    "lives in `.aw/records/plans/executed/`. A summary derived from the FILESYSTEM would therefore",
+    "report this run clean today (the rejected `xtklpd` approach, measured doing exactly that). Every",
+    "field below is the run's OWN durable record, so the verdict is immutable and re-rendering it years",
+    "later still says STRANDED.",
+    "",
+    "REDACTIONS: the real record's `preserved_worktree` is an absolute path under the maintainer's home",
+    "and its `integration_detail` embeds the repository's absolute path. Both are replaced with",
+    "`/home/user/...` placeholders here, which keeps the SHAPE (an absolute path the renderer must",
+    "not leak) without committing a real one. Token counts and the cost are the real ones."
+  ],
+  "run_id": "run-20260908T140845Z-2489897",
+  "repo": "/home/user/repo",
+  "created_at": "2026-09-08T14:08:45+00:00",
+  "updated_at": "2026-09-08T15:03:11+00:00",
+  "options": {
+    "validate": false,
+    "self_finalize": true,
+    "isolate_worktree": true
+  },
+  "queue": [
+    {
+      "position": 1,
+      "id6": "03ie04",
+      "setid": "depreview",
+      "action": "execute",
+      "kind": "child",
+      "order": 1,
+      "status": "substantially-complete",
+      "initial_status": "approved",
+      "verification_status": "-",
+      "verifier_ran": false,
+      "integration_signal": "suite-failed",
+      "preserved_branch": "aw/lane/03ie04_attempt2",
+      "preserved_worktree": "/home/user/repo/.aw/worktrees/03ie04_attempt2",
+      "preserved_lane_id": "03ie04_attempt2",
+      "preserved_base": "0000000000000000000000000000000000000000",
+      "preserved_disposition": "created",
+      "dependencies": [],
+      "attempts": [
+        {
+          "number": 1,
+          "started_at": "2026-09-08T14:08:46+00:00",
+          "ended_at": "2026-09-08T15:03:11+00:00",
+          "cost": 32.83,
+          "disposition": "substantially-complete",
+          "integration_signal": "suite-failed",
+          "integration_detail": "no verifier ran (validation off) and the driver-run suite did not pass: suite FAILED with exit 1 in /home/user/repo (no summary line parsed)"
+        }
+      ]
+    }
+  ]
+}
