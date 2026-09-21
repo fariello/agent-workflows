@@ -34,9 +34,11 @@ into rebuilding shipped machinery", and that duplication really happened once (`
 re-measures loses nothing by their presence; a reader who would have rebuilt shipped machinery is
 stopped by it. NOTHING ENFORCES THIS, which is the honest limit: no test and no `aw check` rule reads
 these paragraphs, so their accuracy rests on whoever next touches them. The re-verify instruction is
-the defeat mechanism for their staleness, deliberately in place of a gate. The infrastructure
-paragraph has now been corrected twice (2026-08-30, then 2026-09-20) and the Section 2.1 paragraph
-once (2026-09-20), so treat a date more than a few days old as probably wrong.
+the defeat mechanism for their staleness, deliberately in place of a gate. ALL THREE HAVE NOW BEEN
+MEASURED STALE AT LEAST ONCE, which is the evidence for the convention rather than an argument against
+it: the infrastructure paragraph has been corrected twice (2026-08-30, then 2026-09-20), and the
+Section 2.1 and Section 4.2 paragraphs once each (both 2026-09-20, both found to be false by the same
+re-measurement). So treat a date more than a few days old as probably wrong.
 
 Infrastructure status (measured 2026-09-20 at `007d05e1`; corrected 2026-08-30 in `a59f2c53` and
 again 2026-09-20 by plan `wenmg4`, because this paragraph originally declared ALL of the below
