@@ -6,18 +6,18 @@
 - Scope: Make `no_project_message` git-aware in ONE place so every current and future caller inherits the hint, add the machine-readable equivalent as a `NextAction` on the two `CommandResult`s that emit it, and fix the schema violation that makes the `--agent` path crash on this exact condition. Explicitly NOT changing what counts as a project: `find_project_root` stays git-blind.
 - Scope-Paths: agent_workflows/project_context.py, agent_workflows/attention.py, agent_workflows/cli.py, agent_workflows/agent_schema.py, docs/cli-output-contract.md, docs/cli-agent-protocol.md, tests/test_awretrofit_project_root_climb.py, tests/test_attention.py, tests/test_agent_schema.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: nogitmsg
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: quqyc4
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: okm6e6
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-21 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: quqyc4 verified (set nogitmsg, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/agent_schema.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified docs/cli-agent-protocol.md: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified docs/cli-output-contract.md: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_agent_schema.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_attention.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review; APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. Findings PR-401..PR-407, all FIXED in place, no deferrals, no new open questions. Structural preflight `aw ipd lint --phase author` conformed before semantic review and `--phase review-finalize` conformed after. DISCLOSURE: same model family and session lineage as the author, so this is close to a self-review and worth less than an independent one.
