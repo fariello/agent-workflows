@@ -186,6 +186,18 @@ from agent_workflows.runner_shared import (
 from agent_workflows.runner_shared import (
     dispatch_orchestrator_item as dispatch_orchestrator_item,
 )
+
+# depblock 01 (`akzy45`) E-04: the DRAIN-TIME classification, bound HERE rather than reached through
+# `runner_shared.` at the call site, because the cross-driver symmetry guard
+# (`tests/test_runner_item_dependencies.py::CrossDriverSymmetryTests`) requires each driver to CARRY
+# the attribute and asserts it is the SAME OBJECT on both. That guard is what caught agy running its own
+# copy of `dependency_status_detailed` for months, so a new shared dependency rule joins it by name.
+from agent_workflows.runner_shared import (
+    classify_drain_block as classify_drain_block,
+)
+from agent_workflows.runner_shared import (
+    record_transient_dependency_wait as record_transient_dependency_wait,
+)
 from agent_workflows.runner_shared import (
     ID6_RE as ID6_RE,
 )
@@ -503,9 +515,28 @@ LANE_PROMPT_TIMEOUT: float = 10.0
 # therefore leaves the item blocked. A block whose exit is undocumented is a usability failure, so the
 # command is carried in the payload rather than left for the operator to discover.
 #
-# Also note (pre-existing behavior this Set does NOT change): when NO queued item is satisfiable, the
-# selection loop marks EVERY remaining queued item `dependency-blocked` and BREAKS out of the run. So a
-# findings-block can end a run rather than merely park one item.
+# NARROWED BY depblock 01 (`akzy45`) E-01/E-02. This note used to record, as a known limitation, that
+# when NO queued item is satisfiable the selection loop marked EVERY remaining queued item
+# `dependency-blocked` and BROKE out of the run, so a findings-block could end a run rather than park
+# one item. THE ALL-OR-NOTHING PART IS GONE: the drain arm now CLASSIFIES each remaining item through
+# the shared `runner_shared.classify_drain_block` and writes this terminal label only on one that is
+# PERMANENTLY blocked (a terminal-non-success prerequisite, a cycle, a dangling or unsatisfiable
+# external edge, or any cause it cannot prove transient). An item whose every unmet prerequisite is
+# still NON-TERMINAL is left `queued` and reported through `render_transient_dependency_waits` instead.
+# The loop still BREAKS - nothing in a run re-queues such a prerequisite, so waiting inside this
+# invocation cannot pay off - but the item keeps the cheaper recovery route below.
+#
+# THE THREE WRITE SITES FOR THIS STATUS, classified by E-01 so the next reader need not re-derive them:
+#   1. `cascade_dependency_blocked` - PERMANENT by construction. It fires only on a prerequisite that
+#      is `in TERMINAL_STATES and st not in required` (action-aware), which is exactly the
+#      can-never-be-ready case. CORRECT AS WRITTEN; deliberately unchanged by `akzy45`.
+#   2. The drain-time `if runnable is None:` arm in `run_queue` (this host and `agy_runipd`). This was
+#      the site that conflated the two facts, and it is the ONE site `akzy45` changed.
+#   3. `runner_shared.dispatch_orchestrator_item`'s `terminal_status` DEFAULT PARAMETER, reached by its
+#      TERMINATE outcome. ALREADY CORRECT and the worked example this fix generalizes: `pgq326` split
+#      that path three ways, where RECONSIDER writes NO status (leaving the item `queued`, which is
+#      precisely the transient handling) and TERMINATE writes the terminal status WITH a specific
+#      reason. Left byte-unchanged.
 DEPENDENCY_BLOCK_RECOVERY_HINT = (
     "resolve the named cause, then re-queue with "
     "`aw oc runipd resume --repo <repo> --retry-incomplete <run-id>`; "
@@ -6891,8 +6922,40 @@ def run_queue(
                     # An integration that landed during the rungs above can have unblocked a dependent,
                     # so go round again rather than declaring the queue drained.
                     continue
+            # depblock 01 (`akzy45`) E-02: CLASSIFY BEFORE LABELLING. This loop used to write the
+            # TERMINAL `dependency-blocked` on EVERY remaining queued item unconditionally, which
+            # conflated "not ready yet" with "can never be ready" and made the first one unrecoverable
+            # without `--retry-incomplete`. The shared predicate decides which of the two each item is;
+            # a PERMANENT verdict takes the byte-identical path below, and a TRANSIENT one is left
+            # `queued` and REPORTED instead. The classification is host-neutral and lives in
+            # `runner_shared`, never here, so agy's copy of this arm cannot drift from it.
             for item in queued:
                 _, missing, why = dependency_status_detailed(item, state)
+                verdict = classify_drain_block(
+                    item,
+                    state,
+                    missing,
+                    why,
+                    terminal_states=TERMINAL_STATES,
+                    success_states=EXECUTION_SUCCESS_STATES,
+                    review_success_states=SUCCESS_STATES,
+                    parse_token=parse_dependency_token,
+                )
+                if verdict.transient:
+                    # WRITE NO STATUS, exactly as `dispatch_orchestrator_item`'s RECONSIDER outcome
+                    # does. The item stays `queued`, so the NEXT invocation re-tests it with no flag -
+                    # a bare `resume` re-queues an `interrupted` prerequisite through
+                    # `requeue_interrupted`. The record is still written: an unlabelled item with no
+                    # event would be indistinguishable from one never reached.
+                    record_transient_dependency_wait(
+                        run_dir,
+                        item,
+                        verdict,
+                        unsatisfied=missing,
+                        reasons=why,
+                        append_jsonl=append_jsonl,
+                    )
+                    continue
                 item["status"] = "dependency-blocked"
                 item["unsatisfied_dependencies"] = missing
                 # revgate Order 03 (7nkcgp) E-04: an ADDITIVE companion key. The flat
@@ -6910,6 +6973,10 @@ def run_queue(
                         # Additive: the flat `dependencies` list above is unchanged.
                         "reasons": why,
                         "recovery": DEPENDENCY_BLOCK_RECOVERY_HINT,
+                        # depblock 01 (`akzy45`): the classification that JUSTIFIED the terminal label,
+                        # so a reader of the stream can see it was decided rather than assumed.
+                        "block_class": verdict.verdict,
+                        "block_detail": verdict.detail,
                     },
                 )
             save_state(run_dir, state)

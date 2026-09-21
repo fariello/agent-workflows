@@ -37,7 +37,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from agent_workflows import agy_runipd, oc_runipd
+from agent_workflows import agy_runipd, oc_runipd, runner_shared
 
 AW = pathlib.Path(str(inspect.getsourcefile(oc_runipd))).parent
 HOSTS = ("oc_runipd", "agy_runipd")
@@ -1025,6 +1025,279 @@ class AnUnsatisfiableDependencyBlocksRatherThanStalls(RunQueueCase):
                     f"{label}: the flat list must stay list[str] for existing consumers",
                 )
                 self.assertIn("unsatisfied_dependency_reasons", entry)
+
+
+class TheDrainArmLabelsOnlyWhatIsPermanentlyBlocked(RunQueueCase):
+    """depblock 01 (`akzy45`) E-02/E-05: the drain arm through the REAL loop, on BOTH hosts.
+
+    WHY THIS CLASS IS HERE AND NOT ONLY BESIDE THE PREDICATE. The classification itself is unit-tested
+    in `tests/test_runner_item_dependencies.py`, but each host owns its OWN `run_queue` and therefore its
+    own copy of the labelling loop, so a correct predicate wired into only one host would leave that
+    file green while the other host kept over-labelling. These cases drive the real loop, so they fail if
+    the wiring is missing on either side.
+
+    THE ARM USED TO LABEL EVERY REMAINING QUEUED ITEM AND BREAK, which is two defects: an item whose
+    prerequisite merely had not finished yet was given a TERMINAL status (recoverable only with
+    `--retry-incomplete`), and a single unsatisfiable node could end a run holding other work.
+
+    NOTE THE SPIN DETECTOR IS LOAD-BEARING FOR EVERY CASE HERE. `drive` fails after `budget` dispatches
+    rather than hanging, so "leave it queued instead of labelling it" cannot pass by looping forever:
+    the wrong fix (re-testing a prerequisite nothing can advance) shows up as a SPIN failure, which is
+    exactly the regression `kxkc04`'s prescription ran into and which `dispatch_orchestrator_item`
+    records.
+    """
+
+    def test_a_dependent_of_an_INTERRUPTED_prerequisite_is_left_queued_not_blocked(
+        self,
+    ):
+        """The transient case. `interrupted` is NOT terminal, so a terminal label would over-claim.
+
+        THE HARM IS CONCRETE AND ASYMMETRIC, which is why this is worth a behavior test: a bare `resume`
+        re-queues an `interrupted` item with NO flag (`requeue_interrupted` selects on exactly that
+        status), while a `dependency-blocked` item needs `--retry-incomplete`. So labelling the
+        dependent terminally took a recovery that was free and made it require a specific flag the
+        operator has to know about.
+        """
+        for label, module in HOST_PAIRS:
+            with self.subTest(host=label):
+                self.turns.clear()
+                run_dir = self.make_run(
+                    [
+                        self.item("pre111", position=1),
+                        self.item("dep222", position=2, deps=("executed:pre111",)),
+                    ],
+                    run_id=f"transient-{label}",
+                )
+
+                def on_turn(item):
+                    # The prerequisite ends NON-terminally, which is what a stall or an interrupt
+                    # leaves behind. Deliberately NOT finalized on disk.
+                    item["status"] = "interrupted"
+
+                rc, state, out = self.drive(module, run_dir, on_turn=on_turn)
+                statuses = self.statuses(state)
+                self.assertEqual(statuses["pre111"], "interrupted")
+                self.assertEqual(
+                    statuses["dep222"],
+                    "queued",
+                    f"{label}: THE FIX. Its prerequisite is non-terminal, so the dependent must be "
+                    "left `queued` for the next invocation rather than given a TERMINAL "
+                    "`dependency-blocked` that only `--retry-incomplete` can undo",
+                )
+                self.assertEqual(
+                    self.turns,
+                    ["pre111"],
+                    f"{label}: the waiting item must not spend an agent turn",
+                )
+                self.assertNotEqual(
+                    rc,
+                    0,
+                    f"{label}: leaving a wait outstanding must NOT exit 0 (OQ-03: exit AND report, "
+                    "never a silent clean finish over unfinished work)",
+                )
+                entry = next(it for it in state["queue"] if it["id6"] == "dep222")
+                record = entry.get(runner_shared.TRANSIENT_DEPENDENCY_WAIT_KEY)
+                self.assertIsNotNone(
+                    record,
+                    f"{label}: an item the arm DECLINES to label must still carry its reason and "
+                    "recovery route. The terminal path attaches the hint inside the labelling loop, "
+                    "so without this record the item exits with no explanation at all - less "
+                    "informative than the dead end it replaced",
+                )
+                self.assertEqual(
+                    record["unsatisfied_dependencies"], ["executed:pre111"]
+                )
+                self.assertNotIn(
+                    "unsatisfied_dependencies",
+                    entry,
+                    f"{label}: the TOP-LEVEL key must stay absent, or a still-`queued` item renders "
+                    "as `dependency_not_met` in the disposition summary (a fabricated disposition)",
+                )
+                self.assertIn(
+                    "dependency-wait-transient",
+                    [e.get("event") for e in self.events(run_dir)],
+                    f"{label}: the verdict must reach events.jsonl",
+                )
+
+    def test_a_dependent_of_a_DEAD_prerequisite_is_still_labelled_terminally(self):
+        """The anti-over-suppression guard, driven through the loop.
+
+        Kept in the SAME class as the case above so the pair cannot be read apart: they differ ONLY in
+        whether the prerequisite's status is terminal, and they must reach OPPOSITE dispositions. If
+        both go `queued`, the narrowing was over-applied and the runner now waits on work that can
+        never happen.
+        """
+        for label, module in HOST_PAIRS:
+            with self.subTest(host=label):
+                self.turns.clear()
+                run_dir = self.make_run(
+                    [
+                        self.item("pre111", position=1),
+                        self.item("dep222", position=2, deps=("executed:pre111",)),
+                    ],
+                    run_id=f"permanent-{label}",
+                )
+
+                def on_turn(item):
+                    item["status"] = "failed-safely"
+
+                _rc, state, _ = self.drive(module, run_dir, on_turn=on_turn)
+                entry = next(it for it in state["queue"] if it["id6"] == "dep222")
+                self.assertEqual(
+                    entry["status"],
+                    "dependency-blocked",
+                    f"{label}: a genuinely dead prerequisite must STILL block its dependents",
+                )
+                self.assertEqual(
+                    entry["unsatisfied_dependencies"],
+                    ["executed:pre111 (target failed-safely)"],
+                    f"{label}: and it is labelled by the CASCADE, whose token carries the reason "
+                    "INLINE and which writes no separate recovery hint. Asserted in this exact shape "
+                    "because it proves WHICH writer acted: the cascade runs first in the loop, so a "
+                    "dead prerequisite never reaches the drain arm at all. An earlier draft of this "
+                    "test wrongly demanded `dependency_block_recovery` here; that key belongs to the "
+                    "DRAIN path, and the divergence between the two writers' shapes is pre-existing "
+                    "and is documented at `run_selection_policy.derive_item_disposition`",
+                )
+                self.assertNotIn(
+                    runner_shared.TRANSIENT_DEPENDENCY_WAIT_KEY,
+                    entry,
+                    f"{label}: a permanently blocked item must NOT also be recorded as waiting",
+                )
+
+    def test_a_CYCLE_still_terminates_the_run_rather_than_waiting_forever(self):
+        """A permanent-drain guard. Every member of a cycle looks non-terminal.
+
+        Without the cycle test in the classification this case would read as a recoverable wait, and the
+        run would end claiming the operator can resume into something that can never resolve.
+        """
+        for label, module in HOST_PAIRS:
+            with self.subTest(host=label):
+                self.turns.clear()
+                run_dir = self.make_run(
+                    [
+                        self.item("aaa111", position=1, deps=("executed:bbb222",)),
+                        self.item("bbb222", position=2, deps=("executed:aaa111",)),
+                    ],
+                    run_id=f"cycle-{label}",
+                )
+                rc, state, _ = self.drive(module, run_dir)
+                self.assertEqual(
+                    self.statuses(state),
+                    {"aaa111": "dependency-blocked", "bbb222": "dependency-blocked"},
+                    f"{label}: both members of a cycle must receive the TERMINAL label",
+                )
+                self.assertEqual(
+                    self.turns, [], f"{label}: a cycle must spend no agent turn"
+                )
+                self.assertNotEqual(rc, 0)
+
+    def test_a_DANGLING_EXTERNAL_edge_still_terminates_the_run(self):
+        """The second permanent-drain guard: a target this run cannot advance at all.
+
+        There is no `--with-dependencies` closure inside a frozen run, so waiting is unbounded by
+        construction and the terminal label is the truthful answer.
+        """
+        for label, module in HOST_PAIRS:
+            with self.subTest(host=label):
+                self.turns.clear()
+                run_dir = self.make_run(
+                    [self.item("dep222", position=1, deps=("executed:absent",))],
+                    run_id=f"dangling-{label}",
+                )
+                rc, state, _ = self.drive(module, run_dir)
+                entry = state["queue"][0]
+                self.assertEqual(
+                    entry["status"],
+                    "dependency-blocked",
+                    f"{label}: an unsatisfiable external edge stays TERMINAL",
+                )
+                self.assertNotIn(runner_shared.TRANSIENT_DEPENDENCY_WAIT_KEY, entry)
+                self.assertNotEqual(rc, 0)
+
+    def test_the_drain_no_longer_labels_an_INDEPENDENT_item_it_never_judged(self):
+        """The ALL-OR-NOTHING half (the plan's Part 2), which the measured incident did NOT exercise.
+
+        The arm looped over EVERY remaining queued item and labelled it, so a run could end with items
+        marked `dependency-blocked` that had no unmet dependency at all. Here `solo33` declares NOTHING
+        and is only queued behind a transiently-waiting item; it must not inherit a terminal label.
+
+        NOTE WHAT IS AND IS NOT CLAIMED: `solo33` is independent, so the loop DISPATCHES it before the
+        drain is ever reached. That is the point - the run makes all the forward progress it can - and it
+        is why this asserts `executed` rather than `queued`.
+        """
+        for label, module in HOST_PAIRS:
+            with self.subTest(host=label):
+                self.turns.clear()
+                run_dir = self.make_run(
+                    [
+                        self.item("pre111", position=1),
+                        self.item("dep222", position=2, deps=("executed:pre111",)),
+                        self.item("solo33", position=3),
+                    ],
+                    run_id=f"allornothing-{label}",
+                )
+
+                def on_turn(item):
+                    if item["id6"] == "pre111":
+                        item["status"] = "interrupted"
+                    else:
+                        item["status"] = "executed"
+                        self._finalize_on_disk(str(item["id6"]))
+
+                _rc, state, _ = self.drive(module, run_dir, on_turn=on_turn)
+                statuses = self.statuses(state)
+                self.assertEqual(
+                    statuses["solo33"],
+                    "executed",
+                    f"{label}: an INDEPENDENT item must be dispatched, not swept into a "
+                    "dependency-blocked label by a drain it was never judged by",
+                )
+                self.assertEqual(
+                    statuses["dep222"],
+                    "queued",
+                    f"{label}: and the genuinely waiting item is left queued",
+                )
+
+    def test_both_hosts_reach_IDENTICAL_dispositions_on_the_same_fixture(self):
+        """E-04's cross-host claim as BEHAVIOR, not only as object identity.
+
+        Object identity proves both hosts hold the same predicate; it does NOT prove both hosts CALL
+        it. `pgq326` E-07 measured exactly that gap: agy shared the orchestrator DECIDER while lacking
+        the branch that acted on it, and every identity assertion still passed. So the dispositions
+        themselves are compared across hosts here.
+        """
+        fixtures = {
+            "transient": (("pre111", ()), ("dep222", ("executed:pre111",))),
+            "cycle": (
+                ("aaa111", ("executed:bbb222",)),
+                ("bbb222", ("executed:aaa111",)),
+            ),
+            "dangling": (("dep222", ("executed:absent",)),),
+        }
+        for name, rows in fixtures.items():
+            observed = {}
+            for label, module in HOST_PAIRS:
+                self.turns.clear()
+                run_dir = self.make_run(
+                    [
+                        self.item(id6, position=i, deps=deps)
+                        for i, (id6, deps) in enumerate(rows, start=1)
+                    ],
+                    run_id=f"parity-{name}-{label}",
+                )
+
+                def on_turn(item):
+                    item["status"] = "interrupted"
+
+                _rc, state, _ = self.drive(module, run_dir, on_turn=on_turn)
+                observed[label] = self.statuses(state)
+            self.assertEqual(
+                observed["oc_runipd"],
+                observed["agy_runipd"],
+                f"fixture {name!r}: the two hosts disposed of the SAME queue differently, so one of "
+                "them is not routing its drain arm through the shared classification",
+            )
 
 
 class TheRetryIncompleteFlagRequeuesTheStatesItDeclares(RunQueueCase):
