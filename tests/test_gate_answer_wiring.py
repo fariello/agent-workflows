@@ -425,17 +425,29 @@ class OnlyNotMineReleases(unittest.TestCase):
         The isolated-lane self-finalize arm and the non-isolated arm each test `integration.earned`.
         Rather than patching both, the wiring releases the VERDICT at its source, BEFORE either arm
         reads it. This asserts that ordering on the source, which is what makes one wiring serve both.
+
+        THE LOCATORS ARE FORMATTING-INSENSITIVE, and that is not cosmetic. Both arms were originally
+        found by an exact substring INCLUDING the `if `/`elif ` keyword, which made this test fail
+        whenever the FORMATTER re-wrapped a condition it had not otherwise changed - measured
+        2026-09-21 in integearn-05 (`9lyg5h`), whose added `try:`/`finally:` deepened the indentation
+        by four columns and so pushed the isolated arm past the line limit, which `ruff-format` split
+        into `if (\\n    self_finalize\\n    and work_dir\\n    ...\\n):`. The ORDERING property this
+        test exists for was completely intact; only the locator broke.
+        So the source is whitespace-collapsed and the keyword is dropped from the needle, leaving the
+        CONDITION itself as the locator. That keeps the assertion about the ordering rather than about
+        line wrapping. Offsets into the collapsed text stay valid for the `<` comparison because
+        collapsing is monotonic in position.
         """
 
-        src = inspect.getsource(R.execute_item_core)
+        src = " ".join(inspect.getsource(R.execute_item_core).split())
         release_site = src.index("integration = integration.__class__(")
         arms = [
             m
             for m in (
                 src.find(
-                    "if self_finalize and work_dir and wt_handle is not None and integration.earned"
+                    "self_finalize and work_dir and wt_handle is not None and integration.earned"
                 ),
-                src.find("elif self_finalize and not work_dir and integration.earned"),
+                src.find("self_finalize and not work_dir and integration.earned"),
             )
         ]
         for arm in arms:

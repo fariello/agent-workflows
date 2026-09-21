@@ -1795,6 +1795,31 @@ class BothHostsShareEverySymbol(unittest.TestCase):
         with it, which is `cnwy8g`'s job". Moving `parse_plan_file` required exactly that, so it was
         done (`_KIND_RE` and `_PLAN_FILENAME_RE` moved too, rather than being left behind as duplicate
         constants). 53 remain outstanding.
+
+        RE-MEASURED 2026-09-21 from 53 UP to 56 by integearn-05 (`9lyg5h`) E-03/E-06, per this
+        assertion's own instruction, and recorded as an INCREASE with its attribution rather than
+        loosened. The three names added are computed by diffing the import list at `24aa8d41` (53)
+        against this HEAD (56) rather than assumed:
+
+            added: ['SUITE_CHECK_ARGV', 'extract_suite_failures', 'parse_suite_summary']
+            removed: []
+
+        WHY THEY ARE HERE AND WHY THIS DIRECTION IS STILL THE RIGHT TRADE, stated plainly because
+        `cnwy8g`'s standing complaint is that this coupling keeps growing quietly. All three are the
+        arguments the SHARED concurrent pre-work suite baseline is INJECTED with from `execute_item_core`
+        (`runner_shared`), which may not import a host driver - a rule a sibling AST test enforces - so
+        every host specific must be handed over as a NAME off `driver_module`. They therefore had to be
+        reachable on BOTH hosts, and the alternative was strictly worse: a name present on `oc` and
+        missing on `agy` would have given one host a baseline and the other none, silently, making an
+        audit's answer depend on which runner executed the plan. That is precisely the single-host
+        divergence this whole re-export block exists to prevent.
+
+        AND THEY SIT ON THE RIGHT SIDE OF `cnwy8g`'s OWN DISTINCTION. The three are the SUITE CHECK's
+        own vocabulary (its argv, its failure-line extractor, its summary parser) and they already
+        live beside `run_suite_check`/`SuiteCheckResult`/`integration_is_earned`, which this same block
+        re-exports for the identical reason. So this is not a NEW coupling: it is three more names on an
+        EXISTING one, and moving the whole suite-check family into `runner_shared` is the outstanding
+        work `cnwy8g` tracks, not this plan's. 56 remain outstanding.
         """
 
         import ast
@@ -1815,7 +1840,7 @@ class BothHostsShareEverySymbol(unittest.TestCase):
             )
         self.assertEqual(
             len(imported),
-            53,
+            56,
             "the oc->agy import count moved. This test's job is to fail when THIS "
             "child's symbols deepen the coupling; if the change is unrelated work, "
             "re-measure and update the baseline with the new count and a note.",
