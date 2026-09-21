@@ -1567,10 +1567,10 @@ class RealRepositorySets(unittest.TestCase):
             "commitguard",
             False,
             rs.RETIRE_REFUSED_UNFINISHED_CHILDREN,
-            {"y9vpvv": "approved", "2s0iym": "to-review"},
+            {"y9vpvv": "approved", "2s0iym": "reviewed"},
             (),
             3,
-            {"approved", "executed", "to-review"},
+            {"approved", "executed", "reviewed"},
             "THE UNFINISHED-CHILDREN REFUSAL, pinned against a Set that HAS one today. `commitguard` "
             "is the right carrier because its child table is FULLY AUTHORED, so a refusal here can "
             "ONLY be the unfinished-children rule and never the unauthored-rows rule that `runstop` "
@@ -1587,7 +1587,14 @@ class RealRepositorySets(unittest.TestCase):
             "pre-transition E/V checkpoint by design, so the ORCHESTRATOR COVERAGE GATE refused a "
             "run rather than let that item be marked complete unperformed. The parent's own OQ-02 "
             "had already named 'add an Order 03 child' as the fix. The refusal REASON is unchanged, "
-            "which is the property this row actually pins",
+            "which is the property this row actually pins. "
+            "RE-MEASURED 2026-09-21: `2s0iym` advanced `to-review` -> `reviewed` (a `/plan-review` "
+            "ran on it), so its entry in the unfinished map and the status set moved with it. The "
+            "child COUNT is still 3 and the refusal reason is STILL "
+            "`RETIRE_REFUSED_UNFINISHED_CHILDREN`, so this is the ordinary within-lifecycle advance "
+            "this row's own guidance predicts, not a change of property. Re-pointed rather than "
+            "loosened: `reviewed` is asserted exactly, so a child reaching `approved` or `executed` "
+            "will correctly turn this row red again",
         ),
         (
             "runstop",
