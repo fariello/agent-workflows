@@ -118,3 +118,39 @@ it is reported rather than merely noted.
 No finding was left `OPEN` or `DEFERRED`, so no finding requires escalation as a blocking question
 under the gate threshold (`HIGH`). The plan's single open question (OQ-01) is `Blocking: no` and was
 NARROWED, not resolved, per D-8.
+
+## Round 2
+
+APPENDED, NOT EDITED IN PLACE, because Round 1 was true when written and rewriting it would destroy the
+audit trail. This round exists for ONE reason: to carry the escalation marker that
+`check.review-decision-unescalated` reads, for Round 1's `D-3`.
+
+WHAT THE CHECK CORRECTLY CAUGHT. `D-3` is marked `Reversible: no`, and the shipped evaluator requires
+such a row to be surfaced either as a `Blocking: yes` open question in the reviewed plan or as a note
+ON THE ROW that the maintainer was told. Round 1 did neither: it disclosed the act at length in prose
+beneath the table, and disclosed it again as the opening line of the review report handed to the
+maintainer, but the ROW carried no told-marker, so the deterministic check could not see it and
+reported the obligation as outstanding. That is the rule working as designed, and the prose-only
+disclosure is exactly the "severity survived only as prose" failure the typed record exists to end.
+
+THE OBLIGATION IS DISCHARGED, AND NOT BY A BOOKKEEPING EDIT. The maintainer WAS told, in the final
+report's first line: during review I ran the command plan `yv4tb1` instructs an executor to run, it
+closed backlog item `6h7y2y` from `graduated` to `done` despite `--dry-run`, I reverted it fully,
+reproduced it deliberately to confirm determinism, reverted again, and committed nothing. `6h7y2y` is
+verified at `- Status: graduated` in its original path. The underlying defect is filed as backlog
+`19lmbe` (`bug`, `Blocks-Release: next`).
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | LOW | IN-SCOPE | G. Plan executability | `.aw/records/reviews/20260920-graduate-03-yv4tb1-...review.md:102` | Round 1's `D-3` row is `Reversible: no` but carried no maintainer-told marker, so `check.review-decision-unescalated` reported it as unsurfaced even though the act was disclosed in prose and in the final report. A prose-only disclosure is not machine-readable. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | This round restates `D-3` with the explicit told-marker on the row. No plan content changed; the decision itself is unaltered. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-3 | Is the accidental `6h7y2y` transition acceptable to leave, since `done` may eventually be correct? | No: revert fully and report to the maintainer. | Leaving it on the reasoning that the Set may close it later, rejected because the Set has not run and the history line would assert work that did not happen. | The three siblings are all `approved` and unexecuted, so no evidence supports `done`; AGENTS.md forbids committing unintended changes in a shared checkout. Restated here from Round 1 solely to carry the escalation marker; maintainer told 2026-09-21 in the `/plan-review` final report, which opens with the disclosure, the revert, and the filing of backlog `19lmbe`. | no |
+
+Round 1's other decisions (`D-1`, `D-2`, `D-4` through `D-9`) are unchanged and remain `Reversible: yes`;
+they are not restated here because only `D-3` carried an outstanding obligation.
