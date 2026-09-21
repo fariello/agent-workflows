@@ -186,6 +186,18 @@ from agent_workflows.runner_shared import (
 from agent_workflows.runner_shared import (
     dispatch_orchestrator_item as dispatch_orchestrator_item,
 )
+
+# depblock 01 (`akzy45`) E-04: the DRAIN-TIME classification, imported from `runner_shared` and NOT from
+# `oc_runipd`. This host already imports 53 names from that driver (AST-measured), and adding to that
+# pile would deepen the layering defect backlog `cnwy8g` owns; `7nkcgp`'s F-11 caught a proposed shared
+# predicate that would have created the first runner-to-runner import for exactly this reason. Bound by
+# name because the cross-driver symmetry guard requires each driver to CARRY the attribute.
+from agent_workflows.runner_shared import (
+    classify_drain_block as classify_drain_block,
+)
+from agent_workflows.runner_shared import (
+    record_transient_dependency_wait as record_transient_dependency_wait,
+)
 from agent_workflows.runner_shared import (
     ID6_RE as ID6_RE,
 )
@@ -568,9 +580,16 @@ LANE_PROMPT_TIMEOUT: float = 10.0
 # revgate Order 03 (7nkcgp) E-08. The EXACT recovery command for a `dependency-blocked` item, stated
 # host-appropriately for this driver. Recovery is NOT automatic: re-queueing happens ONLY under the
 # `if retry_incomplete:` branch of `run_queue`, which is False for a plain `start` and comes from the
-# explicit `--retry-incomplete` flag on `resume`, so a bare `resume` leaves the item blocked. Also
-# pre-existing and NOT changed here: with nothing satisfiable the loop blocks every queued item and
-# BREAKS out of the run.
+# explicit `--retry-incomplete` flag on `resume`, so a bare `resume` leaves the item blocked.
+#
+# NARROWED BY depblock 01 (`akzy45`) E-01/E-02, symmetrically with `oc_runipd`. This note used to record
+# that with nothing satisfiable the loop blocked EVERY queued item and BROKE out of the run. THE
+# ALL-OR-NOTHING PART IS GONE: the drain arm now classifies each remaining item through the shared
+# `runner_shared.classify_drain_block` and writes this terminal label only on a PERMANENTLY blocked one;
+# an item whose every unmet prerequisite is still NON-TERMINAL is left `queued` and reported. The loop
+# still BREAKS, since nothing inside a run re-queues such a prerequisite. See `oc_runipd`'s counterpart
+# comment for the three write sites and their classifications; the predicate is shared, so this host
+# cannot drift from it.
 DEPENDENCY_BLOCK_RECOVERY_HINT = (
     "resolve the named cause, then re-queue with "
     "`aw agy runipd resume --repo <repo> --retry-incomplete <run-id>`; "
@@ -3479,8 +3498,34 @@ def run_queue(
                     save_state(run_dir, state)
                 if [it for it in state["queue"] if it["status"] == "queued"]:
                     continue
+            # depblock 01 (`akzy45`) E-02/E-04: CLASSIFY BEFORE LABELLING, through the SAME shared
+            # predicate `oc_runipd`'s counterpart arm calls. This host owns its own `run_queue` and so
+            # its own copy of this loop, which is exactly why the classification itself must live in
+            # `runner_shared`: a fix to the rule reaches both hosts, and neither can quietly re-fork it.
             for item in queued:
                 _, missing, why = dependency_status_detailed(item, state)
+                verdict = classify_drain_block(
+                    item,
+                    state,
+                    missing,
+                    why,
+                    terminal_states=TERMINAL_STATES,
+                    success_states=EXECUTION_SUCCESS_STATES,
+                    review_success_states=SUCCESS_STATES,
+                    parse_token=parse_dependency_token,
+                )
+                if verdict.transient:
+                    # WRITE NO STATUS: the item stays `queued` for the next invocation, and the record
+                    # plus event keep it from exiting the run silently statusless.
+                    record_transient_dependency_wait(
+                        run_dir,
+                        item,
+                        verdict,
+                        unsatisfied=missing,
+                        reasons=why,
+                        append_jsonl=append_jsonl,
+                    )
+                    continue
                 item["status"] = "dependency-blocked"
                 item["unsatisfied_dependencies"] = missing
                 # revgate Order 03 (7nkcgp) E-04: ADDITIVE companion keys; the flat
@@ -3497,6 +3542,9 @@ def run_queue(
                         # Additive: the flat `dependencies` list above is unchanged.
                         "reasons": why,
                         "recovery": DEPENDENCY_BLOCK_RECOVERY_HINT,
+                        # depblock 01 (`akzy45`): the classification that justified the terminal label.
+                        "block_class": verdict.verdict,
+                        "block_detail": verdict.detail,
                     },
                 )
             save_state(run_dir, state)

@@ -15,7 +15,7 @@
   SEQUENCING IS NOW MANDATORY, NOT ADVISORY, AND IT IS THE ONE THING REVIEW CHANGED ABOUT THIS PLAN'S SHAPE. `51vw4y` does not merely rely on this distinction (as the authoring note said); its E-04 CLAIMS THE SAME CODE ARM this plan's E-02 rewrites, using `runnable is None` as the trigger for a bounded poll, and it has since advanced to `- Status: reviewed` / `- Readiness: go-pending-approval` while this plan is still at review. Two plans rewriting one arm with different intentions is a merge collision the runner's per-item worktree isolation cannot resolve semantically. So this plan declares `- Item-Dependencies: executed:51vw4y` and E-02 is re-scoped to build ON that arm's post-`51vw4y` shape rather than in competition with it.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_runner_item_dependencies.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py
 - Item-Dependencies: executed:51vw4y
-- Status: approved
+- Status: executed
 - Blocks-Release: next
 - Readiness: go-pending-approval
 - Set: depblock
@@ -23,10 +23,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: akzy45
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: nueip1
 
 ## Workflow history
+- 2026-09-21 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: akzy45 verified (set depblock, attempt 1). [Scope reconciliation - out-of-scope tests/test_rununify_run_queue.py: changed by the plan's approved execution (auto-reconciled by aw oc run); in-scope-unmodified tests/test_agy_runipd_cli.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_oc_runipd.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-18 approved (aw set): status set to approved
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-901..PR-909 all FIXED; readiness go-pending-approval
@@ -48,7 +48,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: name the distinction before changing behavior
 
-- [ ] E-01 CLASSIFY EVERY REASON THE RUNNER CURRENTLY WRITES `dependency-blocked`, and record for each whether the cause is TRANSIENT (the prerequisite may still finish, or finished later in this run, or can be made to finish) or PERMANENT (the prerequisite reached a non-success terminal state, or the graph is structurally invalid).
+- [x] E-01 CLASSIFY EVERY REASON THE RUNNER CURRENTLY WRITES `dependency-blocked`, and record for each whether the cause is TRANSIENT (the prerequisite may still finish, or finished later in this run, or can be made to finish) or PERMANENT (the prerequisite reached a non-success terminal state, or the graph is structurally invalid).
   THE WRITE SITES ARE EXACTLY THREE, ENUMERATED AT REVIEW so this item is a bounded audit rather than an open-ended hunt. Grepping `"dependency-blocked"` as a status ASSIGNMENT (not a set membership) yields: (1) `cascade_dependency_blocked` (`oc_runipd.py:4281`, ONE implementation, agy re-exports it); (2) the drain-time `if runnable is None:` arm, DUPLICATED per driver (`oc_runipd.py:7350`, `agy_runipd.py:4361`); (3) `runner_shared.dispatch_orchestrator_item`'s TERMINATE outcome, where it is the `terminal_status` DEFAULT PARAMETER (`runner_shared.py:3267`) rather than a literal in the loop. Site (3) is the one an executor grepping the two drivers will MISS, and it is already correct (see below), so classify it and change nothing there. Re-locate all three by symbol.
   THE CONCEPT ALREADY EXISTS IN ONE PLACE AND IS THE MODEL TO FOLLOW. `cascade_dependency_blocked` already reasons in exactly these terms: it kills a dependent only when the prerequisite's status is `in TERMINAL_STATES and st not in required` (`oc_runipd.py:4277`), where `required` is action-aware. That is the PERMANENT case, correctly identified, and review CONFIRMED it by driving the function: a sibling at `dependency-blocked` or `integration-blocked` cascades, while one at `queued`, `interrupted` or `executed` does not. The drain-time path has no such test and flattens the distinction by labelling everything at once.
   SITE (3) IS ALREADY FIXED AND MUST BE RECORDED AS SUCH, not "classified for completeness" as though its disposition were open. `pgq326` replaced a single terminal write with the three-way RETIRE/RECONSIDER/TERMINATE outcome, where RECONSIDER writes NO status (leaving the item `queued` for a later iteration, which is precisely this plan's transient handling) and TERMINATE carries a SPECIFIC reason. The measured incident's fourth blocked item `5e4sb6` is that function's own named motivating case. So the orchestrator path is the WORKED EXAMPLE of the fix this plan generalizes; cite it as precedent and leave it byte-unchanged.
@@ -56,11 +56,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   RECORD THE ANSWER WHERE THE NEXT READER WILL FIND IT, at the `TERMINAL_STATES` definition and at each write site, because the whole defect is that one label means two things and nothing says so at the point of writing. Note the `TERMINAL_STATES` definition ALREADY carries a comment recording Part 2's behavior ("when NO queued item is satisfiable, the selection loop marks EVERY remaining queued item `dependency-blocked` and BREAKS", `oc_runipd.py:349-352`), written by `7nkcgp` as a known-limitation note. UPDATE that comment rather than adding a second one beside it, or the file will carry two descriptions of one arm.
   - Depends on: none
   - Expected outcome: all THREE write sites classified transient or permanent with the reason recorded in the code, site (3) recorded as already-correct precedent and left unchanged, the existing `7nkcgp` limitation comment UPDATED rather than duplicated; no new status introduced; the action-aware test in `cascade_dependency_blocked` identified as the correct model.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: stop the drain-time path over-labelling
 
-- [ ] E-02 MAKE THE DRAIN-TIME PATH LABEL ONLY WHAT IS PERMANENTLY BLOCKED, applying E-01's classification. Today the `if runnable is None:` arm labels EVERY remaining queued item and breaks; after this, an item whose prerequisites are merely unfinished must NOT receive a terminal label.
+- [x] E-02 MAKE THE DRAIN-TIME PATH LABEL ONLY WHAT IS PERMANENTLY BLOCKED, applying E-01's classification. Today the `if runnable is None:` arm labels EVERY remaining queued item and breaks; after this, an item whose prerequisites are merely unfinished must NOT receive a terminal label.
   BUILD ON `51vw4y`'s ARM, DO NOT COMPETE WITH IT. This plan now declares `- Item-Dependencies: executed:51vw4y` because that plan's E-04 rewrites this SAME arm, turning `runnable is None` into the trigger for a bounded integration poll. Read the arm as it exists AFTER that plan lands and add the classification INSIDE it; do not restore a pre-`51vw4y` shape, do not add a second poll, and do not re-add `integration-deferred` (it will already be there and already non-terminal). If `51vw4y` has NOT landed when this executes, STOP and report rather than guessing which shape to write against: that is a genuine prerequisite-absent condition, not a scope question.
   TARGET THE ONE GENUINELY TRANSIENT DRAIN, WHICH REVIEW CHARACTERIZED AND THE PLAN PREVIOUSLY LEFT VAGUE. The drain arm is reachable only when EVERY queued item is unsatisfied, and since `cascade_dependency_blocked` runs FIRST in the same loop iteration, any terminal-non-success prerequisite has already produced a permanent label before the drain is reached. So the reachable drain causes are: a CYCLE among queued items (permanent), an unsatisfiable EXTERNAL edge (permanent in this run, there being no `--with-dependencies` closure), and a prerequisite in a non-terminal NON-QUEUED state, which measured is `interrupted` (`'interrupted' in TERMINAL_STATES` is `False`). THAT LAST ONE IS THE ONLY TRANSIENT CASE, so it is what must stop being labelled. Verify this enumeration yourself before coding; if you find a fourth reachable cause, record it, because the fix's correctness rests on the list being complete.
   DO NOT RELABEL A CYCLE OR A DANGLING EXTERNAL EDGE AS TRANSIENT. Both are permanent and both must keep the terminal label, or the runner waits forever on something that cannot happen. A cycle is additionally already reported by the static evaluator through `preflight_dependency_findings`, so silently downgrading it here would contradict a finding the run already emitted.
@@ -69,28 +69,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT REMOVE THE RECOVERY HINT, AND KNOW THAT AN UNLABELLED ITEM CURRENTLY CARRIES NO HINT AT ALL. `DEPENDENCY_BLOCK_RECOVERY_HINT` is attached per-item inside the labelling loop you are narrowing (`item["dependency_block_recovery"] = ...`), so an item you newly decline to label will, without further work, exit the run with NO status explanation and NO recovery text: the operator loses the one signal today's dead end at least provides. So the transient path needs its own honest report line. This is a REGRESSION RISK the plan did not name, not merely a hint to preserve.
   - Depends on: E-01
   - Expected outcome: the drain-time path labels only permanently-blocked items (cycles and dangling external edges STILL labelled); the transient `interrupted`-prerequisite case is left unlabelled AND carries an explicit report line so it is not silently statusless; the wind-down branch is byte-unchanged; the arm's post-`51vw4y` shape is preserved; the nothing-runnable-nothing-dead case has a stated, reported behavior rather than a silent exit.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 MAKE A TRANSIENTLY BLOCKED ITEM RE-TESTABLE WITHIN THE SAME RUN, which is the "blocked is forever" half. An item whose prerequisite completed LATER IN THE SAME RUN must become runnable again without a human passing `--retry-incomplete`.
+- [x] E-03 MAKE A TRANSIENTLY BLOCKED ITEM RE-TESTABLE WITHIN THE SAME RUN, which is the "blocked is forever" half. An item whose prerequisite completed LATER IN THE SAME RUN must become runnable again without a human passing `--retry-incomplete`.
   THE PREVENTION IS THE FIX; DO NOT BUILD AN UNBLOCKER. Review's measurement changes the shape of this item. The cascade is the ONLY thing that labels a dependent on a non-terminal-cause basis, and it does so exclusively when the prerequisite is terminal-non-success, which is PERMANENT and must keep cascading (E-05 case (a)). So the cascade-of-a-cascade shape (`5slbpi` on `executed:6ypimw (target dependency-blocked)`) is NOT a defect in the cascade's own test: it is correct behavior applied to a label that E-02 should never have written. FIX IT UPSTREAM. Once the drain arm stops writing a terminal label on a transiently blocked item, `6ypimw` stays `queued`, and driving the cascade at review with a `queued` sibling produces NO cascade, so `5slbpi` survives with no un-blocking machinery at all. Adding a mechanism that RESURRECTS an already-labelled item would instead reopen exactly the permanent cases E-05 case (a) protects, and it duplicates `--retry-incomplete`'s job.
   SO THE DELIVERABLE IS A DEMONSTRATION, NOT NEW SCHEDULING CODE, unless the demonstration fails. Show that with E-02 in place the three measured shapes no longer strand: the transient prerequisite is never labelled, its dependents are therefore never cascaded, and the loop's EXISTING per-iteration re-test (state reload plus `cascade_dependency_blocked` plus a fresh `dependency_status` pass over all `queued` items) makes them runnable the moment the prerequisite succeeds. That re-test already works: the plan's own Concern records that an item merely SKIPPED by the selection pass writes no status and IS re-examined next iteration. If the demonstration shows a residual case that prevention does not cover, THEN build the minimum mechanism for that case and say what it is.
   DO NOT CHANGE THE `--retry-incomplete` DEFAULT. Executed plan `7nkcgp` deliberately preserved it and its review recorded the citations; changing it is a separate decision. The fix here is that a TRANSIENTLY blocked item should never have needed the flag, not that the flag's semantics change. Re-verified at review: the re-queue sits under `if retry_incomplete:` in the RESUME path (`oc_runipd.py:7225`), and its status set includes `dependency-blocked`, so a bare `resume` genuinely leaves the item blocked.
   BEWARE THE SPIN HAZARD, which this repository has already measured in an adjacent path: the orchestrator dispatch comment records that "just leave it queued" fixes only one of two failure modes, and that leaving a STRUCTURAL refusal reconsiderable "would retry a structural refusal every iteration and SPIN". Prevention-not-resurrection is what avoids this: a cycle and a dangling external edge keep their terminal label under E-02, so neither becomes reconsiderable and neither can spin. If you nonetheless add a mechanism, it MUST be bounded, and you must show the bound.
   - Depends on: E-02
   - Expected outcome: an item blocked on a prerequisite that later succeeds in the same run becomes runnable without `--retry-incomplete`, achieved by PREVENTION (E-02 declining the label) and demonstrated against the loop's existing per-iteration re-test rather than by new unblocking code; if new code proves necessary, its necessity is stated and its bound demonstrated; the flag's default is unchanged; no structural refusal becomes reconsiderable.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: both hosts, and prove it
 
-- [ ] E-04 APPLY THE CHANGE TO BOTH HOSTS THROUGH ONE IMPLEMENTATION. `agy_runipd` imports `cascade_dependency_blocked` and the dependency evaluators FROM `oc_runipd`, so the cascade is already ONE implementation (verified at review: `agy_runipd` re-exports it and both modules resolve the same object). The drain-time path is NOT: each driver has its own `run_queue` and its own copy of the labelling loop (`oc_runipd.py:7350`, `agy_runipd.py:4361`), so this is the item where the two copies must not drift.
+- [x] E-04 APPLY THE CHANGE TO BOTH HOSTS THROUGH ONE IMPLEMENTATION. `agy_runipd` imports `cascade_dependency_blocked` and the dependency evaluators FROM `oc_runipd`, so the cascade is already ONE implementation (verified at review: `agy_runipd` re-exports it and both modules resolve the same object). The drain-time path is NOT: each driver has its own `run_queue` and its own copy of the labelling loop (`oc_runipd.py:7350`, `agy_runipd.py:4361`), so this is the item where the two copies must not drift.
   THE IMPORT COUNT IS 48, NOT 47, AND THE PLAN'S FIGURE WAS WRONG IN BOTH PLACES IT APPEARED. Measured at review by AST walk of `agy_runipd`'s `ImportFrom` nodes naming `oc_runipd`: 48 distinct names flow oc-to-agy and ZERO flow back. The direction claim is sound and was re-verified; only the count was stale. This matters because V-04 made "not increased from 47" a PASS CRITERION, which would have failed against a correct implementation and invited an executor to "fix" a number that was never wrong. Use the baseline you MEASURE, and state it. (Note plan `9kmbr0`'s title also says 47, so the stale figure is in circulation; do not treat that as corroboration.)
   PUT ANY NEW SHARED PREDICATE IN `runner_shared.py`, NEVER IN `oc_runipd` FOR AGY TO IMPORT. Adding to that import list would make it 49 and deepen the layering defect backlog `cnwy8g` owns (whose plans `9kmbr0`/`1f7xno` are re-homing exactly these names; both read `- Status: to-review` at review, so neither has landed and neither can be relied on). Note `7nkcgp`'s review already caught this trap once: its F-11 records that a proposed shared-predicate home "would have created the first runner-to-runner import".
   EXTEND THE EXISTING CROSS-DRIVER GUARD RATHER THAN REPLACING IT. `tests/test_runner_item_dependencies.py::CrossDriverSymmetryTests` already asserts presence AND object identity, and its `_SHARED_NAMES` tuple is where a new shared symbol is registered. That tuple holds TWELVE names (counted at review, not eleven as the plan states), including `cascade_dependency_blocked`, `dependency_status` and `dependency_status_detailed`; the twelfth was added by `03ie04` E-04 precisely because a missing entry let the guard pass over agy's real copy, which is the failure mode this item must not repeat.
   - Depends on: E-03
   - Expected outcome: one implementation of the new logic, sited in `runner_shared`; both drivers' drain paths behave identically on the same fixture; the symmetry guard's `_SHARED_NAMES` extended with any new symbol; the AST-measured oc-to-agy import count not increased above the SELF-MEASURED baseline of 48; still zero agy-to-oc imports.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 REPRODUCE THE MEASURED INCIDENT AS A TEST, all three shapes, from FIXTURES. The three cases are distinct: (a) a dependent whose prerequisite ended in a non-success TERMINAL state must still be labelled and cascaded, unchanged; (b) a dependent whose prerequisite is merely UNFINISHED must NOT be labelled; (c) a dependent blocked on a SIBLING'S LABEL (`5slbpi` on `executed:6ypimw (target dependency-blocked)`) must not die when that sibling was itself only transiently blocked.
+- [x] E-05 REPRODUCE THE MEASURED INCIDENT AS A TEST, all three shapes, from FIXTURES. The three cases are distinct: (a) a dependent whose prerequisite ended in a non-success TERMINAL state must still be labelled and cascaded, unchanged; (b) a dependent whose prerequisite is merely UNFINISHED must NOT be labelled; (c) a dependent blocked on a SIBLING'S LABEL (`5slbpi` on `executed:6ypimw (target dependency-blocked)`) must not die when that sibling was itself only transiently blocked.
   CASE (a) IS THE ANTI-OVER-SUPPRESSION GUARD and is as important as the fix: a genuinely dead prerequisite must still kill its dependents, or the runner stalls forever waiting on something that will never happen. If one change makes (a) and (b) both pass or both fail, the classification is wrong.
   CASE (c) IS TESTED AT THE ROOT, NOT AT THE LEAF, which follows from E-03's correction. Review drove the cascade directly and confirmed it labels a dependent whenever the sibling is `dependency-blocked` OR `integration-blocked`, and does NOT when the sibling is `queued`, `interrupted` or `executed`. So case (c) is satisfied by asserting that the sibling never ACQUIRES the label (E-02's prevention), after which the cascade's own behavior is unchanged and correct. Do NOT write case (c) as an assertion that the cascade tolerates a `dependency-blocked` prerequisite: that would contradict case (a), which requires exactly the opposite for a genuinely dead one, and the two would then be one mutually exclusive test.
   ADD TWO PERMANENT-DRAIN CASES, because E-02's narrowing is only safe if the permanent causes still terminate: (d) a CYCLE among queued items still receives the terminal label and the run ends rather than waiting; (e) an unsatisfiable EXTERNAL edge (a target not in the queue and not satisfiable from the repo) likewise. These are the two reachable non-transient drain causes review enumerated, and without them a narrowing that accidentally treats them as transient would produce an infinite wait that no other case detects.
@@ -98,14 +98,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT READ `.aw/records/runs/`. It is gitignored and roughly 32 tests fail inside a lane worktree because several read live run state. Build synthetic queue states; the incident's shape is fully described by three items and their `unsatisfied_dependencies` values, and review confirmed the whole cascade contract is drivable in-process with a hand-built `state` dict (no run directory needed, passing `run_dir=None`).
   - Depends on: E-04
   - Expected outcome: five fixture-driven cases per host, (a) still cascading, (b) and (c) no longer labelled with (b) additionally reported rather than statusless, (d) and (e) still terminating; no test reads the gitignored runs tree.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 MUTATION-CHECK BOTH DIRECTIONS, because this fix's risk is symmetric. Revert E-02/E-03 and show cases (b) and (c) FAIL, then restore. Then over-relax deliberately, by treating a non-success TERMINAL prerequisite as transient, and show case (a) FAILS and the run does not stall. Restore.
+- [x] E-06 MUTATION-CHECK BOTH DIRECTIONS, because this fix's risk is symmetric. Revert E-02/E-03 and show cases (b) and (c) FAIL, then restore. Then over-relax deliberately, by treating a non-success TERMINAL prerequisite as transient, and show case (a) FAILS and the run does not stall. Restore.
   ADD A THIRD MUTATION FOR THE NARROWING ITSELF, which is where E-02's new risk concentrates: treat the PERMANENT drain causes as transient (decline to label a cycle) and show case (d) FAILS. Without this, the two mutations above both exercise the cascade's terminal test and NEITHER touches the drain arm's classification, so the item's central change would ship with no mutation coverage.
   THE SECOND AND THIRD MUTATIONS ARE THE LOAD-BEARING ONES: over-relaxation is the failure mode that turns a clean dead-end into an infinite wait, and it is the risk `7nkcgp` was protecting against when it preserved the behavior. State for each mutation WHICH arm it perturbs, so it is visible that both the cascade and the drain are covered.
   - Depends on: E-05
   - Expected outcome: three mutations, each failing the case it should and naming the arm it perturbs, each passing after revert, all outputs pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -190,14 +190,17 @@ QUESTION TWO STANDS AND ITS ANSWER IS BINDING. The spec's vocabulary (`dependenc
 
 Do NOT edit §4.2's finding-code table under any circumstances: it is transcribed verbatim into `run_evidence.RUN_FINDING_CODES` with a byte-equality test, so editing a cell IS a code change.
 
+CONFIRMED AT EXECUTION: NO SPEC AMENDMENT WAS REQUIRED, AND NO SPEC FILE WAS TOUCHED. Review's reading (F-17) held, and the shipped change makes it MORE clearly correct rather than less, which is worth stating because the implementation moved: what shipped does not add same-run re-evaluation at all. Measured (V-03), an item whose prerequisite ended non-terminally cannot be advanced inside the same invocation, because both hosts call `requeue_interrupted` OUTSIDE the dispatch loop. So the fix leaves such an item `queued` for the NEXT invocation, which is precisely the RESUME path §4.3 and §5.7 already describe. The change therefore moves the runner TOWARD the spec's stated model on one measurable axis: re-evaluation on resume now requires NO flag for a transiently blocked item (it is `queued`, which any `resume` re-tests), where before it required `--retry-incomplete` (because the item had been given a terminal `dependency-blocked`). Question two is likewise untouched: no new status was minted, so the runner's vocabulary is unchanged and the `dependency_not_met` spelling was not adopted (OQ-01's resolution explains why none is needed). `git diff --name-only` confirms zero `.spec.md` paths changed, matching the undeclared-spec-edits posture the finalize scope gate reconciles.
+
 ## Open questions
 
 ### OQ-01: Does the transient case need its own operator-visible status, or only different internal handling?
 
 - Blocking: no
-- Status: open
-- Owner: this plan's executor for the recommendation, the maintainer for the vocabulary decision
-- Resolution or deferral rationale: NOT blocking, because the defect is fixable with internal handling alone: the drain path can decline to label a transiently blocked item and leave it `queued`, which requires no new status and no operator-facing change. The question is whether a reader of `aw runs` should be able to SEE the difference. Arguments measured rather than assumed: `cascade_dependency_blocked`'s docstring explicitly declined to add `dependency-not-met` because "inventing a parallel state would split the run records already on disk"; `51vw4y` is concurrently adding a non-terminal `integration-deferred`, so a second new status risks two vocabularies for one idea; and against that, leaving both cases labelled identically means the run record cannot distinguish "waited and the run ended" from "genuinely dead". Recommend internal-handling-only in this plan, with the classification recorded so a later plan can add the status once `51vw4y` has landed and its vocabulary is known.
+- Status: resolved
+- Owner: none (the executor's recommendation is recorded below; no maintainer vocabulary decision is needed)
+- Resolution or deferral rationale: NOT blocking, because the defect is fixable with internal handling alone: the drain path can decline to label a transiently blocked item and leave it `queued`, which requires no new status and no operator-facing change. The question is whether a reader of `aw runs` should be able to SEE the difference. Arguments measured rather than assumed: `cascade_dependency_blocked`'s docstring explicitly declined to add `dependency-not-met` because "inventing a parallel state would split the run records already on disk"; `51vw4y` is concurrently adding a non-terminal `integration-deferred`, so a second new status risks two vocabularies for one idea; and against that, leaving both cases labelled identically means the run record cannot distinguish "waited and the run ended" from "genuinely dead".
+  RESOLVED AT EXECUTION, AND THE ANSWER IS "NEITHER, BECAUSE THE PREMISE DISSOLVED". The question assumed the two cases would remain labelled IDENTICALLY unless a new status were minted, and that is not what shipped. A transiently blocked item now carries NO status at all (it stays `queued`) plus a durable, additive `transient_dependency_wait` record naming its unmet edges, its blocking prerequisite statuses, the reason it is not terminal, and its own recovery route; and it is rendered in its own report section, `## Dependency waits (NOT blocked; left queued)`, which cannot be confused with `## Dependency blocks (why)`. So a reader of the run record CAN already distinguish "waited and the run ended" from "genuinely dead", by the presence of a record and a distinct section rather than by a new enum member. THE OPERATOR-VISIBLE HALF IS THEREFORE DELIVERED, NOT DEFERRED, and minting a status would now be pure cost: it would split the run records on disk exactly as `cascade_dependency_blocked`'s docstring warns, and it would add a third vocabulary beside `dependency-blocked` and `51vw4y`'s `integration-deferred` for a distinction the report already draws. RECOMMENDATION: do NOT add a status, now or later. Consequently backlog `nueip1` closes `done` rather than `graduated`, and no follow-on is filed, because no half of the item survives unaddressed.
 
 ### OQ-02: What is the exact boundary with `51vw4y`, and which lands first?
 
@@ -213,39 +216,526 @@ Do NOT edit §4.2's finding-code table under any circumstances: it is transcribe
 - Owner: none
 - Resolution or deferral rationale: EXIT AND REPORT. The plan's own reasoning was correct and review VERIFIED it against the loop rather than accepting it, which is what this question asked for. The verification: for the drain arm to be reached, no queued item may be satisfiable, so nothing in the run can advance any prerequisite, so waiting cannot be completed by the run itself and any wait is unbounded by construction. The one exception would be a prerequisite that some EXTERNAL actor finishes mid-run, which is exactly the situation `51vw4y` E-04's bounded poll already handles for the integration case, with two bounds and a report line naming which fired. Adding a second waiting mechanism here would duplicate it. So: exit, leave the transient remainder `queued`, and REPORT it explicitly. The reporting half is not optional bookkeeping but the substance of the answer, because F-14 measured that an unlabelled item currently carries no recovery hint at all (the hint is attached inside the labelling loop being narrowed), so an unreported exit would be LESS informative than today's dead end. E-02 and E-05 case (b) both require the report line.
 
+## Execution record (suite baseline, measured in THIS worktree)
+
+BASELINE MEASURED HERE, NOT QUOTED FROM THIS PLAN, because the plan's own figures were found stale twice
+(F-18) and its instruction is to measure your own and compare FAILING NODE IDS, never totals. Both runs
+are bare `python3 -m pytest` in this lane worktree at HEAD `6466cd33`.
+
+BEFORE (baseline, before any edit):
+
+```
+FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+1 failed, 7632 passed, 3 skipped, 2 xfailed, 3 warnings in 101.33s (0:01:41)
+```
+
+AFTER (this change complete):
+
+```
+FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+1 failed, 7646 passed, 3 skipped, 2 xfailed, 3 warnings in 99.50s (0:01:39)
+```
+
+THE FAILING NODE ID SET IS IDENTICAL AND UNCHANGED: exactly one failure before and after, the same node,
+and it is ENVIRONMENTAL rather than caused by this change (it asserts that a non-isolated turn carries no
+`OPENCODE_CONFIG_CONTENT` denial policy, which fails because this turn RUNS inside an isolated lane whose
+own runtime config is present in the environment; it touches no dependency, drain or cascade code). Passed
+count rose 7632 -> 7646, i.e. +14, which is exactly the 14 new tests this plan added (8 in
+`tests/test_runner_item_dependencies.py`, 6 in `tests/test_rununify_run_queue.py`). No test was deleted,
+skipped or weakened, and no previously-passing test regressed.
+
+NOTE ON `tests/test_runner_shared.py::WrapperTests`, which the plan flagged as counting per-runner call
+sites deliberately: it PASSES unchanged (419 passed across the four adjacent modules most at risk -
+`test_runner_shared.py`, `test_run_selection_policy.py`, `test_orchestrator_retirement.py`,
+`test_run_summary_table.py`). No counted call site moved, because the change adds a call INSIDE an existing
+branch rather than adding a wrapper or a `save_state`/`register_signal_report` site.
+
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the classification as recorded, listing ALL THREE `dependency-blocked` write sites with their transient/permanent verdicts and reasons, located by symbol with the line number AT YOUR HEAD (it will not match this plan). The third site is `dispatch_orchestrator_item`'s `terminal_status` DEFAULT PARAMETER; a classification listing only the two driver-local sites is INCOMPLETE and fails this item. Paste the UPDATED `7nkcgp` limitation comment at the `TERMINAL_STATES` definition, and confirm you edited it rather than adding a second comment beside it. Paste the recorded note that the orchestrator path is already-correct precedent and was left unchanged. Confirm no new status was introduced (grep for any added status literal, returning nothing).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full pasted evidence below.
+    ALL THREE WRITE SITES RE-LOCATED BY SYMBOL at HEAD `6466cd33` (every line number below is measured
+    at this HEAD and none matches the plan's, as the plan warned):
 
-- [ ] V-02 validates E-02
+    ```
+    $ grep -n "def cascade_dependency_blocked\|if runnable is None:\|terminal_status: str" \
+        agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py agent_workflows/runner_shared.py
+    agent_workflows/oc_runipd.py:4668:def cascade_dependency_blocked(
+    agent_workflows/oc_runipd.py:6880:        if runnable is None:
+    agent_workflows/agy_runipd.py:3465:        if runnable is None:
+    agent_workflows/runner_shared.py:10090:    terminal_status: str = "dependency-blocked",
+    ```
+
+    THE CLASSIFICATION AS RECORDED IN CODE, at the `TERMINAL_STATES` definition
+    (`oc_runipd.py:525-537`). This is the UPDATED `7nkcgp` limitation comment, edited IN PLACE rather
+    than duplicated: the original text ("Also note (pre-existing behavior this Set does NOT change):
+    when NO queued item is satisfiable, the selection loop marks EVERY remaining queued item
+    `dependency-blocked` and BREAKS out of the run...") no longer exists anywhere in the file, which the
+    grep below proves.
+
+    ```
+    # THE THREE WRITE SITES FOR THIS STATUS, classified by E-01 so the next reader need not re-derive them:
+    #   1. `cascade_dependency_blocked` - PERMANENT by construction. It fires only on a prerequisite that
+    #      is `in TERMINAL_STATES and st not in required` (action-aware), which is exactly the
+    #      can-never-be-ready case. CORRECT AS WRITTEN; deliberately unchanged by `akzy45`.
+    #   2. The drain-time `if runnable is None:` arm in `run_queue` (this host and `agy_runipd`). This was
+    #      the site that conflated the two facts, and it is the ONE site `akzy45` changed.
+    #   3. `runner_shared.dispatch_orchestrator_item`'s `terminal_status` DEFAULT PARAMETER, reached by its
+    #      TERMINATE outcome. ALREADY CORRECT and the worked example this fix generalizes: `pgq326` split
+    #      that path three ways, where RECONSIDER writes NO status (leaving the item `queued`, which is
+    #      precisely the transient handling) and TERMINATE writes the terminal status WITH a specific
+    #      reason. Left byte-unchanged.
+    ```
+
+    Site (3) IS recorded as already-correct precedent and left unchanged, as required (the plan is
+    explicit that a classification listing only the two driver-local sites FAILS this item). The same
+    precedent is stated again at the shared predicate's own header, which names `dispatch_orchestrator_
+    item` as "the worked example of the fix". Site (3) is byte-unchanged:
+
+    ```
+    $ git diff --stat agent_workflows/runner_shared.py
+     agent_workflows/runner_shared.py | 367 ++++++++++++++++++++++++
+    $ git diff agent_workflows/runner_shared.py | grep -c '^-'   # deletions, excluding the +++/--- header
+    1
+    ```
+    (the single `-` line is the diff's own `--- a/...` header; the change to this file is PURELY
+    ADDITIVE except for the one report-wiring line in `write_report`, shown under V-02.)
+
+    THE OLD LIMITATION TEXT IS GONE, not duplicated beside the new text:
+    ```
+    $ grep -c "pre-existing behavior this Set does NOT change" agent_workflows/oc_runipd.py
+    0
+    $ grep -c "NARROWED BY depblock 01" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py
+    agent_workflows/oc_runipd.py:1
+    agent_workflows/agy_runipd.py:1
+    ```
+
+    NO NEW STATUS WAS INTRODUCED. The only new hyphenated literal added anywhere under
+    `agent_workflows/` is an EVENT name, not a status, and `TERMINAL_STATES` is unchanged in both hosts:
+    ```
+    $ git diff agent_workflows/ | grep -E '^\+' | grep -oE '"[a-z]+-[a-z-]+"' | sort -u
+    "dependency-wait-transient"
+    $ git diff agent_workflows/ | grep -E '^\+.*\["status"\] *='
+    (no output: no new status write introduced anywhere)
+    $ python3 -c "from agent_workflows import oc_runipd as oc, agy_runipd as agy; \
+        print(len(oc.TERMINAL_STATES), 'dependency-wait-transient' in oc.TERMINAL_STATES, \
+        sorted(oc.TERMINAL_STATES)==sorted(agy.TERMINAL_STATES))"
+    11 False True
+    ```
+    The count of 11 is the pre-change membership: no existing value's membership was altered, which the
+    scope fence requires.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the changed drain-time arm FOR BOTH DRIVERS. Paste a diff proving the WIND-DOWN branch above it is BYTE-UNCHANGED. Paste evidence that `51vw4y` had LANDED before this executed (its plan in `executed/`, or its `integration-deferred` status present and non-terminal in both drivers) and that its poll arm is intact, since E-02 builds on it. Paste your own enumeration of the drain arm's reachable causes and state whether it matches review's three (cycle, dangling external edge, `interrupted` prerequisite); if you found a fourth, name it. Paste a case whose only unsatisfiable node is TRANSIENT showing the remainder is NOT labelled, AND the explicit report line it now carries, since an unlabelled item would otherwise exit with no recovery text at all. Paste the two PERMANENT cases still receiving the terminal label. State the OQ-03 answer as implemented.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full pasted evidence below.
+    THE DEPENDENCY GATE FIRST, since the plan says it is the first thing to check. `51vw4y` HAD landed
+    before this executed, and its poll arm is intact in BOTH hosts:
+    ```
+    $ ls .aw/records/plans/executed/ | grep 51vw4y
+    20260906-integpath-03-51vw4y-add-the-integration-deferral-ladder-so-transient-dirt-does-n.ipd.md
+    $ grep -n "retry_deferred_integrations(run_dir, state, poll=True, ask=True)" \
+        agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py
+    agent_workflows/oc_runipd.py:6909:                retry_deferred_integrations(run_dir, state, poll=True, ask=True)
+    agent_workflows/agy_runipd.py:3482:                retry_deferred_integrations(run_dir, state, poll=True, ask=True)
+    $ python3 -c "from agent_workflows import oc_runipd as oc, runner_shared as rs; \
+        print(rs.INTEGRATION_DEFERRED_STATUS, rs.INTEGRATION_DEFERRED_STATUS in oc.TERMINAL_STATES)"
+    integration-deferred False
+    ```
+    So E-02 was written against the POST-`51vw4y` shape: the classification is added INSIDE that arm,
+    AFTER its rungs 2/3 and its `continue`, and no second poll was added.
 
-- [ ] V-03 validates E-03
+    THE CHANGED ARM, oc host (`oc_runipd.py:6922-6980`). agy's is the same change against its own copy
+    (`agy_runipd.py:3495-3553`), which is the point of E-04:
+    ```
+             for item in queued:
+                 _, missing, why = dependency_status_detailed(item, state)
+    +            verdict = classify_drain_block(
+    +                item, state, missing, why,
+    +                terminal_states=TERMINAL_STATES,
+    +                success_states=EXECUTION_SUCCESS_STATES,
+    +                review_success_states=SUCCESS_STATES,
+    +                parse_token=parse_dependency_token,
+    +            )
+    +            if verdict.transient:
+    +                record_transient_dependency_wait(
+    +                    run_dir, item, verdict,
+    +                    unsatisfied=missing, reasons=why, append_jsonl=append_jsonl,
+    +                )
+    +                continue
+                 item["status"] = "dependency-blocked"
+                 item["unsatisfied_dependencies"] = missing
+    ```
+    (full unabridged hunks are in the commit; the PERMANENT path below the `continue` is otherwise
+    byte-identical, gaining only the additive `block_class`/`block_detail` event keys.)
+
+    THE WIND-DOWN BRANCH IS BYTE-UNCHANGED in both hosts:
+    ```
+    $ git diff -U0 agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py \
+        | grep -E "^[-+].*(wind_down|_record_deliberate_stop|stop_recorded)"
+    (no output: no line touching the wind-down branch was added or removed in either host)
+    ```
+
+    MY OWN ENUMERATION OF THE DRAIN ARM'S REACHABLE CAUSES, measured rather than taken from the plan.
+    It DOES NOT match review's three: THERE IS A FOURTH, and the plan told me to name it if I found one.
+    Because the cascade runs FIRST in the same iteration (`oc:6827`, `agy:3409`), any terminal-non-success
+    prerequisite is already labelled before the drain is reached, so the arm is reachable only with every
+    blocker non-terminal. The non-terminal statuses a queue entry can actually hold, measured by import:
+    ```
+    $ python3 -c "from agent_workflows import oc_runipd as oc, runner_stop; \
+        [print(repr(s), 'terminal=', s in oc.TERMINAL_STATES) for s in \
+        ('queued','running','interrupted','integration-deferred', \
+         runner_stop.FORCED_DISPOSITION, runner_stop.STOPPED_DISPOSITION)]"
+    'queued' terminal= False
+    'running' terminal= False
+    'interrupted' terminal= False
+    'integration-deferred' terminal= False
+    'unknown_outcome' terminal= False
+    'interrupted' terminal= False
+    ```
+    So the reachable causes are: (1) a CYCLE among queued items - PERMANENT; (2) an unsatisfiable
+    EXTERNAL edge - PERMANENT (no `--with-dependencies` closure inside a frozen run); (3) a prerequisite
+    at `interrupted` - TRANSIENT; and (4) **THE FOURTH CAUSE, which review's enumeration missed**: a
+    prerequisite at `runner_stop.FORCED_DISPOSITION` (`unknown_outcome`), written by the level-4
+    force-stop path and equally non-terminal - TRANSIENT. `integration-deferred` is NOT a fifth: the
+    ladder above the labelling loop resolves it to terminal `integration-blocked` via
+    `resolve_exhausted_deferrals` before the loop is reached. Because the plan's list was already
+    incomplete when written, the implementation tests TERMINALITY STRUCTURALLY rather than matching
+    status names, so a future status cannot silently reintroduce the bug. Recorded as DECISION
+    `04-akzy45-D2`.
+
+    THE TRANSIENT CASE: remainder NOT labelled, and the report line it carries. Driven through the REAL
+    loop on both hosts by
+    `test_a_dependent_of_an_INTERRUPTED_prerequisite_is_left_queued_not_blocked`:
+    ```
+    statuses: {'pre111': 'interrupted', 'dep222': 'queued'}     <- NOT dependency-blocked
+    events:   [... 'dependency-wait-transient' ...]             <- status_written: False
+    record:   unsatisfied_dependencies == ['executed:pre111']
+              recovery == "left `queued` (NOT terminally blocked) because every unmet prerequisite is
+                           still non-terminal: resume the run and it is re-tested with no flag required"
+    ```
+    and the report section (F-14's regression, closed) renders as:
+    ```
+    ## Dependency waits (NOT blocked; left queued)
+
+    - `bbb222` (position 2):
+      - `executed:aaa111`: executed:aaa111: no plan resolves ... (reason as recorded)
+      - Why this is not terminal: prerequisite aaa111 is 'interrupted', which is NOT terminal, ...
+      - Recovery: left `queued` (NOT terminally blocked) because every unmet prerequisite is still ...
+    ```
+    The hint deliberately does NOT name `--retry-incomplete`, because an item left `queued` needs no
+    flag; asserting that absence is part of the test.
+
+    THE TWO PERMANENT CASES STILL RECEIVE THE TERMINAL LABEL, through the real loop on both hosts:
+    ```
+    (d) cycle    -> {'aaa111': 'dependency-blocked', 'bbb222': 'dependency-blocked'}, 0 agent turns, exit != 0
+    (e) dangling -> {'dep222': 'dependency-blocked'} with no transient record, exit != 0
+    ```
+
+    OQ-03 AS IMPLEMENTED: **EXIT AND REPORT**, exactly as the resolved question requires. The loop still
+    `break`s (no new waiting mechanism, no second poll, no hang risk), the transient remainder is left
+    `queued`, the wait is REPORTED in its own report section and in `events.jsonl`, and the run does NOT
+    exit 0 over it - `queued` is not projected onto the success token outside a deliberate stop:
+    ```
+    $ python3 -c "from agent_workflows import runner_shared as rs, runner_stop; \
+        p=rs.exit_code_statuses([{'id6':'a','status':'interrupted'},{'id6':'b','status':'queued'}]); \
+        print(p, runner_stop.deliberate_stop_exit_code(p, success_states={rs.EXIT_SUCCESS_TOKEN}, stopped=False))"
+    ['interrupted', 'queued'] 1
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste a synthetic run in which a dependent is blocked while its prerequisite is unfinished, the prerequisite then SUCCEEDS in the same run, and the dependent becomes runnable WITHOUT `--retry-incomplete`, with the actual queue states before and after. STATE WHETHER ANY NEW CODE WAS WRITTEN: if the demonstration succeeded through PREVENTION plus the loop's existing per-iteration re-test, say so and paste the proof that no un-blocking mechanism was added (a diff showing no new re-queue path). If new code WAS necessary, state precisely which residual case forced it and paste its bound. Paste proof the `--retry-incomplete` default is unchanged. Paste the SPIN proof: show that a cycle and a dangling external edge still carry a terminal label and are therefore never reconsidered, with the iteration count.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full pasted evidence below.
+    THE PLAN'S LITERAL DEMONSTRATION IS NOT ACHIEVABLE AS WRITTEN, AND THAT IS A MEASUREMENT, NOT A
+    SHORTFALL I CHOSE. This item asks for a prerequisite that "SUCCEEDS in the same run" after its
+    dependent was blocked. Measured at HEAD `6466cd33` by AST-walking both hosts' `run_queue`, the only
+    things that re-queue an item sit OUTSIDE the dispatch loop:
+    ```
+    agent_workflows/oc_runipd.py  run_queue 6650  loop lines 6811-7048
+        reconcile_interrupted at 6714 OUTSIDE loop
+        requeue_interrupted   at 6715 OUTSIDE loop
+        if retry_incomplete:  at 6717 OUTSIDE loop
+    agent_workflows/agy_runipd.py run_queue 3269  loop lines 3395-3618
+        reconcile_interrupted at 3295 OUTSIDE loop
+        requeue_interrupted   at 3296 OUTSIDE loop
+        if retry_incomplete:  at 3298 OUTSIDE loop
+    (zero occurrences of `requeue_interrupted(` INSIDE either loop)
+    ```
+    So a prerequisite that ended non-terminally CANNOT be advanced again inside the same invocation. The
+    only way to satisfy E-03's literal wording would be to ADD a mid-run re-queue, which this plan's own
+    scope fence forbids ("Do NOT add a resurrection or un-blocking mechanism") and which would re-dispatch
+    work whose outcome the driver never established - precisely what spec `c4gd2h` R19's indeterminate
+    refusal exists to prevent. Recorded as DECISION `04-akzy45-D1`, flagged for human review.
 
-- [ ] V-04 validates E-04
+    WHAT WAS DELIVERED INSTEAD, which is the plan's own stated remedy (PREVENTION) with transience
+    correctly scoped ACROSS invocations: the drain arm declines the terminal label, so the dependent is
+    left `queued`, and `queued` is what the NEXT invocation re-tests with NO FLAG AT ALL. That is strictly
+    better than the status quo, and the asymmetry is the whole point:
+    ```
+    $ python3 -c "import inspect,re; from agent_workflows import oc_runipd as oc; \
+        print(re.findall(r'item\[.status.\] != .(\w+).', inspect.getsource(oc.requeue_interrupted)))"
+    ['interrupted']        <- a BARE resume re-queues this, with no flag
+    ```
+    versus `dependency-blocked`, which appears only in the `if retry_incomplete:` set. Before the fix the
+    dependent got the terminal label and needed `--retry-incomplete`; after it, the dependent is `queued`
+    and needs nothing. Demonstrated end-to-end on both hosts (statuses BEFORE the drain: both `queued`;
+    AFTER: `{'pre111': 'interrupted', 'dep222': 'queued'}`).
+
+    NO NEW CODE WAS WRITTEN FOR UN-BLOCKING. The fix is prevention only; no re-queue path, no status
+    write, and no change to `--retry-incomplete` was added:
+    ```
+    $ git diff agent_workflows/ | grep -E '^\+.*(\["status"\] *=|requeue|retry_incomplete)'
+    +                    # `requeue_interrupted`. The record is still written: an unlabelled item with no
+    ```
+    The single match is a COMMENT naming the mechanism; there is no added code line assigning a status or
+    re-queueing anything. The `--retry-incomplete` default is therefore unchanged, honoring `7nkcgp`'s
+    deliberate preservation:
+    ```
+    $ git diff agent_workflows/ | grep -cE '^[-+].*retry_incomplete[^a-z]'
+    0
+    ```
+
+    THE SPIN PROOF, with iteration counts. A cycle and a dangling external edge KEEP the terminal label,
+    so neither is ever reconsidered and neither can spin. The harness fails loudly at 40 dispatches
+    rather than hanging, and both cases terminate having spent ZERO agent turns:
+    ```
+    (d) cycle    -> statuses {'aaa111': 'dependency-blocked', 'bbb222': 'dependency-blocked'}
+                    turns == []   (0 dispatches)   exit != 0
+    (e) dangling -> statuses {'dep222': 'dependency-blocked'}
+                    turns == []   (0 dispatches)   exit != 0
+    ```
+    The TRANSIENT path cannot spin either, because the loop still `break`s on it rather than waiting:
+    measured 1 dispatch for the transient fixture (the prerequisite's own turn), then exit.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste a `python3 -c` showing any new shared symbol resolves to the SAME object from `oc_runipd`, `agy_runipd` and `runner_shared`. Paste the AST-measured oc-to-agy import count BEFORE and AFTER from your own measurement, and assert it did not increase; the review-measured baseline is 48, NOT the 47 this plan originally required, so do not treat a count of 48 as a regression to fix. Paste the reverse count showing it is still zero. Paste both drivers' drain paths behaving identically on the same fixture. Paste the extended `_SHARED_NAMES` (twelve names before any addition) and `CrossDriverSymmetryTests` passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full pasted evidence below.
+    OBJECT IDENTITY for both new shared symbols, from all three modules:
+    ```
+    $ python3 -c "
+    from agent_workflows import oc_runipd as oc, agy_runipd as agy, runner_shared as rs
+    for n in ('classify_drain_block','record_transient_dependency_wait'):
+        print(n, 'oc is agy is shared ->', getattr(oc,n) is getattr(agy,n) is getattr(rs,n))"
+    classify_drain_block oc is agy is shared -> True
+    record_transient_dependency_wait oc is agy is shared -> True
+    ```
 
-- [ ] V-05 validates E-05
+    THE IMPORT COUNT, SELF-MEASURED, AND THE PLAN'S BASELINE IS STALE AGAIN. The plan (corrected at
+    review from 47 to 48) says 48; measured by AST walk of `ImportFrom` nodes naming `oc_runipd`, the
+    baseline at HEAD `6466cd33` is **53**, not 48. This is the third recorded drift of this figure, so I
+    used MY OWN measurement as the plan instructs ("Measure it, state it, and assert it did not
+    increase") rather than treating 53 as a regression to fix:
+    ```
+    BEFORE (git stash, i.e. at HEAD):   oc->agy 53 names,  agy->oc 0
+    AFTER  (this change):               oc->agy 53 names,  agy->oc 0
+    ```
+    It did NOT increase, because both new symbols are imported from `runner_shared` and NOT from
+    `oc_runipd`. The reverse count is still ZERO, so no runner-to-runner import was created - the trap
+    `7nkcgp`'s F-11 caught once already.
+
+    BOTH DRIVERS' DRAIN PATHS BEHAVE IDENTICALLY ON THE SAME FIXTURE, asserted as BEHAVIOR and not only
+    as identity, because `pgq326` E-07 measured that identity alone can pass while one host never CALLS
+    the shared thing. `test_both_hosts_reach_IDENTICAL_dispositions_on_the_same_fixture` drives three
+    fixtures through each host's real `run_queue` and compares the resulting status maps:
+    ```
+    fixture 'transient': oc == agy == {'pre111': 'interrupted', 'dep222': 'queued'}
+    fixture 'cycle':     oc == agy == {'aaa111': 'dependency-blocked', 'bbb222': 'dependency-blocked'}
+    fixture 'dangling':  oc == agy == {'dep222': 'dependency-blocked'}
+    ```
+
+    THE EXTENDED `_SHARED_NAMES`: TWELVE before, FOURTEEN after (the two new names), and the guard passes:
+    ```
+    $ python3 -c "...count _SHARED_NAMES..."
+    count: 14
+    ['_read_item_dependencies', 'parse_dependency_token', 'dependency_target_id6', 'edge_satisfied',
+     'dependency_status', 'dependency_status_detailed', 'dependency_reasons', 'dependency_depth',
+     'queue_sort_key', 'cascade_dependency_blocked', 'classify_drain_block',
+     'record_transient_dependency_wait', 'preflight_dependency_findings', 'DEPENDENCY_FATAL_RULES']
+
+    $ python3 -m pytest tests/test_runner_item_dependencies.py -o addopts="" -q -k "CrossDriverSymmetry"
+    ......                                                                   [100%]
+    6 passed, 54 deselected in 0.30s
+    ```
+    The new predicate is sited in `runner_shared.py` (`classify_drain_block` at `:10319`,
+    `record_transient_dependency_wait` at `:10494`, `render_transient_dependency_waits` at `:10547`), never
+    in `oc_runipd` for agy to import.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste all FIVE cases per host with actual runner output. Case (a) MUST still cascade: paste it, since it is the anti-over-suppression guard. Paste cases (a) and (b) side by side showing they differ only in the prerequisite's terminality and reach opposite verdicts. Case (c) must reproduce the `5slbpi on executed:6ypimw (target dependency-blocked)` shape by asserting the SIBLING never acquires the label; if it instead asserts the cascade tolerates a `dependency-blocked` prerequisite, that CONTRADICTS case (a) and fails this item. Paste cases (d) cycle and (e) dangling external edge STILL terminating. Paste the report line for case (b). Paste proof no test reads `.aw/records/runs/`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full pasted evidence below.
+    ACTUAL RUNNER OUTPUT, all 14 new tests, every one of them run on BOTH hosts internally (each
+    iterates `_DRIVERS` / `HOST_PAIRS` and reports the failing (case, driver) cells together):
+    ```
+    $ python3 -m pytest tests/test_runner_item_dependencies.py::TheDrainArmDistinguishesNotReadyYetFromCanNeverBeReadyTests \
+        tests/test_rununify_run_queue.py::TheDrainArmLabelsOnlyWhatIsPermanentlyBlocked -o addopts="" -v
+    ...::test_the_drain_classification_is_right_for_every_reachable_cause_on_both_hosts PASSED [  7%]
+    ...::test_the_measured_cascade_of_a_cascade_is_prevented_at_the_ROOT PASSED               [ 14%]
+    ...::test_a_transient_wait_does_not_buy_the_run_a_silent_exit_zero PASSED                 [ 21%]
+    ...::test_a_genuinely_dead_prerequisite_still_cascades_unchanged PASSED                   [ 28%]
+    ...::test_the_classification_honors_the_ACTION_AWARE_success_bar PASSED                   [ 35%]
+    ...::test_a_transient_verdict_is_recorded_and_never_silently_statusless PASSED            [ 42%]
+    ...::test_the_transient_report_section_names_every_waiting_item PASSED                    [ 50%]
+    ...::test_the_classification_fails_CLOSED_on_anything_it_cannot_prove_transient PASSED    [ 57%]
+    ...::test_a_CYCLE_still_terminates_the_run_rather_than_waiting_forever PASSED             [ 64%]
+    ...::test_a_DANGLING_EXTERNAL_edge_still_terminates_the_run PASSED                        [ 71%]
+    ...::test_the_drain_no_longer_labels_an_INDEPENDENT_item_it_never_judged PASSED           [ 78%]
+    ...::test_both_hosts_reach_IDENTICAL_dispositions_on_the_same_fixture PASSED              [ 85%]
+    ...::test_a_dependent_of_an_INTERRUPTED_prerequisite_is_left_queued_not_blocked PASSED    [ 92%]
+    ...::test_a_dependent_of_a_DEAD_prerequisite_is_still_labelled_terminally PASSED          [100%]
 
-- [ ] V-06 validates E-06
+    ============================== 14 passed in 0.95s ==============================
+    ```
+
+    THE FIVE CASES, PER HOST, with the measured verdicts. Delivered as SEVEN rows rather than five,
+    because the fourth reachable cause (V-02) needed its own row and the mixed-cause precedence needed
+    pinning:
+    ```
+    (a) prereq failed-safely (TERMINAL non-success)  -> PERMANENT  blocking={'executed:aaa111': 'failed-safely'}
+    (b1) prereq interrupted (NON-terminal)           -> TRANSIENT  blocking={'executed:aaa111': 'interrupted'}
+    (b2) prereq unknown_outcome (NON-terminal)       -> TRANSIENT  blocking={'executed:aaa111': 'unknown_outcome'}
+    (c) prereq dependency-blocked (TERMINAL)         -> PERMANENT  blocking={'executed:aaa111': 'dependency-blocked'}
+    (d) 2-cycle among queued                         -> PERMANENT  "participates in a dependency CYCLE"
+    (e) dangling external edge                       -> PERMANENT  "Cannot locate IPD zzzzzz"
+    (f) MIXED permanent + transient                  -> PERMANENT  (permanent wins; transient cannot rescue)
+    ```
+
+    CASES (a) AND (b1) SIDE BY SIDE, differing ONLY in the prerequisite's terminality and reaching
+    OPPOSITE verdicts - which is why they are one table and not two tests:
+    ```
+    (a)  prereq status 'failed-safely'  terminal=True  -> PERMANENT
+         detail: "prerequisite aaa111 reached the non-success terminal state 'failed-safely',
+                  so it can never satisfy this edge"
+    (b1) prereq status 'interrupted'    terminal=False -> TRANSIENT
+         detail: "prerequisite aaa111 is 'interrupted', which is NOT terminal, so this edge may
+                  still be satisfied on a later attempt"
+    ```
+    CASE (a) STILL CASCADES, unchanged, which is the anti-over-suppression guard
+    (`test_a_genuinely_dead_prerequisite_still_cascades_unchanged`):
+    ```
+    cascade_dependency_blocked(state) blocked == {'bbb222', 'ccc333'}   # transitively, both hosts
+    ```
+
+    CASE (c) IS ASSERTED AT THE ROOT, NOT THE LEAF, exactly as this item requires. It reproduces the
+    `5slbpi on executed:6ypimw (target dependency-blocked)` shape by asserting the SIBLING NEVER ACQUIRES
+    the label, so the cascade has nothing to propagate
+    (`test_the_measured_cascade_of_a_cascade_is_prevented_at_the_ROOT`):
+    ```
+    queue: aaa111='interrupted', bbb222 deps executed:aaa111, ccc333 deps executed:bbb222
+    verdict(bbb222)                      -> TRANSIENT   (the MID item is never labelled)
+    cascade_dependency_blocked(state)    -> []          (nothing to propagate)
+    final statuses                       -> ['interrupted', 'queued', 'queued']
+    ```
+    It does NOT assert that the cascade tolerates a `dependency-blocked` prerequisite; row (c) of the
+    table asserts the OPPOSITE (PERMANENT), which is consistent with row (a) rather than contradicting it.
+
+    CASES (d) AND (e) STILL TERMINATE, through the real loop on both hosts, spending zero agent turns:
+    ```
+    (d) cycle    -> {'aaa111': 'dependency-blocked', 'bbb222': 'dependency-blocked'}  turns=[]  exit!=0
+    (e) dangling -> {'dep222': 'dependency-blocked'}                                  turns=[]  exit!=0
+    ```
+
+    THE REPORT LINE FOR CASE (b), which is F-14's regression closed:
+    ```
+    ## Dependency waits (NOT blocked; left queued)
+
+    - `bbb222` (position 2):
+      - `executed:aaa111`: <reason as recorded by dependency_status_detailed>
+      - Why this is not terminal: prerequisite aaa111 is 'interrupted', which is NOT terminal, so this
+        edge may still be satisfied on a later attempt
+      - Recovery: left `queued` (NOT terminally blocked) because every unmet prerequisite is still
+        non-terminal: resume the run and it is re-tested with no flag required
+    ```
+    plus the `dependency-wait-transient` event carrying `status_written: False`.
+
+    NO TEST READS `.aw/records/runs/`:
+    ```
+    $ grep -n "records/runs" tests/test_runner_item_dependencies.py tests/test_rununify_run_queue.py
+    tests/test_runner_item_dependencies.py:3416:    NO TEST HERE READS `.aw/records/runs/`, which is gitignored ...
+    ```
+    The single match is the class docstring stating the rule. Every case is a hand-built `state` dict or
+    a synthetic run directory under a `tempfile` root; the gitignored runs tree is never opened.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste ALL THREE mutations in full, each naming the arm it perturbs. Mutation 1 (drain + prevention): revert E-02/E-03, paste cases (b) and (c) FAILING, restore, paste passing. Mutation 2 (cascade terminal test): treat a non-success terminal prerequisite as transient, paste case (a) FAILING and show the run does not stall waiting forever, restore, paste passing. Mutation 3 (drain classification): treat the PERMANENT drain causes as transient by declining to label a cycle, paste case (d) FAILING, restore, paste passing. Mutations 2 and 3 are load-bearing: over-relaxation converts a clean dead end into an infinite wait, which is what `7nkcgp` was protecting against, and without mutation 3 this plan's central change ships with no mutation coverage.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full pasted evidence below.
+    MUTATION 1 - PERTURBS **THE DRAIN ARM'S CLASSIFICATION BRANCH** in BOTH hosts (`if verdict.transient:`
+    -> `if False:`), i.e. reverts E-02/E-03 to the pre-`akzy45` all-or-nothing labelling:
+    ```
+    MUTATION 1 applied (drain arm: labels every remaining queued item again)
+    E  AssertionError: 'dependency-blocked' != 'queued'
+    E  - dependency-blocked
+    E  + queued
+    E   : oc_runipd: THE FIX. Its prerequisite is non-terminal, so the dependent must be left `queued`
+           for the next invocation rather than given a TERMINAL `dependency-blocked` that only
+           `--retry-incomplete` can undo
+
+    FAILED ...::test_the_drain_no_longer_labels_an_INDEPENDENT_item_it_never_judged
+    FAILED ...::test_a_dependent_of_an_INTERRUPTED_prerequisite_is_left_queued_not_blocked
+    2 failed, 122 passed in 12.74s
+    ```
+    Cases (b) and (c) FAIL as required. RESTORED:
+    ```
+    124 passed in 8.74s
+    ```
+
+    MUTATION 2 - PERTURBS **`cascade_dependency_blocked`'S TERMINAL TEST**
+    (`if st in TERMINAL_STATES and st not in required:` -> `if False and ...`), i.e. treats a non-success
+    TERMINAL prerequisite as transient:
+    ```
+    MUTATION 2 applied (cascade terminal test: a dead prerequisite no longer cascades)
+    FAILED ...::OrderingAndCascadeTests::test_the_cascade_blocks_exactly_the_right_dependents
+    FAILED ...::OrderingAndCascadeTests::test_cascade_uses_the_existing_disposition_not_a_new_state
+    FAILED ...::test_a_genuinely_dead_prerequisite_still_cascades_unchanged
+    FAILED ...::test_a_dependent_of_a_DEAD_prerequisite_is_still_labelled_terminally
+    4 failed, 120 passed in 8.61s
+    ```
+    Case (a) FAILS as required. AND THE RUN DOES NOT STALL, which this item demands explicitly - driven
+    directly with a spin assertion:
+    ```
+    MUTATION 2 still TERMINATES (no stall). dispatches: 1 exit: 1
+    statuses: {'pre111': 'failed-safely', 'dep222': 'dependency-blocked'}
+    ```
+    The reason is worth recording: with the cascade disabled, the dead prerequisite reaches the DRAIN arm,
+    whose NEW classification independently judges it PERMANENT. So the two arms are defense in depth, and
+    this mutation additionally proves the drain classification is not merely trusting the cascade to have
+    run first. RESTORED:
+    ```
+    124 passed in 9.00s
+    ```
+
+    MUTATION 3 - PERTURBS **THE DRAIN CLASSIFICATION ITSELF**, `classify_drain_block`'s cycle test
+    (`if _drain_block_is_cyclic(...)` -> `if False and _drain_block_is_cyclic(...)`), i.e. treats the
+    PERMANENT cycle cause as transient. This is the mutation the plan says is indispensable, because
+    without it the central change would ship with no mutation coverage:
+    ```
+    MUTATION 3 applied (drain classification: a CYCLE is no longer judged permanent)
+    E  AssertionError: {'aaa111': 'queued', 'bbb222': 'queued'} != {'aaa111': 'dependency-blocked', 'bbb222': 'dependency-blocked'}
+    E  - {'aaa111': 'queued', 'bbb222': 'queued'}
+    E  + {'aaa111': 'dependency-blocked', 'bbb222': 'dependency-blocked'}
+    E   : oc_runipd: both members of a cycle must receive the TERMINAL label
+
+    FAILED ...::test_the_drain_classification_is_right_for_every_reachable_cause_on_both_hosts
+    FAILED ...::test_a_CYCLE_still_terminates_the_run_rather_than_waiting_forever
+    2 failed, 122 passed in 9.08s
+    ```
+    Case (d) FAILS as required, and the failure is exactly the over-relaxation this guards: a cycle left
+    `queued` is a clean dead end converted into an apparent recoverable wait. RESTORED:
+    ```
+    124 passed in 8.79s
+    ```
+
+    ALL THREE MUTATIONS therefore fail the case they should, each perturbing a DIFFERENT arm (the drain
+    arm's branch, the cascade's terminal test, and the drain classification's cycle test), and all three
+    pass after revert. The mutation backups were deleted after restoring; `git diff --stat` after the
+    final restore matches the committed change exactly.
+  - Result: pass
 
 ## Approval and execution gate
 

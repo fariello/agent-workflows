@@ -10230,6 +10230,365 @@ def dispatch_orchestrator_item(
     return decision
 
 
+# ---- the DRAIN-TIME classification: "not ready yet" vs "can never be ready" (depblock 01, akzy45) -
+#
+# WHY THIS EXISTS. ONE status, `dependency-blocked`, carried TWO incompatible facts, and the drain arm
+# treated both as the second. `dependency-blocked` is in `TERMINAL_STATES` and each host's selection
+# filter admits only `queued`, so the label is a one-way door: the item is never reconsidered, and
+# recovering it needs the EXPLICIT `--retry-incomplete` flag (a bare `resume` will not re-queue it,
+# which `DEPENDENCY_BLOCK_RECOVERY_HINT` states honestly). Writing that label on an item whose
+# prerequisite merely has not finished yet therefore DOWNGRADES a recoverable item into one needing an
+# operator with a specific flag.
+#
+# THE MODEL IS `cascade_dependency_blocked`, WHICH ALREADY GETS THIS RIGHT, and `dispatch_orchestrator_
+# item` above is the worked example of the fix. The cascade kills a dependent only when the
+# prerequisite's status is `in TERMINAL_STATES and st not in required` (action-aware `required`), which
+# is exactly the PERMANENT case. The orchestrator dispatch then generalized the remedy: RECONSIDER
+# writes NO STATUS, leaving the item `queued` for a later iteration, while TERMINATE writes a terminal
+# status WITH a specific reason. This predicate applies that same split to the drain arm, which had no
+# such test and so flattened both facts into one terminal label.
+#
+# THE CLASSIFICATION IS STRUCTURAL, NOT A LIST OF STATUS NAMES, and that is deliberate. The approved
+# plan enumerated the reachable transient cause as `interrupted` alone; measured at execution, the
+# level-4 force-stop path also writes `runner_stop.FORCED_DISPOSITION` (`unknown_outcome`), which is
+# equally non-terminal, so a name-based test was ALREADY incomplete when it was written. Asking
+# "is every unsatisfied in-queue prerequisite NON-TERMINAL?" cannot drift as statuses are added.
+#
+# WHAT STAYS PERMANENT, because narrowing the label is only safe if the dead ends still terminate:
+#
+#   * A CYCLE among queued items. Structurally unsatisfiable, and already reported by the static
+#     evaluator through `preflight_dependency_findings`, so downgrading it here would contradict a
+#     finding the run already emitted.
+#   * A DANGLING or UNSATISFIABLE EXTERNAL edge (a target not in this run). `edge_satisfied`'s own
+#     reason text says it: "it is not in this run, so it cannot become satisfied here". There is no
+#     `--with-dependencies` closure inside a frozen run, so waiting cannot pay off.
+#   * ANY terminal-non-success prerequisite. The cascade normally labels these BEFORE the drain is
+#     reached, but this predicate must agree with it rather than assume it ran, or the two functions
+#     would give opposite answers to one question - which is precisely the 2026-09-04 outage
+#     (`runorder` F-7) that `cascade_dependency_blocked`'s docstring records.
+#
+# NO SPIN IS POSSIBLE, which is the risk `kxkc04`'s "just leave it queued" prescription ran into and
+# `dispatch_orchestrator_item` records. A TRANSIENT verdict is reachable ONLY when every unsatisfied
+# prerequisite is non-terminal, and nothing in the dispatch loop re-queues such a prerequisite, so the
+# drain arm still BREAKS out of the run on this path exactly as before. The item is left `queued` for
+# the NEXT invocation, where a bare `resume` re-queues an `interrupted` prerequisite with no flag at
+# all (`requeue_interrupted`, called before the loop). Transience here is ACROSS invocations; this
+# predicate deliberately adds no mid-run re-queue, and adding one would re-dispatch work whose outcome
+# the driver never established - which spec `c4gd2h` R19's indeterminate refusal exists to prevent.
+
+#: The verdicts `classify_drain_block` returns. PERMANENT keeps the terminal `dependency-blocked`
+#: label; TRANSIENT is left `queued` and REPORTED (never silently statusless).
+DRAIN_BLOCK_PERMANENT = "permanent"
+DRAIN_BLOCK_TRANSIENT = "transient"
+
+#: The per-item key recording a TRANSIENT drain verdict. Additive and parallel to
+#: `dependency_block_recovery`: an item this arm declines to label would otherwise exit the run with NO
+#: status explanation and NO recovery text, which is strictly LESS informative than the terminal dead
+#: end it replaces. That regression is the reason this key is required rather than optional.
+TRANSIENT_DEPENDENCY_WAIT_KEY = "transient_dependency_wait"
+
+#: The recovery route for a TRANSIENT wait, which is the OPPOSITE of the terminal one and is why it
+#: needs its own text. A `dependency-blocked` item needs `--retry-incomplete`; an item left `queued`
+#: needs no flag at all, because `requeue_interrupted` re-queues an `interrupted` prerequisite on any
+#: `resume`. Saying "use --retry-incomplete" here would send the operator to a flag they do not need.
+TRANSIENT_DEPENDENCY_WAIT_HINT = (
+    "left `queued` (NOT terminally blocked) because every unmet prerequisite is still "
+    "non-terminal: resume the run and it is re-tested with no flag required"
+)
+
+
+class DrainBlockVerdict(NamedTuple):
+    """Why ONE drained item could not be dispatched, and whether waiting can ever pay off.
+
+    `verdict` is :data:`DRAIN_BLOCK_PERMANENT` or :data:`DRAIN_BLOCK_TRANSIENT`. `detail` names the
+    cause in operator-readable prose, so neither disposition is recorded without a reason a human can
+    act on. `blocking` maps each unsatisfied dependency token to the prerequisite status that caused
+    it, empty for a token whose target is not an in-queue IPD node.
+    """
+
+    verdict: str
+    detail: str
+    blocking: Mapping[str, str]
+
+    @property
+    def permanent(self) -> bool:
+        return self.verdict == DRAIN_BLOCK_PERMANENT
+
+    @property
+    def transient(self) -> bool:
+        return self.verdict == DRAIN_BLOCK_TRANSIENT
+
+
+def classify_drain_block(
+    item: Mapping[str, Any],
+    state: Mapping[str, Any],
+    unsatisfied: Sequence[str],
+    reasons: Mapping[str, str],
+    *,
+    terminal_states: Container[str],
+    success_states: Container[str],
+    review_success_states: Container[str],
+    parse_token: Callable[[str], Any],
+) -> DrainBlockVerdict:
+    """PERMANENT or TRANSIENT for one item the drain arm is about to dispose of. BOTH HOSTS.
+
+    Called once per remaining `queued` item when nothing in the run is dispatchable. PERMANENT means
+    no future attempt can satisfy this item, so the terminal `dependency-blocked` label is the truthful
+    description and is written exactly as before. TRANSIENT means every unmet prerequisite is still
+    non-terminal, so a terminal label would assert something the run has not established.
+
+    FAILS CLOSED, and the direction is chosen deliberately. Every path that cannot PROVE transience
+    returns PERMANENT: an unparseable token, a `spec`/`backlog` or external target, a prerequisite
+    absent from the queue, and the no-dependencies case. Over-labelling costs an operator one
+    `--retry-incomplete`; UNDER-labelling would leave a genuinely dead item looking recoverable and
+    could turn a clean dead end into an unbounded wait, which is the regression `7nkcgp` was guarding
+    when it preserved this behavior on purpose.
+
+    `terminal_states`/`success_states`/`review_success_states` and `parse_token` are INJECTED rather
+    than imported, for the same reason `decide_orchestrator_dispatch` injects them: each host owns its
+    own copy of those sets and its own token parser, and this module must not pick a side for them.
+
+    DECIDES ONLY: writes no status, touches no file, mutates neither argument.
+    """
+
+    if not unsatisfied:
+        # No nameable unmet dependency. This is the `5e4sb6` SHAPE - a terminal label with nothing to
+        # point at - so it is emphatically not something to call transient and wait on. Keep today's
+        # behavior and let the existing path record it.
+        return DrainBlockVerdict(
+            DRAIN_BLOCK_PERMANENT,
+            "no unmet dependency could be named, so waiting cannot be shown to pay off",
+            {},
+        )
+
+    by_id = {str(entry.get("id6")): entry for entry in (state.get("queue") or [])}
+    required = (
+        success_states if item.get("action") != "review" else review_success_states
+    )
+
+    blocking: dict[str, str] = {}
+    permanent_causes: list[str] = []
+    transient_causes: list[str] = []
+
+    for token in unsatisfied:
+        tok = str(token)
+        edge = parse_token(tok)
+        if edge is None or getattr(edge, "target_type", None) != "ipd":
+            # An unparseable token, or a `spec`/`backlog` leaf. Neither is a queue node this run can
+            # advance, so neither can become satisfied here.
+            permanent_causes.append(
+                f"{tok}: not an in-queue IPD prerequisite this run can advance"
+                if edge is not None
+                else f"{tok}: not a legal dependency edge"
+            )
+            continue
+        entry = by_id.get(str(getattr(edge, "id6", "")))
+        if entry is None:
+            # EXTERNAL target: not in this run at all. `edge_satisfied` already says why, so reuse its
+            # recorded reason rather than inventing a second wording for one fact.
+            permanent_causes.append(
+                reasons.get(tok)
+                or f"{tok}: target is not in this run, so it cannot become satisfied here"
+            )
+            continue
+        status = str(entry.get("status") or "")
+        blocking[tok] = status
+        if status in terminal_states and status not in required:
+            # The PERMANENT case, tested exactly as `cascade_dependency_blocked` tests it. The cascade
+            # normally writes this label before the drain is reached; agreeing with it here is what
+            # stops two functions giving opposite answers to one question.
+            permanent_causes.append(
+                f"{tok}: prerequisite {entry.get('id6')} reached the non-success terminal state "
+                f"{status!r}, so it can never satisfy this edge"
+            )
+        elif status in terminal_states:
+            # Terminal AND successful, yet the edge is still unsatisfied: the bar the edge demands is
+            # narrower than the status reached (for example `substantially-complete`, whose work is not
+            # finalized on disk). The run is DONE with this prerequisite, so waiting cannot help.
+            permanent_causes.append(
+                reasons.get(tok)
+                or (
+                    f"{tok}: prerequisite {entry.get('id6')} is terminal ({status!r}) but does not "
+                    "meet this edge's bar, and this run will not revisit it"
+                )
+            )
+        elif str(entry.get("id6")) == str(item.get("id6")):
+            # A self-edge is a degenerate cycle: structurally unsatisfiable however long anyone waits.
+            permanent_causes.append(
+                f"{tok}: prerequisite is the item itself, which can never be satisfied"
+            )
+        else:
+            transient_causes.append(
+                f"{tok}: prerequisite {entry.get('id6')} is {status!r}, which is NOT terminal, so "
+                "this edge may still be satisfied on a later attempt"
+            )
+
+    if permanent_causes:
+        # ANY permanent cause makes the whole item permanently blocked: satisfying the others cannot
+        # rescue it. Mixed causes therefore report BOTH, so the operator is not told to wait for an
+        # edge that will clear while an unfixable one is left unnamed.
+        detail = "; ".join(permanent_causes)
+        if transient_causes:
+            detail += (
+                f" (also waiting on {len(transient_causes)} non-terminal prerequisite(s), which "
+                "cannot rescue the permanent cause above)"
+            )
+        return DrainBlockVerdict(DRAIN_BLOCK_PERMANENT, detail, blocking)
+
+    if _drain_block_is_cyclic(item, state, parse_token):
+        # A CYCLE among queued items. Every member looks non-terminal to the test above, so without
+        # this check a cycle would read as transient and the run would end claiming a recoverable wait
+        # on something that can never resolve.
+        return DrainBlockVerdict(
+            DRAIN_BLOCK_PERMANENT,
+            "this item participates in a dependency CYCLE among queued items, which no amount of "
+            "waiting can satisfy",
+            blocking,
+        )
+
+    return DrainBlockVerdict(
+        DRAIN_BLOCK_TRANSIENT, "; ".join(transient_causes), blocking
+    )
+
+
+def _drain_block_is_cyclic(
+    item: Mapping[str, Any],
+    state: Mapping[str, Any],
+    parse_token: Callable[[str], Any],
+) -> bool:
+    """Does ``item`` sit on a dependency cycle among in-queue IPD nodes?
+
+    Deliberately LOCAL to the drain classification and deliberately NOT a general cycle detector:
+    `preflight_dependency_findings` owns the static, reportable verdict and refuses such a run up
+    front. This is the belt-and-braces test for a hand-edited `state.json` that reached the dispatch
+    loop anyway, and its only job is to stop a cycle being mistaken for a recoverable wait.
+
+    Walks reverse-reachability from ``item`` over declared in-queue IPD edges and reports whether the
+    item is reachable from itself. Cycle-safe by construction (a visited set), exactly as
+    `dependency_depth` is.
+    """
+
+    by_id = {str(entry.get("id6")): entry for entry in (state.get("queue") or [])}
+    start = str(item.get("id6") or "")
+    seen: set[str] = set()
+    stack = [start]
+    first = True
+    while stack:
+        node = stack.pop()
+        if not first and node == start:
+            return True
+        first = False
+        if node in seen:
+            continue
+        seen.add(node)
+        entry = by_id.get(node)
+        if entry is None:
+            continue
+        for dep in entry.get("dependencies", []) or []:
+            edge = parse_token(str(dep))
+            if edge is None or getattr(edge, "target_type", None) != "ipd":
+                continue
+            target = str(getattr(edge, "id6", ""))
+            if target in by_id:
+                stack.append(target)
+    return False
+
+
+def record_transient_dependency_wait(
+    run_dir: Path,
+    item: MutableMapping[str, Any],
+    verdict: DrainBlockVerdict,
+    *,
+    unsatisfied: Sequence[str],
+    reasons: Mapping[str, str],
+    append_jsonl: Callable[..., Any],
+) -> None:
+    """Record a TRANSIENT drain verdict WITHOUT writing a status. BOTH HOSTS.
+
+    The item stays `queued`, which is the whole point: `queued` is what a later invocation re-tests,
+    and it is the same "write no status" shape `dispatch_orchestrator_item`'s RECONSIDER outcome uses.
+
+    RECORDING IS NOT OPTIONAL BOOKKEEPING. The terminal path attaches
+    `DEPENDENCY_BLOCK_RECOVERY_HINT` per item INSIDE the labelling loop, so an item this arm declines
+    to label would otherwise leave the run with no disposition, no reason and no recovery route - less
+    informative than the dead end it replaces. So the reason, the unmet edges and a recovery hint are
+    all attached here, and an event is written so the verdict is visible in `events.jsonl` too.
+
+    `unsatisfied_dependencies` is DELIBERATELY NOT WRITTEN. It is the key
+    `run_selection_policy.derive_item_disposition` keys its `dependency_not_met` disposition on, and
+    writing it would make a still-`queued` item report as dependency-blocked in the summary - the
+    fabricated disposition spec R22 forbids. The unmet edges are carried inside this record instead.
+    """
+
+    item[TRANSIENT_DEPENDENCY_WAIT_KEY] = {
+        "verdict": verdict.verdict,
+        "detail": verdict.detail,
+        "unsatisfied_dependencies": [str(dep) for dep in unsatisfied],
+        "unsatisfied_dependency_reasons": {
+            str(dep): str(reasons.get(str(dep)) or "dependency not satisfied")
+            for dep in unsatisfied
+        },
+        "blocking_statuses": dict(verdict.blocking),
+        "recovery": TRANSIENT_DEPENDENCY_WAIT_HINT,
+    }
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "dependency-wait-transient",
+            "id6": item.get("id6"),
+            "dependencies": [str(dep) for dep in unsatisfied],
+            "blocking_statuses": dict(verdict.blocking),
+            "detail": verdict.detail,
+            "recovery": TRANSIENT_DEPENDENCY_WAIT_HINT,
+            # Stated explicitly so a reader of the stream never has to infer it from an absence.
+            "status_written": False,
+        },
+    )
+
+
+def render_transient_dependency_waits(state: Mapping[str, Any]) -> list[str]:
+    """Report lines for every item left `queued` by a TRANSIENT drain verdict. SHARED renderer.
+
+    Returns [] when there are none, so an unaffected run's report is byte-identical to before.
+
+    Shared for the same reason `format_preserved_lanes` is: the measured failure mode in this
+    repository is a run that preserves or defers something and mentions it ZERO times in the report a
+    human actually reads, so the two hosts must not be able to disagree about which items are waiting.
+    """
+
+    waiting = [
+        item
+        for item in (state.get("queue") or [])
+        if item.get(TRANSIENT_DEPENDENCY_WAIT_KEY)
+    ]
+    if not waiting:
+        return []
+    lines = [
+        "",
+        "## Dependency waits (NOT blocked; left queued)",
+        "",
+        "These items were NOT given a terminal disposition: every unmet prerequisite is still "
+        "non-terminal, so a terminal label would assert something this run did not establish. They "
+        "are left `queued` and are re-tested on the next resume, with NO flag required.",
+        "",
+    ]
+    for item in waiting:
+        record = item.get(TRANSIENT_DEPENDENCY_WAIT_KEY) or {}
+        lines.append(f"- `{item.get('id6')}` (position {item.get('position')}):")
+        deps = record.get("unsatisfied_dependencies") or []
+        why = record.get("unsatisfied_dependency_reasons") or {}
+        for dep in deps:
+            lines.append(f"  - `{dep}`: {why.get(dep) or 'dependency not satisfied'}")
+        detail = record.get("detail")
+        if detail:
+            lines.append(f"  - Why this is not terminal: {detail}")
+        hint = record.get("recovery")
+        if hint:
+            lines.append(f"  - Recovery: {hint}")
+    return lines
+
+
 # ---- per-invocation telemetry: the ONE host-neutral seam (runanalytics Order 04, `5f2h8i`) --------
 #
 # WHAT THIS SECTION OWNS, AND WHAT IT DELIBERATELY DOES NOT. It owns the SEAM: where a telemetry
@@ -13278,6 +13637,14 @@ def write_report(
             hint = item.get("dependency_block_recovery")
             if hint:
                 lines.append(f"  - Recovery: {hint}")
+    # depblock 01 (`akzy45`) E-02: the TRANSIENT counterpart of the section above, and it is REQUIRED
+    # rather than symmetry for its own sake. The recovery hint is attached per item INSIDE the
+    # labelling loop this plan narrows, so an item the drain arm now declines to label would otherwise
+    # leave the run with no disposition, no reason and no recovery route - strictly less informative
+    # than the terminal dead end it replaces. Rendered by the SHARED renderer so the two hosts cannot
+    # disagree about which items are waiting, which is the same reason `format_preserved_lanes` below
+    # is shared, and it returns [] when nothing waited so an unaffected report is byte-identical.
+    lines.extend(render_transient_dependency_waits(state))
     # lanectn xdr83v E-03 (spec R5.6a): NAME EVERY PRESERVED LANE AND ITS REASON IN THE SUMMARY A HUMAN
     # READS, not only in events.jsonl. Measured basis for making this a requirement rather than polish:
     # run `run-20260901T042331Z-118022` preserved TWO lanes and mentioned it ZERO times here, five

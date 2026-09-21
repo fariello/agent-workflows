@@ -67,6 +67,7 @@ from agent_workflows import (
     oc_runipd,
     review_findings,
     runner_shared,
+    runner_stop,
     selectors,
 )
 from tests.support import REPO_ROOT
@@ -2974,6 +2975,15 @@ class CrossDriverSymmetryTests(unittest.TestCase):
         "dependency_depth",
         "queue_sort_key",
         "cascade_dependency_blocked",
+        # depblock 01 (`akzy45`) E-04: the DRAIN-TIME classification joins the guard. Registered for the
+        # precise reason the `dependency_status_detailed` entry above exists: the drain arm is the ONE
+        # dependency site each host still implements SEPARATELY (each has its own `run_queue` and its own
+        # copy of the labelling loop), so the RULE it applies must be one object or the two hosts will
+        # drift exactly as they did before. Both names, because writing the record is as host-neutral as
+        # deciding the verdict, and a host that re-forked only the writer would silently diverge on what
+        # a waiting item reports.
+        "classify_drain_block",
+        "record_transient_dependency_wait",
         "preflight_dependency_findings",
         "DEPENDENCY_FATAL_RULES",
     )
@@ -3371,6 +3381,513 @@ class TheDiskIsTheOnlyAuthorityForAnExecutedEdgeTests(unittest.TestCase):
                         b,
                         "queue membership changed the verdict for identical on-disk state",
                     )
+
+
+class TheDrainArmDistinguishesNotReadyYetFromCanNeverBeReadyTests(unittest.TestCase):
+    """depblock 01 (`akzy45`): ONE status carried TWO incompatible facts, and the drain arm wrote the
+    terminal one for both.
+
+    THE DEFECT. `dependency-blocked` is in `TERMINAL_STATES` and each host's selection filter admits
+    only `queued`, so the label is a ONE-WAY DOOR, and recovering from it needs the EXPLICIT
+    `--retry-incomplete` flag (a bare `resume` will not re-queue it, which
+    `DEPENDENCY_BLOCK_RECOVERY_HINT` states honestly). The drain-time `if runnable is None:` arm wrote
+    that label on EVERY remaining queued item unconditionally, so an item whose prerequisite merely had
+    not finished yet was given a permanent disposition and the harder recovery route.
+
+    MEASURED INCIDENT, run `run-20260905T050043Z-639569`: `6ypimw` and `wpomxa` were blocked on
+    prerequisites that were `integration-blocked` at the time, and `5slbpi` was blocked on
+    `executed:6ypimw (target dependency-blocked)` - killed by a SIBLING'S LABEL rather than by anything
+    unsatisfiable about itself. All three prerequisites later read `executed` on disk.
+
+    WHY CASE (c) IS ASSERTED AT THE ROOT AND NOT AT THE LEAF. The cascade-of-a-cascade is NOT a defect
+    in `cascade_dependency_blocked`: driven directly, that function labels a dependent only when the
+    prerequisite is terminal-non-success, which is correct and is case (a). The fix is PREVENTION
+    UPSTREAM - once the drain arm declines to label the transiently-blocked sibling, the sibling stays
+    `queued`, the cascade sees a `queued` prerequisite and does nothing, and the leaf survives with no
+    un-blocking machinery at all. Asserting instead that the cascade TOLERATES a `dependency-blocked`
+    prerequisite would directly contradict case (a), and the two would be mutually exclusive.
+
+    THE DIRECTION OF EVERY ROW MATTERS, so both are asserted rather than only the fix. OVER-LABELLING
+    (the bug) costs an operator a specific flag. UNDER-LABELLING is worse: a genuinely dead prerequisite
+    whose dependents are left `queued` makes a clean dead end look recoverable, which is exactly what
+    `7nkcgp` was protecting when it preserved this behavior on purpose. Cases (a), (d) and (e) are that
+    guard.
+
+    NO TEST HERE READS `.aw/records/runs/`, which is gitignored and whose live state fails inside a
+    lane worktree. Every case is a hand-built `state` dict, which is sufficient because the whole
+    classification is drivable in-process.
+    """
+
+    #: (case, queue rows as (id6, deps, status), the id6 to classify, expected verdict, why)
+    #: Statuses are REAL values the runner writes; see the per-row rationale for which writer.
+    DRAIN = (
+        (
+            "(a) prerequisite reached a NON-SUCCESS TERMINAL state",
+            (
+                ("aaa111", (), "failed-safely"),
+                ("bbb222", ("executed:aaa111",), "queued"),
+            ),
+            "bbb222",
+            runner_shared.DRAIN_BLOCK_PERMANENT,
+            "THE ANTI-OVER-SUPPRESSION GUARD, and it is as load-bearing as the fix. `failed-safely` is "
+            "terminal and is not a success, so no future attempt in any invocation can satisfy this "
+            "edge. If this row flips to transient, a dead prerequisite's dependents are left looking "
+            "recoverable and the run's honest dead end becomes a lie. If ONE change makes this row and "
+            "the (b) rows agree, the classification is not discriminating at all",
+        ),
+        (
+            "(b1) prerequisite is `interrupted` (NON-terminal)",
+            (("aaa111", (), "interrupted"), ("bbb222", ("executed:aaa111",), "queued")),
+            "bbb222",
+            runner_shared.DRAIN_BLOCK_TRANSIENT,
+            "THE CASE THE PLAN NAMES. `interrupted` is measurably NOT in `TERMINAL_STATES`, and it is "
+            "the ONE status a BARE `resume` re-queues with no flag at all (`requeue_interrupted` "
+            "selects on exactly this status). So labelling its dependent terminally converts a "
+            "free recovery into one needing `--retry-incomplete`: strictly worse for the operator",
+        ),
+        (
+            "(b2) prerequisite is `unknown_outcome` (NON-terminal)",
+            (
+                ("aaa111", (), "unknown_outcome"),
+                ("bbb222", ("executed:aaa111",), "queued"),
+            ),
+            "bbb222",
+            runner_shared.DRAIN_BLOCK_TRANSIENT,
+            "A FOURTH REACHABLE CAUSE THE APPROVED PLAN'S ENUMERATION MISSED, which is why the "
+            "predicate tests TERMINALITY STRUCTURALLY instead of matching status names. "
+            "`runner_stop.FORCED_DISPOSITION` is `unknown_outcome`, written by the level-4 force-stop "
+            "path and measurably not terminal, so a dependent of a force-stopped item reaches the "
+            "drain exactly as (b1) does. A name-based test for `interrupted` alone would call this "
+            "PERMANENT and reintroduce the bug for a case nobody had enumerated",
+        ),
+        (
+            "(c) prerequisite is itself `dependency-blocked` (TERMINAL)",
+            (
+                ("aaa111", (), "dependency-blocked"),
+                ("bbb222", ("executed:aaa111",), "queued"),
+            ),
+            "bbb222",
+            runner_shared.DRAIN_BLOCK_PERMANENT,
+            "THE ROOT HALF OF THE CASCADE-OF-A-CASCADE. Once a sibling HAS the terminal label, treating "
+            "its dependent as permanently blocked is CORRECT and agrees with "
+            "`cascade_dependency_blocked`. The measured `5slbpi` harm is prevented by the sibling never "
+            "ACQUIRING the label (asserted by `test_the_measured_cascade_of_a_cascade_...`), not by "
+            "tolerating it here - which would contradict row (a)",
+        ),
+        (
+            "(d) a CYCLE among queued items",
+            (
+                ("aaa111", ("executed:bbb222",), "queued"),
+                ("bbb222", ("executed:aaa111",), "queued"),
+            ),
+            "aaa111",
+            runner_shared.DRAIN_BLOCK_PERMANENT,
+            "A PERMANENT-DRAIN GUARD. Every member of a cycle looks NON-TERMINAL, so a naive terminality "
+            "test alone would call this transient and the run would end claiming a recoverable wait on "
+            "something that can never resolve. `preflight_dependency_findings` already reports a cycle, "
+            "so downgrading it here would also contradict a finding the run itself emitted",
+        ),
+        (
+            "(e) a DANGLING external edge (target not in this run)",
+            (("bbb222", ("executed:zzzzzz",), "queued"),),
+            "bbb222",
+            runner_shared.DRAIN_BLOCK_PERMANENT,
+            "THE SECOND PERMANENT-DRAIN GUARD. A target outside the queue cannot be advanced by this "
+            "run at all - `edge_satisfied`'s own reason says 'it is not in this run, so it cannot "
+            "become satisfied here' - and there is no `--with-dependencies` closure inside a frozen "
+            "run. Waiting is unbounded by construction, so it must stay terminal",
+        ),
+        (
+            "(f) MIXED: one permanent cause AND one transient cause",
+            (
+                ("aaa111", (), "failed-safely"),
+                ("ccc333", (), "interrupted"),
+                ("bbb222", ("executed:aaa111", "executed:ccc333"), "queued"),
+            ),
+            "bbb222",
+            runner_shared.DRAIN_BLOCK_PERMANENT,
+            "PERMANENT WINS, because satisfying the transient edge cannot rescue the dead one. The "
+            "opposite precedence would leave an item waiting forever on a prerequisite that can never "
+            "finish, which is the unbounded wait this whole classification exists to avoid",
+        ),
+    )
+
+    def _queue(self, rows, action="execute"):
+        return [
+            {
+                "id6": id6,
+                "setid": "demo",
+                "order": pos,
+                "position": pos,
+                "status": status,
+                "action": action,
+                "dependencies": list(deps),
+                "configured_file": "",
+            }
+            for pos, (id6, deps, status) in enumerate(rows, start=1)
+        ]
+
+    def _classify(self, mod, queue, target_id6):
+        """Classify through the host's OWN sets and parser, exactly as its drain arm does."""
+        state = {"repo": "/nonexistent", "queue": queue}
+        item = next(it for it in queue if it["id6"] == target_id6)
+        _ok, missing, why = mod.dependency_status_detailed(item, state)
+        verdict = runner_shared.classify_drain_block(
+            item,
+            state,
+            missing,
+            why,
+            terminal_states=mod.TERMINAL_STATES,
+            success_states=mod.EXECUTION_SUCCESS_STATES,
+            review_success_states=mod.SUCCESS_STATES,
+            parse_token=mod.parse_dependency_token,
+        )
+        return verdict, missing, why
+
+    def test_the_drain_classification_is_right_for_every_reachable_cause_on_both_hosts(
+        self,
+    ):
+        """The whole table, both drivers, reported together.
+
+        ONE TABLE RATHER THAN PER-CASE TESTS because the contract is the RELATIONSHIP between the rows:
+        (a) and (b1) differ ONLY in whether the prerequisite's status is terminal and must reach
+        OPPOSITE verdicts. Split into separate tests, a change that relaxed both (the obvious way to
+        make the (b) rows pass) would leave the (a) failure in a different file region and the actual
+        contract would appear nowhere.
+        """
+        wrong = []
+        for case, rows, target, expected, why in self.DRAIN:
+            for driver, mod in _DRIVERS:
+                queue = self._queue(rows)
+                verdict, missing, _why = self._classify(mod, queue, target)
+                problems = []
+                if verdict.verdict != expected:
+                    problems.append(
+                        f"classified {verdict.verdict!r}, expected {expected!r} "
+                        f"(detail: {verdict.detail})"
+                    )
+                if not verdict.detail.strip():
+                    problems.append(
+                        "the verdict carries NO detail, so neither disposition could be recorded "
+                        "with a reason a human can act on"
+                    )
+                if not missing:
+                    problems.append(
+                        "no unmet dependency was named, so this row is not exercising the drain "
+                        "classification at all (check the fixture, not the predicate)"
+                    )
+                if problems:
+                    wrong.append(
+                        f"  {case} on {driver}:\n"
+                        + "".join(f"    - {p}\n" for p in problems)
+                        + f"    this row exists because: {why}"
+                    )
+        self.assertEqual(
+            wrong,
+            [],
+            f"the drain classification is wrong for {len(wrong)} of "
+            f"{len(self.DRAIN) * len(_DRIVERS)} (case, driver) cells. READ THE DIRECTION. If a (b) row "
+            "reads PERMANENT, the bug is unfixed and a recoverable item is being given a terminal "
+            "disposition plus the harder `--retry-incomplete` recovery. If row (a), (d), (e) or (f) "
+            "reads TRANSIENT, the narrowing was OVER-APPLIED, which is worse: a dead end now looks "
+            "recoverable and the operator is invited to wait on something that can never happen. If "
+            "the rows differ BY DRIVER, the hosts have re-forked a rule that is supposed to live once "
+            "in `runner_shared`.\n" + "\n".join(wrong),
+        )
+
+    def test_a_transient_verdict_is_recorded_and_never_silently_statusless(self):
+        """The regression the fix could itself have introduced (plan finding F-14).
+
+        `dependency_block_recovery` is attached PER ITEM INSIDE the labelling loop that was narrowed, so
+        an item the arm now DECLINES to label would - without this record - exit the run with no status
+        explanation and no recovery text: strictly LESS informative than the terminal dead end it
+        replaced. So the transient path must carry its own reason, its own unmet edges and its own
+        recovery hint, and that hint must NOT be the terminal one, because the two recovery routes are
+        opposite (`--retry-incomplete` versus no flag at all).
+        """
+        events = []
+        for driver, mod in _DRIVERS:
+            with self.subTest(driver=driver):
+                queue = self._queue(
+                    (
+                        ("aaa111", (), "interrupted"),
+                        ("bbb222", ("executed:aaa111",), "queued"),
+                    )
+                )
+                verdict, missing, why = self._classify(mod, queue, "bbb222")
+                self.assertTrue(verdict.transient)
+                item = queue[1]
+                runner_shared.record_transient_dependency_wait(
+                    Path("/nonexistent"),
+                    item,
+                    verdict,
+                    unsatisfied=missing,
+                    reasons=why,
+                    append_jsonl=lambda _p, payload: events.append(payload),
+                )
+                self.assertEqual(
+                    item["status"],
+                    "queued",
+                    "the item MUST stay `queued`: that is the status a later invocation re-tests, and "
+                    "it is the same write-no-status shape `dispatch_orchestrator_item`'s RECONSIDER "
+                    "outcome uses",
+                )
+                record = item[runner_shared.TRANSIENT_DEPENDENCY_WAIT_KEY]
+                self.assertEqual(
+                    record["unsatisfied_dependencies"], ["executed:aaa111"]
+                )
+                self.assertEqual(
+                    record["blocking_statuses"], {"executed:aaa111": "interrupted"}
+                )
+                self.assertIn("non-terminal", record["recovery"])
+                self.assertNotIn(
+                    "--retry-incomplete",
+                    record["recovery"],
+                    "the transient hint must NOT send the operator to `--retry-incomplete`: an item "
+                    "left `queued` needs no flag, and naming one would be actively misleading",
+                )
+                self.assertNotIn(
+                    "unsatisfied_dependencies",
+                    {
+                        k: v
+                        for k, v in item.items()
+                        if k != runner_shared.TRANSIENT_DEPENDENCY_WAIT_KEY
+                    },
+                    "writing the TOP-LEVEL `unsatisfied_dependencies` key would make a still-`queued` "
+                    "item render as `dependency_not_met` in the disposition summary, which is the "
+                    "fabricated disposition spec R22 forbids; the edges belong inside the record",
+                )
+        self.assertEqual(
+            [e["event"] for e in events],
+            ["dependency-wait-transient"] * len(_DRIVERS),
+            "the verdict must reach events.jsonl too: an unlabelled item with no event is "
+            "indistinguishable from one the run never reached",
+        )
+        for payload in events:
+            self.assertIs(
+                payload["status_written"],
+                False,
+                "stated EXPLICITLY so a reader of the stream never infers it from an absence",
+            )
+
+    def test_the_measured_cascade_of_a_cascade_is_prevented_at_the_ROOT(self):
+        """Run `run-20260905T050043Z-639569`: `5slbpi` blocked on `executed:6ypimw (target
+        dependency-blocked)`, i.e. killed by a SIBLING'S LABEL.
+
+        ASSERTED AS PREVENTION, which is the correction review made to this plan's E-03. The cascade's
+        own terminal test is CORRECT, so the leaf is saved by the sibling never acquiring the label:
+        with the sibling left `queued`, `cascade_dependency_blocked` is driven here and blocks NOTHING.
+        No resurrection mechanism exists or is needed, and none may be added - resurrecting an
+        already-labelled item would reopen the genuinely-dead cases row (a) exists to protect.
+        """
+        for driver, mod in _DRIVERS:
+            with self.subTest(driver=driver):
+                # The measured shape: root's prerequisite is transient, mid depends on root, leaf on mid.
+                queue = self._queue(
+                    (
+                        ("aaa111", (), "interrupted"),
+                        ("bbb222", ("executed:aaa111",), "queued"),
+                        ("ccc333", ("executed:bbb222",), "queued"),
+                    )
+                )
+                verdict, _m, _w = self._classify(mod, queue, "bbb222")
+                self.assertTrue(
+                    verdict.transient,
+                    "the MID item must not be labelled; everything else follows from that",
+                )
+                state = {"repo": "/nonexistent", "queue": queue}
+                self.assertEqual(
+                    mod.cascade_dependency_blocked(state),
+                    [],
+                    "with the sibling still `queued`, the cascade must block NOTHING. This is the "
+                    "whole fix: the leaf `5slbpi` survives because the label the cascade would have "
+                    "propagated was never written",
+                )
+                self.assertEqual(
+                    [it["status"] for it in queue],
+                    ["interrupted", "queued", "queued"],
+                    "both dependents stay `queued`, so the NEXT invocation re-tests them",
+                )
+
+    def test_a_genuinely_dead_prerequisite_still_cascades_unchanged(self):
+        """The mirror image, asserted in the SAME class so the two cannot be read apart.
+
+        If this fails while the test above passes, the narrowing was over-applied and the runner will
+        now wait forever on work that can never happen.
+        """
+        for driver, mod in _DRIVERS:
+            with self.subTest(driver=driver):
+                queue = self._queue(
+                    (
+                        ("aaa111", (), "failed-safely"),
+                        ("bbb222", ("executed:aaa111",), "queued"),
+                        ("ccc333", ("executed:bbb222",), "queued"),
+                    )
+                )
+                state = {"repo": "/nonexistent", "queue": queue}
+                blocked = {b["id6"] for b in mod.cascade_dependency_blocked(state)}
+                self.assertEqual(
+                    blocked,
+                    {"bbb222", "ccc333"},
+                    "a dead prerequisite must STILL kill its dependents transitively; this behavior is "
+                    "deliberately unchanged by the drain narrowing",
+                )
+
+    def test_the_transient_report_section_names_every_waiting_item(self):
+        """An unreported wait would be less informative than the dead end it replaced (OQ-03).
+
+        OQ-03's answer is EXIT AND REPORT, and the reporting half is the substance of it rather than
+        bookkeeping: the run genuinely cannot advance a non-terminal prerequisite from inside its own
+        dispatch loop, so it exits, and what makes that honest is saying which items it left waiting.
+        """
+        queue = self._queue(
+            (
+                ("aaa111", (), "interrupted"),
+                ("bbb222", ("executed:aaa111",), "queued"),
+            )
+        )
+        verdict, missing, why = self._classify(oc_runipd, queue, "bbb222")
+        runner_shared.record_transient_dependency_wait(
+            Path("/nonexistent"),
+            queue[1],
+            verdict,
+            unsatisfied=missing,
+            reasons=why,
+            append_jsonl=lambda _p, _payload: None,
+        )
+        rendered = "\n".join(
+            runner_shared.render_transient_dependency_waits({"queue": queue})
+        )
+        self.assertIn("bbb222", rendered)
+        self.assertIn("executed:aaa111", rendered)
+        self.assertIn("NOT blocked", rendered)
+        self.assertEqual(
+            runner_shared.render_transient_dependency_waits({"queue": []}),
+            [],
+            "an unaffected run's report must be BYTE-IDENTICAL to before, so the renderer returns [] "
+            "rather than an empty section with a stray header",
+        )
+
+    def test_a_transient_wait_does_not_buy_the_run_a_silent_exit_zero(self):
+        """OQ-03's other half: exiting is acceptable, exiting `0` over unfinished work is not.
+
+        The transient item is left `queued`, and `queued` is NOT projected onto the success token
+        outside a deliberate stop, so the run still exits nonzero. Pinned because the obvious
+        implementation of "leave it queued" silently converts a reported failure into a clean-looking
+        success, which is the exact shape of the defect `zz5yxq` measured (8 never-dispatched plans,
+        exit 0, `Outcome: COMPLETED`).
+        """
+        projected = runner_shared.exit_code_statuses(
+            [
+                {"id6": "aaa111", "status": "interrupted"},
+                {"id6": "bbb222", "status": "queued"},
+            ]
+        )
+        self.assertEqual(
+            runner_stop.deliberate_stop_exit_code(
+                projected,
+                success_states={runner_shared.EXIT_SUCCESS_TOKEN},
+                stopped=False,
+            ),
+            1,
+            "a run that ended with a transient wait outstanding must NOT exit 0",
+        )
+
+    def test_the_classification_fails_CLOSED_on_anything_it_cannot_prove_transient(
+        self,
+    ):
+        """The chosen failure direction, pinned so a later refactor cannot quietly invert it.
+
+        Over-labelling costs one `--retry-incomplete`. Under-labelling makes a dead end look
+        recoverable and can produce an unbounded wait, so every unprovable case must read PERMANENT.
+        """
+        for driver, mod in _DRIVERS:
+            for case, deps in (
+                ("no unmet dependency could be named", ()),
+                ("an unparseable token", ("not a legal edge!",)),
+                ("a self-edge (degenerate cycle)", ("executed:bbb222",)),
+            ):
+                with self.subTest(driver=driver, case=case):
+                    queue = self._queue((("bbb222", deps, "queued"),))
+                    state = {"repo": "/nonexistent", "queue": queue}
+                    item = queue[0]
+                    if deps:
+                        _ok, missing, why = mod.dependency_status_detailed(item, state)
+                    else:
+                        missing, why = [], {}
+                    verdict = runner_shared.classify_drain_block(
+                        item,
+                        state,
+                        missing,
+                        why,
+                        terminal_states=mod.TERMINAL_STATES,
+                        success_states=mod.EXECUTION_SUCCESS_STATES,
+                        review_success_states=mod.SUCCESS_STATES,
+                        parse_token=mod.parse_dependency_token,
+                    )
+                    self.assertTrue(
+                        verdict.permanent,
+                        f"{case} must fail CLOSED to PERMANENT, got {verdict.verdict!r}",
+                    )
+
+    def test_the_classification_honors_the_ACTION_AWARE_success_bar(self):
+        """The same trap that caused the 2026-09-04 outage, in the new predicate.
+
+        `cascade_dependency_blocked`'s docstring records that hardcoding `EXECUTION_SUCCESS_STATES`
+        made a review-mode Set run impossible to complete: `reviewed` is terminal but is not an
+        EXECUTION success, so a review turn's prerequisite was declared dead. This predicate takes the
+        bar per ACTION for exactly that reason, and a `reviewed` prerequisite must therefore be
+        PERMANENT for an execute turn and must NOT be a blocking cause for a review turn.
+        """
+        for driver, mod in _DRIVERS:
+            with self.subTest(driver=driver, action="execute"):
+                queue = self._queue(
+                    (
+                        ("aaa111", (), "reviewed"),
+                        ("bbb222", ("executed:aaa111",), "queued"),
+                    ),
+                    action="execute",
+                )
+                verdict, _m, _w = self._classify(mod, queue, "bbb222")
+                self.assertTrue(
+                    verdict.permanent,
+                    "an EXECUTE turn consumes its prerequisite's WORK, so a merely `reviewed` "
+                    "prerequisite can never satisfy it",
+                )
+            with self.subTest(driver=driver, action="review"):
+                queue = self._queue(
+                    (
+                        ("aaa111", (), "reviewed"),
+                        ("bbb222", ("executed:aaa111",), "queued"),
+                    ),
+                    action="review",
+                )
+                state = {"repo": "/nonexistent", "queue": queue}
+                item = queue[1]
+                verdict = runner_shared.classify_drain_block(
+                    item,
+                    state,
+                    ["executed:aaa111"],
+                    {},
+                    terminal_states=mod.TERMINAL_STATES,
+                    success_states=mod.EXECUTION_SUCCESS_STATES,
+                    review_success_states=mod.SUCCESS_STATES,
+                    parse_token=mod.parse_dependency_token,
+                )
+                self.assertTrue(
+                    verdict.permanent,
+                    "NOTE the direction: for a REVIEW action `reviewed` is in the required set, so it "
+                    "is not a DEAD prerequisite; it reaches PERMANENT through the terminal-success "
+                    "branch (the run is done with it and will not revisit it), never through the "
+                    "'reached a non-success terminal state' branch. Asserted so a future edit cannot "
+                    "silently start reporting a review prerequisite as DEAD",
+                )
+                self.assertNotIn(
+                    "non-success terminal state",
+                    verdict.detail,
+                    "a `reviewed` prerequisite must never be described as non-success for a review "
+                    "turn: that wording is what the 2026-09-04 outage put in front of operators",
+                )
 
 
 if __name__ == "__main__":
