@@ -55,9 +55,76 @@ WALK = ".aw/records/walkthroughs"
 
 
 def _plan_text(id6, setid="demo", desc=None, status="approved"):
+    """A plan body that is CONFORMANT to the full IPD contract, not a four-line stub.
+
+    IT USED TO BE A STUB, AND THAT MATTERED ONCE `aw check plans` STARTED RUNNING THE LINTER
+    (lintreach `k9awrq`). The old body was `# IPD` plus `- Id:`/`- Status:`/`- Set:` plus a `## Goal`,
+    which `aw ipd lint --phase author` reports TWENTY diagnostics against: five missing required
+    metadata fields, a `Set` with no `Order`, an `approved` status with no `Approval` attestation, no
+    `Scope-Paths`, and eleven absent required H2 sections. Nothing surfaced that, because the sweep did
+    not call the linter - which is the exact gap `check.ipd-lint-diagnostic` closes.
+
+    SO THE FIXTURE IS FIXED RATHER THAN THE ASSERTIONS LOOSENED, and that direction is deliberate. This
+    file's own header says rows "assert the EXACT rule SET" and its collision table's comment says the
+    expected sets list rules "the fixture trips for reasons unrelated to collisions" ON PURPOSE, because
+    "trimming the assertion to 'the collision rules only' would let a content rule silently stop firing
+    tree-wide". Adding `check.ipd-lint-diagnostic` to a dozen expected sets, or filtering it out of this
+    file's helpers, would both weaken exactly that property. A conformant fixture keeps every row
+    asserting precisely what it always claimed: that the rule under test fires, and that nothing else
+    does.
+
+    Every parameter the callers vary (`id6`, `setid`, the optional Set `desc`, and `status`) still
+    varies, and the body stays minimal in the sense that matters: it trips NO rule by itself.
+    `- Approval:` is emitted only for `approved`, because `IPD-M104` requires it there and the other
+    statuses must not carry an attestation they have not earned.
+    """
     setline = f"{setid} ({desc})" if desc else setid
+    approval = (
+        "- Approval: 2026-01-01, recorded via aw ipd set\n"
+        if status == "approved"
+        else ""
+    )
     return (
-        f"# IPD\n\n- Id: {id6}\n- Status: {status}\n- Set: {setline}\n\n## Goal\n\nx\n"
+        "# IPD\n\n"
+        "- Date: 2026-01-01\n"
+        "- Kind: child\n"
+        "- Concern: a check_engine fixture\n"
+        "- Scope: a check_engine fixture\n"
+        "- Scope-Paths: x.py\n"
+        "- Item-Dependencies: none\n"
+        f"- Status: {status}\n"
+        f"- Set: {setline}\n"
+        "- Order: 1\n"
+        "- Highest E allocated: 01\n"
+        "- Author: fixture\n"
+        f"- Id: {id6}\n"
+        f"{approval}"
+        "\n## Workflow history\n"
+        f"- 2026-01-01 {status} (t): created.\n"
+        "\n## Goal\n\nx\n"
+        "\n## Detailed Implementation Checklist (TODO)\n\n"
+        "- [ ] E-01 do it.\n"
+        "  - Depends on: none\n"
+        "  - Expected outcome: done\n"
+        "  - Execution state: pending\n"
+        "\n## Project conventions discovered (Step 0)\n\n- none\n"
+        "\n## Findings\n\n"
+        "| Id | Severity | Area | What | Evidence |\n|---|---|---|---|---|\n"
+        "| F-1 | LOW | x | y | z |\n"
+        "\n## Proposed changes (ordered, validatable)\n\n1. do it\n"
+        "\n## Deferred / out of scope (with reason)\n\n"
+        "- nothing deferred.\n  - Carrier-Declined: a fixture has no obligations.\n"
+        "\n## Scope check\n\n- Over-scope: none\n- Under-scope: none\n"
+        "\n## Required tests / validation\n\nthe suite\n"
+        "\n## Spec / documentation sync\n\nnone\n"
+        "\n## Open questions\n\nnone\n"
+        "\n## Validation and cross-check (verify before reporting done)\n\n"
+        "- [ ] V-01 validates E-01\n"
+        "  - Required evidence: paste it\n"
+        "  - Observed evidence:\n"
+        "  - Result: pending\n"
+        "\n## Approval and execution gate\n\n"
+        "- Size assessment: standard\n- Cohesion rationale: not required\n"
     )
 
 
@@ -452,14 +519,32 @@ class CollisionTests(unittest.TestCase):
             (
                 (
                     f"{PLANS}/20260101-1357-01-assess-bugs.ipd.md",
-                    "# IPD\n\n- Id: wvlk84\n- Status: draft\n\n## Goal\n\nx\n",
+                    # A CONFORMANT BODY under a legacy FILENAME, which is precisely this row's subject:
+                    # the defect (or non-defect) under test is the NAME, so the body must not contribute
+                    # findings of its own. `check.ipd-lint-diagnostic` (lintreach `k9awrq`) runs the real
+                    # linter over the plans sweep, and the inline stub this row used to carry tripped 20
+                    # `IPD-*` diagnostics, which would have made the row fail for a reason unrelated to
+                    # the slot-parsing trap it exists to guard. `_plan_text` supplies the `- Id:` this
+                    # row needs (a declared id6 ABSENT from its own filename, which is what
+                    # `check.identity-absent-from-name` reports here on purpose). `draft` is retained
+                    # because this row's expected set includes `check.ipd-draft-ready-to-review`, which
+                    # only fires on a placeholder-free `draft`.
+                    _plan_text("wvlk84", status="draft"),
                 ),
                 (
                     f"{WALK}/20260101-1033-01-assess-bugs-and-tests.walkthrough.md",
                     _walk_text(),
                 ),
             ),
-            (DRAFT_READY, IDENTITY_ABSENT),
+            # IDENTITY_ABSENT FIRES TWICE ON THE ONE PLAN, AND BOTH ARE CORRECT. That rule reports each
+            # declared identity absent from a pre-id6-grammar filename, and a conformant body declares
+            # `- Set:` as well as `- Id:`, so this legacy `YYYYMMDD-HHMM-NN-<slug>` name is missing both.
+            # It counted once only because the old stub body omitted `- Set:` entirely, i.e. the single
+            # count was an artifact of an incomplete fixture rather than a property of the rule.
+            # Duplicates in an expected set are the established convention in this table ("WITH
+            # DUPLICATES where a rule fires once per file"), and the MUST-NOT column below still holds
+            # the line this row exists for: `check.id6-identity-slot` must NOT appear.
+            (DRAFT_READY, IDENTITY_ABSENT, IDENTITY_ABSENT),
             (),
             (IDENTITY_SLOT,),
             "THE MASS-FLAGGING TRAP: in `YYYYMMDD-HHMM-NN-<slug>` the 4-digit HHMM occupies the "
@@ -588,7 +673,14 @@ class EntryPointTests(unittest.TestCase):
         (f"{PLANS}/20260101-demo-01-aaa111-ok.ipd.md", _plan_text("aaa111")),
         (
             f"{PLANS}/not-a-grammar.md",
-            "# IPD: bad\n\n- Id: bbb222\n- Status: draft\n\n## Goal\n\nx\n",
+            # The defect in this file is its NAME, so its BODY is conformant (`_plan_text`), for the
+            # same reason recorded on the legacy-name row in `CollisionTests`: since
+            # `check.ipd-lint-diagnostic` (lintreach `k9awrq`) runs the real linter over the plans
+            # sweep, a stub body would add a second, unrelated finding to every row below and each
+            # row's expected set would then be asserting the fixture's sloppiness rather than the
+            # composition it exists to pin. `draft` is retained because several rows expect
+            # `check.ipd-draft-ready-to-review` from this file.
+            _plan_text("bbb222", status="draft"),
         ),
         (
             f"{SPECS}/20260101-1200-01-x.spec.md",
@@ -764,7 +856,12 @@ class RetiredAndIgnoredScopeTests(unittest.TestCase):
         (
             "an approved plan in pending/",
             f"{PLANS}/20260101-demo-01-aaa111-active.ipd.md",
-            "# IPD: active\n\n- Id: aaa111\n- Status: approved\n- Set: demo\n\n## Goal\n\nx\n",
+            # CONFORMANT, because the SCOPES rows below assert that the default scope over this tree
+            # reports ZERO findings ("the state a maintainer expects `aw check` to report on a healthy
+            # tree"). A stub body would make that claim false through
+            # `check.ipd-lint-diagnostic` (lintreach `k9awrq`), which is the one active plan the default
+            # scope actually lints.
+            _plan_text("aaa111", setid="demo"),
             False,
             "THE ACTIVE BASELINE: live work must be CHECKED. A predicate returning True here makes "
             "every check blind to the tree while satisfying every retired row below",
@@ -928,10 +1025,14 @@ class RetiredAndIgnoredScopeTests(unittest.TestCase):
                     ".aw/records/plans/tmp/bad-sub-tmp.ipd.md",
                     "# IPD\n\n- Id: ccc333\n- Status: invalid-status\n",
                 ),
-                # A valid conformant plan that must still be seen.
+                # A valid conformant plan that must still be seen. Built with `_plan_text` rather than
+                # inline, because "conformant" now has to be TRUE: `check.ipd-lint-diagnostic`
+                # (lintreach `k9awrq`) runs the real linter over the plans sweep, and the inline stub
+                # this row used to carry tripped 20 `IPD-*` diagnostics, which made the row fail while
+                # claiming the finding came from the ignored `tmp/` tree.
                 (
                     f"{PLANS}/20260101-demo-02-bbb222-valid.ipd.md",
-                    "# IPD: valid\n\n- Id: bbb222\n- Status: approved\n- Set: demo\n\n## Goal\n\nx\n",
+                    _plan_text("bbb222", setid="demo"),
                 ),
             ]
         )

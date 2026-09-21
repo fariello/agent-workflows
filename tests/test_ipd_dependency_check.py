@@ -107,14 +107,29 @@ def _spec(repo: Path, *, id6: str, status: str = "draft") -> Path:
     return p
 
 
+# Rules sharing the `check.ipd-` prefix that are NOT cross-IPD dependency rules, and so must not be
+# read as one by the assertions in this file. Each is a separate concern that happens to sit in the same
+# namespace, and each would otherwise make a CLEAN row (`expected is None`) fail for a reason that has
+# nothing to do with dependencies:
+#   * `check.ipd-draft-ready-to-review` - agentadhere Phase 1 (IPD uisjns), a draft-readiness advisory.
+#   * `check.ipd-lint-diagnostic` - lintreach Order 01 (`k9awrq`), the umbrella under which the `IPD-*`
+#     lint family became reachable from the sweep. It fires on the fixtures here because they are
+#     deliberately MINIMAL plans (no `Concern`/`Scope`/`Author`, no `## Findings`, and so on), which is
+#     correct for a dependency fixture and is correctly non-conformant to the full IPD contract. Adding
+#     the missing sections to every fixture would make this file's real subject harder to read while
+#     testing nothing it is about.
+_NON_DEPENDENCY_IPD_RULES = frozenset(
+    ("check.ipd-draft-ready-to-review", "check.ipd-lint-diagnostic")
+)
+
+
 def _rules(drift, prefix="check.ipd-") -> list:
-    # This helper targets the cross-IPD DEPENDENCY rules. The agentadhere Phase 1 (IPD uisjns)
-    # advisory `check.ipd-draft-ready-to-review` shares the `check.ipd-` prefix but is a separate
-    # (draft-readiness) concern, so it is excluded here to keep these dependency assertions focused.
+    # This helper targets the cross-IPD DEPENDENCY rules only; see `_NON_DEPENDENCY_IPD_RULES` above
+    # for the prefix-sharing rules it deliberately excludes and why.
     return [
         d.rule
         for d in drift
-        if d.rule.startswith(prefix) and d.rule != "check.ipd-draft-ready-to-review"
+        if d.rule.startswith(prefix) and d.rule not in _NON_DEPENDENCY_IPD_RULES
     ]
 
 

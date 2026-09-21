@@ -725,6 +725,15 @@ class ReadinessAttestationTests(unittest.TestCase):
 
         This is the check that would have caught the original mistake at commit time, and it keeps
         catching it for any plan a future session authors.
+
+        THE CHECKER NOW COVERS THIS RULE TOO, so do not read this test as the only line of defense
+        (lintreach `k9awrq`). `aw check plans` runs the real `ipd_lint.lint_file` at the `author`
+        checkpoint over every pending plan and reports any `IPD-*` diagnostic, `IPD-M107` included,
+        under `check.ipd-lint-diagnostic`. This guard is deliberately KEPT rather than deleted as
+        redundant: it is cheap, it sweeps the WHOLE tracked tree (the checker is scoped to the pending
+        lane), and the sweep's rule is registered `info`, so it REPORTS without failing a gate while
+        this test FAILS. Deleting a passing corpus test because a checker now overlaps it is how
+        coverage silently narrows.
         """
         offenders = []
         for plan in sorted((REPO_ROOT / SOURCE_PLANS).rglob("*.ipd.md")):

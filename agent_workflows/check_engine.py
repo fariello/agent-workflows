@@ -1,5 +1,21 @@
 """Unified check engine: compose the existing per-type validators into one Drift list per record
-type. Pure (returns Drift, never prints). Consumed by the `aw check <type>` verb (awcmdsurf)."""
+type. Pure (returns Drift, never prints). Consumed by the `aw check <type>` verb (awcmdsurf).
+
+THE PLANS SWEEP RUNS THE WHOLE `IPD-*` LINT FAMILY, at the `author` CHECKPOINT ONLY (lintreach
+`k9awrq`). `check_content`'s plans branch calls :func:`check_ipd_lint_reach`, which calls the REAL
+`ipd_lint.lint_file`, so `aw check` reports what `aw ipd lint` would refuse and the two surfaces cannot
+drift apart in what they consider conformant. It is reported under ONE umbrella code,
+`check.ipd-lint-diagnostic`, carrying the underlying `IPD-*` code and message in its detail, and it is
+registered `info` so it cannot move an exit code (see that registration for why `warning` would NOT
+have been advisory here, and the plan's OQ-04 for the open question of whether it should ever block).
+
+`author` IS THE ONLY DEFENSIBLE CHECKPOINT FOR A SWEEP, and the reason is recorded here because the
+obvious "improvement" is to make it configurable or to default it to the stricter value. Measured at
+HEAD `cd2e6adb`: `author` -> 0 diagnostics across 702 plans, while `pre-transition` -> 1199 across all
+76 pending plans, 1196 of them `IPD-S404` ("not 'performed' at pre-transition"), which is the CORRECT
+state of any plan that has not executed yet. Sweeping `pre-transition` would therefore mass-fail the
+tree for being in its normal condition. `aw ipd lint` and `aw ipd begin` already apply that stricter
+phase where it belongs, to ONE plan that is actually transitioning."""
 
 from __future__ import annotations
 
@@ -300,6 +316,49 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     # is GUIDANCE and only detectable (placeholder-free draft), so info-severity + heuristic.
     "check.ipd-draft-ready-to-review": RuleSpec(
         "info", ASSURANCE_GUIDANCE, DET_HEURISTIC, "I-12"
+    ),
+    # lintreach Order 01 (`k9awrq`) E-02: the UMBRELLA code under which the whole `IPD-*` lint family
+    # becomes reachable from the repo-wide sweep. Before this, `check_engine` called `ipd_lint.parse`
+    # in three places but NEVER `lint_file`, so every `IPD-*` diagnostic was invisible to `aw check`
+    # and to CI: a defect `aw ipd lint` REFUSES could be committed and would sit in the tree until
+    # someone linted that exact file or tried to execute it.
+    #
+    # ONE UMBRELLA CODE, NOT ONE PER `IPD-*` DIAGNOSTIC, and the reason is OWNERSHIP rather than taste
+    # (plan OQ-01, resolved). The `IPD-*` family is large, is owned and versioned by
+    # `ipd_lint`/`ipd_schema`, and GROWS whenever a lint rule is added. Registering each code here
+    # would mean every new lint rule needs a second registration in a different module, and a missed
+    # one would fall through to `_DEFAULT_RULESPEC` and emit a code carrying NO severity contract. The
+    # underlying `IPD-*` code and message travel in the finding's DETAIL, and the `recovery` command is
+    # the per-file verb that prints all of them, so nothing an operator needs is lost.
+    #
+    # `info`, AND THAT IS A MEASUREMENT, NOT THE PLAN'S LITERAL WORD (DECISION 02-k9awrq-D1). The plan
+    # says "advisory" and spells it `warning`, while its own F-14 records that `warning` DOES drive a
+    # nonzero findings exit, and its V-02 requires the severity be proven by MEASURING the exit code
+    # rather than by choosing a word. Driving `artifact_core.drift_exit_code` directly: `error` -> 1,
+    # `warning` -> 1, `info` -> 0, empty -> 1. So `info` is the UNIQUE severity that is advisory in
+    # BEHAVIOR, and `warning` would have satisfied the spelling while failing the requirement.
+    #
+    # WHY ADVISORY AT ALL, since the corpus is clean at `author` today (0 diagnostics across 702 plans,
+    # measured at HEAD `cd2e6adb`) and a clean corpus would tolerate `error`. Because clean is NOT a
+    # STABLE property, which the plan's OQ-04 states and leaves OPEN for the maintainer: `IPD-Q501`
+    # fires on any plan with an unanswered `Blocking: yes` question, and this repository deliberately
+    # produces those, so the count returns to nonzero every time a reviewer correctly escalates and the
+    # maintainer has not yet answered. Review measured exactly that state (16 findings across 10
+    # plans). A blocking tree-wide rule therefore makes EVERY agent's commit depend on maintainer
+    # answer latency, which is the outcome `ipd_lint.check_open_questions` records the maintainer
+    # REJECTING on 2026-09-08: the wider rule "would have forced an agent to edit other agents'
+    # in-flight plans to get its own commit through". Promotion is OQ-04's to decide, and is a
+    # one-token change to this entry.
+    #
+    # I-05 ("IPD finalize requires validation"), whose catalog control column already names
+    # `aw ipd lint` conformance as the structural gate: the codes this rule carries are exactly that
+    # structural/state family. NOT I-03 (lifecycle-status authority, which `check.status-untooled` and
+    # `check.lifecycle-transition-invalid` own) and NOT I-09 (filename grammar).
+    #
+    # Deterministic: it is the SAME `ipd_lint.lint_file` call the per-file verb makes, with no rule
+    # re-implemented and no inference.
+    "check.ipd-lint-diagnostic": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-05"
     ),
     # IPD sk7ggr E-06: a per-type `aw check <type>` does NOT run the cross-tree collision scan, so a
     # clean per-type report must not be read as "collision-clean". This rule SAYS so on exactly those
@@ -908,6 +967,21 @@ def check_content(
         try:
             drift.extend(
                 check_durable_carrier(repo_root, include_untracked=include_untracked)
+            )
+        except Exception:
+            pass
+        # lintreach Order 01 (`k9awrq`) E-02: run the REAL `ipd_lint.lint_file` at the `author`
+        # checkpoint so the whole `IPD-*` family is reachable from the tree-wide verdict. SAME
+        # PLACEMENT as every plans-scoped neighbour above and for the same documented reason
+        # (`check_ipd_dependencies`' "every dependency source is an IPD" precedent): the concern is
+        # keyed off the PLAN, so it belongs in the plans-type content path, reached by BOTH
+        # `aw check plans` and the `aw check all` fan-out exactly once, and deliberately NOT in the
+        # collisions-only cross-tree sweep. Advisory (`info`), so it cannot move any exit code. Runs
+        # LAST among the plans rules so its added cost is attributable in a profile. Fail-isolated in
+        # the same shape as every neighbour here.
+        try:
+            drift.extend(
+                check_ipd_lint_reach(repo_root, include_untracked=include_untracked)
             )
         except Exception:
             pass
@@ -5096,4 +5170,158 @@ def check_durable_carrier(
                 carrier_index=carrier_index,
             )
         )
+    return drift
+
+
+# ======================================================================================
+# lintreach Order 01 (`k9awrq`): make the `IPD-*` lint family REACHABLE from the repo-wide sweep.
+#
+# THE DEFECT THIS CLOSES, measured rather than assumed. Before this, `check_engine` called
+# `ipd_lint.parse` in three places but NEVER `ipd_lint.lint_file`, so the entire `IPD-*` diagnostic
+# family was invisible to `aw check` and therefore to CI. The reproduction: a scaffolded plan given a
+# fabricated `- Readiness: go-pending-approval` with no review verdict in its `## Workflow history`
+# yields `IPD-M107` from `aw ipd lint --phase author`, while `aw check plans --agent` returned ZERO
+# diagnostics naming that file. So a defect the per-file verb REFUSES could be committed and would sit
+# in the tree until someone linted that exact file or tried to execute it.
+#
+# WHY IT MATTERS BEYOND ONE RULE: `aw check` is what an agent and CI are pointed at for a TREE-WIDE
+# verdict, and `aw attention --check` is the fail-closed gate. A rule reachable only from a per-file
+# verb fires only when someone ALREADY suspects that file. `IPD-M107` in particular guards a field the
+# auto-approve predicate reads FIRST, so the sweep's blindness sat directly upstream of the gate that
+# promotes a plan to `approved`.
+#
+# THE SHAPE IS `check_durable_carrier`'s, MIRRORED AND NOT REINVENTED (see :func:`check_durable_carrier`
+# directly above): same pending-lane scope with the same recorded rationale, same one-Drift-per-plan
+# enumeration, same fail-isolated call site in `check_content`. The difference is DIRECTION, and it is
+# the point of this whole change: `evaluate_durable_carrier` is a check_engine predicate that `ipd_lint`
+# calls, whereas this is an `ipd_lint` entry point that check_engine calls. Both give the same property
+# `evaluate_review_finding_escalation`'s docstring states as its design intent - the sweep and the
+# checkpoint gate cannot drift apart - because there is exactly ONE implementation of the rules.
+#
+# NOTHING IS RE-IMPLEMENTED HERE, deliberately and as the plan's central constraint. Re-deriving even
+# one `IPD-*` rule inside this module would recreate the very drift this change closes. The function
+# below contains no rule logic at all: it iterates, calls `lint_file`, and formats.
+# ======================================================================================
+
+_IPD_LINT_RULE = "check.ipd-lint-diagnostic"
+
+#: The checkpoint the sweep lints at, and the ONLY defensible one. `author` is the phase valid for an
+#: arbitrary pending plan. `pre-transition` was measured CATASTROPHIC for a sweep: 1199 diagnostics
+#: across all 76 pending plans at HEAD `cd2e6adb` (1196 of them `IPD-S404`, "not 'performed' at
+#: pre-transition"), which is the CORRECT state of any plan that has not executed yet, so sweeping it
+#: would mass-fail the tree for being in its normal condition. Review independently measured the same
+#: shape (1850 across 104). DO NOT make this configurable and DO NOT default it to the stricter value:
+#: a future reader "improving" the sweep that way reintroduces exactly that mass failure, which is why
+#: the number is recorded here beside the constant rather than only in the plan.
+_IPD_LINT_SWEEP_CHECKPOINT = "author"
+
+#: How many underlying diagnostics one plan's finding enumerates before it summarizes the rest.
+#: Mirrors `evaluate_durable_carrier`'s DECISION 07-rnkqrc-D4 (five, then "(and N more)"), for the same
+#: reason: a per-diagnostic Drift would let one badly-formed plan add dozens of lines to every
+#: `aw check plans`. The full list always remains one command away via the `recovery` field.
+_IPD_LINT_SHOWN = 5
+
+
+def evaluate_ipd_lint_diagnostics(
+    repo_root: Path,
+    *,
+    plan_path: Path,
+    checkpoint: str = _IPD_LINT_SWEEP_CHECKPOINT,
+) -> List[_core.Drift]:
+    """Run the REAL `ipd_lint.lint_file` on one plan and return at most one umbrella Drift.
+
+    This is the whole of the reachability change: `aw ipd lint` (per file) and `aw check plans` (via
+    :func:`check_ipd_lint_reach`) now run the SAME `lint_file`, so the sweep cannot report a different
+    verdict from the checkpoint gate. No `IPD-*` rule is re-implemented here; this function iterates
+    and formats only.
+
+    `ipd_lint` is imported INSIDE the function body, not at module scope, and that is required rather
+    than stylistic: `ipd_lint.lint_file` already imports THIS module lazily (for the dependency
+    RESOLUTION checks and the review-escalation/durable-carrier merges), so a module-level import here
+    would close an import cycle. The established precedent for this exact pattern in this file is
+    `check_scope_drift`, which imports `ipd_lifecycle` in its body for the same reason.
+
+    ADVISORY BY MEASUREMENT: the emitted code is registered `info` in `RULE_REGISTRY`, the only
+    severity `artifact_core.drift_exit_code` exempts, so this cannot move any caller's exit code. See
+    that registration for why `warning` would NOT have been advisory.
+
+    Never raises: a plan that cannot be read or linted yields no finding rather than breaking the
+    sweep, matching every neighbouring plans-type rule.
+    """
+    drift: List[_core.Drift] = []
+    try:
+        from agent_workflows import ipd_lint as _lint
+
+        result = _lint.lint_file(plan_path, checkpoint=checkpoint)
+    except Exception:
+        return drift
+    diags = list(getattr(result, "diagnostics", None) or [])
+    if not diags:
+        return drift
+    shown = diags[:_IPD_LINT_SHOWN]
+    detail = "{0} lint diagnostic(s) at the `{1}` checkpoint: {2}{3}".format(
+        len(diags),
+        checkpoint,
+        "; ".join("{0} {1}".format(d.code, d.message) for d in shown),
+        ""
+        if len(diags) == len(shown)
+        else " (and {0} more)".format(len(diags) - len(shown)),
+    )
+    codes = ", ".join(sorted({d.code for d in diags}))
+    drift.append(
+        enrich_drift(
+            _core.Drift(str(plan_path), _IPD_LINT_RULE, detail),
+            observed="`aw ipd lint --phase {0}` reports {1} diagnostic(s) ({2})".format(
+                checkpoint, len(diags), codes
+            ),
+            required=(
+                "a plan must satisfy the `IPD-*` structural/state contract that "
+                "`aw ipd lint` enforces, so a defect the per-file verb refuses cannot sit "
+                "committed unnoticed"
+            ),
+            recovery="aw ipd lint {0} --phase {1}".format(plan_path, checkpoint),
+        )
+    )
+    return drift
+
+
+def check_ipd_lint_reach(
+    repo_root: Path, include_untracked: bool = False
+) -> List[_core.Drift]:
+    """Sweep every PENDING-lane plan through the real `ipd_lint.lint_file` at the `author` checkpoint.
+
+    PENDING-LANE SCOPE, AND IT IS WHAT MAKES `aw check` AND `aw doctor` AGREE (plan OQ-02/E-03,
+    DECISION 02-k9awrq-D3). The hazard OQ-02 names is measured and specific: `_iter_type_files` skips
+    retired paths unless `include_retired=True`, `executed/` counts as retired, and `doctor.py` passes
+    `include_retired=True` UNCONDITIONALLY while `check_engine.check_types` defaults it to False -
+    which already produced a real zero-versus-one disagreement between the two surfaces on the
+    `check.id6-collision` rule. The `"pending" not in p.parts` guard below does not consult
+    `include_retired` at all, so the two surfaces traverse an IDENTICAL set BY CONSTRUCTION rather than
+    by coincidence, and no pending plan is excluded by the retired filter either (measured: 0 of 76
+    pending plans are `is_retired`).
+
+    IT ALSO COSTS NOTHING IN COVERAGE, which is why the constraint is free to satisfy.
+    `ipd_lint.lint_text` returns `DISPOSITION_LEGACY` with NO diagnostics for any plan in a terminal
+    directory unless the checkpoint is `post-transition` (see `_is_terminal_dir`), so linting the
+    terminal corpus at `author` is guaranteed empty: measured at HEAD `cd2e6adb`, 626 of 702 plans
+    returned `legacy/not evaluated`. Sweeping them would buy 626 file reads and 626 parses for a
+    result that cannot contain a finding. The motivating defect (a fabricated `- Readiness:` on a plan
+    heading for approval) lives in the pending lane by definition.
+
+    This is the same scope, with the same reasoning, that every other pending-scoped plans rule in this
+    module already uses: :func:`check_durable_carrier`, :func:`check_review_finding_unescalated`,
+    ``check_lifecycle_transitions``, and the rule behind `check.review-decision-unescalated`.
+
+    NOTE ON CITING THAT LAST ONE BY RULE ID RATHER THAN BY SYMBOL, since it looks inconsistent: its
+    test (`tests/test_review_decisions.py`) asserts wiring-exactly-once by COUNTING that symbol's
+    occurrences in this file's source text, so a prose mention here would read as a second call site and
+    fail it. That brittleness is a known and documented pattern in this repository (see
+    `tests/test_durable_capture.py`, which removed its own two `inspect.getsource` pins for the same
+    reason); citing the rule id sidesteps it without weakening anyone's test.
+    """
+    drift: List[_core.Drift] = []
+    for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
+        if "pending" not in p.parts:
+            continue
+        drift.extend(evaluate_ipd_lint_diagnostics(repo_root, plan_path=p))
     return drift
