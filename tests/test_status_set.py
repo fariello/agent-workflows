@@ -135,6 +135,39 @@ Test spec goal.
         p.write_text(content, encoding="utf-8")
         return p
 
+    def create_research(
+        self, filename: str, id6: str, set_id: str, status: str = "active"
+    ) -> Path:
+        """A research doc, needed because setidfix `w2y5ac`'s measured corpus shape spans research.
+
+        Research carries YAML front matter rather than the `- Key: value` bullet dialect the other
+        types use (`selectors.py` documents the split; 0 of 103 research files carry a `- Id:`
+        bullet), so this helper must not be modelled on `create_plan`.
+        """
+        p = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "research"
+            / "reference"
+            / "202609"
+            / filename
+        )
+        p.parent.mkdir(parents=True, exist_ok=True)
+        content = f"""---
+id: {id6}
+status: {status}
+set: {set_id}
+---
+
+# Research: Test report {id6}
+
+## Summary
+Test research report.
+"""
+        p.write_text(content, encoding="utf-8")
+        return p
+
 
 class TestStatusSetCommands(StatusSetTestBase):
     def test_set_plan_status_by_id6(self):
@@ -1648,6 +1681,336 @@ class SharedLifecycleRenderingTests(StatusSetTestBase):
         self.assertNotIn("\033", out, f"ANSI leaked with color off: {out!r}")
         self.assertIn("\u25d4", out, f"the glyph vanished with color off: {out!r}")
         self.assertIn("to-review", out, f"the native word vanished: {out!r}")
+
+
+class SharedSetidCrossTypeResolutionTests(StatusSetTestBase):
+    """setidfix `w2y5ac` (spec `2lcqno` N1/N3/N4): a setid is a SHARED cross-type TOPIC label.
+
+    THE CORPUS SHAPE IS THE MEASURED ONE, NOT A SIMPLIFIED ONE, because the simplified two-type
+    version is what let a wrong diagnosis survive review: the fixture below carries one setid on
+    plans AND a backlog item AND a research doc, mirroring the real `agentadhere` topic (7 plans +
+    1 backlog + 5 research files).
+
+    THE RESEARCH MEMBER IS PRESENT IN THE CORPUS AND DELIBERATELY ABSENT FROM THE RESOLUTION, and
+    that is a MEASURED property of HEAD rather than a shortcut in this fixture. Research docs carry
+    YAML front matter (`id:`/`status:`/`set:`), while `status_set.read_artifact_record` reads the
+    BULLET dialect (`- Set:`), so a research doc's `set_id` parses as None and the setid rules never
+    fire for it; a research file matches such a token only by the last-resort FILENAME substring
+    rule, which the setid fast path takes precedence over. Measured at HEAD on the real tree:
+    `match_selector('agentadhere')` returns 8 records across `['backlog', 'plans']`, while the five
+    `agentadhere` research files resolve only as `kind='substring'`. That dialect gap is a separate
+    defect owned by approved plan `xo3244` (Set `selfmdialect`); this fixture keeps the research
+    member so the shape is the real one and asserts the CURRENT resolution honestly, and it will
+    surface (not silently absorb) the change when `xo3244` lands.
+
+    FOUR PROPERTIES ARE PINNED HERE, and nothing pinned any of them before:
+      1. scoped SETID resolution narrows to the requested type;
+      2. a scoped verb handed a FOREIGN-TYPE PATH refuses (the one case scoped resolution does NOT
+         filter, and the only guard on a cross-type write);
+      3. the UNTYPED verb reports candidates BY TYPE and writes nothing when one token spans types;
+      4. a status VALID FOR SEVERAL matched types gets the same deliberate refusal rather than a
+         silent multi-type write.
+    """
+
+    SETID = "shartop"
+
+    def _build_shared_topic(self):
+        """One setid across plans + backlog + research (the measured `agentadhere` shape)."""
+        plan1 = self.create_plan(
+            "20260921-shartop-01-sh0001-topic-plan-one.ipd.md",
+            "sh0001",
+            self.SETID,
+            "reviewed",
+        )
+        plan2 = self.create_plan(
+            "20260921-shartop-02-sh0002-topic-plan-two.ipd.md",
+            "sh0002",
+            self.SETID,
+            "reviewed",
+        )
+        item = self.create_backlog(
+            "20260921-shartop-01-sh0003-topic-item.backlog.md",
+            "sh0003",
+            self.SETID,
+            "open",
+        )
+        report = self.create_research(
+            "20260921-shartop-01-sh0004-topic-report.research-report.md",
+            "sh0004",
+            self.SETID,
+            "active",
+        )
+        return plan1, plan2, item, report
+
+    def _research_in_corpus(self):
+        """The research members the inventory sees, regardless of whether a setid resolves to them."""
+        from agent_workflows import status_set
+
+        return [
+            r
+            for r in status_set.inventory_all_artifacts(
+                self.repo_root, scoped_type="research"
+            )
+            if r.record_type == "research"
+        ]
+
+    # ---------------------------------------------------------------------------------- E-01
+
+    def test_scoped_setid_resolution_returns_only_the_scoped_type(self):
+        """E-01: scoped SETID resolution narrows to the requested type.
+
+        SCOPE OF THIS PIN, STATED PRECISELY BECAUSE OVER-READING IT CAUSED REAL HARM: this asserts
+        the SETID selector kind only. It does NOT prove scoped resolution is type-safe in general.
+        The DIRECT-PATH kind is deliberately EXEMPT from the type narrowing (`selectors.resolve`'s
+        first precedence rule matches an existing file regardless of the type requested, and the
+        record's type is then read off the real path), and that exemption is pinned separately by
+        `test_scoped_verb_refuses_a_foreign_type_path_and_writes_nothing`. Reading this test as
+        "scoped resolution filters by type" is the over-generalization that produced an instruction
+        to delete the `Type mismatch` refusal as dead code; it is not dead.
+
+        Without this test, a change to `match_selector`'s `record_types` narrowing would silently
+        reintroduce the original cross-type failure with nothing failing.
+        """
+        from agent_workflows import status_set
+
+        self._build_shared_topic()
+        root = self.repo_root
+
+        unscoped = status_set.match_selector(
+            self.SETID,
+            status_set.inventory_all_artifacts(root, scoped_type=None),
+            root,
+            scoped_type=None,
+        )
+        self.assertEqual(
+            sorted({r.record_type for r in unscoped}),
+            ["backlog", "plans"],
+            "the fixture no longer spans the types the measured `agentadhere` case resolves to. At "
+            "HEAD a setid resolves across plans and backlog but NOT research (the YAML-versus-bullet "
+            "front-matter dialect gap owned by plan `xo3244`), so this is the honest shape. If "
+            "research now appears here, `xo3244` has landed: that is CORRECT, and the fix is to add "
+            f"'research' to this expectation: {[(r.record_type, r.id6) for r in unscoped]}",
+        )
+        self.assertTrue(
+            any(r.record_type == "research" for r in self._research_in_corpus()),
+            "the research member vanished from the CORPUS, so the fixture no longer mirrors the "
+            "measured three-type topic shape even though resolution reaches only two types",
+        )
+
+        # PASS THE FULL, UNNARROWED INVENTORY ON PURPOSE. Handing in
+        # `inventory_all_artifacts(scoped_type="plans")` would pre-filter the candidates and the
+        # assertion below would hold even with `match_selector`'s OWN narrowing removed, i.e. the pin
+        # would pass vacuously (verified: with the narrowing mutated out, the pre-filtered form still
+        # passed). `scoped_type` must be the ONLY thing doing the filtering here.
+        scoped = status_set.match_selector(
+            self.SETID,
+            status_set.inventory_all_artifacts(root, scoped_type=None),
+            root,
+            scoped_type="plans",
+        )
+        self.assertEqual(
+            sorted({r.record_type for r in scoped}),
+            ["plans"],
+            "scoped SETID resolution stopped filtering by type, which is the exact defect spec "
+            f"`2lcqno` N3 requires to stay fixed: {[(r.record_type, r.id6) for r in scoped]}",
+        )
+        self.assertEqual(
+            sorted(r.id6 or "" for r in scoped),
+            ["sh0001", "sh0002"],
+            "scoped resolution must return the whole within-type Set (IPD `laykok` E-07), so both "
+            "plans and only the plans",
+        )
+
+    # ---------------------------------------------------------------------------------- E-02
+
+    def test_scoped_verb_refuses_a_foreign_type_path_and_writes_nothing(self):
+        """E-02: the `Type mismatch` refusal is LIVE, and this is the test that pins it.
+
+        WHY IT IS REACHABLE at all, given that `match_selector` pre-filters by `scoped_type`: the
+        pre-filter narrows which types the RESOLVER is QUERIED for, while the direct-PATH selector
+        kind matches an existing file regardless. So `aw specs set <status> <a plan path>` resolves a
+        `plans` record under a `specs`-scoped verb, and this refusal is the ONLY thing between it and
+        a cross-type write.
+
+        WHAT DELETING THE BRANCH WAS MEASURED TO PERMIT: the same command SUCCEEDING, writing the
+        PLAN to `approved` AND appending a forged `- ... approved (aw set, --by-human): ...` line to
+        that plan's own history, i.e. a machine-authored human-approval attestation. The whole suite
+        was green with the branch removed, which is why this pin exists.
+        """
+        plan = self.create_plan(
+            "20260921-fpath-01-fp0001-foreign-path-plan.ipd.md",
+            "fp0001",
+            "fpath",
+            "reviewed",
+        )
+        before = plan.read_text(encoding="utf-8")
+
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                [
+                    "specs",
+                    "set",
+                    "approved",
+                    str(plan),
+                    "--yes",
+                    "--by-human",
+                    "--message",
+                    "cross-type write attempt",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(
+            rc,
+            2,
+            "a type-scoped verb handed a FOREIGN-TYPE path must refuse at exit 2. If this now "
+            "exits 0, the `Type mismatch` guard in `run_set_command` was removed and a cross-type "
+            f"write is possible: {buf.getvalue()!r}",
+        )
+        self.assertIn("Type mismatch", buf.getvalue())
+        self.assertEqual(
+            plan.read_text(encoding="utf-8"),
+            before,
+            "the plan was MODIFIED by a `specs`-scoped verb. That is the cross-type write plus "
+            "forged `--by-human` attestation this guard exists to prevent.",
+        )
+        self.assertNotIn("--by-human", plan.read_text(encoding="utf-8"))
+
+    # ---------------------------------------------------------------------------------- E-03
+
+    def test_untyped_setter_reports_candidates_by_type_instead_of_a_foreign_vocabulary(
+        self,
+    ):
+        """E-03: the untyped verb reports per-type candidates rather than dying on a foreign type.
+
+        BEFORE (measured): `aw set approved <shared setid>` reached the per-record
+        `validate_transition_allowed` loop and failed on whichever artifact's vocabulary rejected the
+        status, printing `Status 'approved' is not valid for backlog (valid: [...])` when the
+        operator plainly meant the plan Set. Spec `2lcqno` N4 requires reporting the candidates BY
+        TYPE with a way to disambiguate, and forbids guessing.
+
+        The recommended command must be the SHIPPED leading-type-token spelling, not a new flag.
+        """
+        plan1, plan2, item, report = self._build_shared_topic()
+        snapshot = {
+            p: p.read_text(encoding="utf-8") for p in (plan1, plan2, item, report)
+        }
+
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                [
+                    "set",
+                    "approved",
+                    self.SETID,
+                    "--yes",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        out = buf.getvalue()
+        self.assertEqual(rc, 2, f"the untyped multi-type case must refuse: {out!r}")
+        self.assertNotIn(
+            "is not valid for backlog",
+            out,
+            "the untyped setter still reports a FOREIGN type's status vocabulary, which is the "
+            f"measured defect: {out!r}",
+        )
+        # Only the types the setid actually RESOLVES to are reported; research is in the corpus but
+        # not in the resolution at HEAD (the `xo3244` dialect gap documented on this class).
+        for rtype in ("backlog", "plans"):
+            self.assertIn(
+                f"aw set {rtype} approved {self.SETID}",
+                out,
+                f"the report must print a runnable disambiguating command for {rtype}: {out!r}",
+            )
+        self.assertIn("2 artifact(s)", out, f"per-type counts are missing: {out!r}")
+        for p, text in snapshot.items():
+            self.assertEqual(
+                p.read_text(encoding="utf-8"),
+                text,
+                f"a refusal wrote to {p.name}; the refusal must precede every change",
+            )
+
+    def test_the_printed_disambiguating_command_resolves_within_one_type(self):
+        """E-03: the command the refusal prints must actually work (and needs no new flag)."""
+        plan1, plan2, item, report = self._build_shared_topic()
+        rc = cli.main(
+            [
+                "set",
+                "plans",
+                "approved",
+                self.SETID,
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("- Status: approved", plan1.read_text(encoding="utf-8"))
+        self.assertIn("- Status: approved", plan2.read_text(encoding="utf-8"))
+        self.assertIn("- Status: open", item.read_text(encoding="utf-8"))
+        self.assertIn("status: active", report.read_text(encoding="utf-8"))
+
+    # ---------------------------------------------------------------------------------- E-04
+
+    def test_a_status_valid_for_two_matched_types_refuses_instead_of_writing_both(self):
+        """E-04: the multi-type-VALID case, which is the WIDER hole and was silent before.
+
+        MEASURED BEFORE: 15 statuses in `TYPE_STATUSES` are valid for two or more types, and
+        `aw set to-review <a setid shared by a plan and a spec> --yes` transitioned BOTH at exit 0,
+        printing `plan ... draft -> to-review` and `spec ... draft -> to-review`. There is no
+        vocabulary error to stop on in this case, so it was an unannounced cross-type write, which
+        N4 forbids ("MUST NOT guess").
+
+        The chosen outcome is REFUSE-AND-REQUIRE-A-TYPE, sharing E-03's one code path. Confirmation
+        was the rejected alternative: plan `4bc1nd` (Set `setterguard`, carrying backlog `f5pttg`)
+        owns confirmation-before-write for every setter, and implementing it here too would be a
+        second implementation of that fix.
+        """
+        plan = self.create_plan(
+            "20260921-bothok-01-bo0001-both-plan.ipd.md", "bo0001", "bothok", "draft"
+        )
+        spec = self.create_spec(
+            "20260921-bothok-01-bo0002-both-spec.spec.md", "bo0002", "bothok", "draft"
+        )
+
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                ["set", "to-review", "bothok", "--yes", "--dir", str(self.repo_root)]
+            )
+        out = buf.getvalue()
+        self.assertEqual(
+            rc,
+            2,
+            "a status valid for BOTH matched types silently wrote both, which is the wider hole "
+            f"E-04 exists to close: {out!r}",
+        )
+        self.assertIn("aw set plans to-review bothok", out)
+        self.assertIn("aw set specs to-review bothok", out)
+        self.assertIn("- Status: draft", plan.read_text(encoding="utf-8"))
+        self.assertIn("- Status: draft", spec.read_text(encoding="utf-8"))
+
+    def test_within_type_setid_fanout_still_acts_on_the_whole_set(self):
+        """E-04 boundary: only CROSS-type fan-out is refused; within-type fan-out is deliberate.
+
+        IPD `laykok` E-07 made a bare setid transition a whole Set with no `--force`. Conflating that
+        with the cross-type case would break every bulk Set transition, so it is pinned here.
+        """
+        plan1 = self.create_plan(
+            "20260921-onlyplans-01-op0001-a.ipd.md", "op0001", "onlyplans", "draft"
+        )
+        plan2 = self.create_plan(
+            "20260921-onlyplans-02-op0002-b.ipd.md", "op0002", "onlyplans", "draft"
+        )
+        rc = cli.main(
+            ["set", "to-review", "onlyplans", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("- Status: to-review", plan1.read_text(encoding="utf-8"))
+        self.assertIn("- Status: to-review", plan2.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

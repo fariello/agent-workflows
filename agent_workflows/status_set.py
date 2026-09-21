@@ -311,6 +311,15 @@ def match_selector(
     resolution (path/id6/setid/substring). The resolved paths are mapped back to `ArtifactRecord`s
     (from ``all_records`` when known, else read on demand) so the caller's record-based flow is
     unchanged.
+
+    ``scoped_type`` NARROWS EVERY SELECTOR KIND EXCEPT THE DIRECT PATH (setidfix `w2y5ac` E-01/E-02).
+    For id6/setid/status/stem/substring it restricts ``record_types`` to the one canonical type, so a
+    scoped call cannot surface a foreign type. For a direct PATH it CANNOT: ``selectors.resolve``'s
+    first precedence rule matches an existing file regardless of the type requested, and the record's
+    type is then read off the real path, so ``match_selector(<a plan path>, scoped_type="specs")``
+    legitimately returns a ``plans`` record. Callers that must not act across types therefore need
+    their own post-resolution type check; ``run_set_command``'s ``Type mismatch`` refusal is that
+    check, and it is the only guard on this case.
     """
     tok = selector.strip()
     if not tok:
@@ -1519,6 +1528,21 @@ def run_set_command(
                 )
                 return 2
 
+        # setidfix `w2y5ac` E-02: THIS REFUSAL IS LIVE AND LOAD-BEARING. DO NOT DELETE IT AS DEAD
+        # CODE. `match_selector` does narrow `record_types` to `scoped_type` (its `if scoped_type:`
+        # branch setting `record_types = (canonical,)`), so it is
+        # tempting to conclude a scoped call can never surface a foreign type and that this branch is
+        # unreachable. That conclusion is FALSE FOR ONE SELECTOR KIND: the pre-filter only narrows
+        # which types the RESOLVER is QUERIED for, while `selectors.resolve`'s FIRST precedence rule
+        # (direct PATH) matches an existing FILE regardless of the type it was asked about, after
+        # which `detect_artifact_type` reads the record's real type off the real path. MEASURED:
+        # `match_selector(<a plan path>, scoped_type="specs")` returns one match of type `plans`.
+        # So a type-scoped verb handed a foreign-type PATH reaches here, and this is the ONLY guard
+        # between it and a cross-type write. Deleting it was measured to let
+        # `aw specs set approved <a plan path> --yes --by-human` rewrite the PLAN to `approved` and
+        # append a forged `--by-human` human-approval attestation to that plan's own history. Pinned
+        # by `test_scoped_verb_refuses_a_foreign_type_path_and_writes_nothing`; if that test ever
+        # looks removable, re-read this comment first.
         if scoped_type_canonical:
             mismatches = [m for m in matches if m.record_type != scoped_type_canonical]
             if mismatches:
@@ -1528,6 +1552,56 @@ def run_set_command(
                     f"Type mismatch: selector '{tok}' resolved to artifact(s) of type {mismatch_types}, "
                     f"but command is scoped to '{scoped_type_canonical}'. Refusing before making changes.",
                 )
+                return 2
+
+        # setidfix `w2y5ac` E-03 + E-04, implementing spec `2lcqno` N1/N4: a setid is a SHARED
+        # cross-type TOPIC label, so ONE token routinely names artifacts of several types. On the
+        # UNTYPED verb (`aw set`, the only surface reached with `scoped_type=None`) that makes the
+        # operator's intent genuinely unknown, and BOTH previous behaviors were wrong:
+        #   * when the requested status was invalid for one matched type, the per-record
+        #     `validate_transition_allowed` loop below died on whichever foreign artifact it reached
+        #     first, reporting an unrelated type's vocabulary (measured: `aw set approved
+        #     agentadhere` naming a BACKLOG item's valid-status list when the operator plainly meant
+        #     the 7-plan Set);
+        #   * when the status was valid for SEVERAL matched types - the COMMON case, since 15
+        #     statuses in `TYPE_STATUSES` are valid for two or more types - it silently wrote ALL of
+        #     them (measured: `aw set to-review <setid shared by a plan and a spec> --yes` rewrote
+        #     both at exit 0). N4 forbids exactly that: report the CANDIDATES BY TYPE, never guess.
+        # SO WE REFUSE AND ASK FOR THE TYPE, with ONE code path covering both cases, and print the
+        # candidates grouped by type with a RUNNABLE disambiguating command for each.
+        # THE DISAMBIGUATING SPELLING ALREADY SHIPS: `run_set_command` accepts a LEADING TYPE TOKEN
+        # on the untyped verb (see the `canonical_type(first_tok)` adoption at the top of this
+        # function), so `aw set <type> <status> <selector>` resolves within one type today. DO NOT
+        # ADD A `--type` FLAG; it would be a second spelling for a shipped one.
+        # NOT OVERRIDABLE BY `--force`, on the id6-collision precedent above: `--force` means "yes,
+        # act on all the files this ONE type matched", and cross-type fan-out is a different
+        # question (which tree did you mean?) whose answer is a type scope. A confirmation flag was
+        # the considered alternative and was REJECTED here because plan `4bc1nd` (Set `setterguard`,
+        # carrying backlog `f5pttg`) OWNS the confirmation-before-write question for every setter;
+        # implementing confirmation here too would be a second implementation of that fix.
+        # WITHIN-TYPE setid fan-out is untouched and stays deliberate (IPD `laykok` E-07): this
+        # refusal fires only when the matched records span MORE THAN ONE type.
+        if scoped_type_canonical is None:
+            matched_types = sorted({m.record_type for m in matches})
+            if len(matched_types) > 1:
+                by_type: dict[str, list[ArtifactRecord]] = {}
+                for m in matches:
+                    by_type.setdefault(m.record_type, []).append(m)
+                width = max(len(t) for t in matched_types)
+                lines = [
+                    f"Selector '{tok}' names artifacts of {len(matched_types)} types "
+                    f"({', '.join(matched_types)}), so 'aw set' cannot tell which you meant. "
+                    "A setid is a shared cross-type topic label, not an identity; name the type "
+                    "you meant. Candidates by type:"
+                ]
+                for rtype in matched_types:
+                    n = len(by_type[rtype])
+                    lines.append(
+                        f"  {rtype.ljust(width)}  {n} artifact(s): "
+                        f"aw set {rtype} {target_status} {tok}"
+                    )
+                lines.append("Refusing before making changes; nothing was written.")
+                term.status("fail", "\n".join(lines))
                 return 2
 
         resolved_by_token[tok] = matches
