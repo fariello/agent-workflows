@@ -1567,16 +1567,27 @@ class RealRepositorySets(unittest.TestCase):
             "commitguard",
             False,
             rs.RETIRE_REFUSED_UNFINISHED_CHILDREN,
-            {"y9vpvv": "approved"},
+            {"y9vpvv": "approved", "2s0iym": "to-review"},
             (),
-            2,
-            {"approved", "executed"},
+            3,
+            {"approved", "executed", "to-review"},
             "THE UNFINISHED-CHILDREN REFUSAL, pinned against a Set that HAS one today. `commitguard` "
             "is the right carrier because its child table is FULLY AUTHORED, so a refusal here can "
             "ONLY be the unfinished-children rule and never the unauthored-rows rule that `runstop` "
             "pins, which keeps the two reasons independently tested. WHEN THIS GOES RED, re-point it "
             "at another Set with a real unfinished child rather than deleting it; `runnoop` "
-            "(`zz5yxq`) is the obvious successor",
+            "(`zz5yxq`) is the obvious successor. "
+            "RE-MEASURED 2026-09-20: a THIRD child (`2s0iym`, `to-review`) was AUTHORED, so the "
+            "unfinished map and the status set both grew and the child count went 2 -> 3. This is a "
+            "child APPEARING, not a child completing, which is exactly the `lanectn` history above "
+            "(a seventh child authored 2026-09-16 flipped that Set from eligible back to refused). "
+            "WHY THAT CHILD EXISTS is the same lesson too: parent `ao1rb7` carried an E-03 (a "
+            "cross-child honesty comparison of Order 01's shipped gate disclosures against Order "
+            "02's shipped contract sentences) that NO child covered, and retirement SKIPS the "
+            "pre-transition E/V checkpoint by design, so the ORCHESTRATOR COVERAGE GATE refused a "
+            "run rather than let that item be marked complete unperformed. The parent's own OQ-02 "
+            "had already named 'add an Order 03 child' as the fix. The refusal REASON is unchanged, "
+            "which is the property this row actually pins",
         ),
         (
             "runstop",
