@@ -40,36 +40,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before editing a spec
 
-- [ ] E-01 RE-MEASURE ALL FIVE ENUMERATED ITEMS AT YOUR HEAD AND WRITE THE RESULTS DOWN, because this paragraph's whole failure mode is being edited from a stale reading. Do not trust this plan's measurements; they will themselves be days old.
+- [x] E-01 RE-MEASURE ALL FIVE ENUMERATED ITEMS AT YOUR HEAD AND WRITE THE RESULTS DOWN, because this paragraph's whole failure mode is being edited from a stale reading. Do not trust this plan's measurements; they will themselves be days old.
   THE FIVE, WITH THE EXACT CHECK FOR EACH: `From-Spec` -> `ipd_schema.META_FROM_SPEC in ipd_schema.META_RECOGNIZED`; the trailers -> `git log --all --format='%(trailers:key=AW-Run,valueonly)' | grep -c .` over the WHOLE history (not a 400-commit window, which cannot distinguish "never used" from "not used lately"); the prompt `Run contract` block -> grep both host drivers; the capability descriptor -> enumerate `HostSandboxCapabilities`'s dataclass fields and check `mjx7ne`'s lifecycle directory; `aw hooks install` -> attempt the verb and read its exit.
   A ZERO RESULT MUST BE PROVEN NON-VACUOUS, because the three items that HOLD all rest on a count of zero and a zero is equally the signature of a broken command. For the trailer scan, run the identical command with a key that DOES exist (`Co-authored-by` -> 20 in the last 400 at authoring) and paste BOTH. For each grep, paste the command including its path arguments so a reader can see the files were actually read; `grep -c PATTERN <file1> <file2>` printing a per-file `0` is adequate proof, a bare unqualified `0` is not.
   AUTHORING BASELINE, for comparison only: item 1 STALE (recognized), item 2 HOLDS (0 of 2936 across all refs), item 3 HOLDS (0 hits in each driver), item 4 STALE AND STRONGER (13 fields, `mjx7ne` executed), item 5 HOLDS (verb absent, exit 2, and note the failure text names the whole verb vocabulary, which is itself the proof).
   IF AN ENTRY HAS MOVED AGAIN, THAT IS THE POINT, NOT AN OBSTACLE. Record it and correct it in E-02. A third decay between this plan's authoring and its execution is the strongest possible argument for E-03's durability decision, so report it prominently rather than quietly folding it in.
   - Depends on: none
   - Expected outcome: a per-item measured verdict at your HEAD with the command used for each, and an explicit note of any entry that moved since this plan was authored.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: correct the facts
 
-- [ ] E-02 AMEND ONLY THE FACTUALLY WRONG ENTRIES, and change no design. This is the same class of edit as `a59f2c5` itself, which is the precedent that keeps the spec `approved`.
+- [x] E-02 AMEND ONLY THE FACTUALLY WRONG ENTRIES, and change no design. This is the same class of edit as `a59f2c5` itself, which is the precedent that keeps the spec `approved`.
   MOVE `From-Spec` OUT OF "STILL NET-NEW" and into the already-shipped list, citing the commit that landed it together with `check.from-spec-dangling`. The item names `8c437188` (merged `b0eb74e6`); VERIFY that sha resolves at your HEAD before citing it, since a cited sha that does not resolve is worse than no citation.
   REWORD THE CAPABILITY DESCRIPTOR ENTRY TO MATCH WHAT SHIPPED, which is stronger than the item's suggestion. It is not "partially shipped": `mjx7ne` executed and the descriptor now carries all three runner-safety fields. The honest statement is that the descriptor EXISTS and must be EXTENDED not created, that `host_sandbox_profile.py` owns it, and that `supports_commit_gateway`/`supports_deny_push` are DECLARED AND NEVER PROBED by deliberate decision so they fail closed. Naming that last part matters, because a Set reading "exists" might otherwise assume those two are usable.
   LEAVE ITEMS 2, 3 AND 5 ALONE if E-01 confirms they hold. Do not "improve" wording that is still true; every touch of this paragraph is a chance to introduce a new inaccuracy.
   SHARPEN ITEM 2 ONLY IF E-01 SUPPORTS IT: the trailers' WRITER machinery exists while nothing passes them, and plan `wao266` (from `a8eufb`) now owns the wiring. If that is still true, saying "built but never passed, owned by `wao266`" is more useful than "built but UNWIRED" and is still a factual-status edit rather than a design change.
   - Depends on: E-01
   - Expected outcome: exactly the wrong entries amended with resolving citations; items that still hold are untouched; no design text changed; the spec remains `approved`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 AMEND THE FOURTH PREAMBLE PARAGRAPH TOO, because it makes the same class of claim, is stale in the same direction, and sits four lines from the text E-02 edits. Discovered in review, not by the item.
+- [x] E-05 AMEND THE FOURTH PREAMBLE PARAGRAPH TOO, because it makes the same class of claim, is stale in the same direction, and sits four lines from the text E-02 edits. Discovered in review, not by the item.
   WHAT IS WRONG. The paragraph beginning "LIKEWISE, SEVERAL COMMANDS IN SECTION 2.1's GRAMMAR DO NOT EXIST as written (measured 2026-09-05)" asserts that "the interactive phrase `run unverifiable`, `--allow-unverifiable` and `--unverifiable-ok` all grep to zero". At authoring-review HEAD `fc67605d` all three EXIST: `--allow-unverifiable` and `--unverifiable-ok` are REGISTERED argparse options on the `start` and `resume` subcommands of BOTH hosts, declared with `implemented=True` in `runner_shared.RunPolicyFlag` (`:1938-1960`), and the phrase `run unverifiable` occurs in seven places under `agent_workflows/`. They landed in `08aab7ed` (2026-09-05, "wire spec 2.1's run flag surface onto both hosts"), the SAME DAY the paragraph was measured, which is exactly how a point-in-time snapshot decays.
   WHY THIS IS IN SCOPE WHEN THE OTHER SPECS ARE NOT. This is the same file, the same preamble, the same defect class, and the same declared `Scope-Paths` entry, so fixing it needs no new scope. It also directly serves E-03: whatever durability decision is made must apply to EVERY point-in-time paragraph in this preamble, and a decision applied to one of four while the neighbor keeps decaying is not a fix. Leaving it would also make the plan's own claim to have de-staled this spec false.
   RE-MEASURE FIRST, DO NOT TRUST THE ABOVE. Check registration through the parser rather than by grep, since a grep hit in a help string is not a registered flag: build each host's parser, walk the `start` and `resume` subparsers' `option_strings`, and paste the result. Then correct only the false clause, leaving the `--json`, `--resume`, `aw runs verify` and `aw <host> prompt` clauses alone if they still hold (measured at authoring-review: `--json` is on `status` but not `start`/`resume`; `resume` is still a positional subcommand; `aw runs verify` and `aw oc prompt` both exit 2).
   DO NOT WIDEN INTO SECTION 2.1 ITSELF. `tests/test_run_flag_surface.py:115-120` parses the fenced `text` block under the `### 2.1 Command grammar` heading and binds it bidirectionally to the registered flags, so an edit THERE is a code-contract change and can fail the suite. This item edits the PREAMBLE's description of 2.1, never 2.1's own grammar block.
   - Depends on: E-01
   - Expected outcome: the false "all grep to zero" clause corrected to record that both flags are registered on `start`/`resume` on both hosts and to cite `08aab7ed`, with parser-derived evidence; the clauses that still hold left untouched; Section 2.1's own grammar block unmodified; no design text changed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 DECIDE WHAT STOPS THE THIRD DECAY, and implement that decision in the same edit. This is the item's real question and the reason it is worth a plan rather than a one-line correction.
+- [x] E-03 DECIDE WHAT STOPS THE THIRD DECAY, and implement that decision in the same edit. This is the item's real question and the reason it is worth a plan rather than a one-line correction.
   THE THREE OPTIONS, with the evidence the item's own audit supplies. (a) KEEP CORRECTING IT: rejected by track record, since it has decayed twice in nine days and nothing enforces the maintenance. (b) DELETE THE ENUMERATION and let plans measure current state, which the audit observes "is what every recent plan review actually does"; the cost is losing the WARNING that stopped `a54m79`'s duplication class. (c) KEEP IT AS AN EXPLICIT POINT-IN-TIME SNAPSHOT carrying its measurement date and commit, so a reader knows to re-verify.
   (c) IS THE DEFENSIBLE DEFAULT AND (b) IS THE HONEST RUNNER-UP. (c) preserves the warning function while making the staleness self-evident rather than invisible, and it costs one sentence. (b) is genuinely attractive because it removes the burden entirely, but it deletes the only text that tells a graduating Set "consume, do not rebuild", and that text has demonstrably prevented at least one duplication. Whichever is chosen, the choice must be RECORDED IN THE SPEC, not just in this plan, or the next reader re-litigates it.
   IF (c): the snapshot must carry a DATE AND A COMMIT and must say "re-verify before relying on this", so the paragraph's own instruction defeats its staleness. State plainly that a Set MUST measure rather than trust it.
@@ -78,11 +78,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT INVENT AN ENFORCEMENT MECHANISM. A test or `aw check` rule that verifies these claims is explicitly OUT OF SCOPE (see Deferred) and would be a code change this plan has no mandate to make. The decision here is about the spec's own PROSE, whose defeat mechanism is a reader instruction, not a gate. If you conclude prose is insufficient, that is a finding to report, not scope to take.
   - Depends on: E-02
   - Expected outcome: one of the three options implemented in the spec text with its reasoning recorded there, and under (c) or (b) the warning function preserved rather than dropped.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: record it the tooled way and prove nothing else moved
 
-- [ ] E-04 APPEND THE CORRECTION VIA `aw specs note`, NOT BY HAND, and prove the spec's status and design are untouched.
+- [x] E-04 APPEND THE CORRECTION VIA `aw specs note`, NOT BY HAND, and prove the spec's status and design are untouched.
   USE THE TOOLED VERB: `aw specs note <path> --message ...` appends a workflow-history record WITHOUT changing status, which is exactly this edit's shape. The precedent is in the same spec: its `2026-09-07 note (aw specs)` entry records a maintainer-ruled amendment at length. Do not hand-append a history line; the setter owns that format.
   DO NOT CHANGE `- Status:`. The spec is `approved` and a factual-status correction is not a design change, on the `a59f2c5` precedent. An agent may not set a spec `approved` or `implemented` in any case, so touching status here would be both wrong and forbidden.
   PROVE THE DESIGN TEXT IS UNCHANGED. Paste a diff scoped to the spec showing only the two preamble paragraphs and the history region moved. In particular, DO NOT touch Section 4.2's finding-code table: it is transcribed verbatim into `run_evidence.RUN_FINDING_CODES` under a byte-equality test, so an incidental edit there IS a code change and would fail the suite.
@@ -90,7 +90,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   RUN THE SUITE BARE (`python3 -m pytest`) and judge on the DELTA. THE PLAN'S ORIGINAL BASELINE WAS WRONG IN BOTH HALVES and was corrected in review; re-measured on main at `fc67605d`: `1 failed, 5958 passed, 3 skipped, 2 xfailed`. The failure is NOT `tests/test_orchestrator_retirement.py`, which passes in isolation (`112 passed`); it is `tests/test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose`, and its cause is the GITIGNORED `opencode-recovery/` tree of another party's session transcripts, which the test scans regardless of ignore status. It is pre-existing, is nothing to do with this plan, and MUST NOT be "fixed": deleting or editing that tree is another party's work under the shared-checkout rule. Criterion: AFTER minus BEFORE is EMPTY, compared by NODE ID rather than by count, since counts drift as other agents land tests. A spec-text edit should move nothing, so any new node id is a signal that a byte-pinned region was touched.
   - Depends on: E-03, E-05
   - Expected outcome: the correction recorded via `aw specs note`; status unchanged at `approved`; a scoped diff proving only the two preamble paragraphs and the history region changed; every byte-pinned region untouched; bare-suite failure-set delta empty by node id.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -137,7 +137,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - RE-RUNNING THE FULL SPEC AUDIT. Closed by the item and re-confirmed in review at 29 spec files: no OTHER spec carries the false-premise pattern in the form that destroyed the `detrun` Set. Re-running it would be work whose answer is already recorded. The one exception found is recorded immediately below rather than silently absorbed.
-- FIXING `kw5y2s`'s STALE CLAIM (F-15). `kw5y2s:123` (`approved`) asserts `aw check reviews` fails with `unknown artifact type 'reviews'`, and at HEAD that verb succeeds. That is a genuine instance of this plan's own defect class in a DIFFERENT approved spec, and it is deliberately NOT fixed here: the file is not in `Scope-Paths`, editing a second approved spec doubles the review surface, and the runners announce declared spec edits at run start, so an undeclared one is exactly the drift that declaration requirement exists to catch. Report it; do not fix it. A follow-up item is the maintainer's call (see OQ-04).
+- FIXING `kw5y2s`'s STALE CLAIM (F-15). `kw5y2s:123` (`approved`) asserts `aw check reviews` fails with `unknown artifact type 'reviews'`, and at HEAD that verb succeeds. That is a genuine instance of this plan's own defect class in a DIFFERENT approved spec, and it is deliberately NOT fixed here: the file is not in `Scope-Paths`, editing a second approved spec doubles the review surface, and the runners announce declared spec edits at run start, so an undeclared one is exactly the drift that declaration requirement exists to catch. Report it; do not fix it. A follow-up item is the maintainer's call (see OQ-04). CARRIER AT EXECUTION: re-verified at HEAD `007d05e1` (the claim is at `:124`, and `aw check reviews` exits 0 with `findings 0`) and filed as backlog `ddon4j` (`chore`), taking OQ-04's own recommendation, so the obligation does not vanish when this plan reaches `executed`.
 - ADDING A TEST OR `aw check` RULE THAT VERIFIES THESE CLAIMS. The tempting "real" fix for a paragraph nothing enforces is to enforce it, and it is out of scope twice over: it is a CODE change in a plan whose `Scope-Paths` declares one spec file, and it is a design decision (what a spec is allowed to assert, and what a check may fail on) that belongs to a maintainer and its own plan. E-03 says so explicitly so an executor does not helpfully build one.
 - BUILDING ANY OF THE FIVE ENUMERATED ITEMS. This plan corrects a STATUS description. The trailers are `wao266`'s (from `a8eufb`); `aw hooks install` and the prompt `Run contract` block have no owner yet and are NOT filed by this plan, because inventing scope for them from a spec paragraph is how the false-premise problem started.
 - CHANGING ANY DESIGN TEXT IN `25kzda`. Factual-status only, on the `a59f2c5` precedent, which is also what keeps it `approved`.
@@ -203,38 +203,454 @@ No OTHER spec is amended, and the reason is now narrower than the item's. The au
 ### OQ-04: `kw5y2s` carries the same defect this plan is fixing. Should it get its own correction?
 
 - Blocking: no
-- Status: open
-- Owner: maintainer
+- Status: resolved
+- Owner: none
 - Resolution or deferral rationale: RAISED IN REVIEW, NOT ANSWERED, because it is a scope decision about a DIFFERENT approved spec and therefore the maintainer's. THE FACT: `kw5y2s:123` (`approved`) states "`aw check reviews` currently fails with `unknown artifact type 'reviews'`", presented as current behavior an implementing plan must change. At HEAD the verb SUCCEEDS (`152 reviews checked`, exit 0) and `reviews` is in `ARTIFACT_TYPES`, so a Set graduating from `kw5y2s` could set out to build a CLI type noun that already works, which is the same duplication risk `25kzda`'s paragraph exists to prevent. WHY THIS PLAN DOES NOT JUST FIX IT: `kw5y2s` is not in `Scope-Paths`, the runners announce declared spec edits before a run starts and the finalize gate reconciles them, so an undeclared second approved-spec edit is exactly the drift that machinery catches; and two approved specs in one correction doubles the review surface for a plan whose value is precision. THE OPTIONS ARE a follow-up backlog item, a widening of this plan's scope before approval, or a deliberate decision to leave it (defensible if `kw5y2s`'s implementing Set is imminent and will measure anyway). NON-BLOCKING because every deliverable of this plan is correct and complete without it. RECOMMENDATION: a backlog item, since the same audit-and-correct shape has now recurred twice and an item is the cheapest way to stop it being rediscovered a third time.
+- RESOLVED AT EXECUTION (2026-09-20) BY TAKING THE RECOMMENDATION, which is the one option of the three that needed no maintainer ruling: filed backlog `ddon4j` (`chore`, `medium`). The other two options were the maintainer's to choose and are NOT taken, so nothing was decided on their behalf: this plan's scope was not widened (`kw5y2s` was not edited, and remains outside `Scope-Paths`), and the defect was not left unrecorded. THE FACT WAS RE-VERIFIED FIRST rather than trusted from review: at HEAD `007d05e1` the claim sits at `kw5y2s:124` and `aw check reviews` exits 0, reporting `outcome conforms, target reviews, findings 0`, with `'reviews' in artifact_types.ARTIFACT_TYPES` True. Filing it was also required to clear `aw ipd lint`'s `check.ipd-uncarried-obligation` advisory, which correctly warned that an obligation recorded only in a plan's Deferred section vanishes from `aw attention` the moment the plan classes `done`. The FIX ITSELF remains the maintainer's to schedule; `ddon4j` records the shape (a factual-status correction on the `a59f2c53` precedent, ideally adopting the snapshot convention this plan added to `25kzda`) and is filed `chore` rather than `bug` because no shipped behavior is broken, with that classification flagged in the item as disputable.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the ACTUAL output for all five measurements with the command used for each: the `META_RECOGNIZED` membership test, the `AW-Run` trailer scan over the WHOLE history with its count and the total commit count it ran against, the `Run contract` grep over both drivers showing the per-file counts, the `HostSandboxCapabilities` field enumeration plus `mjx7ne`'s directory, and the `aw hooks install` attempt with its unpiped exit code. ALSO paste the NON-VACUITY control for the trailer scan (the same command with `Co-authored-by`, which must return nonzero), since three of the five verdicts rest on a zero and an unproven zero is indistinguishable from a broken command. State explicitly whether any entry moved since this plan was authored, and if so say so prominently as evidence for E-03.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL FIVE RE-MEASURED at HEAD `007d05e1951aaa8f484824d5236800d7ed4496f0` BEFORE any edit; verdicts and commands below.
+    All five re-measured at HEAD `007d05e1951aaa8f484824d5236800d7ed4496f0` BEFORE any edit. VERDICTS: item 1 STALE (as the plan predicted), item 2 HOLDS, item 3 HOLDS, item 4 STALE AND STRONGER (as the plan predicted), item 5 HOLDS. NO ENTRY MOVED since the plan was authored; all five verdicts match its authoring baseline, so there was no third decay in the enumeration itself. TWO NEIGHBORING PARAGRAPHS DID MOVE, which is reported under V-05 (Section 2.1, as the review predicted) and as DECISION 01-wenmg4-D3 (Section 4.2's finding-code paragraph, which the plan did NOT predict and which is the strongest fresh evidence for E-03's convention).
 
-- [ ] V-02 validates E-02
+    ITEM 1, `From-Spec` -> STALE, the paragraph's claim "absent from `ipd_schema.META_RECOGNIZED`" is FALSE:
+    ```
+    $ python3 -c "
+    from agent_workflows import ipd_schema
+    print('META_FROM_SPEC =', repr(ipd_schema.META_FROM_SPEC))
+    print('META_FROM_SPEC in META_RECOGNIZED ->', ipd_schema.META_FROM_SPEC in ipd_schema.META_RECOGNIZED)
+    "
+    META_FROM_SPEC = 'From-Spec'
+    META_FROM_SPEC in META_RECOGNIZED -> True
+    ```
+
+    ITEM 2, the `AW-Run:`/`AW-Item:` trailers -> HOLDS. Scanned the WHOLE history across all refs, not a window, so "never used" is distinguished from "not used lately":
+    ```
+    $ git log --all --format='%(trailers:key=AW-Run,valueonly)' | grep -c .
+    0
+    $ git rev-list --all --count
+    3764
+    $ git log --all --format='%(trailers:key=AW-Item,valueonly)' | grep -c .
+    0
+    ```
+    NON-VACUITY CONTROL, the identical command with a key that DOES exist, proving the scan reads trailers rather than silently returning nothing:
+    ```
+    $ git log --all --format='%(trailers:key=Co-authored-by,valueonly)' | grep -c .
+    22
+    ```
+    So 0 of 3764 commits carry an `AW-Run` trailer while the control returns 22. Note the count differs from the plan's `0 of 2936` only because the history has grown; the verdict is unchanged. The WRITER exists, which is why the spec's wording was sharpened rather than left at "UNWIRED":
+    ```
+    $ python3 -c "from agent_workflows import git_commit_helper as g; print('has run_item_trailers ->', hasattr(g,'run_item_trailers'))"
+    has run_item_trailers -> True
+    ```
+    And the owner of the wiring resolves: `.aw/records/plans/pending/20260908-runtrailwire-01-wao266-wire-the-run-ownership-trailers-the-runner-already-writes-no.ipd.md`, from backlog `.aw/records/backlog/graduated/20260830-scopeattrib-01-a8eufb-finalize-committed-half-ownership.backlog.md`.
+
+    ITEM 3, the prompt `Run contract` block -> HOLDS. Per-file counts with the paths shown, so a reader can see both files were actually read:
+    ```
+    $ grep -c 'Run contract' agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py
+    agent_workflows/oc_runipd.py:0
+    agent_workflows/agy_runipd.py:0
+    ```
+    NON-VACUITY CONTROL, the identical command with a string that DOES exist in both files:
+    ```
+    $ grep -c 'def main' agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py
+    agent_workflows/oc_runipd.py:1
+    agent_workflows/agy_runipd.py:1
+    ```
+
+    ITEM 4, the per-host capability descriptor -> STALE AND STRONGER THAN THE ITEM RECORDED. The descriptor EXISTS with 13 fields including all three runner-safety ones the item said "genuinely does not exist":
+    ```
+    $ python3 -c "
+    import dataclasses
+    from agent_workflows.host_sandbox_profile import HostSandboxCapabilities
+    f=[x.name for x in dataclasses.fields(HostSandboxCapabilities)]
+    print('field count =', len(f))
+    for n in f: print(' -', n)
+    "
+    field count = 13
+     - supports_inline_permissions
+     - supports_read_only_phase
+     - supports_session_resume
+     - emits_structured_tool_events
+     - emits_child_permission_events
+     - supports_process_tree_kill
+     - supports_os_sandbox
+     - supports_commit_gateway
+     - supports_deny_push
+     - supports_fresh_verifier_session
+     - platform
+     - sandbox_mechanism
+     - probe_notes
+    ```
+    `mjx7ne` HAS EXECUTED, which is what makes the item's "MISLEADING rather than false" reading obsolete:
+    ```
+    $ find .aw/records/plans -name '*mjx7ne*' -print
+    .aw/records/plans/executed/20260830-hostcap-01-mjx7ne-extend-the-shipped-sandbox-capability-contract-with-the-runn.ipd.md
+    ```
+    And the two declared-and-never-probed fields are documented as such in the owning module, which is why the amended entry names that explicitly:
+    ```
+    $ grep -n 'supports_commit_gateway\|supports_deny_push\|supports_fresh_verifier_session' agent_workflows/host_sandbox_profile.py
+    107:  * `supports_fresh_verifier_session` - PROBED by attempt. The probe runs the real
+    111:  * `supports_commit_gateway`, `supports_deny_push` - DECLARED AND NEVER PROBED, with the
+    226:    supports_commit_gateway: bool = False
+    227:    supports_deny_push: bool = False
+    228:    supports_fresh_verifier_session: bool = False
+    511:CAP_COMMIT_GATEWAY = "supports_commit_gateway"
+    512:CAP_DENY_PUSH = "supports_deny_push"
+    513:CAP_FRESH_VERIFIER_SESSION = "supports_fresh_verifier_session"
+    ```
+
+    ITEM 5, `aw hooks install` -> HOLDS. Exit code taken UNPIPED, and the failure text names the whole verb vocabulary, which is itself the proof that the noun is absent rather than the command being broken:
+    ```
+    $ aw hooks install >/dev/null 2>&1; echo "exit=$?"
+    exit=2
+    $ aw hooks install 2>&1 | head -3
+    usage: agent-workflows [-h] [--no-color | --color] [--agent] [--json] [-V]
+                           <command> ...
+    agent-workflows: error: argument <command>: invalid choice: 'hooks' (choose from 'install', 'setup', 'uninstall', 'list-repos', 'status', 'normalize-lanes', 'doctor', 'exclude', 'include', 'ipd', 'work', 'test', 'commit', 'finish', 'workflow', 'run', 'runs', 'research', 'reviews', 'host', 'context', 'path', 'layout', 'project', 'storage', 'config', 'conf', 'show', 'record-history', 'check', 'find', 'search', 'index', 'rename', 'group', 'set', 'migrate-layout', 'next', 'attention', 'att', 'todo', 'oc', 'opencode', 'agy', 'antigravity', 'pwatch', 'backlog', 'releases', 'release', 'specs', 'spec', 'prompts', 'adopt', 'archive', 'check-local-leaks', 'sanitize', 'ipd-executed-gate', 'ipd-status-untooled-gate', 'backlog-blocking-close-gate', 'ipd-dependency-statement-gate', 'precommit-scope-gate', 'prepush-authorization-gate', 'completion', '__complete')
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the amended paragraph in full. Confirm by quoting that `From-Spec` now sits in the shipped list and that the capability-descriptor entry says the descriptor EXISTS, must be extended not created, names `host_sandbox_profile.py`, and states that two fields are declared-and-never-probed. Paste proof the cited sha RESOLVES (`git log -1 <sha>`). Paste a diff showing items that still hold were NOT reworded except where E-01 supported sharpening item 2.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE AMENDED INFRASTRUCTURE PARAGRAPH, its four required properties confirmed by quotation, and every cited sha resolved.
+    THE AMENDED INFRASTRUCTURE PARAGRAPH IN FULL, as committed (spec `:44-64`):
+    ```
+    Infrastructure status (measured 2026-09-20 at `007d05e1`; corrected 2026-08-30 in `a59f2c53` and
+    again 2026-09-20 by plan `wenmg4`, because this paragraph originally declared ALL of the below
+    net-new and nonexistent, which would mislead a graduating Set into rebuilding shipped machinery).
+    PARTS ALREADY SHIPPED, which a graduating Set must CONSUME, not rebuild:
+    `Item-Dependencies` (the field, its grammar, and the shared graph predicate), the
+    `aw ipd dependencies` surface, and `aw runs`. These were graduated FROM this spec by the `ipddeps`
+    Set (`r7xku3`, `g69y23`, `ovbnyq`, `mp88bl`, all `executed`), whose plans cite this spec and its
+    sections 2.7-2.11 by name. ALSO SHIPPED SINCE THE 2026-08-30 CORRECTION: `From-Spec` is RECOGNIZED
+    (`ipd_schema.META_FROM_SPEC in META_RECOGNIZED` is True), landed with its dangling-link rule
+    `check.from-spec-dangling` in `8c437188` (merged `b0eb74e6`, 2026-08-30); and the PER-HOST CAPABILITY
+    DESCRIPTOR EXISTS and must be EXTENDED, NEVER CREATED - `host_sandbox_profile.HostSandboxCapabilities`
+    carries 13 fields including the three runner-safety ones (`supports_commit_gateway`,
+    `supports_deny_push`, `supports_fresh_verifier_session`) added by plan `mjx7ne` (`executed`), of which
+    `supports_commit_gateway` and `supports_deny_push` are DECLARED AND NEVER PROBED by deliberate
+    decision so they fail closed (`host_sandbox_profile.py:107-111`). Creating a parallel capability
+    module because this paragraph once called the descriptor net-new is the exact defect that destroyed
+    `a54m79`. STILL NET-NEW and to be built: the hash-chained run ledger's `AW-Run:`/`AW-Item:` commit
+    trailers (the ledger AND the writer are built - `git_commit_helper.run_item_trailers` formats them -
+    but NOTHING PASSES THEM: zero of 3764 commits across all refs carry an `AW-Run` trailer; plan `wao266`
+    from backlog `a8eufb` owns the wiring), the prompt `Run contract` block, and `aw hooks install` (no
+    such verb today; the top-level `hooks` noun does not resolve). This overlaps the agentadhere
+    policy-engine/atomic-command phases, the bklggrad `From-Backlog` work, and the runner rename.
+    Constraints honored: pre-release (no backward-compatibility shims or legacy aliases) and
+    design-against-roles (no dependence on current internal filenames).
+    ```
 
-- [ ] V-05 validates E-05
+    CONFIRMED BY QUOTATION, each of the four required properties:
+    1. `From-Spec` NOW SITS IN THE SHIPPED LIST, under a heading that names it as shipped: "ALSO SHIPPED SINCE THE 2026-08-30 CORRECTION: `From-Spec` is RECOGNIZED (`ipd_schema.META_FROM_SPEC in META_RECOGNIZED` is True), landed with its dangling-link rule `check.from-spec-dangling` in `8c437188`". It no longer appears anywhere in the "STILL NET-NEW" sentence.
+    2. THE DESCRIPTOR EXISTS AND MUST BE EXTENDED NOT CREATED: "the PER-HOST CAPABILITY DESCRIPTOR EXISTS and must be EXTENDED, NEVER CREATED".
+    3. IT NAMES THE OWNING MODULE: "`host_sandbox_profile.HostSandboxCapabilities`" and the citation "(`host_sandbox_profile.py:107-111`)".
+    4. IT STATES THE TWO DECLARED-AND-NEVER-PROBED FIELDS: "`supports_commit_gateway` and `supports_deny_push` are DECLARED AND NEVER PROBED by deliberate decision so they fail closed".
+
+    EVERY CITED SHA RESOLVES, verified before being written into the approved spec:
+    ```
+    $ for s in 8c437188 b0eb74e6 08aab7ed a59f2c5; do git log -1 --format='%H %ad %s' --date=short $s; done
+    8c4371888c0fd331fd7a40120417ef268484af83 2026-08-30 feat(schema,check): recognize From-Spec and flag dangling spec links
+    b0eb74e657291c06755a64ae7b592d978e1564ad 2026-08-30 Merge lane aw/lane/bmh754_attempt2: recognize From-Spec and flag dangling spec links
+    08aab7ed187c47804f0bd4a03af769acbb68a75f 2026-09-05 feat(runners): wire spec 2.1's run flag surface onto both hosts (uyeko5)
+    a59f2c536e2338fed9902e5e3a431b535aba8a5d 2026-08-30 spec(25kzda): correct two factual defects (stays approved, no design change)
+    ```
+
+    ITEMS THAT STILL HOLD WERE NOT REWORDED, except the one sharpening E-02 explicitly authorized. Items 3 (`Run contract` block) and 5 (`aw hooks install`) retain their original wording verbatim, with only the parenthetical for item 5 extended to state HOW it was measured ("the top-level `hooks` noun does not resolve"). Item 2 is the authorized sharpening: E-02 says to sharpen it "ONLY IF E-01 SUPPORTS IT", and E-01 did (the writer exists, nothing passes the trailers, `wao266` owns the wiring), so "the ledger is built but UNWIRED" became "the ledger AND the writer are built ... but NOTHING PASSES THEM: zero of 3764 commits across all refs carry an `AW-Run` trailer; plan `wao266` from backlog `a8eufb` owns the wiring". The overlap sentence and the "Constraints honored" sentence are byte-identical to HEAD.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the PARSER-DERIVED registration proof, not a grep: for each host, the `option_strings` of the `start` and `resume` subparsers showing `--allow-unverifiable` and `--unverifiable-ok` present (four rows total). Paste the amended clause in full and confirm by quoting that it no longer says those spellings grep to zero and that it cites `08aab7ed`. Paste proof that sha resolves. Confirm the clauses left standing were RE-MEASURED, with the output for each (`--json` absent from `start`/`resume`, `resume` still positional, `aw runs verify` and `aw oc prompt` exit codes taken unpiped). Paste a diff proving Section 2.1's own fenced grammar block is byte-identical, and paste `tests/test_run_flag_surface.py` passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PARSER-DERIVED registration proof for both hosts' `start` and `resume`, the amended clause, and the re-measured surviving clauses.
+    PARSER-DERIVED REGISTRATION PROOF, built by walking each host's real `start`/`resume` subparser `option_strings` rather than by grep, so a help-string hit cannot be mistaken for a registered flag. Four rows, as required:
+    ```
+    $ python3 - <<'PY'
+    import argparse, importlib
+    for mod, host in (("agent_workflows.oc_runipd","oc"), ("agent_workflows.agy_runipd","agy")):
+        m = importlib.import_module(mod)
+        p = m.build_parser()
+        subs = [a for a in p._actions if isinstance(a, argparse._SubParsersAction)]
+        for sa in subs:
+            for name, sp in sa.choices.items():
+                if name not in ("start","resume"): continue
+                opts = sorted({o for a in sp._actions for o in a.option_strings})
+                print(f"{host} {name}: unverifiable opts -> {[o for o in opts if 'unverifiable' in o]}")
+                print(f"{host} {name}: --json present -> {'--json' in opts}")
+    PY
+    oc start: unverifiable opts -> ['--allow-unverifiable', '--no-allow-unverifiable', '--no-unverifiable-ok', '--unverifiable-ok']
+    oc start: --json present -> False
+    oc resume: unverifiable opts -> ['--allow-unverifiable', '--no-allow-unverifiable', '--no-unverifiable-ok', '--unverifiable-ok']
+    oc resume: --json present -> False
+    agy start: unverifiable opts -> ['--allow-unverifiable', '--no-allow-unverifiable', '--no-unverifiable-ok', '--unverifiable-ok']
+    agy start: --json present -> False
+    agy resume: unverifiable opts -> ['--allow-unverifiable', '--no-allow-unverifiable', '--no-unverifiable-ok', '--unverifiable-ok']
+    agy resume: --json present -> False
+    ```
+    Both flags are declared `implemented=True` in `runner_shared.RunPolicyFlag` (`:6335-6357`), which is what makes them real rather than declared-and-unbuilt:
+    ```
+    $ grep -n 'allow-unverifiable\|unverifiable-ok' agent_workflows/runner_shared.py | head -6
+    6336:        flag="--allow-unverifiable",
+    6337:        dest="allow_unverifiable",
+    6343:            "verification stays 'unavailable'. This is the ADMISSION --unverifiable-ok requires; it "
+    6348:        flag="--unverifiable-ok",
+    6349:        dest="unverifiable_ok",
+    6355:            "code, without relabeling it verified. LEGAL ONLY with --allow-unverifiable (or the "
+    ```
+    And the interactive phrase exists in three SOURCE modules (`.pyc` matches excluded deliberately):
+    ```
+    $ grep -rn --include='*.py' 'run unverifiable' agent_workflows/ | cut -d: -f1 | sort | uniq -c
+          4 agent_workflows/run_evidence.py
+          2 agent_workflows/runner_shared.py
+          1 agent_workflows/run_selection_policy.py
+    ```
 
-- [ ] V-03 validates E-03
+    THE AMENDED CLAUSE IN FULL, as committed (spec `:84-103`):
+    ```
+    LIKEWISE, SEVERAL COMMANDS IN SECTION 2.1's GRAMMAR DO NOT EXIST as written (re-measured 2026-09-20
+    at `007d05e1`; first measured 2026-09-05): `--json` is registered on neither runner's `start` or
+    `resume` (it IS on `status`); `--resume <run-id>` ships as the POSITIONAL subcommand
+    `run resume <run-id>`, not a flag; the spelling `aw runs verify <run-id>` names no leaf at all (the
+    real leaf is `verify-ledger`; AMENDED 2026-09-08 by plan `7wei1o`: that spelling now REFUSES with exit
+    2 and a message naming the unresolved token and suggesting `verify-ledger`. It previously absorbed a
+    first token matching no leaf as a TARGET and, when that target resolved to nothing, dropped it and
+    EXITED 0 having verified nothing - backlog `6kq1lj`); and `aw <host> prompt`
+    does not exist (the nearest shipped surface is
+    `aw agy exec --prompt/--file`); both spellings exit 2. CORRECTED 2026-09-20 by plan `wenmg4`: this
+    paragraph previously claimed the interactive phrase `run unverifiable`, `--allow-unverifiable` and
+    `--unverifiable-ok` "all grep to zero", and ALL THREE NOW EXIST. `--allow-unverifiable` and
+    `--unverifiable-ok` are REGISTERED argparse options on the `start` AND `resume` subcommands of BOTH
+    hosts, declared `implemented=True` in `runner_shared.RunPolicyFlag` and owned by
+    `run_evidence.aggregate_run_exit`; the phrase `run unverifiable` occurs in three source modules. They
+    landed in `08aab7ed` (2026-09-05, "wire spec 2.1's run flag surface onto both hosts"), the SAME DAY
+    this paragraph was measured, which is exactly how a point-in-time snapshot decays. Six shipped
+    operator-facing recovery strings in `run_evidence.py` already transcribe the non-existent `--resume`
+    spelling verbatim; do not add more. Correct the grammar or the code deliberately, but do not treat
+    the spellings still listed above as available.
+    ```
+    CONFIRMED BY QUOTATION: the paragraph NO LONGER says those spellings grep to zero. The phrase "all grep to zero" now survives only inside an explicit past-tense retraction that attributes the old claim and contradicts it - "this paragraph previously claimed the interactive phrase `run unverifiable`, `--allow-unverifiable` and `--unverifiable-ok` \"all grep to zero\", and ALL THREE NOW EXIST" - and it CITES `08aab7ed`: "They landed in `08aab7ed` (2026-09-05, \"wire spec 2.1's run flag surface onto both hosts\")". The closing instruction was narrowed from "do not treat these spellings as available" to "do not treat the spellings still listed above as available", so it no longer sweeps in the three that now exist. That sha resolves (pasted under V-02).
+
+    THE CLAUSES LEFT STANDING WERE ALL RE-MEASURED, not assumed. `--json` is absent from `start` and `resume` on both hosts and IS on `status` (which is why the clause was sharpened rather than deleted), and `resume` is still a POSITIONAL subcommand rather than a flag:
+    ```
+    $ python3 - <<'PY'
+    ... (walks each host's subparsers)
+    PY
+    oc: subcommands -> ['audit', 'integrate', 'report', 'resume', 'start', 'status', 'stop']
+    oc: 'resume' is a positional subcommand -> True
+      oc start: '--resume' registered -> False; '--json' registered -> False
+      oc resume: '--resume' registered -> False; '--json' registered -> False
+      oc status: '--resume' registered -> False; '--json' registered -> True
+    agy: subcommands -> ['audit', 'integrate', 'report', 'resume', 'start', 'status', 'stop']
+    agy: 'resume' is a positional subcommand -> True
+      agy start: '--resume' registered -> False; '--json' registered -> False
+      agy resume: '--resume' registered -> False; '--json' registered -> False
+      agy status: '--resume' registered -> False; '--json' registered -> True
+    ```
+    Exit codes taken UNPIPED, as the plan requires:
+    ```
+    $ aw runs verify >/dev/null 2>&1; echo "exit=$?"
+    exit=2
+    $ aw oc prompt >/dev/null 2>&1; echo "exit=$?"
+    exit=2
+    $ aw agy prompt >/dev/null 2>&1; echo "exit=$?"
+    exit=2
+    ```
+
+    SECTION 2.1's OWN FENCED GRAMMAR BLOCK IS BYTE-IDENTICAL, proven by sha256 over everything from `## 1. Executive summary` through the history section (which contains Section 2.1 in its entirety), not merely by eye:
+    ```
+    $ python3 - <<'PY'
+    ... compares HEAD:<spec> against the working copy for the region '## 1. Executive summary' .. '## Workflow history'
+    PY
+    DESIGN BODY (## 1. .. ## Workflow history) byte-identical -> True
+      sha old: a1464ac171038ff5331a83342320fa490270f4051765edfac27d3adaa750eda7
+      sha new: a1464ac171038ff5331a83342320fa490270f4051765edfac27d3adaa750eda7
+    ```
+    The edit stayed entirely in the PREAMBLE (all diff hunks fall in lines 21-103, above `## 1.` which now begins at line 107), so the parser in `tests/test_run_flag_surface.py:115-120` cannot see it. That test file passes:
+    ```
+    $ python3 -m pytest tests/test_run_evidence_completion.py tests/test_run_flag_surface.py tests/test_run_selection_policy.py
+    ........................................................................ [ 83%]
+    ..........................................                               [100%]
+    259 passed in 8.66s
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: state which of the three options was implemented and paste the spec text implementing it. If the snapshot survives, quote the date, the commit and the re-verify instruction. If the enumeration was deleted, quote the replacement instruction to measure current state, and confirm in one sentence that the anti-duplication warning was preserved rather than dropped. Confirm the reasoning is recorded IN THE SPEC, not only in this plan. ALSO demonstrate the convention GOVERNS ALL FOUR point-in-time preamble paragraphs by quoting the governing sentence and showing each paragraph carries its own date under it, and confirm no test or check rule was added.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: OPTION (c) IMPLEMENTED, the point-in-time snapshot, with the convention stated once so it governs every dated preamble paragraph.
+    OPTION IMPLEMENTED: (c), THE EXPLICIT POINT-IN-TIME SNAPSHOT, which E-03 names as the defensible default. Recorded as DECISION 01-wenmg4-D2 with the evidence for rejecting (a) and (b). The enumeration SURVIVES, so the anti-duplication warning is preserved rather than dropped; this run's own measurements are the strongest evidence for keeping it, since two entries would have sent a graduating Set to duplicate shipped machinery.
 
-- [ ] V-04 validates E-04
+    THE SPEC TEXT IMPLEMENTING IT, placed at the HEAD of the preamble so it governs every dated paragraph rather than being attached to one (spec `:21-39`):
+    ```
+    EVERY DATED PARAGRAPH BELOW IS A POINT-IN-TIME SNAPSHOT, NOT A STANDING CLAIM, AND YOU MUST
+    RE-MEASURE BEFORE RELYING ON ANY OF IT. This convention governs the whole preamble: the three
+    paragraphs that follow (infrastructure status, Section 4.2's finding codes, and Section 2.1's command
+    grammar) each describe WHAT WAS SHIPPED ON THE DATE IT CARRIES, and each is stale from the moment the
+    next commit lands. Each therefore states its own measurement date and, where one exists, the commit
+    that moved it. A SET GRADUATING FROM THIS SPEC MUST MEASURE CURRENT STATE ITSELF and must not treat
+    any entry here as current; the entry tells you WHERE TO LOOK and WHAT THE ANSWER WAS, never what the
+    answer is. The convention is stated once, here, because it governs all three equally and a rule
+    attached to one paragraph while its neighbors decay is a fourth thing to maintain rather than a fix.
+    WHY THE SNAPSHOTS SURVIVE AT ALL, rather than being deleted in favor of "measure it yourself": their
+    function is to WARN, not to inform. This preamble's infrastructure paragraph was itself written as a
+    correction because the original text declared everything net-new and "would mislead a graduating Set
+    into rebuilding shipped machinery", and that duplication really happened once (`a54m79`). A reader who
+    re-measures loses nothing by their presence; a reader who would have rebuilt shipped machinery is
+    stopped by it. NOTHING ENFORCES THIS, which is the honest limit: no test and no `aw check` rule reads
+    these paragraphs, so their accuracy rests on whoever next touches them. The re-verify instruction is
+    the defeat mechanism for their staleness, deliberately in place of a gate. ALL THREE HAVE NOW BEEN
+    MEASURED STALE AT LEAST ONCE, which is the evidence for the convention rather than an argument against
+    it: the infrastructure paragraph has been corrected twice (2026-08-30, then 2026-09-20), and the
+    Section 2.1 and Section 4.2 paragraphs once each (both 2026-09-20, both found to be false by the same
+    re-measurement). So treat a date more than a few days old as probably wrong.
+    ```
+
+    THE RE-VERIFY INSTRUCTION, quoted: "EVERY DATED PARAGRAPH BELOW IS A POINT-IN-TIME SNAPSHOT, NOT A STANDING CLAIM, AND YOU MUST RE-MEASURE BEFORE RELYING ON ANY OF IT", reinforced by "A SET GRADUATING FROM THIS SPEC MUST MEASURE CURRENT STATE ITSELF and must not treat any entry here as current; the entry tells you WHERE TO LOOK and WHAT THE ANSWER WAS, never what the answer is". So the paragraph's own instruction defeats its staleness, which is what E-03 asks of option (c).
+
+    THE REASONING IS RECORDED IN THE SPEC, NOT ONLY IN THIS PLAN, so the next reader does not re-litigate it: the passage beginning "WHY THE SNAPSHOTS SURVIVE AT ALL, rather than being deleted in favor of \"measure it yourself\"" states the warn-not-inform rationale and cites `a54m79` as the duplication that actually happened, and the passage beginning "NOTHING ENFORCES THIS, which is the honest limit" records that no test or `aw check` rule reads these paragraphs and that the reader instruction is deliberately in place of a gate.
+
+    THE CONVENTION GOVERNS EVERY POINT-IN-TIME PARAGRAPH, and each carries its own date under it. NOTE A DISCREPANCY IN THIS PLAN, recorded rather than papered over: the plan says FOUR such paragraphs but names only THREE, and measurement finds exactly THREE. The preamble was parsed programmatically rather than eyeballed:
+    ```
+    $ python3 - <<'PY'   # paragraph-split everything above '## 1. Executive summary'
+    --- preamble paragraph 1: lines 1-1 ---      # H1 title
+    --- preamble paragraph 2: lines 3-14 ---     # metadata bullets
+    --- preamble paragraph 3: lines 16-19 ---    # 'load-bearing design' provenance, undated
+    --- preamble paragraph 4: lines 21-33 ---    Infrastructure status (corrected 2026-08-30 ...
+    --- preamble paragraph 5: lines 35-43 ---    READ SECTION 4.2's FINDING CODES ... (measured 2026-09-05)
+    --- preamble paragraph 6: lines 45-56 ---    LIKEWISE, SEVERAL COMMANDS IN SECTION 2.1's ... (measured 2026-09-05)
+    --- preamble paragraph 7: lines 58-58 ---    # the '---' rule
+    PY
+    $ # date markers in the preamble, confirming there is no fourth dated paragraph:
+      line 21: Infrastructure status (corrected 2026-08-30; ...
+      line 35: READ SECTION 4.2's FINDING CODES AS SPECIFICATION, NOT AS SHIPPED BEHAVIOR (measured 2026-09-05).
+      line 45: LIKEWISE, SEVERAL COMMANDS IN SECTION 2.1's GRAMMAR DO NOT EXIST as written (measured 2026-09-05):
+      line 48: real leaf is `verify-ledger`; AMENDED 2026-09-08 by plan `7wei1o`: ...   # INSIDE paragraph 6, not a 4th paragraph
+    ```
+    The fourth date marker is the `AMENDED 2026-09-08 by plan 7wei1o` clause INSIDE the Section 2.1 paragraph, not a separate paragraph, which is the likeliest origin of the plan's miscount. The governing sentence names all three explicitly ("the three paragraphs that follow (infrastructure status, Section 4.2's finding codes, and Section 2.1's command grammar)"), so its scope is checkable rather than implied, and each now opens with its own date:
+    ```
+    $ grep -n 'measured 2026\|corrected 2026' <spec> | head -4
+    22:RE-MEASURE BEFORE RELYING ON ANY OF IT. This convention governs the whole preamble: ...
+    44:Infrastructure status (measured 2026-09-20 at `007d05e1`; corrected 2026-08-30 in `a59f2c53` and
+    66:READ SECTION 4.2's FINDING CODES AS SPECIFICATION, NOT AS SHIPPED BEHAVIOR (re-measured 2026-09-20 at
+    84:LIKEWISE, SEVERAL COMMANDS IN SECTION 2.1's GRAMMAR DO NOT EXIST as written (re-measured 2026-09-20
+    ```
+    All three cite the measurement commit `007d05e1`, and the two that previously carried only `measured 2026-09-05` now carry both that first date and the re-measurement, so the decay is readable rather than overwritten.
+
+    NO TEST OR CHECK RULE WAS ADDED, which E-03 and the Deferred section both forbid. Proven two ways: the spec commits touch exactly one file each (`1 file changed` in both `1872e412` and `42236304`, the file being the spec), and the bare-suite failure-set delta is empty by node id with no new tests collected beyond ordinary drift (V-04). The spec states the prohibition's rationale itself ("NOTHING ENFORCES THIS, which is the honest limit"), so a later reader knows the absence of a gate is deliberate rather than an oversight.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the `aw specs note` command and its output. Paste the spec's `- Status:` line before and after, both `approved`. Paste a scoped `git diff` of the spec proving only the two preamble paragraphs and the history region changed, and confirm every byte-pinned region is byte-identical: Section 4.2's `RUN-*` table, Section 4.1's abort-class table, Section 2.1's fenced grammar block, and Section 2.5a's fenced blocks. Paste all THREE spec-reading test files passing (`tests/test_run_evidence_completion.py`, `tests/test_run_flag_surface.py`, `tests/test_run_selection_policy.py`), not only the `RUN_FINDING_CODES` case. Paste `aw check specs` before and after with its per-rule counts. THEN paste the BARE `python3 -m pytest` summary lines before and after AND the failing node ids from each, and state the failure-set delta BY NODE ID; a new node id on a spec-text edit means a pinned region was touched. Confirm the pre-existing `test_reporting_contract` failure is present in both runs and was not "fixed".
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: RECORDED VIA `aw specs note`; status unchanged at `approved`, every byte-pinned region byte-identical, bare-suite delta empty by node id.
+    THE TOOLED VERB WAS USED, not a hand-appended history line:
+    ```
+    $ aw specs note .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md --message "Factual-status correction of all three point-in-time preamble paragraphs by plan `wenmg4` ..."
+    aw specs note: appended a history record to .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
+    ```
+    IT REPORTED SUCCESS AND SILENTLY DESTROYED ALL FOUR PRE-EXISTING HISTORY RECORDS. This is a real defect in `aw specs note`, not a mistake in this execution, and it is filed as backlog `l23v3j` (`bug`, `Blocks-Release: next`) and recorded as DECISION 01-wenmg4-D4. Measured:
+    ```
+    $ git show HEAD:<spec> | sed -n '/^## Workflow history/,$p' | grep -c '^- 20'
+    4
+    $ sed -n '/^## Workflow history/,$p' <spec> | grep -c '^- 20'
+    1
+    ```
+    Reproduced minimally in a throwaway fixture (since removed), so the cause is not specific to this spec: a spec with three inline records retained ZERO after one `aw specs note` call. Cause at `specs.py:342-359` (`_append_history`), which REPLACES the section body (`new_section = ["", record]`) rather than appending, deliberately, deferring the full log to `.aw/records/history.jsonl`. That premise is false here: the sidecar is UNTRACKED (`git cat-file -e HEAD:.aw/records/history.jsonl` -> "exists on disk, but not in 'HEAD'") and contained exactly ONE record afterwards, mine, never the four. `aw specs set` shares the same helper and truncates identically (3 in, 0 preserved). ALL FOUR RECORDS WERE RESTORED VERBATIM from the starting HEAD and verified programmatically, so nothing was lost in the committed result:
+    ```
+    $ python3 - <<'PY'   # compares the working copy against 007d05e1
+    pre-existing history records preserved verbatim -> True (before=4, after=5)
+    new record added: - 2026-09-20 note (aw specs): Factual-status correction of all three point-in-time preambl
+    PY
+    ```
+
+    `- Status:` IS UNCHANGED AT `approved`, before and after, as required (an agent may not set a spec `approved` in any case):
+    ```
+    Status before: ['- Status: approved']
+    Status after:  ['- Status: approved']
+    ```
+
+    THE SCOPED DIFF SHOWS ONLY THE PREAMBLE AND THE HISTORY REGION CHANGED. Every hunk falls in the preamble (lines 21-103, where `## 1. Executive summary` now begins at line 107) except the final one, which is a pure single-line addition in the history section:
+    ```
+    $ git diff -U0 -- <spec> | grep '^@@'
+    @@ -21,3 +21,24 @@ IPD Set (or Sets) can be graduated from and reviewed against.
+    @@ -27,4 +48,14 @@ Set (`r7xku3`, `g69y23`, `ovbnyq`, `mp88bl`, all `executed`), whose plans cite t
+    @@ -35,8 +66,16 @@ design-against-roles (no dependence on current internal filenames).
+    @@ -45,2 +84,3 @@ shipped enforcer by symbol (for the IPD execution checks that is `ipd_lint` phas
+    @@ -51 +91 @@ first token matching no leaf as a TARGET and, when that target resolved to nothi
+    @@ -53,4 +93,11 @@ does not exist (the nearest shipped surface is
+    @@ -1341,0 +1389 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
+    $ git diff --stat 007d05e1..HEAD
+     ...3j-specs-note-destroys-prior-history.backlog.md | 26 ++++++
+     ...-01-aw-run-deterministic-run-and-verify.spec.md | 94 +++++++++++++++++-----
+     2 files changed, 98 insertions(+), 22 deletions(-)
+    ```
+    Note this plan amends THREE preamble paragraphs plus the new governing paragraph, not two: Section 4.2's finding-code paragraph was also measured false and is corrected under DECISION 01-wenmg4-D3.
+
+    EVERY BYTE-PINNED REGION IS BYTE-IDENTICAL, proven by sha256 over the whole region that contains all four of them rather than by inspecting each separately. All four pinned regions (Section 4.2's `RUN-*` table, Section 4.1's `#### Exhaustive ABORT RUN set` table, Section 2.1's fenced grammar block, Section 2.5a's fenced blocks) live between `## 1. Executive summary` and `## Workflow history`, and that entire span is unchanged versus the starting HEAD:
+    ```
+    $ python3 - <<'PY'   # region '## 1. Executive summary' .. '## Workflow history', vs 007d05e1
+    vs STARTING HEAD, design body byte-identical -> True
+      sha: a1464ac171038ff5331a83342320fa490270f4051765edfac27d3adaa750eda7 == a1464ac171038ff5331a83342320fa490270f4051765edfac27d3adaa750eda7
+    PY
+    ```
+    Independently, the preamble that WAS edited contains no fenced block and no table row at all, so none of the three parsers can see the edit:
+    ```
+    $ python3 - <<'PY'
+    '## 1. Executive summary' now at line 107
+    fenced blocks in preamble: 0
+    table rows in preamble: 0
+    PY
+    ```
+    ALL THREE SPEC-READING TEST FILES PASS:
+    ```
+    $ python3 -m pytest tests/test_run_evidence_completion.py tests/test_run_flag_surface.py tests/test_run_selection_policy.py
+    ........................................................................ [ 83%]
+    ..........................................                               [100%]
+    259 passed in 8.66s
+    ```
+
+    `aw check specs` BEFORE and AFTER, identical, with no new finding:
+    ```
+    BEFORE (with the edit stashed, isolating the pre-existing state):
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"specs","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"aw specs check"}
+    AFTER:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"specs","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"aw specs check"}
+    ```
+    Same outcome (`conforms`), same exit 0, same single finding, same rule. The one finding is `check.collisions-not-checked`, an artifact of running a per-type check rather than a repo-wide one; it was proven pre-existing by re-running with my edit stashed, and it is not mine.
+
+    BARE `python3 -m pytest` BEFORE AND AFTER, with the failing node ids from each and the delta by node id.
+    ```
+    BEFORE (at 007d05e1, before any edit):
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    1 failed, 7597 passed, 3 skipped, 2 xfailed, 3 warnings in 130.77s (0:02:10)
+
+    AFTER (at 638a8b82, both spec edits and the backlog item committed):
+    FAILED tests/test_turn_bounds.py::TestArmedForEveryUnattendedTurn::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    1 failed, 7597 passed, 3 skipped, 2 xfailed, 3 warnings in 99.32s (0:01:39)
+
+    $ comm -13 <(sorted BEFORE FAILED lines) <(sorted AFTER FAILED lines)
+    (empty)
+    ```
+    FAILURE-SET DELTA BY NODE ID IS EMPTY: the same single node fails before and after, and no new node id appeared, which is the criterion for a spec-text edit having touched no pinned region. Counts are identical too (7597 passed both runs).
+
+    THE PLAN'S PREDICTED BASELINE FAILURE DOES NOT OCCUR IN THIS LANE, and the real one is different. Recorded as DECISION 01-wenmg4-D5 rather than silently substituted. The plan expects `1 failed, 5958 passed` failing at `tests/test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose`, caused by a gitignored `opencode-recovery/` tree. In this worktree that tree DOES NOT EXIST (`ls -d opencode-recovery` -> "No such file or directory") and that test file PASSES:
+    ```
+    $ python3 -m pytest tests/test_reporting_contract.py
+    45 passed in 10.76s
+    ```
+    So the `test_reporting_contract` failure is NOT present in either run, and there was nothing to "fix" or refrain from fixing; the plan's instruction not to touch another party's `opencode-recovery/` tree was moot here and no such tree was touched. The actual failure is environmental and is NOT caused by this plan: the test asserts a non-isolated turn receives no permission-denial policy, and it fails because `OPENCODE_CONFIG_CONTENT` is present in this lane's ambient environment (this turn is itself a contained worker). Proven by running the identical node with that variable unset:
+    ```
+    $ python3 -m pytest tests/test_turn_bounds.py::...::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    1 failed
+    $ env -u OPENCODE_CONFIG_CONTENT python3 -m pytest tests/test_turn_bounds.py::...::test_the_permission_policy_by_contrast_IS_isolation_scoped
+    1 passed
+    ```
+    It is pre-existing with respect to this plan (it fails at the untouched starting HEAD), it is not mine to fix, and it was not fixed or masked; the suite was run BARE in both directions as the contract requires. Reported as a finding in the outcome JSON.
+
+    ALSO CLEAN: `aw sanitize --agent` reports zero findings and exit 0, and the spec contains no em or en dash (`grep -c '—\|–'` -> 0).
+  - Result: pass
 
 ## Approval and execution gate
 
