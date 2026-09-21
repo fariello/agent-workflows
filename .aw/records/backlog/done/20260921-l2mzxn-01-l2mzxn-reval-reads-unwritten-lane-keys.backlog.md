@@ -1,12 +1,12 @@
 - Id: l2mzxn
-- Status: open
-- Blocks-Release: next
+- Status: done
 - Set: l2mzxn
 - Priority: high
 - Work-Kind: bug
 - Summary: make_integration_validation_runner reads lane base/head from item keys that a first attempt never has, so the post-merge revalidation gate refuses every isolated item as merge-conflict without running the suite
 
 ## Workflow history
+- 2026-09-21 done (aw set): FIXED in 3324d339. resolve_lane_endpoints() now reads the lane from attempt['worktree_base']/['worktree_branch'] (present during the turn, which is when the gate asks) and keeps the preserved_* fields as the fallback for a later caller. Two tests added in tests/test_suite_adjudication.py: one built from the actual first-attempt call-site shape, proven falsifiable against the pre-fix resolution (fails with 'AssertionError: False is not true'), asserting the suite actually RUNS rather than only that the verdict is True; one pinning the attempt-over-preserved precedence. Suite 7993 passed, 3 skipped, 2 xfailed (baseline 7991 passed, same 0 failures, delta is the two new tests). The three lanes the defect stranded (i1hlgx, k9awrq, quqyc4) were merged first; the combined tree measured 7991 passed, confirming the 'combined-red' refusal was false. De-gated rather than handed off: the bug is fixed in-tree, so it no longer gates the release. TWO RESIDUAL ITEMS DELIBERATELY NOT FIXED HERE, since both are judgement calls about the ladder's vocabulary rather than this resolution defect: the ladder treats this refusal class as terminal on first attempt, so an unresolvable-endpoints refusal is never retried even though a retry would now succeed; and 'merge-conflict' remains the operator-facing label for a refusal involving no git conflict, which is what made this take a full diagnosis to identify. File those separately if they should change.
 - 2026-09-21 created (aw backlog): MEASURED 2026-09-21 diagnosing run-20260921T105933Z-1994623, where items i1hlgx, k9awrq and quqyc4 each finished 'merge-conflict' after a full successful agent turn.
 
 NOT A GIT CONFLICT. All three lane branches merge cleanly into main: 'git merge-tree --write-tree main aw/lane/<id6>_attempt2' exits 0 with no conflict for each. The status is the integration ladder's label for a fail-closed refusal class, and the actual refusal recorded in state.json is post_merge_revalidation.reason = "the lane's base/head could not be resolved from run state (repo=True, base=False, head=False), so the merge result cannot be built; refusing (fail-closed)".
